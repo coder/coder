@@ -15,6 +15,7 @@ type sqlcQuerier interface {
 	// Set the lease to expire according to the provided timeout.  If there is
 	// already a lease, an exception is raised.
 	AcquireExternalAuthLinkRefreshLease(ctx context.Context, arg AcquireExternalAuthLinkRefreshLeaseParams) (ExternalAuthLink, error)
+	AcquireGitHubRunnerPoolLease(ctx context.Context, arg AcquireGitHubRunnerPoolLeaseParams) (uuid.UUID, error)
 	// Blocks until the lock is acquired.
 	//
 	// This must be called from within a transaction. The lock will be automatically
@@ -87,6 +88,7 @@ type sqlcQuerier interface {
 	// Calculates the telemetry summary for a given provider, model, and client
 	// combination for telemetry reporting.
 	CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Context, arg CalculateAIBridgeInterceptionsTelemetrySummaryParams) (CalculateAIBridgeInterceptionsTelemetrySummaryRow, error)
+	CancelGitHubRunnerWorkspaceBuild(ctx context.Context, arg CancelGitHubRunnerWorkspaceBuildParams) error
 	ClaimPrebuiltWorkspace(ctx context.Context, arg ClaimPrebuiltWorkspaceParams) (ClaimPrebuiltWorkspaceRow, error)
 	CleanTailnetCoordinators(ctx context.Context) error
 	CleanTailnetLostPeers(ctx context.Context) error
@@ -690,6 +692,10 @@ type sqlcQuerier interface {
 	// param limit_opt: The limit of notifications to fetch. If the limit is not specified, it defaults to 25
 	GetFilteredInboxNotificationsByUserID(ctx context.Context, arg GetFilteredInboxNotificationsByUserIDParams) ([]InboxNotification, error)
 	GetForcedMCPServerConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]MCPServerConfig, error)
+	GetGitHubRunnerByID(ctx context.Context, id uuid.UUID) (GithubRunner, error)
+	GetGitHubRunnerPoolByID(ctx context.Context, id uuid.UUID) (GithubRunnerPool, error)
+	GetGitHubRunnerPools(ctx context.Context, organizationID uuid.UUID) ([]GithubRunnerPool, error)
+	GetGitHubRunnersByPoolID(ctx context.Context, poolID uuid.UUID) ([]GithubRunner, error)
 	GetGitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSHKey, error)
 	GetGroupAIBudget(ctx context.Context, groupID uuid.UUID) (GroupAIBudget, error)
 	GetGroupByID(ctx context.Context, id uuid.UUID) (Group, error)
@@ -1260,6 +1266,8 @@ type sqlcQuerier interface {
 	InsertDeploymentID(ctx context.Context, value string) error
 	InsertExternalAuthLink(ctx context.Context, arg InsertExternalAuthLinkParams) (ExternalAuthLink, error)
 	InsertFile(ctx context.Context, arg InsertFileParams) (File, error)
+	InsertGitHubRunner(ctx context.Context, arg InsertGitHubRunnerParams) (GithubRunner, error)
+	InsertGitHubRunnerPool(ctx context.Context, arg InsertGitHubRunnerPoolParams) (GithubRunnerPool, error)
 	InsertGitSSHKey(ctx context.Context, arg InsertGitSSHKeyParams) (GitSSHKey, error)
 	InsertGroup(ctx context.Context, arg InsertGroupParams) (Group, error)
 	InsertGroupMember(ctx context.Context, arg InsertGroupMemberParams) error
@@ -1482,6 +1490,7 @@ type sqlcQuerier interface {
 	ReindexStaleChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error)
 	// The lease is only removed if it is the current lease.
 	ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg ReleaseExternalAuthLinkRefreshLeaseParams) error
+	ReleaseGitHubRunnerPoolLease(ctx context.Context, arg ReleaseGitHubRunnerPoolLeaseParams) error
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
 	// Renews (chat_id, runner_id) leases that are still fresh and still own
 	// their chat, and returns the renewed pairs. A stale lease is never
@@ -1651,6 +1660,7 @@ type sqlcQuerier interface {
 	// rows in place.
 	UpdateEncryptedAIProviderSettings(ctx context.Context, arg UpdateEncryptedAIProviderSettingsParams) (AIProvider, error)
 	UpdateEncryptedChatMCPServerHeaders(ctx context.Context, arg UpdateEncryptedChatMCPServerHeadersParams) error
+	UpdateEncryptedGitHubRunnerPoolToken(ctx context.Context, arg UpdateEncryptedGitHubRunnerPoolTokenParams) (GithubRunnerPool, error)
 	UpdateEncryptedUserAIProviderKey(ctx context.Context, arg UpdateEncryptedUserAIProviderKeyParams) (UserAIProviderKey, error)
 	// Updates only the encrypted columns on a row. Used by the dbcrypt key
 	// rotation utility to re-encrypt or decrypt rows in place.
@@ -1659,6 +1669,9 @@ type sqlcQuerier interface {
 	UpdateEncryptedWorkspaceSecretValue(ctx context.Context, arg UpdateEncryptedWorkspaceSecretValueParams) (WorkspaceSecret, error)
 	// If a refresh lease is provided, the row is only updated if the lease matches.
 	UpdateExternalAuthLink(ctx context.Context, arg UpdateExternalAuthLinkParams) (ExternalAuthLink, error)
+	UpdateGitHubRunner(ctx context.Context, arg UpdateGitHubRunnerParams) (GithubRunner, error)
+	UpdateGitHubRunnerPool(ctx context.Context, arg UpdateGitHubRunnerPoolParams) (GithubRunnerPool, error)
+	UpdateGitHubRunnerPoolStatus(ctx context.Context, arg UpdateGitHubRunnerPoolStatusParams) error
 	UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyParams) (GitSSHKey, error)
 	UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDParams) (Group, error)
 	UpdateInactiveUsersToDormant(ctx context.Context, arg UpdateInactiveUsersToDormantParams) ([]UpdateInactiveUsersToDormantRow, error)

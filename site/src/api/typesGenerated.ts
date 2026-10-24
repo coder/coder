@@ -805,6 +805,11 @@ export type APIKeyScope =
 	| "file:*"
 	| "file:create"
 	| "file:read"
+	| "github_runner_pool:*"
+	| "github_runner_pool:create"
+	| "github_runner_pool:delete"
+	| "github_runner_pool:read"
+	| "github_runner_pool:update"
 	| "group:*"
 	| "group:create"
 	| "group:delete"
@@ -1073,6 +1078,11 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"file:*",
 	"file:create",
 	"file:read",
+	"github_runner_pool:*",
+	"github_runner_pool:create",
+	"github_runner_pool:delete",
+	"github_runner_pool:read",
+	"github_runner_pool:update",
 	"group:*",
 	"group:create",
 	"group:delete",
@@ -4451,6 +4461,23 @@ export interface CreateFirstUserTrialInfo {
 	readonly developers: string;
 }
 
+// From codersdk/githubrunners.go
+/**
+ * CreateGitHubRunnerPoolRequest configures a polling-based runner pool.
+ * GitHubToken is write-only and is never delivered to a workspace.
+ */
+export interface CreateGitHubRunnerPoolRequest {
+	readonly name: string;
+	readonly template_id: string;
+	readonly owner_id: string;
+	readonly github_config_url: string;
+	readonly github_token: string;
+	readonly runner_group_id: number;
+	readonly max_runners: number;
+	readonly startup_timeout_seconds: number;
+	readonly job_timeout_seconds: number;
+}
+
 // From codersdk/groups.go
 export interface CreateGroupRequest {
 	readonly name: string;
@@ -6058,6 +6085,48 @@ export interface GetUserStatusCountsResponse {
 export interface GetUsersResponse {
 	readonly users: readonly User[];
 	readonly count: number;
+}
+
+// From codersdk/githubrunners.go
+/**
+ * GitHubRunner associates one disposable workspace with a GitHub runner.
+ */
+export interface GitHubRunner {
+	readonly id: string;
+	readonly pool_id: string;
+	readonly organization_id: string;
+	readonly workspace_id: string;
+	readonly name: string;
+	readonly github_runner_id: number;
+	readonly state: string;
+	readonly job_request_id: number;
+	readonly job_result: string;
+	readonly last_error: string;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/githubrunners.go
+/**
+ * GitHubRunnerPool manages ephemeral GitHub Actions runners in workspaces.
+ */
+export interface GitHubRunnerPool {
+	readonly id: string;
+	readonly organization_id: string;
+	readonly owner_id: string;
+	readonly template_id: string;
+	readonly name: string;
+	readonly github_config_url: string;
+	readonly runner_group_id: number;
+	readonly scale_set_id: number;
+	readonly max_runners: number;
+	readonly state: string;
+	readonly startup_timeout_seconds: number;
+	readonly job_timeout_seconds: number;
+	readonly assigned_jobs: number;
+	readonly last_error: string;
+	readonly created_at: string;
+	readonly updated_at: string;
 }
 
 // From codersdk/gitsshkey.go
@@ -8961,6 +9030,7 @@ export type RBACResource =
 	| "deployment_config"
 	| "deployment_stats"
 	| "file"
+	| "github_runner_pool"
 	| "group"
 	| "group_member"
 	| "idpsync_settings"
@@ -9019,6 +9089,7 @@ export const RBACResources: RBACResource[] = [
 	"deployment_config",
 	"deployment_stats",
 	"file",
+	"github_runner_pool",
 	"group",
 	"group_member",
 	"idpsync_settings",
@@ -9179,6 +9250,7 @@ export type ResourceType =
 	| "convert_login"
 	| "custom_role"
 	| "experiment_rule"
+	| "github_runner_pool"
 	| "git_ssh_key"
 	| "group"
 	| "group_ai_budget"
@@ -9229,6 +9301,7 @@ export const ResourceTypes: ResourceType[] = [
 	"convert_login",
 	"custom_role",
 	"experiment_rule",
+	"github_runner_pool",
 	"git_ssh_key",
 	"group",
 	"group_ai_budget",
@@ -10972,6 +11045,15 @@ export interface UpdateCheckResponse {
 	 * URL to download the latest release of Coder.
 	 */
 	readonly url: string;
+}
+
+// From codersdk/githubrunners.go
+/**
+ * UpdateGitHubRunnerPoolRequest changes capacity or pauses/drains a pool.
+ */
+export interface UpdateGitHubRunnerPoolRequest {
+	readonly state?: string;
+	readonly max_runners?: number;
 }
 
 // From healthsdk/healthsdk.go

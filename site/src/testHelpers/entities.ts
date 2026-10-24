@@ -3575,6 +3575,10 @@ export const MockNoPermissions: Permissions = {
 };
 
 export const MockOrganizationPermissions: OrganizationPermissions = {
+	viewGitHubRunnerPools: true,
+	createGitHubRunnerPool: true,
+	updateGitHubRunnerPool: true,
+	deleteGitHubRunnerPool: true,
 	viewMembers: true,
 	editMembers: true,
 	createGroup: true,
@@ -3609,6 +3613,10 @@ export const MockOrganizationPermissions: OrganizationPermissions = {
 };
 
 export const MockNoOrganizationPermissions: OrganizationPermissions = {
+	viewGitHubRunnerPools: false,
+	createGitHubRunnerPool: false,
+	updateGitHubRunnerPool: false,
+	deleteGitHubRunnerPool: false,
 	viewMembers: false,
 	editMembers: false,
 	createGroup: false,
@@ -3640,6 +3648,40 @@ export const MockNoOrganizationPermissions: OrganizationPermissions = {
 	editChatModelConfigs: false,
 	deleteChatModelConfigs: false,
 	shareChatModelConfigs: false,
+};
+
+export const MockGitHubRunnerPool: TypesGen.GitHubRunnerPool = {
+	id: "6e12d6fa-13c7-49a0-91b4-931c003216af",
+	organization_id: MockDefaultOrganization.id,
+	owner_id: MockUserOwner.id,
+	template_id: MockTemplate.id,
+	name: "coder-linux-small",
+	github_config_url: "https://github.com/coder/runner-test",
+	runner_group_id: 1,
+	scale_set_id: 1,
+	max_runners: 2,
+	state: "active",
+	startup_timeout_seconds: 600,
+	job_timeout_seconds: 21600,
+	assigned_jobs: 1,
+	last_error: "",
+	created_at: "2026-10-24T08:00:00Z",
+	updated_at: "2026-10-24T08:00:00Z",
+};
+
+export const MockGitHubRunner: TypesGen.GitHubRunner = {
+	id: "1906c5db-c55a-4b49-9388-129916d1e254",
+	pool_id: MockGitHubRunnerPool.id,
+	organization_id: MockDefaultOrganization.id,
+	workspace_id: "603b8ce6-8324-444c-936d-44853b26784d",
+	name: "gha-1906c5dbc55a4b499388129916d1",
+	github_runner_id: 2,
+	state: "busy",
+	job_request_id: 123,
+	job_result: "",
+	last_error: "",
+	created_at: "2026-10-24T08:00:00Z",
+	updated_at: "2026-10-24T08:00:00Z",
 };
 
 export const MockDeploymentConfig: DeploymentConfig = {

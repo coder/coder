@@ -18,6 +18,7 @@ import (
 // AuditableResources map (below) as our documentation - generated in scripts/auditdocgen/main.go -
 // depends upon it.
 var AuditActionMap = map[string][]codersdk.AuditAction{
+	"GithubRunnerPool":                 {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"GitSSHKey":                        {codersdk.AuditActionCreate},
 	"Template":                         {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"TemplateVersion":                  {codersdk.AuditActionCreate, codersdk.AuditActionWrite},
@@ -72,6 +73,28 @@ type Table map[string]map[string]Action
 var AuditableResources = auditMap(auditableResourcesTypes)
 
 var auditableResourcesTypes = map[any]map[string]Action{
+	&database.GithubRunnerPool{}: {
+		"id":                      ActionTrack,
+		"organization_id":         ActionTrack,
+		"owner_id":                ActionTrack,
+		"template_id":             ActionTrack,
+		"name":                    ActionTrack,
+		"github_config_url":       ActionTrack,
+		"github_token":            ActionSecret,
+		"github_token_key_id":     ActionIgnore,
+		"runner_group_id":         ActionTrack,
+		"scale_set_id":            ActionTrack,
+		"max_runners":             ActionTrack,
+		"state":                   ActionTrack,
+		"startup_timeout_seconds": ActionTrack,
+		"job_timeout_seconds":     ActionTrack,
+		"assigned_jobs":           ActionIgnore,
+		"last_error":              ActionIgnore,
+		"lease_owner":             ActionIgnore,
+		"lease_expires_at":        ActionIgnore,
+		"created_at":              ActionIgnore,
+		"updated_at":              ActionIgnore,
+	},
 	&database.AuditableOrganizationMember{}: {
 		"username":        ActionTrack,
 		"user_id":         ActionTrack,

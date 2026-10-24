@@ -332,16 +332,21 @@ export const permittedOrganizations = (check: AuthorizationCheck) => {
  */
 const organizationsPermissionsKey = ["organizations"] as const;
 
+/** Normalizes organization order so navigation and settings share permission data. */
+export const getOrganizationsPermissionsKey = (
+	organizationIds: readonly string[],
+) => [
+	...organizationsPermissionsKey,
+	organizationIds.toSorted(),
+	"permissions",
+];
+
 export const organizationsPermissions = (
 	organizationIds: string[] | undefined,
 ) => {
 	return {
 		enabled: Boolean(organizationIds),
-		queryKey: [
-			...organizationsPermissionsKey,
-			[...(organizationIds ?? []).sort()],
-			"permissions",
-		],
+		queryKey: getOrganizationsPermissionsKey(organizationIds ?? []),
 		queryFn: async () => {
 			// Only request what we need for the sidebar, which is one edit permission
 			// per sub-link (settings, groups, roles, and members pages) that tells us

@@ -23,6 +23,7 @@ const renderDashboardLayout = async ({
 	limit,
 	permissions = MockPermissions,
 	organizationChecks = false,
+	runnerPoolChecks = false,
 	warnings,
 	children = [{ element: <h1>Test page</h1> }],
 }: {
@@ -33,6 +34,7 @@ const renderDashboardLayout = async ({
 	permissions?: typeof MockPermissions;
 	/** Answer for authorization checks keyed by organization id. */
 	organizationChecks?: boolean;
+	runnerPoolChecks?: boolean;
 	warnings?: string[];
 	children?: RouteObject[];
 }) => {
@@ -64,6 +66,22 @@ const renderDashboardLayout = async ({
 			"/api/v2/authcheck",
 			async ({ request }) => {
 				const { checks } = await request.json();
+				if (
+					Object.keys(checks).some((key) =>
+						key.startsWith(`${MockDefaultOrganization.id}.`),
+					)
+				) {
+					return HttpResponse.json(
+						Object.fromEntries(
+							Object.entries(checks).map(([key, check]) => [
+								key,
+								check.object.resource_type === "github_runner_pool"
+									? runnerPoolChecks
+									: organizationChecks,
+							]),
+						),
+					);
+				}
 				return HttpResponse.json(
 					MockDefaultOrganization.id in checks
 						? Object.fromEntries(
@@ -157,6 +175,20 @@ test("renders a skip link before navigation content", async () => {
 		skipToContentLink.compareDocumentPosition(navigation) &
 			Node.DOCUMENT_POSITION_FOLLOWING,
 	).toBeTruthy();
+});
+
+test("navigates a runner pool reader to GitHub runners from Admin settings", async () => {
+	const { router } = await renderDashboardLayout({
+		permissions: MockNoPermissions,
+		runnerPoolChecks: true,
+		children: [{ path: "/github-runners", element: <h1>GitHub runners</h1> }],
+	});
+	const user = userEvent.setup();
+	await user.click(
+		await screen.findByRole("button", { name: "Admin settings" }),
+	);
+	await user.click(screen.getByRole("menuitem", { name: "GitHub runners" }));
+	expect(router.state.location.pathname).toBe("/github-runners");
 });
 
 test("moves focus to main content when skip link is clicked", async () => {

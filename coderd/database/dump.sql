@@ -306,7 +306,12 @@ CREATE TYPE api_key_scope AS ENUM (
     'workspace_secret:create',
     'workspace_secret:read',
     'workspace_secret:read_secret',
-    'workspace_secret:update'
+    'workspace_secret:update',
+    'github_runner_pool:*',
+    'github_runner_pool:create',
+    'github_runner_pool:delete',
+    'github_runner_pool:read',
+    'github_runner_pool:update'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -651,7 +656,8 @@ CREATE TYPE resource_type AS ENUM (
     'chat_organization_system_prompt',
     'chat_project_instructions',
     'organization_skill',
-    'chat_project_skill'
+    'chat_project_skill',
+    'github_runner_pool'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -2720,6 +2726,49 @@ CREATE TABLE files (
     id uuid DEFAULT gen_random_uuid() NOT NULL
 );
 
+CREATE TABLE github_runner_pools (
+    id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    owner_id uuid NOT NULL,
+    template_id uuid NOT NULL,
+    name text NOT NULL,
+    github_config_url text NOT NULL,
+    github_token text NOT NULL,
+    github_token_key_id text,
+    runner_group_id bigint DEFAULT 1 NOT NULL,
+    scale_set_id bigint DEFAULT 0 NOT NULL,
+    max_runners integer NOT NULL,
+    state text DEFAULT 'active'::text NOT NULL,
+    startup_timeout_seconds integer DEFAULT 600 NOT NULL,
+    job_timeout_seconds integer DEFAULT 21600 NOT NULL,
+    assigned_jobs integer DEFAULT 0 NOT NULL,
+    last_error text DEFAULT ''::text NOT NULL,
+    lease_owner uuid,
+    lease_expires_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT github_runner_pools_job_timeout_seconds_check CHECK (((job_timeout_seconds >= 60) AND (job_timeout_seconds <= 86400))),
+    CONSTRAINT github_runner_pools_max_runners_check CHECK (((max_runners >= 1) AND (max_runners <= 1000))),
+    CONSTRAINT github_runner_pools_startup_timeout_seconds_check CHECK (((startup_timeout_seconds >= 60) AND (startup_timeout_seconds <= 3600))),
+    CONSTRAINT github_runner_pools_state_check CHECK ((state = ANY (ARRAY['active'::text, 'paused'::text, 'draining'::text, 'deleted'::text])))
+);
+
+CREATE TABLE github_runners (
+    id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    pool_id uuid NOT NULL,
+    workspace_id uuid,
+    name text NOT NULL,
+    github_runner_id bigint DEFAULT 0 NOT NULL,
+    state text DEFAULT 'pending'::text NOT NULL,
+    job_request_id bigint DEFAULT 0 NOT NULL,
+    job_result text DEFAULT ''::text NOT NULL,
+    last_error text DEFAULT ''::text NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT github_runners_state_check CHECK ((state = ANY (ARRAY['pending'::text, 'provisioning'::text, 'idle'::text, 'busy'::text, 'finishing'::text, 'deleting'::text, 'deleted'::text])))
+);
+
 CREATE TABLE gitsshkeys (
     user_id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -4711,6 +4760,21 @@ ALTER TABLE ONLY files
 ALTER TABLE ONLY external_auth_links
     ADD CONSTRAINT git_auth_links_provider_id_user_id_key UNIQUE (provider_id, user_id);
 
+ALTER TABLE ONLY github_runner_pools
+    ADD CONSTRAINT github_runner_pools_id_organization_id_key UNIQUE (id, organization_id);
+
+ALTER TABLE ONLY github_runner_pools
+    ADD CONSTRAINT github_runner_pools_organization_id_name_key UNIQUE (organization_id, name);
+
+ALTER TABLE ONLY github_runner_pools
+    ADD CONSTRAINT github_runner_pools_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY github_runners
+    ADD CONSTRAINT github_runners_name_key UNIQUE (name);
+
+ALTER TABLE ONLY github_runners
+    ADD CONSTRAINT github_runners_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY gitsshkeys
     ADD CONSTRAINT gitsshkeys_pkey PRIMARY KEY (user_id);
 
@@ -5029,6 +5093,12 @@ CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
 COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys queries filtering by last_used';
 
 CREATE INDEX chat_heartbeats_heartbeat_at_idx ON chat_heartbeats USING btree (heartbeat_at);
+
+CREATE UNIQUE INDEX github_runner_pools_github_identity ON github_runner_pools USING btree (github_config_url, runner_group_id, name) WHERE (state <> 'deleted'::text);
+
+CREATE INDEX github_runners_pool_id ON github_runners USING btree (pool_id);
+
+CREATE UNIQUE INDEX github_runners_workspace_id ON github_runners USING btree (workspace_id) WHERE (workspace_id IS NOT NULL);
 
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
@@ -5667,6 +5737,24 @@ ALTER TABLE ONLY external_auth_links
 
 ALTER TABLE ONLY external_auth_links
     ADD CONSTRAINT git_auth_links_oauth_refresh_token_key_id_fkey FOREIGN KEY (oauth_refresh_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY github_runner_pools
+    ADD CONSTRAINT github_runner_pools_github_token_key_id_fkey FOREIGN KEY (github_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY github_runner_pools
+    ADD CONSTRAINT github_runner_pools_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id);
+
+ALTER TABLE ONLY github_runner_pools
+    ADD CONSTRAINT github_runner_pools_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id);
+
+ALTER TABLE ONLY github_runner_pools
+    ADD CONSTRAINT github_runner_pools_template_id_fkey FOREIGN KEY (template_id) REFERENCES templates(id);
+
+ALTER TABLE ONLY github_runners
+    ADD CONSTRAINT github_runners_pool_id_organization_id_fkey FOREIGN KEY (pool_id, organization_id) REFERENCES github_runner_pools(id, organization_id);
+
+ALTER TABLE ONLY github_runners
+    ADD CONSTRAINT github_runners_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id);
 
 ALTER TABLE ONLY gitsshkeys
     ADD CONSTRAINT gitsshkeys_private_key_key_id_fkey FOREIGN KEY (private_key_key_id) REFERENCES dbcrypt_keys(active_key_digest);

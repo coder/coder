@@ -61,6 +61,11 @@ const (
 	CheckUsersUsernameMinLength                              CheckConstraint = "users_username_min_length"                                 // users
 	CheckConnectionLogsClientSessionIDCheck                  CheckConstraint = "connection_logs_client_session_id_check"                   // connection_logs
 	CheckOrganizationIDNotZero                               CheckConstraint = "organization_id_not_zero"                                  // custom_roles
+	CheckGithubRunnerPoolsJobTimeoutSecondsCheck             CheckConstraint = "github_runner_pools_job_timeout_seconds_check"             // github_runner_pools
+	CheckGithubRunnerPoolsMaxRunnersCheck                    CheckConstraint = "github_runner_pools_max_runners_check"                     // github_runner_pools
+	CheckGithubRunnerPoolsStartupTimeoutSecondsCheck         CheckConstraint = "github_runner_pools_startup_timeout_seconds_check"         // github_runner_pools
+	CheckGithubRunnerPoolsStateCheck                         CheckConstraint = "github_runner_pools_state_check"                           // github_runner_pools
+	CheckGithubRunnersStateCheck                             CheckConstraint = "github_runners_state_check"                                // github_runners
 	CheckGroupAIBudgetsSpendLimitMicrosCheck                 CheckConstraint = "group_ai_budgets_spend_limit_micros_check"                 // group_ai_budgets
 	CheckGroupsChatSpendLimitMicrosCheck                     CheckConstraint = "groups_chat_spend_limit_micros_check"                      // groups
 	CheckMcpServerConfigsAuthTypeCheck                       CheckConstraint = "mcp_server_configs_auth_type_check"                        // mcp_server_configs

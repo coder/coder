@@ -1,6 +1,7 @@
 import { useQuery } from "react-query";
 import { aiSpendOrganizations } from "#/api/queries/aiBridge";
 import { buildInfo } from "#/api/queries/buildInfo";
+import { organizationsPermissions } from "#/api/queries/organizations";
 import type { LinkConfig } from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -63,6 +64,16 @@ export const Navbar: React.FC = () => {
 		organizationMCPSharing.canShare ||
 		canViewAISpend(entitlements, spendOrganizationsQuery.data);
 	const canCreateChat = permissions.createChat;
+	const runnerPermissionsQuery = useQuery(
+		organizationsPermissions(
+			organizations.map((organization) => organization.id),
+		),
+	);
+	const canViewGitHubRunners = Object.values(
+		runnerPermissionsQuery.data ?? {},
+	).some(
+		(organizationPermissions) => organizationPermissions.viewGitHubRunnerPools,
+	);
 
 	const uniqueLinks = new Map<string, LinkConfig>();
 	for (const link of appearance.support_links ?? []) {
@@ -85,6 +96,7 @@ export const Navbar: React.FC = () => {
 				canViewConnectionLog,
 				canViewAIBridge,
 				canViewHealth,
+				canViewGitHubRunners,
 			}}
 			canCreateChat={canCreateChat}
 			canViewLicenses={permissions.viewAllLicenses}

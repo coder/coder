@@ -701,6 +701,49 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getGitHubRunnerPools = async (organization: string) => {
+		const response = await this.axios.get<TypesGen.GitHubRunnerPool[]>(
+			`/api/v2/organizations/${organization}/github-runner-pools`,
+		);
+		return response.data;
+	};
+
+	createGitHubRunnerPool = async (
+		organization: string,
+		request: TypesGen.CreateGitHubRunnerPoolRequest,
+	) => {
+		const response = await this.axios.post<TypesGen.GitHubRunnerPool>(
+			`/api/v2/organizations/${organization}/github-runner-pools`,
+			request,
+		);
+		return response.data;
+	};
+
+	updateGitHubRunnerPool = async (
+		organization: string,
+		pool: string,
+		request: TypesGen.UpdateGitHubRunnerPoolRequest,
+	) => {
+		const response = await this.axios.patch<TypesGen.GitHubRunnerPool>(
+			`/api/v2/organizations/${organization}/github-runner-pools/${pool}`,
+			request,
+		);
+		return response.data;
+	};
+
+	deleteGitHubRunnerPool = async (organization: string, pool: string) => {
+		await this.axios.delete(
+			`/api/v2/organizations/${organization}/github-runner-pools/${pool}`,
+		);
+	};
+
+	getGitHubRunners = async (organization: string, pool: string) => {
+		const response = await this.axios.get<TypesGen.GitHubRunner[]>(
+			`/api/v2/organizations/${organization}/github-runner-pools/${pool}/runners`,
+		);
+		return response.data;
+	};
+
 	/**
 	 * @param organization Can be the organization's ID or name
 	 * @param options Pagination options

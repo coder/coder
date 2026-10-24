@@ -551,6 +551,11 @@ const (
 	ApiKeyScopeWorkspaceSecretRead                 APIKeyScope = "workspace_secret:read"
 	ApiKeyScopeWorkspaceSecretReadSecret           APIKeyScope = "workspace_secret:read_secret"
 	ApiKeyScopeWorkspaceSecretUpdate               APIKeyScope = "workspace_secret:update"
+	ApiKeyScopeGithubRunnerPool                    APIKeyScope = "github_runner_pool:*"
+	ApiKeyScopeGithubRunnerPoolCreate              APIKeyScope = "github_runner_pool:create"
+	ApiKeyScopeGithubRunnerPoolDelete              APIKeyScope = "github_runner_pool:delete"
+	ApiKeyScopeGithubRunnerPoolRead                APIKeyScope = "github_runner_pool:read"
+	ApiKeyScopeGithubRunnerPoolUpdate              APIKeyScope = "github_runner_pool:update"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -853,7 +858,12 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeWorkspaceSecretCreate,
 		ApiKeyScopeWorkspaceSecretRead,
 		ApiKeyScopeWorkspaceSecretReadSecret,
-		ApiKeyScopeWorkspaceSecretUpdate:
+		ApiKeyScopeWorkspaceSecretUpdate,
+		ApiKeyScopeGithubRunnerPool,
+		ApiKeyScopeGithubRunnerPoolCreate,
+		ApiKeyScopeGithubRunnerPoolDelete,
+		ApiKeyScopeGithubRunnerPoolRead,
+		ApiKeyScopeGithubRunnerPoolUpdate:
 		return true
 	}
 	return false
@@ -1125,6 +1135,11 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeWorkspaceSecretRead,
 		ApiKeyScopeWorkspaceSecretReadSecret,
 		ApiKeyScopeWorkspaceSecretUpdate,
+		ApiKeyScopeGithubRunnerPool,
+		ApiKeyScopeGithubRunnerPoolCreate,
+		ApiKeyScopeGithubRunnerPoolDelete,
+		ApiKeyScopeGithubRunnerPoolRead,
+		ApiKeyScopeGithubRunnerPoolUpdate,
 	}
 }
 
@@ -3794,6 +3809,7 @@ const (
 	ResourceTypeChatProjectInstructions      ResourceType = "chat_project_instructions"
 	ResourceTypeOrganizationSkill            ResourceType = "organization_skill"
 	ResourceTypeChatProjectSkill             ResourceType = "chat_project_skill"
+	ResourceTypeGithubRunnerPool             ResourceType = "github_runner_pool"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3880,7 +3896,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeChatOrganizationSystemPrompt,
 		ResourceTypeChatProjectInstructions,
 		ResourceTypeOrganizationSkill,
-		ResourceTypeChatProjectSkill:
+		ResourceTypeChatProjectSkill,
+		ResourceTypeGithubRunnerPool:
 		return true
 	}
 	return false
@@ -3936,6 +3953,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeChatProjectInstructions,
 		ResourceTypeOrganizationSkill,
 		ResourceTypeChatProjectSkill,
+		ResourceTypeGithubRunnerPool,
 	}
 }
 
@@ -5750,6 +5768,44 @@ type GitSSHKey struct {
 	PublicKey  string    `db:"public_key" json:"public_key"`
 	// The ID of the key used to encrypt the private key. If this is NULL, the private key is not encrypted.
 	PrivateKeyKeyID sql.NullString `db:"private_key_key_id" json:"private_key_key_id"`
+}
+
+type GithubRunner struct {
+	ID             uuid.UUID     `db:"id" json:"id"`
+	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
+	PoolID         uuid.UUID     `db:"pool_id" json:"pool_id"`
+	WorkspaceID    uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
+	Name           string        `db:"name" json:"name"`
+	GithubRunnerID int64         `db:"github_runner_id" json:"github_runner_id"`
+	State          string        `db:"state" json:"state"`
+	JobRequestID   int64         `db:"job_request_id" json:"job_request_id"`
+	JobResult      string        `db:"job_result" json:"job_result"`
+	LastError      string        `db:"last_error" json:"last_error"`
+	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
+}
+
+type GithubRunnerPool struct {
+	ID                    uuid.UUID      `db:"id" json:"id"`
+	OrganizationID        uuid.UUID      `db:"organization_id" json:"organization_id"`
+	OwnerID               uuid.UUID      `db:"owner_id" json:"owner_id"`
+	TemplateID            uuid.UUID      `db:"template_id" json:"template_id"`
+	Name                  string         `db:"name" json:"name"`
+	GithubConfigUrl       string         `db:"github_config_url" json:"github_config_url"`
+	GithubToken           string         `db:"github_token" json:"github_token"`
+	GithubTokenKeyID      sql.NullString `db:"github_token_key_id" json:"github_token_key_id"`
+	RunnerGroupID         int64          `db:"runner_group_id" json:"runner_group_id"`
+	ScaleSetID            int64          `db:"scale_set_id" json:"scale_set_id"`
+	MaxRunners            int32          `db:"max_runners" json:"max_runners"`
+	State                 string         `db:"state" json:"state"`
+	StartupTimeoutSeconds int32          `db:"startup_timeout_seconds" json:"startup_timeout_seconds"`
+	JobTimeoutSeconds     int32          `db:"job_timeout_seconds" json:"job_timeout_seconds"`
+	AssignedJobs          int32          `db:"assigned_jobs" json:"assigned_jobs"`
+	LastError             string         `db:"last_error" json:"last_error"`
+	LeaseOwner            uuid.NullUUID  `db:"lease_owner" json:"lease_owner"`
+	LeaseExpiresAt        sql.NullTime   `db:"lease_expires_at" json:"lease_expires_at"`
+	CreatedAt             time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt             time.Time      `db:"updated_at" json:"updated_at"`
 }
 
 type Group struct {

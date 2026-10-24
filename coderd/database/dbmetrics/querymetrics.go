@@ -112,6 +112,14 @@ func (m queryMetricsStore) AcquireExternalAuthLinkRefreshLease(ctx context.Conte
 	return r0, r1
 }
 
+func (m queryMetricsStore) AcquireGitHubRunnerPoolLease(ctx context.Context, arg database.AcquireGitHubRunnerPoolLeaseParams) (uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.AcquireGitHubRunnerPoolLease(ctx, arg)
+	m.queryLatencies.WithLabelValues("AcquireGitHubRunnerPoolLease").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "AcquireGitHubRunnerPoolLease").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
 	start := time.Now()
 	r0 := m.s.AcquireLock(ctx, pgAdvisoryXactLock)
@@ -262,6 +270,14 @@ func (m queryMetricsStore) CalculateAIBridgeInterceptionsTelemetrySummary(ctx co
 	m.queryLatencies.WithLabelValues("CalculateAIBridgeInterceptionsTelemetrySummary").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CalculateAIBridgeInterceptionsTelemetrySummary").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) CancelGitHubRunnerWorkspaceBuild(ctx context.Context, arg database.CancelGitHubRunnerWorkspaceBuildParams) error {
+	start := time.Now()
+	r0 := m.s.CancelGitHubRunnerWorkspaceBuild(ctx, arg)
+	m.queryLatencies.WithLabelValues("CancelGitHubRunnerWorkspaceBuild").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CancelGitHubRunnerWorkspaceBuild").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
@@ -2365,6 +2381,38 @@ func (m queryMetricsStore) GetForcedMCPServerConfigsByOrganization(ctx context.C
 	r0, r1 := m.s.GetForcedMCPServerConfigsByOrganization(ctx, organizationID)
 	m.queryLatencies.WithLabelValues("GetForcedMCPServerConfigsByOrganization").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetForcedMCPServerConfigsByOrganization").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetGitHubRunnerByID(ctx context.Context, id uuid.UUID) (database.GithubRunner, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetGitHubRunnerByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetGitHubRunnerByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetGitHubRunnerByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetGitHubRunnerPoolByID(ctx context.Context, id uuid.UUID) (database.GithubRunnerPool, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetGitHubRunnerPoolByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetGitHubRunnerPoolByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetGitHubRunnerPoolByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetGitHubRunnerPools(ctx context.Context, organizationID uuid.UUID) ([]database.GithubRunnerPool, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetGitHubRunnerPools(ctx, organizationID)
+	m.queryLatencies.WithLabelValues("GetGitHubRunnerPools").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetGitHubRunnerPools").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetGitHubRunnersByPoolID(ctx context.Context, poolID uuid.UUID) ([]database.GithubRunner, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetGitHubRunnersByPoolID(ctx, poolID)
+	m.queryLatencies.WithLabelValues("GetGitHubRunnersByPoolID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetGitHubRunnersByPoolID").Inc()
 	return r0, r1
 }
 
@@ -4568,6 +4616,22 @@ func (m queryMetricsStore) InsertFile(ctx context.Context, arg database.InsertFi
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertGitHubRunner(ctx context.Context, arg database.InsertGitHubRunnerParams) (database.GithubRunner, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertGitHubRunner(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertGitHubRunner").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertGitHubRunner").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertGitHubRunnerPool(ctx context.Context, arg database.InsertGitHubRunnerPoolParams) (database.GithubRunnerPool, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertGitHubRunnerPool(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertGitHubRunnerPool").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertGitHubRunnerPool").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertGitSSHKey(ctx context.Context, arg database.InsertGitSSHKeyParams) (database.GitSSHKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertGitSSHKey(ctx, arg)
@@ -5400,6 +5464,14 @@ func (m queryMetricsStore) ReleaseExternalAuthLinkRefreshLease(ctx context.Conte
 	return r0
 }
 
+func (m queryMetricsStore) ReleaseGitHubRunnerPoolLease(ctx context.Context, arg database.ReleaseGitHubRunnerPoolLeaseParams) error {
+	start := time.Now()
+	r0 := m.s.ReleaseGitHubRunnerPoolLease(ctx, arg)
+	m.queryLatencies.WithLabelValues("ReleaseGitHubRunnerPoolLease").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ReleaseGitHubRunnerPoolLease").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) RemoveUserFromGroups(ctx context.Context, arg database.RemoveUserFromGroupsParams) ([]uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.RemoveUserFromGroups(ctx, arg)
@@ -5833,6 +5905,14 @@ func (m queryMetricsStore) UpdateEncryptedChatMCPServerHeaders(ctx context.Conte
 	return r0
 }
 
+func (m queryMetricsStore) UpdateEncryptedGitHubRunnerPoolToken(ctx context.Context, arg database.UpdateEncryptedGitHubRunnerPoolTokenParams) (database.GithubRunnerPool, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateEncryptedGitHubRunnerPoolToken(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateEncryptedGitHubRunnerPoolToken").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateEncryptedGitHubRunnerPoolToken").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateEncryptedUserAIProviderKey(ctx context.Context, arg database.UpdateEncryptedUserAIProviderKeyParams) (database.UserAIProviderKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateEncryptedUserAIProviderKey(ctx, arg)
@@ -5855,6 +5935,30 @@ func (m queryMetricsStore) UpdateExternalAuthLink(ctx context.Context, arg datab
 	m.queryLatencies.WithLabelValues("UpdateExternalAuthLink").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateExternalAuthLink").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateGitHubRunner(ctx context.Context, arg database.UpdateGitHubRunnerParams) (database.GithubRunner, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateGitHubRunner(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateGitHubRunner").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateGitHubRunner").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateGitHubRunnerPool(ctx context.Context, arg database.UpdateGitHubRunnerPoolParams) (database.GithubRunnerPool, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateGitHubRunnerPool(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateGitHubRunnerPool").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateGitHubRunnerPool").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateGitHubRunnerPoolStatus(ctx context.Context, arg database.UpdateGitHubRunnerPoolStatusParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateGitHubRunnerPoolStatus(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateGitHubRunnerPoolStatus").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateGitHubRunnerPoolStatus").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) UpdateGitSSHKey(ctx context.Context, arg database.UpdateGitSSHKeyParams) (database.GitSSHKey, error) {

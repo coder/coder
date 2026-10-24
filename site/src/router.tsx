@@ -36,6 +36,9 @@ const NotFoundPage = lazy(() => import("./pages/NotFoundPage/NotFoundPage"));
 const DeploymentSettingsLayout = lazy(
 	() => import("./modules/management/DeploymentSettingsLayout"),
 );
+const GitHubRunnersPage = lazy(
+	() => import("./pages/GitHubRunnersPage/GitHubRunnersPage"),
+);
 const DeploymentConfigProvider = lazy(
 	() => import("./modules/management/DeploymentConfigProvider"),
 );
@@ -613,6 +616,7 @@ export const router = createBrowserRouter(
 					/>
 
 					<Route path="/audit" element={<AuditPage />} />
+					<Route path="/github-runners" element={<GitHubRunnersPage />} />
 
 					<Route path="/connectionlog" element={<ConnectionLogPage />} />
 

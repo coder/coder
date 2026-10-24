@@ -135,6 +135,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return "Organization Role Sync"
 	case database.AISeatState:
 		return "AI Seat"
+	case database.GithubRunnerPool:
+		return typed.Name
 	case database.AIProvider:
 		return typed.Name
 	case database.AIProviderKey:
@@ -264,6 +266,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return noID // Org field on audit log has org id
 	case database.AISeatState:
 		return typed.UserID
+	case database.GithubRunnerPool:
+		return typed.ID
 	case database.AIProvider:
 		return typed.ID
 	case database.AIProviderKey:
@@ -362,6 +366,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeIdpSyncSettingsGroup
 	case database.AISeatState:
 		return database.ResourceTypeAISeat
+	case database.GithubRunnerPool:
+		return database.ResourceTypeGithubRunnerPool
 	case database.AIProvider:
 		return database.ResourceTypeAIProvider
 	case database.AIProviderKey:
@@ -461,6 +467,8 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		return true
 	case database.AISeatState:
 		return false
+	case database.GithubRunnerPool:
+		return true
 	case database.AIProvider:
 		// AI providers are deployment-scoped, not org-scoped.
 		return false

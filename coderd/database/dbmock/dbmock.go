@@ -59,6 +59,21 @@ func (mr *MockStoreMockRecorder) AcquireExternalAuthLinkRefreshLease(ctx, arg an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireExternalAuthLinkRefreshLease", reflect.TypeOf((*MockStore)(nil).AcquireExternalAuthLinkRefreshLease), ctx, arg)
 }
 
+// AcquireGitHubRunnerPoolLease mocks base method.
+func (m *MockStore) AcquireGitHubRunnerPoolLease(ctx context.Context, arg database.AcquireGitHubRunnerPoolLeaseParams) (uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AcquireGitHubRunnerPoolLease", ctx, arg)
+	ret0, _ := ret[0].(uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AcquireGitHubRunnerPoolLease indicates an expected call of AcquireGitHubRunnerPoolLease.
+func (mr *MockStoreMockRecorder) AcquireGitHubRunnerPoolLease(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireGitHubRunnerPoolLease", reflect.TypeOf((*MockStore)(nil).AcquireGitHubRunnerPoolLease), ctx, arg)
+}
+
 // AcquireLock mocks base method.
 func (m *MockStore) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
 	m.ctrl.T.Helper()
@@ -335,6 +350,20 @@ func (m *MockStore) CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.C
 func (mr *MockStoreMockRecorder) CalculateAIBridgeInterceptionsTelemetrySummary(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CalculateAIBridgeInterceptionsTelemetrySummary", reflect.TypeOf((*MockStore)(nil).CalculateAIBridgeInterceptionsTelemetrySummary), ctx, arg)
+}
+
+// CancelGitHubRunnerWorkspaceBuild mocks base method.
+func (m *MockStore) CancelGitHubRunnerWorkspaceBuild(ctx context.Context, arg database.CancelGitHubRunnerWorkspaceBuildParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CancelGitHubRunnerWorkspaceBuild", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CancelGitHubRunnerWorkspaceBuild indicates an expected call of CancelGitHubRunnerWorkspaceBuild.
+func (mr *MockStoreMockRecorder) CancelGitHubRunnerWorkspaceBuild(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CancelGitHubRunnerWorkspaceBuild", reflect.TypeOf((*MockStore)(nil).CancelGitHubRunnerWorkspaceBuild), ctx, arg)
 }
 
 // ClaimPrebuiltWorkspace mocks base method.
@@ -4447,6 +4476,66 @@ func (m *MockStore) GetForcedMCPServerConfigsByOrganization(ctx context.Context,
 func (mr *MockStoreMockRecorder) GetForcedMCPServerConfigsByOrganization(ctx, organizationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetForcedMCPServerConfigsByOrganization", reflect.TypeOf((*MockStore)(nil).GetForcedMCPServerConfigsByOrganization), ctx, organizationID)
+}
+
+// GetGitHubRunnerByID mocks base method.
+func (m *MockStore) GetGitHubRunnerByID(ctx context.Context, id uuid.UUID) (database.GithubRunner, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetGitHubRunnerByID", ctx, id)
+	ret0, _ := ret[0].(database.GithubRunner)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetGitHubRunnerByID indicates an expected call of GetGitHubRunnerByID.
+func (mr *MockStoreMockRecorder) GetGitHubRunnerByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGitHubRunnerByID", reflect.TypeOf((*MockStore)(nil).GetGitHubRunnerByID), ctx, id)
+}
+
+// GetGitHubRunnerPoolByID mocks base method.
+func (m *MockStore) GetGitHubRunnerPoolByID(ctx context.Context, id uuid.UUID) (database.GithubRunnerPool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetGitHubRunnerPoolByID", ctx, id)
+	ret0, _ := ret[0].(database.GithubRunnerPool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetGitHubRunnerPoolByID indicates an expected call of GetGitHubRunnerPoolByID.
+func (mr *MockStoreMockRecorder) GetGitHubRunnerPoolByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGitHubRunnerPoolByID", reflect.TypeOf((*MockStore)(nil).GetGitHubRunnerPoolByID), ctx, id)
+}
+
+// GetGitHubRunnerPools mocks base method.
+func (m *MockStore) GetGitHubRunnerPools(ctx context.Context, organizationID uuid.UUID) ([]database.GithubRunnerPool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetGitHubRunnerPools", ctx, organizationID)
+	ret0, _ := ret[0].([]database.GithubRunnerPool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetGitHubRunnerPools indicates an expected call of GetGitHubRunnerPools.
+func (mr *MockStoreMockRecorder) GetGitHubRunnerPools(ctx, organizationID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGitHubRunnerPools", reflect.TypeOf((*MockStore)(nil).GetGitHubRunnerPools), ctx, organizationID)
+}
+
+// GetGitHubRunnersByPoolID mocks base method.
+func (m *MockStore) GetGitHubRunnersByPoolID(ctx context.Context, poolID uuid.UUID) ([]database.GithubRunner, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetGitHubRunnersByPoolID", ctx, poolID)
+	ret0, _ := ret[0].([]database.GithubRunner)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetGitHubRunnersByPoolID indicates an expected call of GetGitHubRunnersByPoolID.
+func (mr *MockStoreMockRecorder) GetGitHubRunnersByPoolID(ctx, poolID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGitHubRunnersByPoolID", reflect.TypeOf((*MockStore)(nil).GetGitHubRunnersByPoolID), ctx, poolID)
 }
 
 // GetGitSSHKey mocks base method.
@@ -8614,6 +8703,36 @@ func (mr *MockStoreMockRecorder) InsertFile(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertFile", reflect.TypeOf((*MockStore)(nil).InsertFile), ctx, arg)
 }
 
+// InsertGitHubRunner mocks base method.
+func (m *MockStore) InsertGitHubRunner(ctx context.Context, arg database.InsertGitHubRunnerParams) (database.GithubRunner, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertGitHubRunner", ctx, arg)
+	ret0, _ := ret[0].(database.GithubRunner)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertGitHubRunner indicates an expected call of InsertGitHubRunner.
+func (mr *MockStoreMockRecorder) InsertGitHubRunner(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertGitHubRunner", reflect.TypeOf((*MockStore)(nil).InsertGitHubRunner), ctx, arg)
+}
+
+// InsertGitHubRunnerPool mocks base method.
+func (m *MockStore) InsertGitHubRunnerPool(ctx context.Context, arg database.InsertGitHubRunnerPoolParams) (database.GithubRunnerPool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertGitHubRunnerPool", ctx, arg)
+	ret0, _ := ret[0].(database.GithubRunnerPool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertGitHubRunnerPool indicates an expected call of InsertGitHubRunnerPool.
+func (mr *MockStoreMockRecorder) InsertGitHubRunnerPool(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertGitHubRunnerPool", reflect.TypeOf((*MockStore)(nil).InsertGitHubRunnerPool), ctx, arg)
+}
+
 // InsertGitSSHKey mocks base method.
 func (m *MockStore) InsertGitSSHKey(ctx context.Context, arg database.InsertGitSSHKeyParams) (database.GitSSHKey, error) {
 	m.ctrl.T.Helper()
@@ -10263,6 +10382,20 @@ func (mr *MockStoreMockRecorder) ReleaseExternalAuthLinkRefreshLease(ctx, arg an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseExternalAuthLinkRefreshLease", reflect.TypeOf((*MockStore)(nil).ReleaseExternalAuthLinkRefreshLease), ctx, arg)
 }
 
+// ReleaseGitHubRunnerPoolLease mocks base method.
+func (m *MockStore) ReleaseGitHubRunnerPoolLease(ctx context.Context, arg database.ReleaseGitHubRunnerPoolLeaseParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReleaseGitHubRunnerPoolLease", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ReleaseGitHubRunnerPoolLease indicates an expected call of ReleaseGitHubRunnerPoolLease.
+func (mr *MockStoreMockRecorder) ReleaseGitHubRunnerPoolLease(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseGitHubRunnerPoolLease", reflect.TypeOf((*MockStore)(nil).ReleaseGitHubRunnerPoolLease), ctx, arg)
+}
+
 // RemoveUserFromGroups mocks base method.
 func (m *MockStore) RemoveUserFromGroups(ctx context.Context, arg database.RemoveUserFromGroupsParams) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()
@@ -11053,6 +11186,21 @@ func (mr *MockStoreMockRecorder) UpdateEncryptedChatMCPServerHeaders(ctx, arg an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateEncryptedChatMCPServerHeaders", reflect.TypeOf((*MockStore)(nil).UpdateEncryptedChatMCPServerHeaders), ctx, arg)
 }
 
+// UpdateEncryptedGitHubRunnerPoolToken mocks base method.
+func (m *MockStore) UpdateEncryptedGitHubRunnerPoolToken(ctx context.Context, arg database.UpdateEncryptedGitHubRunnerPoolTokenParams) (database.GithubRunnerPool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateEncryptedGitHubRunnerPoolToken", ctx, arg)
+	ret0, _ := ret[0].(database.GithubRunnerPool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateEncryptedGitHubRunnerPoolToken indicates an expected call of UpdateEncryptedGitHubRunnerPoolToken.
+func (mr *MockStoreMockRecorder) UpdateEncryptedGitHubRunnerPoolToken(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateEncryptedGitHubRunnerPoolToken", reflect.TypeOf((*MockStore)(nil).UpdateEncryptedGitHubRunnerPoolToken), ctx, arg)
+}
+
 // UpdateEncryptedUserAIProviderKey mocks base method.
 func (m *MockStore) UpdateEncryptedUserAIProviderKey(ctx context.Context, arg database.UpdateEncryptedUserAIProviderKeyParams) (database.UserAIProviderKey, error) {
 	m.ctrl.T.Helper()
@@ -11096,6 +11244,50 @@ func (m *MockStore) UpdateExternalAuthLink(ctx context.Context, arg database.Upd
 func (mr *MockStoreMockRecorder) UpdateExternalAuthLink(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateExternalAuthLink", reflect.TypeOf((*MockStore)(nil).UpdateExternalAuthLink), ctx, arg)
+}
+
+// UpdateGitHubRunner mocks base method.
+func (m *MockStore) UpdateGitHubRunner(ctx context.Context, arg database.UpdateGitHubRunnerParams) (database.GithubRunner, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateGitHubRunner", ctx, arg)
+	ret0, _ := ret[0].(database.GithubRunner)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateGitHubRunner indicates an expected call of UpdateGitHubRunner.
+func (mr *MockStoreMockRecorder) UpdateGitHubRunner(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateGitHubRunner", reflect.TypeOf((*MockStore)(nil).UpdateGitHubRunner), ctx, arg)
+}
+
+// UpdateGitHubRunnerPool mocks base method.
+func (m *MockStore) UpdateGitHubRunnerPool(ctx context.Context, arg database.UpdateGitHubRunnerPoolParams) (database.GithubRunnerPool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateGitHubRunnerPool", ctx, arg)
+	ret0, _ := ret[0].(database.GithubRunnerPool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateGitHubRunnerPool indicates an expected call of UpdateGitHubRunnerPool.
+func (mr *MockStoreMockRecorder) UpdateGitHubRunnerPool(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateGitHubRunnerPool", reflect.TypeOf((*MockStore)(nil).UpdateGitHubRunnerPool), ctx, arg)
+}
+
+// UpdateGitHubRunnerPoolStatus mocks base method.
+func (m *MockStore) UpdateGitHubRunnerPoolStatus(ctx context.Context, arg database.UpdateGitHubRunnerPoolStatusParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateGitHubRunnerPoolStatus", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateGitHubRunnerPoolStatus indicates an expected call of UpdateGitHubRunnerPoolStatus.
+func (mr *MockStoreMockRecorder) UpdateGitHubRunnerPoolStatus(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateGitHubRunnerPoolStatus", reflect.TypeOf((*MockStore)(nil).UpdateGitHubRunnerPoolStatus), ctx, arg)
 }
 
 // UpdateGitSSHKey mocks base method.

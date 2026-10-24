@@ -10,6 +10,34 @@ export type OrganizationPermissionName = keyof ReturnType<
 
 export const organizationPermissionChecks = (organizationId: string) =>
 	({
+		viewGitHubRunnerPools: {
+			object: {
+				resource_type: "github_runner_pool",
+				organization_id: organizationId,
+			},
+			action: "read",
+		},
+		createGitHubRunnerPool: {
+			object: {
+				resource_type: "github_runner_pool",
+				organization_id: organizationId,
+			},
+			action: "create",
+		},
+		updateGitHubRunnerPool: {
+			object: {
+				resource_type: "github_runner_pool",
+				organization_id: organizationId,
+			},
+			action: "update",
+		},
+		deleteGitHubRunnerPool: {
+			object: {
+				resource_type: "github_runner_pool",
+				organization_id: organizationId,
+			},
+			action: "delete",
+		},
 		viewMembers: {
 			object: {
 				resource_type: "organization_member",

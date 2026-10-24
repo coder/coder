@@ -13,6 +13,8 @@ import (
 
 type ResourceType string
 
+const ResourceTypeGitHubRunnerPool ResourceType = "github_runner_pool"
+
 const (
 	ResourceTypeTemplate               ResourceType = "template"
 	ResourceTypeTemplateVersion        ResourceType = "template_version"
@@ -75,6 +77,8 @@ const (
 
 func (r ResourceType) FriendlyString() string {
 	switch r {
+	case ResourceTypeGitHubRunnerPool:
+		return "GitHub runner pool"
 	case ResourceTypeTemplate:
 		return "template"
 	case ResourceTypeTemplateVersion:

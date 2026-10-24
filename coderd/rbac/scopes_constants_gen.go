@@ -73,6 +73,10 @@ const (
 	ScopeDeploymentStatsRead                 ScopeName = "deployment_stats:read"
 	ScopeFileCreate                          ScopeName = "file:create"
 	ScopeFileRead                            ScopeName = "file:read"
+	ScopeGithubRunnerPoolCreate              ScopeName = "github_runner_pool:create"
+	ScopeGithubRunnerPoolDelete              ScopeName = "github_runner_pool:delete"
+	ScopeGithubRunnerPoolRead                ScopeName = "github_runner_pool:read"
+	ScopeGithubRunnerPoolUpdate              ScopeName = "github_runner_pool:update"
 	ScopeGroupCreate                         ScopeName = "group:create"
 	ScopeGroupDelete                         ScopeName = "group:delete"
 	ScopeGroupRead                           ScopeName = "group:read"
@@ -284,6 +288,10 @@ func (e ScopeName) Valid() bool {
 		ScopeDeploymentStatsRead,
 		ScopeFileCreate,
 		ScopeFileRead,
+		ScopeGithubRunnerPoolCreate,
+		ScopeGithubRunnerPoolDelete,
+		ScopeGithubRunnerPoolRead,
+		ScopeGithubRunnerPoolUpdate,
 		ScopeGroupCreate,
 		ScopeGroupDelete,
 		ScopeGroupRead,
@@ -496,6 +504,10 @@ func AllScopeNameValues() []ScopeName {
 		ScopeDeploymentStatsRead,
 		ScopeFileCreate,
 		ScopeFileRead,
+		ScopeGithubRunnerPoolCreate,
+		ScopeGithubRunnerPoolDelete,
+		ScopeGithubRunnerPoolRead,
+		ScopeGithubRunnerPoolUpdate,
 		ScopeGroupCreate,
 		ScopeGroupDelete,
 		ScopeGroupRead,

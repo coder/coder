@@ -74,6 +74,7 @@ const (
 	SubjectTypePrebuildsOrchestrator        SubjectType = "prebuilds_orchestrator"
 	SubjectTypeSystemReadProvisionerDaemons SubjectType = "system_read_provisioner_daemons"
 	SubjectTypeSystemRestricted             SubjectType = "system_restricted"
+	SubjectTypeGitHubRunnerController       SubjectType = "github_runner_controller"
 	SubjectTypeSystemOAuth                  SubjectType = "system_oauth"
 	SubjectTypeAPIKeyRevoker                SubjectType = "api_key_revoker"   // #nosec G101, not a credential.
 	SubjectTypeChatdKeyMinter               SubjectType = "chatd_key_minter"  // #nosec G101, not a credential.

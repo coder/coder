@@ -116,6 +116,12 @@ export const RBACResourceActions: Partial<
 		create: "create a file",
 		read: "read files",
 	},
+	github_runner_pool: {
+		create: "create a GitHub runner pool",
+		delete: "delete a GitHub runner pool",
+		read: "read a GitHub runner pool",
+		update: "update a GitHub runner pool",
+	},
 	group: {
 		create: "create a group",
 		delete: "delete a group",

@@ -55,6 +55,7 @@ const meta: Meta<typeof NavbarView> = {
 			canViewConnectionLog: true,
 			canViewAIBridge: true,
 			canViewHealth: true,
+			canViewGitHubRunners: true,
 		},
 		canCreateChat: true,
 		canViewLicenses: false,

@@ -16899,6 +16899,467 @@ func (q *sqlQuerier) InsertFile(ctx context.Context, arg InsertFileParams) (File
 	return i, err
 }
 
+const acquireGitHubRunnerPoolLease = `-- name: AcquireGitHubRunnerPoolLease :one
+UPDATE github_runner_pools SET
+    lease_owner = $1, lease_expires_at = CURRENT_TIMESTAMP + INTERVAL '3 minutes'
+WHERE id = $2 AND state <> 'deleted'
+    AND (lease_owner = $1 OR lease_expires_at IS NULL OR lease_expires_at < CURRENT_TIMESTAMP)
+RETURNING id
+`
+
+type AcquireGitHubRunnerPoolLeaseParams struct {
+	LeaseOwner uuid.NullUUID `db:"lease_owner" json:"lease_owner"`
+	ID         uuid.UUID     `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) AcquireGitHubRunnerPoolLease(ctx context.Context, arg AcquireGitHubRunnerPoolLeaseParams) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, acquireGitHubRunnerPoolLease, arg.LeaseOwner, arg.ID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const cancelGitHubRunnerWorkspaceBuild = `-- name: CancelGitHubRunnerWorkspaceBuild :exec
+UPDATE provisioner_jobs AS j SET
+    canceled_at = COALESCE(j.canceled_at, CURRENT_TIMESTAMP),
+    completed_at = CASE WHEN j.worker_id IS NULL THEN CURRENT_TIMESTAMP ELSE j.completed_at END
+WHERE j.id = $1 AND j.completed_at IS NULL
+    AND EXISTS (
+        SELECT 1 FROM github_runners r
+        JOIN workspace_builds b ON b.workspace_id = r.workspace_id
+        WHERE r.id = $2 AND b.job_id = j.id
+    )
+`
+
+type CancelGitHubRunnerWorkspaceBuildParams struct {
+	JobID    uuid.UUID `db:"job_id" json:"job_id"`
+	RunnerID uuid.UUID `db:"runner_id" json:"runner_id"`
+}
+
+func (q *sqlQuerier) CancelGitHubRunnerWorkspaceBuild(ctx context.Context, arg CancelGitHubRunnerWorkspaceBuildParams) error {
+	_, err := q.db.ExecContext(ctx, cancelGitHubRunnerWorkspaceBuild, arg.JobID, arg.RunnerID)
+	return err
+}
+
+const getGitHubRunnerByID = `-- name: GetGitHubRunnerByID :one
+SELECT id, organization_id, pool_id, workspace_id, name, github_runner_id, state, job_request_id, job_result, last_error, created_at, updated_at FROM github_runners WHERE id = $1
+`
+
+func (q *sqlQuerier) GetGitHubRunnerByID(ctx context.Context, id uuid.UUID) (GithubRunner, error) {
+	row := q.db.QueryRowContext(ctx, getGitHubRunnerByID, id)
+	var i GithubRunner
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.PoolID,
+		&i.WorkspaceID,
+		&i.Name,
+		&i.GithubRunnerID,
+		&i.State,
+		&i.JobRequestID,
+		&i.JobResult,
+		&i.LastError,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getGitHubRunnerPoolByID = `-- name: GetGitHubRunnerPoolByID :one
+SELECT id, organization_id, owner_id, template_id, name, github_config_url, github_token, github_token_key_id, runner_group_id, scale_set_id, max_runners, state, startup_timeout_seconds, job_timeout_seconds, assigned_jobs, last_error, lease_owner, lease_expires_at, created_at, updated_at FROM github_runner_pools WHERE id = $1
+`
+
+func (q *sqlQuerier) GetGitHubRunnerPoolByID(ctx context.Context, id uuid.UUID) (GithubRunnerPool, error) {
+	row := q.db.QueryRowContext(ctx, getGitHubRunnerPoolByID, id)
+	var i GithubRunnerPool
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.TemplateID,
+		&i.Name,
+		&i.GithubConfigUrl,
+		&i.GithubToken,
+		&i.GithubTokenKeyID,
+		&i.RunnerGroupID,
+		&i.ScaleSetID,
+		&i.MaxRunners,
+		&i.State,
+		&i.StartupTimeoutSeconds,
+		&i.JobTimeoutSeconds,
+		&i.AssignedJobs,
+		&i.LastError,
+		&i.LeaseOwner,
+		&i.LeaseExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getGitHubRunnerPools = `-- name: GetGitHubRunnerPools :many
+SELECT id, organization_id, owner_id, template_id, name, github_config_url, github_token, github_token_key_id, runner_group_id, scale_set_id, max_runners, state, startup_timeout_seconds, job_timeout_seconds, assigned_jobs, last_error, lease_owner, lease_expires_at, created_at, updated_at FROM github_runner_pools
+WHERE (organization_id = $1 OR $1::uuid = '00000000-0000-0000-0000-000000000000')
+ORDER BY created_at, id
+`
+
+func (q *sqlQuerier) GetGitHubRunnerPools(ctx context.Context, organizationID uuid.UUID) ([]GithubRunnerPool, error) {
+	rows, err := q.db.QueryContext(ctx, getGitHubRunnerPools, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GithubRunnerPool
+	for rows.Next() {
+		var i GithubRunnerPool
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.OwnerID,
+			&i.TemplateID,
+			&i.Name,
+			&i.GithubConfigUrl,
+			&i.GithubToken,
+			&i.GithubTokenKeyID,
+			&i.RunnerGroupID,
+			&i.ScaleSetID,
+			&i.MaxRunners,
+			&i.State,
+			&i.StartupTimeoutSeconds,
+			&i.JobTimeoutSeconds,
+			&i.AssignedJobs,
+			&i.LastError,
+			&i.LeaseOwner,
+			&i.LeaseExpiresAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getGitHubRunnersByPoolID = `-- name: GetGitHubRunnersByPoolID :many
+SELECT id, organization_id, pool_id, workspace_id, name, github_runner_id, state, job_request_id, job_result, last_error, created_at, updated_at FROM github_runners WHERE pool_id = $1 ORDER BY created_at, id
+`
+
+func (q *sqlQuerier) GetGitHubRunnersByPoolID(ctx context.Context, poolID uuid.UUID) ([]GithubRunner, error) {
+	rows, err := q.db.QueryContext(ctx, getGitHubRunnersByPoolID, poolID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GithubRunner
+	for rows.Next() {
+		var i GithubRunner
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.PoolID,
+			&i.WorkspaceID,
+			&i.Name,
+			&i.GithubRunnerID,
+			&i.State,
+			&i.JobRequestID,
+			&i.JobResult,
+			&i.LastError,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertGitHubRunner = `-- name: InsertGitHubRunner :one
+INSERT INTO github_runners (id, organization_id, pool_id, name)
+VALUES ($1, $2, $3, $4) RETURNING id, organization_id, pool_id, workspace_id, name, github_runner_id, state, job_request_id, job_result, last_error, created_at, updated_at
+`
+
+type InsertGitHubRunnerParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	PoolID         uuid.UUID `db:"pool_id" json:"pool_id"`
+	Name           string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) InsertGitHubRunner(ctx context.Context, arg InsertGitHubRunnerParams) (GithubRunner, error) {
+	row := q.db.QueryRowContext(ctx, insertGitHubRunner,
+		arg.ID,
+		arg.OrganizationID,
+		arg.PoolID,
+		arg.Name,
+	)
+	var i GithubRunner
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.PoolID,
+		&i.WorkspaceID,
+		&i.Name,
+		&i.GithubRunnerID,
+		&i.State,
+		&i.JobRequestID,
+		&i.JobResult,
+		&i.LastError,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertGitHubRunnerPool = `-- name: InsertGitHubRunnerPool :one
+INSERT INTO github_runner_pools (
+    id, organization_id, owner_id, template_id, name, github_config_url,
+    github_token, github_token_key_id, runner_group_id, max_runners,
+    startup_timeout_seconds, job_timeout_seconds
+) VALUES (
+    $1, $2, $3, $4, $5, $6,
+    $7, $8, $9, $10,
+    $11, $12
+) RETURNING id, organization_id, owner_id, template_id, name, github_config_url, github_token, github_token_key_id, runner_group_id, scale_set_id, max_runners, state, startup_timeout_seconds, job_timeout_seconds, assigned_jobs, last_error, lease_owner, lease_expires_at, created_at, updated_at
+`
+
+type InsertGitHubRunnerPoolParams struct {
+	ID                    uuid.UUID      `db:"id" json:"id"`
+	OrganizationID        uuid.UUID      `db:"organization_id" json:"organization_id"`
+	OwnerID               uuid.UUID      `db:"owner_id" json:"owner_id"`
+	TemplateID            uuid.UUID      `db:"template_id" json:"template_id"`
+	Name                  string         `db:"name" json:"name"`
+	GithubConfigUrl       string         `db:"github_config_url" json:"github_config_url"`
+	GithubToken           string         `db:"github_token" json:"github_token"`
+	GithubTokenKeyID      sql.NullString `db:"github_token_key_id" json:"github_token_key_id"`
+	RunnerGroupID         int64          `db:"runner_group_id" json:"runner_group_id"`
+	MaxRunners            int32          `db:"max_runners" json:"max_runners"`
+	StartupTimeoutSeconds int32          `db:"startup_timeout_seconds" json:"startup_timeout_seconds"`
+	JobTimeoutSeconds     int32          `db:"job_timeout_seconds" json:"job_timeout_seconds"`
+}
+
+func (q *sqlQuerier) InsertGitHubRunnerPool(ctx context.Context, arg InsertGitHubRunnerPoolParams) (GithubRunnerPool, error) {
+	row := q.db.QueryRowContext(ctx, insertGitHubRunnerPool,
+		arg.ID,
+		arg.OrganizationID,
+		arg.OwnerID,
+		arg.TemplateID,
+		arg.Name,
+		arg.GithubConfigUrl,
+		arg.GithubToken,
+		arg.GithubTokenKeyID,
+		arg.RunnerGroupID,
+		arg.MaxRunners,
+		arg.StartupTimeoutSeconds,
+		arg.JobTimeoutSeconds,
+	)
+	var i GithubRunnerPool
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.TemplateID,
+		&i.Name,
+		&i.GithubConfigUrl,
+		&i.GithubToken,
+		&i.GithubTokenKeyID,
+		&i.RunnerGroupID,
+		&i.ScaleSetID,
+		&i.MaxRunners,
+		&i.State,
+		&i.StartupTimeoutSeconds,
+		&i.JobTimeoutSeconds,
+		&i.AssignedJobs,
+		&i.LastError,
+		&i.LeaseOwner,
+		&i.LeaseExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const releaseGitHubRunnerPoolLease = `-- name: ReleaseGitHubRunnerPoolLease :exec
+UPDATE github_runner_pools SET lease_owner = NULL, lease_expires_at = NULL
+WHERE id = $1 AND lease_owner = $2
+`
+
+type ReleaseGitHubRunnerPoolLeaseParams struct {
+	ID         uuid.UUID     `db:"id" json:"id"`
+	LeaseOwner uuid.NullUUID `db:"lease_owner" json:"lease_owner"`
+}
+
+func (q *sqlQuerier) ReleaseGitHubRunnerPoolLease(ctx context.Context, arg ReleaseGitHubRunnerPoolLeaseParams) error {
+	_, err := q.db.ExecContext(ctx, releaseGitHubRunnerPoolLease, arg.ID, arg.LeaseOwner)
+	return err
+}
+
+const updateEncryptedGitHubRunnerPoolToken = `-- name: UpdateEncryptedGitHubRunnerPoolToken :one
+UPDATE github_runner_pools SET github_token = $1, github_token_key_id = $2
+WHERE id = $3 RETURNING id, organization_id, owner_id, template_id, name, github_config_url, github_token, github_token_key_id, runner_group_id, scale_set_id, max_runners, state, startup_timeout_seconds, job_timeout_seconds, assigned_jobs, last_error, lease_owner, lease_expires_at, created_at, updated_at
+`
+
+type UpdateEncryptedGitHubRunnerPoolTokenParams struct {
+	GithubToken      string         `db:"github_token" json:"github_token"`
+	GithubTokenKeyID sql.NullString `db:"github_token_key_id" json:"github_token_key_id"`
+	ID               uuid.UUID      `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateEncryptedGitHubRunnerPoolToken(ctx context.Context, arg UpdateEncryptedGitHubRunnerPoolTokenParams) (GithubRunnerPool, error) {
+	row := q.db.QueryRowContext(ctx, updateEncryptedGitHubRunnerPoolToken, arg.GithubToken, arg.GithubTokenKeyID, arg.ID)
+	var i GithubRunnerPool
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.TemplateID,
+		&i.Name,
+		&i.GithubConfigUrl,
+		&i.GithubToken,
+		&i.GithubTokenKeyID,
+		&i.RunnerGroupID,
+		&i.ScaleSetID,
+		&i.MaxRunners,
+		&i.State,
+		&i.StartupTimeoutSeconds,
+		&i.JobTimeoutSeconds,
+		&i.AssignedJobs,
+		&i.LastError,
+		&i.LeaseOwner,
+		&i.LeaseExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateGitHubRunner = `-- name: UpdateGitHubRunner :one
+UPDATE github_runners SET
+    workspace_id = $1, github_runner_id = $2,
+    state = $3, job_request_id = $4, job_result = $5,
+    last_error = $6, updated_at = CURRENT_TIMESTAMP
+WHERE id = $7 RETURNING id, organization_id, pool_id, workspace_id, name, github_runner_id, state, job_request_id, job_result, last_error, created_at, updated_at
+`
+
+type UpdateGitHubRunnerParams struct {
+	WorkspaceID    uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
+	GithubRunnerID int64         `db:"github_runner_id" json:"github_runner_id"`
+	State          string        `db:"state" json:"state"`
+	JobRequestID   int64         `db:"job_request_id" json:"job_request_id"`
+	JobResult      string        `db:"job_result" json:"job_result"`
+	LastError      string        `db:"last_error" json:"last_error"`
+	ID             uuid.UUID     `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateGitHubRunner(ctx context.Context, arg UpdateGitHubRunnerParams) (GithubRunner, error) {
+	row := q.db.QueryRowContext(ctx, updateGitHubRunner,
+		arg.WorkspaceID,
+		arg.GithubRunnerID,
+		arg.State,
+		arg.JobRequestID,
+		arg.JobResult,
+		arg.LastError,
+		arg.ID,
+	)
+	var i GithubRunner
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.PoolID,
+		&i.WorkspaceID,
+		&i.Name,
+		&i.GithubRunnerID,
+		&i.State,
+		&i.JobRequestID,
+		&i.JobResult,
+		&i.LastError,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateGitHubRunnerPool = `-- name: UpdateGitHubRunnerPool :one
+UPDATE github_runner_pools SET
+    state = $1, max_runners = $2, updated_at = CURRENT_TIMESTAMP
+WHERE id = $3 AND state <> 'deleted'
+    AND (state <> 'draining' OR $1 IN ('draining', 'deleted'))
+RETURNING id, organization_id, owner_id, template_id, name, github_config_url, github_token, github_token_key_id, runner_group_id, scale_set_id, max_runners, state, startup_timeout_seconds, job_timeout_seconds, assigned_jobs, last_error, lease_owner, lease_expires_at, created_at, updated_at
+`
+
+type UpdateGitHubRunnerPoolParams struct {
+	State      string    `db:"state" json:"state"`
+	MaxRunners int32     `db:"max_runners" json:"max_runners"`
+	ID         uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateGitHubRunnerPool(ctx context.Context, arg UpdateGitHubRunnerPoolParams) (GithubRunnerPool, error) {
+	row := q.db.QueryRowContext(ctx, updateGitHubRunnerPool, arg.State, arg.MaxRunners, arg.ID)
+	var i GithubRunnerPool
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.TemplateID,
+		&i.Name,
+		&i.GithubConfigUrl,
+		&i.GithubToken,
+		&i.GithubTokenKeyID,
+		&i.RunnerGroupID,
+		&i.ScaleSetID,
+		&i.MaxRunners,
+		&i.State,
+		&i.StartupTimeoutSeconds,
+		&i.JobTimeoutSeconds,
+		&i.AssignedJobs,
+		&i.LastError,
+		&i.LeaseOwner,
+		&i.LeaseExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateGitHubRunnerPoolStatus = `-- name: UpdateGitHubRunnerPoolStatus :exec
+UPDATE github_runner_pools SET
+    scale_set_id = $1, assigned_jobs = $2,
+    last_error = $3, updated_at = CURRENT_TIMESTAMP
+WHERE id = $4 AND lease_owner = $5
+`
+
+type UpdateGitHubRunnerPoolStatusParams struct {
+	ScaleSetID   int64         `db:"scale_set_id" json:"scale_set_id"`
+	AssignedJobs int32         `db:"assigned_jobs" json:"assigned_jobs"`
+	LastError    string        `db:"last_error" json:"last_error"`
+	ID           uuid.UUID     `db:"id" json:"id"`
+	LeaseOwner   uuid.NullUUID `db:"lease_owner" json:"lease_owner"`
+}
+
+func (q *sqlQuerier) UpdateGitHubRunnerPoolStatus(ctx context.Context, arg UpdateGitHubRunnerPoolStatusParams) error {
+	_, err := q.db.ExecContext(ctx, updateGitHubRunnerPoolStatus,
+		arg.ScaleSetID,
+		arg.AssignedJobs,
+		arg.LastError,
+		arg.ID,
+		arg.LeaseOwner,
+	)
+	return err
+}
+
 const getGitSSHKey = `-- name: GetGitSSHKey :one
 SELECT
 	user_id, created_at, updated_at, private_key, public_key, private_key_key_id

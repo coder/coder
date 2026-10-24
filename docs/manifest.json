@@ -1667,6 +1667,10 @@
 							"path": "./reference/api/git.md"
 						},
 						{
+							"title": "GitHub runners",
+							"path": "./reference/api/githubrunners.md"
+						},
+						{
 							"title": "InitScript",
 							"path": "./reference/api/initscript.md"
 						},

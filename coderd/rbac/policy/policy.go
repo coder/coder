@@ -179,6 +179,14 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionRead:   "read and use a workspace proxy",
 		},
 	},
+	"github_runner_pool": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: "create a GitHub runner pool",
+			ActionRead:   "read a GitHub runner pool",
+			ActionUpdate: "update a GitHub runner pool",
+			ActionDelete: "delete a GitHub runner pool",
+		},
+	},
 	"workspace_build_orchestration": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: "create a workspace build orchestration",

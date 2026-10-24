@@ -26,6 +26,7 @@ const (
 	ResourceDeploymentConfig              RBACResource = "deployment_config"
 	ResourceDeploymentStats               RBACResource = "deployment_stats"
 	ResourceFile                          RBACResource = "file"
+	ResourceGithubRunnerPool              RBACResource = "github_runner_pool"
 	ResourceGroup                         RBACResource = "group"
 	ResourceGroupMember                   RBACResource = "group_member"
 	ResourceIdpsyncSettings               RBACResource = "idpsync_settings"
@@ -111,6 +112,7 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceDeploymentConfig:              {ActionRead, ActionUpdate},
 	ResourceDeploymentStats:               {ActionRead},
 	ResourceFile:                          {ActionCreate, ActionRead},
+	ResourceGithubRunnerPool:              {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceGroup:                         {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceGroupMember:                   {ActionRead},
 	ResourceIdpsyncSettings:               {ActionRead, ActionUpdate},

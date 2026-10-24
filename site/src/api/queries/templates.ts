@@ -59,6 +59,18 @@ export const templates = (
 	};
 };
 
+/** Separates organization-scoped template lists from deployment-wide searches. */
+export const templatesByOrganizationKey = (organization: string) => [
+	...templateListsKey,
+	{ organization },
+];
+
+/** Lists templates available for runner creation within the selected organization. */
+export const templatesByOrganization = (organization: string) => ({
+	queryKey: templatesByOrganizationKey(organization),
+	queryFn: () => API.getTemplatesByOrganization(organization),
+});
+
 export const invalidateTemplateListQueries = (queryClient: QueryClient) =>
 	queryClient.invalidateQueries({
 		queryKey: templateListsKey,

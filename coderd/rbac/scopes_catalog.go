@@ -23,6 +23,13 @@ var externalLowLevel = map[ScopeName]struct{}{
 	"workspace:application_connect": {},
 	"workspace:*":                   {},
 
+	// GitHub runner pools
+	"github_runner_pool:read":   {},
+	"github_runner_pool:create": {},
+	"github_runner_pool:update": {},
+	"github_runner_pool:delete": {},
+	"github_runner_pool:*":      {},
+
 	// Templates
 	"template:read":   {},
 	"template:create": {},

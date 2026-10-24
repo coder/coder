@@ -9,7 +9,8 @@ import (
 // auditable types. If you want to audit a new type, first define it in
 // AuditableResources, then add it to this interface.
 type Auditable interface {
-	database.APIKey |
+	database.GithubRunnerPool |
+		database.APIKey |
 		database.Template |
 		database.TemplateVersion |
 		database.User |

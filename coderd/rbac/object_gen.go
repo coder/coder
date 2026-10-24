@@ -207,6 +207,16 @@ var (
 		Type: "file",
 	}
 
+	// ResourceGithubRunnerPool
+	// Valid Actions
+	//  - "ActionCreate" :: create a GitHub runner pool
+	//  - "ActionDelete" :: delete a GitHub runner pool
+	//  - "ActionRead" :: read a GitHub runner pool
+	//  - "ActionUpdate" :: update a GitHub runner pool
+	ResourceGithubRunnerPool = Object{
+		Type: "github_runner_pool",
+	}
+
 	// ResourceGroup
 	// Valid Actions
 	//  - "ActionCreate" :: create a group
@@ -574,6 +584,7 @@ func AllResources() []Objecter {
 		ResourceDeploymentConfig,
 		ResourceDeploymentStats,
 		ResourceFile,
+		ResourceGithubRunnerPool,
 		ResourceGroup,
 		ResourceGroupMember,
 		ResourceIdpsyncSettings,

@@ -124,6 +124,16 @@ The `resource:*` form grants every action on that resource, including actions no
 | `file:create` | Create a file.                                                     |
 | `file:read`   | Read files.                                                        |
 
+### `github_runner_pool`
+
+| Scope                       | Description                                                                      |
+|-----------------------------|----------------------------------------------------------------------------------|
+| `github_runner_pool:*`      | Every action on `github_runner_pool`, including actions not listed on this page. |
+| `github_runner_pool:create` | Create a GitHub runner pool.                                                     |
+| `github_runner_pool:delete` | Delete a GitHub runner pool.                                                     |
+| `github_runner_pool:read`   | Read a GitHub runner pool.                                                       |
+| `github_runner_pool:update` | Update a GitHub runner pool.                                                     |
+
 ### `inbox_notification`
 
 | Scope                       | Description                 |

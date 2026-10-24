@@ -143,6 +143,7 @@ require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d
+	github.com/actions/scaleset v0.4.0
 	github.com/adrg/xdg v0.5.0
 	github.com/ammario/tlru v0.4.0
 	github.com/andybalholm/brotli v1.2.2

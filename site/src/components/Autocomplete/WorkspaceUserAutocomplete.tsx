@@ -136,7 +136,7 @@ const InnerAutocomplete = <T extends SelectedUser>({
 				onOpenChange={handleOpenChange}
 			>
 				<ComboboxTrigger asChild>
-					<Button variant="outline">
+					<Button id={id} variant="outline">
 						<span className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
 							{value && (
 								<Avatar

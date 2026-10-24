@@ -67,6 +67,7 @@ import (
 	experimentrules "github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/files"
+	"github.com/coder/coder/v2/coderd/githubrunners"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
@@ -158,7 +159,9 @@ var expDERPOnce = sync.Once{}
 
 // Options are requires parameters for Coder to start.
 type Options struct {
-	AccessURL *url.URL
+	// GitHubRunnerClient overrides the scale-set client for integration tests.
+	GitHubRunnerClient func(database.GithubRunnerPool) (githubrunners.Client, error)
+	AccessURL          *url.URL
 	// AppHostname should be the wildcard hostname to use for workspace
 	// applications INCLUDING the asterisk, (optional) suffix and leading dot.
 	// It will use the same scheme and port number as the access URL.
@@ -1566,6 +1569,7 @@ func New(options *Options) *API {
 					httpmw.ExtractOrganizationParam(options.Database),
 				)
 				api.registerOrganizationChatRoutes(r)
+				api.registerGitHubRunnerRoutes(r)
 				r.Get("/", api.organization)
 				r.Post("/templateversions", api.postTemplateVersionsByOrganization)
 				r.Route("/templates", func(r chi.Router) {
@@ -2231,11 +2235,13 @@ func New(options *Options) *API {
 	r.NotFound(cspMW(compressHandler(httpmw.HSTS(api.SiteHandler, options.StrictTransportSecurityCfg))).ServeHTTP)
 
 	api.RootHandler = r
+	api.githubRunnerController = githubrunners.New(api.ctx, githubrunners.Options{Database: api.Database, Logger: api.Logger.Named("github-runners"), Clock: api.Clock, NewClient: options.GitHubRunnerClient, CreateWorkspace: api.createGitHubRunnerWorkspace, WorkspaceStatus: api.githubRunnerWorkspaceStatus, DeleteWorkspace: api.deleteGitHubRunnerWorkspace})
 
 	return api
 }
 
 type API struct {
+	githubRunnerController *githubrunners.Controller
 	// ctx is canceled immediately on shutdown, it can be used to abort
 	// interruptible tasks.
 	ctx    context.Context
@@ -2396,6 +2402,7 @@ func (api *API) Close() error {
 		api.cancel()
 	}
 
+	api.githubRunnerController.Wait()
 	wsDone := make(chan struct{})
 	timer := time.NewTimer(10 * time.Second)
 	defer timer.Stop()

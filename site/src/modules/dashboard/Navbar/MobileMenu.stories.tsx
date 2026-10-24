@@ -49,6 +49,7 @@ const meta: Meta<typeof MobileMenu> = {
 			canViewConnectionLog: true,
 			canViewAIBridge: true,
 			canViewHealth: true,
+			canViewGitHubRunners: true,
 		},
 	},
 	decorators: [withNavbarMock],

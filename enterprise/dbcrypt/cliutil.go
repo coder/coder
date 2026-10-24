@@ -233,6 +233,15 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 		log.Debug(ctx, "encrypted user ai provider key", slog.F("user_ai_provider_key_id", key.ID), slog.F("ai_provider_id", key.AIProviderID), slog.F("user_id", key.UserID), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 	}
 
+	runnerPools, err := cryptDB.GetGitHubRunnerPools(ctx, uuid.Nil)
+	if err != nil {
+		return xerrors.Errorf("get GitHub runner pools: %w", err)
+	}
+	for _, pool := range runnerPools {
+		if _, err := cryptDB.UpdateEncryptedGitHubRunnerPoolToken(ctx, database.UpdateEncryptedGitHubRunnerPoolTokenParams{ID: pool.ID, GithubToken: pool.GithubToken, GithubTokenKeyID: sql.NullString{}}); err != nil {
+			return xerrors.Errorf("rotate GitHub runner token: %w", err)
+		}
+	}
 	log.Info(ctx, "encrypting workspace secrets")
 	err = forEachWorkspaceSecret(ctx, cryptDB, func(secret database.WorkspaceSecret) error {
 		if secret.ValueKeyID.Valid && secret.ValueKeyID.String == ciphers[0].HexDigest() {
@@ -477,6 +486,15 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 		log.Debug(ctx, "decrypted user ai provider key", slog.F("user_ai_provider_key_id", key.ID), slog.F("ai_provider_id", key.AIProviderID), slog.F("user_id", key.UserID), slog.F("current", idx+1))
 	}
 
+	runnerPools, err := cryptDB.GetGitHubRunnerPools(ctx, uuid.Nil)
+	if err != nil {
+		return xerrors.Errorf("get GitHub runner pools: %w", err)
+	}
+	for _, pool := range runnerPools {
+		if _, err := cryptDB.UpdateEncryptedGitHubRunnerPoolToken(ctx, database.UpdateEncryptedGitHubRunnerPoolTokenParams{ID: pool.ID, GithubToken: pool.GithubToken, GithubTokenKeyID: sql.NullString{}}); err != nil {
+			return xerrors.Errorf("decrypt GitHub runner token: %w", err)
+		}
+	}
 	log.Info(ctx, "decrypting workspace secrets")
 	err = forEachWorkspaceSecret(ctx, cryptDB, func(secret database.WorkspaceSecret) error {
 		if !secret.ValueKeyID.Valid {

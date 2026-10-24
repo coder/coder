@@ -102,6 +102,11 @@ const (
 	APIKeyScopeFileAll                             APIKeyScope = "file:*"
 	APIKeyScopeFileCreate                          APIKeyScope = "file:create"
 	APIKeyScopeFileRead                            APIKeyScope = "file:read"
+	APIKeyScopeGithubRunnerPoolAll                 APIKeyScope = "github_runner_pool:*"
+	APIKeyScopeGithubRunnerPoolCreate              APIKeyScope = "github_runner_pool:create"
+	APIKeyScopeGithubRunnerPoolDelete              APIKeyScope = "github_runner_pool:delete"
+	APIKeyScopeGithubRunnerPoolRead                APIKeyScope = "github_runner_pool:read"
+	APIKeyScopeGithubRunnerPoolUpdate              APIKeyScope = "github_runner_pool:update"
 	APIKeyScopeGroupAll                            APIKeyScope = "group:*"
 	APIKeyScopeGroupCreate                         APIKeyScope = "group:create"
 	APIKeyScopeGroupDelete                         APIKeyScope = "group:delete"
@@ -293,6 +298,11 @@ var PublicAPIKeyScopes = []APIKeyScope{
 	APIKeyScopeFileAll,
 	APIKeyScopeFileCreate,
 	APIKeyScopeFileRead,
+	APIKeyScopeGithubRunnerPoolAll,
+	APIKeyScopeGithubRunnerPoolCreate,
+	APIKeyScopeGithubRunnerPoolDelete,
+	APIKeyScopeGithubRunnerPoolRead,
+	APIKeyScopeGithubRunnerPoolUpdate,
 	APIKeyScopeInboxNotificationRead,
 	APIKeyScopeInboxNotificationUpdate,
 	APIKeyScopeOrganizationAll,

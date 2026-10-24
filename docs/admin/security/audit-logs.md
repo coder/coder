@@ -479,6 +479,36 @@ Actions: `create`
 </tbody>
 </table>
 
+### GithubRunnerPool
+
+Actions: `create`, `write`, `delete`
+
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>assigned_jobs</code></td><td>No</td></tr>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>github_config_url</code></td><td>Yes</td></tr>
+<tr><td><code>github_token</code></td><td>Yes</td></tr>
+<tr><td><code>github_token_key_id</code></td><td>No</td></tr>
+<tr><td><code>id</code></td><td>Yes</td></tr>
+<tr><td><code>job_timeout_seconds</code></td><td>Yes</td></tr>
+<tr><td><code>last_error</code></td><td>No</td></tr>
+<tr><td><code>lease_expires_at</code></td><td>No</td></tr>
+<tr><td><code>lease_owner</code></td><td>No</td></tr>
+<tr><td><code>max_runners</code></td><td>Yes</td></tr>
+<tr><td><code>name</code></td><td>Yes</td></tr>
+<tr><td><code>organization_id</code></td><td>Yes</td></tr>
+<tr><td><code>owner_id</code></td><td>Yes</td></tr>
+<tr><td><code>runner_group_id</code></td><td>Yes</td></tr>
+<tr><td><code>scale_set_id</code></td><td>Yes</td></tr>
+<tr><td><code>startup_timeout_seconds</code></td><td>Yes</td></tr>
+<tr><td><code>state</code></td><td>Yes</td></tr>
+<tr><td><code>template_id</code></td><td>Yes</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+</tbody>
+</table>
+
 ### GroupSyncSettings
 
 <table width="100%">

@@ -8400,6 +8400,272 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v2/organizations/{organization}/github-runner-pools": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "GitHub runners"
+                ],
+                "summary": "List GitHub runner pools",
+                "operationId": "list-github-runner-pools",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.GitHubRunnerPool"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "GitHub runners"
+                ],
+                "summary": "Create GitHub runner pool",
+                "operationId": "create-github-runner-pool",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Pool configuration",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateGitHubRunnerPoolRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GitHubRunnerPool"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/organizations/{organization}/github-runner-pools/{pool}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "GitHub runners"
+                ],
+                "summary": "Get GitHub runner pool",
+                "operationId": "get-github-runner-pool",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Pool ID",
+                        "name": "pool",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GitHubRunnerPool"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "delete": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "GitHub runners"
+                ],
+                "summary": "Drain and delete GitHub runner pool",
+                "operationId": "delete-github-runner-pool",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Pool ID",
+                        "name": "pool",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GitHubRunnerPool"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "GitHub runners"
+                ],
+                "summary": "Update GitHub runner pool",
+                "operationId": "update-github-runner-pool",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Pool ID",
+                        "name": "pool",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Pool changes",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateGitHubRunnerPoolRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GitHubRunnerPool"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/organizations/{organization}/github-runner-pools/{pool}/runners": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "GitHub runners"
+                ],
+                "summary": "List GitHub runner allocations",
+                "operationId": "list-github-runners",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Pool ID",
+                        "name": "pool",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.GitHubRunner"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/organizations/{organization}/groups": {
             "get": {
                 "produces": [
@@ -20246,6 +20512,11 @@ const docTemplate = `{
                 "file:*",
                 "file:create",
                 "file:read",
+                "github_runner_pool:*",
+                "github_runner_pool:create",
+                "github_runner_pool:delete",
+                "github_runner_pool:read",
+                "github_runner_pool:update",
                 "group:*",
                 "group:create",
                 "group:delete",
@@ -20514,6 +20785,11 @@ const docTemplate = `{
                 "APIKeyScopeFileAll",
                 "APIKeyScopeFileCreate",
                 "APIKeyScopeFileRead",
+                "APIKeyScopeGithubRunnerPoolAll",
+                "APIKeyScopeGithubRunnerPoolCreate",
+                "APIKeyScopeGithubRunnerPoolDelete",
+                "APIKeyScopeGithubRunnerPoolRead",
+                "APIKeyScopeGithubRunnerPoolUpdate",
                 "APIKeyScopeGroupAll",
                 "APIKeyScopeGroupCreate",
                 "APIKeyScopeGroupDelete",
@@ -24292,6 +24568,43 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateGitHubRunnerPoolRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "github_config_url": {
+                    "type": "string"
+                },
+                "github_token": {
+                    "type": "string"
+                },
+                "job_timeout_seconds": {
+                    "type": "integer"
+                },
+                "max_runners": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "owner_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "runner_group_id": {
+                    "type": "integer"
+                },
+                "startup_timeout_seconds": {
+                    "type": "integer"
+                },
+                "template_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
         "codersdk.CreateGroupRequest": {
             "type": "object",
             "required": [
@@ -26370,6 +26683,118 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.User"
                     }
+                }
+            }
+        },
+        "codersdk.GitHubRunner": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "github_runner_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "job_request_id": {
+                    "type": "integer"
+                },
+                "job_result": {
+                    "type": "string"
+                },
+                "last_error": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "pool_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "state": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "workspace_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.GitHubRunnerPool": {
+            "type": "object",
+            "properties": {
+                "assigned_jobs": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "github_config_url": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "job_timeout_seconds": {
+                    "type": "integer"
+                },
+                "last_error": {
+                    "type": "string"
+                },
+                "max_runners": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "owner_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "runner_group_id": {
+                    "type": "integer"
+                },
+                "scale_set_id": {
+                    "type": "integer"
+                },
+                "startup_timeout_seconds": {
+                    "type": "integer"
+                },
+                "state": {
+                    "type": "string",
+                    "enum": [
+                        "active",
+                        "paused",
+                        "draining",
+                        "deleted"
+                    ]
+                },
+                "template_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
                 }
             }
         },
@@ -30147,6 +30572,7 @@ const docTemplate = `{
                 "deployment_config",
                 "deployment_stats",
                 "file",
+                "github_runner_pool",
                 "group",
                 "group_member",
                 "idpsync_settings",
@@ -30205,6 +30631,7 @@ const docTemplate = `{
                 "ResourceDeploymentConfig",
                 "ResourceDeploymentStats",
                 "ResourceFile",
+                "ResourceGithubRunnerPool",
                 "ResourceGroup",
                 "ResourceGroupMember",
                 "ResourceIdpsyncSettings",
@@ -30423,6 +30850,7 @@ const docTemplate = `{
         "codersdk.ResourceType": {
             "type": "string",
             "enum": [
+                "github_runner_pool",
                 "template",
                 "template_version",
                 "user",
@@ -30473,6 +30901,7 @@ const docTemplate = `{
                 "experiment_rule"
             ],
             "x-enum-varnames": [
+                "ResourceTypeGitHubRunnerPool",
                 "ResourceTypeTemplate",
                 "ResourceTypeTemplateVersion",
                 "ResourceTypeUser",
@@ -32568,6 +32997,22 @@ const docTemplate = `{
                 "version": {
                     "description": "Version is the semantic version for the latest release of Coder.",
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.UpdateGitHubRunnerPoolRequest": {
+            "type": "object",
+            "properties": {
+                "max_runners": {
+                    "type": "integer"
+                },
+                "state": {
+                    "type": "string",
+                    "enum": [
+                        "active",
+                        "paused",
+                        "draining"
+                    ]
                 }
             }
         },
