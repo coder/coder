@@ -15,7 +15,16 @@ import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 import { RetryButton } from "../RetryButton";
 import { formatMembersHeading, type ProjectAccessEntry } from "./projectAccess";
 
-const MAX_VISIBLE_MEMBERS = 7;
+/** The most avatar tiles the members row shows, including the "+K" tile. */
+const MAX_MEMBER_TILES = 8;
+
+// Long names would otherwise run off narrow screens.
+const memberTooltipClassName =
+	"max-w-[min(20rem,calc(100vw-2rem))] break-words";
+
+// A button so keyboard users can focus a tile to read its tooltip.
+const memberTileTriggerClassName =
+	"relative flex cursor-default rounded-[6px] border-0 bg-transparent p-0 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link";
 
 type MembersSectionProps = {
 	/** `undefined` while the access list loads or after loading fails. */
@@ -229,8 +238,12 @@ const MembersSection: React.FC<MembersSectionProps> = ({
 		const groupCount = entries.filter((entry) => entry.kind === "group").length;
 		heading = formatMembersHeading(entries.length - groupCount, groupCount);
 	}
-	const visibleEntries = entries?.slice(0, MAX_VISIBLE_MEMBERS);
-	const hiddenCount = entries ? entries.length - MAX_VISIBLE_MEMBERS : 0;
+	// Fill the last tile with an avatar when it fits; otherwise it shows "+K".
+	const visibleEntries =
+		entries && entries.length > MAX_MEMBER_TILES
+			? entries.slice(0, MAX_MEMBER_TILES - 1)
+			: entries;
+	const hiddenEntries = entries?.slice(visibleEntries?.length ?? 0) ?? [];
 	const isLoading = !entries && !error;
 
 	return (
@@ -263,10 +276,22 @@ const MembersSection: React.FC<MembersSectionProps> = ({
 							<MemberAvatar entry={entry} />
 						</li>
 					))}
-					{hiddenCount > 0 && (
-						<li className="-ml-2 flex size-(--avatar-lg) items-center justify-center rounded-[6px] border border-solid border-border bg-surface-secondary text-sm font-medium text-content-secondary ring-2 ring-surface-primary">
-							<span aria-hidden="true">+{hiddenCount}</span>
-							<span className="sr-only">{hiddenCount} more</span>
+					{hiddenEntries.length > 0 && (
+						<li className="-ml-2 flex rounded-[6px] ring-2 ring-surface-primary">
+							<Tooltip>
+								<TooltipTrigger
+									type="button"
+									aria-label={`${hiddenEntries.length} more`}
+									className={memberTileTriggerClassName}
+								>
+									<span className="flex size-(--avatar-lg) items-center justify-center rounded-[6px] border border-solid border-border bg-surface-secondary text-sm font-medium text-content-secondary">
+										+{hiddenEntries.length}
+									</span>
+								</TooltipTrigger>
+								<TooltipContent className={memberTooltipClassName}>
+									{hiddenEntries.map((entry) => entry.name).join(", ")}
+								</TooltipContent>
+							</Tooltip>
 						</li>
 					)}
 				</ul>
@@ -285,6 +310,7 @@ const MembersSection: React.FC<MembersSectionProps> = ({
 			{Boolean(error) && (
 				<ErrorAlert
 					error={error}
+					showDebugDetail={false}
 					actions={
 						<RetryButton
 							size="sm"
@@ -313,20 +339,23 @@ const MemberAvatar: React.FC<MemberAvatarProps> = ({ entry }) => {
 		);
 	}
 	return (
-		<>
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<Avatar
-						size="lg"
-						src={entry.avatarUrl}
-						fallback={entry.name}
-						aria-hidden="true"
-					/>
-				</TooltipTrigger>
-				<TooltipContent>{entry.name}</TooltipContent>
-			</Tooltip>
-			<span className="sr-only">{entry.name}</span>
-		</>
+		<Tooltip>
+			<TooltipTrigger
+				type="button"
+				aria-label={entry.name}
+				className={memberTileTriggerClassName}
+			>
+				<Avatar
+					size="lg"
+					src={entry.avatarUrl}
+					fallback={entry.name}
+					aria-hidden="true"
+				/>
+			</TooltipTrigger>
+			<TooltipContent className={memberTooltipClassName}>
+				{entry.name}
+			</TooltipContent>
+		</Tooltip>
 	);
 };
 

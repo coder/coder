@@ -48,9 +48,16 @@ export const formatMembersHeading = (
 const userSubtitle = (user: MinimalUser) =>
 	user.name ? user.username : undefined;
 
+// The ACL API returns entries in no stable order, so sort them to keep the
+// avatar row and dialog from reshuffling between loads.
+const compareEntries = (a: ProjectAccessEntry, b: ProjectAccessEntry) =>
+	(a.name ?? "").localeCompare(b.name ?? "", undefined, {
+		sensitivity: "base",
+	}) || a.id.localeCompare(b.id);
+
 /**
- * Orders the owner first, then users, then groups. The ACL never lists the
- * owner. `owner` is `undefined` while it loads and `null` if it failed to load.
+ * Orders the owner first, then users, then groups, each sorted by name. The
+ * ACL never lists the owner. `owner` is `undefined` while it loads and `null` if it failed to load.
  */
 export const buildAccessEntries = (
 	ownerId: string,
@@ -69,24 +76,28 @@ export const buildAccessEntries = (
 		subtitle: owner ? userSubtitle(owner) : undefined,
 		avatarUrl: owner?.avatar_url,
 	},
-	...acl.users.map(
-		(user): ProjectAccessEntry => ({
-			kind: "user",
-			id: user.id,
-			name: user.name || user.username,
-			subtitle: userSubtitle(user),
-			avatarUrl: user.avatar_url,
-			role: user.role,
-		}),
-	),
-	...acl.groups.map(
-		(group): ProjectAccessEntry => ({
-			kind: "group",
-			id: group.id,
-			name: group.display_name || group.name,
-			subtitle: getGroupSubtitle(group),
-			avatarUrl: group.avatar_url,
-			role: group.role,
-		}),
-	),
+	...acl.users
+		.map(
+			(user): ProjectAccessEntry => ({
+				kind: "user",
+				id: user.id,
+				name: user.name || user.username,
+				subtitle: userSubtitle(user),
+				avatarUrl: user.avatar_url,
+				role: user.role,
+			}),
+		)
+		.sort(compareEntries),
+	...acl.groups
+		.map(
+			(group): ProjectAccessEntry => ({
+				kind: "group",
+				id: group.id,
+				name: group.display_name || group.name,
+				subtitle: getGroupSubtitle(group),
+				avatarUrl: group.avatar_url,
+				role: group.role,
+			}),
+		)
+		.sort(compareEntries),
 ];

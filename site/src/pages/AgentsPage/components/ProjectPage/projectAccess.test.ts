@@ -46,6 +46,29 @@ describe("buildAccessEntries", () => {
 		]);
 	});
 
+	it("sorts users and groups by name regardless of the API order", () => {
+		const mockGroupB = {
+			...MockGroup,
+			id: "group-b",
+			name: "b-team",
+			display_name: "",
+		};
+		const entries = buildAccessEntries(MockUserOwner.id, MockUserOwner, {
+			users: [...mockACL.users].reverse(),
+			groups: [
+				{ ...mockGroupB, role: "use" },
+				{ ...MockGroup, id: "group-a", display_name: "A-team", role: "use" },
+			],
+		});
+		expect(entries.map(({ id }) => id)).toEqual([
+			MockUserOwner.id,
+			MockUserMember.id,
+			mockUnnamedUser.id,
+			"group-a",
+			mockGroupB.id,
+		]);
+	});
+
 	it("names users by username when they have no display name", () => {
 		const [, , unnamed] = buildAccessEntries(
 			MockUserOwner.id,

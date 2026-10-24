@@ -56,6 +56,7 @@ export const ProjectAccessDialog: React.FC<ProjectAccessDialogProps> = ({
 				{Boolean(error) && (
 					<ErrorAlert
 						error={error}
+						showDebugDetail={false}
 						actions={
 							<RetryButton
 								size="sm"

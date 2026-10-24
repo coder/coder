@@ -136,6 +136,8 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 								onOpenAccess: (event) => {
 									accessFocusReturn.rememberTrigger(event);
 									setIsAccessDialogOpen(true);
+									// Show access changes made since the page loaded.
+									void aclQuery.refetch();
 								},
 							}
 				}

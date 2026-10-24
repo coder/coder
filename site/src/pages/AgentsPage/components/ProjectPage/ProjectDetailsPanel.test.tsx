@@ -563,7 +563,7 @@ describe("ProjectDetailsPanel", () => {
 		await waitFor(() => expect(skillsButton).toHaveFocus());
 	});
 
-	it("opens the project access dialog from View access and returns focus when it closes", async () => {
+	it("opens the project access dialog from View access, refetches access, and returns focus when it closes", async () => {
 		mockInstructions(MockChatProjectInstructions);
 		const getACL = vi
 			.spyOn(API.experimental, "getChatProjectACL")
@@ -577,6 +577,8 @@ describe("ProjectDetailsPanel", () => {
 		});
 
 		await user.click(accessButton);
+		// Opening the dialog refetches so it shows access changed elsewhere.
+		await waitFor(() => expect(getACL).toHaveBeenCalledTimes(2));
 		await user.click(await screen.findByRole("button", { name: "Close" }));
 
 		await waitFor(() => expect(accessButton).toHaveFocus());

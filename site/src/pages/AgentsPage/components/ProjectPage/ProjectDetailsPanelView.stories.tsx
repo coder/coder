@@ -250,6 +250,19 @@ export const MembersOverflow: Story = {
 	},
 };
 
+/** A full row shows every avatar instead of a "+1" tile. */
+export const MembersFullRow: Story = {
+	args: {
+		members: {
+			...mockMembers,
+			entries: buildAccessEntries(MockUserOwner.id, MockUserOwner, {
+				users: mockSharees.slice(0, 7),
+				groups: [],
+			}),
+		},
+	},
+};
+
 /** Groups follow users and count separately in the heading. */
 export const MembersWithGroups: Story = {
 	args: {
@@ -270,6 +283,27 @@ export const MembersWithGroups: Story = {
 export const MemberTooltip: Story = {
 	play: async ({ canvasElement }) => {
 		await userEvent.hover(within(canvasElement).getByText("AD"));
+	},
+};
+
+/** Long names wrap instead of running off narrow screens. */
+export const MemberTooltipLongName: Story = {
+	args: {
+		members: {
+			...mockMembers,
+			entries: buildAccessEntries(MockUserOwner.id, MockUserOwner, {
+				users: [
+					{
+						...mockSharees[0],
+						name: "Augusta Ada King, Countess of Lovelace, Analyst of the Analytical Engine and Poet of Science",
+					},
+				],
+				groups: [],
+			}),
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(within(canvasElement).getByText("AU"));
 	},
 };
 
