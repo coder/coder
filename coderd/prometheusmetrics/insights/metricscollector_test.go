@@ -112,14 +112,14 @@ func TestCollectInsights(t *testing.T) {
 			ConnectionCount:           1,
 			ConnectionMedianLatencyMs: 15,
 			// Session counts must be positive, but the exact value is ignored.
-			// The query counts 60s per family, however many of its apps
-			// report: cursor counts toward VS Code and zed toward SSH.
 			SessionCounts: map[string]int64{
-				"vscode":    34,
-				"cursor":    2,
-				"jetbrains": 47,
-				"ssh":       99,
-				"zed":       1,
+				"vscode":          34,
+				"cursor":          2,
+				"jetbrains":       47,
+				"ssh":             99,
+				"zed":             1,
+				"port_forwarding": 1,
+				"future_ide":      1,
 			},
 		},
 	})

@@ -928,10 +928,8 @@ type sqlcQuerier interface {
 	// GetTemplateInsightsByTemplate is used for Prometheus metrics. Keep
 	// in sync with GetTemplateInsights and UpsertTemplateUsageStats.
 	//
-	// Session usage is reported per app family. It reads the raw agent stats
-	// because the rollup stores minutes per app, which can't show whether two
-	// apps of one family were open in the same minute. @app_families maps each
-	// app name to its family; names missing from the map count as unknown.
+	// Session usage is per connection method and app name. It reads raw agent
+	// stats because rollup buckets are coarser than the metrics window.
 	GetTemplateInsightsByTemplate(ctx context.Context, arg GetTemplateInsightsByTemplateParams) ([]GetTemplateInsightsByTemplateRow, error)
 	// GetTemplateParameterInsights does for each template in a given timeframe,
 	// look for the latest workspace build (for every workspace) that has been
