@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { LiveStatusModel } from "./liveStatusModel";
 import { shouldShowGenericThinking } from "./streamingActivity";
-import type { MergedTool } from "./types";
+import type { MergedTool, RenderBlock } from "./types";
 
 const liveStatus = (phase: LiveStatusModel["phase"]): LiveStatusModel => {
 	switch (phase) {
@@ -10,7 +10,11 @@ const liveStatus = (phase: LiveStatusModel["phase"]): LiveStatusModel => {
 		case "starting":
 			return { phase: "starting", hasAccumulatedOutput: false };
 		case "streaming":
-			return { phase: "streaming", hasAccumulatedOutput: false };
+			return {
+				phase: "streaming",
+				hasAccumulatedOutput: false,
+				hasRecentOutput: true,
+			};
 		case "retrying":
 			return {
 				phase: "retrying",
@@ -43,6 +47,12 @@ const liveStatus = (phase: LiveStatusModel["phase"]): LiveStatusModel => {
 	}
 };
 
+const quietStreaming: LiveStatusModel = {
+	phase: "streaming",
+	hasAccumulatedOutput: true,
+	hasRecentOutput: false,
+};
+
 const tool = (status: MergedTool["status"]): MergedTool => ({
 	id: status,
 	name: "read_file",
@@ -51,76 +61,66 @@ const tool = (status: MergedTool["status"]): MergedTool => ({
 });
 
 describe("shouldShowGenericThinking", () => {
-	it("shows for starting", () => {
-		expect(
-			shouldShowGenericThinking({
-				liveStatus: liveStatus("starting"),
-				blocks: [],
-				tools: [],
-			}),
-		).toBe(true);
-	});
+	const response: RenderBlock = { type: "response", text: "Let me check." };
 
-	it("shows for streaming with no readable blocks or running tools", () => {
+	type Case = [
+		name: string,
+		liveStatus: LiveStatusModel,
+		blocks: RenderBlock[],
+		tools: MergedTool[],
+		shows: boolean,
+	];
+	const cases: Case[] = [
+		["shows while starting", liveStatus("starting"), [], [], true],
+		[
+			"shows while streaming before any block",
+			liveStatus("streaming"),
+			[],
+			[],
+			true,
+		],
+		[
+			"hides while response text keeps arriving",
+			liveStatus("streaming"),
+			[response],
+			[],
+			false,
+		],
+		[
+			"shows once response text stops arriving",
+			quietStreaming,
+			[response],
+			[],
+			true,
+		],
+		[
+			"hides while reasoning is the last block, even when quiet",
+			quietStreaming,
+			[{ type: "thinking", text: "thinking" }],
+			[],
+			false,
+		],
+		[
+			"hides while a tool is running, even when response text is quiet",
+			quietStreaming,
+			[{ type: "tool", id: "running" }, response],
+			[tool("running")],
+			false,
+		],
+		[
+			"shows when a completed tool follows earlier text",
+			liveStatus("streaming"),
+			[response, { type: "tool", id: "completed" }],
+			[tool("completed")],
+			true,
+		],
+		...(["idle", "retrying", "reconnecting", "failed"] as const).map(
+			(phase): Case => [`hides for ${phase}`, liveStatus(phase), [], [], false],
+		),
+	];
+	it.each(cases)("%s", (_name, status, blocks, tools, shows) => {
 		expect(
-			shouldShowGenericThinking({
-				liveStatus: liveStatus("streaming"),
-				blocks: [],
-				tools: [],
-			}),
-		).toBe(true);
+			shouldShowGenericThinking({ liveStatus: status, blocks, tools }),
+		).toBe(shows);
 	});
-
-	it("hides for streaming with a running tool", () => {
-		expect(
-			shouldShowGenericThinking({
-				liveStatus: liveStatus("streaming"),
-				blocks: [{ type: "tool", id: "read-1" }],
-				tools: [tool("running")],
-			}),
-		).toBe(false);
-	});
-
-	it("shows after tools complete but before readable output", () => {
-		expect(
-			shouldShowGenericThinking({
-				liveStatus: liveStatus("streaming"),
-				blocks: [{ type: "tool", id: "read-1" }],
-				tools: [tool("completed")],
-			}),
-		).toBe(true);
-	});
-
-	it("hides when response text is visible", () => {
-		expect(
-			shouldShowGenericThinking({
-				liveStatus: liveStatus("streaming"),
-				blocks: [{ type: "response", text: "hello" }],
-				tools: [],
-			}),
-		).toBe(false);
-	});
-
-	it("hides when reasoning is visible", () => {
-		expect(
-			shouldShowGenericThinking({
-				liveStatus: liveStatus("streaming"),
-				blocks: [{ type: "thinking", text: "thinking" }],
-				tools: [],
-			}),
-		).toBe(false);
-	});
-
-	it.each(["idle", "retrying", "reconnecting", "failed"] as const)(
-		"hides for %s",
-		(phase) => {
-			expect(
-				shouldShowGenericThinking({
-					liveStatus: liveStatus(phase),
-					blocks: [],
-					tools: [],
-				}),
-			).toBe(false);
-		},
-	);
 });
