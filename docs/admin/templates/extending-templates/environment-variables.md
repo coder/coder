@@ -43,7 +43,8 @@ It does not know about the value already set by the workspace's image or host, s
 An `append` or `prepend` builds its value from `coder_env` resources alone, and that value replaces whatever the host had set for that variable.
 
 To extend a variable that the host already sets, reference it directly in one of the values (for example, `$PATH`), so the agent expands it against the real environment at startup.
-Only one resource in the chain needs the reference. The rest can use plain values.
+Only one resource in the chain needs the reference.
+The rest can use plain values.
 The next example covers this.
 
 ### Example: Appending to PATH

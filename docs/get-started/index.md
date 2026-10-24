@@ -334,7 +334,8 @@ When you're ready for other people to use it:
 
 1. Install the control plane on a separate machine by following the [Install guide](../install/index.md).
 1. [Create users](../admin/users/index.md#create-a-user) for your teammates, or connect an SSO provider.
-1. Have each teammate launch their own workspace from your template, which everyone in the organization can use by default. Refer to [Workspace management](../user-guides/workspace-management.md).
+1. Have each teammate launch their own workspace from your template, which everyone in the organization can use by default.
+   Refer to [Workspace management](../user-guides/workspace-management.md).
 
 ## Learn more
 

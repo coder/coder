@@ -49,8 +49,10 @@ This means a common pattern from interactive shells does not behave as you might
 coder ssh my-workspace -- bash -c 'echo ready'
 ```
 
-The local shell strips the single-quotes, the CLI receives the argv `[bash, -c, echo, ready]`, and the remote agent runs `bash -c echo ready`. `echo` gets no arguments and `ready` is bound to `$0`.
-The same caveat applies to plain `ssh user@host -- bash -c '...'`. This is SSH protocol semantics, not a `coder ssh` limitation.
+The local shell strips the single-quotes, the CLI receives the argv `[bash, -c, echo, ready]`, and the remote agent runs `bash -c echo ready`.
+`echo` gets no arguments and `ready` is bound to `$0`.
+The same caveat applies to plain `ssh user@host -- bash -c '...'`.
+This is SSH protocol semantics, not a `coder ssh` limitation.
 
 For commands that need preserved quoting, use one of these patterns:
 
