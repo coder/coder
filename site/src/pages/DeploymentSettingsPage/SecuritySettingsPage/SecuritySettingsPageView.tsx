@@ -98,7 +98,12 @@ export const SecuritySettingsPageView: React.FC<
 							TLS
 						</SettingsHeaderTitle>
 						<SettingsHeaderDescription>
-							Ensure TLS is properly configured for your Coder deployment.
+							Encrypt traffic to your deployment to protect credentials and
+							workspace data.{" "}
+							<SettingsHeaderDocsLink
+								href={docs("/admin/setup#tls--reverse-proxy")}
+								context="about TLS"
+							/>
 						</SettingsHeaderDescription>
 					</SettingsHeader>
 
