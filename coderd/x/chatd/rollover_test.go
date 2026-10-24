@@ -3,6 +3,7 @@ package chatd_test
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -504,6 +505,156 @@ func TestActiveServer_ContextHandoff(t *testing.T) {
 	sixth := anthropicRequestBody(t, streams[5])
 	require.Contains(t, sixth, "request 5")
 	require.NotContains(t, sixth, handoffText)
+}
+
+func TestActiveServer_ContextOverflowRollover(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		strategy  codersdk.ChatCompactionStrategy
+		threshold int32
+		// overflowStreams lists the 1-based streaming requests that the
+		// provider rejects as too large.
+		overflowStreams []int32
+		// populated sends a second message after a first answered turn.
+		populated    bool
+		wantRollover bool
+		wantError    bool
+		wantStreams  int32
+	}{
+		{
+			name:            "PopulatedWindowRollsOverAndRetries",
+			strategy:        codersdk.ChatCompactionStrategyTokenBudget,
+			threshold:       70,
+			overflowStreams: []int32{2},
+			populated:       true,
+			wantRollover:    true,
+			wantStreams:     3,
+		},
+		{
+			name:            "FreshWindowOverflowIsTerminal",
+			strategy:        codersdk.ChatCompactionStrategyTokenBudget,
+			threshold:       70,
+			overflowStreams: []int32{1, 2},
+			wantError:       true,
+			wantStreams:     1,
+		},
+		{
+			name:            "OverflowAfterRolloverIsTerminal",
+			strategy:        codersdk.ChatCompactionStrategyTokenBudget,
+			threshold:       70,
+			overflowStreams: []int32{2, 3},
+			populated:       true,
+			wantRollover:    true,
+			wantError:       true,
+			wantStreams:     3,
+		},
+		{
+			name:            "RolloverDisabledKeepsError",
+			strategy:        codersdk.ChatCompactionStrategyTokenBudget,
+			threshold:       100,
+			overflowStreams: []int32{2},
+			populated:       true,
+			wantError:       true,
+			wantStreams:     2,
+		},
+		{
+			name:            "SummarizeKeepsError",
+			strategy:        codersdk.ChatCompactionStrategySummarize,
+			threshold:       70,
+			overflowStreams: []int32{2},
+			populated:       true,
+			wantError:       true,
+			wantStreams:     2,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			db, ps := dbtestutil.NewDB(t)
+			requests := newAnthropicRequestRecorder()
+			var streamCount atomic.Int32
+			anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+				if !req.Stream {
+					return chattest.AnthropicNonStreamingResponse("title")
+				}
+				requests.record(req)
+				n := streamCount.Add(1)
+				if slices.Contains(tc.overflowStreams, n) {
+					return chattest.AnthropicResponse{Error: &chattest.ErrorResponse{
+						StatusCode: http.StatusBadRequest,
+						Type:       "invalid_request_error",
+						Message:    "prompt is too long: 250000 tokens > 200000 maximum",
+					}}
+				}
+				return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunksWithCacheUsage(chattest.AnthropicUsage{
+					InputTokens:  10,
+					OutputTokens: 5,
+				}, fmt.Sprintf("answer %d", n))...)
+			})
+			user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+			model = updateChatModelCompressionThreshold(t, db, model, 200_000, tc.threshold)
+			require.NoError(t, db.UpsertUserChatCompactionStrategy(ctx, database.UpsertUserChatCompactionStrategyParams{
+				UserID:             user.ID,
+				CompactionStrategy: string(tc.strategy),
+			}))
+			reg := prometheus.NewRegistry()
+			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+				cfg.PrometheusRegistry = reg
+			})
+
+			chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "first request")
+			if tc.populated {
+				waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+				_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+					ChatID:        chat.ID,
+					CreatedBy:     user.ID,
+					ModelConfigID: model.ID,
+					Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("second request")},
+				})
+				require.NoError(t, err)
+			}
+			wantStatus := database.ChatStatusWaiting
+			if tc.wantError {
+				wantStatus = database.ChatStatusError
+			}
+			chat = waitForChatStatus(ctx, t, db, chat.ID, wantStatus)
+			require.Equal(t, tc.wantError, chat.LastError.Valid)
+			require.Equal(t, tc.wantStreams, streamCount.Load())
+
+			messages := chatMessages(ctx, t, db, chat.ID)
+			calls, _ := rolloverBoundaryParts(t, messages)
+			if !tc.wantRollover {
+				require.Empty(t, calls)
+				return
+			}
+			require.Len(t, calls, 1, "a window holds at most one overflow rollover")
+			var payload map[string]any
+			require.NoError(t, json.Unmarshal(calls[0].Args, &payload))
+			require.Equal(t, "overflow", payload["reason"])
+			require.Equal(t, "system", payload["requested_by"])
+			requireChatdMetricCounter(t, reg, "coderd_chatd_context_rollover_total", 1, map[string]string{
+				"provider": "anthropic",
+				"model":    "claude-sonnet-4-20250514",
+				"reason":   "overflow",
+			})
+
+			retry := anthropicRequestBody(t, filterAnthropicStreamingRequests(requests.all())[2])
+			require.Contains(t, retry, rolloverLeadInPrefix)
+			require.Contains(t, retry, "The provider rejected the previous request as too large for the context window.")
+			require.NotContains(t, retry, "usable limit.", "an overflow did not reach the usable limit")
+			require.Contains(t, retry, "second request", "the pending user message is replayed after the anchor")
+			require.NotContains(t, retry, "first request")
+			require.NotContains(t, retry, "answer 1")
+			if !tc.wantError {
+				requireTextPart(t, messages[len(messages)-1], "answer 3")
+			}
+		})
+	}
 }
 
 func anthropicToolNames(req chattest.AnthropicRequest) []string {

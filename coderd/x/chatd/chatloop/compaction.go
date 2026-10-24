@@ -614,7 +614,7 @@ func generateCompactionSummary(
 		summary, err = streamSummaryText(call)
 		// The rejection can arrive from the stream open or as an in-stream
 		// error part, so the next request repeats the whole attempt.
-		if !isContextTooLargeError(err) {
+		if !IsContextTooLargeError(err) {
 			return summary, responseID, err
 		}
 		options.Logger.Warn(ctx, "compaction summary request rejected for its size",
@@ -740,7 +740,7 @@ var contextTooLargePhrases = []string{
 	"too long",
 }
 
-// isContextTooLargeError reports whether a provider rejected a request for
+// IsContextTooLargeError reports whether a provider rejected a request for
 // its size: the prompt exceeded the model's context window, or the body
 // exceeded a request size limit on the provider or a gateway in front of it.
 // The rejection can arrive as an HTTP 400 or inside an HTTP 200 stream,
@@ -749,7 +749,7 @@ var contextTooLargePhrases = []string{
 // the event's error code when it has one. The code then decides, so a rate
 // limit or server error whose text mentions the context window is not taken
 // for an overflow.
-func isContextTooLargeError(err error) bool {
+func IsContextTooLargeError(err error) bool {
 	if providerErr, ok := errors.AsType[*fantasy.ProviderError](err); ok {
 		if providerErr.IsContextTooLarge() || providerErr.StatusCode == http.StatusRequestEntityTooLarge {
 			return true

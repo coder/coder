@@ -733,6 +733,14 @@ func (s *taskStarter) runGenerationStep(
 	if errors.Is(actionErr, errTaskExpectedExit) {
 		return input, false, xerrors.Errorf("generation action: %w", actionErr)
 	}
+	if decision.kind == generationActionGenerateAssistant && shouldRollOverOnOverflow(prepared, actionErr) {
+		s.opts.Logger.Warn(ctx, "chat prompt overflowed the context window, rolling over",
+			slog.F("chat_id", input.ChatID),
+			slog.F("worker_id", input.WorkerID),
+			slogError(actionErr),
+		)
+		return input, false, s.rollOverContextWindow(ctx, machine, input, prepared, rolloverReasonOverflow)
+	}
 	classified := chaterror.Classify(actionErr)
 	if classified.Retryable {
 		action := decision.kind
@@ -1441,6 +1449,16 @@ func (s *taskStarter) rollOverContextWindow(
 	}
 	s.server.metrics.RecordContextRollover(rollover.MetricProvider, rollover.MetricModel, string(reason))
 	return nil
+}
+
+// shouldRollOverOnOverflow reports whether a main-step overflow starts a
+// fresh context window under the token budget strategy instead of
+// failing the turn.
+func shouldRollOverOnOverflow(prepared turnEnvironment, err error) bool {
+	return prepared.Rollover != nil &&
+		prepared.Rollover.Budget.thresholdPercent < chatloop.CompactionDisabledThresholdPercent &&
+		chatloop.IsContextTooLargeError(err) &&
+		windowHasAssistantStep(prepared.Messages)
 }
 
 // requestContextHandoff commits a handoff or final prompt for the agent.

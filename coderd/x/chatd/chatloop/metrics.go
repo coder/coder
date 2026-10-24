@@ -190,7 +190,7 @@ func NewMetricsWithOptions(reg prometheus.Registerer, opts MetricsOptions) *Metr
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "context_rollover_total",
-			Help:      "Total context window rollovers under the token budget compaction strategy, by reason. The model reason means the agent called new_context, and the limit reason means the window reached its usable limit.",
+			Help:      "Total context window rollovers under the token budget compaction strategy, by reason. The model reason means the agent called new_context, the limit reason means the window reached its usable limit, and the overflow reason means the provider rejected the prompt as too large.",
 		}, []string{"provider", "model", "reason"}),
 		ContextHandoffTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
