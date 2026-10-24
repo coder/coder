@@ -973,16 +973,6 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().DeleteChatDebugDataByChatID(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(int64(1))
 	}))
-	s.Run("FinalizeStaleChatDebugRows", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		now := dbtime.Now()
-		arg := database.FinalizeStaleChatDebugRowsParams{
-			Now:           now,
-			UpdatedBefore: now.Add(-5 * time.Minute),
-		}
-		row := database.FinalizeStaleChatDebugRowsRow{RunsFinalized: 1, StepsFinalized: 2}
-		dbm.EXPECT().FinalizeStaleChatDebugRows(gomock.Any(), arg).Return(row, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(row)
-	}))
 	s.Run("GetChatDebugLoggingAllowUsers", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetChatDebugLoggingAllowUsers(gomock.Any()).Return(true, nil).AnyTimes()
 		check.Args().Asserts().Returns(true)
@@ -1038,20 +1028,6 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().UpdateChatDebugRun(gomock.Any(), arg).Return(run, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(run)
-	}))
-	s.Run("TouchChatDebugRunUpdatedAt", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		arg := database.TouchChatDebugRunUpdatedAtParams{ID: uuid.New(), ChatID: chat.ID}
-		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().TouchChatDebugRunUpdatedAt(gomock.Any(), arg).Return(nil).AnyTimes()
-		check.Args(arg).Asserts(chat, policy.ActionUpdate)
-	}))
-	s.Run("TouchChatDebugStepAndRun", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		arg := database.TouchChatDebugStepAndRunParams{StepID: uuid.New(), RunID: uuid.New(), ChatID: chat.ID}
-		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().TouchChatDebugStepAndRun(gomock.Any(), arg).Return(nil).AnyTimes()
-		check.Args(arg).Asserts(chat, policy.ActionUpdate)
 	}))
 	s.Run("UpdateChatDebugStep", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
@@ -7604,9 +7580,50 @@ func (s *MethodTestSuite) TestAIBridge() {
 		}).Asserts(rbac.ResourceAiModelPrice, policy.ActionUpdate)
 	}))
 
-	s.Run("GetAIModelPriceByProviderModel", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		db.EXPECT().GetAIModelPriceByProviderModel(gomock.Any(), gomock.Any()).Return(database.AIModelPrice{}, nil).AnyTimes()
-		check.Args(database.GetAIModelPriceByProviderModelParams{}).Asserts(rbac.ResourceAiModelPrice, policy.ActionRead)
+	// Without an organization only site-wide prices are read.
+	s.Run("GetAIModelPriceForProvider", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		db.EXPECT().GetAIModelPriceForProvider(gomock.Any(), gomock.Any()).Return(database.GetAIModelPriceForProviderRow{}, nil).AnyTimes()
+		check.Args(database.GetAIModelPriceForProviderParams{}).Asserts(rbac.ResourceAiModelPrice, policy.ActionRead)
+	}))
+
+	// With an organization its prices are read, authorized within it.
+	s.Run("GetAIModelPriceForProvider", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		orgID := uuid.New()
+		db.EXPECT().GetAIModelPriceForProvider(gomock.Any(), gomock.Any()).Return(database.GetAIModelPriceForProviderRow{}, nil).AnyTimes()
+		check.Args(database.GetAIModelPriceForProviderParams{
+			OrganizationID: uuid.NullUUID{UUID: orgID, Valid: true},
+		}).Asserts(rbac.ResourceAiModelPrice.InOrg(orgID), policy.ActionRead)
+	}))
+
+	s.Run("GetOrganizationAIProviderModelConfig", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		orgID := uuid.New()
+		price := database.AIModelConfig{OrganizationID: orgID, ProviderID: uuid.New(), Model: "claude-sonnet-4-5"}
+		db.EXPECT().GetOrganizationAIProviderModelConfig(gomock.Any(), gomock.Any()).Return(price, nil).AnyTimes()
+		check.Args(database.GetOrganizationAIProviderModelConfigParams{
+			OrganizationID: orgID,
+			ProviderID:     price.ProviderID,
+			Model:          price.Model,
+		}).Asserts(rbac.ResourceAiModelPrice.InOrg(orgID), policy.ActionRead).Returns(price)
+	}))
+
+	s.Run("UpsertOrganizationAIProviderModelConfig", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		orgID := uuid.New()
+		db.EXPECT().UpsertOrganizationAIProviderModelConfig(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		check.Args(database.UpsertOrganizationAIProviderModelConfigParams{
+			OrganizationID: orgID,
+			ProviderID:     uuid.New(),
+			Model:          "claude-sonnet-4-5",
+		}).Asserts(rbac.ResourceAiModelPrice.InOrg(orgID), policy.ActionUpdate)
+	}))
+
+	s.Run("DeleteOrganizationAIProviderModelConfig", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		orgID := uuid.New()
+		db.EXPECT().DeleteOrganizationAIProviderModelConfig(gomock.Any(), gomock.Any()).Return(int64(1), nil).AnyTimes()
+		check.Args(database.DeleteOrganizationAIProviderModelConfigParams{
+			OrganizationID: orgID,
+			ProviderID:     uuid.New(),
+			Model:          "claude-sonnet-4-5",
+		}).Asserts(rbac.ResourceAiModelPrice.InOrg(orgID), policy.ActionUpdate).Returns(int64(1))
 	}))
 
 	s.Run("GetAIModelPrices", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {

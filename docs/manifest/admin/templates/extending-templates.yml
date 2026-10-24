@@ -7,7 +7,7 @@ children:
     path: ./admin/templates/extending-templates/agent-metadata.md
   - include: admin/templates/extending-templates/parameters.yml
   - title: Prebuilt workspaces
-    description: Pre-provision a ready-to-deploy workspace with a defined set of parameters
+    description: Pre-provision a ready-to-deploy workspace with a defined set of parameters.
     path: ./admin/templates/extending-templates/prebuilt-workspaces.md
     state: [premium]
   - title: Icons

@@ -690,7 +690,8 @@ CREATE TYPE workspace_agent_context_body_kind AS ENUM (
     'plugin',
     'hook',
     'subagent',
-    'command'
+    'command',
+    'acp_harness'
 );
 
 CREATE TYPE workspace_agent_context_resource_status AS ENUM (
@@ -1709,6 +1710,29 @@ CREATE TABLE ai_gateway_keys (
 COMMENT ON TABLE ai_gateway_keys IS 'Hashed bearer secrets used by AI Gateway standalone replicas to authenticate into coderd.';
 
 COMMENT ON COLUMN ai_gateway_keys.secret_prefix IS 'Public token prefix for display and audit correlation. Auth uses hashed_secret.';
+
+CREATE TABLE ai_model_configs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    organization_id uuid NOT NULL,
+    provider_id uuid NOT NULL,
+    model text NOT NULL,
+    input_price bigint,
+    output_price bigint,
+    cache_read_price bigint,
+    cache_write_price bigint,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
+    CONSTRAINT ai_model_configs_cache_read_price_check CHECK ((cache_read_price >= 0)),
+    CONSTRAINT ai_model_configs_cache_write_price_check CHECK ((cache_write_price >= 0)),
+    CONSTRAINT ai_model_configs_input_price_check CHECK ((input_price >= 0)),
+    CONSTRAINT ai_model_configs_model_check CHECK ((model <> ''::text)),
+    CONSTRAINT ai_model_configs_output_price_check CHECK ((output_price >= 0))
+);
+
+COMMENT ON TABLE ai_model_configs IS 'AI Governance configuration for one model on one configured AI provider within one organization. The token prices override site-wide prices in ai_model_prices.';
+
+COMMENT ON COLUMN ai_model_configs.deleted IS 'Soft delete flag. Soft-deleted rows are kept for history and do not block a new live row for the same model.';
 
 CREATE TABLE ai_model_prices (
     provider text NOT NULL,
@@ -3286,7 +3310,10 @@ CREATE TABLE skills (
     enabled boolean DEFAULT true NOT NULL,
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    action boolean DEFAULT false NOT NULL,
+    model_invocable boolean DEFAULT true NOT NULL,
     CONSTRAINT skills_acl_only_on_organization_skills CHECK (((organization_id IS NOT NULL) OR ((group_acl = '{}'::jsonb) AND (user_acl = '{}'::jsonb)))),
+    CONSTRAINT skills_action_project_only CHECK (((NOT action) OR (project_id IS NOT NULL))),
     CONSTRAINT skills_content_size CHECK ((octet_length(content) <= 65536)),
     CONSTRAINT skills_description_size CHECK ((octet_length(description) <= 4096)),
     CONSTRAINT skills_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
@@ -4537,6 +4564,9 @@ ALTER TABLE ONLY workspace_agent_stats
 ALTER TABLE ONLY ai_gateway_keys
     ADD CONSTRAINT ai_gateway_keys_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY ai_model_configs
+    ADD CONSTRAINT ai_model_configs_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY ai_model_prices
     ADD CONSTRAINT ai_model_prices_pkey PRIMARY KEY (provider, model, source);
 
@@ -4990,6 +5020,8 @@ CREATE UNIQUE INDEX ai_gateway_keys_name_idx ON ai_gateway_keys USING btree (low
 
 CREATE UNIQUE INDEX ai_gateway_keys_secret_prefix_idx ON ai_gateway_keys USING btree (secret_prefix);
 
+CREATE UNIQUE INDEX ai_model_configs_organization_provider_model_unique ON ai_model_configs USING btree (organization_id, provider_id, model) WHERE (deleted = false);
+
 CREATE UNIQUE INDEX ai_providers_name_unique ON ai_providers USING btree (name) WHERE (deleted = false);
 
 CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
@@ -5001,6 +5033,8 @@ CREATE INDEX chat_heartbeats_heartbeat_at_idx ON chat_heartbeats USING btree (he
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
+
+CREATE INDEX idx_ai_model_configs_provider_id ON ai_model_configs USING btree (provider_id);
 
 CREATE INDEX idx_ai_provider_keys_provider_id ON ai_provider_keys USING btree (provider_id);
 
@@ -5070,8 +5104,6 @@ CREATE INDEX idx_chat_debug_runs_chat_started ON chat_debug_runs USING btree (ch
 
 CREATE UNIQUE INDEX idx_chat_debug_runs_id_chat ON chat_debug_runs USING btree (id, chat_id);
 
-CREATE INDEX idx_chat_debug_runs_stale ON chat_debug_runs USING btree (updated_at) WHERE (finished_at IS NULL);
-
 CREATE INDEX idx_chat_debug_runs_updated_at ON chat_debug_runs USING btree (updated_at);
 
 CREATE INDEX idx_chat_debug_steps_chat_assistant_msg ON chat_debug_steps USING btree (chat_id, assistant_message_id) WHERE (assistant_message_id IS NOT NULL);
@@ -5079,8 +5111,6 @@ CREATE INDEX idx_chat_debug_steps_chat_assistant_msg ON chat_debug_steps USING b
 CREATE INDEX idx_chat_debug_steps_chat_tip ON chat_debug_steps USING btree (chat_id, history_tip_message_id);
 
 CREATE UNIQUE INDEX idx_chat_debug_steps_run_step ON chat_debug_steps USING btree (run_id, step_number);
-
-CREATE INDEX idx_chat_debug_steps_stale ON chat_debug_steps USING btree (updated_at) WHERE (finished_at IS NULL);
 
 CREATE INDEX idx_chat_diff_statuses_pr_title_fts ON chat_diff_statuses USING gin (to_tsvector('simple'::regconfig, pull_request_title));
 
@@ -5457,6 +5487,12 @@ CREATE TRIGGER workspace_agent_name_unique_trigger BEFORE INSERT OR UPDATE OF na
 COMMENT ON TRIGGER workspace_agent_name_unique_trigger ON workspace_agents IS 'Use a trigger instead of a unique constraint because existing data may violate
 the uniqueness requirement. A trigger allows us to enforce uniqueness going
 forward without requiring a migration to clean up historical data.';
+
+ALTER TABLE ONLY ai_model_configs
+    ADD CONSTRAINT ai_model_configs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY ai_model_configs
+    ADD CONSTRAINT ai_model_configs_provider_id_fkey FOREIGN KEY (provider_id) REFERENCES ai_providers(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY ai_provider_keys
     ADD CONSTRAINT ai_provider_keys_api_key_key_id_fkey FOREIGN KEY (api_key_key_id) REFERENCES dbcrypt_keys(active_key_digest);

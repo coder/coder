@@ -145,7 +145,7 @@ If Coder can't read the rules, a stored rule is malformed, or a condition fails 
 You can't change this behavior.
 
 Rules gate features; they are not an authorization boundary.
-Don't use a rule to restrict access to data or actions.
+Do not use a rule to restrict access to data or actions.
 
 ## Beta
 
