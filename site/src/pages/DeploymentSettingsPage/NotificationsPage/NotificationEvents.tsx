@@ -63,38 +63,38 @@ export const NotificationEvents: React.FC<NotificationEventsProps> = ({
 			{hasWebhookNotifications && !isWebhookConfigured && (
 				<Alert
 					severity="warning"
-					prominent
 					actions={
 						<Link
 							href={docs("/admin/monitoring/notifications#webhook")}
 							target="_blank"
 							rel="noreferrer"
 						>
-							View docs
+							Go to webhook docs
 							<span className="sr-only"> (opens in new tab)</span>
 						</Link>
 					}
 				>
-					Webhook notifications are enabled, but not properly configured.
+					Webhook notifications are turned on, but no webhook endpoint is set.
+					Coder can't deliver them until you set one.
 				</Alert>
 			)}
 
 			{hasSMTPNotifications && !isSMTPConfigured && (
 				<Alert
 					severity="warning"
-					prominent
 					actions={
 						<Link
 							href={docs("/admin/monitoring/notifications#smtp-email")}
 							target="_blank"
 							rel="noreferrer"
 						>
-							View docs
+							Go to SMTP docs
 							<span className="sr-only"> (opens in new tab)</span>
 						</Link>
 					}
 				>
-					SMTP notifications are enabled but not properly configured.
+					SMTP notifications are turned on, but the SMTP server settings are
+					incomplete, so Coder can't send emails.
 				</Alert>
 			)}
 
