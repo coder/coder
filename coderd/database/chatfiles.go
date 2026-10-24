@@ -11,6 +11,25 @@ type (
 	LinkChatFilesParams      = LinkChatFilesAfterLockParams
 )
 
+// ChatWorkspaceFileMaxDeliveryAttempts is how many counted attempts
+// AcquireChatWorkspaceFileDeliveries allows before a workspace file waits
+// for RetryChatWorkspaceFileDeliveries, and the attempts value
+// FailChatWorkspaceFileDelivery stores when it parks a file.
+const ChatWorkspaceFileMaxDeliveryAttempts int32 = 5
+
+// Modes for FailChatWorkspaceFileDeliveryParams.Mode.
+const (
+	// ChatWorkspaceFileDeliveryFailureRetry keeps the claimed attempt
+	// counted.
+	ChatWorkspaceFileDeliveryFailureRetry = "retry"
+	// ChatWorkspaceFileDeliveryFailureRefund gives the claimed attempt
+	// back, for failures that never reached the agent.
+	ChatWorkspaceFileDeliveryFailureRefund = "refund"
+	// ChatWorkspaceFileDeliveryFailurePark stops automatic attempts until
+	// RetryChatWorkspaceFileDeliveries resets the file.
+	ChatWorkspaceFileDeliveryFailurePark = "park"
+)
+
 func (q *sqlQuerier) LinkChatFiles(ctx context.Context, arg LinkChatFilesParams) (int32, error) {
 	var rejected int32
 	err := q.InTx(func(tx Store) error {

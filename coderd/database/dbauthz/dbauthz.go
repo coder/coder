@@ -1831,6 +1831,15 @@ func (q *querier) authorizeChatProjectMemory(ctx context.Context, action policy.
 	return q.authorizeContext(ctx, action, memory.RBACObject(project))
 }
 
+func (q *querier) AcquireChatWorkspaceFileDeliveries(ctx context.Context, arg database.AcquireChatWorkspaceFileDeliveriesParams) ([]database.AcquireChatWorkspaceFileDeliveriesRow, error) {
+	// System-level SKIP LOCKED claim used by the chatd delivery loop;
+	// callers must use AsChatd context.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return nil, err
+	}
+	return q.db.AcquireChatWorkspaceFileDeliveries(ctx, arg)
+}
+
 func (q *querier) AcquireExternalAuthLinkRefreshLease(ctx context.Context, arg database.AcquireExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
 	fetch := func(ctx context.Context, arg database.AcquireExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
 		return q.db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{UserID: arg.UserID, ProviderID: arg.ProviderID})
@@ -2069,6 +2078,13 @@ func (q *querier) ClearWorkspaceSecretsByWorkspaceID(ctx context.Context, worksp
 		return err
 	}
 	return q.db.ClearWorkspaceSecretsByWorkspaceID(ctx, workspaceID)
+}
+
+func (q *querier) CompleteChatWorkspaceFileDelivery(ctx context.Context, arg database.CompleteChatWorkspaceFileDeliveryParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return 0, err
+	}
+	return q.db.CompleteChatWorkspaceFileDelivery(ctx, arg)
 }
 
 func (q *querier) CountAIBridgeSessions(ctx context.Context, arg database.CountAIBridgeSessionsParams) (int64, error) {
@@ -2922,6 +2938,13 @@ func (q *querier) ExportOrganizationAISpend(ctx context.Context, arg database.Ex
 	return q.db.ExportOrganizationAISpend(ctx, arg)
 }
 
+func (q *querier) FailChatWorkspaceFileDelivery(ctx context.Context, arg database.FailChatWorkspaceFileDeliveryParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return 0, err
+	}
+	return q.db.FailChatWorkspaceFileDelivery(ctx, arg)
+}
+
 func (q *querier) FavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
 	fetch := func(ctx context.Context, id uuid.UUID) (database.Workspace, error) {
 		return q.db.GetWorkspaceByID(ctx, id)
@@ -3586,6 +3609,34 @@ func (q *querier) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]dat
 		}
 	}
 	return files, nil
+}
+
+func (q *querier) GetChatFilesMetadataByIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetChatFilesMetadataByIDsRow, error) {
+	rows, err := q.db.GetChatFilesMetadataByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	var prepared rbac.PreparedAuthorized
+	for _, row := range rows {
+		fileAuthErr := q.authorizeContext(ctx, policy.ActionRead, row)
+		if fileAuthErr == nil {
+			continue
+		}
+		if prepared == nil {
+			prepared, err = prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceChat.Type)
+			if err != nil {
+				return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+			}
+		}
+		chats, err := q.db.GetAuthorizedChatsByChatFileID(ctx, row.ID, prepared)
+		if err != nil {
+			return nil, err
+		}
+		if len(chats) == 0 {
+			return nil, fileAuthErr
+		}
+	}
+	return rows, nil
 }
 
 func (q *querier) GetChatGatewayAPIKey(ctx context.Context, arg database.GetChatGatewayAPIKeyParams) (database.APIKey, error) {
@@ -7653,6 +7704,17 @@ func (q *querier) ReorderChatQueuedMessageToHead(ctx context.Context, arg databa
 	}
 	_ = chat
 	return q.db.ReorderChatQueuedMessageToHead(ctx, arg)
+}
+
+func (q *querier) RetryChatWorkspaceFileDeliveries(ctx context.Context, arg database.RetryChatWorkspaceFileDeliveriesParams) (int64, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return 0, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return 0, err
+	}
+	return q.db.RetryChatWorkspaceFileDeliveries(ctx, arg)
 }
 
 func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {

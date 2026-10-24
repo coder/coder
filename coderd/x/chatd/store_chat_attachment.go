@@ -88,6 +88,7 @@ func storeLinkedChatFileTx(
 		Name:           name,
 		Mimetype:       mediaType,
 		Data:           data,
+		Purpose:        database.NullChatFilePurpose{ChatFilePurpose: database.ChatFilePurposePrompt, Valid: true},
 	})
 	if err != nil {
 		return chattool.AttachmentMetadata{}, xerrors.Errorf("insert chat file: %w", err)

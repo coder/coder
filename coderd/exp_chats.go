@@ -7088,6 +7088,7 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 		Name:           filename,
 		Mimetype:       detected,
 		Data:           data,
+		Purpose:        database.NullChatFilePurpose{ChatFilePurpose: database.ChatFilePurposePrompt, Valid: true},
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
