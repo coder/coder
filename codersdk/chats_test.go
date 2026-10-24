@@ -3,6 +3,7 @@ package codersdk_test
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -14,8 +15,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestUploadChatWorkspaceFileContentType(t *testing.T) {
@@ -58,6 +61,83 @@ func TestUploadChatWorkspaceFileContentType(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestChatClientRequests(t *testing.T) {
+	t.Parallel()
+
+	newClient := func(t *testing.T, transport testutil.RoundTripperFunc) *codersdk.Client {
+		t.Helper()
+		serverURL, err := url.Parse("https://coder.example.com")
+		require.NoError(t, err)
+		return codersdk.New(serverURL, codersdk.WithHTTPClient(&http.Client{Transport: transport}))
+	}
+	respond := func(status int, body string) testutil.RoundTripperFunc {
+		return func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: status,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(body)),
+				Request:    req,
+			}, nil
+		}
+	}
+
+	t.Run("TransportError", func(t *testing.T) {
+		t.Parallel()
+
+		errTransport := xerrors.New("transport failed")
+		client := newClient(t, func(*http.Request) (*http.Response, error) {
+			return nil, errTransport
+		})
+		model, err := client.ChatModel(t.Context(), uuid.New(), uuid.New())
+		require.ErrorIs(t, err, errTransport)
+		require.Zero(t, model)
+		err = client.DeleteChatModel(t.Context(), uuid.New(), uuid.New())
+		require.ErrorIs(t, err, errTransport)
+	})
+
+	t.Run("UnexpectedStatus", func(t *testing.T) {
+		t.Parallel()
+
+		for _, status := range []int{http.StatusAccepted, http.StatusInternalServerError} {
+			client := newClient(t, respond(status, `{"message":"Unexpected status."}`))
+			model, modelErr := client.ChatModel(t.Context(), uuid.New(), uuid.New())
+			require.Zero(t, model)
+			deleteErr := client.DeleteChatModel(t.Context(), uuid.New(), uuid.New())
+			for _, err := range []error{modelErr, deleteErr} {
+				var sdkErr *codersdk.Error
+				require.ErrorAs(t, err, &sdkErr)
+				require.Equal(t, status, sdkErr.StatusCode())
+				require.Equal(t, "Unexpected status.", sdkErr.Message)
+			}
+		}
+	})
+
+	t.Run("InvalidJSON", func(t *testing.T) {
+		t.Parallel()
+
+		client := newClient(t, respond(http.StatusOK, `{"id":`))
+		_, err := client.ChatModel(t.Context(), uuid.New(), uuid.New())
+		require.ErrorContains(t, err, "Received an invalid JSON response from the Coder API.")
+	})
+
+	t.Run("RequestOptions", func(t *testing.T) {
+		t.Parallel()
+
+		var query url.Values
+		client := newClient(t, func(req *http.Request) (*http.Response, error) {
+			query = req.URL.Query()
+			return respond(http.StatusOK, `{}`)(req)
+		})
+		_, err := client.ChatModelACLAvailable(t.Context(), uuid.New(), uuid.New(), codersdk.UsersRequest{
+			Search:     "alice",
+			Pagination: codersdk.Pagination{Limit: 5},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "alice", query.Get("q"))
+		require.Equal(t, "5", query.Get("limit"))
+	})
 }
 
 func TestChatMessageWorkspaceFileReference_JSONRoundTrip(t *testing.T) {
