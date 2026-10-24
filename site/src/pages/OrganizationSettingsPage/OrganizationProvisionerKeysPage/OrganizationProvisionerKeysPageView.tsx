@@ -19,6 +19,7 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableEmptyState } from "#/components/TableEmptyState/TableEmptyState";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import type { Permissions } from "#/modules/permissions";
@@ -84,9 +85,12 @@ export const OrganizationProvisionerKeysPageView: React.FC<
 					<TableBody>
 						{filteredProvisionerKeyDaemons ? (
 							filteredProvisionerKeyDaemons.length === 0 ? (
-								<TableEmpty
-									message="No provisioner keys"
+								<TableEmptyState
+									variant="docs"
+									message="No provisioner keys configured"
 									description="Create your first provisioner key to authenticate external provisioner daemons."
+									docsHref={docs("/admin/provisioners")}
+									docsLabel="How to create a provisioner key"
 								/>
 							) : (
 								filteredProvisionerKeyDaemons.map((pkd) => (

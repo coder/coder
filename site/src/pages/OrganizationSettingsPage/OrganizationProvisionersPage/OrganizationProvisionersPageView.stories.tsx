@@ -56,6 +56,16 @@ export const Empty: Story = {
 	},
 };
 
+export const NoProvisionersMatchingFilter: Story = {
+	args: {
+		provisioners: [],
+		filter: {
+			ids: MockProvisioner.id,
+			offline: true,
+		},
+	},
+};
+
 export const WithError: Story = {
 	args: {
 		provisioners: undefined,

@@ -19,7 +19,7 @@ import {
 	mockGPT5,
 } from "./testFixtures";
 
-const renderModelsPageView = () => {
+const renderModelsPageView = (initialEntry = "/ai/settings/models") => {
 	const element = (
 		<OrganizationModelsContext.Provider
 			value={{
@@ -57,7 +57,7 @@ const renderModelsPageView = () => {
 				{ path: "/ai/settings/models", element },
 				{ path: "/ai/settings/models/:modelId", element },
 			],
-			{ initialEntries: ["/ai/settings/models"] },
+			{ initialEntries: [initialEntry] },
 		),
 	);
 };
@@ -86,5 +86,18 @@ describe("ModelsPageView", () => {
 			),
 		);
 		expect(router.state.location.search).toContain("provider=prov-anthropic");
+	});
+
+	it("clears the search and provider filters when Reset filters is clicked", async () => {
+		const user = userEvent.setup();
+		const { router } = renderModelsPageView(
+			"/ai/settings/models?search=no-such-model&provider=prov-anthropic",
+		);
+
+		await user.click(
+			await screen.findByRole("button", { name: "Reset filters" }),
+		);
+
+		await waitFor(() => expect(router.state.location.search).toBe(""));
 	});
 });

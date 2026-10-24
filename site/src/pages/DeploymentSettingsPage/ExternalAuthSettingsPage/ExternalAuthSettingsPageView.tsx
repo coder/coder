@@ -16,7 +16,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableEmptyState } from "#/components/TableEmptyState/TableEmptyState";
 import { PremiumPaywallSmall } from "#/modules/paywall/PremiumPaywallSmall";
 import { docs } from "#/utils/docs";
 
@@ -80,7 +80,13 @@ export const ExternalAuthSettingsPageView: React.FC<
 				<TableBody>
 					{config.external_auth === null ||
 					config.external_auth?.length === 0 ? (
-						<TableEmpty message="No providers have been configured!" />
+						<TableEmptyState
+							variant="docs"
+							message="No external authentication providers configured"
+							description="Connect Git and OAuth providers so developers can authenticate with external services."
+							docsHref={docs("/admin/external-auth")}
+							docsLabel="How to set up external authentication"
+						/>
 					) : (
 						config.external_auth?.map((git: ExternalAuthConfig) => {
 							const name = git.id || git.type;

@@ -91,6 +91,12 @@ export const NotEnabledEmptyTable: Story = {
 		canCreateOrgRole: true,
 		isCustomRolesEnabled: false,
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const cta = canvas.getByRole("link", { name: "Start free trial" });
+		await expect(cta).toHaveAttribute("href", "/deployment/premium");
+	},
 };
 
 export const RoleWithoutPermissions: Story = {
