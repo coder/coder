@@ -68,6 +68,8 @@ type RenderTemplateParametersFn func(
 // ReadTemplateOptions configures the read_template tool.
 type ReadTemplateOptions struct {
 	OwnerID uuid.UUID
+	// ProjectID limits reads to the project's templates.
+	ProjectID uuid.NullUUID
 	// RenderParameters resolves parameter defaults for the owner. When nil,
 	// or when evaluation fails, the tool falls back to the defaults recorded
 	// at template import and says so in the response.
@@ -122,6 +124,13 @@ func ReadTemplate(db database.Store, organizationID uuid.UUID, options ReadTempl
 			if !template.AgentsAllowed {
 				return fantasy.NewTextErrorResponse(templateNotAvailableMessage), nil
 			}
+			project, err := loadProjectTemplates(ctx, db, options.ProjectID)
+			if err != nil {
+				return fantasy.NewTextErrorResponse(err.Error()), nil
+			}
+			if !project.allows(template.ID) {
+				return fantasy.NewTextErrorResponse(projectTemplateNotAvailableMessage), nil
+			}
 
 			paramList, paramNote := readTemplateParameters(ctx, db, template, options)
 			if paramList == nil {
@@ -158,6 +167,18 @@ func ReadTemplate(db database.Store, organizationID uuid.UUID, options ReadTempl
 				"template":        templateInfo,
 				"parameters":      paramList,
 				"parameters_note": paramNote,
+			}
+			if project.isDefault(template.ID) {
+				defaults := map[string]any{
+					"note": "create_workspace applies these project defaults unless you pass preset_id or the parameter yourself.",
+				}
+				if project.defaultPresetID.Valid {
+					defaults["preset_id"] = project.defaultPresetID.UUID.String()
+				}
+				if len(project.defaultParameters) > 0 {
+					defaults["parameters"] = project.defaultParameters
+				}
+				result["project_defaults"] = defaults
 			}
 
 			// Include presets only when the template has them
