@@ -64,6 +64,8 @@ func (p *Server) resolveChatSkillInvocations(
 // one cannot invoke them. An invoked workspace skill also stores its
 // directory: read_skill refuses a skill hidden from the model, so the
 // invocation is the only place the model is told where its scripts are.
+// The directory is stored with the chat's workspace, because the path
+// means nothing once the chat is bound to another workspace.
 func (p *Server) resolveSkillInvocations(
 	ctx context.Context,
 	chat database.Chat,
@@ -84,8 +86,9 @@ func (p *Server) resolveSkillInvocations(
 		return skills, err
 	})
 	type invokedSkill struct {
-		body string
-		dir  string
+		body        string
+		dir         string
+		workspaceID uuid.UUID
 	}
 	loadSkill := func(part codersdk.ChatMessagePart) (invokedSkill, error) {
 		switch part.SkillSource {
@@ -118,7 +121,7 @@ func (p *Server) resolveSkillInvocations(
 			for _, skill := range skills {
 				if skill.Name == part.SkillName {
 					body, err := chattool.PinnedWorkspaceSkillBody(skill)
-					return invokedSkill{body: body, dir: skill.Dir}, err
+					return invokedSkill{body: body, dir: skill.Dir, workspaceID: chat.WorkspaceID.UUID}, err
 				}
 			}
 		}
@@ -151,6 +154,7 @@ func (p *Server) resolveSkillInvocations(
 		}
 		resolved[i].SkillBody = skill.body
 		resolved[i].SkillDir = skill.dir
+		resolved[i].SkillWorkspaceID = skill.workspaceID
 	}
 	return resolved, nil
 }

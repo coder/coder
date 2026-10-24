@@ -108,6 +108,7 @@ func UserPromptMessage(parts []codersdk.ChatMessagePart) (Message, error) {
 	for i, part := range parts {
 		part.SkillBody = ""
 		part.SkillDir = ""
+		part.SkillWorkspaceID = uuid.Nil
 		hookParts[i] = part
 	}
 	encoded, err := chatprompt.MarshalParts(hookParts)

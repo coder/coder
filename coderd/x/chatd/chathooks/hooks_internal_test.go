@@ -295,12 +295,14 @@ func TestUserPromptMessageOmitsResolvedSkillFields(t *testing.T) {
 	invocation := codersdk.ChatMessageSkillInvocation(codersdk.ChatSkillSourceWorkspace, "deploy")
 	invocation.SkillBody = "Run scripts/deploy.sh."
 	invocation.SkillDir = "/home/coder/.agents/skills/deploy"
+	invocation.SkillWorkspaceID = uuid.New()
 	message, err := UserPromptMessage([]codersdk.ChatMessagePart{invocation})
 	require.NoError(t, err)
 	// chatd resolves the body and directory after the user sends the
 	// message, so the hook payload carries neither.
 	require.NotContains(t, string(message.Parts), "skill_body")
 	require.NotContains(t, string(message.Parts), "skill_dir")
+	require.NotContains(t, string(message.Parts), "skill_workspace_id")
 	require.Contains(t, string(message.Parts), `"skill_name":"deploy"`)
 }
 
