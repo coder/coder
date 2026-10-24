@@ -282,9 +282,11 @@ type ChatProjectGroup struct {
 	Role ChatProjectRole `json:"role" enums:"use,admin"`
 }
 
-// ChatProjectACL lists who a chat project is shared with. The Everyone
-// group's ID is the organization ID.
+// ChatProjectACL lists who a chat project is shared with and who owns
+// it. The Everyone group's ID is the organization ID.
 type ChatProjectACL struct {
+	// Owner is the project owner, who is never listed in Users.
+	Owner  MinimalUser        `json:"owner"`
 	Users  []ChatProjectUser  `json:"users"`
 	Groups []ChatProjectGroup `json:"groups"`
 }
