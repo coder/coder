@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bufio"
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -15,10 +14,10 @@ import (
 	"time"
 
 	"github.com/briandowns/spinner"
-	"github.com/gohugoio/hugo/parser/pageparser"
 	"github.com/google/uuid"
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/xerrors"
+	"gopkg.in/yaml.v3"
 
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
@@ -769,17 +768,43 @@ func parseREADMEFrontMatter(inv *serpent.Invocation, dir string) (templateFrontM
 		return tmplMeta, nil
 	}
 
-	parsed, err := pageparser.ParseFrontMatterAndContent(bytes.NewReader(content))
+	frontMatter, ok, err := readmeYAMLFrontMatter(content)
 	if err != nil {
+		cliui.Warn(inv.Stderr, "Ignoring README.md front matter: "+err.Error())
+		return tmplMeta, nil
+	}
+	if !ok {
+		return tmplMeta, nil
+	}
+	var parsed map[string]any
+	if err := yaml.Unmarshal([]byte(frontMatter), &parsed); err != nil {
 		cliui.Warn(inv.Stderr, "Ignoring README.md front matter: "+err.Error())
 		return tmplMeta, nil
 	}
 
 	// Use mapstructure to decode the map directly into the struct
-	if err := mapstructure.Decode(parsed.FrontMatter, &tmplMeta); err != nil {
+	if err := mapstructure.Decode(parsed, &tmplMeta); err != nil {
 		cliui.Warn(inv.Stderr, "Failed to decode README.md front matter: "+err.Error())
 		return tmplMeta, nil
 	}
 
 	return tmplMeta, nil
+}
+
+// readmeYAMLFrontMatter returns the YAML between the leading and closing
+// "---" lines of a Markdown document. It reports false when the document has
+// no front matter.
+func readmeYAMLFrontMatter(content []byte) (string, bool, error) {
+	text := strings.TrimPrefix(string(content), "\ufeff")
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	lines := strings.Split(text, "\n")
+	if strings.TrimRight(lines[0], " \t") != "---" {
+		return "", false, nil
+	}
+	for i := 1; i < len(lines); i++ {
+		if strings.TrimRight(lines[i], " \t") == "---" {
+			return strings.Join(lines[1:i], "\n"), true, nil
+		}
+	}
+	return "", false, xerrors.New("missing closing \"---\" delimiter")
 }
