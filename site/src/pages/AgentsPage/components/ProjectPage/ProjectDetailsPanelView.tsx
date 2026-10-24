@@ -1,8 +1,9 @@
 import { cn } from "cn";
 import { PenIcon } from "lucide-react";
-import { useId } from "react";
+import { useId, useState } from "react";
 import type { ChatProjectInstructions } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
@@ -11,6 +12,22 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
+import { RetryButton } from "../RetryButton";
+import { formatMembersHeading, type ProjectAccessEntry } from "./projectAccess";
+
+/** The most avatar tiles the members row shows, including the "+K" tile. */
+const MAX_MEMBER_TILES = 8;
+// Keeps the "+K" tooltip short on large projects; the dialog lists everyone.
+const MAX_TOOLTIP_NAMES = 10;
+
+type MembersSectionProps = {
+	/** `undefined` while the access list loads or after loading fails. */
+	readonly entries: readonly ProjectAccessEntry[] | undefined;
+	readonly error: unknown;
+	readonly isRetrying: boolean;
+	readonly onRetry: () => void;
+	readonly onOpenAccess: (event: React.MouseEvent<HTMLButtonElement>) => void;
+};
 
 type ProjectDetailsPanelViewProps = {
 	/** The owner's display label. `undefined` while it loads. */
@@ -30,6 +47,8 @@ type ProjectDetailsPanelViewProps = {
 	readonly onRetry: () => void;
 	/** Opens the instructions editor. Omit when the caller cannot edit. */
 	readonly onEditInstructions?: () => void;
+	/** Omit to hide the members section. */
+	readonly members?: MembersSectionProps;
 };
 
 /** The project's shared configuration, shown beside its chats. */
@@ -47,6 +66,7 @@ export const ProjectDetailsPanelView: React.FC<
 	error,
 	onRetry,
 	onEditInstructions,
+	members,
 }) => {
 	const headingId = useId();
 	const instructionsHeadingId = useId();
@@ -193,8 +213,171 @@ export const ProjectDetailsPanelView: React.FC<
 						</>
 					)}
 				</section>
+				{members && <MembersSection {...members} />}
 			</div>
 		</section>
+	);
+};
+
+const MembersSection: React.FC<MembersSectionProps> = ({
+	entries,
+	error,
+	isRetrying,
+	onRetry,
+	onOpenAccess,
+}) => {
+	const headingId = useId();
+	const [rowWidth, setRowWidth] = useState(0);
+	const observeRowWidth = (section: HTMLElement) => {
+		const observer = new ResizeObserver(([entry]) =>
+			setRowWidth(entry.contentRect.width),
+		);
+		observer.observe(section);
+		return () => observer.disconnect();
+	};
+	let heading = "Members";
+	if (entries) {
+		const groupCount = entries.filter((entry) => entry.kind === "group").length;
+		heading = formatMembersHeading(entries.length - groupCount, groupCount);
+	}
+	// 40px avatars overlap by 8px, so each tile after the first takes 32px.
+	const maxTiles = rowWidth
+		? Math.min(MAX_MEMBER_TILES, Math.max(1, Math.floor((rowWidth - 8) / 32)))
+		: MAX_MEMBER_TILES;
+	const entryCount = entries?.length ?? 0;
+	const avatarCount = entryCount > maxTiles ? maxTiles - 1 : entryCount;
+	const isLoading = !entries && !error;
+
+	return (
+		<section
+			ref={observeRowWidth}
+			aria-labelledby={headingId}
+			className="flex flex-col gap-3 border-0 border-t border-solid border-border p-4"
+		>
+			<div className="flex items-center justify-between gap-4">
+				<h3
+					id={headingId}
+					className={cn(
+						"m-0 text-sm font-medium text-content-secondary",
+						isLoading && "sr-only",
+					)}
+				>
+					{heading}
+				</h3>
+				{isLoading && <Skeleton className="h-3 w-24" />}
+				<Button size="sm" variant="outline" onClick={onOpenAccess}>
+					View access
+				</Button>
+			</div>
+			{entries && (
+				<ul aria-label="Project members" className="m-0 flex list-none p-0">
+					{entries.slice(0, avatarCount).map((entry) => (
+						<MemberTile
+							key={`${entry.kind}:${entry.id}`}
+							label={entry.name}
+							tooltip={entry.name}
+						>
+							<Avatar
+								size="lg"
+								src={entry.avatarUrl}
+								fallback={entry.name}
+								aria-hidden="true"
+							/>
+						</MemberTile>
+					))}
+					<OverflowTile entries={entries.slice(avatarCount)} />
+				</ul>
+			)}
+			{isLoading && (
+				<div className="flex">
+					{Array.from({ length: 3 }, (_, index) => (
+						<Skeleton
+							key={index}
+							className="size-(--avatar-lg) rounded-[6px] ring-2 ring-surface-primary not-first:-ml-2"
+						/>
+					))}
+					<span className="sr-only">Loading</span>
+				</div>
+			)}
+			{Boolean(error) && (
+				<ErrorAlert
+					error={error}
+					showDebugDetail={false}
+					actions={
+						<RetryButton
+							size="sm"
+							variant="outline"
+							isRetrying={isRetrying}
+							onRetry={onRetry}
+						/>
+					}
+				/>
+			)}
+		</section>
+	);
+};
+
+type MemberTileProps = {
+	readonly label: string;
+	readonly tooltip: string;
+	readonly children: React.ReactNode;
+};
+
+const MemberTile: React.FC<MemberTileProps> = ({
+	label,
+	tooltip,
+	children,
+}) => (
+	<li className="flex rounded-[6px] ring-2 ring-surface-primary not-first:-ml-2">
+		{/* Tooltips flip above the row when there is no room below, so they
+		    must not take clicks meant for the View access button. */}
+		<Tooltip disableHoverableContent>
+			{/* A button so keyboard users can focus a tile to read its tooltip. */}
+			<TooltipTrigger
+				type="button"
+				aria-label={label}
+				className="relative flex cursor-default rounded-[6px] border-0 bg-transparent p-0 focus-visible:z-10 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+			>
+				{children}
+			</TooltipTrigger>
+			<TooltipContent
+				side="bottom"
+				className="pointer-events-none max-w-[min(20rem,calc(100vw-2rem))] break-words [[data-radix-popper-content-wrapper]:has(>&)]:pointer-events-none"
+			>
+				{tooltip}
+			</TooltipContent>
+		</Tooltip>
+	</li>
+);
+
+type OverflowTileProps = {
+	/** The entries without an avatar tile. */
+	readonly entries: readonly ProjectAccessEntry[];
+};
+
+const OverflowTile: React.FC<OverflowTileProps> = ({ entries }) => {
+	if (entries.length === 0) {
+		return null;
+	}
+	const names = entries.slice(0, MAX_TOOLTIP_NAMES).map((entry) => entry.name);
+	const omittedNameCount = entries.length - names.length;
+	return (
+		<MemberTile
+			label={`+${entries.length} more`}
+			tooltip={
+				omittedNameCount > 0
+					? `${names.join(", ")}, and ${omittedNameCount} more`
+					: names.join(", ")
+			}
+		>
+			<Avatar
+				size="lg"
+				aria-hidden="true"
+				className="items-center justify-center"
+			>
+				+{entries.length}
+			</Avatar>
+		</MemberTile>
 	);
 };
 

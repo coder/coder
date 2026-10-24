@@ -3429,6 +3429,16 @@ class ExperimentalApiMethods {
 		);
 	};
 
+	getChatProjectACL = async (
+		organizationId: string,
+		projectId: string,
+	): Promise<TypesGen.ChatProjectACL> => {
+		const response = await this.axios.get<TypesGen.ChatProjectACL>(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}/acl`,
+		);
+		return response.data;
+	};
+
 	getChat = async (
 		chatId: string,
 		signal?: AbortSignal,

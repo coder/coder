@@ -1,25 +1,28 @@
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { getErrorStatus } from "#/api/errors";
 import { chatProjectSkills } from "#/api/queries/chatProjectSkills";
 import {
+	chatProjectACL,
 	chatProjectInstructions,
 	deleteChatProjectInstructions,
 	updateChatProjectInstructions,
 } from "#/api/queries/chatProjects";
-import { user } from "#/api/queries/users";
 import type { ChatProject } from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useDialogFocusReturn } from "../useDialogFocusReturn";
+import { ProjectAccessDialog } from "./ProjectAccessDialog";
 import { ProjectDetailsPanelView } from "./ProjectDetailsPanelView";
 import { ProjectInstructionsDialog } from "./ProjectInstructionsDialog";
 import { ProjectSkillsDialog } from "./ProjectSkillsDialog";
+import { buildAccessEntries } from "./projectAccess";
 
 type ProjectDetailsPanelProps = {
 	readonly project: ChatProject;
 };
 
-/** Loads a project's details and edits its instructions and skills. */
+/** Loads a project's details and members, and edits its instructions and skills. */
 export const ProjectDetailsPanel: React.FC<ProjectDetailsPanelProps> = ({
 	project,
 }) => (
@@ -36,12 +39,13 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 	const { user: me } = useAuthenticated();
 	const { organizations, showOrganizations } = useDashboard();
 	const isOwner = project.owner_id === me.id;
-	const ownerQuery = useQuery({ ...user(project.owner_id), enabled: !isOwner });
+	const aclQuery = useQuery(chatProjectACL(project));
+	const owner = aclQuery.data?.owner;
 	const ownerLabel = isOwner
 		? "You"
-		: ownerQuery.data
-			? ownerQuery.data.name || ownerQuery.data.username
-			: ownerQuery.isError
+		: owner
+			? owner.name || owner.username
+			: aclQuery.isError
 				? "Unknown"
 				: undefined;
 	const organization = organizations.find(
@@ -58,6 +62,14 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 	);
 	const [isSkillsDialogOpen, setIsSkillsDialogOpen] = useState(false);
 	const skillsFocusReturn = useDialogFocusReturn();
+	// The ACL endpoints return 403 when chat sharing is disabled.
+	const isSharingDisabled = getErrorStatus(aclQuery.error) === 403;
+	const accessEntries = aclQuery.data
+		? buildAccessEntries(aclQuery.data)
+		: undefined;
+	const [isAccessDialogOpen, setIsAccessDialogOpen] = useState(false);
+	const accessFocusReturn = useDialogFocusReturn();
+	const retryACL = () => void aclQuery.refetch();
 	const updateMutation = useMutation(
 		updateChatProjectInstructions(queryClient, project),
 	);
@@ -110,6 +122,22 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				error={instructionsQuery.error}
 				onRetry={() => void instructionsQuery.refetch()}
 				onEditInstructions={project.permissions.update ? openEditor : undefined}
+				members={
+					isSharingDisabled
+						? undefined
+						: {
+								entries: accessEntries,
+								error: aclQuery.error,
+								isRetrying: aclQuery.isFetching,
+								onRetry: retryACL,
+								onOpenAccess: (event) => {
+									accessFocusReturn.rememberTrigger(event);
+									setIsAccessDialogOpen(true);
+									// Show access changes made since the page loaded.
+									void aclQuery.refetch();
+								},
+							}
+				}
 			/>
 			<ProjectInstructionsDialog
 				open={isEditorOpen}
@@ -152,6 +180,15 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				onOpenChange={setIsSkillsDialogOpen}
 				canEdit={project.permissions.update}
 				onCloseAutoFocus={skillsFocusReturn.restoreFocus}
+			/>
+			<ProjectAccessDialog
+				open={isAccessDialogOpen}
+				onOpenChange={setIsAccessDialogOpen}
+				entries={accessEntries}
+				error={aclQuery.error}
+				isRetrying={aclQuery.isFetching}
+				onRetry={retryACL}
+				onCloseAutoFocus={accessFocusReturn.restoreFocus}
 			/>
 		</>
 	);
