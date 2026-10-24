@@ -621,6 +621,10 @@ describe("ProjectDetailsPanel", () => {
 			count: 2,
 		});
 		vi.spyOn(API, "getGroupsByOrganization").mockResolvedValue([]);
+		vi.spyOn(API.experimental, "getChatProjectACL").mockResolvedValue({
+			...MockChatProjectACL,
+			users: [],
+		});
 		const updateACL = vi
 			.spyOn(API.experimental, "updateChatProjectACL")
 			.mockResolvedValue();
