@@ -32,6 +32,7 @@
 		"media-has-caption": "error",
 		"click-events-have-key-events": "error",
 		"no-noninteractive-tabindex": "error",
+		"interactive-supports-focus": "error",
 
 		// --- complexity ---
 		"no-regex-spaces": "error",
@@ -214,7 +215,6 @@
 		// small < medium < large < xl.
 		// ==========================================================
 		"no-autofocus": "off", // a11y/noAutofocus (large)
-		"interactive-supports-focus": "off", // a11y/useFocusableInteractive (small)
 		"iframe-has-title": "off", // a11y/useIframeTitle (small)
 
 		// Correctness category rules with existing violations.
