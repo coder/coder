@@ -343,10 +343,9 @@ const MemberTile: React.FC<MemberTileProps> = ({
 			>
 				{children}
 			</TooltipTrigger>
-			{/* Capped in width so long names wrap on narrow screens. */}
 			<TooltipContent
 				side="bottom"
-				className="popper-click-through max-w-[min(20rem,calc(100vw-2rem))] break-words"
+				className="pointer-events-none max-w-[min(20rem,calc(100vw-2rem))] break-words [[data-radix-popper-content-wrapper]:has(>&)]:pointer-events-none"
 			>
 				{tooltip}
 			</TooltipContent>
