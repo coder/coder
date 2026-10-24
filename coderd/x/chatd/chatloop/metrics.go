@@ -77,6 +77,7 @@ type Metrics struct {
 	ToolResultSizeBytes       *prometheus.HistogramVec
 	ToolResultTruncatedTotal  *prometheus.CounterVec
 	ToolErrorsTotal           *prometheus.CounterVec
+	ToolInputDecodedTotal     *prometheus.CounterVec
 	TTFTSeconds               *prometheus.HistogramVec
 	stageDurationSeconds      *prometheus.HistogramVec
 	modelStageDurationSeconds *prometheus.HistogramVec
@@ -144,6 +145,12 @@ func NewMetricsWithOptions(reg prometheus.Registerer, opts MetricsOptions) *Metr
 			Subsystem: metricsSubsystem,
 			Name:      "tool_errors_total",
 			Help:      "Total tool calls that returned an error result.",
+		}, []string{"provider", "model", "tool_name"}),
+		ToolInputDecodedTotal: factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "tool_input_decoded_total",
+			Help:      "Total tool calls whose input the tool decoded to match its schema, for example from an array sent as a JSON string.",
 		}, []string{"provider", "model", "tool_name"}),
 		TTFTSeconds: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: metricsNamespace,
