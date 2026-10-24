@@ -3,12 +3,12 @@ import { expect, fn, userEvent, within } from "storybook/test";
 import type { ChatProjectACL, ChatProjectUser } from "#/api/typesGenerated";
 import {
 	MockChatProject,
+	MockChatProjectACL,
 	MockChatProjectInstructions,
 	MockEveryoneGroup,
 	MockGroup,
 	MockUnsetChatProjectInstructions,
 	MockUserMember,
-	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
@@ -34,7 +34,7 @@ const mockSharees: ChatProjectUser[] = [
 }));
 
 const mockACL: ChatProjectACL = {
-	owner: MockUserOwner,
+	...MockChatProjectACL,
 	users: mockSharees.slice(0, 2),
 	groups: [],
 };

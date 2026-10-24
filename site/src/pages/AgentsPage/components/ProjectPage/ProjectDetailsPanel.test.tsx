@@ -16,10 +16,10 @@ import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import {
 	MockChatProject,
+	MockChatProjectACL,
 	MockChatProjectInstructions,
 	MockUnsetChatProjectInstructions,
 	MockUserMember,
-	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
@@ -99,11 +99,9 @@ const renderPanel = (initialProject: ChatProject = MockChatProject) => {
 
 describe("ProjectDetailsPanel", () => {
 	beforeEach(() => {
-		vi.spyOn(API.experimental, "getChatProjectACL").mockResolvedValue({
-			owner: MockUserOwner,
-			users: [],
-			groups: [],
-		});
+		vi.spyOn(API.experimental, "getChatProjectACL").mockResolvedValue(
+			MockChatProjectACL,
+		);
 	});
 
 	afterEach(() => {
@@ -568,11 +566,7 @@ describe("ProjectDetailsPanel", () => {
 		mockInstructions(MockChatProjectInstructions);
 		const getACL = vi
 			.spyOn(API.experimental, "getChatProjectACL")
-			.mockResolvedValue({
-				owner: MockUserOwner,
-				users: [{ ...MockUserMember, role: "use" }],
-				groups: [],
-			});
+			.mockResolvedValue(MockChatProjectACL);
 		const { user } = renderPanel();
 		const accessButton = await screen.findByRole("button", {
 			name: "View access",

@@ -2,18 +2,17 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 import type { ChatProjectACL } from "#/api/typesGenerated";
 import {
-	MockGroup,
+	MockChatProjectACL,
 	MockUserMember,
-	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { ProjectAccessDialog } from "./ProjectAccessDialog";
 import { buildAccessEntries } from "./projectAccess";
 
 const mockACL: ChatProjectACL = {
-	owner: MockUserOwner,
+	...MockChatProjectACL,
 	users: [
-		{ ...MockUserMember, role: "admin" },
+		...MockChatProjectACL.users,
 		{
 			...MockUserMember,
 			id: "sharee-2",
@@ -22,7 +21,6 @@ const mockACL: ChatProjectACL = {
 			role: "use",
 		},
 	],
-	groups: [{ ...MockGroup, role: "use" }],
 };
 
 const meta: Meta<typeof ProjectAccessDialog> = {

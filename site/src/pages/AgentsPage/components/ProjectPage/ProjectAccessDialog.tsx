@@ -23,7 +23,7 @@ import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { RetryButton } from "../RetryButton";
 import type { ProjectAccessEntry } from "./projectAccess";
 
-/** Display labels for project roles. The empty role only removes access in update requests. */
+/** The empty role only removes access in update requests. */
 const chatProjectRoleLabel: Record<Exclude<ChatProjectRole, "">, string> = {
 	admin: "Admin",
 	use: "Member",

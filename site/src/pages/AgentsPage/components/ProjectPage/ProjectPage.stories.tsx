@@ -10,6 +10,7 @@ import type { Chat, ChatProjectACL } from "#/api/typesGenerated";
 import { MockChat, mockChatCost } from "#/testHelpers/chatEntities";
 import {
 	MockChatProject,
+	MockChatProjectACL,
 	MockChatProjectInstructions,
 	MockUserMember,
 	MockUserOwner,
@@ -37,11 +38,7 @@ const chatQueries = (chats: Chat[]) => [
 	})),
 ];
 
-const mockACL: ChatProjectACL = {
-	owner: MockUserOwner,
-	users: [{ ...MockUserMember, role: "use" }],
-	groups: [],
-};
+const mockACL: ChatProjectACL = { ...MockChatProjectACL, groups: [] };
 
 const meta: Meta<typeof ProjectPage> = {
 	title: "pages/AgentsPage/ProjectPage/ProjectPage",
