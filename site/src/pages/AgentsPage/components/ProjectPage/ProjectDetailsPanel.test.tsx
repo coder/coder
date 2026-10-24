@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
 	focusManager,
@@ -21,6 +21,7 @@ import {
 	MockOrganizationMember2,
 	MockUnsetChatProjectInstructions,
 	MockUserMember,
+	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
@@ -101,6 +102,7 @@ const renderPanel = (initialProject: ChatProject = MockChatProject) => {
 describe("ProjectDetailsPanel", () => {
 	beforeEach(() => {
 		vi.spyOn(API.experimental, "getChatProjectACL").mockResolvedValue({
+			owner: MockUserOwner,
 			users: [],
 			groups: [],
 		});
@@ -517,7 +519,6 @@ describe("ProjectDetailsPanel", () => {
 
 	it("lets a non-owner turn a skill off when the project permits update", async () => {
 		mockInstructions(MockChatProjectInstructions);
-		vi.spyOn(API, "getUser").mockResolvedValue(MockUserMember);
 		vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([
 			MockSkills[0],
 		]);
@@ -570,6 +571,7 @@ describe("ProjectDetailsPanel", () => {
 		const getACL = vi
 			.spyOn(API.experimental, "getChatProjectACL")
 			.mockResolvedValue({
+				owner: MockUserOwner,
 				users: [{ ...MockUserMember, role: "use" }],
 				groups: [],
 			});
@@ -579,7 +581,6 @@ describe("ProjectDetailsPanel", () => {
 		});
 
 		await user.click(accessButton);
-		// Opening the dialog refetches so it shows access changed elsewhere.
 		await waitFor(() => expect(getACL).toHaveBeenCalledTimes(2));
 		await user.click(await screen.findByRole("button", { name: "Close" }));
 
@@ -587,6 +588,35 @@ describe("ProjectDetailsPanel", () => {
 		expect(getACL).toHaveBeenCalledWith(
 			MockChatProject.organization_id,
 			MockChatProject.id,
+		);
+	});
+
+	it("names another user's project owner from the ACL", async () => {
+		mockInstructions(MockChatProjectInstructions);
+		const owner = { ...MockUserMember, name: "Jane Doe" };
+		vi.spyOn(API.experimental, "getChatProjectACL").mockResolvedValue({
+			owner,
+			users: [],
+			groups: [],
+		});
+		const getUser = vi.spyOn(API, "getUser").mockResolvedValue(owner);
+		renderPanel({ ...MockChatProject, owner_id: owner.id });
+
+		await within(screen.getByRole("region", { name: "Details" })).findByText(
+			owner.name,
+		);
+		expect(getUser).not.toHaveBeenCalled();
+	});
+
+	it("shows an unknown owner for another user's project when the ACL fails", async () => {
+		mockInstructions(MockChatProjectInstructions);
+		vi.spyOn(API.experimental, "getChatProjectACL").mockRejectedValue(
+			mockApiError({ message: "Failed to get chat project ACL." }),
+		);
+		renderPanel({ ...MockChatProject, owner_id: MockUserMember.id });
+
+		await within(screen.getByRole("region", { name: "Details" })).findByText(
+			"Unknown",
 		);
 	});
 

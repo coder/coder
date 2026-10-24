@@ -32,6 +32,7 @@ const MockOtherMember: OrganizationMemberWithUserData = {
 };
 
 const mockACL: ChatProjectACL = {
+	owner: MockUserOwner,
 	users: [{ ...MockUserMember, role: "admin" }],
 	groups: [],
 };
@@ -50,7 +51,7 @@ const renderDialog = (props: Partial<DialogProps> = {}) => {
 			<ProjectAccessDialog
 				open
 				onOpenChange={vi.fn()}
-				entries={buildAccessEntries(MockUserOwner.id, MockUserOwner, mockACL)}
+				entries={buildAccessEntries(mockACL)}
 				error={undefined}
 				isRetrying={false}
 				onRetry={vi.fn()}
@@ -176,7 +177,8 @@ describe("ProjectAccessDialog", () => {
 		// Site admins can manage access without an entry of their own.
 		const { user } = renderDialog({
 			currentUserId: MockUserMember.id,
-			entries: buildAccessEntries(MockUserOwner.id, MockUserOwner, {
+			entries: buildAccessEntries({
+				owner: MockUserOwner,
 				users: [],
 				groups: [{ ...MockGroup, role: "use" }],
 			}),

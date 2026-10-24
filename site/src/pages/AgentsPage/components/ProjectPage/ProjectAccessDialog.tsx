@@ -5,7 +5,6 @@ import type { ChatProjectRole } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { AvatarData } from "#/components/Avatar/AvatarData";
-import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import {
@@ -383,19 +382,12 @@ const AccessRow: React.FC<AccessRowProps> = ({
 		<TableRow>
 			{/* With the header's w-full, max-w-0 lets long names truncate. */}
 			<TableCell className="min-w-0 sm:max-w-0">
-				{entry.name === undefined ? (
-					<>
-						<AvatarDataSkeleton />
-						<span className="sr-only">Loading</span>
-					</>
-				) : (
-					<AvatarData
-						truncate
-						title={entry.name}
-						subtitle={entry.subtitle}
-						src={entry.avatarUrl}
-					/>
-				)}
+				<AvatarData
+					truncate
+					title={entry.name}
+					subtitle={entry.subtitle}
+					src={entry.avatarUrl}
+				/>
 			</TableCell>
 			<TableCell>
 				{editableEntry ? (

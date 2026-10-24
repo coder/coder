@@ -26,6 +26,7 @@ describe("buildAccessEntries", () => {
 		name: "",
 	};
 	const mockACL: ChatProjectACL = {
+		owner: MockUserOwner,
 		users: [
 			{ ...MockUserMember, role: "admin" },
 			{ ...mockUnnamedUser, role: "use" },
@@ -37,14 +38,15 @@ describe("buildAccessEntries", () => {
 		const mockGroupB = {
 			...MockGroup,
 			id: "group-b",
-			name: "b-team",
+			name: "team 10",
 			display_name: "",
 		};
-		const entries = buildAccessEntries(MockUserOwner.id, MockUserOwner, {
+		const entries = buildAccessEntries({
+			...mockACL,
 			users: [...mockACL.users].reverse(),
 			groups: [
 				{ ...mockGroupB, role: "use" },
-				{ ...MockGroup, id: "group-a", display_name: "A-team", role: "use" },
+				{ ...MockGroup, id: "group-a", display_name: "Team 9", role: "use" },
 			],
 		});
 		expect(entries.map(({ kind, id }) => ({ kind, id }))).toEqual([
@@ -57,22 +59,10 @@ describe("buildAccessEntries", () => {
 	});
 
 	it("names users by username when they have no display name", () => {
-		const [, , unnamed] = buildAccessEntries(
-			MockUserOwner.id,
-			MockUserOwner,
-			mockACL,
-		);
+		const [, , unnamed] = buildAccessEntries(mockACL);
 		expect(unnamed).toMatchObject({
 			name: mockUnnamedUser.username,
 			subtitle: undefined,
 		});
-	});
-
-	it.each([
-		["loading", undefined, undefined],
-		["failed to load", null, "Unknown"],
-	])("names the owner when it is %s", (_, owner, name) => {
-		const [ownerEntry] = buildAccessEntries(MockUserOwner.id, owner, mockACL);
-		expect(ownerEntry).toMatchObject({ kind: "owner", name });
 	});
 });

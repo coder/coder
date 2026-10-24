@@ -6,7 +6,6 @@ import {
 	chatProjectInstructionsKey,
 } from "#/api/queries/chatProjects";
 import { chatCostTreeKey, projectChatsKey } from "#/api/queries/chats";
-import { userKey } from "#/api/queries/users";
 import type { Chat, ChatProjectACL } from "#/api/typesGenerated";
 import { MockChat, mockChatCost } from "#/testHelpers/chatEntities";
 import {
@@ -39,6 +38,7 @@ const chatQueries = (chats: Chat[]) => [
 ];
 
 const mockACL: ChatProjectACL = {
+	owner: MockUserOwner,
 	users: [{ ...MockUserMember, role: "use" }],
 	groups: [],
 };
@@ -138,11 +138,11 @@ export const OwnedByAnotherUser: Story = {
 			{
 				key: chatProjectACLKey(MockChatProject.id),
 				data: {
+					owner: MockUserMember,
 					users: [{ ...MockUserOwner, role: "admin" }],
 					groups: [],
 				},
 			},
-			{ key: userKey(MockUserMember.id), data: MockUserMember },
 		],
 	},
 };

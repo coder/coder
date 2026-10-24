@@ -18,14 +18,6 @@ import { formatMembersHeading, type ProjectAccessEntry } from "./projectAccess";
 /** The most avatar tiles the members row shows, including the "+K" tile. */
 const MAX_MEMBER_TILES = 8;
 
-// Long names would otherwise run off narrow screens.
-const memberTooltipClassName =
-	"max-w-[min(20rem,calc(100vw-2rem))] break-words";
-
-// A button so keyboard users can focus a tile to read its tooltip.
-const memberTileTriggerClassName =
-	"relative flex cursor-default rounded-[6px] border-0 bg-transparent p-0 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link";
-
 type MembersSectionProps = {
 	/** `undefined` while the access list loads or after loading fails. */
 	readonly entries: readonly ProjectAccessEntry[] | undefined;
@@ -242,11 +234,11 @@ const MembersSection: React.FC<MembersSectionProps> = ({
 		heading = formatMembersHeading(entries.length - groupCount, groupCount);
 	}
 	// Fill the last tile with an avatar when it fits; otherwise it shows "+K".
-	const visibleEntries =
-		entries && entries.length > MAX_MEMBER_TILES
-			? entries.slice(0, MAX_MEMBER_TILES - 1)
-			: entries;
-	const hiddenEntries = entries?.slice(visibleEntries?.length ?? 0) ?? [];
+	const overflows = entries !== undefined && entries.length > MAX_MEMBER_TILES;
+	const visibleEntries = overflows
+		? entries.slice(0, MAX_MEMBER_TILES - 1)
+		: entries;
+	const hiddenEntries = overflows ? entries.slice(MAX_MEMBER_TILES - 1) : [];
 	const isLoading = !entries && !error;
 
 	return (
@@ -272,30 +264,32 @@ const MembersSection: React.FC<MembersSectionProps> = ({
 			{visibleEntries && (
 				<ul aria-label="Project members" className="m-0 flex list-none p-0">
 					{visibleEntries.map((entry) => (
-						<li
+						<MemberTile
 							key={`${entry.kind}:${entry.id}`}
-							className="flex rounded-[6px] ring-2 ring-surface-primary not-first:-ml-2"
+							label={entry.name}
+							tooltip={entry.name}
 						>
-							<MemberAvatar entry={entry} />
-						</li>
+							<Avatar
+								size="lg"
+								src={entry.avatarUrl}
+								fallback={entry.name}
+								aria-hidden="true"
+							/>
+						</MemberTile>
 					))}
 					{hiddenEntries.length > 0 && (
-						<li className="-ml-2 flex rounded-[6px] ring-2 ring-surface-primary">
-							<Tooltip>
-								<TooltipTrigger
-									type="button"
-									aria-label={`${hiddenEntries.length} more`}
-									className={memberTileTriggerClassName}
-								>
-									<span className="flex size-(--avatar-lg) items-center justify-center rounded-[6px] border border-solid border-border bg-surface-secondary text-sm font-medium text-content-secondary">
-										+{hiddenEntries.length}
-									</span>
-								</TooltipTrigger>
-								<TooltipContent className={memberTooltipClassName}>
-									{hiddenEntries.map((entry) => entry.name).join(", ")}
-								</TooltipContent>
-							</Tooltip>
-						</li>
+						<MemberTile
+							label={`${hiddenEntries.length} more`}
+							tooltip={hiddenEntries.map((entry) => entry.name).join(", ")}
+						>
+							<Avatar
+								size="lg"
+								aria-hidden="true"
+								className="items-center justify-center"
+							>
+								+{hiddenEntries.length}
+							</Avatar>
+						</MemberTile>
 					)}
 				</ul>
 			)}
@@ -328,39 +322,38 @@ const MembersSection: React.FC<MembersSectionProps> = ({
 	);
 };
 
-type MemberAvatarProps = {
-	readonly entry: ProjectAccessEntry;
+type MemberTileProps = {
+	readonly label: string;
+	readonly tooltip: string;
+	readonly children: React.ReactNode;
 };
 
-const MemberAvatar: React.FC<MemberAvatarProps> = ({ entry }) => {
-	if (entry.name === undefined) {
-		return (
-			<>
-				<Skeleton className="size-(--avatar-lg) rounded-[6px]" />
-				<span className="sr-only">Loading</span>
-			</>
-		);
-	}
-	return (
+const MemberTile: React.FC<MemberTileProps> = ({
+	label,
+	tooltip,
+	children,
+}) => (
+	<li className="flex rounded-[6px] ring-2 ring-surface-primary not-first:-ml-2">
 		<Tooltip>
+			{/* A button so keyboard users can focus a tile to read its tooltip. */}
 			<TooltipTrigger
 				type="button"
-				aria-label={entry.name}
-				className={memberTileTriggerClassName}
+				aria-label={label}
+				className="relative flex cursor-default rounded-[6px] border-0 bg-transparent p-0 focus-visible:z-10 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 			>
-				<Avatar
-					size="lg"
-					src={entry.avatarUrl}
-					fallback={entry.name}
-					aria-hidden="true"
-				/>
+				{children}
 			</TooltipTrigger>
-			<TooltipContent className={memberTooltipClassName}>
-				{entry.name}
+			{/* Below the row so it never covers the View access button, and
+			    capped in width so long names wrap on narrow screens. */}
+			<TooltipContent
+				side="bottom"
+				className="max-w-[min(20rem,calc(100vw-2rem))] break-words"
+			>
+				{tooltip}
 			</TooltipContent>
 		</Tooltip>
-	);
-};
+	</li>
+);
 
 type DetailRowProps = {
 	readonly label: string;

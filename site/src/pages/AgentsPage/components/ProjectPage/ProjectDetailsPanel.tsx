@@ -9,7 +9,6 @@ import {
 	setChatProjectRole,
 	updateChatProjectInstructions,
 } from "#/api/queries/chatProjects";
-import { user } from "#/api/queries/users";
 import type { ChatProject, ChatProjectRole } from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
@@ -45,16 +44,15 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 	const { user: me } = useAuthenticated();
 	const { organizations, showOrganizations } = useDashboard();
 	const isOwner = project.owner_id === me.id;
-	const ownerQuery = useQuery({ ...user(project.owner_id), enabled: !isOwner });
-	// `undefined` while the owner loads, `null` if loading failed.
-	const owner = isOwner
-		? me
-		: (ownerQuery.data ?? (ownerQuery.isError ? null : undefined));
+	const aclQuery = useQuery(chatProjectACL(project));
+	const owner = aclQuery.data?.owner;
 	const ownerLabel = isOwner
 		? "You"
-		: owner === null
-			? "Unknown"
-			: owner && (owner.name || owner.username);
+		: owner
+			? owner.name || owner.username
+			: aclQuery.isError
+				? "Unknown"
+				: undefined;
 	const organization = organizations.find(
 		(org) => org.id === project.organization_id,
 	);
@@ -69,11 +67,10 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 	);
 	const [isSkillsDialogOpen, setIsSkillsDialogOpen] = useState(false);
 	const skillsFocusReturn = useDialogFocusReturn();
-	const aclQuery = useQuery(chatProjectACL(project));
 	// The ACL endpoints return 403 when chat sharing is disabled.
 	const isSharingDisabled = getErrorStatus(aclQuery.error) === 403;
 	const accessEntries = aclQuery.data
-		? buildAccessEntries(project.owner_id, owner, aclQuery.data)
+		? buildAccessEntries(aclQuery.data)
 		: undefined;
 	const [isAccessDialogOpen, setIsAccessDialogOpen] = useState(false);
 	const accessFocusReturn = useDialogFocusReturn();
