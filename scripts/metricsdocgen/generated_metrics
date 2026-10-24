@@ -361,7 +361,7 @@ coderd_chatd_chats{state=""} 0
 # HELP coderd_chatd_compaction_total Total compaction outcomes (only recorded when compaction was triggered or failed).
 # TYPE coderd_chatd_compaction_total counter
 coderd_chatd_compaction_total{provider="",model="",result=""} 0
-# HELP coderd_chatd_context_rollover_total Total context window rollovers under the token budget compaction strategy, by reason (limit: the window reached its usable limit).
+# HELP coderd_chatd_context_rollover_total Total context window rollovers under the token budget compaction strategy, by reason. The model reason means the agent called new_context, and the limit reason means the window reached its usable limit.
 # TYPE coderd_chatd_context_rollover_total counter
 coderd_chatd_context_rollover_total{provider="",model="",reason=""} 0
 # HELP coderd_chatd_find_tools_activations_total Total deferred tool activations returned by find_tools.
