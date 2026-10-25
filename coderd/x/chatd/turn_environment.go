@@ -459,7 +459,7 @@ func (p *Server) buildTurnEnvironment(
 	}
 	var conversionRows []database.ChatMessage
 	conversionPendingStart := pendingRowsStart
-	var contextWindowBlock string
+	var contextWindowGuidanceBlock, contextWindowIDsBlock string
 	if tokenBudget {
 		conversionRows, err = tagUserRowsWithItemIDs(promptRows)
 		if err != nil {
@@ -469,7 +469,8 @@ func (p *Server) buildTurnEnvironment(
 		if err != nil {
 			return turnEnvironment{}, err
 		}
-		contextWindowBlock = contextWindowPrompt(contextWindowID(promptRows), previousWindowID)
+		contextWindowGuidanceBlock = contextWindowGuidance
+		contextWindowIDsBlock = contextWindowIDsPrompt(contextWindowID(promptRows), previousWindowID)
 	} else {
 		conversionRows, err = withoutChatHistoryLeadIn(promptRows)
 		if err != nil {
@@ -733,9 +734,12 @@ func (p *Server) buildTurnEnvironment(
 			chatMode:             chat.Mode,
 			planModeInstructions: planModeInstructions,
 			isRootChat:           isRootChat,
-			contextWindow:        contextWindowBlock,
+			contextWindow:        contextWindowGuidanceBlock,
 		},
 	)
+	if contextWindowIDsBlock != "" {
+		prompt = prependContextWindowIDs(prompt, contextWindowIDsBlock)
+	}
 	if advisorRuntime != nil {
 		prompt = chatprompt.InsertSystem(prompt, chatadvisor.ParentGuidanceBlock)
 	}
@@ -2205,8 +2209,8 @@ type systemPromptBehaviorContext struct {
 	chatMode             database.NullChatMode
 	planModeInstructions string
 	isRootChat           bool
-	// contextWindow is the token budget strategy's guidance and window
-	// IDs, appended last.
+	// contextWindow is the token budget strategy's guidance, appended
+	// last.
 	contextWindow string
 }
 

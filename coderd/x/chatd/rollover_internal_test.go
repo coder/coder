@@ -446,6 +446,32 @@ func TestPreviousContextWindowID(t *testing.T) {
 	require.Empty(t, previous, "only a rollover names the window it left")
 }
 
+func TestPrependContextWindowIDs(t *testing.T) {
+	t.Parallel()
+
+	text := func(role fantasy.MessageRole, value string) fantasy.Message {
+		return fantasy.Message{Role: role, Content: []fantasy.MessagePart{fantasy.TextPart{Text: value}}}
+	}
+	ids := fantasy.TextPart{Text: "<context_window>ids</context_window>"}
+	system := text(fantasy.MessageRoleSystem, "system")
+
+	userFirst := []fantasy.Message{system, text(fantasy.MessageRoleUser, "request"), text(fantasy.MessageRoleAssistant, "answer")}
+	got := prependContextWindowIDs(userFirst, ids.Text)
+	require.Equal(t, []fantasy.Message{
+		system,
+		{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{ids, fantasy.TextPart{Text: "request"}}},
+		userFirst[2],
+	}, got)
+	require.Len(t, userFirst[1].Content, 1, "the caller's prompt must not change")
+
+	assistantFirst := []fantasy.Message{system, text(fantasy.MessageRoleAssistant, "answer")}
+	require.Equal(t, []fantasy.Message{
+		system,
+		{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{ids}},
+		assistantFirst[1],
+	}, prependContextWindowIDs(assistantFirst, ids.Text))
+}
+
 func TestWithoutChatHistoryLeadIn(t *testing.T) {
 	t.Parallel()
 

@@ -1,6 +1,7 @@
 package chatd_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -128,7 +129,8 @@ func TestActiveServer_ContextRollover(t *testing.T) {
 			require.Equal(t, tokenBudget, slices.Contains(anthropicToolNames(first), "new_context"))
 			require.Equal(t, tokenBudget, slices.Contains(anthropicToolNames(first), "save_checkpoint"))
 			require.Equal(t, tokenBudget, slices.Contains(anthropicToolNames(first), "chat_history"))
-			require.Equal(t, tokenBudget, strings.Contains(anthropicSystemText(t, first), "<context_window>"))
+			require.Equal(t, tokenBudget, strings.Contains(anthropicSystemText(t, first), "<context-window-guidance>"))
+			require.Equal(t, tokenBudget, strings.Contains(anthropicMessageText(t, first.Messages[0]), "<context_window>"))
 
 			messages := chatMessages(ctx, t, db, chat.ID)
 			promptRows, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
@@ -317,10 +319,15 @@ func TestActiveServer_NewContextRollover(t *testing.T) {
 	require.Len(t, streams, 2)
 	firstSystem := anthropicSystemText(t, streams[0])
 	require.Contains(t, firstSystem, "<context-window-guidance>")
-	require.Contains(t, firstSystem, "<context_window>\nCurrent context window id: w:0\n</context_window>")
-	require.Contains(t, anthropicRequestBody(t, streams[0]), fmt.Sprintf(`first request\n[id: %d]`, userRequest.ID))
-	require.Contains(t, anthropicSystemText(t, streams[1]),
-		fmt.Sprintf("<context_window>\nCurrent context window id: w:%d\nPrevious context window id: w:0\n</context_window>", anchor.ID))
+	require.NotContains(t, firstSystem, "Current context window id")
+	require.Equal(t, string(streams[0].System), string(streams[1].System), "a rollover must keep the cached system prompt")
+	firstWindowLead := anthropicMessageText(t, streams[0].Messages[0])
+	require.True(t, strings.HasPrefix(firstWindowLead, "<context_window>\nCurrent context window id: w:0\n</context_window>"), firstWindowLead)
+	require.Contains(t, firstWindowLead, fmt.Sprintf("first request\n[id: %d]", userRequest.ID))
+	secondWindowLead := anthropicMessageText(t, streams[1].Messages[0])
+	require.True(t, strings.HasPrefix(secondWindowLead,
+		fmt.Sprintf("<context_window>\nCurrent context window id: w:%d\nPrevious context window id: w:0\n</context_window>", anchor.ID)), secondWindowLead)
+	require.Contains(t, secondWindowLead, "You requested this fresh window with new_context")
 	second := anthropicRequestBody(t, streams[1])
 	require.Contains(t, second, "goal: ship it")
 	require.NotContains(t, second, "first request")
@@ -674,6 +681,28 @@ func anthropicSystemText(t *testing.T, req chattest.AnthropicRequest) string {
 	texts := make([]string, 0, len(blocks))
 	for _, block := range blocks {
 		texts = append(texts, block.Text)
+	}
+	return strings.Join(texts, "\n")
+}
+
+// anthropicMessageText joins the text blocks of one request message.
+func anthropicMessageText(t *testing.T, msg chattest.AnthropicRequestMessage) string {
+	t.Helper()
+	if bytes.HasPrefix(msg.Content, []byte(`"`)) {
+		var text string
+		require.NoError(t, json.Unmarshal(msg.Content, &text))
+		return text
+	}
+	var blocks []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	require.NoError(t, json.Unmarshal(msg.Content, &blocks))
+	texts := make([]string, 0, len(blocks))
+	for _, block := range blocks {
+		if block.Type == "text" {
+			texts = append(texts, block.Text)
+		}
 	}
 	return strings.Join(texts, "\n")
 }
