@@ -616,7 +616,9 @@ ORDER BY
 -- boundary are ignored, so a clear hides them. Providers may repeat tool
 -- call IDs, so a call's result is the result with the same ID and
 -- occurrence among its step's tool rows, which end at the next assistant
--- row.
+-- row. Calls are read newest first and each one only looks at its own
+-- step, so the lookup stops at the first match instead of scanning the
+-- rest of the chat for every call.
 WITH privacy_floor AS (
     SELECT
         COALESCE(MAX(id), 0)::bigint AS id
@@ -628,32 +630,33 @@ WITH privacy_floor AS (
         AND compressed = true
         AND role = 'assistant'
         AND content @> '[{"type": "tool-call", "tool_name": "chat_cleared"}]'::jsonb
-),
-calls AS (
-    SELECT
-        call_msg.id AS message_id,
-        call_part.ordinality,
-        call_part.part,
-        ROW_NUMBER() OVER (
-            PARTITION BY call_msg.id, call_part.part->>'tool_call_id'
-            ORDER BY call_part.ordinality
-        ) AS occurrence
-    FROM
-        chat_messages call_msg,
-        jsonb_array_elements(call_msg.content) WITH ORDINALITY AS call_part(part, ordinality)
-    WHERE
-        call_msg.chat_id = @chat_id::uuid
-        AND call_msg.deleted = false
-        AND call_msg.role = 'assistant'
-        AND call_msg.id > (SELECT id FROM privacy_floor)
-        AND jsonb_typeof(call_msg.content) = 'array'
-        AND call_msg.content @> jsonb_build_array(jsonb_build_object('type', 'tool-call', 'tool_name', @tool_name::text))
-        AND call_part.part->>'type' = 'tool-call'
 )
 SELECT
-    (calls.part->'args')::jsonb AS args
+    (call_part.part->'args')::jsonb AS args
 FROM
-    calls
+    chat_messages call_msg
+    CROSS JOIN LATERAL jsonb_array_elements(call_msg.content) WITH ORDINALITY AS call_part(part, ordinality)
+    CROSS JOIN LATERAL (
+        SELECT
+            COUNT(*) AS occurrence
+        FROM
+            jsonb_array_elements(call_msg.content) WITH ORDINALITY AS earlier_part(part, ordinality)
+        WHERE
+            earlier_part.ordinality <= call_part.ordinality
+            AND earlier_part.part->>'type' = 'tool-call'
+            AND earlier_part.part->>'tool_call_id' IS NOT DISTINCT FROM call_part.part->>'tool_call_id'
+    ) call_occurrence
+    CROSS JOIN LATERAL (
+        SELECT
+            COALESCE(MIN(next_msg.id), 9223372036854775807)::bigint AS id
+        FROM
+            chat_messages next_msg
+        WHERE
+            next_msg.chat_id = @chat_id::uuid
+            AND next_msg.deleted = false
+            AND next_msg.role = 'assistant'
+            AND next_msg.id > call_msg.id
+    ) next_step
     CROSS JOIN LATERAL (
         SELECT
             result_part.part
@@ -664,37 +667,33 @@ FROM
             result_msg.chat_id = @chat_id::uuid
             AND result_msg.deleted = false
             AND result_msg.role = 'tool'
-            AND result_msg.id > calls.message_id
-            AND NOT EXISTS (
-                SELECT
-                    1
-                FROM
-                    chat_messages next_msg
-                WHERE
-                    next_msg.chat_id = @chat_id::uuid
-                    AND next_msg.deleted = false
-                    AND next_msg.role = 'assistant'
-                    AND next_msg.id > calls.message_id
-                    AND next_msg.id < result_msg.id
-            )
+            AND result_msg.id > call_msg.id
+            AND result_msg.id < next_step.id
             AND jsonb_typeof(result_msg.content) = 'array'
             AND result_part.part->>'type' = 'tool-result'
-            AND result_part.part->>'tool_call_id' = calls.part->>'tool_call_id'
+            AND result_part.part->>'tool_call_id' = call_part.part->>'tool_call_id'
         ORDER BY
             result_msg.id,
             result_part.ordinality
         OFFSET
-            calls.occurrence - 1
+            call_occurrence.occurrence - 1
         LIMIT
             1
     ) matched
 WHERE
-    calls.part->>'tool_name' = @tool_name::text
+    call_msg.chat_id = @chat_id::uuid
+    AND call_msg.deleted = false
+    AND call_msg.role = 'assistant'
+    AND call_msg.id > (SELECT id FROM privacy_floor)
+    AND jsonb_typeof(call_msg.content) = 'array'
+    AND call_msg.content @> jsonb_build_array(jsonb_build_object('type', 'tool-call', 'tool_name', @tool_name::text))
+    AND call_part.part->>'type' = 'tool-call'
+    AND call_part.part->>'tool_name' = @tool_name::text
     AND matched.part->>'tool_name' = @tool_name::text
     AND COALESCE((matched.part->>'is_error')::boolean, false) = false
 ORDER BY
-    calls.message_id DESC,
-    calls.ordinality DESC
+    call_msg.id DESC,
+    call_part.ordinality DESC
 LIMIT
     1;
 

@@ -13056,6 +13056,10 @@ func TestGetLatestSuccessfulChatToolCallArgs(t *testing.T) {
 				step(t, chatID, []codersdk.ChatMessagePart{call("call_0", "save_checkpoint", "unanswered")})
 				step(t, chatID, []codersdk.ChatMessagePart{call("call_0", "execute", "")}, result("call_0", "execute", false))
 			}},
+			{name: "ResultAfterNextStep", steps: func(t *testing.T, chatID uuid.UUID) {
+				step(t, chatID, []codersdk.ChatMessagePart{call("call_0", "save_checkpoint", "unanswered")})
+				step(t, chatID, []codersdk.ChatMessagePart{codersdk.ChatMessageText("next step")}, result("call_0", "save_checkpoint", false))
+			}},
 			{name: "RepeatedSaveSharesID", steps: func(t *testing.T, chatID uuid.UUID) {
 				step(t, chatID,
 					[]codersdk.ChatMessagePart{call("dup", "save_checkpoint", "kept"), call("dup", "save_checkpoint", "rejected")},

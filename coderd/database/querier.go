@@ -744,7 +744,9 @@ type sqlcQuerier interface {
 	// boundary are ignored, so a clear hides them. Providers may repeat tool
 	// call IDs, so a call's result is the result with the same ID and
 	// occurrence among its step's tool rows, which end at the next assistant
-	// row.
+	// row. Calls are read newest first and each one only looks at its own
+	// step, so the lookup stops at the first match instead of scanning the
+	// rest of the chat for every call.
 	GetLatestSuccessfulChatToolCallArgs(ctx context.Context, arg GetLatestSuccessfulChatToolCallArgsParams) (json.RawMessage, error)
 	GetLatestWorkspaceAgentContextSnapshot(ctx context.Context, workspaceAgentID uuid.UUID) (WorkspaceAgentContextSnapshot, error)
 	GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (WorkspaceAppStatus, error)
