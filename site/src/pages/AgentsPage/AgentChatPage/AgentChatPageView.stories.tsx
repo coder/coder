@@ -1816,6 +1816,7 @@ export const ClosesActiveSingletonPanel: Story = {
 		expect(tabLabels).toEqual([
 			"Summary",
 			"Git",
+			"Artifacts",
 			"Debug",
 			"Browser",
 			"Terminal",
@@ -1928,7 +1929,7 @@ export const HidesUnsupportedSingletonPanels: Story = {
 
 		await canvas.findByRole("tab", { name: "Summary" });
 		const tabLabels = canvas.getAllByRole("tab").map((tab) => tab.textContent);
-		expect(tabLabels).toEqual(["Summary", "Git", "Terminal"]);
+		expect(tabLabels).toEqual(["Summary", "Git", "Artifacts", "Terminal"]);
 
 		await openAddPanelMenu(canvas);
 		await body.findByText("New Terminal");

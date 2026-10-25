@@ -219,6 +219,31 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 		result: { output: { type: "image", data: TEST_PNG_B64 } },
 	},
 	{
+		name: "publish_artifact",
+		args: { path: "/home/coder/report.html", title: "Signup funnel" },
+		result: {
+			ok: true,
+			artifact_id: "11111111-2222-3333-4444-555555555555",
+			version: 2,
+			title: "Signup funnel",
+			name: "funnel-report.html",
+			url: "/agents/artifacts/11111111-2222-3333-4444-555555555555",
+		},
+	},
+	{
+		name: "read_artifact",
+		args: { artifact_id: "11111111-2222-3333-4444-555555555555" },
+		result: {
+			ok: true,
+			artifact_id: "11111111-2222-3333-4444-555555555555",
+			version: 2,
+			title: "Signup funnel",
+			name: "funnel-report.html",
+			path: "/tmp/coder-artifacts/11111111-2222-3333-4444-555555555555/funnel-report.html",
+			untrusted: true,
+		},
+	},
+	{
 		name: "read_skill",
 		args: { name: "deep-review" },
 		result: {

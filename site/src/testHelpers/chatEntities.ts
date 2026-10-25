@@ -1,5 +1,6 @@
 import type {
 	Chat,
+	ChatArtifact,
 	ChatContext,
 	ChatContextResource,
 	ChatCost,
@@ -191,4 +192,42 @@ export const MockChatDiffStatus: ChatDiffStatus = {
 	additions: 1,
 	deletions: 0,
 	changed_files: 1,
+};
+
+export const MockChatArtifact: ChatArtifact = {
+	id: "artifact-1",
+	organization_id: "test-org-id",
+	owner_id: MockUserOwner.id,
+	owner_username: MockUserOwner.username,
+	project_name: "",
+	title: "Repo layout",
+	latest_version: 2,
+	created_at: MOCK_TIMESTAMP,
+	updated_at: MOCK_TIMESTAMP,
+	versions: [
+		{
+			version: 2,
+			label: "Adds enterprise",
+			name: "repo-layout.md",
+			media_type: "text/markdown",
+			size: 120,
+			created_by: MockUserOwner.id,
+			created_by_username: MockUserOwner.username,
+			chat_id: "chat-1",
+			chat_title: "Agent",
+			created_at: MOCK_TIMESTAMP,
+		},
+		{
+			version: 1,
+			label: "",
+			name: "repo-layout.md",
+			media_type: "text/markdown",
+			size: 80,
+			created_by: MockUserOwner.id,
+			created_by_username: MockUserOwner.username,
+			chat_id: "chat-0",
+			chat_title: "Repo report",
+			created_at: MOCK_TIMESTAMP,
+		},
+	],
 };

@@ -4,6 +4,7 @@ import { memo } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useTheme } from "#/theme/context";
 import { AdvisorTool, type AdvisorToolResultType } from "./AdvisorTool";
+import { ArtifactToolCard } from "./ArtifactToolCard";
 import {
 	type AskUserQuestion,
 	AskUserQuestionTool,
@@ -1168,6 +1169,37 @@ const WorkspaceLifecycleRenderer: React.FC<ToolRendererProps> = ({
 	);
 };
 
+const ArtifactRenderer: React.FC<ToolRendererProps> = ({
+	name,
+	status,
+	result,
+	isError,
+}) => {
+	const rec = asRecord(result);
+	const artifactId = rec ? asString(rec.artifact_id) : "";
+	const version = rec ? asNumber(rec.version) : undefined;
+	const artifact =
+		rec && artifactId && version !== undefined
+			? {
+					artifactId,
+					version,
+					title: asString(rec.title),
+					name: asString(rec.name),
+					path: asString(rec.path),
+					untrusted: rec.untrusted === true,
+				}
+			: undefined;
+	return (
+		<ArtifactToolCard
+			toolName={name === "read_artifact" ? "read_artifact" : "publish_artifact"}
+			status={status}
+			isError={isError}
+			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+			artifact={artifact}
+		/>
+	);
+};
+
 // ---------------------------------------------------------------------------
 // Renderer lookup map for tool names and specialized renderers.
 // ---------------------------------------------------------------------------
@@ -1195,6 +1227,8 @@ export const toolRenderers: Record<string, React.FC<ToolRendererProps>> = {
 	propose_plan: ProposePlanRenderer,
 	advisor: AdvisorRenderer,
 	computer: ComputerRenderer,
+	publish_artifact: ArtifactRenderer,
+	read_artifact: ArtifactRenderer,
 };
 
 // Exported so tests can assert cross-cutting affordances across every

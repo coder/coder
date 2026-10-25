@@ -4,8 +4,10 @@ import {
 	BadgeQuestionMarkIcon,
 	BotIcon,
 	CompassIcon,
+	FileDownIcon,
 	FilePenLineIcon,
 	FileTextIcon,
+	FileUpIcon,
 	LightbulbIcon,
 	type LucideIcon,
 	MonitorIcon,
@@ -50,6 +52,8 @@ export const toolIcons: Partial<Record<string, LucideIcon>> = {
 	advisor: CompassIcon,
 	computer: MonitorIcon,
 	find_tools: SearchIcon,
+	publish_artifact: FileUpIcon,
+	read_artifact: FileDownIcon,
 };
 
 export const ToolIcon: React.FC<{
