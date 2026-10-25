@@ -376,6 +376,16 @@ const chatProjectSkillPath = (
 	name: string,
 ) =>
 	`${chatProjectSkillsPath(organizationId, projectId)}/${encodeURIComponent(name)}`;
+const chatArtifactPath = (artifactId: string) =>
+	`/api/experimental/chats/artifacts/${encodeURIComponent(artifactId)}`;
+/** The raw bytes of one artifact version. HTML and SVG download. */
+export const getChatArtifactVersionURL = (
+	artifactId: string,
+	version: number,
+) => `${chatArtifactPath(artifactId)}/versions/${version}`;
+/** An HTML artifact version served with a CSP sandbox, for an iframe only. */
+export const getChatArtifactFrameURL = (artifactId: string, version: number) =>
+	`${getChatArtifactVersionURL(artifactId, version)}/frame`;
 const userAIProviderKeysPath = (user = "me") =>
 	`/api/v2/users/${encodeURIComponent(user)}/ai-provider-keys`;
 const mcpServerConfigsPath = (organization: string) =>
@@ -3306,6 +3316,33 @@ class ExperimentalApiMethods {
 	getChatProjects = async (): Promise<TypesGen.ChatProject[]> => {
 		const response = await this.axios.get<TypesGen.ChatProject[]>(
 			"/api/experimental/chats/projects",
+		);
+		return response.data;
+	};
+
+	listChatArtifacts = async (): Promise<TypesGen.ChatArtifact[]> => {
+		const response = await this.axios.get<TypesGen.ChatArtifact[]>(
+			"/api/experimental/chats/artifacts",
+		);
+		return response.data;
+	};
+
+	getChatArtifact = async (
+		artifactId: string,
+	): Promise<TypesGen.ChatArtifact> => {
+		const response = await this.axios.get<TypesGen.ChatArtifact>(
+			chatArtifactPath(artifactId),
+		);
+		return response.data;
+	};
+
+	getChatArtifactVersionText = async (
+		artifactId: string,
+		version: number,
+	): Promise<string> => {
+		const response = await this.axios.get<string>(
+			getChatArtifactVersionURL(artifactId, version),
+			{ responseType: "text" },
 		);
 		return response.data;
 	};
