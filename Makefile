@@ -361,7 +361,9 @@ site/out/bin/coder.sha1: $(CODER_SLIM_BINARIES)
 
 build/coder-slim_$(VERSION).tar: build/coder-slim_$(VERSION)_checksums.sha1 $(CODER_SLIM_BINARIES)
 	pushd ./site/out/bin
-		tar cf "../../../build/$(@F)" coder-*
+		# Group binaries by architecture so that zstd's long-distance matching
+		# window can deduplicate code shared across operating systems.
+		tar cf "../../../build/$(@F)" $$(ls coder-* | sort -t- -k3)
 	popd
 
 	# delete the uncompressed binaries from the embedded dir
