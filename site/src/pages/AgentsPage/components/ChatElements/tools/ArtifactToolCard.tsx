@@ -48,8 +48,10 @@ export const ArtifactToolCard: React.FC<ArtifactToolCardProps> = ({
 			: "Failed to read artifact";
 	} else if (isPublish) {
 		label = `Published ${title} · v${artifact.version}`;
-	} else {
+	} else if (artifact.path) {
 		label = `Read ${title} · v${artifact.version} into ${artifact.path}`;
+	} else {
+		label = `Read ${title} · v${artifact.version}`;
 	}
 	const showActions = !isRunning && !isError && artifact !== undefined;
 

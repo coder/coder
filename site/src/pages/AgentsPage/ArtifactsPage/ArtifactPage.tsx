@@ -25,16 +25,9 @@ const ArtifactPage: React.FC = () => {
 		enabled: artifactId !== "",
 	});
 
+	// A failed background refetch keeps the cached artifact on screen.
 	let content: React.ReactNode;
-	if (artifactQuery.isError) {
-		content = (
-			<div className="p-4">
-				<ErrorAlert error={artifactQuery.error} />
-			</div>
-		);
-	} else if (!artifactQuery.data) {
-		content = <Loader className="flex-1" label="Loading artifact" />;
-	} else {
+	if (artifactQuery.data) {
 		content = (
 			<ArtifactView
 				artifact={artifactQuery.data}
@@ -44,6 +37,14 @@ const ArtifactPage: React.FC = () => {
 				}
 			/>
 		);
+	} else if (artifactQuery.isError) {
+		content = (
+			<div className="p-4">
+				<ErrorAlert error={artifactQuery.error} />
+			</div>
+		);
+	} else {
+		content = <Loader className="flex-1" label="Loading artifact" />;
 	}
 
 	return (

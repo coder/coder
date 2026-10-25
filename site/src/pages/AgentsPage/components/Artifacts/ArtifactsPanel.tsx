@@ -153,6 +153,18 @@ const SelectedArtifact: React.FC<SelectedArtifactProps> = ({
 	onPrompt,
 }) => {
 	const artifactQuery = useQuery(chatArtifact(artifactId));
+	// A failed background refetch keeps the cached artifact on screen.
+	if (artifactQuery.data) {
+		return (
+			<ArtifactView
+				artifact={artifactQuery.data}
+				selectedVersion={version}
+				onSelectVersion={onSelectVersion}
+				currentChatId={chatId}
+				onPrompt={onPrompt}
+			/>
+		);
+	}
 	if (artifactQuery.isError) {
 		return (
 			<div className="p-4">
@@ -160,16 +172,5 @@ const SelectedArtifact: React.FC<SelectedArtifactProps> = ({
 			</div>
 		);
 	}
-	if (!artifactQuery.data) {
-		return <Loader className="flex-1" label="Loading artifact" />;
-	}
-	return (
-		<ArtifactView
-			artifact={artifactQuery.data}
-			selectedVersion={version}
-			onSelectVersion={onSelectVersion}
-			currentChatId={chatId}
-			onPrompt={onPrompt}
-		/>
-	);
+	return <Loader className="flex-1" label="Loading artifact" />;
 };

@@ -51,11 +51,14 @@ const ArtifactsGalleryPage: React.FC = () => {
 	const { user } = useAuthenticated();
 	const artifactsQuery = useQuery(chatArtifacts());
 
+	// A failed background refetch keeps the cached list on screen.
 	let content: React.ReactNode;
-	if (artifactsQuery.isError) {
-		content = <ErrorAlert error={artifactsQuery.error} />;
-	} else if (!artifactsQuery.data) {
-		content = <Loader label="Loading artifacts" />;
+	if (!artifactsQuery.data) {
+		content = artifactsQuery.isError ? (
+			<ErrorAlert error={artifactsQuery.error} />
+		) : (
+			<Loader label="Loading artifacts" />
+		);
 	} else {
 		const groups = groupArtifacts(artifactsQuery.data, user.id);
 		content =
