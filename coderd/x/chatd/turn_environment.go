@@ -828,6 +828,15 @@ func (p *Server) buildTurnEnvironment(
 	if hasMemory {
 		tools = append(tools, chattool.ReadMemory(memoryStore), chattool.SaveMemory(memoryStore, memoryProjectName), chattool.DeleteMemory(memoryStore, memoryProjectName), chattool.ConsolidateMemory(memoryStore, memoryProjectName))
 	}
+	if isRootChat {
+		// Artifacts outlive the chat, so subagents do not get them, as
+		// with the memory tools.
+		artifactOpts := chattool.ArtifactOptions{
+			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+			Store:            newArtifactStore(p.db, chat),
+		}
+		tools = append(tools, chattool.PublishArtifact(artifactOpts), chattool.ReadArtifact(artifactOpts))
+	}
 	if advisorRuntime != nil {
 		tools = append(tools, chatadvisor.Tool(chatadvisor.ToolOptions{
 			Runtime: advisorRuntime,
@@ -2054,7 +2063,8 @@ func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 		"create_workspace", "start_workspace", "stop_workspace", "propose_plan", "spawn_agent",
 		"spawn_explore_agent", "wait_agent", "list_agents", "list_subagent_models",
 		"ask_user_question", "attach_file",
-		chattool.ReadMemoryToolName, chattool.SaveMemoryToolName, chattool.DeleteMemoryToolName, chattool.ConsolidateMemoryToolName:
+		chattool.ReadMemoryToolName, chattool.SaveMemoryToolName, chattool.DeleteMemoryToolName, chattool.ConsolidateMemoryToolName,
+		chattool.PublishArtifactToolName, chattool.ReadArtifactToolName:
 		return isRootChat
 	case "process_list", "process_signal", "message_agent", "interrupt_agent", "close_agent",
 		"spawn_computer_use_agent":
