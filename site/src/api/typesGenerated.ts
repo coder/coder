@@ -2167,6 +2167,61 @@ export interface ChatACL {
 	readonly groups: readonly ChatGroup[];
 }
 
+// From codersdk/chatartifacts.go
+/**
+ * ChatArtifact is a versioned file that an agent published from a
+ * workspace. It outlives the chat and the workspace that made it. The
+ * owner sees it, and when ProjectID is set, the project members see it
+ * too.
+ */
+export interface ChatArtifact {
+	readonly id: string;
+	readonly organization_id: string;
+	readonly owner_id: string;
+	readonly owner_username: string;
+	readonly project_id?: string;
+	/**
+	 * ProjectName is empty when ProjectID is unset.
+	 */
+	readonly project_name: string;
+	readonly title: string;
+	readonly latest_version: number;
+	readonly created_at: string;
+	readonly updated_at: string;
+	/**
+	 * Versions is set only by GetChatArtifact, newest first.
+	 */
+	readonly versions?: readonly ChatArtifactVersion[];
+}
+
+// From codersdk/chatartifacts.go
+/**
+ * ChatArtifactVersion describes one published version. The bytes come
+ * from ChatArtifactVersionData.
+ */
+export interface ChatArtifactVersion {
+	readonly version: number;
+	readonly label: string;
+	/**
+	 * Name is the file name. Its extension picks the renderer.
+	 */
+	readonly name: string;
+	readonly media_type: string;
+	readonly size: number;
+	readonly created_by?: string;
+	readonly created_by_username: string;
+	/**
+	 * ChatID is the chat that published this version. It is unset after
+	 * that chat is deleted.
+	 */
+	readonly chat_id?: string;
+	/**
+	 * ChatTitle is set only when the caller owns that chat.
+	 */
+	readonly chat_title: string;
+	readonly created_at: string;
+}
+
 // From codersdk/chats.go
 export type ChatAttachmentMediaType =
 	| "application/json"
