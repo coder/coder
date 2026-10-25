@@ -24,18 +24,18 @@ coder users show [flags] <username|user_id|'me'>
 
 ### -c, --column
 
-|         |                                                                                    |
-|---------|------------------------------------------------------------------------------------|
-| Type    | <code>[id\|username\|name\|email\|status\|created at\|roles\|organizations]</code> |
-| Default | <code>id,username,name,email,status,created at,roles,organizations</code>          |
+| Property | Value                                                                              |
+|----------|------------------------------------------------------------------------------------|
+| Type     | <code>[id\|username\|name\|email\|status\|created at\|roles\|organizations]</code> |
+| Default  | <code>id,username,name,email,status,created at,roles,organizations</code>          |
 
 Columns to display in table output.
 
 ### -o, --output
 
-|         |                          |
-|---------|--------------------------|
-| Type    | <code>table\|json</code> |
-| Default | <code>table</code>       |
+| Property | Value                    |
+|----------|--------------------------|
+| Type     | <code>table\|json</code> |
+| Default  | <code>table</code>       |
 
 Output format.

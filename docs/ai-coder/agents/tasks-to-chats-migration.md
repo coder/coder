@@ -60,7 +60,7 @@ The table below maps each Tasks API endpoint to its Chats API equivalent.
 
 ### 1. Configure an LLM provider
 
-With Tasks, LLM credentials are injected into the workspace as environment variables (e.g. `ANTHROPIC_API_KEY`).
+With Tasks, LLM credentials are injected into the workspace as environment variables (for example, `ANTHROPIC_API_KEY`).
 With Coder Agents, credentials are configured once in the control plane:
 
 1. Navigate to **Admin settings** > **AI** and select **Providers**.
@@ -460,7 +460,7 @@ curl -s -X POST https://coder.example.com/api/v2/chats \
   }"
 ```
 
-This pattern is the closest analogue to the Tasks API behavior of `template_version_id` plus `coder-template-name`: you decide which template runs, the agent decides what to do inside it.
+This pattern is the closest analog to the Tasks API behavior of `template_version_id` plus `coder-template-name`: you decide which template runs, the agent decides what to do inside it.
 The same approach works from the [`coder/create-agent-chat-action`](https://github.com/coder/create-agent-chat-action) GHA, which exposes the same pin via its `workspace-id` input.
 
 ## How to test your migration

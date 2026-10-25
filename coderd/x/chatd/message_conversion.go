@@ -317,7 +317,7 @@ type buildCompactionMessagesInput struct {
 	modelConfigID       uuid.UUID
 	toolCallID          string
 	toolName            string
-	compaction          compactionOutcome
+	compaction          chatloop.CompactionResult
 	contentVersion      int16
 	pendingUserMessages []database.ChatMessage
 }
@@ -857,6 +857,13 @@ type partialMessageConversionState struct {
 	// modelStreamedAssistant distinguishes streamed content from tool
 	// attachment parts, which must not carry model runtime.
 	modelStreamedAssistant bool
+	// streamedRun accumulates the open text or reasoning run so that a delta
+	// does not copy the run. assistantParts[streamedRunIndex].Text is stale
+	// until closeStreamedRun, so append parts only through appendAssistantPart,
+	// which closes the run first.
+	streamedRun      strings.Builder
+	streamedRunIndex int
+	streamedRunOpen  bool
 }
 
 func (s *partialMessageConversionState) consume(buffered messagepartbuffer.Part) error {
@@ -891,7 +898,7 @@ func (s *partialMessageConversionState) consumeAssistantPart(buffered messagepar
 				part.CompletedAt = &interruptedAt
 			}
 		}
-		s.assistantParts = append(s.assistantParts, part)
+		s.appendAssistantPart(part)
 		return
 	}
 	if part.ToolCallID == "" {
@@ -936,6 +943,49 @@ func (s *partialMessageConversionState) consumeAssistantPart(buffered messagepar
 	call.valid = true
 	call.durable = true
 	s.assistantParts[call.index] = durable
+}
+
+// appendAssistantPart appends part, or appends its text to the open run if part
+// continues it. Text deltas have no block identity, so a text run continues
+// across provider blocks until Narration changes; narration must stay a
+// separate part because the web client shows it in the working block. A
+// reasoning run continues while CreatedAt, which chatloop sets to the block's
+// start time rounded to the microsecond, stays the same, so two blocks that
+// start in the same microsecond merge.
+func (s *partialMessageConversionState) appendAssistantPart(part codersdk.ChatMessagePart) {
+	mergeable := part.Type == codersdk.ChatMessagePartTypeText || part.Type == codersdk.ChatMessagePartTypeReasoning
+	if mergeable && s.streamedRunOpen {
+		prev := s.assistantParts[s.streamedRunIndex]
+		if prev.Type == part.Type && prev.Narration == part.Narration &&
+			(part.Type == codersdk.ChatMessagePartTypeText || sameTime(prev.CreatedAt, part.CreatedAt)) {
+			_, _ = s.streamedRun.WriteString(part.Text)
+			return
+		}
+	}
+	s.closeStreamedRun()
+	s.assistantParts = append(s.assistantParts, part)
+	if !mergeable {
+		return
+	}
+	s.streamedRunIndex = len(s.assistantParts) - 1
+	s.streamedRunOpen = true
+	_, _ = s.streamedRun.WriteString(part.Text)
+}
+
+func (s *partialMessageConversionState) closeStreamedRun() {
+	if !s.streamedRunOpen {
+		return
+	}
+	s.assistantParts[s.streamedRunIndex].Text = s.streamedRun.String()
+	s.streamedRun.Reset()
+	s.streamedRunOpen = false
+}
+
+func sameTime(a, b *time.Time) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.Equal(*b)
 }
 
 func (s *partialMessageConversionState) consumeToolPart(buffered messagepartbuffer.Part) error {
@@ -1008,7 +1058,7 @@ func (s *partialMessageConversionState) toolCall(id string) *partialToolCall {
 	call = &partialToolCall{index: len(s.assistantParts), valid: true}
 	s.toolCalls[id] = call
 	s.toolCallOrder = append(s.toolCallOrder, id)
-	s.assistantParts = append(s.assistantParts, codersdk.ChatMessagePart{})
+	s.appendAssistantPart(codersdk.ChatMessagePart{})
 	return call
 }
 
@@ -1048,6 +1098,7 @@ func (s *partialMessageConversionState) finalizeToolCallPlaceholders() error {
 }
 
 func (s *partialMessageConversionState) flushAssistant() error {
+	s.closeStreamedRun()
 	if len(s.assistantParts) == 0 {
 		return nil
 	}

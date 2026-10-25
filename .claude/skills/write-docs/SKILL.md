@@ -1,14 +1,16 @@
 ---
 name: write-docs
-description: Authoring workflow and guardrails for writing, moving, or restructuring Coder documentation under docs/. Points at the canonical content guidelines and prose style guide, then walks research, routing, Diátaxis mode, structure, pedagogy, and validation. Counterpart to the doc-check skill, which reviews changes for documentation needs.
+description: Authoring workflow and guardrails for writing, moving, or restructuring Coder documentation under docs/. Points at the canonical content guidelines and prose style guide, then walks research, routing, Diátaxis mode, structure, pedagogy, and validation. Counterpart to the doc-check skill, which reviews docs changes for accuracy, coverage, audience, and style; run doc-check on your branch before opening or updating the PR.
 ---
 
 # Documentation Authoring Skill
 
 Author or edit user-facing documentation under `docs/` so it is correct,
 correctly scoped, and approvable in as few review cycles as possible. This is
-the counterpart to the `doc-check` skill: `doc-check` decides whether a change
-needs docs; this skill covers writing them well.
+the counterpart to the `doc-check` skill: `doc-check` reviews whether the docs
+on `main` would explain a change correctly and clearly after it merges, and
+this skill covers writing them. Run `doc-check` on your own branch before you
+open or update the PR, so CI confirms your work instead of finding it.
 
 > [!IMPORTANT]
 > The **canonical** rules live outside this skill. Read them first; this skill
@@ -58,6 +60,14 @@ style.
    - **Learn the invariant.** For each behavioral claim, find the rule
      underneath it, so you can explain *why*, not just *what*, and not write
      something the maintainer knows is false.
+   - **Follow the user's whole path.** Trace each change through every place
+     the user meets it, not only the function the diff edits. A setting that
+     changes on upload also changes what a download, an export, or an import
+     into another tool produces, and each role that can reach it may see it
+     differently.
+   - **Check the PR description against the code.** A behavior the
+     description claims and the code does not implement must not reach the
+     page.
    - **Read the issue, linked tickets, and referenced PRs.** Real constraints
      and intent often live there, not in the prose request.
    - **Confirm integrations that already work.** Do not invent setup steps
@@ -65,8 +75,15 @@ style.
      step is required, test both paths or ask, rather than padding the guide.
 2. **Decide whether it belongs in the docs, and where.** Walk the
    [quick decision checklist](../../../docs/.style/content-guidelines.md#quick-decision-checklist).
-   If it does not belong, route it (see [What not to write](#what-not-to-write)).
-3. **Pick the Diátaxis mode and the manifest slot.** Choose one mode per page
+   If it does not belong, route it (refer to [What not to write](#what-not-to-write)).
+3. **Name the reader, then pick the Diátaxis mode and the manifest slot.**
+   Name the persona the page serves, from
+   [Personas the Coder docs serve](../../../docs/.style/style-guide/audience-and-scope.md#personas-the-coder-docs-serve).
+   Developers and end users are both users with different needs, so pick the
+   one this page serves and leave out what only the other needs. Lead with
+   the surface that reader uses, per
+   [Lead with the surface the reader uses](../../../docs/.style/style-guide/audience-and-scope.md#lead-with-the-surface-the-reader-uses).
+   Choose one mode per page
    (tutorial, how-to guide, reference, or explanation) per
    the Diátaxis framework in the [content guidelines](../../../docs/.style/content-guidelines.md#follow-the-diátaxis-framework).
    One outcome per page. New pages MUST be added to the right source file in
@@ -76,17 +93,22 @@ style.
    or feature name, update the [glossary](../../../docs/reference/glossary.md)
    in the same change (add, edit, or mark the entry) per the
    [Structural rules](../../../docs/.style/content-guidelines.md#structural-rules).
-4. **Draft with deliberate pedagogy** (see patterns below).
+4. **Draft with deliberate pedagogy** (refer to the patterns that follow).
 5. **Self-review and validate.** Apply the prose style guide with it open.
    Most of the guide is unenforced, so this reading pass is the only thing
    that catches those rules. Then run `make lint/emdash`, markdownlint, and
    Vale. Run the commands and code
    in the page. Fix every inbound link you moved and add redirects for any
-   rename (see [Structural rules to apply](#structural-rules-to-apply)).
-6. **Open the PR.** Write the title and description per the
+   rename (refer to [Structural rules to apply](#structural-rules-to-apply)).
+6. **Run `doc-check` on your branch.** Use the
+   [`doc-check` skill](../doc-check/SKILL.md) in author self-check mode
+   against your branch diff, including any code you changed. Fix every
+   blocking finding before you open or update the PR. Report the suggestions
+   you chose not to apply, with a reason, in the PR description.
+7. **Open the PR.** Write the title and description per the
    [Pull Request Description Style Guide](../../docs/PR_STYLE_GUIDE.md), which
    also covers when to open as a draft and when to mark it ready for review.
-   Keep the diff reviewable (see [Keep PRs reviewable](#keep-prs-reviewable)).
+   Keep the diff reviewable (refer to [Keep PRs reviewable](#keep-prs-reviewable)).
 
 ## Pedagogy patterns
 
@@ -171,8 +193,12 @@ the whole series as a single review.
 - Brittle references that rot: hard-coded line numbers, or a screenshot
   standing in for text the reader could copy.
 - Publishing verification evidence as content: identifiers on a page whose
-  reader never types or receives them (see
+  reader never types or receives them (refer to
   [Evidence versus claim](#evidence-versus-claim)).
+- Narrating internals. Keep a sentence about how the product works inside
+  only if it changes what the reader sees, types, or must do, and then write
+  it in terms of that effect.
+- Leading with the API field or file key when the reader works in the UI.
 - Duplicating large content silently instead of flagging the maintenance
   cost to the reviewer.
 - Treating the style guide as optional recall instead of a checklist you open
@@ -199,7 +225,8 @@ the whole series as a single review.
       never fails a build. The count lives in
       [What the tooling checks, and what it doesn't](../../../docs/.style/style-guide/README.md#what-the-tooling-checks-and-what-it-doesnt).
 - [ ] Inbound links resolve; renames have redirects in `docs/redirects.json`.
-- [ ] Premium pages carry the title suffix and manifest state.
+- [ ] Premium and other staged pages carry the `state:` on their
+      `docs/manifest/` route, with no suffix in the title.
 - [ ] Series pages orient the reader and link the next step; no dead-ends.
 - [ ] The change is scoped for review: large or multi-page work is split into
       focused PRs (aim for under ~1,000 lines changed; one page per PR for a
@@ -212,6 +239,9 @@ the whole series as a single review.
       requires.
 - [ ] Maintenance tradeoffs (duplication, unverified claims) are disclosed to
       the reviewer, not hidden.
+- [ ] The page names its persona, and the surface that persona uses leads.
+- [ ] `doc-check` ran on the branch in author self-check mode, and every
+      blocking finding is fixed.
 
 ## Feeding lessons back
 

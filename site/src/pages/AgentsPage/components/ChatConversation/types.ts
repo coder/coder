@@ -63,6 +63,7 @@ export type RenderBlock =
 	| TypesGen.ChatFilePart
 	| TypesGen.ChatFileReferencePart
 	| TypesGen.ChatWorkspaceFileReferencePart
+	| TypesGen.ChatSkillInvocationPart
 	| {
 			type: "sources";
 			sources: Array<{ url: string; title: string }>;

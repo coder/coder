@@ -34,6 +34,8 @@ import {
 	mergeWatchedChatIntoCaches,
 	prependToInfiniteChatsCache,
 	proposeChatTitle,
+	resetUnloadedChatEntity,
+	resetUnloadedChatLists,
 	shouldInvalidateChatSearches,
 	shouldInvalidateChatsByWorkspace,
 	updateChatTitle,
@@ -97,6 +99,7 @@ export type AgentsPageOutletContext = {
 
 const FILTER_MEMBERSHIP_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
 	"diff_status_change",
+	"project_change",
 	"status_change",
 ]);
 
@@ -430,6 +433,18 @@ const AgentsPageLayout: React.FC = () => {
 							// active chat has an observer, so other chats are
 							// merely marked stale.
 							void invalidateChatEntity(queryClient, updatedChat.id);
+						}
+						if (chatEvent.kind === "project_change") {
+							// Moves keep updated_at, so the merge above keeps whichever
+							// project_change arrives last. Refetch the committed project,
+							// and restart a first fetch that may predate the move.
+							void resetUnloadedChatEntity(queryClient, updatedChat.id);
+							void invalidateChatEntity(queryClient, updatedChat.id);
+							// First list fetches may predate the move too. Every move
+							// sends its root's event, so one reset per move is enough.
+							if (!updatedChat.parent_chat_id) {
+								void resetUnloadedChatLists(queryClient);
+							}
 						}
 					}
 				});

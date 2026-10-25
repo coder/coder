@@ -106,7 +106,7 @@ Update your template descriptions to include:
 
 - The language, framework, or stack the template targets.
 - Which repository or service it is for, if applicable.
-- What type of work it supports (backend, frontend, data pipeline, etc.).
+- What type of work it supports (backend, frontend, data pipeline, and so on).
 
 When 128 characters is not enough, put the most important routing context near the top of the template's [`README.md`](./platform-controls/template-optimization.md#put-routing-context-near-the-top-of-the-readme).
 The chat agent's template listing includes a bounded README excerpt (roughly the first 1,000 characters), and template detail includes the README (up to roughly 8,000 characters).
@@ -194,9 +194,9 @@ Consider:
 
 ### Plan for concurrency limits
 
-Community licenses run up to 5 agents at once.
+Community and Premium licenses run up to 5 agents at once.
 Additional agents queue and start automatically when capacity frees.
-A Premium license with Agent Hours does not impose a concurrency limit unless the Agent Hours hard limit is reached.
+An AI Premium license, which includes Agent Hours, does not impose a concurrency limit unless the Agent Hours hard limit is reached.
 If the Agent Hours allocation is exhausted without a configured hard limit, Coder warns about usage but does not impose a concurrency limit.
 When the Agent Hours hard limit is reached, additional agents queue under the concurrency limit.
 Refer to [Concurrent agents](./platform-controls/index.md#concurrent-agents) for details.
@@ -267,7 +267,7 @@ The warning disappears once the user edits the message.
 
 If the user isn't signed in, Coder keeps the message through sign-in.
 
-Don't put secrets in these links.
+Do not put secrets in these links.
 URLs end up in browser history and server logs.
 
 ### Add workspace context with AGENTS.md

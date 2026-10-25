@@ -517,7 +517,34 @@ func checkBuildIsLatest(ctx context.Context, db database.Store, build database.W
 	if err != nil {
 		return err
 	}
-	if build.ID != latestBuild.ID {
+	if build.ID == latestBuild.ID {
+		return nil
+	}
+	// Keep the previous successful START connected while the next build is a
+	// pending or running STOP or DELETE, so the agent can deliver its final
+	// connection reports and logs. This mirrors the shutdown case in
+	// GetAuthenticatedWorkspaceAgentAndBuildByAuthToken. Once the job finishes,
+	// this check retires the connection as outdated.
+	shuttingDown := build.Transition == database.WorkspaceTransitionStart &&
+		latestBuild.BuildNumber == build.BuildNumber+1 &&
+		(latestBuild.Transition == database.WorkspaceTransitionStop ||
+			latestBuild.Transition == database.WorkspaceTransitionDelete)
+	if !shuttingDown {
+		return xerrors.New("build is outdated")
+	}
+	latestJob, err := db.GetProvisionerJobByID(ctx, latestBuild.JobID)
+	if err != nil {
+		return err
+	}
+	if latestJob.JobStatus != database.ProvisionerJobStatusPending &&
+		latestJob.JobStatus != database.ProvisionerJobStatusRunning {
+		return xerrors.New("build is outdated")
+	}
+	buildJob, err := db.GetProvisionerJobByID(ctx, build.JobID)
+	if err != nil {
+		return err
+	}
+	if buildJob.JobStatus != database.ProvisionerJobStatusSucceeded {
 		return xerrors.New("build is outdated")
 	}
 	return nil

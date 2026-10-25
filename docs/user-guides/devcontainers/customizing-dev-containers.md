@@ -76,7 +76,7 @@ You can set a custom name using the `name` option:
 ```
 
 The name must contain only lowercase letters, numbers, and hyphens.
-This name appears in `coder ssh` commands and the dashboard (e.g., `coder ssh my-workspace.my-custom-agent`).
+This name appears in `coder ssh` commands and the dashboard (for example, `coder ssh my-workspace.my-custom-agent`).
 
 ## Display apps
 

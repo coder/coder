@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/workspacestats"
+	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -972,12 +973,14 @@ func TestStopAfterBehaviorTools(t *testing.T) {
 
 // TestWaitForActiveChatStop and TestWaitForActiveChatStop_WaitsForReplacementRun
 // were removed along with the process-local activeChats mechanism.
-// Debug cleanup is now best-effort; stale finalization handles orphaned rows.
+// Debug cleanup is now best-effort; dbpurge removes orphaned rows
+// after the debug retention window.
 
 // TestArchiveChatWaitsForActiveChatStop and
 // TestArchiveChatWaitsForEveryInterruptedChat were removed along with
 // the process-local activeChats mechanism. Archive cleanup is now
-// best-effort; stale finalization handles any orphaned rows.
+// best-effort; dbpurge removes any orphaned rows after the debug
+// retention window.
 
 // A rename is skipped only when the stored title is already this user
 // title; any other source is replaced even when the text is unchanged.
@@ -1267,6 +1270,7 @@ func TestTurnWorkspaceContext_NullBindingLazyBind(t *testing.T) {
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
+	expectAgentBindingTx(db)
 
 	workspaceID := uuid.New()
 	expectLiveWorkspace(db, workspaceID)
@@ -1315,12 +1319,12 @@ func TestTurnWorkspaceContext_NullBindingLazyBind(t *testing.T) {
 	require.Equal(t, workspaceAgent, gotAgent)
 }
 
-// expectBestEffortContextRepin lets persistBuildAgentBinding's best-effort
+// expectAgentBindingTx lets persistBuildAgentBinding's transaction and
 // context re-pin run against a mock store. The re-pin fires whenever a turn
-// rebinds a chat to a different agent; these agent-switch tests set up no
-// context snapshot, so it takes the no-snapshot clear path. The re-pin
-// behavior itself is covered by TestPersistBuildAgentBindingRepinsContext.
-func expectBestEffortContextRepin(db *dbmock.MockStore) {
+// rebinds a chat to a different agent; these tests set up no context
+// snapshot, so it takes the no-snapshot clear path. The re-pin behavior
+// itself is covered by TestPersistBuildAgentBindingRepinsContext.
+func expectAgentBindingTx(db *dbmock.MockStore) {
 	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(f func(database.Store) error, _ *database.TxOptions) error { return f(db) }).AnyTimes()
 	db.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), gomock.Any()).
@@ -1335,7 +1339,7 @@ func TestTurnWorkspaceContext_StaleBindingRepair(t *testing.T) {
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	expectBestEffortContextRepin(db)
+	expectAgentBindingTx(db)
 
 	workspaceID := uuid.New()
 	expectLiveWorkspace(db, workspaceID)
@@ -1359,7 +1363,7 @@ func TestTurnWorkspaceContext_StaleBindingRepair(t *testing.T) {
 	updatedChat.AgentID = uuid.NullUUID{UUID: currentAgentID, Valid: true}
 
 	gomock.InOrder(
-		db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), staleAgentID).Return(database.WorkspaceAgent{}, xerrors.New("missing agent")),
+		db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), staleAgentID).Return(database.WorkspaceAgent{}, sql.ErrNoRows),
 		db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).Return([]database.WorkspaceAgent{currentAgent}, nil),
 		db.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).Return(database.WorkspaceBuild{ID: buildID}, nil),
 		db.EXPECT().UpdateChatBuildAgentBinding(gomock.Any(), database.UpdateChatBuildAgentBindingParams{
@@ -1392,7 +1396,7 @@ func TestTurnWorkspaceContextGetWorkspaceConnLazyValidationSwitchesWorkspaceAgen
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	expectBestEffortContextRepin(db)
+	expectAgentBindingTx(db)
 
 	workspaceID := uuid.New()
 	expectLiveWorkspace(db, workspaceID)
@@ -1596,12 +1600,134 @@ func TestTurnWorkspaceContextGetWorkspaceConnDeletedWorkspace(t *testing.T) {
 	require.Nil(t, workspaceCtx.conn)
 }
 
+// TestTurnWorkspaceContextEnsureWorkspaceAgentErrors pins which agent lookup
+// errors mean "no usable agent", which turn preparation tolerates, and which
+// are database failures that it returns.
+func TestTurnWorkspaceContextEnsureWorkspaceAgentErrors(t *testing.T) {
+	t.Parallel()
+
+	dbErr := xerrors.New("database offline")
+	tests := []struct {
+		name         string
+		noWorkspace  bool
+		boundAgent   bool
+		setup        func(db *dbmock.MockStore, workspaceID, agentID uuid.UUID)
+		wantErr      error
+		wantNoUsable bool
+	}{
+		{
+			name:         "NoWorkspace",
+			noWorkspace:  true,
+			setup:        func(*dbmock.MockStore, uuid.UUID, uuid.UUID) {},
+			wantErr:      errChatHasNoWorkspace,
+			wantNoUsable: true,
+		},
+		{
+			name: "WorkspaceRowMissing",
+			setup: func(db *dbmock.MockStore, workspaceID, _ uuid.UUID) {
+				db.EXPECT().GetWorkspaceByID(gomock.Any(), workspaceID).Return(database.Workspace{}, sql.ErrNoRows)
+			},
+			wantErr:      errChatWorkspaceDeleted,
+			wantNoUsable: true,
+		},
+		{
+			name: "WorkspaceLookupFails",
+			setup: func(db *dbmock.MockStore, workspaceID, _ uuid.UUID) {
+				db.EXPECT().GetWorkspaceByID(gomock.Any(), workspaceID).Return(database.Workspace{}, dbErr)
+			},
+			wantErr: dbErr,
+		},
+		{
+			name:       "BoundAgentLookupFails",
+			boundAgent: true,
+			setup: func(db *dbmock.MockStore, workspaceID, agentID uuid.UUID) {
+				expectLiveWorkspace(db, workspaceID)
+				db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).Return(database.WorkspaceAgent{}, dbErr)
+			},
+			wantErr: dbErr,
+		},
+		{
+			name: "NoAgents",
+			setup: func(db *dbmock.MockStore, workspaceID, _ uuid.UUID) {
+				expectLiveWorkspace(db, workspaceID)
+				db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).Return(nil, nil)
+			},
+			wantErr:      errChatHasNoWorkspaceAgent,
+			wantNoUsable: true,
+		},
+		{
+			name: "MultipleChatAgents",
+			setup: func(db *dbmock.MockStore, workspaceID, _ uuid.UUID) {
+				expectLiveWorkspace(db, workspaceID)
+				db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).Return([]database.WorkspaceAgent{
+					{ID: uuid.New(), Name: "a" + agentselect.Suffix},
+					{ID: uuid.New(), Name: "b" + agentselect.Suffix},
+				}, nil)
+			},
+			wantErr:      agentselect.ErrMultipleChatAgents,
+			wantNoUsable: true,
+		},
+		{
+			name: "NoEligibleAgents",
+			setup: func(db *dbmock.MockStore, workspaceID, _ uuid.UUID) {
+				expectLiveWorkspace(db, workspaceID)
+				db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).Return([]database.WorkspaceAgent{
+					{ID: uuid.New(), ParentID: uuid.NullUUID{UUID: uuid.New(), Valid: true}},
+				}, nil)
+			},
+			wantErr:      agentselect.ErrNoEligibleAgents,
+			wantNoUsable: true,
+		},
+		{
+			name: "BindingWriteFails",
+			setup: func(db *dbmock.MockStore, workspaceID, agentID uuid.UUID) {
+				expectLiveWorkspace(db, workspaceID)
+				db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).Return([]database.WorkspaceAgent{{ID: agentID}}, nil)
+				db.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).Return(database.WorkspaceBuild{ID: uuid.New()}, nil)
+				db.EXPECT().InTx(gomock.Any(), gomock.Any()).Return(dbErr)
+			},
+			wantErr: dbErr,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+			workspaceID := uuid.New()
+			agentID := uuid.New()
+			tc.setup(db, workspaceID, agentID)
+
+			chat := database.Chat{
+				ID:          uuid.New(),
+				WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: !tc.noWorkspace},
+				AgentID:     uuid.NullUUID{UUID: agentID, Valid: tc.boundAgent},
+			}
+			workspaceCtx := turnWorkspaceContext{
+				server:           &Server{db: db},
+				chatStateMu:      &sync.Mutex{},
+				currentChat:      &chat,
+				loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
+			}
+			t.Cleanup(workspaceCtx.close)
+
+			agent, err := workspaceCtx.getWorkspaceAgent(testutil.Context(t, testutil.WaitShort))
+			require.ErrorIs(t, err, tc.wantErr)
+			require.Equal(t, tc.wantNoUsable, isNoUsableWorkspaceAgent(err))
+			require.Equal(t, database.WorkspaceAgent{}, agent)
+		})
+	}
+}
+
 func TestTurnWorkspaceContextEnsureWorkspaceAgentRebindsFromDeletedWorkspace(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
+	expectAgentBindingTx(db)
 
 	deletedWorkspaceID := uuid.New()
 	replacementWorkspaceID := uuid.New()
@@ -1707,6 +1833,7 @@ func TestTurnWorkspaceContext_EnsureWorkspaceAgentIgnoresCachedAgentForDifferent
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
+	expectAgentBindingTx(db)
 
 	workspaceOneID := uuid.New()
 	workspaceTwoID := uuid.New()
@@ -1960,6 +2087,7 @@ func TestPersonalSkillsInSystemPrompt(t *testing.T) {
 			}},
 			nil,
 			nil,
+			nil,
 		),
 		"",
 		"",
@@ -1982,6 +2110,7 @@ func TestPersonalAndWorkspaceSkillCollisionInSystemPrompt(t *testing.T) {
 			Description: "Personal deployment process",
 			Source:      skillspkg.SourcePersonal,
 		}},
+		nil,
 		nil,
 		[]chattool.SkillMeta{{
 			Name:        "deploy",
@@ -2048,10 +2177,11 @@ func TestFetchPersonalSkillMetadata(t *testing.T) {
 				requireUserSkillContextActor(ctx, t, userID)
 				require.Equal(t, userID, gotUserID)
 				return []database.ListUserSkillMetadataByUserIDRow{{
-					UserID:      uuid.NullUUID{UUID: userID, Valid: true},
-					Name:        "personal-review",
-					Description: "Personal review process",
-					Enabled:     true,
+					UserID:         uuid.NullUUID{UUID: userID, Valid: true},
+					Name:           "personal-review",
+					Description:    "Personal review process",
+					Enabled:        true,
+					ModelInvocable: true,
 				}}, nil
 			},
 		)
@@ -2116,15 +2246,16 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 				requireUserSkillContextActor(ctx, t, userID)
 				require.Equal(t, params, gotParams)
 				return database.Skill{
-					UserID:  uuid.NullUUID{UUID: userID, Valid: true},
-					Name:    "personal-review",
-					Content: "---\nname: personal-review\ndescription: Personal review process\n---\n\nUpdated instructions.\n",
-					Enabled: true,
+					UserID:         uuid.NullUUID{UUID: userID, Valid: true},
+					Name:           "personal-review",
+					Content:        "---\nname: personal-review\ndescription: Personal review process\n---\n\nUpdated instructions.\n",
+					Enabled:        true,
+					ModelInvocable: true,
 				}, nil
 			},
 		)
 
-		got, err := server.loadPersonalSkillBody(context.Background(), userID, "personal-review")
+		got, err := server.loadPersonalSkillBody(context.Background(), userID, "personal-review", skillLoaderModel)
 		require.NoError(t, err)
 		require.Equal(t, "personal-review", got.Name)
 		require.Equal(t, "Personal review process", got.Description)
@@ -2152,7 +2283,7 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 			},
 		)
 
-		_, err := server.loadPersonalSkillBody(context.Background(), userID, "missing-skill")
+		_, err := server.loadPersonalSkillBody(context.Background(), userID, "missing-skill", skillLoaderModel)
 		require.ErrorIs(t, err, skillspkg.ErrSkillNotFound)
 	})
 
@@ -2170,7 +2301,7 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 			Content: "---\nname: disabled-skill\ndescription: Disabled\n---\n\nInstructions.\n",
 		}, nil)
 
-		_, err := server.loadPersonalSkillBody(context.Background(), userID, "disabled-skill")
+		_, err := server.loadPersonalSkillBody(context.Background(), userID, "disabled-skill", skillLoaderModel)
 		require.ErrorIs(t, err, skillspkg.ErrSkillNotFound)
 	})
 
@@ -2196,7 +2327,7 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 			},
 		)
 
-		_, err := server.loadPersonalSkillBody(context.Background(), userID, "error-skill")
+		_, err := server.loadPersonalSkillBody(context.Background(), userID, "error-skill", skillLoaderModel)
 
 		require.ErrorContains(t, err, "load personal skill body")
 		require.ErrorIs(t, err, dbErr)
@@ -2225,15 +2356,16 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 				requireUserSkillContextActor(ctx, t, userID)
 				require.Equal(t, params, gotParams)
 				return database.Skill{
-					UserID:  uuid.NullUUID{UUID: userID, Valid: true},
-					Name:    "broken-skill",
-					Content: "---\nname: broken-skill\ndescription: Broken\n---\n\n   \n",
-					Enabled: true,
+					UserID:         uuid.NullUUID{UUID: userID, Valid: true},
+					Name:           "broken-skill",
+					Content:        "---\nname: broken-skill\ndescription: Broken\n---\n\n   \n",
+					Enabled:        true,
+					ModelInvocable: true,
 				}, nil
 			},
 		)
 
-		_, err := server.loadPersonalSkillBody(context.Background(), userID, "broken-skill")
+		_, err := server.loadPersonalSkillBody(context.Background(), userID, "broken-skill", skillLoaderModel)
 
 		require.ErrorContains(t, err, "parse personal skill body")
 		require.ErrorIs(t, err, skillspkg.ErrSkillBodyRequired)
@@ -2296,7 +2428,7 @@ func TestLoadOrganizationSkillBody(t *testing.T) {
 		return got
 	}
 
-	got, err := server.loadOrganizationSkillBody(ctx, subject(member.ID), org.ID, "team-review")
+	got, err := server.loadOrganizationSkillBody(ctx, subject(member.ID), org.ID, "team-review", skillLoaderModel)
 	require.NoError(t, err)
 	require.Equal(t, skillspkg.SourceOrganization, got.Source)
 	require.Equal(t, "Team instructions.", got.Body)
@@ -2310,7 +2442,69 @@ func TestLoadOrganizationSkillBody(t *testing.T) {
 		{name: "Disabled", reader: member.ID, skill: "disabled-review"},
 		{name: "Missing", reader: member.ID, skill: "missing-review"},
 	} {
-		_, err := server.loadOrganizationSkillBody(ctx, subject(tc.reader), org.ID, tc.skill)
+		_, err := server.loadOrganizationSkillBody(ctx, subject(tc.reader), org.ID, tc.skill, skillLoaderModel)
+		require.ErrorIs(t, err, skillspkg.ErrSkillNotFound, tc.name)
+	}
+}
+
+// TestLoadProjectSkillBody covers the loader directly because a turn only
+// reaches it for skills it already listed, so the not-found mapping for
+// disabled and missing skills is otherwise unreachable.
+func TestLoadProjectSkillBody(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+	authzDB := dbauthz.New(db, rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), nil)
+	server := &Server{
+		db:     authzDB,
+		logger: slogtest.Make(t, nil),
+	}
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: owner.ID, OrganizationID: org.ID})
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	for _, name := range []string{"project-review", "disabled-review", "manual-review"} {
+		_, err := db.InsertProjectSkill(ctx, database.InsertProjectSkillParams{
+			ID:             uuid.New(),
+			ProjectID:      project.ID,
+			Name:           name,
+			Content:        "---\nname: " + name + "\ndescription: Review\n---\n\nProject instructions.\n",
+			ModelInvocable: sql.NullBool{Bool: name != "manual-review", Valid: true},
+		})
+		require.NoError(t, err)
+	}
+	_, err := db.UpdateProjectSkillByProjectIDAndName(ctx, database.UpdateProjectSkillByProjectIDAndNameParams{
+		Enabled:   sql.NullBool{Bool: false, Valid: true},
+		ProjectID: project.ID,
+		Name:      "disabled-review",
+	})
+	require.NoError(t, err)
+
+	chatdCtx := dbauthz.AsChatd(ctx)
+	got, err := server.loadProjectSkillBody(chatdCtx, project.ID, "project-review", skillLoaderModel)
+	require.NoError(t, err)
+	require.Equal(t, skillspkg.SourceProject, got.Source)
+	require.Equal(t, "Project instructions.", got.Body)
+
+	// A skill that is not model-invocable loads only for user invocations.
+	_, err = server.loadProjectSkillBody(chatdCtx, project.ID, "manual-review", skillLoaderModel)
+	require.ErrorIs(t, err, skillspkg.ErrSkillNotFound)
+	got, err = server.loadProjectSkillBody(chatdCtx, project.ID, "manual-review", skillLoaderUser)
+	require.NoError(t, err)
+	require.Equal(t, "Project instructions.", got.Body)
+
+	for _, tc := range []struct {
+		name      string
+		projectID uuid.UUID
+		skill     string
+	}{
+		{name: "Disabled", projectID: project.ID, skill: "disabled-review"},
+		{name: "Missing", projectID: project.ID, skill: "missing-review"},
+		{name: "MissingProject", projectID: uuid.New(), skill: "project-review"},
+	} {
+		_, err := server.loadProjectSkillBody(chatdCtx, tc.projectID, tc.skill, skillLoaderUser)
 		require.ErrorIs(t, err, skillspkg.ErrSkillNotFound, tc.name)
 	}
 }
@@ -2343,7 +2537,7 @@ func TestGetWorkspaceConn_StaleAgentRecovery(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	expectBestEffortContextRepin(db)
+	expectAgentBindingTx(db)
 
 	workspaceID := uuid.New()
 	expectLiveWorkspace(db, workspaceID)

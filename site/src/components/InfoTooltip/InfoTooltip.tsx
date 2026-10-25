@@ -5,6 +5,7 @@ import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
+	type TooltipSide,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 
@@ -16,6 +17,7 @@ type InfoTooltipProps = {
 	type?: InfoTooltipType;
 	size?: InfoTooltipSize;
 	ariaLabel?: string;
+	side?: TooltipSide;
 	children: React.ReactNode;
 };
 
@@ -39,6 +41,7 @@ export const InfoTooltip: React.FC<InfoTooltipProps> = ({
 	type = "info",
 	size = "medium",
 	ariaLabel = "More info",
+	side = "right",
 }) => {
 	const Icon = typeIcon[type];
 
@@ -58,7 +61,7 @@ export const InfoTooltip: React.FC<InfoTooltipProps> = ({
 				>
 					<Icon />
 				</TooltipTrigger>
-				<TooltipContent side="right" align="center" className="max-w-xs">
+				<TooltipContent side={side} align="center" className="max-w-xs">
 					{children}
 				</TooltipContent>
 			</Tooltip>
