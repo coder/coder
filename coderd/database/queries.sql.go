@@ -5645,6 +5645,380 @@ func (q *sqlQuerier) UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBou
 	return new_period, err
 }
 
+const getChatArtifactByID = `-- name: GetChatArtifactByID :one
+SELECT
+    chat_artifacts.id, chat_artifacts.organization_id, chat_artifacts.owner_id, chat_artifacts.project_id, chat_artifacts.title, chat_artifacts.created_at, chat_artifacts.updated_at,
+    COALESCE((
+        SELECT MAX(chat_artifact_versions.version)
+        FROM chat_artifact_versions
+        WHERE chat_artifact_versions.artifact_id = chat_artifacts.id
+    ), 0)::int AS latest_version,
+    visible_users.username AS owner_username,
+    COALESCE(chat_projects.name, '')::text AS project_name
+FROM chat_artifacts
+JOIN visible_users ON visible_users.id = chat_artifacts.owner_id
+LEFT JOIN chat_projects ON chat_projects.id = chat_artifacts.project_id
+WHERE chat_artifacts.id = $1::uuid
+`
+
+type GetChatArtifactByIDRow struct {
+	ChatArtifact  ChatArtifact `db:"chat_artifact" json:"chat_artifact"`
+	LatestVersion int32        `db:"latest_version" json:"latest_version"`
+	OwnerUsername string       `db:"owner_username" json:"owner_username"`
+	ProjectName   string       `db:"project_name" json:"project_name"`
+}
+
+func (q *sqlQuerier) GetChatArtifactByID(ctx context.Context, id uuid.UUID) (GetChatArtifactByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getChatArtifactByID, id)
+	var i GetChatArtifactByIDRow
+	err := row.Scan(
+		&i.ChatArtifact.ID,
+		&i.ChatArtifact.OrganizationID,
+		&i.ChatArtifact.OwnerID,
+		&i.ChatArtifact.ProjectID,
+		&i.ChatArtifact.Title,
+		&i.ChatArtifact.CreatedAt,
+		&i.ChatArtifact.UpdatedAt,
+		&i.LatestVersion,
+		&i.OwnerUsername,
+		&i.ProjectName,
+	)
+	return i, err
+}
+
+const getChatArtifactVersion = `-- name: GetChatArtifactVersion :one
+SELECT artifact_id, version, label, name, mimetype, data, created_by, chat_id, created_at
+FROM chat_artifact_versions
+WHERE artifact_id = $1::uuid
+    AND version = $2::int
+`
+
+type GetChatArtifactVersionParams struct {
+	ArtifactID uuid.UUID `db:"artifact_id" json:"artifact_id"`
+	Version    int32     `db:"version" json:"version"`
+}
+
+func (q *sqlQuerier) GetChatArtifactVersion(ctx context.Context, arg GetChatArtifactVersionParams) (ChatArtifactVersion, error) {
+	row := q.db.QueryRowContext(ctx, getChatArtifactVersion, arg.ArtifactID, arg.Version)
+	var i ChatArtifactVersion
+	err := row.Scan(
+		&i.ArtifactID,
+		&i.Version,
+		&i.Label,
+		&i.Name,
+		&i.Mimetype,
+		&i.Data,
+		&i.CreatedBy,
+		&i.ChatID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getChatArtifactVersionsMetadata = `-- name: GetChatArtifactVersionsMetadata :many
+SELECT
+    chat_artifact_versions.artifact_id,
+    chat_artifact_versions.version,
+    chat_artifact_versions.label,
+    chat_artifact_versions.name,
+    chat_artifact_versions.mimetype,
+    length(chat_artifact_versions.data)::bigint AS size,
+    chat_artifact_versions.created_by,
+    COALESCE(visible_users.username, '')::text AS created_by_username,
+    chat_artifact_versions.chat_id,
+    COALESCE(chats.title, '')::text AS chat_title,
+    chats.owner_id AS chat_owner_id,
+    chat_artifact_versions.created_at
+FROM chat_artifact_versions
+LEFT JOIN visible_users ON visible_users.id = chat_artifact_versions.created_by
+LEFT JOIN chats ON chats.id = chat_artifact_versions.chat_id
+WHERE chat_artifact_versions.artifact_id = $1::uuid
+ORDER BY chat_artifact_versions.version DESC
+`
+
+type GetChatArtifactVersionsMetadataRow struct {
+	ArtifactID        uuid.UUID     `db:"artifact_id" json:"artifact_id"`
+	Version           int32         `db:"version" json:"version"`
+	Label             string        `db:"label" json:"label"`
+	Name              string        `db:"name" json:"name"`
+	Mimetype          string        `db:"mimetype" json:"mimetype"`
+	Size              int64         `db:"size" json:"size"`
+	CreatedBy         uuid.NullUUID `db:"created_by" json:"created_by"`
+	CreatedByUsername string        `db:"created_by_username" json:"created_by_username"`
+	ChatID            uuid.NullUUID `db:"chat_id" json:"chat_id"`
+	ChatTitle         string        `db:"chat_title" json:"chat_title"`
+	ChatOwnerID       uuid.NullUUID `db:"chat_owner_id" json:"chat_owner_id"`
+	CreatedAt         time.Time     `db:"created_at" json:"created_at"`
+}
+
+// Lists the versions of an artifact, newest first, without their bytes.
+func (q *sqlQuerier) GetChatArtifactVersionsMetadata(ctx context.Context, artifactID uuid.UUID) ([]GetChatArtifactVersionsMetadataRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatArtifactVersionsMetadata, artifactID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatArtifactVersionsMetadataRow
+	for rows.Next() {
+		var i GetChatArtifactVersionsMetadataRow
+		if err := rows.Scan(
+			&i.ArtifactID,
+			&i.Version,
+			&i.Label,
+			&i.Name,
+			&i.Mimetype,
+			&i.Size,
+			&i.CreatedBy,
+			&i.CreatedByUsername,
+			&i.ChatID,
+			&i.ChatTitle,
+			&i.ChatOwnerID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatArtifactsOwnedOrInUserProjects = `-- name: GetChatArtifactsOwnedOrInUserProjects :many
+SELECT
+    chat_artifacts.id, chat_artifacts.organization_id, chat_artifacts.owner_id, chat_artifacts.project_id, chat_artifacts.title, chat_artifacts.created_at, chat_artifacts.updated_at,
+    COALESCE((
+        SELECT MAX(chat_artifact_versions.version)
+        FROM chat_artifact_versions
+        WHERE chat_artifact_versions.artifact_id = chat_artifacts.id
+    ), 0)::int AS latest_version,
+    visible_users.username AS owner_username,
+    COALESCE(chat_projects.name, '')::text AS project_name
+FROM chat_artifacts
+JOIN visible_users ON visible_users.id = chat_artifacts.owner_id
+LEFT JOIN chat_projects ON chat_projects.id = chat_artifacts.project_id
+WHERE chat_artifacts.owner_id = $1::uuid
+    OR chat_projects.owner_id = $1::uuid
+    OR (
+        EXISTS (
+            SELECT 1
+            FROM organization_members
+            WHERE organization_members.user_id = $1::uuid
+                AND organization_members.organization_id = chat_projects.organization_id
+        )
+        AND (
+            chat_projects.user_acl -> ($1::uuid)::text -> 'permissions' ?| ARRAY['read', '*']
+            OR chat_projects.group_acl -> chat_projects.organization_id::text -> 'permissions' ?| ARRAY['read', '*']
+            OR EXISTS (
+                SELECT 1
+                FROM group_members
+                WHERE group_members.user_id = $1::uuid
+                    AND chat_projects.group_acl -> group_members.group_id::text -> 'permissions' ?| ARRAY['read', '*']
+            )
+        )
+    )
+ORDER BY chat_artifacts.updated_at DESC, chat_artifacts.id
+`
+
+type GetChatArtifactsOwnedOrInUserProjectsRow struct {
+	ChatArtifact  ChatArtifact `db:"chat_artifact" json:"chat_artifact"`
+	LatestVersion int32        `db:"latest_version" json:"latest_version"`
+	OwnerUsername string       `db:"owner_username" json:"owner_username"`
+	ProjectName   string       `db:"project_name" json:"project_name"`
+}
+
+// Lists the artifacts that the user owns or can reach through a chat
+// project, with the same membership rule as IsChatProjectUsableByUserID.
+// Callers must still authorize each row.
+func (q *sqlQuerier) GetChatArtifactsOwnedOrInUserProjects(ctx context.Context, userID uuid.UUID) ([]GetChatArtifactsOwnedOrInUserProjectsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatArtifactsOwnedOrInUserProjects, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatArtifactsOwnedOrInUserProjectsRow
+	for rows.Next() {
+		var i GetChatArtifactsOwnedOrInUserProjectsRow
+		if err := rows.Scan(
+			&i.ChatArtifact.ID,
+			&i.ChatArtifact.OrganizationID,
+			&i.ChatArtifact.OwnerID,
+			&i.ChatArtifact.ProjectID,
+			&i.ChatArtifact.Title,
+			&i.ChatArtifact.CreatedAt,
+			&i.ChatArtifact.UpdatedAt,
+			&i.LatestVersion,
+			&i.OwnerUsername,
+			&i.ProjectName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getLatestChatArtifactVersion = `-- name: GetLatestChatArtifactVersion :one
+SELECT artifact_id, version, label, name, mimetype, data, created_by, chat_id, created_at
+FROM chat_artifact_versions
+WHERE artifact_id = $1::uuid
+ORDER BY version DESC
+LIMIT 1
+`
+
+func (q *sqlQuerier) GetLatestChatArtifactVersion(ctx context.Context, artifactID uuid.UUID) (ChatArtifactVersion, error) {
+	row := q.db.QueryRowContext(ctx, getLatestChatArtifactVersion, artifactID)
+	var i ChatArtifactVersion
+	err := row.Scan(
+		&i.ArtifactID,
+		&i.Version,
+		&i.Label,
+		&i.Name,
+		&i.Mimetype,
+		&i.Data,
+		&i.CreatedBy,
+		&i.ChatID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const insertChatArtifact = `-- name: InsertChatArtifact :one
+INSERT INTO chat_artifacts (id, organization_id, owner_id, project_id, title)
+VALUES (
+    COALESCE($1::uuid, gen_random_uuid()),
+    $2::uuid,
+    $3::uuid,
+    $4::uuid,
+    $5::text
+)
+RETURNING id, organization_id, owner_id, project_id, title, created_at, updated_at
+`
+
+type InsertChatArtifactParams struct {
+	ID             uuid.NullUUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
+	OwnerID        uuid.UUID     `db:"owner_id" json:"owner_id"`
+	ProjectID      uuid.NullUUID `db:"project_id" json:"project_id"`
+	Title          string        `db:"title" json:"title"`
+}
+
+func (q *sqlQuerier) InsertChatArtifact(ctx context.Context, arg InsertChatArtifactParams) (ChatArtifact, error) {
+	row := q.db.QueryRowContext(ctx, insertChatArtifact,
+		arg.ID,
+		arg.OrganizationID,
+		arg.OwnerID,
+		arg.ProjectID,
+		arg.Title,
+	)
+	var i ChatArtifact
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.ProjectID,
+		&i.Title,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertChatArtifactVersion = `-- name: InsertChatArtifactVersion :one
+INSERT INTO chat_artifact_versions
+    (artifact_id, version, label, name, mimetype, data, created_by, chat_id)
+SELECT
+    $1::uuid,
+    ($2::int + 1)::int,
+    $3::text,
+    $4::text,
+    $5::text,
+    $6::bytea,
+    $7::uuid,
+    $8::uuid
+WHERE $2::int = (
+    SELECT COALESCE(MAX(version), 0)
+    FROM chat_artifact_versions
+    WHERE artifact_id = $1::uuid
+)
+RETURNING artifact_id, version, created_at
+`
+
+type InsertChatArtifactVersionParams struct {
+	ArtifactID  uuid.UUID     `db:"artifact_id" json:"artifact_id"`
+	BaseVersion int32         `db:"base_version" json:"base_version"`
+	Label       string        `db:"label" json:"label"`
+	Name        string        `db:"name" json:"name"`
+	Mimetype    string        `db:"mimetype" json:"mimetype"`
+	Data        []byte        `db:"data" json:"data"`
+	CreatedBy   uuid.NullUUID `db:"created_by" json:"created_by"`
+	ChatID      uuid.NullUUID `db:"chat_id" json:"chat_id"`
+}
+
+type InsertChatArtifactVersionRow struct {
+	ArtifactID uuid.UUID `db:"artifact_id" json:"artifact_id"`
+	Version    int32     `db:"version" json:"version"`
+	CreatedAt  time.Time `db:"created_at" json:"created_at"`
+}
+
+// Inserts base_version + 1 only while base_version is the latest version.
+// If two chats publish on the same base, the primary key refuses the second.
+func (q *sqlQuerier) InsertChatArtifactVersion(ctx context.Context, arg InsertChatArtifactVersionParams) (InsertChatArtifactVersionRow, error) {
+	row := q.db.QueryRowContext(ctx, insertChatArtifactVersion,
+		arg.ArtifactID,
+		arg.BaseVersion,
+		arg.Label,
+		arg.Name,
+		arg.Mimetype,
+		arg.Data,
+		arg.CreatedBy,
+		arg.ChatID,
+	)
+	var i InsertChatArtifactVersionRow
+	err := row.Scan(&i.ArtifactID, &i.Version, &i.CreatedAt)
+	return i, err
+}
+
+const updateChatArtifactOnPublish = `-- name: UpdateChatArtifactOnPublish :one
+UPDATE chat_artifacts
+SET
+    title = COALESCE(NULLIF($1::text, ''), title),
+    updated_at = now()
+WHERE id = $2::uuid
+RETURNING id, organization_id, owner_id, project_id, title, created_at, updated_at
+`
+
+type UpdateChatArtifactOnPublishParams struct {
+	Title string    `db:"title" json:"title"`
+	ID    uuid.UUID `db:"id" json:"id"`
+}
+
+// Marks a publish. An empty title keeps the current title.
+func (q *sqlQuerier) UpdateChatArtifactOnPublish(ctx context.Context, arg UpdateChatArtifactOnPublishParams) (ChatArtifact, error) {
+	row := q.db.QueryRowContext(ctx, updateChatArtifactOnPublish, arg.Title, arg.ID)
+	var i ChatArtifact
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.ProjectID,
+		&i.Title,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const deleteChatDebugDataAfterMessageID = `-- name: DeleteChatDebugDataAfterMessageID :execrows
 WITH affected_runs AS (
     SELECT DISTINCT run.id

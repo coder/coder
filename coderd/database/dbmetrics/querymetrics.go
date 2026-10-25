@@ -1544,6 +1544,38 @@ func (m queryMetricsStore) GetChatAdvisorConfig(ctx context.Context) (string, er
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatArtifactByID(ctx context.Context, id uuid.UUID) (database.GetChatArtifactByIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatArtifactByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetChatArtifactByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatArtifactByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatArtifactVersion(ctx context.Context, arg database.GetChatArtifactVersionParams) (database.ChatArtifactVersion, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatArtifactVersion(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatArtifactVersion").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatArtifactVersion").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatArtifactVersionsMetadata(ctx context.Context, artifactID uuid.UUID) ([]database.GetChatArtifactVersionsMetadataRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatArtifactVersionsMetadata(ctx, artifactID)
+	m.queryLatencies.WithLabelValues("GetChatArtifactVersionsMetadata").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatArtifactVersionsMetadata").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatArtifactsOwnedOrInUserProjects(ctx context.Context, userID uuid.UUID) ([]database.GetChatArtifactsOwnedOrInUserProjectsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatArtifactsOwnedOrInUserProjects(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetChatArtifactsOwnedOrInUserProjects").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatArtifactsOwnedOrInUserProjects").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchiveDays int32) (int32, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatAutoArchiveDays(ctx, defaultAutoArchiveDays)
@@ -2509,6 +2541,14 @@ func (m queryMetricsStore) GetLastUpdateCheck(ctx context.Context) (string, erro
 	r0, r1 := m.s.GetLastUpdateCheck(ctx)
 	m.queryLatencies.WithLabelValues("GetLastUpdateCheck").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLastUpdateCheck").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetLatestChatArtifactVersion(ctx context.Context, artifactID uuid.UUID) (database.ChatArtifactVersion, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetLatestChatArtifactVersion(ctx, artifactID)
+	m.queryLatencies.WithLabelValues("GetLatestChatArtifactVersion").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLatestChatArtifactVersion").Inc()
 	return r0, r1
 }
 
@@ -4440,6 +4480,22 @@ func (m queryMetricsStore) InsertChat(ctx context.Context, arg database.InsertCh
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertChatArtifact(ctx context.Context, arg database.InsertChatArtifactParams) (database.ChatArtifact, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertChatArtifact(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertChatArtifact").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatArtifact").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertChatArtifactVersion(ctx context.Context, arg database.InsertChatArtifactVersionParams) (database.InsertChatArtifactVersionRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertChatArtifactVersion(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertChatArtifactVersion").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatArtifactVersion").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertChatDebugRun(ctx context.Context, arg database.InsertChatDebugRunParams) (database.ChatDebugRun, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertChatDebugRun(ctx, arg)
@@ -5606,6 +5662,14 @@ func (m queryMetricsStore) UpdateChatACLByID(ctx context.Context, arg database.U
 	m.queryLatencies.WithLabelValues("UpdateChatACLByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatACLByID").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) UpdateChatArtifactOnPublish(ctx context.Context, arg database.UpdateChatArtifactOnPublishParams) (database.ChatArtifact, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatArtifactOnPublish(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatArtifactOnPublish").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatArtifactOnPublish").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpdateChatBuildAgentBinding(ctx context.Context, arg database.UpdateChatBuildAgentBindingParams) (database.Chat, error) {

@@ -306,7 +306,12 @@ CREATE TYPE api_key_scope AS ENUM (
     'workspace_secret:create',
     'workspace_secret:read',
     'workspace_secret:read_secret',
-    'workspace_secret:update'
+    'workspace_secret:update',
+    'chat_artifact:*',
+    'chat_artifact:create',
+    'chat_artifact:read',
+    'chat_artifact:update',
+    'chat_artifact:delete'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -651,7 +656,8 @@ CREATE TYPE resource_type AS ENUM (
     'chat_organization_system_prompt',
     'chat_project_instructions',
     'organization_skill',
-    'chat_project_skill'
+    'chat_project_skill',
+    'chat_artifact'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -2075,6 +2081,37 @@ COMMENT ON COLUMN boundary_usage_stats.denied_requests IS 'Total denied requests
 COMMENT ON COLUMN boundary_usage_stats.window_start IS 'Start of the time window for these stats, set on first flush after reset.';
 
 COMMENT ON COLUMN boundary_usage_stats.updated_at IS 'Timestamp of the last update to this row.';
+
+CREATE TABLE chat_artifact_versions (
+    artifact_id uuid NOT NULL,
+    version integer NOT NULL,
+    label text DEFAULT ''::text NOT NULL,
+    name text NOT NULL,
+    mimetype text NOT NULL,
+    data bytea NOT NULL,
+    created_by uuid,
+    chat_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chat_artifact_versions_label_length CHECK ((length(label) <= 60)),
+    CONSTRAINT chat_artifact_versions_version_positive CHECK ((version > 0))
+);
+
+COMMENT ON COLUMN chat_artifact_versions.name IS 'The file name. Its extension picks the renderer.';
+
+COMMENT ON COLUMN chat_artifact_versions.chat_id IS 'The chat that published this version. NULL after that chat is deleted.';
+
+CREATE TABLE chat_artifacts (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    organization_id uuid NOT NULL,
+    owner_id uuid NOT NULL,
+    project_id uuid,
+    title text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chat_artifacts_title_length CHECK (((length(title) >= 1) AND (length(title) <= 200)))
+);
+
+COMMENT ON TABLE chat_artifacts IS 'Versioned files that chats publish. An artifact outlives its chats. The owner sees it, and the members of project_id see it too.';
 
 CREATE TABLE chat_context_resources (
     chat_id uuid NOT NULL,
@@ -4609,6 +4646,12 @@ ALTER TABLE ONLY boundary_sessions
 ALTER TABLE ONLY boundary_usage_stats
     ADD CONSTRAINT boundary_usage_stats_pkey PRIMARY KEY (replica_id);
 
+ALTER TABLE ONLY chat_artifact_versions
+    ADD CONSTRAINT chat_artifact_versions_pkey PRIMARY KEY (artifact_id, version);
+
+ALTER TABLE ONLY chat_artifacts
+    ADD CONSTRAINT chat_artifacts_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY chat_context_resources
     ADD CONSTRAINT chat_context_resources_pkey PRIMARY KEY (chat_id, source);
 
@@ -5100,6 +5143,10 @@ CREATE INDEX idx_boundary_logs_captured_at ON boundary_logs USING btree (capture
 
 CREATE INDEX idx_boundary_logs_session_seq ON boundary_logs USING btree (session_id, sequence_number) INCLUDE (matched_rule);
 
+CREATE INDEX idx_chat_artifacts_owner_id ON chat_artifacts USING btree (owner_id);
+
+CREATE INDEX idx_chat_artifacts_project_id ON chat_artifacts USING btree (project_id);
+
 CREATE INDEX idx_chat_debug_runs_chat_started ON chat_debug_runs USING btree (chat_id, started_at DESC);
 
 CREATE UNIQUE INDEX idx_chat_debug_runs_id_chat ON chat_debug_runs USING btree (id, chat_id);
@@ -5520,6 +5567,24 @@ ALTER TABLE ONLY boundary_sessions
 
 ALTER TABLE ONLY boundary_sessions
     ADD CONSTRAINT boundary_sessions_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id);
+
+ALTER TABLE ONLY chat_artifact_versions
+    ADD CONSTRAINT chat_artifact_versions_artifact_id_fkey FOREIGN KEY (artifact_id) REFERENCES chat_artifacts(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_artifact_versions
+    ADD CONSTRAINT chat_artifact_versions_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chat_artifact_versions
+    ADD CONSTRAINT chat_artifact_versions_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chat_artifacts
+    ADD CONSTRAINT chat_artifacts_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_artifacts
+    ADD CONSTRAINT chat_artifacts_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_artifacts
+    ADD CONSTRAINT chat_artifacts_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chat_context_resources
     ADD CONSTRAINT chat_context_resources_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;

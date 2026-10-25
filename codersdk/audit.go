@@ -57,6 +57,7 @@ const (
 	ResourceTypeChat                 ResourceType = "chat"
 	ResourceTypeChatProject          ResourceType = "chat_project"
 	ResourceTypeChatProjectMemory    ResourceType = "chat_project_memory"
+	ResourceTypeChatArtifact         ResourceType = "chat_artifact"
 	ResourceTypeMCPServerConfig      ResourceType = "mcp_server_config"
 	ResourceTypeChatModelConfig      ResourceType = "chat_model_config"
 	// ResourceTypeChatAutomation is retained for audit logs recorded before
@@ -149,6 +150,8 @@ func (r ResourceType) FriendlyString() string {
 		return "chat project"
 	case ResourceTypeChatProjectMemory:
 		return "chat project memory"
+	case ResourceTypeChatArtifact:
+		return "chat artifact"
 	case ResourceTypeMCPServerConfig:
 		return "mcp server config"
 	case ResourceTypeChatModelConfig:

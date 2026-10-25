@@ -551,6 +551,11 @@ const (
 	ApiKeyScopeWorkspaceSecretRead                 APIKeyScope = "workspace_secret:read"
 	ApiKeyScopeWorkspaceSecretReadSecret           APIKeyScope = "workspace_secret:read_secret"
 	ApiKeyScopeWorkspaceSecretUpdate               APIKeyScope = "workspace_secret:update"
+	ApiKeyScopeChatArtifact                        APIKeyScope = "chat_artifact:*"
+	ApiKeyScopeChatArtifactCreate                  APIKeyScope = "chat_artifact:create"
+	ApiKeyScopeChatArtifactRead                    APIKeyScope = "chat_artifact:read"
+	ApiKeyScopeChatArtifactUpdate                  APIKeyScope = "chat_artifact:update"
+	ApiKeyScopeChatArtifactDelete                  APIKeyScope = "chat_artifact:delete"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -853,7 +858,12 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeWorkspaceSecretCreate,
 		ApiKeyScopeWorkspaceSecretRead,
 		ApiKeyScopeWorkspaceSecretReadSecret,
-		ApiKeyScopeWorkspaceSecretUpdate:
+		ApiKeyScopeWorkspaceSecretUpdate,
+		ApiKeyScopeChatArtifact,
+		ApiKeyScopeChatArtifactCreate,
+		ApiKeyScopeChatArtifactRead,
+		ApiKeyScopeChatArtifactUpdate,
+		ApiKeyScopeChatArtifactDelete:
 		return true
 	}
 	return false
@@ -1125,6 +1135,11 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeWorkspaceSecretRead,
 		ApiKeyScopeWorkspaceSecretReadSecret,
 		ApiKeyScopeWorkspaceSecretUpdate,
+		ApiKeyScopeChatArtifact,
+		ApiKeyScopeChatArtifactCreate,
+		ApiKeyScopeChatArtifactRead,
+		ApiKeyScopeChatArtifactUpdate,
+		ApiKeyScopeChatArtifactDelete,
 	}
 }
 
@@ -3794,6 +3809,7 @@ const (
 	ResourceTypeChatProjectInstructions      ResourceType = "chat_project_instructions"
 	ResourceTypeOrganizationSkill            ResourceType = "organization_skill"
 	ResourceTypeChatProjectSkill             ResourceType = "chat_project_skill"
+	ResourceTypeChatArtifact                 ResourceType = "chat_artifact"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3880,7 +3896,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeChatOrganizationSystemPrompt,
 		ResourceTypeChatProjectInstructions,
 		ResourceTypeOrganizationSkill,
-		ResourceTypeChatProjectSkill:
+		ResourceTypeChatProjectSkill,
+		ResourceTypeChatArtifact:
 		return true
 	}
 	return false
@@ -3936,6 +3953,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeChatProjectInstructions,
 		ResourceTypeOrganizationSkill,
 		ResourceTypeChatProjectSkill,
+		ResourceTypeChatArtifact,
 	}
 }
 
@@ -5305,6 +5323,31 @@ type Chat struct {
 	CompactionRequestedAt    sql.NullTime            `db:"compaction_requested_at" json:"compaction_requested_at"`
 	TitleSource              ChatTitleSource         `db:"title_source" json:"title_source"`
 	TitleUpdatedAt           time.Time               `db:"title_updated_at" json:"title_updated_at"`
+}
+
+// Versioned files that chats publish. An artifact outlives its chats. The owner sees it, and the members of project_id see it too.
+type ChatArtifact struct {
+	ID             uuid.UUID     `db:"id" json:"id"`
+	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
+	OwnerID        uuid.UUID     `db:"owner_id" json:"owner_id"`
+	ProjectID      uuid.NullUUID `db:"project_id" json:"project_id"`
+	Title          string        `db:"title" json:"title"`
+	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
+}
+
+type ChatArtifactVersion struct {
+	ArtifactID uuid.UUID `db:"artifact_id" json:"artifact_id"`
+	Version    int32     `db:"version" json:"version"`
+	Label      string    `db:"label" json:"label"`
+	// The file name. Its extension picks the renderer.
+	Name      string        `db:"name" json:"name"`
+	Mimetype  string        `db:"mimetype" json:"mimetype"`
+	Data      []byte        `db:"data" json:"data"`
+	CreatedBy uuid.NullUUID `db:"created_by" json:"created_by"`
+	// The chat that published this version. NULL after that chat is deleted.
+	ChatID    uuid.NullUUID `db:"chat_id" json:"chat_id"`
+	CreatedAt time.Time     `db:"created_at" json:"created_at"`
 }
 
 // Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.

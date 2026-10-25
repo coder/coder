@@ -757,6 +757,11 @@ export type APIKeyScope =
 	| "boundary_usage:read"
 	| "boundary_usage:update"
 	| "chat:*"
+	| "chat_artifact:*"
+	| "chat_artifact:create"
+	| "chat_artifact:delete"
+	| "chat_artifact:read"
+	| "chat_artifact:update"
 	| "chat:create"
 	| "chat:delete"
 	| "chat_model_config:*"
@@ -1025,6 +1030,11 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"boundary_usage:read",
 	"boundary_usage:update",
 	"chat:*",
+	"chat_artifact:*",
+	"chat_artifact:create",
+	"chat_artifact:delete",
+	"chat_artifact:read",
+	"chat_artifact:update",
 	"chat:create",
 	"chat:delete",
 	"chat_model_config:*",
@@ -9007,6 +9017,7 @@ export type RBACResource =
 	| "boundary_log"
 	| "boundary_usage"
 	| "chat"
+	| "chat_artifact"
 	| "chat_model_config"
 	| "chat_project"
 	| "chat_project_memory"
@@ -9065,6 +9076,7 @@ export const RBACResources: RBACResource[] = [
 	"boundary_log",
 	"boundary_usage",
 	"chat",
+	"chat_artifact",
 	"chat_model_config",
 	"chat_project",
 	"chat_project_memory",
@@ -9222,6 +9234,7 @@ export type ResourceType =
 	| "ai_seat"
 	| "api_key"
 	| "chat"
+	| "chat_artifact"
 	| "chat_automation"
 	| "chat_instruction_settings"
 	| "chat_model_config"
@@ -9272,6 +9285,7 @@ export const ResourceTypes: ResourceType[] = [
 	"ai_seat",
 	"api_key",
 	"chat",
+	"chat_artifact",
 	"chat_automation",
 	"chat_instruction_settings",
 	"chat_model_config",

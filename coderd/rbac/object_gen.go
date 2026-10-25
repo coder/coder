@@ -128,6 +128,16 @@ var (
 		Type: "chat",
 	}
 
+	// ResourceChatArtifact
+	// Valid Actions
+	//  - "ActionCreate" :: create a chat artifact
+	//  - "ActionDelete" :: delete a chat artifact
+	//  - "ActionRead" :: read chat artifacts and their versions
+	//  - "ActionUpdate" :: publish a new version of a chat artifact
+	ResourceChatArtifact = Object{
+		Type: "chat_artifact",
+	}
+
 	// ResourceChatModelConfig
 	// Valid Actions
 	//  - "ActionCreate" :: create a new chat model config
@@ -565,6 +575,7 @@ func AllResources() []Objecter {
 		ResourceBoundaryLog,
 		ResourceBoundaryUsage,
 		ResourceChat,
+		ResourceChatArtifact,
 		ResourceChatModelConfig,
 		ResourceChatProject,
 		ResourceChatProjectMemory,

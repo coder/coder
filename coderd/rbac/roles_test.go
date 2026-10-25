@@ -279,6 +279,7 @@ func TestAgentsAccessRole(t *testing.T) {
 		rbac.ResourceChat.Type:              {policy.ActionCreate, policy.ActionRead, policy.ActionShare, policy.ActionUpdate},
 		rbac.ResourceChatProject.Type:       rbac.ResourceChatProject.AvailableActions(),
 		rbac.ResourceChatProjectMemory.Type: rbac.ResourceChatProjectMemory.AvailableActions(),
+		rbac.ResourceChatArtifact.Type:      rbac.ResourceChatArtifact.AvailableActions(),
 	}), role.ByOrgID[orgID.String()].Member)
 
 	// The role is organization scoped only.
@@ -1558,6 +1559,26 @@ func TestRolePermissions(t *testing.T) {
 			Name:     "ChatProjectMemoryOtherOwner",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
 			Resource: rbac.ResourceChatProjectMemory.WithID(uuid.New()).InOrg(orgID).WithOwner(uuid.NewString()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin},
+				false: {setOtherOrg, memberMe, orgMemberMe, orgAgentsAccessUser, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
+			},
+		},
+		{
+			// Artifacts belong to their owner; project members reach them
+			// through the ACL, and org admins reach every artifact.
+			Name:     "ChatArtifactCRUD",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			Resource: rbac.ResourceChatArtifact.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, orgAgentsAccessUser},
+				false: {setOtherOrg, memberMe, orgMemberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
+			},
+		},
+		{
+			Name:     "ChatArtifactOtherOwner",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			Resource: rbac.ResourceChatArtifact.WithID(uuid.New()).InOrg(orgID).WithOwner(uuid.NewString()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin},
 				false: {setOtherOrg, memberMe, orgMemberMe, orgAgentsAccessUser, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
