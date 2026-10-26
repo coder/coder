@@ -12,6 +12,7 @@ import { GlobalErrorBoundary } from "./components/ErrorBoundary/GlobalErrorBound
 import { Loader } from "./components/Loader/Loader";
 import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
+import { insertChatListHistoryEntry } from "./pages/AgentsPage/utils/chatListHistoryEntry";
 import { AISettingsIndexRedirect } from "./pages/AISettingsPage/AISettingsIndexRedirect";
 import { ModelDefaultsRedirect } from "./pages/AISettingsPage/ModelsPage/ModelDefaultsRedirect";
 import AuditPage from "./pages/AuditPage/AuditPage";
@@ -563,6 +564,10 @@ const RedirectAIBridgeSession = () => {
 	const { sessionId } = useParams() as { sessionId: string };
 	return <Navigate to={`/ai-gateway/sessions/${sessionId}`} replace />;
 };
+
+// Rewrites the window's initial history entries, so it must run before
+// createBrowserRouter reads them.
+insertChatListHistoryEntry();
 
 export const router = createBrowserRouter(
 	createRoutesFromChildren(
