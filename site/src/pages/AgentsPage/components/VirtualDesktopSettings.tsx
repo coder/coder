@@ -64,12 +64,9 @@ const getComputerUseAIProviders = (
 		];
 	});
 
-const computerUseProviderTypesLabel =
-	ChatComputerUseProviders.map(formatProviderLabel).join(" or ");
-
 type ComputerUseProviderHintKind =
 	| "no-eligible-providers"
-	| "no-provider-of-type"
+	| "no-eligible-provider-of-type"
 	| "unselected"
 	| "unavailable";
 
@@ -87,7 +84,7 @@ const getComputerUseProviderHintKind = (
 			(provider) => provider.type === storedProviderType,
 		)
 			? "unselected"
-			: "no-provider-of-type";
+			: "no-eligible-provider-of-type";
 	}
 	return selectedProvider ? undefined : "unavailable";
 };
@@ -108,14 +105,15 @@ const ComputerUseProviderHint: React.FC<ComputerUseProviderHintProps> = ({
 		<p id={id} className="m-0 text-xs text-content-secondary">
 			{kind === "no-eligible-providers" && (
 				<>
-					Add an enabled {computerUseProviderTypesLabel}{" "}
+					Add an enabled{" "}
+					{ChatComputerUseProviders.map(formatProviderLabel).join(" or ")}{" "}
 					<Link asChild showExternalIcon={false} size="sm">
 						<RouterLink to="/ai/settings/providers">AI provider</RouterLink>
 					</Link>{" "}
 					to use computer use.
 				</>
 			)}
-			{kind === "no-provider-of-type" &&
+			{kind === "no-eligible-provider-of-type" &&
 				`No provider selected, and no enabled ${storedTypeLabel} provider exists. Select a provider.`}
 			{kind === "unselected" &&
 				`No provider selected. Computer use uses the first enabled ${storedTypeLabel} provider.`}
@@ -132,7 +130,7 @@ type ComputerUseProviderOptionLabelProps = {
 const ComputerUseProviderOptionLabel: React.FC<
 	ComputerUseProviderOptionLabelProps
 > = ({ provider }) => {
-	if (provider.displayName === provider.typeLabel) {
+	if (provider.displayName.toLowerCase() === provider.typeLabel.toLowerCase()) {
 		return provider.displayName;
 	}
 	return (

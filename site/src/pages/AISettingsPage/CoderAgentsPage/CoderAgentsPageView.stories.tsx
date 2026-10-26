@@ -375,3 +375,29 @@ export const VirtualDesktopMobile: Story = {
 	},
 	parameters: { viewport: { defaultViewport: "mobile1" } },
 };
+
+export const VirtualDesktopSaving: Story = {
+	args: {
+		showAdvisorSettings: false,
+		showVirtualDesktopSettings: true,
+		aiProviders: mockVirtualDesktopProviders,
+		computerUseProviderData: {
+			provider: "anthropic",
+			ai_provider_id: mockGatewayAnthropicProvider.id,
+		},
+		isSavingComputerUseProvider: true,
+	},
+};
+
+export const VirtualDesktopSaveError: Story = {
+	args: {
+		showAdvisorSettings: false,
+		showVirtualDesktopSettings: true,
+		aiProviders: mockVirtualDesktopProviders,
+		computerUseProviderData: {
+			provider: "anthropic",
+			ai_provider_id: mockGatewayAnthropicProvider.id,
+		},
+		computerUseProviderSaveError: new Error("Failed to save"),
+	},
+};
