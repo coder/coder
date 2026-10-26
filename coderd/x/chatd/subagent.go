@@ -719,13 +719,10 @@ func (p *Server) subagentTools(
 			"Send a follow-up message to a previously spawned child "+
 				"agent. If the agent is idle, it starts a new turn on the "+
 				"message. If it is busy, the message is delivered before its "+
-				"next model call, and its current work continues. For "+
-				"corrections, changed scope, or a handoff that returns the "+
-				"child's task to you, call interrupt_agent first to stop its "+
-				"current work, then message_agent. Use wait_agent to collect "+
-				"the child's response. A handoff is acknowledged only when "+
-				"wait_agent returns the child's response to your handoff "+
-				"message; a message_agent result or an interrupting status is "+
+				"next model call, and its current work continues. Use "+
+				"wait_agent to collect the child's response. A handoff is "+
+				"acknowledged only when wait_agent returns the child's "+
+				"response to your handoff message; a message_agent result is "+
 				"not an acknowledgment.",
 			func(ctx context.Context, args messageAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
