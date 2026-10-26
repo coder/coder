@@ -183,9 +183,7 @@ Each WebSocket message is a JSON array of events, and each event has a `type` fi
 | `queue_update` | The queued message list changed                         |
 
 When no events occur for 15&nbsp;seconds, the server sends an empty array (`[]`), which you can skip.
-To detect a connection that stops delivering data without closing, start a 40-second timer when the first empty array arrives, restart it on every message, and reconnect when it expires.
-The 40&nbsp;seconds allow two missed empty arrays plus a margin.
-Servers that don't send empty arrays never start the timer.
+To detect a connection that stops delivering data without closing, start a 40-second timer when you open the WebSocket, restart it on every message, and reconnect when it fires.
 
 Use `after_id` as a query parameter when reconnecting to skip messages the client already has.
 
