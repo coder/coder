@@ -195,9 +195,9 @@ describe("theme CSS variables", () => {
 		);
 	});
 
-	// Browsers use these colors until ThemeProvider writes the active theme's
-	// surface into the theme-color metas, so each must be the surface of the
-	// theme it stands in for.
+	// The index.html metas color the title bar until ThemeProvider overwrites
+	// them, and the manifest colors apply before the page loads, so each must
+	// be the surface of the theme it stands in for.
 	describe("static theme colors", () => {
 		const toRGB = (source: string, color: string | null | undefined) => {
 			const probe = document.createElement("div");
