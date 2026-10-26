@@ -43,8 +43,8 @@ func TestStreamRelayForwarderDeliversPartsAfterStall(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
-		// The relay path holds fewer than episodeParts parts, so the buffer's
-		// send blocks.
+		// The pipe, session and relay part channels hold 128 parts each, fewer
+		// than episodeParts, so the buffer's send blocks.
 		const (
 			episodeParts = 1000
 			sendTimeout  = 10 * time.Second
@@ -95,7 +95,7 @@ func TestStreamRelayForwarderDeliversPartsAfterStall(t *testing.T) {
 		}
 
 		synctest.Wait()
-		require.Equal(t, cap(relay.parts), len(relay.parts), "the relay path did not fill")
+		require.Equal(t, cap(relay.parts), len(relay.parts), "relay.parts did not fill")
 		clock.Advance(sendTimeout).MustWait(ctx)
 		drain()
 		require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("live")))
