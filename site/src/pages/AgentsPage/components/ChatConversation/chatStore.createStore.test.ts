@@ -10,7 +10,7 @@ import {
 	selectMessagesByID,
 	selectOrderedMessageIDs,
 	selectQueuedMessages,
-	selectStreamError,
+	selectShownError,
 } from "./chatStore";
 
 // ---------------------------------------------------------------------------
@@ -188,12 +188,12 @@ describe("applyServerChatStatus", () => {
 		store.setTurnError({ kind: "generic", message: "provider down" });
 
 		store.applyServerChatStatus("error");
-		expect(selectStreamError(store.getSnapshot())?.message).toBe(
+		expect(selectShownError(store.getSnapshot())?.message).toBe(
 			"provider down",
 		);
 
 		store.applyServerChatStatus("running");
-		expect(selectStreamError(store.getSnapshot())).toBeNull();
+		expect(selectShownError(store.getSnapshot())).toBeNull();
 	});
 
 	it("does not notify when setting the same status", () => {
@@ -211,11 +211,11 @@ describe("applyServerChatStatus", () => {
 
 	it("keeps a client error that the turn does not report", () => {
 		const store = createChatStore();
-		store.setStreamError({ kind: "generic", message: "request failed" });
+		store.setClientError({ kind: "generic", message: "request failed" });
 
 		store.applyServerChatStatus("running");
 
-		expect(selectStreamError(store.getSnapshot())).toMatchObject({
+		expect(selectShownError(store.getSnapshot())).toMatchObject({
 			message: "request failed",
 		});
 	});
@@ -261,29 +261,29 @@ describe("setStreamState", () => {
 });
 
 // ---------------------------------------------------------------------------
-// setStreamError / clearStreamError
+// setClientError / clearClientError
 // ---------------------------------------------------------------------------
 
-describe("setStreamError / clearStreamError", () => {
+describe("setClientError / clearClientError", () => {
 	it("stores and clears a stream error", () => {
 		const store = createChatStore();
 
-		store.setStreamError({
+		store.setClientError({
 			kind: "generic",
 			message: "connection lost",
 		});
-		expect(store.getSnapshot().streamError).toEqual({
+		expect(store.getSnapshot().clientError).toEqual({
 			kind: "generic",
 			message: "connection lost",
 		});
 
-		store.clearStreamError();
-		expect(store.getSnapshot().streamError).toBeNull();
+		store.clearClientError();
+		expect(store.getSnapshot().clientError).toBeNull();
 	});
 
 	it("does not notify when setting the same error", () => {
 		const store = createChatStore();
-		store.setStreamError({
+		store.setClientError({
 			kind: "generic",
 			message: "oops",
 			detail: "Image exceeds 5 MB maximum.",
@@ -293,7 +293,7 @@ describe("setStreamError / clearStreamError", () => {
 		store.subscribe(() => {
 			notified = true;
 		});
-		store.setStreamError({
+		store.setClientError({
 			kind: "generic",
 			message: "oops",
 			detail: "Image exceeds 5 MB maximum.",
@@ -302,14 +302,14 @@ describe("setStreamError / clearStreamError", () => {
 		expect(notified).toBe(false);
 	});
 
-	it("clearStreamError is a no-op when already null", () => {
+	it("clearClientError is a no-op when already null", () => {
 		const store = createChatStore();
 
 		let notified = false;
 		store.subscribe(() => {
 			notified = true;
 		});
-		store.clearStreamError();
+		store.clearClientError();
 
 		expect(notified).toBe(false);
 	});
@@ -567,7 +567,7 @@ describe("resetTransientState", () => {
 	it("clears streamState, streamError, retryState, reconnectState, and subagentOverrides", () => {
 		const store = createChatStore();
 		store.applyMessagePart({ type: "text", text: "stream" });
-		store.setStreamError({
+		store.setClientError({
 			kind: "generic",
 			message: "oops",
 		});
@@ -589,7 +589,7 @@ describe("resetTransientState", () => {
 
 		const state = store.getSnapshot();
 		expect(state.streamState).toBeNull();
-		expect(state.streamError).toBeNull();
+		expect(state.clientError).toBeNull();
 		expect(state.retryState).toBeNull();
 		expect(state.reconnectState).toBeNull();
 		expect(state.subagentStatusOverrides.size).toBe(0);
@@ -599,7 +599,7 @@ describe("resetTransientState", () => {
 		const store = createChatStore();
 		store.replaceMessages([makeMessage(1, "user", "hello")]);
 		store.setQueuedMessages([makeQueuedMessage(10, "queued")]);
-		store.setStreamError({
+		store.setClientError({
 			kind: "generic",
 			message: "oops",
 		});
@@ -791,7 +791,7 @@ const visible = (store: ChatStore) => {
 			textOf(message.content),
 		),
 		status: selectChatStatus(state),
-		error: selectStreamError(state)?.message ?? null,
+		error: selectShownError(state)?.message ?? null,
 	};
 };
 

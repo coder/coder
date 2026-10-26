@@ -143,7 +143,7 @@ export type ChatStoreState = {
 	streamState: StreamState | null;
 	chatStatus: TypesGen.ChatStatus | null;
 	// A failure of this client, such as a rejected request.
-	streamError: ChatDetailError | null;
+	clientError: ChatDetailError | null;
 	retryState: RetryState | null;
 	// The error the chat's last reported turn ended with.
 	turnError: ChatDetailError | null;
@@ -197,8 +197,8 @@ export type ChatStore = {
 	addPendingAction: (action: PendingAction) => number;
 	removePendingAction: (id: number) => void;
 	setStreamState: (streamState: StreamState | null) => void;
-	setStreamError: (reason: ChatDetailError | null) => void;
-	clearStreamError: () => void;
+	setClientError: (reason: ChatDetailError | null) => void;
+	clearClientError: () => void;
 	setRetryState: (state: RetryState) => void;
 	clearRetryState: () => void;
 	setReconnectState: (state: ReconnectState) => void;
@@ -218,7 +218,7 @@ const createInitialState = (): ChatStoreState => {
 		orderedMessageIDs: [],
 		streamState: null,
 		chatStatus: null,
-		streamError: null,
+		clientError: null,
 		retryState: null,
 		turnError: null,
 		reconnectState: null,
@@ -562,24 +562,24 @@ export const createChatStore = (): ChatStore => {
 				};
 			});
 		},
-		setStreamError: (reason) => {
+		setClientError: (reason) => {
 			setState((current) => {
-				if (chatDetailErrorsEqual(current.streamError, reason)) {
+				if (chatDetailErrorsEqual(current.clientError, reason)) {
 					return current;
 				}
 				return {
 					...current,
-					streamError: reason,
+					clientError: reason,
 				};
 			});
 		},
-		clearStreamError: () => {
-			if (state.streamError === null) {
+		clearClientError: () => {
+			if (state.clientError === null) {
 				return;
 			}
 			setState((current) => ({
 				...current,
-				streamError: null,
+				clientError: null,
 			}));
 		},
 		setRetryState: (retryState) => {
@@ -635,7 +635,7 @@ export const createChatStore = (): ChatStore => {
 			if (
 				state.reconnectState === null &&
 				state.streamState === null &&
-				state.streamError === null &&
+				state.clientError === null &&
 				state.retryState === null
 			) {
 				return;
@@ -644,7 +644,7 @@ export const createChatStore = (): ChatStore => {
 				...current,
 				reconnectState: null,
 				streamState: null,
-				streamError: null,
+				clientError: null,
 				retryState: null,
 			}));
 		},
@@ -664,7 +664,7 @@ export const createChatStore = (): ChatStore => {
 		resetTransientState: () => {
 			if (
 				state.streamState === null &&
-				state.streamError === null &&
+				state.clientError === null &&
 				state.retryState === null &&
 				state.reconnectState === null &&
 				state.subagentStatusOverrides.size === 0
@@ -674,7 +674,7 @@ export const createChatStore = (): ChatStore => {
 			setState((current) => ({
 				...current,
 				streamState: null,
-				streamError: null,
+				clientError: null,
 				retryState: null,
 				reconnectState: null,
 				subagentStatusOverrides: new Map(),
@@ -869,8 +869,8 @@ export const selectStreamState = (state: ChatStoreState) =>
 export const selectHasStreamState = (state: ChatStoreState) =>
 	state.view.streamState !== null;
 export const selectChatStatus = (state: ChatStoreState) => state.chatStatus;
-export const selectStreamError = (state: ChatStoreState) =>
-	state.streamError ?? state.turnError;
+export const selectShownError = (state: ChatStoreState) =>
+	state.clientError ?? state.turnError;
 export const selectQueuedMessages = (state: ChatStoreState) =>
 	state.view.queuedMessages;
 export const selectSubagentStatusOverrides = (state: ChatStoreState) =>

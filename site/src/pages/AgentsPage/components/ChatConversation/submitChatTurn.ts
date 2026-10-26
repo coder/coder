@@ -133,7 +133,7 @@ const runBuiltInChatCommand = async ({
 	switch (command.name) {
 		case COMPACT_SLASH_COMMAND.name: {
 			clearChatErrorReason(agentId);
-			store.clearStreamError();
+			store.clearClientError();
 			try {
 				await compact();
 			} catch (error) {
@@ -243,7 +243,7 @@ export async function submitChatTurn(
 			mcp_server_ids: [...mcpServerIds],
 		};
 		clearChatErrorReason(agentId);
-		store.clearStreamError();
+		store.clearClientError();
 		const pendingID = store.addPendingAction({
 			kind: "edit",
 			editedMessageID,
@@ -279,7 +279,7 @@ export async function submitChatTurn(
 		...planModeFieldsForCreateMessage(clearPlanMode),
 	};
 	clearChatErrorReason(agentId);
-	store.clearStreamError();
+	store.clearClientError();
 
 	const pendingID = store.addPendingAction({
 		kind: "send",

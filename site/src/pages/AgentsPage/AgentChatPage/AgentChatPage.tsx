@@ -509,7 +509,7 @@ const AgentChatPage: React.FC = () => {
 			message: getErrorMessage(error, "An unexpected error occurred."),
 			...(detail ? { detail } : {}),
 		};
-		store.setStreamError(reason);
+		store.setClientError(reason);
 		setChatErrorReason(agentId, reason);
 	};
 
@@ -548,7 +548,7 @@ const AgentChatPage: React.FC = () => {
 			kind: "promoteQueued",
 			queuedMessageID: id,
 		});
-		store.clearStreamError();
+		store.clearClientError();
 		clearChatErrorReason(agentId);
 		try {
 			await promoteQueuedMessage(id);
