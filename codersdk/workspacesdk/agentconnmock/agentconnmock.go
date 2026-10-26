@@ -56,6 +56,20 @@ func (m *MockAgentConn) EXPECT() *MockAgentConnMockRecorder {
 	return m.recorder
 }
 
+// AgentID mocks base method.
+func (m *MockAgentConn) AgentID() uuid.UUID {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AgentID")
+	ret0, _ := ret[0].(uuid.UUID)
+	return ret0
+}
+
+// AgentID indicates an expected call of AgentID.
+func (mr *MockAgentConnMockRecorder) AgentID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AgentID", reflect.TypeOf((*MockAgentConn)(nil).AgentID))
+}
+
 // AppHTTPClient mocks base method.
 func (m *MockAgentConn) AppHTTPClient() *http.Client {
 	m.ctrl.T.Helper()

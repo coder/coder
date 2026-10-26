@@ -11,7 +11,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/quartz"
@@ -33,6 +32,12 @@ type acpSessionArgs struct {
 	SessionID        string `json:"session_id" description:"Native ACP session ID returned by acp_spawn_agent."`
 	WorkingDirectory string `json:"working_directory" description:"Existing absolute working directory of the subagent."`
 }
+type acpWaitArgs struct {
+	HarnessID        string `json:"harness_id" description:"Harness ID returned by acp_spawn_agent."`
+	SessionID        string `json:"session_id" description:"Native ACP session ID returned by acp_spawn_agent."`
+	WorkingDirectory string `json:"working_directory" description:"Existing absolute working directory of the subagent."`
+	TimeoutSeconds   *int   `json:"timeout_seconds,omitempty" description:"How long to wait in seconds. Defaults to 300 seconds. Zero or negative values time out immediately. A timeout leaves the subagent running."`
+}
 type acpMessageArgs struct {
 	HarnessID        string `json:"harness_id" description:"Harness ID returned by acp_spawn_agent."`
 	SessionID        string `json:"session_id" description:"Native ACP session ID returned by acp_spawn_agent."`
@@ -42,12 +47,10 @@ type acpMessageArgs struct {
 
 type acpToolset struct {
 	harnesses []workspacesdk.ACPHarness
-	resolve   func(context.Context) (workspacesdk.AgentConn, database.Chat, uuid.UUID, error)
+	resolve   func(context.Context) (workspacesdk.AgentConn, error)
 	clock     quartz.Clock
 	logger    slog.Logger
 }
-
-var errACPWorkspaceChanged = xerrors.New("ACP chat workspace changed")
 
 func (p *Server) acpTools(ctx context.Context, opts rootChatToolsOptions) []fantasy.AgentTool {
 	if opts.isPlanModeTurn || opts.chat.ParentChatID.Valid || !p.experiments.Enabled(codersdk.ExperimentChatACPSubagents) {
@@ -66,29 +69,7 @@ func (p *Server) acpTools(ctx context.Context, opts rootChatToolsOptions) []fant
 		harnesses: harnesses,
 		clock:     p.clock,
 		logger:    p.logger,
-		resolve: func(ctx context.Context) (workspacesdk.AgentConn, database.Chat, uuid.UUID, error) {
-			// Keep the connection and workspace snapshot consistent with workspace tools.
-			if opts.workspaceMu != nil {
-				opts.workspaceMu.Lock()
-				defer opts.workspaceMu.Unlock()
-			}
-			chat, err := p.db.GetChatByID(ctx, opts.chat.ID)
-			if err != nil {
-				return nil, database.Chat{}, uuid.Nil, err
-			}
-			current := opts.workspaceCtx.currentChatSnapshot()
-			if !nullUUIDEqual(chat.WorkspaceID, current.WorkspaceID) || !nullUUIDEqual(chat.AgentID, current.AgentID) {
-				opts.workspaceCtx.selectWorkspace(chat)
-			}
-			conn, err := opts.workspaceCtx.getWorkspaceConn(ctx)
-			if err != nil {
-				return nil, database.Chat{}, uuid.Nil, err
-			}
-			opts.workspaceCtx.mu.Lock()
-			agentID := opts.workspaceCtx.agent.ID
-			opts.workspaceCtx.mu.Unlock()
-			return conn, opts.workspaceCtx.currentChatSnapshot(), agentID, nil
-		},
+		resolve:   opts.workspaceCtx.getWorkspaceConn,
 	})
 }
 
@@ -101,6 +82,7 @@ func newACPTools(toolset acpToolset) []fantasy.AgentTool {
 			AgentTool:  fantasy.NewParallelAgentTool("acp_spawn_agent", "Start a workspace-local ACP subagent using a configured external harness. The harness uses its own credentials and does not inherit this chat's MCP servers. Use acp_wait_agent to collect its response.", toolset.spawn),
 			parameters: acpSpawnProperties(toolset.harnesses),
 		},
+		fantasy.NewParallelAgentTool("acp_wait_agent", "Wait for an ACP session to stop running and collect its assistant response. Streams the transcript to the user. Timeout and cancellation leave the session running.", toolset.wait),
 		fantasy.NewParallelAgentTool("acp_message_agent", "Send a message to an idle ACP session. Busy sessions reject messages. Use acp_wait_agent to wait for completion, or acp_interrupt_agent followed by acp_wait_agent, before sending another message. Use acp_wait_agent to collect its response.", toolset.message),
 		fantasy.NewParallelAgentTool("acp_interrupt_agent", "Request cancellation of the ACP session's running turn. Use acp_wait_agent to observe when it stops.", toolset.interrupt),
 	}
@@ -159,20 +141,6 @@ func (args acpSessionArgs) sessionRef() (workspacesdk.ACPSessionID, error) {
 	return workspacesdk.ACPSessionID{HarnessSlug: args.HarnessID, WorkingDirectory: args.WorkingDirectory, SessionID: args.SessionID}, nil
 }
 
-// connection resolves the chat's current workspace connection. Pass uuid.Nil to
-// accept the current workspace, or a workspace ID to reject workspace changes
-// when reconnecting.
-func (t acpToolset) connection(ctx context.Context, workspaceID uuid.UUID) (workspacesdk.AgentConn, database.Chat, uuid.UUID, error) {
-	conn, chat, agentID, err := t.resolve(ctx)
-	if err != nil {
-		return nil, database.Chat{}, uuid.Nil, err
-	}
-	if !chat.WorkspaceID.Valid || (workspaceID != uuid.Nil && chat.WorkspaceID.UUID != workspaceID) {
-		return nil, database.Chat{}, uuid.Nil, errACPWorkspaceChanged
-	}
-	return conn, chat, agentID, nil
-}
-
 func acpToolRequest[T any](ctx context.Context, clock quartz.Clock, operation string, request func(context.Context) (T, error)) (T, error) {
 	ctx, cancel := context.WithCancelCause(ctx)
 	timer := clock.AfterFunc(acpRequestTimeout, func() { cancel(context.DeadlineExceeded) }, "chatd", "acp-request")
@@ -211,7 +179,7 @@ func (t acpToolset) spawn(ctx context.Context, args acpSpawnArgs, _ fantasy.Tool
 	if !ok {
 		return t.errorResponse(xerrors.New("ACP spawn requires a deterministic tool-call ID"), nil), nil
 	}
-	conn, _, _, err := t.connection(ctx, uuid.Nil)
+	conn, err := t.resolve(ctx)
 	if err != nil {
 		return t.errorResponse(err, nil), nil
 	}
@@ -247,7 +215,7 @@ func (t acpToolset) message(ctx context.Context, args acpMessageArgs, _ fantasy.
 	if err != nil {
 		return t.errorResponse(err, nil), nil
 	}
-	conn, _, _, err := t.connection(ctx, uuid.Nil)
+	conn, err := t.resolve(ctx)
 	if err != nil {
 		return t.errorResponse(err, &session), nil
 	}
@@ -278,7 +246,7 @@ func (t acpToolset) interrupt(ctx context.Context, args acpSessionArgs, _ fantas
 	if err != nil {
 		return t.errorResponse(err, nil), nil
 	}
-	conn, _, _, err := t.connection(ctx, uuid.Nil)
+	conn, err := t.resolve(ctx)
 	if err != nil {
 		return t.errorResponse(err, &session), nil
 	}
@@ -303,4 +271,10 @@ func (t acpToolset) interrupt(ctx context.Context, args acpSessionArgs, _ fantas
 		result["harness_display_name"] = *sessionInfo.HarnessDisplayName
 	}
 	return acpResponse(result), nil
+}
+
+func (t acpToolset) timeout(ctx context.Context, duration time.Duration, tag string) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(ctx)
+	timer := t.clock.AfterFunc(duration, cancel, tag)
+	return ctx, func() { timer.Stop(); cancel() }
 }
