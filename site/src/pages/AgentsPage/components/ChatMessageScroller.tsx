@@ -111,7 +111,6 @@ const EarlierMessages: React.FC<EarlierMessagesProps> = ({
 type ChatMessageScrollerProps = EarlierMessagesProps & {
 	/** One `MessageScroller.Item` per transcript row, and nothing else. */
 	children: React.ReactNode;
-	/** True until the chat's current turn ends. */
 	isTurnActive?: boolean;
 };
 
