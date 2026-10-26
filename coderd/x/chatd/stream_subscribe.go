@@ -211,6 +211,8 @@ func sendStreamEvent(ctx context.Context, ch chan<- codersdk.ChatStreamEvent, ev
 	}
 }
 
+// Subscribe reads the chat as ctx's actor and calls SubscribeAuthorized. ok is
+// also false when the actor cannot read the chat or the read fails.
 func (p *Server) Subscribe(
 	ctx context.Context,
 	chatID uuid.UUID,
@@ -242,6 +244,9 @@ func (p *Server) Subscribe(
 }
 
 // SubscribeAuthorized subscribes an already-authorized chat to stream updates.
+// A non-zero snapshotVersion resumes from that version and ignores
+// afterMessageID. ok is false when the pubsub subscription or the initial
+// read fails; nothing was sent, and the cause is logged.
 func (p *Server) SubscribeAuthorized(
 	ctx context.Context,
 	chat database.Chat,

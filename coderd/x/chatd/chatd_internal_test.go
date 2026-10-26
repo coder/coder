@@ -1834,7 +1834,7 @@ func TestSubscribeRejectsUnauthorizedCallerBeforeSharedFetches(t *testing.T) {
 	require.Nil(t, cancel)
 }
 
-func TestSubscribeRejectsTransientLookupFailure(t *testing.T) {
+func TestSubscribeFailsOnTransientLookupFailure(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
