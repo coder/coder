@@ -83,6 +83,8 @@ Declaring the same dependency with conflicting `requires` values is invalid.
 
 A script can succeed before a background service it starts is ready.
 If a prerequisite starts a background service, check that the service is ready before the script exits.
+Redirect the background service's stdout and stderr, for example `my-server > /tmp/server.log 2>&1 &`.
+Otherwise, Coder can treat the prerequisite as failed and skip its `requires = "success"` dependents.
 
 Selectors are quoted [Terraform resource or module addresses](https://developer.hashicorp.com/terraform/cli/state/resource-addressing), not resource IDs or display names.
 Coder must be able to determine all `coder_script_order` input values when it imports your template.
