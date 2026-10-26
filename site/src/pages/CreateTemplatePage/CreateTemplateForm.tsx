@@ -499,8 +499,8 @@ const ProvisionerWarning: React.FC = () => {
 				</Link>
 			}
 		>
-			This organization has no provisioners, so templates you create here
-			won&apos;t build until you set up and connect a provisioner first.
+			This organization has no provisioners, so you can&apos;t create a template
+			yet. Set up a provisioner first.
 		</Alert>
 	);
 };
