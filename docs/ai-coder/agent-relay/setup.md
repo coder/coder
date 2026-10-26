@@ -186,6 +186,7 @@ Then return to this page to install Agent Relay.
 | Helm chart | `oci://ghcr.io/coder/chart/coder-agent-relay` | Matches the image it deploys         |
 
 Both are public and need no pull credentials.
+For every option and Helm value, refer to the [Agent Relay configuration reference](./configuration.md).
 
 <div class="tabs">
 
@@ -315,4 +316,5 @@ Workspace names start with a provider prefix: `cc-` for Claude Code and `cur-` f
 - [Agent Relay for Cursor](./cursor.md)
 - [Use Agent Relay from Slack](./slack.md)
 - [Monitor Agent Relay](./monitoring.md)
+- [Agent Relay configuration reference](./configuration.md)
 - [External provisioners](../../install/operate/provisioners/index.md)

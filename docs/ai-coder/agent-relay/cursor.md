@@ -371,4 +371,5 @@ For logs and metrics, refer to [Monitor Agent Relay](./monitoring.md).
 - [Set up Agent Relay](./setup.md)
 - [Use Agent Relay from Slack](./slack.md#cursor-in-slack)
 - [Monitor Agent Relay](./monitoring.md)
+- [Agent Relay configuration reference](./configuration.md)
 - [Cursor self-hosted machines](https://cursor.com/docs/cloud-agent/self-hosted)

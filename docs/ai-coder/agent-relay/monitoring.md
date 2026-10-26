@@ -135,5 +135,6 @@ For provider-specific symptoms, refer to the troubleshooting tables for [Claude 
 ## Learn more
 
 - [Set up Agent Relay](./setup.md)
+- [Agent Relay configuration reference](./configuration.md)
 - [Audit logs](../../admin/security/audit-logs.md)
 - [Coder Prometheus metrics](../../admin/integrations/prometheus.md)
