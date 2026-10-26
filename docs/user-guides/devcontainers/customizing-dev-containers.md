@@ -157,6 +157,10 @@ Each app supports the following properties:
 | `subdomain`   | boolean | Use subdomain-based access                                    |
 | `healthCheck` | object  | Health check configuration (see below)                        |
 
+An external app's `url` must include a scheme and a host, such as `zed://ssh/...` or `https://...`.
+Coder rejects `javascript`, `vbscript`, `data`, `blob`, `file`, and `filesystem` URLs, and URLs that contain control characters.
+Coder doesn't substitute a session token into dev container apps, and it removes any `$SESSION_TOKEN` placeholder from the `url`.
+
 ### Health checks
 
 Configure health checks to monitor app availability:
