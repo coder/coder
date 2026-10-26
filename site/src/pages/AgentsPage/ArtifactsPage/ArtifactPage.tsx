@@ -1,6 +1,12 @@
 import { ArrowLeftIcon } from "lucide-react";
 import { useQuery } from "react-query";
-import { Link, useLocation, useParams, useSearchParams } from "react-router";
+import {
+	Link,
+	useLocation,
+	useNavigate,
+	useParams,
+	useSearchParams,
+} from "react-router";
 import { getErrorStatus } from "#/api/errors";
 import { chatArtifact } from "#/api/queries/chatArtifacts";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -12,7 +18,10 @@ import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { pageTitle } from "#/utils/page";
 import { AgentPageHeader } from "../components/AgentPageHeader";
 import { ArtifactView } from "../components/Artifacts/ArtifactView";
-import { artifactsGalleryPath } from "../components/Artifacts/artifactUtils";
+import {
+	artifactsGalleryPath,
+	findShownVersion,
+} from "../components/Artifacts/artifactUtils";
 
 /**
  * The gallery URL that opened this page, with its filter and search, or the
@@ -33,11 +42,13 @@ const galleryPathFromState = (state: unknown): string => {
 /**
  * One artifact on its own page. It shows the latest version unless the
  * version search parameter names another one. There is no chat here, so a
- * message from an HTML version is not sent, and a toast says so.
+ * message from an HTML version is not sent, and a toast says so and offers
+ * to open the chat of the version.
  */
 const ArtifactPage: React.FC = () => {
 	const { artifactId = "" } = useParams();
 	const { user } = useAuthenticated();
+	const navigate = useNavigate();
 	const galleryPath = galleryPathFromState(useLocation().state);
 	const [searchParams, setSearchParams] = useSearchParams();
 	const versionParam = Number(searchParams.get("version"));
@@ -53,16 +64,29 @@ const ArtifactPage: React.FC = () => {
 	// A failed background refetch keeps the cached artifact on screen.
 	let content: React.ReactNode;
 	if (artifactQuery.data) {
+		const artifact = artifactQuery.data;
+		const showPromptToast = () => {
+			const version = findShownVersion(artifact, selectedVersion);
+			// The chat title is set only when the viewer owns the chat, so
+			// only then can the viewer open it.
+			const chatId = version?.chat_title ? version.chat_id : undefined;
+			toast.info("Open this artifact in its chat to send messages from it.", {
+				action: chatId
+					? {
+							label: "Open chat",
+							onClick: () => navigate(`/agents/${chatId}`),
+						}
+					: undefined,
+			});
+		};
 		content = (
 			<ArtifactView
-				artifact={artifactQuery.data}
+				artifact={artifact}
 				selectedVersion={selectedVersion}
 				onSelectVersion={(version) =>
 					setSearchParams({ version: String(version) }, { replace: true })
 				}
-				onPrompt={() =>
-					toast.info("Open this artifact in its chat to send messages from it.")
-				}
+				onPrompt={showPromptToast}
 				currentUserId={user.id}
 				leading={
 					<Button

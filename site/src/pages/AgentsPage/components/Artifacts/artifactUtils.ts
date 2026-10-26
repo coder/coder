@@ -1,4 +1,5 @@
 import type {
+	ChatArtifact,
 	ChatArtifactVersion,
 	ChatMessage,
 	ChatMessagePart,
@@ -103,6 +104,18 @@ export const getArtifactLink = (artifactId: string, version?: number) =>
 	`${window.location.origin}${getArtifactPagePath(artifactId, version)}`;
 
 /**
+ * The version that an artifact view shows: the selected version, or the
+ * latest one when the selection is unset or unknown.
+ */
+export const findShownVersion = (
+	artifact: ChatArtifact,
+	selectedVersion: number | undefined,
+): ChatArtifactVersion | undefined => {
+	const versions = artifact.versions ?? [];
+	return versions.find((v) => v.version === selectedVersion) ?? versions[0];
+};
+
+/**
  * Names where a version came from. The chat title is set only when the
  * viewer owns the chat, so a version from another user's chat names that
  * user.
@@ -115,7 +128,7 @@ const describeVersionSource = (
 		return "this chat";
 	}
 	if (version.chat_title) {
-		return version.chat_title;
+		return `your chat “${version.chat_title}”`;
 	}
 	if (version.created_by_username) {
 		return `by ${version.created_by_username}`;

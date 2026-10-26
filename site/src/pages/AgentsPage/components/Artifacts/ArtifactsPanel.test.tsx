@@ -107,10 +107,10 @@ describe("describeArtifactVersion", () => {
 	it.each([
 		["this chat", mockArtifactVersion, "chat-1", /^v1 · this chat · /],
 		[
-			"the viewer's chat",
+			"the viewer's chat by its title",
 			{ ...mockArtifactVersion, chat_title: "Repo report" },
 			undefined,
-			/^v1 · Repo report · /,
+			/^v1 · your chat “Repo report” · /,
 		],
 		[
 			"another user's chat by its author",

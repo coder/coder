@@ -18,6 +18,7 @@ import { ArtifactFrame } from "./ArtifactFrame";
 import { ArtifactShareButton } from "./ArtifactShareButton";
 import {
 	describeArtifactVersion,
+	findShownVersion,
 	getArtifactPagePath,
 	kindOf,
 } from "./artifactUtils";
@@ -53,15 +54,15 @@ export const ArtifactView: React.FC<ArtifactViewProps> = ({
 	showPageLink = false,
 }) => {
 	const versions = artifact.versions ?? [];
-	const version =
-		versions.find((v) => v.version === selectedVersion) ?? versions[0];
+	const version = findShownVersion(artifact, selectedVersion);
 
 	return (
 		<div className="flex h-full min-h-0 flex-1 flex-col">
-			<div className="flex shrink-0 flex-wrap items-center gap-2 border-0 border-b border-solid border-border px-3 py-2">
+			<div className="@container flex shrink-0 flex-wrap items-center gap-2 border-0 border-b border-solid border-border px-3 py-2">
 				{leading}
-				{/* On a phone the title takes its own row, so it is not cut off. */}
-				<h3 className="m-0 min-w-0 basis-full truncate text-sm font-medium text-content-primary sm:flex-1">
+				{/* In a narrow header, such as a phone or the chat panel, the title
+				    takes its own row, so it is not cut off. */}
+				<h3 className="m-0 min-w-0 basis-full truncate text-sm font-medium text-content-primary @xl:flex-1">
 					{artifact.title || "Untitled artifact"}
 				</h3>
 				{version && (
@@ -71,7 +72,9 @@ export const ArtifactView: React.FC<ArtifactViewProps> = ({
 					>
 						<SelectTrigger
 							aria-label="Artifact version"
-							className="h-8 w-auto max-w-72 text-xs"
+							// In a narrow header the menu shrinks, so Download and Share
+							// stay on its row.
+							className="h-8 w-auto min-w-0 max-w-72 flex-1 text-xs @xl:flex-none"
 						>
 							<SelectValue />
 						</SelectTrigger>
