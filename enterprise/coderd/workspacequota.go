@@ -24,9 +24,9 @@ import (
 // Bursts of builds for one owner and organization (for example, mass
 // autostarts) make concurrent quota commits conflict under SERIALIZABLE
 // isolation. These builds are not interactive, so we trade latency for
-// success. commitQuotaMaxRetries counts retries after the first attempt.
-// Full jitter over min(cap, base*2^n) bounds the total backoff across all
-// retries to 11.15s.
+// success. commitQuotaMaxRetries counts retries after the first attempt; 10
+// retries with full jitter over min(cap, base*2^n) bound the total backoff to
+// 11.15s, which rides out a burst without stalling a build for long.
 const (
 	commitQuotaMaxRetries  = 10
 	commitQuotaBackoffBase = 50 * time.Millisecond

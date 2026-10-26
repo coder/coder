@@ -71,9 +71,9 @@ func New(sdb *sql.DB, opts ...func(*sqlQuerier)) Store {
 }
 
 // TxOptions configures a transaction: its isolation level, read-only mode,
-// and serialization retry policy. It also carries Coder-specific execution
-// metadata (TxIdentifier, executionCount) back to callers. Ideally that
-// metadata would go in a context, but no context is used for transactions,
+// and serialization retry policy. It also carries Coder-specific metadata
+// for metrics: TxIdentifier (set by the caller) and executionCount (set by
+// InTx). Ideally that metadata would go in a context, but no context is used for transactions,
 // so it is attached to the options passed in instead.
 // The metadata should not be returned in the method signature, because it
 // is only used for metric tracking. It should never be used by business logic.
@@ -185,7 +185,7 @@ func (q *sqlQuerier) InTx(function func(Store) error, txOpts *TxOptions) error {
 		for attempts = 0; attempts < maxAttempts; attempts++ {
 			if attempts > 0 && txOpts.BeforeSerialRetry != nil {
 				if hookErr := txOpts.BeforeSerialRetry(attempts); hookErr != nil {
-					return xerrors.Errorf("transaction retry stopped after %d attempts (last error: %v): %w", attempts, err, hookErr)
+					return xerrors.Errorf("stop transaction retry after attempt %d (last error: %v): %w", attempts, err, hookErr)
 				}
 			}
 			txOpts.executionCount++
