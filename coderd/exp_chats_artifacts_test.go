@@ -229,9 +229,12 @@ func TestChatArtifact(t *testing.T) {
 	t.Run("CoderKitIsInlined", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
+		// A user of its own keeps this artifact out of the lists that the
+		// other subtests check.
+		kitOwner, kitUser := newChatProjectMember(t, admin, orgID)
 		artifact, err := db.InsertChatArtifact(sysCtx, database.InsertChatArtifactParams{
 			OrganizationID: orgID,
-			OwnerID:        ownerUser.ID,
+			OwnerID:        kitUser.ID,
 			Title:          "Kit page",
 		})
 		require.NoError(t, err)
@@ -241,13 +244,12 @@ func TestChatArtifact(t *testing.T) {
 			Name:       "kit.html",
 			Mimetype:   "text/plain",
 			Data:       []byte(page),
-			CreatedBy:  uuid.NullUUID{UUID: ownerUser.ID, Valid: true},
-			ChatID:     uuid.NullUUID{UUID: chat.ID, Valid: true},
+			CreatedBy:  uuid.NullUUID{UUID: kitUser.ID, Valid: true},
 		})
 		require.NoError(t, err)
 
 		get := func(path string, dest string) string {
-			res, err := owner.Request(ctx, http.MethodGet, path, nil, func(r *http.Request) {
+			res, err := kitOwner.Request(ctx, http.MethodGet, path, nil, func(r *http.Request) {
 				if dest != "" {
 					r.Header.Set("Sec-Fetch-Dest", dest)
 				}
