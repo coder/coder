@@ -430,6 +430,21 @@ func (mr *MockAgentConnMockRecorder) Netcheck(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Netcheck", reflect.TypeOf((*MockAgentConn)(nil).Netcheck), ctx)
 }
 
+// OpenPreview mocks base method.
+func (m *MockAgentConn) OpenPreview(ctx context.Context, request workspacesdk.OpenPreviewRequest) (workspacesdk.OpenPreviewResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OpenPreview", ctx, request)
+	ret0, _ := ret[0].(workspacesdk.OpenPreviewResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// OpenPreview indicates an expected call of OpenPreview.
+func (mr *MockAgentConnMockRecorder) OpenPreview(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OpenPreview", reflect.TypeOf((*MockAgentConn)(nil).OpenPreview), ctx, request)
+}
+
 // Ping mocks base method.
 func (m *MockAgentConn) Ping(ctx context.Context) (time.Duration, bool, *ipnstate.PingResult, error) {
 	m.ctrl.T.Helper()

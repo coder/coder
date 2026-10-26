@@ -115,6 +115,7 @@ type AgentConn interface {
 	ListProcesses(ctx context.Context) (ListProcessesResponse, error)
 	ListeningPorts(ctx context.Context) (codersdk.WorkspaceAgentListeningPortsResponse, error)
 	Netcheck(ctx context.Context) (healthsdk.AgentNetcheckReport, error)
+	OpenPreview(ctx context.Context, request OpenPreviewRequest) (OpenPreviewResponse, error)
 	Ping(ctx context.Context) (time.Duration, bool, *ipnstate.PingResult, error)
 	ProcessOutput(ctx context.Context, id string, opts *ProcessOutputOptions) (ProcessOutputResponse, error)
 	PrometheusMetrics(ctx context.Context) ([]byte, error)
@@ -1497,6 +1498,36 @@ type MCPToolContent struct {
 	Text      string `json:"text,omitempty"`
 	Data      string `json:"data,omitempty"` // base64 for binary
 	MediaType string `json:"media_type,omitempty"`
+}
+
+// OpenPreviewRequest selects an absolute HTML file or directory to publish.
+type OpenPreviewRequest struct {
+	Path string `json:"path"`
+}
+
+// OpenPreviewResponse identifies a published preview. The agent serves it
+// under /{id}/ on AgentPreviewPort. Path is the canonical path it serves,
+// with symlinks resolved.
+type OpenPreviewResponse struct {
+	ID   string `json:"id"`
+	Path string `json:"path"`
+}
+
+// OpenPreview publishes workspace files through the agent's tailnet-only
+// preview server.
+func (c *agentConn) OpenPreview(ctx context.Context, req OpenPreviewRequest) (OpenPreviewResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/previews", req)
+	if err != nil {
+		return OpenPreviewResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return OpenPreviewResponse{}, codersdk.ReadBodyAsError(res)
+	}
+	var resp OpenPreviewResponse
+	return resp, decodeAgentJSON(res, &resp)
 }
 
 // StartProcess starts a new process on the workspace agent.
