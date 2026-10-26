@@ -154,6 +154,86 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/chats/artifacts/{artifact}/acl": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat artifact ACL",
+                "operationId": "get-chat-artifact-acl",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat artifact ID",
+                        "name": "artifact",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatACL"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat artifact ACL",
+                "operationId": "update-chat-artifact-acl",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat artifact ID",
+                        "name": "artifact",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update chat artifact ACL request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatACL"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/chats/projects": {
             "get": {
                 "produces": [
@@ -20252,6 +20332,7 @@ const docTemplate = `{
                 "chat_artifact:create",
                 "chat_artifact:delete",
                 "chat_artifact:read",
+                "chat_artifact:share",
                 "chat_artifact:update",
                 "chat_model_config:*",
                 "chat_model_config:create",
@@ -20525,6 +20606,7 @@ const docTemplate = `{
                 "APIKeyScopeChatArtifactCreate",
                 "APIKeyScopeChatArtifactDelete",
                 "APIKeyScopeChatArtifactRead",
+                "APIKeyScopeChatArtifactShare",
                 "APIKeyScopeChatArtifactUpdate",
                 "APIKeyScopeChatModelConfigAll",
                 "APIKeyScopeChatModelConfigCreate",

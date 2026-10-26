@@ -225,6 +225,29 @@ func TestArtifactStore(t *testing.T) {
 		require.ErrorIs(t, err, chattool.ErrArtifactNotFound)
 	})
 
+	t.Run("SharedUserCannotUse", func(t *testing.T) {
+		t.Parallel()
+		e := newArtifactTestEnv(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		v1, err := e.store(e.chat(t, database.Chat{})).Publish(ctx, publishParams(0, uuid.Nil, "# v1"))
+		require.NoError(t, err)
+
+		// The artifact's own ACL lets people open it, but a sharee's agent
+		// cannot read or publish it: only ownership and projects count.
+		sharee := e.member(t)
+		err = e.f.db.UpdateChatArtifactACLByID(ctx, database.UpdateChatArtifactACLByIDParams{
+			ID:       v1.ArtifactID,
+			UserACL:  database.ChatACL{sharee.ID.String(): {Permissions: []policy.Action{policy.ActionRead}}},
+			GroupACL: database.ChatACL{e.f.org.ID.String(): {Permissions: []policy.Action{policy.ActionRead}}},
+		})
+		require.NoError(t, err)
+		store := e.store(e.chat(t, database.Chat{OwnerID: sharee.ID}))
+		_, err = store.Read(ctx, v1.ArtifactID, 0)
+		require.ErrorIs(t, err, chattool.ErrArtifactNotFound)
+		_, err = store.Publish(ctx, publishParams(1, v1.ArtifactID, "# v2"))
+		require.ErrorIs(t, err, chattool.ErrArtifactNotFound)
+	})
+
 	t.Run("OtherOrganization", func(t *testing.T) {
 		t.Parallel()
 		e := newArtifactTestEnv(t)

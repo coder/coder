@@ -103,3 +103,32 @@ func (c *ExperimentalClient) ChatArtifactVersionData(ctx context.Context, artifa
 	}
 	return data, res.Header.Get("Content-Type"), nil
 }
+
+// ChatArtifactACL gets the users and groups that an artifact is shared
+// with.
+func (c *ExperimentalClient) ChatArtifactACL(ctx context.Context, artifactID uuid.UUID) (ChatACL, error) {
+	res, err := c.Request(ctx, http.MethodGet, chatArtifactPath(artifactID)+"/acl", nil)
+	if err != nil {
+		return ChatACL{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatACL{}, ReadBodyAsError(res)
+	}
+	var acl ChatACL
+	return acl, ReadBodyAsJSON(res, &acl)
+}
+
+// UpdateChatArtifactACL shares an artifact with users and groups for
+// reading. The role "read" adds an entry and "" removes it.
+func (c *ExperimentalClient) UpdateChatArtifactACL(ctx context.Context, artifactID uuid.UUID, req UpdateChatACL) error {
+	res, err := c.Request(ctx, http.MethodPatch, chatArtifactPath(artifactID)+"/acl", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}

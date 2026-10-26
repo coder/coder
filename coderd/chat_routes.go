@@ -122,6 +122,8 @@ func (api *API) registerExperimentalChatRoutes(r chi.Router, apiKeyMiddleware fu
 				r.Get("/", api.getChatArtifact)
 				r.Get("/versions/{version}", api.getChatArtifactVersion)
 				r.Get("/versions/{version}/frame", api.chatArtifactFrame)
+				r.Get("/acl", api.getChatArtifactACL)
+				r.Patch("/acl", api.patchChatArtifactACL)
 			})
 		})
 		r.Route("/config", func(r chi.Router) {

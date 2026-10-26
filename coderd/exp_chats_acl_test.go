@@ -626,6 +626,33 @@ func TestChatSharingDisabled(t *testing.T) {
 		UserRoles: map[string]codersdk.ChatProjectRole{viewer.ID.String(): codersdk.ChatProjectRoleUse},
 	})
 	requireSDKError(t, err, http.StatusForbidden)
+
+	//nolint:gocritic // The test seeds an artifact as chatd, which publishes artifacts.
+	artifact, err := store.InsertChatArtifact(dbauthz.AsChatd(ctx), database.InsertChatArtifactParams{
+		OrganizationID: firstUser.OrganizationID,
+		OwnerID:        firstUser.UserID,
+		Title:          "disabled artifact sharing",
+	})
+	require.NoError(t, err)
+	err = store.UpdateChatArtifactACLByID(ctx, database.UpdateChatArtifactACLByIDParams{
+		ID: artifact.ID,
+		UserACL: database.ChatACL{
+			viewer.ID.String(): database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}},
+		},
+		GroupACL: database.ChatACL{},
+	})
+	require.NoError(t, err)
+	_, err = client.GetChatArtifact(ctx, artifact.ID)
+	require.NoError(t, err)
+	_, err = viewerClientExp.GetChatArtifact(ctx, artifact.ID)
+	requireSDKError(t, err, http.StatusNotFound)
+	_, err = client.ChatArtifactACL(ctx, artifact.ID)
+	sdkErr = requireSDKError(t, err, http.StatusForbidden)
+	require.Equal(t, "Chat sharing is disabled for this deployment.", sdkErr.Message)
+	err = client.UpdateChatArtifactACL(ctx, artifact.ID, codersdk.UpdateChatACL{
+		UserRoles: map[string]codersdk.ChatRole{viewer.ID.String(): codersdk.ChatRoleRead},
+	})
+	requireSDKError(t, err, http.StatusForbidden)
 }
 
 func createChatForSharing(
