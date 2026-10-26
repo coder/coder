@@ -169,6 +169,7 @@ describe("AgentChatPage", () => {
 			messages: [],
 			queued_messages: [],
 			has_more: false,
+			snapshot_version: 1,
 		});
 		vi.spyOn(API.experimental, "getChatModels").mockResolvedValue({
 			models: [
