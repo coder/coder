@@ -82,6 +82,7 @@ The inventory is the union of:
   The list is `https://coder.com/beta-docs/@main/llms.txt` for `main` and `https://coder.com/beta-docs/vX.Y/llms.txt` for `release/X.Y`.
   Only links under that version count.
   The version served at the unversioned `/beta-docs` path links its pages without a version segment, so when a list has no links under its own segment, the unversioned links count instead.
+  When the list redirects to `/docs`, links under `/docs` count the same way.
 - The `source` of every rule in `docs/redirects.json` on the base branch.
   A wildcard source contributes its prefix.
   A base file in the old absolute form is read as well.

@@ -18,8 +18,6 @@ const (
 	// liveListURLFormat is the production page list of one docs version. The
 	// segment is "@main" for main and "vX.Y" for release/X.Y.
 	liveListURLFormat = "https://coder.com/beta-docs/%s/llms.txt"
-	// liveListPathPrefix is where every page of a version lives on the site.
-	liveListPathPrefix = "/beta-docs/"
 
 	// userAgent identifies the check to the site. Its CDN answers 403 to the
 	// default Go user agent in some cases.
@@ -86,10 +84,15 @@ var linkRe = regexp.MustCompile(`\]\(([^)\s]+)\)`)
 // the docs, which an unversioned link never has.
 var otherVersionRe = regexp.MustCompile(`^(@[^/]+|v\d+(\.\d+)*)$`)
 
+// liveListSiteBases are the base paths the docs site serves its versions
+// under, in order of preference. The list URL may redirect from /beta-docs to
+// /docs once the docs move there, and its links then use /docs.
+var liveListSiteBases = []string{"/beta-docs", "/docs"}
+
 // parseLiveList returns the routes of the links in an llms.txt body that point
 // into the given version. The docs root is the empty route.
 //
-// The version that is served at the unversioned /beta-docs path links its own
+// The version that is served at a site's unversioned base path links its own
 // pages without a version segment, so when no link carries the segment, the
 // unversioned links count instead.
 func parseLiveList(body []byte, segment string) []string {
@@ -101,14 +104,21 @@ func parseLiveList(body []byte, segment string) []string {
 		}
 		hrefs = append(hrefs, href)
 	}
-	if routes := routesUnder(hrefs, liveListPathPrefix+segment); len(routes) > 0 {
-		return routes
+	for _, base := range liveListSiteBases {
+		if routes := routesUnder(hrefs, base+"/"+segment); len(routes) > 0 {
+			return routes
+		}
 	}
-	unversioned := routesUnder(hrefs, strings.TrimSuffix(liveListPathPrefix, "/"))
-	return slices.DeleteFunc(unversioned, func(route string) bool {
-		first, _, _ := strings.Cut(route, "/")
-		return otherVersionRe.MatchString(first)
-	})
+	for _, base := range liveListSiteBases {
+		unversioned := slices.DeleteFunc(routesUnder(hrefs, base), func(route string) bool {
+			first, _, _ := strings.Cut(route, "/")
+			return otherVersionRe.MatchString(first)
+		})
+		if len(unversioned) > 0 {
+			return unversioned
+		}
+	}
+	return nil
 }
 
 // routesUnder returns the routes of the hrefs at or below base, without
@@ -171,7 +181,7 @@ func fetchLiveRoutes(ctx context.Context, f fetcher, url, segment string, wait f
 		default:
 			routes := parseLiveList(body, segment)
 			if len(routes) == 0 {
-				return nil, xerrors.Errorf("%s lists no pages under %s%s", url, liveListPathPrefix, segment)
+				return nil, xerrors.Errorf("%s lists no pages of docs version %s", url, segment)
 			}
 			return routes, nil
 		}

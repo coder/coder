@@ -617,6 +617,20 @@ func TestParseLiveListMainlineVersionLinksWithoutSegment(t *testing.T) {
 	require.Equal(t, []string{"admin/own"}, parseLiveList([]byte(versioned), "v2.38"))
 }
 
+func TestParseLiveListDocsBase(t *testing.T) {
+	t.Parallel()
+
+	// The list URL redirects to /docs once the docs move there.
+	body := "- [Home](/docs/@main/)\r\n" +
+		"- [Users](https://coder.com/docs/@main/admin/users/)\r\n"
+	require.Equal(t, []string{"", "admin/users"}, parseLiveList([]byte(body), "@main"))
+
+	mainline := "- [Home](/docs/)\r\n" +
+		"- [Users](/docs/admin/users/)\r\n" +
+		"- [Old](/docs/v2.37/admin/old/)\r\n"
+	require.Equal(t, []string{"", "admin/users"}, parseLiveList([]byte(mainline), "v2.38"))
+}
+
 func TestVersionSegment(t *testing.T) {
 	t.Parallel()
 

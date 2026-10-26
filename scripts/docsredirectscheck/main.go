@@ -88,7 +88,7 @@ type options struct {
 	stderr io.Writer
 }
 
-// gitReader is the slice of git the advisory check needs, so tests can supply
+// gitReader is the slice of git the removed-route check needs, so tests can supply
 // a fake repository.
 type gitReader interface {
 	// HasRev reports whether rev resolves to a commit.
