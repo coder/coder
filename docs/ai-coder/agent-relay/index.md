@@ -2,24 +2,54 @@
 title: Agent Relay
 ---
 
-Agent Relay connects a cloud-hosted AI coding agent's hosted sessions to self-hosted [Coder workspaces](../../user-guides/workspace-management.md).
+> [!NOTE]
+> Agent Relay is in [beta](../../reference/feature-stages.md#beta) and requires a Premium license.
+> Test it in a staging deployment before you roll it out to production users.
+
+Agent Relay connects a cloud-hosted AI coding agent's sessions to self-hosted [Coder workspaces](../../user-guides/workspace-management.md).
 Developers keep the cloud agent's client and workflow.
 Coder provides the workspace where the agent's tool calls run.
+
+This page explains how Agent Relay works and what it does and does not do.
+To deploy it, refer to [Set up Agent Relay](./setup.md).
 
 <img src="../../images/guides/ai-agents/agent-relay-stack.png" alt="Agent Relay architecture diagram" style="border: none;">
 
 ## How Agent Relay works
 
-Agent Relay watches for pending agent sessions from a supported provider.
-When a session starts, Agent Relay provisions a Coder workspace from a mapped template and connects the session to a worker process inside that workspace.
-The worker executes the agent's tool calls, such as reading files, running commands, and using development tools, against the resources available in that workspace.
-Agent Relay manages the workspace for the life of the session and tears it down when the session ends.
+Agent Relay is a stateless daemon that runs separately from the Coder control plane.
+It authenticates to your Coder deployment with a service account and keeps no state of its own.
+Your Coder deployment is the state store.
+
+1. A developer starts a session in a supported provider's client and targets a self-hosted pool that Agent Relay serves.
+1. Agent Relay claims the pending session from the provider and matches the developer to a Coder user.
+1. Agent Relay asks the Coder control plane to build a workspace for that user from the pool's mapped template.
+1. A provider worker inside the workspace connects to the session and runs the agent's tool calls.
+1. When the session ends, Agent Relay deletes the workspace.
+
+Each session gets its own ephemeral workspace.
+Agent Relay does not build workspaces itself.
+Coder's provisioners run the `create` and `delete` builds.
 
 <img src="../../images/guides/ai-agents/agent-relay-workflow.png" alt="Agent Relay workflow diagram" style="border: none;">
 
+## Key concepts
+
+- **Pool**: The unit of Agent Relay configuration.
+  Each pool maps one provider pool to exactly one Coder organization and one template.
+  Anthropic calls a Claude Code pool an *environment* in claude.ai.
+- **Worker**: The Coder workspace that serves one session from a pool.
+  Claude Code calls it a *runner*.
+- **Service account**: The Coder user that Agent Relay authenticates as.
+  One relay uses exactly one service account.
+- **Session owner**: The Coder user who owns a session's workspace.
+  By default, this is the Coder user whose email matches the email the provider reports for the developer.
+
+A developer's choice of pool decides which template their workspace uses.
+
 ## What Agent Relay is and isn't
 
-Agent Relay changes where a cloud agent's tool calls execute.
+Agent Relay changes where a cloud agent's tool calls run.
 It doesn't change where the agent's orchestration or AI inference run.
 Those stay with the cloud provider.
 
@@ -30,37 +60,60 @@ Agent Relay is not:
   Coder has no access to model selection or token usage for sessions that run through Agent Relay.
 - A self-hosted deployment of a cloud provider's control plane.
   The provider's orchestration stays cloud-hosted.
+- A way to make agent sessions air-gapped.
+  Workspaces must reach the provider's API.
 
 ## Business value
 
 - Developers keep using the cloud agent client and workflow they already know.
-- Platform and security teams control the infrastructure where agent sessions execute and which internal resources those sessions can reach.
+- Platform and security teams control the infrastructure where agent sessions run and which internal resources those sessions can reach.
 - Agent sessions run in workspaces built from the same templates, networking, and governance controls as the rest of your Coder deployment.
+- Each session's workspace belongs to a Coder user and appears in the Coder [audit log](../../admin/security/audit-logs.md).
 - Each session gets its own workspace, provisioned on demand and deleted when the session ends.
 
-## Current state
+## Supported providers
 
-Agent Relay is in [early access](../../reference/feature-stages.md#early-access-features) and is in closed preview with select customers.
+| Provider                        | Provider feature                                                                     | Required plan                |
+|---------------------------------|--------------------------------------------------------------------------------------|------------------------------|
+| [Claude Code](./claude-code.md) | [Self-hosted environments](https://code.claude.com/docs/en/self-hosted-environments) | Anthropic Team or Enterprise |
+| [Cursor](./cursor.md)           | [Self-hosted machines](https://cursor.com/docs/cloud-agent/self-hosted)              | Cursor Enterprise            |
+
+One Agent Relay process can serve pools for both providers.
+
+## Requirements
+
+- A Coder deployment with a Premium license, on version 2.37 or later.
+- A Coder service account with a long-lived token.
+- A workspace template for each pool that includes the provider's Agent Relay module.
+- Provisioner capacity for Agent Relay builds.
+- A Kubernetes cluster for the Helm chart, or another runtime that can run a container.
 
 The daemon is distributed as a public container image and Helm chart:
 
 - Image: `ghcr.io/coder/agent-relay`, tagged `X.Y.Z`, `X.Y`, and `latest` for each release.
 - Helm chart: `oci://ghcr.io/coder/chart/coder-agent-relay`, versioned to match the image it deploys.
 
-Configuring a relay requires a provider credential and a compatible template, so talk to your account team before you deploy it.
+## Known limitations
 
-## Supported providers
-
-[Cursor](./cursor.md) and [Claude Code](./claude-code.md) are the providers Agent Relay supports.
-Coder built Agent Relay to support additional cloud-hosted agent providers as they add support for self-hosted execution.
-
-## Get started
-
-If you want access to Agent Relay or want updates on the support status for your cloud-hosted agent provider of choice, talk to your [Coder account team](https://coder.com/contact) or email [sales@coder.com](mailto:sales@coder.com).
+- Agent Relay matches users by email.
+  A developer whose provider account email differs from their Coder account email can't be served.
+- Agent Relay checks a user's account status and access when a session starts.
+  If you suspend a user or remove their access later, their existing workspace isn't affected.
+- Relay sessions don't extend a template's autostop deadline.
+  Refer to [Workspace lifecycle](./setup.md#workspace-lifecycle).
+- Each pool maps to one template.
+  Agent Relay doesn't select templates by repository.
+- When Agent Relay rejects a Claude Code session, the reason appears in Agent Relay's logs but not in the Claude client.
+  Cursor shows the reason in the developer's chat.
+- Run only one relay for a given set of pools.
+  Agent Relay doesn't support running more than one replica for the same pools.
 
 ## Learn more
 
-- [Agent Relay for Cursor](./cursor.md)
+- [Set up Agent Relay](./setup.md)
 - [Agent Relay for Claude Code](./claude-code.md)
+- [Agent Relay for Cursor](./cursor.md)
+- [Use Agent Relay from Slack](./slack.md)
+- [Monitor Agent Relay](./monitoring.md)
+- [Agent Relay configuration reference](./configuration.md)
 - [Coder Agents](../agents/index.md)
-- [Architecture](../../install/plan/architecture.md)
