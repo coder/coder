@@ -10574,6 +10574,10 @@ func TestStreamChat(t *testing.T) {
 		// below therefore runs after the reset it depends on.
 		resetTrap := mClock.Trap().TickerReset("chatStream", "keepalive")
 		defer resetTrap.Close()
+		// WSWatcher creates its ticker from a goroutine. Starting it before the
+		// first advance keeps its ticks at t=15s, 30s and 45s.
+		watcherTrap := mClock.Trap().NewTicker("WSWatcher")
+		defer watcherTrap.Close()
 
 		client, db := newChatClientWithDatabase(t, withChatWorkerDisabled, func(o *coderdtest.Options) {
 			o.Clock = mClock
@@ -10654,6 +10658,7 @@ func TestStreamChat(t *testing.T) {
 		require.NotEmpty(t, streamChatEventsOfType(snapshot, codersdk.ChatStreamEventTypeStatus))
 		newTicker.MustRelease(ctx)
 		tickerStarted = true
+		watcherTrap.MustWait(ctx).MustRelease(ctx)
 
 		keepaliveInterval := codersdk.ChatStreamKeepaliveIntervalSeconds * time.Second
 		mClock.Advance(keepaliveInterval).MustWait(ctx)
