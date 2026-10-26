@@ -2,6 +2,10 @@
 title: Nix(OS)
 ---
 
+> [!NOTE]
+> Nix(OS) support is in alpha as an [early access](../../reference/feature-stages.md#early-access-features) feature.
+> Expect breaking changes, and report issues on [GitHub](https://github.com/coder/registry/issues).
+
 [Nix](https://nixos.org) defines development environments as code.
 A [flake](https://nix.dev/concepts/flakes) committed to Git declares the tools a project needs, and its `flake.lock` pins every dependency, so every workspace builds the same environment.
 
