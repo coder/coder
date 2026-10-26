@@ -946,6 +946,17 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			}
 
 			chat, messages := created.Chat, created.InitialMessages
+			if tt.planMode.Valid {
+				_, err = server.SendMessage(ctx, SendMessageOptions{
+					ChatID:       chat.ID,
+					Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("continue")},
+					BusyBehavior: SendMessageBusyBehaviorQueue,
+				})
+				require.NoError(t, err)
+				chat, err = db.GetChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+				require.Equal(t, tt.planMode, chat.PlanMode)
+			}
 			if tt.replaceMCP {
 				_, err = server.SendMessage(ctx, SendMessageOptions{
 					ChatID:       chat.ID,
