@@ -1,4 +1,5 @@
 import { matchPath } from "react-router";
+import { isStandaloneDisplayMode } from "#/utils/platform";
 
 /**
  * Inserts the chat list as the history entry before a chat that opened an
@@ -8,10 +9,7 @@ import { matchPath } from "react-router";
  * Browser tabs keep their own history.
  */
 export function insertChatListHistoryEntry(): void {
-	if (
-		window.history.length !== 1 ||
-		!window.matchMedia("(display-mode: standalone)").matches
-	) {
+	if (window.history.length !== 1 || !isStandaloneDisplayMode()) {
 		return;
 	}
 	const { pathname, search, hash } = window.location;
