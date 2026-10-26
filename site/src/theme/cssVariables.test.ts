@@ -178,4 +178,50 @@ describe("theme CSS variables", () => {
 			});
 		});
 	}
+
+	// Browsers color their chrome from these static values until
+	// ThemeProvider applies the user's theme, and the page paints the :root
+	// surface until then.
+	describe("static theme colors", () => {
+		const toRGB = (color: string | undefined) => {
+			const probe = document.createElement("div");
+			probe.style.color = color ?? "";
+			if (!probe.style.color) {
+				throw new Error(`${color} is not a CSS color.`);
+			}
+			return probe.style.color;
+		};
+		const rootBlock = extractBlock(css, ":root") ?? "";
+		const rootSurface = toRGB(
+			`hsl(${extractVariable(rootBlock, "--surface-primary")})`,
+		);
+
+		it("matches the :root surface in index.html", () => {
+			const html = fs.readFileSync(
+				path.resolve(__dirname, "../../index.html"),
+				"utf8",
+			);
+			const metas = new DOMParser()
+				.parseFromString(html, "text/html")
+				.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]');
+
+			expect(metas).not.toHaveLength(0);
+			for (const meta of metas) {
+				expect(toRGB(meta.content)).toBe(rootSurface);
+			}
+		});
+
+		it("matches the :root surface in the PWA manifest", () => {
+			const manifest: { theme_color?: string; background_color?: string } =
+				JSON.parse(
+					fs.readFileSync(
+						path.resolve(__dirname, "../../static/manifest.json"),
+						"utf8",
+					),
+				);
+
+			expect(toRGB(manifest.theme_color)).toBe(rootSurface);
+			expect(toRGB(manifest.background_color)).toBe(rootSurface);
+		});
+	});
 });
