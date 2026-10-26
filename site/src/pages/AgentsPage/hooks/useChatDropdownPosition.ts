@@ -1,9 +1,15 @@
 import { useEffect } from "react";
+import { useMediaQuery } from "#/hooks/useMediaQuery";
+import { belowMdViewportMediaQuery } from "#/utils/mobile";
 
 /** Keeps portaled mobile menus aligned with the chat composer and keyboard. */
 export function useChatDropdownPosition(composerElement: HTMLElement | null) {
+	// A custom property change on `<html>` restyles every element in the
+	// document, and only the below-md `mobile-full-width-dropdown*` utilities
+	// read these variables.
+	const isBelowMd = useMediaQuery(belowMdViewportMediaQuery);
 	useEffect(() => {
-		if (!composerElement) return;
+		if (!composerElement || !isBelowMd) return;
 		// Fixed Radix menus need layout-viewport coordinates. Clamp to the
 		// visual viewport only for positive heights: mobile WebKit can mix
 		// coordinate systems while the keyboard settles.
@@ -23,6 +29,10 @@ export function useChatDropdownPosition(composerElement: HTMLElement | null) {
 		const composerGap = 8;
 		const viewportPadding = 16;
 		const minimumMenuHeight = 96;
+		const setRootVariable = (name: string, value: string) => {
+			if (root.style.getPropertyValue(name) === value) return;
+			root.style.setProperty(name, value);
+		};
 		const update = () => {
 			const rect = composerElement.getBoundingClientRect();
 			const fixedViewportBottom = fixedProbe.getBoundingClientRect().bottom;
@@ -51,14 +61,14 @@ export function useChatDropdownPosition(composerElement: HTMLElement | null) {
 				minimumMenuHeight,
 				maxHeightCandidates.length > 0 ? Math.min(...maxHeightCandidates) : 0,
 			);
-			root.style.setProperty("--mobile-dropdown-bottom", `${bottom}px`);
-			root.style.setProperty("--mobile-dropdown-left", `${rect.left}px`);
-			root.style.setProperty("--mobile-dropdown-width", `${rect.width}px`);
-			root.style.setProperty(
+			setRootVariable("--mobile-dropdown-bottom", `${bottom}px`);
+			setRootVariable("--mobile-dropdown-left", `${rect.left}px`);
+			setRootVariable("--mobile-dropdown-width", `${rect.width}px`);
+			setRootVariable(
 				"--mobile-dropdown-above-composer-bottom",
 				`${aboveComposerBottom}px`,
 			);
-			root.style.setProperty(
+			setRootVariable(
 				"--mobile-dropdown-above-composer-max-height",
 				`${aboveComposerMaxHeight}px`,
 			);
@@ -133,5 +143,5 @@ export function useChatDropdownPosition(composerElement: HTMLElement | null) {
 			root.style.removeProperty("--mobile-dropdown-above-composer-bottom");
 			root.style.removeProperty("--mobile-dropdown-above-composer-max-height");
 		};
-	}, [composerElement]);
+	}, [composerElement, isBelowMd]);
 }
