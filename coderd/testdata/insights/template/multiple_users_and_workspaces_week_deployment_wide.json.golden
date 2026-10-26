@@ -12,17 +12,6 @@
     "apps_usage": [
       {
         "template_ids": [
-          "00000000-0000-0000-0000-000000000003"
-        ],
-        "method": "reconnecting_pty",
-        "display_name": "Web Terminal",
-        "slug": "reconnecting_pty",
-        "icon": "/icon/terminal.svg",
-        "seconds": 3600,
-        "times_used": 0
-      },
-      {
-        "template_ids": [
           "00000000-0000-0000-0000-000000000001"
         ],
         "method": "ssh",
@@ -30,6 +19,17 @@
         "slug": "jetbrains",
         "icon": "/icon/jetbrains.svg",
         "seconds": 120,
+        "times_used": 0
+      },
+      {
+        "template_ids": [
+          "00000000-0000-0000-0000-000000000003"
+        ],
+        "method": "reconnecting_pty",
+        "display_name": "Web Terminal",
+        "slug": "reconnecting_pty",
+        "icon": "/icon/terminal.svg",
+        "seconds": 3600,
         "times_used": 0
       },
       {

@@ -15,7 +15,7 @@ func newBatcherMetrics() batcherMetrics {
 			Namespace: "coderd",
 			Subsystem: "agentstats",
 			Name:      "session_counts_overflow_total",
-			Help:      "Total number of reported session count entries for unregistered apps that were summed into an overflow app.",
+			Help:      "Total number of reported session count entries summed into the overflow app after exceeding the per-report cap.",
 		}),
 	}
 }

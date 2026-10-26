@@ -46,7 +46,7 @@ func (f AppFamilyName) DisplayName() string {
 	return appFamilyDisplayNames[f]
 }
 
-// AppNameOverflow sums the app names that FoldUnregisteredSessionApps folds.
+// AppNameOverflow sums the unregistered app names past the limit of 64.
 const AppNameOverflow = "overflow"
 
 // SessionCountApp is one app's session count and how to present it.
@@ -204,12 +204,28 @@ func NormalizeAppName(appName string) string {
 	return strings.ReplaceAll(strings.ToLower(appName), "-", "_")
 }
 
-// appMapValue is what a method-then-app-keyed JSONB payload holds.
+// appMapValue is what an app-keyed JSONB payload holds.
 type appMapValue interface {
 	int64 | []uuid.UUID
 }
 
+// DecodeAppMap decodes an app-keyed JSONB payload. An absent or SQL NULL
+// payload decodes as empty; a malformed one errors rather than reading as zero.
+func DecodeAppMap[V appMapValue](raw json.RawMessage) (map[string]V, error) {
+	var decoded map[string]V
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &decoded); err != nil {
+			return nil, xerrors.Errorf("unmarshal session app map: %w", err)
+		}
+	}
+	if decoded == nil {
+		decoded = map[string]V{}
+	}
+	return decoded, nil
+}
+
 // SessionAppMethod derives a session app's method from its normalized name.
+// Every reporter's app name implies its method, so none is stored.
 func SessionAppMethod(appName string) ConnectionLogMethod {
 	switch AppFamilyName(appName) {
 	case AppFamilyReconnectingPTY:
@@ -221,76 +237,28 @@ func SessionAppMethod(appName string) ConnectionLogMethod {
 	}
 }
 
-// DecodeMethodAppMap decodes a method-then-app-keyed JSONB payload. An absent
-// or SQL NULL payload decodes as empty; a malformed one errors rather than
-// reading as zero.
-func DecodeMethodAppMap[V appMapValue](raw json.RawMessage) (map[ConnectionLogMethod]map[string]V, error) {
-	var decoded map[ConnectionLogMethod]map[string]V
-	if len(raw) > 0 {
-		if err := json.Unmarshal(raw, &decoded); err != nil {
-			return nil, xerrors.Errorf("unmarshal session method app map: %w", err)
-		}
-	}
-	if decoded == nil {
-		decoded = map[ConnectionLogMethod]map[string]V{}
-	}
-	return decoded, nil
-}
-
-// SumSessionCounts decodes a JSON array of method-keyed session counts and
-// sums each app across rows and methods.
-func SumSessionCounts(raw json.RawMessage) (map[string]int64, error) {
-	var rows []map[ConnectionLogMethod]map[string]int64
-	if len(raw) > 0 {
-		if err := json.Unmarshal(raw, &rows); err != nil {
-			return nil, xerrors.Errorf("unmarshal session counts: %w", err)
-		}
-	}
-	counts := map[string]int64{}
-	for _, byMethod := range rows {
-		for _, apps := range byMethod {
-			for app, count := range apps {
-				counts[app] += count
-			}
-		}
-	}
-	return counts, nil
-}
-
 // FoldUnregisteredSessionApps applies the session app fold rule, which
 // GetTemplateInsights mirrors in SQL. Registered apps, unknown, overflow, and
-// the busiest TemplateInsightsMaxUnregisteredApps other (method, app) pairs
-// keep their entries; the rest are added to their method's overflow. Ties
-// break by method, then app name, in byte order. It edits byMethod in place
-// and returns the number of pairs folded.
-func FoldUnregisteredSessionApps(byMethod map[ConnectionLogMethod]map[string]int64) int {
-	type methodApp struct {
-		method ConnectionLogMethod
-		app    string
-		value  int64
-	}
-	var unregistered []methodApp
-	for method, apps := range byMethod {
-		for app, value := range apps {
-			if _, ok := sessionApps[app]; !ok && app != string(AppFamilyUnknown) && app != AppNameOverflow {
-				unregistered = append(unregistered, methodApp{method, app, value})
-			}
+// the busiest TemplateInsightsMaxUnregisteredApps other apps keep their
+// entries; the rest are added to overflow. Ties break by app name in byte
+// order. It edits apps in place and returns the number of apps folded.
+func FoldUnregisteredSessionApps(apps map[string]int64) int {
+	var unregistered []string
+	for app := range apps {
+		if _, ok := sessionApps[app]; !ok && app != string(AppFamilyUnknown) && app != AppNameOverflow {
+			unregistered = append(unregistered, app)
 		}
 	}
 	if len(unregistered) <= TemplateInsightsMaxUnregisteredApps {
 		return 0
 	}
-	slices.SortFunc(unregistered, func(a, b methodApp) int {
-		return cmp.Or(
-			cmp.Compare(b.value, a.value),
-			strings.Compare(string(a.method), string(b.method)),
-			strings.Compare(a.app, b.app),
-		)
+	slices.SortFunc(unregistered, func(a, b string) int {
+		return cmp.Or(cmp.Compare(apps[b], apps[a]), strings.Compare(a, b))
 	})
 	folded := unregistered[TemplateInsightsMaxUnregisteredApps:]
-	for _, p := range folded {
-		delete(byMethod[p.method], p.app)
-		byMethod[p.method][AppNameOverflow] += p.value
+	for _, app := range folded {
+		apps[AppNameOverflow] += apps[app]
+		delete(apps, app)
 	}
 	return len(folded)
 }

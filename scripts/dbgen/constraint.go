@@ -216,17 +216,12 @@ func generateCheckConstraints() error {
 
 	var (
 		tableRegex = regexp.MustCompile(`CREATE TABLE\s+([^\s]+)`)
-		// Matches CHECK constraints added after the table, such as NOT VALID ones.
-		alterTableRegex = regexp.MustCompile(`^ALTER TABLE(?:\s+ONLY)?\s+([^\s]+)\s+ADD CONSTRAINT`)
-		checkRegex      = regexp.MustCompile(`CONSTRAINT\s+([^\s]+)\s+CHECK`)
+		checkRegex = regexp.MustCompile(`CONSTRAINT\s+([^\s]+)\s+CHECK`)
 	)
 	fn := func(query string) ([]constraint, error) {
 		constraints := []constraint{}
 
 		tableMatches := tableRegex.FindStringSubmatch(query)
-		if len(tableMatches) == 0 {
-			tableMatches = alterTableRegex.FindStringSubmatch(query)
-		}
 		if len(tableMatches) > 0 {
 			table := tableMatches[1]
 

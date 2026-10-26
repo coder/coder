@@ -17,15 +17,14 @@ func deprecatedSessionCounts(st *agentproto.Stats) map[string]int64 {
 	}
 }
 
-// normalizedSessionCounts returns session counts per method and app, names
-// normalized and non-positive counts dropped. Reporters send only app names,
-// so the method is derived from the name.
-func normalizedSessionCounts(st *agentproto.Stats) map[codersdk.ConnectionLogMethod]map[string]int64 {
+// normalizedSessionCounts returns per-app session counts, names normalized and
+// non-positive counts dropped.
+func normalizedSessionCounts(st *agentproto.Stats) map[string]int64 {
 	reported := st.GetSessionCounts()
 	if len(reported) == 0 {
 		reported = deprecatedSessionCounts(st)
 	}
-	counts := make(map[codersdk.ConnectionLogMethod]map[string]int64)
+	counts := make(map[string]int64, len(reported))
 	for app, count := range reported {
 		if count <= 0 {
 			continue
@@ -35,11 +34,7 @@ func normalizedSessionCounts(st *agentproto.Stats) map[codersdk.ConnectionLogMet
 		if name == codersdk.AppNameOverflow {
 			name = string(codersdk.AppFamilyUnknown)
 		}
-		method := codersdk.SessionAppMethod(name)
-		if counts[method] == nil {
-			counts[method] = make(map[string]int64)
-		}
-		counts[method][name] += count
+		counts[name] += count
 	}
 	return counts
 }

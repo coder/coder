@@ -646,9 +646,10 @@ type sqlcQuerier interface {
 	// Every visibility is included: a model-only row can hold a tool call's result.
 	GetDeletedChatMessagesFromLastAssistant(ctx context.Context, arg GetDeletedChatMessagesFromLastAssistantParams) ([]ChatMessage, error)
 	GetDeploymentID(ctx context.Context) (string, error)
-	// session_counts, here and in the other agent stats readers, is a JSON array
-	// of stored objects that Go sums with codersdk.SumSessionCounts. Expanding
-	// the nested objects in SQL overestimates rows enough to JIT-compile the query.
+	// The session count sum runs in its own subquery: decomposing session_counts
+	// in the FROM clause would emit one row per app name and multiply the byte and
+	// latency aggregates below. Summing per app name and folding the names into
+	// families in Go keeps a session reported under a new name counted.
 	GetDeploymentWorkspaceAgentStats(ctx context.Context, createdAt time.Time) (GetDeploymentWorkspaceAgentStatsRow, error)
 	GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) (GetDeploymentWorkspaceAgentUsageStatsRow, error)
 	GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploymentWorkspaceStatsRow, error)

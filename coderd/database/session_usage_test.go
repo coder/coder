@@ -40,38 +40,20 @@ func templateInsightsParams(startTime, endTime time.Time, templateIDs ...uuid.UU
 func sessionUsageMins(ctx context.Context, t *testing.T, sqlDB *sql.DB, startTime time.Time, userID, templateID uuid.UUID) map[string]int64 {
 	t.Helper()
 
-	rows, err := sqlDB.QueryContext(ctx, `SELECT method, app_name, usage_mins FROM template_usage_stats_session_apps
+	rows, err := sqlDB.QueryContext(ctx, `SELECT app_name, usage_mins FROM template_usage_stats_session_apps
 		WHERE start_time = $1 AND user_id = $2 AND template_id = $3`, startTime, userID, templateID)
 	require.NoError(t, err)
 	defer rows.Close()
 
 	got := map[string]int64{}
 	for rows.Next() {
-		var method, name string
+		var name string
 		var usageMins int64
-		require.NoError(t, rows.Scan(&method, &name, &usageMins))
-		if method != string(database.ConnectionLogMethodSSH) {
-			name = method + "/" + name
-		}
+		require.NoError(t, rows.Scan(&name, &usageMins))
 		got[name] = usageMins
 	}
 	require.NoError(t, rows.Err())
 	return got
-}
-
-// sshApps decodes a method-keyed insights payload that holds only ssh apps.
-func sshApps[V any](t *testing.T, raw json.RawMessage) map[string]V {
-	t.Helper()
-
-	var byMethod map[string]map[string]V
-	require.NoError(t, json.Unmarshal(raw, &byMethod))
-	for method := range byMethod {
-		require.Equal(t, string(database.ConnectionLogMethodSSH), method)
-	}
-	if byMethod["ssh"] == nil {
-		return map[string]V{}
-	}
-	return byMethod["ssh"]
 }
 
 // sessionUsageRowVersion tells a rewritten child row from an untouched one.
@@ -145,7 +127,7 @@ func TestSessionUsageRollup(t *testing.T) {
 	insights, err := db.GetTemplateInsights(ctx, templateInsightsParams(start, start.Add(time.Hour), template))
 	require.NoError(t, err)
 	require.EqualValues(t, 5*60, insights.UsageTotalSeconds)
-	require.JSONEq(t, `{"ssh":{"cursor":180,"vscode":180,"new_app":60,"overflow":60}}`, string(insights.SessionAppUsageSeconds))
+	require.JSONEq(t, `{"cursor":180,"vscode":180,"new_app":60,"overflow":60}`, string(insights.SessionAppUsageSeconds))
 
 	// A new app in an already counted minute leaves the main row alone.
 	insert(0, user, template, 1, map[string]int64{"another_app": 1})
@@ -189,39 +171,6 @@ func TestSessionUsageRollup(t *testing.T) {
 	require.Len(t, live, 0, "no connected report occurs in this partial request window")
 }
 
-// One app name under several methods keeps separate minutes.
-func TestSessionUsageRollupKeepsMethods(t *testing.T) {
-	t.Parallel()
-	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
-	ctx := context.Background()
-	start := dbtime.Now().Add(-time.Hour).Truncate(30 * time.Minute)
-	user, template := uuid.New(), uuid.New()
-	insert := func(offset time.Duration, counts string) {
-		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-			CreatedAt: start.Add(offset), UserID: user, TemplateID: template, AgentID: uuid.New(),
-			ConnectionCount: 1, SessionCounts: json.RawMessage(counts),
-		})
-	}
-	insert(0, `{"ssh":{"vscode":1},"port_forwarding":{"vscode":1,"port_forwarding":1},"reconnecting_pty":{"reconnecting_pty":1}}`)
-	insert(time.Minute, `{"port_forwarding":{"vscode":1},"reconnecting_pty":{"reconnecting_pty":1}}`)
-
-	require.NoError(t, db.UpsertTemplateUsageStats(ctx))
-	require.Equal(t, map[string]int64{
-		"vscode":                            1,
-		"port_forwarding/vscode":            2,
-		"port_forwarding/port_forwarding":   1,
-		"reconnecting_pty/reconnecting_pty": 2,
-	}, sessionUsageMins(ctx, t, sqlDB, start, user, template))
-
-	insights, err := db.GetTemplateInsights(ctx, templateInsightsParams(start, start.Add(30*time.Minute), template))
-	require.NoError(t, err)
-	require.JSONEq(t, `{
-		"ssh":{"vscode":60},
-		"port_forwarding":{"vscode":120,"port_forwarding":60},
-		"reconnecting_pty":{"reconnecting_pty":120}
-	}`, string(insights.SessionAppUsageSeconds))
-}
-
 // TestSessionUsageHistoryCapsAndNamespaces reads history the rollup cannot
 // produce: family-named rows, which only migration 000596 writes, and an app
 // name the registry does not know. Neither arrives through agent stats, so the
@@ -239,7 +188,7 @@ func TestSessionUsageHistoryCapsAndNamespaces(t *testing.T) {
 		_, err := sqlDB.ExecContext(ctx, `INSERT INTO template_usage_stats(start_time,end_time,user_id,template_id,usage_mins) VALUES($1,$2,$3,$4,20)`,
 			start, start.Add(30*time.Minute), user, template)
 		require.NoError(t, err)
-		_, err = sqlDB.ExecContext(ctx, `INSERT INTO template_usage_stats_session_apps(start_time,template_id,user_id,method,app_name,usage_mins) VALUES($1,$2,$3,'ssh','some_new_ide',20),($1,$2,$3,'ssh','ssh',20),($1,$2,$3,'ssh','sftp',2),($1,$2,$3,'ssh','overflow',20)`,
+		_, err = sqlDB.ExecContext(ctx, `INSERT INTO template_usage_stats_session_apps(start_time,template_id,user_id,app_name,usage_mins) VALUES($1,$2,$3,'some_new_ide',20),($1,$2,$3,'ssh',20),($1,$2,$3,'sftp',2),($1,$2,$3,'overflow',20)`,
 			start, template, user)
 		require.NoError(t, err)
 	}
@@ -252,8 +201,9 @@ func TestSessionUsageHistoryCapsAndNamespaces(t *testing.T) {
 	require.EqualValues(t, 2, usage.ActiveUsers)
 	require.EqualValues(t, 35*60, usage.UsageTotalSeconds)
 	require.ElementsMatch(t, []uuid.UUID{template1, template2, appTemplate}, usage.TemplateIDs)
-	require.JSONEq(t, `{"ssh":{"some_new_ide":1800,"ssh":1800,"sftp":240,"overflow":1800}}`, string(usage.SessionAppUsageSeconds))
-	ids := sshApps[[]uuid.UUID](t, usage.SessionAppTemplateIds)
+	require.JSONEq(t, `{"some_new_ide":1800,"ssh":1800,"sftp":240,"overflow":1800}`, string(usage.SessionAppUsageSeconds))
+	var ids map[string][]uuid.UUID
+	require.NoError(t, json.Unmarshal(usage.SessionAppTemplateIds, &ids))
 	require.ElementsMatch(t, []uuid.UUID{template1, template2}, ids["some_new_ide"])
 	require.ElementsMatch(t, []uuid.UUID{template1, template2}, ids["ssh"])
 	onlyApp, err := db.GetTemplateInsights(ctx, templateInsightsParams(start, start.Add(30*time.Minute), appTemplate))
@@ -265,7 +215,7 @@ func TestSessionUsageHistoryCapsAndNamespaces(t *testing.T) {
 	// One template leaves a single-template user, so the cap does not apply.
 	onlyOne, err := db.GetTemplateInsights(ctx, templateInsightsParams(start, start.Add(30*time.Minute), template1))
 	require.NoError(t, err)
-	require.JSONEq(t, `{"ssh":{"some_new_ide":1200,"ssh":1200,"sftp":120,"overflow":1200}}`, string(onlyOne.SessionAppUsageSeconds))
+	require.JSONEq(t, `{"some_new_ide":1200,"ssh":1200,"sftp":120,"overflow":1200}`, string(onlyOne.SessionAppUsageSeconds))
 }
 
 func TestSessionUsageEmptyHistory(t *testing.T) {
@@ -294,7 +244,7 @@ func TestSessionUsageResponseCapBucketBoundary(t *testing.T) {
 	_, err := sqlDB.ExecContext(ctx, `INSERT INTO template_usage_stats(start_time,end_time,user_id,template_id,usage_mins) VALUES($1,$2,$3,$4,5)`,
 		start, start.Add(45*time.Minute), user, template)
 	require.NoError(t, err)
-	_, err = sqlDB.ExecContext(ctx, `INSERT INTO template_usage_stats_session_apps(start_time,template_id,user_id,method,app_name,usage_mins) VALUES($1,$2,$3,'ssh','new_ide',3)`,
+	_, err = sqlDB.ExecContext(ctx, `INSERT INTO template_usage_stats_session_apps(start_time,template_id,user_id,app_name,usage_mins) VALUES($1,$2,$3,'new_ide',3)`,
 		start, template, user)
 	require.NoError(t, err)
 
@@ -303,15 +253,17 @@ func TestSessionUsageResponseCapBucketBoundary(t *testing.T) {
 	usage, err := db.GetTemplateInsights(ctx, params)
 	require.NoError(t, err)
 	require.Zero(t, usage.UsageTotalSeconds)
-	require.Equal(t, []database.ConnectionLogMethod{database.ConnectionLogMethodSSH}, usage.SessionFoldedMethods)
+	require.EqualValues(t, 1, usage.SessionFoldedAppCount)
 	require.JSONEq(t, `{}`, string(usage.SessionAppUsageSeconds))
-	require.Equal(t, map[string][]uuid.UUID{"overflow": {template}}, sshApps[[]uuid.UUID](t, usage.SessionAppTemplateIds))
+	var ids map[string][]uuid.UUID
+	require.NoError(t, json.Unmarshal(usage.SessionAppTemplateIds, &ids))
+	require.Equal(t, map[string][]uuid.UUID{"overflow": {template}}, ids)
 
 	params.EndTime = start.Add(time.Hour)
 	usage, err = db.GetTemplateInsights(ctx, params)
 	require.NoError(t, err)
 	require.EqualValues(t, 5*60, usage.UsageTotalSeconds)
-	require.JSONEq(t, `{"ssh":{"overflow":180}}`, string(usage.SessionAppUsageSeconds))
+	require.JSONEq(t, `{"overflow":180}`, string(usage.SessionAppUsageSeconds))
 }
 
 func TestSessionUsageResponseCap(t *testing.T) {
@@ -332,7 +284,7 @@ func TestSessionUsageResponseCap(t *testing.T) {
 	}
 	app := func(startTime time.Time, user, template uuid.UUID, appName string, usageMins int) {
 		t.Helper()
-		_, err := sqlDB.ExecContext(ctx, `INSERT INTO template_usage_stats_session_apps(start_time,template_id,user_id,method,app_name,usage_mins) VALUES($1,$2,$3,'ssh',$4,$5)`,
+		_, err := sqlDB.ExecContext(ctx, `INSERT INTO template_usage_stats_session_apps(start_time,template_id,user_id,app_name,usage_mins) VALUES($1,$2,$3,$4,$5)`,
 			startTime, template, user, appName, usageMins)
 		require.NoError(t, err)
 	}
@@ -366,9 +318,10 @@ func TestSessionUsageResponseCap(t *testing.T) {
 	usage, err := db.GetTemplateInsights(ctx, templateInsightsParams(start, start.Add(time.Hour)))
 	require.NoError(t, err)
 	require.EqualValues(t, 13*60, usage.UsageTotalSeconds)
-	require.Equal(t, []database.ConnectionLogMethod{database.ConnectionLogMethodSSH}, usage.SessionFoldedMethods)
+	require.EqualValues(t, 3, usage.SessionFoldedAppCount)
 
-	appSeconds := sshApps[int64](t, usage.SessionAppUsageSeconds)
+	var appSeconds map[string]int64
+	require.NoError(t, json.Unmarshal(usage.SessionAppUsageSeconds, &appSeconds))
 	want := map[string]int64{"tie_a": 240, "vscode": 60, "cursor": 60, "unknown": 180}
 	for i := range limit - 1 {
 		want[fmt.Sprintf("app_%02d", i)] = 360
@@ -380,7 +333,8 @@ func TestSessionUsageResponseCap(t *testing.T) {
 	require.Equal(t, want, appSeconds)
 	require.LessOrEqual(t, appSeconds["overflow"], usage.UsageTotalSeconds)
 
-	ids := sshApps[[]uuid.UUID](t, usage.SessionAppTemplateIds)
+	var ids map[string][]uuid.UUID
+	require.NoError(t, json.Unmarshal(usage.SessionAppTemplateIds, &ids))
 	require.Len(t, ids, len(want))
 	require.ElementsMatch(t, []uuid.UUID{template1, template2, template3}, ids["overflow"])
 	require.ElementsMatch(t, []uuid.UUID{template2}, ids["cursor"])
@@ -390,12 +344,12 @@ func TestSessionUsageResponseCap(t *testing.T) {
 	params.MaxUnregisteredApps = 1000
 	unfolded, err := db.GetTemplateInsights(ctx, params)
 	require.NoError(t, err)
-	require.Empty(t, unfolded.SessionFoldedMethods)
-	appSeconds = sshApps[int64](t, unfolded.SessionAppUsageSeconds)
+	require.Zero(t, unfolded.SessionFoldedAppCount)
+	require.NoError(t, json.Unmarshal(unfolded.SessionAppUsageSeconds, &appSeconds))
 	require.EqualValues(t, 240, appSeconds["overflow"])
 	require.EqualValues(t, 240, appSeconds["tie_b"])
 	require.EqualValues(t, 180, appSeconds["fold_x"])
-	ids = sshApps[[]uuid.UUID](t, unfolded.SessionAppTemplateIds)
+	require.NoError(t, json.Unmarshal(unfolded.SessionAppTemplateIds, &ids))
 	require.ElementsMatch(t, []uuid.UUID{template1}, ids["overflow"])
 
 	for _, tt := range []struct {
@@ -418,9 +372,10 @@ func TestSessionUsageResponseCap(t *testing.T) {
 			usage, err := db.GetTemplateInsights(ctx, params)
 			require.NoError(t, err)
 			require.EqualValues(t, 13*60, usage.UsageTotalSeconds)
-			require.Equal(t, tt.folded > 0, len(usage.SessionFoldedMethods) > 0)
+			require.Equal(t, tt.folded, usage.SessionFoldedAppCount)
 
-			seconds := sshApps[int64](t, usage.SessionAppUsageSeconds)
+			var seconds map[string]int64
+			require.NoError(t, json.Unmarshal(usage.SessionAppUsageSeconds, &seconds))
 			require.Len(t, seconds, 67-int(tt.folded)+4)
 			require.Equal(t, tt.overflowMins*60, seconds["overflow"])
 			require.EqualValues(t, 60, seconds["vscode"])
@@ -436,61 +391,19 @@ func TestSessionUsageResponseCap(t *testing.T) {
 		usage, err := db.GetTemplateInsights(ctx, params)
 		require.NoError(t, err)
 		require.EqualValues(t, 4*60, usage.UsageTotalSeconds)
-		require.Equal(t, []database.ConnectionLogMethod{database.ConnectionLogMethodSSH}, usage.SessionFoldedMethods)
-		require.JSONEq(t, `{"ssh":{"cursor":60,"overflow":120}}`, string(usage.SessionAppUsageSeconds))
-		require.Equal(t, map[string][]uuid.UUID{"cursor": {template2}, "overflow": {template2}}, sshApps[[]uuid.UUID](t, usage.SessionAppTemplateIds))
+		require.EqualValues(t, 1, usage.SessionFoldedAppCount)
+		require.JSONEq(t, `{"cursor":60,"overflow":120}`, string(usage.SessionAppUsageSeconds))
+
+		var ids map[string][]uuid.UUID
+		require.NoError(t, json.Unmarshal(usage.SessionAppTemplateIds, &ids))
+		require.Equal(t, map[string][]uuid.UUID{"cursor": {template2}, "overflow": {template2}}, ids)
 
 		params.MaxUnregisteredApps = 1
 		usage, err = db.GetTemplateInsights(ctx, params)
 		require.NoError(t, err)
-		require.Empty(t, usage.SessionFoldedMethods)
-		require.JSONEq(t, `{"ssh":{"cursor":60,"fold_y":120}}`, string(usage.SessionAppUsageSeconds))
+		require.Zero(t, usage.SessionFoldedAppCount)
+		require.JSONEq(t, `{"cursor":60,"fold_y":120}`, string(usage.SessionAppUsageSeconds))
 	})
-}
-
-// The SQL fold matches codersdk.FoldUnregisteredSessionApps across methods:
-// ties break by method, then app name, and each method has its own overflow.
-func TestSessionUsageResponseCapAcrossMethods(t *testing.T) {
-	t.Parallel()
-	sqlDB := testSQLDB(t)
-	require.NoError(t, migrations.Up(sqlDB))
-	ctx := context.Background()
-	start := dbtime.Now().Add(-time.Hour).Truncate(30 * time.Minute)
-	user, template := uuid.New(), uuid.New()
-	_, err := sqlDB.ExecContext(ctx, `INSERT INTO template_usage_stats(start_time,end_time,user_id,template_id,usage_mins) VALUES($1,$2,$3,$4,30)`,
-		start, start.Add(30*time.Minute), user, template)
-	require.NoError(t, err)
-
-	// port_forwarding/z_tie takes the last slot from ssh/a_tie: port_forwarding
-	// sorts before ssh.
-	want := map[codersdk.ConnectionLogMethod]map[string]int64{
-		codersdk.ConnectionLogMethodSSH:            {"a_tie": 4, "ssh_fold": 1},
-		codersdk.ConnectionLogMethodPortForwarding: {"z_tie": 4, "pf_fold": 1},
-	}
-	for i := range int(codersdk.TemplateInsightsMaxUnregisteredApps) - 1 {
-		want[codersdk.ConnectionLogMethodSSH][fmt.Sprintf("app_%02d", i)] = 6
-	}
-	for method, apps := range want {
-		for app, mins := range apps {
-			_, err := sqlDB.ExecContext(ctx, `INSERT INTO template_usage_stats_session_apps(start_time,template_id,user_id,method,app_name,usage_mins) VALUES($1,$2,$3,$4,$5,$6)`,
-				start, template, user, method, app, mins)
-			require.NoError(t, err)
-		}
-	}
-	require.Equal(t, 3, codersdk.FoldUnregisteredSessionApps(want))
-	require.NotContains(t, want[codersdk.ConnectionLogMethodSSH], "a_tie")
-
-	usage, err := database.New(sqlDB).GetTemplateInsights(ctx, templateInsightsParams(start, start.Add(30*time.Minute), template))
-	require.NoError(t, err)
-	require.Len(t, usage.SessionFoldedMethods, 2)
-	got, err := codersdk.DecodeMethodAppMap[int64](usage.SessionAppUsageSeconds)
-	require.NoError(t, err)
-	for _, apps := range got {
-		for app := range apps {
-			apps[app] /= 60
-		}
-	}
-	require.Equal(t, want, got)
 }
 
 // TestTemplateAppInsightsMergesBySlug checks that apps sharing a slug across

@@ -18425,7 +18425,6 @@ WITH
 		-- grouping. FILTER, not WHERE: the excluded buckets' minutes belong to
 		-- app_usage_capped, but their templates still belong in the list.
 		SELECT
-			sessions.method,
 			sessions.app_name,
 			sessions.template_id,
 			SUM(sessions.usage_mins) FILTER (
@@ -18440,11 +18439,10 @@ WITH
 			AND sessions.start_time <= ($2::timestamptz) - '30 minutes'::interval
 			AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN sessions.template_id = ANY($3::uuid[]) ELSE TRUE END
 		GROUP BY
-			sessions.method, sessions.app_name, sessions.template_id
+			sessions.app_name, sessions.template_id
 	),
 	app_usage_capped AS (
 		SELECT
-			sessions.method,
 			sessions.app_name,
 			LEAST(SUM(sessions.usage_mins), 30) AS usage_mins
 		FROM
@@ -18460,53 +18458,46 @@ WITH
 					AND buckets.user_id = sessions.user_id
 			)
 		GROUP BY
-			sessions.start_time, sessions.user_id, sessions.method, sessions.app_name
+			sessions.start_time, sessions.user_id, sessions.app_name
 	),
 	app_usage AS (
 		SELECT
-			method,
 			app_name,
 			(SUM(usage_mins) * 60)::bigint AS usage_seconds
 		FROM (
-			SELECT method, app_name, usage_mins FROM app_usage_by_template
+			SELECT app_name, usage_mins FROM app_usage_by_template
 			UNION ALL
-			SELECT method, app_name, usage_mins FROM app_usage_capped
+			SELECT app_name, usage_mins FROM app_usage_capped
 		) AS parts
 		GROUP BY
-			method, app_name
+			app_name
 	),
 	app_templates AS (
 		SELECT
-			method,
 			app_name,
 			array_agg(DISTINCT template_id) AS template_ids
 		FROM
 			app_usage_by_template
 		GROUP BY
-			method, app_name
+			app_name
 	),
 	folded_apps AS (
 		SELECT
-			method,
 			app_name
 		FROM
 			app_usage
 		WHERE
 			NOT (app_name = ANY(COALESCE($4::text[], '{}'::text[])))
 			AND app_name NOT IN ('unknown', 'overflow')
-		-- Same order as codersdk.FoldUnregisteredSessionApps.
 		ORDER BY
-			usage_seconds DESC, method::text COLLATE "C", app_name COLLATE "C"
+			usage_seconds DESC, app_name COLLATE "C"
 		OFFSET GREATEST($5::bigint, 0)
 	),
-	folded_methods AS (
-		SELECT DISTINCT method FROM folded_apps
-	),
-	-- A method's overflow row is only rebuilt when something folds into it.
+	-- The overflow row is only rebuilt when something folds into it.
 	folded_names AS (
-		SELECT method, app_name FROM folded_apps
+		SELECT app_name FROM folded_apps
 		UNION ALL
-		SELECT method, 'overflow' FROM folded_methods
+		SELECT 'overflow' WHERE EXISTS (SELECT 1 FROM folded_apps)
 	),
 	-- Overlap between folded apps is not stored. Cap their summed minutes at
 	-- each user's active time to bound overflow, and skip the scan if none fold.
@@ -18514,7 +18505,6 @@ WITH
 		SELECT
 			sessions.start_time,
 			sessions.user_id,
-			sessions.method,
 			SUM(sessions.usage_mins) AS usage_mins
 		FROM
 			template_usage_stats_session_apps AS sessions
@@ -18523,72 +18513,47 @@ WITH
 			AND sessions.start_time >= $1::timestamptz
 			AND sessions.start_time <= ($2::timestamptz) - '30 minutes'::interval
 			AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN sessions.template_id = ANY($3::uuid[]) ELSE TRUE END
-			AND (sessions.method, sessions.app_name) IN (SELECT method, app_name FROM folded_names)
+			AND sessions.app_name IN (SELECT app_name FROM folded_names)
 		GROUP BY
-			sessions.start_time, sessions.user_id, sessions.method
+			sessions.start_time, sessions.user_id
 	),
 	response_apps AS (
 		SELECT
-			app_usage.method,
 			app_usage.app_name,
 			app_usage.usage_seconds,
 			app_templates.template_ids
 		FROM
 			app_usage
 		JOIN
-			app_templates USING (method, app_name)
+			app_templates USING (app_name)
 		WHERE
-			(app_usage.method, app_usage.app_name) NOT IN (SELECT method, app_name FROM folded_names)
+			app_usage.app_name NOT IN (SELECT app_name FROM folded_names)
 		UNION ALL
 		SELECT
-			method,
 			'overflow',
-			overflow_minutes.usage_seconds,
-			overflow_templates.template_ids
-		FROM
-			folded_methods
-		-- Grouped joins, not per-method subqueries: the planner cannot tell how
-		-- few methods fold and costs each subquery as if hundreds did, which
-		-- makes Postgres JIT-compile the query on every call.
-		LEFT JOIN (
-			SELECT folded.method, (SUM(LEAST(folded.usage_mins, users.usage_mins)) * 60)::bigint AS usage_seconds
-			FROM folded_minutes AS folded
-			JOIN users
-			ON users.start_time = folded.start_time
-				AND users.user_id = folded.user_id
-			GROUP BY folded.method
-		) AS overflow_minutes USING (method)
-		LEFT JOIN (
-			SELECT method, array_agg(DISTINCT template_id) AS template_ids
-			FROM app_usage_by_template
-			WHERE (method, app_name) IN (SELECT method, app_name FROM folded_names)
-			GROUP BY method
-		) AS overflow_templates USING (method)
+			(
+				SELECT (SUM(LEAST(folded.usage_mins, users.usage_mins)) * 60)::bigint
+				FROM folded_minutes AS folded
+				JOIN users
+				ON users.start_time = folded.start_time
+					AND users.user_id = folded.user_id
+			),
+			(
+				SELECT array_agg(DISTINCT template_id)
+				FROM app_usage_by_template
+				WHERE app_name IN (SELECT app_name FROM folded_names)
+			)
+		WHERE
+			EXISTS (SELECT 1 FROM folded_apps)
 	)
 
 SELECT
 	COALESCE((SELECT array_agg(DISTINCT template_id) FROM base WHERE NOT is_user_row), '{}')::uuid[] AS template_ids, -- Includes app usage.
 	COALESCE(COUNT(DISTINCT user_id), 0)::bigint AS active_users, -- Includes app usage.
 	COALESCE(SUM(usage_mins) * 60, 0)::bigint AS usage_total_seconds, -- Includes app usage.
-	COALESCE((
-		SELECT jsonb_object_agg(method, apps)
-		FROM (
-			SELECT method, jsonb_object_agg(app_name, usage_seconds) AS apps
-			FROM response_apps
-			WHERE usage_seconds IS NOT NULL
-			GROUP BY method
-		) AS by_method
-	), '{}'::jsonb)::jsonb AS session_app_usage_seconds,
-	COALESCE((
-		SELECT jsonb_object_agg(method, apps)
-		FROM (
-			SELECT method, jsonb_object_agg(app_name, template_ids) AS apps
-			FROM response_apps
-			WHERE template_ids IS NOT NULL
-			GROUP BY method
-		) AS by_method
-	), '{}'::jsonb)::jsonb AS session_app_template_ids,
-	COALESCE((SELECT array_agg(method) FROM folded_methods), '{}')::connection_log_method[] AS session_folded_methods
+	COALESCE((SELECT jsonb_object_agg(app_name, usage_seconds) FILTER (WHERE usage_seconds IS NOT NULL) FROM response_apps), '{}'::jsonb)::jsonb AS session_app_usage_seconds,
+	COALESCE((SELECT jsonb_object_agg(app_name, template_ids) FILTER (WHERE template_ids IS NOT NULL) FROM response_apps), '{}'::jsonb)::jsonb AS session_app_template_ids,
+	(SELECT COUNT(*) FROM folded_apps)::bigint AS session_folded_app_count
 FROM
 	users
 `
@@ -18602,12 +18567,12 @@ type GetTemplateInsightsParams struct {
 }
 
 type GetTemplateInsightsRow struct {
-	TemplateIDs            []uuid.UUID           `db:"template_ids" json:"template_ids"`
-	ActiveUsers            int64                 `db:"active_users" json:"active_users"`
-	UsageTotalSeconds      int64                 `db:"usage_total_seconds" json:"usage_total_seconds"`
-	SessionAppUsageSeconds json.RawMessage       `db:"session_app_usage_seconds" json:"session_app_usage_seconds"`
-	SessionAppTemplateIds  json.RawMessage       `db:"session_app_template_ids" json:"session_app_template_ids"`
-	SessionFoldedMethods   []ConnectionLogMethod `db:"session_folded_methods" json:"session_folded_methods"`
+	TemplateIDs            []uuid.UUID     `db:"template_ids" json:"template_ids"`
+	ActiveUsers            int64           `db:"active_users" json:"active_users"`
+	UsageTotalSeconds      int64           `db:"usage_total_seconds" json:"usage_total_seconds"`
+	SessionAppUsageSeconds json.RawMessage `db:"session_app_usage_seconds" json:"session_app_usage_seconds"`
+	SessionAppTemplateIds  json.RawMessage `db:"session_app_template_ids" json:"session_app_template_ids"`
+	SessionFoldedAppCount  int64           `db:"session_folded_app_count" json:"session_folded_app_count"`
 }
 
 // GetTemplateInsights aggregates workspace usage, including apps.
@@ -18631,7 +18596,7 @@ func (q *sqlQuerier) GetTemplateInsights(ctx context.Context, arg GetTemplateIns
 		&i.UsageTotalSeconds,
 		&i.SessionAppUsageSeconds,
 		&i.SessionAppTemplateIds,
-		pq.Array(&i.SessionFoldedMethods),
+		&i.SessionFoldedAppCount,
 	)
 	return i, err
 }
@@ -18757,11 +18722,8 @@ WITH
 			COUNT(DISTINCT date_trunc('minute', was.created_at)) AS usage_mins
 		FROM
 			workspace_agent_stats AS was
-		-- One set-returning call over every method's app names. Nesting
-		-- jsonb_each and jsonb_object_keys makes the planner expect 100 x 100
-		-- rows per stat row, enough to JIT-compile the query on every call.
 		CROSS JOIN
-			jsonb_array_elements_text(jsonb_path_query_array(was.session_counts, '$.*.keyvalue().key')) AS app_name
+			jsonb_object_keys(was.session_counts) AS app_name
 		JOIN
 			connected AS c
 		ON
@@ -19429,8 +19391,7 @@ WITH
 			agent_stats.time_bucket,
 			agent_stats.template_id,
 			agent_stats.user_id,
-			apps.method,
-			apps.app_name,
+			app_name,
 			COUNT(DISTINCT agent_stats.minute_bucket)::smallint AS usage_mins
 		FROM
 			agent_stats_rows AS agent_stats
@@ -19443,13 +19404,10 @@ WITH
 			-- Same gate as the union below, so an app-stats-only bucket
 			-- records no session usage.
 			AND buckets.has_connection
-		-- The function's row estimate, unlike nested jsonb_each and
-		-- jsonb_object_keys, keeps the NOT IN below hashed. sqlc can't resolve
-		-- its result columns, hence the alias list.
 		CROSS JOIN
-			session_count_apps(agent_stats.session_counts) AS apps(method, app_name)
+			jsonb_object_keys(agent_stats.session_counts) AS app_name
 		GROUP BY
-			agent_stats.time_bucket, agent_stats.template_id, agent_stats.user_id, apps.method, apps.app_name
+			agent_stats.time_bucket, agent_stats.template_id, agent_stats.user_id, app_name
 	),
 	stats AS (
 		SELECT
@@ -19570,21 +19528,18 @@ WITH
 	--
 	-- NOT IN, not NOT EXISTS: the planner has no statistics for the CTE and
 	-- turns NOT EXISTS into a nested loop that rescans it per row, 20 seconds
-	-- per rollup. Every column is non-null, so both delete the same rows. The
-	-- start_time bound is implied by the buckets but keeps the scan on recent
-	-- rows instead of every bucket ever rolled up.
+	-- per rollup. Every column is non-null, so both delete the same rows.
 	delete_apps AS (
 		DELETE FROM
 			template_usage_stats_session_apps AS apps
 		USING
 			agent_stats_buckets AS buckets
 		WHERE
-			apps.start_time >= (SELECT t FROM latest_start)
-			AND apps.start_time = buckets.time_bucket
+			apps.start_time = buckets.time_bucket
 			AND apps.template_id = buckets.template_id
 			AND apps.user_id = buckets.user_id
-			AND (apps.start_time, apps.template_id, apps.user_id, apps.method, apps.app_name) NOT IN (
-				SELECT time_bucket, template_id, user_id, method, app_name
+			AND (apps.start_time, apps.template_id, apps.user_id, apps.app_name) NOT IN (
+				SELECT time_bucket, template_id, user_id, app_name
 				FROM agent_stats_session_minutes
 			)
 	)
@@ -19593,7 +19548,6 @@ INSERT INTO template_usage_stats_session_apps AS apps (
 	start_time,
 	template_id,
 	user_id,
-	method,
 	app_name,
 	usage_mins
 ) (
@@ -19601,14 +19555,13 @@ INSERT INTO template_usage_stats_session_apps AS apps (
 		time_bucket,
 		template_id,
 		user_id,
-		method,
 		app_name,
 		usage_mins
 	FROM
 		agent_stats_session_minutes
 )
 ON CONFLICT
-	(start_time, user_id, template_id, method, app_name)
+	(start_time, template_id, user_id, app_name)
 DO UPDATE
 SET
 	usage_mins = EXCLUDED.usage_mins
@@ -38586,8 +38539,19 @@ SELECT
 	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
 	coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms) FILTER (WHERE connection_median_latency_ms > 0)), -1)::FLOAT AS workspace_connection_latency_50,
 	coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms) FILTER (WHERE connection_median_latency_ms > 0)), -1)::FLOAT AS workspace_connection_latency_95,
-	-- Only the latest row per agent holds current sessions.
-	coalesce(jsonb_agg(session_counts) FILTER (WHERE rn = 1), '[]'::jsonb)::jsonb AS session_counts
+	coalesce((
+		SELECT
+			jsonb_object_agg(app_name, app_sessions)
+		FROM (
+			SELECT
+				sess.app_name,
+				SUM(sess.sessions::bigint) AS app_sessions
+			FROM stats, jsonb_each_text(stats.session_counts) AS sess(app_name, sessions)
+			-- Only the latest row per agent holds current sessions.
+			WHERE stats.rn = 1
+			GROUP BY sess.app_name
+		) AS app_totals
+	), '{}'::jsonb)::jsonb AS session_counts
 FROM stats
 `
 
@@ -38599,9 +38563,10 @@ type GetDeploymentWorkspaceAgentStatsRow struct {
 	SessionCounts                json.RawMessage `db:"session_counts" json:"session_counts"`
 }
 
-// session_counts, here and in the other agent stats readers, is a JSON array
-// of stored objects that Go sums with codersdk.SumSessionCounts. Expanding
-// the nested objects in SQL overestimates rows enough to JIT-compile the query.
+// The session count sum runs in its own subquery: decomposing session_counts
+// in the FROM clause would emit one row per app name and multiply the byte and
+// latency aggregates below. Summing per app name and folding the names into
+// families in Go keeps a session reported under a new name counted.
 func (q *sqlQuerier) GetDeploymentWorkspaceAgentStats(ctx context.Context, createdAt time.Time) (GetDeploymentWorkspaceAgentStatsRow, error) {
 	row := q.db.QueryRowContext(ctx, getDeploymentWorkspaceAgentStats, createdAt)
 	var i GetDeploymentWorkspaceAgentStatsRow
@@ -38641,18 +38606,27 @@ latest_minutes AS (
 		agent_id
 ),
 latest_agent_stats AS (
+	-- Aggregating the per app name sums separately keeps the byte and latency
+	-- aggregates in agent_stats free of the decomposed rows.
 	SELECT
-		coalesce(jsonb_agg(stats.session_counts), '[]'::jsonb)::jsonb AS session_counts
-	FROM
-		latest_minutes
-	JOIN
-		workspace_agent_stats AS stats
-	ON
-		stats.agent_id = latest_minutes.agent_id
-		AND stats.created_at >= $1
-		AND stats.created_at >= latest_minutes.minute_bucket
-		AND stats.created_at < latest_minutes.minute_bucket + '1 minute'::interval
-		AND stats.usage
+		coalesce(jsonb_object_agg(app_name, app_sessions), '{}'::jsonb)::jsonb AS session_counts
+	FROM (
+		SELECT
+			sess.app_name,
+			SUM(sess.sessions::bigint) AS app_sessions
+		FROM
+			latest_minutes
+		JOIN
+			workspace_agent_stats AS stats
+		ON
+			stats.agent_id = latest_minutes.agent_id
+			AND stats.created_at >= $1
+			AND stats.created_at >= latest_minutes.minute_bucket
+			AND stats.created_at < latest_minutes.minute_bucket + '1 minute'::interval
+			AND stats.usage,
+			jsonb_each_text(stats.session_counts) AS sess(app_name, sessions)
+		GROUP BY sess.app_name
+	) AS app_totals
 )
 SELECT workspace_rx_bytes, workspace_tx_bytes, workspace_connection_latency_50, workspace_connection_latency_95, session_counts FROM agent_stats, latest_agent_stats
 `
@@ -38698,9 +38672,11 @@ WITH agent_stats AS (
 	SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, usage, session_counts, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
 	FROM workspace_agent_stats WHERE created_at > $1
 ), latest_agent_stats AS (
+	-- rn = 1 leaves one row per agent, and that row's session_counts is
+	-- already the object this query reports, empty map included.
 	SELECT
 		agent_id,
-		jsonb_build_array(session_counts) AS session_counts
+		session_counts
 	FROM latest_stats
 	WHERE rn = 1
 )
@@ -38773,9 +38749,11 @@ WITH agent_stats AS (
 	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
 	WHERE created_at > $1 AND connection_median_latency_ms > 0
 ), latest_agent_stats AS (
+	-- rn = 1 leaves one row per agent, so the session object, connection
+	-- count, and latency are that row's own columns, empty map included.
 	SELECT
 		agent_id,
-		jsonb_build_array(session_counts) AS session_counts,
+		session_counts,
 		connection_count,
 		connection_median_latency_ms
 	FROM latest_stats
@@ -38860,6 +38838,22 @@ WITH stats AS (
 		) OVER (PARTITION BY agent_id) AS in_latest_usage_minute
 	FROM workspace_agent_stats
 	WHERE created_at >= $1
+), latest_sessions AS (
+	-- One row per agent, so joining it below neither multiplies the byte and
+	-- latency aggregates nor adds groups.
+	SELECT
+		agent_id,
+		coalesce(jsonb_object_agg(app_name, app_sessions), '{}'::jsonb)::jsonb AS session_counts
+	FROM (
+		SELECT
+			stats.agent_id,
+			sess.app_name,
+			SUM(sess.sessions::bigint) AS app_sessions
+		FROM stats, jsonb_each_text(stats.session_counts) AS sess(app_name, sessions)
+		WHERE stats.in_latest_usage_minute
+		GROUP BY stats.agent_id, sess.app_name
+	) AS app_totals
+	GROUP BY agent_id
 )
 SELECT
 	stats.user_id,
@@ -38874,9 +38868,10 @@ SELECT
 	-- Repeated so this row keeps the same layout as GetWorkspaceAgentStats, which
 	-- telemetry converts between.
 	stats.agent_id,
-	coalesce(jsonb_agg(stats.session_counts) FILTER (WHERE stats.in_latest_usage_minute), '[]'::jsonb)::jsonb AS session_counts
+	coalesce(latest_sessions.session_counts, '{}'::jsonb)::jsonb AS session_counts
 FROM stats
-GROUP BY stats.user_id, stats.agent_id, stats.workspace_id, stats.template_id
+LEFT JOIN latest_sessions ON latest_sessions.agent_id = stats.agent_id
+GROUP BY stats.user_id, stats.agent_id, stats.workspace_id, stats.template_id, latest_sessions.session_counts
 HAVING BOOL_OR(reports_latency)
 `
 
@@ -38948,17 +38943,33 @@ WITH agent_stats AS (
 	-- We only want the latest stats, but those stats might be
 	-- spread across multiple rows.
 	WHERE usage AND created_at > now() - '1 minute'::interval
-), latest_agent_stats AS (
+), latest_sessions AS (
+	-- Summed per app name here so the connection count below keeps seeing one
+	-- row per agent instead of one row per app name.
 	SELECT
 		agent_id,
-		jsonb_agg(session_counts) AS session_counts,
-		coalesce(SUM(connection_count), 0)::bigint AS connection_count
+		coalesce(jsonb_object_agg(app_name, app_sessions), '{}'::jsonb)::jsonb AS session_counts
+	FROM (
+		SELECT
+			latest_stats.agent_id,
+			sess.app_name,
+			SUM(sess.sessions::bigint) AS app_sessions
+		FROM latest_stats, jsonb_each_text(latest_stats.session_counts) AS sess(app_name, sessions)
+		GROUP BY latest_stats.agent_id, sess.app_name
+	) AS app_totals
+	GROUP BY agent_id
+), latest_agent_stats AS (
+	SELECT
+		latest_stats.agent_id,
+		coalesce(latest_sessions.session_counts, '{}'::jsonb)::jsonb AS session_counts,
+		coalesce(SUM(latest_stats.connection_count), 0)::bigint AS connection_count
 	FROM latest_stats
-	GROUP BY user_id, agent_id, workspace_id
+	LEFT JOIN latest_sessions ON latest_sessions.agent_id = latest_stats.agent_id
+	GROUP BY latest_stats.user_id, latest_stats.agent_id, latest_stats.workspace_id, latest_sessions.session_counts
 )
 SELECT
 	users.username, workspace_agents.name AS agent_name, workspaces.name AS workspace_name, rx_bytes, tx_bytes,
-	coalesce(session_counts, '[]'::jsonb)::jsonb AS session_counts,
+	coalesce(session_counts, '{}'::jsonb)::jsonb AS session_counts,
 	coalesce(connection_count, 0)::bigint AS connection_count,
 	connection_median_latency_ms
 FROM

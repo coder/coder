@@ -771,11 +771,7 @@ func TestUpdateStats(t *testing.T) {
 				closeBatcher() // Flush synchronously without waiting for a timer.
 
 				params := testutil.RequireReceive(ctx, t, inserted)
-				want := map[string]map[string]int64{}
-				if len(wantCounts) > 0 {
-					want["ssh"] = wantCounts
-				}
-				wantSessionCounts, err := json.Marshal([]map[string]map[string]int64{want})
+				wantSessionCounts, err := json.Marshal([]map[string]int64{wantCounts})
 				require.NoError(t, err)
 				// ID and CreatedAt are generated inside the batcher; the rest
 				// must survive capping untouched.

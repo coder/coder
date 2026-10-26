@@ -41,7 +41,7 @@ type DBBatcher struct {
 	buf *database.InsertWorkspaceAgentStatsParams
 	// These objects are marshaled into positional arrays on flush.
 	connectionsByProto []map[string]int64
-	sessionCounts      []map[codersdk.ConnectionLogMethod]map[string]int64
+	sessionCounts      []map[string]int64
 	batchSize          int
 
 	// tickCh is used to periodically flush the buffer.
@@ -313,7 +313,7 @@ func (b *DBBatcher) initBuf(size int) {
 	}
 
 	b.connectionsByProto = make([]map[string]int64, 0, size)
-	b.sessionCounts = make([]map[codersdk.ConnectionLogMethod]map[string]int64, 0, size)
+	b.sessionCounts = make([]map[string]int64, 0, size)
 }
 
 func (b *DBBatcher) resetBuf() {
