@@ -4382,6 +4382,11 @@ export interface CreateChatMessageRequest {
 	 * nil: no change, empty: remove all.
 	 */
 	readonly inline_mcp_servers?: InlineMCPServerRequest[];
+	/**
+	 * BusyBehavior controls when the message reaches the agent if the
+	 * chat is busy. "steer", the default, delivers it before the next
+	 * model call. "queue" delivers it after the active turn ends.
+	 */
 	readonly busy_behavior?: ChatBusyBehavior;
 	/**
 	 * PlanMode switches the chat's persistent plan mode.

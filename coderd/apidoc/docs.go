@@ -4621,7 +4621,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/interrupt": {
             "post": {
-                "description": "Interrupts the active turn of a chat. If the chat has\nnothing to interrupt, for example because its turn\nalready ended, the endpoint returns the chat unchanged.",
+                "description": "Interrupts the active turn of a chat.\nIf the chat has nothing to interrupt, for example because its turn already ended, the endpoint returns the chat unchanged.",
                 "produces": [
                     "application/json"
                 ],
@@ -24445,6 +24445,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "busy_behavior": {
+                    "description": "BusyBehavior controls when the message reaches the agent if the\nchat is busy. \"steer\", the default, delivers it before the next\nmodel call. \"queue\" delivers it after the active turn ends.",
                     "enum": [
                         "steer",
                         "queue"

@@ -3910,9 +3910,8 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Success 200 {object} codersdk.Chat
 // @Router /api/v2/chats/{chat}/interrupt [post]
-// @Description Interrupts the active turn of a chat. If the chat has
-// @Description nothing to interrupt, for example because its turn
-// @Description already ended, the endpoint returns the chat unchanged.
+// @Description Interrupts the active turn of a chat.
+// @Description If the chat has nothing to interrupt, for example because its turn already ended, the endpoint returns the chat unchanged.
 func (api *API) postChatInterrupt(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat, err := api.interruptChat(ctx, httpmw.ChatParam(r))

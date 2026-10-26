@@ -149,16 +149,13 @@ curl -X POST \
   }'
 ```
 
-If the agent is busy, the `busy_behavior` field controls when the message
-reaches the agent:
+If the agent is busy, the `busy_behavior` field controls when the message reaches the agent:
 
 - `steer` (default): before the agent's next model call in the current turn.
 - `queue`: after the current turn ends.
 
-To stop the current turn first, call `POST /api/v2/chats/{chat}/interrupt`
-and then send the message. The response includes a `queued` field that
-shows whether the message was delivered immediately or held for later
-delivery.
+To stop the current turn first, call `POST /api/v2/chats/{chat}/interrupt` and then send the message.
+The response includes a `queued` field that shows whether the message was delivered immediately or held for later delivery.
 
 ### 4. Switch from log polling to WebSocket streaming
 
@@ -532,9 +529,7 @@ curl -s -X POST \
   }' | jq '{queued}'
 ```
 
-The response should include `"queued": false` (delivered immediately) or
-`"queued": true` (the agent was busy, so the message is delivered before
-the agent's next model call).
+The response should include `"queued": false` (delivered immediately) or `"queued": true` (the agent was busy, so the message is delivered before the agent's next model call).
 
 ### 5. Test workspace provisioning
 
