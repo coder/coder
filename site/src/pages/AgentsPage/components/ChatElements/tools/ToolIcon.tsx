@@ -10,6 +10,7 @@ import {
 	LightbulbIcon,
 	type LucideIcon,
 	MonitorIcon,
+	NetworkIcon,
 	PowerIcon,
 	PowerOffIcon,
 	RouteIcon,
@@ -55,6 +56,7 @@ export const toolIcons: Partial<Record<string, LucideIcon>> = {
 	ask_user_question: BadgeQuestionMarkIcon,
 	advisor: CompassIcon,
 	computer: MonitorIcon,
+	open_preview: NetworkIcon,
 	find_tools: SearchIcon,
 	web_search: GlobeIcon,
 };

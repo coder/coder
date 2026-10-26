@@ -102,8 +102,26 @@ export function savePersistedDefaultTerminalHidden(
 	}
 }
 
+const selectedPreviewStorageKeyPrefix = "agents.selected-preview.";
+
+/** The key of the preview last selected in the chat's Preview tab. */
+export function getPersistedSelectedPreview(chatID: string): string | null {
+	return localStorage.getItem(`${selectedPreviewStorageKeyPrefix}${chatID}`);
+}
+
+export function savePersistedSelectedPreview(
+	chatID: string,
+	previewKey: string,
+): void {
+	localStorage.setItem(
+		`${selectedPreviewStorageKeyPrefix}${chatID}`,
+		previewKey,
+	);
+}
+
 export function clearPersistedRightPanelState(chatID: string): void {
 	localStorage.removeItem(`${rightPanelTabStorageKeyPrefix}${chatID}`);
 	localStorage.removeItem(`${visibleSingletonTabsStorageKeyPrefix}${chatID}`);
 	localStorage.removeItem(`${defaultTerminalHiddenStorageKeyPrefix}${chatID}`);
+	localStorage.removeItem(`${selectedPreviewStorageKeyPrefix}${chatID}`);
 }
