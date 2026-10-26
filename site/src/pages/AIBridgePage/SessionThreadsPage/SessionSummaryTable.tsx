@@ -200,7 +200,8 @@ export const SessionSummaryTable = ({
 					Cost
 					<InfoTooltip size="small" ariaLabel="Approximate cost">
 						<TooltipMessage>
-							Approximate cost of this session.{" "}
+							Approximate cost of this session.
+							<br />
 							<Link
 								size="sm"
 								href={docs(
