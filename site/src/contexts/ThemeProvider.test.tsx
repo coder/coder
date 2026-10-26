@@ -13,7 +13,7 @@ const darkSurface = "rgb(20, 20, 30)";
 
 const stubOSColorScheme = (initial: "light" | "dark") => {
 	let scheme = initial;
-	const listeners = new Set<EventListenerOrEventListenerObject>();
+	const listeners = new Set<EventListener>();
 	vi.stubGlobal(
 		"matchMedia",
 		(query: string) =>
@@ -23,28 +23,20 @@ const stubOSColorScheme = (initial: "light" | "dark") => {
 				},
 				media: query,
 				onchange: null,
-				addEventListener: (
-					_type: string,
-					listener: EventListenerOrEventListenerObject,
-				) => listeners.add(listener),
-				removeEventListener: (
-					_type: string,
-					listener: EventListenerOrEventListenerObject,
-				) => listeners.delete(listener),
+				addEventListener: (_type: string, listener: EventListener) =>
+					listeners.add(listener),
+				removeEventListener: (_type: string, listener: EventListener) =>
+					listeners.delete(listener),
 				addListener: () => {},
 				removeListener: () => {},
 				dispatchEvent: () => true,
 			}) satisfies MediaQueryList,
 	);
-	return (next: "light" | "dark") => {
+	return (next: typeof scheme) => {
 		scheme = next;
 		const event = new Event("change");
 		for (const listener of listeners) {
-			if (typeof listener === "function") {
-				listener(event);
-			} else {
-				listener.handleEvent(event);
-			}
+			listener(event);
 		}
 	};
 };
