@@ -2979,21 +2979,6 @@ func (mr *MockStoreMockRecorder) GetChatComputerUseProvider(ctx any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatComputerUseProvider", reflect.TypeOf((*MockStore)(nil).GetChatComputerUseProvider), ctx)
 }
 
-// GetChatComputerUseSelection mocks base method.
-func (m *MockStore) GetChatComputerUseSelection(ctx context.Context) (database.GetChatComputerUseSelectionRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatComputerUseSelection", ctx)
-	ret0, _ := ret[0].(database.GetChatComputerUseSelectionRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetChatComputerUseSelection indicates an expected call of GetChatComputerUseSelection.
-func (mr *MockStoreMockRecorder) GetChatComputerUseSelection(ctx any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatComputerUseSelection", reflect.TypeOf((*MockStore)(nil).GetChatComputerUseSelection), ctx)
-}
-
 // GetChatDebugLoggingAllowUsers mocks base method.
 func (m *MockStore) GetChatDebugLoggingAllowUsers(ctx context.Context) (bool, error) {
 	m.ctrl.T.Helper()
@@ -12719,20 +12704,6 @@ func (m *MockStore) UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDa
 func (mr *MockStoreMockRecorder) UpsertChatAutoArchiveDays(ctx, autoArchiveDays any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatAutoArchiveDays", reflect.TypeOf((*MockStore)(nil).UpsertChatAutoArchiveDays), ctx, autoArchiveDays)
-}
-
-// UpsertChatComputerUseAIProviderID mocks base method.
-func (m *MockStore) UpsertChatComputerUseAIProviderID(ctx context.Context, aiProviderID string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertChatComputerUseAIProviderID", ctx, aiProviderID)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpsertChatComputerUseAIProviderID indicates an expected call of UpsertChatComputerUseAIProviderID.
-func (mr *MockStoreMockRecorder) UpsertChatComputerUseAIProviderID(ctx, aiProviderID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatComputerUseAIProviderID", reflect.TypeOf((*MockStore)(nil).UpsertChatComputerUseAIProviderID), ctx, aiProviderID)
 }
 
 // UpsertChatComputerUseProvider mocks base method.

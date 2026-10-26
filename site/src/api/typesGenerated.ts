@@ -2335,12 +2335,6 @@ export type ChatComputerUseProvider = "anthropic" | "openai";
  */
 export interface ChatComputerUseProviderResponse {
 	readonly provider: ChatComputerUseProvider;
-	/**
-	 * AIProviderID is the configured AI provider used for computer use.
-	 * When unset, computer use uses the first enabled AI provider of
-	 * Provider's type.
-	 */
-	readonly ai_provider_id?: string;
 }
 
 export const ChatComputerUseProviders: ChatComputerUseProvider[] = [
@@ -10883,11 +10877,6 @@ export interface UpdateChatAutoArchiveDaysRequest {
  */
 export interface UpdateChatComputerUseProviderRequest {
 	readonly provider: ChatComputerUseProvider;
-	/**
-	 * AIProviderID selects the enabled AI provider used for computer use.
-	 * Its type must match Provider. Omitting it clears the selection.
-	 */
-	readonly ai_provider_id?: string;
 }
 
 // From codersdk/chats.go

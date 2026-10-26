@@ -1584,14 +1584,6 @@ func (m queryMetricsStore) GetChatComputerUseProvider(ctx context.Context) (stri
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatComputerUseSelection(ctx context.Context) (database.GetChatComputerUseSelectionRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatComputerUseSelection(ctx)
-	m.queryLatencies.WithLabelValues("GetChatComputerUseSelection").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatComputerUseSelection").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetChatDebugLoggingAllowUsers(ctx context.Context) (bool, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatDebugLoggingAllowUsers(ctx)
@@ -6750,14 +6742,6 @@ func (m queryMetricsStore) UpsertChatAutoArchiveDays(ctx context.Context, autoAr
 	r0 := m.s.UpsertChatAutoArchiveDays(ctx, autoArchiveDays)
 	m.queryLatencies.WithLabelValues("UpsertChatAutoArchiveDays").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatAutoArchiveDays").Inc()
-	return r0
-}
-
-func (m queryMetricsStore) UpsertChatComputerUseAIProviderID(ctx context.Context, aiProviderID string) error {
-	start := time.Now()
-	r0 := m.s.UpsertChatComputerUseAIProviderID(ctx, aiProviderID)
-	m.queryLatencies.WithLabelValues("UpsertChatComputerUseAIProviderID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatComputerUseAIProviderID").Inc()
 	return r0
 }
 

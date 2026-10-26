@@ -369,7 +369,6 @@ Actions: `write`
 <tr><td><code>chat_auto_archive_days</code></td><td>Yes</td></tr>
 <tr><td><code>chat_debug_retention_days</code></td><td>Yes</td></tr>
 <tr><td><code>chat_retention_days</code></td><td>Yes</td></tr>
-<tr><td><code>computer_use_ai_provider_id</code></td><td>Yes</td></tr>
 <tr><td><code>computer_use_provider</code></td><td>Yes</td></tr>
 <tr><td><code>debug_logging_allow_users</code></td><td>Yes</td></tr>
 <tr><td><code>id</code></td><td>No</td></tr>

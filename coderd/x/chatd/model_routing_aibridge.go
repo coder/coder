@@ -457,21 +457,6 @@ func (p *Server) resolveModelRouteForConfig(
 	return p.resolveAIGatewayRoute(ctx, ownerID, provider, string(provider.Type), modelConfig.Model)
 }
 
-func (p *Server) resolveFixedModelRoute(
-	ctx context.Context,
-	ownerID uuid.UUID,
-	fixed fixedModelCall,
-) (aiGatewayModelRoute, error) {
-	if !fixed.aiProviderID.Valid {
-		return p.resolveModelRouteForProviderType(ctx, ownerID, fixed.providerType)
-	}
-	provider, err := p.enabledAIProviderOfTypeByID(ctx, fixed.aiProviderID.UUID, fixed.providerType)
-	if err != nil {
-		return aiGatewayModelRoute{}, err
-	}
-	return p.resolveProviderTypeRoute(ctx, ownerID, provider, fixed.providerType)
-}
-
 func (p *Server) resolveModelRouteForProviderType(
 	ctx context.Context,
 	ownerID uuid.UUID,
@@ -481,15 +466,6 @@ func (p *Server) resolveModelRouteForProviderType(
 	if err != nil {
 		return aiGatewayModelRoute{}, err
 	}
-	return p.resolveProviderTypeRoute(ctx, ownerID, provider, providerType)
-}
-
-func (p *Server) resolveProviderTypeRoute(
-	ctx context.Context,
-	ownerID uuid.UUID,
-	provider database.AIProvider,
-	providerType string,
-) (aiGatewayModelRoute, error) {
 	// This path serves hardcoded computer-use defaults (openai or
 	// anthropic), never bedrock, so the model name is not needed for
 	// format inference. An empty model makes bedrock infer OpenAI format,
@@ -515,28 +491,6 @@ func (p *Server) gatewayProviderForConfig(
 		)
 	}
 	return p.enabledAIProviderByID(ctx, modelConfig.AIProviderID.UUID)
-}
-
-// enabledAIProviderOfTypeByID returns the enabled AI provider with the given
-// ID and fails when its type does not normalize to providerType.
-func (p *Server) enabledAIProviderOfTypeByID(
-	ctx context.Context,
-	providerID uuid.UUID,
-	providerType string,
-) (database.AIProvider, error) {
-	provider, err := p.enabledAIProviderByID(ctx, providerID)
-	if err != nil {
-		return database.AIProvider{}, err
-	}
-	if chatprovider.NormalizeProvider(string(provider.Type)) != chatprovider.NormalizeProvider(providerType) {
-		return database.AIProvider{}, xerrors.Errorf(
-			"AI provider %s has type %q, want %q",
-			provider.ID,
-			provider.Type,
-			providerType,
-		)
-	}
-	return provider, nil
 }
 
 func (p *Server) aiProviderForProviderType(

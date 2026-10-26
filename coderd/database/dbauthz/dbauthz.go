@@ -3377,15 +3377,6 @@ func (q *querier) GetChatComputerUseProvider(ctx context.Context) (string, error
 	return q.db.GetChatComputerUseProvider(ctx)
 }
 
-func (q *querier) GetChatComputerUseSelection(ctx context.Context) (database.GetChatComputerUseSelectionRow, error) {
-	// Read by authenticated chat users and chatd, so it follows the same
-	// explicit-actor rule as GetChatComputerUseProvider.
-	if _, ok := ActorFromContext(ctx); !ok {
-		return database.GetChatComputerUseSelectionRow{}, ErrNoActor
-	}
-	return q.db.GetChatComputerUseSelection(ctx)
-}
-
 func (q *querier) GetChatDebugLoggingAllowUsers(ctx context.Context) (bool, error) {
 	// The allow-users flag is a deployment-wide setting read by any
 	// authenticated chat user. We only require that an explicit actor
@@ -9512,13 +9503,6 @@ func (q *querier) UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDays
 		return err
 	}
 	return q.db.UpsertChatAutoArchiveDays(ctx, autoArchiveDays)
-}
-
-func (q *querier) UpsertChatComputerUseAIProviderID(ctx context.Context, aiProviderID string) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return err
-	}
-	return q.db.UpsertChatComputerUseAIProviderID(ctx, aiProviderID)
 }
 
 func (q *querier) UpsertChatComputerUseProvider(ctx context.Context, provider string) error {

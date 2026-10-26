@@ -1519,10 +1519,6 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatComputerUseProvider(gomock.Any()).Return("anthropic", nil).AnyTimes()
 		check.Args().Asserts()
 	}))
-	s.Run("GetChatComputerUseSelection", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().GetChatComputerUseSelection(gomock.Any()).Return(database.GetChatComputerUseSelectionRow{Provider: "anthropic"}, nil).AnyTimes()
-		check.Args().Asserts()
-	}))
 	s.Run("GetChatOrganizationModelOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		orgID := uuid.New()
 		arg := database.GetChatOrganizationModelOverrideParams{OrganizationID: orgID, Context: "general"}
@@ -2096,11 +2092,6 @@ func (s *MethodTestSuite) TestChats() {
 	s.Run("UpsertChatComputerUseProvider", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().UpsertChatComputerUseProvider(gomock.Any(), "anthropic").Return(nil).AnyTimes()
 		check.Args("anthropic").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
-	}))
-	s.Run("UpsertChatComputerUseAIProviderID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		id := uuid.NewString()
-		dbm.EXPECT().UpsertChatComputerUseAIProviderID(gomock.Any(), id).Return(nil).AnyTimes()
-		check.Args(id).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
 	s.Run("UpsertChatOrganizationModelOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		orgID := uuid.New()

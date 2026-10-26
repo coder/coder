@@ -28083,27 +28083,6 @@ func (q *sqlQuerier) GetChatComputerUseProvider(ctx context.Context) (string, er
 	return provider, err
 }
 
-const getChatComputerUseSelection = `-- name: GetChatComputerUseSelection :one
-SELECT
-	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_computer_use_provider'), '') :: text AS provider,
-	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_computer_use_ai_provider_id'), '') :: text AS ai_provider_id
-`
-
-type GetChatComputerUseSelectionRow struct {
-	Provider     string `db:"provider" json:"provider"`
-	AIProviderID string `db:"ai_provider_id" json:"ai_provider_id"`
-}
-
-// GetChatComputerUseSelection returns the computer-use provider type and the
-// ID of the AI provider selected for it, each ” when unset. Both values come
-// from one statement so readers never see a torn pair while an update runs.
-func (q *sqlQuerier) GetChatComputerUseSelection(ctx context.Context) (GetChatComputerUseSelectionRow, error) {
-	row := q.db.QueryRowContext(ctx, getChatComputerUseSelection)
-	var i GetChatComputerUseSelectionRow
-	err := row.Scan(&i.Provider, &i.AIProviderID)
-	return i, err
-}
-
 const getChatDebugLoggingAllowUsers = `-- name: GetChatDebugLoggingAllowUsers :one
 SELECT
 	COALESCE((SELECT value = 'true' FROM site_configs WHERE key = 'agents_chat_debug_logging_allow_users'), false) :: boolean AS allow_users
@@ -28228,7 +28207,6 @@ WHERE site_configs.key = $1
         'agents_chat_auto_archive_days',
         'agents_workspace_ttl',
         'agents_computer_use_provider',
-        'agents_computer_use_ai_provider_id',
         'agents_chat_debug_logging_allow_users',
         'agents_chat_personal_model_overrides_enabled'
     )
@@ -28596,16 +28574,6 @@ WHERE site_configs.key = 'agents_chat_auto_archive_days'
 
 func (q *sqlQuerier) UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDays int32) error {
 	_, err := q.db.ExecContext(ctx, upsertChatAutoArchiveDays, autoArchiveDays)
-	return err
-}
-
-const upsertChatComputerUseAIProviderID = `-- name: UpsertChatComputerUseAIProviderID :exec
-INSERT INTO site_configs (key, value) VALUES ('agents_computer_use_ai_provider_id', $1)
-ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_computer_use_ai_provider_id'
-`
-
-func (q *sqlQuerier) UpsertChatComputerUseAIProviderID(ctx context.Context, aiProviderID string) error {
-	_, err := q.db.ExecContext(ctx, upsertChatComputerUseAIProviderID, aiProviderID)
 	return err
 }
 

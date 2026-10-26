@@ -229,20 +229,18 @@ func (p *Server) buildTurnEnvironment(
 	isComputerUse := chat.Mode.Valid && chat.Mode.ChatMode == database.ChatModeComputerUse
 	var computerUseProvider codersdk.ChatComputerUseProvider
 	if isComputerUse {
-		cuConfig, err := p.computerUseProviderAndModelFromConfig(ctx)
+		var cuModelProvider, cuModelName string
+		computerUseProvider, cuModelProvider, cuModelName, err = p.computerUseProviderAndModelFromConfig(ctx)
 		if err != nil {
 			return turnEnvironment{}, xerrors.Errorf("resolve computer use provider and model: %w", err)
 		}
-		computerUseProvider = cuConfig.provider
-		cuModelName := cuConfig.modelName
 		cuResolved, cuErr := p.resolveModelCall(ctx, modelCallSpec{
 			purpose: "computer_use",
 			chat:    chat,
 			fixedModel: &fixedModelCall{
-				providerType: cuConfig.modelProvider,
+				providerType: cuModelProvider,
 				modelName:    cuModelName,
 				callConfig:   resolved.callConfig,
-				aiProviderID: cuConfig.aiProviderID,
 			},
 			requestedEffort: requestedEffort,
 			buildOptions:    modelOpts,

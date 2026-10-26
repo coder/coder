@@ -5,7 +5,6 @@ import (
 	"sync/atomic"
 
 	"charm.land/fantasy"
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -26,9 +25,6 @@ type fixedModelCall struct {
 	providerType string
 	modelName    string
 	callConfig   codersdk.ChatModelCallConfig
-	// aiProviderID routes the call to this AI provider. When invalid, the
-	// call routes to the first enabled AI provider of providerType.
-	aiProviderID uuid.NullUUID
 }
 
 type modelCallSpec struct {
@@ -149,7 +145,7 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 		routeCtx = dbauthz.AsChatd(ctx)
 	}
 	if spec.fixedModel != nil {
-		out.route, err = p.resolveFixedModelRoute(routeCtx, spec.chat.OwnerID, *spec.fixedModel)
+		out.route, err = p.resolveModelRouteForProviderType(routeCtx, spec.chat.OwnerID, spec.fixedModel.providerType)
 	} else {
 		out.route, err = p.resolveModelRouteForConfig(routeCtx, spec.chat.OwnerID, out.dbConfig)
 	}

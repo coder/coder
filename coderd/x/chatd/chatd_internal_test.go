@@ -426,14 +426,11 @@ func TestGenerateAndStoreChatSummary_UsesTitleGenerationModel(t *testing.T) {
 func TestComputerUseProviderAndModelFromConfig(t *testing.T) {
 	t.Parallel()
 
-	selectedID := uuid.New()
 	tests := []struct {
-		name             string
-		rawProvider      string
-		rawAIProviderID  string
-		wantProvider     codersdk.ChatComputerUseProvider
-		wantAIProviderID uuid.NullUUID
-		wantErr          string
+		name         string
+		rawProvider  string
+		wantProvider codersdk.ChatComputerUseProvider
+		wantErr      string
 	}{
 		{
 			name:         "DefaultAnthropic",
@@ -444,19 +441,6 @@ func TestComputerUseProviderAndModelFromConfig(t *testing.T) {
 			name:         "OpenAI",
 			rawProvider:  " openai ",
 			wantProvider: codersdk.ChatComputerUseProviderOpenAI,
-		},
-		{
-			name:             "SelectedAIProvider",
-			rawProvider:      "anthropic",
-			rawAIProviderID:  selectedID.String(),
-			wantProvider:     codersdk.ChatComputerUseProviderAnthropic,
-			wantAIProviderID: uuid.NullUUID{UUID: selectedID, Valid: true},
-		},
-		{
-			name:            "InvalidAIProviderID",
-			rawProvider:     "anthropic",
-			rawAIProviderID: "not-a-uuid",
-			wantErr:         `invalid computer-use AI provider ID "not-a-uuid"`,
 		},
 		{
 			name:        "Unknown",
@@ -473,31 +457,27 @@ func TestComputerUseProviderAndModelFromConfig(t *testing.T) {
 			db := dbmock.NewMockStore(ctrl)
 			server := &Server{db: db}
 
-			db.EXPECT().GetChatComputerUseSelection(gomock.Any()).DoAndReturn(
-				func(ctx context.Context) (database.GetChatComputerUseSelectionRow, error) {
+			db.EXPECT().GetChatComputerUseProvider(gomock.Any()).DoAndReturn(
+				func(ctx context.Context) (string, error) {
 					_, ok := dbauthz.ActorFromContext(ctx)
 					require.True(t, ok, "config reads must have an actor")
-					return database.GetChatComputerUseSelectionRow{
-						Provider:     tt.rawProvider,
-						AIProviderID: tt.rawAIProviderID,
-					}, nil
+					return tt.rawProvider, nil
 				},
 			)
 
-			cfg, err := server.computerUseProviderAndModelFromConfig(context.Background())
+			provider, modelProvider, modelName, err := server.computerUseProviderAndModelFromConfig(context.Background())
 			if tt.wantErr != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.wantErr)
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, tt.wantProvider, cfg.provider)
-			require.Equal(t, tt.wantAIProviderID, cfg.aiProviderID)
+			require.Equal(t, tt.wantProvider, provider)
 
 			wantModelProvider, wantModelName, ok := chattool.DefaultComputerUseModel(tt.wantProvider)
 			require.True(t, ok)
-			require.Equal(t, wantModelProvider, cfg.modelProvider)
-			require.Equal(t, wantModelName, cfg.modelName)
+			require.Equal(t, wantModelProvider, modelProvider)
+			require.Equal(t, wantModelName, modelName)
 		})
 	}
 }
