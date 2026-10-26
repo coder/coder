@@ -120,15 +120,15 @@ export const ChatMessageScroller: React.FC<ChatMessageScrollerProps> = ({
 	...earlierMessages
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
-	const { releaseAnchorHold } = useMessageScroller();
+	const { handleTurnEnd } = useMessageScroller();
 
 	// A sent message stays at the top until its reply fills the view, so a
 	// shorter reply would keep blank space below it after the turn.
 	useEffect(() => {
 		if (!isTurnActive) {
-			releaseAnchorHold();
+			handleTurnEnd();
 		}
-	}, [isTurnActive, releaseAnchorHold]);
+	}, [isTurnActive, handleTurnEnd]);
 
 	return (
 		<MessageScroller.Root className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
