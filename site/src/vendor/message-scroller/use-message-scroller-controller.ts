@@ -694,15 +694,17 @@ function useMessageScrollerController({
     }
   }, [setTailSpacerHeight])
 
-  // LOCAL CHANGE: placing the held turn again sizes the spacer before the
-  // reply's resize runs. A spacer left after sizing is blank on screen.
+  // LOCAL CHANGE: runs the final reply's resize, hand-off included, before
+  // the observer reports it. A spacer left after that is blank on screen.
   const handleTurnEnd = React.useCallback(() => {
-    if (!reanchorToAnchoredMessage()) {
-      // A jump in flight still needs the spacer it set.
-      if (modeRef.current === "settling-jump") {
-        return
-      }
+    handleResize()
 
+    // A jump in flight still needs the spacer it set.
+    if (modeRef.current === "settling-jump") {
+      return
+    }
+
+    if (modeRef.current === "free-scrolling") {
       trimTailSpacer()
       scheduleStateCommit()
     }
@@ -714,12 +716,7 @@ function useMessageScrollerController({
     ) {
       scrollToEnd({ behavior: "auto" })
     }
-  }, [
-    reanchorToAnchoredMessage,
-    scheduleStateCommit,
-    scrollToEnd,
-    trimTailSpacer,
-  ])
+  }, [handleResize, scheduleStateCommit, scrollToEnd, trimTailSpacer])
 
   const observeVisibility = React.useCallback(() => {
     const viewport = viewportRef.current
