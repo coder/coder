@@ -331,39 +331,53 @@ describe("ArtifactsPanel", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("switches to another artifact of the chat from the title menu", async () => {
-		const user = userEvent.setup();
-		const otherArtifact: ChatArtifact = {
-			...MockChatArtifact,
-			id: "artifact-2",
-			title: "Cache options",
-		};
-		vi.spyOn(API.experimental, "getChatArtifact").mockImplementation(
-			async (artifactId) =>
-				artifactId === otherArtifact.id ? otherArtifact : MockChatArtifact,
-		);
-		vi.spyOn(API.experimental, "getChatArtifactVersionText").mockResolvedValue(
-			"# Repo layout",
-		);
-		const store = createChatStore();
-		store.replaceMessages([
-			message(1, [
-				toolResult("publish_artifact", {
-					artifact_id: otherArtifact.id,
-					version: 2,
-				}),
-			]),
-			message(2, [
-				toolResult("publish_artifact", {
-					artifact_id: MockChatArtifact.id,
-					version: 2,
-				}),
-			]),
-		]);
-		const onSelect = vi.fn();
-		renderWithRouter(
-			createMemoryRouter(
-				[
+	// The switcher must stay reachable when the shown artifact fails, or the
+	// chat's other artifacts could not be opened.
+	it.each([
+		{ shown: "loads", trigger: "Repo layout" },
+		{ shown: "fails to load", trigger: "Unavailable artifact" },
+	])(
+		"switches to another artifact of the chat from the title menu when the shown artifact $shown",
+		async ({ shown, trigger }) => {
+			const user = userEvent.setup();
+			const mockOtherArtifact: ChatArtifact = {
+				...MockChatArtifact,
+				id: "artifact-2",
+				title: "Cache options",
+			};
+			vi.spyOn(API.experimental, "getChatArtifact").mockImplementation(
+				async (artifactId) => {
+					if (artifactId === mockOtherArtifact.id) {
+						return mockOtherArtifact;
+					}
+					if (shown === "fails to load") {
+						throw new Error("artifact not found");
+					}
+					return MockChatArtifact;
+				},
+			);
+			vi.spyOn(
+				API.experimental,
+				"getChatArtifactVersionText",
+			).mockResolvedValue("# Repo layout");
+			const store = createChatStore();
+			store.replaceMessages([
+				message(1, [
+					toolResult("publish_artifact", {
+						artifact_id: mockOtherArtifact.id,
+						version: 2,
+					}),
+				]),
+				message(2, [
+					toolResult("publish_artifact", {
+						artifact_id: MockChatArtifact.id,
+						version: 2,
+					}),
+				]),
+			]);
+			const onSelect = vi.fn();
+			renderWithRouter(
+				createMemoryRouter([
 					{
 						path: "/",
 						element: (
@@ -376,19 +390,18 @@ describe("ArtifactsPanel", () => {
 							/>
 						),
 					},
-				],
-				{ initialEntries: ["/"] },
-			),
-		);
+				]),
+			);
 
-		// The newest artifact shows, and its title opens the switcher.
-		await user.click(
-			await screen.findByRole("button", { name: "Repo layout" }),
-		);
-		await user.click(
-			await screen.findByRole("menuitem", { name: /Cache options/ }),
-		);
+			// The newest artifact shows, and its title opens the switcher.
+			await user.click(await screen.findByRole("button", { name: trigger }));
+			await user.click(
+				await screen.findByRole("menuitemradio", { name: /Cache options/ }),
+			);
 
-		expect(onSelect).toHaveBeenCalledWith({ artifactId: otherArtifact.id });
-	});
+			expect(onSelect).toHaveBeenCalledWith({
+				artifactId: mockOtherArtifact.id,
+			});
+		},
+	);
 });

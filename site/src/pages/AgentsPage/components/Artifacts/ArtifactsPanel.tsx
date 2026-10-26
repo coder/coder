@@ -1,14 +1,19 @@
-import { CheckIcon, ChevronDownIcon, ShapesIcon } from "lucide-react";
+import { ShapesIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
-import { useQuery } from "react-query";
+import { type UseQueryResult, useQuery } from "react-query";
 import { Link } from "react-router";
 import { chatArtifact } from "#/api/queries/chatArtifacts";
+import type { ChatArtifact } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuLabel,
+	DropdownMenuRadioGroup,
+	DropdownMenuRadioItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
@@ -72,92 +77,64 @@ export const ArtifactsPanel: React.FC<ArtifactsPanelProps> = ({
 				version={
 					selection?.artifactId === selectedId ? selection.version : undefined
 				}
+				artifactIds={artifactIds}
 				chatId={chatId}
-				onSelectVersion={(version) =>
-					onSelect({ artifactId: selectedId, version })
-				}
+				onSelect={onSelect}
 				onPrompt={onPrompt}
 				currentUserId={currentUserId}
-				renderTitle={(title) => (
-					<ArtifactSwitcher
-						title={title}
-						artifactIds={artifactIds}
-						seenVersions={seenVersions}
-						selectedId={selectedId}
-						onSelect={(artifactId) => onSelect({ artifactId })}
-					/>
-				)}
 			/>
 		</div>
 	);
 };
 
-/**
- * Loads an artifact and refetches it once for each newer version that a tool
- * result in the chat names, because that means the chat published again.
- */
-const useChatArtifact = (artifactId: string, seenVersion: number) => {
-	const artifactQuery = useQuery(chatArtifact(artifactId));
-	const { data, refetch } = artifactQuery;
-	const refetchedForVersionRef = useRef(0);
-
-	useEffect(() => {
-		if (
-			data &&
-			seenVersion > data.latest_version &&
-			refetchedForVersionRef.current < seenVersion
-		) {
-			refetchedForVersionRef.current = seenVersion;
-			void refetch();
-		}
-	}, [data, seenVersion, refetch]);
-
-	return artifactQuery;
+/** The name of an artifact in the tab, also while it loads or fails. */
+const artifactLabel = (artifactQuery: UseQueryResult<ChatArtifact>) => {
+	if (artifactQuery.data) {
+		return artifactQuery.data.title || "Untitled artifact";
+	}
+	return artifactQuery.isError ? "Unavailable artifact" : "Loading…";
 };
 
 type ArtifactSwitcherProps = {
-	/** The title of the artifact that shows. */
-	title: string;
+	/** The name of the artifact that shows. */
+	label: string;
 	artifactIds: readonly string[];
-	seenVersions: ReadonlyMap<string, number>;
 	selectedId: string;
 	onSelect: (artifactId: string) => void;
 };
 
 /** The artifact title as a menu of the chat's artifacts and the gallery. */
 const ArtifactSwitcher: React.FC<ArtifactSwitcherProps> = ({
-	title,
+	label,
 	artifactIds,
-	seenVersions,
 	selectedId,
 	onSelect,
 }) => {
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
-				<button
-					type="button"
-					className="inline-flex min-w-0 max-w-full cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-1 py-0.5 text-left text-sm font-medium text-content-primary hover:bg-surface-secondary"
+				<Button
+					variant="subtle"
+					size="sm"
+					className="group h-7 min-w-0 max-w-full justify-start gap-1 px-1.5 text-sm text-content-primary"
 				>
-					<span className="min-w-0 truncate">{title}</span>
-					<ChevronDownIcon className="size-3.5 shrink-0 text-content-secondary" />
-				</button>
+					<span className="min-w-0 truncate">{label}</span>
+					<ChevronDownIcon className="text-content-secondary" />
+				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="start" className="w-72 max-w-[90vw]">
 				<DropdownMenuLabel>
 					In this chat ({artifactIds.length})
 				</DropdownMenuLabel>
-				<div className="max-h-72 overflow-y-auto">
+				<DropdownMenuRadioGroup
+					value={selectedId}
+					onValueChange={onSelect}
+					className="max-h-72 overflow-y-auto"
+				>
 					{artifactIds.map((artifactId) => (
-						<ArtifactSwitcherItem
-							key={artifactId}
-							artifactId={artifactId}
-							seenVersion={seenVersions.get(artifactId) ?? 0}
-							isSelected={artifactId === selectedId}
-							onSelect={() => onSelect(artifactId)}
-						/>
+						<ArtifactSwitcherItem key={artifactId} artifactId={artifactId} />
 					))}
-				</div>
+				</DropdownMenuRadioGroup>
 				<DropdownMenuSeparator />
 				<DropdownMenuItem asChild>
 					<Link to={artifactsGalleryPath}>
@@ -172,93 +149,105 @@ const ArtifactSwitcher: React.FC<ArtifactSwitcherProps> = ({
 
 type ArtifactSwitcherItemProps = {
 	artifactId: string;
-	seenVersion: number;
-	isSelected: boolean;
-	onSelect: () => void;
 };
 
 const ArtifactSwitcherItem: React.FC<ArtifactSwitcherItemProps> = ({
 	artifactId,
-	seenVersion,
-	isSelected,
-	onSelect,
 }) => {
-	const artifactQuery = useChatArtifact(artifactId, seenVersion);
-	const { data } = artifactQuery;
-
-	let label = "Loading…";
-	if (data) {
-		label = data.title || "Untitled artifact";
-	} else if (artifactQuery.isError) {
-		label = "Unavailable artifact";
-	}
-
-	// The shown artifact stays enabled because Radix keeps disabled items
-	// out of keyboard focus.
+	// Items mount when the menu opens, and the query refetches then, so the
+	// version is current without the seen-version check.
+	const artifactQuery = useQuery(chatArtifact(artifactId));
 	return (
-		<DropdownMenuItem
-			aria-current={isSelected ? "true" : undefined}
-			onSelect={isSelected ? undefined : onSelect}
-		>
-			<span className="min-w-0 flex-1 truncate">{label}</span>
-			{data && (
+		<DropdownMenuRadioItem value={artifactId} className="gap-2">
+			<span className="min-w-0 flex-1 truncate">
+				{artifactLabel(artifactQuery)}
+			</span>
+			{artifactQuery.data && (
 				<span className="shrink-0 text-xs text-content-secondary">
-					v{data.latest_version}
+					v{artifactQuery.data.latest_version}
 				</span>
 			)}
-			{isSelected ? (
-				<CheckIcon className="text-content-primary" />
-			) : (
-				<span aria-hidden className="size-icon-sm shrink-0" />
-			)}
-		</DropdownMenuItem>
+		</DropdownMenuRadioItem>
 	);
 };
 
 type SelectedArtifactProps = {
 	artifactId: string;
+	/** The highest version that a tool result in the chat names. */
 	seenVersion: number;
 	version: number | undefined;
+	/** Every artifact of the chat, for the switcher. */
+	artifactIds: readonly string[];
 	chatId: string;
-	onSelectVersion: (version: number) => void;
+	onSelect: (selection: ArtifactSelection) => void;
 	onPrompt?: (text: string) => void;
 	currentUserId: string;
-	/** Renders the title, such as the artifact switcher. */
-	renderTitle: (title: string) => React.ReactNode;
 };
 
 const SelectedArtifact: React.FC<SelectedArtifactProps> = ({
 	artifactId,
 	seenVersion,
 	version,
+	artifactIds,
 	chatId,
-	onSelectVersion,
+	onSelect,
 	onPrompt,
 	currentUserId,
-	renderTitle,
 }) => {
-	const artifactQuery = useChatArtifact(artifactId, seenVersion);
+	const artifactQuery = useQuery(chatArtifact(artifactId));
+	const { data, refetch } = artifactQuery;
+	const refetchedForVersionRef = useRef(0);
+
+	// A tool result that names a newer version than the cache means the
+	// chat published again. Refetch once for each such version.
+	useEffect(() => {
+		if (
+			data &&
+			seenVersion > data.latest_version &&
+			refetchedForVersionRef.current < seenVersion
+		) {
+			refetchedForVersionRef.current = seenVersion;
+			void refetch();
+		}
+	}, [data, seenVersion, refetch]);
+
+	const switcher = (
+		<ArtifactSwitcher
+			label={artifactLabel(artifactQuery)}
+			artifactIds={artifactIds}
+			selectedId={artifactId}
+			onSelect={(id) => onSelect({ artifactId: id })}
+		/>
+	);
 	// A failed background refetch keeps the cached artifact on screen.
-	if (artifactQuery.data) {
+	if (data) {
 		return (
 			<ArtifactView
-				artifact={artifactQuery.data}
+				artifact={data}
 				selectedVersion={version}
-				onSelectVersion={onSelectVersion}
+				onSelectVersion={(v) => onSelect({ artifactId, version: v })}
 				currentChatId={chatId}
 				onPrompt={onPrompt}
 				currentUserId={currentUserId}
-				renderTitle={renderTitle}
+				title={switcher}
 				showPageLink
 			/>
 		);
 	}
-	if (artifactQuery.isError) {
-		return (
-			<div className="p-4">
-				<ErrorAlert error={artifactQuery.error} />
-			</div>
-		);
-	}
-	return <Loader className="flex-1" label="Loading artifact" />;
+	// The switcher stays while the artifact loads or fails, so the chat's
+	// other artifacts stay reachable.
+	return (
+		<div className="flex min-h-0 flex-1 flex-col">
+			<h3 className="m-0 flex shrink-0 border-0 border-b border-solid border-border px-3 py-2 text-sm font-medium">
+				{switcher}
+			</h3>
+			{artifactQuery.isError ? (
+				<div className="p-4">
+					<ErrorAlert error={artifactQuery.error} />
+				</div>
+			) : (
+				<Loader className="flex-1" label="Loading artifact" />
+			)}
+		</div>
+	);
 };
