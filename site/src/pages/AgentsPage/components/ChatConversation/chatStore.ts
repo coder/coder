@@ -127,6 +127,12 @@ type QueueEdit = (
  */
 type PendingEntry = {
 	id: number;
+	// The snapshot version synced at the click. The request's result has a
+	// higher version, so an event at or below it ends no part.
+	syncedVersion: number;
+	// Set for an action on a queued row. A queue update ends no part until it
+	// shows the row's result, so one row's update does not end another's action.
+	isRowDone?: (rows: readonly TypesGen.ChatQueuedMessage[]) => boolean;
 	// The message the request adds. The next user message or queue update
 	// ends it, because the server queues the message when the chat is busy.
 	message?: { shown?: TypesGen.ChatMessage; queue?: QueueEdit };
@@ -135,7 +141,7 @@ type PendingEntry = {
 	history?: { fromID: number; draft?: TypesGen.ChatMessage };
 };
 
-type PendingPart = Exclude<keyof PendingEntry, "id">;
+type PendingPart = "message" | "queue" | "history";
 
 export type ChatStoreState = {
 	messagesByID: Map<number, TypesGen.ChatMessage>;
@@ -169,7 +175,9 @@ export type ChatStore = {
 	// Replaces the whole history, as a history_reset from the first message.
 	replaceMessages: (messages: readonly TypesGen.ChatMessage[]) => void;
 	// Applies a history_reset: drops the messages with IDs at or above fromID.
-	resetHistoryFrom: (fromID: number) => void;
+	// The version arguments of the stream writers are the event's snapshot
+	// version; without one, the write ends every pending part of its kind.
+	resetHistoryFrom: (fromID: number, version?: number) => void;
 	getHistoryResetCount: () => number;
 	// Drops the page if a history reset was applied since resetCount.
 	prependOlderMessages: (
@@ -181,11 +189,16 @@ export type ChatStore = {
 		isDuplicate: boolean;
 		changed: boolean;
 	};
-	upsertDurableMessages: (messages: readonly TypesGen.ChatMessage[]) => void;
+	// userMessageVersion is the highest snapshot version of the user messages.
+	upsertDurableMessages: (
+		messages: readonly TypesGen.ChatMessage[],
+		userMessageVersion?: number,
+	) => void;
 	applyMessagePart: (part: TypesGen.ChatMessagePart) => void;
 	applyMessageParts: (parts: readonly TypesGen.ChatMessagePart[]) => void;
 	setQueuedMessages: (
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[],
+		version?: number,
 	) => void;
 	// Applies a status event, and clears the turn error unless the status is
 	// error.
@@ -194,8 +207,17 @@ export type ChatStore = {
 	// The highest snapshot version of the newest page and the applied events.
 	getSyncedSnapshotVersion: () => number;
 	advanceSnapshotVersion: (version: number) => void;
-	addPendingAction: (action: PendingAction) => number;
-	removePendingAction: (id: number) => void;
+	// status is the chat status the page shows, which places the message.
+	addPendingAction: (
+		action: PendingAction,
+		status: TypesGen.ChatStatus | null,
+	) => number;
+	// Shows the action while request runs, and removes it if request rejects.
+	runPendingAction: (
+		action: PendingAction,
+		status: TypesGen.ChatStatus | null,
+		request: () => Promise<unknown>,
+	) => Promise<void>;
 	setStreamState: (streamState: StreamState | null) => void;
 	setClientError: (reason: ChatDetailError | null) => void;
 	clearClientError: () => void;
@@ -279,9 +301,18 @@ export const createChatStore = (): ChatStore => {
 		}
 	};
 
-	const endPending = (parts: readonly PendingPart[]): void => {
+	const endPending = (
+		parts: readonly PendingPart[],
+		version: number,
+		rows?: readonly TypesGen.ChatQueuedMessage[],
+	): void => {
 		setState((current) => {
-			const pendingActions = endPendingParts(current.pendingActions, parts);
+			const pendingActions = endPendingParts(
+				current.pendingActions,
+				parts,
+				version,
+				rows,
+			);
 			return arraysEqual(pendingActions, current.pendingActions)
 				? current
 				: { ...current, pendingActions };
@@ -406,6 +437,40 @@ export const createChatStore = (): ChatStore => {
 		});
 	};
 
+	const addPendingAction = (
+		action: PendingAction,
+		status: TypesGen.ChatStatus | null,
+	): number => {
+		const id = nextPendingActionID++;
+		const entry = pendingEntry(id, action, state.view, status);
+		// An action that shows nothing gets no entry, and
+		// removePendingAction ignores its ID.
+		if (!entry.message && !entry.queue && !entry.history) {
+			return id;
+		}
+		setState((current) => ({
+			...current,
+			pendingActions: [
+				...current.pendingActions,
+				{ ...entry, syncedVersion: syncedSnapshotVersion },
+			],
+		}));
+		return id;
+	};
+
+	const removePendingAction = (id: number): void => {
+		setState((current) =>
+			current.pendingActions.some((entry) => entry.id === id)
+				? {
+						...current,
+						pendingActions: current.pendingActions.filter(
+							(entry) => entry.id !== id,
+						),
+					}
+				: current,
+		);
+	};
+
 	const applyMessageParts = (parts: readonly TypesGen.ChatMessagePart[]) => {
 		if (parts.length === 0) {
 			return;
@@ -439,7 +504,7 @@ export const createChatStore = (): ChatStore => {
 			historyResets++;
 			batch(() => {
 				replaceMessages(messages);
-				endPending(["history"]);
+				endPending(["history"], Number.POSITIVE_INFINITY);
 			});
 		},
 		upsertDurableMessage: (message) => {
@@ -447,22 +512,28 @@ export const createChatStore = (): ChatStore => {
 			batch(() => {
 				result = upsertDurableMessage(message);
 				if (message.role === "user") {
-					endPending(["message"]);
+					endPending(["message"], Number.POSITIVE_INFINITY);
 				}
 			});
 			return result;
 		},
-		upsertDurableMessages: (messages) => {
+		upsertDurableMessages: (
+			messages,
+			userMessageVersion = Number.POSITIVE_INFINITY,
+		) => {
 			batch(() => {
 				upsertDurableMessages(messages);
 				if (messages.some((message) => message.role === "user")) {
-					endPending(["message"]);
+					endPending(["message"], userMessageVersion);
 				}
 			});
 		},
 		applyMessagePart: (part) => applyMessageParts([part]),
 		applyMessageParts,
-		setQueuedMessages: (queuedMessages) => {
+		setQueuedMessages: (
+			queuedMessages,
+			version = Number.POSITIVE_INFINITY,
+		) => {
 			batch(() => {
 				setState((current) => {
 					if (
@@ -472,11 +543,11 @@ export const createChatStore = (): ChatStore => {
 					}
 					return { ...current, queuedMessages };
 				});
-				endPending(["message", "queue"]);
+				endPending(["message", "queue"], version, queuedMessages);
 			});
 		},
 		seed,
-		resetHistoryFrom: (fromID) => {
+		resetHistoryFrom: (fromID, version = Number.POSITIVE_INFINITY) => {
 			historyResets++;
 			batch(() => {
 				replaceMessages(
@@ -484,7 +555,7 @@ export const createChatStore = (): ChatStore => {
 						(message) => message.id < fromID,
 					),
 				);
-				endPending(["history"]);
+				endPending(["history"], version);
 			});
 		},
 		getHistoryResetCount: () => historyResets,
@@ -522,31 +593,15 @@ export const createChatStore = (): ChatStore => {
 		advanceSnapshotVersion: (version) => {
 			syncedSnapshotVersion = Math.max(syncedSnapshotVersion, version);
 		},
-		addPendingAction: (action) => {
-			const id = nextPendingActionID++;
-			const entry = pendingEntry(id, action, state.view, state.chatStatus);
-			// An action that shows nothing gets no entry, and
-			// removePendingAction ignores its ID.
-			if (!entry.message && !entry.queue && !entry.history) {
-				return id;
+		addPendingAction,
+		runPendingAction: async (action, status, request) => {
+			const id = addPendingAction(action, status);
+			try {
+				await request();
+			} catch (error) {
+				removePendingAction(id);
+				throw error;
 			}
-			setState((current) => ({
-				...current,
-				pendingActions: [...current.pendingActions, entry],
-			}));
-			return id;
-		},
-		removePendingAction: (id) => {
-			setState((current) =>
-				current.pendingActions.some((entry) => entry.id === id)
-					? {
-							...current,
-							pendingActions: current.pendingActions.filter(
-								(entry) => entry.id !== id,
-							),
-						}
-					: current,
-			);
 		},
 		setStreamState: (streamState) => {
 			if (state.streamState === streamState) {
@@ -731,6 +786,9 @@ const pendingRowIDFloor = Number.MAX_SAFE_INTEGER - 2 ** 32;
  */
 export const isPendingRowID = (id: number) => id > pendingRowIDFloor;
 
+const hasRow = (rows: readonly TypesGen.ChatQueuedMessage[], id: number) =>
+	rows.some((row) => row.id === id);
+
 // pendingEntry places a request's message as chatstate SendMessage and
 // PromoteQueuedMessage do, but by the state shown at the click. The server
 // uses the state the request finds, which can differ.
@@ -739,7 +797,7 @@ const pendingEntry = (
 	action: PendingAction,
 	shown: ChatView,
 	status: TypesGen.ChatStatus | null,
-): PendingEntry => {
+): Omit<PendingEntry, "syncedVersion"> => {
 	const eagerID = Number.MAX_SAFE_INTEGER - id;
 	const running = status === "running" || status === "interrupting";
 	switch (action.kind) {
@@ -775,6 +833,8 @@ const pendingEntry = (
 			if (running) {
 				return {
 					id,
+					isRowDone: (rows) =>
+						rows[0]?.id === target.id || !hasRow(rows, target.id),
 					queue:
 						shown.queuedMessages[0] === target
 							? undefined
@@ -783,6 +843,7 @@ const pendingEntry = (
 			}
 			return {
 				id,
+				isRowDone: (rows) => !hasRow(rows, target.id),
 				message: {
 					shown: sentQueuedMessage(eagerID, target),
 					queue: withoutRow(target.id),
@@ -800,16 +861,29 @@ const pendingEntry = (
 				queue: shown.queuedMessages.length > 0 ? () => [] : undefined,
 			};
 		case "deleteQueued":
-			return { id, queue: withoutRow(action.queuedMessageID) };
+			return {
+				id,
+				isRowDone: (rows) => !hasRow(rows, action.queuedMessageID),
+				queue: withoutRow(action.queuedMessageID),
+			};
 	}
 };
 
-// Drops the ended parts from each entry, and each entry left with none.
+// Drops the parts an update at version ends from each entry, and each entry
+// left with none.
 const endPendingParts = (
 	entries: readonly PendingEntry[],
 	ended: readonly PendingPart[],
+	version: number,
+	rows?: readonly TypesGen.ChatQueuedMessage[],
 ): readonly PendingEntry[] =>
 	entries.flatMap((entry) => {
+		if (
+			version <= entry.syncedVersion ||
+			(rows && entry.isRowDone && !entry.isRowDone(rows))
+		) {
+			return [entry];
+		}
 		const message = ended.includes("message") ? undefined : entry.message;
 		const queue = ended.includes("queue") ? undefined : entry.queue;
 		const history = ended.includes("history") ? undefined : entry.history;
@@ -823,7 +897,7 @@ const endPendingParts = (
 		) {
 			return [entry];
 		}
-		return [{ id: entry.id, message, queue, history }];
+		return [{ ...entry, message, queue, history }];
 	});
 
 // Returns the stored state with each pending entry applied in request order.

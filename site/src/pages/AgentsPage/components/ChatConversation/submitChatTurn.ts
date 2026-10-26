@@ -42,6 +42,8 @@ export type SubmitChatTurnParams = {
 	compact: () => Promise<unknown>;
 	clearChatContext: () => Promise<unknown>;
 	store: ChatStore;
+	// The status the page shows, which places a pending send.
+	chatStatus: TypesGen.ChatStatus | null;
 	agentId: string;
 	clearChatErrorReason: (chatId: string) => void;
 	effectiveSelectedModel: string;
@@ -171,6 +173,7 @@ export async function submitChatTurn(
 		compact,
 		clearChatContext,
 		store,
+		chatStatus,
 		agentId,
 		clearChatErrorReason,
 		effectiveSelectedModel,
@@ -244,24 +247,23 @@ export async function submitChatTurn(
 		};
 		clearChatErrorReason(agentId);
 		store.clearClientError();
-		const pendingID = store.addPendingAction({
-			kind: "edit",
-			editedMessageID,
-			message:
-				originalEditedMessage &&
-				buildOptimisticEditedMessage({
-					requestContent: request.content,
-					originalMessage: originalEditedMessage,
-					attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
-				}),
-		});
 		try {
-			await editMessage({
-				messageId: editedMessageID,
-				req: request,
-			});
+			await store.runPendingAction(
+				{
+					kind: "edit",
+					editedMessageID,
+					message:
+						originalEditedMessage &&
+						buildOptimisticEditedMessage({
+							requestContent: request.content,
+							originalMessage: originalEditedMessage,
+							attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
+						}),
+				},
+				chatStatus,
+				() => editMessage({ messageId: editedMessageID, req: request }),
+			);
 		} catch (error) {
-			store.removePendingAction(pendingID);
 			scrollToEnd({ behavior: "smooth" });
 			onRequestError(error);
 			invalidateChat(agentId);
@@ -281,24 +283,26 @@ export async function submitChatTurn(
 	clearChatErrorReason(agentId);
 	store.clearClientError();
 
-	const pendingID = store.addPendingAction({
-		kind: "send",
-		message: buildOptimisticEditedMessage({
-			requestContent: content,
-			originalMessage: {
-				id: 0,
-				chat_id: agentId,
-				created_at: new Date().toISOString(),
-				role: "user",
-				model_config_id: selectedModelConfigID,
-			},
-			attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
-		}),
-	});
 	try {
-		await sendMessage(request);
+		await store.runPendingAction(
+			{
+				kind: "send",
+				message: buildOptimisticEditedMessage({
+					requestContent: content,
+					originalMessage: {
+						id: 0,
+						chat_id: agentId,
+						created_at: new Date().toISOString(),
+						role: "user",
+						model_config_id: selectedModelConfigID,
+					},
+					attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
+				}),
+			},
+			chatStatus,
+			() => sendMessage(request),
+		);
 	} catch (error) {
-		store.removePendingAction(pendingID);
 		scrollToEnd({ behavior: "smooth" });
 		onRequestError(error);
 		invalidateChat(agentId);

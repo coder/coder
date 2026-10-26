@@ -18,6 +18,7 @@ import {
 	MockChatMessage,
 	MockChatQueuedMessage,
 } from "#/testHelpers/chatEntities";
+import { createDeferred } from "#/testHelpers/deferred";
 import { BuiltInCommandPendingError } from "../../hooks/useConversationEditingState";
 import { NIL_UUID } from "../../utils/modelOptions";
 import {
@@ -25,6 +26,7 @@ import {
 	selectMessagesByID,
 	selectOrderedMessageIDs,
 	selectQueuedMessages,
+	selectStreamState,
 } from "./chatStore";
 import {
 	resolveEditModelConfigID,
@@ -58,6 +60,7 @@ const buildParams = (
 		compact: vi.fn().mockResolvedValue(undefined),
 		clearChatContext: vi.fn().mockResolvedValue(undefined),
 		store,
+		chatStatus: store.getSnapshot().chatStatus,
 		agentId: "chat-1",
 		clearChatErrorReason: vi.fn(),
 		effectiveSelectedModel: pickerModel.id,
@@ -394,13 +397,9 @@ describe("submitChatTurn", () => {
 			textMessage(4, "assistant", "old answer"),
 		]);
 		store.setQueuedMessages([{ ...MockChatQueuedMessage, id: 8 }]);
-		let resolveEdit: () => void = () => {};
-		const editMessage = vi.fn(
-			() =>
-				new Promise<void>((resolve) => {
-					resolveEdit = resolve;
-				}),
-		);
+		store.applyMessagePart({ type: "text", text: "old partial answer" });
+		const edit = createDeferred<void>();
+		const editMessage = vi.fn(() => edit.promise);
 
 		const submitted = submitChatTurn(
 			buildParams({
@@ -412,8 +411,9 @@ describe("submitChatTurn", () => {
 		);
 		expect(visibleTexts(store)).toEqual(["first", "answer", "new"]);
 		expect(selectQueuedMessages(store.getSnapshot())).toEqual([]);
+		expect(selectStreamState(store.getSnapshot())).toBeNull();
 
-		resolveEdit();
+		edit.resolve();
 		await submitted;
 		// A status does not end the pending edit.
 		store.applyServerChatStatus("running");
@@ -461,13 +461,8 @@ describe("submitChatTurn", () => {
 
 	it("shows a sent message from submit until the stream reports it", async () => {
 		const store = seededStore([textMessage(1, "user", "first")]);
-		let resolveSend: () => void = () => {};
-		const sendMessage = vi.fn(
-			() =>
-				new Promise<{ queued: boolean }>((resolve) => {
-					resolveSend = () => resolve({ queued: false });
-				}),
-		);
+		const send = createDeferred<{ queued: boolean }>();
+		const sendMessage = vi.fn(() => send.promise);
 
 		const submitted = submitChatTurn(buildParams({ store, sendMessage }));
 		expect(sendMessage).toHaveBeenCalledWith(
@@ -478,7 +473,7 @@ describe("submitChatTurn", () => {
 		);
 		expect(visibleTexts(store)).toEqual(["first", "hello"]);
 
-		resolveSend();
+		send.resolve({ queued: false });
 		await submitted;
 		expect(visibleTexts(store)).toEqual(["first", "hello"]);
 
@@ -525,6 +520,15 @@ describe("submitChatTurn", () => {
 		});
 		expect(selectQueuedMessages(store.getSnapshot())).toEqual([queued]);
 		expect(store.getSnapshot().pendingActions).toEqual([]);
+	});
+
+	it("places a send by the status the page shows", async () => {
+		const store = seededStore([]);
+
+		await submitChatTurn(buildParams({ store, chatStatus: "running" }));
+
+		expect(visibleTexts(store)).toEqual([]);
+		expect(selectQueuedMessages(store.getSnapshot())).toHaveLength(1);
 	});
 
 	it("clears plan mode when implementing the plan", async () => {

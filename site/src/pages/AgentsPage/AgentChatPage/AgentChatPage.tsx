@@ -530,32 +530,28 @@ const AgentChatPage: React.FC = () => {
 		});
 	};
 
+	// A failed request shows the row again, so the error is not rethrown.
 	const handleDeleteQueuedMessage = async (id: number) => {
-		const pendingID = store.addPendingAction({
-			kind: "deleteQueued",
-			queuedMessageID: id,
-		});
 		try {
-			await deleteQueuedMessage(id);
-		} catch (error) {
-			store.removePendingAction(pendingID);
-			throw error;
-		}
+			await store.runPendingAction(
+				{ kind: "deleteQueued", queuedMessageID: id },
+				liveChatStatus,
+				() => deleteQueuedMessage(id),
+			);
+		} catch {}
 	};
 
 	const handlePromoteQueuedMessage = async (id: number) => {
-		const pendingID = store.addPendingAction({
-			kind: "promoteQueued",
-			queuedMessageID: id,
-		});
 		store.clearClientError();
 		clearChatErrorReason(agentId);
 		try {
-			await promoteQueuedMessage(id);
+			await store.runPendingAction(
+				{ kind: "promoteQueued", queuedMessageID: id },
+				liveChatStatus,
+				() => promoteQueuedMessage(id),
+			);
 		} catch (error) {
-			store.removePendingAction(pendingID);
 			handleRequestError(error);
-			throw error;
 		}
 	};
 
@@ -639,6 +635,7 @@ const AgentChatPage: React.FC = () => {
 		compact,
 		clearChatContext,
 		store,
+		chatStatus: liveChatStatus,
 		agentId,
 		clearChatErrorReason,
 		effectiveSelectedModel,

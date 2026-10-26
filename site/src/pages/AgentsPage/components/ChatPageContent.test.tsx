@@ -181,6 +181,9 @@ const mockSkillRequests = () => {
 };
 
 beforeEach(() => {
+	// Every test uses the same chat ID, so a draft one test saves would
+	// otherwise be restored in the next.
+	localStorage.clear();
 	// jsdom lacks Range geometry, which the slash menu reads to anchor.
 	// The method does not exist to spy on, so add it per test and remove
 	// it afterwards.
@@ -363,16 +366,19 @@ describe("ChatPageInput", () => {
 			snapshot_version: 1,
 		});
 		store.applyServerChatStatus("running");
-		store.addPendingAction({
-			kind: "send",
-			message: {
-				id: 0,
-				chat_id: "",
-				created_at: "2025-01-01T00:00:00.000Z",
-				role: "user",
-				content: [{ type: "text", text: "not stored yet" }],
+		store.addPendingAction(
+			{
+				kind: "send",
+				message: {
+					id: 0,
+					chat_id: "",
+					created_at: "2025-01-01T00:00:00.000Z",
+					role: "user",
+					content: [{ type: "text", text: "not stored yet" }],
+				},
 			},
-		});
+			"running",
+		);
 
 		renderChatPageInput(store, {
 			onPromoteQueuedMessage,
