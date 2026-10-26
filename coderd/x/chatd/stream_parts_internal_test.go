@@ -173,8 +173,8 @@ func TestStreamPartsEndpointLatestSelectionWinsWhileBlocked(t *testing.T) {
 	}()
 
 	blockingKey := messagepartbuffer.Key{ChatID: chatID, HistoryVersion: 1, GenerationAttempt: 1}
-	// A reader that queued selections in a buffer of fewer than 16 would leave
-	// one of these in the pipe.
+	// A reader that queued selections in a buffer of fewer than 16 would never
+	// take latestKey from the pipe.
 	var staleKeys []messagepartbuffer.Key
 	for i := range int64(16) {
 		staleKeys = append(staleKeys, messagepartbuffer.Key{ChatID: chatID, HistoryVersion: i + 2, GenerationAttempt: 1})
