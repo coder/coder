@@ -9,6 +9,7 @@ import {
   getElementViewportTop,
   getMaxScrollTop,
   getTailSpacerHeight,
+  isOnScreenKeyboardOpen, // LOCAL CHANGE
 } from "./geometry"
 import { AUTOSCROLLING_CLEAR_DELAY, SCROLL_POSITION_EPSILON } from "./types"
 import type { MessageScrollerScrollOptions } from "./types"
@@ -196,6 +197,13 @@ function useMessageScrollerCommands({
         return false
       }
 
+      // LOCAL CHANGE: for an on-screen keyboard, mobile browsers pan the page
+      // to the focused input, which hides the top of the viewport. The hold
+      // would show only its tail spacer, so show the end instead.
+      if (keepPreviousPeek && isOnScreenKeyboardOpen()) {
+        return scrollToEnd({ behavior })
+      }
+
       const scrollTop = getElementScrollTop({
         align,
         element,
@@ -233,7 +241,12 @@ function useMessageScrollerCommands({
 
       return true
     },
-    [scheduleVisibilitySync, scrollToPosition, setTailSpacerHeight]
+    [
+      scheduleVisibilitySync,
+      scrollToEnd, // LOCAL CHANGE
+      scrollToPosition,
+      setTailSpacerHeight,
+    ]
   )
 
   const reanchorToAnchoredMessage = React.useCallback(() => {

@@ -303,9 +303,20 @@ function MessageScrollerViewport({
 
     observer.observe(viewport)
 
+    // LOCAL CHANGE: an on-screen keyboard resizes only the visual viewport,
+    // which the observer cannot see, and the held turn must react to it.
+    const visualViewport = window.visualViewport
+    const handleVisualViewportResize = () => {
+      window.cancelAnimationFrame(frame)
+      frame = window.requestAnimationFrame(handleResize)
+    }
+    visualViewport?.addEventListener("resize", handleVisualViewportResize)
+
     return () => {
       window.cancelAnimationFrame(frame)
       observer.disconnect()
+      // LOCAL CHANGE
+      visualViewport?.removeEventListener("resize", handleVisualViewportResize)
     }
   }, [handleResize, resetBrowserScrollAnchor, viewportRef]) // LOCAL CHANGE
 

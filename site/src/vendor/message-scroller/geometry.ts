@@ -324,6 +324,25 @@ function getContentBottom({
   return contentBottom
 }
 
+// LOCAL CHANGE: browser toolbars and rounding can make the visual viewport a
+// little shorter than the layout viewport. An on-screen keyboard is far taller.
+const ON_SCREEN_KEYBOARD_MIN_HEIGHT = 100
+
+// LOCAL CHANGE: an on-screen keyboard shrinks the visual viewport but not the
+// layout. Pinch zoom also shrinks it, so compare the unzoomed height.
+function isOnScreenKeyboardOpen() {
+  const visualViewport = window.visualViewport
+
+  if (!visualViewport) {
+    return false
+  }
+
+  const layoutHeight = document.documentElement.clientHeight
+  const visibleHeight = visualViewport.height * visualViewport.scale
+
+  return layoutHeight - visibleHeight > ON_SCREEN_KEYBOARD_MIN_HEIGHT
+}
+
 function getMaxScrollTop(viewport: HTMLElement) {
   return Math.max(0, viewport.scrollHeight - viewport.clientHeight)
 }
@@ -388,4 +407,5 @@ export {
   getTailSpacerHeight,
   getUnanchoredScrollAnchor,
   hasMultipleNewScrollAnchors,
+  isOnScreenKeyboardOpen, // LOCAL CHANGE
 }
