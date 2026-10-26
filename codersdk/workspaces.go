@@ -662,7 +662,8 @@ func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, owner string, name
 	if err := validateWorkspacePathSegment(name); err != nil {
 		return Workspace{}, xerrors.Errorf("invalid workspace name: %w", err)
 	}
-	reqOpts := make([]RequestOption, 0, len(opts))
+	reqOpts := make([]RequestOption, 0, len(opts)+1)
+	reqOpts = append(reqOpts, WithQueryParam("include_deleted", "false"))
 	for _, o := range opts {
 		reqOpts = append(reqOpts, o.asRequestOption())
 	}
