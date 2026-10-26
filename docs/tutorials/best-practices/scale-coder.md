@@ -176,7 +176,7 @@ The control plane maintains a pool of connections to PostgreSQL.
 You can tune the pool size with the following settings:
 
 > [!NOTE]
-> When adjusting these settings, please ensure that your PostgreSQL Server has `max_connections` set appropriately to accommodate all control plane replicas multiplied by the maximum number of open connections.
+> When adjusting these settings, ensure that your PostgreSQL Server has `max_connections` set appropriately to accommodate all control plane replicas multiplied by the maximum number of open connections.
 > We recommend configuring an additional 20% of connections to account for churn and other clients.
 >
 > Also note that increasing `max_connections` will result in potentially higher CPU and RAM usage, so you'll need to monitor accordingly.
@@ -195,7 +195,7 @@ Monitor these metrics to understand your connection pool behavior:
   If this is 0, control plane performance will start to degrade.
   This just provides a point-in-time view of the connections, however.
 
-  For a more systematic view, consider running `sum by (pod) (increase(go_sql_wait_duration_seconds_total[1m]))` to see how long each Coder replica spent waiting on the connection pool (i.e. no free connections); `sum by (pod) (increase(go_sql_wait_count_total[$__interval]))` shows how many connections were waited for.
+  For a more systematic view, consider running `sum by (pod) (increase(go_sql_wait_duration_seconds_total[1m]))` to see how long each Coder replica spent waiting on the connection pool (that is, no free connections); `sum by (pod) (increase(go_sql_wait_count_total[$__interval]))` shows how many connections were waited for.
 
   If either of these values seem unacceptably high, try tuning the above settings.
 - **Churn**:
@@ -268,7 +268,7 @@ Coder customers have had success with both:
 
 - Use quotas to discourage users from creating many workspaces they don't need simultaneously.
 
-- Label workspace cloud resources by user, team, organization, or your own labelling conventions to track usage at different granularities.
+- Label workspace cloud resources by user, team, organization, or your own labeling conventions to track usage at different granularities.
 
 - Use autostop requirements to bring off-peak utilization down.
 

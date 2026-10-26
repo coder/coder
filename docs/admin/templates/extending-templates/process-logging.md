@@ -11,11 +11,11 @@ There are additional requirements outlined further in this document.
 > Workspace process logging is a Premium feature.
 > [Learn more](https://coder.com/pricing#compare-plans).
 
-Workspace process logging adds a sidecar container to workspace pods that will log all processes started in the workspace container (e.g., commands executed in the terminal or processes created in the background by other processes).
+Workspace process logging adds a sidecar container to workspace pods that will log all processes started in the workspace container (for example, commands executed in the terminal or processes created in the background by other processes).
 Processes launched inside containers or nested containers within the workspace are also logged.
 You can view the output from the sidecar or send it to a monitoring stack, such as CloudWatch, for further analysis or long-term storage.
 
-Please note that these logs are not recorded or captured by the Coder organization in any way, shape, or form.
+Note that these logs are not recorded or captured by the Coder organization in any way, shape, or form.
 
 ## How this works
 
@@ -286,5 +286,5 @@ fields @timestamp, log_processed.fields.cmdline
   Enabling workspace process logging does _not_ grant extra privileges to the workspace container itself, however.
 - `exectrace` will log processes from nested Docker containers (including deeply nested containers) correctly, but Coder does not distinguish between processes started in the workspace and processes started in a child container in the logs.
 - With `envbox` workspaces, this feature will detect and log startup processes begun in the outer container (including container initialization processes).
-- Because this feature logs **all** processes in the workspace, high levels of usage (e.g., during a `make` run) will result in an abundance of output in the sidecar container.
+- Because this feature logs **all** processes in the workspace, high levels of usage (for example, during a `make` run) will result in an abundance of output in the sidecar container.
   Depending on how your Kubernetes cluster is configured, you may incur extra charges from your cloud provider to store the additional logs.
