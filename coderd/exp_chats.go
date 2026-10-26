@@ -6209,31 +6209,51 @@ func (api *API) getChatComputerUseProvider(rw http.ResponseWriter, r *http.Reque
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) putChatComputerUseProvider(rw http.ResponseWriter, r *http.Request) {
-	putChatOperationalSetting(api, rw, r, chatOperationalSettingComputerUseProvider, "Internal error updating computer use provider.",
-		func(ctx context.Context, req codersdk.UpdateChatComputerUseProviderRequest) (string, func(database.Store) error, *codersdk.Response) {
-			if !req.Provider.Valid() {
-				return "", nil, &codersdk.Response{
-					Message: "Invalid computer use provider.",
-					Detail: fmt.Sprintf(
-						"Expected one of: %s. Got %q.",
-						strings.Join(chattool.SupportedComputerUseProviders(), ", "),
-						req.Provider,
-					),
-				}
-			}
-			value := string(req.Provider)
-			return value, func(tx database.Store) error { return tx.UpsertChatComputerUseProvider(ctx, value) }, nil
+	ctx := r.Context()
+	aReq, commitAudit := api.initChatOperationalSettingsAudit(rw, r)
+	defer commitAudit(true)
+
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	// Decode ai_provider_id as a string so a malformed ID gets a field
+	// specific error instead of the generic invalid JSON response.
+	var req struct {
+		codersdk.UpdateChatComputerUseProviderRequest
+		AIProviderID *string `json:"ai_provider_id"`
+	}
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	if !req.Provider.Valid() {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid computer use provider.",
+			Detail: fmt.Sprintf(
+				"Expected one of: %s. Got %q.",
+				strings.Join(chattool.SupportedComputerUseProviders(), ", "),
+				req.Provider,
+			),
 		})
 		return
 	}
 
 	var aiProviderID string
 	if req.AIProviderID != nil {
-		provider, err := api.Database.GetAIProviderByID(ctx, *req.AIProviderID)
+		requestedID, err := uuid.Parse(*req.AIProviderID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid computer use AI provider ID.",
+				Detail:  fmt.Sprintf("ai_provider_id %q is not a valid UUID.", *req.AIProviderID),
+			})
+			return
+		}
+		provider, err := api.Database.GetAIProviderByID(ctx, requestedID)
 		if httpapi.Is404Error(err) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid computer use AI provider.",
-				Detail:  fmt.Sprintf("AI provider %s does not exist.", *req.AIProviderID),
+				Detail:  fmt.Sprintf("AI provider %s does not exist.", requestedID),
 			})
 			return
 		}

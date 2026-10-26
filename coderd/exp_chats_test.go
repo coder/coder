@@ -16683,6 +16683,16 @@ func TestChatComputerUseProvider(t *testing.T) {
 			require.ErrorAs(t, err, &sdkErr, name)
 			require.Equal(t, "Invalid computer use AI provider.", sdkErr.Message, name)
 		}
+
+		res, err := adminClient.Request(ctx, http.MethodPut,
+			"/api/experimental/chats/config/computer-use-provider",
+			map[string]string{"provider": "anthropic", "ai_provider_id": "not-a-uuid"},
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		sdkErr := requireSDKError(t, codersdk.ReadBodyAsError(res), http.StatusBadRequest)
+		require.Equal(t, "Invalid computer use AI provider ID.", sdkErr.Message)
+
 		resp, err := adminClient.GetChatComputerUseProvider(ctx)
 		require.NoError(t, err)
 		require.Nil(t, resp.AIProviderID)
