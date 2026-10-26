@@ -123,8 +123,8 @@ The selected startup scripts must share one workspace agent or dev container sub
 ### Wait for multiple prerequisites
 
 You can combine module and script selectors in one rule.
-For example, here we clone [Microblog](https://github.com/miguelgrinberg/microblog) and install its system packages in parallel.
-We then install the application's dependencies after both succeed:
+For example, this template clones [Microblog](https://github.com/miguelgrinberg/microblog) and installs its system packages in parallel.
+It then installs the application's dependencies after both succeed:
 
 ```tf
 module "checkout" {
