@@ -247,7 +247,7 @@ It skips subdirectories, symbolic links, and rotated `.log.<number>` files.
 The size limit applies to archived copies and leaves the original logs unchanged.
 
 Collection runs until the CLI finishes or you cancel it.
-If bundle generation fails, the plugin removes the partial bundle and attempts to write `coder-support-error.txt` in the workspace's diagnostic directory.
+If bundle generation fails, the plugin removes the partial bundle and tries to write `coder-support-error.txt` in the workspace's diagnostic directory.
 Local SSH logs go into a separate `coder-ssh.zip` when no usable Coder bundle is available.
 Toolbox's other diagnostics remain available.
 
