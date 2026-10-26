@@ -8,7 +8,10 @@ const nativeAgentSessionsKey = (agentID: string) => [
 	"native-sessions",
 ];
 
-/** Discovers sessions created by startup scripts without opening another SSH connection. */
+/**
+ * Discovers sessions through the existing SSH connection. An exact discovery
+ * match can restore a saved selection's history, never create or prompt it.
+ */
 export const nativeAgentSessions = (session: NativeAgentSession) =>
 	infiniteQueryOptions({
 		queryKey: nativeAgentSessionsKey(session.agentID),
@@ -23,13 +26,12 @@ export const nativeAgentSessions = (session: NativeAgentSession) =>
 		refetchOnReconnect: false,
 	});
 
-/** ACP operations are never retried; automatic discovery may only connect and list. */
+/** Explicit ACP operations are never automatically retried. */
 export type NativeAgentAction =
 	| { type: "connect"; signal?: AbortSignal }
-	| { type: "create"; cwd: string }
+	| { type: "create"; cwd: string; harness: string | undefined }
 	| { type: "load"; session: SessionInfo }
 	| { type: "mode"; mode: string }
-	| { type: "join"; session: SessionInfo }
 	| { type: "prompt"; text: string }
 	| { type: "cancel" };
 
@@ -45,17 +47,13 @@ export const nativeAgentAction = (
 				await session.connect(action.signal);
 				break;
 			case "create":
-				await session.create(action.cwd);
+				await session.create(action.cwd, action.harness);
 				break;
 			case "load":
 				await session.load(action.session);
 				break;
 			case "mode":
 				await session.setMode(action.mode);
-				break;
-			case "join":
-				await session.load(action.session);
-				await session.setMode("human");
 				break;
 			case "prompt":
 				await session.prompt(action.text);
@@ -70,7 +68,7 @@ export const nativeAgentAction = (
 		_error: Error | null,
 		action: NativeAgentAction,
 	) => {
-		if (["connect", "create", "mode", "join", "prompt"].includes(action.type)) {
+		if (["connect", "create", "mode", "prompt"].includes(action.type)) {
 			void queryClient.invalidateQueries({
 				queryKey: nativeAgentSessionsKey(session.agentID),
 			});

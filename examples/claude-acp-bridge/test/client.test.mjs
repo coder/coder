@@ -34,7 +34,8 @@ test('supplied cancellation signals do not disable HTTP deadlines', async t => {
   const client = createClient(descriptor);
   await client.request('POST', '/v1/sessions', { cwd: '/workspace' }, external.signal);
   await client.request('GET', '/v1/sessions', undefined, external.signal);
-  assert.deepEqual(timeouts, [65000, 25000]);
+  await client.request('POST', '/v1/sessions/123/resume', {}, external.signal);
+  assert.deepEqual(timeouts, [65000, 25000, 65000]);
   assert.equal(requests[0].redirect, 'error');
   assert.equal(requests[0].headers.Authorization, 'Bearer ' + descriptor.token);
   deadline.abort();

@@ -19,11 +19,21 @@ variable "docker_socket" {
 
 variable "claude_auth_file" {
   type        = string
-  description = "Absolute Docker-host path to an owner-only Claude authentication JSON file. Mounted read-only, never uploaded in the template."
+  default     = ""
+  description = "Optional absolute Docker-host path to an owner-only Claude authentication JSON file. Required for a Claude initial job. Mounted read-only, never uploaded in the template."
   validation {
-    condition     = startswith(var.claude_auth_file, "/")
+    condition     = var.claude_auth_file == "" || startswith(var.claude_auth_file, "/")
     error_message = "Use an absolute path on the Docker host."
   }
+}
+
+# coder_parameter has no sensitive-value support; UI masking alone does not
+# protect a key in provisioning logs. Keep this input sensitive in Terraform.
+variable "codex_api_key" {
+  type        = string
+  default     = ""
+  sensitive   = true
+  description = "Optional OpenAI API key for an initial Codex job. Stored in Terraform state. Leave empty when native Codex authentication is already provisioned in the persistent home. Restrict this template to the key's authorized owner."
 }
 
 provider "docker" {
@@ -33,6 +43,28 @@ provider "docker" {
 data "coder_provisioner" "me" {}
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
+
+data "coder_parameter" "harness" {
+  name         = "harness"
+  display_name = "Native harness"
+  description  = "Native agent for the one-time initial job. Existing jobs are never replayed when this selection differs."
+  type         = "string"
+  default      = "claude"
+  mutable      = false
+  order        = 0
+  option {
+    name  = "Claude Code"
+    value = "claude"
+  }
+  option {
+    name  = "Codex"
+    value = "codex"
+  }
+  option {
+    name  = "OpenCode V2"
+    value = "opencode"
+  }
+}
 
 data "coder_parameter" "prompt" {
   name         = "prompt"
@@ -66,7 +98,7 @@ data "coder_parameter" "repository" {
 data "coder_parameter" "model" {
   name         = "model"
   display_name = "Claude model"
-  description  = "Model for the background session."
+  description  = "Model for Claude jobs only. Codex and OpenCode use their native configuration defaults."
   type         = "string"
   default      = "haiku"
   mutable      = false
@@ -88,7 +120,7 @@ data "coder_parameter" "model" {
 data "coder_parameter" "trust_project" {
   name         = "trust_project"
   display_name = "Trust this project"
-  description  = "Allow Claude to load this project's instructions and configuration at startup. Required for unattended launch. Tool permissions are not bypassed."
+  description  = "Allow the selected native harness to load this project's instructions and configuration at startup. Required for unattended launch. Native tool approvals and sandbox settings are not bypassed."
   type         = "bool"
   default      = "false"
   mutable      = false
@@ -112,24 +144,24 @@ resource "coder_agent" "main" {
   os   = "linux"
   dir  = "/home/coder/project"
   env = {
-    PATH = "/home/coder/.local/bin:/usr/local/bin:/usr/bin:/bin"
+    HOME            = "/home/coder"
+    PATH            = "/home/coder/.local/bin:/usr/local/bin:/usr/bin:/bin"
+    CODEX_HOME      = "/home/coder/.codex"
+    XDG_CONFIG_HOME = "/home/coder/.config"
+    XDG_DATA_HOME   = "/home/coder/.local/share"
+    XDG_STATE_HOME  = "/home/coder/.local/state"
+    XDG_CACHE_HOME  = "/home/coder/.cache"
     # Agent environment values undergo variable expansion before startup.
-    CODER_NATIVE_JOB_PROMPT_BASE64 = base64encode(data.coder_parameter.prompt.value)
-    CODER_NATIVE_JOB_REPO_BASE64   = base64encode(data.coder_parameter.repository.value)
-    CODER_NATIVE_JOB_MODEL         = data.coder_parameter.model.value
-    CODER_NATIVE_JOB_TRUST         = data.coder_parameter.trust_project.value
-    GIT_AUTHOR_NAME                = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
-    GIT_AUTHOR_EMAIL               = data.coder_workspace_owner.me.email
-    GIT_COMMITTER_NAME             = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
-    GIT_COMMITTER_EMAIL            = data.coder_workspace_owner.me.email
-  }
-
-  metadata {
-    key          = "native_job"
-    display_name = "Native job"
-    script       = "node /opt/native-agent/job-status.mjs"
-    interval     = 10
-    timeout      = 2
+    CODER_NATIVE_JOB_HARNESS              = data.coder_parameter.harness.value
+    CODER_NATIVE_JOB_CODEX_API_KEY_BASE64 = base64encode(var.codex_api_key)
+    CODER_NATIVE_JOB_PROMPT_BASE64        = base64encode(data.coder_parameter.prompt.value)
+    CODER_NATIVE_JOB_REPO_BASE64          = base64encode(data.coder_parameter.repository.value)
+    CODER_NATIVE_JOB_MODEL                = data.coder_parameter.model.value
+    CODER_NATIVE_JOB_TRUST                = data.coder_parameter.trust_project.value
+    GIT_AUTHOR_NAME                       = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
+    GIT_AUTHOR_EMAIL                      = data.coder_workspace_owner.me.email
+    GIT_COMMITTER_NAME                    = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
+    GIT_COMMITTER_EMAIL                   = data.coder_workspace_owner.me.email
   }
 }
 
@@ -139,6 +171,14 @@ resource "coder_script" "job" {
   run_on_start       = true
   start_blocks_login = true
   script             = "#!/bin/sh\nset -eu\nexec node /opt/native-agent/startup.mjs\n"
+}
+
+resource "coder_script" "shutdown" {
+  agent_id     = coder_agent.main.id
+  display_name = "Stop native Claude gracefully"
+  run_on_stop  = true
+  timeout      = 60
+  script       = "#!/bin/sh\nset -eu\nexec node /opt/native-agent/shutdown.mjs\n"
 }
 
 resource "docker_volume" "home" {
@@ -160,6 +200,8 @@ resource "docker_container" "workspace" {
   init          = true
   memory        = 4096
   security_opts = ["no-new-privileges:true"]
+  # Allow SSH teardown, the 60s stop hook, and agent exit before Docker removes it.
+  destroy_grace_seconds = 90
   capabilities {
     drop = ["ALL"]
   }
@@ -174,10 +216,13 @@ resource "docker_container" "workspace" {
     container_path = "/home/coder"
     volume_name    = docker_volume.home.name
   }
-  volumes {
-    container_path = "/run/secrets/claude-auth.json"
-    host_path      = var.claude_auth_file
-    read_only      = true
+  dynamic "volumes" {
+    for_each = var.claude_auth_file != "" ? [var.claude_auth_file] : []
+    content {
+      container_path = "/run/secrets/claude-auth.json"
+      host_path      = volumes.value
+      read_only      = true
+    }
   }
   labels {
     label = "coder.workspace_id"

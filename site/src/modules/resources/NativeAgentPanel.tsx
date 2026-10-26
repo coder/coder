@@ -1,3 +1,4 @@
+import type { SessionInfo } from "@agentclientprotocol/sdk";
 import { useFormik } from "formik";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useInfiniteQuery, useMutation, useQueryClient } from "react-query";
@@ -11,6 +12,11 @@ import { useAuthContext } from "#/contexts/auth/AuthProvider";
 import { getTerminalHref } from "#/modules/apps/apps";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import {
+	nativeAgentPanelStorageKey,
+	readNativeAgentPanelState,
+	writeNativeAgentPanelState,
+} from "./NativeAgentPanelStorage";
 import { NativeAgentPanelView } from "./NativeAgentPanelView";
 import { NativeAgentSession } from "./NativeAgentSession";
 import { nativeAgentMetadata } from "./nativeAgentMetadata";
@@ -38,24 +44,41 @@ const OwnedNativeAgentPanel: React.FC<NativeAgentPanelProps> = ({
 	workspace,
 }) => {
 	const { user } = useAuthContext();
-	if (user?.id !== workspace.owner_id) return null;
+	if (!user || user.id !== workspace.owner_id) return null;
+	const storageKey = nativeAgentPanelStorageKey(
+		user.id,
+		workspace.id,
+		agent.name,
+	);
 	return (
-		<NativeAgentControls key={agent.id} agent={agent} workspace={workspace} />
+		<NativeAgentControls
+			key={JSON.stringify([storageKey, agent.id])}
+			agent={agent}
+			workspace={workspace}
+			storageKey={storageKey}
+		/>
 	);
 };
 
+type NativeAgentControlsProps = NativeAgentPanelProps & { storageKey: string };
+
 /** Owns the panel's ACP connection; unmounting disconnects ACP, not the native session. */
-export const NativeAgentControls: React.FC<NativeAgentPanelProps> = ({
+export const NativeAgentControls: React.FC<NativeAgentControlsProps> = ({
 	agent,
 	workspace,
+	storageKey,
 }) => {
-	const [session] = useState(() => new NativeAgentSession(agent.id));
+	const [initialState] = useState(() => readNativeAgentPanelState(storageKey));
+	const [session] = useState(
+		() => new NativeAgentSession(agent.id, initialState?.selectedSession),
+	);
 	const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot);
 	const agentAvailable =
 		agent.status === "connected" &&
 		["ready", "start_error", "start_timeout"].includes(agent.lifecycle_state);
-	const [navigationError, setNavigationError] = useState<string>();
-	const [collapsedSessionID, setCollapsedSessionID] = useState<string>();
+	const [collapsedSessionID, setCollapsedSessionID] = useState(
+		initialState?.collapsedSessionID,
+	);
 	const queryClient = useQueryClient();
 	const action = useMutation(nativeAgentAction(session, queryClient));
 	const sendPrompt = useMutation(nativeAgentAction(session, queryClient));
@@ -79,25 +102,30 @@ export const NativeAgentControls: React.FC<NativeAgentPanelProps> = ({
 	const operationsBlocked =
 		!agentAvailable || snapshot.status !== "connected" || action.isPending;
 	const cwdForm = useFormik({
-		initialValues: { cwd: agent.expanded_directory || agent.directory || "" },
+		initialValues: {
+			cwd:
+				initialState?.cwd ??
+				(agent.expanded_directory || agent.directory || ""),
+			harness: initialState?.harness ?? "",
+		},
 		onSubmit: ({ cwd }, helpers) => {
 			if (operationsBlocked || snapshot.session?.prompting) {
 				helpers.setSubmitting(false);
 				return;
 			}
-			setNavigationError(undefined);
 			setCollapsedSessionID(undefined);
 			if (!sendPrompt.isPending) sendPrompt.reset();
 			action.mutate(
-				{ type: "create", cwd },
+				{ type: "create", cwd, harness },
 				{
 					onSettled: () => helpers.setSubmitting(false),
 				},
 			);
 		},
 	});
+	const harness = cwdForm.values.harness || snapshot.harnesses?.[0]?.id;
 	const promptForm = useFormik({
-		initialValues: { prompt: "" },
+		initialValues: { prompt: initialState?.prompt ?? "" },
 		onSubmit: ({ prompt }, helpers) => {
 			const metadata = nativeAgentMetadata(snapshot.session?.info);
 			if (
@@ -114,7 +142,6 @@ export const NativeAgentControls: React.FC<NativeAgentPanelProps> = ({
 				helpers.setSubmitting(false);
 				return;
 			}
-			setNavigationError(undefined);
 			action.reset();
 			sendPrompt.mutate(
 				{ type: "prompt", text: prompt },
@@ -129,6 +156,32 @@ export const NativeAgentControls: React.FC<NativeAgentPanelProps> = ({
 			);
 		},
 	});
+
+	const selectedInfo = snapshot.session?.info ?? initialState?.selectedSession;
+	const selectedSessionID = selectedInfo?.sessionId;
+	const selectedCwd = selectedInfo?.cwd;
+	useEffect(() => {
+		// Form edits, send completion, and ACP selection updates share this storage boundary.
+		// Read only on mount so background updates cannot replace an in-progress draft.
+		writeNativeAgentPanelState(storageKey, {
+			cwd: cwdForm.values.cwd,
+			harness: harness ?? "",
+			prompt: promptForm.values.prompt,
+			collapsedSessionID,
+			selectedSession:
+				selectedSessionID && selectedCwd
+					? { sessionId: selectedSessionID, cwd: selectedCwd }
+					: undefined,
+		});
+	}, [
+		storageKey,
+		cwdForm.values.cwd,
+		harness,
+		promptForm.values.prompt,
+		collapsedSessionID,
+		selectedSessionID,
+		selectedCwd,
+	]);
 
 	const onAction = (request: NativeAgentAction) => {
 		if (
@@ -145,49 +198,27 @@ export const NativeAgentControls: React.FC<NativeAgentPanelProps> = ({
 		if (!agentAvailable || (request.type !== "connect" && operationsBlocked))
 			return;
 		if (request.type === "load") setCollapsedSessionID(undefined);
-		setNavigationError(undefined);
 		if (!sendPrompt.isPending) sendPrompt.reset();
-		if (request.type === "join") {
-			const selected =
-				request.session.sessionId === snapshot.session?.info.sessionId;
-			const metadata = nativeAgentMetadata(
-				selected ? snapshot.session?.info : request.session,
-			);
-			if (
-				(metadata.unavailable && !metadata.resumable) ||
-				(selected && snapshot.session?.error) ||
-				(!selected && snapshot.session?.prompting)
-			)
-				return;
-			setCollapsedSessionID(undefined);
-			// Reserve the tab within the user gesture, but navigate only after mode acknowledgement.
-			const popup = window.open("about:blank", "_blank");
-			if (!popup) {
-				setNavigationError("Allow popups to join the native terminal.");
-				return;
-			}
-			popup.opener = null;
-			const href = getTerminalHref({
-				username: workspace.owner_name,
-				workspace: workspace.name,
-				agent: agent.name,
-				// Keep the terminal alive after detach so reconnect does not rerun attach.
-				command: `coder-acp attach '${request.session.sessionId.replaceAll("'", "'\\''")}'; exec "\${SHELL:-/bin/sh}" -l`,
-			});
-			void action.mutateAsync(request).then(
-				() => {
-					popup.location.href = href;
-				},
-				() => popup.close(),
-			);
-			return;
-		}
 		action.mutate(request, {
 			onSuccess: () => {
 				if (request.type === "connect" || request.type === "load")
 					sendPrompt.reset();
 			},
 		});
+	};
+	const onOpen = (info: SessionInfo) => {
+		if (!agentAvailable) return;
+		window.open(
+			getTerminalHref({
+				username: workspace.owner_name,
+				workspace: workspace.name,
+				agent: agent.name,
+				// Keep the shell alive after detach or a diagnostic; reconnect must not rerun attach.
+				command: `coder-acp attach '${info.sessionId.replaceAll("'", "'\\''")}'; exec "\${SHELL:-/bin/sh}" -l`,
+			}),
+			"_blank",
+			"noopener,noreferrer",
+		);
 	};
 	const listedSessions =
 		sessions.data?.pages.flatMap((page) => page.sessions) ?? [];
@@ -210,18 +241,19 @@ export const NativeAgentControls: React.FC<NativeAgentPanelProps> = ({
 			loadingSessions={sessions.isLoading}
 			refreshingSessions={sessions.isFetching}
 			sessionsError={sessions.error?.message}
-			error={
-				navigationError || action.error?.message || sendPrompt.error?.message
-			}
+			error={action.error?.message || sendPrompt.error?.message}
 			busy={action.isPending}
 			hasMoreSessions={sessions.hasNextPage}
 			cwd={cwdForm.values.cwd}
+			harness={harness}
 			prompt={promptForm.values.prompt}
 			onCwdChange={cwdForm.handleChange}
+			onHarnessChange={(value) => void cwdForm.setFieldValue("harness", value)}
 			onPromptChange={promptForm.handleChange}
 			onCreateSubmit={cwdForm.handleSubmit}
 			onPromptSubmit={promptForm.handleSubmit}
 			onAction={onAction}
+			onOpen={onOpen}
 			onRefresh={() => {
 				if (!operationsBlocked) void sessions.refetch();
 			}}

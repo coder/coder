@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { isAbsolute, resolve } from "node:path";
 import { Readable, Writable } from "node:stream";
 import { MCP_BLOCKED_REASON, NATIVE_BLOCKED_REASON, REGISTRATION_PENDING_REASON } from "./native-discovery.mjs";
+import { HARNESS_INFO, nativeIdentity } from "./harness.mjs";
 import {
   agent,
   methods,
@@ -20,12 +21,12 @@ import {
  */
 
 const META = "claude-acp-bridge";
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const nativeSessionId = value => Boolean(nativeIdentity(value));
 const MODES = [
   {
     id: "human",
     name: "Human",
-    description: "Native Claude controls prompts and permissions.",
+    description: "The native terminal controls prompts and permissions.",
   },
   {
     id: "automation",
@@ -65,7 +66,9 @@ function checkSetup(params) {
 }
 
 function checkSession(session) {
-  if (!session || !UUID.test(session.sessionId) ||
+  const identity = nativeIdentity(session?.sessionId);
+  if (!identity ||
+      (identity.harness !== "claude" && (session.harness !== identity.harness || session.nativeSessionId !== identity.nativeSessionId)) ||
       typeof session.cwd !== "string" || !isAbsolute(session.cwd) ||
       !MODES.some(({ id }) => id === session.mode)) {
     throw bridgeError("Broker returned an invalid native session");
@@ -88,19 +91,24 @@ function sessionStatus(session) {
   };
 }
 
+function metadata(state, details) {
+  return {
+    [META]: details,
+    "coder-acp": { ...details, harness: state.harness ?? "claude", nativeSessionId: state.nativeSessionId ?? state.sessionId },
+  };
+}
+
 function sessionDetails(state) {
   return {
     modes: { currentModeId: state.mode, availableModes: MODES },
-    _meta: {
-      [META]: {
-        ...LIMITATIONS,
-        ...sessionStatus(state),
-        nativeSessionId: state.sessionId,
-        runtimeId: state.runtimeId,
-        attachCommand: state.attachCommand,
-        cursor: state.cursor,
-      },
-    },
+    _meta: metadata(state, {
+      ...LIMITATIONS,
+      ...sessionStatus(state),
+      nativeSessionId: state.nativeSessionId ?? state.sessionId,
+      runtimeId: state.runtimeId,
+      attachCommand: state.attachCommand,
+      cursor: state.cursor,
+    }),
   };
 }
 
@@ -117,6 +125,7 @@ function sessionDetails(state) {
  */
 export function createAgent(connection, client) {
   const sessions = new Map();
+  let advertisedHarnesses;
   const lifetime = new AbortController();
   const send = connection.sessionUpdate
     ? (notification) => connection.sessionUpdate(notification)
@@ -164,12 +173,14 @@ export function createAgent(connection, client) {
     if (state.error) throw state.error;
     await send({
       sessionId: state.sessionId,
-      update: value,
-      ...(event ? { _meta: { [META]: {
+      update: value._meta?.[META]
+        ? { ...value, _meta: metadata(state, value._meta[META]) }
+        : value,
+      ...(event ? { _meta: metadata(state, {
         seq: event.seq,
         turnId: event.data.turnId,
         requestId: event.data.requestId,
-      } } } : {}),
+      }) } : {}),
     });
   }
 
@@ -283,7 +294,7 @@ export function createAgent(connection, client) {
       if (pending && data.requestId !== pending.requestId) return;
       await update(state, {
         sessionUpdate: "session_info_update",
-        _meta: { [META]: { pendingInput: data, permissions: "native-attach" } },
+        _meta: { [META]: { pendingInput: data.pending === false ? null : data, permissions: "native-attach" } },
       }, event);
       return;
     }
@@ -362,6 +373,7 @@ export function createAgent(connection, client) {
           sessionUpdate: "tool_call_update",
           toolCallId: data.toolCallId,
           status: data.isError ? "failed" : "completed",
+          ...(Object.hasOwn(data, "input") ? { rawInput: data.input } : {}),
           rawOutput: data.result,
           content: [{ type: "content", content: {
             type: "text",
@@ -484,9 +496,15 @@ export function createAgent(connection, client) {
 
   return {
     async initialize() {
+      let harnesses;
+      try { ({ harnesses } = await client.request("GET", "/v1/capabilities", undefined, lifetime.signal)); }
+      catch (error) { if (error.status !== 404) throw error; }
+      advertisedHarnesses = harnesses ?? [];
       return {
         protocolVersion: PROTOCOL_VERSION,
-        agentInfo: { name: "claude-acp-bridge", title: "Claude Code", version: "0.1.0" },
+        agentInfo: harnesses?.length > 1
+          ? { name: "coder-acp", title: "Native agents", version: "0.1.0" }
+          : { name: "claude-acp-bridge", title: "Claude Code", version: "0.1.0" },
         agentCapabilities: {
           loadSession: true,
           promptCapabilities: { image: false, audio: false, embeddedContext: false },
@@ -494,20 +512,23 @@ export function createAgent(connection, client) {
           sessionCapabilities: { list: {} },
         },
         authMethods: [],
-        _meta: { [META]: LIMITATIONS },
+        _meta: { [META]: LIMITATIONS, ...(harnesses ? { "coder-acp": { harnesses } } : {}) },
       };
     },
 
     async newSession(params) {
       checkSetup(params);
-      const session = await request("POST", "/v1/sessions", { cwd: params.cwd });
+      const harness = params._meta?.["coder-acp"]?.harness;
+      if (harness !== undefined && (typeof harness !== "string" || !Object.hasOwn(HARNESS_INFO, harness))) throw invalid("Unknown native harness");
+      if (harness && harness !== "claude" && !advertisedHarnesses?.some(value => value.id === harness)) throw invalid("Broker does not advertise " + HARNESS_INFO[harness].title + " support; no session was created");
+      const session = await request("POST", "/v1/sessions", { cwd: params.cwd, ...(harness ? { harness } : {}) });
       const state = await attach(session, params.cwd, false);
       return { sessionId: state.sessionId, ...sessionDetails(state) };
     },
 
     async loadSession(params) {
       checkSetup(params);
-      if (!UUID.test(params.sessionId)) throw invalid("Invalid native session UUID");
+      if (!nativeSessionId(params.sessionId)) throw invalid("Invalid native session ID");
       const session = await request("GET", sessionPath(params.sessionId));
       if (session?.sessionId !== params.sessionId) throw bridgeError("Broker returned a different session UUID");
       if (sessions.has(params.sessionId)) {
@@ -549,25 +570,19 @@ export function createAgent(connection, client) {
         sessionId: session.sessionId,
         cwd: session.cwd,
         ...(session.title ? { title: session.title } : {}),
-        _meta: { [META]: { ...LIMITATIONS, ...sessionStatus(session), mode: session.mode, runtimeId: session.runtimeId, lastSeen: session.lastSeen } },
+        _meta: metadata(session, { ...LIMITATIONS, ...sessionStatus(session), mode: session.mode, runtimeId: session.runtimeId, lastSeen: session.lastSeen }),
       })) };
     },
 
     async setSessionMode({ sessionId, modeId }) {
       const state = getSession(sessionId);
       if (!MODES.some(({ id }) => id === modeId)) throw invalid("Unsupported native session mode");
-      if (state.archived) {
-        if (modeId !== "human" || !state.resumable) throw bridgeError("Saved session history is read-only; Join is required to resume a supported native session");
-        const resumed = await request("POST", `${sessionPath(sessionId)}/resume`, {}, state.controller.signal);
-        await followResume(state, resumed);
-        if (state.archived) throw bridgeError("Native resume was not confirmed; inspect the saved session before retrying");
-        return {};
-      }
+      if (state.archived) throw bridgeError("Saved session history is read-only until workspace startup restores its native runtime. Inspect the startup logs; control changes never restart sessions.");
       if (state.registrationPending && modeId !== "human") throw bridgeError(REGISTRATION_PENDING_REASON);
       await request("POST", `${sessionPath(sessionId)}/mode`, { mode: modeId }, state.controller.signal);
       if (state.error) throw state.error;
       // Registered sessions require a runtime acknowledgement. Pending native
-      // sessions already own human control and can be joined without a mod.
+      // sessions already own human control and can be opened without a mod.
       state.mode = modeId;
       return {};
     },

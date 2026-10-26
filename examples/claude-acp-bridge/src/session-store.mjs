@@ -6,9 +6,9 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 export const SESSION_LIMITS = Object.freeze({
   sessions: 100, events: 10000, eventBytes: 128 * 1024,
   journalBytes: 8 * 1024 * 1024, totalJournalBytes: 32 * 1024 * 1024,
-  fileBytes: 40 * 1024 * 1024,
+  fileBytes: 40 * 1024 * 1024, promptTombstones: 1000,
 });
-const fields = new Set(['sessionId', 'cwd', 'startedAt', 'runtimeId', 'cursor', 'historyStartCursor', 'runtimeStartCursor', 'events', 'fault', 'lastError']);
+const fields = new Set(['sessionId', 'cwd', 'startedAt', 'runtimeId', 'cursor', 'historyStartCursor', 'runtimeStartCursor', 'events', 'fault', 'lastError', 'promptTombstones']);
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const integer = value => Number.isSafeInteger(value) && value >= 0;
 const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
@@ -47,7 +47,7 @@ function checkFile(info) {
 }
 const stamp = info => info && [info.dev, info.ino, info.size, info.mtimeMs, info.ctimeMs].join(':');
 
-async function read(file) {
+async function read(file, validateSessionId) {
   let handle;
   try { handle = await open(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK); }
   catch (error) { if (error.code === 'ENOENT') return { records: [], info: undefined }; throw error; }
@@ -68,25 +68,41 @@ async function read(file) {
     let value;
     try { value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, size))); }
     catch { throw new StoreError('invalid or corrupt archive'); }
-    validate(value);
+    validate(value, validateSessionId);
     return { records: value.sessions, info };
   } finally { await handle.close(); }
 }
 
-function validate(value) {
+function validatePromptTombstones(tombstones) {
+  check(Array.isArray(tombstones) && tombstones.length <= SESSION_LIMITS.promptTombstones, 'invalid prompt tombstones');
+  const requests = new Set();
+  const clients = new Set();
+  for (const r of tombstones) {
+    check(object(r) && Object.keys(r).length === 3 && uuid(r.requestId) && uuid(r.clientId) &&
+      typeof r.textHash === 'string' && /^[a-f0-9]{64}$/.test(r.textHash) &&
+      !requests.has(r.requestId) && !clients.has(r.clientId), 'invalid prompt tombstones');
+    requests.add(r.requestId);
+    clients.add(r.clientId);
+  }
+}
+
+function validate(value, validateSessionId = uuid) {
   check(object(value) && value.version === 1 && Object.keys(value).length === 2 &&
     Array.isArray(value.sessions) && value.sessions.length <= SESSION_LIMITS.sessions);
   const ids = new Set();
   let totalBytes = 0;
   for (const s of value.sessions) {
-    check(object(s) && Object.keys(s).every(key => fields.has(key)) && uuid(s.sessionId) && !ids.has(s.sessionId) &&
+    check(object(s) && Object.keys(s).every(key => fields.has(key)) && validateSessionId(s.sessionId) && !ids.has(s.sessionId) &&
       typeof s.cwd === 'string' && isAbsolute(s.cwd) && integer(s.startedAt) && typeof s.fault === 'boolean' &&
       (s.runtimeId === undefined || (typeof s.runtimeId === 'string' && s.runtimeId.length > 0 && s.runtimeId.length < 200)) &&
       integer(s.cursor) && integer(s.historyStartCursor) && s.historyStartCursor <= s.cursor &&
       (s.runtimeStartCursor === undefined || (integer(s.runtimeStartCursor) && s.runtimeStartCursor <= s.cursor)) &&
       Array.isArray(s.events) && s.events.length <= SESSION_LIMITS.events);
     ids.add(s.sessionId);
-    const { events, ...metadata } = s;
+    const { events, promptTombstones, ...metadata } = s;
+    // Tombstones have fixed-size fields and their own count bound. They still
+    // count toward the existing atomic snapshot's total file budget.
+    if (Object.hasOwn(s, 'promptTombstones')) validatePromptTombstones(promptTombstones);
     check(Buffer.byteLength(JSON.stringify(metadata)) <= 32 * 1024, 'session metadata exceeds the budget');
     if (s.lastError !== undefined) check(object(s.lastError) && Object.keys(s.lastError).length === 2 &&
       typeof s.lastError.message === 'string' && s.lastError.message.length <= 512 && integer(s.lastError.at));
@@ -112,24 +128,38 @@ function validate(value) {
 /** Select archive data only, never runtime commands, credentials or launch settings. */
 export function sessionRecord(s) {
   const events = s.events.filter(event => event.seq > s.historyStartCursor);
+  let promptTombstones;
+  if (Object.hasOwn(s, 'promptTombstones')) {
+    check(Array.isArray(s.promptTombstones) && s.promptTombstones.length <= SESSION_LIMITS.promptTombstones, 'invalid prompt tombstones');
+    promptTombstones = s.promptTombstones.map(r => {
+      check(object(r), 'invalid prompt tombstones');
+      return { requestId: r.requestId, textHash: r.textHash, clientId: r.clientId };
+    });
+    validatePromptTombstones(promptTombstones);
+  }
   return {
     sessionId: s.sessionId, cwd: s.cwd, startedAt: s.startedAt, runtimeId: s.runtimeId,
     cursor: s.cursor, historyStartCursor: Math.max(s.historyStartCursor, (events[0]?.seq ?? s.cursor + 1) - 1), fault: s.fault,
     runtimeStartCursor: s.runtimeStartCursor,
     lastError: s.lastError && { message: s.lastError.message, at: s.lastError.at },
     events,
+    ...(promptTombstones === undefined ? {} : { promptTombstones }),
   };
 }
 
-/** Open a bounded private archive. Writes are atomic, serialized and fsynced. */
-export async function openSessionStore(path) {
+/**
+ * Open a bounded private archive. Writes are atomic, serialized and fsynced.
+ * A harness may supply a stricter native ID validator for its dedicated file.
+ * The default remains UUID-only; tombstone request/client IDs remain UUIDs.
+ */
+export async function openSessionStore(path, { validateSessionId = uuid } = {}) {
   let file;
   let loaded;
   try {
     check(typeof path === 'string' && isAbsolute(path), 'sessionFile must be an absolute path');
     file = resolve(path);
     await privateParent(file);
-    loaded = await read(file);
+    loaded = await read(file, validateSessionId);
   } catch (error) { throw error instanceof StoreError ? error : new StoreError('cannot safely read archive'); }
   let info = loaded.info;
   let failure;
@@ -152,7 +182,7 @@ export async function openSessionStore(path) {
     let renamed = false;
     try {
       const value = { version: 1, sessions: records };
-      validate(value);
+      validate(value, validateSessionId);
       const text = JSON.stringify(value) + '\n';
       check(Buffer.byteLength(text) <= SESSION_LIMITS.fileBytes, 'archive exceeds the file budget');
       await guard();
@@ -193,7 +223,7 @@ export async function openSessionStore(path) {
           check(interrupted.size <= SESSION_LIMITS.fileBytes, 'temporary archive exceeds the file budget');
           // Revalidate the primary snapshot after descriptor acquisition. Never
           // repair or replace a corrupt archive using an unacknowledged temporary.
-          const current = await read(file);
+          const current = await read(file, validateSessionId);
           check(stamp(current.info) === stamp(info), 'archive changed before recovery');
           directory = await open(dirname(file), constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
           await guard();

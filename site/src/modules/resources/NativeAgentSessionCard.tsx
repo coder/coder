@@ -12,7 +12,11 @@ import {
 	NativeAgentSessionStatus,
 	NativeAgentTimestamp,
 } from "./NativeAgentSessionStatus";
-import { nativeAgentMetadata } from "./nativeAgentMetadata";
+import {
+	type NativeAgentHarness,
+	nativeAgentIdentity,
+	nativeAgentMetadata,
+} from "./nativeAgentMetadata";
 
 // ACP identifies the harness, not its provider. Only known identities use local logos.
 const nativeAgentIcons = new Map([
@@ -29,32 +33,34 @@ const nativeAgentIcons = new Map([
 type NativeAgentSessionCardProps = {
 	info: SessionInfo;
 	agentInfo: InitializeResponse["agentInfo"];
+	harnesses: readonly NativeAgentHarness[] | undefined;
 	selected: boolean;
 	expanded: boolean;
 	disabled: boolean;
-	joinDisabled: boolean;
+	openDisabled: boolean;
 	transcriptID?: string;
 	now?: number;
 	onSelect: (session: SessionInfo) => void;
-	onJoin: (session: SessionInfo) => void;
+	onOpen: (session: SessionInfo) => void;
 };
 
 /** Selects a native session while keeping its full identity accessible when truncated. */
 export const NativeAgentSessionCard: React.FC<NativeAgentSessionCardProps> = ({
 	info,
 	agentInfo,
+	harnesses,
 	selected,
 	expanded,
 	disabled,
-	joinDisabled,
+	openDisabled,
 	transcriptID,
 	now,
 	onSelect,
-	onJoin,
+	onOpen,
 }) => {
-	const agentName = agentInfo?.name.trim() ?? "";
-	const agentLabel = agentInfo?.title?.trim() || agentName || "Native agent";
-	const icon = nativeAgentIcons.get(agentName);
+	const identity = nativeAgentIdentity(info, agentInfo, harnesses);
+	const agentLabel = identity.title;
+	const icon = nativeAgentIcons.get(identity.name);
 	const metadata = nativeAgentMetadata(info);
 	return (
 		<div
@@ -97,30 +103,30 @@ export const NativeAgentSessionCard: React.FC<NativeAgentSessionCardProps> = ({
 					{agentLabel}: {info.sessionId}
 				</TooltipContent>
 			</Tooltip>
-			{(metadata.resumable ||
-				((metadata.registrationPending || metadata.resumePending) &&
-					!metadata.unavailable)) && (
-				<div className="space-y-2 px-3 pb-3">
-					{!expanded && (
+			<div className="space-y-2 px-3 pb-3">
+				{!expanded &&
+					(metadata.unavailable ||
+						metadata.resumable ||
+						metadata.registrationPending ||
+						metadata.resumePending) && (
 						<p className="m-0 text-content-secondary wrap-anywhere">
-							{metadata.resumable
-								? "Session stopped. Join resumes the saved conversation."
+							{metadata.unavailable || metadata.resumable
+								? "Session unavailable. Open the terminal for diagnostics, not to restart it."
 								: metadata.resumePending
-									? "Resume pending. Join to open or confirm the native terminal."
-									: `${metadata.blockedReason || "Waiting for native setup."} Join to continue setup.`}
+									? "Startup restore pending. Open the terminal to inspect progress."
+									: `${metadata.blockedReason || "Waiting for native setup."} Open the terminal to continue setup.`}
 						</p>
 					)}
-					<Button
-						size="sm"
-						disabled={joinDisabled}
-						aria-label={`Join ${info.title || agentLabel}`}
-						onClick={() => onJoin(info)}
-					>
-						<TerminalIcon />
-						Join
-					</Button>
-				</div>
-			)}
+				<Button
+					size="sm"
+					disabled={openDisabled}
+					aria-label={`Open ${info.title || agentLabel}`}
+					onClick={() => onOpen(info)}
+				>
+					<TerminalIcon />
+					Open
+				</Button>
+			</div>
 		</div>
 	);
 };

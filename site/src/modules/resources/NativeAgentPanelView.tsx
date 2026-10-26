@@ -1,6 +1,6 @@
 import type { SessionInfo } from "@agentclientprotocol/sdk";
 import { EyeIcon, PlusIcon, RefreshCwIcon, TerminalIcon } from "lucide-react";
-import { useId } from "react";
+import { useId, useRef, useState } from "react";
 import type { NativeAgentAction } from "#/api/queries/workspaceAgentACP";
 import type { WorkspaceAgent } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
@@ -16,6 +16,7 @@ import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
+import { NativeAgentHarnessSelect } from "./NativeAgentHarnessSelect";
 import type { NativeAgentSnapshot } from "./NativeAgentSession";
 import { NativeAgentSessionCard } from "./NativeAgentSessionCard";
 import {
@@ -24,7 +25,10 @@ import {
 	NativeAgentTimestamp,
 } from "./NativeAgentSessionStatus";
 import { NativeAgentTranscript } from "./NativeAgentTranscript";
-import { nativeAgentMetadata } from "./nativeAgentMetadata";
+import {
+	nativeAgentIdentity,
+	nativeAgentMetadata,
+} from "./nativeAgentMetadata";
 
 type NativeAgentPanelViewProps = {
 	agentStatus: WorkspaceAgent["status"];
@@ -39,14 +43,17 @@ type NativeAgentPanelViewProps = {
 	busy: boolean;
 	hasMoreSessions: boolean;
 	cwd: string;
+	harness: string | undefined;
 	prompt: string;
 	/** Fixed reference clock for deterministic visual states. */
 	now?: number;
 	onCwdChange: React.ChangeEventHandler<HTMLInputElement>;
+	onHarnessChange: (harness: string) => void;
 	onPromptChange: React.ChangeEventHandler<HTMLTextAreaElement>;
 	onCreateSubmit: React.FormEventHandler<HTMLFormElement>;
 	onPromptSubmit: React.FormEventHandler<HTMLFormElement>;
 	onAction: (action: NativeAgentAction) => void;
+	onOpen: (session: SessionInfo) => void;
 	onRefresh: () => void;
 	onMoreSessions: () => void;
 };
@@ -65,17 +72,26 @@ export const NativeAgentPanelView: React.FC<NativeAgentPanelViewProps> = ({
 	busy,
 	hasMoreSessions,
 	cwd,
+	harness,
 	prompt,
 	now,
 	onCwdChange,
+	onHarnessChange,
 	onPromptChange,
 	onCreateSubmit,
 	onPromptSubmit,
 	onAction,
+	onOpen,
 	onRefresh,
 	onMoreSessions,
 }) => {
 	const id = useId();
+	const cwdInputRef = useRef<HTMLInputElement>(null);
+	const [addingSession, setAddingSession] = useState(false);
+	const harnesses = snapshot.harnesses ?? [];
+	const harnessAvailable = harness
+		? harnesses.some((item) => item.id === harness)
+		: harnesses.length === 0;
 	const agentAvailable = agentStatus === "connected";
 	const connected = agentReady && snapshot.status === "connected";
 	const session = snapshot.session;
@@ -90,9 +106,11 @@ export const NativeAgentPanelView: React.FC<NativeAgentPanelViewProps> = ({
 		!metadata.resumable &&
 		!metadata.resumePending;
 	const mode = session?.modes?.currentModeId;
-	const agentName = snapshot.agentInfo?.name.trim() ?? "";
-	const agentLabel =
-		snapshot.agentInfo?.title?.trim() || agentName || "Native agent";
+	const identity = nativeAgentIdentity(
+		session?.info,
+		snapshot.agentInfo,
+		harnesses,
+	);
 	const canSend =
 		!blocked &&
 		!session?.prompting &&
@@ -102,25 +120,31 @@ export const NativeAgentPanelView: React.FC<NativeAgentPanelViewProps> = ({
 		!metadata.resumable &&
 		mode === "automation";
 	let transcriptStatus =
-		"Observing live. Join takes human control and opens the native terminal.";
+		"Observing live. Open launches the native terminal, where attaching takes human control.";
 	if (busy) {
 		transcriptStatus = "Updating session…";
 	} else if (!connected) {
-		transcriptStatus = "Transcript paused. Reconnect to resume.";
+		transcriptStatus = "Transcript paused. Reconnect to follow live events.";
+	} else if (session?.loading) {
+		transcriptStatus =
+			"Loading retained events. You can select another session.";
 	} else if (metadata.resumable && !session?.error) {
 		transcriptStatus =
-			"Session stopped. Join resumes the saved conversation in the native terminal. The original task is not resent.";
+			"Session stopped. Sessions restart at workspace startup. Open shows terminal diagnostics without restarting the session.";
 	} else if (sessionUnavailable) {
 		transcriptStatus =
 			"Session unavailable. Showing retained details, not a live transcript.";
 	} else if (metadata.resumePending) {
 		transcriptStatus =
-			"Resume pending. Open or confirm the native terminal with Join, then refresh sessions if needed. Once registered, select Observe to enable prompts. The original task is not resent.";
+			"Startup restore pending. Open the terminal to inspect progress, then refresh sessions if needed. Once registered, select Observe to enable prompts.";
 	} else if (registrationPending) {
-		transcriptStatus = `${metadata.blockedReason || "Waiting for native setup."} Join to continue setup. Once setup is complete, select Observe to enable prompts.`;
+		transcriptStatus = `${metadata.blockedReason || "Waiting for native setup."} Open to continue setup. Once setup is complete, select Observe to enable prompts.`;
 	} else if (mode === "human") {
-		transcriptStatus =
-			"You have control in the native terminal. Observe returns control to the agent; it does not close or detach the terminal. Use Ctrl+Z in the terminal to detach with coder-acp.";
+		transcriptStatus = `You have control in the native terminal. Observe returns control to the agent; it does not close or detach the terminal. ${
+			identity.name === "claude-acp-bridge"
+				? "Use Ctrl+Z in the terminal to detach with coder-acp."
+				: "Exit the native terminal UI to detach."
+		}`;
 	} else if (!session?.modes) {
 		transcriptStatus =
 			"Observing retained events. Control modes are unavailable.";
@@ -128,15 +152,16 @@ export const NativeAgentPanelView: React.FC<NativeAgentPanelViewProps> = ({
 	let promptStatus =
 		"Text prompts only. Permissions stay in the native terminal.";
 	if (metadata.resumable && !session?.error) {
-		promptStatus = "Session stopped: Join to resume before sending.";
+		promptStatus =
+			"Session stopped. Open the terminal for diagnostics. Prompts are unavailable.";
 	} else if (sessionUnavailable) {
 		promptStatus = "Session unavailable. Refresh its status before sending.";
 	} else if (metadata.resumePending) {
 		promptStatus =
-			"Resume pending: confirm the native terminal, then select Observe once registered.";
+			"Startup restore pending: inspect the native terminal, then select Observe once registered.";
 	} else if (registrationPending) {
 		promptStatus =
-			"Setup pending: Join the native terminal before sending. Resubmit blocked tasks manually after setup.";
+			"Setup pending: Open the native terminal before sending. Resubmit blocked tasks manually after setup.";
 	} else if (session?.prompting) {
 		promptStatus = "Agent is working…";
 	} else if (mode === "human") {
@@ -154,7 +179,7 @@ export const NativeAgentPanelView: React.FC<NativeAgentPanelViewProps> = ({
 						Select a session to follow its live transcript.
 					</p>
 				</div>
-				{(!connected || session?.error || error) &&
+				{(!connected || session?.error || error || !harnessAvailable) &&
 					snapshot.status !== "connecting" &&
 					(agentReady || !agentAvailable) && (
 						<Button
@@ -199,11 +224,11 @@ export const NativeAgentPanelView: React.FC<NativeAgentPanelViewProps> = ({
 					Install and configure a native ACP adapter in this workspace.{" "}
 					<code>coder-acp acp</code> must be on the SSH command PATH and serve
 					ACP over stdio without a PTY. <code>coder-acp attach SESSION_ID</code>{" "}
-					must join the same persistent session. Complete provider sign-in in
-					the workspace terminal.
+					must attach to the same running session without restarting it.
+					Complete provider sign-in in the workspace terminal.
 				</div>
 			)}
-			{(connected || session) && (
+			{(connected || session || sessions.length > 0) && (
 				<>
 					<TooltipProvider>
 						<div
@@ -217,6 +242,7 @@ export const NativeAgentPanelView: React.FC<NativeAgentPanelViewProps> = ({
 									info={item}
 									now={now}
 									agentInfo={snapshot.agentInfo}
+									harnesses={snapshot.harnesses}
 									selected={item.sessionId === session?.info.sessionId}
 									expanded={
 										sessionExpanded &&
@@ -229,15 +255,9 @@ export const NativeAgentPanelView: React.FC<NativeAgentPanelViewProps> = ({
 										item.sessionId !== session?.info.sessionId &&
 										(blocked || Boolean(session?.prompting))
 									}
-									joinDisabled={
-										blocked ||
-										(item.sessionId === session?.info.sessionId
-											? Boolean(session?.error) ||
-												(metadata.unavailable && !metadata.resumable)
-											: Boolean(session?.prompting))
-									}
+									openDisabled={!agentAvailable || !agentReady}
 									onSelect={(info) => onAction({ type: "load", session: info })}
-									onJoin={(info) => onAction({ type: "join", session: info })}
+									onOpen={onOpen}
 								/>
 							))}
 						</div>
@@ -281,7 +301,7 @@ export const NativeAgentPanelView: React.FC<NativeAgentPanelViewProps> = ({
 							automatically, or you can add one.
 						</p>
 					)}
-					<Collapsible>
+					<Collapsible open={addingSession} onOpenChange={setAddingSession}>
 						<CollapsibleTrigger asChild>
 							<Button variant="subtle" size="sm">
 								<PlusIcon />
@@ -293,9 +313,17 @@ export const NativeAgentPanelView: React.FC<NativeAgentPanelViewProps> = ({
 								className="mt-3 flex flex-wrap items-end gap-2"
 								onSubmit={onCreateSubmit}
 							>
+								<NativeAgentHarnessSelect
+									harnesses={harnesses}
+									value={harness}
+									unavailable={!harnessAvailable}
+									onValueChange={onHarnessChange}
+									onCloseWithoutTrigger={() => cwdInputRef.current?.focus()}
+								/>
 								<div className="min-w-0 flex-1 space-y-2">
 									<Label htmlFor={`${id}-cwd`}>Working directory</Label>
 									<Input
+										ref={cwdInputRef}
 										id={`${id}-cwd`}
 										name="cwd"
 										value={cwd}
@@ -310,11 +338,20 @@ export const NativeAgentPanelView: React.FC<NativeAgentPanelViewProps> = ({
 									type="submit"
 									variant="outline"
 									disabled={
-										blocked || session?.prompting || !cwd.startsWith("/")
+										blocked ||
+										session?.prompting ||
+										!cwd.startsWith("/") ||
+										!harnessAvailable
 									}
 								>
 									Create session
 								</Button>
+								{!harnessAvailable && (
+									<p className="m-0 w-full text-content-warning">
+										The selected harness is unavailable. Choose another harness
+										or reconnect to refresh available harnesses.
+									</p>
+								)}
 							</form>
 						</CollapsibleContent>
 					</Collapsible>
@@ -328,7 +365,7 @@ export const NativeAgentPanelView: React.FC<NativeAgentPanelViewProps> = ({
 					<div className="flex flex-wrap items-start justify-between gap-3">
 						<div className="min-w-0 space-y-1">
 							<h4 className="m-0 break-words text-base font-semibold">
-								{session.info.title || agentLabel}
+								{session.info.title || identity.title}
 							</h4>
 							<p className="m-0 break-all text-content-secondary">
 								Session: <code>{session.info.sessionId}</code>
@@ -345,56 +382,65 @@ export const NativeAgentPanelView: React.FC<NativeAgentPanelViewProps> = ({
 							</p>
 							<NativeAgentSessionStatus info={session.info} />
 						</div>
-						<Button
-							disabled={
-								blocked ||
-								Boolean(session.error) ||
-								(metadata.unavailable && !metadata.resumable) ||
-								!session.modes?.availableModes.some(
-									(item) => item.id === (observe ? "automation" : "human"),
-								)
-							}
-							onClick={() =>
-								onAction(
-									observe
-										? { type: "mode", mode: "automation" }
-										: { type: "join", session: session.info },
-								)
-							}
-						>
-							<Spinner loading={busy}>
-								{observe ? <EyeIcon /> : <TerminalIcon />}
-							</Spinner>
-							{observe ? "Observe" : "Join"}
-						</Button>
+						<div className="flex flex-wrap gap-2">
+							<Button
+								disabled={!agentAvailable || !agentReady}
+								onClick={() => onOpen(session.info)}
+							>
+								<TerminalIcon />
+								Open
+							</Button>
+							{observe && (
+								<Button
+									variant="outline"
+									disabled={
+										blocked ||
+										sessionUnavailable ||
+										!session.modes?.availableModes.some(
+											(item) => item.id === "automation",
+										)
+									}
+									onClick={() => onAction({ type: "mode", mode: "automation" })}
+								>
+									<Spinner loading={busy}>
+										<EyeIcon />
+									</Spinner>
+									Observe
+								</Button>
+							)}
+						</div>
 					</div>
-					<p role="status" className="m-0 text-content-secondary">
+					<p
+						role="status"
+						className="m-0 flex items-center gap-2 text-content-secondary"
+					>
+						{connected && session.loading && <Spinner loading />}
 						{transcriptStatus}
 					</p>
 					<NativeAgentSessionError info={session.info} now={now} />
 					{session.error && (
 						<ErrorAlert
-							error={`${session.error} Reconnect before continuing.`}
+							error={`${session.error} Reconnect to reload retained events. Open still launches the terminal.`}
 							prominent={false}
 						/>
 					)}
 					{session.needsInput && !registrationPending && (
 						<Alert severity="warning">
 							<AlertDescription>
-								The native agent needs input. Join the terminal to handle its
+								The native agent needs input. Open the terminal to handle its
 								native dialog. Permissions cannot be approved remotely.
 							</AlertDescription>
 						</Alert>
 					)}
-					{!session.modes && !session.error && (
+					{!session.loading && !session.modes && !session.error && (
 						<p className="m-0 text-content-secondary">
-							This adapter has not provided control modes. Joining and prompting
-							are unavailable.
+							This adapter has not provided control modes. Prompting is
+							unavailable; Open still launches the native terminal.
 						</p>
 					)}
 					{session.truncated && (
 						<p className="m-0 text-content-warning">
-							Older display content was trimmed. Join the native terminal for
+							Older display content was trimmed. Open the native terminal for
 							more context.
 						</p>
 					)}

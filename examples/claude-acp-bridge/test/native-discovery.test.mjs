@@ -80,6 +80,18 @@ describe('structured native discovery', { concurrency: true, timeout: 10000 }, (
     }
   });
 
+  test('a blocked record without a CLI PID is not classified as ended from task state alone', async t => {
+    const f = await fixture(t);
+    Object.assign(f.state, { backend: 'daemon', tempo: 'blocked', cliVersion: '2.1.309' });
+    delete f.state.detail;
+    await f.save();
+    assert.equal(Object.hasOwn(f.agent, 'pid'), false);
+    assert.equal(Object.hasOwn(f.agent, 'status'), false);
+    const [found] = await f.discover();
+    assert.equal(found.ended, false);
+    assert.equal(found.blockedReason, NATIVE_BLOCKED_REASON);
+  });
+
   test('CLI termination overrides an unreconciled working or blocked state file', async t => {
     const f = await fixture(t);
     f.agent.state = 'failed';

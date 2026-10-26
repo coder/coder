@@ -66,7 +66,7 @@ export const NativeAgentSessionStatus: React.FC<
 					>
 						<span>
 							{resumePending
-								? "Resume pending"
+								? "Startup restore pending"
 								: blockedReason
 									? "Needs attention"
 									: "Starting"}
@@ -110,7 +110,7 @@ export const NativeAgentSessionError: React.FC<
 			{stale && !fault && !ended && !archived && !resumable && (
 				<Alert severity="warning">
 					Heartbeat is stale. Availability is unknown, not a confirmed fault.
-					Refresh sessions to check again before joining or prompting.
+					Open the terminal to inspect it, or refresh sessions before prompting.
 				</Alert>
 			)}
 			{(fault || ended || archived || resumable || lastError) && (
@@ -140,11 +140,11 @@ export const NativeAgentSessionError: React.FC<
 					)}
 					<p className="mb-0 mt-2 text-content-secondary">
 						{resumable
-							? "This session stopped. Join resumes the saved conversation in the native terminal. The original task is not resent."
+							? "This session stopped. Sessions restart at workspace startup. Open shows terminal diagnostics without restarting the session."
 							: fault
-								? "Session integrity is not verified. Joining and prompting are unavailable. Retained details remain available for inspection."
+								? "Session integrity is not verified. Prompting is unavailable. Open the terminal for diagnostics; it will leave a shell without restarting the session."
 								: ended || archived
-									? "This session has ended. Joining and prompting are unavailable."
+									? "This session has ended. Prompting is unavailable. Open the terminal for diagnostics; it will leave a shell without restarting the session."
 									: "This is the latest reported failure, not a session fault. It remains visible after recovery."}
 					</p>
 				</Alert>

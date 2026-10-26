@@ -17,7 +17,7 @@ const path = value => typeof value === 'string' && value.length <= 4096 && isAbs
 /** Only these summaries, never native detail, needs, settings or providerEnv, leave discovery. */
 export const NATIVE_BLOCKED_REASON = 'Native Claude needs input in the native terminal.';
 export const MCP_BLOCKED_REASON = 'Approve project MCP servers in the native terminal.';
-export const REGISTRATION_PENDING_REASON = 'Native session registration is pending; join the native terminal to complete setup.';
+export const REGISTRATION_PENDING_REASON = 'Native session registration is pending; open the native terminal to complete setup.';
 
 function blockedReason(state, status) {
   if (state.state !== 'blocked') return undefined;

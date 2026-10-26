@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import { isAbsolute } from 'node:path';
 import { MCP_BLOCKED_REASON, NATIVE_BLOCKED_REASON, REGISTRATION_PENDING_REASON } from './native-discovery.mjs';
 import { openSessionStore, sessionRecord, SESSION_LIMITS } from './session-store.mjs';
+import { HARNESS_INFO, nativeIdentity } from './harness.mjs';
 
 class HTTPError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -34,7 +35,7 @@ async function readBody(req) {
  * definite pre-launch refusals with error.resumeRefused = true.
  */
 export async function createBroker({
-  token = randomBytes(32).toString('hex'), launch, resume, discover, sessionFile, deferPersistence = false, now = Date.now,
+  token = randomBytes(32).toString('hex'), launch, resume, discover, codex, opencode, sessionFile, deferPersistence = false, now = Date.now,
   setTimer = setTimeout, clearTimer = clearTimeout, discoveryTTL = 2000,
   staleMs = 10000, commandTimeoutMs = 10000, maxEvents = 10000, waitMs = 15000,
   maxEventBytes = 128 * 1024, maxJournalBytes = 8 * 1024 * 1024,
@@ -43,6 +44,7 @@ export async function createBroker({
   for (const value of [staleMs, commandTimeoutMs, maxEvents, waitMs, maxEventBytes, maxJournalBytes, maxTotalJournalBytes, maxRetiredRuntimes, discoveryTTL]) {
     requireValue(Number.isSafeInteger(value) && value > 0, 'Broker limits must be positive integers');
   }
+  const services = new Map(Object.entries({ codex, opencode }).filter(([, service]) => service));
   const store = sessionFile === undefined ? undefined : await openSessionStore(sessionFile);
   if (store) {
     maxEvents = Math.min(maxEvents, SESSION_LIMITS.events);
@@ -271,7 +273,7 @@ export async function createBroker({
           const refused = error?.resumeRefused === true && s.resumePending;
           const failure = new HTTPError(refused ? 409 : 502, refused
             ? 'Native resume refused before launch; inspect the native transcript and queued prompt before retrying'
-            : 'Native resume launch outcome is unknown; join the native terminal to inspect before retrying');
+            : 'Native resume launch outcome is unknown; open the native terminal to inspect before retrying');
           failure.resumeRefused = refused;
           if (refused) Object.assign(s, { archived: true, ended: true, resumePending: false, registrationPending: false, humanRequested: false });
           recordError(s, failure.message);
@@ -435,7 +437,7 @@ export async function createBroker({
         append(s, 'session.end', { reason: 'Native runtime reported that it ended' });
       }
       if (s.humanRequested && !s.pendingHumanCommand && !s.ended && !s.fault) {
-        // Honor Join before mod startup even when the launch settings default to
+        // Honor terminal control before mod startup even when launch settings default to
         // automation. Effective control remains human until native acknowledgement.
         const id = randomUUID();
         queueCommand(s, { id, type: 'mode', mode: 'human' });
@@ -449,13 +451,23 @@ export async function createBroker({
       // deliverable work only after durability, never from a pre-flush snapshot.
       return () => ({ ack, commands: closing || s.runtimeId !== body.runtimeId || s.ended || s.fault ? [] : [...s.commands.values()].map(entry => entry.command) });
     }
+    if (url.pathname === '/v1/capabilities' && req.method === 'GET') {
+      return { harnesses: [HARNESS_INFO.claude, ...[...services.keys()].map(id => HARNESS_INFO[id])] };
+    }
     if (url.pathname === '/v1/sessions' && req.method === 'GET') {
-      await refreshDiscovery();
-      return { sessions: [...sessions.values()].map(publicSession) };
+      const [, ...native] = await Promise.all([refreshDiscovery(), ...[...services.values()].map(service => service.request('GET', '/v1/sessions', undefined, signal))]);
+      return { sessions: [...sessions.values()].map(publicSession).concat(native.flatMap(result => result.sessions)) };
     }
     if (url.pathname === '/v1/sessions' && req.method === 'POST') {
-      const { cwd } = await readBody(req);
+      const body = await readBody(req);
+      const { cwd, harness = 'claude' } = body;
+      requireValue(typeof harness === 'string' && Object.hasOwn(HARNESS_INFO, harness), 'Unknown native harness');
       requireValue(typeof cwd === 'string' && isAbsolute(cwd), 'cwd must be absolute');
+      if (harness !== 'claude') {
+        const service = services.get(harness);
+        if (!service) throw new HTTPError(501, HARNESS_INFO[harness].title + ' is not enabled; explicitly start the broker with --' + harness);
+        return service.request('POST', '/v1/sessions', { cwd }, signal);
+      }
       if (!launch) throw new HTTPError(501, 'Native launching is not configured');
       if (store && sessions.size >= 100) throw new HTTPError(409, 'Session archive budget exhausted; inspect saved history');
       const launchId = randomUUID();
@@ -474,13 +486,24 @@ export async function createBroker({
             if (!item.session && !expired) await refreshDiscovery();
           }
         } finally { clearTimer(deadline); }
-        if (!item.session) throw new HTTPError(504, 'Native session identity is not available. Inspect claude agents and join the native terminal to check login, workspace trust and approvals before retrying');
+        if (!item.session) throw new HTTPError(504, 'Native session identity is not available. Inspect claude agents and open the native terminal to check login, workspace trust and approvals before retrying');
         return publicSession(item.session);
       } finally { launches.delete(launchId); }
     }
-    const match = url.pathname.match(/^\/v1\/sessions\/([^/]+)(?:\/(events|prompt|cancel|mode|resume))?$/);
+    const match = url.pathname.match(/^\/v1\/sessions\/([^/]+)(?:\/(events|prompt|cancel|mode|resume|stop))?$/);
     if (!match) throw new HTTPError(404, 'Unknown route');
-    const [, id, action] = match;
+    let id;
+    try { id = decodeURIComponent(match[1]); }
+    catch { throw new HTTPError(400, 'Invalid session ID encoding'); }
+    const action = match[2];
+    const prefix = id.split(':')[0];
+    if (prefix === 'codex' || prefix === 'opencode') {
+      requireValue(nativeIdentity(id)?.harness === prefix, 'Invalid ' + HARNESS_INFO[prefix].title + ' session ID');
+      const service = services.get(prefix);
+      if (!service) throw new HTTPError(404, HARNESS_INFO[prefix].title + ' is not enabled');
+      const body = req.method === 'POST' ? await readBody(req) : undefined;
+      return service.request(req.method, '/v1/sessions/' + encodeURIComponent(id) + (action ? '/' + action : '') + url.search, body, signal);
+    }
     if (!action && req.method === 'GET') await refreshDiscovery();
     const s = getSession(id);
     if (!action && req.method === 'GET') return publicSession(s);
@@ -544,7 +567,7 @@ export async function createBroker({
       getSession(id, true);
       if (s.registrationPending) {
         if (body.mode !== 'human') throw new HTTPError(409, REGISTRATION_PENDING_REASON);
-        // Join requires no mod acknowledgement: native already owns setup and permissions.
+        // Opening requires no mod acknowledgement: native already owns setup and permissions.
         s.humanRequested = true;
         return {};
       }
@@ -600,9 +623,12 @@ export async function createBroker({
     url: 'http://127.0.0.1:' + port,
     token,
     /** Call only after exclusively claiming the descriptor associated with sessionFile. */
-    async preparePersistence() {
+    async preparePersistence(beforeReady) {
       persistenceReady = false;
       await store?.discardInterruptedTemporary();
+      for (const service of services.values()) await service.preparePersistence();
+      await beforeReady?.();
+      if (closing) throw new HTTPError(503, 'Broker stopped during startup');
       persistenceReady = true;
     },
     /** Close only this broker; native Claude sessions intentionally outlive it. */
@@ -612,7 +638,8 @@ export async function createBroker({
       for (const key of changes.eventNames()) changes.emit(key);
       server.closeAllConnections();
       await new Promise(resolve => server.close(resolve));
-      await flush();
+      try { await flush(); }
+      finally { await Promise.all([...services.values()].map(service => service.close())); }
     },
   };
 }

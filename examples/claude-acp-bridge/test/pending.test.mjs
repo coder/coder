@@ -79,7 +79,7 @@ describe('pre-registration native sessions', { concurrency: true, timeout: 10000
     assert.deepEqual((await f.client.request('GET', '/v1/sessions')).sessions, [session]);
     assert.deepEqual(await f.client.request('POST', f.path + '/mode', { mode: 'human' }), {});
     for (const [action, body] of [['mode', { mode: 'automation' }], ['prompt', { requestId: randomUUID(), text: 'must not execute' }]]) {
-      await assert.rejects(f.client.request('POST', f.path + '/' + action, body), error => error.status === 409 && /registration is pending; join/.test(error.message));
+      await assert.rejects(f.client.request('POST', f.path + '/' + action, body), error => error.status === 409 && /registration is pending; open/.test(error.message));
     }
     f.advance(600000);
     f.found([]); // Absence or a transient read failure is not an end signal.

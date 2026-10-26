@@ -400,6 +400,62 @@ describe('private session persistence', { concurrency: true, timeout: 20000 }, (
     });
   });
 
+  test('optional prompt tombstones share the atomic snapshot without changing absent-field bytes', async t => {
+    const f = await fixture(t);
+    const s = record();
+    const legacy = {
+      sessionId: s.sessionId, cwd: s.cwd, startedAt: s.startedAt, runtimeId: s.runtimeId,
+      cursor: s.cursor, historyStartCursor: s.historyStartCursor, fault: s.fault, events: s.events,
+    };
+    const store = await openSessionStore(f.sessionFile);
+    assert.equal(Object.hasOwn(sessionRecord(s), 'promptTombstones'), false);
+    await store.save([sessionRecord(s)]);
+    assert.equal(await readFile(f.sessionFile, 'utf8'), JSON.stringify(envelope([legacy])) + '\n');
+    assert.deepEqual((await openSessionStore(f.sessionFile)).records, [legacy]);
+    const promptTombstones = Array.from({ length: 1000 }, () => ({
+      requestId: randomUUID(), textHash: 'a'.repeat(64), clientId: randomUUID(),
+    }));
+    await store.save([sessionRecord({ ...s, promptTombstones })]);
+    assert.deepEqual((await openSessionStore(f.sessionFile)).records[0].promptTombstones, promptTombstones);
+    assert.deepEqual(await readdir(f.directory), ['sessions.json']);
+    await store.save([sessionRecord({ ...s, promptTombstones: [] })]);
+    assert.deepEqual((await f.disk()).sessions[0].promptTombstones, []);
+  });
+
+  test('prompt tombstone validation rejects malformed, duplicate and over-budget ledgers on read and write', async t => {
+    const f = await fixture(t);
+    const tombstone = { requestId: randomUUID(), clientId: randomUUID(), textHash: 'a'.repeat(64) };
+    const base = sessionRecord(record());
+    const original = JSON.stringify(envelope([base])) + '\n';
+    const invalid = [null, {}, [null], [{}], [{ ...tombstone, requestId: 'invalid' }],
+      [{ ...tombstone, clientId: 'invalid' }], [{ ...tombstone, textHash: 'A'.repeat(64) }],
+      [{ ...tombstone, textHash: 'a'.repeat(63) }], [{ ...tombstone, textHash: 123 }],
+      [{ ...tombstone, text: secret }], [{ requestId: tombstone.requestId, textHash: tombstone.textHash }],
+      [tombstone, { ...tombstone, clientId: randomUUID() }], [tombstone, { ...tombstone, requestId: randomUUID() }],
+      Array.from({ length: 1001 }, () => ({ ...tombstone, requestId: randomUUID(), clientId: randomUUID() })),
+    ];
+    for (const promptTombstones of invalid) {
+      await writeFile(f.sessionFile, original, { mode: 0o600 });
+      const store = await openSessionStore(f.sessionFile);
+      await assert.rejects(store.save([{ ...base, promptTombstones }]), /Session persistence/);
+      assert.equal(await readFile(f.sessionFile, 'utf8'), original);
+      const bad = JSON.stringify(envelope([{ ...base, promptTombstones }]));
+      await writeFile(f.sessionFile, bad);
+      await assert.rejects(openSessionStore(f.sessionFile), /Session persistence/);
+      assert.equal(await readFile(f.sessionFile, 'utf8'), bad);
+    }
+  });
+
+  test('prompt tombstone projection allowlists hashes and IDs, never raw prompts', () => {
+    const tombstone = { requestId: randomUUID(), textHash: 'a'.repeat(64), clientId: randomUUID() };
+    const saved = sessionRecord(record({ promptTombstones: [{ ...tombstone, text: secret, status: 'running', token: secret }] }));
+    assert.deepEqual(saved.promptTombstones, [tombstone]);
+    assert.ok(!JSON.stringify(saved).includes(secret));
+    for (const promptTombstones of [null, {}, [null], [{ ...tombstone, textHash: secret }]]) {
+      assert.throws(() => sessionRecord(record({ promptTombstones })), /Session persistence/);
+    }
+  });
+
   test('archive projection excludes previous runtimes and transient work maps', () => {
     const s = record({ cursor: 3, historyStartCursor: 2, events: [event(1), { seq: 2, type: 'runtime.replaced', data: {} }, event(3)] });
     const saved = sessionRecord({ ...s, commands: new Map([['x', secret]]), providerEnv: secret, token: secret, lastError: { message: 'Native tool call failed; inspect the transcript', at: 10, raw: secret } });

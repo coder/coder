@@ -16,7 +16,9 @@ const stopReasons = new Set(['end_turn', 'max_tokens', 'max_turn_requests', 'ref
 const errorCodes = new Set(['setup_failed', 'unsupported_protocol', 'unsupported_mode', 'result_unknown', 'worker_start_failed', 'native_input_required']);
 const sessionID = /^[^\x00-\x1f\x7f]{1,1024}$/u;
 const uuid = /^[a-f0-9-]{36}$/;
-const fields = new Set(['version', 'jobId', 'inputHash', 'status', 'sessionId', 'createdAt', 'updatedAt', 'dispatchAttemptedAt', 'completedAt', 'stopReason', 'errorCode', 'workerPid', 'workerStartedAt']);
+const fields = new Set(['version', 'jobId', 'inputHash', 'harness', 'status', 'sessionId', 'createdAt', 'updatedAt', 'dispatchAttemptedAt', 'completedAt', 'stopReason', 'errorCode', 'workerPid', 'workerStartedAt']);
+const harnesses = new Set(['claude', 'codex', 'opencode']);
+const normalizedHarness = harness => harness === undefined ? 'claude' : harness;
 const now = () => new Date().toISOString();
 
 function localError(code) {
@@ -92,6 +94,7 @@ function parseRecord(text) {
   try { record = JSON.parse(text); } catch { throw new Error('Job file is incomplete or invalid; inspect it manually. Nothing was replayed.'); }
   if (!record || record.version !== 1 || !uuid.test(record.jobId) ||
       !/^[a-f0-9]{64}$/.test(record.inputHash) || !statuses.has(record.status) ||
+      !harnesses.has(normalizedHarness(record.harness)) ||
       !record.createdAt || !record.updatedAt || Object.keys(record).some(key => !fields.has(key)) ||
       ['createdAt', 'updatedAt', 'dispatchAttemptedAt', 'completedAt', 'workerStartedAt'].some(key =>
         record[key] !== undefined && (typeof record[key] !== 'string' || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(record[key]))) ||
@@ -147,6 +150,8 @@ async function update(guard, change) {
 }
 
 async function inputs(options) {
+  const harness = normalizedHarness(options.harness);
+  if (!harnesses.has(harness)) throw new Error('--harness must be claude, codex or opencode');
   const cwd = absolute(options.cwd, '--cwd');
   const promptFile = absolute(options.promptFile, '--prompt-file');
   const jobFile = absolute(options.jobFile, '--job-file');
@@ -156,8 +161,10 @@ async function inputs(options) {
   await privateParent(jobFile, true);
   const { text: prompt } = await privateRead(promptFile, 1024 * 1024);
   if (!prompt.length) throw new Error('Prompt file must not be empty');
+  // Keep the fingerprint compatible with old Claude guards. Harness identity is
+  // checked separately so a selector change can never resubmit the same input.
   const inputHash = createHash('sha256').update(JSON.stringify([cwd, prompt])).digest('hex');
-  return { cwd, promptFile, jobFile, prompt, inputHash };
+  return { cwd, promptFile, jobFile, prompt, inputHash, harness };
 }
 
 async function prepare(options) {
@@ -168,13 +175,15 @@ async function prepare(options) {
   } catch (error) {
     if (error.code !== 'EEXIST') throw new Error('Cannot exclusively create private job file');
     const guard = await readGuard(input.jobFile);
-    if (guard.record.inputHash !== input.inputHash) throw new Error('Job file belongs to different input; nothing was replayed');
+    if (guard.record.inputHash !== input.inputHash || normalizedHarness(guard.record.harness) !== input.harness) {
+      throw new Error('Job file belongs to different input or a different harness; nothing was replayed');
+    }
     return { input, guard, existing: true };
   }
   // Even an incomplete guard is retained after a crash. A retry must never infer
   // that an absent session ID proves session/new did not reach the agent.
   const timestamp = now();
-  const record = { version: 1, jobId: randomUUID(), inputHash: input.inputHash, status: 'starting', createdAt: timestamp, updatedAt: timestamp };
+  const record = { version: 1, jobId: randomUUID(), inputHash: input.inputHash, harness: input.harness, status: 'starting', createdAt: timestamp, updatedAt: timestamp };
   try {
     await handle.writeFile(JSON.stringify(record) + '\n');
     await handle.sync();
@@ -275,7 +284,9 @@ async function dispatch(options, input, guard) {
     // filesystem, terminal, embedded context or authentication flow is assumed.
     if (initialized.protocolVersion !== PROTOCOL_VERSION || !initialized.agentCapabilities) throw localError('unsupported_protocol');
     mayHaveCreated = true;
-    let session = await request(methods.agent.session.new, { cwd: input.cwd, mcpServers: [] });
+    let session = await request(methods.agent.session.new, { cwd: input.cwd, mcpServers: [],
+      ...(input.harness !== 'claude' ? { _meta: { 'coder-acp': { harness: input.harness } } } : {}),
+    });
     if (typeof session.sessionId !== 'string' || !sessionID.test(session.sessionId)) throw localError('result_unknown');
     knownSessionId = session.sessionId;
     await update(guard, { sessionId: knownSessionId, status: 'created' });
@@ -327,6 +338,7 @@ async function dispatch(options, input, guard) {
  * The synchronous createConnection(app, options) injection returns an SDK connection
  * plus async dispose(); tests use the same SDK framing without native inference.
  * onReady receives a durable dispatch-attempt record, never an acceptance claim.
+ * The optional harness is claude (default), codex or opencode; legacy guards are Claude.
  */
 export async function runJob(options) {
   const { input, guard, existing } = await prepare(options);
@@ -375,7 +387,7 @@ export async function startDetachedJob(options) {
       function onMessage(message) {
         if (message?.type === 'job-worker-online') {
           child.send({ type: 'job-start', jobId: guard.record.jobId, cwd: input.cwd, promptFile: input.promptFile, jobFile: input.jobFile,
-            stateFile: options.stateFile, cli: options.cli ?? defaultCLI, startupTimeoutMs: options.startupTimeoutMs ?? startupTimeoutMs }, error => {
+            harness: input.harness, stateFile: options.stateFile, cli: options.cli ?? defaultCLI, startupTimeoutMs: options.startupTimeoutMs ?? startupTimeoutMs }, error => {
             if (error) finish(new Error('Cannot hand off job to worker'));
           });
         }
@@ -388,14 +400,14 @@ export async function startDetachedJob(options) {
     });
     const current = await readGuard(input.jobFile);
     if (current.record.jobId !== guard.record.jobId || current.record.inputHash !== guard.record.inputHash ||
-        current.record.createdAt !== guard.record.createdAt) throw new Error('Job file identity changed');
+        normalizedHarness(current.record.harness) !== input.harness || current.record.createdAt !== guard.record.createdAt) throw new Error('Job file identity changed');
     return current.record;
   } catch {
     // Cleanup belongs only to this failed start, never an existing guard's PID.
     if (child) await stopOwnedWorker(child);
     const current = await readGuard(input.jobFile);
     if (current.record.jobId !== guard.record.jobId || current.record.inputHash !== guard.record.inputHash ||
-        current.record.createdAt !== guard.record.createdAt) throw new Error('Job file identity changed; refusing to overwrite it');
+        normalizedHarness(current.record.harness) !== input.harness || current.record.createdAt !== guard.record.createdAt) throw new Error('Job file identity changed; refusing to overwrite it');
     if (['starting', 'created', 'prompting'].includes(current.record.status)) {
       await update(current, { status: child ? 'unknown' : 'failed', errorCode: 'worker_start_failed' });
     }
@@ -421,7 +433,7 @@ async function worker() {
   const input = await inputs(options);
   const guard = await readGuard(input.jobFile);
   if (guard.record.jobId !== options.jobId || guard.record.inputHash !== input.inputHash ||
-      guard.record.status !== 'starting' || guard.record.workerStartedAt) throw new Error('Job worker handoff does not own this guard');
+      normalizedHarness(guard.record.harness) !== input.harness || guard.record.status !== 'starting' || guard.record.workerStartedAt) throw new Error('Job worker handoff does not own this guard');
   await update(guard, { workerStartedAt: now(), workerPid: process.pid });
   const record = await dispatch({ ...options, signal: controller.signal, onReady: async () => {
     ready = true;

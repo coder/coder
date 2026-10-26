@@ -21,7 +21,7 @@ function fixture(t) {
   const emit = (type, data) => { events.push({ seq: ++session.cursor, type, data }); };
   emit('text', { turnId: 'saved', text: 'saved conversation' });
   const client = { async request(method, path, body, signal) {
-    if (path.endsWith('/resume')) return client.resume();
+    assert.equal(method, 'GET', 'observing restoration must not mutate native sessions');
     if (path.includes('/events?')) {
       await client.beforeEvents?.();
       const after = Number(new URL(path, 'http://broker').searchParams.get('after'));
@@ -47,18 +47,14 @@ function fixture(t) {
   return { sessionId, session, events, updates, client, agent, load, emit, resumeSnapshot };
 }
 
-test('a successful Join retry must not apply the previous refusal as current control', async t => {
+test('observing successful startup restoration must not apply a previous refusal as current control', async t => {
   const f = fixture(t);
   await f.load();
-  f.client.resume = async () => {
-    f.resumeSnapshot();
-    f.emit('session.resume_failed', { sessionId: f.sessionId, reason: 'missing transcript', retryable: true });
-    Object.assign(f.session, { archived: true, ended: true, resumePending: false, registrationPending: false, resumable: true });
-    throw Object.assign(new Error('missing transcript'), { status: 409 });
-  };
-  await assert.rejects(f.agent.setSessionMode({ sessionId: f.sessionId, modeId: 'human' }), /missing transcript/);
-  f.client.resume = async () => f.resumeSnapshot();
-  await f.agent.setSessionMode({ sessionId: f.sessionId, modeId: 'human' });
+  f.resumeSnapshot();
+  f.emit('session.resume_failed', { sessionId: f.sessionId, reason: 'missing transcript', retryable: true });
+  Object.assign(f.session, { archived: true, ended: true, resumePending: false, registrationPending: false, resumable: true });
+  f.resumeSnapshot();
+  await f.agent.listSessions();
   await setImmediate();
   const status = f.updates.filter(u => u.sessionUpdate === 'session_info_update').at(-1)._meta['claude-acp-bridge'];
   assert.equal(status.archived, false, 'the native wake succeeded, but the old refusal stopped the new poller');

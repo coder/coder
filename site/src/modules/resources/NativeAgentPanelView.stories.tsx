@@ -2,14 +2,19 @@ import type { Implementation, SessionInfo } from "@agentclientprotocol/sdk";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, userEvent, within } from "storybook/test";
 import {
+	MockArchivedOpenCodeNativeAgentSessionInfo,
 	MockBlockedNativeAgentSession,
 	MockBlockedNativeAgentSessionInfo,
+	MockCodexNativeAgentSessionInfo,
 	MockFaultedNativeAgentSessionInfo,
+	MockNativeAgentHarnesses,
 	MockNativeAgentInfo,
 	MockNativeAgentModes,
+	MockNativeAgentMultiplexerInfo,
 	MockNativeAgentNow,
 	MockNativeAgentSession,
 	MockNativeAgentSessionInfo,
+	MockOpenCodeNativeAgentSessionInfo,
 	MockOtherNativeAgentSessionInfo,
 	MockRecoveredNativeAgentSessionInfo,
 	MockRegisteredNativeAgentSessionInfo,
@@ -48,6 +53,12 @@ const mockTruncatedSession: NativeAgentSessionState = {
 const mockEmptySession: NativeAgentSessionState = {
 	...MockNativeAgentSession,
 	entries: [],
+};
+const mockLoadingSession: NativeAgentSessionState = {
+	...mockEmptySession,
+	info: MockOpenCodeNativeAgentSessionInfo,
+	modes: undefined,
+	loading: true,
 };
 const mockFailedSession: NativeAgentSessionState = {
 	...MockNativeAgentSession,
@@ -190,6 +201,27 @@ const mockUnknownInfo: Implementation = {
 	title: undefined,
 };
 
+const mockTitlelessClaudeSessionInfo: SessionInfo = {
+	...MockNativeAgentSessionInfo,
+	title: undefined,
+};
+const mockTitlelessCodexSessionInfo: SessionInfo = {
+	...MockCodexNativeAgentSessionInfo,
+	title: undefined,
+};
+const mockTitlelessOpenCodeSessionInfo: SessionInfo = {
+	...MockOpenCodeNativeAgentSessionInfo,
+	title: undefined,
+};
+const mockClaudeSessionWithoutMetadata: SessionInfo = {
+	...MockNativeAgentSessionInfo,
+	_meta: undefined,
+};
+const mockCodexSessionWithoutMetadata: SessionInfo = {
+	...MockCodexNativeAgentSessionInfo,
+	_meta: undefined,
+};
+
 const meta = {
 	title: "modules/resources/NativeAgentPanelView",
 	component: NativeAgentPanelView,
@@ -208,13 +240,16 @@ const meta = {
 		busy: false,
 		hasMoreSessions: false,
 		cwd: MockNativeAgentSessionInfo.cwd,
+		harness: undefined,
 		prompt: "",
 		now: MockNativeAgentNow,
 		onCwdChange: fn(),
+		onHarnessChange: fn(),
 		onPromptChange: fn(),
 		onCreateSubmit: fn(),
 		onPromptSubmit: fn(),
 		onAction: fn(),
+		onOpen: fn(),
 		onRefresh: fn(),
 		onMoreSessions: fn(),
 	},
@@ -232,6 +267,17 @@ export const Discovered: Story = {
 	args: {
 		snapshot: { status: "connected", agentInfo: MockNativeAgentInfo },
 		sessions: [MockNativeAgentSessionInfo, MockOtherNativeAgentSessionInfo],
+	},
+	parameters: { pixel: { matrix: pixelWithPhone } },
+};
+export const DiscoveredACPDisconnected: Story = {
+	args: {
+		...Discovered.args,
+		snapshot: {
+			status: "disconnected",
+			agentInfo: MockNativeAgentInfo,
+			error: "ACP disconnected. Open still launches the native terminal.",
+		},
 	},
 	parameters: { pixel: { matrix: pixelWithPhone } },
 };
@@ -274,14 +320,14 @@ export const BlockedSetupCollapsed: Story = {
 	args: { ...BlockedSetupSelected.args, sessionExpanded: false },
 	parameters: { pixel: { matrix: pixelWithPhone } },
 };
-export const BlockedSetupJoining: Story = {
+export const BlockedSetupUpdating: Story = {
 	args: { ...BlockedSetupSelected.args, busy: true },
 	parameters: { pixel: { matrix: pixelWithPhone } },
 };
-export const BlockedSetupJoinFailed: Story = {
+export const ObserveFailed: Story = {
 	args: {
-		...BlockedSetupSelected.args,
-		error: "Human mode was not acknowledged.",
+		snapshot: { status: "connected", session: mockHumanSession },
+		error: "Automation mode was not acknowledged.",
 	},
 };
 export const BlockedSetupFaulted: Story = {
@@ -315,11 +361,11 @@ export const NativeSessionRegistered: Story = {
 	},
 	parameters: { pixel: { matrix: pixelWithPhone } },
 };
-export const BlockedSetupJoinKeyboardFocus: Story = {
+export const BlockedSetupOpenKeyboardFocus: Story = {
 	args: BlockedSetupDiscovered.args,
 	play: async ({ canvasElement }) => {
 		within(canvasElement)
-			.getByRole("button", { name: "Join Set up the project agent" })
+			.getByRole("button", { name: "Open Set up the project agent" })
 			.focus();
 	},
 };
@@ -378,7 +424,7 @@ export const StoppedSavedSession: Story = {
 				info: MockResumableNativeAgentSessionInfo,
 			},
 		},
-		prompt: "Keep my draft while resuming the saved conversation.",
+		prompt: "Keep my draft while inspecting the stopped session.",
 	},
 	parameters: { pixel: { matrix: pixelWithPhone } },
 };
@@ -405,10 +451,18 @@ export const SavedSessionResumePendingCollapsed: Story = {
 	args: { ...SavedSessionResumePending.args, sessionExpanded: false },
 	parameters: { pixel: { matrix: pixelWithPhone } },
 };
-export const SavedSessionJoinFailed: Story = {
+export const SavedSessionRestoreFailed: Story = {
 	args: {
 		...StoppedSavedSession.args,
-		error: "The saved native conversation could not be resumed.",
+		snapshot: {
+			status: "connected",
+			session: {
+				...mockHumanSession,
+				info: MockResumableNativeAgentSessionInfo,
+				error:
+					"The saved native conversation could not be restored at startup.",
+			},
+		},
 	},
 };
 export const WaitingForStartup: Story = {
@@ -424,7 +478,116 @@ export const Codex: Story = {
 			status: "connected",
 			agentInfo: mockCodexInfo,
 		},
+		sessions: [mockCodexSessionWithoutMetadata],
 	},
+};
+export const MixedHarnesses: Story = {
+	args: {
+		snapshot: {
+			status: "connected",
+			agentInfo: MockNativeAgentMultiplexerInfo,
+			harnesses: MockNativeAgentHarnesses,
+			session: {
+				...mockHumanSession,
+				info: mockTitlelessCodexSessionInfo,
+			},
+		},
+		sessions: [
+			mockTitlelessClaudeSessionInfo,
+			mockTitlelessCodexSessionInfo,
+			mockTitlelessOpenCodeSessionInfo,
+		],
+		harness: "claude",
+	},
+	parameters: { pixel: { matrix: pixelWithPhone } },
+};
+export const CreateCodexSession: Story = {
+	args: { ...MixedHarnesses.args, harness: "codex" },
+	parameters: { pixel: { matrix: pixelWithPhone } },
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Add session" }),
+		);
+	},
+};
+/** Captures the open creation form with a non-default harness selected. */
+export const CreateOpenCodeSession: Story = {
+	args: { ...MixedHarnesses.args, harness: "opencode" },
+	parameters: { pixel: { matrix: pixelWithPhone } },
+	play: CreateCodexSession.play,
+};
+/** Retained identity and draft remain visible when the broker drops a harness. */
+export const ArchivedOpenCodeWithoutAdvertisedHarness: Story = {
+	args: {
+		snapshot: {
+			status: "connected",
+			agentInfo: MockNativeAgentMultiplexerInfo,
+			harnesses: MockNativeAgentHarnesses.filter(
+				(item) => item.id !== "opencode",
+			),
+			session: {
+				...mockHumanSession,
+				info: MockArchivedOpenCodeNativeAgentSessionInfo,
+			},
+		},
+		sessions: [MockArchivedOpenCodeNativeAgentSessionInfo],
+		harness: "claude",
+		prompt: "Keep this draft while inspecting the archived session.",
+	},
+	parameters: { pixel: { matrix: pixelWithPhone } },
+};
+export const ChooseHarness: Story = {
+	args: MixedHarnesses.args,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "Add session" }));
+		await userEvent.click(canvas.getByRole("combobox", { name: "Harness" }));
+	},
+};
+export const CodexReconnect: Story = {
+	args: {
+		...CreateCodexSession.args,
+		snapshot: {
+			...MixedHarnesses.args?.snapshot,
+			status: "disconnected",
+			error:
+				"ACP disconnected. Reconnect to reload retained history; prompts are never resent.",
+		},
+		prompt: "Keep this draft while reconnecting.",
+	},
+	play: CreateCodexSession.play,
+};
+export const SelectedHarnessUnavailable: Story = {
+	args: {
+		...CreateCodexSession.args,
+		snapshot: {
+			...MixedHarnesses.args?.snapshot,
+			status: "connected",
+			agentInfo: MockNativeAgentInfo,
+			harnesses: MockNativeAgentHarnesses.filter(
+				(item) => item.id === "claude",
+			),
+		},
+	},
+	parameters: { pixel: { matrix: pixelWithPhone } },
+	play: CreateCodexSession.play,
+};
+export const ChooseUnavailableHarness: Story = {
+	args: SelectedHarnessUnavailable.args,
+	parameters: { pixel: { matrix: pixelWithPhone } },
+	play: ChooseHarness.play,
+};
+export const HarnessCapabilitiesRemoved: Story = {
+	args: {
+		...SelectedHarnessUnavailable.args,
+		snapshot: {
+			...SelectedHarnessUnavailable.args?.snapshot,
+			status: "connected",
+			harnesses: [],
+		},
+	},
+	parameters: { pixel: { matrix: pixelWithPhone } },
+	play: ChooseHarness.play,
 };
 export const UnknownClaudeFork: Story = {
 	args: {
@@ -432,6 +595,7 @@ export const UnknownClaudeFork: Story = {
 			status: "connected",
 			agentInfo: mockUnknownClaudeInfo,
 		},
+		sessions: [mockClaudeSessionWithoutMetadata],
 	},
 };
 export const ProviderNameIsNotAgentIdentity: Story = {
@@ -440,6 +604,7 @@ export const ProviderNameIsNotAgentIdentity: Story = {
 			status: "connected",
 			agentInfo: mockProviderInfo,
 		},
+		sessions: [mockClaudeSessionWithoutMetadata],
 	},
 };
 export const UnknownAgent: Story = {
@@ -448,6 +613,7 @@ export const UnknownAgent: Story = {
 			status: "connected",
 			agentInfo: mockUnknownInfo,
 		},
+		sessions: [mockClaudeSessionWithoutMetadata],
 	},
 };
 export const ConnectedBusy: Story = { args: { busy: true } };
@@ -464,6 +630,22 @@ export const LoadingSessions: Story = {
 		loadingSessions: true,
 		refreshingSessions: true,
 	},
+};
+/** Retained-history loading leaves discovery and other sessions available. */
+export const LoadingSelectedSession: Story = {
+	args: {
+		snapshot: {
+			status: "connected",
+			agentInfo: MockNativeAgentMultiplexerInfo,
+			harnesses: MockNativeAgentHarnesses,
+			session: mockLoadingSession,
+		},
+		sessions: [MockOpenCodeNativeAgentSessionInfo, MockNativeAgentSessionInfo],
+		harness: "opencode",
+		hasMoreSessions: true,
+		prompt: "Keep this draft while loading retained events.",
+	},
+	parameters: { pixel: { matrix: pixelWithPhone } },
 };
 export const Empty: Story = {
 	args: { snapshot: { status: "connected" }, sessions: [] },
@@ -581,7 +763,7 @@ export const CreateSession: Story = {
 export const SessionKeyboardFocus: Story = {
 	play: async ({ canvasElement }) => {
 		within(canvasElement)
-			.getByRole("button", { name: /Investigate the failing tests/ })
+			.getByRole("button", { name: /^Investigate the failing tests/ })
 			.focus();
 	},
 };

@@ -8,7 +8,11 @@ import {
 } from "@agentclientprotocol/sdk";
 import { getErrorMessage } from "#/api/errors";
 import { WorkspaceAgentACP } from "#/api/workspaceAgentACP";
-import { nativeAgentMetadata } from "./nativeAgentMetadata";
+import {
+	type NativeAgentHarness,
+	nativeAgentHarnesses,
+	nativeAgentMetadata,
+} from "./nativeAgentMetadata";
 
 /** Text or tool status retained in the bounded transcript display. */
 export type NativeAgentEntry =
@@ -35,12 +39,14 @@ export type NativeAgentSessionState = {
 	needsInput: boolean;
 	error?: string;
 	prompting: boolean;
+	loading: boolean;
 };
 
 /** Connection state and the selected conversation published to React. */
 export type NativeAgentSnapshot = {
 	status: "disconnected" | "connecting" | "connected";
 	agentInfo?: InitializeResponse["agentInfo"];
+	harnesses?: readonly NativeAgentHarness[];
 	error?: string;
 	session?: NativeAgentSessionState;
 };
@@ -63,7 +69,10 @@ export class NativeAgentSession {
 	private frame?: number;
 	private snapshot: NativeAgentSnapshot = { status: "disconnected" };
 
-	constructor(readonly agentID: string) {
+	constructor(
+		readonly agentID: string,
+		private restoreSelection?: Pick<SessionInfo, "sessionId" | "cwd">,
+	) {
 		this.transport = new WorkspaceAgentACP(
 			agentID,
 			this.update,
@@ -126,6 +135,7 @@ export class NativeAgentSession {
 			truncated: false,
 			needsInput: false,
 			prompting: false,
+			loading: false,
 		});
 	}
 
@@ -142,7 +152,11 @@ export class NativeAgentSession {
 		try {
 			const initialized = await this.transport.connect();
 			if (connectionID !== this.connectionID) return;
-			this.snapshot = { ...this.snapshot, agentInfo: initialized.agentInfo };
+			this.snapshot = {
+				...this.snapshot,
+				agentInfo: initialized.agentInfo,
+				harnesses: nativeAgentHarnesses(initialized),
+			};
 		} catch (error) {
 			// An interrupted mount must not close its replacement connection.
 			if (connectionID !== this.connectionID) return;
@@ -166,6 +180,7 @@ export class NativeAgentSession {
 				this.sessions.set(previous.info.sessionId, {
 					...previous,
 					prompting: false,
+					loading: false,
 					error: getErrorMessage(error, "Session could not be reloaded."),
 				});
 			}
@@ -191,12 +206,24 @@ export class NativeAgentSession {
 	};
 
 	list = async (cursor?: string) => {
+		const connectionID = this.connectionID;
 		const response = await this.transport.agent.request(
 			methods.agent.session.list,
 			{ cursor },
 		);
+		if (connectionID !== this.connectionID) return response;
 		for (const info of response.sessions) this.applyInfo(info);
 		this.publish();
+		const selected = response.sessions.find(
+			(info) =>
+				info.sessionId === this.restoreSelection?.sessionId &&
+				info.cwd === this.restoreSelection.cwd,
+		);
+		if (selected) {
+			void this.load(selected).catch(() => {
+				// load exposes its error; discovery must not wait for retained history.
+			});
+		}
 		return response;
 	};
 
@@ -239,7 +266,17 @@ export class NativeAgentSession {
 		});
 	}
 
-	create = async (cwd: string) => {
+	create = async (cwd: string, harness?: string) => {
+		this.restoreSelection = undefined;
+		const harnesses = this.snapshot.harnesses ?? [];
+		const selectedHarness = harness || harnesses[0]?.id;
+		if (
+			selectedHarness &&
+			!harnesses.some((item) => item.id === selectedHarness)
+		)
+			throw new Error(
+				"The selected harness is unavailable. Choose another harness.",
+			);
 		if (!cwd.startsWith("/") || cwd.includes("\0"))
 			throw new Error("Enter an absolute workspace directory.");
 		if (this.sessions.size >= MAX_SESSIONS)
@@ -250,7 +287,13 @@ export class NativeAgentSession {
 		try {
 			const response = await this.transport.agent.request(
 				methods.agent.session.new,
-				{ cwd, mcpServers: [] },
+				{
+					cwd,
+					mcpServers: [],
+					...(selectedHarness
+						? { _meta: { "coder-acp": { harness: selectedHarness } } }
+						: {}),
+				},
 			);
 			const info: SessionInfo = {
 				sessionId: response.sessionId,
@@ -273,9 +316,12 @@ export class NativeAgentSession {
 	};
 
 	load = async (info: SessionInfo) => {
+		this.restoreSelection = undefined;
+		const connectionID = this.connectionID;
 		if (!this.sessions.has(info.sessionId)) {
 			this.register(info);
 			this.activeID = info.sessionId;
+			this.patch(info.sessionId, { loading: true });
 			this.publish();
 			try {
 				const response = await this.transport.agent.request(
@@ -286,6 +332,7 @@ export class NativeAgentSession {
 						mcpServers: [],
 					},
 				);
+				if (connectionID !== this.connectionID) return info;
 				const current = this.sessions.get(info.sessionId)?.info ?? info;
 				this.applyModes(info.sessionId, response.modes ?? undefined);
 				this.applyInfo({
@@ -293,15 +340,21 @@ export class NativeAgentSession {
 					_meta: { ...current._meta, ...response._meta },
 				});
 			} catch (error) {
+				if (connectionID !== this.connectionID) return info;
 				this.patch(info.sessionId, {
 					error: getErrorMessage(error, "Session could not be loaded."),
 				});
-				this.publish();
 				throw error;
+			} finally {
+				if (connectionID === this.connectionID) {
+					this.patch(info.sessionId, { loading: false });
+					this.publish();
+				}
 			}
+		} else {
+			this.activeID = info.sessionId;
+			this.publish();
 		}
-		this.activeID = info.sessionId;
-		this.publish();
 		return info;
 	};
 
@@ -321,11 +374,7 @@ export class NativeAgentSession {
 	setMode = async (modeId: string) => {
 		const session = this.requireSession();
 		const metadata = nativeAgentMetadata(session.info);
-		if (
-			session.error ||
-			(metadata.unavailable && !metadata.resumable) ||
-			(metadata.resumable && modeId !== "human")
-		) {
+		if (session.error || metadata.unavailable || metadata.resumable) {
 			throw new Error(
 				"This session is unavailable for control changes. Refresh its status before continuing.",
 			);
@@ -335,7 +384,7 @@ export class NativeAgentSession {
 			(metadata.registrationPending || metadata.resumePending)
 		) {
 			throw new Error(
-				"Join the native terminal to complete setup before selecting automation.",
+				"Open the native terminal to complete setup before selecting automation.",
 			);
 		}
 		if (!session.modes?.availableModes.some((mode) => mode.id === modeId)) {
@@ -495,12 +544,17 @@ export class NativeAgentSession {
 					...session.info,
 					title: update.title || session.info.title,
 				};
-				const meta = update._meta?.["claude-acp-bridge"];
+				const namespace =
+					update._meta?.["coder-acp"] !== undefined ||
+					info._meta?.["coder-acp"] !== undefined
+						? "coder-acp"
+						: "claude-acp-bridge";
+				const meta = update._meta?.[namespace];
 				if (meta && typeof meta === "object" && !Array.isArray(meta)) {
-					const currentMeta = info._meta?.["claude-acp-bridge"];
+					const currentMeta = info._meta?.[namespace];
 					info._meta = {
 						...info._meta,
-						"claude-acp-bridge": {
+						[namespace]: {
 							...(currentMeta && typeof currentMeta === "object"
 								? currentMeta
 								: {}),
@@ -510,8 +564,8 @@ export class NativeAgentSession {
 				}
 				this.applyInfo(info);
 				if (!meta || typeof meta !== "object" || Array.isArray(meta)) break;
-				if ("pendingInput" in meta && meta.pendingInput)
-					this.patch(sessionId, { needsInput: true });
+				if ("pendingInput" in meta)
+					this.patch(sessionId, { needsInput: Boolean(meta.pendingInput) });
 				if ("error" in meta && typeof meta.error === "string")
 					this.patch(sessionId, { error: meta.error.slice(0, MAX_TEXT) });
 				break;

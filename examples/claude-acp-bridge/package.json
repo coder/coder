@@ -10,5 +10,5 @@
     "test:live": "BRIDGE_LIVE=1 node --test test/live.mjs",
     "validate:mod": "claude plugin validate plugin"
   },
-  "dependencies": { "@agentclientprotocol/sdk": "2.0.1" }
+  "dependencies": { "@agentclientprotocol/sdk": "2.0.1", "ws": "8.22.0" }
 }

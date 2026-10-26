@@ -85,6 +85,16 @@ describe('native CLI adapter', { concurrency: true, timeout: 10000 }, () => {
     assert.ok(!(result.stdout + result.stderr + f.log()).includes(secret));
   });
 
+  test('disabled harness selection cannot create a Claude session', async t => {
+    const f = await fixture(t);
+    for (const [harness, title] of [['codex', 'Codex'], ['opencode', 'OpenCode']]) {
+      await assert.rejects(f.run(['start', '--harness', harness, '--cwd', f.home]), error => error.stderr.includes('does not advertise ' + title));
+    }
+    await assert.rejects(f.run(['start', '--harness', '', '--cwd', f.home]), error => /--harness/.test(error.stderr));
+    assert.deepEqual(JSON.parse((await f.run(['list'])).stdout).sessions, []);
+    await assert.rejects(f.run(['list', '--opencode']), error => /only valid with serve/.test(error.stderr));
+  });
+
   test('launch failure never leaks native stderr, stdout or command settings', async t => {
     const f = await fixture(t, true);
     await assert.rejects(f.run(['start', '--cwd', f.home]), error => {

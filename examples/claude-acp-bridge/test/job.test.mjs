@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { createServer } from 'node:net';
 import { createInterface } from 'node:readline';
 import { promisify } from 'node:util';
@@ -149,6 +150,52 @@ describe('noninteractive ACP jobs', { concurrency: true, timeout: 10000 }, () =>
     acp.complete();
     assert.equal((await running).status, 'completed');
     assert.equal(acp.calls.filter(call => call.method === 'new').length, 1);
+  });
+
+  test('harness selection preserves the old hash, accepts opaque native IDs, and never replays a changed harness', async t => {
+    for (const harness of [undefined, 'claude', 'codex', 'opencode']) {
+      const f = await fixture(t);
+      const id = harness === 'opencode' ? 'opencode:ses_test123' : harness === 'codex' ? 'codex:ad72142c-b0ed-474c-9e9e-237345db5784' : 'native-session-123';
+      const acp = fakeACP(t, { newSession: () => ({ sessionId: id }), prompt: () => ({ stopReason: 'end_turn' }) });
+      const record = await runJob({ ...f, harness, createConnection: acp.createConnection });
+      assert.equal(record.harness, harness ?? 'claude');
+      assert.equal(record.sessionId, id);
+      assert.equal(record.status, 'completed');
+      assert.equal(record.inputHash, createHash('sha256').update(JSON.stringify([f.cwd, f.text])).digest('hex'));
+      assert.deepEqual(await acp.called('new'), { cwd: f.cwd, mcpServers: [],
+        ...(harness && harness !== 'claude' ? { _meta: { 'coder-acp': { harness } } } : {}),
+      });
+      // Simulate a retained guard written before the optional harness field existed.
+      if (harness === undefined) delete record.harness;
+      await writeFile(f.jobFile, JSON.stringify(record) + '\n');
+      const original = await readFile(f.jobFile, 'utf8');
+      for (const run of [runJob, startDetachedJob]) {
+        assert.deepEqual(await run({ ...f, harness: harness ?? 'claude', createConnection: acp.createConnection }), record);
+        await assert.rejects(run({ ...f, harness: harness === 'codex' ? 'claude' : 'codex', createConnection: acp.createConnection }), /different input|different harness/);
+        assert.equal(await readFile(f.jobFile, 'utf8'), original);
+      }
+      assert.equal(acp.connects, 1);
+    }
+  });
+
+  test('invalid harness input and retained harness fields fail closed without overwriting or connecting', async t => {
+    const f = await fixture(t);
+    const acp = fakeACP(t, { prompt: () => ({ stopReason: 'end_turn' }) });
+    for (const harness of ['', null, 'unknown', 1]) {
+      for (const run of [runJob, startDetachedJob]) {
+        await assert.rejects(run({ ...f, harness, createConnection: acp.createConnection }), /harness/);
+        await assert.rejects(lstat(f.jobFile), { code: 'ENOENT' });
+      }
+    }
+    assert.equal(acp.connects, 0);
+    const record = await runJob({ ...f, createConnection: acp.createConnection });
+    for (const harness of ['', null, 'unknown', 1]) {
+      const original = JSON.stringify({ ...record, harness }) + '\n';
+      await writeFile(f.jobFile, original);
+      await assert.rejects(runJob({ ...f, createConnection: acp.createConnection }), /Invalid job file/);
+      assert.equal(await readFile(f.jobFile, 'utf8'), original);
+    }
+    assert.equal(acp.connects, 1);
   });
 
   test('generic opaque session IDs and literal UTF-8 prompts need no bridge metadata or mode extension', async t => {
@@ -451,7 +498,7 @@ app.onRequest(methods.agent.initialize, ({ params }) => {
 app.onRequest(methods.agent.session.new, async ({ params }) => {
   send('new', params);
   if (config.pauseNew) await created;
-  return { sessionId: 'native-detached-session', ...(config.blocked ? {
+  return { sessionId: config.sessionId ?? 'native-detached-session', ...(config.blocked ? {
     _meta: { 'claude-acp-bridge': { registrationPending: true, blockedReason: process.env.JOB_TEST_SECRET } },
   } : {}), ...(config.pauseMode ? {
     modes: { currentModeId: 'human', availableModes: [{ id: 'human', name: 'Human' }, { id: 'automation', name: 'Automation' }] },
@@ -478,11 +525,11 @@ socket.end();
 `, { mode: 0o600 });
   const execute = promisify(execFile);
   const secret = 'never-log-test-token-123';
-  const launch = async () => {
+  const launch = async (options = {}) => {
     // A separate short-lived parent proves worker stdio and IPC cannot keep the
     // starter alive, and losing the starter does not terminate native work.
     const program = `import { startDetachedJob } from ${JSON.stringify(new URL('../src/job.mjs', import.meta.url).href)}; console.log(JSON.stringify(await startDetachedJob(JSON.parse(process.argv[1]))));`;
-    const output = await execute(process.execPath, ['--input-type=module', '-e', program, JSON.stringify({ ...f, text: undefined, cli })], {
+    const output = await execute(process.execPath, ['--input-type=module', '-e', program, JSON.stringify({ ...f, text: undefined, cli, ...options })], {
       timeout: 10000, env: { ...process.env, JOB_TEST_SECRET: secret },
     });
     const record = JSON.parse(output.stdout);
@@ -521,6 +568,28 @@ async function runCLI(f, detach) {
 }
 
 describe('detached job lifecycle', { concurrency: true, timeout: 15000 }, () => {
+  test('detached workers retain the selected harness across IPC and preserve opaque native IDs', async t => {
+    for (const harness of ['claude', 'codex', 'opencode']) {
+      const id = harness === 'opencode' ? 'opencode:ses_test123' : harness === 'codex' ? 'codex:ad72142c-b0ed-474c-9e9e-237345db5784' : 'native-detached-session';
+      const f = await processFixture(t, { sessionId: id });
+      const record = await f.launch({ harness });
+      assert.equal(record.harness, harness);
+      assert.equal(record.sessionId, id);
+      assert.deepEqual(await f.called('new'), { cwd: f.cwd, mcpServers: [],
+        ...(harness && harness !== 'claude' ? { _meta: { 'coder-acp': { harness } } } : {}),
+      });
+      assert.deepEqual(await f.launch({ harness }), record);
+      await assert.rejects(startDetachedJob({ ...f, harness: harness === 'codex' ? 'claude' : 'codex' }), /different input|different harness/);
+      f.send('complete');
+      const final = await waitJob(f.jobFile, value => value.status === 'completed');
+      assert.equal(final.harness, harness);
+      assert.equal(final.sessionId, id);
+      await f.until(() => f.connected === 0);
+      assert.equal(f.calls.filter(call => call.method === 'new').length, 1);
+      assert.equal(f.calls.filter(call => call.method === 'prompt').length, 1);
+    }
+  });
+
   test('parent exits after dispatch, worker owns an OS session and private stdio, and observes completion', async t => {
     const f = await processFixture(t);
     const record = await f.launch();

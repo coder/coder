@@ -13,7 +13,7 @@ export async function privateDirectory(directory) {
 }
 
 /** Start one broker in a new OS session; return only after its descriptor is ready. */
-export async function startDetached(cli, stateFile, model) {
+export async function startDetached(cli, stateFile, model, { codex = false, opencode = false } = {}) {
   await privateDirectory(dirname(stateFile));
   try {
     await lstat(stateFile);
@@ -30,10 +30,12 @@ export async function startDetached(cli, stateFile, model) {
     }
     const args = [cli, 'serve', '--state', stateFile];
     if (model) args.push('--model', model);
+    if (codex) args.push('--codex');
+    if (opencode) args.push('--opencode');
     const child = spawn(process.execPath, args, { detached: true, stdio: ['ignore', log.fd, log.fd, 'ipc'] });
     try {
       await new Promise((resolve, reject) => {
-        const timer = setTimeout(() => finish(new Error('Broker startup timed out; inspect the private log: ' + logFile)), 10000);
+        const timer = setTimeout(() => finish(new Error('Broker startup timed out; inspect the private log: ' + logFile)), opencode ? 90000 : codex ? 45000 : 10000);
         function finish(error) {
           clearTimeout(timer);
           child.off('error', onError);

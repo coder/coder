@@ -4,6 +4,21 @@ import type {
 	SessionModeState,
 } from "@agentclientprotocol/sdk";
 import type { NativeAgentSessionState } from "#/modules/resources/NativeAgentSession";
+import type { NativeAgentHarness } from "#/modules/resources/nativeAgentMetadata";
+
+/** Native harnesses advertised by the multi-harness workspace adapter. */
+export const MockNativeAgentHarnesses: NativeAgentHarness[] = [
+	{ id: "claude", name: "claude-acp-bridge", title: "Claude Code" },
+	{ id: "codex", name: "codex", title: "Codex" },
+	{ id: "opencode", name: "opencode", title: "OpenCode" },
+];
+
+/** Identity of the adapter, independent of each session's native harness. */
+export const MockNativeAgentMultiplexerInfo: Implementation = {
+	name: "coder-acp",
+	title: "Native agents",
+	version: "0.1.0",
+};
 
 /** An existing workspace-native session returned by ACP session/list. */
 export const MockNativeAgentSessionInfo: SessionInfo = {
@@ -20,6 +35,55 @@ export const MockNativeAgentSessionInfo: SessionInfo = {
 	},
 };
 
+/** A Codex session with an opaque ID and shared diagnostics. */
+export const MockCodexNativeAgentSessionInfo = {
+	...MockNativeAgentSessionInfo,
+	sessionId: "codex:4a7ebd77-9156-489c-ae77-a82080a15a00",
+	title: "Inspect the Codex test run",
+	_meta: {
+		"coder-acp": {
+			harness: "codex",
+			startedAt: 1_792_756_800_000,
+			registrationPending: false,
+			ended: false,
+			fault: false,
+			stale: false,
+		},
+	},
+} satisfies SessionInfo;
+
+/** An OpenCode session keeps its native ID separate from the bridge routing ID. */
+export const MockOpenCodeNativeAgentSessionInfo = {
+	...MockNativeAgentSessionInfo,
+	sessionId: "opencode:ses_01JOpenCodeAbC123",
+	title: "Inspect the OpenCode test run",
+	_meta: {
+		"coder-acp": {
+			harness: "opencode",
+			nativeSessionId: "ses_01JOpenCodeAbC123",
+			startedAt: 1_792_756_800_000,
+			registrationPending: false,
+			ended: false,
+			fault: false,
+			stale: false,
+		},
+	},
+} satisfies SessionInfo;
+
+/** Saved history remains identifiable even without a title or advertised harness. */
+export const MockArchivedOpenCodeNativeAgentSessionInfo = {
+	...MockOpenCodeNativeAgentSessionInfo,
+	title: undefined,
+	_meta: {
+		"coder-acp": {
+			...MockOpenCodeNativeAgentSessionInfo._meta["coder-acp"],
+			archived: true,
+			resumable: true,
+			ended: true,
+		},
+	},
+} satisfies SessionInfo;
+
 /** A real native session waiting for onboarding before runtime registration. */
 export const MockBlockedNativeAgentSessionInfo: SessionInfo = {
 	...MockNativeAgentSessionInfo,
@@ -33,6 +97,19 @@ export const MockBlockedNativeAgentSessionInfo: SessionInfo = {
 			ended: false,
 			fault: false,
 			stale: false,
+		},
+	},
+};
+
+/** A Codex session awaiting native setup before accepting prompts. */
+export const MockBlockedCodexNativeAgentSessionInfo: SessionInfo = {
+	...MockCodexNativeAgentSessionInfo,
+	_meta: {
+		"coder-acp": {
+			harness: "codex",
+			startedAt: 1_792_756_800_000,
+			registrationPending: true,
+			blockedReason: "Complete sign-in in the native terminal.",
 		},
 	},
 };
@@ -52,7 +129,7 @@ export const MockRegisteredNativeAgentSessionInfo: SessionInfo = {
 	},
 };
 
-/** Saved native history after its runtime stopped, resumable only on explicit Join. */
+/** Saved native history whose runtime did not restart at workspace startup. */
 export const MockResumableNativeAgentSessionInfo: SessionInfo = {
 	...MockNativeAgentSessionInfo,
 	_meta: {
@@ -69,7 +146,7 @@ export const MockResumableNativeAgentSessionInfo: SessionInfo = {
 	},
 };
 
-/** Join prepared the saved UUID; the native terminal has not registered yet. */
+/** Workspace startup restored the saved UUID; native registration is pending. */
 export const MockResumePendingNativeAgentSessionInfo: SessionInfo = {
 	...MockNativeAgentSessionInfo,
 	_meta: {
@@ -207,6 +284,7 @@ export const MockNativeAgentSession: NativeAgentSessionState = {
 	truncated: false,
 	needsInput: false,
 	prompting: false,
+	loading: false,
 };
 
 /** Pending sessions load successfully before they have a runtime or transcript. */

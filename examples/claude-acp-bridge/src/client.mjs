@@ -31,17 +31,20 @@ export function createClient({ url, token }) {
   return {
     async request(method, path, body, signal) {
       let response;
+      // Native startup/resume can require several bounded RPCs. Keep this cap
+      // longer than the startup restorer's overall 60-second session deadline.
+      const nativeStartup = method === 'POST' && (path === '/v1/sessions' || /^\/v1\/sessions\/[^/]+\/resume$/.test(path));
       try {
         response = await fetch(url + path, {
           method,
           headers: { Authorization: 'Bearer ' + token, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
           body: body === undefined ? undefined : JSON.stringify(body),
-          signal: AbortSignal.any([...(signal ? [signal] : []), AbortSignal.timeout(path === '/v1/sessions' && method === 'POST' ? 65000 : 25000)]),
+          signal: AbortSignal.any([...(signal ? [signal] : []), AbortSignal.timeout(nativeStartup ? 65000 : 25000)]),
           redirect: 'error',
         });
       } catch {
         if (signal?.aborted) throw new DOMException('Bridge request aborted; native work may still be running.', 'AbortError');
-        throw new Error('Bridge broker offline or request interrupted; descriptor may be stale. Work state is unknown: inspect the broker log and claude agents before retrying. Nothing was restarted.');
+        throw new Error('Bridge broker offline or request interrupted; descriptor may be stale. Work state is unknown: inspect the broker log and native session before retrying. Nothing was restarted.');
       }
       if (response.status === 401 || response.status === 403) {
         const error = new Error('Bridge descriptor is stale or authentication was rejected. Check that clients and broker use the same state file; nothing was restarted.');

@@ -71,6 +71,7 @@ class Broker {
     this.calls.push({ method, path, body, signal });
     this.changes.emit("call");
     const url = new URL(path, "http://broker.local");
+    if (path === "/v1/capabilities") return { harnesses: this.harnesses ?? [{ id: "claude", name: "claude-acp-bridge", title: "Claude Code" }] };
     if (path === "/v1/sessions") {
       if (method === "GET") return { sessions: this.sessions };
       assert.equal(method, "POST");
@@ -255,6 +256,7 @@ describe("ACP broker acceptance", { concurrency: true, timeout: 10000 }, () => {
       "user_message_chunk", "agent_thought_chunk", "tool_call", "tool_call_update", "agent_message_chunk",
     ]);
     assert.equal(textOf(f.updates()), "old answer");
+    assert.equal(Object.hasOwn(f.updates()[3], "rawInput"), false);
     assert.deepEqual(f.notifications.map(({ _meta }) => _meta[META].seq), [1, 2, 3, 4, 5]);
     assert.deepEqual(f.permissions, []);
   });
@@ -262,7 +264,7 @@ describe("ACP broker acceptance", { concurrency: true, timeout: 10000 }, () => {
   test("rejects mismatched load cwd and injected session configuration", async (t) => {
     const f = await connect(t);
     await assert.rejects(f.loadSession({ cwd: "/different" }), /cwd does not match/);
-    await assert.rejects(f.loadSession({ sessionId: "../../escape" }), /UUID/);
+    await assert.rejects(f.loadSession({ sessionId: "../../escape" }), /session ID/);
     for (const method of [methods.agent.session.new, methods.agent.session.load]) {
       const base = { sessionId: f.broker.session.sessionId, cwd: "/work/project", mcpServers: [] };
       await assert.rejects(f.rpc.request(method, { ...base, cwd: "relative" }), /absolute path/);
@@ -326,8 +328,8 @@ describe("ACP broker acceptance", { concurrency: true, timeout: 10000 }, () => {
     const data = { requestId, turnId: "root" };
     f.broker.emit("turn.start", { ...data, text: "hello" });
     f.broker.emit("thought", { ...data, text: "checking" });
-    f.broker.emit("tool.start", { ...data, toolCallId: "tool", title: "Run", input: { command: "pwd" } });
-    f.broker.emit("tool.end", { ...data, toolCallId: "tool", result: { output: "/work" }, isError: true });
+    f.broker.emit("tool.start", { ...data, toolCallId: "tool", title: "Run", input: '{"command":' });
+    f.broker.emit("tool.end", { ...data, toolCallId: "tool", input: { command: "pwd" }, result: { output: "/work" }, isError: true });
     f.broker.emit("text", { ...data, text: "one" });
     f.broker.emit("text", { ...data, text: "two" });
     finish(f.broker, requestId, { answer: "onetwo" });
@@ -337,7 +339,8 @@ describe("ACP broker acceptance", { concurrency: true, timeout: 10000 }, () => {
     ]);
     assert.equal(f.updates()[1].status, "pending");
     assert.equal(f.updates()[1]._meta[META].permissions, "native-attach");
-    assert.deepEqual(f.updates()[1].rawInput, { command: "pwd" });
+    assert.equal(f.updates()[1].rawInput, '{"command":');
+    assert.deepEqual(f.updates()[2].rawInput, { command: "pwd" });
     assert.equal(f.updates()[2].status, "failed");
     assert.deepEqual(f.updates()[2].rawOutput, { output: "/work" });
     assert.equal(textOf(f.updates()), "onetwo");
@@ -489,6 +492,10 @@ describe("ACP broker acceptance", { concurrency: true, timeout: 10000 }, () => {
     assert.equal(prompt.settled, false);
     assert.equal(f.updates().length, 1);
     assert.deepEqual(f.updates()[0]._meta[META], { pendingInput: input, permissions: "native-attach" });
+    f.broker.emit("needs.input", { requestId, pending: false });
+    await f.flush();
+    assert.equal(f.updates()[1]._meta["coder-acp"].pendingInput, null);
+    assert.equal(prompt.settled, false);
     assert.deepEqual(f.permissions, []);
     finish(f.broker, requestId);
     await prompt.promise;
@@ -770,7 +777,7 @@ describe("ACP broker acceptance", { concurrency: true, timeout: 10000 }, () => {
     assert.equal(loaded._meta[META].cursor, 4);
   });
 
-  test("Join explicitly resumes an archive and appends live output without losing or duplicating saved history", async (t) => {
+  test("startup restoration appends live output without losing or duplicating saved history", async (t) => {
     const f = await connect(t);
     const id = f.broker.session.sessionId;
     Object.assign(f.broker.session, { archived: true, resumable: true, ended: true, mode: "human" });
@@ -778,14 +785,11 @@ describe("ACP broker acceptance", { concurrency: true, timeout: 10000 }, () => {
     f.broker.emit("text", { turnId: "old-turn", text: "saved answer" });
     await f.loadSession();
     assert.equal(f.broker.calls.filter(c => c.method === "POST").length, 0);
-    f.broker.onResume = async () => {
-      f.broker.emit("session.resuming", { sessionId: id, mode: "human" });
-      Object.assign(f.broker.session, { archived: false, resumable: false, ended: false,
-        registrationPending: true, resumePending: true, runtimeStartCursor: 3, cursor: 3 });
-      return { ...f.broker.session };
-    };
-    await f.rpc.request(methods.agent.session.setMode, { sessionId: id, modeId: "human" });
-    assert.equal(f.broker.calls.filter(c => c.path.endsWith("/resume")).length, 1);
+    f.broker.emit("session.resuming", { sessionId: id, mode: "human" });
+    Object.assign(f.broker.session, { archived: false, resumable: false, ended: false,
+      registrationPending: true, resumePending: true, runtimeStartCursor: 3, cursor: 3 });
+    await f.rpc.request(methods.agent.session.list, {});
+    assert.equal(f.broker.calls.filter(c => c.path.endsWith("/resume")).length, 0);
     assert.equal(textOf(f.updates()), "saved answer");
     await assert.rejects(f.prompt().promise, /registration is pending/);
     const runtimeId = randomUUID();
@@ -808,19 +812,20 @@ describe("ACP broker acceptance", { concurrency: true, timeout: 10000 }, () => {
     assert.equal(textOf(f.updates()), "saved answernew answer");
   });
 
-  test("a refused native resume preserves readable history without starting a poller or retrying", async (t) => {
+  test("control changes never resume an archive or disturb its readable history", async (t) => {
     const f = await connect(t);
     Object.assign(f.broker.session, { archived: true, resumable: true, ended: true, mode: "human" });
     f.broker.emit("text", { turnId: "old-turn", text: "saved answer" });
-    f.broker.onResume = async () => { throw Object.assign(new Error("Saved native transcript is unavailable"), { status: 409 }); };
     await f.loadSession();
-    await assert.rejects(f.rpc.request(methods.agent.session.setMode, {
-      sessionId: f.broker.session.sessionId, modeId: "human",
-    }), /transcript is unavailable/);
+    for (const modeId of ["human", "automation"]) {
+      await assert.rejects(f.rpc.request(methods.agent.session.setMode, {
+        sessionId: f.broker.session.sessionId, modeId,
+      }), /read-only/);
+    }
     const loaded = await f.loadSession();
     assert.equal(loaded._meta[META].archived, true);
     assert.equal(textOf(f.updates()), "saved answer");
-    assert.equal(f.broker.calls.filter(c => c.path.endsWith("/resume")).length, 1);
+    assert.equal(f.broker.calls.filter(c => c.method === "POST").length, 0);
     assert.ok(!f.broker.calls.some(c => c.path.endsWith("wait=1")));
   });
 
@@ -864,7 +869,7 @@ describe("ACP broker acceptance", { concurrency: true, timeout: 10000 }, () => {
     });
   });
 
-  test("observers retain the archive after another client's resume is refused and can explicitly retry", async (t) => {
+  test("observers retain the archive after startup restoration is refused without retrying from controls", async (t) => {
     const f = await connect(t);
     const id = f.broker.session.sessionId;
     Object.assign(f.broker.session, { archived: true, resumable: true, ended: true, mode: "human" });
@@ -879,16 +884,12 @@ describe("ACP broker acceptance", { concurrency: true, timeout: 10000 }, () => {
     Object.assign(f.broker.session, { archived: true, ended: true, registrationPending: false, resumePending: false, cursor: 3 });
     await f.loadSession();
     assert.equal(textOf(f.updates()), "saved");
-    f.broker.onResume = async () => {
-      f.broker.emit("session.resuming", { sessionId: id, mode: "human" });
-      Object.assign(f.broker.session, { archived: false, ended: false, registrationPending: true,
-        resumePending: true, runtimeStartCursor: 4, cursor: 4 });
-      return { ...f.broker.session };
-    };
-    await f.rpc.request(methods.agent.session.setMode, { sessionId: id, modeId: "human" });
-    await f.broker.called("GET", "/events?after=4&wait=1");
+    await assert.rejects(f.rpc.request(methods.agent.session.setMode, {
+      sessionId: id, modeId: "human",
+    }), /read-only/);
+    await f.rpc.request(methods.agent.session.list, {});
     assert.equal(textOf(f.updates()), "saved");
-    assert.equal(f.broker.calls.filter(c => c.path.endsWith("/resume")).length, 1);
+    assert.equal(f.broker.calls.filter(c => c.method === "POST").length, 0);
   });
 
   test("an archived startup session without a runtime or transcript loads as empty read-only history", async (t) => {
