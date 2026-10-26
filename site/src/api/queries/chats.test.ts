@@ -67,6 +67,7 @@ import {
 	chatModelACLAvailableKey,
 	chatModelACLKey,
 	chatModelKey,
+	chatPreviewsKey,
 	chatProjectListFamilyKey,
 	chatPromptsKey,
 	chatSearch,
@@ -1995,6 +1996,9 @@ describe("mutation invalidation scope", () => {
 		const chatId = "chat-1";
 		seedAllActiveQueries(queryClient, chatId);
 
+		const previewsKey = chatPreviewsKey(chatId, "workspace-1");
+		queryClient.setQueryData(previewsKey, []);
+
 		const mutation = editChatMessage(queryClient, chatId);
 		mutation.onSettled();
 
@@ -2022,6 +2026,9 @@ describe("mutation invalidation scope", () => {
 			queryClient.getQueryState(chatDebugRunsKey(chatId))?.isInvalidated,
 			"chatDebugRunsKey should be invalidated",
 		).toBe(true);
+
+		// Edits delete later messages, so their previews must refetch.
+		expect(queryClient.getQueryState(previewsKey)?.isInvalidated).toBe(true);
 	});
 
 	it("editChatMessage onError invalidates messages", async () => {

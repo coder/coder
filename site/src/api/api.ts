@@ -3872,6 +3872,17 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	getChatPreviews = async (
+		chatId: string,
+		signal: AbortSignal,
+	): Promise<TypesGen.ChatPreview[]> => {
+		const response = await this.axios.get<TypesGen.ChatPreview[]>(
+			`/api/experimental/chats/${chatId}/previews`,
+			{ signal },
+		);
+		return response.data;
+	};
+
 	getChatAdvisorConfig = async (): Promise<AdvisorConfig> => {
 		const response = await this.axios.get<AdvisorConfig>(
 			"/api/v2/chats/config/advisor",

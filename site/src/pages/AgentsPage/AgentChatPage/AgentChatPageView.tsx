@@ -31,6 +31,12 @@ import {
 import { QueuedForCapacityCallout } from "../components/ChatConversation/QueuedForCapacityCallout";
 import type { EditingTarget } from "../components/ChatConversation/types";
 import { DesktopPanelContext } from "../components/ChatElements/tools/DesktopPanelContext";
+import {
+	type OpenPreviewTarget,
+	PreviewPanelContext,
+	previewKey,
+	useOpenNewPreviews,
+} from "../components/ChatElements/tools/PreviewPanelContext";
 import type { SendChatMessageOptions } from "../components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "../components/ChatPageContent";
 import { ChatSummaryPanel } from "../components/ChatSummaryPanel";
@@ -41,6 +47,7 @@ import { GitPanel } from "../components/GitPanel/GitPanel";
 import { DebugPanel } from "../components/RightPanel/DebugPanel/DebugPanel";
 import { DesktopPanel } from "../components/RightPanel/DesktopPanel";
 import { PortPreviewPanel } from "../components/RightPanel/PortPreviewPanel";
+import { PreviewPanel } from "../components/RightPanel/PreviewPanel";
 import { RightPanel } from "../components/RightPanel/RightPanel";
 import { RightPanelAddTabControl } from "../components/RightPanel/RightPanelAddTabControl";
 import { getWorkspaceStatus, StatusIcon } from "../components/StatusIcon";
@@ -54,6 +61,7 @@ import {
 	getPersistedVisibleSingletonTabs,
 	savePersistedDefaultTerminalHidden,
 	savePersistedRightPanelTabs,
+	savePersistedSelectedPreview,
 	savePersistedVisibleSingletonTabs,
 } from "../utils/rightPanelTabStorage";
 import {
@@ -338,6 +346,9 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		SingletonRightPanelTabId[]
 	>(() => getPersistedVisibleSingletonTabs(agentId));
 	const [pendingTabId, setPendingTabId] = useState<string | null>(null);
+	// Each open remounts the Preview panel, so it reads the new selection and
+	// reloads its frame even when the same preview opens again.
+	const [previewPanelKey, setPreviewPanelKey] = useState(0);
 	// One client session ID per page visit, shared by every terminal in this
 	// chat. It regenerates when this view remounts (switching chats or
 	// reloading), independent of any terminal's reconnection token.
@@ -406,6 +417,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		browser: availableBrowserApp !== undefined,
 		desktop: availableDesktopChatId !== undefined,
 		debug: debugLoggingEnabled === true,
+		preview: workspace !== undefined,
 	};
 	const supportedSingletonTabs = singletonRightPanelTabIds.filter(
 		(tabId) => singletonTabSupport[tabId],
@@ -439,6 +451,9 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 			: []),
 		...(isSingletonTabShown("desktop")
 			? [{ id: "desktop", label: "Desktop" }]
+			: []),
+		...(isSingletonTabShown("preview")
+			? [{ id: "preview", label: "Preview" }]
 			: []),
 		...(hasBuiltInTerminal ? [{ id: "terminal", label: "Terminal" }] : []),
 	];
@@ -484,6 +499,24 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 			currentTabIds.includes(tabId) ? currentTabIds : [...currentTabIds, tabId],
 		);
 		activateRightPanelTab(tabId);
+	};
+
+	const openPreview = (target: OpenPreviewTarget) => {
+		// The panel only lists previews of the chat's current workspace.
+		if (target.workspaceId !== workspace?.id) {
+			return;
+		}
+
+		savePersistedSelectedPreview(agentId, previewKey(target.preview));
+		setPreviewPanelKey((key) => key + 1);
+		showSingletonTab("preview");
+	};
+
+	const previewPanelCtx = {
+		// Only offer the action when the panel can render, which keeps a tool
+		// action from selecting a Preview tab that the tab list omits. Archived
+		// chats do not persist the selection that opening relies on.
+		onOpenPreview: workspace && !isArchived ? openPreview : undefined,
 	};
 
 	const desktopPanelCtx = {
@@ -696,6 +729,16 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 						isVisible={showSidebarPanel && effectiveSidebarTabId === "debug"}
 					/>
 				);
+			case "preview":
+				return workspace ? (
+					<PreviewPanel
+						key={previewPanelKey}
+						chat={chat}
+						workspace={workspace}
+						host={wildcardHostname}
+						isVisible={showSidebarPanel && effectiveSidebarTabId === "preview"}
+					/>
+				) : null;
 			default: {
 				const userTab = validatedUserRightPanelTabs.find(
 					(tab) => tab.id === tabId,
@@ -774,6 +817,13 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		? `This chat is owned by ${chatOwnerLabel}. It is read-only.`
 		: undefined;
 
+	useOpenNewPreviews({
+		store,
+		chatID: agentId,
+		initialMessages,
+		onOpenPreview: previewPanelCtx.onOpenPreview,
+	});
+
 	return (
 		<TerminalClientSessionContext value={clientSessionId}>
 			<DesktopPanelContext value={desktopPanelCtx}>
@@ -833,41 +883,45 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 								agentId: chat.agent_id,
 							}}
 						>
-							<ChatPageTimeline
-								organizationId={organizationId}
-								store={store}
-								chatFiles={chat.files}
-								initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
-								persistedError={persistedError}
-								hasMoreMessages={hasMoreMessages}
-								isFetchingMoreMessages={isFetchingMoreMessages}
-								isHydratingMessages={isHydratingMessages}
-								hasFetchMoreError={hasFetchMoreError}
-								onFetchMoreMessages={onFetchMoreMessages}
-								onEditUserMessage={
-									isOtherUserReadOnly
-										? undefined
-										: editing.handleBeginHistoryEdit
-								}
-								editingMessageId={
-									editing.editingTarget?.kind === "history"
-										? editing.editingTarget.id
-										: null
-								}
-								urlTransform={urlTransform}
-								mcpServers={mcpServers}
-								onImplementPlan={
-									canSubmitChatTurn ? onImplementPlan : undefined
-								}
-								onSendAskUserQuestionResponse={
-									canSubmitChatTurn ? onSendAskUserQuestionResponse : undefined
-								}
-								footer={
-									chat.queued_for_capacity ? (
-										<QueuedForCapacityCallout />
-									) : undefined
-								}
-							/>
+							<PreviewPanelContext value={previewPanelCtx}>
+								<ChatPageTimeline
+									organizationId={organizationId}
+									store={store}
+									chatFiles={chat.files}
+									initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
+									persistedError={persistedError}
+									hasMoreMessages={hasMoreMessages}
+									isFetchingMoreMessages={isFetchingMoreMessages}
+									isHydratingMessages={isHydratingMessages}
+									hasFetchMoreError={hasFetchMoreError}
+									onFetchMoreMessages={onFetchMoreMessages}
+									onEditUserMessage={
+										isOtherUserReadOnly
+											? undefined
+											: editing.handleBeginHistoryEdit
+									}
+									editingMessageId={
+										editing.editingTarget?.kind === "history"
+											? editing.editingTarget.id
+											: null
+									}
+									urlTransform={urlTransform}
+									mcpServers={mcpServers}
+									onImplementPlan={
+										canSubmitChatTurn ? onImplementPlan : undefined
+									}
+									onSendAskUserQuestionResponse={
+										canSubmitChatTurn
+											? onSendAskUserQuestionResponse
+											: undefined
+									}
+									footer={
+										chat.queued_for_capacity ? (
+											<QueuedForCapacityCallout />
+										) : undefined
+									}
+								/>
+							</PreviewPanelContext>
 						</ChatWorkspaceContext>
 						{!isArchived && (
 							<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">

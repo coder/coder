@@ -29,6 +29,7 @@ import { BlockList } from "../../ChatConversation/MessageBlocks";
 import { DESKTOP_SCREENSHOT_BASE64 } from "./__fixtures__/desktopScreenshot";
 import { ACPToolNames } from "./acpToolNames";
 import { DesktopPanelContext } from "./DesktopPanelContext";
+import { PreviewPanelContext } from "./PreviewPanelContext";
 import { Tool, toolRendererNames } from "./Tool";
 
 const executeCommand = "git fetch origin";
@@ -246,6 +247,17 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 		name: "computer",
 		args: { action: "screenshot" },
 		result: { output: { type: "image", data: MockPngBase64 } },
+	},
+	{
+		name: "open_preview",
+		args: { title: "Docs site", port: 3000 },
+		result: {
+			ok: true,
+			title: "Docs site",
+			workspace_id: "test-workspace-id",
+			agent_name: "main",
+			port: 3000,
+		},
 	},
 	{
 		name: "read_skill",
@@ -2909,6 +2921,44 @@ export const StopWorkspaceBuildFailed: Story = {
 				data: [],
 			},
 		],
+	},
+};
+
+// ---------------------------------------------------------------------------
+// open_preview stories
+// ---------------------------------------------------------------------------
+
+export const OpenPreviewCompleted: Story = {
+	args: {
+		name: "open_preview",
+		status: "completed",
+		args: { title: "Docs site", port: 3000 },
+		result: {
+			ok: true,
+			title: "Docs site",
+			workspace_id: "test-workspace-id",
+			agent_name: "main",
+			port: 3000,
+		},
+	},
+	decorators: [
+		(Story) => (
+			<ChatWorkspaceContext value={{ workspaceId: "test-workspace-id" }}>
+				<PreviewPanelContext value={{ onOpenPreview: fn() }}>
+					<Story />
+				</PreviewPanelContext>
+			</ChatWorkspaceContext>
+		),
+	],
+};
+
+export const OpenPreviewFailed: Story = {
+	args: {
+		name: "open_preview",
+		status: "completed",
+		args: { title: "Docs site", port: 3000 },
+		result: "port must be between 1000 and 65535",
+		isError: true,
 	},
 };
 
