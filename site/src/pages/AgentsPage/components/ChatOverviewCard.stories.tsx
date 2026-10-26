@@ -141,23 +141,27 @@ type Story = StoryObj<typeof ChatOverviewCardView>;
 /** Every section, with a fourth attachment behind the toggle. */
 export const Full: Story = {};
 
-/** The pin button is pressed. */
 export const Pinned: Story = {
 	args: { isPinned: true },
 };
 
+const mockEmptyChatOverview: ChatOverview = {
+	cost: undefined,
+	isSubagent: false,
+	repos: [],
+	pullRequests: [],
+	subagents: [],
+	attachments: [],
+};
+
 /** Opened before the chat has anything to show. */
 export const Empty: Story = {
-	args: {
-		overview: {
-			cost: undefined,
-			isSubagent: false,
-			repos: [],
-			pullRequests: [],
-			subagents: [],
-			attachments: [],
-		},
-	},
+	args: { overview: mockEmptyChatOverview },
+};
+
+/** Opened while the cost or the messages still load. */
+export const Loading: Story = {
+	args: { overview: mockEmptyChatOverview, isLoading: true },
 };
 
 export const CostOnly: Story = {

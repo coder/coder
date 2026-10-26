@@ -51,14 +51,14 @@ export const useOverviewCard = ({
 		};
 		// Escape elsewhere belongs to the composer and its menus.
 		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.key !== "Escape") {
+				return;
+			}
 			const focused = document.activeElement;
-			if (
-				event.key !== "Escape" ||
-				!(
-					cardRef.current?.contains(focused) ||
-					toggleRef.current?.contains(focused)
-				)
-			) {
+			const isFocusInside =
+				cardRef.current?.contains(focused) ||
+				toggleRef.current?.contains(focused);
+			if (!isFocusInside) {
 				return;
 			}
 			// Focus inside the card would drop to the body when it unmounts.

@@ -44,10 +44,8 @@ import { computeRepoStats, type DiffStats } from "./GitPanel/GitPanel";
 const OVERVIEW_MAX_LIST_ROWS = 3;
 
 /**
- * The card shows only where it fits beside the centered 48rem (max-w-3xl)
- * transcript and composer. Each side needs the 16rem card, its 1rem inset,
- * and a 1rem gap: 48rem + 2 * 18rem = 84rem. The toggle hides at the same
- * width.
+ * Fits the card beside the centered 48rem transcript and composer:
+ * 48rem + 2 * (16rem card + 1rem inset + 1rem gap) = 84rem.
  */
 export const overviewToggleClassName = "hidden @min-[84rem]/chat:inline-flex";
 const overviewCardPositionClassName =

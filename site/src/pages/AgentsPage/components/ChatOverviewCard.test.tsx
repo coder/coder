@@ -95,7 +95,6 @@ const renderOverview = () => {
 	return { onOpenTab, router, view };
 };
 
-/** Throws unless the toggle reports the expected open state. */
 const expectOpen = (expanded: boolean) =>
 	screen.getByRole("button", { name: "Toggle overview", expanded });
 
