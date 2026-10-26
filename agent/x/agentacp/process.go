@@ -19,7 +19,10 @@ import (
 	"github.com/coder/quartz"
 )
 
-const diagnosticHalfSize = 32 * 1024
+const (
+	diagnosticHalfSize = 32 * 1024
+	stdinWriteTimeout  = 30 * time.Second
+)
 
 type diagnosticBuffer struct {
 	mu  sync.Mutex
@@ -127,7 +130,7 @@ func (p *process) Write(raw []byte) (int, error) {
 	// Closing the transport bounds the actual write, including calls whose
 	// contexts the ACP SDK only checks after writing the request.
 	timedOut := make(chan struct{})
-	timer := p.clock.AfterFunc(setupTimeout, func() {
+	timer := p.clock.AfterFunc(stdinWriteTimeout, func() {
 		defer close(timedOut)
 		p.cancel()
 		_ = p.stdin.Close()
