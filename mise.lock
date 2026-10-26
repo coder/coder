@@ -481,52 +481,52 @@ checksum = "sha256:e1245a0a760a45b236e7a25bf118c1defc8447734bdeb4260ea3ec15d1797
 url = "https://github.com/digitalocean/doctl/releases/download/v1.158.0/doctl-1.158.0-windows-amd64.zip"
 
 [[tools.go]]
-version = "1.26.9"
+version = "1.26.10"
 backend = "core:go"
 
 [tools.go."platforms.linux-arm64"]
-checksum = "sha256:4a97373d49fcacdcf3694fea368a500b00ee3e963974f3e7514132717632f052"
-url = "https://dl.google.com/go/go1.26.9.linux-arm64.tar.gz"
+checksum = "sha256:3f4227ce7b206a513e794f1393adb473a07b46e94d18bd15d1c684bbb7319797"
+url = "https://dl.google.com/go/go1.26.10.linux-arm64.tar.gz"
 
 [tools.go."platforms.linux-arm64-musl"]
-checksum = "sha256:4a97373d49fcacdcf3694fea368a500b00ee3e963974f3e7514132717632f052"
-url = "https://dl.google.com/go/go1.26.9.linux-arm64.tar.gz"
+checksum = "sha256:3f4227ce7b206a513e794f1393adb473a07b46e94d18bd15d1c684bbb7319797"
+url = "https://dl.google.com/go/go1.26.10.linux-arm64.tar.gz"
 
 [tools.go."platforms.linux-x64"]
-checksum = "sha256:42d158b4d8f7b61ac0a830567c940a86098fb7aac52e467a5ebec03ef5cc2f8d"
-url = "https://dl.google.com/go/go1.26.9.linux-amd64.tar.gz"
+checksum = "sha256:ccfe7ae822d2c2f41f4fe7c956199967a4dac22d0ee0d2b2bfdb440aab3b20c5"
+url = "https://dl.google.com/go/go1.26.10.linux-amd64.tar.gz"
 
 [tools.go."platforms.linux-x64-baseline"]
-checksum = "sha256:42d158b4d8f7b61ac0a830567c940a86098fb7aac52e467a5ebec03ef5cc2f8d"
-url = "https://dl.google.com/go/go1.26.9.linux-amd64.tar.gz"
+checksum = "sha256:ccfe7ae822d2c2f41f4fe7c956199967a4dac22d0ee0d2b2bfdb440aab3b20c5"
+url = "https://dl.google.com/go/go1.26.10.linux-amd64.tar.gz"
 
 [tools.go."platforms.linux-x64-musl"]
-checksum = "sha256:42d158b4d8f7b61ac0a830567c940a86098fb7aac52e467a5ebec03ef5cc2f8d"
-url = "https://dl.google.com/go/go1.26.9.linux-amd64.tar.gz"
+checksum = "sha256:ccfe7ae822d2c2f41f4fe7c956199967a4dac22d0ee0d2b2bfdb440aab3b20c5"
+url = "https://dl.google.com/go/go1.26.10.linux-amd64.tar.gz"
 
 [tools.go."platforms.linux-x64-musl-baseline"]
-checksum = "sha256:42d158b4d8f7b61ac0a830567c940a86098fb7aac52e467a5ebec03ef5cc2f8d"
-url = "https://dl.google.com/go/go1.26.9.linux-amd64.tar.gz"
+checksum = "sha256:ccfe7ae822d2c2f41f4fe7c956199967a4dac22d0ee0d2b2bfdb440aab3b20c5"
+url = "https://dl.google.com/go/go1.26.10.linux-amd64.tar.gz"
 
 [tools.go."platforms.macos-arm64"]
-checksum = "sha256:f9bb7c0a02506c5d9bf0d1eb1f7ee6c7684f844ae49558308a0427b830e022cc"
-url = "https://dl.google.com/go/go1.26.9.darwin-arm64.tar.gz"
+checksum = "sha256:0b5183492292ada170f9b561a834863808dd02edba599e4ad0e89899330020b3"
+url = "https://dl.google.com/go/go1.26.10.darwin-arm64.tar.gz"
 
 [tools.go."platforms.macos-x64"]
-checksum = "sha256:00c29e3d4c8562f547410daa18d2959b641bd691ab00c4a525ea817a0253d4bd"
-url = "https://dl.google.com/go/go1.26.9.darwin-amd64.tar.gz"
+checksum = "sha256:e820ab780c273ae4a340b79d0f3c4313b74ee029aa3874792145d44b9f4f91da"
+url = "https://dl.google.com/go/go1.26.10.darwin-amd64.tar.gz"
 
 [tools.go."platforms.macos-x64-baseline"]
-checksum = "sha256:00c29e3d4c8562f547410daa18d2959b641bd691ab00c4a525ea817a0253d4bd"
-url = "https://dl.google.com/go/go1.26.9.darwin-amd64.tar.gz"
+checksum = "sha256:e820ab780c273ae4a340b79d0f3c4313b74ee029aa3874792145d44b9f4f91da"
+url = "https://dl.google.com/go/go1.26.10.darwin-amd64.tar.gz"
 
 [tools.go."platforms.windows-x64"]
-checksum = "sha256:d722201a9c0c086d1610e111c48203009af690892ed708072bd5ae20160e7a59"
-url = "https://dl.google.com/go/go1.26.9.windows-amd64.zip"
+checksum = "sha256:7ecd2d7260e82c59bcbd7f1077a07cee2dea607295b858df67195a1e4e09629b"
+url = "https://dl.google.com/go/go1.26.10.windows-amd64.zip"
 
 [tools.go."platforms.windows-x64-baseline"]
-checksum = "sha256:d722201a9c0c086d1610e111c48203009af690892ed708072bd5ae20160e7a59"
-url = "https://dl.google.com/go/go1.26.9.windows-amd64.zip"
+checksum = "sha256:7ecd2d7260e82c59bcbd7f1077a07cee2dea607295b858df67195a1e4e09629b"
+url = "https://dl.google.com/go/go1.26.10.windows-amd64.zip"
 
 [[tools."go:github.com/coder/paralleltestctx/cmd/paralleltestctx"]]
 version = "0.0.2"
@@ -968,52 +968,52 @@ checksum = "sha256:7af7acb9f81bdddbc343855cb3a42e1d38ae9a1b044bfcd9b975a118d1078
 url = "https://github.com/anchore/syft/releases/download/v1.26.1/syft_1.26.1_windows_amd64.zip"
 
 [[tools.terraform]]
-version = "1.15.5"
+version = "1.16.7"
 backend = "aqua:hashicorp/terraform"
 
 [tools.terraform."platforms.linux-arm64"]
-checksum = "sha256:06e7b48de826146c6d9331ba35b13da12332d8392be30d1dd6b789ba4713fff0"
-url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_linux_arm64.zip"
+checksum = "sha256:2d6a3f1098de94f1672aaa4e6873ef91ade9eac38851d3a403e2009193208de4"
+url = "https://releases.hashicorp.com/terraform/1.16.7/terraform_1.16.7_linux_arm64.zip"
 
 [tools.terraform."platforms.linux-arm64-musl"]
-checksum = "sha256:06e7b48de826146c6d9331ba35b13da12332d8392be30d1dd6b789ba4713fff0"
-url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_linux_arm64.zip"
+checksum = "sha256:2d6a3f1098de94f1672aaa4e6873ef91ade9eac38851d3a403e2009193208de4"
+url = "https://releases.hashicorp.com/terraform/1.16.7/terraform_1.16.7_linux_arm64.zip"
 
 [tools.terraform."platforms.linux-x64"]
-checksum = "sha256:702b2136af6728c8ff037f843dd2dbce2b7ad88786b7381d1d72aefa250f601c"
-url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_linux_amd64.zip"
+checksum = "sha256:5454efcf7fc87f0c2113111b9a5c7182f0ca1c6f0f23a1e110a50770a8fe473b"
+url = "https://releases.hashicorp.com/terraform/1.16.7/terraform_1.16.7_linux_amd64.zip"
 
 [tools.terraform."platforms.linux-x64-baseline"]
-checksum = "sha256:702b2136af6728c8ff037f843dd2dbce2b7ad88786b7381d1d72aefa250f601c"
-url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_linux_amd64.zip"
+checksum = "sha256:5454efcf7fc87f0c2113111b9a5c7182f0ca1c6f0f23a1e110a50770a8fe473b"
+url = "https://releases.hashicorp.com/terraform/1.16.7/terraform_1.16.7_linux_amd64.zip"
 
 [tools.terraform."platforms.linux-x64-musl"]
-checksum = "sha256:702b2136af6728c8ff037f843dd2dbce2b7ad88786b7381d1d72aefa250f601c"
-url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_linux_amd64.zip"
+checksum = "sha256:5454efcf7fc87f0c2113111b9a5c7182f0ca1c6f0f23a1e110a50770a8fe473b"
+url = "https://releases.hashicorp.com/terraform/1.16.7/terraform_1.16.7_linux_amd64.zip"
 
 [tools.terraform."platforms.linux-x64-musl-baseline"]
-checksum = "sha256:702b2136af6728c8ff037f843dd2dbce2b7ad88786b7381d1d72aefa250f601c"
-url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_linux_amd64.zip"
+checksum = "sha256:5454efcf7fc87f0c2113111b9a5c7182f0ca1c6f0f23a1e110a50770a8fe473b"
+url = "https://releases.hashicorp.com/terraform/1.16.7/terraform_1.16.7_linux_amd64.zip"
 
 [tools.terraform."platforms.macos-arm64"]
-checksum = "sha256:01137660510005b918bba82154866fbeac4393163d8277c2abe861dfb5842c3c"
-url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_darwin_arm64.zip"
+checksum = "sha256:81e98d9186e0cd1bc88caeb2403453fdd4bdeedd574ca4dbe8fb6a2880c9c51a"
+url = "https://releases.hashicorp.com/terraform/1.16.7/terraform_1.16.7_darwin_arm64.zip"
 
 [tools.terraform."platforms.macos-x64"]
-checksum = "sha256:3687d07c034b3e7deed5b072cd8ae2b34835bcb139baec3fc4f5fd534dabf5ed"
-url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_darwin_amd64.zip"
+checksum = "sha256:d17d1053bcbde650a8a919b7218ef2886eac76c474306e9ecd8bd64427408741"
+url = "https://releases.hashicorp.com/terraform/1.16.7/terraform_1.16.7_darwin_amd64.zip"
 
 [tools.terraform."platforms.macos-x64-baseline"]
-checksum = "sha256:3687d07c034b3e7deed5b072cd8ae2b34835bcb139baec3fc4f5fd534dabf5ed"
-url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_darwin_amd64.zip"
+checksum = "sha256:d17d1053bcbde650a8a919b7218ef2886eac76c474306e9ecd8bd64427408741"
+url = "https://releases.hashicorp.com/terraform/1.16.7/terraform_1.16.7_darwin_amd64.zip"
 
 [tools.terraform."platforms.windows-x64"]
-checksum = "sha256:2f652dd854af7b7fbb51301afc55b5ef1d3f6e287be7889d4cc3818df891cd38"
-url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_windows_amd64.zip"
+checksum = "sha256:b22dfa64a9530c9b7774f840d98e9bfadc1ae33b1bd2083ffa976828c46e542c"
+url = "https://releases.hashicorp.com/terraform/1.16.7/terraform_1.16.7_windows_amd64.zip"
 
 [tools.terraform."platforms.windows-x64-baseline"]
-checksum = "sha256:2f652dd854af7b7fbb51301afc55b5ef1d3f6e287be7889d4cc3818df891cd38"
-url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_windows_amd64.zip"
+checksum = "sha256:b22dfa64a9530c9b7774f840d98e9bfadc1ae33b1bd2083ffa976828c46e542c"
+url = "https://releases.hashicorp.com/terraform/1.16.7/terraform_1.16.7_windows_amd64.zip"
 
 [[tools.vercel]]
 version = "54.14.0"
