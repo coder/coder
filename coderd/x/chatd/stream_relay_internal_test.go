@@ -115,7 +115,10 @@ func TestStreamRelayLivePartsAfterSameEpisodeReselects(t *testing.T) {
 		// episodeParts exceeds what the relay's buffers hold, so every
 		// selection replays enough parts to block the endpoint.
 		episodeParts = 1000
-		reselects    = 1000
+		// The old code deadlocked within 4 to 384 selections under -race.
+		reselects = 1000
+		// At testutil.IntervalFast, reselects waits could take testutil.WaitLong.
+		pollInterval = time.Millisecond
 	)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -165,9 +168,10 @@ func TestStreamRelayLivePartsAfterSameEpisodeReselects(t *testing.T) {
 	}
 
 	for i := range reselects {
-		require.True(t, testutil.Eventually(ctx, t, endpointBlocked, time.Millisecond),
+		require.True(t, testutil.Eventually(ctx, t, endpointBlocked, pollInterval),
 			"endpoint never blocked before reselect %d", i)
 		relay.Configure(ctx, target)
+		// The forwarder reads a new target only when f.parts has room.
 		select {
 		case <-relay.Parts():
 		default:
