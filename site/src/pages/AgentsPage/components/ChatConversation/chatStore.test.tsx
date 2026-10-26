@@ -2807,12 +2807,12 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { load } = useChatStore({
+				const { loadState } = useChatStore({
 					chatID,
 					setChatErrorReason: vi.fn(),
 					clearChatErrorReason: vi.fn(),
 				});
-				return load;
+				return loadState;
 			},
 			{ wrapper },
 		);
@@ -2859,7 +2859,10 @@ describe("useChatStore", () => {
 		);
 
 		await waitFor(() => {
-			expect(result.current.load).toEqual({ status: "failed", error: failure });
+			expect(result.current.loadState).toEqual({
+				status: "failed",
+				error: failure,
+			});
 		});
 		expect(watchChat).not.toHaveBeenCalled();
 
@@ -2870,7 +2873,7 @@ describe("useChatStore", () => {
 		await waitFor(() => {
 			expect(watchChat).toHaveBeenCalledWith(chatID, 3);
 		});
-		expect(result.current.load).toEqual({ status: "loaded" });
+		expect(result.current.loadState).toEqual({ status: "loaded" });
 	});
 
 	it("does not use one chat's snapshot version for another chat", async () => {
@@ -4915,7 +4918,7 @@ describe("chat stream contract", () => {
 			{ wrapper: createWrapper(createTestQueryClient()) },
 		);
 
-		await waitFor(() => expect(result.current.load.status).toBe("failed"));
+		await waitFor(() => expect(result.current.loadState.status).toBe("failed"));
 		expect(watchChat).not.toHaveBeenCalled();
 	});
 
