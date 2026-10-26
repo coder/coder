@@ -16,6 +16,7 @@ import {
 	deriveArtifactIds,
 	deriveSeenArtifactVersions,
 	describeArtifactVersion,
+	getVersionChatPath,
 	kindOf,
 } from "./artifactUtils";
 
@@ -93,6 +94,21 @@ describe("kindOf", () => {
 		["archive", "application/octet-stream", "download"],
 	])("maps %s (%s) to %s", (name, mediaType, kind) => {
 		expect(kindOf(name, mediaType)).toBe(kind);
+	});
+});
+
+describe("getVersionChatPath", () => {
+	it.each([
+		["the viewer's chat", { chat_title: "Repo report" }, "/agents/chat-1"],
+		["another user's chat", { chat_title: "" }, undefined],
+	])("links %s", (_, override, expected) => {
+		expect(
+			getVersionChatPath({
+				...MockChatArtifactVersion,
+				chat_id: "chat-1",
+				...override,
+			}),
+		).toBe(expected);
 	});
 });
 

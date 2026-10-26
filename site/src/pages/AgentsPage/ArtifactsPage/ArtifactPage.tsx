@@ -21,6 +21,7 @@ import { ArtifactView } from "../components/Artifacts/ArtifactView";
 import {
 	artifactsGalleryPath,
 	findShownVersion,
+	getVersionChatPath,
 } from "../components/Artifacts/artifactUtils";
 
 /**
@@ -42,8 +43,8 @@ const galleryPathFromState = (state: unknown): string => {
 /**
  * One artifact on its own page. It shows the latest version unless the
  * version search parameter names another one. There is no chat here, so a
- * message from an HTML version is not sent, and a toast says so and offers
- * to open the chat of the version.
+ * message from an HTML version is not sent. A toast says so, and when the
+ * viewer owns the chat of the version, it offers to open that chat.
  */
 const ArtifactPage: React.FC = () => {
 	const { artifactId = "" } = useParams();
@@ -67,16 +68,18 @@ const ArtifactPage: React.FC = () => {
 		const artifact = artifactQuery.data;
 		const showPromptToast = () => {
 			const version = findShownVersion(artifact, selectedVersion);
-			// The chat title is set only when the viewer owns the chat, so
-			// only then can the viewer open it.
-			const chatId = version?.chat_title ? version.chat_id : undefined;
+			const chatPath = version && getVersionChatPath(version);
 			toast.info("Open this artifact in its chat to send messages from it.", {
-				action: chatId
+				// Repeated messages update this one toast.
+				id: `artifact-prompt-${artifact.id}`,
+				...(chatPath
 					? {
-							label: "Open chat",
-							onClick: () => navigate(`/agents/${chatId}`),
+							action: { label: "Open chat", onClick: () => navigate(chatPath) },
+							// A toast with an action stays until it is closed, so a
+							// keyboard user can reach the action.
+							duration: Number.POSITIVE_INFINITY,
 						}
-					: undefined,
+					: {}),
 			});
 		};
 		content = (

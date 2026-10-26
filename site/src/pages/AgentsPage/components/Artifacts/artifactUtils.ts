@@ -7,6 +7,7 @@ import type {
 } from "#/api/typesGenerated";
 import { formatDateTime } from "#/utils/time";
 import { isRasterImageMediaType } from "../../utils/chatAttachments";
+import { buildAgentChatPath } from "../../utils/navigation";
 import { asNumber, asRecord, asString } from "../ChatElements/runtimeTypeUtils";
 
 type ArtifactToolResult = { artifactId: string; version: number };
@@ -114,6 +115,17 @@ export const findShownVersion = (
 	const versions = artifact.versions ?? [];
 	return versions.find((v) => v.version === selectedVersion) ?? versions[0];
 };
+
+/**
+ * The path of the chat that published a version, when the viewer can open
+ * it. The chat title is set only when the viewer owns the chat.
+ */
+export const getVersionChatPath = (
+	version: ChatArtifactVersion,
+): string | undefined =>
+	version.chat_id && version.chat_title
+		? buildAgentChatPath({ chatId: version.chat_id })
+		: undefined;
 
 /**
  * Names where a version came from. The chat title is set only when the
