@@ -1,6 +1,9 @@
-import { act, render } from "@testing-library/react";
+import { act, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { MessageScroller } from "#/vendor/message-scroller";
+import {
+	MessageScroller,
+	useMessageScrollerUserLayoutIntent,
+} from "#/vendor/message-scroller";
 import { ChatMessageScroller } from "./ChatMessageScroller";
 
 // jsdom does no layout, so give the messages viewport a height and content
@@ -155,7 +158,7 @@ const mockLayout = (
 	);
 };
 
-type Row = { id: string; scrollAnchor?: boolean };
+type Row = { id: string; scrollAnchor?: boolean; children?: React.ReactNode };
 
 const transcript = (rows: Row[], isTurnActive: boolean) => (
 	<MessageScroller.Provider autoScroll defaultScrollPosition="end">
@@ -173,7 +176,9 @@ const transcript = (rows: Row[], isTurnActive: boolean) => (
 					key={row.id}
 					messageId={row.id}
 					scrollAnchor={row.scrollAnchor}
-				/>
+				>
+					{row.children}
+				</MessageScroller.Item>
 			))}
 		</ChatMessageScroller>
 	</MessageScroller.Provider>
@@ -231,4 +236,62 @@ it("keeps the sent message in view when a long reply lands just before its turn 
 		viewport.querySelector<HTMLElement>("[data-message-scroller-spacer]")
 			?.hidden,
 	).toBe(true);
+});
+
+it("drops the blank space without moving the view when the reader scrolled during the turn", async () => {
+	mockLayout(400, { 1: 200, 2: 200, 3: 200, sent: 40, reply: 60 });
+	const { rerender, getByLabelText } = render(transcript(history, false));
+	await nextFrames();
+
+	rerender(transcript([...history, sent], true));
+	await nextFrames();
+	const viewport = getByLabelText("Messages");
+	fireEvent.wheel(viewport, { deltaY: -400 });
+	viewport.scrollTop -= 400;
+	fireEvent.scroll(viewport);
+	const scrolledTop = viewport.scrollTop;
+	rerender(transcript([...history, sent, { id: "reply" }], true));
+	await nextFrames();
+
+	rerender(transcript([...history, answered, { id: "reply" }], false));
+	await nextFrames();
+
+	expect(viewport.scrollTop).toBe(scrolledTop);
+	expect(
+		viewport.querySelector<HTMLElement>("[data-message-scroller-spacer]")
+			?.hidden,
+	).toBe(true);
+});
+
+const LayoutToggle: React.FC = () => {
+	const userLayoutIntent = useMessageScrollerUserLayoutIntent();
+	return (
+		<button
+			type="button"
+			onClick={(event) => userLayoutIntent(event.currentTarget)}
+		>
+			Toggle
+		</button>
+	);
+};
+
+it("keeps the sent message in view when the reader toggled the reply during the turn", async () => {
+	mockLayout(400, { 1: 200, 2: 200, 3: 200, sent: 40, reply: 60 });
+	const { rerender, getByLabelText, getByRole } = render(
+		transcript(history, false),
+	);
+	await nextFrames();
+
+	const reply: Row = { id: "reply", children: <LayoutToggle /> };
+	rerender(transcript([...history, sent, reply], true));
+	await nextFrames();
+	const viewport = getByLabelText("Messages");
+	const heldScrollTop = viewport.scrollTop;
+	fireEvent.click(getByRole("button", { name: "Toggle" }));
+	await nextFrames();
+
+	rerender(transcript([...history, answered, reply], false));
+	await nextFrames();
+
+	expect(viewport.scrollTop).toBe(heldScrollTop);
 });
