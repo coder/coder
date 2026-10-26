@@ -770,7 +770,7 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 
 	if err := tx.store.SoftDeleteChatMessagesAfterID(tx.ctx, database.SoftDeleteChatMessagesAfterIDParams{
 		ChatID:  tx.chatID,
-		AfterID: target.ID - 1, // include target and everything after
+		AfterID: target.ID - 1, // AfterID is exclusive; - 1 includes target.
 	}); err != nil {
 		return EditMessageResult{}, xerrors.Errorf("soft-delete suffix: %w", err)
 	}

@@ -10961,8 +10961,8 @@ func TestStreamChat(t *testing.T) {
 					store.fail.Store(&chatStreamReadFailure{chatID: chat.ID, err: xerrors.New("read failed")})
 				}
 				if tt.failSubscribe {
-					channel := coderdpubsub.ChatStateUpdateChannel(chat.ID)
-					ps.failEvent.Store(&channel)
+					event := coderdpubsub.ChatStateUpdateChannel(chat.ID)
+					ps.failEvent.Store(&event)
 				}
 
 				u, err := client.URL.Parse(fmt.Sprintf("/api/v2/chats/%s/stream", chat.ID))

@@ -892,10 +892,10 @@ func syncAgainst(t *testing.T, loop *streamLoop, s streamDBContents) []codersdk.
 	return events
 }
 
-// id is the message ID of a message event and the from_message_id of a
-// history_reset.
 type streamEvent struct {
-	typ             codersdk.ChatStreamEventType
+	typ codersdk.ChatStreamEventType
+	// id is the message ID of a message event and the from_message_id of a
+	// history_reset.
 	id              int64
 	snapshotVersion int64
 }
