@@ -1,8 +1,19 @@
-import { screen, within } from "@testing-library/react";
+import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type * as motionReact from "motion/react";
+import { useReducedMotion } from "motion/react";
 import { QueryClientProvider } from "react-query";
 import { defaultUrlTransform } from "streamdown";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	afterAll,
+	afterEach,
+	beforeAll,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	vi,
+} from "vitest";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type { ChatMessage } from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
@@ -86,6 +97,19 @@ function renderTimeline(initial: TimelineStage = {}) {
 		rerenderStage: (stage: TimelineStage) => rerender(renderStage(stage)),
 	};
 }
+
+// Motion keeps the requestAnimationFrame it finds when it loads, so route it
+// through setTimeout first; then fake timers step Motion's frames.
+vi.hoisted(() => {
+	vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) =>
+		setTimeout(() => callback(performance.now()), 16),
+	);
+});
+
+vi.mock("motion/react", async (importOriginal) => ({
+	...(await importOriginal<typeof motionReact>()),
+	useReducedMotion: vi.fn(() => false),
+}));
 
 beforeEach(() => pinFixtureClock());
 
@@ -452,5 +476,117 @@ describe("ConversationTimeline live working blocks", () => {
 			liveStatus: idleLive,
 		});
 		expect(copyCommand).toHaveFocus();
+	});
+});
+
+const mockReplyText =
+	"I'll start by listing the workspace files so I can see how the project is laid out, then read the main entry point.";
+
+const mockReplyPart = { type: "text", text: mockReplyText } as const;
+
+const mockFirstToolCallPart = {
+	type: "tool-call",
+	tool_call_id: "first",
+	tool_name: "execute",
+	args: { command: "echo first" },
+	created_at: workingFixtureTime(1),
+} as const;
+
+const mockSecondToolCallPart = {
+	...mockFirstToolCallPart,
+	tool_call_id: "second",
+	args: { command: "echo second" },
+	created_at: workingFixtureTime(5),
+} as const;
+
+const liveStage = (
+	messages: ChatMessage[],
+	parts: Parameters<typeof buildStreamRenderState>[0],
+): TimelineStage => ({
+	messages,
+	chatStatus: "running",
+	...buildStreamRenderState(parts),
+});
+
+// Motion reports completion through a promise, so timers advance async.
+const advance = (ms: number) =>
+	act(async () => {
+		await vi.advanceTimersByTimeAsync(ms);
+	});
+
+const isFolding = (text: string) => screen.queryByText(text) !== null;
+
+const announcement = () => screen.getByRole("status").textContent;
+
+// Timing and queueing are covered in WorkingBlockTransition.test.tsx; these
+// cover which reply the timeline hands to the transition.
+describe("ConversationTimeline reply folding", () => {
+	// One fake clock for the whole block: Motion's frame loop keeps waiting on
+	// a frame scheduled on a clock that a later test replaced.
+	beforeAll(() => {
+		vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+	});
+	afterAll(() => {
+		vi.useRealTimers();
+	});
+	beforeEach(() => {
+		vi.mocked(useReducedMotion).mockReturnValue(false);
+	});
+	afterEach(async () => {
+		// Let the previous test's animations finish before the next renders.
+		await advance(1000);
+	});
+
+	it("folds into a label that is already showing", async () => {
+		const firstStep = MockWorkingMessages.slice(0, 3);
+		const { rerenderStage } = renderTimeline(
+			liveStage(firstStep, [mockReplyPart]),
+		);
+
+		rerenderStage(
+			liveStage(firstStep, [mockReplyPart, mockSecondToolCallPart]),
+		);
+		expect(isFolding(mockReplyText)).toBe(true);
+		await advance(350);
+		expect(isFolding(mockReplyText)).toBe(false);
+		// No label entered, so there is nothing new to announce.
+		expect(announcement()).toBe("");
+	});
+
+	it("folds reply text when a web search follows it", async () => {
+		const firstStep = MockWorkingMessages.slice(0, 3);
+		const { rerenderStage } = renderTimeline(
+			liveStage(firstStep, [mockReplyPart]),
+		);
+
+		rerenderStage(
+			liveStage(firstStep, [
+				mockReplyPart,
+				{
+					type: "tool-call",
+					tool_call_id: "search",
+					tool_name: "web_search",
+					provider_executed: true,
+					created_at: workingFixtureTime(5),
+				},
+			]),
+		);
+		expect(isFolding(mockReplyText)).toBe(true);
+		await advance(350);
+		expect(isFolding(mockReplyText)).toBe(false);
+	});
+
+	it("enters the label without a fold when a tool call starts first", async () => {
+		const prompt = MockWorkingMessages.slice(0, 1);
+		const { rerenderStage } = renderTimeline({
+			messages: prompt,
+			chatStatus: "running",
+			liveStatus: { phase: "starting", hasAccumulatedOutput: false },
+		});
+
+		rerenderStage(liveStage(prompt, [mockFirstToolCallPart]));
+		expect(isFolding(mockReplyText)).toBe(false);
+		await advance(350);
+		expect(announcement()).toBe("Working");
 	});
 });

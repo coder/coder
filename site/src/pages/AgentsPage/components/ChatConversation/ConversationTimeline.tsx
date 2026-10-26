@@ -53,12 +53,21 @@ import type {
 } from "./types";
 import { UserMessageContent } from "./UserMessageContent";
 import { WorkingBlockDisclosure } from "./WorkingBlockDisclosure";
+import { WorkingBlockTransition } from "./WorkingBlockTransition";
 import {
 	getRowBlocks,
 	groupWorkingBlocks,
 	isAgentAttachmentOnlyRow,
 	type RowSection,
+	type WorkingBlock,
 } from "./workingBlockGrouping";
+import {
+	emptyWorkingBlockTransitions,
+	finishFold,
+	finishLabelEntry,
+	getWorkingBlockFrame,
+	reconcileWorkingBlockTransitions,
+} from "./workingBlockTransitions";
 
 const getChatMessageTextContent = (
 	content: readonly TypesGen.ChatMessagePart[] | undefined,
@@ -504,6 +513,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			ReadonlyMap<string, boolean>
 		>(new Map());
 		const [liveBlockKeys, setLiveBlockKeys] = useState(emptyLiveBlockKeys);
+		const [transitions, setTransitions] = useState(
+			emptyWorkingBlockTransitions,
+		);
 
 		const jumpToUserMessage = (messageKey: string) => {
 			scrollToMessage(messageKey, { align: "start", behavior: "smooth" });
@@ -551,6 +563,44 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		);
 		if (nextLiveBlockKeys !== liveBlockKeys) {
 			setLiveBlockKeys(nextLiveBlockKeys);
+		}
+
+		const getBlockView = (block: WorkingBlock) => {
+			// Keyed on durable member rows and the item key, excluding the live
+			// row so the choice does not carry into the next turn; the newest
+			// member wins.
+			const memberKeys = block.rowIndices.flatMap((rowIndex) => {
+				const member = renderRows[rowIndex];
+				return member.type === "message" ? [member.key] : [];
+			});
+			const itemKey = nextLiveBlockKeys.itemKeys.get(block.key) ?? block.key;
+			const expanded =
+				expandedBlocks.get(
+					memberKeys.findLast((key) => expandedBlocks.has(key)) ?? itemKey,
+				) ?? false;
+			const answerRowIndex = block.endsWithAnswer
+				? block.rowIndices.at(-1)
+				: undefined;
+			return { itemKey, memberKeys, expanded, answerRowIndex };
+		};
+		// Reply text streams as an answer until a tool call shows it was
+		// narration and folds it into a block; the fold animates instead of the
+		// text vanishing.
+		const nextTransitions = reconcileWorkingBlockTransitions(
+			transitions,
+			getWorkingBlockFrame({
+				rows: renderRows,
+				blocks: workingBlocks.map((block) => ({
+					...getBlockView(block),
+					isLive: block.isLive,
+					rowIndices: block.rowIndices,
+				})),
+				liveBlocks,
+				liveTools,
+			}),
+		);
+		if (nextTransitions !== transitions) {
+			setTransitions(nextTransitions);
 		}
 
 		if (renderRows.length === 0) {
@@ -717,26 +767,30 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				{renderRows.flatMap((row, index) => {
 					const block = blockByFirstRow.get(index);
 					if (block) {
-						// Keyed on durable member rows and the item key, excluding the live
-						// row so the choice does not carry into the next turn; the newest
-						// member wins.
-						const memberKeys = block.rowIndices.flatMap((rowIndex) => {
-							const member = renderRows[rowIndex];
-							return member.type === "message" ? [member.key] : [];
-						});
-						const itemKey =
-							nextLiveBlockKeys.itemKeys.get(block.key) ?? block.key;
-						const expanded =
-							expandedBlocks.get(
-								memberKeys.findLast((key) => expandedBlocks.has(key)) ??
-									itemKey,
-							) ?? false;
+						const { itemKey, memberKeys, expanded, answerRowIndex } =
+							getBlockView(block);
 						const isAfterEditingMessage =
 							row.type === "message" &&
 							afterEditingMessageIds.has(row.entry.message.id);
-						const answerRowIndex = block.endsWithAnswer
-							? block.rowIndices.at(-1)
-							: undefined;
+						const folds = expanded
+							? []
+							: nextTransitions.folds
+									.filter((fold) => fold.itemKey === itemKey)
+									.map((fold) => ({
+										id: fold.id,
+										content: (
+											<ChatMessageItem
+												organizationId={organizationId}
+												renderKey={`fold-${fold.id}`}
+												hideAttachments
+												liveBlocks={fold.blocks}
+												subagentTitles={subagentTitles}
+												subagentVariants={subagentVariants}
+												urlTransform={urlTransform}
+												mcpServers={mcpServers}
+											/>
+										),
+									}));
 
 						return [
 							<MessageScroller.Item
@@ -748,27 +802,41 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								)}
 								inert={isAfterEditingMessage ? true : undefined}
 							>
-								<WorkingBlockDisclosure
-									block={block}
-									expanded={expanded}
-									onExpandedChange={(value) =>
-										setExpandedBlocks((previous) => {
-											const next = new Map(previous);
-											for (const key of [itemKey, ...memberKeys]) {
-												next.set(key, value);
-											}
-											return next;
-										})
+								<WorkingBlockTransition
+									labelEntering={nextTransitions.enteringLabels.has(itemKey)}
+									folds={folds}
+									isLive={block.isLive}
+									onLabelEntered={() =>
+										setTransitions((previous) =>
+											finishLabelEntry(previous, itemKey),
+										)
+									}
+									onFolded={(id) =>
+										setTransitions((previous) => finishFold(previous, id))
 									}
 								>
-									{expanded &&
-										block.rowIndices.map((rowIndex) =>
-											renderRowContent(
-												rowIndex,
-												rowIndex === answerRowIndex ? "work" : undefined,
-											),
-										)}
-								</WorkingBlockDisclosure>
+									<WorkingBlockDisclosure
+										block={block}
+										expanded={expanded}
+										onExpandedChange={(value) =>
+											setExpandedBlocks((previous) => {
+												const next = new Map(previous);
+												for (const key of [itemKey, ...memberKeys]) {
+													next.set(key, value);
+												}
+												return next;
+											})
+										}
+									>
+										{expanded &&
+											block.rowIndices.map((rowIndex) =>
+												renderRowContent(
+													rowIndex,
+													rowIndex === answerRowIndex ? "work" : undefined,
+												),
+											)}
+									</WorkingBlockDisclosure>
+								</WorkingBlockTransition>
 							</MessageScroller.Item>,
 							...(answerRowIndex === undefined
 								? []
