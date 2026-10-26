@@ -181,7 +181,7 @@ Each event has a `type` field:
 | `preview_reset`   | Remove the `message_part` content that you received before this event                                                |
 | `message`         | A message was created or changed; replace the message with the same ID                                               |
 | `history_reset`   | An edit removed messages; remove your messages with an ID of `history_reset.from_message_id` or higher               |
-| `status`          | The chat status changed (e.g. `running` → `waiting`)                                                                 |
+| `status`          | The chat status changed (e.g., `running` → `waiting`)                                                                |
 | `error`           | An error occurred during processing                                                                                  |
 | `retry`           | The control plane is retrying a failed LLM call                                                                      |
 | `queue_update`    | The queued message list changed; the event includes the whole list                                                   |
@@ -546,7 +546,7 @@ websocat -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
   "wss://coder.example.com/api/v2/chats/$CHAT_ID/stream"
 ```
 
-You should see JSON arrays of events that include `message_part` and `status` events.
+`websocat` should return JSON arrays of events that include `message_part` and `status` events.
 The chat should eventually reach `"waiting"` status, indicating the agent completed its response.
 
 ### 4. Send a follow-up message
