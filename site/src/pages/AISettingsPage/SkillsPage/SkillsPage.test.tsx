@@ -83,6 +83,7 @@ it("lets a role that can only update skills toggle and edit them", async () => {
 			{
 				content:
 					'---\nname: review-sql\ndescription: "Review SQL changes."\n---\nBody\n',
+				model_invocable: true,
 			},
 		),
 	);
