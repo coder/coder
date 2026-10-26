@@ -216,8 +216,8 @@ const parseAskUserQuestionResult = (
 		const questions = parsedValue
 			? parseAskUserQuestions(parsedValue.questions)
 			: null;
-		if (parsedValue && questions) {
-			return { questions, isAsync: parsedValue.async === true };
+		if (questions) {
+			return { questions, isAsync: parsedValue?.async === true };
 		}
 	}
 

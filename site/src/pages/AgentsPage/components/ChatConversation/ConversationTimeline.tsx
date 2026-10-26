@@ -621,10 +621,13 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				pendingAskUserQuestionToolId = askUserQuestionToolIdInMessage;
 			}
 
+			const responseText =
+				message.role === "user"
+					? getChatMessageTextContent(message.content)
+					: undefined;
 			if (pendingAskUserQuestionToolId && message.role === "user") {
 				hasUserResponseAfterAskQuestion =
 					pendingAskUserQuestionToolId === latestAskUserQuestionToolId;
-				const responseText = getChatMessageTextContent(message.content);
 				if (responseText !== undefined) {
 					askUserQuestionResponseTextByToolId.set(
 						pendingAskUserQuestionToolId,
@@ -636,14 +639,21 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 
 			// A queued message can land between an async question and its
 			// answer, so the answer is matched by the call it names.
-			if (message.role === "user") {
-				const responseText = getChatMessageTextContent(message.content);
-				const answeredToolId =
-					responseText && getAsyncAnswerToolCallId(responseText);
-				if (responseText && answeredToolId) {
-					askUserQuestionResponseTextByToolId.set(answeredToolId, responseText);
-				}
+			const answeredToolId =
+				responseText === undefined
+					? undefined
+					: getAsyncAnswerToolCallId(responseText);
+			if (responseText !== undefined && answeredToolId !== undefined) {
+				askUserQuestionResponseTextByToolId.set(answeredToolId, responseText);
 			}
+		}
+		// A question still in the stream is newer than every persisted one.
+		const liveAskUserQuestionToolId = liveTools.findLast(
+			(tool) => tool.name === "ask_user_question",
+		)?.id;
+		if (liveAskUserQuestionToolId !== undefined) {
+			latestAskUserQuestionToolId = liveAskUserQuestionToolId;
+			hasUserResponseAfterAskQuestion = false;
 		}
 		const historicalAskUserQuestionResponseTextByToolId =
 			askUserQuestionResponseTextByToolId.size > 0
@@ -666,6 +676,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						liveStatus={liveStatus}
 						liveBlocks={liveBlocks}
 						liveTools={liveTools}
+						latestAskUserQuestionToolId={latestAskUserQuestionToolId}
 						subagentStatusOverrides={
 							showsStreamOutput ? subagentStatusOverrides : undefined
 						}

@@ -122,23 +122,31 @@ const formatOutgoingMessage = (
 		.join("\n");
 };
 
+const asyncAnswerLead = "Answer to ask_user_question call";
+
 const getAsyncAnswerPrefix = (toolCallId: string): string =>
-	`Answer to ask_user_question call ${toolCallId}:\n`;
+	`${asyncAnswerLead} ${toolCallId}:\n`;
 
-const asyncAnswerPattern = /^Answer to ask_user_question call (\S+):\n/;
+const asyncAnswerPattern = new RegExp(`^${asyncAnswerLead} (\\S+):\n`);
 
-/** Returns the tool call ID that an async answer message names. */
-export const getAsyncAnswerToolCallId = (text: string): string | undefined =>
-	asyncAnswerPattern.exec(text)?.[1];
+/**
+ * Returns the tool call ID named by the first line of an async answer, or
+ * undefined when the text does not start with that line.
+ */
+export const getAsyncAnswerToolCallId = (
+	responseText: string,
+): string | undefined => asyncAnswerPattern.exec(responseText)?.[1];
 
 // An async question can be followed by an unrelated message, so only a
 // message that names the call answers it.
 const getAsyncAnswerText = (
-	text: string | undefined,
+	responseText: string | undefined,
 	toolCallId: string,
 ): string | undefined => {
 	const prefix = getAsyncAnswerPrefix(toolCallId);
-	return text?.startsWith(prefix) ? text.slice(prefix.length) : undefined;
+	return responseText?.startsWith(prefix)
+		? responseText.slice(prefix.length)
+		: undefined;
 };
 
 const getSubmissionErrorMessage = (error: unknown): string | undefined => {

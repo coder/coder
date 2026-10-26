@@ -448,7 +448,6 @@ export const AsyncPreviouslyAnswered: Story = {
 	},
 };
 
-// An unrelated later message does not answer an async question.
 export const AsyncClosed: Story = {
 	args: {
 		toolCallId: "call-async",

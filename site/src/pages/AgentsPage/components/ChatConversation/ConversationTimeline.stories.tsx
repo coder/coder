@@ -1820,7 +1820,6 @@ export const AskUserQuestionSubmittedAnswer: Story = {
 	},
 };
 
-/** An async answer counts even when a queued message landed first. */
 export const AsyncAskUserQuestionAnsweredAfterQueuedMessage: Story = {
 	args: {
 		...defaultArgs,

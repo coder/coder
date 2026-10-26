@@ -233,3 +233,78 @@ export const PromptlessLiveBlock: Story = {
 	},
 	play: expandBlock("Working for at least 12s"),
 };
+
+const asyncQuestionResult = (question: string) => ({
+	questions: [
+		{
+			header: "Scope",
+			question,
+			options: [
+				{ label: "Backend", description: "Change the API first." },
+				{ label: "Frontend", description: "Change the UI first." },
+			],
+		},
+	],
+	async: true,
+});
+
+const MockEarlierAsyncQuestionMessages: ChatMessage[] = [
+	...MockWorkingMessages.slice(0, 1),
+	{
+		...MockChatMessage,
+		id: 2,
+		role: "assistant",
+		created_at: workingFixtureTime(1),
+		content: [
+			{
+				type: "tool-call",
+				tool_call_id: "earlier-question",
+				tool_name: "ask_user_question",
+				args: {},
+				created_at: workingFixtureTime(1),
+			},
+		],
+	},
+	{
+		...MockChatMessage,
+		id: 3,
+		role: "tool",
+		created_at: workingFixtureTime(2),
+		content: [
+			{
+				type: "tool-result",
+				tool_call_id: "earlier-question",
+				tool_name: "ask_user_question",
+				result: asyncQuestionResult("Which part should change first?"),
+				created_at: workingFixtureTime(2),
+			},
+		],
+	},
+];
+
+// A question still streaming supersedes the persisted one, and stays open
+// until its step persists and it becomes answerable.
+export const AsyncQuestionBeforeStepPersists: Story = {
+	args: {
+		onSendAskUserQuestionResponse: fn(),
+		parsedMessages: parseMessagesWithMergedTools(
+			MockEarlierAsyncQuestionMessages,
+		),
+		...buildStreamRenderState([
+			{
+				type: "tool-call",
+				tool_call_id: "live-question",
+				tool_name: "ask_user_question",
+				args: {},
+				created_at: workingFixtureTime(3),
+			},
+			{
+				type: "tool-result",
+				tool_call_id: "live-question",
+				tool_name: "ask_user_question",
+				result: asyncQuestionResult("Should the change ship behind a flag?"),
+				created_at: workingFixtureTime(4),
+			},
+		]),
+	},
+};
