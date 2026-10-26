@@ -33,13 +33,6 @@ const normalizeRetryState = (retry: TypesGen.ChatStreamRetry): RetryState => ({
 	retryingAt: retry.retrying_at.trim() || undefined,
 });
 
-// A server older than this client sends these without snapshot_version.
-const isUnversionedEvent = (event: TypesGen.ChatStreamEvent): boolean =>
-	(event.type === "message" ||
-		event.type === "queue_update" ||
-		event.type === "history_reset") &&
-	event.snapshot_version === undefined;
-
 const shouldSurfaceReconnectState = (state: ChatStoreState): boolean =>
 	selectShownError(state) === null &&
 	(selectStreamState(state) !== null ||
@@ -89,12 +82,6 @@ export const useChatStore = (
 		queryKey: chatStoreKey(chatID),
 		queryFn: async ({ signal }) => {
 			const page = await fetchNewestChatMessages(chatID, signal);
-			// Only a server older than this client omits the version.
-			if (page.snapshot_version === undefined) {
-				throw new Error(
-					"The Coder server is older than this page. Reload the page. During an upgrade, try again in a minute.",
-				);
-			}
 			const store = createChatStore();
 			store.seed(page);
 			return store;
@@ -256,12 +243,6 @@ export const useChatStore = (
 					kind: "generic",
 					message: "Failed to parse a chat stream update. Reconnecting.",
 				});
-				socket.close();
-				return;
-			}
-			// An older replica answered; reconnect until a current one does.
-			if (payload.parsedMessage.some(isUnversionedEvent)) {
-				discardBufferedParts();
 				socket.close();
 				return;
 			}
