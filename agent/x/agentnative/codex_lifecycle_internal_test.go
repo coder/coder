@@ -90,7 +90,7 @@ func TestCodexRestrictedChildDoesNotBlockOwnerShutdown(t *testing.T) {
 	require.NoError(t, err)
 	defer reader.Close()
 	defer writer.Close()
-	c.options.Environment = append(os.Environ(), "CODEX_PROCESS_HELPER=restricted-launcher")
+	c.options.Environment = append(c.options.Environment, "CODEX_PROCESS_HELPER=restricted-launcher")
 	c.options.Command = func(ctx context.Context, _ string, _ ...string) *exec.Cmd {
 		// #nosec G204 -- Reexecute only this test binary with the restricted child fixture.
 		cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestCodexProcessHelper$")

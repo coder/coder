@@ -104,6 +104,40 @@ func testManagerSession(t *testing.T, m *Manager) Session {
 	return s
 }
 
+func TestManagerCreationFailure(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name string
+		err  error
+		want string
+	}{
+		{
+			name: "SetupFailedBeforeDispatch",
+			err:  &creationSetupError{err: xerrors.New("native home is not a private directory")},
+			want: "native claude setup failed before session creation: native home is not a private directory",
+		},
+		{
+			name: "OutcomeUnknown",
+			err:  xerrors.New("private native diagnostic"),
+			want: "native creation outcome is unknown; inspect the native terminal before retrying",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			b := &managerTestBackend{create: func(context.Context, string) (Session, error) {
+				return Session{}, test.err
+			}}
+			m := newTestManager(t, filepath.Join(t.TempDir(), "state"), b)
+			_, err := m.Create(t.Context(), "claude", t.TempDir())
+			require.EqualError(t, err, test.want)
+			require.NotContains(t, err.Error(), "private native diagnostic")
+			require.Empty(t, m.List())
+			require.EqualValues(t, 1, b.creates.Load(), "failed creation must not be retried")
+			require.Zero(t, b.resumes.Load())
+		})
+	}
+}
+
 func TestManagerLazyCreateAndPassiveClose(t *testing.T) {
 	t.Parallel()
 	dir := filepath.Join(t.TempDir(), "state")

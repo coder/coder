@@ -47,7 +47,6 @@ func codexSmokeOptions(t *testing.T) (BackendOptions, *codexTestHost) {
 	require.NoError(t, os.Symlink(binary, filepath.Join(bin, "codex")))
 	host := &codexTestHost{sessions: map[string]Session{}, events: map[string][]Event{}}
 	options := BackendOptions{Host: host, StateDir: filepath.Join(home, "state"), Environment: []string{"HOME=" + home, "CODEX_HOME=" + filepath.Join(home, "native"), "PATH=" + bin + ":/usr/bin:/bin", "TMPDIR=" + home}}
-	require.NoError(t, os.Mkdir(filepath.Join(home, "native"), 0o700))
 	return options, host
 }
 
@@ -74,8 +73,14 @@ func TestCodexInstalledCLISmoke(t *testing.T) {
 	})
 	ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
 	defer cancel()
+	nativeHome := filepath.Join(home, "native")
+	require.NoDirExists(t, nativeHome, "construction must not initialize native state")
 	session, err := c.Create(ctx, home)
 	require.NoError(t, err)
+	info, err := os.Stat(nativeHome)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o700), info.Mode().Perm())
+	require.NoFileExists(t, filepath.Join(nativeHome, "auth.json"), "thread creation must not require or provision credentials")
 	host.register(session)
 	require.NoError(t, c.Resume(ctx, session))
 	command, err := c.Attach(ctx, session)

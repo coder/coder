@@ -136,7 +136,39 @@ func (c *Codex) checkServerStart(ctx context.Context) error {
 	return nil
 }
 
+// prepareHome initializes only the native directory. Authentication and
+// configuration remain under the workspace user's control.
+func (c *Codex) prepareHome() error {
+	var home, codexHome string
+	for _, entry := range c.options.Environment {
+		key, value, _ := strings.Cut(entry, "=")
+		switch key {
+		case "HOME":
+			home = value
+		case "CODEX_HOME":
+			codexHome = value
+		}
+	}
+	if codexHome == "" {
+		if !filepath.IsAbs(home) {
+			return xerrors.New("native Codex requires an absolute HOME or CODEX_HOME")
+		}
+		codexHome = filepath.Join(home, ".codex")
+	}
+	if !filepath.IsAbs(codexHome) {
+		return xerrors.New("native Codex requires an absolute CODEX_HOME")
+	}
+	dir, err := openPrivateDirectory(codexHome, privateDirectoryCreate)
+	if err != nil {
+		return xerrors.Errorf("prepare native Codex home: %w", err)
+	}
+	return dir.close()
+}
+
 func (c *Codex) startServer() error {
+	if err := c.prepareHome(); err != nil {
+		return err
+	}
 	log, err := codexPrivateFile(filepath.Join(c.options.StateDir, "codex-server.log"), os.O_WRONLY|os.O_APPEND|os.O_CREATE)
 	if err != nil {
 		return err

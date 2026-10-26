@@ -16,6 +16,13 @@ import (
 // ErrUnsupported means a native operation cannot be performed safely.
 var ErrUnsupported = xerrors.New("native operation is not supported")
 
+// creationSetupError carries a locally generated, sanitized prerequisite failure.
+// It must only be used before dispatching native session creation.
+type creationSetupError struct{ err error }
+
+func (e *creationSetupError) Error() string { return e.err.Error() }
+func (e *creationSetupError) Unwrap() error { return e.err }
+
 // Session is a durable binding to a native conversation, not a model transcript.
 // Adapters must not mutate a Session supplied by the manager.
 type Session struct {

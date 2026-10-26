@@ -14,6 +14,8 @@ Install and authenticate the native harnesses as the same OS user that runs the 
 The template pins Claude Code to `2.1.309`, Codex to `0.164.0`, and OpenCode V2 to `2.0.28` from `@opencode/cli`.
 OpenCode V1 from `opencode-ai` isn't compatible.
 Complete native project trust and provider setup before unattended work.
+Authentication is separate for each harness; selecting an initial harness doesn't authenticate the others.
+Codex creates its private home on first startup, but creating that directory doesn't authenticate it.
 The integration doesn't approve native permission dialogs.
 
 The template prepares the project, credentials, native installations, and initial-job configuration.
@@ -63,6 +65,12 @@ Human and automation modes gate input from this integration.
 They aren't an exclusive lease against direct native terminal input.
 Native permission dialogs remain terminal-only.
 Unsupported cancellation is reported rather than broadened to unrelated native work.
+
+Claude receives your literal prompt without plugin attribution or request markers in model context.
+Request tracking uses native receipt metadata and turn events.
+Unresolved competing submissions block further automation rather than risk stopping unrelated work.
+Dropped or rewritten submissions, indistinguishable queued prompts, and attributed prompts from other plugins remain blocked until the native session restarts.
+Native terminal access remains available.
 
 Claude restoration uses the same native conversation ID, not a newly seeded conversation.
 Codex restoration checks native thread state before resuming it.

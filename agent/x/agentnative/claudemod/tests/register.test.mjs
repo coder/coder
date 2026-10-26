@@ -5,13 +5,14 @@ import test from 'node:test';
 
 const source = await readFile(new URL('../hooks/register.js', import.meta.url), 'utf8');
 
-function nativeSubmission(text) {
-  return { text, origin: { kind: 'plugin', name: 'workspace-bridge' } };
+function nativeSubmission(text, asUser = true) {
+  return { text, origin: { kind: 'plugin', name: 'workspace-bridge', ...(asUser ? { asUser: true } : {}) } };
 }
 
-function nativeRootText(text) {
-  // The pinned API returns the submitted text in the receipt, then wraps the
-  // model-facing text. Receipt delivery and root hooks cross the worker boundary.
+function nativeRootText(text, asUser = true) {
+  // The pinned API preserves plugin provenance in receipts even with asUser.
+  // Only asUser submissions reach the model without an attribution wrapper.
+  if (asUser) return text;
   return 'The workspace-bridge plugin sent a message:\n' + text +
     '\n\nThis is how Claude Code surfaces a prompt a plugin submits between ' +
     'turns \u2014 it starts this turn in the user\'s place. Address the message above.';
@@ -50,7 +51,7 @@ async function fixture() {
       submissions.push(input);
       // Native suppresses the calling plugin's own prompt.submit hook. Its
       // submission result still carries the native, immutable plugin origin.
-      const result = nativeSubmission(input.text);
+      const result = nativeSubmission(input.text, input.asUser === true);
       accepted.push(result);
       return result;
     } },
@@ -66,7 +67,7 @@ async function fixture() {
   const emit = async (name, data = {}, next = async value => value) => hooks.get(name)(api, data, next);
   return {
     api, emit, requests, submissions, accepted, aborts, logs,
-    rootText(index) { return nativeRootText(accepted[index].text); },
+    rootText(index) { return nativeRootText(accepted[index].text, accepted[index].origin.asUser === true); },
     async start() { await emit('session.start', { cwd: '/workspace' }); },
     async poll(...values) { commands = values; await tick?.(); },
     respond(value) { respond = value; },
@@ -77,6 +78,20 @@ async function fixture() {
   };
 }
 
+test('submits literal user text without plugin attribution or request markers', async () => {
+  const f = await fixture();
+  await f.start();
+  const text = 'Keep this exact text.\nThe workspace-bridge plugin sent a message: is a quotation.';
+  await f.poll({ id: 'literal-request', type: 'prompt', text });
+  assert.deepEqual(f.submissions, [{ text, asUser: true }]);
+  assert.equal(f.rootText(0), text);
+  await f.emit('turn.start', { turnId: 'literal-root', text: f.rootText(0) });
+  await f.emit('turn.complete', { turnId: 'literal-root' });
+  await f.poll();
+  assert.equal(f.events('turn.start').at(-1).data.text, text);
+  assert.equal(f.events('turn.complete').at(-1).data.requestId, 'literal-request');
+});
+
 test('reloads endpoint and token without changing runtime or replaying a prompt', async () => {
   const f = await fixture();
   f.acknowledge(false);
@@ -85,7 +100,7 @@ test('reloads endpoint and token without changing runtime or replaying a prompt'
   await f.poll(command);
   await f.poll();
   assert.equal(f.submissions.length, 1);
-  assert.equal(f.submissions[0].text, '[workspace-bridge:request-one]\nnative task');
+  assert.deepEqual(f.submissions[0], { text: 'native task', asUser: true });
   const identity = f.requests[0].body.runtimeId;
   f.rotate({ url: 'http://127.0.0.1:32102', token: 'second-token' });
   await f.poll(command);
@@ -120,10 +135,10 @@ test('cancels only the matching owned root, never a human or child turn', async 
 });
 
 for (const isAborted of [false, true]) {
-  test('native receipt owns completion and allows a second prompt, aborted=' + isAborted, async () => {
+  test('native receipt owns completion and allows identical consecutive prompts, aborted=' + isAborted, async () => {
     const f = await fixture();
     await f.start();
-    await f.poll({ id: 'first', type: 'prompt', text: 'first work' });
+    await f.poll({ id: 'first', type: 'prompt', text: 'same work' });
     await f.poll();
     assert.deepEqual(f.events('overflow'), []);
     assert.equal(f.events('prompt.accepted').at(-1).data.requestId, 'first');
@@ -137,7 +152,7 @@ for (const isAborted of [false, true]) {
     assert.equal(f.events('turn.complete').at(-1).data.requestId, 'first');
     assert.equal(f.requests.at(-1).body.activeTurnId, null);
     if (isAborted) await f.poll({ id: 'resume-auto', type: 'mode', mode: 'automation' });
-    await f.poll({ id: 'second', type: 'prompt', text: 'second work' });
+    await f.poll({ id: 'second', type: 'prompt', text: 'same work' });
     assert.equal(f.submissions.length, 2);
     await f.emit('turn.start', { turnId: 'second-root', text: f.rootText(1) });
     await f.emit('turn.complete', { turnId: 'second-root', isAborted: false });
@@ -183,7 +198,7 @@ test('session end closes control without aborting native work', async () => {
 });
 
 for (const origin of [{ kind: 'composer' }, { kind: 'bridge' }, { kind: 'plugin', name: 'other' }, { kind: 'plugin', name: 'workspace-bridge', asUser: true }, undefined]) {
-  test('never owns a marker copied into a competing prompt: ' + JSON.stringify(origin), async () => {
+  test('never owns identical text in a competing prompt: ' + JSON.stringify(origin), async () => {
     const f = await fixture();
     await f.start();
     await f.poll({ id: 'owned-request', type: 'prompt', text: 'owned work' });
@@ -211,7 +226,7 @@ test('a native submission receipt cannot adopt a second root', async () => {
   assert.equal(f.events('turn.start').at(-1).data.requestId, undefined);
 });
 
-for (const origin of [undefined, { kind: 'composer' }, { kind: 'plugin', name: 'other' }, { kind: 'plugin', name: 'workspace-bridge', asUser: true }]) {
+for (const origin of [undefined, { kind: 'composer' }, { kind: 'plugin', name: 'other', asUser: true }, { kind: 'plugin', name: 'workspace-bridge' }, { kind: 'plugin', name: 'workspace-bridge', asUser: false }]) {
   test('a submission result without native ownership fails closed: ' + JSON.stringify(origin), async () => {
     const f = await fixture();
     await f.start();
@@ -225,7 +240,7 @@ for (const origin of [undefined, { kind: 'composer' }, { kind: 'plugin', name: '
   });
 }
 
-for (const text of [undefined, 42, '', '[workspace-bridge:owned-request]', '[workspace-bridge:owned-request]\nrewritten work']) {
+for (const text of [undefined, 42, '', 'owned', 'prefix owned work', 'owned work suffix', '[workspace-bridge:owned-request]\nowned work']) {
   test('a receipt without the complete submitted payload fails closed: ' + JSON.stringify(text), async () => {
     const f = await fixture();
     await f.start();
@@ -241,28 +256,233 @@ for (const text of [undefined, 42, '', '[workspace-bridge:owned-request]', '[wor
   });
 }
 
-test('a delayed native receipt cannot rearm ownership after a competing submission', async () => {
+for (const origin of [{ kind: 'composer' }, { kind: 'bridge' }, { kind: 'plugin', name: 'other', asUser: true }, { kind: 'plugin', name: 'workspace-bridge', asUser: true }]) {
+  test('an observed submission fences later reservations until its root completes: ' + JSON.stringify(origin), async () => {
+    const f = await fixture();
+    await f.start();
+    await f.emit('prompt.submit', { text: 'same work', origin });
+    await f.poll({ id: 'auto', type: 'mode', mode: 'automation' });
+    await f.poll({ id: 'too-early', type: 'prompt', text: 'same work' });
+    await f.poll();
+    assert.deepEqual(f.submissions, []);
+    assert.equal(f.events('prompt.rejected').at(-1).data.requestId, 'too-early');
+    await f.emit('turn.start', { turnId: 'competing-root', text: 'same work' });
+    await f.poll({ id: 'cancel', type: 'cancel', requestId: 'too-early' });
+    await f.emit('turn.complete', { turnId: 'competing-root' });
+    await f.poll();
+    assert.deepEqual(f.aborts, []);
+    assert.equal(f.events('turn.start').at(-1).data.requestId, undefined);
+    assert.equal(f.events('turn.complete').at(-1).data.requestId, undefined);
+    await f.poll({ id: 'after-completion', type: 'prompt', text: 'same work' });
+    await f.poll();
+    assert.equal(f.submissions.length, 1);
+    assert.equal(f.events('prompt.accepted').at(-1).data.requestId, 'after-completion');
+  });
+}
+
+test('each observed submission needs its own completed root, not the first or an unrelated root', async () => {
   const f = await fixture();
   await f.start();
-  const entered = deferred();
-  const release = deferred();
-  f.api.prompt.submit = async input => {
-    entered.resolve(input);
-    await release.promise;
-    return nativeSubmission(input.text);
-  };
-  await f.poll({ id: 'owned-request', type: 'prompt', text: 'owned work' });
-  const input = await entered.promise;
-  await f.emit('prompt.submit', { ...input, origin: { kind: 'composer' } });
-  release.resolve();
-  await f.poll();
-  await f.emit('turn.start', { turnId: 'human-root', text: input.text });
-  await f.poll({ id: 'cancel-owned', type: 'cancel', requestId: 'owned-request' });
-  assert.deepEqual(f.aborts, []);
-  assert.equal(f.events('overflow').length, 1);
+  const origin = { kind: 'plugin', name: 'other', asUser: true };
+  for (const text of ['first work', 'second work']) await f.emit('prompt.submit', { text, origin });
+  for (const text of ['unrelated work', 'second work']) {
+    await f.emit('turn.start', { turnId: text, text });
+    await f.emit('turn.complete', { turnId: text });
+    await f.poll({ id: text, type: 'prompt', text: 'first work' });
+    assert.deepEqual(f.submissions, []);
+  }
+  await f.emit('turn.start', { turnId: 'first-root', text: 'first work' });
+  await f.emit('turn.complete', { turnId: 'first-root' });
+  await f.poll({ id: 'after-all', type: 'prompt', text: 'first work' });
+  assert.equal(f.submissions.length, 1);
 });
 
-test('a second root invalidates an in-flight receipt even after an own hook', async () => {
+test('owned and child completions do not release an observed submission', async () => {
+  const f = await fixture();
+  await f.start();
+  await f.poll({ id: 'owned', type: 'prompt', text: 'same work' });
+  await f.emit('turn.start', { turnId: 'owned-root', text: 'same work' });
+  await f.emit('prompt.submit', nativeSubmission('same work'));
+  await f.emit('turn.start', { turnId: 'child', agentId: 'child', text: 'same work' });
+  await f.emit('turn.complete', { turnId: 'child', agentId: 'child' });
+  await f.emit('turn.complete', { turnId: 'owned-root' });
+  await f.poll({ id: 'too-early', type: 'prompt', text: 'same work' });
+  assert.equal(f.submissions.length, 1);
+  await f.emit('turn.start', { turnId: 'competing-root', text: 'same work' });
+  await f.emit('turn.complete', { turnId: 'competing-root' });
+  await f.poll({ id: 'after-both', type: 'prompt', text: 'same work' });
+  assert.equal(f.submissions.length, 2);
+});
+
+test('unresolved observed submissions have a bounded tracking budget without dropping native hooks', async () => {
+  const f = await fixture();
+  await f.start();
+  let forwarded = 0;
+  for (let i = 0; i < 65; i++) {
+    await f.emit('prompt.submit', nativeSubmission('work ' + i), async event => { forwarded++; return event; });
+  }
+  await f.poll({ id: 'overflowed', type: 'prompt', text: 'work' });
+  assert.equal(forwarded, 65);
+  assert.equal(f.events('overflow').length, 1);
+  assert.deepEqual(f.submissions, []);
+});
+
+test('overlapping identical observed submissions stay fenced rather than guessing root ownership', async () => {
+  const f = await fixture();
+  await f.start();
+  const event = nativeSubmission('same work');
+  await f.emit('prompt.submit', event);
+  await f.emit('prompt.submit', event);
+  for (const turnId of ['first-root', 'second-root']) {
+    await f.emit('turn.start', { turnId, text: event.text });
+    await f.emit('turn.complete', { turnId });
+    await f.poll({ id: turnId, type: 'prompt', text: event.text });
+    assert.deepEqual(f.submissions, []);
+  }
+});
+
+test('an observed root completing before its hook returns stays fenced until the unchanged result', async () => {
+  const f = await fixture();
+  await f.start();
+  const entered = deferred();
+  const release = deferred();
+  const event = { text: 'human work', origin: { kind: 'composer' } };
+  const hook = f.emit('prompt.submit', event, async () => { entered.resolve(); await release.promise; return event; });
+  await entered.promise;
+  await f.emit('turn.start', { turnId: 'human-root', text: event.text });
+  await f.emit('turn.complete', { turnId: 'human-root' });
+  await f.poll({ id: 'auto', type: 'mode', mode: 'automation' });
+  await f.poll({ id: 'before-hook-return', type: 'prompt', text: event.text });
+  assert.deepEqual(f.submissions, []);
+  release.resolve();
+  assert.deepEqual(await hook, event);
+  await f.poll({ id: 'after-hook-return', type: 'prompt', text: event.text });
+  assert.equal(f.submissions.length, 1);
+});
+
+for (const outcome of ['drop', 'throw', 'rewrite']) {
+  for (const rootFirst of [false, true]) {
+    test('an observed ' + outcome + ' stays fenced, root before hook result=' + rootFirst, async () => {
+      const f = await fixture();
+      await f.start();
+      const entered = deferred();
+      const release = deferred();
+      const event = nativeSubmission('same work');
+      const hook = f.emit('prompt.submit', event, async () => {
+        entered.resolve();
+        await release.promise;
+        if (outcome === 'throw') throw new Error('downstream hook failed');
+        return outcome === 'drop' ? { drop: 'downstream hook dropped' } : { ...event, text: 'rewritten' };
+      });
+      await entered.promise;
+      const root = async () => {
+        await f.emit('turn.start', { turnId: 'observed-root', text: event.text });
+        await f.emit('turn.complete', { turnId: 'observed-root' });
+      };
+      if (rootFirst) await root();
+      release.resolve();
+      if (outcome === 'throw') await assert.rejects(hook, /downstream hook failed/);
+      else assert.deepEqual(await hook, outcome === 'drop' ? { drop: 'downstream hook dropped' } : { ...event, text: 'rewritten' });
+      if (!rootFirst) await root();
+      // A later, genuine human turn must not erase the unresolved submission.
+      await f.emit('prompt.submit', { text: 'human work', origin: { kind: 'composer' } });
+      await f.emit('turn.start', { turnId: 'human-root', text: 'human work' });
+      await f.emit('turn.complete', { turnId: 'human-root' });
+      await f.poll({ id: 'auto', type: 'mode', mode: 'automation' });
+      await f.poll({ id: 'still-fenced', type: 'prompt', text: event.text });
+      await f.poll();
+      assert.deepEqual(f.submissions, []);
+      assert.equal(f.events('prompt.rejected').at(-1).data.requestId, 'still-fenced');
+    });
+  }
+}
+
+test('default plugin attribution cannot be cleared by a literal asUser root', async () => {
+  const f = await fixture();
+  await f.start();
+  await f.emit('prompt.submit', nativeSubmission('same work', false));
+  await f.emit('prompt.submit', { text: 'same work', origin: { kind: 'plugin', name: 'other', asUser: true } });
+  for (const [turnId, text] of [['literal', 'same work'], ['wrapped', nativeRootText('same work', false)]]) {
+    await f.emit('turn.start', { turnId, text });
+    await f.emit('turn.complete', { turnId });
+    await f.poll({ id: turnId, type: 'prompt', text: 'same work' });
+    assert.deepEqual(f.submissions, []);
+  }
+});
+
+for (const origin of [{ kind: 'plugin', name: 'other' }, { kind: 'plugin', name: 'workspace-bridge', asUser: true }]) {
+  test('a competing submission during draft read rejects before dispatch: ' + JSON.stringify(origin), async () => {
+    const f = await fixture();
+    await f.start();
+    const entered = deferred();
+    const draft = deferred();
+    f.api.prompt.read = async () => { entered.resolve(); return draft.promise; };
+    await f.poll({ id: 'owned-request', type: 'prompt', text: 'same work' });
+    await entered.promise;
+    await f.emit('prompt.submit', { text: 'same work', origin });
+    draft.resolve({ text: '' });
+    await f.poll();
+    await f.poll();
+    assert.deepEqual(f.submissions, []);
+    assert.equal(f.events('prompt.rejected').at(-1).data.requestId, 'owned-request');
+    await f.emit('turn.start', { turnId: 'competing-root', text: 'same work' });
+    await f.poll({ id: 'cancel-owned', type: 'cancel', requestId: 'owned-request' });
+    await f.emit('turn.complete', { turnId: 'competing-root' });
+    await f.poll();
+    assert.deepEqual(f.aborts, []);
+    assert.equal(f.events('turn.start').at(-1).data.requestId, undefined);
+    assert.equal(f.events('turn.complete').at(-1).data.requestId, undefined);
+  });
+}
+
+test('a human root started during draft read releases its fence after completion', async () => {
+  const f = await fixture();
+  await f.start();
+  const entered = deferred();
+  const draft = deferred();
+  f.api.prompt.read = async () => { entered.resolve(); return draft.promise; };
+  await f.poll({ id: 'first', type: 'prompt', text: 'same work' });
+  await entered.promise;
+  await f.emit('prompt.submit', { text: 'same work', origin: { kind: 'composer' } });
+  await f.emit('turn.start', { turnId: 'human-root', text: 'same work' });
+  draft.resolve({ text: '' });
+  await f.poll();
+  await f.poll();
+  assert.deepEqual(f.submissions, []);
+  assert.equal(f.events('prompt.rejected').at(-1).data.requestId, 'first');
+  await f.emit('turn.complete', { turnId: 'human-root' });
+  await f.poll({ id: 'observe', type: 'mode', mode: 'automation' });
+  await f.poll({ id: 'second', type: 'prompt', text: 'same work' });
+  await f.poll();
+  assert.deepEqual(f.submissions, [{ text: 'same work', asUser: true }]);
+  assert.equal(f.events('prompt.accepted').at(-1).data.requestId, 'second');
+  assert.deepEqual(f.events('overflow'), []);
+});
+
+for (const origin of [{ kind: 'composer' }, { kind: 'plugin', name: 'workspace-bridge', asUser: true }]) {
+  test('a delayed receipt cannot rearm ownership after an identical competing submission: ' + JSON.stringify(origin), async () => {
+    const f = await fixture();
+    await f.start();
+    const entered = deferred();
+    const release = deferred();
+    f.api.prompt.submit = async input => {
+      entered.resolve(input);
+      await release.promise;
+      return nativeSubmission(input.text);
+    };
+    await f.poll({ id: 'owned-request', type: 'prompt', text: 'owned work' });
+    const input = await entered.promise;
+    await f.emit('prompt.submit', { ...input, origin });
+    release.resolve();
+    await f.poll();
+    await f.emit('turn.start', { turnId: 'competing-root', text: input.text });
+    await f.poll({ id: 'cancel-owned', type: 'cancel', requestId: 'owned-request' });
+    assert.deepEqual(f.aborts, []);
+    assert.equal(f.events('overflow').length, 1);
+  });
+}
+
+test('a second identical root invalidates an in-flight receipt', async () => {
   const f = await fixture();
   await f.start();
   const entered = deferred();
@@ -274,7 +494,6 @@ test('a second root invalidates an in-flight receipt even after an own hook', as
   };
   await f.poll({ id: 'owned-request', type: 'prompt', text: 'owned work' });
   const input = await entered.promise;
-  await f.emit('prompt.submit', { ...input, origin: { kind: 'plugin', name: 'workspace-bridge' } });
   await f.emit('turn.start', { turnId: 'candidate-root', text: nativeRootText(input.text) });
   await f.emit('turn.start', { turnId: 'other-root', text: nativeRootText(input.text) });
   await f.poll({ id: 'cancel-owned', type: 'cancel', requestId: 'owned-request' });
@@ -402,7 +621,7 @@ for (const conflict of ['human', 'plugin', 'receipt-text', 'receipt-origin', 'dr
       entered.resolve(input);
       await release.promise;
       if (conflict === 'exception') throw new Error('native transport lost');
-      const result = nativeSubmission(input.text);
+      const result = nativeSubmission(input.text, input.asUser === true);
       if (conflict === 'receipt-text') result.text += ' rewritten';
       if (conflict === 'receipt-origin') delete result.origin;
       if (conflict === 'drop') result.drop = 'native dropped prompt';
@@ -436,7 +655,8 @@ test('pinned 2.1.309 queue, receipt and root contract', { skip: !process.env.CLA
   let rootID;
   f.api.prompt.submit = input => {
     dispatched = native.submit(input, async event => {
-      assert.equal(event.text, nativeRootText(input.text));
+      assert.deepEqual(input, { text: 'offline contract only', asUser: true });
+      assert.equal(event.text, 'offline contract only');
       rootID = event.turnId;
       await f.emit('turn.start', event);
       await f.poll();
@@ -458,18 +678,46 @@ test('pinned 2.1.309 queue, receipt and root contract', { skip: !process.env.CLA
   assert.deepEqual(f.aborts, [{ turnId: rootID }]);
 });
 
-test('native attribution around positively sourced prompt text preserves ownership', async () => {
+test('native rejection of slash commands does not decorate or replay the prompt', { skip: !process.env.CLAUDE_CONTRACT_BINARY }, async () => {
+  const { loadPinnedAPI } = await import('./pinned-api.mjs');
+  const native = await loadPinnedAPI(process.env.CLAUDE_CONTRACT_BINARY);
   const f = await fixture();
   await f.start();
-  await f.poll({ id: 'owned-request', type: 'prompt', text: 'owned work' });
-  assert.equal(f.accepted[0].text, f.submissions[0].text);
-  assert.notEqual(f.rootText(0), f.accepted[0].text);
-  assert.ok(f.rootText(0).includes(f.accepted[0].text));
-  await f.emit('turn.start', { turnId: 'owned-root', text: f.rootText(0) });
-  await f.poll({ id: 'cancel-owned', type: 'cancel', requestId: 'owned-request' });
-  assert.deepEqual(f.aborts, [{ turnId: 'owned-root' }]);
-  assert.equal(f.events('turn.start').at(-1).data.requestId, 'owned-request');
+  const submissions = [];
+  let submission;
+  f.api.prompt.submit = input => {
+    submissions.push(input);
+    submission = native.submit(input).then(({ receipt }) => receipt);
+    return submission;
+  };
+  await f.poll({ id: 'slash-request', type: 'prompt', text: '/help' });
+  await assert.rejects(submission, /text beginning with \/ would run a command/);
+  await f.poll();
+  assert.deepEqual(submissions, [{ text: '/help', asUser: true }]);
+  assert.equal(f.events('prompt.rejected').at(-1).data.requestId, 'slash-request');
+  assert.deepEqual(f.events('prompt.accepted'), []);
+  assert.deepEqual(f.events('overflow'), []);
+  f.api.prompt.submit = async input => {
+    submissions.push(input);
+    return nativeSubmission(input.text);
+  };
+  await f.poll({ id: 'next-request', type: 'prompt', text: 'plain text' });
+  await f.poll();
+  assert.equal(submissions.length, 2);
+  assert.equal(f.events('prompt.accepted').at(-1).data.requestId, 'next-request');
 });
+
+for (const text of ['owned', 'prefix owned work', 'owned work suffix', nativeRootText('owned work', false)]) {
+  test('root text must exactly match the native receipt: ' + JSON.stringify(text), async () => {
+    const f = await fixture();
+    await f.start();
+    await f.poll({ id: 'owned-request', type: 'prompt', text: 'owned work' });
+    await f.emit('turn.start', { turnId: 'other-root', text });
+    await f.poll({ id: 'cancel-owned', type: 'cancel', requestId: 'owned-request' });
+    assert.deepEqual(f.aborts, []);
+    assert.equal(f.events('turn.start').at(-1).data.requestId, undefined);
+  });
+}
 
 test('cancels a queued prompt when its positively identified root finally starts', async () => {
   const f = await fixture();

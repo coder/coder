@@ -65,6 +65,7 @@ export async function loadPinnedAPI(path) {
         Kbo: { watching: false }, rWe: channel('discarded'), dsn: channel('consumed'),
       });
       const result = queue.nxo(input, 'workspace-bridge');
+      if (!queued.length) await result;
       assert.equal(queued.length, 1);
       const entry = queued[0];
       const receipt = queue.epi(entry.uuid);

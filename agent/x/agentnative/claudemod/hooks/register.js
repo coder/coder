@@ -16,6 +16,7 @@ let pumping;
 let ended = false;
 let transportClosed = false;
 let provenanceGeneration = 0;
+const competingSubmissions = new Set();
 const permissions = new Map();
 let overflow = false;
 let timer;
@@ -48,9 +49,12 @@ function requestFor(turnId) {
 }
 
 function isOwnedSubmission(event, request) {
-  // Require immutable native attribution and the complete submitted payload.
-  // The native root text can wrap this receipt's text in plugin attribution.
-  return event.origin?.kind === 'plugin' && event.origin.name === 'workspace-bridge' && !event.origin.asUser && typeof event.text === 'string' && event.text.includes(request.text);
+  // asUser omits model-facing attribution, not the native receipt's origin.
+  return event.origin?.kind === 'plugin' && event.origin.name === 'workspace-bridge' && event.origin.asUser === true && event.text === request.text;
+}
+
+function releaseCompetingSubmission(submission) {
+  if (submission.accepted && submission.completed) competingSubmissions.delete(submission);
 }
 
 async function submit($, command) {
@@ -58,22 +62,25 @@ async function submit($, command) {
     emit('prompt.rejected', { requestId: command.id, reason: 'Session is not idle under automation control' });
     return;
   }
-  const marker = '[workspace-bridge:' + command.id + ']';
-  const request = { id: command.id, text: marker + '\n' + command.text, turnId: null, cancelled: false };
+  if (competingSubmissions.size) {
+    emit('prompt.rejected', { requestId: command.id, reason: 'Observed native submissions have not been unambiguously completed' });
+    return;
+  }
+  const request = { id: command.id, text: command.text, generation: provenanceGeneration, turnId: null, cancelled: false };
   // Reserve synchronously, before a host call can yield to cancel or takeover.
   pending = request;
   try {
     const draft = await $.prompt.read();
-    if (draft.text || mode !== 'automation' || activeTurnId || ended || request.cancelled) {
+    if (draft.text || mode !== 'automation' || activeTurnId || ended || request.cancelled || request.generation !== provenanceGeneration) {
       emit('prompt.rejected', { requestId: command.id, reason: request.cancelled ? 'Cancelled before submission' : 'Native prompt draft or session state changed before submission', ...(request.cancelled ? { cancelled: true } : {}) });
       if (pending === request) pending = null;
       return;
     }
     // Native suppresses this plugin's prompt.submit hook on reentry. The call's
-    // result, unlike a copied text marker, carries native-validated attribution.
-    request.generation = provenanceGeneration;
+    // receipt proves ownership without adding tracking text to model context.
+    request.dispatched = true;
     request.submitting = true;
-    const result = await $.prompt.submit({ text: request.text });
+    const result = await $.prompt.submit({ text: request.text, asUser: true });
     request.submitting = false;
     request.receiptDeadline?.cancel();
     if (overflow) return;
@@ -83,7 +90,7 @@ async function submit($, command) {
     } else {
       const changed = pending !== request || provenanceGeneration !== request.generation;
       const owned = !result.drop && isOwnedSubmission(result, request);
-      const matches = !request.candidate || (owned && request.candidate.text.includes(result.text));
+      const matches = !request.candidate || (owned && request.candidate.text === result.text);
       if (changed || !owned || !matches) {
         failStream('Native prompt provenance is ambiguous; inspect the session before submitting more work',
           changed ? 'competing-submission-or-root' : !owned ? 'invalid-native-receipt' : 'root-text-mismatch');
@@ -265,28 +272,48 @@ export function register(on) {
   });
 
   on('prompt.submit', async ($, e, next) => {
-    // Observing a hook is not an acceptance receipt. Competing submissions
-    // invalidate even an in-flight receipt; a delayed result cannot rearm it.
-    if (!pending || !isOwnedSubmission(e, pending)) {
-      provenanceGeneration++;
-      if (pending) pending.source = undefined;
+    // Native suppresses our own submission hook, so any observed submission is
+    // competing, even with identical text and origin. A late receipt cannot rearm it.
+    provenanceGeneration++;
+    if (pending) pending.source = undefined;
+    const human = ['composer', 'bridge'].includes(e.origin?.kind);
+    const submission = {
+      text: e.text,
+      literal: human || (e.origin?.kind === 'plugin' && e.origin.asUser === true),
+      turnId: null, accepted: false, completed: false,
+    };
+    if (config && !overflow) {
+      if (competingSubmissions.size >= 64) {
+        failStream('Native submission tracking exhausted; inspect the session before submitting more work');
+      } else competingSubmissions.add(submission);
     }
-    if (config && ['composer', 'bridge'].includes(e.origin?.kind)) {
+    if (config && human) {
       mode = 'human';
       if (pending && !pending.turnId && !pending.candidate) pending.cancelled = true;
       emit('mode', { mode });
     }
-    return next(e);
+    // next() can drop or throw after core entry, so neither releases the fence.
+    // Even a successful result needs a completed root. Do not reconstruct native
+    // attribution wrappers or guess which of several identical submissions ran.
+    const result = await next(e);
+    submission.accepted = result?.drop === undefined && result?.text === submission.text;
+    releaseCompetingSubmission(submission);
+    return result;
   });
   on('turn.start', async ($, e, next) => {
     if (e.agentId) return next(e);
     activeTurnId = e.turnId;
+    if (!pending || (!pending.dispatched && pending.generation !== provenanceGeneration)) {
+      const matches = [...competingSubmissions].filter(submission =>
+        !submission.turnId && submission.literal && submission.text === e.text);
+      if (matches.length === 1) matches[0].turnId = e.turnId;
+    }
     // Root hooks and submit results cross host/worker RPC independently. Hold a
     // matching candidate's events, but grant no control until the receipt arrives.
     // Any competing submission or second root still invalidates that receipt.
-    const matched = pending && !pending.turnId && pending.source && e.text.includes(pending.source.text);
+    const matched = pending && !pending.turnId && pending.source && e.text === pending.source.text;
     const candidate = !overflow && pending?.submitting && !pending.candidate && !pending.turnId &&
-      pending.generation === provenanceGeneration && e.text.includes(pending.text);
+      pending.generation === provenanceGeneration && e.text === pending.text;
     if (candidate) {
       pending.candidate = { turnId: e.turnId, text: e.text, completed: false };
       pending.heldFrom = sequence + 1;
@@ -348,6 +375,11 @@ export function register(on) {
       if (pending?.turnId === e.turnId) pending = null;
       else if (pending?.candidate?.turnId === e.turnId) pending.candidate.completed = true;
       if (activeTurnId === e.turnId) activeTurnId = null;
+      for (const submission of competingSubmissions) {
+        if (submission.turnId !== e.turnId) continue;
+        submission.completed = true;
+        releaseCompetingSubmission(submission);
+      }
       if (e.isAborted) {
         mode = 'human';
         emit('mode', { mode });

@@ -477,6 +477,10 @@ func (m *Manager) createSession(ctx context.Context, harness, cwd string) (Sessi
 	defer func() { m.mu.Lock(); m.creating--; m.mu.Unlock() }()
 	s, err := backend.Create(ctx, cwd)
 	if err != nil {
+		var setup *creationSetupError
+		if errors.As(err, &setup) {
+			return Session{}, xerrors.Errorf("native %s setup failed before session creation: %w", harness, setup)
+		}
 		return Session{}, xerrors.New("native creation outcome is unknown; inspect the native terminal before retrying")
 	}
 	s.Mode, s.Archived, s.ResumePending = "human", false, true

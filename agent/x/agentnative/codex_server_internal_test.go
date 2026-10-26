@@ -142,7 +142,7 @@ func TestCodexRestartShutdownEscalatesSurvivingNativeChild(t *testing.T) {
 	require.NoError(t, err)
 	defer reader.Close()
 	defer writer.Close()
-	c.options.Environment = append(os.Environ(), "CODEX_PROCESS_HELPER=launcher")
+	c.options.Environment = append(c.options.Environment, "CODEX_PROCESS_HELPER=launcher")
 	c.options.Command = func(ctx context.Context, _ string, _ ...string) *exec.Cmd {
 		// #nosec G204 -- Reexecute only this test binary in launcher mode.
 		cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestCodexProcessHelper$")
@@ -266,14 +266,29 @@ func TestCodexShutdownRejectsLostOwnershipDirectory(t *testing.T) {
 
 func TestCodexAttachDoesNotStartMissingServer(t *testing.T) {
 	t.Parallel()
-	f := newCodexFixture(t)
-	c, s := f.codex, f.session
-	c.dial = func(context.Context, func(codexMessage), func()) (codexRPC, error) {
-		return nil, xerrors.New("no server")
+	for _, server := range []string{"existing", "missing"} {
+		t.Run(server, func(t *testing.T) {
+			t.Parallel()
+			f := newCodexFixture(t)
+			c, s := f.codex, f.session
+			home := t.TempDir()
+			codexHome := filepath.Join(home, ".codex")
+			c.options.Environment = []string{"HOME=" + home, "CODEX_HOME=" + codexHome}
+			if server == "missing" {
+				c.dial = func(context.Context, func(codexMessage), func()) (codexRPC, error) {
+					return nil, xerrors.New("no server")
+				}
+			}
+			_, err := c.Attach(t.Context(), s)
+			if server == "missing" {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Nil(t, c.owned)
+			require.NoDirExists(t, codexHome, "read-only attachment must not prepare a native home")
+		})
 	}
-	_, err := c.Attach(t.Context(), s)
-	require.Error(t, err)
-	require.Nil(t, c.owned)
 }
 
 func TestCodexServerRejectsUnsafeLog(t *testing.T) {

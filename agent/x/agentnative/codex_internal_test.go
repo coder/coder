@@ -143,7 +143,7 @@ func newCodexFixture(t *testing.T) codexTestFixture {
 	host := &codexTestHost{sessions: make(map[string]Session), events: make(map[string][]Event)}
 	stateDir := filepath.Join(t.TempDir(), "state")
 	require.NoError(t, os.Mkdir(stateDir, 0o700))
-	c, err := NewCodex(BackendOptions{StateDir: stateDir, Host: host, Clock: clock, Command: func(context.Context, string, ...string) *exec.Cmd {
+	c, err := NewCodex(BackendOptions{StateDir: stateDir, Host: host, Clock: clock, Environment: []string{"HOME=" + t.TempDir()}, Command: func(context.Context, string, ...string) *exec.Cmd {
 		t.Error("unexpected CLI invocation")
 		return exec.Command("false")
 	}})

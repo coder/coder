@@ -212,7 +212,7 @@ func (c *Codex) Create(ctx context.Context, cwd string) (Session, error) {
 	defer c.lifecycle.Unlock()
 	connection, err := c.ensure(ctx, true)
 	if err != nil {
-		return Session{}, err
+		return Session{}, &creationSetupError{err: err}
 	}
 	c.mu.Lock()
 	c.creating = true
