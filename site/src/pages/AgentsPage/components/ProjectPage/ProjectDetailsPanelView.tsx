@@ -243,9 +243,8 @@ const MembersSection: React.FC<MembersSectionProps> = ({
 		const groupCount = entries.filter((entry) => entry.kind === "group").length;
 		heading = formatMembersHeading(entries.length - groupCount, groupCount);
 	}
-	// 40px avatars overlap by 8px, so each tile after the first takes 32px.
 	const maxTiles = rowWidth
-		? Math.min(MAX_MEMBER_TILES, Math.max(1, Math.floor((rowWidth - 8) / 32)))
+		? Math.min(MAX_MEMBER_TILES, Math.max(1, Math.floor((rowWidth + 4) / 28)))
 		: MAX_MEMBER_TILES;
 	const entryCount = entries?.length ?? 0;
 	const avatarCount = entryCount > maxTiles ? maxTiles - 1 : entryCount;
@@ -268,12 +267,15 @@ const MembersSection: React.FC<MembersSectionProps> = ({
 					{heading}
 				</h3>
 				{isLoading && <Skeleton className="h-3 w-24" />}
-				<Button size="sm" variant="outline" onClick={onOpenAccess}>
+				<Button size="xs" variant="outline" onClick={onOpenAccess}>
 					{canManage ? "Manage access" : "View access"}
 				</Button>
 			</div>
 			{entries && (
-				<ul aria-label="Project members" className="m-0 flex list-none p-0">
+				<ul
+					aria-label="Project members"
+					className="m-0 flex list-none gap-1 p-0"
+				>
 					{entries.slice(0, avatarCount).map((entry) => (
 						<MemberTile
 							key={`${entry.kind}:${entry.id}`}
@@ -281,7 +283,7 @@ const MembersSection: React.FC<MembersSectionProps> = ({
 							tooltip={entry.name}
 						>
 							<Avatar
-								size="lg"
+								size="sm"
 								src={entry.avatarUrl}
 								fallback={entry.name}
 								aria-hidden="true"
@@ -292,12 +294,9 @@ const MembersSection: React.FC<MembersSectionProps> = ({
 				</ul>
 			)}
 			{isLoading && (
-				<div className="flex">
+				<div className="flex gap-1">
 					{Array.from({ length: 3 }, (_, index) => (
-						<Skeleton
-							key={index}
-							className="size-(--avatar-lg) rounded-[6px] ring-2 ring-surface-primary not-first:-ml-2"
-						/>
+						<Skeleton key={index} className="size-(--avatar-sm) rounded" />
 					))}
 					<span className="sr-only">Loading</span>
 				</div>
@@ -331,9 +330,7 @@ const MemberTile: React.FC<MemberTileProps> = ({
 	tooltip,
 	children,
 }) => (
-	<li className="flex rounded-[6px] ring-2 ring-surface-primary not-first:-ml-2">
-		{/* Tooltips flip above the row when there is no room below, so they
-		    must not take clicks meant for the View access button. */}
+	<li className="flex">
 		<Tooltip disableHoverableContent>
 			{/* A button so keyboard users can focus a tile to read its tooltip. */}
 			<TooltipTrigger
@@ -354,7 +351,6 @@ const MemberTile: React.FC<MemberTileProps> = ({
 );
 
 type OverflowTileProps = {
-	/** The entries without an avatar tile. */
 	readonly entries: readonly ProjectAccessEntry[];
 };
 
@@ -374,7 +370,7 @@ const OverflowTile: React.FC<OverflowTileProps> = ({ entries }) => {
 			}
 		>
 			<Avatar
-				size="lg"
+				size="sm"
 				aria-hidden="true"
 				className="items-center justify-center"
 			>
