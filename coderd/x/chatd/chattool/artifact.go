@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/x/coderkit"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -31,6 +32,7 @@ const publishArtifactDescription = "Publish a workspace file as an artifact that
 	"Omit artifact_id to create an artifact. To add a version, pass artifact_id and the base_version from your last publish or read_artifact. " +
 	"The user sees Markdown, HTML, SVG, Mermaid (.mmd), images, JSON, CSV and text rendered. " +
 	"HTML runs in a sandbox with no network. Scripts load only from cdnjs, unpkg, jsDelivr /npm/, and the Tailwind and jQuery CDNs. Inline all other CSS, scripts and images. " +
+	"Build HTML in the Coder product look unless the user asks for another: read the coder-kit skill first, link coder-kit.css and use its ck- classes. Coder inlines the kit when it shows the page. " +
 	`To send a message to this chat from a click handler, call parent.postMessage({type: "coder:artifact-prompt", text}, "*"). ` +
 	"The text is sent as a user message at once."
 
@@ -171,15 +173,37 @@ func PublishArtifact(opts ArtifactOptions) fantasy.AgentTool {
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
-			return toolResponse(map[string]any{
+			result := map[string]any{
 				"ok":          true,
 				"artifact_id": published.ArtifactID.String(),
 				"version":     published.Version,
 				"title":       published.Title,
 				"name":        published.Name,
 				"url":         ArtifactURL(published.ArtifactID),
-			}), nil
+			}
+			if notes := coderKitNotes(name, data); len(notes) > 0 {
+				result["notes"] = notes
+			}
+			return toolResponse(result), nil
 		})
+}
+
+// coderKitNotes checks an HTML page against the Coder Kit, so the agent
+// can fix the page in its next version.
+func coderKitNotes(name string, data []byte) []string {
+	lower := strings.ToLower(name)
+	if !strings.HasSuffix(lower, ".html") && !strings.HasSuffix(lower, ".htm") {
+		return nil
+	}
+	var notes []string
+	// A page that the coder-brand skill packed has the kit inline.
+	if !coderkit.LinksKit(data) && !bytes.Contains(data, []byte("data-coder-kit")) {
+		notes = append(notes, "The page does not link coder-kit.css, so it does not have the Coder look. Unless the user asked for another look, read the coder-kit skill and publish a new version.")
+	}
+	if unknown := coderkit.UnknownClasses(data); len(unknown) > 0 {
+		notes = append(notes, fmt.Sprintf("These classes are not in the Coder Kit and draw nothing or a solid square: %s. Read the coder-kit skill for the class names and publish a new version.", strings.Join(unknown, ", ")))
+	}
+	return notes
 }
 
 // ReadArtifact copies an artifact version into the workspace.

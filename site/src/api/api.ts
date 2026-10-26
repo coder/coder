@@ -383,9 +383,15 @@ export const getChatArtifactVersionURL = (
 	artifactId: string,
 	version: number,
 ) => `${chatArtifactPath(artifactId)}/versions/${version}`;
-/** An HTML artifact version served with a CSP sandbox, for an iframe only. */
-export const getChatArtifactFrameURL = (artifactId: string, version: number) =>
-	`${getChatArtifactVersionURL(artifactId, version)}/frame`;
+/**
+ * An HTML artifact version served with a CSP sandbox, for an iframe only.
+ * A page that links coder-kit.css gets the Coder Kit in this theme.
+ */
+export const getChatArtifactFrameURL = (
+	artifactId: string,
+	version: number,
+	theme: "light" | "dark",
+) => `${getChatArtifactVersionURL(artifactId, version)}/frame?theme=${theme}`;
 const userAIProviderKeysPath = (user = "me") =>
 	`/api/v2/users/${encodeURIComponent(user)}/ai-provider-keys`;
 const mcpServerConfigsPath = (organization: string) =>

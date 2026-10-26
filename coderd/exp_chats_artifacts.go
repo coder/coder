@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
+	"github.com/coder/coder/v2/coderd/x/coderkit"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -115,16 +116,22 @@ func (api *API) getChatArtifactVersion(rw http.ResponseWriter, r *http.Request) 
 		disposition = "inline"
 	}
 	rw.Header().Set("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{"filename": version.Name}))
-	rw.Header().Set("Content-Length", strconv.Itoa(len(version.Data)))
+	data := version.Data
+	if isHTMLName(version.Name) {
+		// A download must look like the frame, so it gets the kit inline.
+		data = coderkit.Pack(data, coderkit.ThemeNone)
+	}
+	rw.Header().Set("Content-Length", strconv.Itoa(len(data)))
 	rw.WriteHeader(http.StatusOK)
-	if _, err := rw.Write(version.Data); err != nil {
+	if _, err := rw.Write(data); err != nil {
 		api.Logger.Debug(ctx, "failed to write chat artifact version", slog.Error(err))
 	}
 }
 
 // chatArtifactFrame serves an HTML version for an iframe with a CSP
 // sandbox. Sec-Fetch-Dest stops top-level visits only; the sandbox is the
-// boundary.
+// boundary. A page that links coder-kit.css gets the Coder Kit inline, in
+// the theme that the theme query parameter names.
 // EXPERIMENTAL
 func (api *API) chatArtifactFrame(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -146,7 +153,8 @@ func (api *API) chatArtifactFrame(rw http.ResponseWriter, r *http.Request) {
 	rw.Header().Set("Referrer-Policy", "no-referrer")
 	rw.Header().Set("X-Content-Type-Options", "nosniff")
 	rw.WriteHeader(http.StatusOK)
-	if _, err := rw.Write(version.Data); err != nil {
+	data := coderkit.Pack(version.Data, coderkit.ParseTheme(r.URL.Query().Get("theme")))
+	if _, err := rw.Write(data); err != nil {
 		api.Logger.Debug(ctx, "failed to write chat artifact frame", slog.Error(err))
 	}
 }

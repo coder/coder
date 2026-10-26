@@ -35,6 +35,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
+	"github.com/coder/coder/v2/coderd/x/coderkit"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -694,8 +695,14 @@ func (p *Server) buildTurnEnvironment(
 	if !isRootChat {
 		subagentInstruction = defaultSubagentInstruction
 	}
+	var builtinSkills []skillspkg.Skill
+	if isRootChat {
+		// The coder-kit skill teaches the look of HTML artifacts, so it
+		// comes with the artifact tools.
+		builtinSkills = []skillspkg.Skill{coderkit.Skill().Skill}
+	}
 	resolvedSkillsFor := func(workspaceSkills []chattool.SkillMeta) []skillspkg.ResolvedSkill {
-		return mergeTurnSkills(personalSkills, orgSkills, projectSkills, workspaceSkills)
+		return mergeTurnSkills(personalSkills, orgSkills, projectSkills, workspaceSkills, builtinSkills)
 	}
 	resolveSkillAlias := func(alias string) (skillspkg.ResolvedSkill, error) {
 		return skillspkg.Lookup(resolvedSkillsFor(workspaceSkills), alias)
@@ -794,13 +801,15 @@ func (p *Server) buildTurnEnvironment(
 				return p.loadOrganizationSkillBody(ctx, orgSkillReader, chat.OrganizationID, skill.Name, skillLoaderModel)
 			case skillspkg.SourceProject:
 				return p.loadProjectSkillBody(ctx, usableProjectID.UUID, skill.Name, skillLoaderModel)
+			case skillspkg.SourceBuiltin:
+				return loadBuiltinSkillBody(skill.Name)
 			default:
 				return p.loadPersonalSkillBody(ctx, chat.OwnerID, skill.Name, skillLoaderModel)
 			}
 		},
 	}
 	appendCurrentSkillTools := func(current []fantasy.AgentTool) ([]fantasy.AgentTool, bool) {
-		if len(personalSkills) == 0 && len(orgSkills) == 0 && len(projectSkills) == 0 && len(workspaceSkills) == 0 {
+		if len(personalSkills) == 0 && len(orgSkills) == 0 && len(projectSkills) == 0 && len(workspaceSkills) == 0 && len(builtinSkills) == 0 {
 			return current, false
 		}
 		updated := current
@@ -2204,13 +2213,23 @@ func mergeTurnSkills(
 	organizationSkills []skillspkg.Skill,
 	projectSkills []skillspkg.Skill,
 	workspaceSkills []chattool.SkillMeta,
+	builtinSkills []skillspkg.Skill,
 ) []skillspkg.ResolvedSkill {
 	return skillspkg.MergeSkills(
 		skillspkg.SourceSkills{Source: skillspkg.SourcePersonal, Skills: personalSkills},
 		skillspkg.SourceSkills{Source: skillspkg.SourceOrganization, Skills: organizationSkills},
 		skillspkg.SourceSkills{Source: skillspkg.SourceProject, Skills: projectSkills},
 		skillspkg.SourceSkills{Source: skillspkg.SourceWorkspace, Skills: workspaceSkillsForResolution(workspaceSkills)},
+		skillspkg.SourceSkills{Source: skillspkg.SourceBuiltin, Skills: builtinSkills},
 	)
+}
+
+// loadBuiltinSkillBody returns a skill that ships in the coderd binary.
+func loadBuiltinSkillBody(name string) (skillspkg.ParsedSkill, error) {
+	if kit := coderkit.Skill(); kit.Name == name {
+		return kit, nil
+	}
+	return skillspkg.ParsedSkill{}, xerrors.Errorf("%q: %w", name, skillspkg.ErrSkillNotFound)
 }
 
 // buildSystemPrompt applies system-level prompt injections in a fixed

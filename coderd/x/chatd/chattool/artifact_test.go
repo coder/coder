@@ -82,7 +82,8 @@ func TestPublishArtifact(t *testing.T) {
 	t.Run("CreateDefaultsTitleToFileName", func(t *testing.T) {
 		t.Parallel()
 		conn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
-		expectRead(conn, "/home/coder/funnel-report.html", "<h1>hi</h1>")
+		page := `<link rel="stylesheet" href="coder-kit.css"><h1 class="ck-h1">hi</h1>`
+		expectRead(conn, "/home/coder/funnel-report.html", page)
 		store := &fakeArtifactStore{}
 		publish, _ := artifactTools(conn, store)
 
@@ -93,7 +94,7 @@ func TestPublishArtifact(t *testing.T) {
 		require.Equal(t, "funnel-report", store.published.Title)
 		require.Equal(t, "first", store.published.Label)
 		require.Equal(t, "funnel-report.html", store.published.Name)
-		require.Equal(t, []byte("<h1>hi</h1>"), store.published.Data)
+		require.Equal(t, []byte(page), store.published.Data)
 		require.Equal(t, map[string]any{
 			"ok":          true,
 			"artifact_id": "11111111-2222-3333-4444-555555555555",
@@ -119,6 +120,39 @@ func TestPublishArtifact(t *testing.T) {
 		require.Empty(t, store.published.Title, "an update without title keeps the title")
 		require.Equal(t, float64(2), out["version"])
 		require.Equal(t, "/agents/artifacts/"+id.String(), out["url"])
+		require.NotContains(t, out, "notes", "only HTML is checked against the Coder Kit")
+	})
+
+	t.Run("HTMLNotesCheckTheCoderKit", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name  string
+			page  string
+			notes []string
+		}{
+			{name: "NoKit", page: "<h1>hi</h1>", notes: []string{"does not link coder-kit.css"}},
+			{name: "PackedKit", page: "<style data-coder-kit>.ck-btn{}</style><h1>hi</h1>"},
+			{name: "UnknownClasses", page: `<link rel="stylesheet" href="coder-kit.css"><b class="ck-btn ck-butt ck-icon-nope"></b>`, notes: []string{"ck-butt, ck-icon-nope"}},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				conn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+				expectRead(conn, "/tmp/page.html", tc.page)
+				publish, _ := artifactTools(conn, &fakeArtifactStore{})
+				resp, out := runArtifactTool(t, publish, map[string]any{"path": "/tmp/page.html"})
+				require.False(t, resp.IsError, resp.Content)
+				if len(tc.notes) == 0 {
+					require.NotContains(t, out, "notes")
+					return
+				}
+				notes, ok := out["notes"].([]any)
+				require.True(t, ok, "notes is a list: %v", out["notes"])
+				require.Len(t, notes, len(tc.notes))
+				for i, want := range tc.notes {
+					require.Contains(t, notes[i], want)
+				}
+			})
+		}
 	})
 
 	t.Run("StaleBaseNamesLatest", func(t *testing.T) {

@@ -320,9 +320,9 @@ type ReadSkillOptions struct {
 	GetSkills        func() []SkillMeta
 	ResolveAlias     func(string) (skillspkg.ResolvedSkill, error)
 	// LoadStoredSkillBody loads the current body of a personal,
-	// organization, or project skill. It returns skillspkg.ErrSkillNotFound
-	// when the skill is gone, disabled, or no longer readable by the chat
-	// owner.
+	// organization, project, or built-in skill. It returns
+	// skillspkg.ErrSkillNotFound when the skill is gone, disabled, or no
+	// longer readable by the chat owner.
 	LoadStoredSkillBody func(context.Context, skillspkg.Skill) (skillspkg.ParsedSkill, error)
 }
 
@@ -354,7 +354,7 @@ func ReadSkill(options ReadSkillOptions) fantasy.AgentTool {
 			}
 
 			switch resolved.Source {
-			case skillspkg.SourcePersonal, skillspkg.SourceOrganization, skillspkg.SourceProject:
+			case skillspkg.SourcePersonal, skillspkg.SourceOrganization, skillspkg.SourceProject, skillspkg.SourceBuiltin:
 				if options.LoadStoredSkillBody == nil {
 					return fantasy.NewTextErrorResponse(
 						"stored skill loader is not configured",

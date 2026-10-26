@@ -2,6 +2,7 @@ import { RotateCwIcon } from "lucide-react";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { getChatArtifactFrameURL } from "#/api/api";
 import { Button } from "#/components/Button/Button";
+import { useTheme } from "#/theme/context";
 import { acceptArtifactMessage } from "./artifactBridge";
 
 type ArtifactFrameProps = {
@@ -20,7 +21,10 @@ type ArtifactFrameProps = {
  */
 export const ArtifactFrame: React.FC<ArtifactFrameProps> = (props) => {
 	const [reloadCount, setReloadCount] = useState(0);
-	const src = getChatArtifactFrameURL(props.artifactId, props.version);
+	// A page that uses the Coder Kit follows the dashboard theme. A theme
+	// change gives the frame a new src, so the page reloads in that theme.
+	const theme = useTheme().palette.mode === "dark" ? "dark" : "light";
+	const src = getChatArtifactFrameURL(props.artifactId, props.version, theme);
 	return (
 		<FrameInstance
 			// A new src or a reload starts a fresh load count.

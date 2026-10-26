@@ -38,6 +38,8 @@ const (
 	SourceProject Source = "project"
 	// SourceWorkspace identifies a filesystem-discovered workspace skill.
 	SourceWorkspace Source = "workspace"
+	// SourceBuiltin identifies a skill that ships in the coderd binary.
+	SourceBuiltin Source = "builtin"
 )
 
 var (

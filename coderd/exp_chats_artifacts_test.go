@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -223,6 +224,58 @@ func TestChatArtifact(t *testing.T) {
 		_, contentType, err := owner.ChatArtifactVersionData(ctx, shared.ID, 2)
 		require.NoError(t, err)
 		require.Equal(t, "text/markdown", contentType)
+	})
+
+	t.Run("CoderKitIsInlined", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		artifact, err := db.InsertChatArtifact(sysCtx, database.InsertChatArtifactParams{
+			OrganizationID: orgID,
+			OwnerID:        ownerUser.ID,
+			Title:          "Kit page",
+		})
+		require.NoError(t, err)
+		page := `<link rel="stylesheet" href="coder-kit.css"><body class="ck-page">Kit</body>`
+		_, err = db.InsertChatArtifactVersion(sysCtx, database.InsertChatArtifactVersionParams{
+			ArtifactID: artifact.ID,
+			Name:       "kit.html",
+			Mimetype:   "text/plain",
+			Data:       []byte(page),
+			CreatedBy:  uuid.NullUUID{UUID: ownerUser.ID, Valid: true},
+			ChatID:     uuid.NullUUID{UUID: chat.ID, Valid: true},
+		})
+		require.NoError(t, err)
+
+		get := func(path string, dest string) string {
+			res, err := owner.Request(ctx, http.MethodGet, path, nil, func(r *http.Request) {
+				if dest != "" {
+					r.Header.Set("Sec-Fetch-Dest", dest)
+				}
+			})
+			require.NoError(t, err)
+			defer res.Body.Close()
+			require.Equal(t, http.StatusOK, res.StatusCode)
+			body, err := io.ReadAll(res.Body)
+			require.NoError(t, err)
+			return string(body)
+		}
+		versionPath := fmt.Sprintf("/api/experimental/chats/artifacts/%s/versions/1", artifact.ID)
+
+		framed := get(versionPath+"/frame?theme=dark", "iframe")
+		require.Contains(t, framed, "<style data-coder-kit>")
+		require.Contains(t, framed, `r.setAttribute("data-theme","dark")`)
+		require.NotContains(t, framed, `href="coder-kit.css"`)
+		require.True(t, strings.HasSuffix(framed, `<body class="ck-page">Kit</body>`))
+
+		// The download is self-contained too, and leaves the theme to the OS.
+		downloaded := get(versionPath, "")
+		require.Contains(t, downloaded, "<style data-coder-kit>")
+		require.NotContains(t, downloaded, `r.setAttribute("data-theme"`)
+
+		// Agents edit the stored page, which keeps the link.
+		stored, err := db.GetChatArtifactVersion(sysCtx, database.GetChatArtifactVersionParams{ArtifactID: artifact.ID, Version: 1})
+		require.NoError(t, err)
+		require.Equal(t, page, string(stored.Data))
 	})
 }
 
