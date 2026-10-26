@@ -1519,8 +1519,8 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatComputerUseProvider(gomock.Any()).Return("anthropic", nil).AnyTimes()
 		check.Args().Asserts()
 	}))
-	s.Run("GetChatComputerUseAIProviderID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().GetChatComputerUseAIProviderID(gomock.Any()).Return("", nil).AnyTimes()
+	s.Run("GetChatComputerUseSelection", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetChatComputerUseSelection(gomock.Any()).Return(database.GetChatComputerUseSelectionRow{Provider: "anthropic"}, nil).AnyTimes()
 		check.Args().Asserts()
 	}))
 	s.Run("GetChatOrganizationModelOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {

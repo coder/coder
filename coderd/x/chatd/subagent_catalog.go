@@ -137,10 +137,11 @@ func allSubagentDefinitions() []subagentDefinition {
 				if !p.experiments.Enabled(codersdk.ExperimentChatVirtualDesktop) {
 					return `type "computer_use" is unavailable because the chat-virtual-desktop experiment is not enabled`, nil
 				}
-				rawProvider, err := p.db.GetChatComputerUseProvider(computerUseConfigContext(ctx))
+				selection, err := p.db.GetChatComputerUseSelection(computerUseConfigContext(ctx))
 				if err != nil {
 					return "", xerrors.Errorf("get computer use provider: %w", err)
 				}
+				rawProvider := selection.Provider
 				modelProvider, _, ok := chattool.DefaultComputerUseModel(codersdk.ChatComputerUseProvider(strings.TrimSpace(rawProvider)))
 				if !ok {
 					p.logger.Warn(ctx, "computer-use provider config is unavailable",
@@ -149,11 +150,7 @@ func allSubagentDefinitions() []subagentDefinition {
 					)
 					return `type "computer_use" is unavailable because its provider configuration could not be loaded`, nil
 				}
-				rawAIProviderID, err := p.db.GetChatComputerUseAIProviderID(computerUseConfigContext(ctx))
-				if err != nil {
-					return "", xerrors.Errorf("get computer use AI provider: %w", err)
-				}
-				rawAIProviderID = strings.TrimSpace(rawAIProviderID)
+				rawAIProviderID := strings.TrimSpace(selection.AIProviderID)
 				if rawAIProviderID == "" {
 					return "", nil
 				}

@@ -6182,7 +6182,7 @@ func (api *API) putUserChatPersonalModelOverride(rw http.ResponseWriter, r *http
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatComputerUseProvider(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	provider, err := api.Database.GetChatComputerUseProvider(ctx)
+	selection, err := api.Database.GetChatComputerUseSelection(ctx)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching computer use provider.",
@@ -6190,18 +6190,10 @@ func (api *API) getChatComputerUseProvider(rw http.ResponseWriter, r *http.Reque
 		})
 		return
 	}
-	aiProviderID, err := api.Database.GetChatComputerUseAIProviderID(ctx)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching computer use AI provider.",
-			Detail:  err.Error(),
-		})
-		return
-	}
 	resp := codersdk.ChatComputerUseProviderResponse{
-		Provider: chattool.DefaultComputerUseProvider(codersdk.ChatComputerUseProvider(provider)),
+		Provider: chattool.DefaultComputerUseProvider(codersdk.ChatComputerUseProvider(selection.Provider)),
 	}
-	if id, err := uuid.Parse(aiProviderID); err == nil {
+	if id, err := uuid.Parse(selection.AIProviderID); err == nil {
 		resp.AIProviderID = &id
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)

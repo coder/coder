@@ -1576,19 +1576,19 @@ func (m queryMetricsStore) GetChatByIDForUpdate(ctx context.Context, id uuid.UUI
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatComputerUseAIProviderID(ctx context.Context) (string, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatComputerUseAIProviderID(ctx)
-	m.queryLatencies.WithLabelValues("GetChatComputerUseAIProviderID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatComputerUseAIProviderID").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetChatComputerUseProvider(ctx context.Context) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatComputerUseProvider(ctx)
 	m.queryLatencies.WithLabelValues("GetChatComputerUseProvider").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatComputerUseProvider").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatComputerUseSelection(ctx context.Context) (database.GetChatComputerUseSelectionRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatComputerUseSelection(ctx)
+	m.queryLatencies.WithLabelValues("GetChatComputerUseSelection").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatComputerUseSelection").Inc()
 	return r0, r1
 }
 

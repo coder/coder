@@ -44,14 +44,13 @@ type computerUseConfig struct {
 func (p *Server) computerUseProviderAndModelFromConfig(
 	ctx context.Context,
 ) (computerUseConfig, error) {
-	configCtx := computerUseConfigContext(ctx)
-	rawProvider, err := p.db.GetChatComputerUseProvider(configCtx)
+	selection, err := p.db.GetChatComputerUseSelection(computerUseConfigContext(ctx))
 	if err != nil {
 		return computerUseConfig{}, xerrors.Errorf("get computer use provider: %w", err)
 	}
 
 	provider := chattool.DefaultComputerUseProvider(
-		codersdk.ChatComputerUseProvider(strings.TrimSpace(rawProvider)),
+		codersdk.ChatComputerUseProvider(strings.TrimSpace(selection.Provider)),
 	)
 
 	modelProvider, modelName, ok := chattool.DefaultComputerUseModel(provider)
@@ -62,12 +61,8 @@ func (p *Server) computerUseProviderAndModelFromConfig(
 		)
 	}
 
-	rawAIProviderID, err := p.db.GetChatComputerUseAIProviderID(configCtx)
-	if err != nil {
-		return computerUseConfig{}, xerrors.Errorf("get computer use AI provider: %w", err)
-	}
 	var aiProviderID uuid.NullUUID
-	if trimmed := strings.TrimSpace(rawAIProviderID); trimmed != "" {
+	if trimmed := strings.TrimSpace(selection.AIProviderID); trimmed != "" {
 		id, err := uuid.Parse(trimmed)
 		if err != nil {
 			return computerUseConfig{}, xerrors.Errorf(

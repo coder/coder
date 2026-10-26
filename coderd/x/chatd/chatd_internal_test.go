@@ -473,20 +473,16 @@ func TestComputerUseProviderAndModelFromConfig(t *testing.T) {
 			db := dbmock.NewMockStore(ctrl)
 			server := &Server{db: db}
 
-			db.EXPECT().GetChatComputerUseProvider(gomock.Any()).DoAndReturn(
-				func(ctx context.Context) (string, error) {
+			db.EXPECT().GetChatComputerUseSelection(gomock.Any()).DoAndReturn(
+				func(ctx context.Context) (database.GetChatComputerUseSelectionRow, error) {
 					_, ok := dbauthz.ActorFromContext(ctx)
 					require.True(t, ok, "config reads must have an actor")
-					return tt.rawProvider, nil
+					return database.GetChatComputerUseSelectionRow{
+						Provider:     tt.rawProvider,
+						AIProviderID: tt.rawAIProviderID,
+					}, nil
 				},
 			)
-			db.EXPECT().GetChatComputerUseAIProviderID(gomock.Any()).DoAndReturn(
-				func(ctx context.Context) (string, error) {
-					_, ok := dbauthz.ActorFromContext(ctx)
-					require.True(t, ok, "config reads must have an actor")
-					return tt.rawAIProviderID, nil
-				},
-			).MaxTimes(1)
 
 			cfg, err := server.computerUseProviderAndModelFromConfig(context.Background())
 			if tt.wantErr != "" {

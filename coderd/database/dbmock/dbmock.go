@@ -2964,21 +2964,6 @@ func (mr *MockStoreMockRecorder) GetChatByIDForUpdate(ctx, id any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatByIDForUpdate", reflect.TypeOf((*MockStore)(nil).GetChatByIDForUpdate), ctx, id)
 }
 
-// GetChatComputerUseAIProviderID mocks base method.
-func (m *MockStore) GetChatComputerUseAIProviderID(ctx context.Context) (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatComputerUseAIProviderID", ctx)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetChatComputerUseAIProviderID indicates an expected call of GetChatComputerUseAIProviderID.
-func (mr *MockStoreMockRecorder) GetChatComputerUseAIProviderID(ctx any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatComputerUseAIProviderID", reflect.TypeOf((*MockStore)(nil).GetChatComputerUseAIProviderID), ctx)
-}
-
 // GetChatComputerUseProvider mocks base method.
 func (m *MockStore) GetChatComputerUseProvider(ctx context.Context) (string, error) {
 	m.ctrl.T.Helper()
@@ -2992,6 +2977,21 @@ func (m *MockStore) GetChatComputerUseProvider(ctx context.Context) (string, err
 func (mr *MockStoreMockRecorder) GetChatComputerUseProvider(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatComputerUseProvider", reflect.TypeOf((*MockStore)(nil).GetChatComputerUseProvider), ctx)
+}
+
+// GetChatComputerUseSelection mocks base method.
+func (m *MockStore) GetChatComputerUseSelection(ctx context.Context) (database.GetChatComputerUseSelectionRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatComputerUseSelection", ctx)
+	ret0, _ := ret[0].(database.GetChatComputerUseSelectionRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatComputerUseSelection indicates an expected call of GetChatComputerUseSelection.
+func (mr *MockStoreMockRecorder) GetChatComputerUseSelection(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatComputerUseSelection", reflect.TypeOf((*MockStore)(nil).GetChatComputerUseSelection), ctx)
 }
 
 // GetChatDebugLoggingAllowUsers mocks base method.

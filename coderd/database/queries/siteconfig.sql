@@ -257,10 +257,12 @@ SELECT
 INSERT INTO site_configs (key, value) VALUES ('agents_computer_use_provider', sqlc.arg(provider))
 ON CONFLICT (key) DO UPDATE SET value = sqlc.arg(provider) WHERE site_configs.key = 'agents_computer_use_provider';
 
--- GetChatComputerUseAIProviderID returns the ID of the AI provider selected
--- for computer use, or '' when no specific provider is selected.
--- name: GetChatComputerUseAIProviderID :one
+-- GetChatComputerUseSelection returns the computer-use provider type and the
+-- ID of the AI provider selected for it, each '' when unset. Both values come
+-- from one statement so readers never see a torn pair while an update runs.
+-- name: GetChatComputerUseSelection :one
 SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_computer_use_provider'), '') :: text AS provider,
 	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_computer_use_ai_provider_id'), '') :: text AS ai_provider_id;
 
 -- name: UpsertChatComputerUseAIProviderID :exec

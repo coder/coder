@@ -2924,12 +2924,63 @@ func TestSpawnAgent_ComputerUseUnavailableForUnusableSelectedAIProvider(t *testi
 	}
 }
 
+// computerUseConfigSwitchStore commits a switch to another valid
+// computer-use configuration right after the first armed config read.
+type computerUseConfigSwitchStore struct {
+	database.Store
+	armed    atomic.Bool
+	switched sync.Once
+	switchTo func(context.Context) error
+}
+
+func (s *computerUseConfigSwitchStore) GetChatComputerUseSelection(ctx context.Context) (database.GetChatComputerUseSelectionRow, error) {
+	selection, err := s.Store.GetChatComputerUseSelection(ctx)
+	if err == nil && s.armed.Load() {
+		s.switched.Do(func() { err = s.switchTo(ctx) })
+	}
+	return selection, err
+}
+
+func TestSpawnAgent_ComputerUseAvailableWhileSwitchingValidConfigs(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+	anthropicProvider := insertInternalAIProvider(t, db, database.AIProviderTypeAnthropic, "test-key", true)
+	openAIProvider := insertInternalAIProvider(t, db, database.AIProviderTypeOpenai, "test-key", true)
+	store := &computerUseConfigSwitchStore{
+		Store: db,
+		switchTo: func(ctx context.Context) error {
+			return db.InTx(func(tx database.Store) error {
+				if err := tx.UpsertChatComputerUseProvider(ctx, string(codersdk.ChatComputerUseProviderOpenAI)); err != nil {
+					return err
+				}
+				return tx.UpsertChatComputerUseAIProviderID(ctx, openAIProvider.ID.String())
+			}, nil)
+		},
+	}
+	server := newInternalTestServer(t, store, ps, chatprovider.ProviderAPIKeys{})
+
+	user, org, model := seedInternalChatDeps(t, db)
+	insertEnabledAnthropicProvider(t, db, user.ID)
+	require.NoError(t, db.UpsertChatComputerUseProvider(ctx, string(codersdk.ChatComputerUseProviderAnthropic)))
+	require.NoError(t, db.UpsertChatComputerUseAIProviderID(ctx, anthropicProvider.ID.String()))
+	parentChat := createInternalParentChat(
+		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-switching-computer-use-config",
+	)
+
+	store.armed.Store(true)
+	ids, err := availableSubagentTypeIDs(ctx, server, parentChat)
+	require.NoError(t, err)
+	require.Contains(t, ids, subagentTypeComputerUse)
+}
+
 type computerUseProviderErrorStore struct {
 	database.Store
 }
 
-func (computerUseProviderErrorStore) GetChatComputerUseProvider(context.Context) (string, error) {
-	return "", sql.ErrConnDone
+func (computerUseProviderErrorStore) GetChatComputerUseSelection(context.Context) (database.GetChatComputerUseSelectionRow, error) {
+	return database.GetChatComputerUseSelectionRow{}, sql.ErrConnDone
 }
 
 func TestSpawnAgent_ComputerUseProviderReadErrorFails(t *testing.T) {

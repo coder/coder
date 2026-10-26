@@ -468,10 +468,11 @@ type sqlcQuerier interface {
 	GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatByIDForShare(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error)
-	// GetChatComputerUseAIProviderID returns the ID of the AI provider selected
-	// for computer use, or '' when no specific provider is selected.
-	GetChatComputerUseAIProviderID(ctx context.Context) (string, error)
 	GetChatComputerUseProvider(ctx context.Context) (string, error)
+	// GetChatComputerUseSelection returns the computer-use provider type and the
+	// ID of the AI provider selected for it, each '' when unset. Both values come
+	// from one statement so readers never see a torn pair while an update runs.
+	GetChatComputerUseSelection(ctx context.Context) (GetChatComputerUseSelectionRow, error)
 	// GetChatDebugLoggingAllowUsers returns the runtime admin setting that
 	// allows users to opt into chat debug logging when the deployment does
 	// not already force debug logging on globally.

@@ -28071,20 +28071,6 @@ func (q *sqlQuerier) GetChatAutoArchiveDays(ctx context.Context, defaultAutoArch
 	return auto_archive_days, err
 }
 
-const getChatComputerUseAIProviderID = `-- name: GetChatComputerUseAIProviderID :one
-SELECT
-	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_computer_use_ai_provider_id'), '') :: text AS ai_provider_id
-`
-
-// GetChatComputerUseAIProviderID returns the ID of the AI provider selected
-// for computer use, or ” when no specific provider is selected.
-func (q *sqlQuerier) GetChatComputerUseAIProviderID(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getChatComputerUseAIProviderID)
-	var ai_provider_id string
-	err := row.Scan(&ai_provider_id)
-	return ai_provider_id, err
-}
-
 const getChatComputerUseProvider = `-- name: GetChatComputerUseProvider :one
 SELECT
 	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_computer_use_provider'), '') :: text AS provider
@@ -28095,6 +28081,27 @@ func (q *sqlQuerier) GetChatComputerUseProvider(ctx context.Context) (string, er
 	var provider string
 	err := row.Scan(&provider)
 	return provider, err
+}
+
+const getChatComputerUseSelection = `-- name: GetChatComputerUseSelection :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_computer_use_provider'), '') :: text AS provider,
+	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_computer_use_ai_provider_id'), '') :: text AS ai_provider_id
+`
+
+type GetChatComputerUseSelectionRow struct {
+	Provider     string `db:"provider" json:"provider"`
+	AIProviderID string `db:"ai_provider_id" json:"ai_provider_id"`
+}
+
+// GetChatComputerUseSelection returns the computer-use provider type and the
+// ID of the AI provider selected for it, each ” when unset. Both values come
+// from one statement so readers never see a torn pair while an update runs.
+func (q *sqlQuerier) GetChatComputerUseSelection(ctx context.Context) (GetChatComputerUseSelectionRow, error) {
+	row := q.db.QueryRowContext(ctx, getChatComputerUseSelection)
+	var i GetChatComputerUseSelectionRow
+	err := row.Scan(&i.Provider, &i.AIProviderID)
+	return i, err
 }
 
 const getChatDebugLoggingAllowUsers = `-- name: GetChatDebugLoggingAllowUsers :one

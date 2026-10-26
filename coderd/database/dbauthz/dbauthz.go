@@ -3365,15 +3365,6 @@ func (q *querier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (datab
 	return fetch(q.log, q.auth, q.db.GetChatByIDForUpdate)(ctx, id)
 }
 
-func (q *querier) GetChatComputerUseAIProviderID(ctx context.Context) (string, error) {
-	// Read by authenticated chat users and chatd alongside the computer-use
-	// provider type, so it follows the same explicit-actor rule.
-	if _, ok := ActorFromContext(ctx); !ok {
-		return "", ErrNoActor
-	}
-	return q.db.GetChatComputerUseAIProviderID(ctx)
-}
-
 func (q *querier) GetChatComputerUseProvider(ctx context.Context) (string, error) {
 	// The computer-use provider is a deployment-wide runtime chat setting
 	// read by authenticated chat users and chatd. Feature and experiment
@@ -3384,6 +3375,15 @@ func (q *querier) GetChatComputerUseProvider(ctx context.Context) (string, error
 		return "", ErrNoActor
 	}
 	return q.db.GetChatComputerUseProvider(ctx)
+}
+
+func (q *querier) GetChatComputerUseSelection(ctx context.Context) (database.GetChatComputerUseSelectionRow, error) {
+	// Read by authenticated chat users and chatd, so it follows the same
+	// explicit-actor rule as GetChatComputerUseProvider.
+	if _, ok := ActorFromContext(ctx); !ok {
+		return database.GetChatComputerUseSelectionRow{}, ErrNoActor
+	}
+	return q.db.GetChatComputerUseSelection(ctx)
 }
 
 func (q *querier) GetChatDebugLoggingAllowUsers(ctx context.Context) (bool, error) {
