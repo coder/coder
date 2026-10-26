@@ -147,7 +147,7 @@ export const AttachmentPreview: React.FC<{
 							{isRasterImageMediaType(file.type) && previewUrl ? (
 								<button
 									type="button"
-									className="border-0 bg-transparent p-0 cursor-pointer transition-opacity hover:opacity-80"
+									className="peer border-0 bg-transparent p-0 cursor-pointer transition-opacity hover:opacity-80"
 									onClick={() => onPreview(previewUrl)}
 								>
 									<ImageThumbnail previewUrl={previewUrl} alt={file.name} />
@@ -156,7 +156,7 @@ export const AttachmentPreview: React.FC<{
 								<button
 									type="button"
 									aria-label={`View ${file.name}`}
-									className="flex h-16 w-28 flex-col items-start justify-start overflow-hidden rounded-md border-0 bg-surface-tertiary p-2 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+									className="peer flex h-16 w-28 flex-col items-start justify-start overflow-hidden rounded-md border-0 bg-surface-tertiary p-2 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 									onClick={async () => {
 										const nextContent = await loadTextAttachmentContent(
 											textContent,
@@ -175,22 +175,6 @@ export const AttachmentPreview: React.FC<{
 								<div className="flex size-16 items-center justify-center rounded-md border border-border bg-surface-secondary text-xs text-content-secondary">
 									{file.name.split(".").pop()?.toUpperCase() || "FILE"}
 								</div>
-							)}
-							{hasTextAttachment && (
-								<button
-									type="button"
-									onClick={async () => {
-										const nextContent = await loadTextAttachmentContent(
-											textContent,
-											textFileId,
-										);
-										onInlineText(file, nextContent);
-									}}
-									className="absolute -bottom-2 -right-2 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-xs opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
-									aria-label="Paste inline"
-								>
-									<ClipboardPasteIcon aria-hidden="true" className="size-3.5" />
-								</button>
 							)}
 							{(uploadState?.status === "pending" ||
 								uploadState?.status === "processing" ||
@@ -217,14 +201,37 @@ export const AttachmentPreview: React.FC<{
 									</TooltipContent>
 								</Tooltip>
 							)}
-							<button
-								type="button"
-								onClick={() => onRemove(file)}
-								className="absolute -right-2 -top-2 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-xs opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
-								aria-label={`Remove ${file.name}`}
-							>
-								<XIcon aria-hidden="true" className="size-3.5" />
-							</button>
+							{/* Focus on either button shows both. Only subject `focus-within`: WebKit
+							    restyles every ancestor's subtree while any `A:focus-within B` exists. */}
+							<div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity group-hover:opacity-100 peer-focus:opacity-100 focus-within:opacity-100">
+								{hasTextAttachment && (
+									<button
+										type="button"
+										onClick={async () => {
+											const nextContent = await loadTextAttachmentContent(
+												textContent,
+												textFileId,
+											);
+											onInlineText(file, nextContent);
+										}}
+										className="pointer-events-auto absolute -bottom-2 -right-2 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-xs hover:bg-surface-secondary hover:text-content-primary"
+										aria-label="Paste inline"
+									>
+										<ClipboardPasteIcon
+											aria-hidden="true"
+											className="size-3.5"
+										/>
+									</button>
+								)}
+								<button
+									type="button"
+									onClick={() => onRemove(file)}
+									className="pointer-events-auto absolute -right-2 -top-2 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-xs hover:bg-surface-secondary hover:text-content-primary"
+									aria-label={`Remove ${file.name}`}
+								>
+									<XIcon aria-hidden="true" className="size-3.5" />
+								</button>
+							</div>
 						</div>
 					);
 				})}

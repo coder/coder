@@ -1327,9 +1327,10 @@ export const AssistantMessageWithImage: Story = {
 			"src",
 			`data:image/png;base64,${MockPngBase64}`,
 		);
-		expect(
-			canvas.queryByRole("link", { name: "Download generated-image.png" }),
-		).not.toBeInTheDocument();
+		const download = canvas.getByRole("link", {
+			name: "Download generated-image.png",
+		});
+		expect(getComputedStyle(download).opacity).toBe("0");
 		expect(
 			canvas.queryByRole("button", { name: "Copy message" }),
 		).not.toBeInTheDocument();
@@ -1339,10 +1340,14 @@ export const AssistantMessageWithImage: Story = {
 		viewButton.focus();
 		expect(viewButton).toHaveFocus();
 		await waitFor(() => {
-			expect(
-				canvas.getByRole("link", { name: "Download generated-image.png" }),
-			).toBeVisible();
+			expect(getComputedStyle(download).opacity).toBe("1");
 		});
+		await userEvent.keyboard("{Tab}");
+		expect(download).toHaveFocus();
+		await waitFor(() => {
+			expect(getComputedStyle(download).opacity).toBe("1");
+		});
+		expect(viewButton).toBeVisible();
 	},
 };
 
