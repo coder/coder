@@ -62,7 +62,7 @@ How channel sessions behave:
 1. On the claude.ai [Cloud environments](https://claude.ai/admin-settings/cloud-environments) page, create a self-hosted environment for channel sessions and copy its key.
    Give it an obvious name, such as `Slack Tag Channels`.
 
-1. Store the key the same way as your other [environment keys](./claude-code.md#3-store-the-environment-key).
+1. Store the key the same way as your other [environment keys](./claude-code.md#step-3-store-the-environment-key).
 
 1. Create a template for channel sessions based on your Agent Relay template.
 

@@ -3,7 +3,7 @@ title: Agent Relay
 ---
 
 > [!NOTE]
-> Agent Relay is in [beta](../../reference/feature-stages.md#beta).
+> Agent Relay is in [beta](../../reference/feature-stages.md#beta) and requires a Premium license.
 > Test it in a staging deployment before you roll it out to production users.
 
 Agent Relay connects a cloud-hosted AI coding agent's sessions to self-hosted [Coder workspaces](../../user-guides/workspace-management.md).
@@ -82,7 +82,7 @@ One Agent Relay process can serve pools for both providers.
 
 ## Requirements
 
-- A licensed Coder deployment on version 2.37 or later.
+- A Coder deployment with a Premium license, on version 2.37 or later.
 - A Coder service account with a long-lived token.
 - A workspace template for each pool that includes the provider's Agent Relay module.
 - Provisioner capacity for Agent Relay builds.

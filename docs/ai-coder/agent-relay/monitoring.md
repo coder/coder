@@ -7,10 +7,9 @@ title: Monitor Agent Relay
 > Metric names, labels, and log fields can change between beta releases.
 
 This page is for operators who run Agent Relay and need to answer how many sessions ran, who ran them, and which failed and why.
-Agent Relay has three monitoring surfaces:
+Use Agent Relay's logs and Prometheus metrics, ingested into your own observability stack:
 
 - **Logs** answer "what happened, in order?"
-- **The status page** answers "what is happening now?"
 - **Prometheus metrics** answer "how often, and how long?"
 
 ## Logs
@@ -75,56 +74,6 @@ For a failed session, also check:
    To keep them, ship them from the workspace to an external log service.
 1. **The provider's admin views** for queue state that the provider doesn't return to Agent Relay.
 
-## Status page
-
-The optional status page lists each pool's health, workspaces as of the last reaper sweep, and recent failures.
-For Claude Code it shows the 50 most recent nacks, and for Cursor the 50 most recent claim failures.
-This history is in memory, so a restart clears it.
-The same data is available as JSON at `/api/status`.
-
-<div class="tabs">
-
-### Kubernetes
-
-Add this to `values.yaml`:
-
-```yaml
-statusUI:
-  enable: true
-  port: 2113
-  auth: coder-token
-
-tls:
-  secretName: agent-relay-tls
-```
-
-Set `tls.secretName` to a `kubernetes.io/tls` secret for anything reachable beyond a port-forward.
-
-### Docker
-
-Add this to `config.yaml`:
-
-```yaml
-statusUIEnable: true
-statusUIAddress: 0.0.0.0:2113
-statusUIAuth: coder-token
-tlsCertFile: /etc/agent-relay/tls/tls.crt
-tlsKeyFile: /etc/agent-relay/tls/tls.key
-```
-
-Agent Relay rereads the certificate every minute, so a renewed certificate needs no restart.
-
-</div>
-
-With `coder-token` authentication, a reader signs in with a Coder [API token](../../admin/users/sessions-tokens.md) minted for this purpose.
-Agent Relay rejects the token that the browser or CLI uses for sign-in.
-By default, the token is revoked when sign-in succeeds, and the status page session lasts 24&nbsp;hours.
-Agent Relay admits a reader who can read workspaces in every organization that the relay serves.
-
-> [!WARNING]
-> The status page shows session IDs, workspace names, and owner emails.
-> Do not turn off authentication unless another control already restricts access to the port, or anyone who reaches it can read that data.
-
 ## Prometheus metrics
 
 The Helm chart turns metrics on by default on port 2112 and adds the `prometheus.io/scrape`, `prometheus.io/port`, and `prometheus.io/path` pod annotations.
@@ -162,7 +111,7 @@ Shared dispatcher and reaper metrics also carry a `provider` label.
 | `agent_relay_cursor_stream_reconnects_total`               | Reconnects of the event stream to Cursor. A steady climb usually points to a proxy or network problem.                                        |
 
 Agent Relay doesn't expose a metric for successful Cursor polls yet.
-Use `pending_requests`, `stream_reconnects_total`, and the status page to confirm that a Cursor pool is live.
+Use `agent_relay_cursor_pending_requests` and `agent_relay_cursor_stream_reconnects_total` to confirm that a Cursor pool is live.
 
 ### Suggested alerts
 
@@ -178,7 +127,7 @@ Use `pending_requests`, `stream_reconnects_total`, and the status page to confir
 |-------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | A pool isn't serving                            | Startup logs for the pool. A pool logs that its template is verified when it's ready, and logs a contract check failure when the template is missing the module's parameters. |
 | A session never creates a workspace             | Logs for the `session_id`. Look for identity resolution failures, a degraded pool, or a dispatch error.                                                                       |
-| The workspace exists but the agent never starts | The workspace's build log, then the module logs in the workspace, then `agent_relay_status` on the status page.                                                               |
+| The workspace exists but the agent never starts | The workspace's build log, then the module logs in the workspace, then the `agent_relay_status` metadata on the workspace page in Coder.                                      |
 | A session ended but its workspace remains       | Reaper decisions in the logs for the `workspace_id`. Agent Relay deletes on a sweep interval, and doesn't delete stopped workspaces.                                          |
 
 For provider-specific symptoms, refer to the troubleshooting tables for [Claude Code](./claude-code.md#troubleshoot), [Cursor](./cursor.md#troubleshoot), and [Slack](./slack.md#troubleshoot).

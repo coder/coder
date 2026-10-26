@@ -3,7 +3,7 @@ title: Set up Agent Relay
 ---
 
 > [!NOTE]
-> Agent Relay is in [beta](../../reference/feature-stages.md#beta).
+> Agent Relay is in [beta](../../reference/feature-stages.md#beta) and requires a Premium license.
 
 This guide is for Coder administrators who deploy Agent Relay against an existing Coder deployment.
 It covers the steps that are the same for every provider: the service account, provisioners, template rules, installation, and verification.
@@ -16,8 +16,8 @@ Provider-specific steps live on the [Claude Code](./claude-code.md) and [Cursor]
 
 You need:
 
-- A licensed Coder deployment on version 2.37 or later.
-  Agent Relay refuses to start against an older version.
+- A Coder deployment with a Premium license, on version 2.37 or later.
+  Agent Relay refuses to start against versions earlier than v2.37.
 - `kubectl` and `helm` access to a Kubernetes cluster, or another runtime that can run a container.
 - The [Coder CLI](../../install/cli.md), signed in as an `owner`.
 - An account with the provider you want to serve.
@@ -32,9 +32,9 @@ You need:
   For example, a deployment with three organizations runs three relays.
 - **Plan provisioner capacity per pool.**
   Every pool you add can start more builds at once.
-  Refer to [Provision capacity for Agent Relay](#2-provision-capacity-for-agent-relay).
+  Refer to [Provision capacity for Agent Relay](#step-2-provision-capacity-for-agent-relay).
 
-## 1. Create a service account
+## Step 1: Create a service account
 
 Agent Relay needs no site-wide role.
 At startup, it checks that its service account has the permissions that its pools need.
@@ -83,7 +83,7 @@ A missing organization permission stops the daemon.
 Agent Relay verifies template permissions per pool.
 A missing template permission degrades only that pool, and the pool recovers when you fix the template.
 
-## 2. Provision capacity for Agent Relay
+## Step 2: Provision capacity for Agent Relay
 
 Agent Relay builds run on your Coder provisioners, and time spent waiting for a free provisioner counts against each session's build deadline.
 We recommend dedicated [external provisioners](../../install/operate/provisioners/index.md) for Agent Relay templates, so relay builds don't compete with human workspace builds.
@@ -131,7 +131,7 @@ These `coder-provisioner` chart values affect Agent Relay:
 
 The chart can install more than once under different release names, so you can run one set of provisioners for people and a tagged set for Agent Relay.
 
-## 3. Prepare a workspace template
+## Step 3: Prepare a workspace template
 
 Each pool builds from one template.
 Every Agent Relay template must:
@@ -169,7 +169,7 @@ We also recommend that you:
   Coder and Agent Relay don't supply Git credentials to relay workspaces.
   Refer to the source control section on each provider page.
 
-## 4. Configure provider pools
+## Step 4: Configure provider pools
 
 Follow the steps on the provider page to create the provider credential, add the module to your template, and write the pool configuration:
 
@@ -178,7 +178,7 @@ Follow the steps on the provider page to create the provider credential, add the
 
 Then return to this page to install Agent Relay.
 
-## 5. Install Agent Relay
+## Step 5: Install Agent Relay
 
 | Artifact   | Location                                      | Versioning                           |
 |------------|-----------------------------------------------|--------------------------------------|
@@ -257,17 +257,17 @@ The session token has no config file key.
 Set it with `CODER_AGENT_RELAY_CODERD_SESSION_TOKEN`.
 Pass each pool's secret through the environment variable that its `secret_env` names, not inline in `config.yaml`.
 
-In a container, the metrics and status page listeners bind to loopback by default.
-Bind them to `0.0.0.0` to reach them from outside the container.
+In a container, the metrics listener binds to loopback by default.
+Bind it to `0.0.0.0` to reach it from outside the container.
 
 </div>
 
 Agent Relay release binaries for running as a `systemd` service aren't published yet.
 
-## 6. Verify the deployment
+## Step 6: Verify the deployment
 
 Agent Relay fails fast at startup.
-An invalid token, an unlicensed deployment, a Coder version older than 2.37, or a missing organization permission stops the daemon with an explicit message.
+An invalid token, an unlicensed deployment, a Coder version earlier than v2.37, or a missing organization permission stops the daemon with an explicit message.
 
 1. Read the daemon's logs:
 
@@ -283,7 +283,7 @@ An invalid token, an unlicensed deployment, a Coder version older than 2.37, or 
 
 1. End the session and confirm that Agent Relay deletes the workspace.
 
-For metrics, the status page, and troubleshooting, refer to [Monitor Agent Relay](./monitoring.md).
+For logs, metrics, and troubleshooting, refer to [Monitor Agent Relay](./monitoring.md).
 
 ## Workspace lifecycle
 
