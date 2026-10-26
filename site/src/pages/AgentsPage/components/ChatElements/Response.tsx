@@ -10,7 +10,6 @@ import {
 	type UrlTransform,
 } from "streamdown";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
-import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useTheme } from "#/theme/context";
 import { MarkdownImage } from "./MarkdownImage";
 import { MermaidDiagram } from "./MermaidDiagram";
@@ -234,32 +233,33 @@ const createComponents = (
 						: (lang as SupportedLanguages);
 					// MermaidDiagram's error fallback strips the margin, border
 					// and rounding from its direct child, so the frame must stay
-					// on the outermost element rather than the ScrollArea.
+					// on the outermost element rather than the scroll container.
 					const codeBlock = (
 						<div className="group/code-block relative my-4 overflow-hidden rounded-md border border-solid border-border bg-surface-primary">
-							<ScrollArea
-								orientation="both"
-								scrollBarClassName="w-1.5"
-								horizontalScrollBarClassName="h-1.5"
-							>
-								<FileViewer
-									file={{
-										name: `block.${viewerLang}`,
-										lang: viewerLang,
-										contents: content,
-										cacheKey: content,
-									}}
-									options={{
-										overflow: "scroll",
-										themeType: fileViewerThemeType,
-										disableFileHeader: true,
-										disableLineNumbers: true,
-										theme: viewerTheme,
-										unsafeCSS: markdownFileViewerCSS,
-									}}
-									style={markdownFileViewerStyle}
-								/>
-							</ScrollArea>
+							{/* Not ScrollArea: its per-instance <style> makes WebKit restyle the
+							    whole document each time a code block mounts or unmounts. */}
+							<div className="overflow-auto scrollbar-thin">
+								{/* Sizes the viewer to its longest line, so long lines scroll. */}
+								<div className="table min-w-full">
+									<FileViewer
+										file={{
+											name: `block.${viewerLang}`,
+											lang: viewerLang,
+											contents: content,
+											cacheKey: content,
+										}}
+										options={{
+											overflow: "scroll",
+											themeType: fileViewerThemeType,
+											disableFileHeader: true,
+											disableLineNumbers: true,
+											theme: viewerTheme,
+											unsafeCSS: markdownFileViewerCSS,
+										}}
+										style={markdownFileViewerStyle}
+									/>
+								</div>
+							</div>
 							<CopyButton
 								text={content}
 								label="Copy code"
