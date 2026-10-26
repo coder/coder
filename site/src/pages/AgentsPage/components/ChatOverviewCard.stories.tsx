@@ -206,6 +206,20 @@ export const ManyRows: Story = {
 	args: { overview: mockLongChatOverview },
 };
 
+/** A large chat lists 5 of its 7 active subagents and counts all 112. */
+export const ManySubagents: Story = {
+	args: {
+		overview: {
+			...mockChatOverview,
+			subagents: Array.from({ length: 112 }, (_, index) => ({
+				id: `sub-${index}`,
+				title: `Subagent ${index + 1}`,
+				status: index % 16 === 0 ? "running" : "waiting",
+			})),
+		},
+	},
+};
+
 /** The Changes list after its toggle opens. */
 export const ManyRowsExpanded: Story = {
 	args: { overview: mockLongChatOverview },

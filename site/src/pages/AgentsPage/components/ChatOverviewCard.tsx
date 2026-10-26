@@ -14,6 +14,7 @@ import type {
 	Chat,
 	ChatCost,
 	ChatDiffStatus,
+	ChatStatus,
 	WorkspaceAgentRepoChanges,
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -25,6 +26,7 @@ import { prNumber } from "../utils/pullRequest";
 import { getChatCostTreeID } from "./ChatConversation/chatHelpers";
 import {
 	type ChatStore,
+	isActiveChatStatus,
 	selectSubagentStatusOverrides,
 	useChatMessages,
 	useChatSelector,
@@ -42,6 +44,11 @@ import { computeRepoStats, type DiffStats } from "./GitPanel/GitPanel";
 
 /** Rows a list section shows before it folds the rest behind a toggle. */
 const OVERVIEW_MAX_LIST_ROWS = 3;
+/**
+ * Active subagent rows the card shows, with no toggle: a chat can have 100+
+ * subagents, and the chat tree in the sidebar already lists all of them.
+ */
+const OVERVIEW_MAX_SUBAGENT_ROWS = 5;
 
 /** The card and its toggle need the 48rem transcript plus 18rem: 66rem. */
 export const overviewToggleClassName = "hidden @min-[66rem]/chat:inline-flex";
@@ -72,7 +79,10 @@ export type ChatOverview = {
 	repos: Array<DiffStats & { root: string; branch: string }>;
 	/** Pull requests of the chat, with their numbers. */
 	pullRequests: Array<{ number: string; status: ChatDiffStatus }>;
-	/** Child chats, with the live status from the chat stream. */
+	/**
+	 * Child chats, with the live status from the chat stream. The card lists
+	 * only the active ones.
+	 */
 	subagents: OverviewSubagent[];
 	/** Files the agent attached, newest first, from the loaded messages. */
 	attachments: AgentAttachment[];
@@ -198,11 +208,14 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 }) => {
 	const { cost } = overview;
 	const headingId = useId();
+	const activeSubagents = overview.subagents.filter(({ status }) =>
+		isActiveSubagentStatus(status),
+	);
 	const isEmpty =
 		cost === undefined &&
 		overview.repos.length === 0 &&
 		overview.pullRequests.length === 0 &&
-		overview.subagents.length === 0 &&
+		activeSubagents.length === 0 &&
 		overview.attachments.length === 0;
 
 	return (
@@ -240,7 +253,7 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 				<p className="m-0 py-2 text-xs text-content-secondary">
 					{isLoading
 						? "Loading…"
-						: "Nothing to show yet. Cost, changes, pull requests, subagents, and attachments show up here as the agent works."}
+						: "Nothing to show yet. Cost, changes, pull requests, active subagents, and attachments show up here as the agent works."}
 				</p>
 			)}
 
@@ -300,14 +313,15 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 				</OverviewSection>
 			)}
 
-			{overview.subagents.length > 0 && (
-				<OverviewSection title="Subagents">
-					<OverviewList
-						items={overview.subagents}
-						render={(subagent) => (
+			{activeSubagents.length > 0 && (
+				<OverviewSection
+					title={`Subagents · ${activeSubagents.length} of ${overview.subagents.length} active`}
+				>
+					{activeSubagents
+						.slice(0, OVERVIEW_MAX_SUBAGENT_ROWS)
+						.map((subagent) => (
 							<SubagentRow key={subagent.id} subagent={subagent} />
-						)}
-					/>
+						))}
 				</OverviewSection>
 			)}
 
@@ -329,6 +343,13 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 		</aside>
 	);
 };
+
+/**
+ * A subagent stays in the card while it works or needs the user: it hit an
+ * error or waits for an action. Idle subagents leave it.
+ */
+const isActiveSubagentStatus = (status: ChatStatus): boolean =>
+	isActiveChatStatus(status) || status === "error";
 
 const getCostSubtitle = (overview: ChatOverview): string | undefined => {
 	const { cost } = overview;

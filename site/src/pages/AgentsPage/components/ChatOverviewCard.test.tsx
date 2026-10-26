@@ -1,7 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useRef } from "react";
 import { createMemoryRouter, RouterProvider } from "react-router";
+import type { ChatStatus } from "#/api/typesGenerated";
 import { MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import {
 	OVERVIEW_CARD_PINNED_KEY,
@@ -41,6 +42,7 @@ const mockChatOverview: ChatOverview = {
 };
 
 type OverviewHarnessProps = {
+	overview: ChatOverview;
 	onOpenTab: (tabId: OverviewTabId) => void;
 };
 
@@ -49,7 +51,10 @@ type OverviewHarnessProps = {
  * stands in for the top bar toggle, so this covers the open state, not
  * ChatTopBar.
  */
-const OverviewHarness: React.FC<OverviewHarnessProps> = ({ onOpenTab }) => {
+const OverviewHarness: React.FC<OverviewHarnessProps> = ({
+	overview,
+	onOpenTab,
+}) => {
 	const cardRef = useRef<HTMLElement>(null);
 	const toggleRef = useRef<HTMLButtonElement>(null);
 	const card = useOverviewCard({ cardRef, toggleRef });
@@ -67,7 +72,7 @@ const OverviewHarness: React.FC<OverviewHarnessProps> = ({ onOpenTab }) => {
 			{card.isOpen && (
 				<ChatOverviewCardView
 					ref={cardRef}
-					overview={mockChatOverview}
+					overview={overview}
 					isPinned={card.isPinned}
 					onPinnedChange={card.setPinned}
 					onOpenTab={(tabId) => {
@@ -80,13 +85,13 @@ const OverviewHarness: React.FC<OverviewHarnessProps> = ({ onOpenTab }) => {
 	);
 };
 
-const renderOverview = () => {
+const renderOverview = (overview = mockChatOverview) => {
 	const onOpenTab = vi.fn<(tabId: OverviewTabId) => void>();
 	const router = createMemoryRouter(
 		[
 			{
 				path: "/agents/:agentId",
-				element: <OverviewHarness onOpenTab={onOpenTab} />,
+				element: <OverviewHarness overview={overview} onOpenTab={onOpenTab} />,
 			},
 		],
 		{ initialEntries: ["/agents/root"] },
@@ -136,6 +141,38 @@ describe("ChatOverviewCard", () => {
 
 		expect(router.state.location.pathname).toBe("/agents/child-1");
 		expect(onOpenTab).not.toHaveBeenCalled();
+	});
+
+	it("lists at most 5 active subagents and counts all of them", async () => {
+		const user = userEvent.setup();
+		const statuses: ChatStatus[] = [
+			"waiting",
+			"running",
+			"error",
+			"requires_action",
+			"waiting",
+			"interrupting",
+			"running",
+			"running",
+		];
+		renderOverview({
+			...mockChatOverview,
+			subagents: statuses.map((status, index) => ({
+				id: `child-${index}`,
+				title: `Subagent ${index}`,
+				status,
+			})),
+		});
+		await openCard(user);
+
+		const section = screen.getByRole("region", {
+			name: "Subagents · 6 of 8 active",
+		});
+		const links = within(section).getAllByRole("link");
+		expect(links.map((link) => link.textContent)).toEqual(
+			[1, 2, 3, 5, 6].map((index) => `Subagent ${index}`),
+		);
+		expect(within(section).queryByRole("button")).not.toBeInTheDocument();
 	});
 
 	it("closes on the toggle, an outside click, and Escape", async () => {
