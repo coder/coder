@@ -672,42 +672,53 @@ function useMessageScrollerController({
     scrollTowardItemEnd,
   ])
 
-  // LOCAL CHANGE: placing the turn again sizes the spacer before the reply's
-  // resize runs. The hold stays when the reply fills the view.
-  const handleTurnEnd = React.useCallback(() => {
-    if (reanchorToAnchoredMessage()) {
-      if (
-        autoScrollRef.current &&
-        !followSuppressedRef.current &&
-        spacerHeightRef.current > 0
-      ) {
-        scrollToEnd({ behavior: "auto" })
-      }
-
-      return
-    }
-
-    // The hold ended early, as on a gesture. Keep only the spacer the current
-    // position needs, so the view does not move.
+  // LOCAL CHANGE: once no turn is held, the spacer keeps only what the
+  // current position needs. Shrinking it never moves the view.
+  const trimTailSpacer = React.useCallback(() => {
     const content = contentRef.current
     const viewport = viewportRef.current
 
-    if (content && viewport) {
-      setTailSpacerHeight(
-        getTailSpacerHeight({
-          content,
-          scrollTop: viewport.scrollTop,
-          spacer: spacerRef.current,
-          viewport,
-        })
-      )
+    if (!content || !viewport) {
+      return
+    }
+
+    const height = getTailSpacerHeight({
+      content,
+      scrollTop: viewport.scrollTop,
+      spacer: spacerRef.current,
+      viewport,
+    })
+
+    if (height < spacerHeightRef.current) {
+      setTailSpacerHeight(height)
+    }
+  }, [setTailSpacerHeight])
+
+  // LOCAL CHANGE: placing the held turn again sizes the spacer before the
+  // reply's resize runs. A spacer left after sizing is blank on screen.
+  const handleTurnEnd = React.useCallback(() => {
+    if (!reanchorToAnchoredMessage()) {
+      // A jump in flight still needs the spacer it set.
+      if (modeRef.current === "settling-jump") {
+        return
+      }
+
+      trimTailSpacer()
       scheduleStateCommit()
+    }
+
+    if (
+      autoScrollRef.current &&
+      !followSuppressedRef.current &&
+      spacerHeightRef.current > 0
+    ) {
+      scrollToEnd({ behavior: "auto" })
     }
   }, [
     reanchorToAnchoredMessage,
     scheduleStateCommit,
     scrollToEnd,
-    setTailSpacerHeight,
+    trimTailSpacer,
   ])
 
   const observeVisibility = React.useCallback(() => {
@@ -999,10 +1010,20 @@ function useMessageScrollerController({
   )
 
   const syncAfterScroll = React.useCallback(() => {
+    // LOCAL CHANGE
+    if (modeRef.current === "free-scrolling") {
+      trimTailSpacer()
+    }
+
     commitScrollState()
     scheduleVisibilitySync()
     capturePrependAnchor()
-  }, [capturePrependAnchor, commitScrollState, scheduleVisibilitySync])
+  }, [
+    capturePrependAnchor,
+    commitScrollState,
+    scheduleVisibilitySync,
+    trimTailSpacer, // LOCAL CHANGE
+  ])
 
   // LOCAL CHANGE: output can land below the view while a scrollbar press at
   // the end is held, and a release that moved nothing fires no scroll event.
