@@ -175,17 +175,17 @@ GET wss://coder.example.com/api/v2/chats/{chat}/stream?snapshot_version={snapsho
 Each WebSocket message is a JSON array of events.
 Each event has a `type` field:
 
-| Event type        | Description                                                                                                                         |
-|-------------------|-------------------------------------------------------------------------------------------------------------------------------------|
-| `message_part`    | A chunk of the agent's response (text, tool call, etc.)                                                                             |
-| `preview_reset`   | Remove the `message_part` content that you received before this event                                                               |
-| `message`         | A message was created or changed; replace the message with the same ID                                                              |
-| `history_reset`   | An edit removed messages; remove your messages with an ID of `history_reset.from_message_id` or higher                              |
-| `status`          | The chat status changed (e.g. `running` → `waiting`)                                                                                |
-| `error`           | An error occurred during processing                                                                                                 |
-| `retry`           | The control plane is retrying a failed LLM call                                                                                     |
-| `queue_update`    | The queued message list changed; the event includes the whole list                                                                  |
-| `action_required` | The agent called a tool from `unsafe_dynamic_tools`; run the tool and send the result with `POST /api/v2/chats/{chat}/tool-results` |
+| Event type        | Description                                                                                                          |
+|-------------------|----------------------------------------------------------------------------------------------------------------------|
+| `message_part`    | A chunk of the agent's response (text, tool call, etc.)                                                              |
+| `preview_reset`   | Remove the `message_part` content that you received before this event                                                |
+| `message`         | A message was created or changed; replace the message with the same ID                                               |
+| `history_reset`   | An edit removed messages; remove your messages with an ID of `history_reset.from_message_id` or higher               |
+| `status`          | The chat status changed (e.g. `running` → `waiting`)                                                                 |
+| `error`           | An error occurred during processing                                                                                  |
+| `retry`           | The control plane is retrying a failed LLM call                                                                      |
+| `queue_update`    | The queued message list changed; the event includes the whole list                                                   |
+| `action_required` | The agent called a tool you provided; run the tool and send the result with `POST /api/v2/chats/{chat}/tool-results` |
 
 The server increases a chat's `snapshot_version` each time it commits a change to the chat.
 To keep your client in sync with the chat:
@@ -204,7 +204,7 @@ To keep your client in sync with the chat:
 
 The server sends the `message_part` content and the retry notice again on the next connection.
 
-Don't reconnect with `after_id`.
+Do not reconnect with `after_id`.
 Suppose your client misses an edit, then sends a message and reconnects with that message's ID as `after_id`.
 The stream doesn't remove the messages that the edit removed.
 It also doesn't send the messages written between the edit and your message.
@@ -215,7 +215,7 @@ Apply the change again: a `message` event replaces the message with the same ID,
 If you applied a `history_reset` event after you sent a `before_id` request, discard that request's response.
 
 Send actions, such as new messages, edits, and tool results, as REST requests.
-Don't apply their response bodies to your client's state, because the stream sends the result of each action.
+Do not apply their response bodies to your client's state, because the stream sends the result of each action.
 
 For the order of events and the errors that the stream returns, refer to [Stream chat events via WebSockets](../../reference/api/chats.md#stream-chat-events-via-websockets).
 
