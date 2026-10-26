@@ -280,7 +280,7 @@ describe("ChatPageInput", () => {
 		vi.spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
 			id: "file-1",
 		});
-		const firstSend = createDeferred<void>();
+		const firstSend = createDeferred<undefined>();
 		const onSend = vi
 			.fn()
 			.mockReturnValueOnce(firstSend.promise)
@@ -317,7 +317,7 @@ describe("ChatPageInput", () => {
 		vi.spyOn(API.experimental, "uploadChatFile")
 			.mockResolvedValueOnce({ id: "file-1" })
 			.mockResolvedValueOnce({ id: "file-2" });
-		const firstSend = createDeferred<void>();
+		const firstSend = createDeferred<undefined>();
 		const onSend = vi
 			.fn()
 			.mockReturnValueOnce(firstSend.promise)
@@ -339,7 +339,7 @@ describe("ChatPageInput", () => {
 		await screen.findByRole("button", { name: "Remove second.png" });
 
 		await act(async () => {
-			firstSend.resolve();
+			firstSend.resolve(undefined);
 		});
 		await waitFor(() => expect(send).toBeEnabled());
 		await user.click(send);
