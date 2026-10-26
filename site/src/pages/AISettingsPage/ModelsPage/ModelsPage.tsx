@@ -39,7 +39,6 @@ const ModelsPage: React.FC = () => {
 				refetchError={refetchError}
 				models={models}
 				providerStates={providerStates}
-				providerTypeByID={providerTypeByID}
 				canCreateModel={permissions?.createChatModelConfigs ?? false}
 			/>
 		</>
