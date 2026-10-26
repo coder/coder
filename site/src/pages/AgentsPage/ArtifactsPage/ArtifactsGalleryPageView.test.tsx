@@ -27,7 +27,6 @@ const mockSharedArtifact: ChatArtifact = {
 	project_name: "Billing",
 };
 const mockArtifacts = [mockOwnArtifact, mockSharedArtifact];
-const ids = (artifacts: readonly ChatArtifact[]) => artifacts.map((a) => a.id);
 
 describe("filterArtifacts", () => {
 	it.each([
@@ -36,7 +35,9 @@ describe("filterArtifacts", () => {
 		["shared", ["shared"]],
 	] as const)("keeps the %s artifacts", (filter, expected) => {
 		expect(
-			ids(filterArtifacts(mockArtifacts, filter, "", MockUserOwner.id)),
+			filterArtifacts(mockArtifacts, filter, "", MockUserOwner.id).map(
+				(artifact) => artifact.id,
+			),
 		).toEqual(expected);
 	});
 

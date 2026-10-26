@@ -77,9 +77,6 @@ export const filterArtifacts = (
 	});
 };
 
-const readLayout = (): GalleryLayout =>
-	localStorage.getItem(galleryLayoutStorageKey) === "grid" ? "grid" : "list";
-
 type ArtifactItemProps = {
 	artifact: ChatArtifact;
 	currentUserId: string;
@@ -92,12 +89,6 @@ const ArtifactListItem: React.FC<ArtifactItemProps> = ({
 	now,
 }) => {
 	const Icon = artifactIcon(artifact);
-	const details = [
-		artifact.latest_name,
-		`v${artifact.latest_version}`,
-		artifact.project_name,
-		ownerLabel(artifact, currentUserId),
-	].filter(Boolean);
 	return (
 		<li>
 			<Link
@@ -112,7 +103,14 @@ const ArtifactListItem: React.FC<ArtifactItemProps> = ({
 						{artifact.title || "Untitled artifact"}
 					</span>
 					<span className="truncate text-xs text-content-secondary">
-						{details.join(" · ")}
+						{[
+							artifact.latest_name,
+							`v${artifact.latest_version}`,
+							artifact.project_name,
+							ownerLabel(artifact, currentUserId),
+						]
+							.filter(Boolean)
+							.join(" · ")}
 					</span>
 				</span>
 				<span className="shrink-0 text-xs text-content-secondary">
@@ -162,7 +160,7 @@ const ArtifactCard: React.FC<ArtifactItemProps> = ({
 };
 
 type ArtifactsGalleryPageViewProps = {
-	/** Undefined while the first load runs. */
+	/** Undefined until the first load succeeds. */
 	artifacts: readonly ChatArtifact[] | undefined;
 	error: unknown;
 	currentUserId: string;
@@ -179,7 +177,9 @@ export const ArtifactsGalleryPageView: React.FC<
 > = ({ artifacts, error, currentUserId, now }) => {
 	const [filter, setFilter] = useState<ArtifactFilter>("all");
 	const [search, setSearch] = useState("");
-	const [layout, setLayout] = useState<GalleryLayout>(readLayout);
+	const [layout, setLayout] = useState<GalleryLayout>(() =>
+		localStorage.getItem(galleryLayoutStorageKey) === "grid" ? "grid" : "list",
+	);
 
 	const changeLayout = (next: GalleryLayout) => {
 		setLayout(next);

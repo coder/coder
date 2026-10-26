@@ -2197,8 +2197,8 @@ export interface ChatArtifact {
 	readonly title: string;
 	readonly latest_version: number;
 	/**
-	 * LatestName and LatestMediaType describe the latest version. Together
-	 * they pick its renderer.
+	 * LatestName and LatestMediaType describe the latest version, so a list
+	 * can show its file type without loading the versions.
 	 */
 	readonly latest_name: string;
 	readonly latest_media_type: string;
