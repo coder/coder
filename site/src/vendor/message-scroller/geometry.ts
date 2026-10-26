@@ -324,12 +324,11 @@ function getContentBottom({
   return contentBottom
 }
 
-// LOCAL CHANGE: browser toolbars and rounding can make the visual viewport a
-// little shorter than the layout viewport. An on-screen keyboard is far taller.
+// LOCAL CHANGE: an on-screen keyboard shrinks the visual viewport but not the
+// layout. Toolbars and rounding shrink it a little, far less than a keyboard,
+// and pinch zoom shrinks it too, so compare the unzoomed height.
 const ON_SCREEN_KEYBOARD_MIN_HEIGHT = 100
 
-// LOCAL CHANGE: an on-screen keyboard shrinks the visual viewport but not the
-// layout. Pinch zoom also shrinks it, so compare the unzoomed height.
 function isOnScreenKeyboardOpen() {
   const visualViewport = window.visualViewport
 

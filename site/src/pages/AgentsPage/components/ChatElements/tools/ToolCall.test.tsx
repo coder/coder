@@ -98,9 +98,14 @@ class FakeVisualViewport
 	height = LAYOUT_VIEWPORT_HEIGHT;
 	scale = 1;
 
-	setKeyboardOpen(open: boolean) {
-		this.height = LAYOUT_VIEWPORT_HEIGHT - (open ? KEYBOARD_HEIGHT : 0);
+	set(height: number, scale = 1) {
+		this.height = height;
+		this.scale = scale;
 		this.dispatchEvent(new Event("resize"));
+	}
+
+	setKeyboardOpen(open: boolean) {
+		this.set(LAYOUT_VIEWPORT_HEIGHT - (open ? KEYBOARD_HEIGHT : 0));
 	}
 }
 
@@ -344,6 +349,30 @@ describe("ToolCall in a MessageScroller", () => {
 		await act(() => new Promise(requestAnimationFrame));
 
 		expect(visibleRows).toContain("history-9");
+	});
+
+	it.each([
+		{
+			name: "a browser toolbar collapses",
+			height: LAYOUT_VIEWPORT_HEIGHT - 60,
+			scale: 1,
+		},
+		{
+			name: "the page is pinch zoomed",
+			height: LAYOUT_VIEWPORT_HEIGHT / 2,
+			scale: 2,
+		},
+	])("holds the prompt when $name", async ({ height, scale }) => {
+		const visualViewport = new FakeVisualViewport();
+		vi.stubGlobal("visualViewport", visualViewport);
+		const update = renderTranscript([history]);
+		await update([history, prompt, <ToolRow key="reply" />]);
+
+		act(() => visualViewport.set(height, scale));
+		await act(() => new Promise(requestAnimationFrame));
+		await act(() => new Promise(requestAnimationFrame));
+
+		expect(visibleRows).not.toContain("history-9");
 	});
 
 	it("keeps a tool above the anchored prompt in view when it expands", async () => {
