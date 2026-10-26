@@ -180,7 +180,8 @@ var (
 // gets a generated name.
 func InheritWithinCaller(caller database.APIKey, params CreateParams) (CreateParams, error) {
 	if len(params.Scopes) == 0 && params.Scope != "" {
-		params.Scopes = database.APIKeyScopes{params.Scope}
+		// Generate rewrites the aliases only on the legacy field.
+		params.Scopes = database.APIKeyScopes{canonicalScope(params.Scope)}
 	}
 	if len(params.Scopes) == 0 {
 		params.Scopes = caller.Scopes
