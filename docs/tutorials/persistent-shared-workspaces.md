@@ -33,7 +33,7 @@ Substitute the usernames, group names, and template to match your use case.
 - An account with the `Owner` or `User Admin` role.
 - [OIDC authentication](../admin/users/oidc-auth/index.md) configured so shared users log in with their corporate SSO identity.
   Configure [refresh tokens](../admin/users/oidc-auth/refresh-tokens.md) to prevent session timeouts during long work sessions.
-- A [wildcard access URL](../admin/networking/wildcard-access-url.md) configured (e.g. `*.coder.example.com`) so that shared users can access workspace apps without a 404.
+- A [wildcard access URL](../admin/networking/wildcard-access-url.md) configured (for example, `*.coder.example.com`) so that shared users can access workspace apps without a 404.
 - (Recommended) [IdP Group Sync](../admin/users/idp-sync.md#group-sync) configured if your identity provider manages group membership for the teams that will share the workspace.
 
 ## 1. Create a service account
@@ -60,7 +60,7 @@ coder tokens create \
   --lifetime 8760h
 ```
 
-Store this token securely (e.g. in a secrets manager like Vault or AWS Secrets Manager).
+Store this token securely (for example, in a secrets manager like Vault or AWS Secrets Manager).
 
 > [!IMPORTANT]
 > Never distribute this token to end users.
@@ -81,7 +81,7 @@ coder create oncall-sre/oncall-workspace \
 ```
 
 > [!TIP]
-> Design a dedicated template for the workspace with the tools your team needs pre-installed (e.g. monitoring dashboards for on-call, test runners for QA).
+> Design a dedicated template for the workspace with the tools your team needs pre-installed (for example, monitoring dashboards for on-call, test runners for QA).
 > Set `subdomain = true` on workspace apps so that shared users can access web-based tools without a 404.
 > See [Access workspace apps in shared workspaces](../user-guides/shared-workspaces.md#access-workspace-apps-in-shared-workspaces).
 
@@ -172,7 +172,7 @@ coder sharing status "$WORKSPACE"
 
 ### Group-based rotation with IdP Sync
 
-If your identity provider manages group membership (e.g. an `sre-oncall` group in Okta or Azure AD), you can skip manual share/remove commands entirely:
+If your identity provider manages group membership (for example, an `sre-oncall` group in Okta or Azure AD), you can skip manual share/remove commands entirely:
 
 1. Configure [Group Sync](../admin/users/idp-sync.md#group-sync) to synchronize the group from your IdP to Coder.
 

@@ -75,7 +75,7 @@ Injected MCP works with both embedded and standalone gateways.
 Control connection provides each standalone replica with the required configuration and access tokens.
 Refer to [Deployment topologies](./reference.md#deployment-topologies) for more information.
 
-In contrast, tools which are defined by the client (i.e. the [`Bash` tool](https://docs.claude.com/en/docs/claude-code/settings#tools-available-to-claude) defined by _Claude Code_) cannot be invoked by AI Gateway, and the tool call from the model will be relayed to the client, after which it will invoke the tool.
+In contrast, tools which are defined by the client (that is, the [`Bash` tool](https://docs.claude.com/en/docs/claude-code/settings#tools-available-to-claude) defined by _Claude Code_) cannot be invoked by AI Gateway, and the tool call from the model will be relayed to the client, after which it will invoke the tool.
 
 If you have [Coder MCP Server](../mcp-server.md) enabled, as well as have `CODER_AI_GATEWAY_INJECT_CODER_MCP_TOOLS=true` set, Coder's MCP tools will be injected into intercepted requests.
 

@@ -34,7 +34,7 @@ If any answer routes you away from the docs, refer to the [routing table](#routi
    **Support KB (Pylon)**, not docs.
 5. Is it about contributing to the Coder codebase or writing style?
    **GitHub** (or public Notion), not docs.
-6. Is it already documented by a third-party vendor (Terraform, AWS, Azure, GCP, etc.)?
+6. Is it already documented by a third-party vendor (Terraform, AWS, Azure, GCP, and so on)?
    **Link to their docs**, do not duplicate.
 7. Is it relevant only to a past or hypothetical future version?
    **Doesn't belong**; keep docs scoped to the version they describe.
@@ -180,7 +180,7 @@ Each entry includes the reason it belongs in the docs.
   *Why:* Users need an authoritative answer to "does Coder work with X?", and this is a high-drift area worth actively monitoring.
 
 - **New features that add genuine net-new value.**
-  New UI sections, and new CLI commands or flags (e.g., key expiration policy for Coder secrets), including expected command flags and output.
+  New UI sections, and new CLI commands or flags (for example, key expiration policy for Coder secrets), including expected command flags and output.
 
   *Why:* Net-new surface area is undocumented by definition; documenting expected flags and output also feeds the testable-CI-surface goal.
 
