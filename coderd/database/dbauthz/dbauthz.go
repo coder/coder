@@ -6539,17 +6539,6 @@ func (q *querier) InsertChatProjectMemory(ctx context.Context, arg database.Inse
 	return q.db.InsertChatProjectMemory(ctx, arg)
 }
 
-func (q *querier) InsertChatQueuedMessage(ctx context.Context, arg database.InsertChatQueuedMessageParams) (database.ChatQueuedMessage, error) {
-	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
-	if err != nil {
-		return database.ChatQueuedMessage{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return database.ChatQueuedMessage{}, err
-	}
-	return q.db.InsertChatQueuedMessage(ctx, arg)
-}
-
 func (q *querier) InsertChatQueuedMessageWithCreator(ctx context.Context, arg database.InsertChatQueuedMessageWithCreatorParams) (database.ChatQueuedMessage, error) {
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
@@ -7659,21 +7648,6 @@ func (q *querier) SetChatContextSnapshot(ctx context.Context, arg database.SetCh
 // transaction and reads no data, like AcquireLock.
 func (q *querier) SetTransactionLockTimeout(ctx context.Context, lockTimeoutMs int64) error {
 	return q.db.SetTransactionLockTimeout(ctx, lockTimeoutMs)
-}
-
-func (q *querier) SoftDeleteChatMessageByID(ctx context.Context, id int64) error {
-	msg, err := q.db.GetChatMessageByID(ctx, id)
-	if err != nil {
-		return err
-	}
-	chat, err := q.db.GetChatByID(ctx, msg.ChatID)
-	if err != nil {
-		return err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return err
-	}
-	return q.db.SoftDeleteChatMessageByID(ctx, id)
 }
 
 func (q *querier) SoftDeleteChatMessagesAfterID(ctx context.Context, arg database.SoftDeleteChatMessagesAfterIDParams) error {

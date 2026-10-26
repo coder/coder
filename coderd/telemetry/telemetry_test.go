@@ -1195,7 +1195,10 @@ func TestChatsTelemetry(t *testing.T) {
 		ContextLimit:        sql.NullInt64{Int64: 200000, Valid: true},
 		RuntimeMs:           sql.NullInt64{Int64: 999999, Valid: true},
 	})
-	err = db.SoftDeleteChatMessageByID(ctx, poisonMsg.ID)
+	err = db.SoftDeleteChatMessagesAfterID(ctx, database.SoftDeleteChatMessagesAfterIDParams{
+		ChatID:  rootChat.ID,
+		AfterID: poisonMsg.ID - 1,
+	})
 	require.NoError(t, err)
 
 	_, snapshot := collectSnapshot(ctx, t, db, nil)

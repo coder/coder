@@ -291,10 +291,11 @@ func promoteQueuedMessageWithModel(
 	ctx := testutil.Context(t, testutil.WaitShort)
 	created := createTestChat(t, f)
 	message := userTextMessage("queued model resolution", f.User.ID, modelConfigID)
-	queued, err := f.DB.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
+	queued, err := f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
 		ChatID:        created.Chat.ID,
 		Content:       message.Content.RawMessage,
 		ModelConfigID: message.ModelConfigID,
+		CreatedBy:     created.Chat.OwnerID,
 	})
 	require.NoError(t, err)
 	machine := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)

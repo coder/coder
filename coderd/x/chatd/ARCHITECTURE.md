@@ -1562,7 +1562,7 @@ If any fetched row is soft-deleted, mirror the current stream endpoint's full-re
 On a stream opened with `snapshot_version`, the stream does not fetch or resend the full history. Instead:
 
 1. Emit one `history_reset` per revision among the soft-deleted rows, with the lowest of their IDs as `from_message_id`.
-2. Emit `message` events for the rows that are not soft-deleted and whose revision is newer than the local known-message revision, and update the known-message revision map.
+2. Emit `message` events for the rows that are not soft-deleted.
 
 TODO (#29808): the first sync with an `after_id` fetches every row, including soft-deleted ones. It resets only when message `after_id` is deleted or missing; otherwise it skips soft-deleted rows and sends only live rows above `after_id`. This relies on messages being deleted only as a suffix of the chat (an edit deletes the edited message and every later one). Describe this here and add that invariant to the list below.
 

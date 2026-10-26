@@ -463,7 +463,8 @@ func (l *streamLoop) messageEvents(snapshot streamDBSnapshot) []codersdk.ChatStr
 
 // versionedMessageEvents returns, for a stream opened with a snapshot
 // version, one history_reset per edit, from the lowest ID it removed, then a
-// message event per live row the client has not received. No full history
+// message event per live row. changed holds only rows written since the
+// previous sync, so the client has received none of them. No full history
 // is needed: an edit removes every message from the edited one on, so each
 // live row at or above that ID was written by the edit or a later commit,
 // and is among the changed rows.
@@ -485,10 +486,6 @@ func (l *streamLoop) versionedMessageEvents(changed []database.ChatMessage) []co
 			}
 			continue
 		}
-		if l.state.knownMessages[msg.ID] >= msg.Revision {
-			continue
-		}
-		l.state.knownMessages[msg.ID] = msg.Revision
 		sdkMsg := db2sdk.ChatMessage(msg)
 		messages = append(messages, codersdk.ChatStreamEvent{
 			Type:            codersdk.ChatStreamEventTypeMessage,
