@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
@@ -138,6 +139,16 @@ func TestStreamPartsEndpointReselectsWhileEpisodeMissing(t *testing.T) {
 	require.Equal(t, selectedKey.HistoryVersion, got[0].MessagePart.HistoryVersion)
 }
 
+type writeCountingServerTransport struct {
+	streamPartsServerTransport
+	writes atomic.Int64
+}
+
+func (c *writeCountingServerTransport) WriteEvents(ctx context.Context, events []codersdk.ChatStreamEvent) error {
+	c.writes.Add(1)
+	return c.streamPartsServerTransport.WriteEvents(ctx, events)
+}
+
 func TestStreamPartsEndpointLatestSelectionWinsWhileBlocked(t *testing.T) {
 	t.Parallel()
 
@@ -154,7 +165,8 @@ func TestStreamPartsEndpointLatestSelectionWinsWhileBlocked(t *testing.T) {
 	channelTransport, ok := serverTransport.(streamPartsChannelServerTransport)
 	require.True(t, ok, "unexpected transport type %T", serverTransport)
 	pipe := channelTransport.pipe
-	serveDone := serveStreamPartsEndpoint(ctx, t, endpoint, serverTransport)
+	counting := &writeCountingServerTransport{streamPartsServerTransport: serverTransport}
+	serveDone := serveStreamPartsEndpoint(ctx, t, endpoint, counting)
 	defer func() {
 		require.NoError(t, clientTransport.Close())
 		<-serveDone
@@ -180,8 +192,10 @@ func TestStreamPartsEndpointLatestSelectionWinsWhileBlocked(t *testing.T) {
 	require.NoError(t, buffer.AddPart(latestKey, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("latest")))
 
 	require.NoError(t, clientTransport.WriteControl(ctx, streamPartsControl{HistoryVersion: blockingKey.HistoryVersion, GenerationAttempt: blockingKey.GenerationAttempt}))
+	// A full eventsCh alone does not show that the serve loop stopped
+	// selecting; a started write that cannot finish does.
 	require.True(t, testutil.Eventually(ctx, t, func(context.Context) bool {
-		return len(pipe.eventsCh) == cap(pipe.eventsCh)
+		return counting.writes.Load() == int64(cap(pipe.eventsCh))+1
 	}, testutil.IntervalFast))
 	// The serve loop is now blocked sending parts. A reader that waited for
 	// it would hold the second of these selections and leave the third in
