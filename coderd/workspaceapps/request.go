@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 var errWorkspaceStopped = xerrors.New("stopped workspace")
@@ -309,8 +310,20 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		return nil, xerrors.Errorf("get template %q: %w", workspace.TemplateID, err)
 	}
 	corsBehavior = tmpl.CorsBehavior
-	//nolint:nestif
-	if portUintErr == nil {
+	preview, isPreview := appurl.ParsePreviewSlug(r.AppSlugOrPort)
+	switch {
+	// A path-based preview would share the dashboard's origin, so those
+	// requests fall through and find no app.
+	case isPreview && r.AccessMethod == AccessMethodSubdomain:
+		// Previews serve agent-authored content, so they use the owner
+		// sharing level and ignore port shares, even for port previews.
+		if preview.Port != 0 {
+			appURL = fmt.Sprintf("http://127.0.0.1:%d", preview.Port)
+		} else {
+			appURL = fmt.Sprintf("http://127.0.0.1:%d/api/v0/previews/%s", workspacesdk.AgentHTTPAPIServerPort, preview.ID)
+		}
+		appSharingLevel = database.AppSharingLevelOwner
+	case portUintErr == nil:
 		protocol := "http"
 		if strings.HasSuffix(r.AppSlugOrPort, "s") {
 			protocol = "https"
@@ -367,7 +380,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		} else {
 			appSharingLevel = ps.ShareLevel
 		}
-	} else {
+	default:
 		for _, a := range apps {
 			if a.Slug == r.AppSlugOrPort {
 				app = a

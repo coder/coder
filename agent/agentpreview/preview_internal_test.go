@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -144,7 +145,7 @@ func TestPreviewsLimitAndClose(t *testing.T) {
 
 	id, canonical, err := api.publish(index)
 	require.NoError(t, err)
-	require.Regexp(t, "^[0-9a-f]{8}$", id)
+	require.True(t, appurl.IsPreviewID(id), id)
 	require.Equal(t, index, canonical)
 
 	response := previewRequest(t, api, http.MethodGet, "/"+id+"/other.html")
