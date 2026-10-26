@@ -208,7 +208,7 @@ Verify that the `code_verifier` used in the token request matches the one used t
 
 ### "invalid_scope" returned to your callback
 
-A grant never exceeds the session that authorizes it. Every access token has full API access, so that session must hold the `coder:all` scope and an allow list of `*:*`, which every browser session has. Otherwise, the user is redirected to your callback with `error=invalid_scope`, and the `error_description` opens with the reason:
+A grant never exceeds the session that authorizes it. Every access token has full API access, so that session must hold the `coder:all` scope and an allow list of `*:*`, which every browser session has. Otherwise, the user is redirected to your callback with `error=invalid_scope`, and the `error_description` names the reason:
 
 - `scope requests permissions beyond the signed-in session`: the session authorizing the request does not hold `coder:all`.
   Authorize from a browser session, which holds every scope.
