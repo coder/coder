@@ -136,7 +136,6 @@ export const useAppLink = (
 		// the final URL with the freshly minted token and navigate to it via
 		// `location.href`, relying on the browser's protocol handler.
 		if (opensOnClick) {
-			e.preventDefault();
 			if (generateKeyMutation.isPending) {
 				return;
 			}

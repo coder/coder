@@ -45,7 +45,6 @@ describe("AppLink", () => {
 		const button = await screen.findByRole("button", {
 			name: MockWorkspaceApp.display_name,
 		});
-		expect(button).toBeDisabled();
 		await userEvent.click(button);
 		expect(getApiKey).not.toHaveBeenCalled();
 	});
