@@ -16,9 +16,9 @@ const CoderToolCallIDHeader = "Coder-Tool-Call-Id"
 
 type toolCallIDContextKey struct{}
 
-// WithToolCallID returns a context whose StartProcess, EditFiles, and
-// WriteFile requests send id in CoderToolCallIDHeader. The ID goes on the
-// context because parallel tool calls share one AgentConn.
+// WithToolCallID returns a context whose tool execution requests send id in
+// CoderToolCallIDHeader. The ID goes on the context because parallel tool calls
+// share one AgentConn.
 func WithToolCallID(ctx context.Context, id uuid.UUID) context.Context {
 	return context.WithValue(ctx, toolCallIDContextKey{}, id)
 }

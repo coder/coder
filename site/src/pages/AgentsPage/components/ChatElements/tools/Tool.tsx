@@ -3,11 +3,13 @@ import { cn } from "cn";
 import { memo } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useTheme } from "#/theme/context";
+import { ACPTool } from "./ACPTool";
 import { AdvisorTool, type AdvisorToolResultType } from "./AdvisorTool";
 import {
 	type AskUserQuestion,
 	AskUserQuestionTool,
 } from "./AskUserQuestionTool";
+import { ACPToolNames, isACPToolName } from "./acpToolNames";
 import { ChatClearedTool } from "./ChatClearedTool";
 import { ChatSummarizedTool } from "./ChatSummarizedTool";
 import { ComputerTool } from "./ComputerTool";
@@ -106,7 +108,7 @@ type ToolProps = Omit<React.ComponentProps<"div">, "children"> & {
 // Props passed to each tool-specific renderer function. Each renderer
 // only computes the expensive values it needs from the raw args/result.
 type ToolRendererProps = {
-	organizationId?: string;
+	organizationId: string;
 	name: string;
 	status: ToolStatus;
 	args: unknown;
@@ -126,7 +128,7 @@ type ToolRendererProps = {
 	isLatestAskUserQuestion?: boolean;
 	previousResponseText?: string;
 	mcpServerConfigId?: string;
-	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	mcpServers: readonly TypesGen.MCPServerConfig[];
 	modelIntent?: string;
 	parsedCommands?: readonly string[][];
 	startedAt?: string;
@@ -1172,7 +1174,16 @@ const WorkspaceLifecycleRenderer: React.FC<ToolRendererProps> = ({
 // Renderer lookup map for tool names and specialized renderers.
 // ---------------------------------------------------------------------------
 
+const ACPToolRenderer: React.FC<ToolRendererProps> = (props) => {
+	if (!isACPToolName(props.name)) return null;
+	return <ACPTool {...props} name={props.name} ToolComponent={Tool} />;
+};
+
 export const toolRenderers: Record<string, React.FC<ToolRendererProps>> = {
+	[ACPToolNames.SpawnAgent]: ACPToolRenderer,
+	[ACPToolNames.MessageAgent]: ACPToolRenderer,
+	[ACPToolNames.WaitAgent]: ACPToolRenderer,
+	[ACPToolNames.InterruptAgent]: ACPToolRenderer,
 	find_tools: FindToolsRenderer,
 	execute: ExecuteRenderer,
 	process_output: ProcessOutputRenderer,

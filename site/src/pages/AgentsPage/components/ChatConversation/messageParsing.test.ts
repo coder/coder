@@ -220,6 +220,24 @@ describe("parseMessageContent", () => {
 		expect(result.blocks).toEqual([{ type: "response", text: "Hello" }]);
 	});
 
+	it("keeps skill invocations between the text around them", () => {
+		const skillPart = {
+			type: "skill-invocation",
+			skill_source: "project",
+			skill_name: "triage",
+		} as const;
+		const result = parseMessageContent([
+			{ type: "text", text: "Use " },
+			skillPart,
+			{ type: "text", text: " now" },
+		]);
+		expect(result.blocks).toEqual([
+			{ type: "response", text: "Use " },
+			skillPart,
+			{ type: "response", text: " now" },
+		]);
+	});
+
 	it("merges multiple text blocks into a single response block", () => {
 		const result = parseMessageContent([
 			{ type: "text", text: "Line one" },
@@ -248,6 +266,20 @@ describe("parseMessageContent", () => {
 			type: "response",
 			text: "Intro\n\n- First item\n- Second item",
 		});
+	});
+
+	it("keeps whitespace-only parts between text parts", () => {
+		// Interrupted turns are saved with one part per streamed delta.
+		const result = parseMessageContent([
+			{ type: "text", text: "\n" },
+			{ type: "text", text: "writing." },
+			{ type: "text", text: "\n\n" },
+			{ type: "text", text: "Like this" },
+		]);
+		expect(result.markdown).toBe("writing.\n\nLike this");
+		expect(result.blocks).toEqual([
+			{ type: "response", text: "writing.\n\nLike this" },
+		]);
 	});
 
 	it("parses a reasoning block", () => {

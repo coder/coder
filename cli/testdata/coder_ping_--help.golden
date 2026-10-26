@@ -6,9 +6,15 @@ USAGE:
   Ping a workspace
 
 OPTIONS:
+  -c, --column [workspace|total|successful|min|avg|max|variance] (default: workspace,total,successful,min,avg,max,variance)
+          Columns to display in table output.
+
   -n, --num int
           Specifies the number of pings to perform. By default, pings will
-          continue until interrupted.
+          continue until interrupted. Required with --output json.
+
+  -o, --output table|json (default: table)
+          Output format.
 
       --time bool
           Show the response time of each pong in local time.

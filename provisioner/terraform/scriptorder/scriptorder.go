@@ -70,10 +70,11 @@ func NewProgram(
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		// Plan-derived state may retain prior-state data sources
-		// whose configuration declarations were removed. Processing
-		// these stale instances could preserve removed ordering rules
-		// or produce preparation errors.
+
+		// Terraform excludes orphaned data sources from both the
+		// refreshed state serialized as the plan's prior state and
+		// planned values. Still, defensively ignore instances absent
+		// from the supplied configuration.
 		declaration, err := configIndex.lookupResource(
 			dataSource.moduleAddress,
 			tfjson.DataResourceMode,
@@ -147,6 +148,9 @@ type RuntimeBinding struct {
 	// RuntimeAddress identifies the workspace agent or devcontainer subagent
 	// that executes the script, such as "coder_agent.main[0]".
 	RuntimeAddress string
+	// Error explains why the runtime could not be resolved. Callers use this
+	// for bounded, selector-specific diagnostics during finalization.
+	Error string
 }
 
 // Prepared contains phase-filtered rules awaiting runtime validation.
@@ -157,6 +161,7 @@ type Prepared struct {
 	// runtime-binding stages consume it.
 	selectedScriptAddresses []string
 	warnings                []phaseFilterWarning
+	warningsOmitted         int
 }
 
 // Prepare resolves selectors and phases within rules.
@@ -186,6 +191,37 @@ func (p *Prepared) Warnings() []string {
 		warnings = append(warnings, warning.String())
 	}
 	return warnings
+}
+
+// WarningsOmitted returns the number of phase-filter warnings omitted after
+// the request-local warning limit was reached.
+func (p *Prepared) WarningsOmitted() int {
+	if p == nil {
+		return 0
+	}
+	return p.warningsOmitted
+}
+
+// ValidateForPlan rejects self-dependencies, conflicting requirements, and
+// dependency cycles using resolved script addresses and lifecycle phases. This
+// allows planned values to fail early, before concrete agent IDs are available.
+// It does not check whether a rule's scripts share one runtime. Finalize
+// performs runtime-binding validation after applied bindings are available.
+func (p *Prepared) ValidateForPlan() error {
+	if p == nil {
+		return nil
+	}
+
+	rules := make([]resolvedRule, 0, len(p.rules))
+	for i := range p.rules {
+		rule := &p.rules[i]
+		if err := rule.validateNoSelfDependency(); err != nil {
+			return err
+		}
+		rules = append(rules, rule.toResolvedRule(""))
+	}
+	_, err := buildGraphs(rules)
+	return err
 }
 
 // Finalize validates bound runtimes and constructs deterministic graphs.

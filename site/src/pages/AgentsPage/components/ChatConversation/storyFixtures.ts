@@ -128,11 +128,22 @@ export const MockWorkingBlock: WorkingBlock = {
 	isPartial: false,
 };
 
+type ToolStep = {
+	toolName: string;
+	args: NonNullable<TypesGen.ChatToolCallPart["args"]>;
+	result: TypesGen.ChatToolResultPart["result"];
+};
+
 const workingStepMessages = (
 	id: number,
 	toolCallId: string,
 	callAt: number,
 	resultAt: number,
+	{
+		toolName = "execute",
+		args = { command: `echo ${toolCallId}` },
+		result = { output: `${toolCallId} output`, exit_code: "0" },
+	}: Partial<ToolStep> = {},
 ): TypesGen.ChatMessage[] => [
 	{
 		...MockChatMessage,
@@ -143,8 +154,8 @@ const workingStepMessages = (
 			{
 				type: "tool-call",
 				tool_call_id: toolCallId,
-				tool_name: "execute",
-				args: { command: `echo ${toolCallId}` },
+				tool_name: toolName,
+				args,
 				created_at: workingFixtureTime(callAt),
 			},
 		],
@@ -158,13 +169,46 @@ const workingStepMessages = (
 			{
 				type: "tool-result",
 				tool_call_id: toolCallId,
-				tool_name: "execute",
-				result: { output: `${toolCallId} output`, exit_code: "0" },
+				tool_name: toolName,
+				result,
 				created_at: workingFixtureTime(resultAt),
 			},
 		],
 	},
 ];
+
+/** A tool step that attaches `file`, in the message shape the server stores. */
+export const attachmentStepMessages = ({
+	id,
+	toolCallId,
+	callAt,
+	file,
+	...step
+}: ToolStep & {
+	id: number;
+	toolCallId: string;
+	callAt: number;
+	file: TypesGen.ChatFilePart;
+}): TypesGen.ChatMessage[] => {
+	const [callMessage, resultMessage] = workingStepMessages(
+		id,
+		toolCallId,
+		callAt,
+		callAt + 1,
+		step,
+	);
+	return [
+		callMessage,
+		{
+			...MockChatMessage,
+			id: id + 1,
+			role: "assistant",
+			created_at: workingFixtureTime(callAt + 1),
+			content: [file],
+		},
+		{ ...resultMessage, id: id + 2 },
+	];
+};
 
 /**
  * One completed turn of two shell steps with part timestamps: prompt at 0s,
@@ -317,6 +361,60 @@ export const MockLeadInSearchMessages: TypesGen.ChatMessage[] = [
 			{ type: "text", text: "The latest Coder release is v2.30." },
 		],
 	},
+];
+
+/** MockWorkingMessages with an attach_file step between its two shell steps. */
+export const MockAttachmentWorkingMessages: TypesGen.ChatMessage[] = [
+	...MockWorkingMessages.slice(0, 3),
+	...attachmentStepMessages({
+		id: 4,
+		toolCallId: "attach",
+		callAt: 5,
+		toolName: "attach_file",
+		args: { path: "/home/coder/report.pdf" },
+		file: {
+			type: "file",
+			media_type: "application/pdf",
+			name: "report.pdf",
+			file_id: "report-file",
+		},
+		result: { name: "report.pdf" },
+	}),
+	...workingStepMessages(7, "second", 7, 13),
+	{
+		...MockChatMessage,
+		id: 9,
+		role: "assistant",
+		created_at: workingFixtureTime(14),
+		content: [{ type: "text", text: "Workspace inspection complete." }],
+	},
+];
+
+const planPath = "/home/coder/.coder/plans/PLAN.md";
+
+/** A turn that proposes a plan file after the first step of MockWorkingMessages. */
+export const MockPlanAttachmentMessages: TypesGen.ChatMessage[] = [
+	...MockWorkingMessages.slice(0, 3),
+	...attachmentStepMessages({
+		id: 4,
+		toolCallId: "plan",
+		callAt: 5,
+		toolName: "propose_plan",
+		args: { path: planPath },
+		file: {
+			type: "file",
+			media_type: "text/markdown",
+			name: "PLAN.md",
+			file_id: "plan-file",
+		},
+		result: {
+			ok: true,
+			path: planPath,
+			kind: "plan",
+			file_id: "plan-file",
+			media_type: "text/markdown",
+		},
+	}),
 ];
 
 /** A question the agent asks after the first step of MockWorkingMessages. */

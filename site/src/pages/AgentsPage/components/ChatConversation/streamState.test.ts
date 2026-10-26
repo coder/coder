@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
+import {
+	MockACPTranscriptDeltas,
+	MockACPWaitingResult,
+	MockACPWaitResult,
+} from "#/testHelpers/acp";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
+import { ACPToolNames } from "../ChatElements/tools/acpToolNames";
 import {
 	getPendingToolCallIDs,
 	parseMessagesWithMergedTools,
@@ -94,6 +100,22 @@ describe("applyMessagePartToStreamState", () => {
 		});
 		expect(result).toBeNull();
 	});
+
+	it.each([
+		{ partType: "text", blockType: "response" },
+		{ partType: "reasoning", blockType: "thinking" },
+	] as const)(
+		"keeps whitespace-only $partType deltas between paragraphs",
+		({ partType, blockType }) => {
+			let state: StreamState | null = null;
+			for (const text of ["writing.", "\n\n", "Like this"]) {
+				state = applyMessagePartToStreamState(state, { type: partType, text });
+			}
+			expect(state?.blocks).toEqual([
+				{ type: blockType, text: "writing.\n\nLike this" },
+			]);
+		},
+	);
 
 	it("returns prev for workspace file reference parts", () => {
 		const prev = createEmptyStreamState();
@@ -1282,4 +1304,80 @@ describe("compiler cache guard simulation", () => {
 		}
 		expect(subFieldMisses).toBe(1);
 	});
+});
+
+it("replaces an ACP wait's live preview with its user-visible transcript", () => {
+	let state = applyMessagePartToStreamState(null, {
+		type: "tool-call",
+		tool_call_id: "wait",
+		tool_name: ACPToolNames.WaitAgent,
+		args: { session_id: "session" },
+	});
+	for (const [delta, preview] of [
+		[MockACPTranscriptDeltas.slice(0, 3).join(""), MockACPWaitingResult],
+		[MockACPTranscriptDeltas.slice(3).join(""), MockACPWaitResult],
+	] as const) {
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_call_id: "wait",
+			tool_name: ACPToolNames.WaitAgent,
+			result_delta: delta,
+		});
+		expect(buildStreamTools(state?.toolCalls, state?.toolResults)).toEqual([
+			expect.objectContaining({
+				name: ACPToolNames.WaitAgent,
+				status: "running",
+				result: { messages: preview.messages },
+			}),
+		]);
+	}
+	expect(state?.toolResults.wait?.resultRaw).toBe("");
+	state = applyMessagePartToStreamState(state, {
+		type: "tool-result",
+		tool_call_id: "wait",
+		result_delta: '{"message_index":',
+	});
+	const result = MockACPWaitResult;
+	state = applyMessagePartToStreamState(state, {
+		type: "tool-result",
+		tool_call_id: "wait",
+		tool_name: ACPToolNames.WaitAgent,
+		result: JSON.stringify(result),
+	});
+	expect(buildStreamTools(state?.toolCalls, state?.toolResults)).toEqual([
+		expect.objectContaining({ status: "completed", result }),
+	]);
+	expect(state?.toolResults.wait?.resultRaw).toBe(JSON.stringify(result));
+});
+
+it("keeps interleaved ACP waits with matching inner tool IDs independent", () => {
+	let state: StreamState | null = null;
+	for (const id of ["wait-a", "wait-b"]) {
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_call_id: id,
+			tool_name: ACPToolNames.WaitAgent,
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_call_id: id,
+			result_delta: MockACPTranscriptDeltas.slice(0, 3).join(""),
+		});
+	}
+	state = applyMessagePartToStreamState(state, {
+		type: "tool-result",
+		tool_call_id: "wait-a",
+		result_delta: MockACPTranscriptDeltas.slice(3).join(""),
+	});
+	expect(state?.toolResults["wait-a"].result).toEqual({
+		messages: MockACPWaitResult.messages,
+	});
+	expect(state?.toolResults["wait-b"].result).toEqual({
+		messages: MockACPWaitingResult.messages,
+	});
+	expect(
+		buildStreamTools(state?.toolCalls, state?.toolResults).map(
+			(tool) => tool.status,
+		),
+	).toEqual(["running", "running"]);
 });

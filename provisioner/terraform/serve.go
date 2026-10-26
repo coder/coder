@@ -9,6 +9,7 @@ import (
 
 	"github.com/cli/safeexec"
 	"github.com/hashicorp/go-version"
+	tfjson "github.com/hashicorp/terraform-json"
 	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
@@ -145,13 +146,19 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 }
 
 type server struct {
-	execMut       *sync.Mutex
-	binaryPath    string
-	cachePath     string
-	cliConfigPath string
-	logger        slog.Logger
-	tracer        trace.Tracer
-	exitTimeout   time.Duration
+	execMut                *sync.Mutex
+	planConfigsBySessionMu sync.Mutex
+	// An entry is created only when a plan returns configuration. It remains
+	// until its session ends so only one cleanup callback is registered. A nil
+	// value means a later plan returned no configuration to cache, which can
+	// occur when template import runs its start and stop plans in one session.
+	planConfigsBySession map[*provisionersdk.Session]*tfjson.Config
+	binaryPath           string
+	cachePath            string
+	cliConfigPath        string
+	logger               slog.Logger
+	tracer               trace.Tracer
+	exitTimeout          time.Duration
 }
 
 func (s *server) startTrace(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {

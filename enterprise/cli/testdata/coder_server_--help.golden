@@ -39,8 +39,10 @@ OPTIONS:
           chats run without their dynamic tools and inline MCP servers.
 
       --disable-chat-sharing bool, $CODER_DISABLE_CHAT_SHARING
-          Disable chat sharing. Chat ACL checking is disabled and only owners
-          can access their chats.
+          Disable chat and chat project sharing. Existing shares stop granting
+          access and new shares are rejected. Owners keep access to their own
+          chats and projects, and administrators keep only the access their
+          roles grant.
 
       --disable-owner-workspace-access bool, $CODER_DISABLE_OWNER_WORKSPACE_ACCESS
           Remove the permission for the 'owner' role to have workspace execution
@@ -953,8 +955,8 @@ that data type.
 
 TELEMETRY OPTIONS: 
 Telemetry is critical to our ability to improve Coder. We strip all personal
-information before sending data to our servers. Please only disable telemetry
-when required by your organization's security policy.
+information before sending data to our servers. Only disable telemetry when
+required by your organization's security policy.
 
       --telemetry bool, $CODER_TELEMETRY_ENABLE (default: false)
           Whether telemetry is enabled or not. Coder collects anonymized usage
