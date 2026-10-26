@@ -2,6 +2,7 @@ import { act, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
 	MessageScroller,
+	useMessageScroller,
 	useMessageScrollerUserLayoutIntent,
 } from "#/vendor/message-scroller";
 import { ChatMessageScroller } from "./ChatMessageScroller";
@@ -101,11 +102,13 @@ it.each([true, false])(
 );
 
 // Stacks the rows at the given heights in a viewport of viewportHeight, with
-// the tail spacer below them.
+// the tail spacer below them. The layout never resizes, but the unit setup's
+// ResizeObserver polyfill calls back after DOM changes, so turn it off.
 const mockLayout = (
 	viewportHeight: number,
 	heights: Record<string, number>,
 ) => {
+	vi.stubGlobal("ResizeObserver", undefined);
 	const rowTop = (row: HTMLElement) => {
 		let top = 0;
 		for (const other of document.querySelectorAll<HTMLElement>(
@@ -263,6 +266,48 @@ it("drops the blank space without moving the view when the reader scrolled durin
 	).toBe(true);
 });
 
+it.each([
+	{
+		gesture: "a wheel down",
+		scroll: (viewport: HTMLElement) => {
+			// The view is already at the end, so the wheel scrolls nothing.
+			fireEvent.wheel(viewport, { deltaY: 100 });
+		},
+	},
+	{
+		gesture: "a small wheel up",
+		scroll: (viewport: HTMLElement) => {
+			fireEvent.wheel(viewport, { deltaY: -50 });
+			viewport.scrollTop -= 50;
+			fireEvent.scroll(viewport);
+		},
+	},
+])(
+	"moves a short reply to the end of the view after $gesture at the held position",
+	async ({ scroll }) => {
+		mockLayout(400, { 1: 200, 2: 200, 3: 200, sent: 40, reply: 60 });
+		const { rerender, getByLabelText } = render(transcript(history, false));
+		await nextFrames();
+
+		rerender(transcript([...history, sent, { id: "reply" }], true));
+		await nextFrames();
+		const viewport = getByLabelText("Messages");
+		scroll(viewport);
+		await nextFrames();
+
+		rerender(transcript([...history, answered, { id: "reply" }], false));
+		await nextFrames();
+
+		expect(
+			viewport.querySelector<HTMLElement>("[data-message-scroller-spacer]")
+				?.hidden,
+		).toBe(true);
+		expect(viewport.scrollTop).toBe(
+			viewport.scrollHeight - viewport.clientHeight,
+		);
+	},
+);
+
 const LayoutToggle: React.FC = () => {
 	const userLayoutIntent = useMessageScrollerUserLayoutIntent();
 	return (
@@ -294,4 +339,61 @@ it("keeps the sent message in view when the reader toggled the reply during the 
 	await nextFrames();
 
 	expect(viewport.scrollTop).toBe(heldScrollTop);
+	const spacer = viewport.querySelector<HTMLElement>(
+		"[data-message-scroller-spacer]",
+	);
+	// The blank space stays until the reader scrolls it out of view.
+	expect(spacer?.hidden).toBe(false);
+
+	fireEvent.wheel(viewport, { deltaY: -300 });
+	viewport.scrollTop -= 300;
+	fireEvent.scroll(viewport);
+
+	expect(spacer?.hidden).toBe(true);
+	expect(viewport.scrollTop).toBe(heldScrollTop - 300);
+});
+
+const JumpButton: React.FC = () => {
+	const { scrollToMessage } = useMessageScroller();
+	return (
+		<button
+			type="button"
+			onClick={() => scrollToMessage("3", { behavior: "smooth" })}
+		>
+			Jump
+		</button>
+	);
+};
+
+it("keeps the spacer a jump in flight needs when the turn ends", async () => {
+	mockLayout(400, { 1: 200, 2: 200, 3: 200 });
+	// The smooth jump stays in flight: the view does not move.
+	Element.prototype.scrollTo = function (
+		this: Element,
+		options?: ScrollToOptions | number,
+	) {
+		if (typeof options === "object" && options.behavior !== "smooth") {
+			this.scrollTop = options.top ?? 0;
+		}
+	};
+	const rows: Row[] = [
+		{ id: "1", children: <JumpButton /> },
+		{ id: "2" },
+		{ id: "3" },
+	];
+	const { rerender, getByLabelText, getByRole } = render(
+		transcript(rows, true),
+	);
+	await nextFrames();
+	const viewport = getByLabelText("Messages");
+	fireEvent.wheel(viewport, { deltaY: -200 });
+	viewport.scrollTop = 0;
+	fireEvent.scroll(viewport);
+
+	// Message 3 can reach the top of the view only above a spacer.
+	fireEvent.click(getByRole("button", { name: "Jump" }));
+	rerender(transcript(rows, false));
+	await nextFrames();
+
+	expect(viewport.scrollHeight - viewport.clientHeight).toBe(400);
 });
