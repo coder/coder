@@ -36,7 +36,7 @@ import { QueuedForCapacityCallout } from "../components/ChatConversation/QueuedF
 import { DesktopPanelContext } from "../components/ChatElements/tools/DesktopPanelContext";
 import {
 	ChatOverviewCard,
-	useOverviewCard,
+	type OverviewTabId,
 } from "../components/ChatOverviewCard";
 import type { SendChatMessageOptions } from "../components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "../components/ChatPageContent";
@@ -56,6 +56,7 @@ import { TerminalPanel } from "../components/TerminalPanel";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { TerminalClientSessionContext } from "../context/TerminalClientSessionContext";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
+import { useOverviewCard } from "../hooks/useOverviewCard";
 import {
 	getPersistedDefaultTerminalHidden,
 	getPersistedRightPanelTabs,
@@ -515,6 +516,11 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		setSidebarTabId(tabId);
 	};
 
+	const openOverviewTab = (tabId: OverviewTabId) => {
+		overviewCard.dismiss();
+		activateRightPanelTab(tabId);
+	};
+
 	const showSingletonTab = (tabId: SingletonRightPanelTabId) => {
 		setVisibleSingletonTabsState((currentTabIds) =>
 			currentTabIds.includes(tabId) ? currentTabIds : [...currentTabIds, tabId],
@@ -856,14 +862,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										onToggleSidebar: () =>
 											onSetShowSidebarPanel(!showSidebarPanel),
 									}}
-									overview={
-										canShowOverview
-											? {
-													isOpen: overviewCard.isOpen,
-													onToggle: overviewCard.toggle,
-												}
-											: undefined
-									}
+									overview={canShowOverview ? overviewCard : undefined}
 									overviewToggleRef={overviewToggleRef}
 								/>
 								{modelCatalogError != null && (
@@ -905,10 +904,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										isHydratingMessages={isHydratingMessages}
 										isPinned={overviewCard.isPinned}
 										onPinnedChange={overviewCard.setPinned}
-										onOpenTab={(tabId) => {
-											overviewCard.dismiss();
-											activateRightPanelTab(tabId);
-										}}
+										onOpenTab={openOverviewTab}
 									/>
 								)}
 							</div>

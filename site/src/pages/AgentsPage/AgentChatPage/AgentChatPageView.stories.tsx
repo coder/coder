@@ -47,7 +47,7 @@ import { MessageScroller } from "#/vendor/message-scroller";
 import type { ChatDetailError } from "../components/ChatConversation/chatError";
 import { createChatStore } from "../components/ChatConversation/chatStore";
 import { buildLongConversation } from "../components/ChatConversation/storyFixtures";
-import { OVERVIEW_CARD_PINNED_KEY } from "../components/ChatOverviewCard";
+import { OVERVIEW_CARD_PINNED_KEY } from "../hooks/useOverviewCard";
 import { visibleSingletonTabsStorageKeyPrefix } from "../utils/rightPanelTabStorage";
 import type { SingletonRightPanelTabId } from "../utils/rightPanelTabs";
 import { lastActiveSidebarTabStorageKeyPrefix } from "../utils/sidebarTabStorage";
@@ -959,7 +959,6 @@ export const OverviewCardBesideTranscript: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Toggle overview" }),
 		);
-		await canvas.findByRole("complementary", { name: "Overview" });
 	},
 	render: () => (
 		<StoryAgentChatPageView

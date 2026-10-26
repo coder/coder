@@ -141,7 +141,7 @@ type Story = StoryObj<typeof ChatOverviewCardView>;
 /** Every section, with a fourth attachment behind the toggle. */
 export const Full: Story = {};
 
-/** A pinned card stays open in every chat. */
+/** The pin button is pressed. */
 export const Pinned: Story = {
 	args: { isPinned: true },
 };

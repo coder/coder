@@ -42,6 +42,7 @@ import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
 import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
+import type { OverviewCardState } from "../hooks/useOverviewCard";
 import { prNumber } from "../utils/pullRequest";
 import { clearPersistedRightPanelState } from "../utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "../utils/sidebarTabStorage";
@@ -67,17 +68,15 @@ type ChatSharingTopBarButtonProps = {
 	organizationId: string;
 };
 
-type OverviewToggleState = {
-	isOpen: boolean;
-	onToggle: () => void;
-};
-
 type ChatTopBarProps = {
 	chat?: TypesGen.Chat;
 	liveChatStatus?: TypesGen.ChatStatus | null;
 	panel: SidebarPanelState;
-	/** The overview card toggle. Absent where the card cannot show. */
-	overview?: OverviewToggleState;
+	/**
+	 * The overview card toggle. Absent while the card cannot exist (right
+	 * panel open, full-width chat, embed). Below 84rem it renders hidden.
+	 */
+	overview?: Pick<OverviewCardState, "isOpen" | "toggle">;
 	overviewToggleRef?: React.Ref<HTMLButtonElement>;
 };
 
@@ -383,7 +382,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 						ref={overviewToggleRef}
 						variant="subtle"
 						size="icon"
-						onClick={overview.onToggle}
+						onClick={overview.toggle}
 						className={cn(
 							"size-7 text-content-secondary hover:text-content-primary",
 							overview.isOpen && "bg-surface-secondary text-content-primary",

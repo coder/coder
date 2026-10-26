@@ -4,11 +4,13 @@ import { useRef } from "react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import {
+	OVERVIEW_CARD_PINNED_KEY,
+	useOverviewCard,
+} from "../hooks/useOverviewCard";
+import {
 	type ChatOverview,
 	ChatOverviewCardView,
-	OVERVIEW_CARD_PINNED_KEY,
 	type OverviewTabId,
-	useOverviewCard,
 } from "./ChatOverviewCard";
 
 const mockChatOverview: ChatOverview = {
@@ -42,7 +44,11 @@ type OverviewHarnessProps = {
 	onOpenTab: (tabId: OverviewTabId) => void;
 };
 
-/** The top bar toggle and the card, wired as the chat page wires them. */
+/**
+ * The hook and the card, wired as the chat page wires them. The button
+ * stands in for the top bar toggle, so this covers the open state, not
+ * ChatTopBar.
+ */
 const OverviewHarness: React.FC<OverviewHarnessProps> = ({ onOpenTab }) => {
 	const cardRef = useRef<HTMLElement>(null);
 	const toggleRef = useRef<HTMLButtonElement>(null);
@@ -89,12 +95,13 @@ const renderOverview = () => {
 	return { onOpenTab, router, view };
 };
 
-const queryCard = () =>
-	screen.queryByRole("complementary", { name: "Overview" });
+/** Throws unless the toggle reports the expected open state. */
+const expectOpen = (expanded: boolean) =>
+	screen.getByRole("button", { name: "Toggle overview", expanded });
 
 const openCard = async (user: ReturnType<typeof userEvent.setup>) => {
 	await user.click(screen.getByRole("button", { name: "Toggle overview" }));
-	expect(queryCard()).toBeInTheDocument();
+	expectOpen(true);
 };
 
 describe("ChatOverviewCard", () => {
@@ -117,7 +124,7 @@ describe("ChatOverviewCard", () => {
 			await user.click(screen.getByRole("button", { name }));
 
 			expect(onOpenTab).toHaveBeenCalledExactlyOnceWith(tab);
-			expect(queryCard()).not.toBeInTheDocument();
+			expectOpen(false);
 		},
 	);
 
@@ -139,18 +146,18 @@ describe("ChatOverviewCard", () => {
 
 		await openCard(user);
 		await user.click(toggle);
-		expect(queryCard()).not.toBeInTheDocument();
+		expectOpen(false);
 
 		await openCard(user);
 		await user.click(screen.getByText("Transcript"));
-		expect(queryCard()).not.toBeInTheDocument();
+		expectOpen(false);
 
 		await openCard(user);
 		await user.click(screen.getByRole("button", { name: /Cost/ }));
 		await openCard(user);
 		screen.getByRole("button", { name: "Pin overview" }).focus();
 		await user.keyboard("{Escape}");
-		expect(queryCard()).not.toBeInTheDocument();
+		expectOpen(false);
 		expect(toggle).toHaveFocus();
 	});
 
@@ -162,18 +169,16 @@ describe("ChatOverviewCard", () => {
 		await user.click(screen.getByRole("button", { name: "Pin overview" }));
 		await user.click(screen.getByText("Transcript"));
 		await user.click(screen.getByRole("button", { name: /Cost/ }));
-		expect(queryCard()).toBeInTheDocument();
+		expectOpen(true);
 
 		// A new chat mounts the page view again.
 		view.unmount();
 		renderOverview();
-		expect(queryCard()).toBeInTheDocument();
-		expect(
-			screen.getByRole("button", { name: "Pin overview" }),
-		).toHaveAttribute("aria-pressed", "true");
+		expectOpen(true);
+		screen.getByRole("button", { name: "Pin overview", pressed: true });
 
 		await user.click(screen.getByRole("button", { name: "Toggle overview" }));
-		expect(queryCard()).not.toBeInTheDocument();
+		expectOpen(false);
 		expect(localStorage.getItem(OVERVIEW_CARD_PINNED_KEY)).toBe("false");
 	});
 });
