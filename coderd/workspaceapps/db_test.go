@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/jwtutils"
@@ -31,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
@@ -769,6 +771,92 @@ func Test_ResolveRequest(t *testing.T) {
 		require.Contains(t, string(b), "404 - Application Not Found")
 		require.Equal(t, http.StatusNotFound, w.StatusCode)
 		require.Len(t, connLogger.ConnectionLogs(), 0)
+	})
+
+	t.Run("PreviewSubdomain", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Public port shares must not widen preview access, whether on the
+		// agent's preview port or on the port a preview serves.
+		for _, port := range []int32{workspacesdk.AgentPreviewPort, 8080} {
+			_, err := api.Database.UpsertWorkspaceAgentPortShare(dbauthz.AsSystemRestricted(ctx), database.UpsertWorkspaceAgentPortShareParams{
+				WorkspaceID: workspace.ID,
+				AgentName:   agentName,
+				Port:        port,
+				ShareLevel:  database.AppSharingLevelPublic,
+				Protocol:    database.PortShareProtocolHttp,
+			})
+			require.NoError(t, err)
+		}
+
+		for slug, wantAppURL := range map[string]string{
+			"preview--0123456789abcdef": fmt.Sprintf("http://127.0.0.1:%d/0123456789abcdef", workspacesdk.AgentPreviewPort),
+			"preview--8080":             "http://127.0.0.1:8080",
+		} {
+			req := (workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodSubdomain,
+				BasePath:          "/",
+				UsernameOrID:      me.Username,
+				WorkspaceNameOrID: workspace.Name,
+				AgentNameOrID:     agentName,
+				AppSlugOrPort:     slug,
+			}).Normalize()
+			opts := workspaceapps.ResolveRequestOptions{
+				Logger:              api.Logger,
+				SignedTokenProvider: api.WorkspaceAppsProvider,
+				DashboardURL:        api.AccessURL,
+				PathAppBaseURL:      api.AccessURL,
+				AppHostname:         api.AppHostname,
+				AppRequest:          req,
+			}
+
+			rw := httptest.NewRecorder()
+			r := httptest.NewRequest("GET", "/", nil)
+			r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
+			r.RemoteAddr = testutil.RandomIPv6(t)
+			token, ok := workspaceappsResolveRequest(t, connectionlog.NewFake(), rw, r, opts)
+			require.True(t, ok, slug)
+			require.Equal(t, agentID, token.AgentID)
+			require.Equal(t, wantAppURL, token.AppURL)
+
+			rw = httptest.NewRecorder()
+			r = httptest.NewRequest("GET", "/", nil)
+			r.RemoteAddr = testutil.RandomIPv6(t)
+			token, ok = workspaceappsResolveRequest(t, connectionlog.NewFake(), rw, r, opts)
+			require.False(t, ok, "%s must use the owner sharing level", slug)
+			require.Nil(t, token)
+		}
+	})
+
+	t.Run("PreviewPathBlocked", func(t *testing.T) {
+		t.Parallel()
+
+		req := (workspaceapps.Request{
+			AccessMethod:      workspaceapps.AccessMethodPath,
+			BasePath:          "/app",
+			UsernameOrID:      me.Username,
+			WorkspaceNameOrID: workspace.Name,
+			AgentNameOrID:     agentName,
+			AppSlugOrPort:     "preview--0123456789abcdef",
+		}).Normalize()
+
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "/app", nil)
+		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
+		r.RemoteAddr = testutil.RandomIPv6(t)
+
+		token, ok := workspaceappsResolveRequest(t, connectionlog.NewFake(), rw, r, workspaceapps.ResolveRequestOptions{
+			Logger:              api.Logger,
+			SignedTokenProvider: api.WorkspaceAppsProvider,
+			DashboardURL:        api.AccessURL,
+			PathAppBaseURL:      api.AccessURL,
+			AppHostname:         api.AppHostname,
+			AppRequest:          req,
+		})
+		require.False(t, ok)
+		require.Nil(t, token)
+		require.Equal(t, http.StatusInternalServerError, rw.Code)
 	})
 
 	t.Run("SubdomainEndsInS", func(t *testing.T) {
