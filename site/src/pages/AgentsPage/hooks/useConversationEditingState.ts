@@ -64,7 +64,7 @@ export function useConversationEditingState(deps: {
 		readonly ChatMessagePart[]
 	>([]);
 	// The composer shows an async answer without its prefix line, so the
-	// edit puts the line back to keep the answer tied to its question.
+	// send adds the line back to keep the answer tied to its question.
 	const [editingAnswerPrefix, setEditingAnswerPrefix] = useState("");
 
 	const handleEditUserMessage = (
@@ -125,6 +125,7 @@ export function useConversationEditingState(deps: {
 			editorState: serializedEditorStateRef.current,
 			fileBlocks: editingFileBlocks,
 			messageId: editingMessageId,
+			answerPrefix: editingAnswerPrefix,
 		};
 
 		chatInputRef.current?.clear();
@@ -141,6 +142,7 @@ export function useConversationEditingState(deps: {
 			inputValueRef.current = message;
 			setEditingMessageId(snapshot.messageId);
 			setEditingFileBlocks(snapshot.fileBlocks);
+			setEditingAnswerPrefix(snapshot.answerPrefix);
 		};
 	};
 

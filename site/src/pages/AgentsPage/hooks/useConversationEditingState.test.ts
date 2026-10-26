@@ -312,6 +312,45 @@ describe("useConversationEditingState", () => {
 		unmount();
 	});
 
+	it("keeps an async answer's prefix line when its edit fails after another edit starts", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		let rejectSend: (error: Error) => void = () => {};
+		onSend.mockReturnValueOnce(
+			new Promise<void>((_resolve, reject) => {
+				rejectSend = reject;
+			}),
+		);
+
+		act(() => {
+			result.current.handleEditUserMessage(
+				7,
+				"Answer to ask_user_question call question:\nBackend",
+			);
+		});
+		let firstSend: Promise<void> = Promise.resolve();
+		act(() => {
+			firstSend = result.current.handleSendFromInput({ message: "Frontend" });
+		});
+		act(() => {
+			result.current.handleEditUserMessage(8, "plain message");
+		});
+		await act(async () => {
+			rejectSend(new Error("boom"));
+			await expect(firstSend).rejects.toThrow("boom");
+		});
+		await act(async () => {
+			await result.current.handleSendFromInput({ message: "Frontend" });
+		});
+
+		expect(onSend).toHaveBeenLastCalledWith({
+			message: "Answer to ask_user_question call question:\nFrontend",
+			attachments: undefined,
+			workspaceUploads: undefined,
+			editedMessageID: 7,
+		});
+		unmount();
+	});
+
 	it("forwards pending attachments through history-edit send", async () => {
 		const { result, onSend, unmount } = renderEditing();
 		const attachments: PendingAttachment[] = [
