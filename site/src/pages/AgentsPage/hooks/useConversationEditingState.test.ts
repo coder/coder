@@ -387,7 +387,7 @@ describe("useConversationEditingState", () => {
 			result.current.handleContentChange("", "", false),
 		);
 		result.current.chatInputRef.current = mockInput.handle;
-		const send = createDeferred<void>();
+		const send = createDeferred<undefined>();
 		onSend.mockReturnValueOnce(send.promise);
 
 		act(() => {
@@ -430,7 +430,7 @@ describe("useConversationEditingState", () => {
 			result.current.handleContentChange("", "", false),
 		);
 		result.current.chatInputRef.current = mockInput.handle;
-		const send = createDeferred<void>();
+		const send = createDeferred<undefined>();
 		onSend.mockReturnValueOnce(send.promise);
 
 		act(() => {
@@ -503,7 +503,7 @@ describe("useConversationEditingState", () => {
 			result.current.handleContentChange("", "", false),
 		);
 		result.current.chatInputRef.current = mockInput.handle;
-		const send = createDeferred<void>();
+		const send = createDeferred<undefined>();
 		onSend.mockReturnValueOnce(send.promise);
 
 		let sent: Promise<void> = Promise.resolve();
@@ -514,7 +514,7 @@ describe("useConversationEditingState", () => {
 			result.current.handleContentChange("next", "next state", false);
 		});
 		await act(async () => {
-			send.resolve();
+			send.resolve(undefined);
 			await sent;
 		});
 
@@ -528,7 +528,7 @@ describe("useConversationEditingState", () => {
 		const { result, onSend, unmount } = renderEditing();
 		const mockInput = createMockChatInputHandle("hello");
 		result.current.chatInputRef.current = mockInput.handle;
-		const send = createDeferred<void>();
+		const send = createDeferred<undefined>();
 		onSend.mockReturnValueOnce(send.promise);
 
 		act(() => {
