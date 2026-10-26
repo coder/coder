@@ -1,4 +1,5 @@
 import type {
+	AuthorizationRequest,
 	ChatArtifact,
 	ChatArtifactVersion,
 	ChatMessage,
@@ -103,6 +104,22 @@ export const getArtifactPagePath = (artifactId: string, version?: number) => {
  */
 export const getArtifactLink = (artifactId: string, version?: number) =>
 	`${window.location.origin}${getArtifactPagePath(artifactId, version)}`;
+
+/** Asks whether the viewer may share the artifact, as `canShare`. */
+export const getArtifactShareCheck = (
+	artifact: ChatArtifact,
+): AuthorizationRequest => ({
+	checks: {
+		canShare: {
+			object: {
+				resource_type: "chat_artifact",
+				owner_id: artifact.owner_id,
+				organization_id: artifact.organization_id,
+			},
+			action: "share",
+		},
+	},
+});
 
 /**
  * The version that an artifact view shows: the selected version, or the

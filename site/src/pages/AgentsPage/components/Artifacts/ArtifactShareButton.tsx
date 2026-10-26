@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { checkAuthorization } from "#/api/queries/authCheck";
 import {
+	type ChatArtifactShareeKind,
 	chatArtifactACL,
 	setChatArtifactRole,
 } from "#/api/queries/chatArtifacts";
@@ -22,7 +23,7 @@ import {
 	type UserOrGroupAutocompleteValue,
 } from "#/modules/workspaces/WorkspaceSharingForm/UserOrGroupAutocomplete";
 import { MemberIdentity } from "../ChatSharingPopover";
-import { getArtifactLink } from "./artifactUtils";
+import { getArtifactLink, getArtifactShareCheck } from "./artifactUtils";
 
 type ArtifactShareButtonProps = {
 	artifact: ChatArtifact;
@@ -30,6 +31,13 @@ type ArtifactShareButtonProps = {
 	version: number | undefined;
 	/** Names the owner "you" when it is the viewer. */
 	currentUserId: string;
+};
+
+type AccessOptions = {
+	/** The viewer may share, so the viewer sees the shares. */
+	canShare: boolean;
+	/** The artifact is shared with at least one user or group. */
+	hasShares: boolean;
 };
 
 /**
@@ -40,8 +48,7 @@ type ArtifactShareButtonProps = {
 const describeAccess = (
 	artifact: ChatArtifact,
 	currentUserId: string,
-	canShare: boolean,
-	hasShares: boolean,
+	{ canShare, hasShares }: AccessOptions,
 ): string => {
 	const isOwner = artifact.owner_id === currentUserId;
 	const project = artifact.project_name;
@@ -75,23 +82,34 @@ export const ArtifactShareButton: React.FC<ArtifactShareButtonProps> = ({
 }) => {
 	const [open, setOpen] = useState(false);
 	const shareCheck = useQuery({
-		...checkAuthorization({
-			checks: {
-				canShare: {
-					object: {
-						resource_type: "chat_artifact",
-						owner_id: artifact.owner_id,
-						organization_id: artifact.organization_id,
-					},
-					action: "share",
-				},
-			},
-		}),
+		...checkAuthorization(getArtifactShareCheck(artifact)),
 		enabled: open,
 	});
-	const canShare = shareCheck.data?.canShare === true;
 	const showVersionLink =
 		version !== undefined && version !== artifact.latest_version;
+
+	let access: React.ReactNode;
+	if (shareCheck.error) {
+		access = <ErrorAlert error={shareCheck.error} />;
+	} else if (!shareCheck.data) {
+		access = (
+			<Spinner loading label="Loading sharing" className="self-center" />
+		);
+	} else if (shareCheck.data.canShare) {
+		access = (
+			<ArtifactSharing artifact={artifact} currentUserId={currentUserId} />
+		);
+	} else {
+		access = (
+			<p className="m-0 text-xs text-content-secondary">
+				{describeAccess(artifact, currentUserId, {
+					canShare: false,
+					hasShares: false,
+				})}
+			</p>
+		);
+	}
+
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger asChild>
@@ -104,13 +122,7 @@ export const ArtifactShareButton: React.FC<ArtifactShareButtonProps> = ({
 				className="flex w-96 max-w-[calc(100vw-2rem)] flex-col gap-3 p-4"
 			>
 				<h3 className="m-0 text-sm font-semibold">Share artifact</h3>
-				{canShare ? (
-					<ArtifactSharing artifact={artifact} currentUserId={currentUserId} />
-				) : (
-					<p className="m-0 text-xs text-content-secondary">
-						{describeAccess(artifact, currentUserId, false, false)}
-					</p>
-				)}
+				{access}
 				<div className="flex flex-wrap gap-2">
 					<CopyLinkButton
 						link={getArtifactLink(artifact.id)}
@@ -142,8 +154,15 @@ const ArtifactSharing: React.FC<ArtifactSharingProps> = ({
 	const aclQuery = useQuery(chatArtifactACL(artifact.id));
 	const roleMutation = useMutation(setChatArtifactRole(queryClient));
 	const [selected, setSelected] = useState<UserOrGroupAutocompleteValue>(null);
-	const users = aclQuery.data?.users ?? [];
-	const groups = aclQuery.data?.groups ?? [];
+
+	if (aclQuery.error) {
+		return <ErrorAlert error={aclQuery.error} />;
+	}
+	if (!aclQuery.data) {
+		return <Spinner loading label="Loading sharing" className="self-center" />;
+	}
+	const { users, groups } = aclQuery.data;
+	const hasShares = users.length + groups.length > 0;
 
 	const share = (event: React.FormEvent) => {
 		event.preventDefault();
@@ -160,20 +179,16 @@ const ArtifactSharing: React.FC<ArtifactSharingProps> = ({
 			{ onSuccess: () => setSelected(null) },
 		);
 	};
-	const stopSharing = (id: string, kind: "user" | "group") => {
+	const stopSharing = (id: string, kind: ChatArtifactShareeKind) => {
 		roleMutation.mutate({ artifactId: artifact.id, id, kind, role: "" });
 	};
 
 	return (
 		<>
 			<p className="m-0 text-xs text-content-secondary">
-				{describeAccess(
-					artifact,
-					currentUserId,
-					true,
-					users.length + groups.length > 0,
-				)}{" "}
-				They can view every version, not the chats it came from.
+				{describeAccess(artifact, currentUserId, { canShare: true, hasShares })}
+				{hasShares &&
+					" People you share with can view every version, but not the chats that published them."}
 			</p>
 			<form onSubmit={share} className="flex items-center gap-2">
 				<UserOrGroupAutocomplete
@@ -193,9 +208,7 @@ const ArtifactSharing: React.FC<ArtifactSharingProps> = ({
 				</Button>
 			</form>
 			{roleMutation.error ? <ErrorAlert error={roleMutation.error} /> : null}
-			{aclQuery.error ? <ErrorAlert error={aclQuery.error} /> : null}
-			{aclQuery.isLoading && <Spinner loading className="self-center" />}
-			{users.length + groups.length > 0 && (
+			{hasShares && (
 				<ul
 					aria-label="Shared with"
 					className="m-0 flex max-h-60 list-none flex-col gap-2 overflow-y-auto p-0"

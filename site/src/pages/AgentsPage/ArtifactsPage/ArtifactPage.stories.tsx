@@ -84,6 +84,30 @@ export const LoadedMobile: Story = {
 	},
 };
 
+const mockArtifactFromAnotherUsersChat = {
+	...MockChatArtifact,
+	versions: (MockChatArtifact.versions ?? []).map((version, index) =>
+		index === 0 ? { ...version, chat_title: "" } : version,
+	),
+};
+
+/** The viewer does not own the latest version's chat, so "Open chat" is absent. */
+export const LatestFromAnotherUsersChat: Story = {
+	parameters: {
+		reactRouter: artifactRoute(MockChatArtifact.id),
+		queries: [
+			{
+				key: chatArtifactKey(MockChatArtifact.id),
+				data: mockArtifactFromAnotherUsersChat,
+			},
+			{
+				key: chatArtifactVersionTextKey(MockChatArtifact.id, 2),
+				data: repoLayoutText,
+			},
+		],
+	},
+};
+
 export const NotFound: Story = {
 	parameters: {
 		reactRouter: artifactRoute("missing"),

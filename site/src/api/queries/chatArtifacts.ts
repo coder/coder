@@ -51,11 +51,14 @@ export const chatArtifactACL = (artifactId: string) =>
 		queryFn: () => API.experimental.getChatArtifactACL(artifactId),
 	});
 
+/** Whether an artifact is shared with a user or with a group. */
+export type ChatArtifactShareeKind = "user" | "group";
+
 type SetChatArtifactRoleVariables = {
 	artifactId: string;
 	/** A user ID or a group ID, as `kind` says. */
 	id: string;
-	kind: "user" | "group";
+	kind: ChatArtifactShareeKind;
 	/** "read" shares the artifact, "" stops sharing it. */
 	role: ChatRole;
 };

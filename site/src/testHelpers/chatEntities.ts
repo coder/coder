@@ -7,11 +7,13 @@ import type {
 	ChatCost,
 	ChatDiffStatus,
 	ChatFileMetadata,
+	ChatGroup,
 	ChatMessage,
 	ChatQueuedMessage,
+	ChatUser,
 	MCPServerConfig,
 } from "#/api/typesGenerated";
-import { MockUserOwner } from "./entities";
+import { MockGroup, MockUserMember, MockUserOwner } from "./entities";
 
 export const MOCK_TIMESTAMP = "2024-01-01T00:00:00Z";
 
@@ -270,3 +272,15 @@ export const MockChatArtifact: ChatArtifact = {
 		MockChatArtifactVersion,
 	],
 };
+
+/** A user an artifact or chat is shared with. */
+export const MockChatUser: ChatUser = {
+	id: MockUserMember.id,
+	username: MockUserMember.username,
+	name: MockUserMember.name,
+	avatar_url: MockUserMember.avatar_url,
+	role: "read",
+};
+
+/** A group an artifact or chat is shared with. */
+export const MockChatGroup: ChatGroup = { ...MockGroup, role: "read" };

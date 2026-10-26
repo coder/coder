@@ -1,10 +1,13 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
-import type { ChatUser } from "#/api/typesGenerated";
-import { MockChatArtifact } from "#/testHelpers/chatEntities";
-import { MockUserMember, MockUserOwner } from "#/testHelpers/entities";
+import { MockChatArtifact, MockChatUser } from "#/testHelpers/chatEntities";
+import {
+	MockOrganizationMember2,
+	MockUserMember,
+	MockUserOwner,
+} from "#/testHelpers/entities";
 import { render } from "#/testHelpers/renderHelpers";
 import { ArtifactShareButton } from "./ArtifactShareButton";
 
@@ -57,24 +60,7 @@ describe("ArtifactShareButton", () => {
 		);
 	});
 
-	const mockSharedUser: ChatUser = {
-		id: MockUserMember.id,
-		username: MockUserMember.username,
-		name: MockUserMember.name,
-		avatar_url: MockUserMember.avatar_url,
-		role: "read",
-	};
-
-	it("stops sharing with a user when the viewer may share", async () => {
-		const user = userEvent.setup();
-		vi.spyOn(API, "checkAuthorization").mockResolvedValue({ canShare: true });
-		vi.spyOn(API.experimental, "getChatArtifactACL").mockResolvedValue({
-			users: [mockSharedUser],
-			groups: [],
-		});
-		const updateACL = vi
-			.spyOn(API.experimental, "updateChatArtifactACL")
-			.mockResolvedValue();
+	const renderOwnerShare = () =>
 		render(
 			<ArtifactShareButton
 				artifact={MockChatArtifact}
@@ -83,23 +69,74 @@ describe("ArtifactShareButton", () => {
 			/>,
 		);
 
+	it("shares the artifact with the picked user", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API, "checkAuthorization").mockResolvedValue({ canShare: true });
+		vi.spyOn(API.experimental, "getChatArtifactACL").mockResolvedValue({
+			users: [],
+			groups: [],
+		});
+		vi.spyOn(API, "getOrganizationPaginatedMembers").mockResolvedValue({
+			members: [MockOrganizationMember2],
+			count: 1,
+		});
+		vi.spyOn(API, "getGroupsByOrganization").mockResolvedValue([]);
+		const updateACL = vi
+			.spyOn(API.experimental, "updateChatArtifactACL")
+			.mockResolvedValue();
+		renderOwnerShare();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Share artifact" }),
+		);
+		await user.click(
+			await screen.findByRole("button", { name: "Search for user or group" }),
+		);
+		await user.click(
+			await screen.findByRole("option", {
+				name: new RegExp(MockOrganizationMember2.username),
+			}),
+		);
+		await user.click(screen.getByRole("button", { name: "Share" }));
+
+		await waitFor(() =>
+			expect(updateACL).toHaveBeenCalledWith(MockChatArtifact.id, {
+				user_roles: { [MockOrganizationMember2.user_id]: "read" },
+			}),
+		);
+	});
+
+	it("stops sharing with a user when the viewer may share", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API, "checkAuthorization").mockResolvedValue({ canShare: true });
+		vi.spyOn(API.experimental, "getChatArtifactACL").mockResolvedValue({
+			users: [MockChatUser],
+			groups: [],
+		});
+		const updateACL = vi
+			.spyOn(API.experimental, "updateChatArtifactACL")
+			.mockResolvedValue();
+		renderOwnerShare();
+
 		await user.click(
 			await screen.findByRole("button", { name: "Share artifact" }),
 		);
 		await user.click(
 			await screen.findByRole("button", {
-				name: `Stop sharing with ${MockUserMember.username}`,
+				name: `Stop sharing with ${MockChatUser.username}`,
 			}),
 		);
 
 		expect(updateACL).toHaveBeenCalledWith(MockChatArtifact.id, {
-			user_roles: { [MockUserMember.id]: "" },
+			user_roles: { [MockChatUser.id]: "" },
 		});
 	});
 
-	it("shows no sharing controls when the viewer may not share", async () => {
+	it("loads no shares when the viewer may not share", async () => {
 		const user = userEvent.setup();
-		vi.spyOn(API, "checkAuthorization").mockResolvedValue({ canShare: false });
+		const checkAuthorization = vi
+			.spyOn(API, "checkAuthorization")
+			.mockResolvedValue({ canShare: false });
 		const getACL = vi.spyOn(API.experimental, "getChatArtifactACL");
 		render(
 			<ArtifactShareButton
@@ -113,12 +150,7 @@ describe("ArtifactShareButton", () => {
 			await screen.findByRole("button", { name: "Share artifact" }),
 		);
 
-		expect(
-			await screen.findByText(
-				`${MockChatArtifact.owner_username} decides who can open this link.`,
-			),
-		).toBeInTheDocument();
-		expect(screen.queryByRole("button", { name: "Share" })).toBeNull();
+		await waitFor(() => expect(checkAuthorization).toHaveBeenCalled());
 		expect(getACL).not.toHaveBeenCalled();
 	});
 });

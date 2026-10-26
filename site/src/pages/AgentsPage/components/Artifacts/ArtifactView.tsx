@@ -88,7 +88,7 @@ export const ArtifactView: React.FC<ArtifactViewProps> = ({
 				<h3 className="m-0 min-w-0 basis-full truncate text-sm font-medium text-content-primary @xl:flex-1">
 					{artifact.title || "Untitled artifact"}
 				</h3>
-				{chatPath && (
+				{chatPath && latestVersion && (
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<Button asChild variant="outline" size="sm">
@@ -99,7 +99,7 @@ export const ArtifactView: React.FC<ArtifactViewProps> = ({
 							</Button>
 						</TooltipTrigger>
 						<TooltipContent>
-							Last edited in “{latestVersion?.chat_title}”
+							Last edited in “{latestVersion.chat_title}”
 						</TooltipContent>
 					</Tooltip>
 				)}

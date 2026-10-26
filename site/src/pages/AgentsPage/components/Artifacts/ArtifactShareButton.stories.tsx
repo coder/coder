@@ -1,31 +1,21 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { spyOn, userEvent, within } from "storybook/test";
-import { API } from "#/api/api";
+import { userEvent, within } from "storybook/test";
+import { getAuthorizationKey } from "#/api/queries/authCheck";
 import { chatArtifactACLKey } from "#/api/queries/chatArtifacts";
-import type { ChatGroup, ChatUser } from "#/api/typesGenerated";
-import { MockChatArtifact } from "#/testHelpers/chatEntities";
 import {
-	MockGroup,
-	MockUserMember,
-	MockUserOwner,
-} from "#/testHelpers/entities";
+	MockChatArtifact,
+	MockChatGroup,
+	MockChatUser,
+} from "#/testHelpers/chatEntities";
+import { MockUserMember, MockUserOwner } from "#/testHelpers/entities";
 import { ArtifactShareButton } from "./ArtifactShareButton";
+import { getArtifactShareCheck } from "./artifactUtils";
 
 const mockProjectArtifact = {
 	...MockChatArtifact,
 	project_id: "project-1",
 	project_name: "Artifacts demo",
 };
-
-const mockSharedUser: ChatUser = {
-	id: MockUserMember.id,
-	username: MockUserMember.username,
-	name: MockUserMember.name,
-	avatar_url: MockUserMember.avatar_url,
-	role: "read",
-};
-
-const mockSharedGroup: ChatGroup = { ...MockGroup, role: "read" };
 
 const meta: Meta<typeof ArtifactShareButton> = {
 	title: "pages/AgentsPage/Artifacts/ArtifactShareButton",
@@ -34,17 +24,6 @@ const meta: Meta<typeof ArtifactShareButton> = {
 		artifact: MockChatArtifact,
 		version: MockChatArtifact.latest_version,
 		currentUserId: MockUserOwner.id,
-	},
-	parameters: {
-		queries: [
-			{
-				key: chatArtifactACLKey(MockChatArtifact.id),
-				data: { users: [], groups: [] },
-			},
-		],
-	},
-	beforeEach: () => {
-		spyOn(API, "checkAuthorization").mockResolvedValue({ canShare: true });
 	},
 	decorators: [
 		(Story) => (
@@ -63,14 +42,31 @@ const meta: Meta<typeof ArtifactShareButton> = {
 export default meta;
 type Story = StoryObj<typeof ArtifactShareButton>;
 
-export const OwnArtifact: Story = {};
+export const OwnArtifact: Story = {
+	parameters: {
+		queries: [
+			{
+				key: getAuthorizationKey(getArtifactShareCheck(MockChatArtifact)),
+				data: { canShare: true },
+			},
+			{
+				key: chatArtifactACLKey(MockChatArtifact.id),
+				data: { users: [], groups: [] },
+			},
+		],
+	},
+};
 
 export const SharedWithPeople: Story = {
 	parameters: {
 		queries: [
 			{
+				key: getAuthorizationKey(getArtifactShareCheck(MockChatArtifact)),
+				data: { canShare: true },
+			},
+			{
 				key: chatArtifactACLKey(MockChatArtifact.id),
-				data: { users: [mockSharedUser], groups: [mockSharedGroup] },
+				data: { users: [MockChatUser], groups: [MockChatGroup] },
 			},
 		],
 	},
@@ -78,12 +74,28 @@ export const SharedWithPeople: Story = {
 
 export const OlderVersion: Story = {
 	args: { version: 1 },
+	parameters: {
+		queries: [
+			{
+				key: getAuthorizationKey(getArtifactShareCheck(MockChatArtifact)),
+				data: { canShare: true },
+			},
+			{
+				key: chatArtifactACLKey(MockChatArtifact.id),
+				data: { users: [], groups: [] },
+			},
+		],
+	},
 };
 
 export const ProjectArtifact: Story = {
 	args: { artifact: mockProjectArtifact },
 	parameters: {
 		queries: [
+			{
+				key: getAuthorizationKey(getArtifactShareCheck(mockProjectArtifact)),
+				data: { canShare: true },
+			},
 			{
 				key: chatArtifactACLKey(mockProjectArtifact.id),
 				data: { users: [], groups: [] },
@@ -94,7 +106,12 @@ export const ProjectArtifact: Story = {
 
 export const AnotherUsersArtifact: Story = {
 	args: { currentUserId: MockUserMember.id },
-	beforeEach: () => {
-		spyOn(API, "checkAuthorization").mockResolvedValue({ canShare: false });
+	parameters: {
+		queries: [
+			{
+				key: getAuthorizationKey(getArtifactShareCheck(MockChatArtifact)),
+				data: { canShare: false },
+			},
+		],
 	},
 };

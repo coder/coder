@@ -1,40 +1,37 @@
 import { screen } from "@testing-library/react";
-import type { ChatArtifact } from "#/api/typesGenerated";
+import userEvent from "@testing-library/user-event";
+import { createMemoryRouter } from "react-router";
 import { MockChatArtifact } from "#/testHelpers/chatEntities";
 import { MockUserOwner } from "#/testHelpers/entities";
-import { render } from "#/testHelpers/renderHelpers";
+import { renderWithRouter } from "#/testHelpers/renderHelpers";
 import { ArtifactView } from "./ArtifactView";
 
-const renderView = (artifact: ChatArtifact, selectedVersion?: number) =>
-	render(
-		<ArtifactView
-			artifact={artifact}
-			selectedVersion={selectedVersion}
-			onSelectVersion={() => undefined}
-			currentUserId={MockUserOwner.id}
-			showChatLink
-		/>,
-	);
+describe("ArtifactView", () => {
+	it("opens the chat of the latest version, whichever version shows", async () => {
+		const user = userEvent.setup();
+		const { router } = renderWithRouter(
+			createMemoryRouter(
+				[
+					{
+						path: "/",
+						element: (
+							<ArtifactView
+								artifact={MockChatArtifact}
+								selectedVersion={1}
+								onSelectVersion={() => undefined}
+								currentUserId={MockUserOwner.id}
+								showChatLink
+							/>
+						),
+					},
+					{ path: "/agents/:chatId", element: <div /> },
+				],
+				{ initialEntries: ["/"] },
+			),
+		);
 
-describe("ArtifactView chat link", () => {
-	it("links the chat of the latest version, whichever version shows", async () => {
-		renderView(MockChatArtifact, 1);
-		expect(
-			await screen.findByRole("link", { name: "Open chat" }),
-		).toHaveAttribute("href", "/agents/chat-1");
-	});
+		await user.click(await screen.findByRole("link", { name: "Open chat" }));
 
-	it("has no link when the viewer cannot open that chat", async () => {
-		const [latest, ...older] = MockChatArtifact.versions ?? [];
-		renderView({
-			...MockChatArtifact,
-			versions: [{ ...latest, chat_title: "" }, ...older],
-		});
-		expect(
-			await screen.findByRole("button", { name: "Share artifact" }),
-		).toBeInTheDocument();
-		expect(
-			screen.queryByRole("link", { name: "Open chat" }),
-		).not.toBeInTheDocument();
+		expect(router.state.location.pathname).toBe("/agents/chat-1");
 	});
 });
