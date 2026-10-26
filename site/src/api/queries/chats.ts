@@ -2569,6 +2569,16 @@ export const chatDebugRun = (chatId: string, runId: string) =>
 		refetchIntervalInBackground: false,
 	});
 
+// The endpoint lists the chat's current workspace, so the key includes it.
+export const chatPreviewsKey = (chatId: string, workspaceId: string) =>
+	["chatPreviews", chatId, workspaceId] as const;
+
+export const chatPreviews = (chatId: string, workspaceId: string) =>
+	queryOptions({
+		queryKey: chatPreviewsKey(chatId, workspaceId),
+		queryFn: ({ signal }) => API.experimental.getChatPreviews(chatId, signal),
+	});
+
 export const createChat = (queryClient: QueryClient) => ({
 	mutationFn: (req: TypesGen.CreateChatRequest) =>
 		API.experimental.createChat(req),

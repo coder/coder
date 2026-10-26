@@ -8,10 +8,11 @@ import type {
 	ChatDiffStatus,
 	ChatFileMetadata,
 	ChatMessage,
+	ChatPreview,
 	ChatQueuedMessage,
 	MCPServerConfig,
 } from "#/api/typesGenerated";
-import { MockUserOwner } from "./entities";
+import { MockUserOwner, MockWorkspaceAgent } from "./entities";
 
 export const MOCK_TIMESTAMP = "2024-01-01T00:00:00Z";
 
@@ -286,4 +287,18 @@ export const MockChatDiffStatus: ChatDiffStatus = {
 	additions: 1,
 	deletions: 0,
 	changed_files: 1,
+};
+
+export const MockChatPreview: ChatPreview = {
+	title: "Dev server",
+	agent_name: MockWorkspaceAgent.name,
+	port: 3000,
+	url_path: "/?folder=/home/coder/project",
+};
+
+export const MockChatFilePreview: ChatPreview = {
+	title: "Generated docs",
+	agent_name: MockWorkspaceAgent.name,
+	preview_id: "0123456789abcdef",
+	path: "/home/coder/project/docs",
 };

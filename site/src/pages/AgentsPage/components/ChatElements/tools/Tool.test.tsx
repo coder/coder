@@ -13,6 +13,7 @@ import {
 import { createMockWebSocket } from "#/testHelpers/websockets";
 import { OneWayWebSocket } from "#/utils/OneWayWebSocket";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
+import { PreviewPanelContext } from "./PreviewPanelContext";
 import { Tool } from "./Tool";
 
 afterEach(() => {
@@ -176,5 +177,49 @@ describe("Tool generic rows", () => {
 		);
 
 		expect(screen.getByRole("button")).toHaveAccessibleName("custom_tool");
+	});
+});
+
+describe("Tool open_preview rows", () => {
+	it("opens the result's endpoint in the Preview tab", async () => {
+		const onOpenPreview = vi.fn();
+		renderComponent(
+			<QueryClientProvider client={createTestQueryClient()}>
+				<ChatWorkspaceContext value={{ workspaceId: MockWorkspace.id }}>
+					<PreviewPanelContext value={{ onOpenPreview }}>
+						<Tool
+							name="open_preview"
+							organizationId="organization-id"
+							mcpServers={[]}
+							status="completed"
+							args={{ title: "Docs", path: "/home/coder/project/docs" }}
+							result={{
+								ok: true,
+								title: "Docs",
+								workspace_id: MockWorkspace.id,
+								agent_name: MockWorkspaceAgent.name,
+								preview_id: "0123456789abcdef",
+								path: "/home/coder/project/docs",
+							}}
+							isError={false}
+							subagentTitles={new Map()}
+							subagentVariants={new Map()}
+							shellToolDisplayMode="auto"
+							codeDiffDisplayMode="auto"
+						/>
+					</PreviewPanelContext>
+				</ChatWorkspaceContext>
+			</QueryClientProvider>,
+		);
+
+		await userEvent.click(screen.getByRole("button", { name: "Open preview" }));
+
+		expect(onOpenPreview).toHaveBeenCalledWith({
+			workspaceId: MockWorkspace.id,
+			preview: {
+				agent_name: MockWorkspaceAgent.name,
+				preview_id: "0123456789abcdef",
+			},
+		});
 	});
 });
