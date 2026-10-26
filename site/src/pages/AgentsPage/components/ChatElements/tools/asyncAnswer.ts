@@ -1,15 +1,10 @@
-import { asRecord } from "../runtimeTypeUtils";
-import { parseArgs } from "./utils";
-
 // Async ask_user_question answers are ordinary user messages whose first
 // line names the tool call they answer.
-const asyncAnswerLead = "Answer to ask_user_question call";
-
-const asyncAnswerPattern = new RegExp(`^${asyncAnswerLead} (\\S+):\n`);
+const asyncAnswerPattern = /^Answer to ask_user_question call (\S+):\n/;
 
 /** Returns the prefix line, newline included, that starts an answer to the call. */
 export const getAsyncAnswerPrefix = (toolCallId: string): string =>
-	`${asyncAnswerLead} ${toolCallId}:\n`;
+	`Answer to ask_user_question call ${toolCallId}:\n`;
 
 type AsyncAnswer = {
 	toolCallId: string;
@@ -17,7 +12,7 @@ type AsyncAnswer = {
 	body: string;
 };
 
-/** Splits an answer into the call it names and its body, if it starts with the prefix line. */
+/** Returns undefined unless the text starts with the exact prefix line. */
 export const parseAsyncAnswer = (text: string): AsyncAnswer | undefined => {
 	const match = asyncAnswerPattern.exec(text);
 	if (!match) {
@@ -35,26 +30,3 @@ export const getAsyncAnswerText = (
 		responseText === undefined ? undefined : parseAsyncAnswer(responseText);
 	return answer?.toolCallId === toolCallId ? answer.body : undefined;
 };
-
-/** Returns the result object that carries the question list, in any shape the tool result arrives in. */
-export const findAskUserQuestionResultRecord = (
-	result: unknown,
-): Record<string, unknown> | null => {
-	const resultRecord = asRecord(result);
-	for (const value of [
-		result,
-		resultRecord?.output,
-		resultRecord?.content,
-		resultRecord?.text,
-	]) {
-		const parsedValue = parseArgs(value);
-		if (Array.isArray(parsedValue?.questions)) {
-			return parsedValue;
-		}
-	}
-	return null;
-};
-
-/** Reports whether the server marked the question as not ending the agent's turn. */
-export const isAsyncAskUserQuestionResult = (result: unknown): boolean =>
-	findAskUserQuestionResultRecord(result)?.async === true;

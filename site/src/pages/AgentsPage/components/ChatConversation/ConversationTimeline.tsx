@@ -129,7 +129,7 @@ const ChatMessageItem = memo<{
 	isChatCompleted?: boolean;
 	latestAskUserQuestionToolId?: string;
 	askUserQuestionResponseTextByToolId?: ReadonlyMap<string, string>;
-	hasUserResponseAfterAskQuestion?: boolean;
+	isLatestAskUserQuestionAnswered?: boolean;
 	prevUserMessageKey?: string;
 	nextUserMessageKey?: string;
 	onJumpToUserMessage?: (messageKey: string) => void;
@@ -157,7 +157,7 @@ const ChatMessageItem = memo<{
 		isChatCompleted,
 		latestAskUserQuestionToolId,
 		askUserQuestionResponseTextByToolId,
-		hasUserResponseAfterAskQuestion = false,
+		isLatestAskUserQuestionAnswered = false,
 		prevUserMessageKey,
 		nextUserMessageKey,
 		onJumpToUserMessage,
@@ -282,8 +282,8 @@ const ChatMessageItem = memo<{
 									askUserQuestionResponseTextByToolId={
 										askUserQuestionResponseTextByToolId
 									}
-									hasUserResponseAfterAskQuestion={
-										hasUserResponseAfterAskQuestion
+									isLatestAskUserQuestionAnswered={
+										isLatestAskUserQuestionAnswered
 									}
 									onImageClick={setPreviewImage}
 									onTextFileClick={setPreviewText}
@@ -654,7 +654,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					askUserQuestionResponseTextByToolId={
 						askUserQuestionResponseTextByToolId
 					}
-					hasUserResponseAfterAskQuestion={
+					isLatestAskUserQuestionAnswered={
 						askUserQuestionState.isLatestAnswered
 					}
 					urlTransform={urlTransform}

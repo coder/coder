@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
+import { getAsyncAnswerPrefix } from "./asyncAnswer";
 import { Tool } from "./Tool";
 
 const runningPayload = {
@@ -443,8 +444,7 @@ export const AsyncPreviouslyAnswered: Story = {
 		result: JSON.stringify(asyncSingleQuestionPayload),
 		isChatCompleted: false,
 		isLatestAskUserQuestion: false,
-		previousResponseText:
-			"Answer to ask_user_question call call-async:\nSingle migration",
+		previousResponseText: `${getAsyncAnswerPrefix("call-async")}Single migration`,
 	},
 };
 
@@ -455,7 +455,6 @@ export const AsyncClosed: Story = {
 		result: JSON.stringify(asyncSingleQuestionPayload),
 		isChatCompleted: false,
 		isLatestAskUserQuestion: false,
-		previousResponseText: "Use the other approach instead.",
 		onSendAskUserQuestionResponse: fn(),
 	},
 };

@@ -192,7 +192,7 @@ export type BlockListProps = {
 	isChatCompleted?: boolean;
 	latestAskUserQuestionToolId?: string;
 	askUserQuestionResponseTextByToolId?: ReadonlyMap<string, string>;
-	hasUserResponseAfterAskQuestion: boolean;
+	isLatestAskUserQuestionAnswered: boolean;
 	urlTransform: UrlTransform;
 };
 
@@ -218,7 +218,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 	isChatCompleted,
 	latestAskUserQuestionToolId,
 	askUserQuestionResponseTextByToolId,
-	hasUserResponseAfterAskQuestion,
+	isLatestAskUserQuestionAnswered,
 	urlTransform,
 }) => {
 	const prefQuery = useQuery(preferenceSettings());
@@ -366,7 +366,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 								isChatCompleted={isChatCompleted}
 								isLatestAskUserQuestion={
 									tool.id === latestAskUserQuestionToolId &&
-									!hasUserResponseAfterAskQuestion
+									!isLatestAskUserQuestionAnswered
 								}
 								previousResponseText={
 									tool.name === "ask_user_question"
@@ -435,7 +435,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 					isChatCompleted={isChatCompleted}
 					isLatestAskUserQuestion={
 						tool.id === latestAskUserQuestionToolId &&
-						!hasUserResponseAfterAskQuestion
+						!isLatestAskUserQuestionAnswered
 					}
 					previousResponseText={
 						tool.name === "ask_user_question"

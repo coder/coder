@@ -28,7 +28,6 @@ const userMessage = (text: string): ChatMessage => ({
 	content: [{ type: "text", text }],
 });
 
-// One step that calls ask_user_question and records its result.
 const questionStep = (
 	toolCallId: string,
 	result: { async?: boolean; isError?: boolean } = {},

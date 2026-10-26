@@ -16,6 +16,7 @@ import { MockChatFileMetadata } from "#/testHelpers/chatEntities";
 import { MockUserPreferenceSettings } from "#/testHelpers/entities";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { getChatFileURL } from "../../utils/chatAttachments";
+import { getAsyncAnswerPrefix } from "../ChatElements/tools/asyncAnswer";
 import { ChatMessageScroller } from "../ChatMessageScroller";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
@@ -1820,7 +1821,7 @@ export const AskUserQuestionSubmittedAnswer: Story = {
 	},
 };
 
-export const AsyncAskUserQuestionAnsweredAfterQueuedMessage: Story = {
+export const AsyncAskUserQuestionAnsweredAfterUnrelatedMessage: Story = {
 	args: {
 		...defaultArgs,
 		isChatCompleted: true,
@@ -1879,7 +1880,7 @@ export const AsyncAskUserQuestionAnsweredAfterQueuedMessage: Story = {
 				content: [
 					{
 						type: "text",
-						text: `Answer to ask_user_question call ask-tool-async:\n${askUserQuestionSubmittedResponse}`,
+						text: `${getAsyncAnswerPrefix("ask-tool-async")}${askUserQuestionSubmittedResponse}`,
 					},
 				],
 			},

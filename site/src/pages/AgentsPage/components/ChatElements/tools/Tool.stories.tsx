@@ -2892,7 +2892,7 @@ export const AllToolIconsTranscript: Story = {
 						isStreaming={false}
 						subagentTitles={new Map()}
 						subagentVariants={new Map()}
-						hasUserResponseAfterAskQuestion={false}
+						isLatestAskUserQuestionAnswered={false}
 						onImageClick={fn()}
 						onTextFileClick={fn()}
 					/>

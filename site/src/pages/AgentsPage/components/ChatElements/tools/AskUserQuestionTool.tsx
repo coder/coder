@@ -405,7 +405,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 		},
 	});
 	const isRunning = status === "running";
-	const recordedResponseText = isAsync
+	const answeredResponseText = isAsync
 		? getAsyncAnswerText(previousResponseText, asyncToolCallId)
 		: previousResponseText;
 	// An async answer can leave the queue without being delivered, so the
@@ -413,12 +413,12 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	if (
 		isAsync &&
 		submittedResponseText !== null &&
-		recordedResponseText !== undefined
+		answeredResponseText !== undefined
 	) {
 		setSubmittedResponseText(null);
 	}
 	const displayedSubmittedResponseText =
-		recordedResponseText ?? submittedResponseText;
+		answeredResponseText ?? submittedResponseText;
 	const hasSubmittedResponse = displayedSubmittedResponseText != null;
 	const showAnsweredState = status === "completed" && hasSubmittedResponse;
 	const showSubmittedResponse = showAnsweredState && isLatestAskUserQuestion;

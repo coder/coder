@@ -1,16 +1,14 @@
 import type * as TypesGen from "#/api/typesGenerated";
-import {
-	isAsyncAskUserQuestionResult,
-	parseAsyncAnswer,
-} from "../ChatElements/tools/asyncAnswer";
+import { parseAsyncAnswer } from "../ChatElements/tools/asyncAnswer";
+import { isAsyncAskUserQuestionResult } from "../ChatElements/tools/utils";
 import type { MergedTool, ParsedMessageEntry } from "./types";
 
 type AskUserQuestionState = {
-	/** The newest valid question, the only one that can still be answered. */
+	/** The newest valid question; `isLatestAnswered` says whether it is answered. */
 	latestToolId: string | undefined;
 	/** Whether a delivered user message answered the latest question. */
 	isLatestAnswered: boolean;
-	/** Answer text by question call ID, from delivered and queued messages. */
+	/** Answer message text by question call ID, from delivered and queued messages. */
 	responseTextByToolId: ReadonlyMap<string, string>;
 };
 
@@ -35,21 +33,21 @@ const readAsyncAnswer = (
 	content: readonly TypesGen.ChatMessagePart[] | undefined,
 ): { toolCallId: string; text: string } | undefined => {
 	const text = getTextContent(content);
-	const answer = text === undefined ? undefined : parseAsyncAnswer(text);
-	return text !== undefined && answer !== undefined
-		? { toolCallId: answer.toolCallId, text }
-		: undefined;
+	if (text === undefined) {
+		return undefined;
+	}
+	const answer = parseAsyncAnswer(text);
+	return answer && { toolCallId: answer.toolCallId, text };
 };
 
 // A call that failed validation asked nothing, so it supersedes nothing.
-const isAskUserQuestion = (tool: MergedTool): boolean =>
+const isValidAskUserQuestion = (tool: MergedTool): boolean =>
 	tool.name === "ask_user_question" && !tool.isError;
 
 /**
- * Finds the question that can still be answered and the answers recorded so
- * far. A blocking question is answered by the next user message. An async
- * question is answered only by a message whose first line names its call, so
- * unrelated messages sent while the agent works leave it open.
+ * Finds the latest valid question and the answers sent so far. A blocking
+ * question is answered by the next user message; an async one only by a
+ * message whose first line names its call.
  */
 export const deriveAskUserQuestionState = (
 	parsedMessages: readonly ParsedMessageEntry[],
@@ -63,7 +61,7 @@ export const deriveAskUserQuestionState = (
 
 	for (const { message, parsed } of parsedMessages) {
 		for (const tool of parsed.tools) {
-			if (!isAskUserQuestion(tool)) {
+			if (!isValidAskUserQuestion(tool)) {
 				continue;
 			}
 			latestToolId = tool.id;
@@ -96,7 +94,7 @@ export const deriveAskUserQuestionState = (
 	// A question still in the stream is newer than every persisted one once
 	// its result shows it is valid.
 	const liveQuestion = liveTools.findLast(
-		(tool) => isAskUserQuestion(tool) && tool.status === "completed",
+		(tool) => isValidAskUserQuestion(tool) && tool.status === "completed",
 	);
 	if (liveQuestion) {
 		latestToolId = liveQuestion.id;

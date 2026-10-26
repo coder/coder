@@ -8,7 +8,6 @@ import {
 	type AskUserQuestion,
 	AskUserQuestionTool,
 } from "./AskUserQuestionTool";
-import { findAskUserQuestionResultRecord } from "./asyncAnswer";
 import { ChatClearedTool } from "./ChatClearedTool";
 import { ChatSummarizedTool } from "./ChatSummarizedTool";
 import { ComputerTool } from "./ComputerTool";
@@ -43,6 +42,7 @@ import {
 	asString,
 	buildEditDiff,
 	DIFFS_FONT_STYLE,
+	findAskUserQuestionResultRecord,
 	formatModelIntentLabel,
 	formatResultOutput,
 	formatToolInput,
@@ -51,6 +51,7 @@ import {
 	getFileViewerOptionsNoHeader,
 	getWriteFileDiff,
 	humanizeMCPToolName,
+	isAsyncAskUserQuestionResult,
 	isSubagentSuccessStatus,
 	mapSubagentStatusToToolStatus,
 	parseArgs,
@@ -206,12 +207,13 @@ type AskUserQuestionResult = {
 const parseAskUserQuestionResult = (
 	result: unknown,
 ): AskUserQuestionResult | null => {
-	const resultRecord = findAskUserQuestionResultRecord(result);
-	const questions = parseAskUserQuestions(resultRecord?.questions);
-	if (!resultRecord || !questions) {
+	const questions = parseAskUserQuestions(
+		findAskUserQuestionResultRecord(result)?.questions,
+	);
+	if (!questions) {
 		return null;
 	}
-	return { questions, isAsync: resultRecord.async === true };
+	return { questions, isAsync: isAsyncAskUserQuestionResult(result) };
 };
 
 const ExecuteRenderer: React.FC<ToolRendererProps> = ({

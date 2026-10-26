@@ -4,6 +4,7 @@ import { QueryClientProvider } from "react-query";
 import { describe, expect, it, vi } from "vitest";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { AskUserQuestionTool } from "./AskUserQuestionTool";
+import { getAsyncAnswerPrefix } from "./asyncAnswer";
 import { Tool } from "./Tool";
 
 const questions = [
@@ -81,13 +82,14 @@ describe("AskUserQuestionTool", () => {
 		);
 	});
 
-	it("offers an async question again after its queued answer is removed", async () => {
+	it("reopens an async question when its sent answer leaves the queue undelivered", async () => {
 		const user = userEvent.setup();
 		const onSubmitAnswer = vi.fn();
-		const answer =
-			"Answer to ask_user_question call call-123:\nSingle migration";
+		const answer = `${getAsyncAnswerPrefix("call-123")}Single migration`;
 		const queryClient = createTestQueryClient();
-		const renderQuestion = (previousResponseText?: string) => (
+		const AsyncQuestion: React.FC<{ previousResponseText?: string }> = ({
+			previousResponseText,
+		}) => (
 			<QueryClientProvider client={queryClient}>
 				<AskUserQuestionTool
 					questions={questions}
@@ -100,11 +102,11 @@ describe("AskUserQuestionTool", () => {
 				/>
 			</QueryClientProvider>
 		);
-		const { rerender } = render(renderQuestion());
+		const { rerender } = render(<AsyncQuestion />);
 
 		await user.click(screen.getByRole("button", { name: "Submit" }));
-		rerender(renderQuestion(answer));
-		rerender(renderQuestion());
+		rerender(<AsyncQuestion previousResponseText={answer} />);
+		rerender(<AsyncQuestion />);
 		await user.click(screen.getByRole("button", { name: "Submit" }));
 
 		expect(onSubmitAnswer).toHaveBeenCalledTimes(2);
