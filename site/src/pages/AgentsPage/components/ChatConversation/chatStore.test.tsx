@@ -55,6 +55,7 @@ import {
 } from "./chatStore";
 import { deriveLiveStatus } from "./liveStatusModel";
 import { buildStreamTools } from "./streamState";
+import { chatStreamSilenceTimeoutMs } from "./useChatStore";
 
 vi.mock("#/api/api", () => ({
 	watchChat: vi.fn(),
@@ -3975,7 +3976,7 @@ describe("useChatStore", () => {
 		});
 	});
 
-	it("reconnects a chat stream that stays silent for 40s", async () => {
+	it("reconnects a chat stream that stays silent for the silence timeout", async () => {
 		vi.useFakeTimers({ shouldAdvanceTime: true });
 		immediateAnimationFrame();
 		vi.spyOn(Math, "random").mockReturnValue(0.5);
@@ -4020,7 +4021,7 @@ describe("useChatStore", () => {
 		});
 
 		await act(async () => {
-			vi.advanceTimersByTime(40_000);
+			vi.advanceTimersByTime(chatStreamSilenceTimeoutMs);
 		});
 
 		expect(socket1.close).toHaveBeenCalled();

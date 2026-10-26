@@ -48,7 +48,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
-	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -10617,6 +10616,9 @@ func TestStreamChat(t *testing.T) {
 			require.NotNil(t, data, "chat stream closed")
 			var batch []codersdk.ChatStreamEvent
 			require.NoError(t, json.Unmarshal(data, &batch))
+			if len(batch) == 0 {
+				require.JSONEq(t, "[]", string(data), "the web client treats a null batch as a parse error")
+			}
 			if tickerStarted && len(batch) > 0 {
 				resetTrap.MustWait(ctx).MustRelease(ctx)
 			}
@@ -10630,7 +10632,7 @@ func TestStreamChat(t *testing.T) {
 			})
 			require.NoError(t, err)
 		}
-		framesBefore := func(text string) [][]codersdk.ChatStreamEvent {
+		readFramesThrough := func(text string) [][]codersdk.ChatStreamEvent {
 			t.Helper()
 			var before [][]codersdk.ChatStreamEvent
 			for {
@@ -10653,7 +10655,8 @@ func TestStreamChat(t *testing.T) {
 		newTicker.MustRelease(ctx)
 		tickerStarted = true
 
-		mClock.Advance(httpapi.HeartbeatInterval).MustWait(ctx)
+		keepaliveInterval := codersdk.ChatStreamKeepaliveIntervalSeconds * time.Second
+		mClock.Advance(keepaliveInterval).MustWait(ctx)
 		for batch := nextFrame(); len(batch) > 0; batch = nextFrame() {
 			require.NotEqual(t, codersdk.ChatStreamEventTypeError, batch[0].Type)
 		}
@@ -10663,13 +10666,23 @@ func TestStreamChat(t *testing.T) {
 		mClock.Advance(10 * time.Second).MustWait(ctx)
 		const first = "stream chat keepalive first"
 		sendMessage(first)
-		_ = framesBefore(first)
+		_ = readFramesThrough(first)
 		mClock.Advance(5 * time.Second).MustWait(ctx)
 		const second = "stream chat keepalive second"
 		sendMessage(second)
-		for _, batch := range framesBefore(second) {
+		for _, batch := range readFramesThrough(second) {
 			require.NotEmpty(t, batch, "keepalive written 5s after an event")
 		}
+
+		// Event batches written after the matched frame may have Reset calls
+		// waiting in the trap, so read them before waiting on the advance to
+		// t=45s.
+		advance := mClock.Advance(keepaliveInterval)
+		batch := nextFrame()
+		for len(batch) > 0 {
+			batch = nextFrame()
+		}
+		advance.MustWait(ctx)
 	})
 
 	t.Run("AfterID", func(t *testing.T) {
