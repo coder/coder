@@ -17,7 +17,6 @@ import {
   getMessageScrollerScrollable,
   getMessageScrollerVisibilityState,
   getNewScrollAnchor,
-  getTailSpacerHeight, // LOCAL CHANGE
   getUnanchoredScrollAnchor,
   hasMultipleNewScrollAnchors,
 } from "./geometry"
@@ -672,41 +671,30 @@ function useMessageScrollerController({
     scrollTowardItemEnd,
   ])
 
-  // LOCAL CHANGE: once no turn is held, remove the spacer when it sits below
-  // the view. Resizing it on screen would let following-bottom, which arms
-  // while the content end is in view, scroll the reader back down.
-  const trimTailSpacer = React.useCallback(() => {
-    const content = contentRef.current
-    const viewport = viewportRef.current
-
+  // LOCAL CHANGE: once no turn is held, removes the spacer when the published
+  // state says the content end is below the view. Resizing it on screen would
+  // let following-bottom scroll the reader back down.
+  const removeSpacerBelowView = React.useCallback(() => {
     if (
-      content &&
-      viewport &&
-      getTailSpacerHeight({
-        content,
-        scrollTop: viewport.scrollTop,
-        spacer: spacerRef.current,
-        viewport,
-      }) < -scrollEdgeThresholdRef.current
+      modeRef.current === "free-scrolling" &&
+      stateStore.getSnapshot().end
     ) {
       setTailSpacerHeight(0)
     }
-  }, [setTailSpacerHeight])
+  }, [setTailSpacerHeight, stateStore])
 
   // LOCAL CHANGE: runs the final reply's resize, hand-off included, before
   // the observer reports it. A spacer left after that is blank on screen.
   const handleTurnEnd = React.useCallback(() => {
     handleResize()
 
-    // A jump in flight still needs the spacer it set.
+    // A jump keeps its spacer until the reader scrolls.
     if (modeRef.current === "settling-jump") {
       return
     }
 
-    if (modeRef.current === "free-scrolling") {
-      trimTailSpacer()
-      scheduleStateCommit()
-    }
+    commitScrollState()
+    removeSpacerBelowView()
 
     if (
       autoScrollRef.current &&
@@ -715,7 +703,7 @@ function useMessageScrollerController({
     ) {
       scrollToEnd({ behavior: "auto" })
     }
-  }, [handleResize, scheduleStateCommit, scrollToEnd, trimTailSpacer])
+  }, [commitScrollState, handleResize, removeSpacerBelowView, scrollToEnd])
 
   const observeVisibility = React.useCallback(() => {
     const viewport = viewportRef.current
@@ -1006,19 +994,15 @@ function useMessageScrollerController({
   )
 
   const syncAfterScroll = React.useCallback(() => {
-    // LOCAL CHANGE
-    if (modeRef.current === "free-scrolling") {
-      trimTailSpacer()
-    }
-
     commitScrollState()
+    removeSpacerBelowView() // LOCAL CHANGE
     scheduleVisibilitySync()
     capturePrependAnchor()
   }, [
     capturePrependAnchor,
     commitScrollState,
     scheduleVisibilitySync,
-    trimTailSpacer, // LOCAL CHANGE
+    removeSpacerBelowView, // LOCAL CHANGE
   ])
 
   // LOCAL CHANGE: output can land below the view while a scrollbar press at
