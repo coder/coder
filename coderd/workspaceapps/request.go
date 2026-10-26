@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 var errWorkspaceStopped = xerrors.New("stopped workspace")
@@ -291,8 +292,8 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 	}
 
 	// Get the app first, because r.AgentNameOrID is optional depending on
-	// whether the app is a slug or a port and whether there are multiple agents
-	// in the workspace or not.
+	// whether the app is a slug, a port, or a preview and whether there are
+	// multiple agents in the workspace or not.
 	var (
 		agentNameOrID   = r.AgentNameOrID
 		app             database.WorkspaceApp
@@ -309,8 +310,29 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		return nil, xerrors.Errorf("get template %q: %w", workspace.TemplateID, err)
 	}
 	corsBehavior = tmpl.CorsBehavior
-	//nolint:nestif
-	if portUintErr == nil {
+	preview, isPreview := appurl.ParsePreviewSlug(r.AppSlugOrPort)
+	switch {
+	case isPreview:
+		if r.AccessMethod != AccessMethodSubdomain {
+			return nil, xerrors.New("preview URLs are only supported for subdomain-based applications")
+		}
+
+		if agentNameOrID == "" {
+			if len(agents) != 1 {
+				return nil, xerrors.New("preview specified with no agent, but multiple agents exist in the workspace")
+			}
+			agentNameOrID = agents[0].ID.String()
+		}
+
+		// Previews serve agent-authored content, so they use the owner
+		// sharing level and ignore port shares, even for port previews.
+		if preview.Port != 0 {
+			appURL = fmt.Sprintf("http://127.0.0.1:%d", preview.Port)
+		} else {
+			appURL = fmt.Sprintf("http://127.0.0.1:%d/%s", workspacesdk.AgentPreviewPort, preview.ID)
+		}
+		appSharingLevel = database.AppSharingLevelOwner
+	case portUintErr == nil:
 		protocol := "http"
 		if strings.HasSuffix(r.AppSlugOrPort, "s") {
 			protocol = "https"
@@ -367,7 +389,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		} else {
 			appSharingLevel = ps.ShareLevel
 		}
-	} else {
+	default:
 		for _, a := range apps {
 			if a.Slug == r.AppSlugOrPort {
 				app = a
