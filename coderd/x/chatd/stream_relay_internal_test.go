@@ -165,13 +165,13 @@ func TestStreamRelayLivePartsAfterSameEpisodeReselects(t *testing.T) {
 	clientTransport, ok := session.transport.(streamPartsChannelClientTransport)
 	require.True(t, ok, "unexpected transport type %T", session.transport)
 	pipe := clientTransport.pipe
-	endpointBlocked := func(context.Context) bool {
+	buffersFull := func(context.Context) bool {
 		return len(pipe.eventsCh) == cap(pipe.eventsCh) && len(session.parts) == cap(session.parts)
 	}
 
 	for i := range reselects {
-		require.True(t, testutil.Eventually(ctx, t, endpointBlocked, pollInterval),
-			"endpoint never blocked before reselect %d", i)
+		require.True(t, testutil.Eventually(ctx, t, buffersFull, pollInterval),
+			"buffers never filled before reselect %d", i)
 		relay.Configure(ctx, target)
 		// The forwarder reads a new target only when f.parts has room.
 		select {
