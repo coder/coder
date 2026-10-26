@@ -202,8 +202,8 @@ export const MockWorkspaceProxies: TypesGen.WorkspaceProxy[] = [
 	},
 ];
 
-export const MockProxyLatencies: Record<string, ProxyLatencyReport> = {
-	...MockWorkspaceProxies.reduce(
+export const MockProxyLatencies: Record<string, ProxyLatencyReport> =
+	MockWorkspaceProxies.reduce(
 		(acc, proxy) => {
 			if (!proxy.healthy) {
 				return acc;
@@ -234,8 +234,7 @@ export const MockProxyLatencies: Record<string, ProxyLatencyReport> = {
 			return acc;
 		},
 		{} as Record<string, ProxyLatencyReport>,
-	),
-};
+	);
 
 export const MockBuildInfo: TypesGen.BuildInfoResponse = {
 	agent_api_version: "1.0",
