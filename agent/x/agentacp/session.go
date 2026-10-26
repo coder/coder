@@ -206,8 +206,8 @@ func (s *SessionFSM) watchProcess(logger slog.Logger) {
 	}
 }
 
-// ProcessACPUpdate ignores setup notifications while initializing and applies
-// live updates while running or interrupting.
+// ProcessACPUpdate applies replayed notifications while initializing and live
+// updates while running or interrupting.
 func (s *SessionFSM) ProcessACPUpdate(ctx context.Context, update ACPUpdate) error {
 	unlock, err := s.lock(ctx)
 	if err != nil {
@@ -353,23 +353,34 @@ func (s *SessionFSM) Interrupt(ctx context.Context) (workspacesdk.ACPSession, er
 }
 
 func (s *SessionFSM) processUpdateLocked(update ACPUpdate) error {
-	if s.info.Status == workspacesdk.ACPSessionStatusInitializing && update.Notification != nil {
-		return nil
-	}
-	if s.info.Status != workspacesdk.ACPSessionStatusRunning && s.info.Status != workspacesdk.ACPSessionStatusInterrupting {
+	initializing := s.info.Status == workspacesdk.ACPSessionStatusInitializing
+	if !initializing && s.info.Status != workspacesdk.ACPSessionStatusRunning && s.info.Status != workspacesdk.ACPSessionStatusInterrupting {
 		return xerrors.Errorf("%w: ACP update in %s", ErrConflict, s.info.Status)
 	}
 	switch {
 	case update.Notification != nil:
 		req := *update.Notification
+		// Before initialization assigns a new session's identity, its setup
+		// notifications do not represent conversation history.
+		if initializing && s.id.SessionID == "" {
+			return nil
+		}
 		if string(req.SessionId) != s.id.SessionID {
 			return xerrors.Errorf("%w: notification session ID mismatch", ErrInvalid)
 		}
 		if req.Update.UserMessageChunk != nil {
+			if initializing {
+				// Expose only the latest turn from session/load history.
+				s.events, s.assistant = nil, nil
+				s.info.Cursor = workspacesdk.ACPCursor{GenerationID: uuid.New()}
+			}
 			return nil
 		}
 		return s.appendNotificationLocked(req)
 	case update.Prompt != nil:
+		if initializing {
+			return xerrors.Errorf("%w: prompt result while initializing", ErrConflict)
+		}
 		if update.Turn != s.turn {
 			return nil
 		}

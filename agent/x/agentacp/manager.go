@@ -66,6 +66,7 @@ type Manager struct {
 	mu           sync.Mutex
 	closed       bool
 	sessions     map[workspacesdk.ACPSessionID]*SessionFSM
+	initializing map[workspacesdk.ACPSessionID]*initialization
 	configs      map[string]harnessConfig
 	configDir    string
 	discoveryDir string
@@ -94,6 +95,7 @@ func NewManager(ctx context.Context, opts Options) *Manager {
 		workingDir:   opts.WorkingDir,
 		sessions:     make(map[workspacesdk.ACPSessionID]*SessionFSM),
 		closedDone:   make(chan struct{}),
+		initializing: make(map[workspacesdk.ACPSessionID]*initialization),
 		configs:      make(map[string]harnessConfig),
 		configHashes: make(map[string][32]byte),
 	}
@@ -153,11 +155,12 @@ func (m *Manager) Create(ctx context.Context, req workspacesdk.ACPCreateSessionR
 }
 
 // Message submits a prompt to an existing idle session.
+// If the session failed, Message attempts to recover it before submitting the prompt.
 func (m *Manager) Message(ctx context.Context, id workspacesdk.ACPSessionID, req workspacesdk.ACPMessageRequest) (workspacesdk.ACPMessageResponse, error) {
 	if strings.TrimSpace(req.Text) == "" {
 		return workspacesdk.ACPMessageResponse{}, ErrInvalid
 	}
-	s, err := m.get(ctx, id)
+	s, err := m.recover(ctx, id)
 	if err != nil {
 		return workspacesdk.ACPMessageResponse{}, err
 	}

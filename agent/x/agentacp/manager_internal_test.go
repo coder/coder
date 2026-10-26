@@ -139,11 +139,7 @@ func TestRequiredDirectoryAndOverrides(t *testing.T) {
 		_, err := m.Create(context.Background(), req)
 		require.ErrorIs(t, err, ErrInvalid)
 		_, err = m.Read(context.Background(), workspacesdk.ACPSessionID{HarnessSlug: req.HarnessSlug, WorkingDirectory: directory, SessionID: "native"}, nil)
-		if filepath.IsAbs(directory) {
-			require.ErrorIs(t, err, ErrNotFound)
-		} else {
-			require.ErrorIs(t, err, ErrInvalid)
-		}
+		require.ErrorIs(t, err, ErrInvalid)
 	}
 	_, err := m.Create(context.Background(), workspacesdk.ACPCreateSessionRequest{HarnessSlug: "fake", WorkingDirectory: dir, Config: map[string]string{"model": "unknown"}})
 	require.ErrorIs(t, err, ErrInvalid)
@@ -180,4 +176,20 @@ func holdTestSession(t *testing.T, m *Manager, id workspacesdk.ACPSessionID) *Se
 		return false
 	}, testutil.IntervalFast)
 	return s
+}
+
+func messageTestSession(t *testing.T, m *Manager, id workspacesdk.ACPSessionID, text string) workspacesdk.ACPSessionResponse {
+	t.Helper()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	_, err := m.Message(ctx, id, workspacesdk.ACPMessageRequest{Text: text})
+	require.NoError(t, err)
+	return awaitTestSession(t, m, id)
+}
+
+func setTestHarnessCommand(m *Manager, command string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	cfg := m.configs["fake"]
+	cfg.command = command
+	m.configs["fake"] = cfg
 }

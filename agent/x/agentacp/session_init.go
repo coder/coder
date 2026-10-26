@@ -33,6 +33,7 @@ func validateSessionRequest(fs afero.Fs, slug, directory string) error {
 type sessionInitRequest struct {
 	harnessSlug      string
 	workingDirectory string
+	nativeID         string // Empty creates a new native session.
 	config           map[string]string
 }
 
@@ -43,7 +44,7 @@ type sessionRuntimeOptions struct {
 }
 
 // startSessionRuntime creates an initializing FSM before launching the harness.
-// Setup finishes before the idle FSM is published.
+// Setup and history replay finish before the idle FSM is published.
 func startSessionRuntime(ctx context.Context, cfg harnessConfig, req sessionInitRequest, opts sessionRuntimeOptions) (session *SessionFSM, err error) {
 	if err := validateSessionRequest(opts.fs, req.harnessSlug, req.workingDirectory); err != nil {
 		return nil, err
@@ -51,6 +52,7 @@ func startSessionRuntime(ctx context.Context, cfg harnessConfig, req sessionInit
 	id := workspacesdk.ACPSessionID{
 		HarnessSlug:      req.harnessSlug,
 		WorkingDirectory: req.workingDirectory,
+		SessionID:        req.nativeID,
 	}
 	info := workspacesdk.ACPSession{
 		ID:                 id,
@@ -90,15 +92,34 @@ func startSessionRuntime(ctx context.Context, cfg harnessConfig, req sessionInit
 	if init.ProtocolVersion != acp.ProtocolVersionNumber {
 		return nil, xerrors.Errorf("%w: unsupported ACP protocol version", ErrUnavailable)
 	}
+	nativeID := req.nativeID
 	harness := harnessInfo(cfg, init)
-	created, err := p.conn.NewSession(setupCtx, acp.NewSessionRequest{Cwd: req.workingDirectory, McpServers: []acp.McpServer{}})
-	if err != nil {
-		return nil, xerrors.Errorf("%w: create ACP session: %v", ErrUnavailable, err)
+	var options []acp.SessionConfigOption
+	switch {
+	case nativeID == "":
+		created, err := p.conn.NewSession(setupCtx, acp.NewSessionRequest{Cwd: req.workingDirectory, McpServers: []acp.McpServer{}})
+		if err != nil {
+			return nil, xerrors.Errorf("%w: create ACP session: %v", ErrUnavailable, err)
+		}
+		if created.SessionId == "" {
+			return nil, xerrors.Errorf("%w: harness returned an empty session id", ErrUnavailable)
+		}
+		nativeID, options = string(created.SessionId), created.ConfigOptions
+	case harness.LoadSession:
+		loaded, err := p.conn.LoadSession(setupCtx, acp.LoadSessionRequest{SessionId: acp.SessionId(nativeID), Cwd: req.workingDirectory, McpServers: []acp.McpServer{}})
+		if err != nil {
+			return nil, xerrors.Errorf("%w: load ACP session: %v", ErrUnavailable, err)
+		}
+		options = loaded.ConfigOptions
+	case harness.ResumeSession:
+		resumed, err := p.conn.ResumeSession(setupCtx, acp.ResumeSessionRequest{SessionId: acp.SessionId(nativeID), Cwd: req.workingDirectory, McpServers: []acp.McpServer{}})
+		if err != nil {
+			return nil, xerrors.Errorf("%w: resume ACP session: %v", ErrUnavailable, err)
+		}
+		options = resumed.ConfigOptions
+	default:
+		return nil, xerrors.Errorf("%w: harness does not support restoration", ErrUnavailable)
 	}
-	if created.SessionId == "" {
-		return nil, xerrors.Errorf("%w: harness returned an empty session id", ErrUnavailable)
-	}
-	nativeID, options := string(created.SessionId), created.ConfigOptions
 	for _, id := range slices.Sorted(maps.Keys(req.config)) {
 		value := req.config[id]
 		if !validConfig(options, id, value) {
