@@ -23,7 +23,7 @@ Each provisioner runs a single [concurrent workspace build](../../validate/scale
 For example, running 30 provisioner containers will allow 30 users to start workspaces at the same time.
 
 Provisioners are started with the [`coder provisioner start`](../../../reference/cli/provisioner/start.md) command in the [full Coder binary](https://github.com/coder/coder/releases).
-Keep reading to learn how to start provisioners via Docker, Kubernetes, Systemd, etc.
+Keep reading to learn how to start provisioners via Docker, Kubernetes, Systemd, and so on.
 
 You can use the dashboard, CLI, or API to [manage provisioners](./manage-provisioner-jobs.md).
 
@@ -71,7 +71,7 @@ Keys are scoped to an organization, and optionally to a specific set of tags.
    coder provisioner start
    ```
 
-Keep reading to see instructions for running provisioners on Kubernetes/Docker/etc.
+Keep reading to see instructions for running provisioners on Kubernetes, Docker, and so on.
 
 ## User Tokens
 

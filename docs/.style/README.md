@@ -11,7 +11,7 @@ Nothing under this directory is published to [coder.com/docs](https://coder.com/
 | `style-guide/`          | Canonical prose style guide for `docs/`                             |
 | `styles/Coder/`         | Custom Vale rules specific to Coder (product voice, terms)          |
 
-Refer to [`content-guidelines.md`](content-guidelines.md) for the canonical rules on what content belongs in `docs/` and what should be routed elsewhere (blog, changelog, Support KB, etc.).
+Refer to [`content-guidelines.md`](content-guidelines.md) for the canonical rules on what content belongs in `docs/` and what should be routed elsewhere (blog, changelog, Support KB, and so on).
 
 Visit [`style-guide/`](style-guide/README.md) for the prose style guide.
 The `styles/Coder/` directory holds the custom Vale rules that enforce parts of the guide; Vale's `StylesPath` in the repo-root `.vale.ini` points at `docs/.style/styles/`.
@@ -68,6 +68,22 @@ The rules in that file apply to humans and AI-assisted workflows alike; when it 
 
 Open a PR against the appropriate subpage of `docs/.style/style-guide/`.
 Follow-up PRs add each rule and the matching style-guide section together.
+
+## Reviewer personas in front matter
+
+The `doc-check` skill reviews docs changes through several personas, each focused on one kind of problem, such as accuracy or word choice.
+Each rule page lists the personas that apply its rules in a `review-personas` front matter field:
+
+```yaml
+---
+review-personas: [language, consistency, accuracy]
+---
+```
+
+The skill finds a persona's rules by reading this field, not by file path, so pages can move or split without breaking the review.
+When you add a rule page, add the field.
+When you move a rule to a different page, check that the new page lists every persona that applied it.
+The persona IDs and what each one reviews are in `.claude/skills/doc-check/personas/`.
 
 ## Add a Vale rule
 

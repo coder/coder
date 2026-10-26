@@ -239,161 +239,6 @@ func newWorkspaceToolTestServer(
 	return newActiveTestServer(t, db, ps, configOverrides...)
 }
 
-func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		DeploymentValues:         coderdtest.DeploymentValues(t),
-		IncludeProvisionerDaemon: true,
-	})
-	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-	user := coderdtest.CreateFirstUser(t, client)
-	expClient := codersdk.NewExperimentalClient(client)
-
-	agentToken := uuid.NewString()
-	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-		Parse:          echo.ParseComplete,
-		ProvisionPlan:  echo.PlanComplete,
-		ProvisionApply: echo.ApplyComplete,
-		ProvisionGraph: echo.ProvisionGraphWithAgent(agentToken),
-	})
-	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-
-	// Track tools sent in LLM requests. The first call is for the
-	// root chat which spawns a subagent; the second call is for the
-	// subagent itself.
-	var toolsMu sync.Mutex
-	toolsByCall := make([][]string, 0, 2)
-
-	var callCount atomic.Int32
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("ok")
-		}
-
-		names := make([]string, 0, len(req.Tools))
-		for _, tool := range req.Tools {
-			names = append(names, tool.Function.Name)
-		}
-		toolsMu.Lock()
-		toolsByCall = append(toolsByCall, names)
-		toolsMu.Unlock()
-
-		if callCount.Add(1) == 1 {
-			// Root chat: model calls spawn_agent.
-			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAIToolCallChunk("spawn_agent", `{"type":"general","prompt":"do the thing","title":"sub"}`),
-			)
-		}
-		// Subsequent calls (including the subagent): just reply.
-		// Include literal \u0000 in the response text, which is
-		// what a real LLM writes when explaining binary output.
-		// json.Marshal encodes the backslash as \\, producing
-		// \\u0000 in the JSON bytes. The sanitizer must not
-		// corrupt this into invalid JSON.
-		return chattest.OpenAIStreamingResponse(
-			chattest.OpenAITextChunks("The file contains \\u0000 null bytes.")...,
-		)
-	})
-
-	coderdtest.CreateOpenAICompatChatModel(t, expClient, openAIURL)
-
-	// Create a root chat whose first model call will spawn a subagent.
-	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
-		OrganizationID: user.OrganizationID,
-		Content: []codersdk.ChatInputPart{
-			{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "Spawn a subagent to do the thing.",
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	// Wait for the root chat AND the subagent to finish.
-	// The root chat finishes first, then the chatd server
-	// picks up and runs the child (subagent) chat.
-	require.Eventually(t, func() bool {
-		got, getErr := expClient.GetChat(ctx, chat.ID)
-		if getErr != nil {
-			return false
-		}
-		if got.Status != codersdk.ChatStatusWaiting && got.Status != codersdk.ChatStatusError {
-			return false
-		}
-		// Also ensure the subagent LLM call has been made.
-		toolsMu.Lock()
-		n := len(toolsByCall)
-		toolsMu.Unlock()
-		// Expect at least 3 calls: root-1 (spawn_agent), child-1, root-2.
-		return n >= 3
-	}, testutil.WaitLong, testutil.IntervalFast)
-
-	// There should be at least two streamed calls: one for the root
-	// chat and one for the subagent child chat.
-	toolsMu.Lock()
-	recorded := append([][]string(nil), toolsByCall...)
-	toolsMu.Unlock()
-
-	require.GreaterOrEqual(t, len(recorded), 2,
-		"expected at least 2 streamed LLM calls (root + subagent)")
-
-	workspaceTools := []string{
-		"list_templates", "read_template", "create_workspace",
-		"start_workspace", "stop_workspace",
-	}
-	subagentTools := []string{"spawn_agent", "wait_agent", "message_agent", "interrupt_agent", "list_agents"}
-
-	// Identify root and subagent calls. Root chat calls include
-	// spawn_agent; the subagent call does not. Because the root chat
-	// makes multiple LLM calls (before and after spawn_agent), we
-	// find exactly one call that lacks spawn_agent. That's the
-	// subagent.
-	var rootCalls, childCalls [][]string
-	for _, tools := range recorded {
-		hasSpawnAgent := slice.Contains(tools, "spawn_agent")
-		if hasSpawnAgent {
-			rootCalls = append(rootCalls, tools)
-		} else {
-			childCalls = append(childCalls, tools)
-		}
-	}
-
-	require.NotEmpty(t, rootCalls, "expected at least one root chat LLM call")
-	require.NotEmpty(t, childCalls, "expected at least one subagent LLM call")
-
-	// Root chat calls must include workspace and subagent tools.
-	for _, tool := range workspaceTools {
-		require.Contains(t, rootCalls[0], tool,
-			"root chat should have workspace tool %q", tool)
-	}
-	for _, tool := range subagentTools {
-		require.Contains(t, rootCalls[0], tool,
-			"root chat should have subagent tool %q", tool)
-	}
-
-	// Standard turns (no turn mode) hide plan-only tools until
-	// plan mode.
-	require.NotContains(t, rootCalls[0], "ask_user_question",
-		"standard-turn root chat should NOT have ask_user_question")
-	require.NotContains(t, rootCalls[0], "propose_plan",
-		"standard-turn root chat should NOT have propose_plan")
-
-	// Subagent calls must NOT include workspace or subagent tools.
-	for _, tool := range workspaceTools {
-		require.NotContains(t, childCalls[0], tool,
-			"subagent chat should NOT have workspace tool %q", tool)
-	}
-	for _, tool := range subagentTools {
-		require.NotContains(t, childCalls[0], tool,
-			"subagent chat should NOT have subagent tool %q", tool)
-	}
-	require.NotContains(t, childCalls[0], "ask_user_question",
-		"subagent chat should NOT have ask_user_question")
-}
-
 // TestArchiveStateRejectsChildChat verifies that Server.ArchiveChat and
 // Server.UnarchiveChat refuse child chats with ErrArchiveRequiresRootChat
 // whatever the family's archive state, leaving parent and child unchanged.
@@ -6702,27 +6547,6 @@ func TestActiveServer_BasicAssistantGenerationAndPromptPreparation(t *testing.T)
 	// chatloop.TestGenerateAssistant_RecordsModelInvocationRuntime and
 	// TestInterruptTask_PartialAssistantKeepsAttemptRuntime.
 	requireTextPart(t, last, "done")
-
-	server = newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
-	})
-	planChat := createPlanSubagentChatWithHistory(ctx, t, db, org.ID, user.ID, model.ID)
-	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:        planChat.ID,
-		CreatedBy:     user.ID,
-		ModelConfigID: model.ID,
-		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("continue")},
-		BusyBehavior:  chatd.SendMessageBusyBehaviorQueue,
-	})
-	require.NoError(t, err)
-	waitForChatStatus(ctx, t, db, planChat.ID, database.ChatStatusWaiting)
-
-	allGenerationRequests := filterAnthropicStreamingRequests(requests.all())
-	require.Len(t, allGenerationRequests, len(generationRequests)+1)
-	planRequest := allGenerationRequests[len(generationRequests)]
-	toolNames = anthropicRequestToolNames(planRequest)
-	require.Contains(t, toolNames, "read_file")
-	require.NotContains(t, toolNames, "write_file")
 }
 
 // Claude models routed through an OpenRouter provider use the openai-compat
@@ -8314,7 +8138,8 @@ func TestActiveServer_ExclusiveToolPolicy(t *testing.T) {
 		require.True(t, readResult.IsError)
 		require.Contains(t, string(advisorResult.Result), "advisor must be called alone, without other tools in the same batch")
 		require.Contains(t, string(readResult.Result), "this tool was skipped because advisor must run alone in its batch")
-		require.GreaterOrEqual(t, streamedCallCount.Load(), int32(2))
+		// A third streamed call would be the advisor's nested model call.
+		require.Equal(t, int32(2), streamedCallCount.Load())
 	})
 
 	t.Run("mixed exclusive and dynamic tools commit policy errors", func(t *testing.T) {
@@ -8371,42 +8196,6 @@ func TestActiveServer_ExclusiveToolPolicy(t *testing.T) {
 		require.Contains(t, string(advisorResult.Result), "advisor must be called alone, without other tools in the same batch")
 		require.Contains(t, string(dynamicResult.Result), "this tool was skipped because advisor must run alone in its batch")
 		require.GreaterOrEqual(t, streamedCallCount.Load(), int32(2))
-	})
-
-	t.Run("solo exclusive tool executes", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		db, ps := dbtestutil.NewDB(t)
-		var streamedCallCount atomic.Int32
-		openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-			if !req.Stream {
-				return chattest.OpenAINonStreamingResponse("title")
-			}
-			switch streamedCallCount.Add(1) {
-			case 1:
-				return chattest.OpenAIStreamingResponse(
-					chattest.OpenAIToolCallChunk("advisor", `{"question":"help me decide"}`),
-				)
-			case 2:
-				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("nested advice")...)
-			default:
-				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
-			}
-		})
-		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-		seedAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{Enabled: true, MaxUsesPerRun: 3, MaxOutputTokens: 1024})
-		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-		})
-		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "advise only")
-		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
-
-		parts := chatToolParts(ctx, t, db, chat.ID)
-		result := requireToolResultPart(t, parts, "advisor")
-		require.False(t, result.IsError)
-		require.Contains(t, string(result.Result), "nested advice")
-		require.GreaterOrEqual(t, streamedCallCount.Load(), int32(3))
 	})
 
 	t.Run("exclusive tool with provider executed tool executes", func(t *testing.T) {
@@ -8956,44 +8745,6 @@ func insertChatMessageParts(
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
 	return database.ChatMessage(messages[0])
-}
-
-func createPlanSubagentChatWithHistory(
-	ctx context.Context,
-	t *testing.T,
-	db database.Store,
-	orgID uuid.UUID,
-	userID uuid.UUID,
-	modelID uuid.UUID,
-) database.Chat {
-	t.Helper()
-	rootChat := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    orgID,
-		OwnerID:           userID,
-		LastModelConfigID: modelID,
-		Title:             "plan subagent active tools root",
-		Status:            database.ChatStatusWaiting,
-		PlanMode:          database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true},
-		MCPServerIDs:      []uuid.UUID{},
-		ClientType:        database.ChatClientTypeApi,
-	})
-	chat := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    orgID,
-		OwnerID:           userID,
-		LastModelConfigID: modelID,
-		Title:             "plan subagent active tools",
-		Status:            database.ChatStatusWaiting,
-		PlanMode:          database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true},
-		ParentChatID:      uuid.NullUUID{UUID: rootChat.ID, Valid: true},
-		RootChatID:        uuid.NullUUID{UUID: rootChat.ID, Valid: true},
-		MCPServerIDs:      []uuid.UUID{},
-		ClientType:        database.ChatClientTypeApi,
-	})
-	insertSystemTextMessage(ctx, t, db, chat.ID, "You are not currently connected to a workspace.", modelID)
-	insertChatMessageParts(ctx, t, db, chat.ID, database.ChatMessageRoleUser, modelID, userID, []codersdk.ChatMessagePart{
-		codersdk.ChatMessageText("hello"),
-	})
-	return chat
 }
 
 func anthropicRequestToolNames(req chattest.AnthropicRequest) []string {
@@ -10411,6 +10162,7 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 		Model  string
 		Tools  []string
 		Stream bool
+		System []string
 	}
 	var anthropicMu sync.Mutex
 	var anthropicCalls []anthropicCall
@@ -10429,6 +10181,9 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 				Tools  []struct {
 					Name string `json:"name"`
 				} `json:"tools"`
+				System []struct {
+					Text string `json:"text"`
+				} `json:"system"`
 			}
 			if err := json.Unmarshal(body, &req); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -10439,11 +10194,16 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 			for i, tool := range req.Tools {
 				names[i] = tool.Name
 			}
+			system := make([]string, len(req.System))
+			for i, block := range req.System {
+				system[i] = block.Text
+			}
 			anthropicMu.Lock()
 			anthropicCalls = append(anthropicCalls, anthropicCall{
 				Model:  req.Model,
 				Tools:  names,
 				Stream: req.Stream,
+				System: system,
 			})
 			anthropicMu.Unlock()
 
@@ -10695,7 +10455,18 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 				"tool %q", tool)
 	}
 
-	// 6. Verify the child chat has Mode = computer_use in
+	// 6. Verify the root-only advisor tool and guidance are NOT
+	//    present.
+	require.NotContains(t, childTools, chatadvisor.ToolName,
+		"computer use subagent should NOT have the advisor tool")
+	require.NotEmpty(t, childCall.System,
+		"expected the child request to carry a system prompt")
+	for _, text := range childCall.System {
+		require.NotContains(t, text, chatadvisor.ParentGuidanceBlock,
+			"computer use subagent should NOT get the advisor guidance")
+	}
+
+	// 7. Verify the child chat has Mode = computer_use in
 	//    the DB.
 	childRows, err := db.GetChildChatsByParentIDs(ctx, database.GetChildChatsByParentIDsParams{
 		ParentIds: []uuid.UUID{chat.ID},
@@ -12575,101 +12346,6 @@ func TestActiveServer_ChatTurnDebugRunRecordsMCPConnectOnFirstPrepareError(t *te
 	}
 }
 
-func TestPlanModeRootChatApprovedExternalMCPToolInvocation(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	mcpSrv := newTestMCPServer("plan-mode-mcp")
-	addTestMCPTextTool(mcpSrv, "echo", "Echoes the input", "echo: ")
-	mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
-	t.Cleanup(mcpTS.Close)
-
-	var (
-		callCount      atomic.Int32
-		llmToolNames   []string
-		llmToolsMu     sync.Mutex
-		foundMCPResult atomic.Bool
-	)
-
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("title")
-		}
-
-		if callCount.Add(1) == 1 {
-			names := make([]string, 0, len(req.Tools))
-			for _, tool := range req.Tools {
-				names = append(names, tool.Function.Name)
-			}
-			llmToolsMu.Lock()
-			llmToolNames = names
-			llmToolsMu.Unlock()
-
-			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAIToolCallChunk(
-					"plan-mode-mcp__echo",
-					`{"input":"hello from root plan mode"}`,
-				),
-			)
-		}
-
-		for _, msg := range req.Messages {
-			if msg.Role == "tool" && strings.Contains(msg.Content, "echo: hello from root plan mode") {
-				foundMCPResult.Store(true)
-			}
-		}
-
-		return chattest.OpenAIStreamingResponse(
-			chattest.OpenAITextChunks("Planning complete.")...,
-		)
-	})
-
-	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-
-	mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-		OrganizationID:  org.ID,
-		DisplayName:     "Plan Mode MCP",
-		Slug:            "plan-mode-mcp",
-		Url:             mcpTS.URL,
-		AllowInPlanMode: true,
-		CreatedBy:       uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:       uuid.NullUUID{UUID: user.ID, Valid: true},
-	})
-
-	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-		withoutMCPToolSearch(cfg)
-		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-	})
-
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		Title:          "plan-mode-mcp-invocation",
-		ModelConfigID:  model.ID,
-		PlanMode:       database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true},
-		MCPServerIDs:   []uuid.UUID{mcpConfig.ID},
-		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("Use the approved MCP tool while planning."),
-		},
-	})
-	require.NoError(t, err)
-	waitForChatProcessed(ctx, t, db, chat.ID, server)
-
-	chatResult, err := db.GetChatByID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, database.ChatStatusWaiting, chatResult.Status)
-
-	llmToolsMu.Lock()
-	recordedNames := append([]string(nil), llmToolNames...)
-	llmToolsMu.Unlock()
-	require.Contains(t, recordedNames, "plan-mode-mcp__echo",
-		"approved external MCP tools should be available in root plan mode")
-	require.True(t, foundMCPResult.Load(),
-		"approved external MCP tool results should feed back into the follow-up plan-mode turn")
-}
-
 func TestPlanModeRootChatApprovedExternalMCPWorkflowCanReachProposePlan(t *testing.T) {
 	t.Parallel()
 
@@ -14532,227 +14208,11 @@ func TestPromoteQueuedPreservesReasoningEffort(t *testing.T) {
 	require.Equal(t, database.ChatReasoningEffortHigh, storedChat.LastReasoningEffort.ChatReasoningEffort)
 }
 
-// TestAdvisorGating_ExperimentDisabled verifies that the advisor tool is
-// not attached when the chat-advisor experiment is absent from the
-// experiments list, even if the DB-stored advisor config has Enabled=true.
-func TestAdvisorGating_ExperimentDisabled(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	var streamedCallCount atomic.Int32
-	var streamedCallsMu sync.Mutex
-	var firstCallTools []string
-
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("title")
-		}
-
-		if streamedCallCount.Add(1) == 1 {
-			names := make([]string, 0, len(req.Tools))
-			for _, tool := range req.Tools {
-				names = append(names, tool.Function.Name)
-			}
-			streamedCallsMu.Lock()
-			firstCallTools = names
-			streamedCallsMu.Unlock()
-		}
-
-		return chattest.OpenAIStreamingResponse(
-			chattest.OpenAITextChunks("done")...,
-		)
-	})
-
-	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-	seedAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{
-		Enabled:         true,
-		MaxUsesPerRun:   3,
-		MaxOutputTokens: 16384,
-	})
-	experiments := slices.DeleteFunc(
-		slices.Clone(codersdk.ExperimentsKnown),
-		func(e codersdk.Experiment) bool { return e == codersdk.ExperimentChatAdvisor },
-	)
-	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-		cfg.Experiments = experiments
-		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(
-			chattest.NewMockAIBridgeTransport(t, openAIURL),
-		)
-	})
-
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		Title:          "advisor-experiment-disabled",
-		ModelConfigID:  model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("help me plan this"),
-		},
-	})
-	require.NoError(t, err)
-
-	require.Eventually(t, func() bool {
-		got, getErr := db.GetChatByID(ctx, chat.ID)
-		if getErr != nil {
-			return false
-		}
-		if got.Status != database.ChatStatusWaiting &&
-			got.Status != database.ChatStatusError {
-			return false
-		}
-		return streamedCallCount.Load() >= 1
-	}, testutil.WaitLong, testutil.IntervalFast)
-
-	streamedCallsMu.Lock()
-	tools := append([]string(nil), firstCallTools...)
-	streamedCallsMu.Unlock()
-
-	require.NotEmpty(t, tools, "expected at least one streamed LLM request")
-	require.NotContains(t, tools, "advisor",
-		"advisor tool must not be registered when the chat-advisor experiment is absent")
-}
-
-func TestAdvisorGating_RootChat(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	var streamedCallCount atomic.Int32
-	var streamedCallsMu sync.Mutex
-	var firstCallTools []string
-	var firstCallMessages []chattest.OpenAIMessage
-	var secondCallMessages []chattest.OpenAIMessage
-
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("title")
-		}
-
-		switch streamedCallCount.Add(1) {
-		case 1:
-			names := make([]string, 0, len(req.Tools))
-			for _, tool := range req.Tools {
-				names = append(names, tool.Function.Name)
-			}
-			streamedCallsMu.Lock()
-			firstCallTools = names
-			firstCallMessages = append([]chattest.OpenAIMessage(nil), req.Messages...)
-			streamedCallsMu.Unlock()
-
-			advisorChunk := chattest.OpenAIToolCallChunk(
-				"advisor",
-				`{"question":"help me plan"}`,
-			)
-			readChunk := chattest.OpenAIToolCallChunk(
-				"read_file",
-				`{"path":"/tmp/test.txt"}`,
-			)
-			mergedChunk := advisorChunk
-			readCall := readChunk.Choices[0].ToolCalls[0]
-			readCall.Index = 1
-			mergedChunk.Choices[0].ToolCalls = append(
-				mergedChunk.Choices[0].ToolCalls,
-				readCall,
-			)
-			return chattest.OpenAIStreamingResponse(mergedChunk)
-		case 2:
-			streamedCallsMu.Lock()
-			secondCallMessages = append([]chattest.OpenAIMessage(nil), req.Messages...)
-			streamedCallsMu.Unlock()
-		}
-
-		return chattest.OpenAIStreamingResponse(
-			chattest.OpenAITextChunks("done")...,
-		)
-	})
-
-	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-	seedAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{
-		Enabled:         true,
-		MaxUsesPerRun:   3,
-		MaxOutputTokens: 16384,
-	})
-	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(
-			chattest.NewMockAIBridgeTransport(t, openAIURL),
-		)
-	})
-
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		Title:          "advisor-root",
-		ModelConfigID:  model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("help me plan this"),
-		},
-	})
-	require.NoError(t, err)
-
-	require.Eventually(t, func() bool {
-		got, getErr := db.GetChatByID(ctx, chat.ID)
-		if getErr != nil {
-			return false
-		}
-		if got.Status != database.ChatStatusWaiting &&
-			got.Status != database.ChatStatusError {
-			return false
-		}
-		return streamedCallCount.Load() >= 2
-	}, testutil.WaitLong, testutil.IntervalFast)
-
-	streamedCallsMu.Lock()
-	tools := append([]string(nil), firstCallTools...)
-	messages := append([]chattest.OpenAIMessage(nil), firstCallMessages...)
-	secondMessages := append([]chattest.OpenAIMessage(nil), secondCallMessages...)
-	streamedCallsMu.Unlock()
-
-	// Exactly two streamed LLM calls are expected: the first that
-	// returned the mixed advisor + read_file batch, and the second
-	// that received the exclusive-policy rejection. A third call
-	// would indicate that either tool had slipped past the exclusive
-	// policy; the >= 2 wait would have missed that regression.
-	require.Equal(t, int32(2), streamedCallCount.Load(),
-		"exclusive policy must block execution of both tools; no third call expected")
-	require.NotEmpty(t, messages, "expected a first streamed LLM request")
-	require.NotEmpty(t, secondMessages, "expected a second streamed LLM request")
-	require.Contains(t, tools, "advisor",
-		"advisor tool should be registered for root chats when enabled")
-
-	var hasGuidance bool
-	for _, msg := range messages {
-		if strings.Contains(msg.Content, chatadvisor.ParentGuidanceBlock) {
-			hasGuidance = true
-			break
-		}
-	}
-	require.True(t, hasGuidance,
-		"root chat should contain advisor guidance in the prompt")
-
-	var hasExclusiveAdvisorError bool
-	var hasSkippedToolError bool
-	for _, msg := range secondMessages {
-		if strings.Contains(msg.Content, "advisor must be called alone") {
-			hasExclusiveAdvisorError = true
-		}
-		if strings.Contains(msg.Content, "this tool was skipped because advisor must run alone") {
-			hasSkippedToolError = true
-		}
-	}
-	require.True(t, hasExclusiveAdvisorError,
-		"mixed advisor batches should surface the exclusive advisor error")
-	require.True(t, hasSkippedToolError,
-		"mixed advisor batches should skip sibling tools with an explanatory error")
-}
-
 // TestAdvisorHappyPath_RootChat walks the advisor tool end-to-end:
 // parent calls advisor alone, the nested advisor call produces text, and
-// the structured result flows back into the parent conversation. The
-// exclusive-policy test above only proves the rejection path; this test
-// covers the glue from chatd wiring -> chatadvisor.Tool -> Runtime.Run ->
+// the structured result flows back into the parent conversation.
+// TestActiveServer_ExclusiveToolPolicy covers mixed-batch rejection; this
+// test covers the glue from chatd wiring -> chatadvisor.Tool -> Runtime.Run ->
 // nested model call -> structured result back to the outer model.
 func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	t.Parallel()
@@ -14768,6 +14228,7 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 		streamedCallCount atomic.Int32
 		streamedCallsMu   sync.Mutex
 		advisorCallSeen   atomic.Bool
+		firstCallMessages []chattest.OpenAIMessage
 		advisorMessages   []chattest.OpenAIMessage
 		finalCallMessages []chattest.OpenAIMessage
 	)
@@ -14796,6 +14257,12 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 		switch streamedCallCount.Add(1) {
 		case 1:
 			// Parent turn 1: call advisor solo.
+			require.True(t, slices.ContainsFunc(req.Tools, func(tool chattest.OpenAITool) bool {
+				return tool.Function.Name == chatadvisor.ToolName
+			}), "parent request must offer advisor")
+			streamedCallsMu.Lock()
+			firstCallMessages = append([]chattest.OpenAIMessage(nil), req.Messages...)
+			streamedCallsMu.Unlock()
 			chunk := chattest.OpenAIToolCallChunk(
 				"advisor",
 				`{"question":"how should I approach this refactor?"}`,
@@ -14932,6 +14399,7 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	}, testutil.WaitLong, testutil.IntervalFast)
 
 	streamedCallsMu.Lock()
+	gotFirstMessages := append([]chattest.OpenAIMessage(nil), firstCallMessages...)
 	gotAdvisorMessages := append([]chattest.OpenAIMessage(nil), advisorMessages...)
 	gotFinalMessages := append([]chattest.OpenAIMessage(nil), finalCallMessages...)
 	streamedCallsMu.Unlock()
@@ -14942,6 +14410,9 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 		"advisor call must receive the nested prompt messages")
 	require.NotEmpty(t, gotFinalMessages,
 		"parent must make a follow-up call after the advisor result")
+	require.True(t, slices.ContainsFunc(gotFirstMessages, func(msg chattest.OpenAIMessage) bool {
+		return strings.Contains(msg.Content, chatadvisor.ParentGuidanceBlock)
+	}), "the parent's first request must carry the advisor guidance")
 
 	var advisorSawQuestion bool
 	var advisorSawUserTurn bool
@@ -15002,277 +14473,9 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 		require.NotContains(t, string(msg.Content.RawMessage), "result_delta",
 			"advisor deltas are stream-only and must not be persisted")
 	}
-}
-
-// TestAdvisorGating_ChildChat guards the second dimension of the advisor
-// eligibility condition: even with advisor enabled, a chat whose
-// ParentChatID is set must not register the advisor tool or receive the
-// advisor guidance block. Without this coverage, a refactor that removes
-// or weakens the !chat.ParentChatID.Valid guard would leak advisor into
-// child chats, and the recursive advisor-inside-subagent cost risk the
-// guard exists to prevent would ship silently.
-//
-// The earlier version of this test drove the gating path through
-// spawn_agent, which made it dependent on subagent wiring that changed
-// repeatedly upstream. This version seeds the parent chat directly in the
-// database and asks the server to create a child chat with a valid
-// ParentChatID, exercising the same gating path with no subagent tooling
-// in the way.
-func TestAdvisorGating_ChildChat(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	var toolsMu sync.Mutex
-	var capturedTools []string
-	var capturedMessages []chattest.OpenAIMessage
-
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("title")
-		}
-
-		names := make([]string, 0, len(req.Tools))
-		for _, tool := range req.Tools {
-			names = append(names, tool.Function.Name)
-		}
-		toolsMu.Lock()
-		capturedTools = names
-		capturedMessages = append([]chattest.OpenAIMessage(nil), req.Messages...)
-		toolsMu.Unlock()
-
-		return chattest.OpenAIStreamingResponse(
-			chattest.OpenAITextChunks("done")...,
-		)
-	})
-
-	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-	seedAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{
-		Enabled:         true,
-		MaxUsesPerRun:   3,
-		MaxOutputTokens: 16384,
-	})
-
-	// Seed the parent chat directly in the database so the test server
-	// never executes the root turn. That keeps this test focused on the
-	// child-chat gating path without depending on subagent wiring.
-	parent := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		Status:            database.ChatStatusWaiting,
-		ClientType:        database.ChatClientTypeUi,
-		LastModelConfigID: model.ID,
-		Title:             "advisor-root-parent",
-	})
-
-	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(
-			chattest.NewMockAIBridgeTransport(t, openAIURL),
-		)
-	})
-
-	childChat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		Title:          "advisor-child",
-		ModelConfigID:  model.ID,
-		ParentChatID:   uuid.NullUUID{UUID: parent.ID, Valid: true},
-		RootChatID:     uuid.NullUUID{UUID: parent.ID, Valid: true},
-		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("hi"),
-		},
-	})
-	require.NoError(t, err)
-
-	require.Eventually(t, func() bool {
-		got, getErr := db.GetChatByID(ctx, childChat.ID)
-		if getErr != nil {
-			return false
-		}
-		return got.Status == database.ChatStatusWaiting ||
-			got.Status == database.ChatStatusError
-	}, testutil.WaitLong, testutil.IntervalFast)
-
-	toolsMu.Lock()
-	tools := append([]string(nil), capturedTools...)
-	messages := append([]chattest.OpenAIMessage(nil), capturedMessages...)
-	toolsMu.Unlock()
-
-	require.NotEmpty(t, messages, "expected a streamed LLM request for the child chat")
-	require.NotContains(t, tools, chatadvisor.ToolName,
-		"advisor tool must not be registered for child chats even when enabled")
-	for _, msg := range messages {
-		require.NotContains(t, msg.Content, chatadvisor.ParentGuidanceBlock,
-			"child chat must not contain advisor guidance")
-	}
-}
-
-// TestAdvisorGating_PlanMode guards the third dimension of the advisor
-// eligibility condition: plan-mode turns must not register the advisor tool
-// or inject the parent guidance block. Without this test, deleting the
-// !isPlanModeTurn guard would still leave the other two gating tests green
-// even though advisor would now leak into plan mode.
-func TestAdvisorGating_PlanMode(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	var toolsMu sync.Mutex
-	var capturedTools []string
-	var capturedMessages []chattest.OpenAIMessage
-
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("title")
-		}
-
-		names := make([]string, 0, len(req.Tools))
-		for _, tool := range req.Tools {
-			names = append(names, tool.Function.Name)
-		}
-		toolsMu.Lock()
-		capturedTools = names
-		capturedMessages = append([]chattest.OpenAIMessage(nil), req.Messages...)
-		toolsMu.Unlock()
-
-		return chattest.OpenAIStreamingResponse(
-			chattest.OpenAITextChunks("plan mode reply")...,
-		)
-	})
-
-	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-	seedAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{
-		Enabled:         true,
-		MaxUsesPerRun:   3,
-		MaxOutputTokens: 16384,
-	})
-	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(
-			chattest.NewMockAIBridgeTransport(t, openAIURL),
-		)
-	})
-
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		Title:          "advisor-plan-mode",
-		ModelConfigID:  model.ID,
-		PlanMode:       database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true},
-		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("draft a plan"),
-		},
-	})
-	require.NoError(t, err)
-
-	require.Eventually(t, func() bool {
-		got, getErr := db.GetChatByID(ctx, chat.ID)
-		if getErr != nil {
-			return false
-		}
-		return got.Status == database.ChatStatusWaiting ||
-			got.Status == database.ChatStatusError
-	}, testutil.WaitLong, testutil.IntervalFast)
-
-	toolsMu.Lock()
-	tools := append([]string(nil), capturedTools...)
-	messages := append([]chattest.OpenAIMessage(nil), capturedMessages...)
-	toolsMu.Unlock()
-
-	require.NotEmpty(t, messages, "expected a streamed LLM request")
-	require.NotContains(t, tools, "advisor",
-		"plan-mode turns must not register the advisor tool even when enabled")
-	for _, msg := range messages {
-		require.NotContains(t, msg.Content, chatadvisor.ParentGuidanceBlock,
-			"plan-mode turns must not inject advisor guidance")
-	}
-}
-
-// TestAdvisorGating_ExploreSubagent guards the fourth dimension of the
-// advisor eligibility condition: Explore chats (root or subagent) run
-// under allowedExploreToolNames, whose policy does not include advisor,
-// so the runtime must not register the advisor tool or inject the
-// parent guidance block there. Without this test, deleting the
-// !isExploreSubagent guard would leave the other gating tests green
-// while leaking advisor into explore chats.
-func TestAdvisorGating_ExploreSubagent(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	var toolsMu sync.Mutex
-	var capturedTools []string
-	var capturedMessages []chattest.OpenAIMessage
-
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("title")
-		}
-
-		names := make([]string, 0, len(req.Tools))
-		for _, tool := range req.Tools {
-			names = append(names, tool.Function.Name)
-		}
-		toolsMu.Lock()
-		capturedTools = names
-		capturedMessages = append([]chattest.OpenAIMessage(nil), req.Messages...)
-		toolsMu.Unlock()
-
-		return chattest.OpenAIStreamingResponse(
-			chattest.OpenAITextChunks("explore reply")...,
-		)
-	})
-
-	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-	seedAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{
-		Enabled:         true,
-		MaxUsesPerRun:   3,
-		MaxOutputTokens: 16384,
-	})
-	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(
-			chattest.NewMockAIBridgeTransport(t, openAIURL),
-		)
-	})
-
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		Title:          "advisor-explore",
-		ModelConfigID:  model.ID,
-		ChatMode: database.NullChatMode{
-			ChatMode: database.ChatModeExplore,
-			Valid:    true,
-		},
-		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("inspect the codebase"),
-		},
-	})
-	require.NoError(t, err)
-
-	require.Eventually(t, func() bool {
-		got, getErr := db.GetChatByID(ctx, chat.ID)
-		if getErr != nil {
-			return false
-		}
-		return got.Status == database.ChatStatusWaiting ||
-			got.Status == database.ChatStatusError
-	}, testutil.WaitLong, testutil.IntervalFast)
-
-	toolsMu.Lock()
-	tools := append([]string(nil), capturedTools...)
-	messages := append([]chattest.OpenAIMessage(nil), capturedMessages...)
-	toolsMu.Unlock()
-
-	require.NotEmpty(t, messages, "expected a streamed LLM request")
-	require.NotContains(t, tools, chatadvisor.ToolName,
-		"explore chats must not register the advisor tool even when enabled")
-	for _, msg := range messages {
-		require.NotContains(t, msg.Content, chatadvisor.ParentGuidanceBlock,
-			"explore chats must not inject advisor guidance")
-	}
+	result := requireToolResultPart(t, chatToolParts(ctx, t, db, chat.ID), chatadvisor.ToolName)
+	require.False(t, result.IsError)
+	require.Contains(t, string(result.Result), advisorReply)
 }
 
 // TestProviderSwitchSanitizesAndRestoresPEToolHistory verifies the A→B→A

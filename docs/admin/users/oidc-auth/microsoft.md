@@ -19,16 +19,16 @@ This guide shows how to configure Coder to authenticate users with Microsoft Ent
 4. Select "Register"
 5. On the next screen, select: "Certificates and Secrets"
 6. Select "New Client Secret" and under description, enter an appropriate description.
-7. Then set an expiry and hit "Add".
+7. Set an expiry and hit "Add".
 8. Once it's created, copy the value and save it somewhere secure for the next step
-9. Next, select the tab labeled "Token Configuration", then select "Add optional claim".
+9. Select the tab labeled "Token Configuration", then select "Add optional claim".
 10. Select the "ID" radio button, and finally check "upn" and hit "add" at the bottom
 11. Select the button labeled **Add groups claim**.
 12. Check **Security groups**.
 13. Select **Save**.
-12. Now, select the tab labeled "Authentication" and select "Add a platform".
-13. Select "Web" and for the redirect URI enter your Coder callback URL.
-14. Then hit "Configure" at the bottom:
+14. Select the tab labeled "Authentication" and select "Add a platform".
+15. Select "Web" and for the redirect URI enter your Coder callback URL.
+16. Then select "Configure" at the bottom:
     - `https://coder.example.com/api/v2/users/oidc/callback`
 
 ## Step 2: Configure Coder OIDC for Microsoft Entra ID

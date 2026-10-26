@@ -1,4 +1,6 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import { ACPToolNames } from "../ChatElements/tools/acpToolNames";
+import { mergeACPTranscriptDelta } from "../ChatElements/tools/acpTranscript";
 import { appendTextBlock } from "./blockUtils";
 import {
 	ensureToolBlock,
@@ -146,18 +148,31 @@ export const applyMessagePartToStreamState = (
 				};
 			}
 
-			const nextResult = mergeStreamPayload(
-				existing?.result,
-				existing?.resultRaw,
-				part.result,
-				part.result_delta,
-			);
+			const nextToolName =
+				part.tool_name ||
+				existing?.name ||
+				nextState.toolCalls[toolCallID]?.name ||
+				"Tool";
+			const nextResult =
+				nextToolName === ACPToolNames.WaitAgent &&
+				!isFinalResult &&
+				typeof part.result_delta === "string"
+					? mergeACPTranscriptDelta(
+							existing?.result,
+							existing?.resultRaw,
+							part.result_delta,
+						)
+					: mergeStreamPayload(
+							existing?.result,
+							existing?.resultRaw,
+							part.result,
+							part.result_delta,
+						);
 			// Reasoning is transient, so the final result drops it.
 			const nextReasoning = isFinalResult
 				? undefined
 				: `${existing?.reasoning ?? ""}${part.reasoning_delta ?? ""}` ||
 					undefined;
-			const nextToolName = part.tool_name || existing?.name || "Tool";
 			const isStreaming = !isFinalResult && (existing?.isStreaming || hasDelta);
 			const nextIsError =
 				existing?.isError ||

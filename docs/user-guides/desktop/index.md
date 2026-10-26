@@ -124,7 +124,7 @@ ping -n 3 your-workspace.coder
 
 ### Web Services
 
-Open `http://your-workspace.coder:PORT` in your browser, replacing `PORT` with the specific service port you want to access (e.g. 3000 for frontend, 8080 for API)
+Open `http://your-workspace.coder:PORT` in your browser, replacing `PORT` with the specific service port you want to access (for example, 3000 for frontend, 8080 for API)
 
 </div>
 
@@ -157,7 +157,7 @@ New-Item -Path "HKLM:\SOFTWARE\Coder Desktop\App" -Force
 New-ItemProperty -Path "HKLM:\SOFTWARE\Coder Desktop\App" -Name "Updater:Enable" -Value 0 -PropertyType DWord -Force
 ```
 
-You can also configure a `Updater:ForcedChannel` string value to lock users to a specific update channel (e.g. `stable`).
+You can also configure a `Updater:ForcedChannel` string value to lock users to a specific update channel (for example, `stable`).
 
 > [!NOTE]
 > For security, updater settings can only be configured at the machine level (`HKLM`), not per-user (`HKCU`).
@@ -280,7 +280,6 @@ The NRPT and adapter checks confirm the system routing policy is intact.
     ```
 
     If either command returns nothing while Coder Connect shows as enabled, the tunnel did not finish coming up.
-
     Disable and re-enable the toggle, or repeat the steps above.
 
 > [!NOTE]
@@ -308,11 +307,8 @@ The file sync (Mutagen) daemon writes to a separate log file.
       --info --debug --last 1h > ~/Desktop/coder-desktop.log
     ```
 
-    The `BEGINSWITH` predicate captures the app, the helper daemon, and the network extension.
-
-    They all log under subsystems prefixed with `com.coder.Coder-Desktop`.
-
-    Adjust `--last` (e.g. `30m`, `2h`, `1d`) to cover the time the issue occurred.
+    The `BEGINSWITH` predicate captures the app, the helper daemon, and the network extension, which all log under subsystems prefixed with `com.coder.Coder-Desktop`.
+    Adjust `--last` (for example, `30m`, `2h`, `1d`) to cover the time the issue occurred.
 
     You can stream the logs live while reproducing an issue:
 

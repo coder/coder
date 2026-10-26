@@ -228,7 +228,7 @@ These images can then be run without modifying the Security Context Constraints 
 
    This will automatically kick off a `Build` that will remain pending until step 3.
 
-   > For more information, please consult the [OpenShift Documentation](https://docs.redhat.com/en/documentation/openshift_container_platform/latest/html/builds_using_buildconfig/understanding-buildconfigs).
+   > For more information, consult the [OpenShift Documentation](https://docs.redhat.com/en/documentation/openshift_container_platform/latest/html/builds_using_buildconfig/understanding-buildconfigs).
 
    ```sh
    oc create -f - <<EOF

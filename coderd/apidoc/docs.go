@@ -19295,6 +19295,14 @@ const docTemplate = `{
                 "model": {
                     "type": "string"
                 },
+                "priced_model": {
+                    "description": "PricedModel is the model and prices used for this interception. Nil\nwhen it was not priced.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBridgePricedModel"
+                        }
+                    ]
+                },
                 "thinking": {
                     "type": "array",
                     "items": {
@@ -19411,6 +19419,27 @@ const docTemplate = `{
             "properties": {
                 "text": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.AIBridgePricedModel": {
+            "type": "object",
+            "properties": {
+                "cache_read_price": {
+                    "type": "integer"
+                },
+                "cache_write_price": {
+                    "type": "integer"
+                },
+                "input_price": {
+                    "type": "integer"
+                },
+                "model": {
+                    "description": "Model is the priced model, either the requested model or the model\nreported by the provider.",
+                    "type": "string"
+                },
+                "output_price": {
+                    "type": "integer"
                 }
             }
         },
@@ -19648,6 +19677,14 @@ const docTemplate = `{
                 "cache_write_input_tokens": {
                     "type": "integer"
                 },
+                "cost_micros": {
+                    "description": "CostMicros is the summed cost of the priced usage, in micro-units\n(1000000 is $1.00).",
+                    "type": "integer"
+                },
+                "has_unpriced_usage": {
+                    "description": "HasUnpricedUsage reports that some usage has no cost, so CostMicros\nis a lower bound.",
+                    "type": "boolean"
+                },
                 "input_tokens": {
                     "type": "integer"
                 },
@@ -19727,6 +19764,14 @@ const docTemplate = `{
                 },
                 "model": {
                     "type": "string"
+                },
+                "priced_model": {
+                    "description": "PricedModel is the model and prices used for the root interception\n(the prompt). Other requests in the thread may use different models\nand prices, see agentic_actions[].priced_model. Nil when the root\ninterception was not priced.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBridgePricedModel"
+                        }
+                    ]
                 },
                 "prompt": {
                     "type": "string"
@@ -24461,9 +24506,17 @@ const docTemplate = `{
         "codersdk.CreateSkillRequest": {
             "type": "object",
             "properties": {
+                "action": {
+                    "description": "Action is only accepted for project skills and defaults to false.",
+                    "type": "boolean"
+                },
                 "content": {
                     "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
                     "type": "string"
+                },
+                "model_invocable": {
+                    "description": "ModelInvocable defaults to true.",
+                    "type": "boolean"
                 }
             }
         },
@@ -28502,7 +28555,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "providers": {
-                    "description": "Providers are the provider types the user spent through, sorted.",
+                    "description": "Providers are the configured provider names the user spent through,\nsorted.",
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -30828,6 +30881,10 @@ const docTemplate = `{
         "codersdk.Skill": {
             "type": "object",
             "properties": {
+                "action": {
+                    "description": "Action reports whether a project skill is offered as a one-click\naction above project composers. It is always false for personal and\norganization skills.",
+                    "type": "boolean"
+                },
                 "content": {
                     "type": "string"
                 },
@@ -30845,6 +30902,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "model_invocable": {
+                    "description": "ModelInvocable reports whether agents can discover and load the skill\non their own. Users can still invoke a skill explicitly when it is\nfalse.",
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -30857,6 +30918,10 @@ const docTemplate = `{
         "codersdk.SkillMetadata": {
             "type": "object",
             "properties": {
+                "action": {
+                    "description": "Action reports whether a project skill is offered as a one-click\naction above project composers. It is always false for personal and\norganization skills.",
+                    "type": "boolean"
+                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
@@ -30870,6 +30935,10 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "model_invocable": {
+                    "description": "ModelInvocable reports whether agents can discover and load the skill\non their own. Users can still invoke a skill explicitly when it is\nfalse.",
+                    "type": "boolean"
                 },
                 "name": {
                     "type": "string"
@@ -32736,11 +32805,18 @@ const docTemplate = `{
         "codersdk.UpdateSkillRequest": {
             "type": "object",
             "properties": {
+                "action": {
+                    "description": "Action is only accepted for project skills.",
+                    "type": "boolean"
+                },
                 "content": {
                     "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
                     "type": "string"
                 },
                 "enabled": {
+                    "type": "boolean"
+                },
+                "model_invocable": {
                     "type": "boolean"
                 }
             }
