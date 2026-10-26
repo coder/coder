@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
+import { createDeferred } from "#/testHelpers/deferred";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
 import type { ChatMessageInputRef } from "./AgentChatInput";
@@ -278,14 +279,10 @@ describe("ChatPageInput", () => {
 		vi.spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
 			id: "file-1",
 		});
-		let rejectSend: (error: Error) => void = () => {};
+		const firstSend = createDeferred<void>();
 		const onSend = vi
 			.fn()
-			.mockReturnValueOnce(
-				new Promise((_resolve, reject) => {
-					rejectSend = reject;
-				}),
-			)
+			.mockReturnValueOnce(firstSend.promise)
 			.mockResolvedValue(undefined);
 
 		renderChatPageInput(createChatStore(), { onSend });
@@ -305,7 +302,7 @@ describe("ChatPageInput", () => {
 			screen.queryByRole("button", { name: "Remove shot.png" }),
 		).toBeNull();
 
-		rejectSend(new Error("send failed"));
+		firstSend.reject(new Error("send failed"));
 		await screen.findByRole("button", { name: "Remove shot.png" });
 		await user.click(send);
 		expect(onSend).toHaveBeenCalledTimes(2);
@@ -319,12 +316,11 @@ describe("ChatPageInput", () => {
 		vi.spyOn(API.experimental, "uploadChatFile")
 			.mockResolvedValueOnce({ id: "file-1" })
 			.mockResolvedValueOnce({ id: "file-2" });
-		let resolveSend: () => void = () => {};
-		const onSend = vi.fn().mockReturnValueOnce(
-			new Promise<void>((resolve) => {
-				resolveSend = resolve;
-			}),
-		);
+		const firstSend = createDeferred<void>();
+		const onSend = vi
+			.fn()
+			.mockReturnValueOnce(firstSend.promise)
+			.mockResolvedValue(undefined);
 
 		renderChatPageInput(createChatStore(), { onSend });
 		const fileInput = await screen.findByTestId("chat-attachment-file-input");
@@ -342,16 +338,16 @@ describe("ChatPageInput", () => {
 		await screen.findByRole("button", { name: "Remove second.png" });
 
 		await act(async () => {
-			resolveSend();
+			firstSend.resolve();
 		});
-		await waitFor(() =>
-			expect(
-				screen.queryByRole("button", { name: "Remove first.png" }),
-			).toBeNull(),
+		await waitFor(() => expect(send).toBeEnabled());
+		await user.click(send);
+
+		expect(onSend).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				attachments: [{ fileId: "file-2", mediaType: "image/png" }],
+			}),
 		);
-		expect(
-			screen.getByRole("button", { name: "Remove second.png" }),
-		).toBeInTheDocument();
 	});
 
 	it("offers no queue actions on a row a pending send shows", async () => {
