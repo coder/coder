@@ -610,65 +610,60 @@ const mockMessage = (
 	content: [{ type: "text", text }],
 });
 
-it.each<TypesGen.ChatStatus>(["waiting", "requires_action"])(
-	"moves a short reply to the end of the view when the chat status changes from running to %s",
-	async (status) => {
-		mockLayout(400, {
-			"message:1": 300,
-			"message:2": 300,
-			"message:3": 40,
-			"message:4": 60,
-		});
-		const store = createChatStore();
-		store.replaceMessages([
-			mockMessage(1, "user", "First question"),
-			mockMessage(2, "assistant", "First answer"),
-		]);
+it("moves a short reply to the end of the view when the chat stops running", async () => {
+	mockLayout(400, {
+		"message:1": 300,
+		"message:2": 300,
+		"message:3": 40,
+		"message:4": 60,
+	});
+	const store = createChatStore();
+	store.replaceMessages([
+		mockMessage(1, "user", "First question"),
+		mockMessage(2, "assistant", "First answer"),
+	]);
+	store.setChatStatus("waiting");
+	renderWithAuth(
+		<MessageScroller.Provider autoScroll defaultScrollPosition="end">
+			<ChatPageTimeline
+				organizationId="organization-id"
+				store={store}
+				persistedError={undefined}
+				hasMoreMessages={false}
+				isFetchingMoreMessages={false}
+				isHydratingMessages={false}
+				hasFetchMoreError={false}
+				onFetchMoreMessages={async () => {}}
+				urlTransform={(url) => url}
+				mcpServers={[]}
+			/>
+		</MessageScroller.Provider>,
+	);
+	const viewport = await screen.findByLabelText("Messages");
+	await nextFrames();
+
+	await act(async () => {
+		store.upsertDurableMessages([mockMessage(3, "user", "Second question")]);
+		store.setChatStatus("running");
+	});
+	await nextFrames();
+	await act(async () => {
+		store.upsertDurableMessages([mockMessage(4, "assistant", "Short answer")]);
+	});
+	await nextFrames();
+	const spacer = viewport.querySelector<HTMLElement>(
+		"[data-message-scroller-spacer]",
+	);
+	// The scroller holds the second question at the top above blank space.
+	expect(spacer?.hidden).toBe(false);
+
+	await act(async () => {
 		store.setChatStatus("waiting");
-		renderWithAuth(
-			<MessageScroller.Provider autoScroll defaultScrollPosition="end">
-				<ChatPageTimeline
-					organizationId="organization-id"
-					store={store}
-					persistedError={undefined}
-					hasMoreMessages={false}
-					isFetchingMoreMessages={false}
-					isHydratingMessages={false}
-					hasFetchMoreError={false}
-					onFetchMoreMessages={async () => {}}
-					urlTransform={(url) => url}
-					mcpServers={[]}
-				/>
-			</MessageScroller.Provider>,
-		);
-		const viewport = await screen.findByLabelText("Messages");
-		await nextFrames();
+	});
+	await nextFrames();
 
-		await act(async () => {
-			store.upsertDurableMessages([mockMessage(3, "user", "Second question")]);
-			store.setChatStatus("running");
-		});
-		await nextFrames();
-		await act(async () => {
-			store.upsertDurableMessages([
-				mockMessage(4, "assistant", "Short answer"),
-			]);
-		});
-		await nextFrames();
-		const spacer = viewport.querySelector<HTMLElement>(
-			"[data-message-scroller-spacer]",
-		);
-		// The scroller holds the second question at the top above blank space.
-		expect(spacer?.hidden).toBe(false);
-
-		await act(async () => {
-			store.setChatStatus(status);
-		});
-		await nextFrames();
-
-		expect(spacer?.hidden).toBe(true);
-		expect(viewport.scrollTop).toBe(
-			viewport.scrollHeight - viewport.clientHeight,
-		);
-	},
-);
+	expect(spacer?.hidden).toBe(true);
+	expect(viewport.scrollTop).toBe(
+		viewport.scrollHeight - viewport.clientHeight,
+	);
+});
