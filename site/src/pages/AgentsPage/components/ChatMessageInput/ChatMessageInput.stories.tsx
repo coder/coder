@@ -195,6 +195,13 @@ export const ClickSelectsSkill: Story = {
 	},
 };
 
+export const SkillChipBetweenText: Story = {
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "Use /rev");
+		await userEvent.keyboard("{Enter}on the latest diff");
+	},
+};
+
 export const OpensWithPersonalAndWorkspaceSkills: Story = {
 	args: {
 		hasWorkspace: true,

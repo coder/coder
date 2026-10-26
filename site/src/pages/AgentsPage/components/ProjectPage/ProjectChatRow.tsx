@@ -134,7 +134,7 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 					pathname: buildAgentChatPath({ chatId: chat.id }),
 					search: normalizeLocationSearch(location.search),
 				}}
-				className="flex min-w-0 flex-1 items-center gap-3 py-2.5 pl-2 text-sm text-content-primary no-underline"
+				className="flex min-w-0 flex-1 items-center gap-3 py-2.5 pl-2 text-sm text-content-secondary no-underline"
 			>
 				<StatusIcon
 					role="img"

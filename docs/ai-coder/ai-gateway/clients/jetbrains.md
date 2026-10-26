@@ -5,7 +5,7 @@ title: JetBrains
 > [!NOTE]
 > AI Gateway is part of [AI Governance](../../ai-governance.md), which is included with a Premium license.
 
-JetBrains IDE (IntelliJ IDEA, PyCharm, WebStorm, etc.) support AI Gateway via the [third-party model configuration](https://www.jetbrains.com/help/ai-assistant/use-custom-models.html#provide-your-own-api-key) feature.
+JetBrains IDE (IntelliJ IDEA, PyCharm, WebStorm, and so on) support AI Gateway via the [third-party model configuration](https://www.jetbrains.com/help/ai-assistant/use-custom-models.html#provide-your-own-api-key) feature.
 
 ## Prerequisites
 
@@ -35,7 +35,7 @@ JetBrains IDE (IntelliJ IDEA, PyCharm, WebStorm, etc.) support AI Gateway via th
 ## Use the AI Assistant
 
 1. Go back to **AI Chat** on theleft side bar and choose **Chat**.
-1. In the Model dropdown, select the desired model (e.g., `gpt-5.2`).
+1. In the Model dropdown, select the desired model (for example, `gpt-5.2`).
 
 ![JetBrains AI Assistant Chat](../../../images/aibridge/clients/jetbrains-ai-chat.png)
 

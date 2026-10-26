@@ -154,7 +154,7 @@ Coder Agents eliminates this by moving the agent loop out of the workspace entir
   This eliminates a class of supply chain risk and removes the need to keep agent software up to date across all workspaces.
 - **Network boundaries are simpler.**
   Because the workspace doesn't need access to LLM APIs, you can apply strict egress rules.
-  An agent-only template might permit access to only your git provider (e.g., `github.com`) and nothing else.
+  An agent-only template might permit access to only your git provider (for example, `github.com`) and nothing else.
   The workspace never needs to reach the internet for AI functionality.
 - **Centralized, enforced control.**
   Platform teams configure models, system prompts, and tool permissions from the control plane.

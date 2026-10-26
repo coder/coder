@@ -33,7 +33,7 @@ For Kubernetes workspaces, these are typically the pod logs as the agent runs vi
 Agent logs are also stored in the workspace filesystem by default:
 
 - macOS/Linux: `/tmp/coder-agent.log`
-- Windows: Refer to the template code (e.g. [azure-windows](https://github.com/coder/coder/blob/2cfadad023cb7f4f85710cff0b21ac46bdb5a845/examples/templates/azure-windows/Initialize.ps1.tftpl#L64)) to see where logs are stored.
+- Windows: Refer to the template code (for example, [azure-windows](https://github.com/coder/coder/blob/2cfadad023cb7f4f85710cff0b21ac46bdb5a845/examples/templates/azure-windows/Initialize.ps1.tftpl#L64)) to see where logs are stored.
 
 > [!NOTE]
 > Logs are truncated once they reach 5&nbsp;MB in size.

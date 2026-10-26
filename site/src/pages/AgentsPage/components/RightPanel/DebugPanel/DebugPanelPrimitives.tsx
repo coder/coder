@@ -122,7 +122,7 @@ type RoleBadgeProps = {
 
 export const RoleBadge: React.FC<RoleBadgeProps> = ({ role }) => {
 	return (
-		<Badge size="xs" variant={getRoleBadgeVariant(role)}>
+		<Badge size="sm" variant={getRoleBadgeVariant(role)}>
 			{role}
 		</Badge>
 	);
