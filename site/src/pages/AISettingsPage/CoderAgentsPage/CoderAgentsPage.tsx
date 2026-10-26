@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
+import { aiProvidersList } from "#/api/queries/aiProviders";
 import {
 	chatAdvisorConfig,
 	chatComputerUseProvider,
@@ -58,6 +59,10 @@ const CoderAgentsPage: React.FC = () => {
 	});
 	const computerUseProviderQuery = useQuery({
 		...chatComputerUseProvider(),
+		enabled: canEditDeploymentConfig && showVirtualDesktopSettings,
+	});
+	const aiProvidersQuery = useQuery({
+		...aiProvidersList(),
 		enabled: canEditDeploymentConfig && showVirtualDesktopSettings,
 	});
 	const savePersonalOverridesMutation = useMutation(
@@ -134,6 +139,9 @@ const CoderAgentsPage: React.FC = () => {
 				showVirtualDesktopSettings={showVirtualDesktopSettings}
 				computerUseProviderData={computerUseProviderQuery.data}
 				isLoadingComputerUseProvider={computerUseProviderQuery.isLoading}
+				aiProviders={aiProvidersQuery.data}
+				isLoadingAIProviders={aiProvidersQuery.isLoading}
+				aiProvidersError={aiProvidersQuery.error}
 				onSaveComputerUseProvider={saveComputerUseProviderMutation.mutate}
 				isSavingComputerUseProvider={saveComputerUseProviderMutation.isPending}
 				computerUseProviderSaveError={saveComputerUseProviderMutation.error}

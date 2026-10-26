@@ -49,6 +49,9 @@ export type CoderAgentsPageViewProps = {
 	showVirtualDesktopSettings: boolean;
 	computerUseProviderData: TypesGen.ChatComputerUseProviderResponse | undefined;
 	isLoadingComputerUseProvider: boolean;
+	aiProviders: readonly TypesGen.AIProvider[] | undefined;
+	isLoadingAIProviders: boolean;
+	aiProvidersError: unknown;
 	onSaveComputerUseProvider: UseMutateFunction<
 		void,
 		Error,
@@ -88,6 +91,9 @@ export const CoderAgentsPageView: React.FC<CoderAgentsPageViewProps> = ({
 	showVirtualDesktopSettings,
 	computerUseProviderData,
 	isLoadingComputerUseProvider,
+	aiProviders,
+	isLoadingAIProviders,
+	aiProvidersError,
 	onSaveComputerUseProvider,
 	isSavingComputerUseProvider,
 	computerUseProviderSaveError,
@@ -144,6 +150,9 @@ export const CoderAgentsPageView: React.FC<CoderAgentsPageViewProps> = ({
 							<VirtualDesktopSettings
 								computerUseProviderData={computerUseProviderData}
 								isLoadingComputerUseProvider={isLoadingComputerUseProvider}
+								aiProviders={aiProviders}
+								isLoadingAIProviders={isLoadingAIProviders}
+								aiProvidersError={aiProvidersError}
 								onSaveComputerUseProvider={onSaveComputerUseProvider}
 								isSavingComputerUseProvider={isSavingComputerUseProvider}
 								computerUseProviderSaveError={computerUseProviderSaveError}

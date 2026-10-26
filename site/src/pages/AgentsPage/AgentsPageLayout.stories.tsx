@@ -130,6 +130,9 @@ const AgentsRouteElement = () => (
 		showVirtualDesktopSettings={false}
 		computerUseProviderData={undefined}
 		isLoadingComputerUseProvider={false}
+		aiProviders={undefined}
+		isLoadingAIProviders={false}
+		aiProvidersError={null}
 		onSaveComputerUseProvider={fn()}
 		isSavingComputerUseProvider={false}
 		computerUseProviderSaveError={null}

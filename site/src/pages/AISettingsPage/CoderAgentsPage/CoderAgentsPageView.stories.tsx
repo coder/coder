@@ -1,7 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import type { AIProvider } from "#/api/typesGenerated";
 import {
+	MockAIProviderAnthropic,
+	MockAIProviderBedrock,
+	MockAIProviderOpenAI,
 	MockDefaultOrganization,
 	MockOrganization2,
 } from "#/testHelpers/entities";
@@ -38,10 +42,32 @@ const defaultArgs: CoderAgentsPageViewProps = {
 	showVirtualDesktopSettings: false,
 	computerUseProviderData: undefined,
 	isLoadingComputerUseProvider: false,
+	aiProviders: undefined,
+	isLoadingAIProviders: false,
+	aiProvidersError: null,
 	onSaveComputerUseProvider: fn(),
 	isSavingComputerUseProvider: false,
 	computerUseProviderSaveError: null,
 };
+
+const firstAnthropicProvider: AIProvider = {
+	...MockAIProviderAnthropic,
+	enabled: true,
+};
+const secondAnthropicProvider: AIProvider = {
+	...MockAIProviderAnthropic,
+	id: "2d0c6c3e-5a4b-4f7e-9b1a-8c3d2e1f0a92",
+	name: "anthropic-gateway",
+	display_name: "Anthropic via gateway",
+	enabled: true,
+};
+const openAIProvider: AIProvider = { ...MockAIProviderOpenAI, enabled: true };
+const virtualDesktopProviders: AIProvider[] = [
+	firstAnthropicProvider,
+	secondAnthropicProvider,
+	openAIProvider,
+	MockAIProviderBedrock,
+];
 
 const meta: Meta<typeof CoderAgentsPageView> = {
 	title: "pages/AISettingsPage/CoderAgentsPage/CoderAgentsPageView",
@@ -214,5 +240,67 @@ export const Mobile: Story = {
 		await expect(
 			canvas.getByRole("heading", { name: "Deployment settings" }),
 		).toBeVisible();
+	},
+};
+
+export const VirtualDesktopSelectedProvider: Story = {
+	args: {
+		showAdvisorSettings: false,
+		showVirtualDesktopSettings: true,
+		aiProviders: virtualDesktopProviders,
+		computerUseProviderData: {
+			provider: "anthropic",
+			ai_provider_id: secondAnthropicProvider.id,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("combobox", {
+				name: "Computer use provider",
+			}),
+		);
+	},
+};
+
+export const VirtualDesktopNoSelectedProvider: Story = {
+	args: {
+		showAdvisorSettings: false,
+		showVirtualDesktopSettings: true,
+		aiProviders: virtualDesktopProviders,
+		computerUseProviderData: { provider: "anthropic" },
+	},
+};
+
+export const VirtualDesktopSelectedProviderUnavailable: Story = {
+	args: {
+		showAdvisorSettings: false,
+		showVirtualDesktopSettings: true,
+		aiProviders: [
+			firstAnthropicProvider,
+			{ ...secondAnthropicProvider, enabled: false },
+		],
+		computerUseProviderData: {
+			provider: "anthropic",
+			ai_provider_id: secondAnthropicProvider.id,
+		},
+	},
+};
+
+export const VirtualDesktopNoEligibleProviders: Story = {
+	args: {
+		showAdvisorSettings: false,
+		showVirtualDesktopSettings: true,
+		aiProviders: [MockAIProviderBedrock],
+		computerUseProviderData: { provider: "anthropic" },
+	},
+};
+
+export const VirtualDesktopProvidersError: Story = {
+	args: {
+		showAdvisorSettings: false,
+		showVirtualDesktopSettings: true,
+		aiProviders: undefined,
+		aiProvidersError: new Error("Failed to load AI providers"),
+		computerUseProviderData: { provider: "anthropic" },
 	},
 };
