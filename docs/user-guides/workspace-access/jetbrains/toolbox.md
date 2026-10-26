@@ -9,7 +9,6 @@ For more details, visit the [official JetBrains documentation](https://www.jetbr
 ## Install the Coder provider for Toolbox
 
 These instructions use Coder plugin version 0.9.5 or later, which requires JetBrains Toolbox version 3.9.0 or later.
-Support-bundle collection also requires Coder CLI version 2.10.0 or later.
 
 1. Install [JetBrains Toolbox](https://www.jetbrains.com/toolbox-app/) version 3.9.0 or later.
 1. Open the Toolbox App.
@@ -80,7 +79,7 @@ If you encounter issues connecting to your Coder workspace via JetBrains Toolbox
 
 After sign-in, Coder's main page lists environments, each representing a workspace and agent pair.
 For a workspace diagnostic archive, select **Collect logs** from the environment's action menu on that page or in the individual environment view.
-With Coder plugin version 0.9.5 or later and Coder CLI version 2.10.0 or later, the archive also includes a nested `coder-support.zip`.
+With Coder plugin version 0.9.5 or later, the archive also includes a nested `coder-support.zip`.
 The bundle contains Coder deployment, workspace, and agent diagnostics, plus local CLI SSH logs when available.
 For the requirements, collection procedure, and archive contents, refer to [Generate from your IDE](../../../support/support-bundle.md#generate-from-your-ide), under **JetBrains Toolbox**.
 

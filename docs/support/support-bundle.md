@@ -83,7 +83,6 @@ The archive contains the following files when the corresponding data is availabl
 
 ## Generate with the CLI
 
-Use Coder CLI version 2.10.0 or later to generate a support bundle.
 Use a machine on the network where you connect to your workspace so that the bundle captures that machine's connection diagnostics.
 Your Coder deployment must be available.
 A running, reachable workspace provides the most complete agent diagnostics.
@@ -212,7 +211,6 @@ Workspace support-bundle collection requires all of the following:
 |------------------------------------|-----------------|
 | Coder plugin for JetBrains Toolbox | 0.9.5           |
 | JetBrains Toolbox                  | 3.9.0           |
-| Coder CLI                          | 2.10.0          |
 
 Coder plugin version 0.9.4 and earlier collect Toolbox logs without generating a Coder support bundle.
 Upgrading Toolbox alone doesn't add bundle collection to those plugin versions.
@@ -222,7 +220,6 @@ Sign in to your Coder deployment in the plugin before collecting a bundle.
 After sign-in, Coder's main page lists your environments.
 Each environment represents a workspace and agent pair.
 The plugin uses the deployment's CLI and existing login.
-If you configure a custom CLI binary, ensure it meets the minimum version.
 A running, reachable workspace provides the most complete agent diagnostics, but collection doesn't start a stopped workspace.
 
 1. On Coder's main page, find the environment you want to troubleshoot.
