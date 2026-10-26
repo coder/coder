@@ -928,9 +928,13 @@ func TestPostChats(t *testing.T) {
 			},
 			{
 				name: "EmptyText",
-				prepare: func(_ *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient {
+				// No model exists in the new org, so this also checks that
+				// input is rejected before model resolution.
+				prepare: func(t *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient {
+					orgID, orgMember := newOrgMember(t)
+					req.OrganizationID = orgID
 					req.Content[0].Text = "   "
-					return client
+					return orgMember
 				},
 				wantStatus:  http.StatusBadRequest,
 				wantMessage: "Invalid input part.",
@@ -938,9 +942,11 @@ func TestPostChats(t *testing.T) {
 			},
 			{
 				name: "UnsupportedPartType",
-				prepare: func(_ *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient {
+				prepare: func(t *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient {
+					orgID, orgMember := newOrgMember(t)
+					req.OrganizationID = orgID
 					req.Content[0].Type = codersdk.ChatInputPartType("image")
-					return client
+					return orgMember
 				},
 				wantStatus:  http.StatusBadRequest,
 				wantMessage: "Invalid input part.",
