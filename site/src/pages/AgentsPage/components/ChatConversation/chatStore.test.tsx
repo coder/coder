@@ -4719,7 +4719,7 @@ describe("chat stream contract", () => {
 					store,
 					pendingCount: useChatSelector(
 						store,
-						(state) => state.pendingActions.length,
+						(state) => state.pendingEntries.length,
 					),
 					fetchMoreMessages: chat.fetchMoreMessages,
 					isFetchingMoreMessages: chat.isFetchingMoreMessages,
