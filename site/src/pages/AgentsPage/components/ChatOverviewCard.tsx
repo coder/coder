@@ -4,7 +4,6 @@ import {
 	FileIcon,
 	GitBranchIcon,
 	type LucideIcon,
-	PinIcon,
 } from "lucide-react";
 import { useId, useState } from "react";
 import { type UseQueryResult, useQuery } from "react-query";
@@ -17,7 +16,6 @@ import type {
 	ChatStatus,
 	WorkspaceAgentRepoChanges,
 } from "#/api/typesGenerated";
-import { Button } from "#/components/Button/Button";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { formatCostMicros } from "#/utils/currency";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
@@ -53,7 +51,7 @@ const OVERVIEW_MAX_SUBAGENT_ROWS = 5;
 /** The card and its toggle need the 48rem transcript plus 18rem: 66rem. */
 export const overviewToggleClassName = "hidden @min-[66rem]/chat:inline-flex";
 /**
- * Room for an open or pinned card: the part of its 18rem (card, inset, gap)
+ * Room for an open card: the part of its 18rem (card, inset, gap)
  * that the centered 48rem transcript lacks, so 0 from an 84rem chat on.
  */
 export const overviewRoomClassName =
@@ -89,13 +87,10 @@ export type ChatOverview = {
 };
 
 type ChatOverviewCardProps = {
-	ref?: React.Ref<HTMLElement>;
 	chat: Chat;
 	store: ChatStore;
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
 	isHydratingMessages: boolean;
-	isPinned: boolean;
-	onPinnedChange: (pinned: boolean) => void;
 	onOpenTab: (tabId: OverviewTabId) => void;
 };
 
@@ -104,13 +99,10 @@ type ChatOverviewCardProps = {
  * whole page view.
  */
 export const ChatOverviewCard: React.FC<ChatOverviewCardProps> = ({
-	ref,
 	chat,
 	store,
 	repositories,
 	isHydratingMessages,
-	isPinned,
-	onPinnedChange,
 	onOpenTab,
 }) => {
 	const showCost = useFeatureVisibility().aibridge;
@@ -148,11 +140,8 @@ export const ChatOverviewCard: React.FC<ChatOverviewCardProps> = ({
 
 	return (
 		<ChatOverviewCardView
-			ref={ref}
 			overview={overview}
 			isLoading={(showCost && costQuery.isPending) || isHydratingMessages}
-			isPinned={isPinned}
-			onPinnedChange={onPinnedChange}
 			onOpenTab={onOpenTab}
 			className={overviewCardPositionClassName}
 		/>
@@ -183,12 +172,9 @@ const getOverviewCost = (
 };
 
 type ChatOverviewCardViewProps = {
-	ref?: React.Ref<HTMLElement>;
 	overview: ChatOverview;
 	/** Cost or messages are still loading, so an empty card is not final. */
 	isLoading?: boolean;
-	isPinned: boolean;
-	onPinnedChange: (pinned: boolean) => void;
 	onOpenTab: (tabId: OverviewTabId) => void;
 	className?: string;
 };
@@ -198,11 +184,8 @@ type ChatOverviewCardViewProps = {
  * subagent rows, which link to the subagent's chat.
  */
 export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
-	ref,
 	overview,
 	isLoading = false,
-	isPinned,
-	onPinnedChange,
 	onOpenTab,
 	className,
 }) => {
@@ -220,34 +203,18 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 
 	return (
 		<aside
-			ref={ref}
 			aria-labelledby={headingId}
 			className={cn(
 				"flex max-h-[min(32rem,calc(100vh-10rem))] w-64 flex-col divide-y divide-solid divide-border overflow-y-auto rounded-lg border border-solid border-border bg-surface-primary px-3 text-sm shadow-md",
 				className,
 			)}
 		>
-			<div className="flex items-center justify-between gap-2 py-1.5">
-				<h2
-					id={headingId}
-					className="m-0 text-xs font-medium text-content-secondary"
-				>
-					Overview
-				</h2>
-				<Button
-					variant="subtle"
-					size="icon"
-					className={cn(
-						"-mr-1.5 size-6 text-content-secondary hover:text-content-primary",
-						isPinned && "text-content-primary",
-					)}
-					aria-label="Pin overview"
-					aria-pressed={isPinned}
-					onClick={() => onPinnedChange(!isPinned)}
-				>
-					<PinIcon className={cn("size-3.5", isPinned && "fill-current")} />
-				</Button>
-			</div>
+			<h2
+				id={headingId}
+				className="m-0 py-2 text-xs font-medium text-content-secondary"
+			>
+				Overview
+			</h2>
 
 			{isEmpty && (
 				<p className="m-0 py-2 text-xs text-content-secondary">

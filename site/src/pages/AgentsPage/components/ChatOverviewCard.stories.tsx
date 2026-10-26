@@ -122,8 +122,6 @@ const meta: Meta<typeof ChatOverviewCardView> = {
 	component: ChatOverviewCardView,
 	args: {
 		overview: mockChatOverview,
-		isPinned: false,
-		onPinnedChange: fn(),
 		onOpenTab: fn(),
 	},
 	decorators: [
@@ -140,10 +138,6 @@ type Story = StoryObj<typeof ChatOverviewCardView>;
 
 /** Every section, with a fourth attachment behind the toggle. */
 export const Full: Story = {};
-
-export const Pinned: Story = {
-	args: { isPinned: true },
-};
 
 const mockEmptyChatOverview: ChatOverview = {
 	cost: undefined,

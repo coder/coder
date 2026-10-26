@@ -1,11 +1,10 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useRef } from "react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import type { ChatStatus } from "#/api/typesGenerated";
 import { MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import {
-	OVERVIEW_CARD_PINNED_KEY,
+	OVERVIEW_CARD_OPEN_KEY,
 	useOverviewCard,
 } from "../hooks/useOverviewCard";
 import {
@@ -55,31 +54,15 @@ const OverviewHarness: React.FC<OverviewHarnessProps> = ({
 	overview,
 	onOpenTab,
 }) => {
-	const cardRef = useRef<HTMLElement>(null);
-	const toggleRef = useRef<HTMLButtonElement>(null);
-	const card = useOverviewCard({ cardRef, toggleRef });
+	const card = useOverviewCard();
 	return (
 		<>
-			<button
-				ref={toggleRef}
-				type="button"
-				aria-expanded={card.isOpen}
-				onClick={card.toggle}
-			>
+			<button type="button" aria-expanded={card.isOpen} onClick={card.toggle}>
 				Toggle overview
 			</button>
 			<p>Transcript</p>
 			{card.isOpen && (
-				<ChatOverviewCardView
-					ref={cardRef}
-					overview={overview}
-					isPinned={card.isPinned}
-					onPinnedChange={card.setPinned}
-					onOpenTab={(tabId) => {
-						card.dismiss();
-						onOpenTab(tabId);
-					}}
-				/>
+				<ChatOverviewCardView overview={overview} onOpenTab={onOpenTab} />
 			)}
 		</>
 	);
@@ -110,7 +93,7 @@ const openCard = async (user: ReturnType<typeof userEvent.setup>) => {
 
 describe("ChatOverviewCard", () => {
 	beforeEach(() => {
-		localStorage.removeItem(OVERVIEW_CARD_PINNED_KEY);
+		localStorage.removeItem(OVERVIEW_CARD_OPEN_KEY);
 	});
 
 	it.each<{ name: RegExp; tab: OverviewTabId }>([
@@ -118,19 +101,15 @@ describe("ChatOverviewCard", () => {
 		{ name: /ci\/queue-only-jobs/, tab: "git" },
 		{ name: /#123 Queue jobs/, tab: "git" },
 		{ name: /plan\.html/, tab: "summary" },
-	])(
-		"opens the $tab tab from the row named $name and closes",
-		async ({ name, tab }) => {
-			const user = userEvent.setup();
-			const { onOpenTab } = renderOverview();
-			await openCard(user);
+	])("opens the $tab tab from the row named $name", async ({ name, tab }) => {
+		const user = userEvent.setup();
+		const { onOpenTab } = renderOverview();
+		await openCard(user);
 
-			await user.click(screen.getByRole("button", { name }));
+		await user.click(screen.getByRole("button", { name }));
 
-			expect(onOpenTab).toHaveBeenCalledExactlyOnceWith(tab);
-			expectOpen(false);
-		},
-	);
+		expect(onOpenTab).toHaveBeenCalledExactlyOnceWith(tab);
+	});
 
 	it("opens the child chat from a subagent row", async () => {
 		const user = userEvent.setup();
@@ -175,46 +154,23 @@ describe("ChatOverviewCard", () => {
 		expect(within(section).queryByRole("button")).not.toBeInTheDocument();
 	});
 
-	it("closes on the toggle, an outside click, and Escape", async () => {
-		const user = userEvent.setup();
-		renderOverview();
-		const toggle = screen.getByRole("button", { name: "Toggle overview" });
-
-		await openCard(user);
-		await user.click(toggle);
-		expectOpen(false);
-
-		await openCard(user);
-		await user.click(screen.getByText("Transcript"));
-		expectOpen(false);
-
-		await openCard(user);
-		await user.click(screen.getByRole("button", { name: /Cost/ }));
-		await openCard(user);
-		screen.getByRole("button", { name: "Pin overview" }).focus();
-		await user.keyboard("{Escape}");
-		expectOpen(false);
-		expect(toggle).toHaveFocus();
-	});
-
-	it("stays open while pinned, in the next chat too, until the toggle closes it", async () => {
+	it("stays open, in the next chat too, until the toggle closes it", async () => {
 		const user = userEvent.setup();
 		const { view } = renderOverview();
 		await openCard(user);
 
-		await user.click(screen.getByRole("button", { name: "Pin overview" }));
 		await user.click(screen.getByText("Transcript"));
 		await user.click(screen.getByRole("button", { name: /Cost/ }));
+		await user.keyboard("{Escape}");
 		expectOpen(true);
 
 		// A new chat mounts the page view again.
 		view.unmount();
 		renderOverview();
 		expectOpen(true);
-		screen.getByRole("button", { name: "Pin overview", pressed: true });
 
 		await user.click(screen.getByRole("button", { name: "Toggle overview" }));
 		expectOpen(false);
-		expect(localStorage.getItem(OVERVIEW_CARD_PINNED_KEY)).toBe("false");
+		expect(localStorage.getItem(OVERVIEW_CARD_OPEN_KEY)).toBe("false");
 	});
 });

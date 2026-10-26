@@ -47,7 +47,7 @@ import { MessageScroller } from "#/vendor/message-scroller";
 import type { ChatDetailError } from "../components/ChatConversation/chatError";
 import { createChatStore } from "../components/ChatConversation/chatStore";
 import { buildLongConversation } from "../components/ChatConversation/storyFixtures";
-import { OVERVIEW_CARD_PINNED_KEY } from "../hooks/useOverviewCard";
+import { OVERVIEW_CARD_OPEN_KEY } from "../hooks/useOverviewCard";
 import { visibleSingletonTabsStorageKeyPrefix } from "../utils/rightPanelTabStorage";
 import type { SingletonRightPanelTabId } from "../utils/rightPanelTabs";
 import { lastActiveSidebarTabStorageKeyPrefix } from "../utils/sidebarTabStorage";
@@ -946,22 +946,16 @@ const overviewCardFrame =
 		</div>
 	);
 
-const pinOverviewCard = () => {
-	localStorage.setItem(OVERVIEW_CARD_PINNED_KEY, "true");
-	return () => localStorage.removeItem(OVERVIEW_CARD_PINNED_KEY);
-};
-
-const openOverviewCard: Story["play"] = async ({ canvasElement }) => {
-	const canvas = within(canvasElement);
-	await userEvent.click(
-		canvas.getByRole("button", { name: "Toggle overview" }),
-	);
+/** Stores the card as open, as a click on the toggle does, for one story. */
+const openOverviewCard = () => {
+	localStorage.setItem(OVERVIEW_CARD_OPEN_KEY, "true");
+	return () => localStorage.removeItem(OVERVIEW_CARD_OPEN_KEY);
 };
 
 /** A wide chat: the card opens in the margin and the transcript stays put. */
 export const OverviewCardBesideTranscript: Story = {
 	decorators: [overviewCardFrame(1600)],
-	play: openOverviewCard,
+	beforeEach: openOverviewCard,
 	render: () => (
 		<StoryAgentChatPageView
 			store={overviewCardStore}
@@ -974,7 +968,7 @@ export const OverviewCardBesideTranscript: Story = {
 /** A mid-width chat: the transcript and composer move left to clear the card. */
 export const OverviewCardMovesTranscript: Story = {
 	decorators: [overviewCardFrame(1120)],
-	play: openOverviewCard,
+	beforeEach: openOverviewCard,
 	render: () => (
 		<StoryAgentChatPageView
 			store={overviewCardStore}
@@ -984,10 +978,10 @@ export const OverviewCardMovesTranscript: Story = {
 	),
 };
 
-/** A pinned card on a narrow chat: no card and no toggle. */
+/** An open card on a narrow chat: no card and no toggle. */
 export const OverviewCardHiddenWhenNarrow: Story = {
 	decorators: [overviewCardFrame(960)],
-	beforeEach: pinOverviewCard,
+	beforeEach: openOverviewCard,
 	render: () => (
 		<StoryAgentChatPageView
 			store={overviewCardStore}
@@ -997,14 +991,14 @@ export const OverviewCardHiddenWhenNarrow: Story = {
 	),
 };
 
-/** A pinned card with a full-width transcript: no card and no toggle. */
+/** An open card with a full-width transcript: no card and no toggle. */
 export const OverviewCardHiddenInFullWidth: Story = {
 	decorators: [overviewCardFrame(1600)],
 	beforeEach: () => {
-		const unpin = pinOverviewCard();
+		const close = openOverviewCard();
 		localStorage.setItem("agents.chat-full-width", "true");
 		return () => {
-			unpin();
+			close();
 			localStorage.removeItem("agents.chat-full-width");
 		};
 	},

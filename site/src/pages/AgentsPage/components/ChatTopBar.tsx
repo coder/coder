@@ -74,10 +74,9 @@ type ChatTopBarProps = {
 	panel: SidebarPanelState;
 	/**
 	 * The overview card toggle. Absent while the card cannot exist (right
-	 * panel open, full-width chat, embed). Below 84rem it renders hidden.
+	 * panel open, full-width chat, embed). Below 66rem it renders hidden.
 	 */
-	overview?: Pick<OverviewCardState, "isOpen" | "toggle">;
-	overviewToggleRef?: React.Ref<HTMLButtonElement>;
+	overview?: OverviewCardState;
 };
 
 const ChatSharingTopBarButton: React.FC<ChatSharingTopBarButtonProps> = ({
@@ -122,7 +121,6 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 	liveChatStatus,
 	panel,
 	overview,
-	overviewToggleRef,
 }) => {
 	const { isEmbedded } = useEmbedContext();
 	const { user: currentUser } = useAuthenticated();
@@ -379,7 +377,6 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 				)}
 				{overview && (
 					<Button
-						ref={overviewToggleRef}
 						variant="subtle"
 						size="icon"
 						onClick={overview.toggle}

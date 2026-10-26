@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ArchiveIcon, TriangleAlertIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
@@ -36,7 +36,6 @@ import { QueuedForCapacityCallout } from "../components/ChatConversation/QueuedF
 import { DesktopPanelContext } from "../components/ChatElements/tools/DesktopPanelContext";
 import {
 	ChatOverviewCard,
-	type OverviewTabId,
 	overviewRoomClassName,
 } from "../components/ChatOverviewCard";
 import type { SendChatMessageOptions } from "../components/ChatPageContent";
@@ -58,7 +57,7 @@ import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { TerminalClientSessionContext } from "../context/TerminalClientSessionContext";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import {
-	readOverviewCardPinned,
+	readOverviewCardOpen,
 	useOverviewCard,
 } from "../hooks/useOverviewCard";
 import {
@@ -338,12 +337,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chat.status;
 	const canShowOverview = useCanShowOverview(showSidebarPanel);
-	const overviewCardRef = useRef<HTMLElement>(null);
-	const overviewToggleRef = useRef<HTMLButtonElement>(null);
-	const overviewCard = useOverviewCard({
-		cardRef: overviewCardRef,
-		toggleRef: overviewToggleRef,
-	});
+	const overviewCard = useOverviewCard();
 
 	const canSubmitChatTurn = !isInputDisabled && !isSubmissionPending;
 
@@ -518,11 +512,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		onSetShowSidebarPanel(true);
 		setPendingTabId(null);
 		setSidebarTabId(tabId);
-	};
-
-	const openOverviewTab = (tabId: OverviewTabId) => {
-		overviewCard.dismiss();
-		activateRightPanelTab(tabId);
 	};
 
 	const showSingletonTab = (tabId: SingletonRightPanelTabId) => {
@@ -868,7 +857,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 											onSetShowSidebarPanel(!showSidebarPanel),
 									}}
 									overview={canShowOverview ? overviewCard : undefined}
-									overviewToggleRef={overviewToggleRef}
 								/>
 								{modelCatalogError != null && (
 									<ErrorAlert error={modelCatalogError} />
@@ -902,14 +890,11 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 								/>
 								{canShowOverview && overviewCard.isOpen && (
 									<ChatOverviewCard
-										ref={overviewCardRef}
 										chat={chat}
 										store={store}
 										repositories={gitWatcher.repositories}
 										isHydratingMessages={isHydratingMessages}
-										isPinned={overviewCard.isPinned}
-										onPinnedChange={overviewCard.setPinned}
-										onOpenTab={openOverviewTab}
+										onOpenTab={activateRightPanelTab}
 									/>
 								)}
 							</div>
@@ -1099,10 +1084,10 @@ export const AgentChatPageLoadingView: React.FC<
 	showRightPanel,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
-	// A pinned card opens once the chat loads, so the loading view reserves
+	// An open card shows once the chat loads, so the loading view reserves
 	// its room and the transcript does not jump.
 	const reserveOverviewRoom =
-		useCanShowOverview(showRightPanel) && readOverviewCardPinned();
+		useCanShowOverview(showRightPanel) && readOverviewCardOpen();
 	return (
 		<div
 			className={cn(
