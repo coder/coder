@@ -97,6 +97,7 @@ type ToolProps = Omit<React.ComponentProps<"div">, "children"> & {
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
 	isLatestAskUserQuestion?: boolean;
+	isDockedAskUserQuestion?: boolean;
 	previousResponseText?: string;
 	/** Human-readable intent extracted from the model's tool-call args. */
 	modelIntent?: string;
@@ -130,6 +131,7 @@ type ToolRendererProps = {
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
 	isLatestAskUserQuestion?: boolean;
+	isDockedAskUserQuestion?: boolean;
 	previousResponseText?: string;
 	mcpServerConfigId?: string;
 	mcpServers: readonly TypesGen.MCPServerConfig[];
@@ -680,6 +682,7 @@ type AskUserQuestionRendererProps = Pick<
 	| "onSendAskUserQuestionResponse"
 	| "isChatCompleted"
 	| "isLatestAskUserQuestion"
+	| "isDockedAskUserQuestion"
 	| "previousResponseText"
 >;
 
@@ -694,6 +697,7 @@ export const AskUserQuestionRenderer: React.FC<
 	onSendAskUserQuestionResponse,
 	isChatCompleted,
 	isLatestAskUserQuestion,
+	isDockedAskUserQuestion,
 	previousResponseText,
 }) => {
 	const parsedArgs = parseArgs(args);
@@ -723,6 +727,7 @@ export const AskUserQuestionRenderer: React.FC<
 			onSubmitAnswer={onSendAskUserQuestionResponse}
 			isChatCompleted={isChatCompleted}
 			isLatestAskUserQuestion={isLatestAskUserQuestion}
+			isDocked={isDockedAskUserQuestion}
 			previousResponseText={previousResponseText}
 			asyncToolCallId={parsedResult?.isAsync ? toolCallId : undefined}
 		/>
@@ -1245,6 +1250,7 @@ export const Tool = memo(
 		onSendAskUserQuestionResponse,
 		isChatCompleted,
 		isLatestAskUserQuestion,
+		isDockedAskUserQuestion,
 		previousResponseText,
 		modelIntent,
 		parsedCommands,
@@ -1297,6 +1303,7 @@ export const Tool = memo(
 						onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 						isChatCompleted={isChatCompleted}
 						isLatestAskUserQuestion={isLatestAskUserQuestion}
+						isDockedAskUserQuestion={isDockedAskUserQuestion}
 						previousResponseText={previousResponseText}
 						modelIntent={modelIntent}
 						parsedCommands={parsedCommands}

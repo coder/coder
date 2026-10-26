@@ -10,6 +10,8 @@ import {
 	RouterProvider,
 } from "react-router";
 import { AppProviders } from "#/App";
+import { preferenceSettingsKey } from "#/api/queries/users";
+import type * as TypesGen from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { RequireAuth } from "#/contexts/auth/RequireAuth";
 import type { ProxyProvider } from "#/contexts/ProxyContext";
@@ -20,7 +22,7 @@ import OrganizationSettingsLayout from "#/modules/management/OrganizationSetting
 import { TemplateSettingsLayout } from "#/pages/TemplateSettingsPage/TemplateSettingsLayout";
 import { WorkspaceSettingsLayout } from "#/pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import themes, { DEFAULT_THEME } from "#/theme";
-import { MockUserOwner } from "./entities";
+import { MockUserOwner, MockUserPreferenceSettings } from "./entities";
 
 // Creates one query client for each test case, to make sure that tests are
 // isolated and can't affect each other
@@ -35,6 +37,21 @@ export function createTestQueryClient() {
 			},
 		},
 	});
+}
+
+/**
+ * Creates a test query client whose preference settings are already loaded,
+ * so components that read them render their settled layout on first paint.
+ */
+export function createPreferenceSeededQueryClient(
+	preferences: TypesGen.UserPreferenceSettings = MockUserPreferenceSettings,
+) {
+	const queryClient = createTestQueryClient();
+	queryClient.setQueryDefaults(preferenceSettingsKey, {
+		staleTime: Number.POSITIVE_INFINITY,
+	});
+	queryClient.setQueryData(preferenceSettingsKey, preferences);
+	return queryClient;
 }
 
 export const renderWithRouter = (

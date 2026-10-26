@@ -32,7 +32,8 @@ import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { createChatStore } from "./ChatConversation/chatStore";
 import {
 	FIXTURE_NOW,
-	MockAsyncQuestionResultMessage,
+	MockAsyncQuestionMessages,
+	MockAsyncQuestionResult,
 	MockQuestionCallMessage,
 	MockWorkingMessages,
 } from "./ChatConversation/storyFixtures";
@@ -41,7 +42,9 @@ import { ChatPageInput, ChatPageTimeline } from "./ChatPageContent";
 // These stories cover transcript rendering, so history paging stays idle.
 const StoryChatPageTimeline: React.FC<{
 	store: ReturnType<typeof createChatStore>;
-}> = ({ store }) => (
+	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
+	isReadOnly?: boolean;
+}> = ({ store, onSendAskUserQuestionResponse, isReadOnly = false }) => (
 	<MessageScroller.Provider autoScroll defaultScrollPosition="end">
 		<ChatPageTimeline
 			organizationId="organization-id"
@@ -54,6 +57,8 @@ const StoryChatPageTimeline: React.FC<{
 			onFetchMoreMessages={async () => {}}
 			urlTransform={(url) => url}
 			mcpServers={[]}
+			onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+			isReadOnly={isReadOnly}
 		/>
 	</MessageScroller.Provider>
 );
@@ -412,6 +417,7 @@ export const InterruptingShowsBusyComposer: Story = {
 						onFetchMoreMessages={async () => {}}
 						urlTransform={(url) => url}
 						mcpServers={[]}
+						isReadOnly={false}
 					/>
 					<StoryChatPageInput
 						store={store}
@@ -569,44 +575,127 @@ export const CompactsAtHistoricalModelDefault: Story = {
 	render: () => <CompactionChatPageInput />,
 };
 
-const AsyncQuestionChatPage: React.FC<{ className: string }> = ({
-	className,
-}) => {
+const buildAsyncQuestionStore = (
+	messages: readonly TypesGen.ChatMessage[] = MockAsyncQuestionMessages,
+) => {
 	const store = createChatStore();
-	store.replaceMessages([
-		...MockWorkingMessages.slice(0, 1),
-		MockQuestionCallMessage,
-		MockAsyncQuestionResultMessage,
-	]);
+	store.replaceMessages([...messages]);
+	return store;
+};
 
-	return (
-		<MessageScroller.Provider autoScroll defaultScrollPosition="end">
-			<div className={className}>
-				<ChatPageTimeline
-					organizationId="organization-id"
+export const AsyncQuestionDockedAboveInput: Story = {
+	render: () => {
+		const store = buildAsyncQuestionStore();
+
+		return (
+			<div className="flex h-160 flex-col">
+				<StoryChatPageTimeline
 					store={store}
-					persistedError={undefined}
-					hasMoreMessages={false}
-					isFetchingMoreMessages={false}
-					isHydratingMessages={false}
-					hasFetchMoreError={false}
-					onFetchMoreMessages={async () => {}}
-					urlTransform={(url) => url}
-					mcpServers={[]}
 					onSendAskUserQuestionResponse={fn()}
 				/>
 				<StoryChatPageInput store={store} />
 			</div>
-		</MessageScroller.Provider>
-	);
+		);
+	},
 };
 
-export const AsyncQuestionDockedAboveInput: Story = {
-	render: () => <AsyncQuestionChatPage className="flex h-[640px] flex-col" />,
-};
+const MockTallAsyncQuestionMessages: TypesGen.ChatMessage[] = [
+	...MockWorkingMessages.slice(0, 1),
+	MockQuestionCallMessage,
+	buildMessage(5, "tool", [
+		{
+			type: "tool-result",
+			tool_call_id: "question",
+			tool_name: "ask_user_question",
+			result: {
+				...MockAsyncQuestionResult,
+				questions: [
+					{
+						header: "Rollout",
+						question: "How should the new billing export reach customers?",
+						options: [
+							{
+								label: "Feature flag",
+								description:
+									"Ship the export dark behind a per-organization flag, enable it for internal organizations first, and widen the rollout once a full billing cycle has run without discrepancies.",
+							},
+							{
+								label: "Beta program",
+								description:
+									"Offer the export to customers who opted into the beta program, collect feedback through the support portal for two weeks, and then promote it to general availability.",
+							},
+							{
+								label: "General availability",
+								description:
+									"Enable the export for every organization in the next release, announce it in the changelog, and rely on the existing billing alerts to catch regressions after launch.",
+							},
+							{
+								label: "Hold",
+								description:
+									"Keep the export unreleased until the finance team signs off on the reconciliation report format, and revisit the rollout plan in the next planning cycle.",
+							},
+						],
+					},
+				],
+			},
+		},
+	]),
+];
 
+// The question outgrows the dock's height cap, so the dock scrolls on its own
+// and the chat input stays on screen.
 export const AsyncQuestionDockedAboveInputMobile: Story = {
+	render: () => {
+		const store = buildAsyncQuestionStore(MockTallAsyncQuestionMessages);
+
+		return (
+			<div className="flex h-175 w-[390px] flex-col">
+				<StoryChatPageTimeline
+					store={store}
+					onSendAskUserQuestionResponse={fn()}
+				/>
+				<StoryChatPageInput store={store} />
+			</div>
+		);
+	},
+};
+
+// A viewer who cannot act on the chat gets no dock; the question stays in the
+// transcript without a form.
+export const AsyncQuestionReadOnlyViewer: Story = {
 	render: () => (
-		<AsyncQuestionChatPage className="flex h-[700px] w-[390px] flex-col" />
+		<div className="flex h-160 flex-col">
+			<StoryChatPageTimeline store={buildAsyncQuestionStore()} isReadOnly />
+		</div>
 	),
+};
+
+// The question arrives on the live stream before its step persists.
+export const AsyncQuestionDockedFromStream: Story = {
+	render: () => {
+		const store = buildAsyncQuestionStore(MockWorkingMessages.slice(0, 1));
+		store.setChatStatus("running");
+		store.applyMessagePart({
+			type: "tool-call",
+			tool_call_id: "live-question",
+			tool_name: "ask_user_question",
+			args: {},
+		});
+		store.applyMessagePart({
+			type: "tool-result",
+			tool_call_id: "live-question",
+			tool_name: "ask_user_question",
+			result: MockAsyncQuestionResult,
+		});
+
+		return (
+			<div className="flex h-160 flex-col">
+				<StoryChatPageTimeline
+					store={store}
+					onSendAskUserQuestionResponse={fn()}
+				/>
+				<StoryChatPageInput store={store} />
+			</div>
+		);
+	},
 };

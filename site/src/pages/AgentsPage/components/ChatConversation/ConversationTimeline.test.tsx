@@ -3,11 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { defaultUrlTransform } from "streamdown";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { preferenceSettingsKey } from "#/api/queries/users";
 import type { ChatMessage } from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
 import {
-	createTestQueryClient,
+	createPreferenceSeededQueryClient,
 	renderComponent,
 } from "#/testHelpers/renderHelpers";
 import { MessageScroller } from "#/vendor/message-scroller";
@@ -19,10 +18,9 @@ import {
 import {
 	buildLiveStatus,
 	buildStreamRenderState,
-	MockAsyncQuestionResultMessage,
+	MockAsyncQuestionMessages,
 	MockCollapsedStepsPreferences,
 	MockLongTurnPageLoads,
-	MockQuestionCallMessage,
 	MockWebSearchAnswerMessages,
 	MockWorkingMessages,
 	pinFixtureClock,
@@ -36,12 +34,7 @@ type TimelineStage = {
 } & Partial<React.ComponentProps<typeof ConversationTimeline>>;
 
 function renderTimeline(initial: TimelineStage = {}) {
-	const queryClient = createTestQueryClient();
-	queryClient.setQueryDefaults(preferenceSettingsKey, {
-		staleTime: Number.POSITIVE_INFINITY,
-	});
-	queryClient.setQueryData(
-		preferenceSettingsKey,
+	const queryClient = createPreferenceSeededQueryClient(
 		MockCollapsedStepsPreferences,
 	);
 
@@ -458,9 +451,7 @@ describe("ConversationTimeline live working blocks", () => {
 });
 
 const mockAsyncQuestionThenUnrelatedMessages: ChatMessage[] = [
-	...MockWorkingMessages.slice(0, 1),
-	MockQuestionCallMessage,
-	MockAsyncQuestionResultMessage,
+	...MockAsyncQuestionMessages,
 	{
 		...MockChatMessage,
 		id: 6,

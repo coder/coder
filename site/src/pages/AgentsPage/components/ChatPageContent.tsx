@@ -82,7 +82,6 @@ import {
 	ACPContext,
 	buildACPSessionDescriptors,
 } from "./ChatElements/tools/ACPContext";
-import { DockedAskUserQuestionContext } from "./ChatElements/tools/DockedAskUserQuestionContext";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import { ChatMessageScroller } from "./ChatMessageScroller";
 import { getWorkspaceOptionsWithLinkedWorkspace } from "./workspaceOptions";
@@ -136,6 +135,8 @@ type ChatPageTimelineProps = {
 	editingMessageId?: number | null;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
+	/** The viewer cannot act on this chat: it is archived, or another user's. */
+	isReadOnly: boolean;
 	urlTransform: UrlTransform;
 	mcpServers: readonly TypesGen.MCPServerConfig[];
 	footer?: React.ReactNode;
@@ -156,6 +157,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 	editingMessageId,
 	onImplementPlan,
 	onSendAskUserQuestionResponse,
+	isReadOnly,
 	urlTransform,
 	mcpServers,
 	footer,
@@ -213,17 +215,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 		showsStreamOutput(liveStatus) ? streamTools : [],
 		queuedMessages,
 	);
-	const [dockedToolId, setDockedToolId] = useState<string>();
-	// The page withholds the send callback during every pending send, the
-	// dock's own included, so a docked question stays docked until it closes.
-	const dockedQuestion =
-		openAsyncQuestion &&
-		(onSendAskUserQuestionResponse || openAsyncQuestion.id === dockedToolId)
-			? openAsyncQuestion
-			: undefined;
-	if (dockedQuestion?.id !== dockedToolId) {
-		setDockedToolId(dockedQuestion?.id);
-	}
+	const dockedQuestion = isReadOnly ? undefined : openAsyncQuestion;
 
 	return (
 		<ACPContext value={acpSessions}>
@@ -241,33 +233,32 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 					   via showDesktopPreviews={false} to avoid a perpetual
 					   "disconnected" state. The MonitorIcon variant still
 					   renders correctly. */}
-					<DockedAskUserQuestionContext value={dockedQuestion?.id}>
-						<ConversationTimeline
-							hasMoreMessages={hasMoreMessages}
-							chatStatus={chatStatus}
-							organizationId={organizationId}
-							parsedMessages={parsedMessages}
-							chatFiles={chatFiles}
-							initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
-							streamState={liveStreamState}
-							streamTools={streamTools}
-							liveStatus={liveStatus}
-							subagentStatusOverrides={subagentStatusOverrides}
-							subagentTitles={subagentTitles}
-							subagentVariants={subagentVariants}
-							onEditUserMessage={onEditUserMessage}
-							editingMessageId={editingMessageId}
-							onImplementPlan={onImplementPlan}
-							onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
-							isChatCompleted={isChatCompleted}
-							hasActiveStream={hasStream}
-							isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
-							queuedMessages={queuedMessages}
-							urlTransform={urlTransform}
-							mcpServers={mcpServers}
-							showDesktopPreviews={false}
-						/>
-					</DockedAskUserQuestionContext>
+					<ConversationTimeline
+						hasMoreMessages={hasMoreMessages}
+						chatStatus={chatStatus}
+						organizationId={organizationId}
+						parsedMessages={parsedMessages}
+						chatFiles={chatFiles}
+						initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
+						streamState={liveStreamState}
+						streamTools={streamTools}
+						liveStatus={liveStatus}
+						subagentStatusOverrides={subagentStatusOverrides}
+						subagentTitles={subagentTitles}
+						subagentVariants={subagentVariants}
+						onEditUserMessage={onEditUserMessage}
+						editingMessageId={editingMessageId}
+						onImplementPlan={onImplementPlan}
+						onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+						isChatCompleted={isChatCompleted}
+						hasActiveStream={hasStream}
+						isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
+						queuedMessages={queuedMessages}
+						urlTransform={urlTransform}
+						mcpServers={mcpServers}
+						showDesktopPreviews={false}
+						dockedAskUserQuestionToolId={dockedQuestion?.id}
+					/>
 					<TerminalStatusRow liveStatus={liveStatus} />
 				</ChatMessageScroller>
 				{/* The empty state sits outside the scroller content, which holds

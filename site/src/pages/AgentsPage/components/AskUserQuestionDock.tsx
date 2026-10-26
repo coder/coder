@@ -8,7 +8,11 @@ type AskUserQuestionDockProps = {
 	onSubmitAnswer?: (message: string) => Promise<void> | void;
 };
 
-/** Pins the open async question above the chat input, outside the transcript. */
+/**
+ * Pins the open async question's answer form above the chat input. The form
+ * always acts as the latest question, so pass only the question that
+ * deriveAskUserQuestionState reports as open.
+ */
 export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 	question,
 	onSubmitAnswer,

@@ -906,6 +906,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										? undefined
 										: onSendAskUserQuestionResponse
 								}
+								isReadOnly={isArchived || isOtherUserReadOnly}
 								footer={
 									chat.queued_for_capacity ? (
 										<QueuedForCapacityCallout

@@ -11,6 +11,7 @@ import {
 } from "./messageParsing";
 import {
 	buildStreamRenderState,
+	MockAsyncQuestionResult,
 	MockCollapsedStepsPreferences,
 	MockQuestionCallMessage,
 	MockWorkingMessages,
@@ -234,25 +235,11 @@ export const PromptlessLiveBlock: Story = {
 	play: expandBlock("Working for at least 12s"),
 };
 
-const MockEarlierAsyncQuestionResult = {
-	questions: [
-		{
-			header: "Scope",
-			question: "Which part should change first?",
-			options: [
-				{ label: "Backend", description: "Change the API first." },
-				{ label: "Frontend", description: "Change the UI first." },
-			],
-		},
-	],
-	async: true,
-};
-
 const MockLiveAsyncQuestionResult = {
-	...MockEarlierAsyncQuestionResult,
+	...MockAsyncQuestionResult,
 	questions: [
 		{
-			...MockEarlierAsyncQuestionResult.questions[0],
+			...MockAsyncQuestionResult.questions[0],
 			question: "Should the change ship behind a flag?",
 		},
 	],
@@ -271,7 +258,7 @@ const MockEarlierAsyncQuestionMessages: ChatMessage[] = [
 				type: "tool-result",
 				tool_call_id: "question",
 				tool_name: "ask_user_question",
-				result: MockEarlierAsyncQuestionResult,
+				result: MockAsyncQuestionResult,
 				created_at: workingFixtureTime(6),
 			},
 		],

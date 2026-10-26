@@ -130,6 +130,7 @@ const ChatMessageItem = memo<{
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
 	latestAskUserQuestionToolId?: string;
+	dockedAskUserQuestionToolId?: string;
 	askUserQuestionResponseTextByToolId?: ReadonlyMap<string, string>;
 	isLatestAskUserQuestionAnswered?: boolean;
 	prevUserMessageKey?: string;
@@ -158,6 +159,7 @@ const ChatMessageItem = memo<{
 		onSendAskUserQuestionResponse,
 		isChatCompleted,
 		latestAskUserQuestionToolId,
+		dockedAskUserQuestionToolId,
 		askUserQuestionResponseTextByToolId,
 		isLatestAskUserQuestionAnswered = false,
 		prevUserMessageKey,
@@ -281,6 +283,7 @@ const ChatMessageItem = memo<{
 									onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 									isChatCompleted={isChatCompleted}
 									latestAskUserQuestionToolId={latestAskUserQuestionToolId}
+									dockedAskUserQuestionToolId={dockedAskUserQuestionToolId}
 									askUserQuestionResponseTextByToolId={
 										askUserQuestionResponseTextByToolId
 									}
@@ -463,6 +466,8 @@ type ConversationTimelineProps = {
 	hasActiveStream: boolean;
 	isAwaitingFirstStreamChunk: boolean;
 	queuedMessages?: readonly TypesGen.ChatQueuedMessage[];
+	/** The async question pinned above the chat input; its transcript card points there instead of holding a form. */
+	dockedAskUserQuestionToolId?: string;
 };
 
 export const ConversationTimeline = memo<ConversationTimelineProps>(
@@ -490,6 +495,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		hasActiveStream,
 		isAwaitingFirstStreamChunk,
 		queuedMessages = [],
+		dockedAskUserQuestionToolId,
 	}) => {
 		const { scrollToMessage } = useMessageScroller();
 		const preferences = useQuery(preferenceSettings());
@@ -620,6 +626,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						liveBlocks={liveBlocks}
 						liveTools={liveTools}
 						latestAskUserQuestionToolId={latestAskUserQuestionToolId}
+						dockedAskUserQuestionToolId={dockedAskUserQuestionToolId}
 						subagentStatusOverrides={
 							isStreamOutputShown ? subagentStatusOverrides : undefined
 						}
@@ -655,6 +662,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 					isChatCompleted={isChatCompleted}
 					latestAskUserQuestionToolId={latestAskUserQuestionToolId}
+					dockedAskUserQuestionToolId={dockedAskUserQuestionToolId}
 					askUserQuestionResponseTextByToolId={
 						askUserQuestionResponseTextByToolId
 					}
