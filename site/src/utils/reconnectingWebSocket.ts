@@ -299,13 +299,10 @@ export function createReconnectingWebSocket<TSocket extends Closable>(
 
 		if (silenceTimeoutMs !== undefined) {
 			const restartSilenceTimer = () => {
-				if (activeSocket !== socket || disposed) {
-					return;
-				}
 				clearSilenceTimer();
 				silenceTimer = setTimeout(() => {
 					// On a frozen connection, the close event from socket.close()
-					// can arrive late or never, so disconnect first.
+					// can arrive late or never, so call handleDisconnect directly.
 					handleDisconnect();
 					socket.close();
 				}, silenceTimeoutMs);
