@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import {
+	aiBridgeProviders,
 	aiSpendOrganizations,
 	paginatedOrganizationAISpend,
 } from "#/api/queries/aiBridge";
@@ -126,6 +127,13 @@ const SpendPage: React.FC<SpendPageProps> = ({ now }) => {
 		}),
 	};
 
+	// Spend rows list configured provider names; the provider list resolves
+	// them to display names and icons for viewers allowed to read it.
+	const providersQuery = useQuery({
+		...aiBridgeProviders(),
+		enabled: isSpendAvailable && canFilterDimensions,
+	});
+
 	// The default period lives in memory, not the URL, so a shared link
 	// resolves relative to the viewer's current time. It is fixed per mount so
 	// query cache keys stay stable.
@@ -198,6 +206,7 @@ const SpendPage: React.FC<SpendPageProps> = ({ now }) => {
 				onPeriodChange={onPeriodChange}
 				filterMenus={canFilterDimensions ? filterMenus : undefined}
 				reportQuery={reportQuery}
+				providers={providersQuery.data}
 			/>
 		</>
 	);

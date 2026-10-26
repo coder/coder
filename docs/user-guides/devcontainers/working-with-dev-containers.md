@@ -8,7 +8,7 @@ The dev container integration appears in your Coder dashboard, providing a visua
 
 ## SSH access
 
-Each dev container has its own agent name, derived from the workspace folder (e.g., `/home/coder/my-project` becomes `my-project`).
+Each dev container has its own agent name, derived from the workspace folder (for example, `/home/coder/my-project` becomes `my-project`).
 You can find agent names in your workspace dashboard, or see [Agent naming](./index.md#agent-naming) for details on how names are generated.
 
 <a id="using-the-coder-cli"></a>

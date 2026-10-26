@@ -922,11 +922,13 @@ func TestServeHTTP_ActorHeaders(t *testing.T) {
 			conn := &mockDRPCConn{}
 			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
 
-			// Return authorization response with user ID, API key ID, username, and email.
+			// Return authorization response with user ID, API key ID, username,
+			// email, and a resolved organization.
 			authResponse := &proto.IsAuthorizedResponse{
-				OwnerId:  testUserID.String(),
-				ApiKeyId: uuid.NewString(),
-				Username: testUsername,
+				OwnerId:        testUserID.String(),
+				ApiKeyId:       uuid.NewString(),
+				Username:       testUsername,
+				OrganizationId: uuid.NewString(),
 			}
 			if !tc.legacy {
 				authResponse.Email = testEmail

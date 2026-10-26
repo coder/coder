@@ -326,6 +326,13 @@ title: Schemas
   },
   "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
   "model": "string",
+  "priced_model": {
+    "cache_read_price": 0,
+    "cache_write_price": 0,
+    "input_price": 0,
+    "model": "string",
+    "output_price": 0
+  },
   "thinking": [
     {
       "text": "string"
@@ -334,6 +341,8 @@ title: Schemas
   "token_usage": {
     "cache_read_input_tokens": 0,
     "cache_write_input_tokens": 0,
+    "cost_micros": 0,
+    "has_unpriced_usage": true,
     "input_tokens": 0,
     "metadata": {
       "property1": null,
@@ -367,6 +376,7 @@ title: Schemas
 | `attribution`     | [codersdk.AIBridgeAttribution](#codersdkaibridgeattribution)                           | false    |              | Attribution contains attribution data from this interception. Unknown attribution is serialized as an empty object. |
 | `interception_id` | string                                                                                 | false    |              |                                                                                                                     |
 | `model`           | string                                                                                 | false    |              |                                                                                                                     |
+| `priced_model`    | [codersdk.AIBridgePricedModel](#codersdkaibridgepricedmodel)                           | false    |              | Priced model is the model and prices used for this interception. Nil when it was not priced.                        |
 | `thinking`        | array of [codersdk.AIBridgeModelThought](#codersdkaibridgemodelthought)                | false    |              |                                                                                                                     |
 | `token_usage`     | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |                                                                                                                     |
 | `tool_calls`      | array of [codersdk.AIBridgeToolCall](#codersdkaibridgetoolcall)                        | false    |              |                                                                                                                     |
@@ -505,6 +515,28 @@ title: Schemas
 | Name   | Type   | Required | Restrictions | Description |
 |--------|--------|----------|--------------|-------------|
 | `text` | string | false    |              |             |
+
+## codersdk.AIBridgePricedModel
+
+```json
+{
+  "cache_read_price": 0,
+  "cache_write_price": 0,
+  "input_price": 0,
+  "model": "string",
+  "output_price": 0
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description                                                                                  |
+|---------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------|
+| `cache_read_price`  | integer | false    |              |                                                                                              |
+| `cache_write_price` | integer | false    |              |                                                                                              |
+| `input_price`       | integer | false    |              |                                                                                              |
+| `model`             | string  | false    |              | Model is the priced model, either the requested model or the model reported by the provider. |
+| `output_price`      | integer | false    |              |                                                                                              |
 
 ## codersdk.AIBridgeProvider
 
@@ -720,6 +752,13 @@ title: Schemas
           },
           "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
           "model": "string",
+          "priced_model": {
+            "cache_read_price": 0,
+            "cache_write_price": 0,
+            "input_price": 0,
+            "model": "string",
+            "output_price": 0
+          },
           "thinking": [
             {
               "text": "string"
@@ -728,6 +767,8 @@ title: Schemas
           "token_usage": {
             "cache_read_input_tokens": 0,
             "cache_write_input_tokens": 0,
+            "cost_micros": 0,
+            "has_unpriced_usage": true,
             "input_tokens": 0,
             "metadata": {
               "property1": null,
@@ -764,12 +805,21 @@ title: Schemas
       "error_type": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "model": "string",
+      "priced_model": {
+        "cache_read_price": 0,
+        "cache_write_price": 0,
+        "input_price": 0,
+        "model": "string",
+        "output_price": 0
+      },
       "prompt": "string",
       "provider": "string",
       "started_at": "2019-08-24T14:15:22Z",
       "token_usage": {
         "cache_read_input_tokens": 0,
         "cache_write_input_tokens": 0,
+        "cost_micros": 0,
+        "has_unpriced_usage": true,
         "input_tokens": 0,
         "metadata": {
           "property1": null,
@@ -782,6 +832,8 @@ title: Schemas
   "token_usage_summary": {
     "cache_read_input_tokens": 0,
     "cache_write_input_tokens": 0,
+    "cost_micros": 0,
+    "has_unpriced_usage": true,
     "input_tokens": 0,
     "metadata": {
       "property1": null,
@@ -820,6 +872,8 @@ title: Schemas
 {
   "cache_read_input_tokens": 0,
   "cache_write_input_tokens": 0,
+  "cost_micros": 0,
+  "has_unpriced_usage": true,
   "input_tokens": 0,
   "metadata": {
     "property1": null,
@@ -831,14 +885,16 @@ title: Schemas
 
 ### Properties
 
-| Name                       | Type    | Required | Restrictions | Description |
-|----------------------------|---------|----------|--------------|-------------|
-| `cache_read_input_tokens`  | integer | false    |              |             |
-| `cache_write_input_tokens` | integer | false    |              |             |
-| `input_tokens`             | integer | false    |              |             |
-| `metadata`                 | object  | false    |              |             |
-| » `[any property]`         | any     | false    |              |             |
-| `output_tokens`            | integer | false    |              |             |
+| Name                       | Type    | Required | Restrictions | Description                                                                             |
+|----------------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------|
+| `cache_read_input_tokens`  | integer | false    |              |                                                                                         |
+| `cache_write_input_tokens` | integer | false    |              |                                                                                         |
+| `cost_micros`              | integer | false    |              | Cost micros is the summed cost of the priced usage, in micro-units (1000000 is $1.00).  |
+| `has_unpriced_usage`       | boolean | false    |              | Has unpriced usage reports that some usage has no cost, so CostMicros is a lower bound. |
+| `input_tokens`             | integer | false    |              |                                                                                         |
+| `metadata`                 | object  | false    |              |                                                                                         |
+| » `[any property]`         | any     | false    |              |                                                                                         |
+| `output_tokens`            | integer | false    |              |                                                                                         |
 
 ## codersdk.AIBridgeSessionTokenUsageSummary
 
@@ -874,6 +930,13 @@ title: Schemas
       },
       "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
       "model": "string",
+      "priced_model": {
+        "cache_read_price": 0,
+        "cache_write_price": 0,
+        "input_price": 0,
+        "model": "string",
+        "output_price": 0
+      },
       "thinking": [
         {
           "text": "string"
@@ -882,6 +945,8 @@ title: Schemas
       "token_usage": {
         "cache_read_input_tokens": 0,
         "cache_write_input_tokens": 0,
+        "cost_micros": 0,
+        "has_unpriced_usage": true,
         "input_tokens": 0,
         "metadata": {
           "property1": null,
@@ -918,12 +983,21 @@ title: Schemas
   "error_type": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "model": "string",
+  "priced_model": {
+    "cache_read_price": 0,
+    "cache_write_price": 0,
+    "input_price": 0,
+    "model": "string",
+    "output_price": 0
+  },
   "prompt": "string",
   "provider": "string",
   "started_at": "2019-08-24T14:15:22Z",
   "token_usage": {
     "cache_read_input_tokens": 0,
     "cache_write_input_tokens": 0,
+    "cost_micros": 0,
+    "has_unpriced_usage": true,
     "input_tokens": 0,
     "metadata": {
       "property1": null,
@@ -949,6 +1023,7 @@ title: Schemas
 | `error_type`                     | string                                                                                 | false    |              | Error type is the categorized terminal upstream error from the root interception, or nil when the interception succeeded. See the aibridge_interception_error_type enum for possible values.                                              |
 | `id`                             | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `model`                          | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `priced_model`                   | [codersdk.AIBridgePricedModel](#codersdkaibridgepricedmodel)                           | false    |              | Priced model is the model and prices used for the root interception (the prompt). Other requests in the thread may use different models and prices, see agentic_actions[].priced_model. Nil when the root interception was not priced.    |
 | `prompt`                         | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `provider`                       | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `started_at`                     | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
@@ -12514,7 +12589,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `cost_micros`          | integer         | false    |              | Cost micros is the user's priced spend over the period.                                                                                           |
 | `models`               | array of string | false    |              | Models are the models the user spent through, sorted.                                                                                             |
 | `name`                 | string          | false    |              |                                                                                                                                                   |
-| `providers`            | array of string | false    |              | Providers are the provider types the user spent through, sorted.                                                                                  |
+| `providers`            | array of string | false    |              | Providers are the configured provider names the user spent through, sorted.                                                                       |
 | `unpriced_usage_count` | integer         | false    |              | Unpriced usage count is the number of the user's token usage records that carry no cost because their model had no price when they were recorded. |
 | `user_id`              | string          | false    |              |                                                                                                                                                   |
 | `username`             | string          | false    |              |                                                                                                                                                   |
