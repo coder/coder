@@ -2855,17 +2855,6 @@ func (q *querier) DeleteWorkspaceSubAgentByID(ctx context.Context, id uuid.UUID)
 	return q.db.DeleteWorkspaceSubAgentByID(ctx, id)
 }
 
-// DisableChatAutomationByID authorizes the disable action, which
-// organization admins and site owners hold on automations they do not
-// own. The query can only turn the automation off, so this action never
-// lets them change what an automation does.
-func (q *querier) DisableChatAutomationByID(ctx context.Context, arg database.DisableChatAutomationByIDParams) (database.ChatAutomation, error) {
-	fetch := func(ctx context.Context, arg database.DisableChatAutomationByIDParams) (database.ChatAutomation, error) {
-		return q.db.GetChatAutomationByID(ctx, arg.ID)
-	}
-	return fetchAndQuery(q.log, q.auth, policy.ActionDisable, fetch, q.db.DisableChatAutomationByID)(ctx, arg)
-}
-
 func (q *querier) DisableForeignKeysAndTriggers(ctx context.Context) error {
 	if flag.Lookup("test.v") == nil {
 		return xerrors.Errorf("DisableForeignKeysAndTriggers is only allowed in tests")
@@ -3340,8 +3329,8 @@ func (q *querier) GetChatAutomationByID(ctx context.Context, id uuid.UUID) (data
 }
 
 // GetChatAutomationByIDForUpdate locks the automation and requires update
-// on it, so callers who may only read, disable, or delete it are refused
-// before their change is validated.
+// on it, so callers who may only read or delete it are refused before
+// their change is validated.
 func (q *querier) GetChatAutomationByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ChatAutomation, error) {
 	return fetchWithAction(q.log, q.auth, policy.ActionUpdate, q.db.GetChatAutomationByIDForUpdate)(ctx, id)
 }
@@ -7852,10 +7841,9 @@ func (q *querier) UpdateChatACLByID(ctx context.Context, arg database.UpdateChat
 // or model config or project (read). Unchanged references are not checked
 // again.
 //
-// The owner and administrators hold update. A caller with only the
-// disable action turns an automation off through
-// DisableChatAutomationByID. The schedule scanner writes only through
-// AdvanceChatAutomationScheduleCursor.
+// The owner and administrators hold update, which covers every change,
+// including turning the automation on or off. The schedule scanner writes
+// only through AdvanceChatAutomationScheduleCursor.
 func (q *querier) UpdateChatAutomationByID(ctx context.Context, arg database.UpdateChatAutomationByIDParams) (database.ChatAutomation, error) {
 	automation, err := q.db.GetChatAutomationByID(ctx, arg.ID)
 	if err != nil {

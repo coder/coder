@@ -191,33 +191,6 @@ WHERE
 RETURNING
     *;
 
--- name: DisableChatAutomationByID :one
--- Turns an automation off. It bumps queue_generation, so the messages the
--- automation queued before the change become stale, and clears the
--- schedule cursor. A schedule that was on also starts a new revision, so a
--- publish that saw the old cursor fails its recheck. updated_at changes
--- only when a reader can see a change. No other column changes, so the
--- disable action, which administrators hold on automations they do not
--- own, cannot change what an automation does.
-UPDATE
-    chat_automations
-SET
-    enabled = false,
-    queue_generation = queue_generation + 1,
-    schedule_next_run_at = NULL,
-    schedule_revision = CASE
-        WHEN kind = 'schedule' AND enabled THEN schedule_revision + 1
-        ELSE schedule_revision
-    END,
-    updated_at = CASE
-        WHEN enabled OR schedule_next_run_at IS NOT NULL THEN @updated_at::timestamptz
-        ELSE updated_at
-    END
-WHERE
-    id = @id::uuid
-RETURNING
-    *;
-
 -- name: UpdateChatAutomationWebhookSecretByID :one
 -- Replaces the webhook secret hash and increments the secret version. The
 -- single-use marker webhook_consumed_at is intentionally kept.

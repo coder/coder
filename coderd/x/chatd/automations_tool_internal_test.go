@@ -582,16 +582,15 @@ func TestManageAutomationsTool(t *testing.T) {
 				},
 			},
 			{
-				name: "DisableOnlyRoleOtherMember",
+				name: "ReadDeleteRoleOtherMember",
 				setup: func(ctx context.Context, t *testing.T, f manageAutomationsFixture) (database.ChatAutomation, map[string]string) {
 					role, err := f.db.InsertCustomRole(ctx, database.InsertCustomRoleParams{
-						Name:            "automation-stopper",
-						DisplayName:     "Automation stopper",
+						Name:            "automation-remover",
+						DisplayName:     "Automation remover",
 						OrganizationID:  uuid.NullUUID{UUID: f.org.ID, Valid: true},
 						SitePermissions: []database.CustomRolePermission{},
 						OrgPermissions: []database.CustomRolePermission{
 							{ResourceType: rbac.ResourceChatAutomation.Type, Action: policy.ActionRead},
-							{ResourceType: rbac.ResourceChatAutomation.Type, Action: policy.ActionDisable},
 							{ResourceType: rbac.ResourceChatAutomation.Type, Action: policy.ActionDelete},
 						},
 						UserPermissions:   []database.CustomRolePermission{},
@@ -610,7 +609,7 @@ func TestManageAutomationsTool(t *testing.T) {
 					dbgen.ChatMessage(t, f.db, database.ChatMessage{ChatID: f.chat.ID, Role: database.ChatMessageRoleUser})
 					return row, map[string]string{"chat_id": f.chat.ID.String()}
 				},
-				denied: []string{"update", "enable", "run_now"},
+				denied: []string{"update", "disable", "enable", "run_now"},
 			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {

@@ -294,14 +294,6 @@ type sqlcQuerier interface {
 	// agents are never hard-deleted, so the rows would otherwise orphan
 	// forever.
 	DeleteWorkspaceSubAgentByID(ctx context.Context, id uuid.UUID) error
-	// Turns an automation off. It bumps queue_generation, so the messages the
-	// automation queued before the change become stale, and clears the
-	// schedule cursor. A schedule that was on also starts a new revision, so a
-	// publish that saw the old cursor fails its recheck. updated_at changes
-	// only when a reader can see a change. No other column changes, so the
-	// disable action, which administrators hold on automations they do not
-	// own, cannot change what an automation does.
-	DisableChatAutomationByID(ctx context.Context, arg DisableChatAutomationByIDParams) (ChatAutomation, error)
 	// Disable foreign keys and triggers for all tables.
 	// Deprecated: disable foreign keys was created to aid in migrating off
 	// of the test-only in-memory database. Do not use this in new code.

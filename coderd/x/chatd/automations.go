@@ -304,11 +304,10 @@ func (p *Server) CreateAutomation(ctx context.Context, params CreateAutomationPa
 type AutomationGuard func(store database.Store, automation database.ChatAutomation) error
 
 // UpdateAutomation applies the set fields of req to the automation. RBAC
-// decides who may make the change, through the caller's subject in ctx: a
-// request that only disables the automation needs the disable action,
-// which administrators also hold on automations they do not own, and
-// every other request needs update, which the owner and administrators
-// hold. Runs still act as the owner. A denied request returns a
+// decides who may make the change, through the caller's subject in ctx:
+// every request, including one that only turns the automation on or off,
+// needs update, which the owner and administrators hold. Runs still act
+// as the owner. A denied request returns a
 // dbauthz.NotAuthorizedError. Each set field is validated like on create,
 // and fields that do not apply to the automation's kind or target mode
 // are rejected.
@@ -331,13 +330,8 @@ type AutomationGuard func(store database.Store, automation database.ChatAutomati
 // stale by the time the lock is held.
 func (p *Server) UpdateAutomation(ctx context.Context, id uuid.UUID, req codersdk.UpdateChatAutomationRequest, guard AutomationGuard) (old, updated database.ChatAutomation, err error) {
 	disabling := req.Enabled != nil && !*req.Enabled
-	disableOnly := disabling && req == codersdk.UpdateChatAutomationRequest{Enabled: req.Enabled}
 	err = p.db.InTx(func(tx database.Store) error {
-		lock := lockAutomationForChange
-		if disableOnly {
-			lock = lockAutomationForDisable
-		}
-		row, err := lock(ctx, tx, id)
+		row, err := lockAutomationForChange(ctx, tx, id)
 		if err != nil {
 			return err
 		}
@@ -516,15 +510,6 @@ func (p *Server) UpdateAutomation(ctx context.Context, id uuid.UUID, req codersd
 				return err
 			}
 		}
-		if disableOnly {
-			// The disable query writes the same values as arg, computed in
-			// SQL, so the disable action cannot change anything else.
-			updated, err = tx.DisableChatAutomationByID(ctx, database.DisableChatAutomationByIDParams{ID: row.ID, UpdatedAt: now})
-			if err != nil {
-				return xerrors.Errorf("disable chat automation: %w", err)
-			}
-			return nil
-		}
 		// A request that changes nothing a reader can see keeps updated_at,
 		// so clients and agents do not read a change into it. Disabling a
 		// disabled automation still bumps the queue generation to retry
@@ -568,19 +553,6 @@ func (p *Server) DeleteAutomation(ctx context.Context, id uuid.UUID) error {
 	}
 	p.deleteStaleAutomationQueuedMessages(ctx, id, math.MaxInt64)
 	return nil
-}
-
-// lockAutomationForDisable locks the automation as the caller in ctx with
-// read only. The disable query then requires the disable action.
-func lockAutomationForDisable(ctx context.Context, tx database.Store, id uuid.UUID) (database.ChatAutomation, error) {
-	rows, err := tx.GetChatAutomationsByIDsForUpdate(ctx, []uuid.UUID{id})
-	if err != nil {
-		return database.ChatAutomation{}, xerrors.Errorf("lock chat automation: %w", err)
-	}
-	if len(rows) == 0 {
-		return database.ChatAutomation{}, ErrAutomationNotFound
-	}
-	return rows[0], nil
 }
 
 // lockAutomationForChange locks the automation as the caller in ctx with

@@ -904,9 +904,8 @@ WHERE id = $1`, automation.ID, edited)
 		require.Equal(t, 1, f.inputs(ctx, t))
 	})
 
-	// A disable-only request goes through DisableChatAutomationByID, which
-	// computes the off state in SQL. It must match what a general update
-	// would write.
+	// A disable-only request writes only the off state: enabled false, a
+	// new queue generation and schedule revision, and no schedule cursor.
 	t.Run("DisableWritesOnlyTheOffState", func(t *testing.T) {
 		t.Parallel()
 		f := newScheduleFixture(t, database.ChatStatusWaiting, scheduleStart)
