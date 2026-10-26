@@ -92,7 +92,6 @@ export const NoConnectRecorded: Story = {
 			connect_time: MockDisconnectedSSHConnectionLog.ssh_info.disconnect_time,
 			ssh_info: {
 				...MockDisconnectedSSHConnectionLog.ssh_info,
-				duration: { status: "missing_connect" },
 			},
 		},
 	},
@@ -105,7 +104,6 @@ export const DisconnectBeforeConnect: Story = {
 			ssh_info: {
 				...MockDisconnectedSSHConnectionLog.ssh_info,
 				disconnect_time: "2022-05-19T16:40:57.122Z",
-				duration: { status: "invalid" },
 			},
 		},
 	},

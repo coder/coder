@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -329,7 +330,6 @@ func TestConnectionLogs(t *testing.T) {
 		require.Empty(t, logs.ConnectionLogs[0].SSHInfo.ExitCode)
 		require.Empty(t, logs.ConnectionLogs[0].SSHInfo.DisconnectTime)
 		require.Empty(t, logs.ConnectionLogs[0].SSHInfo.DisconnectReason)
-		require.Equal(t, codersdk.ConnectionLogDuration{Status: codersdk.ConnectionLogDurationNoDisconnect}, logs.ConnectionLogs[0].SSHInfo.Duration)
 		require.Equal(t, "0123456789abcdef0123456789abcdef", logs.ConnectionLogs[0].SSHInfo.ClientSessionID)
 
 		// Mark log as closed
@@ -372,7 +372,53 @@ func TestConnectionLogs(t *testing.T) {
 		require.Equal(t, clog.ConnectionID.UUID, logs.ConnectionLogs[0].SSHInfo.ConnectionID)
 		require.True(t, logs.ConnectionLogs[0].SSHInfo.DisconnectTime.Equal(now))
 		require.Equal(t, updatedClog.DisconnectReason.String, logs.ConnectionLogs[0].SSHInfo.DisconnectReason)
-		require.Equal(t, codersdk.ConnectionLogDuration{Status: codersdk.ConnectionLogDurationRecorded, Seconds: new(3600.0)}, logs.ConnectionLogs[0].SSHInfo.Duration)
+	})
+
+	// The frontend compares the raw strings to detect a disconnect recorded
+	// without its connect, so both timestamps must serialize identically.
+	t.Run("SSHInfoMissingConnect", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		client, db, _ := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			ConnectionLogging: true,
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureConnectionLog: 1,
+				},
+			},
+		})
+
+		ws := createWorkspace(t, db)
+		_ = dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+			// Sub-millisecond precision catches any rounding on one side.
+			Time:             dbtime.Now().Add(-123 * time.Microsecond),
+			ConnectionMethod: database.ConnectionLogMethodSSH,
+			WorkspaceID:      ws.ID,
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
+			ConnectionID:     uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			ConnectionStatus: database.ConnectionStatusDisconnected,
+		})
+
+		res, err := client.Request(ctx, http.MethodGet, "/api/v2/connectionlog", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		var body struct {
+			ConnectionLogs []struct {
+				ConnectTime string `json:"connect_time"`
+				SSHInfo     struct {
+					DisconnectTime string `json:"disconnect_time"`
+				} `json:"ssh_info"`
+			} `json:"connection_logs"`
+		}
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&body))
+		require.Len(t, body.ConnectionLogs, 1)
+		log := body.ConnectionLogs[0]
+		require.NotEmpty(t, log.ConnectTime)
+		require.Equal(t, log.ConnectTime, log.SSHInfo.DisconnectTime)
 	})
 }
 

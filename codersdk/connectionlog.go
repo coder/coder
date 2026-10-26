@@ -93,29 +93,10 @@ type ConnectionLogWebInfo struct {
 	StatusCode int32 `json:"status_code"`
 }
 
-// ConnectionLogDurationStatus describes how a duration was determined.
-type ConnectionLogDurationStatus string
-
-const (
-	ConnectionLogDurationRecorded       ConnectionLogDurationStatus = "recorded"
-	ConnectionLogDurationNoDisconnect   ConnectionLogDurationStatus = "no_disconnect"
-	ConnectionLogDurationMissingConnect ConnectionLogDurationStatus = "missing_connect"
-	ConnectionLogDurationInvalid        ConnectionLogDurationStatus = "invalid"
-)
-
-// ConnectionLogDuration is the time between a connection's recorded connect
-// and disconnect events.
-type ConnectionLogDuration struct {
-	Status ConnectionLogDurationStatus `json:"status"`
-	// Seconds is set only when Status is recorded.
-	Seconds *float64 `json:"seconds,omitempty"`
-}
-
 type ConnectionLogSSHInfo struct {
 	ConnectionID uuid.UUID `json:"connection_id" format:"uuid"`
 	// ClientSessionID is set by the client and isn't guaranteed to be unique.
-	ClientSessionID string                `json:"client_session_id,omitempty"`
-	Duration        ConnectionLogDuration `json:"duration"`
+	ClientSessionID string `json:"client_session_id,omitempty"`
 	// DisconnectTime is omitted if a disconnect event with the same connection ID
 	// has not yet been seen.
 	DisconnectTime *time.Time `json:"disconnect_time,omitempty" format:"date-time"`

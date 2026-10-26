@@ -21,30 +21,31 @@ const connectionTiming = ({
 	ssh_info,
 }: ConnectionLog): ConnectionTiming => {
 	const start = formatTime(connect_time);
-	const end = ssh_info?.disconnect_time && formatTime(ssh_info.disconnect_time);
-	switch (ssh_info?.duration?.status) {
-		case "no_disconnect":
-			return { range: `${start} → Ongoing` };
-		case "missing_connect":
-			return { range: `Unknown → ${end}` };
-		case "invalid":
-			return {
-				range: `${start} → ${end}`,
-				detail: "Disconnect recorded before connect",
-			};
-		case "recorded": {
-			const seconds = ssh_info.duration.seconds;
-			return {
-				range: `${start} → ${end}`,
-				detail:
-					seconds === undefined
-						? undefined
-						: humanDurationShort(seconds * 1000),
-			};
-		}
-		default:
-			return { range: end ? `${start} → ${end}` : start };
+	if (!ssh_info) {
+		return { range: start };
 	}
+	const disconnectTime = ssh_info.disconnect_time;
+	if (!disconnectTime) {
+		return { range: `${start} → Ongoing` };
+	}
+	const end = formatTime(disconnectTime);
+	// A disconnect recorded without its connect stores its own time as
+	// connect_time, so identical timestamps mean the connect is unknown.
+	if (connect_time === disconnectTime) {
+		return { range: `Unknown → ${end}` };
+	}
+	const durationMs =
+		new Date(disconnectTime).getTime() - new Date(connect_time).getTime();
+	if (durationMs < 0) {
+		return {
+			range: `${start} → ${end}`,
+			detail: "Disconnect recorded before connect",
+		};
+	}
+	return {
+		range: `${start} → ${end}`,
+		detail: humanDurationShort(durationMs),
+	};
 };
 
 type ConnectionLogRowProps = {

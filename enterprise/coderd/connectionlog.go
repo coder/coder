@@ -98,23 +98,6 @@ func convertConnectionLogs(dblogs []database.GetConnectionLogsOffsetRow) []coder
 	return clogs
 }
 
-// connectionLogDuration treats equal timestamps as a missing connect: a
-// disconnect without its connect stores its own timestamp as connect_time.
-func connectionLogDuration(log database.ConnectionLog) codersdk.ConnectionLogDuration {
-	if !log.DisconnectTime.Valid {
-		return codersdk.ConnectionLogDuration{Status: codersdk.ConnectionLogDurationNoDisconnect}
-	}
-	start, end := log.ConnectTime, log.DisconnectTime.Time
-	if start.Equal(end) {
-		return codersdk.ConnectionLogDuration{Status: codersdk.ConnectionLogDurationMissingConnect}
-	}
-	if start.IsZero() || end.Before(start) {
-		return codersdk.ConnectionLogDuration{Status: codersdk.ConnectionLogDurationInvalid}
-	}
-	seconds := end.Sub(start).Seconds()
-	return codersdk.ConnectionLogDuration{Status: codersdk.ConnectionLogDurationRecorded, Seconds: &seconds}
-}
-
 func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.ConnectionLog {
 	var ip *netip.Addr
 	if dblog.ConnectionLog.Ip.Valid {
@@ -160,7 +143,6 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 			ConnectionID:     dblog.ConnectionLog.ConnectionID.UUID,
 			ClientSessionID:  dblog.ConnectionLog.ClientSessionID.String,
 			DisconnectReason: dblog.ConnectionLog.DisconnectReason.String,
-			Duration:         connectionLogDuration(dblog.ConnectionLog),
 		}
 		if dblog.ConnectionLog.DisconnectTime.Valid {
 			sshInfo.DisconnectTime = &dblog.ConnectionLog.DisconnectTime.Time

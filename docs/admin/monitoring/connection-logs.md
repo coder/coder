@@ -111,9 +111,6 @@ Each connection log in the response describes the connection with these fields:
 - `web_info.slug_or_port`: The workspace app slug or forwarded port, for workspace app and port forwarding connections.
 - `ssh_info.client_session_id`: The optional client session ID for SSH or reconnecting PTY connections.
   Omitted when the client didn't supply an ID.
-- `ssh_info.duration.status`: How Coder determined the duration, as listed in [Duration status values](#duration-status-values).
-- `ssh_info.duration.seconds`: Seconds between the stored connect and disconnect times.
-  Included only when `ssh_info.duration.status` is `recorded`.
 - `type`: Deprecated.
   Use `connection_method` and `app_name` instead.
   It will be removed in a future release.
@@ -130,20 +127,19 @@ If you read `type`, map its values to the new fields as follows:
 
 The `type` field keeps the same values, but the API schema describes it as a string rather than an enum.
 
-#### Duration status values
+#### Connection durations
 
-Durations are the time between the recorded connect and disconnect events of an SSH or reconnecting PTY connection.
-They aren't running timers.
+For SSH and reconnecting PTY connections, the duration is `ssh_info.disconnect_time` minus `connect_time`.
 
-| `duration.status` | Meaning                                                      | Connection Log page                                   |
-|-------------------|--------------------------------------------------------------|-------------------------------------------------------|
-| `recorded`        | Connect and disconnect events recorded                       | Connect and disconnect times, and the duration        |
-| `no_disconnect`   | No disconnect recorded yet, so the connection may be ongoing | Connect time, then **Ongoing**                        |
-| `missing_connect` | Disconnect recorded without its connect                      | **Unknown**, then the disconnect time                 |
-| `invalid`         | Disconnect recorded before connect                           | Both times and **Disconnect recorded before connect** |
+| Timestamps                              | Meaning                                 | Connection Log page shows              |
+|-----------------------------------------|-----------------------------------------|----------------------------------------|
+| No `disconnect_time`                    | No disconnect recorded yet              | **Ongoing**                            |
+| `connect_time` equals `disconnect_time` | Disconnect recorded without its connect | **Unknown** start                      |
+| `disconnect_time` before `connect_time` | Disconnect recorded before connect      | **Disconnect recorded before connect** |
+| Otherwise                               | Both events recorded                    | The duration                           |
 
-`no_disconnect` matches `status:ongoing`.
-All other duration statuses match `status:completed`.
+Equal timestamps don't mean a zero-length connection.
+When Coder receives a disconnect without its connect, it stores the disconnect time as `connect_time`.
 
 ### Service Logs
 
