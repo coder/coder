@@ -2607,6 +2607,7 @@ func (p *Server) appendRootChatTools(
 	if err != nil {
 		return nil, err
 	}
+	tools = append(tools, p.acpTools(ctx, opts)...)
 	return append(tools, subagentTools...), nil
 }
 

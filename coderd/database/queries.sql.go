@@ -2413,6 +2413,8 @@ SELECT
 	COALESCE(st.output_tokens, 0)::bigint AS output_tokens,
 	COALESCE(st.cache_read_input_tokens, 0)::bigint AS cache_read_input_tokens,
 	COALESCE(st.cache_write_input_tokens, 0)::bigint AS cache_write_input_tokens,
+	COALESCE(st.cost_micros, 0)::bigint AS cost_micros,
+	COALESCE(st.has_unpriced_usage, false)::boolean AS has_unpriced_usage,
 	COALESCE(slp.prompt, '') AS last_prompt,
 	sp.last_active_at AS last_active_at,
 	COALESCE(bnc.total, 0)::bigint AS network_calls_total,
@@ -2441,7 +2443,10 @@ LEFT JOIN LATERAL (
 		COALESCE(SUM(tu.input_tokens), 0)::bigint AS input_tokens,
 		COALESCE(SUM(tu.output_tokens), 0)::bigint AS output_tokens,
 		COALESCE(SUM(tu.cache_read_input_tokens), 0)::bigint AS cache_read_input_tokens,
-		COALESCE(SUM(tu.cache_write_input_tokens), 0)::bigint AS cache_write_input_tokens
+		COALESCE(SUM(tu.cache_write_input_tokens), 0)::bigint AS cache_write_input_tokens,
+		-- A NULL cost means the cost is unknown.
+		COALESCE(SUM(tu.cost_micros), 0)::bigint AS cost_micros,
+		COALESCE(BOOL_OR(tu.cost_micros IS NULL), false) AS has_unpriced_usage
 	FROM aibridge_token_usages tu
 	WHERE tu.interception_id = ANY(sr.interception_ids)
 ) st ON true
@@ -2518,6 +2523,8 @@ type ListAIBridgeSessionsRow struct {
 	OutputTokens          int64           `db:"output_tokens" json:"output_tokens"`
 	CacheReadInputTokens  int64           `db:"cache_read_input_tokens" json:"cache_read_input_tokens"`
 	CacheWriteInputTokens int64           `db:"cache_write_input_tokens" json:"cache_write_input_tokens"`
+	CostMicros            int64           `db:"cost_micros" json:"cost_micros"`
+	HasUnpricedUsage      bool            `db:"has_unpriced_usage" json:"has_unpriced_usage"`
 	LastPrompt            string          `db:"last_prompt" json:"last_prompt"`
 	LastActiveAt          time.Time       `db:"last_active_at" json:"last_active_at"`
 	NetworkCallsTotal     int64           `db:"network_calls_total" json:"network_calls_total"`
@@ -2576,6 +2583,8 @@ func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeS
 			&i.OutputTokens,
 			&i.CacheReadInputTokens,
 			&i.CacheWriteInputTokens,
+			&i.CostMicros,
+			&i.HasUnpricedUsage,
 			&i.LastPrompt,
 			&i.LastActiveAt,
 			&i.NetworkCallsTotal,
@@ -3824,7 +3833,7 @@ WITH spend AS (
 		ai.initiator_id AS user_id,
 		COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros,
 		COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)::BIGINT AS unpriced_usage_count,
-		ARRAY_AGG(DISTINCT ai.provider ORDER BY ai.provider)::text[] AS providers,
+		ARRAY_AGG(DISTINCT ai.provider_name ORDER BY ai.provider_name)::text[] AS providers,
 		ARRAY_AGG(DISTINCT COALESCE(ai.client, 'Unknown') ORDER BY COALESCE(ai.client, 'Unknown'))::text[] AS clients,
 		ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model)::text[] AS models
 	FROM aibridge_token_usages tu

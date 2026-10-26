@@ -27,8 +27,13 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { ACPToolNames } from "./acpToolNames";
 
 export const toolIcons: Partial<Record<string, LucideIcon>> = {
+	[ACPToolNames.SpawnAgent]: BotIcon,
+	[ACPToolNames.MessageAgent]: BotIcon,
+	[ACPToolNames.WaitAgent]: BotIcon,
+	[ACPToolNames.InterruptAgent]: BotIcon,
 	execute: TerminalIcon,
 	process_output: ActivityIcon,
 	process_list: TerminalIcon,

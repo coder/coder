@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -773,12 +774,21 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 	parent := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: modelConfig.ID})
 	// Children load inline MCP servers from the root chat; this one does not allow sub-agents.
 	dbgen.ChatMCPServer(t, db, database.ChatMCPServer{ChatID: parent.ID, Slug: "inline", Url: echoURL})
+	// The stored config says enabled, so RootAdvisorOff shows that the experiment alone gates the advisor.
+	advisorConfig, err := json.Marshal(codersdk.AdvisorConfig{Enabled: true, MaxUsesPerRun: 3, MaxOutputTokens: 1024})
+	require.NoError(t, err)
+	require.NoError(t, db.UpsertChatAdvisorConfig(ctx, string(advisorConfig)))
 
-	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{},
-		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
-		withInternalTestServerExperiments(codersdk.Experiments{codersdk.ExperimentChatInlineMCPServers}),
-	)
-	server.mcpHTTPClient = mcpclient.NewHTTPClient(nil, safedial.WithAllowedPrefixes(netip.MustParsePrefix("127.0.0.0/8")))
+	newServer := func(experiments ...codersdk.Experiment) *Server {
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{},
+			withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
+			withInternalTestServerExperiments(append(codersdk.Experiments{codersdk.ExperimentChatInlineMCPServers}, experiments...)),
+		)
+		server.mcpHTTPClient = mcpclient.NewHTTPClient(nil, safedial.WithAllowedPrefixes(netip.MustParsePrefix("127.0.0.0/8")))
+		return server
+	}
+	advisorServer := newServer(codersdk.ExperimentChatAdvisor)
+	advisorOffServer := newServer()
 
 	explore := database.NullChatMode{ChatMode: database.ChatModeExplore, Valid: true}
 	plan := database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true}
@@ -787,12 +797,19 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 		planRootOverlay  = "You are in Plan Mode."
 		planChildOverlay = "You are in Plan Mode as a delegated sub-agent."
 		proposePlan      = "When the plan is ready, call propose_plan"
+		advisorGuidance  = chatadvisor.ParentGuidanceBlock
 	)
+	rootOnlyTools := []string{
+		"list_templates", "read_template", "create_workspace", "start_workspace", "stop_workspace",
+		"spawn_agent", "wait_agent", "message_agent", "interrupt_agent", "list_agents",
+	}
 	tests := []struct {
 		name     string
 		mode     database.NullChatMode
 		planMode database.NullChatPlanMode
 		child    bool
+		// advisorOff prepares the turn on a server without the advisor experiment.
+		advisorOff bool
 		// spawn delegates to a general sub-agent, which must keep the
 		// parent's plan mode.
 		spawn bool
@@ -806,12 +823,25 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 		dontWant []string
 	}{
 		{
-			name: "Root",
-			want: []string{
-				"write_file", "edit_files", "spawn_agent", "approved__echo", "blocked__echo", "filtered__visible",
-				"forced__echo", "inline__echo", "workspace__echo", "web_search",
-			},
-			dontWant: []string{"filtered__hidden", "unselected__echo", "ask_user_question"},
+			name:   "Root",
+			prompt: []string{advisorGuidance},
+			want: append([]string{
+				"write_file", "edit_files", "approved__echo", "blocked__echo", "filtered__visible",
+				"forced__echo", "inline__echo", "workspace__echo", "web_search", chatadvisor.ToolName,
+			}, rootOnlyTools...),
+			dontWant: []string{"filtered__hidden", "unselected__echo", "ask_user_question", "propose_plan"},
+		},
+		{
+			name:       "RootAdvisorOff",
+			advisorOff: true,
+			want:       []string{"spawn_agent"},
+			dontWant:   []string{chatadvisor.ToolName},
+		},
+		{
+			name:     "GeneralChild",
+			child:    true,
+			want:     []string{"read_file", "write_file", "edit_files", "execute"},
+			dontWant: append([]string{"ask_user_question", chatadvisor.ToolName}, rootOnlyTools...),
 		},
 		{
 			name:     "PlanRoot",
@@ -819,10 +849,12 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			spawn:    true,
 			prompt:   []string{planRootOverlay, proposePlan},
 			want: []string{
-				"write_file", "edit_files", "execute", "process_output", "ask_user_question", "spawn_agent",
-				"approved__echo", "filtered__visible", "inline__echo",
+				"write_file", "edit_files", "execute", "process_output", "ask_user_question", "propose_plan",
+				"spawn_agent", "approved__echo", "filtered__visible", "inline__echo",
 			},
-			dontWant: []string{"blocked__echo", "filtered__hidden", "forced__echo", "workspace__echo", "web_search"},
+			dontWant: []string{
+				"blocked__echo", "filtered__hidden", "forced__echo", "workspace__echo", "web_search", chatadvisor.ToolName,
+			},
 		},
 		{
 			name:     "PlanChild",
@@ -832,7 +864,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			want:     []string{"read_file", "execute", "process_output"},
 			dontWant: []string{
 				"write_file", "edit_files", "ask_user_question", "approved__echo", "inline__echo",
-				"workspace__echo", "web_search",
+				"workspace__echo", "web_search", chatadvisor.ToolName,
 			},
 		},
 		{
@@ -842,7 +874,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			want:   []string{"read_file", "execute", "process_output"},
 			dontWant: []string{
 				"write_file", "edit_files", "approved__echo", "blocked__echo", "forced__echo", "inline__echo",
-				"workspace__echo", "web_search",
+				"workspace__echo", "web_search", chatadvisor.ToolName,
 			},
 		},
 		{
@@ -856,7 +888,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			},
 			dontWant: []string{
 				"write_file", "edit_files", "spawn_agent", "wait_agent", "unselected__echo", "forced__echo",
-				"inline__echo", "workspace__echo",
+				"inline__echo", "workspace__echo", chatadvisor.ToolName,
 			},
 		},
 		{
@@ -908,8 +940,23 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			if !tt.child {
 				dbgen.ChatMCPServer(t, db, database.ChatMCPServer{ChatID: created.Chat.ID, Slug: "inline", Url: echoURL})
 			}
+			server := advisorServer
+			if tt.advisorOff {
+				server = advisorOffServer
+			}
 
 			chat, messages := created.Chat, created.InitialMessages
+			if tt.planMode.Valid {
+				_, err = server.SendMessage(ctx, SendMessageOptions{
+					ChatID:       chat.ID,
+					Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("continue")},
+					BusyBehavior: SendMessageBusyBehaviorQueue,
+				})
+				require.NoError(t, err)
+				chat, err = db.GetChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+				require.Equal(t, tt.planMode, chat.PlanMode)
+			}
 			if tt.replaceMCP {
 				_, err = server.SendMessage(ctx, SendMessageOptions{
 					ChatID:       chat.ID,
@@ -961,6 +1008,11 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 				}
 				require.Empty(t, hidden)
 			}
+			if slices.Contains(tt.want, chatadvisor.ToolName) {
+				require.Equal(t, map[string]bool{chatadvisor.ToolName: true}, env.ExclusiveToolNames)
+			} else {
+				require.Empty(t, env.ExclusiveToolNames)
+			}
 
 			var system strings.Builder
 			for _, message := range env.Prompt {
@@ -970,7 +1022,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 					}
 				}
 			}
-			for _, instruction := range []string{exploreOverlay, planRootOverlay, planChildOverlay, proposePlan} {
+			for _, instruction := range []string{exploreOverlay, planRootOverlay, planChildOverlay, proposePlan, advisorGuidance} {
 				require.Equal(t, slices.Contains(tt.prompt, instruction), strings.Contains(system.String(), instruction), instruction)
 			}
 
