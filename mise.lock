@@ -433,52 +433,52 @@ checksum = "sha256:e1245a0a760a45b236e7a25bf118c1defc8447734bdeb4260ea3ec15d1797
 url = "https://github.com/digitalocean/doctl/releases/download/v1.158.0/doctl-1.158.0-windows-amd64.zip"
 
 [[tools.go]]
-version = "1.26.9"
+version = "1.26.10"
 backend = "core:go"
 
 [tools.go."platforms.linux-arm64"]
-checksum = "sha256:4a97373d49fcacdcf3694fea368a500b00ee3e963974f3e7514132717632f052"
-url = "https://dl.google.com/go/go1.26.9.linux-arm64.tar.gz"
+checksum = "sha256:3f4227ce7b206a513e794f1393adb473a07b46e94d18bd15d1c684bbb7319797"
+url = "https://dl.google.com/go/go1.26.10.linux-arm64.tar.gz"
 
 [tools.go."platforms.linux-arm64-musl"]
-checksum = "sha256:4a97373d49fcacdcf3694fea368a500b00ee3e963974f3e7514132717632f052"
-url = "https://dl.google.com/go/go1.26.9.linux-arm64.tar.gz"
+checksum = "sha256:3f4227ce7b206a513e794f1393adb473a07b46e94d18bd15d1c684bbb7319797"
+url = "https://dl.google.com/go/go1.26.10.linux-arm64.tar.gz"
 
 [tools.go."platforms.linux-x64"]
-checksum = "sha256:42d158b4d8f7b61ac0a830567c940a86098fb7aac52e467a5ebec03ef5cc2f8d"
-url = "https://dl.google.com/go/go1.26.9.linux-amd64.tar.gz"
+checksum = "sha256:ccfe7ae822d2c2f41f4fe7c956199967a4dac22d0ee0d2b2bfdb440aab3b20c5"
+url = "https://dl.google.com/go/go1.26.10.linux-amd64.tar.gz"
 
 [tools.go."platforms.linux-x64-baseline"]
-checksum = "sha256:42d158b4d8f7b61ac0a830567c940a86098fb7aac52e467a5ebec03ef5cc2f8d"
-url = "https://dl.google.com/go/go1.26.9.linux-amd64.tar.gz"
+checksum = "sha256:ccfe7ae822d2c2f41f4fe7c956199967a4dac22d0ee0d2b2bfdb440aab3b20c5"
+url = "https://dl.google.com/go/go1.26.10.linux-amd64.tar.gz"
 
 [tools.go."platforms.linux-x64-musl"]
-checksum = "sha256:42d158b4d8f7b61ac0a830567c940a86098fb7aac52e467a5ebec03ef5cc2f8d"
-url = "https://dl.google.com/go/go1.26.9.linux-amd64.tar.gz"
+checksum = "sha256:ccfe7ae822d2c2f41f4fe7c956199967a4dac22d0ee0d2b2bfdb440aab3b20c5"
+url = "https://dl.google.com/go/go1.26.10.linux-amd64.tar.gz"
 
 [tools.go."platforms.linux-x64-musl-baseline"]
-checksum = "sha256:42d158b4d8f7b61ac0a830567c940a86098fb7aac52e467a5ebec03ef5cc2f8d"
-url = "https://dl.google.com/go/go1.26.9.linux-amd64.tar.gz"
+checksum = "sha256:ccfe7ae822d2c2f41f4fe7c956199967a4dac22d0ee0d2b2bfdb440aab3b20c5"
+url = "https://dl.google.com/go/go1.26.10.linux-amd64.tar.gz"
 
 [tools.go."platforms.macos-arm64"]
-checksum = "sha256:f9bb7c0a02506c5d9bf0d1eb1f7ee6c7684f844ae49558308a0427b830e022cc"
-url = "https://dl.google.com/go/go1.26.9.darwin-arm64.tar.gz"
+checksum = "sha256:0b5183492292ada170f9b561a834863808dd02edba599e4ad0e89899330020b3"
+url = "https://dl.google.com/go/go1.26.10.darwin-arm64.tar.gz"
 
 [tools.go."platforms.macos-x64"]
-checksum = "sha256:00c29e3d4c8562f547410daa18d2959b641bd691ab00c4a525ea817a0253d4bd"
-url = "https://dl.google.com/go/go1.26.9.darwin-amd64.tar.gz"
+checksum = "sha256:e820ab780c273ae4a340b79d0f3c4313b74ee029aa3874792145d44b9f4f91da"
+url = "https://dl.google.com/go/go1.26.10.darwin-amd64.tar.gz"
 
 [tools.go."platforms.macos-x64-baseline"]
-checksum = "sha256:00c29e3d4c8562f547410daa18d2959b641bd691ab00c4a525ea817a0253d4bd"
-url = "https://dl.google.com/go/go1.26.9.darwin-amd64.tar.gz"
+checksum = "sha256:e820ab780c273ae4a340b79d0f3c4313b74ee029aa3874792145d44b9f4f91da"
+url = "https://dl.google.com/go/go1.26.10.darwin-amd64.tar.gz"
 
 [tools.go."platforms.windows-x64"]
-checksum = "sha256:d722201a9c0c086d1610e111c48203009af690892ed708072bd5ae20160e7a59"
-url = "https://dl.google.com/go/go1.26.9.windows-amd64.zip"
+checksum = "sha256:7ecd2d7260e82c59bcbd7f1077a07cee2dea607295b858df67195a1e4e09629b"
+url = "https://dl.google.com/go/go1.26.10.windows-amd64.zip"
 
 [tools.go."platforms.windows-x64-baseline"]
-checksum = "sha256:d722201a9c0c086d1610e111c48203009af690892ed708072bd5ae20160e7a59"
-url = "https://dl.google.com/go/go1.26.9.windows-amd64.zip"
+checksum = "sha256:7ecd2d7260e82c59bcbd7f1077a07cee2dea607295b858df67195a1e4e09629b"
+url = "https://dl.google.com/go/go1.26.10.windows-amd64.zip"
 
 [[tools."go:github.com/coder/paralleltestctx/cmd/paralleltestctx"]]
 version = "95009df793fb85bcbe71628e6dded30e5cfdb3c3"
