@@ -81,10 +81,8 @@ func (e streamPartsEndpoint) serve(ctx context.Context, transport streamPartsSer
 				}
 				return
 			}
-			// Replace a selection the serve loop has not read yet instead of
-			// waiting: the serve loop serves only the latest selection, and it
-			// can be blocked sending parts while the client waits for this
-			// goroutine to read the next selection.
+			// Replace an unread selection: the serve loop may wait for the client while
+			// the client waits for this goroutine, and every selection restarts at seq 1.
 			select {
 			case <-controlCh:
 			default:
