@@ -183,7 +183,7 @@ describe("theme CSS variables", () => {
 	// ThemeProvider applies the user's theme, and the page paints the :root
 	// surface until then.
 	describe("static theme colors", () => {
-		const toRGB = (color: string | undefined) => {
+		const toRGB = (color: string | null | undefined) => {
 			const probe = document.createElement("div");
 			probe.style.color = color ?? "";
 			if (!probe.style.color) {
@@ -203,11 +203,11 @@ describe("theme CSS variables", () => {
 			);
 			const metas = new DOMParser()
 				.parseFromString(html, "text/html")
-				.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]');
+				.getElementsByName("theme-color");
 
 			expect(metas).not.toHaveLength(0);
 			for (const meta of metas) {
-				expect(toRGB(meta.content)).toBe(rootSurface);
+				expect(toRGB(meta.getAttribute("content"))).toBe(rootSurface);
 			}
 		});
 
