@@ -13,6 +13,7 @@ import {
 	PanelLeftCloseIcon,
 	SearchIcon,
 	SettingsIcon,
+	ShapesIcon,
 	SquarePenIcon,
 } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
@@ -187,6 +188,9 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	currentUserId,
 }) => {
 	const locationSearch = normalizeLocationSearch(location.search);
+	const isArtifactsActive =
+		location.pathname === "/agents/artifacts" ||
+		location.pathname.startsWith("/agents/artifacts/");
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 	const [collapsedSections, setCollapsedSections] = useState<
 		Record<string, boolean>
@@ -546,7 +550,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 				<SettingsNavItem
 					icon={SquarePenIcon}
 					label="New chat"
-					active={isChatsActive}
+					active={isChatsActive && !isArtifactsActive}
 					to={{ pathname: "/agents", search: locationSearch }}
 					onClick={onBeforeNewAgent}
 					disabled={isCreating}
@@ -567,6 +571,12 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 						}
 					/>
 				)}
+				<SettingsNavItem
+					icon={ShapesIcon}
+					label="Artifacts"
+					active={isArtifactsActive}
+					to={{ pathname: "/agents/artifacts", search: locationSearch }}
+				/>
 			</nav>
 			<div className="relative min-h-0 flex-1 flex flex-col">
 				{!chatProjectsEnabled && chatsHeader}

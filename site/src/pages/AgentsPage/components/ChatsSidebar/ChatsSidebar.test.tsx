@@ -710,6 +710,39 @@ describe("ChatsSidebar section switcher", () => {
 	});
 });
 
+describe("ChatsSidebar artifacts link", () => {
+	const LocationProbe: React.FC = () => {
+		const location = useLocation();
+		return <div data-testid="location-pathname">{location.pathname}</div>;
+	};
+
+	it("opens the artifacts gallery and marks it as the current page", async () => {
+		const user = userEvent.setup();
+
+		render(
+			<Wrapper initialEntry="/agents">
+				<ChatsSidebar {...defaultProps} />
+				<LocationProbe />
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("link", { name: "Artifacts" }));
+
+		await waitFor(() => {
+			expect(screen.getByTestId("location-pathname").textContent).toBe(
+				"/agents/artifacts",
+			);
+		});
+		expect(screen.getByRole("link", { name: "Artifacts" })).toHaveAttribute(
+			"aria-current",
+			"page",
+		);
+		expect(screen.getByRole("link", { name: "New chat" })).not.toHaveAttribute(
+			"aria-current",
+		);
+	});
+});
+
 describe("ChatsSidebar sections", () => {
 	it("renders another user's shared chats in Shared with you regardless of pin order", () => {
 		render(
