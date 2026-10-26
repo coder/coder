@@ -344,6 +344,8 @@ const FAMILY_SLOTS = Object.entries(SESSION_FAMILIES).flatMap(
 		if (!key || !icon) {
 			return [];
 		}
+		// The unknown slot also totals the families without a slot, so it is
+		// labeled as a catch-all rather than with the Unknown family name.
 		const label = key === "unknown" ? "Other" : appFamilyDisplayNames[key];
 		return [{ key, name: label, icon }];
 	},
