@@ -254,7 +254,7 @@ export const useChatStore = (
 				discardBufferedParts();
 				store.setClientError({
 					kind: "generic",
-					message: "Failed to parse chat stream update.",
+					message: "Failed to parse a chat stream update. Reconnecting.",
 				});
 				socket.close();
 				return;
