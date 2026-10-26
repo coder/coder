@@ -86,9 +86,10 @@ const shouldSurfaceReconnectState = (state: ChatStoreState): boolean =>
 		state.retryState !== null ||
 		isActiveChatStatus(state.chatStatus));
 
-/** Two missed keepalives plus a 10-second margin. */
+// The keepalive interval plus 25 s to download a frame: at 1 Mbit/s,
+// about 3 MB, 2.4 times the largest frame measured (a 1.3 MB replay).
 export const chatStreamSilenceTimeoutMs =
-	(2 * ChatStreamKeepaliveIntervalSeconds + 10) * 1000;
+	(ChatStreamKeepaliveIntervalSeconds + 25) * 1000;
 
 type UseChatStoreOptions = {
 	chatID: string;
