@@ -171,8 +171,7 @@ You open a one-way WebSocket connection:
 GET wss://coder.example.com/api/v2/chats/{chat}/stream
 ```
 
-The WebSocket sends JSON envelopes with a `type` field (`"ping"`, `"data"`, or `"error"`).
-Data envelopes contain batches of events:
+Each WebSocket message is a JSON array of events, and each event has a `type` field:
 
 | Event type     | Description                                             |
 |----------------|---------------------------------------------------------|
@@ -183,11 +182,10 @@ Data envelopes contain batches of events:
 | `retry`        | The control plane is retrying a failed LLM call         |
 | `queue_update` | The queued message list changed                         |
 
-When no events occur for 15&nbsp;seconds, the server sends an empty batch (`[]`), which you can skip.
-If nothing arrives for 40&nbsp;seconds, close the connection and reconnect.
-That threshold allows two missed empty batches plus a margin, and the Coder dashboard uses the same value.
-Older Coder servers don't send empty batches.
-With an older server, either skip this check or expect idle chats to reconnect every 40&nbsp;seconds.
+When no events occur for 15&nbsp;seconds, the server sends an empty array (`[]`), which you can skip.
+To detect a connection that stops delivering data without closing, start a 40-second timer when the first empty array arrives, restart it on every message, and reconnect when it expires.
+The 40&nbsp;seconds allow two missed empty arrays plus a margin.
+Servers that don't send empty arrays never start the timer.
 
 Use `after_id` as a query parameter when reconnecting to skip messages the client already has.
 
@@ -515,7 +513,7 @@ websocat -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
   "wss://coder.example.com/api/v2/chats/$CHAT_ID/stream"
 ```
 
-You should see JSON envelopes with `"type": "data"` containing `message_part` and `status` events.
+You should see JSON arrays of `message_part` and `status` events.
 The chat should eventually reach `"waiting"` status, indicating the agent completed its response.
 
 ### 4. Send a follow-up message
