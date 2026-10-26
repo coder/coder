@@ -4596,7 +4596,7 @@ describe("parse errors", () => {
 		await waitFor(() => {
 			expect(result.current.streamError).toEqual({
 				kind: "generic",
-				message: "Failed to parse chat stream update.",
+				message: "Failed to parse a chat stream update. Reconnecting.",
 			});
 		});
 		expect(result.current.chatStatus).not.toBe("error");
@@ -4665,7 +4665,7 @@ describe("parse errors", () => {
 		await waitFor(() => {
 			expect(result.current.streamError).toEqual({
 				kind: "generic",
-				message: "Failed to parse chat stream update.",
+				message: "Failed to parse a chat stream update. Reconnecting.",
 			});
 		});
 		expect(result.current.streamState?.blocks).toEqual([
@@ -4856,7 +4856,7 @@ describe("chat stream contract", () => {
 		});
 		expect(sockets[0].close).toHaveBeenCalled();
 		expect(result.current.error).toMatchObject({
-			message: "Failed to parse chat stream update.",
+			message: "Failed to parse a chat stream update. Reconnecting.",
 		});
 		act(() => {
 			sockets[0].emitClose();
@@ -4870,7 +4870,23 @@ describe("chat stream contract", () => {
 		expect(result.current.error).toBeNull();
 	});
 
-	it("drops a frame with an unversioned event and reconnects without an error", async () => {
+	it.each<TypesGen.ChatStreamEvent>([
+		{
+			type: "message",
+			chat_id: chatID,
+			message: buildMessage(chatID, 3, "user", "unversioned"),
+		},
+		{
+			type: "queue_update",
+			chat_id: chatID,
+			queued_messages: [buildQueuedMessage(chatID, 10, "unversioned")],
+		},
+		{
+			type: "history_reset",
+			chat_id: chatID,
+			history_reset: { from_message_id: 1 },
+		},
+	])("drops a frame with an unversioned $type event and reconnects without an error", async (unversioned) => {
 		vi.spyOn(Math, "random").mockReturnValue(0.5);
 		const sockets = mockWatchChatWithFreshSockets();
 		const { result } = renderChat(
@@ -4880,17 +4896,11 @@ describe("chat stream contract", () => {
 
 		act(() => {
 			sockets[0].emitOpen();
-			sockets[0].emitDataBatch([
-				message(2, "assistant", 5),
-				{
-					type: "message",
-					chat_id: chatID,
-					message: buildMessage(chatID, 3, "user", "unversioned"),
-				},
-			]);
+			sockets[0].emitDataBatch([message(2, "assistant", 5), unversioned]);
 		});
 		expect(sockets[0].close).toHaveBeenCalled();
 		expect(result.current.messageIDs).toEqual([1]);
+		expect(result.current.queuedIDs).toEqual([]);
 		expect(result.current.error).toBeNull();
 		act(() => {
 			sockets[0].emitClose();
