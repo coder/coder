@@ -14257,6 +14257,9 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 		switch streamedCallCount.Add(1) {
 		case 1:
 			// Parent turn 1: call advisor solo.
+			require.True(t, slices.ContainsFunc(req.Tools, func(tool chattest.OpenAITool) bool {
+				return tool.Function.Name == chatadvisor.ToolName
+			}), "parent request must offer advisor")
 			streamedCallsMu.Lock()
 			firstCallMessages = append([]chattest.OpenAIMessage(nil), req.Messages...)
 			streamedCallsMu.Unlock()
