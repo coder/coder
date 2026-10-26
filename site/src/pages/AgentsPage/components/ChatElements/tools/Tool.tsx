@@ -200,7 +200,6 @@ const getWorkspaceQuotaTitle = (
 
 type AskUserQuestionResult = {
 	questions: AskUserQuestion[];
-	/** Set by the server when the question did not end the agent's turn. */
 	isAsync: boolean;
 };
 

@@ -63,7 +63,7 @@ const questionStep = (
 	},
 ];
 
-const answerText = (toolCallId: string) =>
+const answerMessage = (toolCallId: string) =>
 	`Answer to ask_user_question call ${toolCallId}:\nSingle migration`;
 
 const queued = (text: string): ChatQueuedMessage => ({
@@ -103,12 +103,12 @@ describe("deriveAskUserQuestionState", () => {
 		const state = derive([
 			...questionStep("async-call", { async: true }),
 			userMessage("Also update the docs."),
-			userMessage(answerText("async-call")),
+			userMessage(answerMessage("async-call")),
 		]);
 
 		expect(state.isLatestAnswered).toBe(true);
 		expect(state.responseTextByToolId.get("async-call")).toBe(
-			answerText("async-call"),
+			answerMessage("async-call"),
 		);
 	});
 
@@ -139,13 +139,13 @@ describe("deriveAskUserQuestionState", () => {
 		const state = derive(questionStep("async-call", { async: true }), {
 			queuedMessages: [
 				queued("Unrelated follow-up"),
-				queued(answerText("async-call")),
+				queued(answerMessage("async-call")),
 			],
 		});
 
 		expect(state.isLatestAnswered).toBe(false);
 		expect(state.responseTextByToolId.get("async-call")).toBe(
-			answerText("async-call"),
+			answerMessage("async-call"),
 		);
 	});
 

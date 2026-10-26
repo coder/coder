@@ -38,7 +38,7 @@ type AskUserQuestionToolProps = {
 	isChatCompleted?: boolean;
 	isLatestAskUserQuestion?: boolean;
 	previousResponseText?: string;
-	/** Set for questions that did not end the agent's turn; the answer names this call. */
+	/** Set for async questions; their answer names this call. */
 	asyncToolCallId?: string;
 	onSubmitAnswer?: (message: string) => Promise<void> | void;
 };

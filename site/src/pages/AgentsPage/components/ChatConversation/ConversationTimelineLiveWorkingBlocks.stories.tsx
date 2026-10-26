@@ -234,11 +234,11 @@ export const PromptlessLiveBlock: Story = {
 	play: expandBlock("Working for at least 12s"),
 };
 
-const asyncQuestionResult = (question: string) => ({
+const MockEarlierAsyncQuestionResult = {
 	questions: [
 		{
 			header: "Scope",
-			question,
+			question: "Which part should change first?",
 			options: [
 				{ label: "Backend", description: "Change the API first." },
 				{ label: "Frontend", description: "Change the UI first." },
@@ -246,9 +246,19 @@ const asyncQuestionResult = (question: string) => ({
 		},
 	],
 	async: true,
-});
+};
 
-const earlierAsyncQuestionMessages: ChatMessage[] = [
+const MockLiveAsyncQuestionResult = {
+	...MockEarlierAsyncQuestionResult,
+	questions: [
+		{
+			...MockEarlierAsyncQuestionResult.questions[0],
+			question: "Should the change ship behind a flag?",
+		},
+	],
+};
+
+const MockEarlierAsyncQuestionMessages: ChatMessage[] = [
 	...MockWorkingMessages.slice(0, 1),
 	MockQuestionCallMessage,
 	{
@@ -261,7 +271,7 @@ const earlierAsyncQuestionMessages: ChatMessage[] = [
 				type: "tool-result",
 				tool_call_id: "question",
 				tool_name: "ask_user_question",
-				result: asyncQuestionResult("Which part should change first?"),
+				result: MockEarlierAsyncQuestionResult,
 				created_at: workingFixtureTime(6),
 			},
 		],
@@ -273,7 +283,9 @@ const earlierAsyncQuestionMessages: ChatMessage[] = [
 export const AsyncQuestionBeforeStepPersists: Story = {
 	args: {
 		onSendAskUserQuestionResponse: fn(),
-		parsedMessages: parseMessagesWithMergedTools(earlierAsyncQuestionMessages),
+		parsedMessages: parseMessagesWithMergedTools(
+			MockEarlierAsyncQuestionMessages,
+		),
 		...buildStreamRenderState([
 			{
 				type: "tool-call",
@@ -286,7 +298,7 @@ export const AsyncQuestionBeforeStepPersists: Story = {
 				type: "tool-result",
 				tool_call_id: "live-question",
 				tool_name: "ask_user_question",
-				result: asyncQuestionResult("Should the change ship behind a flag?"),
+				result: MockLiveAsyncQuestionResult,
 				created_at: workingFixtureTime(8),
 			},
 		]),

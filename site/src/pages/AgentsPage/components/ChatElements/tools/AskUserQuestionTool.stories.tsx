@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
-import { getAsyncAnswerPrefix } from "./asyncAnswer";
 import { Tool } from "./Tool";
 
 const runningPayload = {
@@ -434,17 +433,6 @@ export const AsyncInteractiveWhileRunning: Story = {
 		isChatCompleted: false,
 		isLatestAskUserQuestion: true,
 		onSendAskUserQuestionResponse: fn(),
-	},
-};
-
-export const AsyncPreviouslyAnswered: Story = {
-	args: {
-		toolCallId: "call-async",
-		status: "completed",
-		result: JSON.stringify(asyncSingleQuestionPayload),
-		isChatCompleted: false,
-		isLatestAskUserQuestion: false,
-		previousResponseText: `${getAsyncAnswerPrefix("call-async")}Single migration`,
 	},
 };
 

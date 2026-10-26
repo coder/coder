@@ -378,6 +378,19 @@ const isEditableUserMessageFileBlock = (
 	// preserves the reference (or drops it when the chip is removed).
 	block.type === "workspace-file-reference";
 
+/**
+ * Concatenates text parts verbatim to match the server-side string_agg in
+ * GetChatUserPromptsByChatID; parseMessageContent/appendText drops leading
+ * whitespace-only chunks.
+ */
+export const getMessageText = (
+	content: readonly TypesGen.ChatMessagePart[] | undefined,
+): string =>
+	(content ?? [])
+		.filter((part): part is TypesGen.ChatTextPart => part.type === "text")
+		.map((part) => part.text)
+		.join("");
+
 export const getEditableUserMessagePayload = (
 	message: TypesGen.ChatMessage,
 ): {
@@ -386,13 +399,7 @@ export const getEditableUserMessagePayload = (
 	/** Restores skill chips in place; undefined when there are none. */
 	editorState: string | undefined;
 } => {
-	// Concatenate text parts verbatim to match the server-side string_agg in
-	// GetChatUserPromptsByChatID; parseMessageContent/appendText drops leading
-	// whitespace-only chunks.
-	const text = (message.content ?? [])
-		.filter((part): part is TypesGen.ChatTextPart => part.type === "text")
-		.map((part) => part.text)
-		.join("");
+	const text = getMessageText(message.content);
 	const parsed = parseMessageContent(message.content);
 	const fileBlocks = parsed.blocks.filter(isEditableUserMessageFileBlock);
 	return {

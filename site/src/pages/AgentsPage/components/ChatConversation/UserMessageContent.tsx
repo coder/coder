@@ -113,7 +113,7 @@ export const UserMessageContent: React.FC<{
 							{displayState.hasUserMessageBody && (
 								<span className="min-w-0 flex-1">
 									{inlineContent.isAsyncAnswer && (
-										<span className="block text-xs font-medium text-content-secondary">
+										<span className="block text-xs text-content-secondary">
 											Answer
 										</span>
 									)}

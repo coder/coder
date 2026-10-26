@@ -94,8 +94,6 @@ const QueuedMessagePreview: React.FC<{
 	if (parts.length === 0) {
 		return "[Queued message]";
 	}
-	// An async question answer starts with a line that names the call for
-	// the model; the row shows a label and the answer instead.
 	const [firstPart, ...restParts] = parts;
 	const asyncAnswer =
 		firstPart.type === "text" ? parseAsyncAnswer(firstPart.text) : undefined;

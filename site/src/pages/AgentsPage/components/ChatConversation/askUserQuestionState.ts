@@ -1,12 +1,13 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { parseAsyncAnswer } from "../ChatElements/tools/asyncAnswer";
 import { isAsyncAskUserQuestionResult } from "../ChatElements/tools/utils";
+import { getMessageText } from "./messageParsing";
 import type { MergedTool, ParsedMessageEntry } from "./types";
 
 type AskUserQuestionState = {
-	/** The newest valid question; `isLatestAnswered` says whether it is answered. */
+	/** The newest valid question. */
 	latestToolId: string | undefined;
-	/** Whether a delivered user message answered the latest question. */
+	/** Set only by delivered messages, never by queued ones. */
 	isLatestAnswered: boolean;
 	/** Answer message text by question call ID, from delivered and queued messages. */
 	responseTextByToolId: ReadonlyMap<string, string>;
@@ -15,29 +16,19 @@ type AskUserQuestionState = {
 const getTextContent = (
 	content: readonly TypesGen.ChatMessagePart[] | undefined,
 ): string | undefined => {
-	if (!content) {
-		return undefined;
-	}
-
-	let textContent = "";
-	for (const part of content) {
-		if (part.type === "text") {
-			textContent += part.text;
-		}
-	}
-
-	return textContent.length > 0 ? textContent : undefined;
+	const text = getMessageText(content);
+	return text.length > 0 ? text : undefined;
 };
 
 const readAsyncAnswer = (
 	content: readonly TypesGen.ChatMessagePart[] | undefined,
-): { toolCallId: string; text: string } | undefined => {
-	const text = getTextContent(content);
-	if (text === undefined) {
+): { toolCallId: string; messageText: string } | undefined => {
+	const messageText = getTextContent(content);
+	if (messageText === undefined) {
 		return undefined;
 	}
-	const answer = parseAsyncAnswer(text);
-	return answer && { toolCallId: answer.toolCallId, text };
+	const answer = parseAsyncAnswer(messageText);
+	return answer && { toolCallId: answer.toolCallId, messageText };
 };
 
 // A call that failed validation asked nothing, so it supersedes nothing.
@@ -45,9 +36,8 @@ const isValidAskUserQuestion = (tool: MergedTool): boolean =>
 	tool.name === "ask_user_question" && !tool.isError;
 
 /**
- * Finds the latest valid question and the answers sent so far. A blocking
- * question is answered by the next user message; an async one only by a
- * message whose first line names its call.
+ * A blocking question is answered by the next user message; an async one
+ * only by a message whose first line names its call.
  */
 export const deriveAskUserQuestionState = (
 	parsedMessages: readonly ParsedMessageEntry[],
@@ -84,7 +74,7 @@ export const deriveAskUserQuestionState = (
 		}
 		const asyncAnswer = readAsyncAnswer(message.content);
 		if (asyncAnswer) {
-			responseTextByToolId.set(asyncAnswer.toolCallId, asyncAnswer.text);
+			responseTextByToolId.set(asyncAnswer.toolCallId, asyncAnswer.messageText);
 			if (asyncAnswer.toolCallId === latestToolId) {
 				isLatestAnswered = true;
 			}
@@ -106,7 +96,7 @@ export const deriveAskUserQuestionState = (
 	for (const queuedMessage of queuedMessages) {
 		const asyncAnswer = readAsyncAnswer(queuedMessage.content);
 		if (asyncAnswer && !responseTextByToolId.has(asyncAnswer.toolCallId)) {
-			responseTextByToolId.set(asyncAnswer.toolCallId, asyncAnswer.text);
+			responseTextByToolId.set(asyncAnswer.toolCallId, asyncAnswer.messageText);
 		}
 	}
 

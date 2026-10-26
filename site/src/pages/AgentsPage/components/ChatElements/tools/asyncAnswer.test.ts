@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getAsyncAnswerPrefix, parseAsyncAnswer } from "./asyncAnswer";
+import {
+	getAsyncAnswerPrefix,
+	getAsyncAnswerText,
+	parseAsyncAnswer,
+} from "./asyncAnswer";
 
 describe("parseAsyncAnswer", () => {
 	it("splits an answer into the call it names and its body", () => {
@@ -21,5 +25,14 @@ describe("parseAsyncAnswer", () => {
 		["a different lead", "Answer to question call toolu_123:\nyes"],
 	])("leaves %s alone", (_, text) => {
 		expect(parseAsyncAnswer(text)).toBeUndefined();
+	});
+});
+
+describe("getAsyncAnswerText", () => {
+	it("returns the body only for an answer to the same call", () => {
+		const answer = `${getAsyncAnswerPrefix("toolu_123")}Single migration`;
+
+		expect(getAsyncAnswerText(answer, "toolu_123")).toBe("Single migration");
+		expect(getAsyncAnswerText(answer, "toolu_456")).toBeUndefined();
 	});
 });
