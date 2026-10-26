@@ -64,31 +64,89 @@ const getComputerUseAIProviders = (
 		];
 	});
 
-const getComputerUseProviderHint = (
+const computerUseProviderTypeList =
+	ChatComputerUseProviders.map(formatProviderLabel).join(" or ");
+
+type ComputerUseProviderHintKind =
+	| "no-eligible-providers"
+	| "no-provider-of-type"
+	| "unselected"
+	| "unavailable";
+
+const getComputerUseProviderHintKind = (
 	eligibleProviders: readonly ComputerUseAIProvider[],
-	storedAIProviderID: string,
+	selectedAIProviderID: string,
 	storedProviderType: TypesGen.ChatComputerUseProvider,
-): React.ReactNode => {
+): ComputerUseProviderHintKind | undefined => {
 	if (eligibleProviders.length === 0) {
-		return (
-			<>
-				Add an enabled Anthropic or OpenAI{" "}
-				<Link asChild showExternalIcon={false} size="sm">
-					<RouterLink to="/ai/settings/providers">AI provider</RouterLink>
-				</Link>{" "}
-				to use computer use.
-			</>
-		);
+		return "no-eligible-providers";
 	}
-	if (storedAIProviderID === "") {
-		return `No provider selected. Computer use uses the first enabled ${formatProviderLabel(storedProviderType)} provider.`;
+	if (selectedAIProviderID === "") {
+		return eligibleProviders.some(
+			(provider) => provider.type === storedProviderType,
+		)
+			? "unselected"
+			: "no-provider-of-type";
 	}
 	if (
-		!eligibleProviders.some((provider) => provider.id === storedAIProviderID)
+		!eligibleProviders.some((provider) => provider.id === selectedAIProviderID)
 	) {
-		return "The selected provider is disabled or was deleted. Select another provider.";
+		return "unavailable";
 	}
 	return undefined;
+};
+
+type ComputerUseProviderHintProps = {
+	id: string;
+	kind: ComputerUseProviderHintKind;
+	storedProviderType: TypesGen.ChatComputerUseProvider;
+};
+
+const ComputerUseProviderHint: React.FC<ComputerUseProviderHintProps> = ({
+	id,
+	kind,
+	storedProviderType,
+}) => {
+	const storedTypeLabel = formatProviderLabel(storedProviderType);
+	return (
+		<p id={id} className="m-0 text-xs text-content-secondary">
+			{kind === "no-eligible-providers" && (
+				<>
+					Add an enabled {computerUseProviderTypeList}{" "}
+					<Link asChild showExternalIcon={false} size="sm">
+						<RouterLink to="/ai/settings/providers">AI provider</RouterLink>
+					</Link>{" "}
+					to use computer use.
+				</>
+			)}
+			{kind === "no-provider-of-type" &&
+				`No provider selected, and no enabled ${storedTypeLabel} provider exists. Select a provider.`}
+			{kind === "unselected" &&
+				`No provider selected. Computer use uses the first enabled ${storedTypeLabel} provider.`}
+			{kind === "unavailable" &&
+				"The selected provider is disabled or was deleted. Select another provider."}
+		</p>
+	);
+};
+
+type ComputerUseProviderOptionLabelProps = {
+	provider: ComputerUseAIProvider;
+};
+
+const ComputerUseProviderOptionLabel: React.FC<
+	ComputerUseProviderOptionLabelProps
+> = ({ provider }) => {
+	if (provider.displayName === provider.typeLabel) {
+		return provider.displayName;
+	}
+	return (
+		<>
+			{provider.displayName}{" "}
+			<span className="text-xs text-content-secondary">
+				{provider.typeLabel}
+			</span>
+		</>
+	);
 };
 
 export const VirtualDesktopSettings: React.FC<VirtualDesktopSettingsProps> = ({
@@ -140,11 +198,11 @@ export const VirtualDesktopSettings: React.FC<VirtualDesktopSettingsProps> = ({
 		computerUseProviderData === undefined ||
 		eligibleProviders.length === 0;
 	const canSave = form.dirty && selectedProvider !== undefined;
-	const hint =
+	const hintKind =
 		computerUseProviderData && aiProviders
-			? getComputerUseProviderHint(
+			? getComputerUseProviderHintKind(
 					eligibleProviders,
-					storedAIProviderID,
+					form.values.aiProviderID,
 					computerUseProviderData.provider,
 				)
 			: undefined;
@@ -189,7 +247,7 @@ export const VirtualDesktopSettings: React.FC<VirtualDesktopSettingsProps> = ({
 				>
 					<SelectTrigger
 						aria-label="Computer use provider"
-						aria-describedby={hint ? hintId : undefined}
+						aria-describedby={hintKind ? hintId : undefined}
 						className="h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm shadow-none"
 					>
 						<SelectValue placeholder="Select provider">
@@ -204,24 +262,18 @@ export const VirtualDesktopSettings: React.FC<VirtualDesktopSettingsProps> = ({
 						<SelectGroup>
 							{eligibleProviders.map((provider) => (
 								<SelectItem key={provider.id} value={provider.id}>
-									{provider.displayName}
-									{provider.displayName !== provider.typeLabel && (
-										<>
-											{" "}
-											<span className="text-xs text-content-secondary">
-												{provider.typeLabel}
-											</span>
-										</>
-									)}
+									<ComputerUseProviderOptionLabel provider={provider} />
 								</SelectItem>
 							))}
 						</SelectGroup>
 					</SelectContent>
 				</Select>
-				{hint && (
-					<p id={hintId} className="m-0 text-xs text-content-secondary">
-						{hint}
-					</p>
+				{hintKind && computerUseProviderData && (
+					<ComputerUseProviderHint
+						id={hintId}
+						kind={hintKind}
+						storedProviderType={computerUseProviderData.provider}
+					/>
 				)}
 			</div>
 		</AgentSettingLayout>

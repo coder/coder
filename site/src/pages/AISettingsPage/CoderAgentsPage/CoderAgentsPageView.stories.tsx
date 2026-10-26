@@ -61,10 +61,19 @@ const mockGatewayAnthropicProvider: AIProvider = {
 	display_name: "Anthropic via gateway",
 	enabled: true,
 };
+const mockDisabledGatewayAnthropicProvider: AIProvider = {
+	...mockGatewayAnthropicProvider,
+	enabled: false,
+};
+const mockTeamOpenAIProvider: AIProvider = {
+	...MockAIProviderOpenAI,
+	display_name: "Team OpenAI",
+	enabled: true,
+};
 const mockVirtualDesktopProviders: AIProvider[] = [
 	mockEnabledAnthropicProvider,
 	mockGatewayAnthropicProvider,
-	{ ...MockAIProviderOpenAI, display_name: "Team OpenAI", enabled: true },
+	mockTeamOpenAIProvider,
 	MockAIProviderBedrock,
 ];
 
@@ -261,6 +270,37 @@ export const VirtualDesktopSelectedProvider: Story = {
 	},
 };
 
+export const VirtualDesktopChangedSelection: Story = {
+	args: {
+		showAdvisorSettings: false,
+		showVirtualDesktopSettings: true,
+		aiProviders: mockVirtualDesktopProviders,
+		computerUseProviderData: {
+			provider: "anthropic",
+			ai_provider_id: mockGatewayAnthropicProvider.id,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("combobox", {
+				name: "Computer use provider",
+			}),
+		);
+		await userEvent.click(
+			await screen.findByRole("option", { name: /Team OpenAI/ }),
+		);
+	},
+};
+
+export const VirtualDesktopNoProviderOfStoredType: Story = {
+	args: {
+		showAdvisorSettings: false,
+		showVirtualDesktopSettings: true,
+		aiProviders: [mockTeamOpenAIProvider],
+		computerUseProviderData: { provider: "anthropic" },
+	},
+};
+
 export const VirtualDesktopNoSelectedProvider: Story = {
 	args: {
 		showAdvisorSettings: false,
@@ -276,7 +316,7 @@ export const VirtualDesktopSelectedProviderUnavailable: Story = {
 		showVirtualDesktopSettings: true,
 		aiProviders: [
 			mockEnabledAnthropicProvider,
-			{ ...mockGatewayAnthropicProvider, enabled: false },
+			mockDisabledGatewayAnthropicProvider,
 		],
 		computerUseProviderData: {
 			provider: "anthropic",
