@@ -406,6 +406,34 @@ it("keeps the sent message in view when the reader toggled the reply during the 
 	expect(viewport.scrollTop).toBe(heldScrollTop - 300);
 });
 
+it("keeps the view in place when the reader toggled a row above the sent message during the turn", async () => {
+	mockLayout(400, { 1: 200, 2: 200, 3: 200, sent: 40, reply: 60 });
+	const rows: Row[] = [
+		{ id: "1" },
+		{ id: "2" },
+		{ id: "3", children: <LayoutToggle /> },
+	];
+	const { rerender, getByLabelText, getByRole } = render(
+		transcript(rows, false),
+	);
+	await nextFrames();
+
+	rerender(transcript([...rows, sent, { id: "reply" }], true));
+	await nextFrames();
+	const viewport = getByLabelText("Messages");
+	const heldScrollTop = viewport.scrollTop;
+	fireEvent.click(getByRole("button", { name: "Toggle" }));
+	await nextFrames();
+
+	rerender(transcript([...rows, answered, { id: "reply" }], false));
+	await nextFrames();
+
+	expect(viewport.scrollTop).toBe(heldScrollTop);
+	expect(viewport.scrollTop).toBeLessThanOrEqual(
+		viewport.scrollHeight - viewport.clientHeight,
+	);
+});
+
 const JumpButton: React.FC = () => {
 	const { scrollToMessage } = useMessageScroller();
 	return (
