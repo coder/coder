@@ -83,11 +83,17 @@ export const kindOf = (name: string, mediaType: string): ArtifactKind => {
 	return "download";
 };
 
+/** The route of the artifact gallery. Artifact pages live below it. */
 export const artifactsGalleryPath = "/agents/artifacts";
 
 /** The artifact page, at one version when `version` is set. */
-export const getArtifactPagePath = (artifactId: string, version?: number) =>
-	`${artifactsGalleryPath}/${encodeURIComponent(artifactId)}${version === undefined ? "" : `?version=${version}`}`;
+export const getArtifactPagePath = (artifactId: string, version?: number) => {
+	const path = `${artifactsGalleryPath}/${encodeURIComponent(artifactId)}`;
+	if (version === undefined) {
+		return path;
+	}
+	return `${path}?version=${version}`;
+};
 
 /**
  * An absolute link to the artifact page, for "Copy link". Without
@@ -95,6 +101,22 @@ export const getArtifactPagePath = (artifactId: string, version?: number) =>
  */
 export const getArtifactLink = (artifactId: string, version?: number) =>
 	`${window.location.origin}${getArtifactPagePath(artifactId, version)}`;
+
+const describeVersionSource = (
+	version: ChatArtifactVersion,
+	currentChatId: string | undefined,
+): string => {
+	if (currentChatId !== undefined && version.chat_id === currentChatId) {
+		return "this chat";
+	}
+	if (version.chat_title) {
+		return version.chat_title;
+	}
+	if (version.created_by_username) {
+		return `by ${version.created_by_username}`;
+	}
+	return "another chat";
+};
 
 /**
  * Describes one version for the version menu: "v2 · label · this chat ·
@@ -105,17 +127,10 @@ export const describeArtifactVersion = (
 	version: ChatArtifactVersion,
 	currentChatId: string | undefined,
 ): string => {
-	const source =
-		currentChatId !== undefined && version.chat_id === currentChatId
-			? "this chat"
-			: version.chat_title ||
-				(version.created_by_username
-					? `by ${version.created_by_username}`
-					: "another chat");
 	return [
 		`v${version.version}`,
 		version.label,
-		source,
+		describeVersionSource(version, currentChatId),
 		formatDateTime(version.created_at, "MMM D, HH:mm"),
 	]
 		.filter(Boolean)

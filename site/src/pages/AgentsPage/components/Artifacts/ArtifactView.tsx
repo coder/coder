@@ -32,7 +32,7 @@ type ArtifactViewProps = {
 	/** Receives accepted prompts from an HTML version. */
 	onPrompt?: (text: string) => void;
 	/** The viewer, for the Share popover. */
-	currentUserId?: string;
+	currentUserId: string;
 	/** Shown before the title, such as a back link. */
 	leading?: React.ReactNode;
 	/** Adds a link that opens the artifact page in a new tab. */
@@ -61,7 +61,7 @@ export const ArtifactView: React.FC<ArtifactViewProps> = ({
 			<div className="flex shrink-0 flex-wrap items-center gap-2 border-0 border-b border-solid border-border px-3 py-2">
 				{leading}
 				{/* On a phone the title takes its own row, so it is not cut off. */}
-				<h3 className="m-0 min-w-0 basis-full truncate text-sm font-medium text-content-primary sm:flex-1 sm:basis-0">
+				<h3 className="m-0 min-w-0 basis-full truncate text-sm font-medium text-content-primary sm:flex-1">
 					{artifact.title || "Untitled artifact"}
 				</h3>
 				{version && (

@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
+import { MockChatArtifactVersion } from "#/testHelpers/chatEntities";
 import { ArtifactToolCard } from "../ChatElements/tools/ArtifactToolCard";
 import { ArtifactsPanelContext } from "./ArtifactsPanelContext";
 import {
@@ -96,35 +97,31 @@ describe("kindOf", () => {
 });
 
 describe("describeArtifactVersion", () => {
-	const version = {
-		version: 1,
+	const mockArtifactVersion = {
+		...MockChatArtifactVersion,
 		label: "",
-		name: "notes.md",
-		media_type: "text/markdown",
-		size: 10,
 		created_by_username: "alice",
 		chat_id: "chat-1",
 		chat_title: "",
-		created_at: "2026-03-03T14:32:00Z",
 	};
 
 	it.each([
-		["this chat", version, "chat-1", /^v1 · this chat · /],
+		["this chat", mockArtifactVersion, "chat-1", /^v1 · this chat · /],
 		[
 			"the viewer's chat",
-			{ ...version, chat_title: "Repo report" },
+			{ ...mockArtifactVersion, chat_title: "Repo report" },
 			undefined,
 			/^v1 · Repo report · /,
 		],
 		[
 			"another user's chat by its author",
-			version,
+			mockArtifactVersion,
 			undefined,
 			/^v1 · by alice · /,
 		],
 		[
 			"an unknown author as another chat",
-			{ ...version, created_by_username: "" },
+			{ ...mockArtifactVersion, created_by_username: "" },
 			undefined,
 			/^v1 · another chat · /,
 		],

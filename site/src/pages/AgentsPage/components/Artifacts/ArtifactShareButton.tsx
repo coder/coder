@@ -14,7 +14,7 @@ type ArtifactShareButtonProps = {
 	/** The version on screen. A link to it is offered when it is not the latest. */
 	version: number | undefined;
 	/** Names the owner "you" when it is the viewer. */
-	currentUserId: string | undefined;
+	currentUserId: string;
 };
 
 /**
@@ -23,7 +23,7 @@ type ArtifactShareButtonProps = {
  */
 const describeAccess = (
 	artifact: ChatArtifact,
-	currentUserId: string | undefined,
+	currentUserId: string,
 ): string => {
 	if (artifact.project_name) {
 		return `Members of ${artifact.project_name} can open this link.`;

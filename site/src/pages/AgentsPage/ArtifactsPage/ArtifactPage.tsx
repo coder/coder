@@ -18,15 +18,16 @@ import { artifactsGalleryPath } from "../components/Artifacts/artifactUtils";
  * The gallery URL that opened this page, with its filter and search, or the
  * plain gallery.
  */
-const useGalleryPath = (): string => {
-	const { state } = useLocation();
+const galleryPathFromState = (state: unknown): string => {
 	const from: unknown =
 		typeof state === "object" && state !== null && "from" in state
 			? state.from
 			: undefined;
-	return typeof from === "string" && from.startsWith(artifactsGalleryPath)
-		? from
-		: artifactsGalleryPath;
+	const isGalleryPath =
+		typeof from === "string" &&
+		(from === artifactsGalleryPath ||
+			from.startsWith(`${artifactsGalleryPath}?`));
+	return isGalleryPath ? from : artifactsGalleryPath;
 };
 
 /**
@@ -37,7 +38,7 @@ const useGalleryPath = (): string => {
 const ArtifactPage: React.FC = () => {
 	const { artifactId = "" } = useParams();
 	const { user } = useAuthenticated();
-	const galleryPath = useGalleryPath();
+	const galleryPath = galleryPathFromState(useLocation().state);
 	const [searchParams, setSearchParams] = useSearchParams();
 	const versionParam = Number(searchParams.get("version"));
 	const selectedVersion =

@@ -38,9 +38,6 @@ const FILTERS: readonly { id: ArtifactFilter; label: string }[] = [
 const filterParam = "show";
 const searchParam = "search";
 
-const parseFilter = (value: string | null): ArtifactFilter =>
-	value === "yours" || value === "shared" ? value : "all";
-
 /** The localStorage key that keeps the list or grid choice. */
 export const galleryLayoutStorageKey = "agents.artifacts-gallery-layout";
 
@@ -194,9 +191,10 @@ export const ArtifactsGalleryPageView: React.FC<
 	// The URL seeds the state and mirrors it. Each change writes both values
 	// from state, because a second change can run before the navigation of
 	// the first one renders, and its search parameters would be stale.
-	const [filter, setFilterState] = useState(() =>
-		parseFilter(searchParams.get(filterParam)),
-	);
+	const [filter, setFilterState] = useState((): ArtifactFilter => {
+		const value = searchParams.get(filterParam);
+		return value === "yours" || value === "shared" ? value : "all";
+	});
 	const [search, setSearchState] = useState(
 		() => searchParams.get(searchParam) ?? "",
 	);

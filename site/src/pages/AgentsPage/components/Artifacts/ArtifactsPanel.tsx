@@ -21,7 +21,7 @@ type ArtifactsPanelProps = {
 	onSelect: (selection: ArtifactSelection) => void;
 	onPrompt?: (text: string) => void;
 	/** The viewer, for the Share popover. */
-	currentUserId?: string;
+	currentUserId: string;
 };
 
 /**
@@ -147,7 +147,7 @@ type SelectedArtifactProps = {
 	chatId: string;
 	onSelectVersion: (version: number) => void;
 	onPrompt?: (text: string) => void;
-	currentUserId?: string;
+	currentUserId: string;
 };
 
 const SelectedArtifact: React.FC<SelectedArtifactProps> = ({

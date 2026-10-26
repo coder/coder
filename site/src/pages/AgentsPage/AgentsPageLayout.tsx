@@ -53,6 +53,7 @@ import { canAccessCoderAgentsSettings } from "#/modules/permissions";
 import { pageTitle } from "#/utils/page";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
+import { artifactsGalleryPath } from "./components/Artifacts/artifactUtils";
 import {
 	type ChatDetailError,
 	chatDetailErrorsEqual,
@@ -478,9 +479,7 @@ const AgentsPageLayout: React.FC = () => {
 	const isSettingsPanel = isSettingsView(sidebarView);
 	const isSettingsIndex = isSettingsPanel && !sidebarView.section;
 	const isSettingsDetail = isSettingsPanel && Boolean(sidebarView.section);
-	const isArtifactsRoute =
-		location.pathname === "/agents/artifacts" ||
-		location.pathname.startsWith("/agents/artifacts/");
+	const isArtifactsRoute = useMatch(`${artifactsGalleryPath}/*`) !== null;
 
 	// The sidebar expects plain string error messages, but the outlet
 	// context carries structured ChatDetailError objects.

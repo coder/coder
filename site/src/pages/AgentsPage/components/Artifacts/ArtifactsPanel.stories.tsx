@@ -10,6 +10,7 @@ import {
 	MockChat,
 	MockChatArtifact,
 } from "#/testHelpers/chatEntities";
+import { MockUserOwner } from "#/testHelpers/entities";
 import { createChatStore } from "../ChatConversation/chatStore";
 import { ArtifactsPanel } from "./ArtifactsPanel";
 
@@ -66,6 +67,7 @@ const meta: Meta<typeof ArtifactsPanel> = {
 	component: ArtifactsPanel,
 	args: {
 		chatId: MockChat.id,
+		currentUserId: MockUserOwner.id,
 		selection: null,
 		onSelect: fn(),
 		onPrompt: fn(),

@@ -118,19 +118,6 @@ describe("ArtifactsGalleryPageView", () => {
 		).toEqual({ pr_status: "open", show: "yours", search: "repo" });
 	});
 
-	it("shows the artifacts that the URL filter and search select", async () => {
-		renderGallery("/agents/artifacts?show=shared&search=notes");
-
-		expect(
-			screen.getByRole("textbox", { name: "Search artifacts" }),
-		).toHaveValue("notes");
-		expect(
-			(await screen.findAllByRole("link")).map((link) =>
-				link.getAttribute("href"),
-			),
-		).toEqual([`/agents/artifacts/${mockSharedArtifact.id}`]);
-	});
-
 	it("passes the gallery URL to the artifact page", async () => {
 		const user = userEvent.setup();
 		const { router } = renderGallery("/agents/artifacts?show=yours");

@@ -32,6 +32,7 @@ import { toast } from "#/components/Toaster/toast";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
+import { artifactsGalleryPath } from "./Artifacts/artifactUtils";
 
 type AgentPageHeaderProps = {
 	children?: React.ReactNode;
@@ -180,7 +181,7 @@ export const AgentPageHeader: React.FC<AgentPageHeaderProps> = ({
 					>
 						{/* The sidebar, with its Artifacts link, is hidden on a phone. */}
 						<DropdownMenuItem asChild>
-							<Link to="/agents/artifacts">
+							<Link to={artifactsGalleryPath}>
 								<ShapesIcon className="size-icon-sm" />
 								Artifacts
 							</Link>

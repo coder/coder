@@ -150,6 +150,17 @@ export const Search: Story = {
 	},
 };
 
+export const FilterAndSearchFromURL: Story = {
+	parameters: {
+		reactRouter: {
+			location: {
+				path: "/agents/artifacts",
+				searchParams: { show: "shared", search: "notes" },
+			},
+		},
+	},
+};
+
 export const NoMatches: Story = {
 	play: async ({ canvasElement }) => {
 		await userEvent.type(
