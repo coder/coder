@@ -23,6 +23,11 @@ const (
 		"If you cannot continue without the answer, finish what you can and end your turn with a short note of what is blocked. " +
 		"Asking again replaces an earlier unanswered question. " +
 		"Each question should have a short label, a detailed question, and 2-4 answer options."
+	// maxAsyncQuestionResultBytes matches the smallest tool-result budget in
+	// chatloop.ToolResultByteBudget. A longer result would be truncated
+	// into invalid JSON, losing the "async" marker the UI and the question
+	// push read.
+	maxAsyncQuestionResultBytes = 16 << 10
 )
 
 var (
@@ -147,6 +152,12 @@ func (t *askUserQuestionTool) Run(_ context.Context, call fantasy.ToolCall) (fan
 	data, err := json.Marshal(result)
 	if err != nil {
 		return fantasy.NewTextErrorResponse("failed to marshal questions: " + err.Error()), nil
+	}
+	if t.opts.Async && len(data) > maxAsyncQuestionResultBytes {
+		return fantasy.NewTextErrorResponse(fmt.Sprintf(
+			"questions are too long: %d bytes, limit %d; shorten the question and option text",
+			len(data), maxAsyncQuestionResultBytes,
+		)), nil
 	}
 	return fantasy.NewTextResponse(string(data)), nil
 }
