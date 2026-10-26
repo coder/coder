@@ -1157,6 +1157,11 @@ jobs:
 
   storybook:
     name: Storybook
+    needs: changes
+    # Pull requests only snapshot Storybook when the frontend or CI changes.
+    # Every push to main and release branches still snapshots, which keeps
+    # the Pixel baseline current.
+    if: needs.changes.outputs.site == 'true' || needs.changes.outputs.ci == 'true' || github.event_name != 'pull_request'
 
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-24.04-16' || 'ubuntu-latest' }}
 
