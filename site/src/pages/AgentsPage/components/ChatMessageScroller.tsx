@@ -93,7 +93,7 @@ const EarlierMessages: React.FC<EarlierMessagesProps> = ({
 	}
 
 	return (
-		<div className="absolute inset-x-0 top-2 z-10 flex justify-center">
+		<div className="absolute left-0 right-[var(--agents-overview-room,0px)] top-2 z-10 flex justify-center">
 			<Button
 				variant="outline"
 				size="sm"
@@ -120,7 +120,10 @@ export const ChatMessageScroller: React.FC<ChatMessageScrollerProps> = ({
 
 	return (
 		<MessageScroller.Root className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-			<MessageScroller.Viewport className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain scrollbar-gutter-stable scrollbar-thin">
+			{/* The overview card's room (0px without the card) pads the
+			    scroll viewport, so the transcript centers beside the card
+			    while the scrollbar stays at the edge. */}
+			<MessageScroller.Viewport className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain scrollbar-gutter-stable scrollbar-thin pr-[var(--agents-overview-room,0px)]">
 				<MessageScroller.Content
 					data-testid="conversation-timeline"
 					aria-busy={earlierMessages.isFetchingMoreMessages || undefined}
@@ -140,7 +143,7 @@ export const ChatMessageScroller: React.FC<ChatMessageScrollerProps> = ({
 					<Button
 						variant="outline"
 						size="icon"
-						className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full bg-surface-primary shadow-md transition-all duration-200 data-[active=false]:translate-y-2 data-[active=false]:opacity-0"
+						className="absolute bottom-4 left-[calc((100%-var(--agents-overview-room,0px))/2)] z-10 -translate-x-1/2 rounded-full bg-surface-primary shadow-md transition-all duration-200 data-[active=false]:translate-y-2 data-[active=false]:opacity-0"
 					/>
 				}
 			>

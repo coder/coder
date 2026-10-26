@@ -237,12 +237,17 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 			</ChatMessageScroller>
 			{/* The empty state sits outside the scroller content, which holds
 			    transcript rows only. */}
-			<div className={cn("mx-auto w-full px-4", chatWidthClass(chatFullWidth))}>
-				<LiveStreamTailContent
-					isTranscriptEmpty={parsedMessages.length === 0}
-					liveStatus={liveStatus}
-				/>
-				{footer}
+			{/* The wrapper takes the overview card's room, like the scroller. */}
+			<div className="pr-[var(--agents-overview-room,0px)]">
+				<div
+					className={cn("mx-auto w-full px-4", chatWidthClass(chatFullWidth))}
+				>
+					<LiveStreamTailContent
+						isTranscriptEmpty={parsedMessages.length === 0}
+						liveStatus={liveStatus}
+					/>
+					{footer}
+				</div>
 			</div>
 		</Profiler>
 	);

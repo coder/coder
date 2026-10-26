@@ -888,6 +888,79 @@ export const EmbeddedViewport: Story = {
 	render: () => <StoryAgentChatPageView store={embeddedViewportStore} />,
 };
 
+const overviewCardStore = buildStoreWithMessages(
+	buildLongConversation(AGENT_ID, 12),
+);
+
+const overviewCardRepoDiff = [
+	"diff --git a/ci.yaml b/ci.yaml",
+	"--- a/ci.yaml",
+	"+++ b/ci.yaml",
+	"@@ -1,3 +1,4 @@",
+	"-jobs: all",
+	"+jobs: changed",
+	"+queue: true",
+].join("\n");
+
+const OverviewCardLayout: React.FC = () => (
+	<StoryAgentChatPageView
+		store={overviewCardStore}
+		chat={{
+			diff_statuses: [
+				{
+					...MockChatDiffStatus,
+					chat_id: AGENT_ID,
+					additions: 42,
+					deletions: 7,
+				},
+			],
+			children: [
+				buildChat({
+					id: "overview-sub-1",
+					title: "Find the flaky queue test",
+					status: "running",
+					parent_chat_id: AGENT_ID,
+				}),
+			],
+		}}
+		gitWatcher={{
+			...buildGitWatcher(),
+			repositories: new Map([
+				[
+					"/home/coder/coder",
+					{
+						repo_root: "/home/coder/coder",
+						branch: "ci/queue-only-jobs",
+						unified_diff: overviewCardRepoDiff,
+					},
+				],
+			]),
+		}}
+	/>
+);
+
+// The chat widths are a 1440px and a 1280px window less the 320px left
+// sidebar. The card needs a 66rem (1056px) chat.
+const overviewCardFrame =
+	(chatWidth: number): Decorator =>
+	(Story) => (
+		<div style={{ display: "flex", height: 640, width: chatWidth }}>
+			<Story />
+		</div>
+	);
+
+/** Panel closed on a wide chat: the card sits beside the transcript. */
+export const OverviewCardBesideTranscript: Story = {
+	decorators: [overviewCardFrame(1120)],
+	render: () => <OverviewCardLayout />,
+};
+
+/** Panel closed on a narrow chat: no card, the transcript stays centered. */
+export const OverviewCardHiddenWhenNarrow: Story = {
+	decorators: [overviewCardFrame(960)],
+	render: () => <OverviewCardLayout />,
+};
+
 const otherUserActionMessages: TypesGen.ChatMessage[] = [
 	buildMessage(1, "user", "Please review this plan."),
 	buildMessageWithContent(2, "assistant", [

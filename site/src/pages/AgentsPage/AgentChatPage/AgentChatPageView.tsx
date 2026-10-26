@@ -34,12 +34,14 @@ import {
 
 import { QueuedForCapacityCallout } from "../components/ChatConversation/QueuedForCapacityCallout";
 import { DesktopPanelContext } from "../components/ChatElements/tools/DesktopPanelContext";
+import { ChatOverviewCard } from "../components/ChatOverviewCard";
 import type { SendChatMessageOptions } from "../components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "../components/ChatPageContent";
 import { ChatSummaryPanel } from "../components/ChatSummaryPanel";
 import { getEffectiveTabId } from "../components/ChatsSidebar/tabs/getEffectiveTabId";
 import { SidebarTabView } from "../components/ChatsSidebar/tabs/SidebarTabView";
 import { ChatTopBar } from "../components/ChatTopBar";
+import { useEmbedContext } from "../components/EmbedContext";
 import { GitPanel } from "../components/GitPanel/GitPanel";
 import { DebugPanel } from "../components/RightPanel/DebugPanel/DebugPanel";
 import { DesktopPanel } from "../components/RightPanel/DesktopPanel";
@@ -327,6 +329,11 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	const isArchived = chat.archived;
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chat.status;
+	const [chatFullWidth] = useChatFullWidth();
+	const { isEmbedded } = useEmbedContext();
+	// The overview card's room follows the layout, not the card's data, so
+	// the transcript does not move when the card fills or empties.
+	const showOverviewRoom = !showSidebarPanel && !chatFullWidth && !isEmbedded;
 
 	const canSubmitChatTurn = !isInputDisabled && !isSubmissionPending;
 
@@ -822,7 +829,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 				<DesktopPanelContext value={desktopPanelCtx}>
 					<div
 						className={cn(
-							"relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]",
+							"@container/chat relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]",
 							shouldShowSidebar && !visualExpanded && "flex-row",
 						)}
 					>
@@ -832,6 +839,9 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 								"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden sm:min-w-(--agents-chat-panel-min-width,0px)",
 								visualExpanded && "hidden",
 								shouldShowSidebar && "max-lg:hidden",
+								// 48rem transcript + 1rem gap + 16rem card + 1rem inset.
+								showOverviewRoom &&
+									"@min-[66rem]/chat:[--agents-overview-room:18rem]",
 							)}
 						>
 							<div className="relative z-10 shrink-0 overflow-visible">
@@ -875,6 +885,16 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 											"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
 									}}
 								/>
+								{showOverviewRoom && (
+									<ChatOverviewCard
+										chat={chat}
+										store={store}
+										repositories={gitWatcher.repositories}
+										isHydratingMessages={isHydratingMessages}
+										onOpenTab={activateRightPanelTab}
+										className="absolute top-full right-4 z-20 mt-2 hidden @min-[66rem]/chat:flex"
+									/>
+								)}
 							</div>
 							<ChatPageTimeline
 								key={agentId}
@@ -917,7 +937,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 								}
 							/>
 							{!isArchived && (
-								<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
+								<div className="shrink-0 overflow-y-auto pl-4 pr-[calc(1rem+var(--agents-overview-room,0px))] pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
 									<ChatPageInput
 										chat={chat}
 										store={store}
@@ -1052,21 +1072,31 @@ export const AgentChatPageLoadingView: React.FC<
 	showRightPanel,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
+	const { isEmbedded } = useEmbedContext();
+	// Same room as the loaded view, so the transcript does not move when the
+	// chat loads.
+	const showOverviewRoom = !showRightPanel && !chatFullWidth && !isEmbedded;
 	return (
 		<div
 			className={cn(
-				"relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]",
+				"@container/chat relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]",
 				showRightPanel && "flex-row",
 			)}
 		>
-			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col sm:min-w-(--agents-chat-panel-min-width,0px)">
+			<div
+				className={cn(
+					"relative flex h-full min-h-0 min-w-0 flex-1 flex-col sm:min-w-(--agents-chat-panel-min-width,0px)",
+					showOverviewRoom &&
+						"@min-[66rem]/chat:[--agents-overview-room:18rem]",
+				)}
+			>
 				<ChatTopBar
 					panel={{
 						showSidebarPanel: false,
 						onToggleSidebar: () => {},
 					}}
 				/>
-				<div className="min-h-0 flex-1 overflow-y-auto scrollbar-gutter-stable scrollbar-thin">
+				<div className="min-h-0 flex-1 overflow-y-auto pr-[var(--agents-overview-room,0px)] scrollbar-gutter-stable scrollbar-thin">
 					<div className="px-4">
 						<div
 							className={cn(
@@ -1078,7 +1108,7 @@ export const AgentChatPageLoadingView: React.FC<
 						</div>
 					</div>
 				</div>
-				<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
+				<div className="shrink-0 overflow-y-auto pl-4 pr-[calc(1rem+var(--agents-overview-room,0px))] pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
 					<AgentChatInput
 						onSend={() => {}}
 						inputRef={inputRef}

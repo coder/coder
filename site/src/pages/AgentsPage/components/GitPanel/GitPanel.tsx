@@ -85,7 +85,7 @@ const countDiffLines = (unifiedDiff: string): DiffStats => {
 };
 
 // Per-repo diff stats, repos with no net change excluded.
-const computeRepoStats = (
+export const computeRepoStats = (
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>,
 ): Map<string, DiffStats> => {
 	const stats = new Map<string, DiffStats>();
