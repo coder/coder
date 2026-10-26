@@ -219,7 +219,6 @@ These images can then be run without modifying the Security Context Constraints 
    ```
 
    Note the `uid-range` and `supplemental-groups`.
-
    In this case, the project `coder` has been allocated 10,000 UIDs and GIDs, both starting at `1000680000`.
 
    In this example, we will pick both UID and GID `1000680000`.

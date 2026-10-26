@@ -17,6 +17,7 @@ When you have a candidate change for the docs, apply these rules in order:
 2. If the checklist routes the content away from the docs, find the correct home in the [routing table](#routing-table).
 3. If the content does belong in the docs, follow the [guiding principles](#guiding-principles), the [what belongs](#what-belongs-in-the-docs) catalog, and the [structural rules](#structural-rules).
 4. If you're still unsure, file a question in the DOCS project in Linear or tag `@vigilante` on a draft PR.
+
    Do not guess.
 
 ## Quick decision checklist
@@ -93,8 +94,10 @@ For each identifier, ask: **within the task this page documents, does the reader
 Then pick the first rung that applies, testing in order:
 
 1. **Typed or received in this page's task:** document the exact value, per [Verify against the code; document exact values](#verify-against-the-code-document-exact-values).
+
    This is the normal case for reference, API, CLI, and configuration content.
 2. **Shown in the product, on a surface this page's task involves:** use the words the product shows there, such as a visible status text, form field label, or button name.
+
    What the screen shows is what the reader can verify against it.
    Confirm the words are rendered as visible text on that surface, not only as accessibility labels.
 3. **Neither:** describe the behavior in plain terms of the reader's task, following the [voice and tone rules](./style-guide/voice-and-tone.md).
@@ -133,6 +136,7 @@ Three corollaries:
 2. **Features that are not yet confirmed to exist do not get documented.**
    No speculative docs for unmerged or uncommitted work.
 3. **Multi-PR launch exception.**
+
    For a body of work that spans several PRs and is spec'd to launch together by a particular date, docs may be written ahead of those merges, in the present tense, describing the feature as it will exist at launch.
    They must never read as a promise of what's coming.
    No "will support", "in a future release", "coming soon", or roadmap framing.
@@ -249,6 +253,7 @@ These govern *how* content enters the docs, for both humans and the doc-check ag
   If a page changes its position in the directory structure:
   1. Update every link that relies on its existing location.
   2. Add a rule to `docs/redirects.json` in the same PR that moves the page.
+
      Each rule has a `source` and a `destination`, both full `/docs/...` paths, and an optional `permanent` flag that defaults to `true`.
      A `destination` can also be an external `http` or `https` URL.
      A `source` is an exact path, a path ending in `/:path*`, or a path with a `:slug(.*)` capture.
@@ -271,7 +276,9 @@ These govern *how* content enters the docs, for both humans and the doc-check ag
 - **Terminology changes update the glossary.**
   When a change introduces, renames, or deprecates a Coder product or feature name, update the [glossary](../reference/glossary.md) in the same change, the way a user-facing feature lands with its docs:
   1. New name: add an entry with a short definition and a link to the page that covers the term.
-  2. Rename: update the entry and record the former name (for example, "previously named ...") so a reader who searches the old term still lands in the right place.
+  2. Rename: update the entry and record the former name (for example, "previously named ...").
+
+     A reader who searches the old term then still lands in the right place.
   3. Deprecation: mark the term deprecated and name its replacement.
 
   A term earns an entry when it is a Coder-specific product or feature proper noun, or a word that collides with another Coder meaning (for example, the several senses of "agent").

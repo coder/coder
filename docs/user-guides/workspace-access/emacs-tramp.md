@@ -86,13 +86,8 @@ To fix this:
    ansi_term_announce
    ```
 
-   Ansi Term expects the terminal running inside it to send escape codes.
-
-   These inform Emacs of the hostname, user, and working directory.
-
-   The above code sends these escape codes and associated data.
-
-   It does so whenever the terminal logs in and whenever the directory changes.
+   Ansi Term expects the terminal running inside of it to send escape codes to inform Emacs of the hostname, user, and working directory.
+   The above code sends these escape codes and associated data whenever the terminal logs in and whenever the directory changes.
 
 ### eshell
 

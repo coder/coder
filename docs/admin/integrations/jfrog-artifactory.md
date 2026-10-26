@@ -60,7 +60,7 @@ To set this up, follow these steps:
            scope: "applied-permissions/user"
    ```
 
-1. Add a new [external authentication](../external-auth.md) to Coder by setting these environment variables in a manner consistent with your Coder deployment.
+1. Add a new [external authentication](../external-auth.md) to Coder by setting these environment variables on your Coder deployment.
 
    Replace `JFROG_URL` with your JFrog Artifactory base URL, and the client ID and secret with the values from step 1:
 
@@ -108,7 +108,7 @@ To set this up, follow these steps:
 
 1. Create or edit a Coder template and use the [JFrog-Token](https://registry.coder.com/modules/jfrog-token) module to configure the integration and pass the admin token.
 
-   Consider storing the token in a sensitive Terraform variable so it isn't displayed in plain text in the Terraform state:
+   It is recommended to store the token in a sensitive Terraform variable to prevent it from being displayed in plain text in the terraform state:
 
    ```tf
    variable "artifactory_access_token" {

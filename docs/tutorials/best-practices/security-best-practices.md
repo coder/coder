@@ -148,13 +148,11 @@ Running provisioner daemons within the same cluster/cloud as the workspaces they
 
 1. Tag provisioners with identifiers for the specific cluster/cloud.
 
-   This allows your templates to target a specific cluster/cloud.
-
-   Reasons include geographic proximity to the end user, or specific features like GPUs or managed services.
+   This allows your templates to target a specific cluster/cloud such as for geographic proximity to the end user, or for specific features like GPUs or managed services.
 
 1. Scope your keys to organizations and the specific cluster/cloud using the same tags when creating the keys.
 
-   This ensures that a compromised key will not give an attacker access to jobs for other clusters or organizations.
+   This ensures that a compromised key will not allow an attacker to gain access to jobs for other clusters or organizations.
 
 Provisioner daemons should have access only to cluster/cloud API credentials for the specific cluster/cloud they are for.
 This ensures that compromise of one Provisioner Daemon does not compromise all clusters/clouds.
@@ -269,20 +267,14 @@ GitOps is the practice of using a Git repository as the source of truth for oper
 
 1. Store Coder templates in a single Git repository, or a single repository per Coder organization.
 
-   Use the [Coderd Terraform provider](https://registry.terraform.io/providers/coder/coderd/latest/docs/resources/template) to push changes from the main branch to Coder using a CI/CD tool.
-
    This gives you an easily browsable, auditable history of template changes and who made them.
+   Coder audit logs establish who and when changes happen, but git repositories are particularly handy for analyzing exactly what changes to templates are made.
 
-   Coder audit logs establish who and when changes happen.
+1. Use the [Coderd Terraform provider](https://registry.terraform.io/providers/coder/coderd/latest/docs/resources/template) to push changes from the main branch to Coder using a CI/CD tool.
 
-   Git repositories are particularly handy for analyzing exactly what changes to templates are made.
+1. Use a Coder user account exclusively for pushing template changes, and give no human users the credentials.
 
-1. Use a Coder user account exclusively for pushing template changes.
-   Do not give any human users the credentials.
-
-   This ensures any actions taken by the account correspond exactly to CI/CD actions from the repository.
-
-   It also lets you avoid granting the template admin role widely in your organization.
+   This ensures any actions taken by the account correspond exactly to CI/CD actions from the repository and allows you to avoid granting the template admin role widely in your organization.
 
 1. Use [GitHub branch protection](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches), or the equivalent for your source repository to enforce code review of changes to templates.
 
@@ -376,11 +368,7 @@ Coder workspace apps are a way to allow users to access web applications running
 
 1. [Use a separate, wildcard domain name](../../admin/setup/index.md#wildcard-access-url) for forwarding.
 
-   Browsers apply a default [same-origin policy](https://en.wikipedia.org/wiki/Same-origin_policy).
-
-   Serving web apps on the main Coder domain would otherwise let those apps send API requests to the control plane.
-
-   Those requests would be authenticated as the logged-in user without their explicit consent.
+   Because of the default [same-origin policy](https://en.wikipedia.org/wiki/Same-origin_policy) in browsers, serving web apps on the main Coder domain would allow those apps to send API requests to the control plane, authenticated as the logged-in user without their explicit consent.
 
 #### Port sharing
 

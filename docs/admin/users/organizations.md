@@ -78,7 +78,6 @@ Before creating templates, we must deploy at least one provisioner as the built-
 1. Start the provisioner with the key on your desired platform.
 
    In this example, start the provisioner using the Coder CLI on a host with Docker.
-
    For instructions on using other platforms like Kubernetes, see our [provisioner documentation](../../install/operate/provisioners/index.md).
 
    ```sh

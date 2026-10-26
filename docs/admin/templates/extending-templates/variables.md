@@ -69,7 +69,6 @@ When working with Terraform configurations in Coder, you have several options fo
 1. _Variables file selection_: Alternatively, you can use a variables file selected via the `--variables-file values.yml` command-line argument.
 
    This approach is particularly useful when dealing with multiple variables or to avoid manual input of numerous values.
-
    Variables files can be versioned for better traceability and management, and it enhances reproducibility.
 
 Here's an example of a YAML-formatted variables file, `values.yml`:

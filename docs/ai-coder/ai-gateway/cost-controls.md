@@ -114,7 +114,7 @@ A user can belong to several groups that have budgets, and can also hold an over
 AI Gateway resolves a single effective group for each request, in this order:
 
 1. The user's [override](#user-override) takes precedence over every group budget.
-1. Otherwise, the [budget policy](#deployment-settings) selects one of the groups the user belongs to.
+1. Otherwise, the [budget policy](#deployment-settings) selects one of the user's groups.
 
    The default policy, `highest`, selects the group with the largest budget.
 1. If none of those groups has a budget, the user has *effectively* unlimited spend.

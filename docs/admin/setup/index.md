@@ -57,8 +57,7 @@ It requires a DNS record and TLS certificate for `*.example.com`.
 If you are providing TLS certificates directly to the control plane, either
 
 1. Use a single certificate and key for both the root and wildcard domains.
-1. Configure multiple certificates and keys via [`coder.tls.secretNames`](../../../helm/coder/values.yaml) in the Helm Chart.
-   Or use the [`--tls-cert-file`](../../reference/cli/server/index.md#--tls-cert-file) and [`--tls-key-file`](../../reference/cli/server/index.md#--tls-key-file) command line options.
+1. Configure multiple certificates and keys via [`coder.tls.secretNames`](../../../helm/coder/values.yaml) in the Helm Chart, or [`--tls-cert-file`](../../reference/cli/server/index.md#--tls-cert-file) and [`--tls-key-file`](../../reference/cli/server/index.md#--tls-key-file) command line options.
 
    These options both take a comma separated list of files.
    List certificates and their respective keys in the same order.
@@ -86,7 +85,6 @@ You must have the certificate `.key` and `.crt` files in your working directory 
    ```
 
    You can use a single certificate for the both the access URL and wildcard access URL.
-
    The certificate CN must match the wildcard domain, such as `*.example.coder.com`.
 
 1. Reference the TLS secret in your Coder Helm chart values

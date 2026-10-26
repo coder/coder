@@ -80,9 +80,7 @@ Otherwise, follow the steps below to install a free runtime quickly on your plat
    newgrp docker
    ```
 
-   You might need to log out of and back into your machine.
-
-   Or restart your machine for changes to take effect.
+   You might need to log out of and back into your machine or restart your machine for changes to take effect.
 
 1. Launch the Docker daemon:
 
@@ -112,14 +110,9 @@ Otherwise, follow the steps below to install a free runtime quickly on your plat
    export DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock"
    ```
 
-   Colima exposes its Docker socket at `~/.colima/default/docker.sock`, not `/var/run/docker.sock`.
-
-   Coder needs `DOCKER_HOST` to find it.
+   Colima exposes its Docker socket at `~/.colima/default/docker.sock`, not `/var/run/docker.sock`, so Coder needs `DOCKER_HOST` to find it.
    Set it in the same terminal where you'll run `coder server` in the next step.
-
-   To persist it across new terminals and restarts, add the `export` line to your shell's startup file.
-
-   Examples are `~/.zshrc`, `~/.bashrc`, and `~/.config/fish/config.fish`.
+   To persist it across new terminals and restarts, add the `export` line to your shell's startup file, such as `~/.zshrc`, `~/.bashrc`, or `~/.config/fish/config.fish`.
 
 ### Windows
 
@@ -132,11 +125,10 @@ Its onboarding installs and configures the required Windows Subsystem for Linux 
 
 1. Follow the onboarding to configure Podman.
 
-1. If you configured Podman to use WSL2, then you will need to do one of two things.
+1. If you configured Podman to use WSL2, upgrade WSL2 to version 2.5.1 or later, or create a `.wslconfig` file.
 
-   Either upgrade WSL2 to version 2.5.1 or later (which uses [cgroups](https://wikipedia.org/wiki/Cgroups) v2 by default).
-
-   Or create a `.wslconfig` file in the `%USERPROFILE%` directory with the following contents
+   WSL2 version 2.5.1 and later use [cgroups](https://wikipedia.org/wiki/Cgroups) v2 by default.
+   Create the `.wslconfig` file in the `%USERPROFILE%` directory with the following contents:
 
    ```txt
    [wsl2]
@@ -210,7 +202,6 @@ For more detailed options, visit the [Install](../install/index.md) page.
    - Password: Choose a strong password.
 
    You can also choose to **Continue with GitHub** instead of creating an admin account.
-
    Coder automatically grants admin permissions to the first user that signs in.
 
    ![Welcome to Coder - Create admin user](../images/screenshots/welcome-create-admin-user.png)
@@ -231,10 +222,9 @@ The template builder guides you through creating one without writing any Terrafo
    > [!NOTE]
    > This template requires Docker to be running in the background, so make sure Docker is running.
 
-1. Skip or configure any base template parameters, then select modules to add IDEs and tools to your template.
+1. Skip or configure any base template parameters, then select modules to add IDEs and tools.
 
    For example, add **code-server** to get VS Code in the browser.
-
    You can skip module selection for now and add modules later.
 
 1. On the final step, name your template:
@@ -351,9 +341,9 @@ When you're ready for other people to use it:
 
 1. Install the control plane on a separate machine by following the [Install guide](../install/index.md).
 1. [Create users](../admin/users/index.md#create-a-user) for your teammates, or connect an SSO provider.
-1. Have each teammate launch their own workspace from your template, which everyone in the organization can use by default.
+1. Have each teammate launch their own workspace from your template.
 
-   Refer to [Workspace management](../user-guides/workspace-management.md).
+   Everyone in the organization can use the template by default; refer to [Workspace management](../user-guides/workspace-management.md).
 
 ## Learn more
 
@@ -433,9 +423,7 @@ In that case, point Coder at the socket with the `DOCKER_HOST` environment varia
    export DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock"
    ```
 
-   To persist the setting across restarts, add that `export` line to your shell's startup file.
-
-   Examples are `~/.zshrc`, `~/.bashrc`, and `~/.config/fish/config.fish`.
+   To persist the setting across restarts, add that `export` line to your shell's startup file, such as `~/.zshrc`, `~/.bashrc`, or `~/.config/fish/config.fish`.
 
 #### Windows
 

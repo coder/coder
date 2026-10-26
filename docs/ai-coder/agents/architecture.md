@@ -17,9 +17,8 @@ Three components are involved in every agent interaction:
 
    It never communicates with the workspace directly.
 1. **The workspace** is standard compute infrastructure.
-   It runs shell commands, reads and writes files, and executes processes.
 
-   This is exactly what occurs when a developer connects via their IDE.
+   It runs shell commands, reads and writes files, and executes processes (exactly what occurs when a developer connects via their IDE).
 
 <img src="../../images/guides/ai-agents/agent-loop-detailed.png" alt="Architecture diagram">
 
@@ -66,9 +65,9 @@ When a user submits a prompt, the control plane processes it as a background job
 1. A chat worker in the control plane claims the chat and starts a turn.
 1. The control plane streams the conversation to the configured LLM provider.
 1. The model responds with text, reasoning, or tool calls.
-1. If the response includes tool calls, the control plane executes them (connecting to the workspace as needed).
+1. If the response includes tool calls, the control plane executes them and returns the results to the model.
 
-   The control plane returns the results to the model.
+   The control plane connects to the workspace as needed.
 1. Steps 3 through 5 repeat until the model produces a final response with no further tool calls.
 1. The chat is marked `waiting` for the next user message.
 

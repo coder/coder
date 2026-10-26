@@ -289,11 +289,7 @@ Coder provides a Helm chart for running external provisioner daemons, which you 
    ```
 
    This example creates a deployment of 10 provisioner daemons (for 10 concurrent builds) authenticating using the above key.
-
-   The daemons will authenticate using the provisioner key created in the previous step.
-
-   They acquire jobs matching the tags specified when the provisioner key was created.
-
+   The daemons will authenticate using the provisioner key created in the previous step and acquire jobs matching the tags specified when the provisioner key was created.
    The set of tags is inferred automatically from the provisioner key.
 
    > Refer to the [values.yaml](../../../../helm/provisioner/values.yaml) file for the coder-provisioner chart for information on what values can be specified.
@@ -307,8 +303,7 @@ Coder provides a Helm chart for running external provisioner daemons, which you 
        --values provisioner-values.yaml
    ```
 
-   Verify that your provisioner daemons connected to `coderd`.
-   Look for the debug log message `provisioner: successfully connected to coderd` from each Pod.
+   You can verify that your provisioner daemons have successfully connected to `coderd` by looking for a debug log message that says `provisioner: successfully connected to coderd` from each Pod.
 
 ## Example: Running an external provisioner on a VM
 

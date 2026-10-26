@@ -27,10 +27,7 @@ Visit <https://coder.com/trial> or contact [sales@coder.com](mailto:sales@coder.
 
    ![Add a license from the licenses screen](../images/admin/licenses/licenses-nolicense.png)
 
-1. On the **Add a license** screen, drag your `.jwt` license file into the **Upload Your License** section.
-
-   Or paste your license in the **Paste Your License** text box.
-   Then select **Upload License**:
+1. On the **Add a license** screen, drag your `.jwt` file into **Upload Your License** or paste it into **Paste Your License**, then select **Upload License**:
 
    ![Add a license screen](../images/admin/licenses/add-license-ui.png)
 
@@ -390,7 +387,8 @@ An example use case is the user should decide if they want a browser-based IDE l
     ```
 
 3. Add a Terraform meta-argument [`count`](https://developer.hashicorp.com/terraform/language/meta-arguments/count) in the `coder_app` resource.
-   This creates the resource only if the `coder_parameter` is `true`
+
+    This creates the resource only if the `coder_parameter` is `true`.
 
     ```tf
     # code-server

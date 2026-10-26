@@ -79,8 +79,8 @@ Role sync assigns roles at sign-in and doesn't store default roles, so members w
 To limit Coder Agents to a subset of members in an organization (requires a Premium license):
 
 1. Remove **Coder Agents User** from the organization's default roles.
-   In the dashboard, go to **Admin settings** > **Organizations** > **Roles** > **Default Roles**.
 
+   In the dashboard, go to **Admin settings** > **Organizations** > **Roles** > **Default Roles**.
    From the CLI, run `coder organizations edit --org <organization> --default-org-member-roles organization-workspace-access`, keeping any other default roles in the list.
 1. Grant `agents-access` to the members who need it:
    - With [IdP organization role sync](../../admin/users/idp-sync.md#role-sync), map an IdP group or role to `agents-access`.

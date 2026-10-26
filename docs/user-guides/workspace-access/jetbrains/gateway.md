@@ -30,19 +30,15 @@ Gateway can connect to a Coder workspace using Coder's Gateway plugin or through
 1. Enter your Coder deployment's [Access Url](../../../admin/setup/index.md#access-url) and select **Connect**.
 
    Gateway opens your Coder deployment's `cli-auth` page with a session token.
-
    Select the copy button, paste the session token in the Gateway **Session Token** window, then select **OK**:
 
    ![Gateway Session Token](../../../images/gateway/plugin-session-token.png)
 
 1. To create a new workspace:
 
-   Select the <kbd>+</kbd> icon to open a browser.
-   Go to the templates page in your Coder deployment to create a workspace.
+   Select the <kbd>+</kbd> icon to open a browser and go to the templates page in your Coder deployment to create a workspace.
 
-1. If a workspace already exists but is stopped, select the workspace from the list.
-
-   Then select the green arrow to start the workspace.
+1. If a stopped workspace exists, select it from the list, then select the green arrow to start it.
 
 1. When the workspace status is **Running**, select **Select IDE and Project**:
 

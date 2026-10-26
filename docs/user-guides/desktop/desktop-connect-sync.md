@@ -143,15 +143,13 @@ Even though the browser displays a warning about an insecure connection without 
 
 1. Enter `dom.securecontext.allowlist` into the search bar at the top.
 
-1. Select **String** on the entry with the same name at the bottom of the list.
-
-   Then select the plus icon on the right.
+1. Select **String** on the entry with that name at the bottom, then select the plus icon on the right.
 
 1. In the text field, enter the full workspace hostname, without the `http` scheme and port: `your-workspace.coder`.
 
-   Then select the tick icon.
-
    If you need to enter multiple URLs, use a comma to separate them.
+
+1. Select the tick icon.
 
    ![Firefox insecure origin settings](../../images/user-guides/desktop/firefox-insecure-origin.png)
 

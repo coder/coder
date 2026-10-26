@@ -201,9 +201,9 @@ When you cannot use the default credential chain, create a dedicated IAM user an
    - Select **Create access key**.
    - Save both the access key ID and secret access key securely.
 
-4. **Enter the access key ID and secret access key** when you add or edit the Bedrock provider from the dashboard or the [AI Providers API](../../reference/api/aiproviders.md).
+4. **Enter the access key ID and secret access key** when you add or edit the Bedrock provider.
 
-   Also enter the region (or base URL) and model identifiers.
+   Add or edit the provider from the dashboard or the [AI Providers API](../../reference/api/aiproviders.md), along with the region (or base URL) and model identifiers.
 
 #### IAM role assumption
 
@@ -213,8 +213,9 @@ The field is optional: a provider with no Role ARN authenticates with its base i
 
 To use role assumption:
 
-1. **Create the IAM role** in the target account and grant it `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream` for the configured models.
+1. **Create the IAM role** in the target account.
 
+   Grant it `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream` for the configured models.
    The base identity does not need Bedrock permissions itself; the assumed role does.
 
 2. **Configure the role's trust policy** to allow the gateway's base identity to assume it.

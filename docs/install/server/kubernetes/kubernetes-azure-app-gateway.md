@@ -170,9 +170,7 @@ The steps here follow the Microsoft tutorial for a Coder deployment.
          wildcardSecretName: ""
    ```
 
-   The application gateway ingress controller that you enabled earlier watches for Ingress resources with the `azure-application-gateway` class.
-
-   It configures the gateway to route traffic to the Coder service.
+   The application gateway ingress controller that you enabled earlier watches for Ingress resources with the `azure-application-gateway` class and configures the gateway to route traffic to the Coder service.
 
 1. Deploy Coder to AKS cluster:
 
@@ -190,9 +188,7 @@ The steps here follow the Microsoft tutorial for a Coder deployment.
    kubectl get ingress -n coder
    ```
 
-   After the `ADDRESS` column shows the IP address, go to your access URL in a browser.
-
-   Create the first Coder user.
+   After the `ADDRESS` column shows the IP address, go to your access URL in a browser to create the first Coder user.
 
 1. When you no longer need the deployment, clean up Azure resources:
 

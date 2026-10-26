@@ -1,4 +1,4 @@
-# Coder.StepLength - keep each paragraph of an ordered-list step to 20 words.
+# Coder.StepLength - keep the instruction of an ordered-list step to 20 words.
 # Refer to procedural-writing.md#keep-steps-short for the rule and
 # voice-and-tone.md#how-to-count-words for how words are counted.
 #
@@ -12,15 +12,16 @@
 # - A step is an ordered-list item whose marker is `1.` or `1)`. A nested
 #   ordered item is its own step. Bullet items, even under a step, are not
 #   steps.
-# - A step is split into paragraph segments, and each segment is counted on
-#   its own. A segment is the marker line plus the lines that follow it. It
-#   ends at a blank line, a fence, a nested list (ordered or bullet), a table
-#   row, a blockquote, block-level HTML, or an explicit hard break: a line
-#   ending in `<br>`, a backslash, or two spaces. A paragraph after a blank
-#   line belongs to the step, and counts as a new segment, when it is indented
-#   at least to the step's text. Anything less indented ends the step. The
-#   words of nested bullets, tables, quotes, fenced code, and images are not
-#   counted.
+# - A step is split into paragraph segments, and only the first segment, the
+#   step's instruction, is counted. Later segments explain the step and follow
+#   the body prose target instead. A segment is the marker line plus the lines
+#   that follow it. It ends at a blank line, a fence, a nested list (ordered
+#   or bullet), a table row, a blockquote, block-level HTML, or an explicit
+#   hard break: a line ending in `<br>`, a backslash, or two spaces. A
+#   paragraph after a blank line belongs to the step, and is a new segment,
+#   when it is indented at least to the step's text. Anything less indented
+#   ends the step. The words of nested bullets, tables, quotes, fenced code,
+#   and images are not counted.
 # - Fenced code blocks and HTML comments are skipped.
 # - Words are separated by whitespace, so a hyphenated compound and
 #   `30&nbsp;seconds` are one word. A number followed by a regular space and a
@@ -36,14 +37,13 @@
 #   letters.
 # - A token with no letter or digit, such as the `>` in `**A** > **B**`, is
 #   not a word.
-# - Sentence boundaries do not matter: the limit applies to the whole
-#   segment, so a step with an action and an expected result is counted
-#   together.
+# - Sentence boundaries do not matter: the limit applies to the whole first
+#   segment, so an action and an expected result in it are counted together.
 # - The match spans the offending segment, from its first word to its last.
 #   Vale locates a match by its text, so a span of only the first word of a
 #   wrapped segment can resolve to an earlier line that repeats the word.
 extends: script
-message: "This step paragraph has more than 20 words. Split the step or move background information out of it. Refer to procedural-writing.md#keep-steps-short."
+message: "This step's instruction has more than 20 words. Shorten it, split the step, or move the explanation to a paragraph below the instruction. Refer to procedural-writing.md#keep-steps-short."
 link: https://github.com/coder/coder/blob/main/docs/.style/style-guide/procedural-writing.md#keep-steps-short
 level: warning
 scope: raw
@@ -312,13 +312,15 @@ script: |
   step_indent := 0
   seg := ""
   seg_base := 0
+  checked := false
   blank := false
   skipping := false
   skip_col := 0
 
   end_seg := func() {
-    if seg != "" {
+    if seg != "" && !checked {
       check(seg, seg_base)
+      checked = true
     }
     seg = ""
   }
@@ -393,6 +395,7 @@ script: |
       end_step()
       if content < len(line) && !is_space(line[content]) {
         in_step = true
+        checked = false
         step_indent = content
         add(line, content)
       }
