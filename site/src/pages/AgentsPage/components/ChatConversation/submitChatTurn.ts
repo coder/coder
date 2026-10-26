@@ -290,6 +290,7 @@ export async function submitChatTurn(
 				message: buildOptimisticEditedMessage({
 					requestContent: content,
 					originalMessage: {
+						// The store replaces the ID with a pending row ID.
 						id: 0,
 						chat_id: agentId,
 						created_at: new Date().toISOString(),
