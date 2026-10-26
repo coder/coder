@@ -438,74 +438,6 @@ func (s *failNextUpsertChatPlanModeInstructionsStore) UpsertChatPlanModeInstruct
 	return s.Store.UpsertChatPlanModeInstructions(ctx, instructions)
 }
 
-// lockSwitchChatPlanModeInstructionsStore can disable the per-setting
-// advisory lock (to prove its effect) and stall each transaction after its
-// Old-capture read until every concurrent transaction has read, so the
-// stale-Old race the lock prevents is deterministic when the lock is off.
-// The lock must stay enabled in any test that leaves it on, or the barrier
-// deadlocks.
-type lockSwitchChatPlanModeInstructionsStore struct {
-	database.Store
-
-	lockEnabled *atomic.Bool
-	mu          *sync.Mutex
-	parked      *int
-	target      *atomic.Int64
-	release     chan struct{}
-}
-
-func newLockSwitchChatPlanModeInstructionsStore(store database.Store) *lockSwitchChatPlanModeInstructionsStore {
-	return &lockSwitchChatPlanModeInstructionsStore{
-		Store:       store,
-		lockEnabled: &atomic.Bool{},
-		mu:          &sync.Mutex{},
-		parked:      new(int),
-		target:      &atomic.Int64{},
-		release:     make(chan struct{}),
-	}
-}
-
-func (s *lockSwitchChatPlanModeInstructionsStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
-	return s.Store.InTx(func(tx database.Store) error {
-		return function(&lockSwitchChatPlanModeInstructionsStore{
-			Store:       tx,
-			lockEnabled: s.lockEnabled,
-			mu:          s.mu,
-			parked:      s.parked,
-			target:      s.target,
-			release:     s.release,
-		})
-	}, txOpts)
-}
-
-func (s *lockSwitchChatPlanModeInstructionsStore) AcquireLock(ctx context.Context, id int64) error {
-	if !s.lockEnabled.Load() {
-		return nil
-	}
-	return s.Store.AcquireLock(ctx, id)
-}
-
-func (s *lockSwitchChatPlanModeInstructionsStore) GetChatPlanModeInstructions(ctx context.Context) (string, error) {
-	// Read before parking so every waiter holds the same stale value no
-	// matter how goroutines are scheduled afterwards. Parking before the
-	// read lets the releasing goroutine write and commit before a slowly
-	// waking waiter executes its read, which then sees the committed new
-	// value under read committed and turns into a no-op.
-	instructions, err := s.Store.GetChatPlanModeInstructions(ctx)
-	if s.target.Load() > 0 {
-		s.mu.Lock()
-		*s.parked++
-		done := *s.parked >= int(s.target.Load())
-		s.mu.Unlock()
-		if done {
-			close(s.release)
-		} else {
-			<-s.release
-		}
-	}
-	return instructions, err
-}
-
 type chatModelConfigLockedReadMutation struct {
 	id    uuid.UUID
 	model string
@@ -15618,27 +15550,16 @@ func TestChatPlanModeInstructions(t *testing.T) {
 		require.JSONEq(t, "{}", string(logs[0].Diff))
 	})
 
-	// Two concurrent identical PUTs both succeed, but the per-setting lock
-	// serializes the Old capture with the write, so the second
-	// transaction's comparison sees the first's committed state and only
-	// the first write is audited as a change. The barrier forces both
-	// transactions to the Old capture before either commits, so the
-	// lock-off case below reproduces the stale-Old race deterministically.
 	t.Run("AuditConcurrentIdenticalPUTsSingleEntry", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		rawDB, pubsub := dbtestutil.NewDB(t)
-		store := newLockSwitchChatPlanModeInstructionsStore(rawDB)
-		store.lockEnabled.Store(true)
+		db, pubsub, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 		mAudit := audit.NewMock()
-		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-			Database:         store,
-			Pubsub:           pubsub,
-			DeploymentValues: coderdtest.DeploymentValues(t),
-			Auditor:          mAudit,
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Database = db
+			opts.Pubsub = pubsub
+			opts.Auditor = mAudit
 		})
-		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-		client := codersdk.NewExperimentalClient(rawClient)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 		// Discard the login entry emitted by user creation.
 		mAudit.ResetLogs()
@@ -15648,87 +15569,52 @@ func TestChatPlanModeInstructions(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, mAudit.AuditLogs(), 1)
+
+		// Blocking both PUTs exposes duplicate audits if Old is read before locking.
+		holding := make(chan struct{})
+		release := make(chan struct{})
+		releaseLock := sync.OnceFunc(func() { close(release) })
+		t.Cleanup(releaseLock)
+		holderErr := make(chan error, 1)
+		go func() {
+			holderErr <- db.InTx(func(tx database.Store) error {
+				if err := tx.AcquireLock(ctx, database.LockIDChatInstructionPlanMode); err != nil {
+					return err
+				}
+				close(holding)
+				<-release
+				return nil
+			}, nil)
+		}()
+		testutil.TryReceive(ctx, t, holding)
 
 		// Concurrent identical PUTs of a NEW value under the lock: the
 		// first is a real change, the second sees the first's committed
 		// value and is a no-op.
 		mAudit.ResetLogs()
 		const puts = 2
-		start := make(chan struct{})
 		errs := make(chan error, puts)
-		var wg sync.WaitGroup
 		for range puts {
-			wg.Add(1)
 			go func() {
-				defer wg.Done()
-				<-start
 				errs <- client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
 					PlanModeInstructions: "Concurrent instructions.",
 				})
 			}()
 		}
-		close(start)
-		wg.Wait()
-		close(errs)
-		for err := range errs {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+			var waiting int
+			err := sqlDB.QueryRowContext(ctx, `SELECT count(*) FROM pg_locks
+				WHERE locktype = 'advisory' AND NOT granted
+				AND database = (SELECT oid FROM pg_database WHERE datname = current_database())`).Scan(&waiting)
 			require.NoError(t, err)
-		}
-		require.Len(t, mAudit.AuditLogs(), 1)
-	})
-
-	// With the lock removed, the barrier parks both transactions at the
-	// Old capture before either writes, so both read the same stale Old,
-	// both write, and both emit: the exact duplicate the lock prevents.
-	// This is the mutation proof for the lock.
-	t.Run("AuditConcurrentIdenticalPUTsDuplicateWithoutLock", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		rawDB, pubsub := dbtestutil.NewDB(t)
-		store := newLockSwitchChatPlanModeInstructionsStore(rawDB)
-		// Lock disabled.
-		mAudit := audit.NewMock()
-		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-			Database:         store,
-			Pubsub:           pubsub,
-			DeploymentValues: coderdtest.DeploymentValues(t),
-			Auditor:          mAudit,
-		})
-		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-		client := codersdk.NewExperimentalClient(rawClient)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-		// Discard the login entry emitted by user creation.
-		mAudit.ResetLogs()
-
-		err := client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
-			PlanModeInstructions: "Seed instructions.",
-		})
-		require.NoError(t, err)
-		require.Len(t, mAudit.AuditLogs(), 1)
-
-		mAudit.ResetLogs()
-		store.target.Store(2)
-		const puts = 2
-		start := make(chan struct{})
-		errs := make(chan error, puts)
-		var wg sync.WaitGroup
+			return waiting == puts
+		}, testutil.IntervalFast, "both PUTs wait for the lock")
+		releaseLock()
+		require.NoError(t, testutil.TryReceive(ctx, t, holderErr))
 		for range puts {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				<-start
-				errs <- client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
-					PlanModeInstructions: "Concurrent instructions.",
-				})
-			}()
+			require.NoError(t, testutil.TryReceive(ctx, t, errs))
 		}
-		close(start)
-		wg.Wait()
-		close(errs)
-		for err := range errs {
-			require.NoError(t, err)
-		}
-		// Both captured the same stale Old and both wrote: two entries.
-		require.Len(t, mAudit.AuditLogs(), 2)
+		require.Len(t, mAudit.AuditLogs(), 1)
 	})
 }
 
