@@ -3,8 +3,12 @@ title: Order startup and shutdown scripts
 ---
 
 As a template author, you can use the `coder_script_order` data source to declare dependencies between startup or shutdown scripts.
-By default, Coder runs each dependent script after its prerequisites succeed, while independent scripts run concurrently.
 You can order individual `coder_script` resources or all scripts in a child module without adding coordination commands to script bodies.
+
+Splitting workspace initialization into separate `coder_script` resources lets independent tasks run in parallel, which can shorten startup time.
+Some scripts still depend on work performed by others.
+For example, a script that installs application dependencies needs the repository to be cloned before it starts.
+Without declared dependencies, these scripts can run at the same time, causing intermittent startup failures.
 
 ## Requirements
 
