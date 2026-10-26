@@ -404,6 +404,14 @@ func TestBuffer_SendWaitingAtCloseTimesOutAfterClose(t *testing.T) {
 		clock.Advance(time.Millisecond).MustWait(ctx)
 		synctest.Wait()
 		assertChannelClosed(t, dropped)
+
+		// The second cleanup after the close is the first past retention.
+		for range 2 {
+			_, w := clock.AdvanceNext()
+			w.MustWait(ctx)
+			synctest.Wait()
+		}
+		require.Equal(t, 0, buffer.EpisodeCount(), "the dropped subscriber kept the closed episode")
 	})
 }
 
@@ -476,53 +484,6 @@ func TestBuffer_SlowSubscriberOfOpenEpisodeCatchesUp(t *testing.T) {
 		for _, want := range []string{"a", "b", "c", "d"} {
 			require.Equal(t, want, receivePart(t, ch).MessagePart.Text)
 		}
-	})
-}
-
-func TestBuffer_StuckSubscriberRetainsClosedEpisodeUntilSendTimeout(t *testing.T) {
-	t.Parallel()
-
-	synctest.Test(t, func(t *testing.T) {
-		const (
-			retention   = 30 * time.Second
-			sendTimeout = 75 * time.Second
-		)
-		clock := quartz.NewMock(t)
-		buffer := messagepartbuffer.New(messagepartbuffer.Options{
-			Clock:                  clock,
-			ClosedEpisodeRetention: retention,
-			SubscriberSendTimeout:  sendTimeout,
-		})
-		defer buffer.Close()
-		key := testEpisodeKey()
-		require.NoError(t, buffer.CreateEpisode(key))
-		require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("held")))
-		ctx := testutil.Context(t, testutil.WaitLong)
-		ch, cancel, err := buffer.SubscribeToEpisode(ctx, key)
-		require.NoError(t, err)
-		defer cancel()
-		synctest.Wait()
-
-		// Cleanups run every 30s. Close at 20s, drop at 95s, collection at
-		// 120s. A timeout counted from the send's start would drop at 75s, and
-		// the 90s cleanup would collect the episode.
-		advance := func(d time.Duration) {
-			clock.Advance(d).MustWait(ctx)
-			synctest.Wait()
-		}
-		advance(20 * time.Second)
-		require.NoError(t, buffer.CloseEpisode(key))
-		synctest.Wait()
-		advance(10 * time.Second)
-		advance(30 * time.Second)
-		advance(15 * time.Second)
-		advance(15 * time.Second)
-		require.Equal(t, 1, buffer.EpisodeCount(), "a subscribed closed episode was collected")
-		advance(5 * time.Second)
-		assertChannelClosed(t, ch)
-		require.Equal(t, 1, buffer.EpisodeCount())
-		advance(25 * time.Second)
-		require.Equal(t, 0, buffer.EpisodeCount(), "the closed episode was not collected after the subscriber was dropped")
 	})
 }
 
