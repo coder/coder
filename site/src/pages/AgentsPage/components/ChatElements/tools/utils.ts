@@ -153,50 +153,36 @@ export const mapSubagentStatusToToolStatus = (
 	}
 };
 
+/** JSON.parse that returns undefined for invalid JSON. */
+const parseJSON = (text: string): unknown => {
+	try {
+		return JSON.parse(text);
+	} catch {
+		return undefined;
+	}
+};
+
 export const parseArgs = (args: unknown): Record<string, unknown> | null => {
 	if (!args) {
 		return null;
 	}
-	if (typeof args === "string") {
-		try {
-			const parsed = JSON.parse(args);
-			return asRecord(parsed);
-		} catch {
-			return null;
-		}
-	}
-	return asRecord(args);
+	return asRecord(typeof args === "string" ? parseJSON(args) : args);
 };
 
 /**
- * Parses an array whose items all pass parseItem, or null. The generated
- * tool-call args type is a string map, so typed fixtures pass arrays
- * JSON-encoded; both forms are accepted.
+ * Parses value, or its JSON encoding, as an array whose items all pass
+ * parseItem. Returns null otherwise.
  */
 export const parseArray = <T>(
 	value: unknown,
 	parseItem: (item: unknown) => T | null,
 ): T[] | null => {
-	let array = value;
-	if (typeof array === "string") {
-		try {
-			array = JSON.parse(array);
-		} catch {
-			return null;
-		}
-	}
+	const array = typeof value === "string" ? parseJSON(value) : value;
 	if (!Array.isArray(array)) {
 		return null;
 	}
-	const items: T[] = [];
-	for (const item of array) {
-		const parsed = parseItem(item);
-		if (parsed === null) {
-			return null;
-		}
-		items.push(parsed);
-	}
-	return items;
+	const items = array.map(parseItem);
+	return items.every((item): item is T => item !== null) ? items : null;
 };
 
 /** Trimmed, non-empty strings of a string array, or null for other values. */
