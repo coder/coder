@@ -591,9 +591,7 @@ func driveChatToInvalidWaitingWithQueue(
 	t.Helper()
 	sysCtx := dbauthz.AsSystemRestricted(ctx) //nolint:gocritic // Test fixture writes invalid combination by design.
 
-	// Seed the queue with one row attributed to the chat owner. The
-	// content is a minimal valid JSON payload; only the row's
-	// presence matters for ClassifyExecutionState.
+	// Only the row's presence matters for ClassifyExecutionState.
 	rawContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
 		codersdk.ChatMessageText("queued"),
 	})
