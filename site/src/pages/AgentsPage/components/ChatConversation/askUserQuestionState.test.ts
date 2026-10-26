@@ -8,7 +8,7 @@ import { deriveAskUserQuestionState } from "./askUserQuestionState";
 import { parseMessagesWithMergedTools } from "./messageParsing";
 import type { MergedTool } from "./types";
 
-const questions = [
+const mockQuestions = [
 	{
 		header: "Rollout",
 		question: "How should this ship?",
@@ -57,7 +57,12 @@ const questionStep = (
 				is_error: result.isError,
 				result: result.isError
 					? "questions[0].options must contain 2-4 items"
-					: { output: JSON.stringify({ questions, async: result.async }) },
+					: {
+							output: JSON.stringify({
+								questions: mockQuestions,
+								async: result.async,
+							}),
+						},
 			},
 		],
 	},
