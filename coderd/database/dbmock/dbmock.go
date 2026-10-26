@@ -8454,21 +8454,6 @@ func (mr *MockStoreMockRecorder) InsertChatProjectMemory(ctx, arg any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatProjectMemory", reflect.TypeOf((*MockStore)(nil).InsertChatProjectMemory), ctx, arg)
 }
 
-// InsertChatQueuedMessage mocks base method.
-func (m *MockStore) InsertChatQueuedMessage(ctx context.Context, arg database.InsertChatQueuedMessageParams) (database.ChatQueuedMessage, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertChatQueuedMessage", ctx, arg)
-	ret0, _ := ret[0].(database.ChatQueuedMessage)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// InsertChatQueuedMessage indicates an expected call of InsertChatQueuedMessage.
-func (mr *MockStoreMockRecorder) InsertChatQueuedMessage(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatQueuedMessage", reflect.TypeOf((*MockStore)(nil).InsertChatQueuedMessage), ctx, arg)
-}
-
 // InsertChatQueuedMessageWithCreator mocks base method.
 func (m *MockStore) InsertChatQueuedMessageWithCreator(ctx context.Context, arg database.InsertChatQueuedMessageWithCreatorParams) (database.ChatQueuedMessage, error) {
 	m.ctrl.T.Helper()
@@ -10320,20 +10305,6 @@ func (m *MockStore) SetTransactionLockTimeout(ctx context.Context, lockTimeoutMs
 func (mr *MockStoreMockRecorder) SetTransactionLockTimeout(ctx, lockTimeoutMs any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTransactionLockTimeout", reflect.TypeOf((*MockStore)(nil).SetTransactionLockTimeout), ctx, lockTimeoutMs)
-}
-
-// SoftDeleteChatMessageByID mocks base method.
-func (m *MockStore) SoftDeleteChatMessageByID(ctx context.Context, id int64) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SoftDeleteChatMessageByID", ctx, id)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// SoftDeleteChatMessageByID indicates an expected call of SoftDeleteChatMessageByID.
-func (mr *MockStoreMockRecorder) SoftDeleteChatMessageByID(ctx, id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SoftDeleteChatMessageByID", reflect.TypeOf((*MockStore)(nil).SoftDeleteChatMessageByID), ctx, id)
 }
 
 // SoftDeleteChatMessagesAfterID mocks base method.

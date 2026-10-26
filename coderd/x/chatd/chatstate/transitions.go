@@ -768,12 +768,9 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 		}
 	}
 
-	if err := tx.store.SoftDeleteChatMessageByID(tx.ctx, target.ID); err != nil {
-		return EditMessageResult{}, xerrors.Errorf("soft-delete target: %w", err)
-	}
 	if err := tx.store.SoftDeleteChatMessagesAfterID(tx.ctx, database.SoftDeleteChatMessagesAfterIDParams{
 		ChatID:  tx.chatID,
-		AfterID: target.ID,
+		AfterID: target.ID - 1, // include target and everything after
 	}); err != nil {
 		return EditMessageResult{}, xerrors.Errorf("soft-delete suffix: %w", err)
 	}

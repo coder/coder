@@ -312,14 +312,6 @@ WHERE
     chat_id = @chat_id::uuid
     AND id > @after_id::bigint;
 
--- name: SoftDeleteChatMessageByID :exec
-UPDATE
-    chat_messages
-SET
-    deleted = true
-WHERE
-    id = @id::bigint;
-
 -- name: BackfillChatMessagesSearchTsv :execrows
 -- Backfills chat_messages.search_tsv for pending rows, newest first.
 -- The WHERE clause must match the predicate of
@@ -2125,21 +2117,6 @@ SET
     stale_at = EXCLUDED.stale_at
 RETURNING
     *;
-
--- name: InsertChatQueuedMessage :one
--- Legacy queue insertion path. When no caller-supplied creator exists,
--- preserve the created_by invariant by attributing the queued row to the
--- chat owner.
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by)
-SELECT
-    @chat_id::uuid,
-    @content::jsonb,
-    sqlc.narg('model_config_id')::uuid,
-    sqlc.narg('reasoning_effort')::chat_reasoning_effort,
-    chats.owner_id
-FROM chats
-WHERE chats.id = @chat_id::uuid
-RETURNING *;
 
 -- name: GetChatQueuedMessages :many
 -- Returns the queue in promotion order (position ASC, id ASC), the same

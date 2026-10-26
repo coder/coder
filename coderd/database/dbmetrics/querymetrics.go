@@ -4480,14 +4480,6 @@ func (m queryMetricsStore) InsertChatProjectMemory(ctx context.Context, arg data
 	return r0, r1
 }
 
-func (m queryMetricsStore) InsertChatQueuedMessage(ctx context.Context, arg database.InsertChatQueuedMessageParams) (database.ChatQueuedMessage, error) {
-	start := time.Now()
-	r0, r1 := m.s.InsertChatQueuedMessage(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertChatQueuedMessage").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatQueuedMessage").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) InsertChatQueuedMessageWithCreator(ctx context.Context, arg database.InsertChatQueuedMessageWithCreatorParams) (database.ChatQueuedMessage, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertChatQueuedMessageWithCreator(ctx, arg)
@@ -5429,14 +5421,6 @@ func (m queryMetricsStore) SetTransactionLockTimeout(ctx context.Context, lockTi
 	r0 := m.s.SetTransactionLockTimeout(ctx, lockTimeoutMspgCatalogint8)
 	m.queryLatencies.WithLabelValues("SetTransactionLockTimeout").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SetTransactionLockTimeout").Inc()
-	return r0
-}
-
-func (m queryMetricsStore) SoftDeleteChatMessageByID(ctx context.Context, id int64) error {
-	start := time.Now()
-	r0 := m.s.SoftDeleteChatMessageByID(ctx, id)
-	m.queryLatencies.WithLabelValues("SoftDeleteChatMessageByID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SoftDeleteChatMessageByID").Inc()
 	return r0
 }
 

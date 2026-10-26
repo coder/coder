@@ -1243,10 +1243,6 @@ type sqlcQuerier interface {
 	InsertChatModelConfig(ctx context.Context, arg InsertChatModelConfigParams) (ChatModelConfig, error)
 	InsertChatProject(ctx context.Context, arg InsertChatProjectParams) (ChatProject, error)
 	InsertChatProjectMemory(ctx context.Context, arg InsertChatProjectMemoryParams) (ChatProjectMemory, error)
-	// Legacy queue insertion path. When no caller-supplied creator exists,
-	// preserve the created_by invariant by attributing the queued row to the
-	// chat owner.
-	InsertChatQueuedMessage(ctx context.Context, arg InsertChatQueuedMessageParams) (ChatQueuedMessage, error)
 	// Inserts a queued message that carries a position (from the default
 	// sequence) and an explicit created_by reference. Use this when the
 	// queued-message creator differs from the chat owner.
@@ -1506,7 +1502,6 @@ type sqlcQuerier interface {
 	// A wait longer than lock_timeout_ms fails with lock_not_available
 	// instead of blocking. The setting reverts when the transaction ends.
 	SetTransactionLockTimeout(ctx context.Context, lockTimeoutMs int64) error
-	SoftDeleteChatMessageByID(ctx context.Context, id int64) error
 	SoftDeleteChatMessagesAfterID(ctx context.Context, arg SoftDeleteChatMessagesAfterIDParams) error
 	// Marks agents from all prior builds of this workspace as deleted,
 	// preserving only agents belonging to @current_build_id. Called from
