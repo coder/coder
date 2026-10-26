@@ -5055,6 +5055,30 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |--------------------------|--------|----------|--------------|-------------|
 | `plan_mode_instructions` | string | false    |              |             |
 
+## codersdk.ChatPreview
+
+```json
+{
+  "agent_name": "string",
+  "path": "string",
+  "port": 0,
+  "preview_id": "string",
+  "title": "string",
+  "url_path": "string"
+}
+```
+
+### Properties
+
+| Name         | Type    | Required | Restrictions | Description                                                                                         |
+|--------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------|
+| `agent_name` | string  | false    |              |                                                                                                     |
+| `path`       | string  | false    |              | Path is the published workspace file or directory. It is empty for a preview of an existing server. |
+| `port`       | integer | false    |              |                                                                                                     |
+| `preview_id` | string  | false    |              |                                                                                                     |
+| `title`      | string  | false    |              |                                                                                                     |
+| `url_path`   | string  | false    |              | URL path is the path and query a port preview opens at. It is empty for the server's root.          |
+
 ## codersdk.ChatProject
 
 ```json

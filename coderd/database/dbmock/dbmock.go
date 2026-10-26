@@ -11,6 +11,7 @@ package dbmock
 
 import (
 	context "context"
+	json "encoding/json"
 	reflect "reflect"
 	time "time"
 
@@ -3456,6 +3457,21 @@ func (m *MockStore) GetChatModelConfigsForTelemetry(ctx context.Context) ([]data
 func (mr *MockStoreMockRecorder) GetChatModelConfigsForTelemetry(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatModelConfigsForTelemetry", reflect.TypeOf((*MockStore)(nil).GetChatModelConfigsForTelemetry), ctx)
+}
+
+// GetChatOpenPreviewResults mocks base method.
+func (m *MockStore) GetChatOpenPreviewResults(ctx context.Context, chatID uuid.UUID) ([]json.RawMessage, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatOpenPreviewResults", ctx, chatID)
+	ret0, _ := ret[0].([]json.RawMessage)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatOpenPreviewResults indicates an expected call of GetChatOpenPreviewResults.
+func (mr *MockStoreMockRecorder) GetChatOpenPreviewResults(ctx, chatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatOpenPreviewResults", reflect.TypeOf((*MockStore)(nil).GetChatOpenPreviewResults), ctx, chatID)
 }
 
 // GetChatOrganizationModelOverride mocks base method.
