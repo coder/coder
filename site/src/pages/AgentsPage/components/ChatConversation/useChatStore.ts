@@ -15,6 +15,7 @@ import {
 	updateInfiniteChatsCache,
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
+import { ChatStreamKeepaliveIntervalSeconds } from "#/api/typesGenerated";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import {
 	createReconnectingWebSocket,
@@ -45,6 +46,10 @@ const shouldSurfaceReconnectState = (state: ChatStoreState): boolean =>
 	(selectStreamState(state) !== null ||
 		state.retryState !== null ||
 		isActiveChatStatus(state.chatStatus));
+
+/** Two missed keepalives plus a 10-second margin. */
+export const chatStreamSilenceTimeoutMs =
+	(2 * ChatStreamKeepaliveIntervalSeconds + 10) * 1000;
 
 type UseChatStoreOptions = {
 	chatID: string;
@@ -431,10 +436,7 @@ export const useChatStore = (
 			});
 		};
 		const disposeSocket = createReconnectingWebSocket({
-			// The server writes an empty batch after httpapi.HeartbeatInterval
-			// (15s) without other writes, so 40s allows two missed empty
-			// batches plus a margin.
-			silenceTimeoutMs: 40_000,
+			silenceTimeoutMs: chatStreamSilenceTimeoutMs,
 			connect() {
 				// The server sends the changes made at or after this version.
 				const socket = watchChat(chatID, store.getSyncedSnapshotVersion());
