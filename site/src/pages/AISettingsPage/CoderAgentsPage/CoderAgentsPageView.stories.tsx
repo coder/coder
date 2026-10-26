@@ -50,22 +50,21 @@ const defaultArgs: CoderAgentsPageViewProps = {
 	computerUseProviderSaveError: null,
 };
 
-const firstAnthropicProvider: AIProvider = {
+const mockEnabledAnthropicProvider: AIProvider = {
 	...MockAIProviderAnthropic,
 	enabled: true,
 };
-const secondAnthropicProvider: AIProvider = {
+const mockGatewayAnthropicProvider: AIProvider = {
 	...MockAIProviderAnthropic,
 	id: "2d0c6c3e-5a4b-4f7e-9b1a-8c3d2e1f0a92",
 	name: "anthropic-gateway",
 	display_name: "Anthropic via gateway",
 	enabled: true,
 };
-const openAIProvider: AIProvider = { ...MockAIProviderOpenAI, enabled: true };
-const virtualDesktopProviders: AIProvider[] = [
-	firstAnthropicProvider,
-	secondAnthropicProvider,
-	openAIProvider,
+const mockVirtualDesktopProviders: AIProvider[] = [
+	mockEnabledAnthropicProvider,
+	mockGatewayAnthropicProvider,
+	{ ...MockAIProviderOpenAI, display_name: "Team OpenAI", enabled: true },
 	MockAIProviderBedrock,
 ];
 
@@ -247,10 +246,10 @@ export const VirtualDesktopSelectedProvider: Story = {
 	args: {
 		showAdvisorSettings: false,
 		showVirtualDesktopSettings: true,
-		aiProviders: virtualDesktopProviders,
+		aiProviders: mockVirtualDesktopProviders,
 		computerUseProviderData: {
 			provider: "anthropic",
-			ai_provider_id: secondAnthropicProvider.id,
+			ai_provider_id: mockGatewayAnthropicProvider.id,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -266,7 +265,7 @@ export const VirtualDesktopNoSelectedProvider: Story = {
 	args: {
 		showAdvisorSettings: false,
 		showVirtualDesktopSettings: true,
-		aiProviders: virtualDesktopProviders,
+		aiProviders: mockVirtualDesktopProviders,
 		computerUseProviderData: { provider: "anthropic" },
 	},
 };
@@ -276,12 +275,12 @@ export const VirtualDesktopSelectedProviderUnavailable: Story = {
 		showAdvisorSettings: false,
 		showVirtualDesktopSettings: true,
 		aiProviders: [
-			firstAnthropicProvider,
-			{ ...secondAnthropicProvider, enabled: false },
+			mockEnabledAnthropicProvider,
+			{ ...mockGatewayAnthropicProvider, enabled: false },
 		],
 		computerUseProviderData: {
 			provider: "anthropic",
-			ai_provider_id: secondAnthropicProvider.id,
+			ai_provider_id: mockGatewayAnthropicProvider.id,
 		},
 	},
 };
@@ -299,8 +298,39 @@ export const VirtualDesktopProvidersError: Story = {
 	args: {
 		showAdvisorSettings: false,
 		showVirtualDesktopSettings: true,
-		aiProviders: undefined,
 		aiProvidersError: new Error("Failed to load AI providers"),
 		computerUseProviderData: { provider: "anthropic" },
 	},
+};
+
+export const VirtualDesktopProvidersRefetchError: Story = {
+	args: {
+		showAdvisorSettings: false,
+		showVirtualDesktopSettings: true,
+		aiProviders: mockVirtualDesktopProviders,
+		aiProvidersError: new Error("Failed to refresh AI providers"),
+		computerUseProviderData: {
+			provider: "anthropic",
+			ai_provider_id: mockGatewayAnthropicProvider.id,
+		},
+	},
+};
+
+export const VirtualDesktopLoading: Story = {
+	args: {
+		showAdvisorSettings: false,
+		showVirtualDesktopSettings: true,
+		isLoadingAIProviders: true,
+		isLoadingComputerUseProvider: true,
+	},
+};
+
+export const VirtualDesktopMobile: Story = {
+	args: {
+		showAdvisorSettings: false,
+		showVirtualDesktopSettings: true,
+		aiProviders: mockVirtualDesktopProviders,
+		computerUseProviderData: { provider: "anthropic" },
+	},
+	parameters: { viewport: { defaultViewport: "mobile1" } },
 };

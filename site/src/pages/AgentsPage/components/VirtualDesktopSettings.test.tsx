@@ -8,11 +8,11 @@ import {
 import { render } from "#/testHelpers/renderHelpers";
 import { VirtualDesktopSettings } from "./VirtualDesktopSettings";
 
-const anthropicProvider: TypesGen.AIProvider = {
+const mockEnabledAnthropicProvider: TypesGen.AIProvider = {
 	...MockAIProviderAnthropic,
 	enabled: true,
 };
-const openAIProvider: TypesGen.AIProvider = {
+const mockTeamOpenAIProvider: TypesGen.AIProvider = {
 	...MockAIProviderOpenAI,
 	display_name: "Team OpenAI",
 	enabled: true,
@@ -26,10 +26,10 @@ describe("VirtualDesktopSettings", () => {
 			<VirtualDesktopSettings
 				computerUseProviderData={{
 					provider: "anthropic",
-					ai_provider_id: anthropicProvider.id,
+					ai_provider_id: mockEnabledAnthropicProvider.id,
 				}}
 				isLoadingComputerUseProvider={false}
-				aiProviders={[anthropicProvider, openAIProvider]}
+				aiProviders={[mockEnabledAnthropicProvider, mockTeamOpenAIProvider]}
 				isLoadingAIProviders={false}
 				aiProvidersError={null}
 				onSaveComputerUseProvider={onSave}
@@ -47,7 +47,7 @@ describe("VirtualDesktopSettings", () => {
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(onSave).toHaveBeenCalledWith(
-			{ provider: "openai", ai_provider_id: openAIProvider.id },
+			{ provider: "openai", ai_provider_id: mockTeamOpenAIProvider.id },
 			expect.anything(),
 		);
 	});

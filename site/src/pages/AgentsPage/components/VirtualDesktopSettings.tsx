@@ -1,6 +1,8 @@
 import { useFormik } from "formik";
+import { useId } from "react";
 import { Link as RouterLink } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
+import { ChatComputerUseProviders } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Link } from "#/components/Link/Link";
 import {
@@ -14,6 +16,7 @@ import {
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { useTemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
 import { AgentSettingLayout } from "#/pages/AISettingsPage/CoderAgentsPage/components/AgentSettingLayout";
+import { formatProviderLabel } from "#/utils/aiProviders";
 
 type MutationCallbacks = {
 	onSuccess?: () => void;
@@ -34,39 +37,59 @@ type VirtualDesktopSettingsProps = {
 	computerUseProviderSaveError: Error | null;
 };
 
-const computerUseProviderLabels: Record<
-	TypesGen.ChatComputerUseProvider,
-	string
-> = {
-	anthropic: "Anthropic",
-	openai: "OpenAI",
-};
-
-const isComputerUseProviderType = (
-	type: TypesGen.AIProviderType,
-): type is TypesGen.ChatComputerUseProvider =>
-	Object.hasOwn(computerUseProviderLabels, type);
-
 type ComputerUseAIProvider = {
 	id: string;
-	name: string;
+	displayName: string;
+	typeLabel: string;
 	type: TypesGen.ChatComputerUseProvider;
 };
 
 const getComputerUseAIProviders = (
 	providers: readonly TypesGen.AIProvider[],
 ): ComputerUseAIProvider[] =>
-	providers.flatMap((provider) =>
-		provider.enabled && isComputerUseProviderType(provider.type)
-			? [
-					{
-						id: provider.id,
-						name: provider.display_name || provider.name,
-						type: provider.type,
-					},
-				]
-			: [],
-	);
+	providers.flatMap((provider) => {
+		const type = ChatComputerUseProviders.find(
+			(computerUseType) => computerUseType === provider.type,
+		);
+		if (!provider.enabled || !type) {
+			return [];
+		}
+		return [
+			{
+				id: provider.id,
+				displayName: provider.display_name,
+				typeLabel: formatProviderLabel(type),
+				type,
+			},
+		];
+	});
+
+const getComputerUseProviderHint = (
+	eligibleProviders: readonly ComputerUseAIProvider[],
+	storedAIProviderID: string,
+	storedProviderType: TypesGen.ChatComputerUseProvider,
+): React.ReactNode => {
+	if (eligibleProviders.length === 0) {
+		return (
+			<>
+				Add an enabled Anthropic or OpenAI{" "}
+				<Link asChild showExternalIcon={false} size="sm">
+					<RouterLink to="/ai/settings/providers">AI provider</RouterLink>
+				</Link>{" "}
+				to use computer use.
+			</>
+		);
+	}
+	if (storedAIProviderID === "") {
+		return `No provider selected. Computer use uses the first enabled ${formatProviderLabel(storedProviderType)} provider.`;
+	}
+	if (
+		!eligibleProviders.some((provider) => provider.id === storedAIProviderID)
+	) {
+		return "The selected provider is disabled or was deleted. Select another provider.";
+	}
+	return undefined;
+};
 
 export const VirtualDesktopSettings: React.FC<VirtualDesktopSettingsProps> = ({
 	computerUseProviderData,
@@ -79,9 +102,8 @@ export const VirtualDesktopSettings: React.FC<VirtualDesktopSettingsProps> = ({
 	computerUseProviderSaveError,
 }) => {
 	const { isSavedVisible, showSavedState } = useTemporarySavedState();
+	const hintId = useId();
 	const storedAIProviderID = computerUseProviderData?.ai_provider_id ?? "";
-	const hasLoaded =
-		computerUseProviderData !== undefined && aiProviders !== undefined;
 	const eligibleProviders = getComputerUseAIProviders(aiProviders ?? []);
 
 	const form = useFormik<{ aiProviderID: string }>({
@@ -109,51 +131,23 @@ export const VirtualDesktopSettings: React.FC<VirtualDesktopSettingsProps> = ({
 	});
 
 	const isLoading = isLoadingComputerUseProvider || isLoadingAIProviders;
-	const isFormDisabled =
-		isSavingComputerUseProvider ||
-		isLoading ||
-		!hasLoaded ||
-		eligibleProviders.length === 0;
-	const canSave = hasLoaded && form.dirty;
 	const selectedProvider = eligibleProviders.find(
 		(provider) => provider.id === form.values.aiProviderID,
 	);
-
-	let hint: React.ReactNode;
-	if (aiProvidersError != null) {
-		hint = <ErrorAlert error={aiProvidersError} />;
-	} else if (!hasLoaded) {
-		hint = undefined;
-	} else if (eligibleProviders.length === 0) {
-		hint = (
-			<p className="m-0 text-xs text-content-secondary">
-				Add an enabled Anthropic or OpenAI{" "}
-				<RouterLink
-					to="/ai/settings/providers"
-					className="text-content-link transition-colors hover:text-content-link/80"
-				>
-					AI provider
-				</RouterLink>{" "}
-				to use computer use.
-			</p>
-		);
-	} else if (storedAIProviderID === "") {
-		hint = (
-			<p className="m-0 text-xs text-content-secondary">
-				No provider selected. Computer use uses the first enabled{" "}
-				{computerUseProviderLabels[computerUseProviderData.provider]} provider.
-			</p>
-		);
-	} else if (
-		!eligibleProviders.some((provider) => provider.id === storedAIProviderID)
-	) {
-		hint = (
-			<p className="m-0 text-xs text-content-secondary">
-				The selected provider is disabled or was deleted. Select another
-				provider.
-			</p>
-		);
-	}
+	const isFormDisabled =
+		isSavingComputerUseProvider ||
+		isLoading ||
+		computerUseProviderData === undefined ||
+		eligibleProviders.length === 0;
+	const canSave = form.dirty && selectedProvider !== undefined;
+	const hint =
+		computerUseProviderData && aiProviders
+			? getComputerUseProviderHint(
+					eligibleProviders,
+					storedAIProviderID,
+					computerUseProviderData.provider,
+				)
+			: undefined;
 
 	return (
 		<AgentSettingLayout
@@ -185,6 +179,7 @@ export const VirtualDesktopSettings: React.FC<VirtualDesktopSettingsProps> = ({
 			}
 		>
 			<div className="flex w-88 max-w-full flex-col gap-2">
+				{aiProvidersError != null && <ErrorAlert error={aiProvidersError} />}
 				<Select
 					value={form.values.aiProviderID}
 					onValueChange={(value) =>
@@ -194,13 +189,14 @@ export const VirtualDesktopSettings: React.FC<VirtualDesktopSettingsProps> = ({
 				>
 					<SelectTrigger
 						aria-label="Computer use provider"
+						aria-describedby={hint ? hintId : undefined}
 						className="h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm shadow-none"
 					>
 						<SelectValue placeholder="Select provider">
 							{isLoading ? (
 								<Skeleton className="h-4 w-20" aria-hidden="true" />
 							) : (
-								selectedProvider?.name
+								selectedProvider?.displayName
 							)}
 						</SelectValue>
 					</SelectTrigger>
@@ -208,16 +204,25 @@ export const VirtualDesktopSettings: React.FC<VirtualDesktopSettingsProps> = ({
 						<SelectGroup>
 							{eligibleProviders.map((provider) => (
 								<SelectItem key={provider.id} value={provider.id}>
-									{provider.name}{" "}
-									<span className="ml-1 text-xs text-content-secondary">
-										{computerUseProviderLabels[provider.type]}
-									</span>
+									{provider.displayName}
+									{provider.displayName !== provider.typeLabel && (
+										<>
+											{" "}
+											<span className="text-xs text-content-secondary">
+												{provider.typeLabel}
+											</span>
+										</>
+									)}
 								</SelectItem>
 							))}
 						</SelectGroup>
 					</SelectContent>
 				</Select>
-				{hint}
+				{hint && (
+					<p id={hintId} className="m-0 text-xs text-content-secondary">
+						{hint}
+					</p>
+				)}
 			</div>
 		</AgentSettingLayout>
 	);
