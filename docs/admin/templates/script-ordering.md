@@ -3,17 +3,6 @@ title: Order startup and shutdown scripts
 ---
 
 As a template author, you can use the `coder_script_order` data source to declare dependencies between startup or shutdown scripts.
-For example, for existing `coder_script.clone` and `coder_script.install` scripts, add:
-
-```tf
-data "coder_script_order" "startup" {
-  rule {
-    run   = ["coder_script.install"]
-    after = ["coder_script.clone"]
-  }
-}
-```
-
 By default, Coder runs each dependent script after its prerequisites succeed, while independent scripts run concurrently.
 You can order individual `coder_script` resources or all scripts in a child module without adding coordination commands to script bodies.
 
@@ -27,10 +16,6 @@ Script ordering requires compatible versions of every component:
 
 Older components can ignore ordering declarations and run scripts concurrently without reporting a compatibility error.
 Updating the provider alone doesn't enable ordering on older Coder deployments or agents.
-
-Every selected script must set exactly one of `run_on_start` or `run_on_stop`.
-A rule can order scripts only within one workspace agent or one dev container sub-agent.
-Each rule applies to one lifecycle phase, either startup or shutdown.
 
 ## Declare dependencies
 
@@ -66,12 +51,12 @@ If cloning fails, Coder skips dependency installation.
 
 Each `coder_script_order` data source contains one or more `rule` blocks:
 
-| Attribute  | Required | Meaning                                                 |
-|------------|----------|---------------------------------------------------------|
-| `run`      | Yes      | A nonempty list of selectors for scripts that wait.     |
-| `after`    | Yes      | A nonempty list of selectors for prerequisite scripts.  |
-| `requires` | No       | `success` (default) or `completion`.                    |
-| `phase`    | No       | `start` or `stop`. Coder infers the phase when omitted. |
+| Attribute                              | Required | Meaning                                                                                          |
+|----------------------------------------|----------|--------------------------------------------------------------------------------------------------|
+| `run`                                  | Yes      | A nonempty list of selectors for scripts that wait.                                              |
+| `after`                                | Yes      | A nonempty list of selectors for prerequisite scripts.                                           |
+| `requires`                             | No       | `success` (default) or `completion`.                                                             |
+| [`phase`](#choose-the-lifecycle-phase) | No       | `start` or `stop`. Required for module-only rules that select both startup and shutdown scripts. |
 
 Every script selected by `run` waits for every script selected by `after`.
 The order of selectors within either list doesn't determine execution order.

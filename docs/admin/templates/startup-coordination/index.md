@@ -2,7 +2,8 @@
 title: Workspace startup coordination
 ---
 
-For dependencies between whole startup or shutdown scripts, use [declarative script ordering](../script-ordering.md) in your template.
+We recommend using [declarative script ordering](../script-ordering.md) instead of `coder exp sync` to order startup and shutdown scripts.
+
 This section covers the experimental `coder exp sync` commands for coordination inside script bodies.
 
 > [!NOTE]
