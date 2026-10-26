@@ -309,6 +309,7 @@ If the runtime terminates the agent before the chain finishes, the remaining scr
 While a script waits, its log reports all remaining prerequisites in one entry every 30&nbsp;seconds.
 Each entry identifies prerequisites by their full Terraform resource addresses.
 If Coder skips a script, its log names the prerequisites that failed, timed out, or were skipped.
+These messages use each prerequisite's display name, or its Terraform resource address if no display name is set.
 Cancellation logs distinguish scripts canceled before starting from scripts canceled while running.
 
 The [**Build timeline**](../../../tutorials/best-practices/speed-up-templates.md#workspace-build-timeline) shows skipped and canceled startup scripts.
