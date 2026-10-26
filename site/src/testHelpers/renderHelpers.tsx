@@ -39,10 +39,7 @@ export function createTestQueryClient() {
 	});
 }
 
-/**
- * Creates a test query client seeded with preference settings that never go
- * stale, so they never refetch on mount or focus.
- */
+/** Seeded preference settings never refetch on mount or focus. */
 export function createPreferenceSeededQueryClient(
 	preferences: TypesGen.UserPreferenceSettings = MockUserPreferenceSettings,
 ) {

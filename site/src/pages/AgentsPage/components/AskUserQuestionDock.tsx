@@ -10,9 +10,8 @@ type AskUserQuestionDockProps = {
 };
 
 /**
- * Pins the open async question's answer form above the chat input. The form
- * always acts as the latest question, so pass only the question that
- * deriveAskUserQuestionState reports as open.
+ * Pins the open async question's answer form above the chat input. Callers
+ * must pass the question that deriveAskUserQuestionState reports as open.
  */
 export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 	question,
