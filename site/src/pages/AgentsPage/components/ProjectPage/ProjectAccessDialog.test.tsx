@@ -71,14 +71,9 @@ const renderDialog = (props: Partial<DialogProps> = {}) => {
 const getAutocomplete = () =>
 	screen.getByRole("button", { name: /^User or group/ });
 
-const chooseAddRole = async (
-	user: ReturnType<typeof userEvent.setup>,
-	role: "Admin" | "Member",
-) => {
+const chooseAdminAddRole = async (user: ReturnType<typeof userEvent.setup>) => {
 	await user.click(screen.getByRole("combobox", { name: "Role" }));
-	await user.click(
-		await screen.findByRole("option", { name: new RegExp(role) }),
-	);
+	await user.click(await screen.findByRole("option", { name: /Admin/ }));
 };
 
 describe("ProjectAccessDialog", () => {
@@ -107,7 +102,7 @@ describe("ProjectAccessDialog", () => {
 		await user.click(getAutocomplete());
 		await user.click(await screen.findByRole("option", { name: /TestUser3/ }));
 		expect(getAutocomplete()).toHaveAccessibleName(/test3@example\.com$/);
-		await chooseAddRole(user, "Admin");
+		await chooseAdminAddRole(user);
 		await user.click(screen.getByRole("button", { name: "Add" }));
 
 		expect(onAdd).toHaveBeenCalledWith(
@@ -127,7 +122,7 @@ describe("ProjectAccessDialog", () => {
 
 		await user.click(getAutocomplete());
 		await user.click(await screen.findByRole("option", { name: /TestUser3/ }));
-		await chooseAddRole(user, "Admin");
+		await chooseAdminAddRole(user);
 		await user.click(screen.getByRole("button", { name: "Add" }));
 		await user.click(getAutocomplete());
 		await user.click(await screen.findByRole("option", { name: /Back-End/ }));
@@ -141,12 +136,11 @@ describe("ProjectAccessDialog", () => {
 		);
 	});
 
-	it("adds the selected group as a member", async () => {
+	it("adds the selected group as a member by default", async () => {
 		const { user, onAdd } = renderDialog();
 
 		await user.click(getAutocomplete());
 		await user.click(await screen.findByRole("option", { name: /Back-End/ }));
-		await chooseAddRole(user, "Member");
 		await user.click(screen.getByRole("button", { name: "Add" }));
 
 		expect(onAdd).toHaveBeenCalledWith(
@@ -156,14 +150,23 @@ describe("ProjectAccessDialog", () => {
 		);
 	});
 
-	it("does not add a user or group without a role", async () => {
+	it("resets the role to member after an add saves", async () => {
 		const { user, onAdd } = renderDialog();
 
 		await user.click(getAutocomplete());
 		await user.click(await screen.findByRole("option", { name: /TestUser3/ }));
+		await chooseAdminAddRole(user);
+		await user.click(screen.getByRole("button", { name: "Add" }));
+		act(() => onAdd.mock.calls[0][2].onSuccess?.());
+		await user.click(getAutocomplete());
+		await user.click(await screen.findByRole("option", { name: /Back-End/ }));
 		await user.click(screen.getByRole("button", { name: "Add" }));
 
-		expect(onAdd).not.toHaveBeenCalled();
+		expect(onAdd).toHaveBeenLastCalledWith(
+			{ kind: "group", id: MockGroup3.id },
+			"use",
+			expect.anything(),
+		);
 	});
 
 	it("offers neither the owner, the viewer, nor anyone already listed", async () => {
@@ -228,7 +231,7 @@ describe("ProjectAccessDialog", () => {
 
 		await user.click(getAutocomplete());
 		await user.click(await screen.findByRole("option", { name: /TestUser3/ }));
-		await chooseAddRole(user, "Admin");
+		await chooseAdminAddRole(user);
 		await user.click(screen.getByRole("button", { name: "Add" }));
 		// Typing "m" picks Member, and Enter opens the menu, then removes.
 		const name = MockUserMember.name;

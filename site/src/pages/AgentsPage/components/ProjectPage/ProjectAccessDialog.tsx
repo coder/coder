@@ -241,8 +241,8 @@ const AddAccessForm: React.FC<AddAccessFormProps> = ({
 }) => {
 	const [draft, setDraft] = useState<{
 		selection: UserOrGroupAutocompleteValue;
-		role: AssignableRole | "";
-	}>({ selection: null, role: "" });
+		role: AssignableRole;
+	}>({ selection: null, role: "use" });
 	const { selection, role } = draft;
 	// The selection is never listed yet, so a pending change for it is this add.
 	const isAdding = selection !== null && selection.id === pendingPrincipalId;
@@ -253,7 +253,7 @@ const AddAccessForm: React.FC<AddAccessFormProps> = ({
 			className="flex flex-col gap-2 sm:flex-row sm:items-center"
 			onSubmit={(event) => {
 				event.preventDefault();
-				if (!selection || !role || isChangePending) {
+				if (!selection || isChangePending) {
 					return;
 				}
 				onAdd(
@@ -264,7 +264,7 @@ const AddAccessForm: React.FC<AddAccessFormProps> = ({
 						onSuccess: () =>
 							setDraft((current) =>
 								current.selection?.id === selection.id
-									? { selection: null, role: "" }
+									? { selection: null, role: "use" }
 									: current,
 							),
 						onSettled: () => focusById(triggerId),
@@ -297,7 +297,7 @@ const AddAccessForm: React.FC<AddAccessFormProps> = ({
 				disabled={isAdding}
 				onValueChange={(role) => setDraft((current) => ({ ...current, role }))}
 			/>
-			<Button type="submit" disabled={!selection || !role || isChangePending}>
+			<Button type="submit" disabled={!selection || isChangePending}>
 				<Spinner loading={isAdding}>
 					<UserPlusIcon />
 				</Spinner>
@@ -338,7 +338,7 @@ const ProjectRoleSelect: React.FC<ProjectRoleSelectProps> = ({
 			</SelectValue>
 		</SelectTrigger>
 		<SelectContent align="end">
-			{(["admin", "use"] as const).map((role) => (
+			{(["use", "admin"] as const).map((role) => (
 				<SelectItem
 					key={role}
 					value={role}
