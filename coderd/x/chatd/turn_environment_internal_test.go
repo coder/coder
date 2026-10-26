@@ -755,6 +755,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 		withInternalTestServerExperiments(codersdk.Experiments{codersdk.ExperimentChatInlineMCPServers, codersdk.ExperimentChatACPSubagents}),
 	)
+	server.enablePreviews = true
 	server.mcpHTTPClient = mcpclient.NewHTTPClient(nil, safedial.WithAllowedPrefixes(netip.MustParsePrefix("127.0.0.0/8")))
 
 	explore := database.NullChatMode{ChatMode: database.ChatModeExplore, Valid: true}
@@ -791,7 +792,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			name:   "Root",
 			prompt: []string{advisorGuidance, acpSubagentPromptBlock},
 			want: append([]string{
-				"write_file", "edit_files", "approved__echo", "blocked__echo", "filtered__visible",
+				"write_file", "edit_files", "open_preview", "approved__echo", "blocked__echo", "filtered__visible",
 				"forced__echo", "inline__echo", "workspace__echo", "web_search", chatadvisor.ToolName,
 				"acp_spawn_agent", "acp_wait_agent", "acp_message_agent", "acp_interrupt_agent",
 			}, rootOnlyTools...),
@@ -801,7 +802,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			name:     "GeneralChild",
 			child:    true,
 			want:     []string{"read_file", "write_file", "edit_files", "execute"},
-			dontWant: append([]string{"ask_user_question", chatadvisor.ToolName}, rootOnlyTools...),
+			dontWant: append([]string{"ask_user_question", "open_preview", chatadvisor.ToolName}, rootOnlyTools...),
 		},
 		{
 			name:     "PlanRoot",
@@ -813,7 +814,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 				"spawn_agent", "approved__echo", "filtered__visible", "inline__echo",
 			},
 			dontWant: []string{
-				"blocked__echo", "filtered__hidden", "forced__echo", "workspace__echo", "web_search", chatadvisor.ToolName,
+				"open_preview", "blocked__echo", "filtered__hidden", "forced__echo", "workspace__echo", "web_search", chatadvisor.ToolName,
 			},
 		},
 		{
@@ -823,7 +824,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			prompt:   []string{planChildOverlay},
 			want:     []string{"read_file", "execute", "process_output"},
 			dontWant: []string{
-				"write_file", "edit_files", "ask_user_question", "approved__echo", "inline__echo",
+				"write_file", "edit_files", "open_preview", "ask_user_question", "approved__echo", "inline__echo",
 				"workspace__echo", "web_search", chatadvisor.ToolName,
 			},
 		},
@@ -833,7 +834,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			prompt: []string{exploreOverlay},
 			want:   []string{"read_file", "execute", "process_output"},
 			dontWant: []string{
-				"write_file", "edit_files", "approved__echo", "blocked__echo", "forced__echo", "inline__echo",
+				"write_file", "edit_files", "open_preview", "approved__echo", "blocked__echo", "forced__echo", "inline__echo",
 				"workspace__echo", "web_search", chatadvisor.ToolName,
 			},
 		},
@@ -847,7 +848,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 				"web_search",
 			},
 			dontWant: []string{
-				"write_file", "edit_files", "spawn_agent", "wait_agent", "unselected__echo", "forced__echo",
+				"write_file", "edit_files", "open_preview", "spawn_agent", "wait_agent", "unselected__echo", "forced__echo",
 				"inline__echo", "workspace__echo", chatadvisor.ToolName,
 			},
 		},
