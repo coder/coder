@@ -232,14 +232,16 @@ func TestChatArtifact(t *testing.T) {
 		// A user of its own keeps this artifact out of the lists that the
 		// other subtests check.
 		kitOwner, kitUser := newChatProjectMember(t, admin, orgID)
-		artifact, err := db.InsertChatArtifact(sysCtx, database.InsertChatArtifactParams{
+		//nolint:gocritic // The test seeds rows as chatd, which publishes artifacts.
+		kitCtx := dbauthz.AsChatd(ctx)
+		artifact, err := db.InsertChatArtifact(kitCtx, database.InsertChatArtifactParams{
 			OrganizationID: orgID,
 			OwnerID:        kitUser.ID,
 			Title:          "Kit page",
 		})
 		require.NoError(t, err)
 		page := `<link rel="stylesheet" href="coder-kit.css"><body class="ck-page">Kit</body>`
-		_, err = db.InsertChatArtifactVersion(sysCtx, database.InsertChatArtifactVersionParams{
+		_, err = db.InsertChatArtifactVersion(kitCtx, database.InsertChatArtifactVersionParams{
 			ArtifactID: artifact.ID,
 			Name:       "kit.html",
 			Mimetype:   "text/plain",
@@ -275,7 +277,7 @@ func TestChatArtifact(t *testing.T) {
 		require.NotContains(t, downloaded, `r.setAttribute("data-theme"`)
 
 		// Agents edit the stored page, which keeps the link.
-		stored, err := db.GetChatArtifactVersion(sysCtx, database.GetChatArtifactVersionParams{ArtifactID: artifact.ID, Version: 1})
+		stored, err := db.GetChatArtifactVersion(kitCtx, database.GetChatArtifactVersionParams{ArtifactID: artifact.ID, Version: 1})
 		require.NoError(t, err)
 		require.Equal(t, page, string(stored.Data))
 	})
