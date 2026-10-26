@@ -240,6 +240,7 @@ The agent has access to a set of workspace tools that it uses to accomplish task
 | `process_list`                              | List all tracked processes in the workspace                                                                                                                  |
 | `process_signal`                            | Send a signal (terminate/kill) to a tracked process                                                                                                          |
 | `attach_file`                               | Attach a workspace file to the chat as a durable downloadable attachment                                                                                     |
+| `open_preview`                              | Open an embedded preview of a running HTTP app, an HTML file, or a directory containing `index.html`                                                         |
 | `spawn_agent` (`type=general` or `explore`) | Delegate a task to a sub-agent running in parallel, optionally on a specific model                                                                           |
 | `list_subagent_models`                      | List the models available for `spawn_agent`'s `model_config_id` argument                                                                                     |
 | `wait_agent`                                | Wait for a sub-agent to complete and collect its result                                                                                                      |
@@ -253,7 +254,7 @@ The agent has access to a set of workspace tools that it uses to accomplish task
 | `find_tools`                                | Search the deferred MCP tool catalog and activate matching tools. Only available when the turn has MCP tools to defer                                        |
 
 These tools connect to the workspace over the same secure connection used for web terminals and IDE access.
-No additional ports or services are required in the workspace.
+You don't need to expose additional inbound ports.
 
 Platform tools (`list_templates`, `read_template`, `create_workspace`, `start_workspace`, `stop_workspace`, `propose_plan`, `ask_user_question`) and orchestration tools (`spawn_agent`, `list_subagent_models`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`) are only available to root chats.
 Sub-agents do not have access to these tools and cannot create workspaces or spawn further sub-agents.
@@ -265,6 +266,56 @@ Sub-agents do not have access to these tools and cannot create workspaces or spa
 In plan mode, the agent can still inspect the workspace and template metadata, execute shell commands for exploration, and read process output.
 `write_file` and `edit_files` remain available only for the chat-specific plan file under `.coder/plans/`.
 Workspace MCP tools are unavailable in plan mode, and plan-mode sub-agents receive no MCP tools.
+`open_preview` is only available to root chats outside plan mode.
+
+### Embedded previews
+
+The agent can call `open_preview` to show a running app or HTML files in the chat's **Preview** tab.
+It gives each preview a short title and supplies exactly one of `port` or `path`:
+
+- `port` opens an existing HTTP app on a workspace port between 1000 and 65535, without waiting for the app to become ready.
+  An optional `url_path` opens the app at a path and query, such as `/?folder=/home/coder/project`.
+  The same port at another `url_path` is listed as a separate preview.
+- `path` publishes an absolute workspace path to a `.html` or `.htm` file, or a directory containing `index.html`.
+
+`open_preview` is only available when the deployment has a [wildcard app hostname](../../admin/networking/wildcard-access-url.md).
+Workspace proxies running an older Coder version don't route previews.
+Preview hostnames include the agent, workspace, and user names, so long names can exceed the 63-character DNS label limit.
+
+Path previews require a Linux or macOS workspace daemon.
+A file preview publishes only the selected file, not sibling assets.
+A directory preview serves every regular file beneath that directory, of any type, unless a file or directory below the published directory starts with a dot.
+The published directory and its parent directories can start with a dot, such as `/home/coder/.preview`.
+It doesn't provide directory listings, and it doesn't serve symbolic links or files with more than one hard link.
+For HTML that uses local CSS, JavaScript, or images, the agent must publish their directory.
+
+> [!WARNING]
+> Do not publish a directory containing secrets.
+> A directory preview exposes every eligible file, not only HTML and assets.
+
+Preview pages are written by the agent, and a prompt injection can change what the agent writes.
+Coder isolates preview pages from your other workspace apps:
+
+- Only users who can connect to the workspace's apps can view its previews, such as the workspace owner and users the workspace is shared with.
+  Deployment owners can too, unless the deployment sets `--disable-owner-workspace-access`.
+  Port shares don't apply to previews.
+- Preview pages run in a sandbox that keeps them from navigating the dashboard or opening pop-ups.
+  They also can't embed pages from other origins in frames, so a preview that embeds a third-party page, such as a video or map, doesn't show it.
+- Coder rejects requests from a preview page to other workspace apps when the browser sends an `Origin` header, such as form posts and `fetch` calls.
+  Links, images, and other `GET` requests without an `Origin` header can still reach other apps.
+
+The **Preview** tab has a menu that lists every preview the chat opened in its current workspace.
+When the chat has a workspace, you can add the tab from the right panel's add menu, even before the agent opens a preview.
+When a preview opens while you view the chat, Coder shows the **Preview** tab and selects that preview, without expanding the panel.
+Previews found in chat history only join the menu, so reloading the page or returning to the chat keeps the tab and preview you last selected.
+Calling `open_preview` again refreshes the selected target, but static-file edits alone don't reload it.
+
+If the workspace is stopped, the tab offers to start it.
+
+Closing the **Preview** tab doesn't stop serving published files, and published files can't be unpublished.
+The workspace daemon serves up to 64 published paths until it restarts.
+After a restart, it stops serving published files until the agent calls `open_preview` again.
+Publishing the same path again keeps its preview URL.
 
 ## Plan mode
 
