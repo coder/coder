@@ -3347,6 +3347,24 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	/** The users and groups an artifact is shared with. */
+	getChatArtifactACL = async (
+		artifactId: string,
+	): Promise<TypesGen.ChatACL> => {
+		const response = await this.axios.get<TypesGen.ChatACL>(
+			`${chatArtifactPath(artifactId)}/acl`,
+		);
+		return response.data;
+	};
+
+	/** Shares an artifact with users and groups. Role "" stops sharing. */
+	updateChatArtifactACL = async (
+		artifactId: string,
+		req: TypesGen.UpdateChatACL,
+	): Promise<void> => {
+		await this.axios.patch(`${chatArtifactPath(artifactId)}/acl`, req);
+	};
+
 	createChatProject = async (
 		organizationId: string,
 		req: TypesGen.CreateChatProjectRequest,

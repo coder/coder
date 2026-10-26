@@ -1,5 +1,6 @@
-import { queryOptions } from "react-query";
+import { type QueryClient, queryOptions } from "react-query";
 import { API } from "#/api/api";
+import type { ChatRole } from "#/api/typesGenerated";
 
 const chatArtifactsKey = ["chat-artifacts"] as const;
 
@@ -38,3 +39,43 @@ export const chatArtifactVersionText = (artifactId: string, version: number) =>
 			API.experimental.getChatArtifactVersionText(artifactId, version),
 		staleTime: Number.POSITIVE_INFINITY,
 	});
+
+/** Query key of the users and groups an artifact is shared with. */
+export const chatArtifactACLKey = (artifactId: string) =>
+	[...chatArtifactKey(artifactId), "acl"] as const;
+
+/** The users and groups an artifact is shared with. */
+export const chatArtifactACL = (artifactId: string) =>
+	queryOptions({
+		queryKey: chatArtifactACLKey(artifactId),
+		queryFn: () => API.experimental.getChatArtifactACL(artifactId),
+	});
+
+type SetChatArtifactRoleVariables = {
+	artifactId: string;
+	/** A user ID or a group ID, as `kind` says. */
+	id: string;
+	kind: "user" | "group";
+	/** "read" shares the artifact, "" stops sharing it. */
+	role: ChatRole;
+};
+
+/** Shares an artifact with one user or group, or stops sharing it. */
+export const setChatArtifactRole = (queryClient: QueryClient) => ({
+	mutationFn: ({ artifactId, id, kind, role }: SetChatArtifactRoleVariables) =>
+		API.experimental.updateChatArtifactACL(
+			artifactId,
+			kind === "user"
+				? { user_roles: { [id]: role } }
+				: { group_roles: { [id]: role } },
+		),
+	onSuccess: async (
+		_data: unknown,
+		{ artifactId }: SetChatArtifactRoleVariables,
+	) => {
+		await queryClient.invalidateQueries({
+			queryKey: chatArtifactACLKey(artifactId),
+			exact: true,
+		});
+	},
+});
