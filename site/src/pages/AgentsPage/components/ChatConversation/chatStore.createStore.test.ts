@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	type ChatStore,
@@ -1230,24 +1230,17 @@ describe("prependOlderMessages", () => {
 	});
 });
 
-describe("load", () => {
-	it("fetches the newest page once, however often it is asked", async () => {
+describe("seed", () => {
+	it("stores the newest page and its snapshot version", () => {
 		const store = createChatStore();
-		const fetchPage = vi.fn(async () => ({
+
+		store.seed({
 			messages: [makeMessage(2, "assistant", "b"), makeMessage(1, "user", "a")],
 			queued_messages: [],
 			has_more: true,
 			snapshot_version: 4,
-		}));
-
-		store.load(fetchPage);
-		store.load(fetchPage);
-		await vi.waitFor(() => {
-			expect(store.getSnapshot().load).toEqual({ status: "loaded" });
 		});
-		store.load(fetchPage);
 
-		expect(fetchPage).toHaveBeenCalledTimes(1);
 		expect(store.getSnapshot().orderedMessageIDs).toEqual([1, 2]);
 		expect(store.getSnapshot().hasMoreMessages).toBe(true);
 		expect(store.getSyncedSnapshotVersion()).toBe(4);

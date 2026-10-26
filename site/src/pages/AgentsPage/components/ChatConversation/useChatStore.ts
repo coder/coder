@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useEffectEvent } from "react";
+import { useCallback, useEffect, useEffectEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { watchChat } from "#/api/api";
 import {
@@ -17,15 +17,11 @@ import {
 import { type ChatDetailError, normalizeChatErrorPayload } from "./chatError";
 import {
 	type ChatStore,
-	type ChatStoreLoad,
 	type ChatStoreState,
 	createChatStore,
 	isActiveChatStatus,
-	selectIsLoaded,
-	selectLoad,
 	selectStreamError,
 	selectStreamState,
-	useChatSelector,
 } from "./chatStore";
 import type { RetryState } from "./types";
 
@@ -53,6 +49,12 @@ const shouldSurfaceReconnectState = (state: ChatStoreState): boolean =>
 /** Exported so story fixtures can put a loaded store in the query cache. */
 export const chatStoreKey = (chatID: string) => ["chatStore", chatID] as const;
 
+/** Progress of loading a chat's newest messages page. */
+export type ChatLoadState =
+	| { status: "loading" }
+	| { status: "loaded" }
+	| { status: "failed"; error: unknown };
+
 type UseChatStoreOptions = {
 	chatID: string;
 	setChatErrorReason: (chatID: string, reason: ChatDetailError) => void;
@@ -64,7 +66,7 @@ export const useChatStore = (
 	options: UseChatStoreOptions,
 ): {
 	store: ChatStore;
-	load: ChatStoreLoad;
+	loadState: ChatLoadState;
 	retryLoad: () => void;
 	clearStreamError: () => void;
 	loadOlderMessages: () => Promise<unknown>;
@@ -81,18 +83,36 @@ export const useChatStore = (
 	const queryClient = useQueryClient();
 	// A chat keeps its store as long as the query cache keeps an unused query,
 	// so reopening it shows the chat as it was left and the stream resumes
-	// from the store's snapshot version.
-	const { data: store } = useQuery({
+	// from the store's snapshot version. After the newest page, only stream
+	// events and older pages change the store, so the query never refetches.
+	const storeQuery = useQuery({
 		queryKey: chatStoreKey(chatID),
-		queryFn: () =>
-			queryClient.getQueryData<ChatStore>(chatStoreKey(chatID)) ??
-			createChatStore(),
-		initialData: createChatStore,
-		staleTime: Number.POSITIVE_INFINITY,
+		queryFn: async ({ signal }) => {
+			const page = await fetchNewestChatMessages(chatID, signal);
+			// Only a server older than this client omits the version.
+			if (page.snapshot_version === undefined) {
+				throw new Error(
+					"The Coder server is older than this page. Reload the page. During an upgrade, try again in a minute.",
+				);
+			}
+			const store = createChatStore();
+			store.seed(page);
+			return store;
+		},
+		staleTime: "static",
+		retry: false,
 		structuralSharing: false,
 	});
-	const load = useChatSelector(store, selectLoad);
-	const initialDataLoaded = useChatSelector(store, selectIsLoaded);
+	// Stands in until the newest page loads. The page shows its loading view
+	// then, so nothing acts on this store.
+	const [emptyStore] = useState(createChatStore);
+	const store = storeQuery.data ?? emptyStore;
+	const initialDataLoaded = storeQuery.isSuccess;
+	const loadState: ChatLoadState = storeQuery.isSuccess
+		? { status: "loaded" }
+		: storeQuery.isError
+			? { status: "failed", error: storeQuery.error }
+			: { status: "loading" };
 
 	// Wrap error-reason callbacks so the WebSocket effect can call
 	// them without including them in its dependency array.
@@ -113,10 +133,6 @@ export const useChatStore = (
 		},
 		[chatID, queryClient],
 	);
-
-	useEffect(() => {
-		store.load(() => fetchNewestChatMessages(chatID));
-	}, [chatID, store]);
 
 	const {
 		mutateAsync: loadOlderMessages,
@@ -490,8 +506,10 @@ export const useChatStore = (
 	]);
 	return {
 		store,
-		load,
-		retryLoad: () => store.load(() => fetchNewestChatMessages(chatID)),
+		loadState,
+		retryLoad: () => {
+			void storeQuery.refetch();
+		},
 		clearStreamError: () => {
 			store.clearStreamError();
 		},

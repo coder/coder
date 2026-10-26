@@ -354,7 +354,7 @@ const AgentChatPage: React.FC = () => {
 	const { scrollToEnd } = useMessageScroller();
 	const {
 		store,
-		load,
+		loadState,
 		retryLoad,
 		loadOlderMessages,
 		isLoadingOlderMessages,
@@ -591,12 +591,15 @@ const AgentChatPage: React.FC = () => {
 	// so the DOM actually contains them when the parent scrolls.
 	const chatReadyFiredRef = useRef<string | null>(null);
 	useEffect(() => {
-		if (chatReadyFiredRef.current === agentId || load.status !== "loaded") {
+		if (
+			chatReadyFiredRef.current === agentId ||
+			loadState.status !== "loaded"
+		) {
 			return;
 		}
 		chatReadyFiredRef.current = agentId;
 		onChatReady();
-	}, [onChatReady, load.status, agentId]);
+	}, [onChatReady, loadState.status, agentId]);
 
 	// Primitives extracted from proxy/workspace so the compiler
 	// tracks stable strings, not object identity.
@@ -686,7 +689,7 @@ const AgentChatPage: React.FC = () => {
 	const isWaitingForPreferences =
 		preferencesQuery.isLoading &&
 		!chatQuery.isLoadingError &&
-		load.status !== "failed";
+		loadState.status !== "failed";
 
 	return (
 		<>
@@ -694,7 +697,7 @@ const AgentChatPage: React.FC = () => {
 				{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
 			</title>
 			{chatQuery.isLoading ||
-			load.status === "loading" ||
+			loadState.status === "loading" ||
 			isWaitingForPreferences ? (
 				<AgentChatPageLoadingView
 					inputRef={editing.chatInputRef}
@@ -715,7 +718,7 @@ const AgentChatPage: React.FC = () => {
 					onPlanModeToggle={handlePlanModeToggle}
 					showRightPanel={showSidebarPanel}
 				/>
-			) : chatQuery.isLoadingError || load.status === "failed" ? (
+			) : chatQuery.isLoadingError || loadState.status === "failed" ? (
 				getErrorStatus(chatQuery.error) === 404 ? (
 					<AgentChatPageNotFoundView />
 				) : (
@@ -723,8 +726,8 @@ const AgentChatPage: React.FC = () => {
 						error={
 							chatQuery.isLoadingError
 								? chatQuery.error
-								: load.status === "failed"
-									? load.error
+								: loadState.status === "failed"
+									? loadState.error
 									: undefined
 						}
 						onRetry={() => {

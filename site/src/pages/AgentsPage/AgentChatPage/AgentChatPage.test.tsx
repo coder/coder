@@ -83,6 +83,12 @@ describe("AgentChatPage", () => {
 			children: [{ path: ":agentId", element: <AgentChatPage /> }],
 		});
 
+		// The actions bar remounts after the send, so only the failure's
+		// invalidation may refetch the list.
+		queryClient.setQueryDefaults(
+			chatProjectSkillsKey(mockProjectChat.project_id),
+			{ staleTime: Number.POSITIVE_INFINITY },
+		);
 		await user.click(await screen.findByRole("button", { name: "deploy" }));
 		// The page and the actions bar share the list, so let both settle.
 		await waitFor(() =>
