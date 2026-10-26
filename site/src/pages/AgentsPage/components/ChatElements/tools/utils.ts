@@ -171,7 +171,9 @@ export const parseArgs = (args: unknown): Record<string, unknown> | null => {
 
 /**
  * Parses value, or its JSON encoding, as an array whose items all pass
- * parseItem. Returns null otherwise.
+ * parseItem. Returns null otherwise. The JSON form exists because the
+ * generated tool-call args type is a string map, so typed fixtures
+ * encode arrays.
  */
 export const parseArray = <T>(
 	value: unknown,
