@@ -175,6 +175,7 @@ func TestTokenScopeCeiling(t *testing.T) {
 
 	client, db := coderdtest.NewWithDatabase(t, nil)
 	first := coderdtest.CreateFirstUser(t, client)
+	_, other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
 
 	keyCreate, userRead := codersdk.APIKeyScopeApiKeyCreate, codersdk.APIKeyScopeUserRead
 	narrow := []codersdk.APIKeyScope{keyCreate, userRead}
@@ -189,7 +190,8 @@ func TestTokenScopeCeiling(t *testing.T) {
 		name         string
 		callerScopes []codersdk.APIKeyScope // nil uses the unscoped session
 		callerAllow  []codersdk.APIAllowListTarget
-		sessionKey   bool // POST /users/me/keys instead of /keys/tokens
+		sessionKey   bool // POST /users/{user}/keys instead of /keys/tokens
+		forOther     bool // the Owner mints for another user instead of itself
 		req          codersdk.CreateTokenRequest
 		wantScopes   []codersdk.APIKeyScope
 		wantAllow    []codersdk.APIAllowListTarget
@@ -217,6 +219,9 @@ func TestTokenScopeCeiling(t *testing.T) {
 			wantScopes:   narrow,
 			wantAllow:    narrowAllow[:1],
 		},
+		{name: "other user inherits", callerScopes: narrow, callerAllow: narrowAllow, forOther: true, wantScopes: narrow, wantAllow: narrowAllow},
+		{name: "other user session key inherits", callerScopes: narrow, callerAllow: narrowAllow, forOther: true, sessionKey: true, wantScopes: narrow, wantAllow: narrowAllow},
+		{name: "other user coder:all refused", callerScopes: narrow, forOther: true, req: codersdk.CreateTokenRequest{Scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeCoderAll}}, wantErr: "coder:all"},
 		{name: "wider allow list refused", callerScopes: narrow, callerAllow: narrowAllow, req: codersdk.CreateTokenRequest{AllowList: all}, wantErr: "*:*"},
 	}
 
@@ -230,14 +235,18 @@ func TestTokenScopeCeiling(t *testing.T) {
 				caller, _ = scopedCaller(t, client, db, first.UserID, tc.callerScopes, tc.callerAllow, time.Time{})
 			}
 
+			target := codersdk.Me
+			if tc.forOther {
+				target = other.ID.String()
+			}
 			var (
 				resp codersdk.GenerateAPIKeyResponse
 				err  error
 			)
 			if tc.sessionKey {
-				resp, err = caller.CreateAPIKey(ctx, codersdk.Me)
+				resp, err = caller.CreateAPIKey(ctx, target)
 			} else {
-				resp, err = caller.CreateToken(ctx, codersdk.Me, tc.req)
+				resp, err = caller.CreateToken(ctx, target, tc.req)
 			}
 			if tc.wantErr != "" {
 				var sdkErr *codersdk.Error
@@ -248,7 +257,7 @@ func TestTokenScopeCeiling(t *testing.T) {
 			}
 			require.NoError(t, err)
 
-			key, err := client.APIKeyByID(ctx, codersdk.Me, strings.Split(resp.Key, "-")[0])
+			key, err := client.APIKeyByID(ctx, target, strings.Split(resp.Key, "-")[0])
 			require.NoError(t, err)
 			require.ElementsMatch(t, tc.wantScopes, key.Scopes)
 			require.ElementsMatch(t, tc.wantAllow, key.AllowList)
