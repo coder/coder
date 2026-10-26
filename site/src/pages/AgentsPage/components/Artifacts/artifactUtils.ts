@@ -102,6 +102,11 @@ export const getArtifactPagePath = (artifactId: string, version?: number) => {
 export const getArtifactLink = (artifactId: string, version?: number) =>
 	`${window.location.origin}${getArtifactPagePath(artifactId, version)}`;
 
+/**
+ * Names where a version came from. The chat title is set only when the
+ * viewer owns the chat, so a version from another user's chat names that
+ * user.
+ */
 const describeVersionSource = (
 	version: ChatArtifactVersion,
 	currentChatId: string | undefined,
@@ -120,8 +125,7 @@ const describeVersionSource = (
 
 /**
  * Describes one version for the version menu: "v2 · label · this chat ·
- * Mar 3, 14:32". The chat title is set only when the viewer owns the chat,
- * so a version from another user's chat names that user.
+ * Mar 3, 14:32".
  */
 export const describeArtifactVersion = (
 	version: ChatArtifactVersion,

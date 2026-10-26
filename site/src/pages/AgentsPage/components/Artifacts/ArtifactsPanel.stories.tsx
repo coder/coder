@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 import {
-	chatArtifact,
-	chatArtifactVersionText,
+	chatArtifactKey,
+	chatArtifactVersionTextKey,
 } from "#/api/queries/chatArtifacts";
 import type { ChatArtifact, ChatMessage } from "#/api/typesGenerated";
 import {
@@ -97,13 +97,10 @@ export const MarkdownVersion: Story = {
 	},
 	parameters: {
 		queries: [
+			{ key: chatArtifactKey(MockChatArtifact.id), data: MockChatArtifact },
+			{ key: chatArtifactKey(MockPdfArtifact.id), data: MockPdfArtifact },
 			{
-				key: chatArtifact(MockChatArtifact.id).queryKey,
-				data: MockChatArtifact,
-			},
-			{ key: chatArtifact(MockPdfArtifact.id).queryKey, data: MockPdfArtifact },
-			{
-				key: chatArtifactVersionText(MockChatArtifact.id, 2).queryKey,
+				key: chatArtifactVersionTextKey(MockChatArtifact.id, 2),
 				data: "# Repo layout\n\n- `coderd/` API server\n- `site/` frontend\n- `enterprise/` paid features\n",
 			},
 		],
@@ -116,7 +113,7 @@ export const DownloadVersion: Story = {
 	},
 	parameters: {
 		queries: [
-			{ key: chatArtifact(MockPdfArtifact.id).queryKey, data: MockPdfArtifact },
+			{ key: chatArtifactKey(MockPdfArtifact.id), data: MockPdfArtifact },
 		],
 	},
 };

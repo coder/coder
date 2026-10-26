@@ -99,7 +99,6 @@ describe("kindOf", () => {
 describe("describeArtifactVersion", () => {
 	const mockArtifactVersion = {
 		...MockChatArtifactVersion,
-		label: "",
 		created_by_username: "alice",
 		chat_id: "chat-1",
 		chat_title: "",

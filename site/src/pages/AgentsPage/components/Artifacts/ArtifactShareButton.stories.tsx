@@ -4,6 +4,12 @@ import { MockChatArtifact } from "#/testHelpers/chatEntities";
 import { MockUserMember, MockUserOwner } from "#/testHelpers/entities";
 import { ArtifactShareButton } from "./ArtifactShareButton";
 
+const mockProjectArtifact = {
+	...MockChatArtifact,
+	project_id: "project-1",
+	project_name: "Artifacts demo",
+};
+
 const meta: Meta<typeof ArtifactShareButton> = {
 	title: "pages/AgentsPage/Artifacts/ArtifactShareButton",
 	component: ArtifactShareButton,
@@ -14,7 +20,7 @@ const meta: Meta<typeof ArtifactShareButton> = {
 	},
 	decorators: [
 		(Story) => (
-			<div className="flex h-[240px] w-[420px] justify-end">
+			<div className="flex h-60 w-105 justify-end">
 				<Story />
 			</div>
 		),
@@ -36,13 +42,7 @@ export const OlderVersion: Story = {
 };
 
 export const ProjectArtifact: Story = {
-	args: {
-		artifact: {
-			...MockChatArtifact,
-			project_id: "project-1",
-			project_name: "Artifacts demo",
-		},
-	},
+	args: { artifact: mockProjectArtifact },
 };
 
 export const AnotherUsersArtifact: Story = {

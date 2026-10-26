@@ -3,8 +3,15 @@ import { API } from "#/api/api";
 
 const chatArtifactsKey = ["chat-artifacts"] as const;
 
-const chatArtifactKey = (artifactId: string) =>
+/** Query key of one artifact with its version metadata. */
+export const chatArtifactKey = (artifactId: string) =>
 	[...chatArtifactsKey, artifactId] as const;
+
+/** Query key of the text of one artifact version. */
+export const chatArtifactVersionTextKey = (
+	artifactId: string,
+	version: number,
+) => [...chatArtifactKey(artifactId), "versions", version, "text"] as const;
 
 /**
  * Lists the artifacts the user owns or sees through a chat project, across
@@ -26,7 +33,7 @@ export const chatArtifact = (artifactId: string) =>
 /** The text of one version. Published versions never change. */
 export const chatArtifactVersionText = (artifactId: string, version: number) =>
 	queryOptions({
-		queryKey: [...chatArtifactKey(artifactId), "versions", version, "text"],
+		queryKey: chatArtifactVersionTextKey(artifactId, version),
 		queryFn: () =>
 			API.experimental.getChatArtifactVersionText(artifactId, version),
 		staleTime: Number.POSITIVE_INFINITY,
