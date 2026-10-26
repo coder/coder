@@ -930,8 +930,8 @@ func guardedStream(
 				switch part.Type {
 				case fantasy.StreamPartTypeError:
 					finishTTFT(part.Error)
-				case fantasy.StreamPartTypeWarnings, fantasy.StreamPartTypeFinish:
-					// Neither is model output, so the window stays open.
+				case fantasy.StreamPartTypeWarnings, fantasy.StreamPartTypeKeepalive, fantasy.StreamPartTypeFinish:
+					// None is model output, so the window stays open.
 				default:
 					// Start markers such as text_start count as output.
 					finishTTFT(nil)
