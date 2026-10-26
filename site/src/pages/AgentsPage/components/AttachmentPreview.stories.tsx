@@ -41,6 +41,53 @@ export const SingleImage: Story = {
 	},
 };
 
+// The rendered opacity of an element, including its ancestors' opacity.
+const renderedOpacity = (element: Element): number => {
+	let opacity = 1;
+	for (let el: Element | null = element; el; el = el.parentElement) {
+		opacity *= Number(getComputedStyle(el).opacity);
+	}
+	return opacity;
+};
+
+// Reads layout to start pending opacity transitions, then waits for them.
+const settleTransitions = async (element: Element) => {
+	renderedOpacity(element);
+	await Promise.all(document.getAnimations().map((a) => a.finished));
+};
+
+// Keyboard focus on the card or on either overlay button shows both buttons.
+export const ThumbnailFocused: Story = {
+	args: (() => {
+		const file = createMockFile("clipboard.txt", "text/plain", 2048);
+		return {
+			attachments: [file],
+			uploadStates: new Map<File, UploadState>([
+				[file, { status: "uploaded", fileId: "file-1" }],
+			]),
+			previewUrls: new Map<File, string>(),
+			textContents: new Map<File, string>([[file, "Pasted text."]]),
+		};
+	})(),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const card = await canvas.findByRole("button", {
+			name: "View clipboard.txt",
+		});
+		const paste = canvas.getByRole("button", { name: "Paste inline" });
+		const remove = canvas.getByRole("button", { name: "Remove clipboard.txt" });
+		expect(renderedOpacity(paste)).toBe(0);
+		expect(renderedOpacity(remove)).toBe(0);
+		for (const focused of [card, paste, remove]) {
+			await userEvent.tab();
+			expect(focused).toHaveFocus();
+			await settleTransitions(focused);
+			expect(renderedOpacity(paste)).toBe(1);
+			expect(renderedOpacity(remove)).toBe(1);
+		}
+	},
+};
+
 export const MultipleImages: Story = {
 	args: (() => {
 		const files = [
