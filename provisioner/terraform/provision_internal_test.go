@@ -32,14 +32,36 @@ func TestCheckGraphCompleteSize(t *testing.T) {
 		PrerequisiteResourceAddress: "module.setup." + strings.Repeat("x", 90) + ".coder_script.step",
 		Requirement:                 proto.ScriptDependencyRequirement_SCRIPT_DEPENDENCY_REQUIREMENT_SUCCESS,
 	}
-	for protobuf.Size(envelope) <= drpcsdk.MaxMessageSize {
-		script.Dependencies = append(script.Dependencies, dependency)
+	// Binary search for the smallest dependency count whose envelope
+	// exceeds the limit. protobuf.Size is O(n), so growing one entry at a
+	// time is quadratic and takes minutes under the race detector.
+	all := make([]*proto.ScriptDependency, drpcsdk.MaxMessageSize/protobuf.Size(dependency)+1)
+	for i := range all {
+		all[i] = dependency
+	}
+	sizeWith := func(n int) int {
+		script.Dependencies = all[:n]
+		return protobuf.Size(envelope)
+	}
+	lo, hi := 0, len(all)
+	require.Greater(t, sizeWith(hi), drpcsdk.MaxMessageSize)
+	for lo < hi {
+		mid := (lo + hi) / 2
+		if sizeWith(mid) > drpcsdk.MaxMessageSize {
+			hi = mid
+		} else {
+			lo = mid + 1
+		}
 	}
 	// Drop the entry that crossed the limit, then pad the last remaining
-	// one a byte at a time so the envelope crosses by the smallest margin.
+	// one so the envelope crosses by the smallest margin. Jump most of the
+	// way in one step, then finish a byte at a time.
 	last := protobuf.Clone(dependency).(*proto.ScriptDependency)
-	script.Dependencies[len(script.Dependencies)-2] = last
-	script.Dependencies = script.Dependencies[:len(script.Dependencies)-1]
+	script.Dependencies = append([]*proto.ScriptDependency(nil), all[:lo-1]...)
+	script.Dependencies[len(script.Dependencies)-1] = last
+	if gap := drpcsdk.MaxMessageSize - protobuf.Size(envelope) - 8; gap > 0 {
+		last.PrerequisiteResourceAddress += strings.Repeat("x", gap)
+	}
 	for protobuf.Size(envelope) <= drpcsdk.MaxMessageSize {
 		last.PrerequisiteResourceAddress += "x"
 	}
