@@ -1,6 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
-import { baseModeFor, CONCRETE_THEMES, type ConcreteThemeName } from ".";
+import {
+	baseModeFor,
+	CONCRETE_THEMES,
+	type ConcreteThemeName,
+	DEFAULT_THEME,
+} from ".";
 
 const REQUIRED_VARIABLES = [
 	"--content-primary",
@@ -190,8 +195,9 @@ describe("theme CSS variables", () => {
 		);
 	});
 
-	// The page paints the :root surface before ThemeProvider runs, so the
-	// static theme-color and manifest colors must match it.
+	// Browsers use these colors until ThemeProvider writes the active theme's
+	// surface into the theme-color metas, so each must be the surface of the
+	// theme it stands in for.
 	describe("static theme colors", () => {
 		const toRGB = (source: string, color: string | null | undefined) => {
 			const probe = document.createElement("div");
@@ -201,34 +207,44 @@ describe("theme CSS variables", () => {
 			}
 			return probe.style.color;
 		};
-		const rootSurface = () => {
-			const rootBlock = extractBlock(css, ":root") ?? "";
+		const surfaceOf = (selector: string) => {
+			const block = extractBlock(css, selector) ?? "";
 			return toRGB(
-				"--surface-primary in the index.css :root block",
-				`hsl(${extractVariable(rootBlock, "--surface-primary")})`,
+				`--surface-primary in the index.css ${selector} block`,
+				`hsl(${extractVariable(block, "--surface-primary")})`,
 			);
 		};
 
-		it("matches the :root surface in index.html", () => {
-			const surface = rootSurface();
+		it("follows the OS color scheme in index.html", () => {
 			const html = fs.readFileSync(
 				path.resolve(__dirname, "../../index.html"),
 				"utf8",
 			);
-			const metas = new DOMParser()
-				.parseFromString(html, "text/html")
-				.getElementsByName("theme-color");
+			const metas = Array.from(
+				new DOMParser()
+					.parseFromString(html, "text/html")
+					.getElementsByName("theme-color"),
+			);
+			const colorFor = (scheme: "light" | "dark") =>
+				metas
+					.find(
+						(meta) =>
+							meta.getAttribute("media") ===
+							`(prefers-color-scheme: ${scheme})`,
+					)
+					?.getAttribute("content");
 
-			expect(metas).not.toHaveLength(0);
-			for (const meta of metas) {
-				expect(
-					toRGB("index.html theme-color", meta.getAttribute("content")),
-				).toBe(surface);
-			}
+			expect(metas).toHaveLength(2);
+			expect(toRGB("index.html light theme-color", colorFor("light"))).toBe(
+				surfaceOf(".light"),
+			);
+			expect(toRGB("index.html dark theme-color", colorFor("dark"))).toBe(
+				surfaceOf(".dark"),
+			);
 		});
 
-		it("matches the :root surface in the PWA manifest", () => {
-			const surface = rootSurface();
+		it("uses the default theme's surface in the PWA manifest", () => {
+			const surface = surfaceOf(`.${DEFAULT_THEME}`);
 			const manifest: { theme_color?: string; background_color?: string } =
 				JSON.parse(
 					fs.readFileSync(

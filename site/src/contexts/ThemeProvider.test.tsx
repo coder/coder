@@ -50,7 +50,8 @@ const renderThemeProvider = () => {
 };
 
 describe("ThemeProvider theme-color", () => {
-	let themeColorMeta: HTMLMetaElement;
+	let themeColorMetas: HTMLMetaElement[];
+	const themeColors = () => themeColorMetas.map((meta) => meta.content);
 
 	beforeEach(() => {
 		const style = document.createElement("style");
@@ -58,13 +59,23 @@ describe("ThemeProvider theme-color", () => {
 			.light body { background-color: ${lightSurface}; }
 			.dark body { background-color: ${darkSurface}; }
 		`;
-		themeColorMeta = document.createElement("meta");
-		themeColorMeta.name = "theme-color";
-		themeColorMeta.content = "#ffffff";
-		document.head.append(style, themeColorMeta);
+		// Mirrors the per-scheme defaults in index.html.
+		themeColorMetas = [
+			{ media: "(prefers-color-scheme: light)", content: "#ffffff" },
+			{ media: "(prefers-color-scheme: dark)", content: "#09090b" },
+		].map(({ media, content }) => {
+			const meta = document.createElement("meta");
+			meta.name = "theme-color";
+			meta.media = media;
+			meta.content = content;
+			return meta;
+		});
+		document.head.append(style, ...themeColorMetas);
 		return () => {
 			style.remove();
-			themeColorMeta.remove();
+			for (const meta of themeColorMetas) {
+				meta.remove();
+			}
 			vi.unstubAllGlobals();
 		};
 	});
@@ -83,10 +94,12 @@ describe("ThemeProvider theme-color", () => {
 		);
 
 		renderThemeProvider();
-		await waitFor(() => expect(themeColorMeta.content).toBe(lightSurface));
+		await waitFor(() =>
+			expect(themeColors()).toEqual([lightSurface, lightSurface]),
+		);
 
 		act(() => setOSColorScheme("dark"));
-		expect(themeColorMeta.content).toBe(darkSurface);
+		expect(themeColors()).toEqual([darkSurface, darkSurface]);
 	});
 
 	it("uses a pinned theme over the OS color scheme", async () => {
@@ -102,6 +115,8 @@ describe("ThemeProvider theme-color", () => {
 		);
 
 		renderThemeProvider();
-		await waitFor(() => expect(themeColorMeta.content).toBe(lightSurface));
+		await waitFor(() =>
+			expect(themeColors()).toEqual([lightSurface, lightSurface]),
+		);
 	});
 });

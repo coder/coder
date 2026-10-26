@@ -5,8 +5,8 @@
 	"start_url": "/agents",
 	"scope": "/",
 	"display": "standalone",
-	"background_color": "#ffffff",
-	"theme_color": "#ffffff",
+	"background_color": "#09090b",
+	"theme_color": "#09090b",
 	"icons": [
 		{
 			"src": "/pwa-icon-192.png?v=2",

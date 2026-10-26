@@ -15,8 +15,17 @@
 	<meta charset="utf-8" />
 	<title>Coder</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
-	<!-- Matches the :root surface until ThemeProvider applies the user's theme and updates this tag. -->
-	<meta name="theme-color" content="#ffffff" />
+	<!-- Until ThemeProvider writes the user's theme into these tags, the title bar follows the OS scheme, so launching on a dark OS does not flash a white title bar. -->
+	<meta
+		name="theme-color"
+		media="(prefers-color-scheme: light)"
+		content="#ffffff"
+	/>
+	<meta
+		name="theme-color"
+		media="(prefers-color-scheme: dark)"
+		content="#09090b"
+	/>
 	<meta name="application-name" content="{{ .ApplicationName }}" />
 	<meta property="og:type" content="website" />
 	<meta property="csrf-token" content="{{ .CSRF.Token }}" />

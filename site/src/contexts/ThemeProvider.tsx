@@ -36,7 +36,9 @@ export const ThemeProvider: React.FC<React.PropsWithChildren> = ({
 
 		// Installed PWAs and mobile browsers paint their title bar or toolbar
 		// with theme-color. Reading the body background after the classes
-		// apply gives the surface this theme actually renders.
+		// apply gives the surface this theme actually renders. Every meta gets
+		// it, including the per-scheme defaults in index.html, so a pinned theme
+		// wins over the OS scheme.
 		const themeColor = getComputedStyle(document.body).backgroundColor;
 		for (const meta of document.querySelectorAll<HTMLMetaElement>(
 			'meta[name="theme-color"]',
