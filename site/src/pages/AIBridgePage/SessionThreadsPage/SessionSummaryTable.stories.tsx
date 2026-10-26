@@ -23,6 +23,8 @@ export const Default: Story = {
 		outputTokens: MockSession.token_usage_summary.output_tokens,
 		cacheReadTokens: MockSession.token_usage_summary.cache_read_input_tokens,
 		cacheWriteTokens: MockSession.token_usage_summary.cache_write_input_tokens,
+		costMicros: 1_250_000,
+		hasUnpricedUsage: false,
 		threadCount: MockSession.threads,
 		toolCallCount: 12,
 	},
@@ -59,6 +61,19 @@ export const LargeTokenCounts: Story = {
 		outputTokens: 32_000,
 		cacheReadTokens: 1_635_778,
 		cacheWriteTokens: 130_734,
+		costMicros: 2_481_940,
+	},
+};
+
+export const UnpricedUsageTooltip: Story = {
+	args: {
+		...Default.args,
+		hasUnpricedUsage: true,
+	},
+	play: async ({ canvas }) => {
+		await userEvent.hover(
+			canvas.getByRole("button", { name: "Unpriced usage" }),
+		);
 	},
 };
 
