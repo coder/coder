@@ -1337,10 +1337,9 @@ func TestTurnWorkspaceContext_StaleBindingRepair(t *testing.T) {
 	require.Equal(t, updatedChat, currentChat)
 }
 
-func TestTurnWorkspaceContextGetWorkspaceConnLazyValidationSwitchesWorkspaceAgent(t *testing.T) {
+func TestTurnWorkspaceContextGetPreviewWorkspaceLazyValidationSwitchesWorkspaceAgent(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	expectAgentBindingTx(db)
@@ -1362,7 +1361,7 @@ func TestTurnWorkspaceContextGetWorkspaceConnLazyValidationSwitchesWorkspaceAgen
 		},
 	}
 	staleAgent := database.WorkspaceAgent{ID: staleAgentID}
-	currentAgent := database.WorkspaceAgent{ID: currentAgentID}
+	currentAgent := database.WorkspaceAgent{ID: currentAgentID, Name: "main"}
 	updatedChat := chat
 	updatedChat.BuildID = uuid.NullUUID{UUID: buildID, Valid: true}
 	updatedChat.AgentID = uuid.NullUUID{UUID: currentAgentID, Valid: true}
@@ -1407,9 +1406,12 @@ func TestTurnWorkspaceContextGetWorkspaceConnLazyValidationSwitchesWorkspaceAgen
 	}
 	t.Cleanup(workspaceCtx.close)
 
-	gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	preview, err := workspaceCtx.getPreviewWorkspace(ctx)
 	require.NoError(t, err)
-	require.Same(t, conn, gotConn)
+	require.Equal(t, "main", preview.AgentName)
+	require.Same(t, conn, preview.Conn)
+	require.Equal(t, workspaceID, preview.WorkspaceID)
 	require.Equal(t, []uuid.UUID{staleAgentID, currentAgentID}, dialed)
 	require.Equal(t, updatedChat, currentChat)
 

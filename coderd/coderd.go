@@ -945,6 +945,7 @@ func New(options *Options) *API {
 				AlwaysEnableDebugLogs:          options.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value(),
 				StreamSilenceTimeout:           streamSilenceTimeout,
 				DisableCallerSuppliedTools:     options.DeploymentValues.DisableChatCallerSuppliedTools.Value(),
+				EnablePreviews:                 options.AppHostname != "",
 				Experiments:                    experiments,
 				AgentConn:                      api.agentProvider.AgentConn,
 				AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,

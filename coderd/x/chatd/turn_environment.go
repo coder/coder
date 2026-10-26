@@ -1966,6 +1966,36 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 	return nil, xerrors.New("chat workspace changed while connecting")
 }
 
+// getPreviewWorkspace returns the bound agent connection together with the
+// workspace ID and agent name it belongs to. They are read under one lock so
+// they cannot come from different bindings. It retries once when the binding
+// is cleared between connecting and reading.
+func (c *turnWorkspaceContext) getPreviewWorkspace(ctx context.Context) (chattool.PreviewWorkspace, error) {
+	for attempt := 0; attempt < 2; attempt++ {
+		if _, err := c.getWorkspaceConn(ctx); err != nil {
+			return chattool.PreviewWorkspace{}, err
+		}
+
+		c.mu.Lock()
+		workspace := chattool.PreviewWorkspace{
+			Conn:        c.conn,
+			WorkspaceID: c.cachedWorkspaceID.UUID,
+			AgentName:   c.agent.Name,
+		}
+		isBound := c.conn != nil &&
+			c.agent.Name != "" &&
+			c.cachedWorkspaceID.Valid &&
+			nullUUIDEqual(c.cachedWorkspaceID, c.currentChatSnapshot().WorkspaceID)
+		c.mu.Unlock()
+
+		if isBound {
+			return workspace, nil
+		}
+	}
+
+	return chattool.PreviewWorkspace{}, xerrors.New("chat workspace changed while resolving preview")
+}
+
 func isExploreSubagentMode(mode database.NullChatMode) bool {
 	return mode.Valid && mode.ChatMode == database.ChatModeExplore
 }
@@ -2552,6 +2582,12 @@ func (p *Server) appendRootChatTools(
 		// Notify the frontend immediately so it can start streaming
 		// build logs before the tool completes.
 		p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
+	}
+
+	if p.enablePreviews {
+		tools = append(tools, chattool.OpenPreview(chattool.OpenPreviewOptions{
+			GetWorkspace: opts.workspaceCtx.getPreviewWorkspace,
+		}))
 	}
 
 	tools = append(tools,
