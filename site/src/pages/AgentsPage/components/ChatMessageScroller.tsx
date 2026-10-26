@@ -111,19 +111,20 @@ const EarlierMessages: React.FC<EarlierMessagesProps> = ({
 type ChatMessageScrollerProps = EarlierMessagesProps & {
 	/** One `MessageScroller.Item` per transcript row, and nothing else. */
 	children: React.ReactNode;
-	isTurnActive?: boolean;
+	isTurnActive: boolean;
 };
 
 export const ChatMessageScroller: React.FC<ChatMessageScrollerProps> = ({
 	children,
-	isTurnActive = false,
+	isTurnActive,
 	...earlierMessages
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
 	const { handleTurnEnd } = useMessageScroller();
 
 	// A sent message stays at the top until its reply fills the view, so a
-	// shorter reply would keep blank space below it after the turn.
+	// shorter reply would keep blank space below it after the turn. The reply
+	// is on the page: chatd sends the final message before the ending status.
 	useEffect(() => {
 		if (!isTurnActive) {
 			handleTurnEnd();
