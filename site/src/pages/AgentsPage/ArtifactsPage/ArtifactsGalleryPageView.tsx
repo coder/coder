@@ -10,7 +10,7 @@ import {
 	WorkflowIcon,
 } from "lucide-react";
 import { useState } from "react";
-import { Link } from "react-router";
+import { Link, useLocation, useSearchParams } from "react-router";
 import type { ChatArtifact } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -33,6 +33,13 @@ const FILTERS: readonly { id: ArtifactFilter; label: string }[] = [
 	{ id: "yours", label: "Yours" },
 	{ id: "shared", label: "Shared with you" },
 ];
+
+/** The search parameters that keep the filter and the search text. */
+const filterParam = "show";
+const searchParam = "search";
+
+const parseFilter = (value: string | null): ArtifactFilter =>
+	value === "yours" || value === "shared" ? value : "all";
 
 /** The localStorage key that keeps the list or grid choice. */
 export const galleryLayoutStorageKey = "agents.artifacts-gallery-layout";
@@ -81,18 +88,22 @@ type ArtifactItemProps = {
 	artifact: ChatArtifact;
 	currentUserId: string;
 	now: Date;
+	/** The gallery URL, so the artifact page can link back to it. */
+	galleryPath: string;
 };
 
 const ArtifactListItem: React.FC<ArtifactItemProps> = ({
 	artifact,
 	currentUserId,
 	now,
+	galleryPath,
 }) => {
 	const Icon = artifactIcon(artifact);
 	return (
 		<li>
 			<Link
 				to={getArtifactPagePath(artifact.id)}
+				state={{ from: galleryPath }}
 				className="flex items-center gap-3 rounded-lg p-2 no-underline hover:bg-surface-secondary"
 			>
 				<span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-solid border-border bg-surface-secondary text-content-secondary">
@@ -125,12 +136,14 @@ const ArtifactCard: React.FC<ArtifactItemProps> = ({
 	artifact,
 	currentUserId,
 	now,
+	galleryPath,
 }) => {
 	const Icon = artifactIcon(artifact);
 	return (
 		<li>
 			<Link
 				to={getArtifactPagePath(artifact.id)}
+				state={{ from: galleryPath }}
 				className="flex flex-col overflow-hidden rounded-lg border border-solid border-border no-underline hover:bg-surface-secondary"
 			>
 				<span className="flex h-28 items-center justify-center border-0 border-b border-solid border-border bg-surface-secondary text-content-secondary">
@@ -168,15 +181,55 @@ type ArtifactsGalleryPageViewProps = {
 };
 
 /**
- * The artifact gallery. The list or grid choice persists in localStorage
- * under galleryLayoutStorageKey. `now` is the reference time for the
+ * The artifact gallery. The filter and the search text live in the URL, so
+ * a reload or a link keeps them. The list or grid choice persists in
+ * localStorage under galleryLayoutStorageKey. `now` is the reference time for the
  * "Edited" labels and for the time sections of the list.
  */
 export const ArtifactsGalleryPageView: React.FC<
 	ArtifactsGalleryPageViewProps
 > = ({ artifacts, error, currentUserId, now }) => {
-	const [filter, setFilter] = useState<ArtifactFilter>("all");
-	const [search, setSearch] = useState("");
+	const location = useLocation();
+	const [searchParams, setSearchParams] = useSearchParams();
+	// The URL seeds the state and mirrors it. Each change writes both values
+	// from state, because a second change can run before the navigation of
+	// the first one renders, and its search parameters would be stale.
+	const [filter, setFilterState] = useState(() =>
+		parseFilter(searchParams.get(filterParam)),
+	);
+	const [search, setSearchState] = useState(
+		() => searchParams.get(searchParam) ?? "",
+	);
+	const galleryPath = location.pathname + location.search;
+	const writeParams = (nextFilter: ArtifactFilter, nextSearch: string) => {
+		setSearchParams(
+			(prev) => {
+				// Other parameters, such as the sidebar filters, stay.
+				const next = new URLSearchParams(prev);
+				if (nextFilter === "all") {
+					next.delete(filterParam);
+				} else {
+					next.set(filterParam, nextFilter);
+				}
+				if (nextSearch) {
+					next.set(searchParam, nextSearch);
+				} else {
+					next.delete(searchParam);
+				}
+				return next;
+			},
+			// Typing does not add history entries.
+			{ replace: true },
+		);
+	};
+	const setFilter = (next: ArtifactFilter) => {
+		setFilterState(next);
+		writeParams(next, search);
+	};
+	const setSearch = (next: string) => {
+		setSearchState(next);
+		writeParams(filter, next);
+	};
 	const [layout, setLayout] = useState<GalleryLayout>(() =>
 		localStorage.getItem(galleryLayoutStorageKey) === "grid" ? "grid" : "list",
 	);
@@ -219,6 +272,7 @@ export const ArtifactsGalleryPageView: React.FC<
 							artifact={artifact}
 							currentUserId={currentUserId}
 							now={now}
+							galleryPath={galleryPath}
 						/>
 					))}
 				</ul>
@@ -243,6 +297,7 @@ export const ArtifactsGalleryPageView: React.FC<
 									artifact={artifact}
 									currentUserId={currentUserId}
 									now={now}
+									galleryPath={galleryPath}
 								/>
 							))}
 						</ul>

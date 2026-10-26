@@ -20,6 +20,8 @@ type ArtifactsPanelProps = {
 	selection: ArtifactSelection | null;
 	onSelect: (selection: ArtifactSelection) => void;
 	onPrompt?: (text: string) => void;
+	/** The viewer, for the Share popover. */
+	currentUserId?: string;
 };
 
 /**
@@ -32,6 +34,7 @@ export const ArtifactsPanel: React.FC<ArtifactsPanelProps> = ({
 	selection,
 	onSelect,
 	onPrompt,
+	currentUserId,
 }) => {
 	const messages = useChatMessages(store);
 	const artifactIds = deriveArtifactIds(messages);
@@ -73,6 +76,7 @@ export const ArtifactsPanel: React.FC<ArtifactsPanelProps> = ({
 					onSelect({ artifactId: selectedId, version })
 				}
 				onPrompt={onPrompt}
+				currentUserId={currentUserId}
 			/>
 		</div>
 	);
@@ -143,6 +147,7 @@ type SelectedArtifactProps = {
 	chatId: string;
 	onSelectVersion: (version: number) => void;
 	onPrompt?: (text: string) => void;
+	currentUserId?: string;
 };
 
 const SelectedArtifact: React.FC<SelectedArtifactProps> = ({
@@ -151,6 +156,7 @@ const SelectedArtifact: React.FC<SelectedArtifactProps> = ({
 	chatId,
 	onSelectVersion,
 	onPrompt,
+	currentUserId,
 }) => {
 	const artifactQuery = useQuery(chatArtifact(artifactId));
 	// A failed background refetch keeps the cached artifact on screen.
@@ -162,6 +168,8 @@ const SelectedArtifact: React.FC<SelectedArtifactProps> = ({
 				onSelectVersion={onSelectVersion}
 				currentChatId={chatId}
 				onPrompt={onPrompt}
+				currentUserId={currentUserId}
+				showPageLink
 			/>
 		);
 	}

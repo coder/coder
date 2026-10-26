@@ -1,9 +1,10 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { createMemoryRouter } from "react-router";
 import type { ChatArtifact } from "#/api/typesGenerated";
 import { MockChatArtifact } from "#/testHelpers/chatEntities";
 import { MockUserMember, MockUserOwner } from "#/testHelpers/entities";
-import { render } from "#/testHelpers/renderHelpers";
+import { render, renderWithRouter } from "#/testHelpers/renderHelpers";
 import {
 	ArtifactsGalleryPageView,
 	filterArtifacts,
@@ -79,5 +80,68 @@ describe("ArtifactsGalleryPageView", () => {
 
 		await user.click(screen.getByRole("button", { name: "List view" }));
 		expect(localStorage.getItem(galleryLayoutStorageKey)).toBe("list");
+	});
+
+	const renderGallery = (route: string) =>
+		renderWithRouter(
+			createMemoryRouter(
+				[
+					{
+						path: "/agents/artifacts",
+						element: (
+							<ArtifactsGalleryPageView
+								artifacts={mockArtifacts}
+								error={undefined}
+								currentUserId={MockUserOwner.id}
+								now={new Date(MockChatArtifact.updated_at)}
+							/>
+						),
+					},
+					{ path: "/agents/artifacts/:artifactId", element: <div /> },
+				],
+				{ initialEntries: [route] },
+			),
+		);
+
+	it("keeps the filter and the search in the URL", async () => {
+		const user = userEvent.setup();
+		const { router } = renderGallery("/agents/artifacts?pr_status=open");
+
+		await user.click(await screen.findByRole("button", { name: "Yours" }));
+		await user.type(
+			screen.getByRole("textbox", { name: "Search artifacts" }),
+			"repo",
+		);
+
+		expect(
+			Object.fromEntries(new URLSearchParams(router.state.location.search)),
+		).toEqual({ pr_status: "open", show: "yours", search: "repo" });
+	});
+
+	it("shows the artifacts that the URL filter and search select", async () => {
+		renderGallery("/agents/artifacts?show=shared&search=notes");
+
+		expect(
+			screen.getByRole("textbox", { name: "Search artifacts" }),
+		).toHaveValue("notes");
+		expect(
+			(await screen.findAllByRole("link")).map((link) =>
+				link.getAttribute("href"),
+			),
+		).toEqual([`/agents/artifacts/${mockSharedArtifact.id}`]);
+	});
+
+	it("passes the gallery URL to the artifact page", async () => {
+		const user = userEvent.setup();
+		const { router } = renderGallery("/agents/artifacts?show=yours");
+
+		await user.click(await screen.findByRole("link", { name: /Repo layout/ }));
+
+		expect(router.state.location.pathname).toBe(
+			`/agents/artifacts/${mockOwnArtifact.id}`,
+		);
+		expect(router.state.location.state).toEqual({
+			from: "/agents/artifacts?show=yours",
+		});
 	});
 });

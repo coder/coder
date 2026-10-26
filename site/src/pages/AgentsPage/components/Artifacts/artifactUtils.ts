@@ -83,16 +83,23 @@ export const kindOf = (name: string, mediaType: string): ArtifactKind => {
 	return "download";
 };
 
-export const getArtifactPagePath = (artifactId: string) =>
-	`/agents/artifacts/${encodeURIComponent(artifactId)}`;
+export const artifactsGalleryPath = "/agents/artifacts";
 
-/** An absolute link to the artifact page, for "Copy link". */
-export const getArtifactLink = (artifactId: string) =>
-	`${window.location.origin}${getArtifactPagePath(artifactId)}`;
+/** The artifact page, at one version when `version` is set. */
+export const getArtifactPagePath = (artifactId: string, version?: number) =>
+	`${artifactsGalleryPath}/${encodeURIComponent(artifactId)}${version === undefined ? "" : `?version=${version}`}`;
+
+/**
+ * An absolute link to the artifact page, for "Copy link". Without
+ * `version` it opens the latest version.
+ */
+export const getArtifactLink = (artifactId: string, version?: number) =>
+	`${window.location.origin}${getArtifactPagePath(artifactId, version)}`;
 
 /**
  * Describes one version for the version menu: "v2 · label · this chat ·
- * Mar 3, 14:32". The chat title is set only when the viewer owns the chat.
+ * Mar 3, 14:32". The chat title is set only when the viewer owns the chat,
+ * so a version from another user's chat names that user.
  */
 export const describeArtifactVersion = (
 	version: ChatArtifactVersion,
@@ -101,7 +108,10 @@ export const describeArtifactVersion = (
 	const source =
 		currentChatId !== undefined && version.chat_id === currentChatId
 			? "this chat"
-			: version.chat_title || "another chat";
+			: version.chat_title ||
+				(version.created_by_username
+					? `by ${version.created_by_username}`
+					: "another chat");
 	return [
 		`v${version.version}`,
 		version.label,

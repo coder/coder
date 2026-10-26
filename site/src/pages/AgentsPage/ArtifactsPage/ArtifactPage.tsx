@@ -1,19 +1,43 @@
+import { ArrowLeftIcon } from "lucide-react";
 import { useQuery } from "react-query";
-import { useParams, useSearchParams } from "react-router";
+import { Link, useLocation, useParams, useSearchParams } from "react-router";
+import { getErrorStatus } from "#/api/errors";
 import { chatArtifact } from "#/api/queries/chatArtifacts";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Loader } from "#/components/Loader/Loader";
+import { toast } from "#/components/Toaster/toast";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { pageTitle } from "#/utils/page";
 import { AgentPageHeader } from "../components/AgentPageHeader";
 import { ArtifactView } from "../components/Artifacts/ArtifactView";
+import { artifactsGalleryPath } from "../components/Artifacts/artifactUtils";
+
+/**
+ * The gallery URL that opened this page, with its filter and search, or the
+ * plain gallery.
+ */
+const useGalleryPath = (): string => {
+	const { state } = useLocation();
+	const from: unknown =
+		typeof state === "object" && state !== null && "from" in state
+			? state.from
+			: undefined;
+	return typeof from === "string" && from.startsWith(artifactsGalleryPath)
+		? from
+		: artifactsGalleryPath;
+};
 
 /**
  * One artifact on its own page. It shows the latest version unless the
- * version search parameter names another one. There is no chat here, so
- * messages from an HTML version do nothing.
+ * version search parameter names another one. There is no chat here, so a
+ * message from an HTML version is not sent, and a toast says so.
  */
 const ArtifactPage: React.FC = () => {
 	const { artifactId = "" } = useParams();
+	const { user } = useAuthenticated();
+	const galleryPath = useGalleryPath();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const versionParam = Number(searchParams.get("version"));
 	const selectedVersion =
@@ -35,14 +59,47 @@ const ArtifactPage: React.FC = () => {
 				onSelectVersion={(version) =>
 					setSearchParams({ version: String(version) }, { replace: true })
 				}
+				onPrompt={() =>
+					toast.info("Open this artifact in its chat to send messages from it.")
+				}
+				currentUserId={user.id}
+				leading={
+					<Button
+						asChild
+						variant="subtle"
+						size="icon"
+						className="hidden sm:inline-flex"
+					>
+						<Link to={galleryPath} aria-label="Back to artifacts">
+							<ArrowLeftIcon />
+						</Link>
+					</Button>
+				}
 			/>
 		);
 	} else if (artifactQuery.isError) {
-		content = (
-			<div className="p-4">
-				<ErrorAlert error={artifactQuery.error} />
-			</div>
-		);
+		// The API answers 404 for an artifact the viewer cannot see, and 400
+		// for an ID that is not a UUID. Both mean the link leads nowhere.
+		const status = getErrorStatus(artifactQuery.error);
+		content =
+			status === 404 || status === 400 ? (
+				<EmptyState
+					message="Artifact not found"
+					description="The artifact does not exist, or you do not have access to it. Ask its owner to publish it from a chat in a project that you are a member of."
+					cta={
+						<Button asChild variant="outline">
+							<Link to={galleryPath}>
+								<ArrowLeftIcon />
+								Back to artifacts
+							</Link>
+						</Button>
+					}
+				/>
+			) : (
+				<div className="p-4">
+					<ErrorAlert error={artifactQuery.error} />
+				</div>
+			);
 	} else {
 		content = <Loader className="flex-1" label="Loading artifact" />;
 	}
@@ -54,7 +111,7 @@ const ArtifactPage: React.FC = () => {
 			</title>
 			<div className="flex min-h-0 flex-1 flex-col">
 				<AgentPageHeader
-					mobileBack={{ to: "/agents/artifacts", label: "Artifacts" }}
+					mobileBack={{ to: galleryPath, label: "Back to artifacts" }}
 				/>
 				{content}
 			</div>

@@ -712,6 +712,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 						selection={artifactSelection}
 						onSelect={setArtifactSelection}
 						onPrompt={handleArtifactPrompt}
+						currentUserId={currentUser.id}
 					/>
 				);
 			case "browser":
