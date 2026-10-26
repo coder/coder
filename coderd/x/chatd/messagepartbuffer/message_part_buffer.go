@@ -82,8 +82,8 @@ func (p Part) jsonValue() partJSON {
 type Options struct {
 	MaxEpisodeBytes        int64
 	ClosedEpisodeRetention time.Duration
-	// SubscriberSendTimeout bounds each send to a subscriber once its episode
-	// is closed. Sends to an open episode have no deadline.
+	// SubscriberSendTimeout bounds how long a send waits after its episode
+	// closes.
 	SubscriberSendTimeout time.Duration
 	Clock                 quartz.Clock
 }
@@ -388,9 +388,9 @@ func (b *Buffer) ToolCompletions(key Key) map[int]ToolCompletion {
 //
 // Subscribers may attach before CreateEpisode is called. In that case the
 // subscription stays idle until the first part added, closure, cancellation,
-// or buffer shutdown. The returned cancel function is idempotent. The channel
-// closes with parts undelivered if a send waits longer than
-// SubscriberSendTimeout.
+// or buffer shutdown. The returned cancel function is idempotent. A send waits
+// with no deadline while the episode is open. After the close it waits at most
+// SubscriberSendTimeout more, then the channel closes with parts undelivered.
 func (b *Buffer) SubscribeToEpisode(ctx context.Context, key Key) (<-chan Part, func(), error) {
 	b.mu.Lock()
 	if b.closed {
@@ -585,8 +585,6 @@ func (b *Buffer) sendSubscriberPart(ctx context.Context, subscriber *episodeSubs
 	case <-subscriber.stopCh:
 		return false
 	case <-ctx.Done():
-		return false
-	case <-b.done:
 		return false
 	}
 	timer := b.opts.Clock.NewTimer(b.opts.SubscriberSendTimeout, "message-part-buffer", "subscriber-send")
