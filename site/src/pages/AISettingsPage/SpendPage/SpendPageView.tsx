@@ -125,8 +125,8 @@ const SpendPageContent: React.FC<SpendPageContentProps> = ({
 					}}
 				/>
 				<Alert severity="warning">
-					You don't have access to this organization's spend, or it doesn't
-					exist. Choose another organization.
+					You don't have access to this organization's spend, or the
+					organization doesn't exist. Choose another organization.
 				</Alert>
 			</>
 		);
