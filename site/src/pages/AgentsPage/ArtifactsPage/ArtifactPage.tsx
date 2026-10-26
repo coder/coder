@@ -1,4 +1,5 @@
 import { ArrowLeftIcon } from "lucide-react";
+import { useEffect } from "react";
 import { useQuery } from "react-query";
 import {
 	Link,
@@ -61,6 +62,14 @@ const ArtifactPage: React.FC = () => {
 		...chatArtifact(artifactId),
 		enabled: artifactId !== "",
 	});
+	const promptToastId = `artifact-prompt-${artifactId}`;
+	// The prompt toast with "Open chat" stays until it is closed, so it
+	// closes when the viewer leaves this artifact.
+	useEffect(() => {
+		return () => {
+			toast.dismiss(promptToastId);
+		};
+	}, [promptToastId]);
 
 	// A failed background refetch keeps the cached artifact on screen.
 	let content: React.ReactNode;
@@ -71,7 +80,7 @@ const ArtifactPage: React.FC = () => {
 			const chatPath = version && getVersionChatPath(version);
 			toast.info("Open this artifact in its chat to send messages from it.", {
 				// Repeated messages update this one toast.
-				id: `artifact-prompt-${artifact.id}`,
+				id: promptToastId,
 				...(chatPath
 					? {
 							action: { label: "Open chat", onClick: () => navigate(chatPath) },
