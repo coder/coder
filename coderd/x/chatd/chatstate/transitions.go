@@ -562,7 +562,7 @@ type SendMessageInput struct {
 	Message      Message
 	BusyBehavior BusyBehavior
 	// MaxQueueSize is the maximum number of messages that can be queued
-	// in the chat. It must be positive when the message is queued.
+	// in the chat. It must be positive when the chat is busy.
 	MaxQueueSize int
 }
 
@@ -576,7 +576,8 @@ type SendMessageResult struct {
 
 // SendMessage inserts directly in idle states and queues by lane in busy
 // states. From E1, it queues the message and resumes with the steer lane,
-// or the queue head if no steer messages exist.
+// or the queue head if no steer messages exist. Only busy states enforce
+// MaxQueueSize, because only they make the queue longer.
 func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 	chat, from, err := tx.requireFromAllowed(TransitionSendMessage)
 	if err != nil {
@@ -605,10 +606,10 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 	if err := CheckSendMessageQueueCapacity(chat, queuedCount, input.MaxQueueSize); err != nil {
 		return SendMessageResult{}, err
 	}
-	if sendMessageInsertsDirectly(from) {
-		return tx.sendMessageDirect(chat, input)
-	}
 	switch from {
+	case StateW, StateE0:
+		return tx.sendMessageDirect(chat, input)
+
 	case StateE1:
 		return tx.sendMessageE1(chat, input)
 
@@ -618,8 +619,17 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 	return SendMessageResult{}, newTransitionError(TransitionSendMessage, from, "unhandled state in SendMessage")
 }
 
-func sendMessageInsertsDirectly(from ExecutionState) bool {
-	return from == StateW || from == StateE0
+// sendMessageGrowsQueue reports whether SendMessage from the state can
+// make the queue longer. W and E0 insert the message into history. E1
+// queues the message, but it also delivers at least one queued message
+// in the same transaction.
+func sendMessageGrowsQueue(from ExecutionState) bool {
+	switch from {
+	case StateW, StateE0, StateE1:
+		return false
+	default:
+		return true
+	}
 }
 
 // CheckSendMessageQueueCapacity returns a *MessageQueueFullError when
@@ -628,7 +638,7 @@ func sendMessageInsertsDirectly(from ExecutionState) bool {
 // outside a transaction can call it first to reject a send early.
 func CheckSendMessageQueueCapacity(chat database.Chat, queuedCount int64, maxQueueSize int) error {
 	from := ClassifyExecutionState(chat, queuedCount > 0, true)
-	if sendMessageInsertsDirectly(from) {
+	if !sendMessageGrowsQueue(from) {
 		return nil
 	}
 	if maxQueueSize <= 0 {
