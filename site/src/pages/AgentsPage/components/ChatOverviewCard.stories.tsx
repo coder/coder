@@ -122,6 +122,8 @@ const meta: Meta<typeof ChatOverviewCardView> = {
 	component: ChatOverviewCardView,
 	args: {
 		overview: mockChatOverview,
+		isPinned: false,
+		onPinnedChange: fn(),
 		onOpenTab: fn(),
 	},
 	decorators: [
@@ -138,6 +140,25 @@ type Story = StoryObj<typeof ChatOverviewCardView>;
 
 /** Every section, with a fourth attachment behind the toggle. */
 export const Full: Story = {};
+
+/** A pinned card stays open in every chat. */
+export const Pinned: Story = {
+	args: { isPinned: true },
+};
+
+/** Opened before the chat has anything to show. */
+export const Empty: Story = {
+	args: {
+		overview: {
+			cost: undefined,
+			isSubagent: false,
+			repos: [],
+			pullRequests: [],
+			subagents: [],
+			attachments: [],
+		},
+	},
+};
 
 export const CostOnly: Story = {
 	args: {

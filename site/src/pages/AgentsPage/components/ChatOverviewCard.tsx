@@ -4,8 +4,9 @@ import {
 	FileIcon,
 	GitBranchIcon,
 	type LucideIcon,
+	PinIcon,
 } from "lucide-react";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { type UseQueryResult, useQuery } from "react-query";
 import { Link, useOutletContext } from "react-router";
 import { chatCost } from "#/api/queries/chats";
@@ -15,6 +16,7 @@ import type {
 	ChatDiffStatus,
 	WorkspaceAgentRepoChanges,
 } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { formatCostMicros } from "#/utils/currency";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
@@ -41,15 +43,112 @@ import { computeRepoStats, type DiffStats } from "./GitPanel/GitPanel";
 /** Rows a list section shows before it folds the rest behind a toggle. */
 const OVERVIEW_MAX_LIST_ROWS = 3;
 
+/** A pinned card stays open in every chat and across reloads. */
+export const OVERVIEW_CARD_PINNED_KEY = "agents.overview-card-pinned";
+
 /**
- * Reserves the card's room on the chat column: the card's width, its inset
- * and a gap. The breakpoint fits the room beside the transcript, and the
- * card shows at the same breakpoint.
+ * The card and its toggle show only on a chat at least 84rem wide. There
+ * the card fits in the margin beside the centered transcript and composer
+ * (max-w-3xl, 48rem), so it never covers or moves them:
+ * 48rem + 2 * (16rem card + 1rem inset + 1rem gap) = 84rem.
  */
-export const overviewRoomClassName =
-	"@min-[66rem]/chat:[--agents-overview-room:18rem]";
+export const overviewToggleClassName = "hidden @min-[84rem]/chat:inline-flex";
 const overviewCardPositionClassName =
-	"absolute top-full right-4 z-20 mt-2 hidden @min-[66rem]/chat:flex";
+	"absolute top-full right-4 z-20 mt-2 hidden @min-[84rem]/chat:flex";
+
+type OverviewCardState = {
+	isOpen: boolean;
+	isPinned: boolean;
+	/** Opens the card, or closes and unpins it. */
+	toggle: () => void;
+	/** Closes the card unless it is pinned. */
+	dismiss: () => void;
+	setPinned: (pinned: boolean) => void;
+};
+
+type OverviewCardRefs = {
+	/** The card, so a click inside it does not count as outside. */
+	cardRef: React.RefObject<HTMLElement | null>;
+	/** The top bar toggle, which handles its own clicks and takes focus back. */
+	toggleRef: React.RefObject<HTMLButtonElement | null>;
+};
+
+/**
+ * Open state of the overview card, as in Codex: the top bar toggle opens
+ * the card, and an outside click or Escape closes it unless it is pinned.
+ * The page view mounts again for each chat, so an unpinned card starts
+ * closed in every chat.
+ */
+export const useOverviewCard = ({
+	cardRef,
+	toggleRef,
+}: OverviewCardRefs): OverviewCardState => {
+	const [isPinned, setIsPinned] = useState(
+		() => localStorage.getItem(OVERVIEW_CARD_PINNED_KEY) === "true",
+	);
+	const [isOpen, setIsOpen] = useState(isPinned);
+
+	useEffect(() => {
+		if (!isOpen || isPinned) {
+			return;
+		}
+		const onPointerDown = (event: PointerEvent) => {
+			const target = event.target;
+			if (
+				target instanceof Node &&
+				(cardRef.current?.contains(target) ||
+					toggleRef.current?.contains(target))
+			) {
+				return;
+			}
+			setIsOpen(false);
+		};
+		// Escape elsewhere belongs to the composer and its menus.
+		const onKeyDown = (event: KeyboardEvent) => {
+			const focused = document.activeElement;
+			if (
+				event.key !== "Escape" ||
+				!(
+					cardRef.current?.contains(focused) ||
+					toggleRef.current?.contains(focused)
+				)
+			) {
+				return;
+			}
+			// Focus inside the card would drop to the body when it unmounts.
+			toggleRef.current?.focus();
+			setIsOpen(false);
+		};
+		document.addEventListener("pointerdown", onPointerDown);
+		document.addEventListener("keydown", onKeyDown);
+		return () => {
+			document.removeEventListener("pointerdown", onPointerDown);
+			document.removeEventListener("keydown", onKeyDown);
+		};
+	}, [isOpen, isPinned, cardRef, toggleRef]);
+
+	const setPinned = (pinned: boolean) => {
+		setIsPinned(pinned);
+		localStorage.setItem(OVERVIEW_CARD_PINNED_KEY, String(pinned));
+	};
+
+	return {
+		isOpen,
+		isPinned,
+		toggle: () => {
+			if (isOpen) {
+				setPinned(false);
+			}
+			setIsOpen(!isOpen);
+		},
+		dismiss: () => {
+			if (!isPinned) {
+				setIsOpen(false);
+			}
+		},
+		setPinned,
+	};
+};
 
 /** The right panel tabs that the overview card can open. */
 export type OverviewTabId = "summary" | "git";
@@ -76,22 +175,28 @@ export type ChatOverview = {
 };
 
 type ChatOverviewCardProps = {
+	ref?: React.Ref<HTMLElement>;
 	chat: Chat;
 	store: ChatStore;
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
 	isHydratingMessages: boolean;
+	isPinned: boolean;
+	onPinnedChange: (pinned: boolean) => void;
 	onOpenTab: (tabId: OverviewTabId) => void;
 };
 
 /**
  * Owns the data hooks, so a new message renders this card again and not the
- * whole page view. Renders nothing when no section has data.
+ * whole page view.
  */
 export const ChatOverviewCard: React.FC<ChatOverviewCardProps> = ({
+	ref,
 	chat,
 	store,
 	repositories,
 	isHydratingMessages,
+	isPinned,
+	onPinnedChange,
 	onOpenTab,
 }) => {
 	const showCost = useFeatureVisibility().aibridge;
@@ -127,18 +232,12 @@ export const ChatOverviewCard: React.FC<ChatOverviewCardProps> = ({
 		attachments: getLoadedAgentAttachments(messages, isHydratingMessages) ?? [],
 	};
 
-	if (
-		overview.cost === undefined &&
-		overview.repos.length === 0 &&
-		overview.pullRequests.length === 0 &&
-		overview.subagents.length === 0 &&
-		overview.attachments.length === 0
-	) {
-		return null;
-	}
 	return (
 		<ChatOverviewCardView
+			ref={ref}
 			overview={overview}
+			isPinned={isPinned}
+			onPinnedChange={onPinnedChange}
 			onOpenTab={onOpenTab}
 			className={overviewCardPositionClassName}
 		/>
@@ -169,7 +268,10 @@ const getOverviewCost = (
 };
 
 type ChatOverviewCardViewProps = {
+	ref?: React.Ref<HTMLElement>;
 	overview: ChatOverview;
+	isPinned: boolean;
+	onPinnedChange: (pinned: boolean) => void;
 	onOpenTab: (tabId: OverviewTabId) => void;
 	className?: string;
 };
@@ -179,20 +281,60 @@ type ChatOverviewCardViewProps = {
  * subagent rows, which link to the subagent's chat.
  */
 export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
+	ref,
 	overview,
+	isPinned,
+	onPinnedChange,
 	onOpenTab,
 	className,
 }) => {
 	const { cost } = overview;
+	const headingId = useId();
+	const isEmpty =
+		cost === undefined &&
+		overview.repos.length === 0 &&
+		overview.pullRequests.length === 0 &&
+		overview.subagents.length === 0 &&
+		overview.attachments.length === 0;
 
 	return (
 		<aside
-			aria-label="Chat overview"
+			ref={ref}
+			aria-labelledby={headingId}
 			className={cn(
 				"flex max-h-[min(32rem,calc(100vh-10rem))] w-64 flex-col divide-y divide-solid divide-border overflow-y-auto rounded-lg border border-solid border-border bg-surface-primary px-3 text-sm shadow-md",
 				className,
 			)}
 		>
+			<div className="flex items-center justify-between gap-2 py-1.5">
+				<h2
+					id={headingId}
+					className="m-0 text-xs font-medium text-content-secondary"
+				>
+					Overview
+				</h2>
+				<Button
+					variant="subtle"
+					size="icon"
+					className={cn(
+						"-mr-1.5 size-6 text-content-secondary hover:text-content-primary",
+						isPinned && "text-content-primary",
+					)}
+					aria-label="Pin overview"
+					aria-pressed={isPinned}
+					onClick={() => onPinnedChange(!isPinned)}
+				>
+					<PinIcon className={cn("size-3.5", isPinned && "fill-current")} />
+				</Button>
+			</div>
+
+			{isEmpty && (
+				<p className="m-0 py-2 text-xs text-content-secondary">
+					Nothing to show yet. Cost, changes, pull requests, subagents, and
+					attachments show up here as the agent works.
+				</p>
+			)}
+
 			{cost && (
 				<div className="flex flex-col py-2">
 					<OverviewRow
