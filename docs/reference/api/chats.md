@@ -2659,9 +2659,8 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
 
 `POST /api/v2/chats/{chat}/interrupt`
 
-Interrupts the active turn of a chat. If the chat has
-nothing to interrupt, for example because its turn
-already ended, the endpoint returns the chat unchanged.
+Interrupts the active turn of a chat.
+If the chat has nothing to interrupt, for example because its turn already ended, the endpoint returns the chat unchanged.
 
 ### Parameters
 
