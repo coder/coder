@@ -1,7 +1,6 @@
 package chattool
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 
@@ -151,27 +150,22 @@ func TestAskUserQuestionToolRun(t *testing.T) {
 		`{"label":"Frontend","description":"Build the UI first."}]}]}`
 
 	tests := []struct {
-		name      string
-		async     bool
-		input     string
-		wantAsked []string
+		name  string
+		async bool
+		input string
+		// wantAsked is the question AsyncQuestion reads from the result.
+		wantAsked string
 		wantError bool
 	}{
-		{name: "Blocking", input: validInput, wantAsked: []string{"What should we build?"}},
-		{name: "Async", async: true, input: validInput, wantAsked: []string{"What should we build?"}},
+		{name: "Blocking", input: validInput},
+		{name: "Async", async: true, input: validInput, wantAsked: "What should we build?"},
 		{name: "AsyncInvalid", async: true, input: `{"questions":[]}`, wantError: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var asked []string
-			tool := NewAskUserQuestionTool(AskUserQuestionOptions{
-				Async: tt.async,
-				OnAsked: func(_ context.Context, question string) {
-					asked = append(asked, question)
-				},
-			})
+			tool := NewAskUserQuestionTool(AskUserQuestionOptions{Async: tt.async})
 			response, err := tool.Run(t.Context(), fantasy.ToolCall{
 				ID:    "call-123",
 				Name:  askUserQuestionToolName,
@@ -179,10 +173,16 @@ func TestAskUserQuestionToolRun(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.Equal(t, tt.wantError, response.IsError)
-			require.Equal(t, tt.wantAsked, asked)
 			if tt.wantError {
 				return
 			}
+
+			asked, err := AsyncQuestion(fantasy.ToolResultContent{
+				ToolName: askUserQuestionToolName,
+				Result:   fantasy.ToolResultOutputContentText{Text: response.Content},
+			})
+			require.NoError(t, err)
+			require.Equal(t, tt.wantAsked, asked)
 
 			var result map[string]any
 			require.NoError(t, json.Unmarshal([]byte(response.Content), &result))

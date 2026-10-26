@@ -50,9 +50,6 @@ type AskUserQuestionOptions struct {
 	// Async makes the call return at once without ending the turn. The
 	// user answers later in an ordinary user message that names the call.
 	Async bool
-	// OnAsked, when set, runs after each valid call with the first
-	// question's text.
-	OnAsked func(ctx context.Context, question string)
 }
 
 // NewAskUserQuestionTool creates the ask_user_question tool.
@@ -126,7 +123,7 @@ func (t *askUserQuestionTool) Info() fantasy.ToolInfo {
 	}
 }
 
-func (t *askUserQuestionTool) Run(ctx context.Context, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+func (t *askUserQuestionTool) Run(_ context.Context, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 	var args askUserQuestionArgs
 	if err := json.Unmarshal([]byte(call.Input), &args); err != nil {
 		return fantasy.NewTextErrorResponse(fmt.Sprintf("invalid parameters: %s", err)), nil
@@ -151,10 +148,30 @@ func (t *askUserQuestionTool) Run(ctx context.Context, call fantasy.ToolCall) (f
 	if err != nil {
 		return fantasy.NewTextErrorResponse("failed to marshal questions: " + err.Error()), nil
 	}
-	if t.opts.OnAsked != nil {
-		t.opts.OnAsked(ctx, args.Questions[0].Question)
-	}
 	return fantasy.NewTextResponse(string(data)), nil
+}
+
+// AsyncQuestion returns the first question that an async ask_user_question
+// result asks, or "" when result is not one.
+func AsyncQuestion(result fantasy.ToolResultContent) (string, error) {
+	if result.ToolName != askUserQuestionToolName {
+		return "", nil
+	}
+	output, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentText](result.Result)
+	if !ok {
+		return "", nil
+	}
+	var decoded struct {
+		Async     bool              `json:"async"`
+		Questions []askUserQuestion `json:"questions"`
+	}
+	if err := json.Unmarshal([]byte(output.Text), &decoded); err != nil {
+		return "", xerrors.Errorf("decode ask_user_question result: %w", err)
+	}
+	if !decoded.Async || len(decoded.Questions) == 0 {
+		return "", nil
+	}
+	return decoded.Questions[0].Question, nil
 }
 
 func (t *askUserQuestionTool) ProviderOptions() fantasy.ProviderOptions {

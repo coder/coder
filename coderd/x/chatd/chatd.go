@@ -2765,7 +2765,7 @@ const maxQuestionPushRunes = 200
 
 // dispatchQuestionPush alerts the chat owner that the agent asked a
 // question that does not end the turn. Delivery runs in the background so
-// the tool call never waits on it.
+// the turn never waits on it.
 func (p *Server) dispatchQuestionPush(
 	ctx context.Context,
 	chat database.Chat,

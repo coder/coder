@@ -772,12 +772,7 @@ func (p *Server) buildTurnEnvironment(
 	if isPlanModeTurn && isRootChat {
 		tools = append(tools, chattool.NewAskUserQuestionTool(chattool.AskUserQuestionOptions{}))
 	} else if asyncAskUserQuestion {
-		tools = append(tools, chattool.NewAskUserQuestionTool(chattool.AskUserQuestionOptions{
-			Async: true,
-			OnAsked: func(ctx context.Context, question string) {
-				p.dispatchQuestionPush(ctx, chat, question, logger)
-			},
-		}))
+		tools = append(tools, chattool.NewAskUserQuestionTool(chattool.AskUserQuestionOptions{Async: true}))
 	}
 	if isRootChat {
 		tools, err = p.appendRootChatTools(ctx, tools, rootChatToolsOptions{
@@ -1247,6 +1242,9 @@ func (p *Server) afterGenerationOutcome(
 	chat := outcome.Chat
 	logger := p.logger.With(slog.F("chat_id", chat.ID), slog.F("owner_id", chat.OwnerID))
 
+	if outcome.AsyncQuestion != "" {
+		p.dispatchQuestionPush(ctx, chat, outcome.AsyncQuestion, logger)
+	}
 	switch outcome.Kind {
 	case runnerActionKindFinishTurn:
 		finalizeCtx := context.WithoutCancel(ctx)
