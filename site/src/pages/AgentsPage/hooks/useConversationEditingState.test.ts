@@ -2,6 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessageInputRef } from "../components/AgentChatInput";
+import { createDeferred } from "#/testHelpers/deferred";
 import type { PendingAttachment } from "../components/ChatPageContent";
 import { draftInputStorageKeyPrefix } from "../utils/draftStorage";
 import {
@@ -77,6 +78,13 @@ describe("useConversationEditingState", () => {
 		localStorage.clear();
 		setMobileViewport(false);
 	});
+
+	const paragraph = (text: string) => ({
+		type: "paragraph",
+		children: [{ type: "text", text }],
+	});
+	const editorState = (text: string) =>
+		JSON.stringify({ root: { type: "root", children: [paragraph(text)] } });
 
 	const renderEditing = (...args: [] | [string]) => {
 		const onSend = vi.fn().mockResolvedValue(undefined);
@@ -379,12 +387,8 @@ describe("useConversationEditingState", () => {
 			result.current.handleContentChange("", "", false),
 		);
 		result.current.chatInputRef.current = mockInput.handle;
-		let rejectSend: (error: Error) => void = () => {};
-		onSend.mockReturnValueOnce(
-			new Promise((_resolve, reject) => {
-				rejectSend = reject;
-			}),
-		);
+		const send = createDeferred<void>();
+		onSend.mockReturnValueOnce(send.promise);
 
 		act(() => {
 			result.current.handleContentChange("hello", "hello", false);
@@ -398,7 +402,7 @@ describe("useConversationEditingState", () => {
 		expect(result.current.inputValueRef.current).toBe("");
 
 		await act(async () => {
-			rejectSend(new Error("boom"));
+			send.reject(new Error("boom"));
 			await expect(sent).rejects.toThrow("boom");
 		});
 
@@ -426,31 +430,69 @@ describe("useConversationEditingState", () => {
 			result.current.handleContentChange("", "", false),
 		);
 		result.current.chatInputRef.current = mockInput.handle;
-		let rejectSend: (error: Error) => void = () => {};
-		onSend.mockReturnValueOnce(
-			new Promise((_resolve, reject) => {
-				rejectSend = reject;
-			}),
-		);
+		const send = createDeferred<void>();
+		onSend.mockReturnValueOnce(send.promise);
 
 		act(() => {
-			result.current.handleContentChange("hello", "hello", false);
+			result.current.handleContentChange("hello", editorState("hello"), false);
 		});
 		let sent: Promise<void> = Promise.resolve();
 		act(() => {
 			sent = result.current.handleSendFromInput({ message: "hello" });
 		});
-		expect(localStorage.getItem(expectedKey)).toBe("hello");
+		expect(localStorage.getItem(expectedKey)).toBe(editorState("hello"));
 		act(() => {
-			result.current.handleContentChange("next", "next", false);
+			result.current.handleContentChange("next", editorState("next"), false);
 		});
 		unmount();
 
 		// A reload, or a failure after the unmount, finds both.
-		expect(localStorage.getItem(expectedKey)).toBe("hello\n\nnext");
-		rejectSend(new Error("boom"));
+		const both = {
+			root: { type: "root", children: [paragraph("hello"), paragraph("next")] },
+		};
+		expect(JSON.parse(localStorage.getItem(expectedKey) ?? "")).toEqual(both);
+		send.reject(new Error("boom"));
 		await expect(sent).rejects.toThrow("boom");
-		expect(localStorage.getItem(expectedKey)).toBe("hello\n\nnext");
+		expect(JSON.parse(localStorage.getItem(expectedKey) ?? "")).toEqual(both);
+	});
+
+	it("keeps the draft from before a history edit while the edit is pending", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		result.current.chatInputRef.current = createMockChatInputHandle().handle;
+		onSend.mockReturnValueOnce(new Promise(() => {}));
+
+		act(() => {
+			result.current.handleContentChange("draft", "draft", false);
+		});
+		act(() => {
+			result.current.handleEditUserMessage(7, "old");
+		});
+		act(() => {
+			void result.current.handleSendFromInput({ message: "edited" });
+		});
+		act(() => {
+			result.current.handleContentChange("typed", "typed", false);
+		});
+
+		expect(localStorage.getItem(expectedKey)).toBe("draft");
+		unmount();
+	});
+
+	it("ignores Edit while a send is pending", () => {
+		const { result, onSend, unmount } = renderEditing();
+		result.current.chatInputRef.current = createMockChatInputHandle().handle;
+		onSend.mockReturnValueOnce(new Promise(() => {}));
+
+		act(() => {
+			void result.current.handleSendFromInput({ message: "hello" });
+		});
+		act(() => {
+			result.current.handleEditUserMessage(7, "old msg");
+		});
+
+		expect(result.current.editingMessageId).toBeNull();
+		expect(result.current.editorInitialValue).toBe("");
+		unmount();
 	});
 
 	it("keeps what was typed during a send after it succeeds", async () => {
@@ -461,12 +503,8 @@ describe("useConversationEditingState", () => {
 			result.current.handleContentChange("", "", false),
 		);
 		result.current.chatInputRef.current = mockInput.handle;
-		let resolveSend: () => void = () => {};
-		onSend.mockReturnValueOnce(
-			new Promise<void>((resolve) => {
-				resolveSend = resolve;
-			}),
-		);
+		const send = createDeferred<void>();
+		onSend.mockReturnValueOnce(send.promise);
 
 		let sent: Promise<void> = Promise.resolve();
 		act(() => {
@@ -476,7 +514,7 @@ describe("useConversationEditingState", () => {
 			result.current.handleContentChange("next", "next state", false);
 		});
 		await act(async () => {
-			resolveSend();
+			send.resolve();
 			await sent;
 		});
 
@@ -490,18 +528,8 @@ describe("useConversationEditingState", () => {
 		const { result, onSend, unmount } = renderEditing();
 		const mockInput = createMockChatInputHandle("hello");
 		result.current.chatInputRef.current = mockInput.handle;
-		const paragraph = (text: string) => ({
-			type: "paragraph",
-			children: [{ type: "text", text }],
-		});
-		const editorState = (text: string) =>
-			JSON.stringify({ root: { type: "root", children: [paragraph(text)] } });
-		let rejectSend: (error: Error) => void = () => {};
-		onSend.mockReturnValueOnce(
-			new Promise((_resolve, reject) => {
-				rejectSend = reject;
-			}),
-		);
+		const send = createDeferred<void>();
+		onSend.mockReturnValueOnce(send.promise);
 
 		act(() => {
 			result.current.handleContentChange("hello", editorState("hello"), false);
@@ -514,7 +542,7 @@ describe("useConversationEditingState", () => {
 			result.current.handleContentChange("next", editorState("next"), false);
 		});
 		await act(async () => {
-			rejectSend(new Error("boom"));
+			send.reject(new Error("boom"));
 			await expect(sent).rejects.toThrow("boom");
 		});
 
