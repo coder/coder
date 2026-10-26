@@ -2,10 +2,7 @@ import { useParams } from "react-router";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { AgentChatPage } from "../AgentChatPage/AgentChatPage";
 
-// Mounts several chats side by side in one React tree, one pane per path
-// segment after /agents/compare/. This is the benchmark scenario for chat
-// rendering performance: long, streaming transcripts plus composer
-// interaction on the same main thread.
+// Renders one pane per chat ID in the path after /agents/compare/.
 const AgentChatComparePage: React.FC = () => {
 	const { "*": splat } = useParams<{ "*": string }>();
 	const chatIds = (splat ?? "").split("/").filter(Boolean);
