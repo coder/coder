@@ -29,7 +29,6 @@ import (
 
 // Tool name constants to avoid hardcoded strings
 const (
-	ToolNameReportTask                  = "coder_report_task"
 	ToolNameGetWorkspace                = "coder_get_workspace"
 	ToolNameCreateWorkspace             = "coder_create_workspace"
 	ToolNameListWorkspaces              = "coder_list_workspaces"
@@ -96,7 +95,6 @@ func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
 // Deps provides access to tool dependencies.
 type Deps struct {
 	coderClient *codersdk.Client
-	report      func(ReportTaskArgs) error
 	agentConnFn workspacesdk.AgentConnFunc
 }
 
@@ -105,12 +103,6 @@ func (d Deps) ServerURL() string {
 	serverURLCopy.Path = ""
 	serverURLCopy.RawQuery = ""
 	return serverURLCopy.String()
-}
-
-func WithTaskReporter(fn func(ReportTaskArgs) error) func(*Deps) {
-	return func(d *Deps) {
-		d.report = fn
-	}
 }
 
 // WithAgentConnFunc overrides how workspace tools open logical connections to
@@ -414,7 +406,6 @@ var All = []GenericTool{
 	GetWorkspace.Generic(),
 	GetWorkspaceAgentLogs.Generic(),
 	GetWorkspaceBuildLogs.Generic(),
-	ReportTask.Generic(),
 	UploadTarFile.Generic(),
 	UpdateTemplateActiveVersion.Generic(),
 	WorkspaceExecute.Generic(),
@@ -439,79 +430,6 @@ var All = []GenericTool{
 	InterruptChat.Generic(),
 	ArchiveChat.Generic(),
 	ListChatModelConfigs.Generic(),
-}
-
-type ReportTaskArgs struct {
-	Link    string `json:"link"`
-	State   string `json:"state"`
-	Summary string `json:"summary"`
-}
-
-var ReportTask = Tool[ReportTaskArgs, codersdk.Response]{
-	Tool: aisdk.Tool{
-		Name: ToolNameReportTask,
-		Description: `Report progress on your work.
-
-The user observes your work through a Task UI. To keep them updated
-on your progress, or if you need help - use this tool.
-
-Good Tasks
-- "Cloning the repository <repository-url>"
-- "Working on <feature-name>"
-- "Figuring our why <issue> is happening"
-
-Bad Tasks
-- "I'm working on it"
-- "I'm trying to fix it"
-- "I'm trying to implement <feature-name>"
-
-Use the "state" field to indicate your progress. Periodically report
-progress with state "working" to keep the user updated. It is not possible to send too many updates!
-
-ONLY report a "complete", "idle", or "failure" state if you have FULLY completed the task.
-`,
-		Schema: aisdk.Schema{
-			Properties: map[string]any{
-				"summary": map[string]any{
-					"type":        "string",
-					"description": "A concise summary of your current progress on the task. This must be less than 160 characters in length and must not include newlines or other control characters.",
-				},
-				"link": map[string]any{
-					"type":        "string",
-					"description": "A link to a relevant resource, such as a PR or issue.",
-				},
-				"state": map[string]any{
-					"type":        "string",
-					"description": "The state of your task. This can be one of the following: working, complete, idle, or failure. Select the state that best represents your current progress.",
-					"enum": []string{
-						string(codersdk.WorkspaceAppStatusStateWorking),
-						string(codersdk.WorkspaceAppStatusStateComplete),
-						string(codersdk.WorkspaceAppStatusStateIdle),
-						string(codersdk.WorkspaceAppStatusStateFailure),
-					},
-				},
-			},
-			Required: []string{"summary", "link", "state"},
-		},
-	},
-	MCPAnnotations:     mcpMutationAnnotations,
-	UserClientOptional: true,
-	Handler: func(_ context.Context, deps Deps, args ReportTaskArgs) (codersdk.Response, error) {
-		if len(args.Summary) > 160 {
-			return codersdk.Response{}, xerrors.New("summary must be less than 160 characters")
-		}
-		// Check if task reporting is available to prevent nil pointer dereference
-		if deps.report == nil {
-			return codersdk.Response{}, xerrors.New("task reporting not available. Please ensure a task reporter is configured.")
-		}
-		err := deps.report(args)
-		if err != nil {
-			return codersdk.Response{}, err
-		}
-		return codersdk.Response{
-			Message: "Thanks for reporting!",
-		}, nil
-	},
 }
 
 type GetWorkspaceArgs struct {

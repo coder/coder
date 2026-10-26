@@ -3,10 +3,10 @@ title: Claude Code
 ---
 
 > [!NOTE]
-> AI Gateway is part of [AI Governance](../../ai-governance.md), which is
-> included with a Premium license.
+> AI Gateway is part of [AI Governance](../../ai-governance.md), which is included with a Premium license.
 
-Claude Code can be configured using environment variables. All modes require a **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** for authentication with AI Gateway.
+Claude Code can be configured using environment variables.
+All modes require a **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** for authentication with AI Gateway.
 
 ## Centralized API Key
 
@@ -63,12 +63,12 @@ export ANTHROPIC_CUSTOM_HEADERS="X-Coder-AI-Governance-Token: <your-coder-api-to
 unset ANTHROPIC_AUTH_TOKEN
 ```
 
-When you run Claude Code, it will prompt you to log in with your Anthropic
-account.
+When you run Claude Code, it will prompt you to log in with your Anthropic account.
 
 ## Pre-configuring in Templates
 
-Template admins can pre-configure Claude Code for a seamless experience. Admins can automatically inject the user's Coder session token and the AI Gateway base URL into the workspace environment.
+Template admins can pre-configure Claude Code for a seamless experience.
+Admins can automatically inject the user's Coder session token and the AI Gateway base URL into the workspace environment.
 
 ```tf
 module "claude-code" {
@@ -89,4 +89,5 @@ The Claude Code VS Code extension is also supported.
 1. If pre-configured in the workspace environment variables (as shown above), it typically respects them.
 2. You may need to sign in once; afterwards, it respects the workspace environment variables.
 
-**References:** [Claude Code Settings](https://docs.claude.com/en/docs/claude-code/settings#environment-variables)
+**References:**
+[Claude Code Settings](https://docs.claude.com/en/docs/claude-code/settings#environment-variables)

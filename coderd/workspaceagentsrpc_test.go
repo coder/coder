@@ -2,15 +2,19 @@ package coderd_test
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"storj.io/drpc/drpcerr"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
@@ -349,4 +353,44 @@ func TestWorkspaceAgentRPCRole(t *testing.T) {
 	// existing tests like TestWorkspaceAgentReportStats which use
 	// ConnectRPC() (no role). The server defaults to monitoring when
 	// the role query parameter is omitted.
+}
+
+func TestWorkspaceAgentRPCConnectionLog(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	connLogger := connectionlog.NewFake()
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		ConnectionLogger: connLogger,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+
+	ac := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+	conn, err := ac.ConnectRPC(ctx)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	// Report over the wire so coderd must accept and log the method and app.
+	id := uuid.New()
+	_, err = agentproto.NewDRPCAgentClient(conn).ReportConnection(ctx, &agentproto.ReportConnectionRequest{
+		Connection: &agentproto.Connection{
+			Id:               id[:],
+			Action:           agentproto.Connection_CONNECT,
+			Timestamp:        timestamppb.Now(),
+			ConnectionMethod: agentproto.Connection_METHOD_SSH,
+			AppName:          "Some-IDE",
+		},
+	})
+	require.NoError(t, err)
+
+	require.True(t, connLogger.Contains(t, database.UpsertConnectionLogParams{
+		WorkspaceID:      r.Workspace.ID,
+		ConnectionID:     uuid.NullUUID{UUID: id, Valid: true},
+		ConnectionMethod: database.ConnectionLogMethodSSH,
+		AppNameOrPort:    sql.NullString{String: "some_ide", Valid: true},
+	}))
 }

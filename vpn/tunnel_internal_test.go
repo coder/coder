@@ -482,6 +482,27 @@ func TestUpdater_createPeerUpdate(t *testing.T) {
 	})
 }
 
+func TestUpdater_createPeerUpdate_NoHandshake(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	updater := updater{
+		ctx:         ctx,
+		netLoopDone: make(chan struct{}),
+		agents:      map[uuid.UUID]agentWithPing{},
+		workspaces:  map[uuid.UUID]tailnet.Workspace{},
+		conn:        newFakeConn(tailnet.WorkspaceUpdate{}, time.Time{}),
+	}
+
+	update := updater.createPeerUpdateLocked(tailnet.WorkspaceUpdate{
+		UpsertedAgents: []*tailnet.Agent{
+			{ID: uuid.UUID{4}, Name: "w1a1", WorkspaceID: uuid.UUID{1}},
+		},
+	})
+	require.Len(t, update.UpsertedAgents, 1)
+	require.Nil(t, update.UpsertedAgents[0].LastHandshake)
+}
+
 func TestTunnel_sendAgentUpdate(t *testing.T) {
 	t.Parallel()
 

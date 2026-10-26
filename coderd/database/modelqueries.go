@@ -736,6 +736,8 @@ func (q *sqlQuerier) GetAuthorizedConnectionLogsOffset(ctx context.Context, arg 
 			&i.ConnectionLog.DisconnectTime,
 			&i.ConnectionLog.DisconnectReason,
 			&i.ConnectionLog.ClientSessionID,
+			&i.ConnectionLog.RxBytes,
+			&i.ConnectionLog.TxBytes,
 			&i.UserUsername,
 			&i.UserName,
 			&i.UserEmail,
@@ -1137,6 +1139,8 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeSessions(ctx context.Context, arg Lis
 			&i.OutputTokens,
 			&i.CacheReadInputTokens,
 			&i.CacheWriteInputTokens,
+			&i.CostMicros,
+			&i.HasUnpricedUsage,
 			&i.LastPrompt,
 			&i.LastActiveAt,
 			&i.NetworkCallsTotal,
@@ -1339,6 +1343,7 @@ func (q *sqlQuerier) GetAuthorizedMCPServerConfigs(ctx context.Context, organiza
 			&i.UserACL,
 			&i.SigningSecret,
 			&i.SigningSecretKeyID,
+			&i.OAuth2Resource,
 		); err != nil {
 			return nil, err
 		}
@@ -1383,6 +1388,8 @@ func (q *sqlQuerier) GetAuthorizedOrganizationSkillMetadata(ctx context.Context,
 			&i.Name,
 			&i.Description,
 			&i.Enabled,
+			&i.Action,
+			&i.ModelInvocable,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {

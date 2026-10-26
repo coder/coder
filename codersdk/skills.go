@@ -17,8 +17,16 @@ type SkillMetadata struct {
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
 	Enabled     bool      `json:"enabled"`
-	CreatedAt   time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt   time.Time `json:"updated_at" format:"date-time"`
+	// Action reports whether a project skill is offered as a one-click
+	// action above project composers. It is always false for personal and
+	// organization skills.
+	Action bool `json:"action"`
+	// ModelInvocable reports whether agents can discover and load the skill
+	// on their own. Users can still invoke a skill explicitly when it is
+	// false.
+	ModelInvocable bool      `json:"model_invocable"`
+	CreatedAt      time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt      time.Time `json:"updated_at" format:"date-time"`
 }
 
 // Skill represents a personal or organization skill with its raw Markdown
@@ -34,6 +42,10 @@ type CreateSkillRequest struct {
 	// frontmatter must include name, may include description, and must be
 	// followed by a non-empty body.
 	Content string `json:"content"`
+	// Action is only accepted for project skills and defaults to false.
+	Action *bool `json:"action,omitempty"`
+	// ModelInvocable defaults to true.
+	ModelInvocable *bool `json:"model_invocable,omitempty"`
 }
 
 // UpdateSkillRequest is the payload for updating a skill. At least one field
@@ -44,6 +56,9 @@ type UpdateSkillRequest struct {
 	// followed by a non-empty body.
 	Content *string `json:"content,omitempty"`
 	Enabled *bool   `json:"enabled,omitempty"`
+	// Action is only accepted for project skills.
+	Action         *bool `json:"action,omitempty"`
+	ModelInvocable *bool `json:"model_invocable,omitempty"`
 }
 
 // OrganizationSkillRole is a role a user or group holds in an organization
@@ -231,6 +246,81 @@ func (c *ExperimentalClient) UpdateOrganizationSkill(ctx context.Context, organi
 // DeleteOrganizationSkill deletes an organization skill by name.
 func (c *ExperimentalClient) DeleteOrganizationSkill(ctx context.Context, organizationID uuid.UUID, name string) error {
 	res, err := c.Request(ctx, http.MethodDelete, organizationSkillPath(organizationID, name), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+func chatProjectSkillPath(organizationID, projectID uuid.UUID, name string) string {
+	return chatProjectPath(organizationID, projectID) + "/skills/" + url.PathEscape(name)
+}
+
+// CreateChatProjectSkill creates a chat project skill from raw Markdown
+// content.
+func (c *ExperimentalClient) CreateChatProjectSkill(ctx context.Context, organizationID, projectID uuid.UUID, req CreateSkillRequest) (Skill, error) {
+	res, err := c.Request(ctx, http.MethodPost, chatProjectPath(organizationID, projectID)+"/skills", req)
+	if err != nil {
+		return Skill{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return Skill{}, ReadBodyAsError(res)
+	}
+	var skill Skill
+	return skill, ReadBodyAsJSON(res, &skill)
+}
+
+// ChatProjectSkills lists a chat project's skill metadata.
+func (c *ExperimentalClient) ChatProjectSkills(ctx context.Context, organizationID, projectID uuid.UUID) ([]SkillMetadata, error) {
+	res, err := c.Request(ctx, http.MethodGet, chatProjectPath(organizationID, projectID)+"/skills", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var skills []SkillMetadata
+	return skills, ReadBodyAsJSON(res, &skills)
+}
+
+// ChatProjectSkill returns a chat project skill by name.
+func (c *ExperimentalClient) ChatProjectSkill(ctx context.Context, organizationID, projectID uuid.UUID, name string) (Skill, error) {
+	res, err := c.Request(ctx, http.MethodGet, chatProjectSkillPath(organizationID, projectID, name), nil)
+	if err != nil {
+		return Skill{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return Skill{}, ReadBodyAsError(res)
+	}
+	var skill Skill
+	return skill, ReadBodyAsJSON(res, &skill)
+}
+
+// UpdateChatProjectSkill updates a chat project skill's raw Markdown content
+// or enabled state.
+func (c *ExperimentalClient) UpdateChatProjectSkill(ctx context.Context, organizationID, projectID uuid.UUID, name string, req UpdateSkillRequest) (Skill, error) {
+	res, err := c.Request(ctx, http.MethodPatch, chatProjectSkillPath(organizationID, projectID, name), req)
+	if err != nil {
+		return Skill{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return Skill{}, ReadBodyAsError(res)
+	}
+	var skill Skill
+	return skill, ReadBodyAsJSON(res, &skill)
+}
+
+// DeleteChatProjectSkill deletes a chat project skill by name.
+func (c *ExperimentalClient) DeleteChatProjectSkill(ctx context.Context, organizationID, projectID uuid.UUID, name string) error {
+	res, err := c.Request(ctx, http.MethodDelete, chatProjectSkillPath(organizationID, projectID, name), nil)
 	if err != nil {
 		return err
 	}

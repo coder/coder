@@ -2,9 +2,8 @@
 title: Caddy
 ---
 
-This is an example configuration of how to use Coder with
-[caddy](https://caddyserver.com/docs). To use Caddy to generate TLS
-certificates, you'll need a domain name that resolves to your Caddy server.
+This is an example configuration of how to use Coder with [caddy](https://caddyserver.com/docs).
+To use Caddy to generate TLS certificates, you'll need a domain name that resolves to your Caddy server.
 
 <a id="getting-started"></a>
 
@@ -12,8 +11,7 @@ certificates, you'll need a domain name that resolves to your Caddy server.
 
 ### With `docker compose`
 
-1. [Install Docker](https://docs.docker.com/engine/install/) and
-   [Docker Compose](https://docs.docker.com/compose/install/)
+1. [Install Docker](https://docs.docker.com/engine/install/) and [Docker Compose](https://docs.docker.com/compose/install/)
 
 2. Create a `compose.yaml` file and add the following:
 
@@ -103,18 +101,14 @@ certificates, you'll need a domain name that resolves to your Caddy server.
 
    - `coder:7080` is the address of the Coder container on the Docker network.
    - `coder.example.com` is the domain name you're using for Coder.
-   - `*.coder.example.com` is the domain name for wildcard apps, commonly used
-     for [dashboard port forwarding](../admin/networking/port-forwarding.md).
+   - `*.coder.example.com` is the domain name for wildcard apps, commonly used for [dashboard port forwarding](../admin/networking/port-forwarding.md).
      This is optional and can be removed.
-   - `email@example.com`: Email to request certificates from LetsEncrypt/ZeroSSL
-     (does not have to be Coder admin email)
-   - `ask http://example.com`: Change this to a URL you control that
-     validates the requested hostname before Caddy requests a certificate for
-     it. See [this discussion](https://github.com/coder/coder/discussions/29079#discussioncomment-18462842)
-     for a reference implementation.
+   - `email@example.com`: Email to request certificates from LetsEncrypt/ZeroSSL (does not have to be Coder admin email)
+   - `ask http://example.com`: Change this to a URL you control that validates the requested hostname before Caddy requests a certificate for it.
+     See [this discussion](https://github.com/coder/coder/discussions/29079#discussioncomment-18462842) for a reference implementation.
 
-4. Start Coder. Set `CODER_ACCESS_URL` and `CODER_WILDCARD_ACCESS_URL` to the
-   domain you're using in your Caddyfile.
+4. Start Coder.
+   Set `CODER_ACCESS_URL` and `CODER_WILDCARD_ACCESS_URL` to the domain you're using in your Caddyfile.
 
    ```sh
    export CODER_ACCESS_URL=https://coder.example.com
@@ -142,31 +136,25 @@ certificates, you'll need a domain name that resolves to your Caddy server.
    }
    ```
 
-   > If you're installed Caddy as a system package, update the default Caddyfile
-   > with `vim /etc/caddy/Caddyfile`
+   > If you're installed Caddy as a system package, update the default Caddyfile with `vim /etc/caddy/Caddyfile`
 
-   - `email@example.com`: Email to request certificates from LetsEncrypt/ZeroSSL
-     (does not have to be Coder admin email)
+   - `email@example.com`: Email to request certificates from LetsEncrypt/ZeroSSL (does not have to be Coder admin email)
    - `coder.example.com`: Domain name you're using for Coder.
-   - `*.coder.example.com`: Domain name for wildcard apps, commonly used for
-     [dashboard port forwarding](../admin/networking/port-forwarding.md). This
-     is optional and can be removed.
-   - `localhost:3000`: Address Coder is running on. Modify this if you changed
-     `CODER_HTTP_ADDRESS` in the Coder configuration.
-   - `ask http://example.com`: Change this to a URL you control that
-     validates the requested hostname before Caddy requests a certificate for
-     it. See [this discussion](https://github.com/coder/coder/discussions/29079#discussioncomment-18462842)
-     for a reference implementation.
+   - `*.coder.example.com`: Domain name for wildcard apps, commonly used for [dashboard port forwarding](../admin/networking/port-forwarding.md).
+     This is optional and can be removed.
+   - `localhost:3000`: Address Coder is running on.
+     Modify this if you changed `CODER_HTTP_ADDRESS` in the Coder configuration.
+   - `ask http://example.com`: Change this to a URL you control that validates the requested hostname before Caddy requests a certificate for it.
+     See [this discussion](https://github.com/coder/coder/discussions/29079#discussioncomment-18462842) for a reference implementation.
 
 4. [Configure Coder](../admin/setup/index.md) and change the following values:
 
-   - `CODER_ACCESS_URL`: root domain (e.g. `https://coder.example.com`)
-   - `CODER_WILDCARD_ACCESS_URL`: wildcard domain (e.g. `*.example.com`).
+   - `CODER_ACCESS_URL`: root domain (for example, `https://coder.example.com`)
+   - `CODER_WILDCARD_ACCESS_URL`: wildcard domain (for example, `*.example.com`).
 
 5. Start the Caddy server:
 
-   If you're [keeping Caddy running](https://caddyserver.com/docs/running) via a
-   system service:
+   If you're [keeping Caddy running](https://caddyserver.com/docs/running) via a system service:
 
    ```sh
    sudo systemctl restart caddy
@@ -178,8 +166,7 @@ certificates, you'll need a domain name that resolves to your Caddy server.
    caddy run
    ```
 
-6. Optionally, use [ufw](https://wiki.ubuntu.com/UncomplicatedFirewall) or
-   another firewall to disable external traffic outside of Caddy.
+6. Optionally, use [ufw](https://wiki.ubuntu.com/UncomplicatedFirewall) or another firewall to disable external traffic outside of Caddy.
 
    ```sh
    # Check status of UncomplicatedFirewall
@@ -199,37 +186,27 @@ certificates, you'll need a domain name that resolves to your Caddy server.
    sudo ufw enable
    ```
 
-7. Navigate to your Coder URL! A TLS certificate should be auto-generated on
-   your first visit.
+7. Navigate to your Coder URL!
+   A TLS certificate should be auto-generated on your first visit.
 
 <a id="generating-wildcard-certificates"></a>
 
 ## Generate wildcard certificates
 
-By default, this configuration uses Caddy's [on-demand TLS](https://caddyserver.com/docs/caddyfile/options#on-demand-tls) to generate a certificate for each subdomain (e.g. `app1.coder.example.com`, `app2.coder.example.com`).
+By default, this configuration uses Caddy's [on-demand TLS](https://caddyserver.com/docs/caddyfile/options#on-demand-tls) to generate a certificate for each subdomain (for example, `app1.coder.example.com`, `app2.coder.example.com`).
 When users visit new subdomains, such as accessing [ports on a workspace](../admin/networking/port-forwarding.md), the request will take an additional 5-30&nbsp;seconds since a new certificate is being generated.
 
-For production deployments, we recommend configuring Caddy to generate a
-wildcard certificate, which requires an explicit DNS challenge and additional
-Caddy modules.
+For production deployments, we recommend configuring Caddy to generate a wildcard certificate, which requires an explicit DNS challenge and additional Caddy modules.
 
-1. Install a custom Caddy build that includes the
-   [caddy-dns](https://github.com/caddy-dns) module for your DNS provider (e.g.
-   CloudFlare, Route53).
+1. Install a custom Caddy build that includes the [caddy-dns](https://github.com/caddy-dns) module for your DNS provider (for example, CloudFlare, Route53).
 
-   - Docker:
-     [Build an custom Caddy image](https://github.com/docker-library/docs/tree/master/caddy#adding-custom-caddy-modules)
-     with the module for your DNS provider. Be sure to reference the new image
-     in the `compose.yaml`.
+   - Docker: [Build an custom Caddy image](https://github.com/docker-library/docs/tree/master/caddy#adding-custom-caddy-modules) with the module for your DNS provider.
+     Be sure to reference the new image in the `compose.yaml`.
 
-   - Standalone:
-     [Download a custom Caddy build](https://caddyserver.com/download) with the
-     module for your DNS provider. If you're using Debian/Ubuntu, you
-     [can configure the Caddy package](https://caddyserver.com/docs/build#package-support-files-for-custom-builds-for-debianubunturaspbian)
-     to use the new build.
+   - Standalone: [Download a custom Caddy build](https://caddyserver.com/download) with the module for your DNS provider.
+     If you're using Debian/Ubuntu, you [can configure the Caddy package](https://caddyserver.com/docs/build#package-support-files-for-custom-builds-for-debianubunturaspbian) to use the new build.
 
-2. Edit your `Caddyfile` and add the necessary credentials/API tokens to solve
-   the DNS challenge for wildcard certificates.
+2. Edit your `Caddyfile` and add the necessary credentials/API tokens to solve the DNS challenge for wildcard certificates.
 
    For example, for AWS Route53:
 
@@ -251,14 +228,11 @@ Caddy modules.
    }
    ```
 
-   > Configuration reference from
-   > [caddy-dns/route53](https://github.com/caddy-dns/route53).
+   > Configuration reference from [caddy-dns/route53](https://github.com/caddy-dns/route53).
 
    And for CloudFlare:
 
-   Generate a
-   [token](https://developers.cloudflare.com/fundamentals/api/get-started/create-token)
-   with the following permissions:
+   Generate a [token](https://developers.cloudflare.com/fundamentals/api/get-started/create-token) with the following permissions:
 
    - Zone:Zone:Edit
 
@@ -273,5 +247,4 @@ Caddy modules.
    }
    ```
 
-   > Configuration reference from
-   > [caddy-dns/cloudflare](https://github.com/caddy-dns/cloudflare).
+   > Configuration reference from [caddy-dns/cloudflare](https://github.com/caddy-dns/cloudflare).

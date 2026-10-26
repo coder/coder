@@ -1,3 +1,7 @@
+---
+review-personas: [structure, language]
+---
+
 # Procedural writing
 
 Procedural prose tells the reader what to do: the numbered steps of a how-to guide, a tutorial, or a Quickstart.
@@ -8,8 +12,8 @@ For the callout syntax and severity table, refer to [Formatting](./formatting.md
 Rules adapted from an external standard cite the source so an editor can consult the original rationale.
 The source for most of this page is [ASD-STE100 Simplified Technical English](https://www.asd-ste100.org/) (Issue 9, 2025), the controlled-language standard for aerospace and defense maintenance documentation.
 STE optimizes for readers who must never misread an instruction.
-The Coder docs adopt its procedure-level discipline.
-The controlled dictionary and the grammar restrictions stay out, because they serve that stricter audience.
+The Coder docs adopt its procedure-level discipline and a few of its word-level rules, such as [Choose words that have one meaning](./word-choice.md#choose-words-that-have-one-meaning).
+The full controlled dictionary stays out, because it serves that stricter audience.
 
 ## One instruction per step
 
@@ -70,13 +74,16 @@ No Vale rule.*
 
 ## Keep steps short
 
-Write step sentences of 20 words or fewer.
-Body prose gets a 25-word budget (refer to [Keep sentences and paragraphs short](./voice-and-tone.md#keep-sentences-and-paragraphs-short)).
-Steps get a tighter budget because the reader is mid-task and holds the instruction in working memory while they act on it.
+Write each step in 20 words or fewer.
+The limit covers the whole step, including an expected result.
+When a step deliberately breaks into more than one paragraph, for example around a code block, count each paragraph on its own.
+Code blocks, images, and tables inside a step don't count toward the limit.
+Count words as [How to count words](./voice-and-tone.md#how-to-count-words) describes.
+Body prose gets a flexible 25-word target (refer to [Keep sentences and paragraphs short](./voice-and-tone.md#keep-sentences-and-paragraphs-short)).
+Steps get a firm limit because the reader is mid-task and holds the instruction in working memory while they act on it.
 
-When a step exceeds the budget, split the sentence, or move background information into the prose around the procedure.
-The budget is a target, not a ceiling.
-Don't cut words that carry meaning to meet the budget.
+When a step needs more words, split the step into two steps, or move background information into the prose around the procedure.
+Do not cut words that carry meaning to meet the limit.
 
 **Do**:
 
@@ -92,6 +99,29 @@ Don't cut words that carry meaning to meet the budget.
 ```
 
 *Adapted from ASD-STE100 Issue 9, rule 5.1.
+Enforced by `Coder.StepLength` (planned).*
+
+## Use a full clause after before, after, when, and while
+
+In a step, follow `before`, `after`, `when`, and `while` with a full clause that names who acts.
+The `-ing` form hides the subject, and the reader must work out who does the action.
+
+**Do**:
+
+```md
+1. Before you start the server, set `CODER_ACCESS_URL`.
+```
+
+**Don't**:
+
+```md
+1. Before starting the server, set `CODER_ACCESS_URL`.
+```
+
+The rule covers procedure steps.
+In body prose, either form is fine.
+
+*Adapted from ASD-STE100 Issue 9, rule 3.5.
 Documentation-only.
 No Vale rule.*
 
@@ -127,7 +157,7 @@ Move that content into a step and test again.
 
 *Adapted from ASD-STE100 Issue 9, rule 5.5.
 Documentation-only.
-No Vale rule.*
+No Vale rule: Vale can't tell whether a callout carries a required action, so reviewers check this rule.*
 
 ## State the consequence in warnings
 
