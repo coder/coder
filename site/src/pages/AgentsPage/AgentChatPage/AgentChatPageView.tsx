@@ -34,7 +34,10 @@ import {
 
 import { QueuedForCapacityCallout } from "../components/ChatConversation/QueuedForCapacityCallout";
 import { DesktopPanelContext } from "../components/ChatElements/tools/DesktopPanelContext";
-import { ChatOverviewCard } from "../components/ChatOverviewCard";
+import {
+	ChatOverviewCard,
+	overviewRoomClassName,
+} from "../components/ChatOverviewCard";
 import type { SendChatMessageOptions } from "../components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "../components/ChatPageContent";
 import { ChatSummaryPanel } from "../components/ChatSummaryPanel";
@@ -835,8 +838,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 								"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden sm:min-w-(--agents-chat-panel-min-width,0px)",
 								visualExpanded && "hidden",
 								shouldShowSidebar && "max-lg:hidden",
-								showOverviewRoom &&
-									"@min-[66rem]/chat:[--agents-overview-room:18rem]",
+								showOverviewRoom && overviewRoomClassName,
 							)}
 						>
 							<div className="relative z-10 shrink-0 overflow-visible">
@@ -880,9 +882,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 											"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
 									}}
 								/>
-								{/* The 18rem room is the w-64 card plus its right-4 inset
-								    and a 1rem gap. 66rem fits it beside the max-w-3xl
-								    transcript. */}
 								{showOverviewRoom && (
 									<ChatOverviewCard
 										chat={chat}
@@ -890,7 +889,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										repositories={gitWatcher.repositories}
 										isHydratingMessages={isHydratingMessages}
 										onOpenTab={activateRightPanelTab}
-										className="absolute top-full right-4 z-20 mt-2 hidden @min-[66rem]/chat:flex"
 									/>
 								)}
 							</div>
@@ -1094,8 +1092,7 @@ export const AgentChatPageLoadingView: React.FC<
 			<div
 				className={cn(
 					"relative flex h-full min-h-0 min-w-0 flex-1 flex-col sm:min-w-(--agents-chat-panel-min-width,0px)",
-					showOverviewRoom &&
-						"@min-[66rem]/chat:[--agents-overview-room:18rem]",
+					showOverviewRoom && overviewRoomClassName,
 				)}
 			>
 				<ChatTopBar

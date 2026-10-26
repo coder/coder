@@ -19,7 +19,12 @@ const mockChatOverview: ChatOverview = {
 			deletions: 33,
 		},
 	],
-	pullRequests: [{ ...MockChatDiffStatus, pull_request_title: "Queue jobs" }],
+	pullRequests: [
+		{
+			number: "123",
+			status: { ...MockChatDiffStatus, pull_request_title: "Queue jobs" },
+		},
+	],
 	subagents: [{ id: "child-1", title: "Find the flake", status: "running" }],
 	attachments: [
 		{

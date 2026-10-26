@@ -52,11 +52,14 @@ const mockChatOverview: ChatOverview = {
 	],
 	pullRequests: [
 		{
-			...MockChatDiffStatus,
-			pr_number: 4821,
-			pull_request_title: "ci: queue only the jobs a change needs",
-			additions: 120,
-			deletions: 41,
+			number: "4821",
+			status: {
+				...MockChatDiffStatus,
+				pr_number: 4821,
+				pull_request_title: "ci: queue only the jobs a change needs",
+				additions: 120,
+				deletions: 41,
+			},
 		},
 	],
 	subagents: [
@@ -70,13 +73,6 @@ const mockChatOverview: ChatOverview = {
 		mockSecondImageAttachment,
 	],
 };
-
-const mockSubagentStatuses = [
-	"running",
-	"error",
-	"requires_action",
-	"waiting",
-] satisfies ChatStatus[];
 
 const mockLongChatOverview: ChatOverview = {
 	...mockChatOverview,
@@ -112,7 +108,9 @@ const mockLongChatOverview: ChatOverview = {
 			deletions: 1,
 		},
 	],
-	subagents: mockSubagentStatuses.map((status, index) => ({
+	subagents: (
+		["running", "error", "requires_action", "waiting"] satisfies ChatStatus[]
+	).map((status, index) => ({
 		id: `sub-${index}`,
 		title: `Subagent ${index + 1}`,
 		status,
@@ -141,7 +139,6 @@ type Story = StoryObj<typeof ChatOverviewCardView>;
 /** Every section, with a fourth attachment behind the toggle. */
 export const Full: Story = {};
 
-/** A chat with a cost and nothing else to show. */
 export const CostOnly: Story = {
 	args: {
 		overview: {
@@ -166,14 +163,20 @@ export const SubagentCost: Story = {
 	},
 };
 
-/** The cost request failed. */
 export const CostUnavailable: Story = {
 	args: {
 		overview: { ...mockChatOverview, cost: "unavailable" },
 	},
 };
 
-/** Long lists stop at three rows; long names truncate. */
+/** Without AI Gateway, or before the first request, the card has no Cost row. */
+export const NoCost: Story = {
+	args: {
+		overview: { ...mockChatOverview, cost: undefined },
+	},
+};
+
+/** Long lists fold behind a toggle, and long names truncate. */
 export const ManyRows: Story = {
 	args: { overview: mockLongChatOverview },
 };

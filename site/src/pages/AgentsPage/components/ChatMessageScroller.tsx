@@ -120,9 +120,9 @@ export const ChatMessageScroller: React.FC<ChatMessageScrollerProps> = ({
 
 	return (
 		<MessageScroller.Root className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-			{/* The overview card's room (0px without the card) pads the
-			    scroll viewport, so the transcript centers beside the card
-			    while the scrollbar stays at the edge. */}
+			{/* The overview card's room (0px when the layout reserves none)
+			    pads the scroll viewport, so the transcript centers beside
+			    the card while the scrollbar stays at the edge. */}
 			<MessageScroller.Viewport className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain scrollbar-gutter-stable scrollbar-thin pr-(--agents-overview-room,0px)">
 				<MessageScroller.Content
 					data-testid="conversation-timeline"

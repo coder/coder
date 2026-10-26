@@ -5,8 +5,8 @@ import {
 	GitBranchIcon,
 	type LucideIcon,
 } from "lucide-react";
-import { useState } from "react";
-import { useQuery } from "react-query";
+import { useId, useState } from "react";
+import { type UseQueryResult, useQuery } from "react-query";
 import { Link, useOutletContext } from "react-router";
 import { chatCost } from "#/api/queries/chats";
 import type {
@@ -41,6 +41,16 @@ import { computeRepoStats, type DiffStats } from "./GitPanel/GitPanel";
 /** Rows a list section shows before it folds the rest behind a toggle. */
 const OVERVIEW_MAX_LIST_ROWS = 3;
 
+/**
+ * Reserves the card's room on the chat column: the card's width, its inset
+ * and a gap. The breakpoint fits the room beside the transcript, and the
+ * card shows at the same breakpoint.
+ */
+export const overviewRoomClassName =
+	"@min-[66rem]/chat:[--agents-overview-room:18rem]";
+const overviewCardPositionClassName =
+	"absolute top-full right-4 z-20 mt-2 hidden @min-[66rem]/chat:flex";
+
 /** The right panel tabs that the overview card can open. */
 export type OverviewTabId = "summary" | "git";
 
@@ -57,8 +67,8 @@ export type ChatOverview = {
 	isSubagent: boolean;
 	/** Repositories with uncommitted changes, from the git watcher. */
 	repos: Array<DiffStats & { root: string; branch: string }>;
-	/** Pull requests of the chat, the same refs as the top-bar PR chip. */
-	pullRequests: ChatDiffStatus[];
+	/** Pull requests of the chat, with their numbers. */
+	pullRequests: Array<{ number: string; status: ChatDiffStatus }>;
 	/** Child chats, with the live status from the chat stream. */
 	subagents: OverviewSubagent[];
 	/** Files the agent attached, newest first, from the loaded messages. */
@@ -71,7 +81,6 @@ type ChatOverviewCardProps = {
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
 	isHydratingMessages: boolean;
 	onOpenTab: (tabId: OverviewTabId) => void;
-	className?: string;
 };
 
 /**
@@ -84,7 +93,6 @@ export const ChatOverviewCard: React.FC<ChatOverviewCardProps> = ({
 	repositories,
 	isHydratingMessages,
 	onOpenTab,
-	className,
 }) => {
 	const showCost = useFeatureVisibility().aibridge;
 	const costQuery = useQuery({
@@ -106,9 +114,11 @@ export const ChatOverviewCard: React.FC<ChatOverviewCardProps> = ({
 				...stats,
 			}))
 			.sort((a, b) => a.root.localeCompare(b.root)),
-		pullRequests: (chat.diff_statuses ?? []).filter(
-			(status) => prNumber(status) !== undefined,
-		),
+		// Branch rows have no number, so they stay out, as in the top bar.
+		pullRequests: (chat.diff_statuses ?? []).flatMap((status) => {
+			const number = prNumber(status);
+			return number ? [{ number, status }] : [];
+		}),
 		subagents: (activeChatChildren ?? chat.children).map((child) => ({
 			id: child.id,
 			title: child.title,
@@ -130,29 +140,31 @@ export const ChatOverviewCard: React.FC<ChatOverviewCardProps> = ({
 		<ChatOverviewCardView
 			overview={overview}
 			onOpenTab={onOpenTab}
-			className={className}
+			className={overviewCardPositionClassName}
 		/>
 	);
 };
 
 const getOverviewCost = (
 	showCost: boolean,
-	costQuery: { isError: boolean; data?: ChatCost },
+	costQuery: Pick<UseQueryResult<ChatCost>, "isError" | "data">,
 ): ChatOverview["cost"] => {
 	if (!showCost) {
 		return undefined;
 	}
-	if (costQuery.isError) {
-		return "unavailable";
+	const { data } = costQuery;
+	// A failed refetch keeps the cost that already loaded.
+	if (!data) {
+		return costQuery.isError ? "unavailable" : undefined;
 	}
 	// The endpoint always returns a row, so a chat without requests reports
 	// zero rather than nothing.
-	if (!costQuery.data || costQuery.data.request_count === 0) {
+	if (data.request_count === 0) {
 		return undefined;
 	}
 	return {
-		totalMicros: costQuery.data.total_cost_micros,
-		unpricedRequests: costQuery.data.unpriced_request_count,
+		totalMicros: data.total_cost_micros,
+		unpricedRequests: data.unpriced_request_count,
 	};
 };
 
@@ -225,9 +237,10 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 				<OverviewSection title="Pull requests">
 					<OverviewList
 						items={overview.pullRequests}
-						render={(status) => (
+						render={({ number, status }) => (
 							<PullRequestRow
-								key={status.url ?? prNumber(status)}
+								key={number}
+								number={number}
 								status={status}
 								onClick={() => onOpenTab("git")}
 							/>
@@ -266,14 +279,16 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 	);
 };
 
-/** Matches the notes under the Summary tab's cost. */
 const getCostSubtitle = (overview: ChatOverview): string | undefined => {
+	const { cost } = overview;
+	if (!cost || cost === "unavailable") {
+		return undefined;
+	}
 	const parts: string[] = [];
 	if (overview.isSubagent) {
-		parts.push("Whole chat tree");
+		parts.push("Covers the whole chat");
 	}
-	const { cost } = overview;
-	if (cost && cost !== "unavailable" && cost.unpricedRequests > 0) {
+	if (cost.unpricedRequests > 0) {
 		const plural = cost.unpricedRequests === 1 ? "" : "s";
 		parts.push(
 			`Excludes unpriced usage from ${cost.unpricedRequests} request${plural}`,
@@ -287,14 +302,20 @@ type OverviewSectionProps = React.PropsWithChildren<{ title: string }>;
 const OverviewSection: React.FC<OverviewSectionProps> = ({
 	title,
 	children,
-}) => (
-	<section aria-label={title} className="flex flex-col py-2">
-		<h3 className="m-0 pb-1 text-xs font-normal text-content-secondary">
-			{title}
-		</h3>
-		{children}
-	</section>
-);
+}) => {
+	const headingId = useId();
+	return (
+		<section aria-labelledby={headingId} className="flex flex-col py-2">
+			<h3
+				id={headingId}
+				className="m-0 pb-1 text-xs font-normal text-content-secondary"
+			>
+				{title}
+			</h3>
+			{children}
+		</section>
+	);
+};
 
 type OverviewListProps<T> = {
 	items: readonly T[];
@@ -318,7 +339,7 @@ const OverviewList = <T,>({ items, render }: OverviewListProps<T>) => {
 				type="button"
 				aria-expanded={expanded}
 				onClick={() => setExpanded(!expanded)}
-				className="-mx-1.5 rounded-md py-1 pl-7 pr-1.5 text-left text-xs text-content-secondary hover:bg-surface-secondary hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+				className="-mx-1.5 rounded-md py-1 pl-7.5 pr-1.5 text-left text-xs text-content-secondary hover:bg-surface-secondary hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 			>
 				{expanded ? "Show less" : `Show ${hiddenCount} more`}
 			</button>
@@ -383,20 +404,23 @@ const OverviewRow: React.FC<OverviewRowProps> = ({
 };
 
 type PullRequestRowProps = {
+	number: string;
 	status: ChatDiffStatus;
 	onClick: () => void;
 };
 
-const PullRequestRow: React.FC<PullRequestRowProps> = ({ status, onClick }) => {
+const PullRequestRow: React.FC<PullRequestRowProps> = ({
+	number,
+	status,
+	onClick,
+}) => {
 	const icon = getPRIconConfig(status);
-	const number = prNumber(status);
-	const title = status.pull_request_title || "Pull request";
 	return (
 		<OverviewRow
 			icon={icon?.icon ?? GitBranchIcon}
 			iconClassName={icon?.className}
 			iconLabel={icon?.label}
-			label={number ? `#${number} ${title}` : title}
+			label={`#${number} ${status.pull_request_title || "Pull request"}`}
 			detail={
 				<DiffStatBadge
 					additions={status.additions}

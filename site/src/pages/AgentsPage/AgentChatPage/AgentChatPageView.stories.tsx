@@ -892,50 +892,48 @@ const overviewCardStore = buildStoreWithMessages(
 	buildLongConversation(AGENT_ID, 12),
 );
 
-const OverviewCardLayout: React.FC = () => (
-	<StoryAgentChatPageView
-		store={overviewCardStore}
-		chat={{
-			diff_statuses: [
-				{
-					...MockChatDiffStatus,
-					chat_id: AGENT_ID,
-					additions: 42,
-					deletions: 7,
-				},
-			],
-			children: [
-				buildChat({
-					id: "overview-sub-1",
-					title: "Find the flaky queue test",
-					status: "running",
-					parent_chat_id: AGENT_ID,
-				}),
-			],
-		}}
-		gitWatcher={{
-			...buildGitWatcher(),
-			repositories: new Map([
-				[
-					"/home/coder/coder",
-					{
-						repo_root: "/home/coder/coder",
-						branch: "ci/queue-only-jobs",
-						unified_diff: [
-							"diff --git a/ci.yaml b/ci.yaml",
-							"--- a/ci.yaml",
-							"+++ b/ci.yaml",
-							"@@ -1,3 +1,4 @@",
-							"-jobs: all",
-							"+jobs: changed",
-							"+queue: true",
-						].join("\n"),
-					},
-				],
-			]),
-		}}
-	/>
-);
+const mockOverviewCardChat: Partial<TypesGen.Chat> = {
+	diff_statuses: [
+		{
+			...MockChatDiffStatus,
+			chat_id: AGENT_ID,
+			additions: 42,
+			deletions: 7,
+		},
+	],
+	children: [
+		buildChat({
+			id: "overview-sub-1",
+			title: "Find the flaky queue test",
+			status: "running",
+			parent_chat_id: AGENT_ID,
+		}),
+	],
+};
+
+const mockOverviewCardGitWatcher: React.ComponentProps<
+	typeof AgentChatPageView
+>["gitWatcher"] = {
+	...buildGitWatcher(),
+	repositories: new Map([
+		[
+			"/home/coder/coder",
+			{
+				repo_root: "/home/coder/coder",
+				branch: "ci/queue-only-jobs",
+				unified_diff: [
+					"diff --git a/ci.yaml b/ci.yaml",
+					"--- a/ci.yaml",
+					"+++ b/ci.yaml",
+					"@@ -1,3 +1,4 @@",
+					"-jobs: all",
+					"+jobs: changed",
+					"+queue: true",
+				].join("\n"),
+			},
+		],
+	]),
+};
 
 // The chat widths are a 1440px and a 1280px window less the 320px left
 // sidebar.
@@ -950,13 +948,41 @@ const overviewCardFrame =
 /** Panel closed on a wide chat: the card sits beside the transcript. */
 export const OverviewCardBesideTranscript: Story = {
 	decorators: [overviewCardFrame(1120)],
-	render: () => <OverviewCardLayout />,
+	render: () => (
+		<StoryAgentChatPageView
+			store={overviewCardStore}
+			chat={mockOverviewCardChat}
+			gitWatcher={mockOverviewCardGitWatcher}
+		/>
+	),
 };
 
 /** Panel closed on a narrow chat: no card, the transcript stays centered. */
 export const OverviewCardHiddenWhenNarrow: Story = {
 	decorators: [overviewCardFrame(960)],
-	render: () => <OverviewCardLayout />,
+	render: () => (
+		<StoryAgentChatPageView
+			store={overviewCardStore}
+			chat={mockOverviewCardChat}
+			gitWatcher={mockOverviewCardGitWatcher}
+		/>
+	),
+};
+
+/** Full-width transcript on a wide chat: no card and no room. */
+export const OverviewCardHiddenInFullWidth: Story = {
+	decorators: [overviewCardFrame(1120)],
+	beforeEach: () => {
+		localStorage.setItem("agents.chat-full-width", "true");
+		return () => localStorage.removeItem("agents.chat-full-width");
+	},
+	render: () => (
+		<StoryAgentChatPageView
+			store={overviewCardStore}
+			chat={mockOverviewCardChat}
+			gitWatcher={mockOverviewCardGitWatcher}
+		/>
+	),
 };
 
 const otherUserActionMessages: TypesGen.ChatMessage[] = [
