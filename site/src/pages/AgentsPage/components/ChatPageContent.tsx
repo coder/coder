@@ -166,6 +166,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 		store,
 		selectSubagentStatusOverrides,
 	);
+	const queuedMessages = useChatSelector(store, selectQueuedMessages);
 	const isChatCompleted = !hasStream;
 
 	const liveStreamState =
@@ -229,6 +230,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 					isChatCompleted={isChatCompleted}
 					hasActiveStream={hasStream}
 					isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
+					queuedMessages={queuedMessages}
 					urlTransform={urlTransform}
 					mcpServers={mcpServers}
 					showDesktopPreviews={false}

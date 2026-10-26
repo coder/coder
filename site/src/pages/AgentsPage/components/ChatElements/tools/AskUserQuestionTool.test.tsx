@@ -80,4 +80,34 @@ describe("AskUserQuestionTool", () => {
 			"Answer to ask_user_question call call-123:\nSingle migration",
 		);
 	});
+
+	it("offers an async question again after its queued answer is removed", async () => {
+		const user = userEvent.setup();
+		const onSubmitAnswer = vi.fn();
+		const answer =
+			"Answer to ask_user_question call call-123:\nSingle migration";
+		const queryClient = createTestQueryClient();
+		const renderQuestion = (previousResponseText?: string) => (
+			<QueryClientProvider client={queryClient}>
+				<AskUserQuestionTool
+					questions={questions}
+					status="completed"
+					isError={false}
+					isLatestAskUserQuestion
+					asyncToolCallId="call-123"
+					previousResponseText={previousResponseText}
+					onSubmitAnswer={onSubmitAnswer}
+				/>
+			</QueryClientProvider>
+		);
+		const { rerender } = render(renderQuestion());
+
+		await user.click(screen.getByRole("button", { name: "Submit" }));
+		rerender(renderQuestion(answer));
+		rerender(renderQuestion());
+		await user.click(screen.getByRole("button", { name: "Submit" }));
+
+		expect(onSubmitAnswer).toHaveBeenCalledTimes(2);
+		expect(onSubmitAnswer).toHaveBeenNthCalledWith(2, answer);
+	});
 });

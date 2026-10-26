@@ -405,10 +405,20 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 		},
 	});
 	const isRunning = status === "running";
+	const recordedResponseText = isAsync
+		? getAsyncAnswerText(previousResponseText, asyncToolCallId)
+		: previousResponseText;
+	// An async answer can leave the queue without being delivered, so the
+	// local copy only bridges the send until the queue or transcript has it.
+	if (
+		isAsync &&
+		submittedResponseText !== null &&
+		recordedResponseText !== undefined
+	) {
+		setSubmittedResponseText(null);
+	}
 	const displayedSubmittedResponseText =
-		(isAsync
-			? getAsyncAnswerText(previousResponseText, asyncToolCallId)
-			: previousResponseText) ?? submittedResponseText;
+		recordedResponseText ?? submittedResponseText;
 	const hasSubmittedResponse = displayedSubmittedResponseText != null;
 	const showAnsweredState = status === "completed" && hasSubmittedResponse;
 	const showSubmittedResponse = showAnsweredState && isLatestAskUserQuestion;

@@ -116,6 +116,21 @@ export const MultiLineTextTruncation: Story = {
 	},
 };
 
+// A queued async question answer shows its answer, not the call ID line.
+export const AsyncQuestionAnswer: Story = {
+	args: {
+		messages: [
+			buildMessage(
+				1,
+				textContent(
+					"Answer to ask_user_question call toolu_01ABC:\n1. Scope: Backend\n2. Rollout: Single migration",
+				),
+			),
+			buildMessage(2, textContent("Also update the docs")),
+		],
+	},
+};
+
 export const WithSkillChips: Story = {
 	args: {
 		messages: [

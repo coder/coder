@@ -8,6 +8,7 @@ import {
 	type AskUserQuestion,
 	AskUserQuestionTool,
 } from "./AskUserQuestionTool";
+import { findAskUserQuestionResultRecord } from "./asyncAnswer";
 import { ChatClearedTool } from "./ChatClearedTool";
 import { ChatSummarizedTool } from "./ChatSummarizedTool";
 import { ComputerTool } from "./ComputerTool";
@@ -205,23 +206,12 @@ type AskUserQuestionResult = {
 const parseAskUserQuestionResult = (
 	result: unknown,
 ): AskUserQuestionResult | null => {
-	const resultRecord = asRecord(result);
-	for (const value of [
-		result,
-		resultRecord?.output,
-		resultRecord?.content,
-		resultRecord?.text,
-	]) {
-		const parsedValue = parseArgs(value);
-		const questions = parsedValue
-			? parseAskUserQuestions(parsedValue.questions)
-			: null;
-		if (questions) {
-			return { questions, isAsync: parsedValue?.async === true };
-		}
+	const resultRecord = findAskUserQuestionResultRecord(result);
+	const questions = parseAskUserQuestions(resultRecord?.questions);
+	if (!resultRecord || !questions) {
+		return null;
 	}
-
-	return null;
+	return { questions, isAsync: resultRecord.async === true };
 };
 
 const ExecuteRenderer: React.FC<ToolRendererProps> = ({

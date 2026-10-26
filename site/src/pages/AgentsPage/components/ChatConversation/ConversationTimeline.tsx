@@ -22,12 +22,12 @@ import { MessageScroller, useMessageScroller } from "#/vendor/message-scroller";
 import { ConversationItem } from "../ChatElements/Conversation";
 import { Message, MessageContent } from "../ChatElements/Message";
 import { Response } from "../ChatElements/Response";
-import { getAsyncAnswerToolCallId } from "../ChatElements/tools/asyncAnswer";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import { AssistantOutput } from "./AssistantOutput";
 import type { PreviewTextAttachment } from "./AttachmentBlocks";
+import { deriveAskUserQuestionState } from "./askUserQuestionState";
 import { FileProbeProvider } from "./FileProbeContext";
 import {
 	emptyLiveBlockKeys,
@@ -60,23 +60,6 @@ import {
 	isAgentAttachmentOnlyRow,
 	type RowSection,
 } from "./workingBlockGrouping";
-
-const getChatMessageTextContent = (
-	content: readonly TypesGen.ChatMessagePart[] | undefined,
-): string | undefined => {
-	if (!content) {
-		return undefined;
-	}
-
-	let textContent = "";
-	for (const part of content) {
-		if (part.type === "text") {
-			textContent += part.text;
-		}
-	}
-
-	return textContent.length > 0 ? textContent : undefined;
-};
 
 // Avoid announcing historical hook notices as live alerts.
 const TimelineNotice: React.FC<{ children?: React.ReactNode }> = ({
@@ -472,6 +455,7 @@ type ConversationTimelineProps = {
 	showDesktopPreviews: boolean;
 	hasActiveStream: boolean;
 	isAwaitingFirstStreamChunk: boolean;
+	queuedMessages?: readonly TypesGen.ChatQueuedMessage[];
 };
 
 export const ConversationTimeline = memo<ConversationTimelineProps>(
@@ -498,6 +482,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		showDesktopPreviews,
 		hasActiveStream,
 		isAwaitingFirstStreamChunk,
+		queuedMessages = [],
 	}) => {
 		const { scrollToMessage } = useMessageScroller();
 		const preferences = useQuery(preferenceSettings());
@@ -603,60 +588,15 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				nextKey: i < userRowKeys.length - 1 ? userRowKeys[i + 1] : undefined,
 			});
 		}
-		let latestAskUserQuestionToolId: string | undefined;
-		let hasUserResponseAfterAskQuestion = false;
-		const askUserQuestionResponseTextByToolId = new Map<string, string>();
-		let pendingAskUserQuestionToolId: string | undefined;
-		for (const { message, parsed } of parsedMessages) {
-			let askUserQuestionToolIdInMessage: string | undefined;
-			for (const tool of parsed.tools) {
-				if (tool.name === "ask_user_question") {
-					askUserQuestionToolIdInMessage = tool.id;
-					latestAskUserQuestionToolId = tool.id;
-					hasUserResponseAfterAskQuestion = false;
-				}
-			}
-
-			if (askUserQuestionToolIdInMessage) {
-				pendingAskUserQuestionToolId = askUserQuestionToolIdInMessage;
-			}
-
-			const responseText =
-				message.role === "user"
-					? getChatMessageTextContent(message.content)
-					: undefined;
-			if (pendingAskUserQuestionToolId && message.role === "user") {
-				hasUserResponseAfterAskQuestion =
-					pendingAskUserQuestionToolId === latestAskUserQuestionToolId;
-				if (responseText !== undefined) {
-					askUserQuestionResponseTextByToolId.set(
-						pendingAskUserQuestionToolId,
-						responseText,
-					);
-				}
-				pendingAskUserQuestionToolId = undefined;
-			}
-
-			// A queued message can land between an async question and its
-			// answer, so the answer is matched by the call it names.
-			if (responseText !== undefined) {
-				const answeredToolId = getAsyncAnswerToolCallId(responseText);
-				if (answeredToolId !== undefined) {
-					askUserQuestionResponseTextByToolId.set(answeredToolId, responseText);
-				}
-			}
-		}
-		// A question still in the stream is newer than every persisted one.
-		const liveAskUserQuestionToolId = liveTools.findLast(
-			(tool) => tool.name === "ask_user_question",
-		)?.id;
-		if (liveAskUserQuestionToolId !== undefined) {
-			latestAskUserQuestionToolId = liveAskUserQuestionToolId;
-			hasUserResponseAfterAskQuestion = false;
-		}
-		const historicalAskUserQuestionResponseTextByToolId =
-			askUserQuestionResponseTextByToolId.size > 0
-				? askUserQuestionResponseTextByToolId
+		const askUserQuestionState = deriveAskUserQuestionState(
+			parsedMessages,
+			liveTools,
+			queuedMessages,
+		);
+		const latestAskUserQuestionToolId = askUserQuestionState.latestToolId;
+		const askUserQuestionResponseTextByToolId =
+			askUserQuestionState.responseTextByToolId.size > 0
+				? askUserQuestionState.responseTextByToolId
 				: undefined;
 
 		// The work section keeps the row's key, so a row that becomes an answer
@@ -712,9 +652,11 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					isChatCompleted={isChatCompleted}
 					latestAskUserQuestionToolId={latestAskUserQuestionToolId}
 					askUserQuestionResponseTextByToolId={
-						historicalAskUserQuestionResponseTextByToolId
+						askUserQuestionResponseTextByToolId
 					}
-					hasUserResponseAfterAskQuestion={hasUserResponseAfterAskQuestion}
+					hasUserResponseAfterAskQuestion={
+						askUserQuestionState.isLatestAnswered
+					}
 					urlTransform={urlTransform}
 					isAfterEditingMessage={isAfterEditingMessage}
 					hideActions={
