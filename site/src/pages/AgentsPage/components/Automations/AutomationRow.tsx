@@ -38,6 +38,11 @@ import { automationPath } from "./automationsFlag";
 type AutomationRowProps = {
 	automation: ChatAutomation;
 	isOwner: boolean;
+	/**
+	 * The owner and organization admins can edit, run, and turn an
+	 * automation on or off.
+	 */
+	canUpdate: boolean;
 	/** The owner and organization admins can delete an automation. */
 	canDelete: boolean;
 	/** Stacks the row into Name, Enabled and Actions cells for narrow screens. */
@@ -287,6 +292,7 @@ export const AutomationRow = memo<AutomationRowProps>(
 	({
 		automation,
 		isOwner,
+		canUpdate,
 		canDelete,
 		compact,
 		showOwner = false,
@@ -306,7 +312,7 @@ export const AutomationRow = memo<AutomationRowProps>(
 		const enabledSwitch = (
 			<AutomationEnabledSwitch
 				automation={automation}
-				isOwner={isOwner}
+				canUpdate={canUpdate}
 				isUpdating={isUpdating}
 				onToggle={(enabled) => onToggleEnabled(automation, enabled)}
 			/>
@@ -319,7 +325,7 @@ export const AutomationRow = memo<AutomationRowProps>(
 						: "flex items-center justify-end gap-2"
 				}
 			>
-				{automation.kind === "schedule" && isOwner && (
+				{automation.kind === "schedule" && canUpdate && (
 					<RunNowButton
 						automation={automation}
 						iconOnly={showOwner}
@@ -363,7 +369,7 @@ export const AutomationRow = memo<AutomationRowProps>(
 								pendingActionRef.current = () => onEdit(automation);
 							}}
 						>
-							{isOwner ? "Edit" : "View"}
+							{canUpdate ? "Edit" : "View"}
 						</DropdownMenuItem>
 						{canDelete && (
 							<>

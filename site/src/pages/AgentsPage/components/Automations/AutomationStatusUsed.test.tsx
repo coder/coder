@@ -29,7 +29,7 @@ describe("a used single-use webhook", () => {
 			<TooltipProvider>
 				<AutomationEnabledSwitch
 					automation={usedWebhook}
-					isOwner
+					canUpdate
 					isUpdating={false}
 					onToggle={onToggle}
 					showLabel

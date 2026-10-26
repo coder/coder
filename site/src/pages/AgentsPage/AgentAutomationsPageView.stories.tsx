@@ -229,6 +229,7 @@ export const AllOwners: Story = {
 		filterQuery: "",
 		ownerScope: "all",
 		canFilterAnyOwner: true,
+		canUpdateAnyAutomation: true,
 		canDeleteAnyAutomation: true,
 	},
 	parameters: {

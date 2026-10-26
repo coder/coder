@@ -297,9 +297,9 @@ describe("AgentAutomationsPage", () => {
 			}),
 		);
 
-		// The notice names every action an admin has, Delete included.
+		// The notice names every action the viewer has, Delete included.
 		await screen.findByText(
-			"Only Bob can change this automation. You can turn it off, but only Bob can turn it back on. You can also delete it.",
+			"You don't have permission to change this automation. You can also delete it.",
 		);
 		await user.click(
 			await screen.findByRole("button", {
@@ -608,16 +608,17 @@ describe("AgentAutomationsPage", () => {
 	);
 
 	it.each([
-		{ canDeleteAny: true, menuItems: ["View", "Delete…"] },
-		{ canDeleteAny: false, menuItems: ["View"] },
+		{ canUpdateAny: true, canDeleteAny: true, menuItems: ["Edit", "Delete…"] },
+		{ canUpdateAny: false, canDeleteAny: true, menuItems: ["View", "Delete…"] },
+		{ canUpdateAny: false, canDeleteAny: false, menuItems: ["View"] },
 	])(
-		"offers Delete on another owner's automation when canDeleteAny is $canDeleteAny",
-		async ({ canDeleteAny, menuItems }) => {
+		"offers Edit and Delete on another owner's automation when canUpdateAny is $canUpdateAny and canDeleteAny is $canDeleteAny",
+		async ({ canUpdateAny, canDeleteAny, menuItems }) => {
 			const user = userEvent.setup();
 			setup({ automations: [{ ...mockAutomation, owner_id: "another-user" }] });
 			server.use(
 				http.post("/api/v2/authcheck", () =>
-					HttpResponse.json({ canDeleteAny }),
+					HttpResponse.json({ canUpdateAny, canDeleteAny }),
 				),
 			);
 
@@ -1955,11 +1956,8 @@ describe("AgentAutomationsPage editor", { timeout: 30_000 }, () => {
 		{
 			failure: "forbidden",
 			response: () =>
-				HttpResponse.json(
-					{ message: "Only the owner of a chat automation can change it." },
-					{ status: 403 },
-				),
-			alertText: "Only the owner of a chat automation can change it.",
+				HttpResponse.json({ message: "Forbidden." }, { status: 403 }),
+			alertText: "Forbidden.",
 		},
 		{
 			// A validation on a field the form does not render has no field to
@@ -2026,7 +2024,9 @@ describe("AgentAutomationsPage editor", { timeout: 30_000 }, () => {
 				screen.queryByRole("button", { name: `Run now ${automation.name}` }),
 			).toBeNull();
 			await openRowAction(user, automation.name, "View");
-			await screen.findByRole("heading", { level: 1, name: automation.name });
+			// The summary renders once the permission check settles.
+			await screen.findByRole("link", { name: "Back to automations" });
+			screen.getByRole("heading", { level: 1, name: automation.name });
 			// The viewer reads a summary, so there is nothing to edit or save.
 			expect(screen.queryByRole("form")).toBeNull();
 			expect(screen.queryByRole("textbox")).toBeNull();
@@ -2195,25 +2195,28 @@ describe("AgentAutomationsPage editor", { timeout: 30_000 }, () => {
 		});
 	});
 
-	it("lets a viewer turn another owner's automation off but not back on", async () => {
-		const user = userEvent.setup();
-		const { updateBodies } = setupEditor({
-			automations: [
-				{ ...mockAutomation, owner_id: "another-user", enabled: false },
-			],
-		});
+	it.each([true, false])(
+		"does not let a viewer without update permission turn another owner's automation on or off when enabled is %s",
+		async (enabled) => {
+			const user = userEvent.setup();
+			const { updateBodies } = setupEditor({
+				automations: [{ ...mockAutomation, owner_id: "another-user", enabled }],
+			});
 
-		await openRowAction(user, mockAutomation.name, "View");
-		// Wait for the editor so the click does not hit the list row's switch.
-		await screen.findByText("can change this automation or turn it back on", {
-			exact: false,
-		});
-		await user.click(
-			screen.getByRole("switch", { name: `Enable ${mockAutomation.name}` }),
-		);
+			await openRowAction(user, mockAutomation.name, "View");
+			// Wait for the editor so the click does not hit the list row's
+			// switch, which explains the same refusal.
+			await screen.findByRole("link", { name: "Back to automations" });
+			screen.getByText("You don't have permission to change this automation.", {
+				selector: "p",
+			});
+			await user.click(
+				screen.getByRole("switch", { name: `Enable ${mockAutomation.name}` }),
+			);
 
-		expect(updateBodies).toEqual([]);
-	});
+			expect(updateBodies).toEqual([]);
+		},
+	);
 
 	it("goes from a deleted automation's editor to the list without a not-found screen", async () => {
 		const user = userEvent.setup();
@@ -2280,7 +2283,7 @@ describe("AgentAutomationsPage editor", { timeout: 30_000 }, () => {
 		);
 	});
 
-	it("tells a viewer who turned another owner's automation off that only the owner can undo it", async () => {
+	it("lets a viewer who can update another owner's automation edit and turn it off", async () => {
 		const user = userEvent.setup();
 		const toastSuccess = vi.spyOn(toast, "success");
 		const otherOwners: ChatAutomation = {
@@ -2288,27 +2291,33 @@ describe("AgentAutomationsPage editor", { timeout: 30_000 }, () => {
 			owner_id: "another-user",
 			owner: { id: "another-user", username: "bob", name: "Bob" },
 		};
-		setupEditor({ automations: [otherOwners] });
+		const { updateBodies } = setupEditor({ automations: [otherOwners] });
 		server.use(
-			http.patch(`${automationsPath(":organizationId")}/:automationId`, () =>
-				HttpResponse.json({ ...otherOwners, enabled: false }),
+			http.post("/api/v2/authcheck", () =>
+				HttpResponse.json({ canUpdateAny: true }),
+			),
+			http.patch(
+				`${automationsPath(":organizationId")}/:automationId`,
+				async ({ request }) => {
+					updateBodies.push(await request.json());
+					return HttpResponse.json({ ...otherOwners, enabled: false });
+				},
 			),
 		);
 
-		await openRowAction(user, mockAutomation.name, "View");
+		await openRowAction(user, mockAutomation.name, "Edit");
 		// Wait for the editor so the click does not hit the list row's switch.
-		await screen.findByText(
-			"Only Bob can change this automation. You can turn it off, but only Bob can turn it back on.",
-		);
+		await screen.findByRole("heading", { name: "Edit automation" });
 		await user.click(
 			screen.getByRole("switch", { name: `Enable ${mockAutomation.name}` }),
 		);
 
 		await waitFor(() => {
 			expect(toastSuccess).toHaveBeenCalledWith(
-				`${mockAutomation.name} is off. Only Bob can turn it back on.`,
+				`${mockAutomation.name} is off.`,
 			);
 		});
+		expect(updateBodies).toEqual([{ enabled: false }]);
 	});
 });
 
@@ -2714,7 +2723,7 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 	it.each([
 		{
 			status: 403,
-			message: "Only the owner of a chat automation can change it.",
+			message: "Forbidden.",
 			detail: "",
 		},
 		{

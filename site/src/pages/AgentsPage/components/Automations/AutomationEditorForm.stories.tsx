@@ -581,7 +581,7 @@ export const SaveForbidden: Story = {
 	args: {
 		automation: mockAutomation,
 		error: mockApiError({
-			message: "Only the owner of a chat automation can change it.",
+			message: "Forbidden.",
 		}),
 	},
 	parameters: {
@@ -791,7 +791,7 @@ export const RotateSecretForbidden: Story = {
 	args: {
 		automation: mockWebhookAutomation,
 		rotateSecretError: mockApiError({
-			message: "Only the owner of a chat automation can change it.",
+			message: "Forbidden.",
 		}),
 	},
 	parameters: {

@@ -72,6 +72,8 @@ type AutomationDeleteDialogState = {
 type AgentAutomationsPageViewProps = {
 	header?: React.ReactNode;
 	currentUserId: string;
+	/** True for viewers, such as organization admins, who can update any automation. */
+	canUpdateAnyAutomation?: boolean;
 	/** True for viewers, such as organization admins, who can delete any automation. */
 	canDeleteAnyAutomation?: boolean;
 	organizationSelector?: React.ReactNode;
@@ -188,6 +190,7 @@ export const AgentAutomationsPageView: React.FC<
 > = ({
 	header,
 	currentUserId,
+	canUpdateAnyAutomation = false,
 	canDeleteAnyAutomation = false,
 	organizationSelector,
 	filterQuery,
@@ -249,6 +252,9 @@ export const AgentAutomationsPageView: React.FC<
 				key={automation.id}
 				automation={automation}
 				isOwner={automation.owner_id === currentUserId}
+				canUpdate={
+					automation.owner_id === currentUserId || canUpdateAnyAutomation
+				}
 				canDelete={
 					automation.owner_id === currentUserId || canDeleteAnyAutomation
 				}

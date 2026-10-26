@@ -216,11 +216,18 @@ const AutomationEditor: React.FC<AutomationEditorProps> = ({
 	const [allowLeave, setAllowLeave] = useState(false);
 	const [runError, setRunError] = useState<unknown>();
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
-	// The same rule as the list: the owner, or a viewer who may delete any
-	// automation in the organization.
-	const deleteAnyQuery = useQuery({
+	// The same rule as the list: the owner, or a viewer who may update or
+	// delete any automation in the organization.
+	const permissionsQuery = useQuery({
 		...checkAuthorization({
 			checks: {
+				canUpdateAny: {
+					object: {
+						resource_type: "chat_automation",
+						organization_id: organizationId,
+					},
+					action: "update",
+				},
 				canDeleteAny: {
 					object: {
 						resource_type: "chat_automation",
@@ -232,9 +239,15 @@ const AutomationEditor: React.FC<AutomationEditorProps> = ({
 		}),
 		enabled: Boolean(automation) && !isOwner && Boolean(organizationId),
 	});
+	// A new automation is always the viewer's own.
+	const canUpdate = isOwner || Boolean(permissionsQuery.data?.canUpdateAny);
+	// Waits for the check, so an admin does not see the read-only view
+	// before the editor.
+	const isCheckingPermissions =
+		Boolean(automation) && !isOwner && permissionsQuery.isLoading;
 	const canDelete =
 		Boolean(automation) &&
-		(isOwner || Boolean(deleteAnyQuery.data?.canDeleteAny));
+		(isOwner || Boolean(permissionsQuery.data?.canDeleteAny));
 	const deleteMutation = useMutation(
 		deleteChatAutomation(queryClient, organizationId),
 	);
@@ -324,10 +337,7 @@ const AutomationEditor: React.FC<AutomationEditorProps> = ({
 			{
 				onSuccess: (updated) =>
 					toast.success(
-						updated.enabled || isOwner
-							? `${updated.name} is ${updated.enabled ? "on" : "off"}.`
-							: // Only the owner can undo this, so say so right away.
-								`${updated.name} is off. Only ${ownerName} can turn it back on.`,
+						`${updated.name} is ${updated.enabled ? "on" : "off"}.`,
 					),
 				onError: (error) =>
 					toast.error(
@@ -391,7 +401,7 @@ const AutomationEditor: React.FC<AutomationEditorProps> = ({
 
 	const runNowBlocked = automation ? runNowBlockedReason(automation) : "";
 	const runNowButton = automation &&
-		isOwner &&
+		canUpdate &&
 		automation.kind === "schedule" && (
 			<RunNowPageButton
 				blockedReason={runNowBlocked}
@@ -400,7 +410,7 @@ const AutomationEditor: React.FC<AutomationEditorProps> = ({
 			/>
 		);
 	const title = automation
-		? isOwner
+		? canUpdate
 			? "Edit automation"
 			: automation.name
 		: "New automation";
@@ -464,7 +474,7 @@ const AutomationEditor: React.FC<AutomationEditorProps> = ({
 									<AutomationPausedBadge automation={automation} />
 									<AutomationEnabledSwitch
 										automation={automation}
-										isOwner={isOwner}
+										canUpdate={canUpdate}
 										isUpdating={toggleMutation.isPending}
 										onToggle={handleToggle}
 										showLabel
@@ -501,13 +511,13 @@ const AutomationEditor: React.FC<AutomationEditorProps> = ({
 							</AlertDescription>
 						</Alert>
 					)}
-					{automation && !isOwner ? (
+					{isCheckingPermissions ? (
+						<Loader />
+					) : automation && !canUpdate ? (
 						<>
 							<p className="m-0 text-sm text-content-secondary">
 								{[
-									automation.enabled
-										? `Only ${ownerName} can change this automation. You can turn it off, but only ${ownerName} can turn it back on.`
-										: `Only ${ownerName} can change this automation or turn it back on.`,
+									"You don't have permission to change this automation.",
 									// Matches the Delete button that admins see above.
 									canDelete && "You can also delete it.",
 								]

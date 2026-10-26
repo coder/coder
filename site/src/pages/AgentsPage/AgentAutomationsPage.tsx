@@ -127,7 +127,7 @@ const AutomationsList: React.FC = () => {
 	const [deleteTarget, setDeleteTarget] = useState<ChatAutomation>();
 
 	// An object with no owner asks about every automation in the
-	// organization, which only admins can read or delete.
+	// organization, which only admins can read, update, or delete.
 	const permissionsQuery = useQuery({
 		...checkAuthorization({
 			checks: {
@@ -137,6 +137,13 @@ const AutomationsList: React.FC = () => {
 						organization_id: organizationId,
 					},
 					action: "read",
+				},
+				canUpdateAny: {
+					object: {
+						resource_type: "chat_automation",
+						organization_id: organizationId,
+					},
+					action: "update",
 				},
 				canDeleteAny: {
 					object: {
@@ -268,6 +275,7 @@ const AutomationsList: React.FC = () => {
 		<AgentAutomationsPageView
 			header={<AutomationsPageHeader />}
 			currentUserId={user.id}
+			canUpdateAnyAutomation={Boolean(permissionsQuery.data?.canUpdateAny)}
 			canDeleteAnyAutomation={Boolean(permissionsQuery.data?.canDeleteAny)}
 			filterQuery={filter.query}
 			onFilterChange={filter.update}

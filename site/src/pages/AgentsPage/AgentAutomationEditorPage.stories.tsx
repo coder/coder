@@ -204,7 +204,8 @@ export const EditHeartbeat: Story = {
 	},
 };
 
-export const ReadOnlyForAdmin: Story = {
+// A viewer who may delete, but not update, another member's automation.
+export const ReadOnlyWithDelete: Story = {
 	parameters: {
 		reactRouter: routeTo(
 			`/agents/automations/${othersWebhook.id}`,
@@ -216,6 +217,13 @@ export const ReadOnlyForAdmin: Story = {
 			{
 				key: getAuthorizationKey({
 					checks: {
+						canUpdateAny: {
+							object: {
+								resource_type: "chat_automation",
+								organization_id: organizationId,
+							},
+							action: "update",
+						},
 						canDeleteAny: {
 							object: {
 								resource_type: "chat_automation",
@@ -225,7 +233,7 @@ export const ReadOnlyForAdmin: Story = {
 						},
 					},
 				}),
-				data: { canDeleteAny: true },
+				data: { canUpdateAny: false, canDeleteAny: true },
 			},
 		],
 	},

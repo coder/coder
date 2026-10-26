@@ -290,7 +290,8 @@ export const AutomationNextRun: React.FC<AutomationNextRunProps> = ({
 
 type AutomationEnabledSwitchProps = {
 	automation: ChatAutomation;
-	isOwner: boolean;
+	/** The owner and organization admins can turn an automation on and off. */
+	canUpdate: boolean;
 	isUpdating: boolean;
 	onToggle: (enabled: boolean) => void;
 	/** Shows "Enabled", "Disabled", or, for a used single-use webhook, "Used". */
@@ -298,13 +299,13 @@ type AutomationEnabledSwitchProps = {
 };
 
 /**
- * The owner can turn an automation on and off. Other viewers with access,
- * such as admins, can only turn it off. The switch explains in a tooltip why
- * it does not move, and stays focusable so keyboard users can read that.
+ * Viewers who can update an automation, its owner and admins, can turn it on
+ * and off. The switch explains in a tooltip why it does not move, and stays
+ * focusable so keyboard users can read that.
  */
 export const AutomationEnabledSwitch: React.FC<
 	AutomationEnabledSwitchProps
-> = ({ automation, isOwner, isUpdating, onToggle, showLabel = false }) => {
+> = ({ automation, canUpdate, isUpdating, onToggle, showLabel = false }) => {
 	const reasonId = useId();
 	// The switch shows the server's enabled flag. A used single-use webhook
 	// turns itself off when it accepts its event, reads Used, and cannot be
@@ -314,8 +315,8 @@ export const AutomationEnabledSwitch: React.FC<
 	let blockedReason: string | undefined;
 	if (used && !automation.enabled) {
 		blockedReason = "A used single-use webhook cannot run again.";
-	} else if (!isOwner && !automation.enabled) {
-		blockedReason = "Only the owner can turn this automation back on.";
+	} else if (!canUpdate) {
+		blockedReason = "You don't have permission to change this automation.";
 	}
 	const control = (
 		<Switch
