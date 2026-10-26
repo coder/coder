@@ -393,7 +393,8 @@ describe("ArtifactsPanel", () => {
 				]),
 			);
 
-			// The newest artifact shows, and its title opens the switcher.
+			// The tab selects the newest artifact, and its title opens the
+			// switcher.
 			await user.click(await screen.findByRole("button", { name: trigger }));
 			await user.click(
 				await screen.findByRole("menuitemradio", { name: /Cache options/ }),

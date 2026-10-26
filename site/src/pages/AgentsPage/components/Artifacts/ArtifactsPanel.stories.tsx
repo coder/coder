@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn, userEvent, within } from "storybook/test";
+import { fn, spyOn, userEvent, within } from "storybook/test";
+import { API } from "#/api/api";
 import {
 	chatArtifactKey,
 	chatArtifactVersionTextKey,
@@ -115,6 +116,30 @@ export const SwitcherOpen: Story = {
 			await within(canvasElement).findByRole("button", {
 				name: MockChatArtifact.title,
 			}),
+		);
+	},
+};
+
+// The shown artifact fails to load, and the switcher still reaches the other.
+export const UnavailableArtifact: Story = {
+	args: MarkdownVersion.args,
+	parameters: {
+		queries: [
+			{ key: chatArtifactKey(MockPdfArtifact.id), data: MockPdfArtifact },
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatArtifact").mockRejectedValue(
+			new Error("Artifact not found."),
+		);
+	},
+};
+
+export const LoadingArtifact: Story = {
+	args: MarkdownVersion.args,
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatArtifact").mockReturnValue(
+			new Promise(() => {}),
 		);
 	},
 };

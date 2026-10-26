@@ -116,7 +116,7 @@ const ArtifactSwitcher: React.FC<ArtifactSwitcherProps> = ({
 				<Button
 					variant="subtle"
 					size="sm"
-					className="group h-7 min-w-0 max-w-full justify-start gap-1 px-1.5 text-sm text-content-primary"
+					className="h-7 min-w-0 max-w-full justify-start px-1.5 text-sm text-content-primary"
 				>
 					<span className="min-w-0 truncate">{label}</span>
 					<ChevronDownIcon className="text-content-secondary" />
