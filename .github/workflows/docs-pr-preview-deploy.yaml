@@ -1,6 +1,7 @@
 # Builds a pull request's docs/ tree with docs-engine's offline export and
 # publishes it as its own site on the Coder-owned domain in the repository
-# variable DOCS_PREVIEW_DOMAIN:
+# variable DOCS_PREVIEW_DOMAIN (docs-preview.cdr.dev, so PR 123's head is
+# https://coder-docs-pr-123.docs-preview.cdr.dev):
 #
 #   coder-docs-pr-<number>.<domain>             the PR head, re-aliased per build
 #   coder-docs-pr-<number>-<sha:0:9>.<domain>   one per built commit
@@ -55,7 +56,7 @@ jobs:
       domain: ${{ steps.domain.outputs.domain }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -93,7 +94,7 @@ jobs:
 
       - name: Mint a docs-engine read token
         id: app-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           app-id: ${{ secrets.DOCS_ENGINE_APP_ID }}
           private-key: ${{ secrets.DOCS_ENGINE_APP_PRIVATE_KEY }}
@@ -118,7 +119,7 @@ jobs:
           echo "digest=$(sha256sum engine.tgz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
       - name: Upload the engine source
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: docs-engine-source
           path: engine.tgz
@@ -134,7 +135,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -170,21 +171,30 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: 22.23.4
           package-manager-cache: false
 
       - name: Install the engine's dependencies
         working-directory: engine
         run: pnpm install --frozen-lockfile
 
+      # docs/ holds no symbolic links. One added by a PR could pull files
+      # from elsewhere on this runner, such as the private engine source,
+      # into a public preview, whatever the pinned engine does with it.
       - name: Build the static export
         working-directory: engine
         env:
           DOCS_ROOT: ${{ github.workspace }}/content/docs
-        run: pnpm turbo run build --filter=@coder/offlinedocs
+        run: |
+          set -euo pipefail
+          if [ -L "$DOCS_ROOT" ] || [ ! -d "$DOCS_ROOT" ] || [ -n "$(find "$DOCS_ROOT" -type l -print -quit)" ]; then
+            echo "::error::docs/ must be a directory with no symbolic links in it." >&2
+            exit 1
+          fi
+          pnpm turbo run build --filter=@coder/offlinedocs
 
       - name: Upload the static export
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: docs-preview-site
           path: engine/apps/offlinedocs/out
@@ -207,7 +217,7 @@ jobs:
       DOMAIN: ${{ needs.engine.outputs.domain }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -238,15 +248,25 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: 22.23.4
           package-manager-cache: false
 
       # build-output.mjs uses only Node built-ins and writes the routes and
       # security headers (including the CSP) from the engine's vercel.json.
+      # The export comes from the job that ran PR content, so anything but
+      # regular files and directories is refused before it is copied: a
+      # symbolic link could point the upload at a file on this runner. The
+      # error names no path, since a PR-chosen name could read as a
+      # workflow command.
       - name: Lay out the Build Output API directory with noindex
         working-directory: engine/apps/offlinedocs
         run: |
           set -euo pipefail
+          unexpected=$(find out ! -type f ! -type d -print -quit)
+          if [ -n "$unexpected" ]; then
+            echo "::error::The static export holds a symbolic link or special file; refusing to deploy it." >&2
+            exit 1
+          fi
           node scripts/build-output.mjs
           config=.vercel/output/config.json
           jq '.routes = [{src: "^/(.*)$", headers: {"X-Robots-Tag": "noindex"}, continue: true}] + .routes' \

@@ -227,7 +227,7 @@ jobs:
           existing_id=$(printf '%s\n' "$all_comment_ids" | head -n 1) || true
 
           # Computed early: the reference-page log below needs it too.
-          url_prefix="https://coder-docs-pr-${PR_NUMBER}.${DOCS_PREVIEW_DOMAIN}"
+          url_prefix="https://coder-docs-pr-${PR_NUMBER}.${domain}"
 
           # Fetch the PR's changed files once, then derive the Markdown and
           # image sets from the same payload: one read halves the rate-limit
@@ -247,9 +247,12 @@ jobs:
             | jq -r '.[] | select(.status != "removed") | select(.filename | test("^docs/reference/.*\\.md$")) | [.filename, .sha] | @tsv')
           if [ -n "$reference_tsv" ]; then
             echo "Generated reference page(s) changed (excluded from the docs-preview comment):"
-            printf '%s\n' "$reference_tsv" | while IFS=$'\t' read -r filename sha; do
+            # File names come from the PR, and the runner reads "##[" as a
+            # workflow command anywhere in a line, so every character
+            # outside a path allowlist prints as "?".
+            printf '%s\n' "$reference_tsv" | while IFS=$'\t' read -r filename _; do
               [ -z "$filename" ] && continue
-              echo "  ${filename} -> $(page_url "$filename")"
+              printf '  %s -> %s\n' "$filename" "$(page_url "$filename")" | LC_ALL=C tr -c 'A-Za-z0-9._/:>\n -' '?'
             done
           fi
 
