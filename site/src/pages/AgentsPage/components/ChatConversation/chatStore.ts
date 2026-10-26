@@ -530,10 +530,7 @@ export const createChatStore = (): ChatStore => {
 		},
 		applyMessagePart: (part) => applyMessageParts([part]),
 		applyMessageParts,
-		setQueuedMessages: (
-			queuedMessages,
-			version = Number.POSITIVE_INFINITY,
-		) => {
+		setQueuedMessages: (queuedMessages, version = Number.POSITIVE_INFINITY) => {
 			batch(() => {
 				setState((current) => {
 					if (
@@ -958,9 +955,7 @@ export const selectReconnectState = (state: ChatStoreState) =>
 export const selectHasMoreMessages = (state: ChatStoreState) =>
 	state.hasMoreMessages;
 
-const latestMessage = (
-	state: ChatView,
-): TypesGen.ChatMessage | undefined => {
+const latestMessage = (state: ChatView): TypesGen.ChatMessage | undefined => {
 	const latestMessageID =
 		state.orderedMessageIDs[state.orderedMessageIDs.length - 1];
 	return latestMessageID === undefined
