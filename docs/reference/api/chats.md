@@ -8,6 +8,68 @@ description: "REST endpoints for Coder Agents Chats API (programmatic agent sess
 
 Programmatic API for Coder Agents (the user-facing "Coder Agents" / "Chats" product). Use these endpoints to create, list, and manage AI coding agent sessions.
 
+## List chat previews
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/previews \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/experimental/chats/{chat}/previews`
+
+Returns one entry per preview endpoint that open_preview
+opened in the chat's current workspace.
+Experimental: this endpoint is subject to change.
+
+### Parameters
+
+| Name   | In   | Type         | Required | Description |
+|--------|------|--------------|----------|-------------|
+| `chat` | path | string(uuid) | true     | Chat ID     |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "agent_name": "string",
+    "path": "string",
+    "port": 0,
+    "preview_id": "string",
+    "title": "string",
+    "url_path": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                          |
+|--------|---------------------------------------------------------|-------------|-----------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.ChatPreview](schemas.md#codersdkchatpreview) |
+
+<h3 id="list-chat-previews-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name           | Type    | Required | Restrictions | Description                                                                                         |
+|----------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------|
+| `[array item]` | array   | false    |              |                                                                                                     |
+| `» agent_name` | string  | false    |              |                                                                                                     |
+| `» path`       | string  | false    |              | Path is the published workspace file or directory. It is empty for a preview of an existing server. |
+| `» port`       | integer | false    |              |                                                                                                     |
+| `» preview_id` | string  | false    |              |                                                                                                     |
+| `» title`      | string  | false    |              |                                                                                                     |
+| `» url_path`   | string  | false    |              | URL path is the path and query a port preview opens at. It is empty for the server's root.          |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Connect to chat workspace desktop via WebSockets
 
 ### Code samples

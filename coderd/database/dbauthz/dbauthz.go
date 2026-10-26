@@ -3758,6 +3758,15 @@ func (q *querier) GetChatModelConfigsForTelemetry(ctx context.Context) ([]databa
 	return q.db.GetChatModelConfigsForTelemetry(ctx)
 }
 
+func (q *querier) GetChatOpenPreviewResults(ctx context.Context, chatID uuid.UUID) ([]json.RawMessage, error) {
+	// Authorize read on the parent chat.
+	_, err := q.GetChatByID(ctx, chatID)
+	if err != nil {
+		return nil, err
+	}
+	return q.db.GetChatOpenPreviewResults(ctx, chatID)
+}
+
 func (q *querier) GetChatOrganizationModelOverride(ctx context.Context, arg database.GetChatOrganizationModelOverrideParams) (database.ChatOrganizationModelOverride, error) {
 	object := rbac.ResourceChatModelConfig.InOrg(arg.OrganizationID).WithGroupACL(map[string][]policy.Action{
 		arg.OrganizationID.String(): {policy.ActionRead},

@@ -10703,6 +10703,58 @@ func (q *sqlQuerier) GetChatModelConfigsForTelemetry(ctx context.Context) ([]Get
 	return items, nil
 }
 
+const getChatOpenPreviewResults = `-- name: GetChatOpenPreviewResults :many
+SELECT
+    (part->'result')::jsonb AS result
+FROM
+    chat_messages cm,
+    jsonb_array_elements(cm.content) WITH ORDINALITY AS t(part, ordinality)
+WHERE
+    cm.chat_id = $1::uuid
+    AND cm.role = 'tool'
+    AND cm.deleted = false
+    AND cm.visibility IN ('user', 'both')
+    AND jsonb_typeof(cm.content) = 'array'
+    AND cm.content @> '[{"type": "tool-result", "tool_name": "open_preview"}]'::jsonb
+    AND part->>'type' = 'tool-result'
+    AND part->>'tool_name' = 'open_preview'
+    AND part ? 'result'
+    AND part->>'mcp_server_config_id' IS NULL
+    AND part->'is_error' IS DISTINCT FROM 'true'::jsonb
+    AND part->'provider_executed' IS DISTINCT FROM 'true'::jsonb
+ORDER BY
+    cm.id, ordinality
+`
+
+// Returns the results of successful built-in open_preview calls that the
+// user can see in a chat, oldest first. The jsonb_typeof guard skips legacy
+// V0 rows whose content is a scalar JSON string (predates migration 000434)
+// so the lateral jsonb_array_elements never raises "cannot extract elements
+// from a scalar". The containment check skips messages without an
+// open_preview result before their parts are expanded.
+func (q *sqlQuerier) GetChatOpenPreviewResults(ctx context.Context, chatID uuid.UUID) ([]json.RawMessage, error) {
+	rows, err := q.db.QueryContext(ctx, getChatOpenPreviewResults, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []json.RawMessage
+	for rows.Next() {
+		var result json.RawMessage
+		if err := rows.Scan(&result); err != nil {
+			return nil, err
+		}
+		items = append(items, result)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChatQueuedForCapacity = `-- name: GetChatQueuedForCapacity :one
 WITH active AS (
     SELECT
