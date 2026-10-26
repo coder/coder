@@ -59,6 +59,7 @@ const mockGatewayAnthropicProvider: AIProvider = {
 	id: "2d0c6c3e-5a4b-4f7e-9b1a-8c3d2e1f0a92",
 	name: "anthropic-gateway",
 	display_name: "Anthropic via gateway",
+	base_url: "https://gateway.example.com",
 	enabled: true,
 };
 const mockDisabledGatewayAnthropicProvider: AIProvider = {

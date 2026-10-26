@@ -57,14 +57,14 @@ const getComputerUseAIProviders = (
 		return [
 			{
 				id: provider.id,
-				displayName: provider.display_name,
+				displayName: provider.display_name || provider.name,
 				typeLabel: formatProviderLabel(type),
 				type,
 			},
 		];
 	});
 
-const computerUseProviderTypeList =
+const computerUseProviderTypesLabel =
 	ChatComputerUseProviders.map(formatProviderLabel).join(" or ");
 
 type ComputerUseProviderHintKind =
@@ -76,6 +76,7 @@ type ComputerUseProviderHintKind =
 const getComputerUseProviderHintKind = (
 	eligibleProviders: readonly ComputerUseAIProvider[],
 	selectedAIProviderID: string,
+	selectedProvider: ComputerUseAIProvider | undefined,
 	storedProviderType: TypesGen.ChatComputerUseProvider,
 ): ComputerUseProviderHintKind | undefined => {
 	if (eligibleProviders.length === 0) {
@@ -88,12 +89,7 @@ const getComputerUseProviderHintKind = (
 			? "unselected"
 			: "no-provider-of-type";
 	}
-	if (
-		!eligibleProviders.some((provider) => provider.id === selectedAIProviderID)
-	) {
-		return "unavailable";
-	}
-	return undefined;
+	return selectedProvider ? undefined : "unavailable";
 };
 
 type ComputerUseProviderHintProps = {
@@ -112,7 +108,7 @@ const ComputerUseProviderHint: React.FC<ComputerUseProviderHintProps> = ({
 		<p id={id} className="m-0 text-xs text-content-secondary">
 			{kind === "no-eligible-providers" && (
 				<>
-					Add an enabled {computerUseProviderTypeList}{" "}
+					Add an enabled {computerUseProviderTypesLabel}{" "}
 					<Link asChild showExternalIcon={false} size="sm">
 						<RouterLink to="/ai/settings/providers">AI provider</RouterLink>
 					</Link>{" "}
@@ -161,13 +157,12 @@ export const VirtualDesktopSettings: React.FC<VirtualDesktopSettingsProps> = ({
 }) => {
 	const { isSavedVisible, showSavedState } = useTemporarySavedState();
 	const hintId = useId();
-	const storedAIProviderID = computerUseProviderData?.ai_provider_id ?? "";
 	const eligibleProviders = getComputerUseAIProviders(aiProviders ?? []);
 
 	const form = useFormik<{ aiProviderID: string }>({
 		enableReinitialize: true,
 		initialValues: {
-			aiProviderID: storedAIProviderID,
+			aiProviderID: computerUseProviderData?.ai_provider_id ?? "",
 		},
 		onSubmit: (values, helpers) => {
 			const selected = eligibleProviders.find(
@@ -203,6 +198,7 @@ export const VirtualDesktopSettings: React.FC<VirtualDesktopSettingsProps> = ({
 			? getComputerUseProviderHintKind(
 					eligibleProviders,
 					form.values.aiProviderID,
+					selectedProvider,
 					computerUseProviderData.provider,
 				)
 			: undefined;
@@ -250,11 +246,19 @@ export const VirtualDesktopSettings: React.FC<VirtualDesktopSettingsProps> = ({
 						aria-describedby={hintKind ? hintId : undefined}
 						className="h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm shadow-none"
 					>
-						<SelectValue placeholder="Select provider">
+						<SelectValue
+							placeholder={
+								isLoading ? (
+									<Skeleton className="h-4 w-20" aria-hidden="true" />
+								) : (
+									"Select provider"
+								)
+							}
+						>
 							{isLoading ? (
 								<Skeleton className="h-4 w-20" aria-hidden="true" />
 							) : (
-								selectedProvider?.displayName
+								(selectedProvider?.displayName ?? "Select provider")
 							)}
 						</SelectValue>
 					</SelectTrigger>
