@@ -37,10 +37,7 @@ type AskUserQuestionToolProps = {
 	isChatCompleted?: boolean;
 	isLatestAskUserQuestion?: boolean;
 	previousResponseText?: string;
-	/**
-	 * Set for questions that did not end the agent's turn. They stay
-	 * answerable while the agent runs, and the answer names this call.
-	 */
+	/** Set for questions that did not end the agent's turn; the answer names this call. */
 	asyncToolCallId?: string;
 	onSubmitAnswer?: (message: string) => Promise<void> | void;
 };
@@ -127,6 +124,22 @@ const formatOutgoingMessage = (
 
 const getAsyncAnswerPrefix = (toolCallId: string): string =>
 	`Answer to ask_user_question call ${toolCallId}:\n`;
+
+const asyncAnswerPattern = /^Answer to ask_user_question call (\S+):\n/;
+
+/** Returns the tool call ID that an async answer message names. */
+export const getAsyncAnswerToolCallId = (text: string): string | undefined =>
+	asyncAnswerPattern.exec(text)?.[1];
+
+// An async question can be followed by an unrelated message, so only a
+// message that names the call answers it.
+const getAsyncAnswerText = (
+	text: string | undefined,
+	toolCallId: string,
+): string | undefined => {
+	const prefix = getAsyncAnswerPrefix(toolCallId);
+	return text?.startsWith(prefix) ? text.slice(prefix.length) : undefined;
+};
 
 const getSubmissionErrorMessage = (error: unknown): string | undefined => {
 	if (!error) {
@@ -389,9 +402,6 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 }) => {
 	const idPrefix = useId();
 	const isAsync = asyncToolCallId !== undefined;
-	const asyncAnswerPrefix = isAsync
-		? getAsyncAnswerPrefix(asyncToolCallId)
-		: "";
 	const filteredQuestions = questions.map(filterQuestionOptions);
 	const [answers, setAnswers] = useState<Array<QuestionAnswer | undefined>>(
 		() => filteredQuestions.map(getDefaultAnswer),
@@ -402,18 +412,20 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	>(null);
 	const submitAnswerMutation = useMutation({
 		mutationFn: async (answerText: string) => {
-			await onSubmitAnswer?.(asyncAnswerPrefix + answerText);
+			await onSubmitAnswer?.(
+				isAsync
+					? getAsyncAnswerPrefix(asyncToolCallId) + answerText
+					: answerText,
+			);
 		},
 		onSuccess: (_data, answerText) => {
 			setSubmittedResponseText(answerText);
 		},
 	});
 	const isRunning = status === "running";
-	// An async question can be followed by an unrelated message, so only a
-	// message that names this call answers it.
-	const previousAnswerText = previousResponseText?.startsWith(asyncAnswerPrefix)
-		? previousResponseText.slice(asyncAnswerPrefix.length)
-		: undefined;
+	const previousAnswerText = isAsync
+		? getAsyncAnswerText(previousResponseText, asyncToolCallId)
+		: previousResponseText;
 	const displayedSubmittedResponseText =
 		previousAnswerText ?? submittedResponseText;
 	const hasSubmittedResponse = displayedSubmittedResponseText != null;

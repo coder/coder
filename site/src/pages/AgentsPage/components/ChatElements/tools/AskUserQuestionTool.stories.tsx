@@ -415,7 +415,16 @@ export const ErrorState: Story = {
 
 const asyncSingleQuestionPayload = { ...singleQuestionPayload, async: true };
 
-// Async questions stay answerable while the agent keeps working.
+export const BlockingWhileRunning: Story = {
+	args: {
+		status: "completed",
+		result: JSON.stringify(singleQuestionPayload),
+		isChatCompleted: false,
+		isLatestAskUserQuestion: true,
+		onSendAskUserQuestionResponse: fn(),
+	},
+};
+
 export const AsyncInteractiveWhileRunning: Story = {
 	args: {
 		toolCallId: "call-async",
@@ -427,7 +436,19 @@ export const AsyncInteractiveWhileRunning: Story = {
 	},
 };
 
-// A later question or message closes an unanswered async question.
+export const AsyncPreviouslyAnswered: Story = {
+	args: {
+		toolCallId: "call-async",
+		status: "completed",
+		result: JSON.stringify(asyncSingleQuestionPayload),
+		isChatCompleted: false,
+		isLatestAskUserQuestion: false,
+		previousResponseText:
+			"Answer to ask_user_question call call-async:\nSingle migration",
+	},
+};
+
+// An unrelated later message does not answer an async question.
 export const AsyncClosed: Story = {
 	args: {
 		toolCallId: "call-async",

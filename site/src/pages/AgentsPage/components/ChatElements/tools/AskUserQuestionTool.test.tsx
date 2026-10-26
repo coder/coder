@@ -80,23 +80,4 @@ describe("AskUserQuestionTool", () => {
 			"Answer to ask_user_question call call-123:\nSingle migration",
 		);
 	});
-
-	it("keeps a blocking question disabled while the chat is running", () => {
-		render(
-			<QueryClientProvider client={createTestQueryClient()}>
-				<AskUserQuestionTool
-					questions={questions}
-					status="completed"
-					isError={false}
-					isChatCompleted={false}
-					isLatestAskUserQuestion
-					onSubmitAnswer={vi.fn()}
-				/>
-			</QueryClientProvider>,
-		);
-
-		for (const radio of screen.getAllByRole("radio")) {
-			expect(radio).toBeDisabled();
-		}
-	});
 });

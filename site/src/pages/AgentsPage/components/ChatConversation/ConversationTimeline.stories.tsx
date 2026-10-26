@@ -1820,6 +1820,74 @@ export const AskUserQuestionSubmittedAnswer: Story = {
 	},
 };
 
+/** An async answer counts even when a queued message landed first. */
+export const AsyncAskUserQuestionAnsweredAfterQueuedMessage: Story = {
+	args: {
+		...defaultArgs,
+		isChatCompleted: true,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "Help me pick a rollout plan." }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						tool_call_id: "ask-tool-async",
+						tool_name: "ask_user_question",
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 3,
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "ask-tool-async",
+						result: {
+							output: JSON.stringify({
+								...askUserQuestionPayload,
+								async: true,
+							}),
+						},
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 4,
+				role: "user",
+				content: [{ type: "text", text: "Also update the docs." }],
+			},
+			{
+				...baseMessage,
+				id: 5,
+				role: "assistant",
+				content: [{ type: "text", text: "Updated the docs." }],
+			},
+			{
+				...baseMessage,
+				id: 6,
+				role: "user",
+				content: [
+					{
+						type: "text",
+						text: `Answer to ask_user_question call ask-tool-async:\n${askUserQuestionSubmittedResponse}`,
+					},
+				],
+			},
+		]),
+	},
+};
+
 /** Copy button calls clipboard API with the raw markdown text. */
 export const CopyButtonWritesToClipboard: Story = {
 	args: {

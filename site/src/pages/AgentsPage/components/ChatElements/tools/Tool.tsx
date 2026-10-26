@@ -66,7 +66,6 @@ import { WriteFileTool } from "./WriteFileTool";
 type ToolProps = Omit<React.ComponentProps<"div">, "children"> & {
 	organizationId: string;
 	name: string;
-	/** The model's tool call ID. */
 	toolCallId?: string;
 	status?: ToolStatus;
 	args?: unknown;
@@ -694,7 +693,7 @@ const AskUserQuestionRenderer: React.FC<ToolRendererProps> = ({
 		? parseAskUserQuestions(parsedArgs.questions)
 		: null;
 	const parsedResult = parseAskUserQuestionResult(result);
-	const questionsFromResult = parsedResult?.questions ?? null;
+	const questionsFromResult = parsedResult?.questions;
 	const questions =
 		questionsFromArgs && questionsFromArgs.length > 0
 			? questionsFromArgs

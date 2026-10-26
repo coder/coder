@@ -22,6 +22,7 @@ import { MessageScroller, useMessageScroller } from "#/vendor/message-scroller";
 import { ConversationItem } from "../ChatElements/Conversation";
 import { Message, MessageContent } from "../ChatElements/Message";
 import { Response } from "../ChatElements/Response";
+import { getAsyncAnswerToolCallId } from "../ChatElements/tools/AskUserQuestionTool";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
@@ -631,6 +632,17 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					);
 				}
 				pendingAskUserQuestionToolId = undefined;
+			}
+
+			// A queued message can land between an async question and its
+			// answer, so the answer is matched by the call it names.
+			if (message.role === "user") {
+				const responseText = getChatMessageTextContent(message.content);
+				const answeredToolId =
+					responseText && getAsyncAnswerToolCallId(responseText);
+				if (responseText && answeredToolId) {
+					askUserQuestionResponseTextByToolId.set(answeredToolId, responseText);
+				}
 			}
 		}
 		const historicalAskUserQuestionResponseTextByToolId =
