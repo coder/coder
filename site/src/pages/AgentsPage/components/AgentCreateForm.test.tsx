@@ -1143,3 +1143,34 @@ describe("AgentCreateForm project picker", () => {
 		},
 	);
 });
+
+describe("AgentCreateForm project actions", () => {
+	beforeEach(() => {
+		dashboard.experiments = ["chat-projects"];
+	});
+
+	afterEach(() => {
+		dashboard.experiments = [];
+	});
+
+	it("inserts a project action's skill into the new chat", async () => {
+		const queryClient = createQueryClient();
+		queryClient.setQueryData(chatProjectSkillsKey(MockChatProject.id), [
+			{ ...MockSkill, name: "triage", action: true },
+		]);
+		const { onCreateChat } = renderForm(
+			{ project: MockChatProject },
+			{ queryClient },
+		);
+
+		await user().click(await screen.findByRole("button", { name: "triage" }));
+		await clickSend();
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).composerParts).toContainEqual({
+			type: "skill-invocation",
+			source: "project",
+			name: "triage",
+		});
+	});
+});

@@ -40,6 +40,10 @@ export type SkillFormValues = {
 	name: string;
 	description: string;
 	body: string;
+	/** Project skills only: offers the skill above project composers. */
+	action?: boolean;
+	/** Project skills only: lets agents find and load the skill. */
+	modelInvocable?: boolean;
 };
 
 /** The fields of a skill that has not been written yet. */
@@ -47,6 +51,13 @@ export const emptySkillFormValues: SkillFormValues = {
 	name: "",
 	description: "",
 	body: "",
+};
+
+/** The fields and API defaults of a project skill not written yet. */
+export const emptyProjectSkillFormValues: SkillFormValues = {
+	...emptySkillFormValues,
+	action: false,
+	modelInvocable: true,
 };
 
 type SkillSearchMetadata = {
@@ -199,7 +210,10 @@ export const parseSkillMarkdown = (content: string): SkillFormValues => {
 		throw new SkillMarkdownError("Skill body is required.");
 	}
 
-	return { name, description, body };
+	// Claude Code marks skills that only users may invoke this way.
+	return parsed.attributes["disable-model-invocation"] === true
+		? { name, description, body, modelInvocable: false }
+		: { name, description, body };
 };
 
 export const tryParseSkillMarkdown = (
@@ -233,6 +247,8 @@ export const skillFormValuesFromSkill = (
 			name: skill.name,
 			description: skill.description,
 			body: parsed.values.body,
+			action: skill.action,
+			modelInvocable: skill.model_invocable,
 		},
 	};
 };
@@ -265,6 +281,27 @@ export const buildSkillMarkdown = (values: SkillFormValues): string => {
 	frontmatter.push("---");
 
 	return `${frontmatter.join("\n")}\n${body}\n`;
+};
+
+/**
+ * Adds `disable-model-invocation: true` to SKILL.md frontmatter that lacks
+ * it, so a downloaded manual-only skill keeps that setting when re-imported.
+ * Content the marker would push past the size limit is returned unchanged.
+ */
+export const withDisabledModelInvocation = (content: string): string => {
+	const opening = /^---(\r?\n)/.exec(content);
+	const frontmatterEnd = content.search(/\r?\n---/);
+	if (!opening || frontmatterEnd < 3) {
+		return content;
+	}
+	if (/^disable-model-invocation:/m.test(content.slice(0, frontmatterEnd))) {
+		return content;
+	}
+	const newline = opening[1];
+	const marked = `---${newline}disable-model-invocation: true${newline}${content.slice(opening[0].length)}`;
+	return getSkillContentSizeBytes(marked) > SKILL_MAX_SIZE_BYTES
+		? content
+		: marked;
 };
 
 export const getSkillContentSizeBytes = (content: string): number =>

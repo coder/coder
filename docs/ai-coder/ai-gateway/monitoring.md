@@ -6,7 +6,7 @@ title: Monitoring
 > AI Gateway is part of [AI Governance](../ai-governance.md), which is included with a Premium license.
 
 AI Gateway records the last `user` prompt, token usage, model reasoning, and every tool invocation for each intercepted request.
-Each capture is tied to a single "interception" that maps back to the authenticated Coder identity, making it easy to attribute spend and behaviour.
+Each capture is tied to a single "interception" that maps back to the authenticated Coder identity, making it easy to attribute spend and behavior.
 
 ![User Prompt logging](../../images/aibridge/grafana_user_prompts_logging.png)
 
@@ -211,7 +211,7 @@ Available query filters:
 - `client` - Filter by client name.
   Possible values are listed below.
 - `initiator` - Filter by user ID or username
-- `provider` - Filter by AI provider (e.g., `openai`, `anthropic`)
+- `provider` - Filter by AI provider (for example, `openai`, `anthropic`)
 - `model` - Filter by model name
 - `started_after` - Filter sessions after a timestamp
 - `started_before` - Filter sessions before a timestamp

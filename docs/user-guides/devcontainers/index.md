@@ -108,7 +108,7 @@ You can also set a [custom agent name](./customizing-dev-containers.md#custom-ag
 - **Linux only**:
   Dev Containers are currently not supported in Windows or macOS workspaces
 - Changes to `devcontainer.json` require manual rebuild using the dashboard button
-- The `forwardPorts` property in `devcontainer.json` with `host:port` syntax (e.g., `"db:5432"`) for Docker Compose sidecar containers is not yet supported.
+- The `forwardPorts` property in `devcontainer.json` with `host:port` syntax (for example, `"db:5432"`) for Docker Compose sidecar containers is not yet supported.
   For single-container dev containers, use `coder port-forward` to access ports directly on the sub-agent.
 - Some advanced dev container features may have limited support
 

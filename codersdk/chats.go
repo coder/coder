@@ -427,6 +427,13 @@ type ChatFileMetadata struct {
 	CreatedAt      time.Time `json:"created_at" format:"date-time"`
 }
 
+// ChatACPTranscriptMessage is a workspace-local ACP message returned by
+// acp_wait_agent without database message metadata.
+type ChatACPTranscriptMessage struct {
+	Role    ChatMessageRole   `json:"role"`
+	Content []ChatMessagePart `json:"content"`
+}
+
 // ChatMessage represents a single message in a chat.
 type ChatMessage struct {
 	ID            int64             `json:"id"`

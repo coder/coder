@@ -199,6 +199,7 @@ func (m *Manager) probe(ctx context.Context, cfg harnessConfig, directory string
 	ctx, cancel := timeout(ctx, m.clock, setupTimeout)
 	defer cancel()
 	p, err := launch(ctx, cfg, directory, &discoveryClient{}, launchOptions{
+		clock:   m.clock,
 		execer:  m.execer,
 		envInfo: m.envInfo,
 		env:     env,
