@@ -672,25 +672,24 @@ function useMessageScrollerController({
     scrollTowardItemEnd,
   ])
 
-  // LOCAL CHANGE: once no turn is held, the spacer keeps only what the
-  // current position needs. Shrinking it never moves the view.
+  // LOCAL CHANGE: once no turn is held, remove the spacer when it sits below
+  // the view. Resizing it on screen would let following-bottom, which arms
+  // while the content end is in view, scroll the reader back down.
   const trimTailSpacer = React.useCallback(() => {
     const content = contentRef.current
     const viewport = viewportRef.current
 
-    if (!content || !viewport) {
-      return
-    }
-
-    const height = getTailSpacerHeight({
-      content,
-      scrollTop: viewport.scrollTop,
-      spacer: spacerRef.current,
-      viewport,
-    })
-
-    if (height < spacerHeightRef.current) {
-      setTailSpacerHeight(height)
+    if (
+      content &&
+      viewport &&
+      getTailSpacerHeight({
+        content,
+        scrollTop: viewport.scrollTop,
+        spacer: spacerRef.current,
+        viewport,
+      }) < -scrollEdgeThresholdRef.current
+    ) {
+      setTailSpacerHeight(0)
     }
   }, [setTailSpacerHeight])
 
