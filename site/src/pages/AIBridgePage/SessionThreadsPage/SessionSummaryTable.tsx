@@ -6,8 +6,12 @@ import type {
 } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
+import { Link } from "#/components/Link/Link";
+import { TooltipMessage } from "#/components/Tooltip/Tooltip";
 import { AIBridgeClientIcon } from "#/pages/AIBridgePage/icons/AIBridgeClientIcon";
 import { AIBridgeProviderIcon } from "#/pages/AIBridgePage/icons/AIBridgeProviderIcon";
+import { docs } from "#/utils/docs";
 import { formatDateTime } from "#/utils/time";
 import { CostBadge } from "../CostBadge";
 import {
@@ -192,7 +196,24 @@ export const SessionSummaryTable = ({
 			</div>
 
 			<div className="flex items-center justify-between">
-				<dt className="shrink-0 font-normal whitespace-nowrap">Cost</dt>
+				<dt className="flex shrink-0 items-center gap-1 font-normal whitespace-nowrap">
+					Cost
+					<InfoTooltip size="small" ariaLabel="Approximate cost">
+						<TooltipMessage>
+							Approximate cost of this session.{" "}
+							<Link
+								size="sm"
+								href={docs(
+									"/ai-coder/ai-gateway/cost-controls#how-spend-is-calculated",
+								)}
+								target="_blank"
+								rel="noreferrer"
+							>
+								How cost is calculated
+							</Link>
+						</TooltipMessage>
+					</InfoTooltip>
+				</dt>
 				<dd className="ml-4 min-w-0 truncate text-content-primary">
 					<CostBadge
 						costMicros={costMicros}
