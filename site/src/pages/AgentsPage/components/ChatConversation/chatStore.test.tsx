@@ -32,6 +32,7 @@ import { QueryClient, QueryClientProvider } from "react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
+import { createDeferred } from "#/testHelpers/deferred";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import {
@@ -2797,11 +2798,9 @@ describe("useChatStore", () => {
 		const chatID = "chat-loading-page";
 		const wrapper = createWrapper(createTestQueryClient());
 		const existingMessage = buildMessage(chatID, 1, "user", "hello");
-		let resolvePage: (page: TypesGen.ChatMessagesResponse) => void = () => {};
+		const newestPage = createDeferred<TypesGen.ChatMessagesResponse>();
 		vi.mocked(API.experimental.getChatMessages).mockReturnValueOnce(
-			new Promise((resolve) => {
-				resolvePage = resolve;
-			}),
+			newestPage.promise,
 		);
 
 		const { result } = renderHook(
@@ -2820,7 +2819,7 @@ describe("useChatStore", () => {
 		expect(watchChat).not.toHaveBeenCalled();
 
 		act(() => {
-			resolvePage({
+			newestPage.resolve({
 				messages: [existingMessage],
 				queued_messages: [],
 				has_more: false,
@@ -4715,8 +4714,8 @@ describe("chat stream contract", () => {
 				});
 				const { store } = chat;
 				return {
-					loadOlderMessages: chat.loadOlderMessages,
-					isLoadingOlderMessages: chat.isLoadingOlderMessages,
+					fetchMoreMessages: chat.fetchMoreMessages,
+					isFetchingMoreMessages: chat.isFetchingMoreMessages,
 					messageIDs: useChatSelector(store, selectOrderedMessageIDs),
 					queuedIDs: useChatSelector(store, selectQueuedMessages).map(
 						(message) => message.id,
@@ -5015,17 +5014,15 @@ describe("chat stream contract", () => {
 		});
 		await waitFor(() => expect(sockets).toHaveLength(1));
 
-		let resolveOlder: (page: TypesGen.ChatMessagesResponse) => void = () => {};
+		const olderPage = createDeferred<TypesGen.ChatMessagesResponse>();
 		vi.mocked(API.experimental.getChatMessages).mockReturnValueOnce(
-			new Promise((resolve) => {
-				resolveOlder = resolve;
-			}),
+			olderPage.promise,
 		);
 		act(() => {
-			result.current.loadOlderMessages();
+			result.current.fetchMoreMessages();
 		});
 		await waitFor(() =>
-			expect(result.current.isLoadingOlderMessages).toBe(true),
+			expect(result.current.isFetchingMoreMessages).toBe(true),
 		);
 
 		act(() => {
@@ -5040,11 +5037,11 @@ describe("chat stream contract", () => {
 			]);
 		});
 		await act(async () => {
-			resolveOlder(page([buildMessage(chatID, 9, "assistant", "old")]));
+			olderPage.resolve(page([buildMessage(chatID, 9, "assistant", "old")]));
 		});
 
 		await waitFor(() =>
-			expect(result.current.isLoadingOlderMessages).toBe(false),
+			expect(result.current.isFetchingMoreMessages).toBe(false),
 		);
 		expect(result.current.messageIDs).toEqual([11]);
 	});
