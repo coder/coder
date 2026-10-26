@@ -4814,33 +4814,31 @@ describe("chat stream contract", () => {
 				message(3, "user", 5),
 			],
 		},
-	])("keeps a pending $name through the events a reconnect resends", async ({
-		action,
-		status,
-		replayed,
-		result: committed,
-	}) => {
-		const sockets = mockWatchChatWithFreshSockets();
-		const { result } = renderChat(
-			page([buildMessage(chatID, 1, "user", "prompt")]),
-		);
-		await waitFor(() => expect(sockets).toHaveLength(1));
-		act(() => {
-			result.current.store.addPendingAction(action, status);
-		});
-		expect(result.current.pendingCount).toBe(1);
+	])(
+		"keeps a pending $name through the events a reconnect resends",
+		async ({ action, status, replayed, result: committed }) => {
+			const sockets = mockWatchChatWithFreshSockets();
+			const { result } = renderChat(
+				page([buildMessage(chatID, 1, "user", "prompt")]),
+			);
+			await waitFor(() => expect(sockets).toHaveLength(1));
+			act(() => {
+				result.current.store.addPendingAction(action, status);
+			});
+			expect(result.current.pendingCount).toBe(1);
 
-		act(() => {
-			sockets[0].emitOpen();
-			sockets[0].emitDataBatch(replayed);
-		});
-		expect(result.current.pendingCount).toBe(1);
+			act(() => {
+				sockets[0].emitOpen();
+				sockets[0].emitDataBatch(replayed);
+			});
+			expect(result.current.pendingCount).toBe(1);
 
-		act(() => {
-			sockets[0].emitDataBatch(committed);
-		});
-		expect(result.current.pendingCount).toBe(0);
-	});
+			act(() => {
+				sockets[0].emitDataBatch(committed);
+			});
+			expect(result.current.pendingCount).toBe(0);
+		},
+	);
 
 	it("shows a chat's pending send in no other chat", async () => {
 		mockWatchChatWithFreshSockets();

@@ -995,7 +995,8 @@ const convergenceScenarios: ConvergenceScenario[] = [
 			queue: [],
 			status,
 			action: pendingSend("q10"),
-			stream: (store) => store.setQueuedMessages([makeQueuedMessage(10, "q10")]),
+			stream: (store) =>
+				store.setQueuedMessages([makeQueuedMessage(10, "q10")]),
 			statusAfter: status,
 		}),
 	),
