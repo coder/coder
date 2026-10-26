@@ -2,7 +2,7 @@
 title: Workspace startup coordination examples
 ---
 
-To order whole scripts without calling the CLI, refer to [declarative script ordering](../script-ordering.md).
+To order whole scripts without calling the CLI, refer to [declarative script ordering](../extending-templates/script-ordering.md).
 The examples below use `coder exp sync` for coordination inside script bodies.
 
 ## Script Example
