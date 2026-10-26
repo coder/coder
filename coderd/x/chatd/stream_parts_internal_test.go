@@ -162,9 +162,9 @@ func TestStreamPartsEndpointLatestSelectionWinsWhileBlocked(t *testing.T) {
 
 	blockingKey := messagepartbuffer.Key{ChatID: chatID, HistoryVersion: 1, GenerationAttempt: 1}
 	// More selections than a small buffer in front of the serve loop holds.
-	staleKeys := make([]messagepartbuffer.Key, 16)
-	for i := range staleKeys {
-		staleKeys[i] = messagepartbuffer.Key{ChatID: chatID, HistoryVersion: int64(i) + 2, GenerationAttempt: 1}
+	var staleKeys []messagepartbuffer.Key
+	for i := range int64(16) {
+		staleKeys = append(staleKeys, messagepartbuffer.Key{ChatID: chatID, HistoryVersion: i + 2, GenerationAttempt: 1})
 	}
 	lastStaleKey := staleKeys[len(staleKeys)-1]
 	latestKey := messagepartbuffer.Key{ChatID: chatID, HistoryVersion: lastStaleKey.HistoryVersion + 1, GenerationAttempt: 1}
