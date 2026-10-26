@@ -34,6 +34,16 @@ export const ThemeProvider: React.FC<React.PropsWithChildren> = ({
 		root.classList.add(concreteName);
 		root.classList.add(baseModeFor(concreteName));
 
+		// Installed PWAs and mobile browsers paint their title bar or toolbar
+		// with theme-color. Reading the body background after the classes
+		// apply gives the surface this theme actually renders.
+		const themeColor = getComputedStyle(document.body).backgroundColor;
+		for (const meta of document.querySelectorAll<HTMLMetaElement>(
+			'meta[name="theme-color"]',
+		)) {
+			meta.content = themeColor;
+		}
+
 		return () => {
 			if (!root.dataset.embedTheme) {
 				root.classList.remove(...CONCRETE_THEMES);
