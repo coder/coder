@@ -166,6 +166,7 @@ export type ChatStore = {
 	// Fills a new store with the newest messages page. After that, only
 	// stream events and older pages change the stored state.
 	seed: (page: TypesGen.ChatMessagesResponse) => void;
+	// Replaces the whole history, as a history_reset from the first message.
 	replaceMessages: (messages: readonly TypesGen.ChatMessage[]) => void;
 	// Applies a history_reset: drops the messages with IDs at or above fromID.
 	resetHistoryFrom: (fromID: number) => void;
@@ -434,7 +435,10 @@ export const createChatStore = (): ChatStore => {
 			};
 		},
 		batch,
-		replaceMessages,
+		replaceMessages: (messages) => {
+			historyResets++;
+			replaceMessages(messages);
+		},
 		upsertDurableMessage,
 		upsertDurableMessages: (messages) => {
 			batch(() => {
