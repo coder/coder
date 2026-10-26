@@ -545,7 +545,8 @@ type SendMessageInput struct {
 	Message      Message
 	BusyBehavior BusyBehavior
 	// MaxQueueSize is the maximum number of messages that can be queued
-	// in the chat. It must be positive when the message is queued.
+	// in the chat. It must be positive when the send can make the queue
+	// longer.
 	MaxQueueSize int
 	// FileIDs are linked to the chat by [LinkFiles], which caps the
 	// chat at MaxFileLinks files.
@@ -564,7 +565,8 @@ type SendMessageResult struct {
 // SendMessage inserts directly in idle states and queues by lane in busy
 // states. From E1, E1P, or P, it queues the message and resumes with the
 // steer lane, or the queue head if no steer messages exist, unless a
-// message under edit blocks the delivery.
+// message under edit blocks the delivery. MaxQueueSize applies only to
+// sends that can make the queue longer.
 func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 	chat, from, err := tx.requireFromAllowed(TransitionSendMessage)
 	if err != nil {
@@ -596,10 +598,10 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 	if err := LinkFiles(tx.ctx, tx.store, tx.chatID, input.FileIDs, input.MaxFileLinks); err != nil {
 		return SendMessageResult{}, err
 	}
-	if sendMessageInsertsDirectly(from) {
-		return tx.sendMessageDirect(chat, input)
-	}
 	switch from {
+	case StateW, StateE0:
+		return tx.sendMessageDirect(chat, input)
+
 	// Error or paused: queue the message, deliver the steer lane or
 	// the queue head into history, clear last_error. A head under edit
 	// blocks the delivery and keeps the status.
@@ -612,8 +614,18 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 	return SendMessageResult{}, newTransitionError(TransitionSendMessage, from, "unhandled state in SendMessage")
 }
 
-func sendMessageInsertsDirectly(from ExecutionState) bool {
-	return from == StateW || from == StateE0
+// sendMessageGrowsQueue reports whether SendMessage from the state can
+// make the queue longer. W and E0 insert the message into history. E1
+// queues the message, but it also delivers at least one queued message
+// in the same transaction. E1P and P can deliver nothing when a message
+// under edit blocks the delivery.
+func sendMessageGrowsQueue(from ExecutionState) bool {
+	switch from {
+	case StateW, StateE0, StateE1:
+		return false
+	default:
+		return true
+	}
 }
 
 // CheckSendMessageQueueCapacity returns a *MessageQueueFullError when
@@ -626,7 +638,7 @@ func CheckSendMessageQueueCapacity(chat database.Chat, queue QueueState, queuedC
 }
 
 func sendMessageQueueCapacityError(from ExecutionState, queuedCount int64, maxQueueSize int) error {
-	if sendMessageInsertsDirectly(from) {
+	if !sendMessageGrowsQueue(from) {
 		return nil
 	}
 	if maxQueueSize <= 0 {
