@@ -1,6 +1,7 @@
 package db2sdk
 
 import (
+	"database/sql"
 	"encoding/json"
 	"testing"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -229,6 +231,8 @@ func TestAggregateTokenUsage(t *testing.T) {
 		result := aggregateTokenUsage(nil)
 		require.Equal(t, int64(0), result.InputTokens)
 		require.Equal(t, int64(0), result.OutputTokens)
+		require.Equal(t, int64(0), result.CostMicros)
+		require.False(t, result.HasUnpricedUsage)
 		require.Empty(t, result.Metadata)
 	})
 
@@ -276,6 +280,62 @@ func TestAggregateTokenUsage(t *testing.T) {
 		require.Equal(t, int64(500), result.InputTokens)
 		require.Equal(t, int64(200), result.OutputTokens)
 		require.Empty(t, result.Metadata)
+	})
+
+	t.Run("sums_cost_and_flags_unpriced_usage", func(t *testing.T) {
+		t.Parallel()
+		priced := []database.AIBridgeTokenUsage{
+			{ID: uuid.New(), CostMicros: sql.NullInt64{Int64: 1500, Valid: true}},
+			{ID: uuid.New(), CostMicros: sql.NullInt64{Int64: 0, Valid: true}},
+			{ID: uuid.New(), CostMicros: sql.NullInt64{Int64: 250, Valid: true}},
+		}
+
+		result := aggregateTokenUsage(priced)
+		require.Equal(t, int64(1750), result.CostMicros)
+		require.False(t, result.HasUnpricedUsage)
+
+		// Add a token usage with no cost (NULL cost_micros).
+		result = aggregateTokenUsage(append(priced, database.AIBridgeTokenUsage{ID: uuid.New()}))
+		require.Equal(t, int64(1750), result.CostMicros)
+		require.True(t, result.HasUnpricedUsage)
+	})
+}
+
+func TestAIBridgePricedModel(t *testing.T) {
+	t.Parallel()
+
+	t.Run("no_priced_rows", func(t *testing.T) {
+		t.Parallel()
+		require.Nil(t, aiBridgePricedModel(nil))
+		require.Nil(t, aiBridgePricedModel([]database.AIBridgeTokenUsage{{ID: uuid.New()}}))
+	})
+
+	t.Run("first_priced_row", func(t *testing.T) {
+		t.Parallel()
+		tokens := []database.AIBridgeTokenUsage{
+			{ID: uuid.New()},
+			{
+				ID:                   uuid.New(),
+				PricedModel:          sql.NullString{String: "claude-opus-4-5", Valid: true},
+				InputPriceMicros:     sql.NullInt64{Int64: 5_000_000, Valid: true},
+				OutputPriceMicros:    sql.NullInt64{Int64: 25_000_000, Valid: true},
+				CacheReadPriceMicros: sql.NullInt64{Int64: 500_000, Valid: true},
+			},
+			{
+				// Same model with a price changed mid-request.
+				ID:               uuid.New(),
+				PricedModel:      sql.NullString{String: "claude-opus-4-5", Valid: true},
+				InputPriceMicros: sql.NullInt64{Int64: 6_000_000, Valid: true},
+			},
+		}
+
+		got := aiBridgePricedModel(tokens)
+		require.NotNil(t, got)
+		require.Equal(t, "claude-opus-4-5", got.Model)
+		require.Equal(t, ptr.Ref(int64(5_000_000)), got.InputPrice)
+		require.Equal(t, ptr.Ref(int64(25_000_000)), got.OutputPrice)
+		require.Equal(t, ptr.Ref(int64(500_000)), got.CacheReadPrice)
+		require.Nil(t, got.CacheWritePrice)
 	})
 }
 
@@ -452,6 +512,56 @@ func TestBuildAIBridgeThreadAttributionAndActions(t *testing.T) {
 			require.NotContains(t, string(raw["attribution"]), toolLessChildID.String())
 		})
 	}
+}
+
+// TestBuildAIBridgeThreadPricedModel verifies that the thread carries the
+// root's priced model and each action carries its own.
+func TestBuildAIBridgeThreadPricedModel(t *testing.T) {
+	t.Parallel()
+
+	threadID := uuid.MustParse("00000000-0000-0000-0000-000000000201")
+	actionPricedID := uuid.MustParse("00000000-0000-0000-0000-000000000202")
+	actionUnpricedID := uuid.MustParse("00000000-0000-0000-0000-000000000203")
+
+	thread := buildAIBridgeThread(
+		threadID,
+		[]database.AIBridgeInterception{
+			{ID: threadID, Model: "root-model"},
+			{ID: actionPricedID, Model: "priced-model"},
+			{ID: actionUnpricedID, Model: "unpriced-model"},
+		},
+		map[uuid.UUID][]database.AIBridgeTokenUsage{
+			threadID: {{
+				ID:               uuid.New(),
+				PricedModel:      sql.NullString{String: "root-model", Valid: true},
+				InputPriceMicros: sql.NullInt64{Int64: 3_000_000, Valid: true},
+			}},
+			actionPricedID: {{
+				ID:               uuid.New(),
+				PricedModel:      sql.NullString{String: "provider-model", Valid: true},
+				InputPriceMicros: sql.NullInt64{Int64: 5_000_000, Valid: true},
+			}},
+			actionUnpricedID: {{ID: uuid.New()}},
+		},
+		map[uuid.UUID][]database.AIBridgeToolUsage{
+			threadID: {{ID: uuid.New(), InterceptionID: threadID, Tool: "root_tool"}},
+		},
+		make(map[uuid.UUID][]database.AIBridgeUserPrompt),
+		make(map[uuid.UUID][]database.AIBridgeModelThought),
+	)
+
+	rootPricedModel := &codersdk.AIBridgePricedModel{
+		Model:      "root-model",
+		InputPrice: ptr.Ref(int64(3_000_000)),
+	}
+	require.Equal(t, rootPricedModel, thread.PricedModel)
+	require.Len(t, thread.AgenticActions, 3)
+	require.Equal(t, rootPricedModel, thread.AgenticActions[0].PricedModel)
+	require.Equal(t, &codersdk.AIBridgePricedModel{
+		Model:      "provider-model",
+		InputPrice: ptr.Ref(int64(5_000_000)),
+	}, thread.AgenticActions[1].PricedModel)
+	require.Nil(t, thread.AgenticActions[2].PricedModel)
 }
 
 func TestBuildAIBridgeThreadMissingRoot(t *testing.T) {
