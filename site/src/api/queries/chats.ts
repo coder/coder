@@ -1472,11 +1472,13 @@ const MAX_MESSAGES_PER_PAGE = 1000;
 const fetchMessagesPage = async (
 	chatId: string,
 	beforeId: number | undefined,
+	signal?: AbortSignal,
 ): Promise<TypesGen.ChatMessagesResponse> => {
-	const page = await API.experimental.getChatMessages(chatId, {
-		before_id: beforeId,
-		limit: MESSAGES_PAGE_SIZE,
-	});
+	const page = await API.experimental.getChatMessages(
+		chatId,
+		{ before_id: beforeId, limit: MESSAGES_PAGE_SIZE },
+		signal,
+	);
 	const turnStartId = page.turn_start_id;
 	if (turnStartId === undefined) {
 		return page;
@@ -1489,15 +1491,19 @@ const fetchMessagesPage = async (
 			break;
 		}
 		try {
-			const older = await API.experimental.getChatMessages(chatId, {
-				// after_id is exclusive, so this keeps the prompt itself.
-				after_id: turnStartId - 1,
-				before_id: oldestId,
-				limit: Math.min(
-					MAX_MESSAGES_PER_REQUEST,
-					MAX_MESSAGES_PER_PAGE - messages.length,
-				),
-			});
+			const older = await API.experimental.getChatMessages(
+				chatId,
+				{
+					// after_id is exclusive, so this keeps the prompt itself.
+					after_id: turnStartId - 1,
+					before_id: oldestId,
+					limit: Math.min(
+						MAX_MESSAGES_PER_REQUEST,
+						MAX_MESSAGES_PER_PAGE - messages.length,
+					),
+				},
+				signal,
+			);
 			messages.push(...older.messages);
 			// An empty page cannot move the cursor, whatever has_more says.
 			if (!older.has_more || older.messages.length === 0) {
@@ -1516,8 +1522,8 @@ const fetchMessagesPage = async (
 };
 
 /** The newest page, the only page with `snapshot_version` and the queue. */
-export const fetchNewestChatMessages = (chatId: string) =>
-	fetchMessagesPage(chatId, undefined);
+export const fetchNewestChatMessages = (chatId: string, signal?: AbortSignal) =>
+	fetchMessagesPage(chatId, undefined, signal);
 
 /** An older page. It has no `snapshot_version` and no queue. */
 export const fetchOlderChatMessages = (chatId: string, beforeId: number) =>
