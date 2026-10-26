@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type { ChatMessage } from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
+import { MockPngBase64 } from "#/testHelpers/files";
 import {
 	createTestQueryClient,
 	renderComponent,
@@ -453,4 +454,36 @@ describe("ConversationTimeline live working blocks", () => {
 		});
 		expect(copyCommand).toHaveFocus();
 	});
+});
+
+describe("ConversationTimeline attachment previews", () => {
+	it.each([
+		["an image", "image/png", MockPngBase64, "View Attached image"],
+		["a text file", "text/plain", btoa("hello"), "View text attachment"],
+	])(
+		"returns keyboard focus to %s attachment once its preview closes",
+		async (_, mediaType, data, name) => {
+			const user = userEvent.setup();
+			renderTimeline({
+				messages: [
+					{
+						...MockChatMessage,
+						id: 1,
+						role: "user",
+						created_at: workingFixtureTime(0),
+						content: [{ type: "file", media_type: mediaType, data }],
+					},
+				],
+			});
+
+			const attachment = screen.getByRole("button", { name });
+			attachment.focus();
+			await user.keyboard("{Enter}");
+			expect(await screen.findByRole("dialog")).toBeInTheDocument();
+			await user.keyboard("{Escape}");
+
+			expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+			expect(attachment).toHaveFocus();
+		},
+	);
 });

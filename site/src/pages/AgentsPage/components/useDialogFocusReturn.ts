@@ -18,6 +18,11 @@ export const useDialogFocusReturn = () => {
 	const rememberTrigger = (event: React.SyntheticEvent<HTMLButtonElement>) => {
 		triggerRef.current = event.currentTarget;
 	};
+	/** For openers that report only what they open, not their click event. */
+	const rememberFocusedButton = () => {
+		const focused = document.activeElement;
+		triggerRef.current = focused instanceof HTMLButtonElement ? focused : null;
+	};
 	const restoreFocus = (event: Event) => {
 		// An array find here would stop the React Compiler memoizing this closure.
 		let target = triggerRef.current;
@@ -40,6 +45,7 @@ export const useDialogFocusReturn = () => {
 			secondaryFallbackRef.current = button;
 		},
 		rememberTrigger,
+		rememberFocusedButton,
 		restoreFocus,
 	};
 };
