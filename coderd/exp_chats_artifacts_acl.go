@@ -12,6 +12,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -74,6 +75,16 @@ func (api *API) patchChatArtifactACL(rw http.ResponseWriter, r *http.Request) {
 	row := httpmw.ChatArtifactParam(r)
 	artifact := row.ChatArtifact
 	apiKey := httpmw.APIKey(r)
+
+	aReq, commitAudit := audit.InitRequest[database.ChatArtifact](rw, &audit.RequestParams{
+		Audit:          *api.Auditor.Load(),
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionWrite,
+		OrganizationID: artifact.OrganizationID,
+	})
+	defer commitAudit()
+	aReq.Old = artifact
 
 	if !api.allowChatSharing(ctx, rw) {
 		return
@@ -143,6 +154,7 @@ func (api *API) patchChatArtifactACL(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return xerrors.Errorf("get chat artifact for update: %w", err)
 		}
+		aReq.Old = current
 		validErrs, err := validateChatACLOrganization(ctx, tx, current.OrganizationID, "artifact", userRoles, groupRoles)
 		if err != nil {
 			return err
@@ -157,6 +169,11 @@ func (api *API) patchChatArtifactACL(rw http.ResponseWriter, r *http.Request) {
 		}); err != nil {
 			return xerrors.Errorf("update chat artifact ACL: %w", err)
 		}
+		updated, err := tx.GetChatArtifactByID(ctx, current.ID)
+		if err != nil {
+			return xerrors.Errorf("get updated chat artifact: %w", err)
+		}
+		aReq.New = updated.ChatArtifact
 		return nil
 	}, nil)
 	if err != nil {

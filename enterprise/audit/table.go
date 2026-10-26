@@ -36,6 +36,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"Chat":                             {codersdk.AuditActionCreate, codersdk.AuditActionWrite}, // chats get 'archived' by users, not deleted.
 	"ChatProject":                      {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"ChatProjectMemory":                {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
+	"ChatArtifact":                     {codersdk.AuditActionWrite}, // only ACL changes are audited.
 	"AuditableChatProjectInstructions": {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"ChatModelConfig":                  {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"MCPServerConfig":                  {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
@@ -514,6 +515,17 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"name":            ActionTrack,
 		"description":     ActionTrack,
 		"icon":            ActionTrack,
+		"created_at":      ActionIgnore,
+		"updated_at":      ActionIgnore,
+		"user_acl":        ActionTrack,
+		"group_acl":       ActionTrack,
+	},
+	&database.ChatArtifact{}: {
+		"id":              ActionTrack,
+		"organization_id": ActionTrack,
+		"owner_id":        ActionTrack,
+		"project_id":      ActionTrack,
+		"title":           ActionTrack,
 		"created_at":      ActionIgnore,
 		"updated_at":      ActionIgnore,
 		"user_acl":        ActionTrack,

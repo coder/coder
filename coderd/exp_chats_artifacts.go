@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"mime"
 	"net/http"
 	"strconv"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
@@ -42,10 +44,22 @@ func (api *API) listChatArtifacts(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, slice.List(rows, func(row database.GetChatArtifactsOwnedOrInUserProjectsRow) codersdk.ChatArtifact {
+	projects := api.newChatArtifactProjectVisibility(apiKey.UserID)
+	artifacts := make([]codersdk.ChatArtifact, 0, len(rows))
+	for _, row := range rows {
+		showProject, err := projects.visible(ctx, row.ChatArtifact)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
 		// Both queries select the same columns, so the rows convert.
-		return convertChatArtifact(database.GetChatArtifactByIDRow(row))
-	}))
+		artifact := convertChatArtifact(database.GetChatArtifactByIDRow(row))
+		if !showProject {
+			hideChatArtifactProject(&artifact)
+		}
+		artifacts = append(artifacts, artifact)
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, artifacts)
 }
 
 // getChatArtifact returns an artifact and the metadata of its versions.
@@ -65,7 +79,15 @@ func (api *API) getChatArtifact(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	showProject, err := api.newChatArtifactProjectVisibility(apiKey.UserID).visible(ctx, row.ChatArtifact)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
 	artifact := convertChatArtifact(row)
+	if !showProject {
+		hideChatArtifactProject(&artifact)
+	}
 	artifact.Versions = slice.List(versions, func(v database.GetChatArtifactVersionsMetadataRow) codersdk.ChatArtifactVersion {
 		return convertChatArtifactVersion(v, apiKey.UserID)
 	})
@@ -162,6 +184,50 @@ func isHTMLName(name string) bool {
 	return strings.HasSuffix(name, ".html") || strings.HasSuffix(name, ".htm")
 }
 
+// chatArtifactProjectVisibility decides whether a caller sees an
+// artifact's project. A direct sharee who cannot read the project must not
+// learn its ID or name. Results are cached per project for one request.
+type chatArtifactProjectVisibility struct {
+	api      *API
+	callerID uuid.UUID
+	readable map[uuid.UUID]bool
+}
+
+func (api *API) newChatArtifactProjectVisibility(callerID uuid.UUID) *chatArtifactProjectVisibility {
+	return &chatArtifactProjectVisibility{api: api, callerID: callerID, readable: map[uuid.UUID]bool{}}
+}
+
+// visible reports whether the caller may see the artifact's project: the
+// artifact owner may, and so may anyone who can read the project.
+func (v *chatArtifactProjectVisibility) visible(ctx context.Context, artifact database.ChatArtifact) (bool, error) {
+	if !artifact.ProjectID.Valid {
+		return false, nil
+	}
+	if artifact.OwnerID == v.callerID {
+		return true, nil
+	}
+	projectID := artifact.ProjectID.UUID
+	if readable, ok := v.readable[projectID]; ok {
+		return readable, nil
+	}
+	// The lookup runs as the caller, so dbauthz answers the read check.
+	_, err := v.api.Database.GetChatProjectByID(ctx, projectID)
+	if err != nil && !httpapi.Is404Error(err) {
+		return false, xerrors.Errorf("get chat artifact project: %w", err)
+	}
+	v.readable[projectID] = err == nil
+	return err == nil, nil
+}
+
+// hideChatArtifactProject removes the project fields for a caller who
+// cannot read the project.
+func hideChatArtifactProject(artifact *codersdk.ChatArtifact) {
+	artifact.ProjectID = nil
+	artifact.ProjectName = ""
+}
+
+// convertChatArtifact sets every field. Callers hide the project with
+// hideChatArtifactProject when chatArtifactProjectVisibility says so.
 func convertChatArtifact(row database.GetChatArtifactByIDRow) codersdk.ChatArtifact {
 	a := row.ChatArtifact
 	out := codersdk.ChatArtifact{

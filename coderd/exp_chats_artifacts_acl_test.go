@@ -4,15 +4,19 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -20,7 +24,10 @@ import (
 func TestChatArtifactSharing(t *testing.T) {
 	t.Parallel()
 
-	admin, api := newChatProjectClientWithAPI(t)
+	mAudit := audit.NewMock()
+	admin, api := newChatProjectClientWithAPI(t, func(opts *coderdtest.Options) {
+		opts.Auditor = mAudit
+	})
 	db := api.Database
 	firstUser := coderdtest.CreateFirstUser(t, admin.Client)
 	model := createChatModel(t, admin)
@@ -105,6 +112,32 @@ func TestChatArtifactSharing(t *testing.T) {
 		return res.StatusCode
 	}
 
+	// requireReadable checks the artifact page, the version bytes, the frame
+	// and the list for one reader.
+	requireReadable := func(t *testing.T, client *codersdk.ExperimentalClient, artifactID uuid.UUID, readable bool) {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, getErr := client.GetChatArtifact(ctx, artifactID)
+		_, _, dataErr := client.ChatArtifactVersionData(ctx, artifactID, 1)
+		if readable {
+			require.NoError(t, getErr)
+			require.NoError(t, dataErr)
+			require.Equal(t, http.StatusOK, frameStatus(t, client, artifactID))
+		} else {
+			requireSDKError(t, getErr, http.StatusNotFound)
+			requireSDKError(t, dataErr, http.StatusNotFound)
+			require.Equal(t, http.StatusNotFound, frameStatus(t, client, artifactID))
+		}
+		requireListed(t, client, artifactID, readable)
+	}
+	storedUserACL := func(t *testing.T, artifactID uuid.UUID) database.ChatACL {
+		t.Helper()
+		//nolint:gocritic // The test reads the stored ACL directly.
+		row, err := db.GetChatArtifactByID(dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong)), artifactID)
+		require.NoError(t, err)
+		return row.ChatArtifact.UserACL
+	}
+
 	t.Run("User", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -116,6 +149,15 @@ func TestChatArtifactSharing(t *testing.T) {
 		requireSDKError(t, err, http.StatusNotFound)
 
 		share(t, owner, artifact.ID, read(shareeUser.ID))
+		require.True(t, mAudit.Contains(t, database.AuditLog{
+			Action:         database.AuditActionWrite,
+			ResourceType:   database.ResourceTypeChatArtifact,
+			ResourceID:     artifact.ID,
+			ResourceTarget: artifact.Title,
+			UserID:         ownerUser.ID,
+			OrganizationID: orgID,
+			StatusCode:     http.StatusNoContent,
+		}))
 
 		acl, err := owner.ChatArtifactACL(ctx, artifact.ID)
 		require.NoError(t, err)
@@ -192,9 +234,7 @@ func TestChatArtifactSharing(t *testing.T) {
 		require.Equal(t, database.EveryoneGroup, acl.Groups[0].Name)
 		require.Equal(t, codersdk.ChatRoleRead, acl.Groups[0].Role)
 
-		_, err = groupMember.GetChatArtifact(ctx, groupArtifact.ID)
-		require.NoError(t, err)
-		requireListed(t, groupMember, groupArtifact.ID, true)
+		requireReadable(t, groupMember, groupArtifact.ID, true)
 		requireListed(t, groupMember, orgArtifact.ID, true)
 		_, err = nonMember.GetChatArtifact(ctx, groupArtifact.ID)
 		requireSDKError(t, err, http.StatusNotFound)
@@ -210,6 +250,80 @@ func TestChatArtifactSharing(t *testing.T) {
 		_, err = outsider.GetChatArtifact(ctx, orgArtifact.ID)
 		requireSDKError(t, err, http.StatusNotFound)
 		requireListed(t, outsider, orgArtifact.ID, false)
+
+		// Leaving the group removes the group grant.
+		//nolint:gocritic // The test changes group membership directly.
+		err = db.DeleteGroupMemberFromGroup(dbauthz.AsSystemRestricted(ctx), database.DeleteGroupMemberFromGroupParams{
+			UserID:  groupMemberUser.ID,
+			GroupID: group.ID,
+		})
+		require.NoError(t, err)
+		requireReadable(t, groupMember, groupArtifact.ID, false)
+		requireListed(t, groupMember, orgArtifact.ID, true)
+	})
+
+	t.Run("LeavingOrganizationDropsGrant", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		artifact := newArtifact(t, uuid.NullUUID{})
+		sharee, shareeUser := newChatProjectMember(t, admin, orgID)
+		share(t, owner, artifact.ID, read(shareeUser.ID))
+		requireReadable(t, sharee, artifact.ID, true)
+
+		//nolint:gocritic // The test changes organization membership directly.
+		sysCtx := dbauthz.AsSystemRestricted(ctx)
+		err := db.DeleteOrganizationMember(sysCtx, database.DeleteOrganizationMemberParams{OrganizationID: orgID, UserID: shareeUser.ID})
+		require.NoError(t, err)
+		require.NotContains(t, storedUserACL(t, artifact.ID), shareeUser.ID.String(), "the trigger drops the grant")
+
+		// Joining again does not restore access, from the page or the list.
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgID, UserID: shareeUser.ID})
+		requireReadable(t, sharee, artifact.ID, false)
+
+		// A new share works again, so the 404 above came from the dropped
+		// grant.
+		share(t, owner, artifact.ID, read(shareeUser.ID))
+		requireReadable(t, sharee, artifact.ID, true)
+	})
+
+	t.Run("CanonicalUUIDKeys", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		artifact := newArtifact(t, uuid.NullUUID{})
+		sharee, shareeUser := newChatProjectMember(t, admin, orgID)
+		share(t, owner, artifact.ID, codersdk.UpdateChatACL{
+			UserRoles: map[string]codersdk.ChatRole{strings.ToUpper(shareeUser.ID.String()): codersdk.ChatRoleRead},
+		})
+		require.Equal(t, database.ChatACL{
+			shareeUser.ID.String(): {Permissions: []policy.Action{policy.ActionRead}},
+		}, storedUserACL(t, artifact.ID))
+		requireReadable(t, sharee, artifact.ID, true)
+
+		// The same ID in two spellings is refused.
+		err := owner.UpdateChatArtifactACL(ctx, artifact.ID, codersdk.UpdateChatACL{
+			UserRoles: map[string]codersdk.ChatRole{
+				strings.ToUpper(shareeUser.ID.String()): codersdk.ChatRoleRead,
+				shareeUser.ID.String():                  codersdk.ChatRoleDeleted,
+			},
+		})
+		requireSDKError(t, err, http.StatusBadRequest)
+	})
+
+	t.Run("OrgAdminShares", func(t *testing.T) {
+		t.Parallel()
+		artifact := newArtifact(t, uuid.NullUUID{})
+		orgAdminRaw, orgAdminUser := coderdtest.CreateAnotherUser(t, admin.Client, orgID, rbac.ScopedRoleOrgAdmin(orgID))
+		orgAdmin := codersdk.NewExperimentalClient(orgAdminRaw)
+		sharee, shareeUser := newChatProjectMember(t, admin, orgID)
+
+		share(t, orgAdmin, artifact.ID, read(shareeUser.ID))
+		requireReadable(t, sharee, artifact.ID, true)
+		require.True(t, mAudit.Contains(t, database.AuditLog{
+			Action:       database.AuditActionWrite,
+			ResourceType: database.ResourceTypeChatArtifact,
+			ResourceID:   artifact.ID,
+			UserID:       orgAdminUser.ID,
+		}))
 	})
 
 	t.Run("Validation", func(t *testing.T) {
@@ -258,13 +372,25 @@ func TestChatArtifactSharing(t *testing.T) {
 		share(t, owner, artifact.ID, read(shareeUser.ID))
 
 		// The project member keeps read and publish; the sharee reads only.
-		_, err = projectMember.GetChatArtifact(ctx, artifact.ID)
+		memberView, err := projectMember.GetChatArtifact(ctx, artifact.ID)
 		require.NoError(t, err)
+		require.Equal(t, &project.ID, memberView.ProjectID)
+		require.Equal(t, project.Name, memberView.ProjectName)
 		requireListed(t, projectMember, artifact.ID, true)
+		require.Equal(t, &project.ID, listedArtifact(t, projectMember, artifact.ID).ProjectID)
 		require.False(t, canPublish(t, shareeUser, artifact.ID))
 		require.True(t, canPublish(t, projectMemberUser, artifact.ID))
-		_, err = sharee.GetChatArtifact(ctx, artifact.ID)
+		// A direct sharee outside the project does not learn the project.
+		shareeView, err := sharee.GetChatArtifact(ctx, artifact.ID)
 		require.NoError(t, err)
+		require.Nil(t, shareeView.ProjectID)
+		require.Empty(t, shareeView.ProjectName)
+		listed := listedArtifact(t, sharee, artifact.ID)
+		require.Nil(t, listed.ProjectID)
+		require.Empty(t, listed.ProjectName)
+		ownerView, err := owner.GetChatArtifact(ctx, artifact.ID)
+		require.NoError(t, err)
+		require.Equal(t, &project.ID, ownerView.ProjectID)
 		// Sharing an artifact does not share its project, and project
 		// members cannot reshare the artifact.
 		_, err = sharee.GetChatProject(ctx, orgID, project.ID)
@@ -272,4 +398,39 @@ func TestChatArtifactSharing(t *testing.T) {
 		err = projectMember.UpdateChatArtifactACL(ctx, artifact.ID, read(uuid.New()))
 		requireSDKError(t, err, http.StatusForbidden)
 	})
+
+	t.Run("ProjectOwnerCannotShare", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		projectOwner, _ := newChatProjectMember(t, admin, orgID)
+		_, shareeUser := newChatProjectMember(t, admin, orgID)
+		project := createChatProject(t, projectOwner, orgID, "Someone else's project")
+		err := projectOwner.UpdateChatProjectACL(ctx, orgID, project.ID, codersdk.UpdateChatProjectACL{
+			UserRoles: map[string]codersdk.ChatProjectRole{ownerUser.ID.String(): codersdk.ChatProjectRoleUse},
+		})
+		require.NoError(t, err)
+		artifact := newArtifact(t, uuid.NullUUID{UUID: project.ID, Valid: true})
+
+		// The project owner reads the artifact and sees its project, but
+		// only the artifact owner shares it.
+		got, err := projectOwner.GetChatArtifact(ctx, artifact.ID)
+		require.NoError(t, err)
+		require.Equal(t, &project.ID, got.ProjectID)
+		err = projectOwner.UpdateChatArtifactACL(ctx, artifact.ID, read(shareeUser.ID))
+		requireSDKError(t, err, http.StatusForbidden)
+		require.Empty(t, storedUserACL(t, artifact.ID))
+	})
+}
+
+func listedArtifact(t *testing.T, client *codersdk.ExperimentalClient, artifactID uuid.UUID) codersdk.ChatArtifact {
+	t.Helper()
+	list, err := client.ListChatArtifacts(testutil.Context(t, testutil.WaitLong))
+	require.NoError(t, err)
+	for _, a := range list {
+		if a.ID == artifactID {
+			return a
+		}
+	}
+	require.FailNow(t, "artifact not listed", artifactID)
+	return codersdk.ChatArtifact{}
 }

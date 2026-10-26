@@ -355,6 +355,27 @@ func TestUpdateChatProjectACLByIDDisabled(t *testing.T) {
 	require.ErrorContains(t, err, "chat sharing is disabled")
 }
 
+//nolint:paralleltest // It toggles the global chat ACL flag.
+func TestUpdateChatArtifactACLByIDDisabled(t *testing.T) {
+	rbac.SetChatACLDisabled(true)
+	t.Cleanup(func() { rbac.SetChatACLDisabled(false) })
+
+	// The mock expects no calls: the guard refuses before any lookup.
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	db.EXPECT().Wrappers().Return([]string{}).AnyTimes()
+	q := dbauthz.New(db, &coderdtest.FakeAuthorizer{}, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+	ctx := dbauthz.As(context.Background(), rbac.Subject{ID: uuid.NewString(), Scope: rbac.ScopeAll})
+
+	err := q.UpdateChatArtifactACLByID(ctx, database.UpdateChatArtifactACLByIDParams{
+		ID:       uuid.New(),
+		UserACL:  database.ChatACL{},
+		GroupACL: database.ChatACL{},
+	})
+	require.True(t, dbauthz.IsNotAuthorizedError(err))
+	require.ErrorContains(t, err, "chat sharing is disabled")
+}
+
 func TestUpdateChatModelConfigACLByIDAuthorization(t *testing.T) {
 	t.Parallel()
 
@@ -8536,10 +8557,10 @@ func (s *MethodTestSuite) TestChatArtifacts() {
 		check.Args(arg).Asserts(artifact.RBACObject(&project), policy.ActionUpdate).Returns(out)
 	}))
 	s.Run("GetChatArtifactByIDForUpdate", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		artifact, project, _ := fakeArtifact(faker)
+		artifact, project, row := fakeArtifact(faker)
+		expectArtifact(dbm, row, project)
 		dbm.EXPECT().GetChatArtifactByIDForUpdate(gomock.Any(), artifact.ID).Return(artifact, nil).AnyTimes()
-		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
-		check.Args(artifact.ID).Asserts(artifact.RBACObject(&project), policy.ActionRead).Returns(artifact)
+		check.Args(artifact.ID).Asserts(artifact.RBACObject(&project), policy.ActionShare).Returns(artifact)
 	}))
 	s.Run("UpdateChatArtifactACLByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		artifact, project, row := fakeArtifact(faker)

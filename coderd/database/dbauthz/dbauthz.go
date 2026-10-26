@@ -3407,15 +3407,14 @@ func (q *querier) GetChatArtifactByID(ctx context.Context, id uuid.UUID) (databa
 	return row, nil
 }
 
+// GetChatArtifactByIDForUpdate requires share, because only the share
+// handler locks the row. The check runs before the lock, so a caller
+// without share never holds the row lock.
 func (q *querier) GetChatArtifactByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ChatArtifact, error) {
-	artifact, err := q.db.GetChatArtifactByIDForUpdate(ctx, id)
-	if err != nil {
+	if err := q.authorizeChatArtifact(ctx, policy.ActionShare, id); err != nil {
 		return database.ChatArtifact{}, err
 	}
-	if err := q.authorizeChatArtifactObject(ctx, policy.ActionRead, artifact); err != nil {
-		return database.ChatArtifact{}, err
-	}
-	return artifact, nil
+	return q.db.GetChatArtifactByIDForUpdate(ctx, id)
 }
 
 func (q *querier) GetChatArtifactVersion(ctx context.Context, arg database.GetChatArtifactVersionParams) (database.ChatArtifactVersion, error) {
