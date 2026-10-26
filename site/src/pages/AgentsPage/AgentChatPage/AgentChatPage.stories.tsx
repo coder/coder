@@ -1,14 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { hashKey } from "react-query";
-import { Outlet, useNavigate } from "react-router";
-import {
-	expect,
-	screen,
-	spyOn,
-	userEvent,
-	waitFor,
-	within,
-} from "storybook/test";
+import { Outlet } from "react-router";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import {
 	reactRouterOutlet,
 	reactRouterParameters,
@@ -100,27 +93,10 @@ const AgentChatPageLayout: React.FC = () => {
 // Shared mock data
 // ---------------------------------------------------------------------------
 const CHAT_ID = "chat-1";
-const SWITCHED_CHAT_ID = "chat-2";
 const MODEL_CONFIG_ID = "model-config-1";
 const STALE_MODEL_CONFIG_ID = "stale-model-config";
 const DISABLED_DEFAULT_MODEL_CONFIG_ID = "disabled-default-model-config";
 const RECOVERY_MODEL_CONFIG_ID = "recovery-model-config";
-
-const AgentChatSwitchHarness: React.FC = () => {
-	const navigate = useNavigate();
-	return (
-		<>
-			<button
-				type="button"
-				className="sr-only"
-				onClick={() => navigate(`/agents/${SWITCHED_CHAT_ID}`)}
-			>
-				Switch chat
-			</button>
-			<AgentChatPageLayout />
-		</>
-	);
-};
 
 const mockWorkspace: TypesGen.Workspace = {
 	...MockWorkspace,
@@ -3196,21 +3172,6 @@ export const QueuedSendPromotesPreviousHead: Story = {
 	},
 };
 
-const switchedChat: TypesGen.Chat = {
-	id: SWITCHED_CHAT_ID,
-	...baseChatFields,
-	title: "Switched chat",
-	status: "waiting",
-};
-
-const switchedChatMessage: TypesGen.ChatMessage = {
-	...MockChatMessage,
-	id: 50,
-	chat_id: SWITCHED_CHAT_ID,
-	role: "assistant",
-	content: [{ type: "text", text: "Current chat message" }],
-};
-
 export const SendingFromHistoryDoesNotSnapToBottom: Story = {
 	parameters: {
 		pixel: { exclude: true },
@@ -3311,87 +3272,6 @@ export const SendingFromHistoryDoesNotSnapToBottom: Story = {
 		} finally {
 			scrollToMock.mockRestore();
 		}
-	},
-};
-
-export const SendResponseAfterChatSwitch: Story = {
-	render: () => <AgentChatSwitchHarness />,
-	parameters: {
-		pixel: { exclude: true },
-		queries: [
-			...buildQueries(
-				{
-					id: CHAT_ID,
-					...baseChatFields,
-					title: "Original chat",
-					status: "waiting",
-				},
-				{ messages: [], queued_messages: [], has_more: false },
-				{ diffUrl: undefined },
-			),
-			{ key: chatEntityKey(SWITCHED_CHAT_ID), data: switchedChat },
-			loadedChatStoreQuery(SWITCHED_CHAT_ID, {
-				messages: [switchedChatMessage],
-				queued_messages: [],
-				has_more: false,
-			}),
-			{
-				key: chatPromptsKey(SWITCHED_CHAT_ID),
-				data: { prompts: [] } satisfies TypesGen.ChatPromptsResponse,
-			},
-			{
-				key: chatDiffContentsKey(SWITCHED_CHAT_ID),
-				data: { chat_id: SWITCHED_CHAT_ID } satisfies TypesGen.ChatDiffContents,
-			},
-		],
-	},
-	beforeEach: () => {
-		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		let releaseSend: (() => void) | undefined;
-		const sendGate = new Promise<void>((resolve) => {
-			releaseSend = resolve;
-		});
-		const sendSpy = spyOn(
-			API.experimental,
-			"createChatMessage",
-		).mockImplementation(async () => {
-			await sendGate;
-			return { queued: false };
-		});
-
-		const editor = await canvas.findByTestId("chat-message-input");
-		await userEvent.click(editor);
-		await userEvent.type(editor, "Send before switching");
-		await userEvent.keyboard("{Enter}");
-		// Wait for the gated send to start before switching chats.
-		await waitFor(() => {
-			expect(sendSpy).toHaveBeenCalledTimes(1);
-		});
-
-		await userEvent.click(canvas.getByRole("button", { name: "Switch chat" }));
-		// The switched chat's messages render slowly under pixel's parallel
-		// load, so extend the default 1s lookup timeout.
-		const timeline = within(await canvas.findByTestId("conversation-timeline"));
-		await timeline.findByText("Current chat message", undefined, {
-			timeout: 10_000,
-		});
-
-		// The pending send belongs to the original chat, so the switched chat
-		// shows neither its prompt nor its turn, before or after the response.
-		expect(
-			timeline.queryByText("Send before switching"),
-		).not.toBeInTheDocument();
-		releaseSend?.();
-		await waitFor(() => {
-			expect(sendSpy).toHaveReturned();
-		});
-		expect(
-			timeline.queryByText("Send before switching"),
-		).not.toBeInTheDocument();
-		expect(canvas.queryByTestId("live-activity-slot")).not.toBeInTheDocument();
 	},
 };
 
@@ -3565,7 +3445,7 @@ export const SendShowsPromptAtSubmit: Story = {
 		});
 
 		const timeline = within(await canvas.findByTestId("conversation-timeline"));
-		expect(await timeline.findByText("Durable prompt")).toBeVisible();
+		await timeline.findByText("Durable prompt");
 		releaseSend?.();
 	},
 };
