@@ -62,6 +62,7 @@ function useMessageScrollerItemContext() {
 }
 
 function useMessageScroller() {
+  // LOCAL CHANGE: handleTurnEnd
   const { handleTurnEnd, scrollToEnd, scrollToMessage, scrollToStart } =
     useMessageScrollerContext()
 
@@ -72,7 +73,7 @@ function useMessageScroller() {
       scrollToMessage,
       scrollToStart,
     }),
-    [handleTurnEnd, scrollToEnd, scrollToMessage, scrollToStart]
+    [handleTurnEnd, scrollToEnd, scrollToMessage, scrollToStart] // LOCAL CHANGE
   )
 }
 
