@@ -241,6 +241,29 @@ it("keeps the sent message in view when a long reply lands just before its turn 
 	).toBe(true);
 });
 
+it("hands a turn off to following the end when its reply lands just before the turn ends", async () => {
+	mockLayout(400, { 1: 200, 2: 200, 3: 200, sent: 40, reply: 60, more: 270 });
+	const { rerender, getByLabelText } = render(transcript(history, false));
+	await nextFrames();
+
+	rerender(transcript([...history, sent, { id: "reply" }], true));
+	await nextFrames();
+
+	// The reply grows 34 px past the view and the turn ends before a resize.
+	rerender(
+		transcript([...history, sent, { id: "reply" }, { id: "more" }], true),
+	);
+	rerender(
+		transcript([...history, answered, { id: "reply" }, { id: "more" }], false),
+	);
+	await nextFrames();
+
+	const viewport = getByLabelText("Messages");
+	expect(viewport.scrollTop).toBe(
+		viewport.scrollHeight - viewport.clientHeight,
+	);
+});
+
 it("drops the blank space without moving the view when the reader scrolled during the turn", async () => {
 	mockLayout(400, { 1: 200, 2: 200, 3: 200, sent: 40, reply: 60 });
 	const { rerender, getByLabelText } = render(transcript(history, false));
