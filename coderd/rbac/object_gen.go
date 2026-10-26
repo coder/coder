@@ -133,6 +133,7 @@ var (
 	//  - "ActionCreate" :: create a chat artifact
 	//  - "ActionDelete" :: delete a chat artifact
 	//  - "ActionRead" :: read chat artifacts and their versions
+	//  - "ActionShare" :: share a chat artifact with other users or groups
 	//  - "ActionUpdate" :: publish a new version of a chat artifact
 	ResourceChatArtifact = Object{
 		Type: "chat_artifact",

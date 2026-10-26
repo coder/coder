@@ -802,6 +802,7 @@ export type APIKeyScope =
 	| "chat_artifact:create"
 	| "chat_artifact:delete"
 	| "chat_artifact:read"
+	| "chat_artifact:share"
 	| "chat_artifact:update"
 	| "chat:create"
 	| "chat:delete"
@@ -1075,6 +1076,7 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"chat_artifact:create",
 	"chat_artifact:delete",
 	"chat_artifact:read",
+	"chat_artifact:share",
 	"chat_artifact:update",
 	"chat:create",
 	"chat:delete",

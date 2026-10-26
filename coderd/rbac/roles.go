@@ -394,6 +394,10 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			Negate:       true,
 			ResourceType: ResourceChatProject.Type,
 			Action:       policy.ActionShare,
+		}, Permission{
+			Negate:       true,
+			ResourceType: ResourceChatArtifact.Type,
+			Action:       policy.ActionShare,
 		})
 	}
 

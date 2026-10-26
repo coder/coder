@@ -1552,6 +1552,14 @@ func (m queryMetricsStore) GetChatArtifactByID(ctx context.Context, id uuid.UUID
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatArtifactByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ChatArtifact, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatArtifactByIDForUpdate(ctx, id)
+	m.queryLatencies.WithLabelValues("GetChatArtifactByIDForUpdate").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatArtifactByIDForUpdate").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatArtifactVersion(ctx context.Context, arg database.GetChatArtifactVersionParams) (database.ChatArtifactVersion, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatArtifactVersion(ctx, arg)
@@ -5661,6 +5669,14 @@ func (m queryMetricsStore) UpdateChatACLByID(ctx context.Context, arg database.U
 	r0 := m.s.UpdateChatACLByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateChatACLByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatACLByID").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpdateChatArtifactACLByID(ctx context.Context, arg database.UpdateChatArtifactACLByIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateChatArtifactACLByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatArtifactACLByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatArtifactACLByID").Inc()
 	return r0
 }
 

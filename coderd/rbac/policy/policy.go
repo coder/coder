@@ -99,6 +99,7 @@ var chatArtifactActions = map[Action]ActionDefinition{
 	ActionRead:   "read chat artifacts and their versions",
 	ActionUpdate: "publish a new version of a chat artifact",
 	ActionDelete: "delete a chat artifact",
+	ActionShare:  "share a chat artifact with other users or groups",
 }
 
 var mcpServerConfigActions = map[Action]ActionDefinition{

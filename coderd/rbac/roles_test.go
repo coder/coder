@@ -126,6 +126,7 @@ func TestChatSharingPermissions(t *testing.T) {
 	userID := uuid.NewString()
 	chatResource := rbac.ResourceChat.WithID(uuid.New()).InOrg(orgID).WithOwner(userID)
 	projectResource := rbac.ResourceChatProject.WithID(uuid.New()).InOrg(orgID).WithOwner(userID)
+	artifactResource := rbac.ResourceChatArtifact.WithID(uuid.New()).InOrg(orgID).WithOwner(userID)
 
 	authorizeOrgMember := func(t *testing.T, resource rbac.Object) error {
 		t.Helper()
@@ -162,6 +163,7 @@ func TestChatSharingPermissions(t *testing.T) {
 		assert.False(t, permissionGranted(memberRole.Site, target))
 		require.NoError(t, authorizeOrgMember(t, chatResource))
 		require.NoError(t, authorizeOrgMember(t, projectResource))
+		require.NoError(t, authorizeOrgMember(t, artifactResource))
 	})
 
 	t.Run("Disabled", func(t *testing.T) {
@@ -177,6 +179,8 @@ func TestChatSharingPermissions(t *testing.T) {
 		err = authorizeOrgMember(t, chatResource)
 		require.ErrorAs(t, err, &rbac.UnauthorizedError{})
 		err = authorizeOrgMember(t, projectResource)
+		require.ErrorAs(t, err, &rbac.UnauthorizedError{})
+		err = authorizeOrgMember(t, artifactResource)
 		require.ErrorAs(t, err, &rbac.UnauthorizedError{})
 	})
 }
@@ -1568,7 +1572,7 @@ func TestRolePermissions(t *testing.T) {
 			// Artifacts belong to their owner; project members reach them
 			// through the ACL, and org admins reach every artifact.
 			Name:     "ChatArtifactCRUD",
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete, policy.ActionShare},
 			Resource: rbac.ResourceChatArtifact.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin, orgAgentsAccessUser},
@@ -1577,7 +1581,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			Name:     "ChatArtifactOtherOwner",
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete, policy.ActionShare},
 			Resource: rbac.ResourceChatArtifact.WithID(uuid.New()).InOrg(orgID).WithOwner(uuid.NewString()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin},

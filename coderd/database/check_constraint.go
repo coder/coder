@@ -29,7 +29,9 @@ const (
 	CheckBoundaryLogsSequenceNumberCheck                     CheckConstraint = "boundary_logs_sequence_number_check"                       // boundary_logs
 	CheckChatArtifactVersionsLabelLength                     CheckConstraint = "chat_artifact_versions_label_length"                       // chat_artifact_versions
 	CheckChatArtifactVersionsVersionPositive                 CheckConstraint = "chat_artifact_versions_version_positive"                   // chat_artifact_versions
+	CheckChatArtifactsGroupAclIsObject                       CheckConstraint = "chat_artifacts_group_acl_is_object"                        // chat_artifacts
 	CheckChatArtifactsTitleLength                            CheckConstraint = "chat_artifacts_title_length"                               // chat_artifacts
+	CheckChatArtifactsUserAclIsObject                        CheckConstraint = "chat_artifacts_user_acl_is_object"                         // chat_artifacts
 	CheckChatModelConfigsAIProviderRequiredWhenActive        CheckConstraint = "chat_model_configs_ai_provider_required_when_active"       // chat_model_configs
 	CheckChatModelConfigsCompressionThresholdCheck           CheckConstraint = "chat_model_configs_compression_threshold_check"            // chat_model_configs
 	CheckChatModelConfigsContextLimitCheck                   CheckConstraint = "chat_model_configs_context_limit_check"                    // chat_model_configs

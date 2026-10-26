@@ -464,12 +464,15 @@ type sqlcQuerier interface {
 	// values apply by default.
 	GetChatAdvisorConfig(ctx context.Context) (string, error)
 	GetChatArtifactByID(ctx context.Context, id uuid.UUID) (GetChatArtifactByIDRow, error)
+	GetChatArtifactByIDForUpdate(ctx context.Context, id uuid.UUID) (ChatArtifact, error)
 	GetChatArtifactVersion(ctx context.Context, arg GetChatArtifactVersionParams) (ChatArtifactVersion, error)
 	// Lists the versions of an artifact, newest first, without their bytes.
 	GetChatArtifactVersionsMetadata(ctx context.Context, artifactID uuid.UUID) ([]GetChatArtifactVersionsMetadataRow, error)
-	// Lists the artifacts that the user owns or can reach through a chat
-	// project, with the same membership rule as IsChatProjectUsableByUserID.
-	// Callers must still authorize each row.
+	// Lists the artifacts that the user owns, can reach through a chat project
+	// (the membership rule of IsChatProjectUsableByUserID), or that are shared
+	// with the user or one of their groups. Callers must still authorize each
+	// row. Keep the columns equal to GetChatArtifactByID: handlers convert one
+	// row type to the other.
 	GetChatArtifactsOwnedOrInUserProjects(ctx context.Context, userID uuid.UUID) ([]GetChatArtifactsOwnedOrInUserProjectsRow, error)
 	// Auto-archive window in days. 0 disables.
 	GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchiveDays int32) (int32, error)
@@ -1575,6 +1578,7 @@ type sqlcQuerier interface {
 	UpdateAIProvider(ctx context.Context, arg UpdateAIProviderParams) (AIProvider, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
 	UpdateChatACLByID(ctx context.Context, arg UpdateChatACLByIDParams) error
+	UpdateChatArtifactACLByID(ctx context.Context, arg UpdateChatArtifactACLByIDParams) error
 	// Marks a publish. An empty title keeps the current title.
 	UpdateChatArtifactOnPublish(ctx context.Context, arg UpdateChatArtifactOnPublishParams) (ChatArtifact, error)
 	UpdateChatBuildAgentBinding(ctx context.Context, arg UpdateChatBuildAgentBindingParams) (Chat, error)

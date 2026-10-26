@@ -2919,6 +2919,21 @@ func (mr *MockStoreMockRecorder) GetChatArtifactByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatArtifactByID", reflect.TypeOf((*MockStore)(nil).GetChatArtifactByID), ctx, id)
 }
 
+// GetChatArtifactByIDForUpdate mocks base method.
+func (m *MockStore) GetChatArtifactByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ChatArtifact, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatArtifactByIDForUpdate", ctx, id)
+	ret0, _ := ret[0].(database.ChatArtifact)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatArtifactByIDForUpdate indicates an expected call of GetChatArtifactByIDForUpdate.
+func (mr *MockStoreMockRecorder) GetChatArtifactByIDForUpdate(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatArtifactByIDForUpdate", reflect.TypeOf((*MockStore)(nil).GetChatArtifactByIDForUpdate), ctx, id)
+}
+
 // GetChatArtifactVersion mocks base method.
 func (m *MockStore) GetChatArtifactVersion(ctx context.Context, arg database.GetChatArtifactVersionParams) (database.ChatArtifactVersion, error) {
 	m.ctrl.T.Helper()
@@ -10742,6 +10757,20 @@ func (m *MockStore) UpdateChatACLByID(ctx context.Context, arg database.UpdateCh
 func (mr *MockStoreMockRecorder) UpdateChatACLByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatACLByID", reflect.TypeOf((*MockStore)(nil).UpdateChatACLByID), ctx, arg)
+}
+
+// UpdateChatArtifactACLByID mocks base method.
+func (m *MockStore) UpdateChatArtifactACLByID(ctx context.Context, arg database.UpdateChatArtifactACLByIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatArtifactACLByID", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateChatArtifactACLByID indicates an expected call of UpdateChatArtifactACLByID.
+func (mr *MockStoreMockRecorder) UpdateChatArtifactACLByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatArtifactACLByID", reflect.TypeOf((*MockStore)(nil).UpdateChatArtifactACLByID), ctx, arg)
 }
 
 // UpdateChatArtifactOnPublish mocks base method.

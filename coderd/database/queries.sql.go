@@ -5656,7 +5656,7 @@ func (q *sqlQuerier) UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBou
 
 const getChatArtifactByID = `-- name: GetChatArtifactByID :one
 SELECT
-    chat_artifacts.id, chat_artifacts.organization_id, chat_artifacts.owner_id, chat_artifacts.project_id, chat_artifacts.title, chat_artifacts.created_at, chat_artifacts.updated_at,
+    chat_artifacts.id, chat_artifacts.organization_id, chat_artifacts.owner_id, chat_artifacts.project_id, chat_artifacts.title, chat_artifacts.created_at, chat_artifacts.updated_at, chat_artifacts.user_acl, chat_artifacts.group_acl,
     COALESCE((
         SELECT MAX(chat_artifact_versions.version)
         FROM chat_artifact_versions
@@ -5704,11 +5704,37 @@ func (q *sqlQuerier) GetChatArtifactByID(ctx context.Context, id uuid.UUID) (Get
 		&i.ChatArtifact.Title,
 		&i.ChatArtifact.CreatedAt,
 		&i.ChatArtifact.UpdatedAt,
+		&i.ChatArtifact.UserACL,
+		&i.ChatArtifact.GroupACL,
 		&i.LatestVersion,
 		&i.LatestName,
 		&i.LatestMediaType,
 		&i.OwnerUsername,
 		&i.ProjectName,
+	)
+	return i, err
+}
+
+const getChatArtifactByIDForUpdate = `-- name: GetChatArtifactByIDForUpdate :one
+SELECT id, organization_id, owner_id, project_id, title, created_at, updated_at, user_acl, group_acl
+FROM chat_artifacts
+WHERE id = $1::uuid
+FOR UPDATE
+`
+
+func (q *sqlQuerier) GetChatArtifactByIDForUpdate(ctx context.Context, id uuid.UUID) (ChatArtifact, error) {
+	row := q.db.QueryRowContext(ctx, getChatArtifactByIDForUpdate, id)
+	var i ChatArtifact
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.ProjectID,
+		&i.Title,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.UserACL,
+		&i.GroupACL,
 	)
 	return i, err
 }
@@ -5817,7 +5843,7 @@ func (q *sqlQuerier) GetChatArtifactVersionsMetadata(ctx context.Context, artifa
 
 const getChatArtifactsOwnedOrInUserProjects = `-- name: GetChatArtifactsOwnedOrInUserProjects :many
 SELECT
-    chat_artifacts.id, chat_artifacts.organization_id, chat_artifacts.owner_id, chat_artifacts.project_id, chat_artifacts.title, chat_artifacts.created_at, chat_artifacts.updated_at,
+    chat_artifacts.id, chat_artifacts.organization_id, chat_artifacts.owner_id, chat_artifacts.project_id, chat_artifacts.title, chat_artifacts.created_at, chat_artifacts.updated_at, chat_artifacts.user_acl, chat_artifacts.group_acl,
     COALESCE((
         SELECT MAX(chat_artifact_versions.version)
         FROM chat_artifact_versions
@@ -5862,6 +5888,24 @@ WHERE chat_artifacts.owner_id = $1::uuid
             )
         )
     )
+    OR (
+        EXISTS (
+            SELECT 1
+            FROM organization_members
+            WHERE organization_members.user_id = $1::uuid
+                AND organization_members.organization_id = chat_artifacts.organization_id
+        )
+        AND (
+            chat_artifacts.user_acl -> ($1::uuid)::text -> 'permissions' ?| ARRAY['read', '*']
+            OR chat_artifacts.group_acl -> chat_artifacts.organization_id::text -> 'permissions' ?| ARRAY['read', '*']
+            OR EXISTS (
+                SELECT 1
+                FROM group_members
+                WHERE group_members.user_id = $1::uuid
+                    AND chat_artifacts.group_acl -> group_members.group_id::text -> 'permissions' ?| ARRAY['read', '*']
+            )
+        )
+    )
 ORDER BY chat_artifacts.updated_at DESC, chat_artifacts.id
 `
 
@@ -5874,9 +5918,11 @@ type GetChatArtifactsOwnedOrInUserProjectsRow struct {
 	ProjectName     string       `db:"project_name" json:"project_name"`
 }
 
-// Lists the artifacts that the user owns or can reach through a chat
-// project, with the same membership rule as IsChatProjectUsableByUserID.
-// Callers must still authorize each row.
+// Lists the artifacts that the user owns, can reach through a chat project
+// (the membership rule of IsChatProjectUsableByUserID), or that are shared
+// with the user or one of their groups. Callers must still authorize each
+// row. Keep the columns equal to GetChatArtifactByID: handlers convert one
+// row type to the other.
 func (q *sqlQuerier) GetChatArtifactsOwnedOrInUserProjects(ctx context.Context, userID uuid.UUID) ([]GetChatArtifactsOwnedOrInUserProjectsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getChatArtifactsOwnedOrInUserProjects, userID)
 	if err != nil {
@@ -5894,6 +5940,8 @@ func (q *sqlQuerier) GetChatArtifactsOwnedOrInUserProjects(ctx context.Context, 
 			&i.ChatArtifact.Title,
 			&i.ChatArtifact.CreatedAt,
 			&i.ChatArtifact.UpdatedAt,
+			&i.ChatArtifact.UserACL,
+			&i.ChatArtifact.GroupACL,
 			&i.LatestVersion,
 			&i.LatestName,
 			&i.LatestMediaType,
@@ -5947,7 +5995,7 @@ VALUES (
     $4::uuid,
     $5::text
 )
-RETURNING id, organization_id, owner_id, project_id, title, created_at, updated_at
+RETURNING id, organization_id, owner_id, project_id, title, created_at, updated_at, user_acl, group_acl
 `
 
 type InsertChatArtifactParams struct {
@@ -5975,6 +6023,8 @@ func (q *sqlQuerier) InsertChatArtifact(ctx context.Context, arg InsertChatArtif
 		&i.Title,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UserACL,
+		&i.GroupACL,
 	)
 	return i, err
 }
@@ -6034,13 +6084,32 @@ func (q *sqlQuerier) InsertChatArtifactVersion(ctx context.Context, arg InsertCh
 	return i, err
 }
 
+const updateChatArtifactACLByID = `-- name: UpdateChatArtifactACLByID :exec
+UPDATE chat_artifacts
+SET
+    user_acl = $1,
+    group_acl = $2
+WHERE id = $3::uuid
+`
+
+type UpdateChatArtifactACLByIDParams struct {
+	UserACL  ChatACL   `db:"user_acl" json:"user_acl"`
+	GroupACL ChatACL   `db:"group_acl" json:"group_acl"`
+	ID       uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatArtifactACLByID(ctx context.Context, arg UpdateChatArtifactACLByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateChatArtifactACLByID, arg.UserACL, arg.GroupACL, arg.ID)
+	return err
+}
+
 const updateChatArtifactOnPublish = `-- name: UpdateChatArtifactOnPublish :one
 UPDATE chat_artifacts
 SET
     title = COALESCE(NULLIF($1::text, ''), title),
     updated_at = now()
 WHERE id = $2::uuid
-RETURNING id, organization_id, owner_id, project_id, title, created_at, updated_at
+RETURNING id, organization_id, owner_id, project_id, title, created_at, updated_at, user_acl, group_acl
 `
 
 type UpdateChatArtifactOnPublishParams struct {
@@ -6060,6 +6129,8 @@ func (q *sqlQuerier) UpdateChatArtifactOnPublish(ctx context.Context, arg Update
 		&i.Title,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UserACL,
+		&i.GroupACL,
 	)
 	return i, err
 }

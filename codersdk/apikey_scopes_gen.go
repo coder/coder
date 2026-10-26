@@ -63,6 +63,7 @@ const (
 	APIKeyScopeChatArtifactCreate                  APIKeyScope = "chat_artifact:create"
 	APIKeyScopeChatArtifactDelete                  APIKeyScope = "chat_artifact:delete"
 	APIKeyScopeChatArtifactRead                    APIKeyScope = "chat_artifact:read"
+	APIKeyScopeChatArtifactShare                   APIKeyScope = "chat_artifact:share"
 	APIKeyScopeChatArtifactUpdate                  APIKeyScope = "chat_artifact:update"
 	APIKeyScopeChatModelConfigAll                  APIKeyScope = "chat_model_config:*"
 	APIKeyScopeChatModelConfigCreate               APIKeyScope = "chat_model_config:create"

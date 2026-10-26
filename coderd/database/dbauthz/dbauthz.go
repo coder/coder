@@ -3407,6 +3407,17 @@ func (q *querier) GetChatArtifactByID(ctx context.Context, id uuid.UUID) (databa
 	return row, nil
 }
 
+func (q *querier) GetChatArtifactByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ChatArtifact, error) {
+	artifact, err := q.db.GetChatArtifactByIDForUpdate(ctx, id)
+	if err != nil {
+		return database.ChatArtifact{}, err
+	}
+	if err := q.authorizeChatArtifactObject(ctx, policy.ActionRead, artifact); err != nil {
+		return database.ChatArtifact{}, err
+	}
+	return artifact, nil
+}
+
 func (q *querier) GetChatArtifactVersion(ctx context.Context, arg database.GetChatArtifactVersionParams) (database.ChatArtifactVersion, error) {
 	if err := q.authorizeChatArtifact(ctx, policy.ActionRead, arg.ArtifactID); err != nil {
 		return database.ChatArtifactVersion{}, err
@@ -8003,6 +8014,16 @@ func (q *querier) UpdateChatACLByID(ctx context.Context, arg database.UpdateChat
 	}
 
 	return fetchAndExec(q.log, q.auth, policy.ActionShare, fetch, q.db.UpdateChatACLByID)(ctx, arg)
+}
+
+func (q *querier) UpdateChatArtifactACLByID(ctx context.Context, arg database.UpdateChatArtifactACLByIDParams) error {
+	if rbac.ChatACLDisabled() {
+		return NotAuthorizedError{Err: xerrors.New("chat sharing is disabled")}
+	}
+	if err := q.authorizeChatArtifact(ctx, policy.ActionShare, arg.ID); err != nil {
+		return err
+	}
+	return q.db.UpdateChatArtifactACLByID(ctx, arg)
 }
 
 func (q *querier) UpdateChatArtifactOnPublish(ctx context.Context, arg database.UpdateChatArtifactOnPublishParams) (database.ChatArtifact, error) {

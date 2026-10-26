@@ -51,6 +51,7 @@ const (
 	ScopeChatArtifactCreate                  ScopeName = "chat_artifact:create"
 	ScopeChatArtifactDelete                  ScopeName = "chat_artifact:delete"
 	ScopeChatArtifactRead                    ScopeName = "chat_artifact:read"
+	ScopeChatArtifactShare                   ScopeName = "chat_artifact:share"
 	ScopeChatArtifactUpdate                  ScopeName = "chat_artifact:update"
 	ScopeChatModelConfigCreate               ScopeName = "chat_model_config:create"
 	ScopeChatModelConfigDelete               ScopeName = "chat_model_config:delete"
@@ -266,6 +267,7 @@ func (e ScopeName) Valid() bool {
 		ScopeChatArtifactCreate,
 		ScopeChatArtifactDelete,
 		ScopeChatArtifactRead,
+		ScopeChatArtifactShare,
 		ScopeChatArtifactUpdate,
 		ScopeChatModelConfigCreate,
 		ScopeChatModelConfigDelete,
@@ -482,6 +484,7 @@ func AllScopeNameValues() []ScopeName {
 		ScopeChatArtifactCreate,
 		ScopeChatArtifactDelete,
 		ScopeChatArtifactRead,
+		ScopeChatArtifactShare,
 		ScopeChatArtifactUpdate,
 		ScopeChatModelConfigCreate,
 		ScopeChatModelConfigDelete,

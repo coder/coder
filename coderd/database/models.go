@@ -556,6 +556,7 @@ const (
 	ApiKeyScopeChatArtifactRead                    APIKeyScope = "chat_artifact:read"
 	ApiKeyScopeChatArtifactUpdate                  APIKeyScope = "chat_artifact:update"
 	ApiKeyScopeChatArtifactDelete                  APIKeyScope = "chat_artifact:delete"
+	ApiKeyScopeChatArtifactShare                   APIKeyScope = "chat_artifact:share"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -863,7 +864,8 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatArtifactCreate,
 		ApiKeyScopeChatArtifactRead,
 		ApiKeyScopeChatArtifactUpdate,
-		ApiKeyScopeChatArtifactDelete:
+		ApiKeyScopeChatArtifactDelete,
+		ApiKeyScopeChatArtifactShare:
 		return true
 	}
 	return false
@@ -1140,6 +1142,7 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatArtifactRead,
 		ApiKeyScopeChatArtifactUpdate,
 		ApiKeyScopeChatArtifactDelete,
+		ApiKeyScopeChatArtifactShare,
 	}
 }
 
@@ -5325,7 +5328,7 @@ type Chat struct {
 	TitleUpdatedAt           time.Time               `db:"title_updated_at" json:"title_updated_at"`
 }
 
-// Versioned files that chats publish. An artifact outlives its chats. The owner sees it, and the members of project_id see it too.
+// Versioned files that chats publish. An artifact outlives its chats. The owner sees it, the members of project_id see it, and the users and groups in user_acl and group_acl can read it.
 type ChatArtifact struct {
 	ID             uuid.UUID     `db:"id" json:"id"`
 	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
@@ -5334,6 +5337,10 @@ type ChatArtifact struct {
 	Title          string        `db:"title" json:"title"`
 	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
+	// Users the artifact is shared with for reading, keyed by user ID.
+	UserACL ChatACL `db:"user_acl" json:"user_acl"`
+	// Groups the artifact is shared with for reading, keyed by group ID. The organization ID is the Everyone group.
+	GroupACL ChatACL `db:"group_acl" json:"group_acl"`
 }
 
 type ChatArtifactVersion struct {

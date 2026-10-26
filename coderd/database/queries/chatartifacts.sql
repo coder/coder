@@ -68,6 +68,19 @@ JOIN visible_users ON visible_users.id = chat_artifacts.owner_id
 LEFT JOIN chat_projects ON chat_projects.id = chat_artifacts.project_id
 WHERE chat_artifacts.id = @id::uuid;
 
+-- name: GetChatArtifactByIDForUpdate :one
+SELECT *
+FROM chat_artifacts
+WHERE id = @id::uuid
+FOR UPDATE;
+
+-- name: UpdateChatArtifactACLByID :exec
+UPDATE chat_artifacts
+SET
+    user_acl = @user_acl,
+    group_acl = @group_acl
+WHERE id = @id::uuid;
+
 -- name: GetChatArtifactVersion :one
 SELECT *
 FROM chat_artifact_versions
@@ -103,9 +116,11 @@ WHERE chat_artifact_versions.artifact_id = @artifact_id::uuid
 ORDER BY chat_artifact_versions.version DESC;
 
 -- name: GetChatArtifactsOwnedOrInUserProjects :many
--- Lists the artifacts that the user owns or can reach through a chat
--- project, with the same membership rule as IsChatProjectUsableByUserID.
--- Callers must still authorize each row.
+-- Lists the artifacts that the user owns, can reach through a chat project
+-- (the membership rule of IsChatProjectUsableByUserID), or that are shared
+-- with the user or one of their groups. Callers must still authorize each
+-- row. Keep the columns equal to GetChatArtifactByID: handlers convert one
+-- row type to the other.
 SELECT
     sqlc.embed(chat_artifacts),
     COALESCE((
@@ -149,6 +164,24 @@ WHERE chat_artifacts.owner_id = @user_id::uuid
                 FROM group_members
                 WHERE group_members.user_id = @user_id::uuid
                     AND chat_projects.group_acl -> group_members.group_id::text -> 'permissions' ?| ARRAY['read', '*']
+            )
+        )
+    )
+    OR (
+        EXISTS (
+            SELECT 1
+            FROM organization_members
+            WHERE organization_members.user_id = @user_id::uuid
+                AND organization_members.organization_id = chat_artifacts.organization_id
+        )
+        AND (
+            chat_artifacts.user_acl -> (@user_id::uuid)::text -> 'permissions' ?| ARRAY['read', '*']
+            OR chat_artifacts.group_acl -> chat_artifacts.organization_id::text -> 'permissions' ?| ARRAY['read', '*']
+            OR EXISTS (
+                SELECT 1
+                FROM group_members
+                WHERE group_members.user_id = @user_id::uuid
+                    AND chat_artifacts.group_acl -> group_members.group_id::text -> 'permissions' ?| ARRAY['read', '*']
             )
         )
     )
