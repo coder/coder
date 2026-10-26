@@ -570,7 +570,8 @@ type OrganizationAISpendUser struct {
 	// UnpricedUsageCount is the number of the user's token usage records that
 	// carry no cost because their model had no price when they were recorded.
 	UnpricedUsageCount int64 `json:"unpriced_usage_count"`
-	// Providers are the provider types the user spent through, sorted.
+	// Providers are the configured provider names the user spent through,
+	// sorted.
 	Providers []string `json:"providers"`
 	// Clients are the clients the user spent through, sorted. Usage without a
 	// recorded client is reported as Unknown.

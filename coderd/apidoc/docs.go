@@ -28555,7 +28555,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "providers": {
-                    "description": "Providers are the provider types the user spent through, sorted.",
+                    "description": "Providers are the configured provider names the user spent through,\nsorted.",
                     "type": "array",
                     "items": {
                         "type": "string"

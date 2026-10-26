@@ -2209,6 +2209,16 @@ export interface ChatACL {
 }
 
 // From codersdk/chats.go
+/**
+ * ChatACPTranscriptMessage is a workspace-local ACP message returned by
+ * acp_wait_agent without database message metadata.
+ */
+export interface ChatACPTranscriptMessage {
+	readonly role: ChatMessageRole;
+	readonly content: readonly ChatMessagePart[];
+}
+
+// From codersdk/chats.go
 export type ChatAttachmentMediaType =
 	| "application/json"
 	| "application/pdf"
@@ -7980,7 +7990,8 @@ export interface OrganizationAISpendUser {
 	 */
 	readonly unpriced_usage_count: number;
 	/**
-	 * Providers are the provider types the user spent through, sorted.
+	 * Providers are the configured provider names the user spent through,
+	 * sorted.
 	 */
 	readonly providers: readonly string[];
 	/**
