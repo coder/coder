@@ -99,6 +99,7 @@ const ArtifactPage: React.FC = () => {
 					setSearchParams({ version: String(version) }, { replace: true })
 				}
 				onPrompt={showPromptToast}
+				showChatLink
 				currentUserId={user.id}
 				leading={
 					<Button

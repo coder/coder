@@ -1,5 +1,10 @@
-import { DownloadIcon, ExternalLinkIcon } from "lucide-react";
+import {
+	DownloadIcon,
+	ExternalLinkIcon,
+	MessageSquareIcon,
+} from "lucide-react";
 import { useQuery } from "react-query";
+import { Link } from "react-router";
 import { getChatArtifactVersionURL } from "#/api/api";
 import { chatArtifactVersionText } from "#/api/queries/chatArtifacts";
 import type { ChatArtifact, ChatArtifactVersion } from "#/api/typesGenerated";
@@ -13,6 +18,11 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/components/Select/Select";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { Response } from "../ChatElements/Response";
 import { ArtifactFrame } from "./ArtifactFrame";
 import { ArtifactShareButton } from "./ArtifactShareButton";
@@ -20,6 +30,7 @@ import {
 	describeArtifactVersion,
 	findShownVersion,
 	getArtifactPagePath,
+	getVersionChatPath,
 	kindOf,
 } from "./artifactUtils";
 
@@ -38,6 +49,11 @@ type ArtifactViewProps = {
 	leading?: React.ReactNode;
 	/** Adds a link that opens the artifact page in a new tab. */
 	showPageLink?: boolean;
+	/**
+	 * Adds a link to the chat that published the latest version, when the
+	 * viewer can open that chat.
+	 */
+	showChatLink?: boolean;
 };
 
 /**
@@ -52,9 +68,16 @@ export const ArtifactView: React.FC<ArtifactViewProps> = ({
 	currentUserId,
 	leading,
 	showPageLink = false,
+	showChatLink = false,
 }) => {
 	const versions = artifact.versions ?? [];
 	const version = findShownVersion(artifact, selectedVersion);
+	// Versions are newest first.
+	const latestVersion = versions[0];
+	const chatPath =
+		showChatLink && latestVersion
+			? getVersionChatPath(latestVersion)
+			: undefined;
 
 	return (
 		<div className="flex h-full min-h-0 flex-1 flex-col">
@@ -65,6 +88,21 @@ export const ArtifactView: React.FC<ArtifactViewProps> = ({
 				<h3 className="m-0 min-w-0 basis-full truncate text-sm font-medium text-content-primary @xl:flex-1">
 					{artifact.title || "Untitled artifact"}
 				</h3>
+				{chatPath && (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button asChild variant="outline" size="sm">
+								<Link to={chatPath}>
+									<MessageSquareIcon />
+									Open chat
+								</Link>
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>
+							Last edited in “{latestVersion?.chat_title}”
+						</TooltipContent>
+					</Tooltip>
+				)}
 				{version && (
 					<Select
 						value={String(version.version)}
