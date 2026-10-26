@@ -1397,7 +1397,7 @@ The following chat stream events, delivered to the client over WebSocket, are su
 
 On streams opened with `snapshot_version`, `message`, `queue_update`, and `history_reset` (the versioned events) include the chat's `snapshot_version` when the change was made: the message's `revision`, the chat's `queue_version`, and the `revision` of the messages the edit deleted. A client reconnects with the highest one it received. Other streams do not set it.
 
-The endpoint writes events to the WebSocket in batches: JSON arrays of up to 256 events. When the endpoint has written nothing for `httpapi.HeartbeatInterval` (15 seconds), it writes an empty batch, which the web client and `codersdk.Client.StreamChat` skip. The web client closes the stream and reconnects when it receives no message for 40 seconds. The comment on the keepalive ticker in `streamChat` (`coderd/exp_chats.go`) explains why the endpoint writes empty batches.
+The endpoint writes events to the WebSocket in batches: JSON arrays of up to 256 events. When the endpoint has written nothing for `codersdk.ChatStreamKeepaliveIntervalSeconds` (15 seconds), it writes an empty batch, which the web client and `codersdk.Client.StreamChat` skip. The web client closes the stream and reconnects when it receives no message for 40 seconds. The comment on the keepalive ticker in `streamChat` (`coderd/exp_chats.go`) explains why the endpoint writes empty batches.
 
 ## Endpoint lifecycle
 
