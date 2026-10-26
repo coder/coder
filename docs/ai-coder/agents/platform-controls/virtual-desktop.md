@@ -28,7 +28,9 @@ Once the experiment is enabled, configure the computer-use provider under **Admi
 Use the **Virtual desktop** card.
 
 Choose a **Computer use provider**.
-The list shows every enabled AI provider of type Anthropic or OpenAI, labeled with its type.
+The list shows every enabled AI provider of type Anthropic or OpenAI.
+The list adds the type to a provider name that does not already contain it.
+When two providers share a display name, the list also shows the provider name of each.
 Computer-use turns and the `computer_use` API key check use the selected provider.
 If no Anthropic or OpenAI AI provider is enabled, add one under the **Providers** sidebar item first.
 
@@ -45,5 +47,8 @@ If the selected AI provider is later disabled or deleted, `computer_use` subagen
 
 The same configuration is available at:
 
-- `GET /api/v2/chats/config/computer-use-provider`
-- `PUT /api/v2/chats/config/computer-use-provider`
+- `GET /api/experimental/chats/config/computer-use-provider`
+- `PUT /api/experimental/chats/config/computer-use-provider`
+
+The UI can't clear a saved AI provider selection.
+To clear it, send a `PUT` request with `provider` set and `ai_provider_id` omitted.
