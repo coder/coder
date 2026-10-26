@@ -47,10 +47,14 @@ const (
 	// AgentHTTPAPIServerPort serves a HTTP server with endpoints for e.g.
 	// gathering agent statistics.
 	AgentHTTPAPIServerPort = 4
+	// AgentPreviewPort serves published static previews on the tailnet only.
+	// Workspace apps reach it through preview app hostnames, never as a
+	// numeric port app.
+	AgentPreviewPort = 5
 
 	// AgentMinimumListeningPort is the minimum port that the listening-ports
 	// endpoint will return to the client, and the minimum port that is accepted
-	// by the proxy applications endpoint. Coder consumes ports 1-4 at the
+	// by the proxy applications endpoint. Coder consumes ports 1-5 at the
 	// moment, and we reserve some extra ports for future use. Port 9 and up are
 	// available for the user.
 	//
