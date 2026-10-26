@@ -24,8 +24,8 @@ type ChatArtifact struct {
 	ProjectName   string    `json:"project_name"`
 	Title         string `json:"title"`
 	LatestVersion int32  `json:"latest_version"`
-	// LatestName is the file name of the latest version. Its extension
-	// picks the renderer.
+	// LatestName and LatestMediaType describe the latest version. Together
+	// they pick its renderer.
 	LatestName      string    `json:"latest_name"`
 	LatestMediaType string    `json:"latest_media_type"`
 	CreatedAt       time.Time `json:"created_at" format:"date-time"`

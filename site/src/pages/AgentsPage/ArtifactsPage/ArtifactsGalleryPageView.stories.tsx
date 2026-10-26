@@ -14,100 +14,108 @@ import {
 
 const now = new Date("2024-01-08T18:00:00Z");
 
-const artifact = (
-	id: string,
-	title: string,
-	latestName: string,
-	latestMediaType: string,
-	updatedAt: string,
-	extra: Partial<ChatArtifact> = {},
-): ChatArtifact => ({
-	...MockChatArtifact,
-	id,
-	title,
-	latest_name: latestName,
-	latest_media_type: latestMediaType,
-	updated_at: updatedAt,
-	versions: undefined,
-	...extra,
-});
-
-const sharedByMember: Partial<ChatArtifact> = {
+const mockSharedFields: Partial<ChatArtifact> = {
 	owner_id: MockUserMember.id,
 	owner_username: MockUserMember.username,
 	project_id: "project-1",
 	project_name: "Artifacts demo",
 };
 
-const artifacts: ChatArtifact[] = [
-	artifact(
-		"a1",
-		"Repo layout",
-		"repo-layout.md",
-		"text/markdown",
-		"2024-01-08T15:00:00Z",
-		{ latest_version: 4 },
-	),
-	artifact(
-		"a2",
-		"Cache options",
-		"cache-options.html",
-		"text/plain",
-		"2024-01-08T12:00:00Z",
-		{ latest_version: 1 },
-	),
-	artifact(
-		"a3",
-		"Team notes",
-		"team-notes.md",
-		"text/markdown",
-		"2024-01-07T12:00:00Z",
-		sharedByMember,
-	),
-	artifact(
-		"a4",
-		"Publish flow",
-		"flow.mmd",
-		"text/plain",
-		"2024-01-04T12:00:00Z",
-		{ latest_version: 1 },
-	),
-	artifact(
-		"a5",
-		"Gradient",
-		"gradient.png",
-		"image/png",
-		"2023-12-01T12:00:00Z",
-		{ ...sharedByMember, latest_version: 1 },
-	),
-	artifact(
-		"a6",
-		"Test counts",
-		"counts.csv",
-		"text/csv",
-		"2023-11-20T12:00:00Z",
-		{ latest_version: 1 },
-	),
-	artifact(
-		"a7",
-		"Quarterly report",
-		"quarterly.pdf",
-		"application/pdf",
-		"2023-11-02T12:00:00Z",
-		{ latest_version: 3 },
-	),
+const mockRepoLayoutArtifact: ChatArtifact = {
+	...MockChatArtifact,
+	id: "repo-layout",
+	versions: undefined,
+	latest_version: 4,
+	updated_at: "2024-01-08T15:00:00Z",
+};
+
+const mockCacheOptionsArtifact: ChatArtifact = {
+	...MockChatArtifact,
+	id: "cache-options",
+	versions: undefined,
+	title: "Cache options",
+	latest_name: "cache-options.html",
+	latest_media_type: "text/plain",
+	latest_version: 1,
+	updated_at: "2024-01-08T12:00:00Z",
+};
+
+const mockTeamNotesArtifact: ChatArtifact = {
+	...MockChatArtifact,
+	...mockSharedFields,
+	id: "team-notes",
+	versions: undefined,
+	title: "Team notes",
+	latest_name: "team-notes.md",
+	updated_at: "2024-01-07T12:00:00Z",
+};
+
+const mockPublishFlowArtifact: ChatArtifact = {
+	...MockChatArtifact,
+	id: "publish-flow",
+	versions: undefined,
+	title: "Publish flow",
+	latest_name: "flow.mmd",
+	latest_media_type: "text/plain",
+	latest_version: 1,
+	updated_at: "2024-01-04T12:00:00Z",
+};
+
+const mockGradientArtifact: ChatArtifact = {
+	...MockChatArtifact,
+	...mockSharedFields,
+	id: "gradient",
+	versions: undefined,
+	title: "Gradient",
+	latest_name: "gradient.png",
+	latest_media_type: "image/png",
+	latest_version: 1,
+	updated_at: "2023-12-01T12:00:00Z",
+};
+
+const mockTestCountsArtifact: ChatArtifact = {
+	...MockChatArtifact,
+	id: "test-counts",
+	versions: undefined,
+	title: "Test counts",
+	latest_name: "counts.csv",
+	latest_media_type: "text/csv",
+	latest_version: 1,
+	updated_at: "2023-11-20T12:00:00Z",
+};
+
+const mockQuarterlyReportArtifact: ChatArtifact = {
+	...MockChatArtifact,
+	id: "quarterly-report",
+	versions: undefined,
+	title: "Quarterly report",
+	latest_name: "quarterly.pdf",
+	latest_media_type: "application/pdf",
+	latest_version: 3,
+	updated_at: "2023-11-02T12:00:00Z",
+};
+
+const mockArtifacts: ChatArtifact[] = [
+	mockRepoLayoutArtifact,
+	mockCacheOptionsArtifact,
+	mockTeamNotesArtifact,
+	mockPublishFlowArtifact,
+	mockGradientArtifact,
+	mockTestCountsArtifact,
+	mockQuarterlyReportArtifact,
 ];
 
 const meta: Meta<typeof ArtifactsGalleryPageView> = {
 	title: "pages/AgentsPage/ArtifactsGalleryPageView",
 	component: ArtifactsGalleryPageView,
 	args: {
-		artifacts,
+		artifacts: mockArtifacts,
 		error: undefined,
 		currentUserId: MockUserOwner.id,
 		now,
 	},
-	// The layout choice is stored, so each story starts from the list.
+	// The layout choice persists in localStorage. Clear it before and after
+	// each story, so that only the grid stories show the grid.
 	beforeEach: () => {
 		localStorage.removeItem(galleryLayoutStorageKey);
 		return () => localStorage.removeItem(galleryLayoutStorageKey);

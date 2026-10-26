@@ -34,6 +34,7 @@ const FILTERS: readonly { id: ArtifactFilter; label: string }[] = [
 	{ id: "shared", label: "Shared with you" },
 ];
 
+/** The localStorage key that keeps the list or grid choice. */
 export const galleryLayoutStorageKey = "agents.artifacts-gallery-layout";
 
 const kindIcons: Record<ArtifactKind, React.FC<{ className?: string }>> = {
@@ -44,6 +45,12 @@ const kindIcons: Record<ArtifactKind, React.FC<{ className?: string }>> = {
 	text: FileCodeIcon,
 	download: FileIcon,
 };
+
+const artifactIcon = (artifact: ChatArtifact) =>
+	kindIcons[kindOf(artifact.latest_name, artifact.latest_media_type)];
+
+const ownerLabel = (artifact: ChatArtifact, currentUserId: string) =>
+	artifact.owner_id === currentUserId ? "" : `by ${artifact.owner_username}`;
 
 /**
  * Keeps the artifacts that pass the filter and contain the search text in
@@ -84,19 +91,18 @@ const ArtifactListItem: React.FC<ArtifactItemProps> = ({
 	currentUserId,
 	now,
 }) => {
-	const Icon =
-		kindIcons[kindOf(artifact.latest_name, artifact.latest_media_type)];
+	const Icon = artifactIcon(artifact);
 	const details = [
 		artifact.latest_name,
 		`v${artifact.latest_version}`,
 		artifact.project_name,
-		artifact.owner_id === currentUserId ? "" : `by ${artifact.owner_username}`,
+		ownerLabel(artifact, currentUserId),
 	].filter(Boolean);
 	return (
 		<li>
 			<Link
 				to={getArtifactPagePath(artifact.id)}
-				className="flex items-center gap-3 rounded-lg px-2 py-2 no-underline hover:bg-surface-secondary"
+				className="flex items-center gap-3 rounded-lg p-2 no-underline hover:bg-surface-secondary"
 			>
 				<span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-solid border-border bg-surface-secondary text-content-secondary">
 					<Icon className="size-4" />
@@ -122,10 +128,7 @@ const ArtifactCard: React.FC<ArtifactItemProps> = ({
 	currentUserId,
 	now,
 }) => {
-	const Icon =
-		kindIcons[kindOf(artifact.latest_name, artifact.latest_media_type)];
-	const owner =
-		artifact.owner_id === currentUserId ? "" : `by ${artifact.owner_username}`;
+	const Icon = artifactIcon(artifact);
 	return (
 		<li>
 			<Link
@@ -144,7 +147,11 @@ const ArtifactCard: React.FC<ArtifactItemProps> = ({
 						{artifact.latest_version}
 					</span>
 					<span className="truncate text-xs text-content-secondary">
-						{[artifact.latest_name, artifact.project_name, owner]
+						{[
+							artifact.latest_name,
+							artifact.project_name,
+							ownerLabel(artifact, currentUserId),
+						]
 							.filter(Boolean)
 							.join(" · ")}
 					</span>
@@ -163,9 +170,9 @@ type ArtifactsGalleryPageViewProps = {
 };
 
 /**
- * The artifact gallery, laid out like the Claude Code gallery: All, Yours
- * and Shared with you, a search field, and a list with one section for each
- * time group of the last edit, or a grid of cards.
+ * The artifact gallery. The list or grid choice persists in localStorage
+ * under galleryLayoutStorageKey. `now` is the reference time for the
+ * "Edited" labels and for the time sections of the list.
  */
 export const ArtifactsGalleryPageView: React.FC<
 	ArtifactsGalleryPageViewProps

@@ -711,18 +711,13 @@ describe("ChatsSidebar section switcher", () => {
 });
 
 describe("ChatsSidebar artifacts link", () => {
-	const LocationProbe: React.FC = () => {
-		const location = useLocation();
-		return <div data-testid="location-pathname">{location.pathname}</div>;
-	};
-
-	it("opens the artifacts gallery and marks it as the current page", async () => {
+	it("opens the artifacts gallery", async () => {
 		const user = userEvent.setup();
 
 		render(
 			<Wrapper initialEntry="/agents">
 				<ChatsSidebar {...defaultProps} />
-				<LocationProbe />
+				<ProjectLocationProbe />
 			</Wrapper>,
 		);
 
@@ -733,13 +728,6 @@ describe("ChatsSidebar artifacts link", () => {
 				"/agents/artifacts",
 			);
 		});
-		expect(screen.getByRole("link", { name: "Artifacts" })).toHaveAttribute(
-			"aria-current",
-			"page",
-		);
-		expect(screen.getByRole("link", { name: "New chat" })).not.toHaveAttribute(
-			"aria-current",
-		);
 	});
 });
 

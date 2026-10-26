@@ -1,6 +1,6 @@
 /**
- * Time-based grouping utility used by the sidebar to categorize
- * chats into "Today", "Yesterday", "Past 7 days", and "Older".
+ * Time-based grouping into "Today", "Yesterday", "Past 7 days", and
+ * "Older".
  *
  * "Past 7 days" is a rolling window (today minus 7 days), not the
  * current calendar week, so the label stays accurate on Mondays
@@ -14,6 +14,7 @@ export const TIME_GROUPS = [
 ] as const;
 type TimeGroup = (typeof TIME_GROUPS)[number];
 
+/** Returns the group of a date, relative to the day of `now`. */
 export function getTimeGroup(
 	dateStr: string,
 	now: Date = new Date(),

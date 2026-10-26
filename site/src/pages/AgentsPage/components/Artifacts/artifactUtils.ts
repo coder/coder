@@ -59,6 +59,7 @@ export const deriveSeenArtifactVersions = (
 	return versions;
 };
 
+/** The renderer that kindOf picks for a version. */
 export type ArtifactKind =
 	| "html"
 	| "mermaid"
