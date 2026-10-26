@@ -76,6 +76,7 @@ Redirect the background service's stdout and stderr, for example `my-server > /t
 Otherwise, Coder can treat the prerequisite as failed and skip its `requires = "success"` dependents.
 
 Selectors are quoted [Terraform resource or module addresses](https://developer.hashicorp.com/terraform/cli/state/resource-addressing), not resource IDs or display names.
+Selectors match only `coder_script` resources and modules, so you can't order the `startup_script` or `shutdown_script` attributes of `coder_agent`.
 Coder must be able to determine all `coder_script_order` input values when it imports your template.
 The data source doesn't need Terraform `depends_on`.
 Terraform's [`depends_on`](https://developer.hashicorp.com/terraform/language/meta-arguments/depends_on) controls provisioning operations, not script execution inside a workspace.
