@@ -19,8 +19,8 @@ beforeEach(() => {
 			return isViewport(this) ? 1000 : 0;
 		},
 	);
-	// jsdom runs every queued frame callback in one task. Browsers run
-	// microtasks, and so React re-renders, between frame callbacks.
+	// jsdom runs a frame's callbacks in one task, so EarlierMessages' older-page
+	// request fires before the re-render that cancels it in a browser.
 	vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) =>
 		window.setTimeout(() => callback(performance.now())),
 	);
