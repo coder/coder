@@ -47,6 +47,8 @@ type ArtifactViewProps = {
 	currentUserId: string;
 	/** Shown before the title, such as a back link. */
 	leading?: React.ReactNode;
+	/** Renders the title, such as a menu that switches artifacts. */
+	renderTitle?: (title: string) => React.ReactNode;
 	/** Adds a link that opens the artifact page in a new tab. */
 	showPageLink?: boolean;
 	/**
@@ -67,9 +69,11 @@ export const ArtifactView: React.FC<ArtifactViewProps> = ({
 	onPrompt,
 	currentUserId,
 	leading,
+	renderTitle,
 	showPageLink = false,
 	showChatLink = false,
 }) => {
+	const title = artifact.title || "Untitled artifact";
 	const versions = artifact.versions ?? [];
 	const version = findShownVersion(artifact, selectedVersion);
 	// Versions are newest first.
@@ -85,8 +89,12 @@ export const ArtifactView: React.FC<ArtifactViewProps> = ({
 				{leading}
 				{/* In a narrow header, such as a phone or the chat panel, the title
 				    takes its own row, so it is not cut off. */}
-				<h3 className="m-0 min-w-0 basis-full truncate text-sm font-medium text-content-primary @xl:flex-1">
-					{artifact.title || "Untitled artifact"}
+				<h3 className="m-0 flex min-w-0 basis-full text-sm font-medium text-content-primary @xl:flex-1">
+					{renderTitle ? (
+						renderTitle(title)
+					) : (
+						<span className="min-w-0 truncate">{title}</span>
+					)}
 				</h3>
 				{chatPath && latestVersion && (
 					<Tooltip>

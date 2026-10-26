@@ -1,10 +1,23 @@
 import { act, render, renderHook, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { createMemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
+import { API } from "#/api/api";
+import type {
+	ChatArtifact,
+	ChatMessage,
+	ChatMessagePart,
+} from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
-import { MockChatArtifactVersion } from "#/testHelpers/chatEntities";
+import {
+	MockChatArtifact,
+	MockChatArtifactVersion,
+} from "#/testHelpers/chatEntities";
+import { MockUserOwner } from "#/testHelpers/entities";
+import { renderWithRouter } from "#/testHelpers/renderHelpers";
+import { createChatStore } from "../ChatConversation/chatStore";
 import { ArtifactToolCard } from "../ChatElements/tools/ArtifactToolCard";
+import { ArtifactsPanel } from "./ArtifactsPanel";
 import { ArtifactsPanelContext } from "./ArtifactsPanelContext";
 import {
 	ARTIFACT_PROMPT_TYPE,
@@ -310,5 +323,72 @@ describe("ArtifactToolCard", () => {
 		);
 		await user.click(screen.getByRole("button", { name: "Open" }));
 		expect(onOpenArtifact).toHaveBeenCalledWith("artifact-1", 2);
+	});
+});
+
+describe("ArtifactsPanel", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it("switches to another artifact of the chat from the title menu", async () => {
+		const user = userEvent.setup();
+		const otherArtifact: ChatArtifact = {
+			...MockChatArtifact,
+			id: "artifact-2",
+			title: "Cache options",
+		};
+		vi.spyOn(API.experimental, "getChatArtifact").mockImplementation(
+			async (artifactId) =>
+				artifactId === otherArtifact.id ? otherArtifact : MockChatArtifact,
+		);
+		vi.spyOn(API.experimental, "getChatArtifactVersionText").mockResolvedValue(
+			"# Repo layout",
+		);
+		const store = createChatStore();
+		store.replaceMessages([
+			message(1, [
+				toolResult("publish_artifact", {
+					artifact_id: otherArtifact.id,
+					version: 2,
+				}),
+			]),
+			message(2, [
+				toolResult("publish_artifact", {
+					artifact_id: MockChatArtifact.id,
+					version: 2,
+				}),
+			]),
+		]);
+		const onSelect = vi.fn();
+		renderWithRouter(
+			createMemoryRouter(
+				[
+					{
+						path: "/",
+						element: (
+							<ArtifactsPanel
+								chatId="chat-1"
+								store={store}
+								selection={null}
+								onSelect={onSelect}
+								currentUserId={MockUserOwner.id}
+							/>
+						),
+					},
+				],
+				{ initialEntries: ["/"] },
+			),
+		);
+
+		// The newest artifact shows, and its title opens the switcher.
+		await user.click(
+			await screen.findByRole("button", { name: "Repo layout" }),
+		);
+		await user.click(
+			await screen.findByRole("menuitem", { name: /Cache options/ }),
+		);
+
+		expect(onSelect).toHaveBeenCalledWith({ artifactId: otherArtifact.id });
 	});
 });
