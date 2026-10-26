@@ -27,23 +27,24 @@ Lets agents drive a graphical desktop inside the workspace through `spawn_agent`
 Once the experiment is enabled, configure the computer-use provider under **Admin settings** > **AI** > **Coder Agents** > **Deployment settings**.
 Use the **Virtual desktop** card.
 
-Choose a **Computer use provider**.
+Select an AI provider from the dropdown.
 The list shows every enabled AI provider of type Anthropic or OpenAI.
 The list adds the type to a provider name that does not already contain it.
 When two providers share a display name, the list also shows the provider name of each.
-Computer-use turns and the `computer_use` API key check use the selected provider.
+Computer-use turns use the selected provider.
 If no Anthropic or OpenAI AI provider is enabled, add one under the **Providers** sidebar item first.
 
 Virtual desktop also requires:
 
 - The [portabledesktop](https://registry.coder.com/modules/coder/portabledesktop) module installed in the workspace template.
-- An API key for the selected AI provider.
+- An API key for the selected AI provider, set under the **Providers** sidebar item.
 
 The Anthropic and OpenAI computer-use models are fixed by Coder per provider type and are not selectable from this UI.
 
 When no AI provider is selected, computer use uses the first enabled AI provider of the configured type, sorted by name.
 Anthropic is the default type when no type is set.
-If the selected AI provider is later disabled or deleted, `computer_use` subagents are unavailable until you select another provider.
+If the selected AI provider is disabled, `computer_use` subagents are unavailable until you enable it again or select another provider.
+If it is deleted, `computer_use` subagents are unavailable until you select another provider.
 
 The same configuration is available at:
 
