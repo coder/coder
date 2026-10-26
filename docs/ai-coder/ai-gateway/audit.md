@@ -73,7 +73,7 @@ The agentic loop shows its duration and number of tool calls, and each step show
 
 The **Session summary** card beside the timeline shows the session's total token usage, with the same breakdown, and its total cost.
 A warning next to a cost means some usage was unpriced, so the actual cost may be higher.
-To learn how Coder prices usage and how to add missing prices, see [How spend is calculated](./cost-controls.md#how-spend-is-calculated).
+To learn how Coder prices usage and how to add missing prices, refer to [How spend is calculated](./cost-controls.md#how-spend-is-calculated).
 
 The card also reports the session's [Agent Firewall](../agent-firewall/index.md) activity:
 
