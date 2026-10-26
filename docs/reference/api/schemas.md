@@ -7335,11 +7335,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type    | Required | Restrictions | Description                                                                                                                                                           |
-|-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `action`          | boolean | false    |              | Action is only accepted for project skills and defaults to false.                                                                                                     |
-| `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
-| `model_invocable` | boolean | false    |              | Model invocable defaults to true.                                                                                                                                     |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                          |
+|-------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`          | boolean | false    |              | Action is only accepted for project skills and defaults to false.                                                                                                                    |
+| `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body.                |
+| `model_invocable` | boolean | false    |              | Model invocable defaults to true, or to false when the content frontmatter has `disable-model-invocation: true`. The server removes that frontmatter key before storing the content. |
 
 ## codersdk.CreateTemplateRequest
 
@@ -17453,12 +17453,12 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 
 ### Properties
 
-| Name              | Type    | Required | Restrictions | Description                                                                                                                                                           |
-|-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `action`          | boolean | false    |              | Action is only accepted for project skills.                                                                                                                           |
-| `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
-| `enabled`         | boolean | false    |              |                                                                                                                                                                       |
-| `model_invocable` | boolean | false    |              |                                                                                                                                                                       |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                                                    |
+|-------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`          | boolean | false    |              | Action is only accepted for project skills.                                                                                                                                                                    |
+| `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body.                                          |
+| `enabled`         | boolean | false    |              |                                                                                                                                                                                                                |
+| `model_invocable` | boolean | false    |              | Model invocable is left unchanged when unset, unless the new content frontmatter has `disable-model-invocation: true`, which turns it off. The server removes that frontmatter key before storing the content. |
 
 ## codersdk.UpdateTemplateACL
 

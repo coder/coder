@@ -284,6 +284,18 @@ A skill that is turned off stays stored, but it is hidden from the `/` menu and 
 If the agent asks for a skill that is turned off, `read_skill` reports that the skill was not found.
 When a chat has no skills left to load, the agent doesn't get the `read_skill` tool at all.
 
+### Keep agents from using a skill on their own
+
+Personal, organization, and project skills have a `model_invocable` setting that is on by default.
+When it is off, the skill is left out of the list of skills the agent can choose from, and `read_skill` reports that the skill was not found.
+You can still invoke the skill from the `/` menu.
+
+When you create or update a stored skill through the API without setting `model_invocable`, a `disable-model-invocation: true` line in the `SKILL.md` frontmatter turns the setting off.
+Claude Code, Cursor, and VS Code read the same line.
+A `model_invocable` value in the request always wins, and new content without the line leaves the setting unchanged.
+Coder removes the `disable-model-invocation` line before it stores the file, so the stored file never disagrees with the setting.
+Workspace skills ignore the line, so the agent can always choose them.
+
 ### Skills with the same name
 
 The same skill name can exist in more than one source.

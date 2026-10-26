@@ -44,7 +44,9 @@ type CreateSkillRequest struct {
 	Content string `json:"content"`
 	// Action is only accepted for project skills and defaults to false.
 	Action *bool `json:"action,omitempty"`
-	// ModelInvocable defaults to true.
+	// ModelInvocable defaults to true, or to false when the content
+	// frontmatter has `disable-model-invocation: true`. The server removes
+	// that frontmatter key before storing the content.
 	ModelInvocable *bool `json:"model_invocable,omitempty"`
 }
 
@@ -57,7 +59,10 @@ type UpdateSkillRequest struct {
 	Content *string `json:"content,omitempty"`
 	Enabled *bool   `json:"enabled,omitempty"`
 	// Action is only accepted for project skills.
-	Action         *bool `json:"action,omitempty"`
+	Action *bool `json:"action,omitempty"`
+	// ModelInvocable is left unchanged when unset, unless the new content
+	// frontmatter has `disable-model-invocation: true`, which turns it off.
+	// The server removes that frontmatter key before storing the content.
 	ModelInvocable *bool `json:"model_invocable,omitempty"`
 }
 

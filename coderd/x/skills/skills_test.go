@@ -319,3 +319,73 @@ func TestLookup(t *testing.T) {
 		})
 	}
 }
+
+func TestRemoveDisableModelInvocation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		raw          string
+		wantContent  string
+		wantDisabled bool
+	}{
+		{
+			name:        "Absent",
+			raw:         "---\nname: my-skill\n---\nBody.\n",
+			wantContent: "---\nname: my-skill\n---\nBody.\n",
+		},
+		{
+			name:         "True",
+			raw:          "---\nname: my-skill\ndisable-model-invocation: true\ndescription: Does a thing\n---\nBody.\n",
+			wantContent:  "---\nname: my-skill\ndescription: Does a thing\n---\nBody.\n",
+			wantDisabled: true,
+		},
+		{
+			name:        "FalseIsRemoved",
+			raw:         "---\nname: my-skill\ndisable-model-invocation: false\n---\nBody.\n",
+			wantContent: "---\nname: my-skill\n---\nBody.\n",
+		},
+		{
+			// Only the YAML boolean true counts, matching the browser
+			// import.
+			name:        "StringIsIgnoredAndRemoved",
+			raw:         "---\nname: my-skill\ndisable-model-invocation: \"true\"\n---\nBody.\n",
+			wantContent: "---\nname: my-skill\n---\nBody.\n",
+		},
+		{
+			name:         "CRLFAndBOM",
+			raw:          "\xef\xbb\xbf---\r\nname: my-skill\r\ndisable-model-invocation: true\r\n---\r\nBody.\r\n",
+			wantContent:  "\xef\xbb\xbf---\r\nname: my-skill\r\n---\r\nBody.\r\n",
+			wantDisabled: true,
+		},
+		{
+			name:        "MultiLineValue",
+			raw:         "---\nname: my-skill\ndisable-model-invocation:\n  - nested\ndescription: Does a thing\n---\nBody.\n",
+			wantContent: "---\nname: my-skill\ndescription: Does a thing\n---\nBody.\n",
+		},
+		{
+			name:        "BodyMentionIsKept",
+			raw:         "---\nname: my-skill\n---\ndisable-model-invocation: true\n",
+			wantContent: "---\nname: my-skill\n---\ndisable-model-invocation: true\n",
+		},
+		{
+			// A quoted key cannot be removed line by line, so the content
+			// stays as uploaded while the setting still applies.
+			name:         "QuotedKeyIsKept",
+			raw:          "---\nname: my-skill\n\"disable-model-invocation\": true\n---\nBody.\n",
+			wantContent:  "---\nname: my-skill\n\"disable-model-invocation\": true\n---\nBody.\n",
+			wantDisabled: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			content, disabled := skills.RemoveDisableModelInvocation(tt.raw)
+			require.Equal(t, tt.wantContent, content)
+			require.Equal(t, tt.wantDisabled, disabled)
+			_, err := skills.ParsePersonalSkillMarkdown([]byte(content))
+			require.NoError(t, err)
+		})
+	}
+}
