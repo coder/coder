@@ -14,6 +14,7 @@ import {
 import { watchChat } from "#/api/api";
 import {
 	chatMessagesKey,
+	invalidateChatPreviews,
 	invalidateChatPrompts,
 	invalidateChatSearches,
 	patchChatMessages,
@@ -201,6 +202,15 @@ export const useChatStore = (
 			if (hasNewUserPrompt) {
 				void invalidateChatPrompts(queryClient, chatID);
 			}
+			const hasPreviewResult = messages.some((msg) =>
+				msg.content?.some(
+					(part) =>
+						part.type === "tool-result" && part.tool_name === "open_preview",
+				),
+			);
+			if (hasPreviewResult) {
+				void invalidateChatPreviews(queryClient, chatID);
+			}
 			void invalidateChatSearches(queryClient);
 		},
 		[chatID, queryClient],
@@ -209,6 +219,7 @@ export const useChatStore = (
 	const replaceCacheMessages = useCallback(
 		(messages: readonly TypesGen.ChatMessage[]) => {
 			replaceChatMessagesHistory(queryClient, chatID, messages);
+			void invalidateChatPreviews(queryClient, chatID);
 			void invalidateChatSearches(queryClient);
 		},
 		[chatID, queryClient],
