@@ -664,8 +664,10 @@ export const createChatStore = (): ChatStore => {
 		resetTransientState: () => {
 			if (
 				state.streamState === null &&
+				state.chatStatus === null &&
 				state.clientError === null &&
 				state.retryState === null &&
+				state.turnError === null &&
 				state.reconnectState === null &&
 				state.subagentStatusOverrides.size === 0
 			) {
@@ -674,8 +676,10 @@ export const createChatStore = (): ChatStore => {
 			setState((current) => ({
 				...current,
 				streamState: null,
+				chatStatus: null,
 				clientError: null,
 				retryState: null,
+				turnError: null,
 				reconnectState: null,
 				subagentStatusOverrides: new Map(),
 			}));
