@@ -207,11 +207,10 @@ To keep your client in sync with the chat:
    1. Open the stream again with the stored `snapshot_version`.
    1. If the server returns `400 Bad Request`, discard your client's state and start again from step 1.
 
-When no events occur for 15&nbsp;seconds, the server sends an empty batch (`[]`), which you can skip.
-If nothing arrives for 40&nbsp;seconds, close the connection and reconnect.
-That threshold allows two missed empty batches plus a margin, and the Coder dashboard uses the same value.
-Older Coder servers don't send empty batches.
-With an older server, either skip this check or expect idle chats to reconnect every 40&nbsp;seconds.
+When no events occur for 15&nbsp;seconds, the server sends an empty array (`[]`), which you can skip.
+To detect a connection that stops delivering data without closing, start a 40-second timer when the first empty array arrives, restart it on every message, and reconnect when it expires.
+The 40&nbsp;seconds allow two missed empty arrays plus a margin.
+Servers that don't send empty arrays never start the timer.
 
 On the next connection, the server again sends the `message_part` events of the response that the agent is writing.
 If a retry is pending, the server also sends the `retry` event again.
