@@ -111,7 +111,7 @@ func TestCommitQuotaRetry(t *testing.T) {
 			50 * time.Millisecond, 100 * time.Millisecond, 200 * time.Millisecond, 400 * time.Millisecond, 800 * time.Millisecond,
 			1600 * time.Millisecond, 2 * time.Second, 2 * time.Second, 2 * time.Second, 2 * time.Second,
 		}
-		require.Len(t, want, commitQuotaMaxAttempts-1)
+		require.Len(t, want, commitQuotaMaxRetries)
 
 		resCh := commit(ctx, c, req)
 		for i := range want {
@@ -123,7 +123,7 @@ func TestCommitQuotaRetry(t *testing.T) {
 
 		res := testutil.RequireReceive(ctx, t, resCh)
 		require.True(t, database.IsSerializedError(res.err))
-		require.EqualValues(t, commitQuotaMaxAttempts, faults.attempts.Load())
+		require.EqualValues(t, commitQuotaMaxRetries+1, faults.attempts.Load())
 	})
 
 	t.Run("NonSerializationErrorNotRetried", func(t *testing.T) {

@@ -97,6 +97,7 @@ func TestSerializedRetryOverride(t *testing.T) {
 			},
 		})
 		require.ErrorIs(t, err, stop)
+		require.ErrorContains(t, err, serialErr.Error())
 		require.Equal(t, 2, called)
 	})
 

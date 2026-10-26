@@ -24,11 +24,11 @@ import (
 // Bursts of builds for one owner and organization (for example, mass
 // autostarts) make concurrent quota commits conflict under SERIALIZABLE
 // isolation. These builds are not interactive, so we trade latency for
-// success: 10 retries cut burst failures from about 20% to about 2% in
-// synthetic tests. Full jitter over min(cap, base*2^n) bounds the total
-// backoff across all retries to 11.15s.
+// success. commitQuotaMaxRetries counts retries after the first attempt.
+// Full jitter over min(cap, base*2^n) bounds the total backoff across all
+// retries to 11.15s.
 const (
-	commitQuotaMaxAttempts = 11
+	commitQuotaMaxRetries  = 10
 	commitQuotaBackoffBase = 50 * time.Millisecond
 	commitQuotaBackoffCap  = 2 * time.Second
 )
@@ -158,7 +158,7 @@ func (c *committer) CommitQuota(
 	}, &database.TxOptions{
 		Isolation:         sql.LevelSerializable,
 		TxIdentifier:      "commit_quota",
-		SerialMaxAttempts: commitQuotaMaxAttempts,
+		SerialMaxAttempts: commitQuotaMaxRetries + 1,
 		BeforeSerialRetry: func(attempt int) error {
 			logger.Debug(ctx, "quota commit hit serialization failure, retrying", slog.F("attempt", attempt))
 			return c.commitQuotaBackoff(ctx, attempt)

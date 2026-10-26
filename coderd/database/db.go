@@ -70,11 +70,12 @@ func New(sdb *sql.DB, opts ...func(*sqlQuerier)) Store {
 	return q
 }
 
-// TxOptions is used to pass some execution metadata to the callers.
+// TxOptions configures a transaction's isolation and serialization retry
+// policy, and is used to pass some execution metadata to the callers.
 // Ideally we could throw this into a context, but no context is used for
 // transactions. So instead, the return context is attached to the options
 // passed in.
-// This metadata should not be returned in the method signature, because it
+// The metadata should not be returned in the method signature, because it
 // is only used for metric tracking. It should never be used by business logic.
 type TxOptions struct {
 	// Isolation is the transaction isolation level.
@@ -82,22 +83,26 @@ type TxOptions struct {
 	Isolation sql.IsolationLevel
 	ReadOnly  bool
 
-	// -- Coder specific metadata --
-	// TxIdentifier is a unique identifier for the transaction to be used
-	// in metrics. Can be any string.
-	TxIdentifier string
-
 	// SerialMaxAttempts overrides the store's default number of attempts for
 	// serializable transactions that fail with a serialization error. Zero
-	// uses the default.
+	// uses the default. A non-zero value takes precedence over the store's
+	// count, including WithSerialRetryCount in tests.
 	SerialMaxAttempts int
 	// BeforeSerialRetry, if set, is called between serializable attempts,
 	// after the failed transaction has been rolled back, with the number of
 	// attempts made so far. A non-nil error stops retrying and is returned.
+	// No connection or transaction is held while it runs, but time spent in
+	// it (for example, backoff waits) is included in the transaction
+	// duration metric.
 	//
 	// Both fields only apply to the outermost serializable InTx call. They are
 	// ignored inside an existing transaction, where the outer call owns retries.
 	BeforeSerialRetry func(attempt int) error
+
+	// -- Coder specific metadata --
+	// TxIdentifier is a unique identifier for the transaction to be used
+	// in metrics. Can be any string.
+	TxIdentifier string
 
 	// Set by InTx
 	executionCount int
@@ -180,7 +185,7 @@ func (q *sqlQuerier) InTx(function func(Store) error, txOpts *TxOptions) error {
 		for attempts = 0; attempts < maxAttempts; attempts++ {
 			if attempts > 0 && txOpts.BeforeSerialRetry != nil {
 				if hookErr := txOpts.BeforeSerialRetry(attempts); hookErr != nil {
-					return xerrors.Errorf("transaction retry stopped after %d attempts: %w", attempts, hookErr)
+					return xerrors.Errorf("stop retrying transaction after %d serialization failure(s), last: %v: %w", attempts, err, hookErr)
 				}
 			}
 			txOpts.executionCount++
