@@ -1,29 +1,34 @@
-import path from "node:path";
+import { EventEmitter } from "node:events";
 
 export const FOREIGN_ID_BASE = 1_000_000_000;
 
 // WebKit's remote inspector broadcasts every response to all attached
-// frontends. Playwright asserts on responses whose id it did not issue,
-// so teach its WKSession to drop ours.
-export function patchPlaywrightForForeignInspector(requireFromPlaywright) {
-	// The file is not in playwright-core's export map; resolve from the
-	// package root and require by absolute path.
-	const coreDir = path.dirname(
-		requireFromPlaywright.resolve("playwright-core/package.json"),
-	);
-	const { WKSession } = requireFromPlaywright(
-		path.join(coreDir, "lib/server/webkit/wkConnection.js"),
-	);
-	const original = WKSession.prototype.dispatchMessage;
-	WKSession.prototype.dispatchMessage = function dispatchMessage(object) {
+// frontends, and Playwright's WKSession asserts on a response whose id it
+// did not issue. Playwright bundles WKSession without exporting it (1.63
+// and later), so find its prototype from the first session that emits a
+// protocol event, and make it drop our ids.
+export function patchPlaywrightForForeignInspector() {
+	const originalEmit = EventEmitter.prototype.emit;
+	EventEmitter.prototype.emit = function emit(...args) {
 		if (
-			typeof object.id === "number" &&
-			object.id >= FOREIGN_ID_BASE &&
-			!this._callbacks.has(object.id)
+			typeof this.dispatchMessage === "function" &&
+			this._callbacks instanceof Map
 		) {
-			return;
+			EventEmitter.prototype.emit = originalEmit;
+			const proto = Object.getPrototypeOf(this);
+			const original = proto.dispatchMessage;
+			proto.dispatchMessage = function dispatchMessage(object) {
+				if (
+					typeof object.id === "number" &&
+					object.id >= FOREIGN_ID_BASE &&
+					!this._callbacks.has(object.id)
+				) {
+					return;
+				}
+				return original.call(this, object);
+			};
 		}
-		return original.call(this, object);
+		return originalEmit.apply(this, args);
 	};
 }
 

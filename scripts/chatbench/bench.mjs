@@ -65,13 +65,6 @@ const REPO = path.resolve(
 );
 const requireFromSite = createRequire(path.join(REPO, "site/package.json"));
 const { chromium, webkit } = requireFromSite("@playwright/test");
-// playwright-core is a transitive dependency; resolve it through the
-// `playwright` package that @playwright/test depends on.
-const requireFromPlaywright = createRequire(
-	createRequire(requireFromSite.resolve("@playwright/test")).resolve(
-		"playwright/package.json",
-	),
-);
 
 const args = Object.fromEntries(
 	process.argv.slice(2).map((a) => {
@@ -464,7 +457,7 @@ async function main() {
 	const wantProfile = args.profile !== "0";
 	const WK_INSPECTOR_PORT = 9230;
 	if (browserName === "webkit" && wantProfile)
-		patchPlaywrightForForeignInspector(requireFromPlaywright);
+		patchPlaywrightForForeignInspector();
 	const browserEnv = Object.fromEntries(
 		(args["browser-env"] ?? "")
 			.split(",")
