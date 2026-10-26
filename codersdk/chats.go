@@ -3328,9 +3328,7 @@ type StreamChatOptions struct {
 	// SnapshotVersion is the snapshot version of the caller's state: the
 	// one from ChatMessagesResponse, or the highest one from the stream's
 	// events. When it is set, the stream sends the changes made at or after
-	// it, and the server ignores AfterID and sets
-	// ChatStreamEvent.SnapshotVersion on message, queue_update and
-	// history_reset events.
+	// it, and the server ignores AfterID.
 	SnapshotVersion int64
 }
 
