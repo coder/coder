@@ -12,7 +12,10 @@ import {
 import { defaultUrlTransform } from "streamdown";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChatFileMetadata } from "#/testHelpers/chatEntities";
+import {
+	MockChatFileMetadata,
+	MockChatQueuedMessage,
+} from "#/testHelpers/chatEntities";
 import { MockUserPreferenceSettings } from "#/testHelpers/entities";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { getChatFileURL } from "../../utils/chatAttachments";
@@ -1877,6 +1880,26 @@ export const AsyncAskUserQuestionOpenAfterUnrelatedMessage: Story = {
 		isChatCompleted: false,
 		onSendAskUserQuestionResponse: fn(),
 		parsedMessages: buildMessages(MockAsyncQuestionThenUnrelatedMessages),
+	},
+};
+
+export const AsyncAskUserQuestionAnswerQueued: Story = {
+	args: {
+		...defaultArgs,
+		isChatCompleted: false,
+		onSendAskUserQuestionResponse: fn(),
+		parsedMessages: buildMessages(MockAsyncQuestionThenUnrelatedMessages),
+		queuedMessages: [
+			{
+				...MockChatQueuedMessage,
+				content: [
+					{
+						type: "text",
+						text: `${getAsyncAnswerPrefix("ask-tool-async")}${askUserQuestionSubmittedResponse}`,
+					},
+				],
+			},
+		],
 	},
 };
 

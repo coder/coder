@@ -72,7 +72,7 @@ const renderUserInlineContent = (blocks: readonly UserInlineRenderBlock[]) => {
 };
 
 // An async question answer starts with a line that names the call for the
-// model; users see a label and the answer instead.
+// model.
 const splitAsyncAnswer = (
 	blocks: readonly UserInlineRenderBlock[],
 ): { isAsyncAnswer: boolean; blocks: readonly UserInlineRenderBlock[] } => {

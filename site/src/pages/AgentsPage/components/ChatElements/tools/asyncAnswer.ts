@@ -21,7 +21,7 @@ export const parseAsyncAnswer = (text: string): AsyncAnswer | undefined => {
 	return { toolCallId: match[1], body: text.slice(match[0].length) };
 };
 
-/** Returns the answer body when the text answers this call. */
+/** Returns undefined unless the text is an answer to this call. */
 export const getAsyncAnswerText = (
 	responseText: string | undefined,
 	toolCallId: string,

@@ -9,7 +9,7 @@ type AskUserQuestionState = {
 	latestToolId: string | undefined;
 	/** Set only by delivered messages, never by queued ones. */
 	isLatestAnswered: boolean;
-	/** Answer message text by question call ID, from delivered and queued messages. */
+	/** Whole answer messages, prefix line included, from delivered and queued messages. */
 	responseTextByToolId: ReadonlyMap<string, string>;
 };
 
