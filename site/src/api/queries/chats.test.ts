@@ -4928,10 +4928,11 @@ describe("chat message pages", () => {
 		const page = await loadNewestPage();
 
 		expect(getChatMessages).toHaveBeenCalledTimes(1);
-		expect(getChatMessages).toHaveBeenCalledWith("chat-1", {
-			before_id: undefined,
-			limit: 50,
-		});
+		expect(getChatMessages).toHaveBeenCalledWith(
+			"chat-1",
+			{ before_id: undefined, limit: 50 },
+			undefined,
+		);
 		expect(page.messages.map((m) => m.id)).toEqual(
 			Array.from({ length: 50 }, (_, i) => 100 - i),
 		);
@@ -4954,6 +4955,19 @@ describe("chat message pages", () => {
 		expect(nextCursor(page)).toBe(10);
 	});
 
+	it("passes the abort signal to the page and fill requests", async () => {
+		const getChatMessages = serveHistory({ newestId: 300, turnStartId: 10 });
+		const { signal } = new AbortController();
+
+		await fetchNewestChatMessages("chat-1", signal);
+
+		expect(getChatMessages.mock.calls.map(([, , s]) => s)).toEqual([
+			signal,
+			signal,
+			signal,
+		]);
+	});
+
 	it("extends an older page back to its turn prompt", async () => {
 		const getChatMessages = serveHistory({ newestId: 300, turnStartId: 10 });
 
@@ -4972,11 +4986,11 @@ describe("chat message pages", () => {
 		const page = await loadNewestPage();
 
 		expect(getChatMessages).toHaveBeenCalledTimes(6);
-		expect(getChatMessages).toHaveBeenLastCalledWith("chat-1", {
-			after_id: 0,
-			before_id: 1151,
-			limit: 150,
-		});
+		expect(getChatMessages).toHaveBeenLastCalledWith(
+			"chat-1",
+			{ after_id: 0, before_id: 1151, limit: 150 },
+			undefined,
+		);
 		expect(page.messages).toHaveLength(1000);
 		expect(nextCursor(page)).toBe(1001);
 	});
