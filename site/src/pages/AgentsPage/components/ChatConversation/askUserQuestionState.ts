@@ -10,6 +10,8 @@ type AskUserQuestionState = {
 	isLatestAnswered: boolean;
 	/** Whole answer messages, prefix line included, from delivered and queued messages. */
 	responseTextByToolId: ReadonlyMap<string, string>;
+	/** The latest question while it is async, finished, and unanswered. */
+	openAsyncQuestion: MergedTool | undefined;
 };
 
 const getTextContent = (
@@ -44,7 +46,7 @@ export const deriveAskUserQuestionState = (
 	liveTools: readonly MergedTool[],
 	queuedMessages: readonly TypesGen.ChatQueuedMessage[],
 ): AskUserQuestionState => {
-	let latestToolId: string | undefined;
+	let latestTool: MergedTool | undefined;
 	let isLatestAnswered = false;
 	let pendingBlockingToolId: string | undefined;
 	const responseTextByToolId = new Map<string, string>();
@@ -54,7 +56,7 @@ export const deriveAskUserQuestionState = (
 			if (!isValidAskUserQuestion(tool)) {
 				continue;
 			}
-			latestToolId = tool.id;
+			latestTool = tool;
 			isLatestAnswered = false;
 			pendingBlockingToolId = isAsyncAskUserQuestionResult(tool.result)
 				? undefined
@@ -67,7 +69,7 @@ export const deriveAskUserQuestionState = (
 		const asyncAnswer = readAsyncAnswer(message.content);
 		if (asyncAnswer) {
 			responseTextByToolId.set(asyncAnswer.toolCallId, asyncAnswer.messageText);
-			if (asyncAnswer.toolCallId === latestToolId) {
+			if (asyncAnswer.toolCallId === latestTool?.id) {
 				isLatestAnswered = true;
 				pendingBlockingToolId = undefined;
 			}
@@ -87,7 +89,7 @@ export const deriveAskUserQuestionState = (
 		(tool) => isValidAskUserQuestion(tool) && tool.status === "completed",
 	);
 	if (liveQuestion) {
-		latestToolId = liveQuestion.id;
+		latestTool = liveQuestion;
 		isLatestAnswered = false;
 	}
 
@@ -100,5 +102,17 @@ export const deriveAskUserQuestionState = (
 		}
 	}
 
-	return { latestToolId, isLatestAnswered, responseTextByToolId };
+	const openAsyncQuestion =
+		latestTool?.status === "completed" &&
+		isAsyncAskUserQuestionResult(latestTool.result) &&
+		!responseTextByToolId.has(latestTool.id)
+			? latestTool
+			: undefined;
+
+	return {
+		latestToolId: latestTool?.id,
+		isLatestAnswered,
+		responseTextByToolId,
+		openAsyncQuestion,
+	};
 };

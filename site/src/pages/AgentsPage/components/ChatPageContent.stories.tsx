@@ -30,7 +30,12 @@ import {
 import { MessageScroller } from "#/vendor/message-scroller";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { createChatStore } from "./ChatConversation/chatStore";
-import { FIXTURE_NOW } from "./ChatConversation/storyFixtures";
+import {
+	FIXTURE_NOW,
+	MockAsyncQuestionResultMessage,
+	MockQuestionCallMessage,
+	MockWorkingMessages,
+} from "./ChatConversation/storyFixtures";
 import { ChatPageInput, ChatPageTimeline } from "./ChatPageContent";
 
 // These stories cover transcript rendering, so history paging stays idle.
@@ -562,4 +567,46 @@ export const CompactsAtHistoricalModelDefault: Story = {
 		],
 	},
 	render: () => <CompactionChatPageInput />,
+};
+
+const AsyncQuestionChatPage: React.FC<{ className: string }> = ({
+	className,
+}) => {
+	const store = createChatStore();
+	store.replaceMessages([
+		...MockWorkingMessages.slice(0, 1),
+		MockQuestionCallMessage,
+		MockAsyncQuestionResultMessage,
+	]);
+
+	return (
+		<MessageScroller.Provider autoScroll defaultScrollPosition="end">
+			<div className={className}>
+				<ChatPageTimeline
+					organizationId="organization-id"
+					store={store}
+					persistedError={undefined}
+					hasMoreMessages={false}
+					isFetchingMoreMessages={false}
+					isHydratingMessages={false}
+					hasFetchMoreError={false}
+					onFetchMoreMessages={async () => {}}
+					urlTransform={(url) => url}
+					mcpServers={[]}
+					onSendAskUserQuestionResponse={fn()}
+				/>
+				<StoryChatPageInput store={store} />
+			</div>
+		</MessageScroller.Provider>
+	);
+};
+
+export const AsyncQuestionDockedAboveInput: Story = {
+	render: () => <AsyncQuestionChatPage className="flex h-[640px] flex-col" />,
+};
+
+export const AsyncQuestionDockedAboveInputMobile: Story = {
+	render: () => (
+		<AsyncQuestionChatPage className="flex h-[700px] w-[390px] flex-col" />
+	),
 };

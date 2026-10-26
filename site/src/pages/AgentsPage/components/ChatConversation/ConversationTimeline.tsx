@@ -37,6 +37,7 @@ import {
 import {
 	type LiveStatusModel,
 	shouldRenderLiveAssistant,
+	showsStreamOutput,
 } from "./liveStatusModel";
 import {
 	buildDisplayMessages,
@@ -508,12 +509,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			shouldRenderLiveAssistant(liveStatus),
 		);
 
-		// A live turn only reveals its stream blocks once output has accumulated.
-		// Before that the callout and thinking indicator stand in for the turn.
-		const showsStreamOutput =
-			liveStatus.phase === "streaming" || liveStatus.hasAccumulatedOutput;
-		const liveBlocks = showsStreamOutput ? (streamState?.blocks ?? []) : [];
-		const liveTools = showsStreamOutput ? streamTools : [];
+		const isStreamOutputShown = showsStreamOutput(liveStatus);
+		const liveBlocks = isStreamOutputShown ? (streamState?.blocks ?? []) : [];
+		const liveTools = isStreamOutputShown ? streamTools : [];
 
 		const collapseSteps = Boolean(preferences.data?.collapse_assistant_steps);
 		const workingBlocks = collapseSteps
@@ -623,7 +621,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						liveTools={liveTools}
 						latestAskUserQuestionToolId={latestAskUserQuestionToolId}
 						subagentStatusOverrides={
-							showsStreamOutput ? subagentStatusOverrides : undefined
+							isStreamOutputShown ? subagentStatusOverrides : undefined
 						}
 						subagentTitles={subagentTitles}
 						subagentVariants={subagentVariants}

@@ -102,6 +102,7 @@ describe("deriveAskUserQuestionState", () => {
 		expect(state.latestToolId).toBe("async-call");
 		expect(state.isLatestAnswered).toBe(false);
 		expect(state.responseTextByToolId.has("async-call")).toBe(false);
+		expect(state.openAsyncQuestion?.id).toBe("async-call");
 	});
 
 	it("answers an async question with the message that names its call", () => {
@@ -115,6 +116,7 @@ describe("deriveAskUserQuestionState", () => {
 		expect(state.responseTextByToolId.get("async-call")).toBe(
 			answerMessage("async-call"),
 		);
+		expect(state.openAsyncQuestion).toBeUndefined();
 	});
 
 	it("answers a blocking question with the next user message", () => {
@@ -169,6 +171,16 @@ describe("deriveAskUserQuestionState", () => {
 		expect(state.responseTextByToolId.get("async-call")).toBe(
 			answerMessage("async-call"),
 		);
+		expect(state.openAsyncQuestion).toBeUndefined();
+	});
+
+	it("leaves no async question open once a newer blocking one asks", () => {
+		const state = derive([
+			...questionStep("async-call", { async: true }),
+			...questionStep("blocking-call"),
+		]);
+
+		expect(state.openAsyncQuestion).toBeUndefined();
 	});
 
 	it("lets only a valid finished live question supersede the persisted one", () => {

@@ -1,15 +1,29 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
+import { QueryClientProvider } from "react-query";
+import { defaultUrlTransform } from "streamdown";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
-import { renderWithAuth } from "#/testHelpers/renderHelpers";
+import { MockUserPreferenceSettings } from "#/testHelpers/entities";
+import {
+	createTestQueryClient,
+	renderComponent,
+	renderWithAuth,
+} from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
+import { MessageScroller } from "#/vendor/message-scroller";
 import type { ChatMessageInputRef } from "./AgentChatInput";
 import { createChatStore } from "./ChatConversation/chatStore";
-import { ChatPageInput } from "./ChatPageContent";
+import {
+	MockAsyncQuestionResultMessage,
+	MockQuestionCallMessage,
+	MockWorkingMessages,
+} from "./ChatConversation/storyFixtures";
+import { ChatPageInput, ChatPageTimeline } from "./ChatPageContent";
 
 const renderChatPageInput = (
 	store: ReturnType<typeof createChatStore>,
@@ -178,6 +192,120 @@ describe("ChatPageInput", () => {
 				mediaType: "text/csv",
 				workspaceId: "ws-1",
 			},
+		]);
+	});
+});
+
+type AnswerCallback = (message: string) => Promise<void> | void;
+
+const renderChatPageTimeline = (
+	onSendAskUserQuestionResponse?: AnswerCallback,
+) => {
+	const store = createChatStore();
+	store.replaceMessages([
+		...MockWorkingMessages.slice(0, 1),
+		MockQuestionCallMessage,
+		MockAsyncQuestionResultMessage,
+	]);
+	const queryClient = createTestQueryClient();
+	queryClient.setQueryDefaults(preferenceSettingsKey, {
+		staleTime: Number.POSITIVE_INFINITY,
+	});
+	queryClient.setQueryData(preferenceSettingsKey, MockUserPreferenceSettings);
+	const renderStage = (onSend?: AnswerCallback) => (
+		<QueryClientProvider client={queryClient}>
+			<MessageScroller.Provider autoScroll defaultScrollPosition="end">
+				<ChatPageTimeline
+					organizationId="organization-id"
+					store={store}
+					persistedError={undefined}
+					hasMoreMessages={false}
+					isFetchingMoreMessages={false}
+					isHydratingMessages={false}
+					hasFetchMoreError={false}
+					onFetchMoreMessages={async () => {}}
+					urlTransform={defaultUrlTransform}
+					mcpServers={[]}
+					onSendAskUserQuestionResponse={onSend}
+				/>
+			</MessageScroller.Provider>
+		</QueryClientProvider>
+	);
+	const { rerender } = renderComponent(
+		renderStage(onSendAskUserQuestionResponse),
+	);
+	return {
+		rerenderWith: (onSend?: AnswerCallback) => rerender(renderStage(onSend)),
+	};
+};
+
+const getQuestionDock = () =>
+	screen.getByRole("region", { name: "Open question" });
+
+describe("ChatPageTimeline question dock", () => {
+	it("answers the open async question from the dock above the input", async () => {
+		const user = userEvent.setup();
+		const onSendAskUserQuestionResponse = vi.fn();
+		renderChatPageTimeline(onSendAskUserQuestionResponse);
+
+		const dock = getQuestionDock();
+		await user.click(within(dock).getByRole("radio", { name: /^Frontend/ }));
+		await user.click(within(dock).getByRole("button", { name: "Submit" }));
+
+		expect(onSendAskUserQuestionResponse).toHaveBeenCalledWith(
+			"Answer to ask_user_question call question:\nFrontend",
+		);
+	});
+
+	it("leaves the transcript card of a docked question without a form", () => {
+		renderChatPageTimeline(vi.fn());
+
+		expect(screen.getAllByRole("button", { name: "Submit" })).toEqual([
+			within(getQuestionDock()).getByRole("button", { name: "Submit" }),
+		]);
+	});
+
+	it("keeps the dock and its draft while its answer is in flight", async () => {
+		const user = userEvent.setup();
+		let rejectSend: (error: Error) => void = () => {};
+		const onSendAskUserQuestionResponse = vi.fn(
+			() =>
+				new Promise<void>((_resolve, reject) => {
+					rejectSend = reject;
+				}),
+		);
+		const { rerenderWith } = renderChatPageTimeline(
+			onSendAskUserQuestionResponse,
+		);
+
+		await user.click(
+			within(getQuestionDock()).getByRole("radio", { name: /^Frontend/ }),
+		);
+		await user.click(
+			within(getQuestionDock()).getByRole("button", { name: "Submit" }),
+		);
+		// The page withholds the callback while any send is pending.
+		rerenderWith(undefined);
+		await act(async () => rejectSend(new Error("Failed to send.")));
+		rerenderWith(onSendAskUserQuestionResponse);
+		await user.click(
+			within(getQuestionDock()).getByRole("button", { name: "Submit" }),
+		);
+
+		expect(onSendAskUserQuestionResponse).toHaveBeenCalledTimes(2);
+		expect(onSendAskUserQuestionResponse).toHaveBeenNthCalledWith(
+			2,
+			"Answer to ask_user_question call question:\nFrontend",
+		);
+	});
+
+	it("keeps the question in the transcript when the viewer cannot answer it", () => {
+		renderChatPageTimeline(undefined);
+
+		expect(screen.getAllByRole("radiogroup")).toEqual([
+			within(screen.getByRole("region", { name: "Messages" })).getByRole(
+				"radiogroup",
+			),
 		]);
 	});
 });

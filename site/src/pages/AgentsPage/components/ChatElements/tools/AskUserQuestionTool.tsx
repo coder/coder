@@ -4,12 +4,13 @@ import {
 	MessageCircleQuestionIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import { useId, useState } from "react";
+import { useContext, useId, useState } from "react";
 import { useMutation } from "react-query";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import { getAsyncAnswerPrefix, getAsyncAnswerText } from "./asyncAnswer";
+import { DockedAskUserQuestionContext } from "./DockedAskUserQuestionContext";
 import { ToolCall } from "./ToolCall";
 import type { ToolStatus } from "./utils";
 
@@ -384,6 +385,8 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 }) => {
 	const idPrefix = useId();
 	const isAsync = asyncToolCallId !== undefined;
+	const dockedToolCallId = useContext(DockedAskUserQuestionContext);
+	const isDocked = isAsync && asyncToolCallId === dockedToolCallId;
 	const filteredQuestions = questions.map(filterQuestionOptions);
 	const [answers, setAnswers] = useState<Array<QuestionAnswer | undefined>>(
 		() => filteredQuestions.map(getDefaultAnswer),
@@ -594,6 +597,26 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 						No questions available.
 					</p>
 				)}
+			</div>
+		);
+	}
+
+	if (isDocked) {
+		return (
+			<div className="w-full">
+				<div className="space-y-5">
+					{filteredQuestions.map((question, questionIndex) => (
+						<AnsweredQuestionText
+							key={`${question.header}-${question.question}-${questionIndex}`}
+							question={question}
+							questionIndex={questionIndex}
+							idPrefix={idPrefix}
+						/>
+					))}
+				</div>
+				<p className="mt-3 text-[13px] text-content-secondary">
+					Answer in the panel above the chat input.
+				</p>
 			</div>
 		);
 	}

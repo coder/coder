@@ -670,7 +670,22 @@ const ChatSummarizedRenderer: React.FC<ToolRendererProps> = ({
 	);
 };
 
-const AskUserQuestionRenderer: React.FC<ToolRendererProps> = ({
+type AskUserQuestionRendererProps = Pick<
+	ToolRendererProps,
+	| "toolCallId"
+	| "args"
+	| "status"
+	| "result"
+	| "isError"
+	| "onSendAskUserQuestionResponse"
+	| "isChatCompleted"
+	| "isLatestAskUserQuestion"
+	| "previousResponseText"
+>;
+
+export const AskUserQuestionRenderer: React.FC<
+	AskUserQuestionRendererProps
+> = ({
 	toolCallId,
 	args,
 	status,

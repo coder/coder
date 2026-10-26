@@ -39,6 +39,8 @@ import {
 	isUploadInProgress,
 	type UploadState,
 } from "./AgentChatInput";
+import { AskUserQuestionDock } from "./AskUserQuestionDock";
+import { deriveAskUserQuestionState } from "./ChatConversation/askUserQuestionState";
 import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
 import type { ChatDetailError } from "./ChatConversation/chatError";
 import { getLatestContextUsage } from "./ChatConversation/chatHelpers";
@@ -62,7 +64,10 @@ import {
 	LiveStreamTailContent,
 	TerminalStatusRow,
 } from "./ChatConversation/LiveStreamTail";
-import { deriveLiveStatus } from "./ChatConversation/liveStatusModel";
+import {
+	deriveLiveStatus,
+	showsStreamOutput,
+} from "./ChatConversation/liveStatusModel";
 import {
 	buildSubagentMaps,
 	getPendingToolCallIDs,
@@ -77,6 +82,7 @@ import {
 	ACPContext,
 	buildACPSessionDescriptors,
 } from "./ChatElements/tools/ACPContext";
+import { DockedAskUserQuestionContext } from "./ChatElements/tools/DockedAskUserQuestionContext";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import { ChatMessageScroller } from "./ChatMessageScroller";
 import { getWorkspaceOptionsWithLinkedWorkspace } from "./workspaceOptions";
@@ -202,6 +208,22 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 		...streamTools,
 	]);
 	const onRenderProfiler = useOnRenderProfiler();
+	const { openAsyncQuestion } = deriveAskUserQuestionState(
+		parsedMessages,
+		showsStreamOutput(liveStatus) ? streamTools : [],
+		queuedMessages,
+	);
+	const [dockedToolId, setDockedToolId] = useState<string>();
+	// The page withholds the send callback during every pending send, the
+	// dock's own included, so a docked question stays docked until it closes.
+	const dockedQuestion =
+		openAsyncQuestion &&
+		(onSendAskUserQuestionResponse || openAsyncQuestion.id === dockedToolId)
+			? openAsyncQuestion
+			: undefined;
+	if (dockedQuestion?.id !== dockedToolId) {
+		setDockedToolId(dockedQuestion?.id);
+	}
 
 	return (
 		<ACPContext value={acpSessions}>
@@ -219,31 +241,33 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 					   via showDesktopPreviews={false} to avoid a perpetual
 					   "disconnected" state. The MonitorIcon variant still
 					   renders correctly. */}
-					<ConversationTimeline
-						hasMoreMessages={hasMoreMessages}
-						chatStatus={chatStatus}
-						organizationId={organizationId}
-						parsedMessages={parsedMessages}
-						chatFiles={chatFiles}
-						initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
-						streamState={liveStreamState}
-						streamTools={streamTools}
-						liveStatus={liveStatus}
-						subagentStatusOverrides={subagentStatusOverrides}
-						subagentTitles={subagentTitles}
-						subagentVariants={subagentVariants}
-						onEditUserMessage={onEditUserMessage}
-						editingMessageId={editingMessageId}
-						onImplementPlan={onImplementPlan}
-						onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
-						isChatCompleted={isChatCompleted}
-						hasActiveStream={hasStream}
-						isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
-						queuedMessages={queuedMessages}
-						urlTransform={urlTransform}
-						mcpServers={mcpServers}
-						showDesktopPreviews={false}
-					/>
+					<DockedAskUserQuestionContext value={dockedQuestion?.id}>
+						<ConversationTimeline
+							hasMoreMessages={hasMoreMessages}
+							chatStatus={chatStatus}
+							organizationId={organizationId}
+							parsedMessages={parsedMessages}
+							chatFiles={chatFiles}
+							initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
+							streamState={liveStreamState}
+							streamTools={streamTools}
+							liveStatus={liveStatus}
+							subagentStatusOverrides={subagentStatusOverrides}
+							subagentTitles={subagentTitles}
+							subagentVariants={subagentVariants}
+							onEditUserMessage={onEditUserMessage}
+							editingMessageId={editingMessageId}
+							onImplementPlan={onImplementPlan}
+							onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+							isChatCompleted={isChatCompleted}
+							hasActiveStream={hasStream}
+							isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
+							queuedMessages={queuedMessages}
+							urlTransform={urlTransform}
+							mcpServers={mcpServers}
+							showDesktopPreviews={false}
+						/>
+					</DockedAskUserQuestionContext>
 					<TerminalStatusRow liveStatus={liveStatus} />
 				</ChatMessageScroller>
 				{/* The empty state sits outside the scroller content, which holds
@@ -257,6 +281,13 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 					/>
 					{footer}
 				</div>
+				{dockedQuestion && (
+					<AskUserQuestionDock
+						key={dockedQuestion.id}
+						question={dockedQuestion}
+						onSubmitAnswer={onSendAskUserQuestionResponse}
+					/>
+				)}
 			</Profiler>
 		</ACPContext>
 	);

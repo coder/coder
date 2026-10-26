@@ -434,6 +434,36 @@ export const MockQuestionCallMessage: TypesGen.ChatMessage = {
 	],
 };
 
+export const MockAsyncQuestionResultMessage: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	id: 5,
+	role: "tool",
+	created_at: workingFixtureTime(6),
+	content: [
+		{
+			type: "tool-result",
+			tool_call_id: "question",
+			tool_name: "ask_user_question",
+			result: {
+				output: JSON.stringify({
+					questions: [
+						{
+							header: "Scope",
+							question: "Which part should change first?",
+							options: [
+								{ label: "Backend", description: "Change the API first." },
+								{ label: "Frontend", description: "Change the UI first." },
+							],
+						},
+					],
+					async: true,
+				}),
+			},
+			created_at: workingFixtureTime(6),
+		},
+	],
+};
+
 export const buildReconnectState = (
 	overrides: Partial<ReconnectState> = {},
 ): ReconnectState => ({
