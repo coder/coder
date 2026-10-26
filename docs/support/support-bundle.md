@@ -163,7 +163,7 @@ Sign in to your Coder deployment in the extension before collecting a bundle.
   The workspace agent must be reachable.
 
 The extension normally manages the CLI for you.
-If you configure a custom CLI, ensure it meets these requirements.
+If you configure a custom CLI, make sure it meets these requirements.
 
 > [!WARNING]
 > Remote workspace logs are not redacted and can contain credentials or source code.
