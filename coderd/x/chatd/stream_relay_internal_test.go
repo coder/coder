@@ -115,9 +115,11 @@ func TestStreamRelayLivePartsAfterSameEpisodeReselects(t *testing.T) {
 		// episodeParts exceeds what the relay's buffers hold, so every
 		// selection replays enough parts to block the endpoint.
 		episodeParts = 1000
-		// The old code deadlocked within 4 to 384 selections under -race.
+		// The deadlock forms within a few hundred selections, so this
+		// count covers it.
 		reselects = 1000
-		// At testutil.IntervalFast, reselects waits could take testutil.WaitLong.
+		// 1000 waits of 25 ms (testutil.IntervalFast) would use the whole
+		// 25 s context.
 		pollInterval = time.Millisecond
 	)
 
