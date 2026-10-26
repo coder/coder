@@ -21,7 +21,7 @@ type ChatArtifact struct {
 	OwnerUsername  string     `json:"owner_username"`
 	ProjectID      *uuid.UUID `json:"project_id,omitempty" format:"uuid"`
 	// ProjectName is empty when ProjectID is unset.
-	ProjectName   string    `json:"project_name"`
+	ProjectName   string `json:"project_name"`
 	Title         string `json:"title"`
 	LatestVersion int32  `json:"latest_version"`
 	// LatestName and LatestMediaType describe the latest version, so a list
