@@ -43,7 +43,7 @@ import {
 	selectQueuedMessages,
 	selectReconnectState,
 	selectRetryState,
-	selectStreamError,
+	selectShownError,
 	selectStreamState,
 	selectSubagentStatusOverrides,
 	useChatSelector,
@@ -1783,7 +1783,7 @@ describe("useChatStore", () => {
 				});
 				return {
 					chatStatus: useChatSelector(store, selectChatStatus),
-					streamError: useChatSelector(store, selectStreamError),
+					streamError: useChatSelector(store, selectShownError),
 					retryState: useChatSelector(store, selectRetryState),
 				};
 			},
@@ -1868,7 +1868,7 @@ describe("useChatStore", () => {
 					hasStreamState: useChatSelector(store, selectHasStreamState),
 					chatStatus: useChatSelector(store, selectChatStatus),
 					streamState: useChatSelector(store, selectStreamState),
-					streamError: useChatSelector(store, selectStreamError),
+					streamError: useChatSelector(store, selectShownError),
 				};
 			},
 			{ wrapper },
@@ -1990,7 +1990,7 @@ describe("useChatStore", () => {
 				return {
 					chatStatus: useChatSelector(store, selectChatStatus),
 					streamState: useChatSelector(store, selectStreamState),
-					streamError: useChatSelector(store, selectStreamError),
+					streamError: useChatSelector(store, selectShownError),
 				};
 			},
 			{ wrapper },
@@ -2175,7 +2175,7 @@ describe("useChatStore", () => {
 				});
 				return {
 					chatStatus: useChatSelector(store, selectChatStatus),
-					streamError: useChatSelector(store, selectStreamError),
+					streamError: useChatSelector(store, selectShownError),
 				};
 			},
 			{ wrapper },
@@ -2250,7 +2250,7 @@ describe("useChatStore", () => {
 				return {
 					store,
 					chatStatus: useChatSelector(store, selectChatStatus),
-					streamError: useChatSelector(store, selectStreamError),
+					streamError: useChatSelector(store, selectShownError),
 				};
 			},
 			{ wrapper },
@@ -2262,7 +2262,7 @@ describe("useChatStore", () => {
 
 		// A queued send fails while the prior turn is still running.
 		act(() => {
-			result.current.store.setStreamError({
+			result.current.store.setClientError({
 				kind: "generic",
 				message: "Prompt could not be sent.",
 			});
@@ -2317,7 +2317,7 @@ describe("useChatStore", () => {
 				return {
 					store,
 					chatStatus: useChatSelector(store, selectChatStatus),
-					streamError: useChatSelector(store, selectStreamError),
+					streamError: useChatSelector(store, selectShownError),
 				};
 			},
 			{ wrapper },
@@ -2339,7 +2339,7 @@ describe("useChatStore", () => {
 			expect(result.current.chatStatus).toBe("error");
 		});
 		act(() => {
-			result.current.store.setStreamError({
+			result.current.store.setClientError({
 				kind: "generic",
 				message: "Prompt could not be sent.",
 			});
@@ -2381,7 +2381,7 @@ describe("useChatStore", () => {
 					clearChatErrorReason,
 				});
 				return {
-					streamError: useChatSelector(store, selectStreamError),
+					streamError: useChatSelector(store, selectShownError),
 				};
 			},
 			{ wrapper },
@@ -3008,7 +3008,7 @@ describe("useChatStore", () => {
 				});
 				return {
 					store,
-					streamError: useChatSelector(store, selectStreamError),
+					streamError: useChatSelector(store, selectShownError),
 				};
 			},
 			{ wrapper },
@@ -3021,7 +3021,7 @@ describe("useChatStore", () => {
 		const socket1 = sockets[0]!;
 		act(() => {
 			socket1.emitOpen();
-			result.current.store.setStreamError({
+			result.current.store.setClientError({
 				kind: "generic",
 				message: "Stale transport failure.",
 			});
@@ -3074,7 +3074,7 @@ describe("useChatStore", () => {
 					clearChatErrorReason,
 				});
 				return {
-					streamError: useChatSelector(store, selectStreamError),
+					streamError: useChatSelector(store, selectShownError),
 					reconnectState: useChatSelector(store, selectReconnectState),
 				};
 			},
@@ -4579,7 +4579,7 @@ describe("parse errors", () => {
 					clearChatErrorReason,
 				});
 				return {
-					streamError: useChatSelector(store, selectStreamError),
+					streamError: useChatSelector(store, selectShownError),
 					chatStatus: useChatSelector(store, selectChatStatus),
 				};
 			},
@@ -4630,7 +4630,7 @@ describe("parse errors", () => {
 				});
 				return {
 					streamState: useChatSelector(store, selectStreamState),
-					streamError: useChatSelector(store, selectStreamError),
+					streamError: useChatSelector(store, selectShownError),
 				};
 			},
 			{ wrapper },
@@ -4723,7 +4723,7 @@ describe("chat stream contract", () => {
 						(message) => message.id,
 					),
 					status: useChatSelector(store, selectChatStatus),
-					error: useChatSelector(store, selectStreamError),
+					error: useChatSelector(store, selectShownError),
 					retry: useChatSelector(store, selectRetryState),
 					streamState: useChatSelector(store, selectStreamState),
 				};

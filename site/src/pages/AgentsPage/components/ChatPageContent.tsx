@@ -54,7 +54,7 @@ import {
 	selectQueuedMessages,
 	selectReconnectState,
 	selectRetryState,
-	selectStreamError,
+	selectShownError,
 	selectStreamState,
 	selectSubagentStatusOverrides,
 	useChatMessages,
@@ -165,7 +165,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 		selectIsAwaitingFirstStreamChunk,
 	);
 	const streamState = useChatSelector(store, selectStreamState);
-	const streamError = useChatSelector(store, selectStreamError);
+	const shownError = useChatSelector(store, selectShownError);
 	const retryState = useChatSelector(store, selectRetryState);
 	const reconnectState = useChatSelector(store, selectReconnectState);
 	const subagentStatusOverrides = useChatSelector(
@@ -180,7 +180,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 		streamState: liveStreamState,
 		retryState,
 		reconnectState,
-		streamError,
+		streamError: shownError,
 		persistedError: persistedError ?? null,
 		isAwaitingFirstStreamChunk,
 		chatStatus,
