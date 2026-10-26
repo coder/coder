@@ -99,4 +99,13 @@ if ! jq -e '(.overrides // [])[] | select(.context == "title_generation" and .mo
 	fi
 fi
 
+# Prototype branch only: register the MCP Apps demo server that
+# scripts/develop.sh starts on loopback. It is on by default in new chats.
+if ! api GET /api/v2/organizations/default/mcp-servers | jq -e '(. // [])[] | select(.slug == "dice")' >/dev/null; then
+	api POST /api/v2/organizations/default/mcp-servers "$(jq -cn \
+		'{slug: "dice", display_name: "Dice", url: "http://127.0.0.1:8811/mcp", transport: "streamable_http",
+		  auth_type: "none", availability: "default_on", enabled: true}')" >/dev/null
+	echo "seed: created the Dice MCP server" >&2
+fi
+
 echo "seed: done" >&2
