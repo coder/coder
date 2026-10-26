@@ -2973,6 +2973,11 @@ func TestSpawnAgent_ComputerUseAvailableWhileSwitchingValidConfigs(t *testing.T)
 	ids, err := availableSubagentTypeIDs(ctx, server, parentChat)
 	require.NoError(t, err)
 	require.Contains(t, ids, subagentTypeComputerUse)
+
+	// Without the committed switch the check above passes vacuously.
+	selection, err := db.GetChatComputerUseSelection(ctx)
+	require.NoError(t, err)
+	require.Equal(t, openAIProvider.ID.String(), selection.AIProviderID)
 }
 
 type computerUseProviderErrorStore struct {
