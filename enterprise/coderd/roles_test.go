@@ -13,7 +13,6 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -305,61 +304,6 @@ func TestCustomOrganizationRole(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 		require.ErrorContains(t, err, "not allowed to assign organization member permissions for an organization role")
-	})
-
-	// An automation runs as its owner, so no organization role may grant
-	// create or update on chat automations, not even through a wildcard.
-	t.Run("ChatAutomationWritePermissions", func(t *testing.T) {
-		t.Parallel()
-
-		owner, first := coderdenttest.New(t, &coderdenttest.Options{
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureCustomRoles: 1,
-				},
-			},
-		})
-
-		ctx := testutil.Context(t, testutil.WaitMedium)
-
-		for _, perm := range []codersdk.Permission{
-			{ResourceType: codersdk.ResourceChatAutomation, Action: codersdk.ActionUpdate},
-			{ResourceType: codersdk.ResourceChatAutomation, Action: codersdk.ActionCreate},
-			{ResourceType: codersdk.ResourceChatAutomation, Action: codersdk.RBACAction(policy.WildcardSymbol)},
-			{ResourceType: codersdk.ResourceWildcard, Action: codersdk.ActionUpdate},
-		} {
-			role := templateAdminCustom(first.OrganizationID)
-			role.Name = "chat-automation-writer"
-			role.OrganizationPermissions = append(role.OrganizationPermissions, perm)
-
-			//nolint:gocritic // owner is required for this
-			_, err := owner.CreateOrganizationRole(ctx, role)
-			var apiErr *codersdk.Error
-			require.ErrorAs(t, err, &apiErr, "%s:%s", perm.ResourceType, perm.Action)
-			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-			require.Contains(t, apiErr.Message, "cannot grant create or update on chat automations")
-		}
-
-		// Read, disable, and delete are what built-in administrators hold,
-		// so a custom role can grant them.
-		role := templateAdminCustom(first.OrganizationID)
-		role.Name = "chat-automation-stopper"
-		role.OrganizationPermissions = append(role.OrganizationPermissions, codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
-			codersdk.ResourceChatAutomation: {codersdk.ActionRead, codersdk.ActionDisable, codersdk.ActionDelete},
-		})...)
-		//nolint:gocritic // owner is required for this
-		_, err := owner.CreateOrganizationRole(ctx, role)
-		require.NoError(t, err)
-
-		// Updating an existing role is checked the same way.
-		role.OrganizationPermissions = append(role.OrganizationPermissions, codersdk.Permission{
-			ResourceType: codersdk.ResourceChatAutomation, Action: codersdk.ActionUpdate,
-		})
-		//nolint:gocritic // owner is required for this
-		_, err = owner.UpdateOrganizationRole(ctx, role)
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 
 	// System roles are stored in the DB but excluded from the custom

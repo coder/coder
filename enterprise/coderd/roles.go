@@ -334,35 +334,5 @@ func validOrganizationRoleRequest(ctx context.Context, req codersdk.CustomRoleRe
 		return false
 	}
 
-	if perm, ok := chatAutomationWriteGrant(req.OrganizationPermissions); ok {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid request, organization roles cannot grant create or update on chat automations.",
-			Detail: fmt.Sprintf("the permission %s:%s grants %s on every chat automation in the organization, "+
-				"which would let one member create or change automations that run as another member; "+
-				"grant read, disable, or delete instead", perm.ResourceType, perm.Action, perm.Action),
-		})
-		return false
-	}
-
 	return true
-}
-
-// chatAutomationWriteGrant returns the first permission in perms that
-// grants create or update on chat automations, including through a
-// wildcard resource or action. An automation runs as its owner, so these
-// actions are member-level only and no organization role may grant them.
-func chatAutomationWriteGrant(perms []codersdk.Permission) (codersdk.Permission, bool) {
-	for _, perm := range perms {
-		if perm.Negate {
-			continue
-		}
-		if perm.ResourceType != codersdk.ResourceChatAutomation && perm.ResourceType != codersdk.ResourceWildcard {
-			continue
-		}
-		switch perm.Action {
-		case codersdk.ActionCreate, codersdk.ActionUpdate, codersdk.RBACAction(policy.WildcardSymbol):
-			return perm, true
-		}
-	}
-	return codersdk.Permission{}, false
 }
