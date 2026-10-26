@@ -5027,30 +5027,33 @@ describe("chat stream contract", () => {
 			chat_id: chatID,
 			history_reset: { from_message_id: 1 },
 		},
-	])("drops a frame with an unversioned $type event and reconnects without an error", async (unversioned) => {
-		vi.spyOn(Math, "random").mockReturnValue(0.5);
-		const sockets = mockWatchChatWithFreshSockets();
-		const { result } = renderChat(
-			page([buildMessage(chatID, 1, "user", "prompt")]),
-		);
-		await waitFor(() => expect(sockets).toHaveLength(1));
+	])(
+		"drops a frame with an unversioned $type event and reconnects without an error",
+		async (unversioned) => {
+			vi.spyOn(Math, "random").mockReturnValue(0.5);
+			const sockets = mockWatchChatWithFreshSockets();
+			const { result } = renderChat(
+				page([buildMessage(chatID, 1, "user", "prompt")]),
+			);
+			await waitFor(() => expect(sockets).toHaveLength(1));
 
-		act(() => {
-			sockets[0].emitOpen();
-			sockets[0].emitDataBatch([message(2, "assistant", 5), unversioned]);
-		});
-		expect(sockets[0].close).toHaveBeenCalled();
-		expect(result.current.messageIDs).toEqual([1]);
-		expect(result.current.queuedIDs).toEqual([]);
-		expect(result.current.error).toBeNull();
-		act(() => {
-			sockets[0].emitClose();
-		});
+			act(() => {
+				sockets[0].emitOpen();
+				sockets[0].emitDataBatch([message(2, "assistant", 5), unversioned]);
+			});
+			expect(sockets[0].close).toHaveBeenCalled();
+			expect(result.current.messageIDs).toEqual([1]);
+			expect(result.current.queuedIDs).toEqual([]);
+			expect(result.current.error).toBeNull();
+			act(() => {
+				sockets[0].emitClose();
+			});
 
-		await waitFor(() => expect(sockets).toHaveLength(2), { timeout: 3_000 });
-		expect(watchChat).toHaveBeenLastCalledWith(chatID, 4);
-		expect(result.current.error).toBeNull();
-	});
+			await waitFor(() => expect(sockets).toHaveLength(2), { timeout: 3_000 });
+			expect(watchChat).toHaveBeenLastCalledWith(chatID, 4);
+			expect(result.current.error).toBeNull();
+		},
+	);
 
 	it("fails the load of a newest page without a version", async () => {
 		mockWatchChatWithFreshSockets();
