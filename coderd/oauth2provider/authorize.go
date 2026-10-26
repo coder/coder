@@ -195,6 +195,22 @@ func ShowAuthorizePage(accessURL *url.URL) http.HandlerFunc {
 			return
 		}
 
+		if err := codersdk.ValidateRedirectURIScheme(params.redirectURL); err != nil {
+			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+				Status:      http.StatusBadRequest,
+				HideStatus:  false,
+				Title:       "Invalid Callback URL",
+				Description: "The application's registered callback URL has an invalid scheme.",
+				Actions: []site.Action{
+					{
+						URL:  accessURL.String(),
+						Text: "Back to site",
+					},
+				},
+			})
+			return
+		}
+
 		// Checked here as well as on POST, so a request that cannot succeed
 		// fails before the consent page renders.
 		if err := withinSession(httpmw.APIKey(r)); err != nil {
@@ -210,23 +226,7 @@ func ShowAuthorizePage(accessURL *url.URL) http.HandlerFunc {
 			cancelQuery.Add("state", params.state)
 		}
 		cancel.RawQuery = cancelQuery.Encode()
-
 		cancelURI := cancel.String()
-		if err := codersdk.ValidateRedirectURIScheme(cancel); err != nil {
-			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-				Status:      http.StatusBadRequest,
-				HideStatus:  false,
-				Title:       "Invalid Callback URL",
-				Description: "The application's registered callback URL has an invalid scheme.",
-				Actions: []site.Action{
-					{
-						URL:  accessURL.String(),
-						Text: "Back to site",
-					},
-				},
-			})
-			return
-		}
 
 		site.RenderOAuthAllowPage(rw, r, site.RenderOAuthAllowData{
 			AppIcon: app.Icon,
