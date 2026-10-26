@@ -10,6 +10,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -140,23 +141,58 @@ func allSubagentDefinitions() []subagentDefinition {
 				if err != nil {
 					return "", xerrors.Errorf("get computer use provider: %w", err)
 				}
-				if _, _, ok := chattool.DefaultComputerUseModel(codersdk.ChatComputerUseProvider(strings.TrimSpace(rawProvider))); !ok {
+				modelProvider, _, ok := chattool.DefaultComputerUseModel(codersdk.ChatComputerUseProvider(strings.TrimSpace(rawProvider)))
+				if !ok {
 					p.logger.Warn(ctx, "computer-use provider config is unavailable",
 						slog.F("chat_id", currentChat.ID),
 						slog.F("provider", rawProvider),
 					)
 					return `type "computer_use" is unavailable because its provider configuration could not be loaded`, nil
 				}
+				rawAIProviderID, err := p.db.GetChatComputerUseAIProviderID(computerUseConfigContext(ctx))
+				if err != nil {
+					return "", xerrors.Errorf("get computer use AI provider: %w", err)
+				}
+				rawAIProviderID = strings.TrimSpace(rawAIProviderID)
+				if rawAIProviderID == "" {
+					return "", nil
+				}
+				aiProviderID, err := uuid.Parse(rawAIProviderID)
+				if err == nil {
+					_, err = p.enabledAIProviderOfTypeByID(ctx, aiProviderID, modelProvider)
+				}
+				if err != nil {
+					p.logger.Warn(ctx, "computer-use AI provider is unavailable",
+						slog.F("chat_id", currentChat.ID),
+						slog.F("provider", rawProvider),
+						slog.F("ai_provider_id", rawAIProviderID),
+						slog.Error(err),
+					)
+					return `type "computer_use" is unavailable because its selected AI provider is missing, disabled, or does not match the computer use provider type`, nil
+				}
 				return "", nil
 			},
 			buildOptions: func(ctx context.Context, p *Server, currentChat database.Chat, _ database.Chat, _ uuid.UUID, _ *uuid.UUID, prompt string) (childSubagentChatOptions, error) {
-				provider, _, _, err := p.computerUseProviderAndModelFromConfig(ctx)
+				cuConfig, err := p.computerUseProviderAndModelFromConfig(ctx)
 				if err != nil {
 					return childSubagentChatOptions{}, err
 				}
-				providerKeys, err := p.resolveUserProviderAPIKeysForProviderType(ctx, currentChat.OwnerID, string(provider))
-				if err != nil {
-					return childSubagentChatOptions{}, err
+				provider := cuConfig.provider
+				var providerKeys chatprovider.ProviderAPIKeys
+				if cuConfig.aiProviderID.Valid {
+					aiProvider, err := p.enabledAIProviderOfTypeByID(ctx, cuConfig.aiProviderID.UUID, cuConfig.modelProvider)
+					if err != nil {
+						return childSubagentChatOptions{}, xerrors.Errorf("get computer-use AI provider: %w", err)
+					}
+					providerKeys, err = p.resolveUserProviderAPIKeysForProvider(ctx, currentChat.OwnerID, aiProvider)
+					if err != nil {
+						return childSubagentChatOptions{}, err
+					}
+				} else {
+					providerKeys, err = p.resolveUserProviderAPIKeysForProviderType(ctx, currentChat.OwnerID, string(provider))
+					if err != nil {
+						return childSubagentChatOptions{}, err
+					}
 				}
 				if !userCanUseProviderKeys(providerKeys, string(provider)) {
 					return childSubagentChatOptions{}, xerrors.Errorf(

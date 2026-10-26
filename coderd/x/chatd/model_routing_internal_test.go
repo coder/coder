@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -29,17 +30,19 @@ import (
 )
 
 type aibridgeTestFactory struct {
-	mu           sync.Mutex
-	providerName string
-	source       aibridge.Source
-	err          error
-	rt           http.RoundTripper
+	mu            sync.Mutex
+	providerName  string
+	providerNames []string
+	source        aibridge.Source
+	err           error
+	rt            http.RoundTripper
 }
 
 func (f *aibridgeTestFactory) TransportFor(providerName string, source aibridge.Source) (http.RoundTripper, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.providerName = providerName
+	f.providerNames = append(f.providerNames, providerName)
 	f.source = source
 	if f.err != nil {
 		return nil, f.err
@@ -51,6 +54,14 @@ func (f *aibridgeTestFactory) recorded() (providerName string, source aibridge.S
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.providerName, f.source
+}
+
+// recordedProviders returns every provider name a transport was built for,
+// in order.
+func (f *aibridgeTestFactory) recordedProviders() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.providerNames)
 }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)

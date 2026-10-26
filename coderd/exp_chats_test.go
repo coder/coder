@@ -16630,6 +16630,64 @@ func TestChatComputerUseProvider(t *testing.T) {
 		}
 	})
 
+	t.Run("AdminCanSelectAndClearAIProvider", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient, db := newChatClientWithDatabase(t)
+		coderdtest.CreateFirstUser(t, adminClient.Client)
+		provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+
+		err := adminClient.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{
+			Provider:     codersdk.ChatComputerUseProviderAnthropic,
+			AIProviderID: &provider.ID,
+		})
+		require.NoError(t, err)
+		resp, err := adminClient.GetChatComputerUseProvider(ctx)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatComputerUseProviderAnthropic, resp.Provider)
+		require.Equal(t, &provider.ID, resp.AIProviderID)
+
+		err = adminClient.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{
+			Provider: codersdk.ChatComputerUseProviderAnthropic,
+		})
+		require.NoError(t, err)
+		resp, err = adminClient.GetChatComputerUseProvider(ctx)
+		require.NoError(t, err)
+		require.Nil(t, resp.AIProviderID)
+	})
+
+	t.Run("InvalidAIProviderRejected", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient, db := newChatClientWithDatabase(t)
+		coderdtest.CreateFirstUser(t, adminClient.Client)
+		openAIProvider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeOpenai})
+		disabledProvider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic}, func(p *database.InsertAIProviderParams) {
+			p.Enabled = false
+		})
+		unknownID := uuid.New()
+
+		for name, id := range map[string]uuid.UUID{
+			"TypeMismatch": openAIProvider.ID,
+			"Disabled":     disabledProvider.ID,
+			"Unknown":      unknownID,
+		} {
+			err := adminClient.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{
+				Provider:     codersdk.ChatComputerUseProviderAnthropic,
+				AIProviderID: &id,
+			})
+			requireSDKError(t, err, http.StatusBadRequest)
+			var sdkErr *codersdk.Error
+			require.ErrorAs(t, err, &sdkErr, name)
+			require.Equal(t, "Invalid computer use AI provider.", sdkErr.Message, name)
+		}
+		resp, err := adminClient.GetChatComputerUseProvider(ctx)
+		require.NoError(t, err)
+		require.Nil(t, resp.AIProviderID)
+	})
+
 	t.Run("NonAdminCanRead", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)

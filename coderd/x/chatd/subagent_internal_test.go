@@ -2836,6 +2836,94 @@ func TestSpawnAgent_ComputerUseRejectsInvalidConfiguredProviderWithStableReason(
 	))
 }
 
+// The computer_use key check must use the selected AI provider even when an
+// alphabetically earlier provider of the same type has a usable key.
+func TestSpawnAgent_ComputerUseKeyCheckUsesSelectedAIProvider(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	user, org, model := seedInternalChatDeps(t, db)
+	insertEnabledAnthropicProvider(t, db, user.ID)
+	selected := insertInternalAIProvider(t, db, database.AIProviderTypeAnthropic, "", true)
+	require.NoError(t, db.UpsertChatComputerUseProvider(ctx, string(codersdk.ChatComputerUseProviderAnthropic)))
+	require.NoError(t, db.UpsertChatComputerUseAIProviderID(ctx, selected.ID.String()))
+	parentChat := createInternalParentChat(
+		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-selected-provider-key",
+	)
+
+	resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
+		Type:   subagentTypeComputerUse,
+		Prompt: "open the browser",
+	})
+	require.True(t, resp.IsError)
+	require.Contains(t, resp.Content, "API key")
+	require.Contains(t, resp.Content, "computer-use")
+}
+
+func TestSpawnAgent_ComputerUseUnavailableForUnusableSelectedAIProvider(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		selected func(t *testing.T, db database.Store) uuid.UUID
+	}{
+		{
+			name: "Disabled",
+			selected: func(t *testing.T, db database.Store) uuid.UUID {
+				return insertInternalAIProvider(t, db, database.AIProviderTypeAnthropic, "test-key", false).ID
+			},
+		},
+		{
+			name: "TypeMismatch",
+			selected: func(t *testing.T, db database.Store) uuid.UUID {
+				return insertInternalAIProvider(t, db, database.AIProviderTypeOpenai, "test-key", true).ID
+			},
+		},
+		{
+			name: "Missing",
+			selected: func(*testing.T, database.Store) uuid.UUID {
+				return uuid.New()
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, ps := dbtestutil.NewDB(t)
+			ctx := chatdTestContext(t)
+			logSink := &subagentTestLogSink{}
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(logSink)
+			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerLogger(logger))
+
+			user, org, model := seedInternalChatDeps(t, db)
+			insertEnabledAnthropicProvider(t, db, user.ID)
+			require.NoError(t, db.UpsertChatComputerUseProvider(ctx, string(codersdk.ChatComputerUseProviderAnthropic)))
+			require.NoError(t, db.UpsertChatComputerUseAIProviderID(ctx, tt.selected(t, db).String()))
+			parentChat := createInternalParentChat(
+				ctx, t, server, db, org.ID, user.ID, model.ID, "parent-unusable-selected-provider",
+			)
+
+			ids, err := availableSubagentTypeIDs(ctx, server, parentChat)
+			require.NoError(t, err)
+			require.NotContains(t, ids, subagentTypeComputerUse)
+			resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
+				Type:   subagentTypeComputerUse,
+				Prompt: "open the browser",
+			})
+			require.True(t, resp.IsError)
+			require.Contains(t, resp.Content, `type "computer_use" is unavailable because its selected AI provider`)
+			require.NotEmpty(t, logSink.entriesAtLevelWithMessage(
+				slog.LevelWarn,
+				"computer-use AI provider is unavailable",
+			))
+		})
+	}
+}
+
 type computerUseProviderErrorStore struct {
 	database.Store
 }

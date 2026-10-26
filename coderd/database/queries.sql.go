@@ -28071,6 +28071,20 @@ func (q *sqlQuerier) GetChatAutoArchiveDays(ctx context.Context, defaultAutoArch
 	return auto_archive_days, err
 }
 
+const getChatComputerUseAIProviderID = `-- name: GetChatComputerUseAIProviderID :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_computer_use_ai_provider_id'), '') :: text AS ai_provider_id
+`
+
+// GetChatComputerUseAIProviderID returns the ID of the AI provider selected
+// for computer use, or ” when no specific provider is selected.
+func (q *sqlQuerier) GetChatComputerUseAIProviderID(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChatComputerUseAIProviderID)
+	var ai_provider_id string
+	err := row.Scan(&ai_provider_id)
+	return ai_provider_id, err
+}
+
 const getChatComputerUseProvider = `-- name: GetChatComputerUseProvider :one
 SELECT
 	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_computer_use_provider'), '') :: text AS provider
@@ -28207,6 +28221,7 @@ WHERE site_configs.key = $1
         'agents_chat_auto_archive_days',
         'agents_workspace_ttl',
         'agents_computer_use_provider',
+        'agents_computer_use_ai_provider_id',
         'agents_chat_debug_logging_allow_users',
         'agents_chat_personal_model_overrides_enabled'
     )
@@ -28574,6 +28589,16 @@ WHERE site_configs.key = 'agents_chat_auto_archive_days'
 
 func (q *sqlQuerier) UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDays int32) error {
 	_, err := q.db.ExecContext(ctx, upsertChatAutoArchiveDays, autoArchiveDays)
+	return err
+}
+
+const upsertChatComputerUseAIProviderID = `-- name: UpsertChatComputerUseAIProviderID :exec
+INSERT INTO site_configs (key, value) VALUES ('agents_computer_use_ai_provider_id', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_computer_use_ai_provider_id'
+`
+
+func (q *sqlQuerier) UpsertChatComputerUseAIProviderID(ctx context.Context, aiProviderID string) error {
+	_, err := q.db.ExecContext(ctx, upsertChatComputerUseAIProviderID, aiProviderID)
 	return err
 }
 

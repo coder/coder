@@ -257,6 +257,16 @@ SELECT
 INSERT INTO site_configs (key, value) VALUES ('agents_computer_use_provider', sqlc.arg(provider))
 ON CONFLICT (key) DO UPDATE SET value = sqlc.arg(provider) WHERE site_configs.key = 'agents_computer_use_provider';
 
+-- GetChatComputerUseAIProviderID returns the ID of the AI provider selected
+-- for computer use, or '' when no specific provider is selected.
+-- name: GetChatComputerUseAIProviderID :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_computer_use_ai_provider_id'), '') :: text AS ai_provider_id;
+
+-- name: UpsertChatComputerUseAIProviderID :exec
+INSERT INTO site_configs (key, value) VALUES ('agents_computer_use_ai_provider_id', sqlc.arg(ai_provider_id))
+ON CONFLICT (key) DO UPDATE SET value = sqlc.arg(ai_provider_id) WHERE site_configs.key = 'agents_computer_use_ai_provider_id';
+
 -- GetChatDebugLoggingAllowUsers returns the runtime admin setting that
 -- allows users to opt into chat debug logging when the deployment does
 -- not already force debug logging on globally.
@@ -412,6 +422,7 @@ WHERE site_configs.key = sqlc.arg(config_key)
         'agents_chat_auto_archive_days',
         'agents_workspace_ttl',
         'agents_computer_use_provider',
+        'agents_computer_use_ai_provider_id',
         'agents_chat_debug_logging_allow_users',
         'agents_chat_personal_model_overrides_enabled'
     );

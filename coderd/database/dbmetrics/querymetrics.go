@@ -1576,6 +1576,14 @@ func (m queryMetricsStore) GetChatByIDForUpdate(ctx context.Context, id uuid.UUI
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatComputerUseAIProviderID(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatComputerUseAIProviderID(ctx)
+	m.queryLatencies.WithLabelValues("GetChatComputerUseAIProviderID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatComputerUseAIProviderID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatComputerUseProvider(ctx context.Context) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatComputerUseProvider(ctx)
@@ -6742,6 +6750,14 @@ func (m queryMetricsStore) UpsertChatAutoArchiveDays(ctx context.Context, autoAr
 	r0 := m.s.UpsertChatAutoArchiveDays(ctx, autoArchiveDays)
 	m.queryLatencies.WithLabelValues("UpsertChatAutoArchiveDays").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatAutoArchiveDays").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpsertChatComputerUseAIProviderID(ctx context.Context, aiProviderID string) error {
+	start := time.Now()
+	r0 := m.s.UpsertChatComputerUseAIProviderID(ctx, aiProviderID)
+	m.queryLatencies.WithLabelValues("UpsertChatComputerUseAIProviderID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatComputerUseAIProviderID").Inc()
 	return r0
 }
 

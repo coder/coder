@@ -5753,6 +5753,7 @@ const (
 	chatOperationalSettingChatAutoArchiveDays           chatOperationalSetting = "agents_chat_auto_archive_days"
 	chatOperationalSettingWorkspaceTTL                  chatOperationalSetting = "agents_workspace_ttl"
 	chatOperationalSettingComputerUseProvider           chatOperationalSetting = "agents_computer_use_provider"
+	chatOperationalSettingComputerUseAIProviderID       chatOperationalSetting = "agents_computer_use_ai_provider_id"
 	chatOperationalSettingDebugLoggingAllowUsers        chatOperationalSetting = "agents_chat_debug_logging_allow_users"
 	chatOperationalSettingPersonalModelOverridesEnabled chatOperationalSetting = "agents_chat_personal_model_overrides_enabled"
 )
@@ -5769,6 +5770,8 @@ func (s chatOperationalSetting) defaultValue() string {
 		return "0s"
 	case chatOperationalSettingComputerUseProvider:
 		return string(chattool.DefaultComputerUseProvider(""))
+	case chatOperationalSettingComputerUseAIProviderID:
+		return ""
 	case chatOperationalSettingDebugLoggingAllowUsers,
 		chatOperationalSettingPersonalModelOverridesEnabled:
 		return "false"
@@ -5777,8 +5780,7 @@ func (s chatOperationalSetting) defaultValue() string {
 	}
 }
 
-func (s chatOperationalSetting) auditValue(value string, id uuid.UUID) database.ChatOperationalSettings {
-	settings := database.ChatOperationalSettings{ID: id}
+func (s chatOperationalSetting) setAuditValue(settings *database.ChatOperationalSettings, value string) {
 	switch s {
 	case chatOperationalSettingChatRetentionDays:
 		settings.ChatRetentionDays = value
@@ -5790,6 +5792,8 @@ func (s chatOperationalSetting) auditValue(value string, id uuid.UUID) database.
 		settings.WorkspaceTTL = value
 	case chatOperationalSettingComputerUseProvider:
 		settings.ComputerUseProvider = value
+	case chatOperationalSettingComputerUseAIProviderID:
+		settings.ComputerUseAIProviderID = value
 	case chatOperationalSettingDebugLoggingAllowUsers:
 		settings.DebugLoggingAllowUsers = value
 	case chatOperationalSettingPersonalModelOverridesEnabled:
@@ -5797,7 +5801,13 @@ func (s chatOperationalSetting) auditValue(value string, id uuid.UUID) database.
 	default:
 		panic(fmt.Sprintf("unknown chat operational setting %q", s))
 	}
-	return settings
+}
+
+// chatOperationalSettingChange is one setting value written by
+// auditedChatOperationalSettingsWrite.
+type chatOperationalSettingChange struct {
+	setting chatOperationalSetting
+	value   string
 }
 
 // auditedChatOperationalSettingWrite captures the effective old value and
@@ -5811,24 +5821,58 @@ func (api *API) auditedChatOperationalSettingWrite(
 	newValue string,
 	write func(database.Store) error,
 ) error {
+	return api.auditedChatOperationalSettingsWrite(
+		ctx, aReq, commitAudit,
+		[]chatOperationalSettingChange{{setting: setting, value: newValue}},
+		write,
+	)
+}
+
+// auditedChatOperationalSettingsWrite captures the effective old values of
+// several settings and performs the write in one transaction with one audit
+// entry. It suppresses the audit entry when no effective value changes.
+func (api *API) auditedChatOperationalSettingsWrite(
+	ctx context.Context,
+	aReq *audit.Request[database.ChatOperationalSettings],
+	commitAudit func(bool),
+	changes []chatOperationalSettingChange,
+	write func(database.Store) error,
+) error {
+	// Lock keys in a fixed order so concurrent multi-setting writes cannot
+	// deadlock each other.
+	changes = slices.Clone(changes)
+	slices.SortFunc(changes, func(a, b chatOperationalSettingChange) int {
+		return strings.Compare(string(a.setting), string(b.setting))
+	})
+
 	var noChange bool
 	lockCtx, lockCancel := context.WithTimeout(ctx, chatOperationalSettingsLockTimeout)
 	defer lockCancel()
 
 	err := api.Database.InTx(func(tx database.Store) error {
-		if err := tx.AcquireLock(lockCtx, database.GenLockID(string(setting))); err != nil {
-			return xerrors.Errorf("acquire chat operational setting write lock: %w", err)
-		}
+		oldSettings := database.ChatOperationalSettings{ID: uuid.Nil}
+		newSettings := database.ChatOperationalSettings{ID: aReq.New.ID}
+		changed := false
+		for _, change := range changes {
+			if err := tx.AcquireLock(lockCtx, database.GenLockID(string(change.setting))); err != nil {
+				return xerrors.Errorf("acquire chat operational setting write lock: %w", err)
+			}
 
-		old, err := tx.GetChatSiteConfigValue(ctx, string(setting))
-		if err != nil {
-			return err
+			old, err := tx.GetChatSiteConfigValue(ctx, string(change.setting))
+			if err != nil {
+				return err
+			}
+			oldValue := old.Value
+			if !old.Exists {
+				oldValue = change.setting.defaultValue()
+			}
+			if oldValue != change.value {
+				changed = true
+			}
+			change.setting.setAuditValue(&oldSettings, oldValue)
+			change.setting.setAuditValue(&newSettings, change.value)
 		}
-		oldValue := old.Value
-		if !old.Exists {
-			oldValue = setting.defaultValue()
-		}
-		if oldValue == newValue {
+		if !changed {
 			noChange = true
 			return nil
 		}
@@ -5836,8 +5880,8 @@ func (api *API) auditedChatOperationalSettingWrite(
 			return err
 		}
 
-		aReq.Old = setting.auditValue(oldValue, uuid.Nil)
-		aReq.New = setting.auditValue(newValue, aReq.New.ID)
+		aReq.Old = oldSettings
+		aReq.New = newSettings
 		return nil
 	}, nil)
 	if err != nil {
@@ -6146,9 +6190,21 @@ func (api *API) getChatComputerUseProvider(rw http.ResponseWriter, r *http.Reque
 		})
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatComputerUseProviderResponse{
+	aiProviderID, err := api.Database.GetChatComputerUseAIProviderID(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching computer use AI provider.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	resp := codersdk.ChatComputerUseProviderResponse{
 		Provider: chattool.DefaultComputerUseProvider(codersdk.ChatComputerUseProvider(provider)),
-	})
+	}
+	if id, err := uuid.Parse(aiProviderID); err == nil {
+		resp.AIProviderID = &id
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -6168,6 +6224,68 @@ func (api *API) putChatComputerUseProvider(rw http.ResponseWriter, r *http.Reque
 			value := string(req.Provider)
 			return value, func(tx database.Store) error { return tx.UpsertChatComputerUseProvider(ctx, value) }, nil
 		})
+		return
+	}
+
+	var aiProviderID string
+	if req.AIProviderID != nil {
+		provider, err := api.Database.GetAIProviderByID(ctx, *req.AIProviderID)
+		if httpapi.Is404Error(err) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid computer use AI provider.",
+				Detail:  fmt.Sprintf("AI provider %s does not exist.", *req.AIProviderID),
+			})
+			return
+		}
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching computer use AI provider.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if !provider.Enabled {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid computer use AI provider.",
+				Detail:  fmt.Sprintf("AI provider %q is disabled.", provider.Name),
+			})
+			return
+		}
+		if chatprovider.NormalizeProvider(string(provider.Type)) != string(req.Provider) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid computer use AI provider.",
+				Detail: fmt.Sprintf(
+					"AI provider %q has type %q, but the computer use provider is %q.",
+					provider.Name, provider.Type, req.Provider,
+				),
+			})
+			return
+		}
+		aiProviderID = provider.ID.String()
+	}
+
+	value := string(req.Provider)
+	err := api.auditedChatOperationalSettingsWrite(
+		ctx, aReq, commitAudit,
+		[]chatOperationalSettingChange{
+			{setting: chatOperationalSettingComputerUseProvider, value: value},
+			{setting: chatOperationalSettingComputerUseAIProviderID, value: aiProviderID},
+		},
+		func(tx database.Store) error {
+			if err := tx.UpsertChatComputerUseProvider(ctx, value); err != nil {
+				return err
+			}
+			return tx.UpsertChatComputerUseAIProviderID(ctx, aiProviderID)
+		},
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating computer use provider.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 func (api *API) deploymentChatDebugLoggingEnabled() bool {

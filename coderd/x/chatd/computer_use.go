@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -29,29 +30,61 @@ func computerUseConfigContext(ctx context.Context) context.Context {
 	return dbauthz.AsChatd(ctx)
 }
 
+// computerUseConfig is the deployment-wide computer-use configuration.
+type computerUseConfig struct {
+	provider      codersdk.ChatComputerUseProvider
+	modelProvider string
+	modelName     string
+	// aiProviderID is the AI provider selected for computer use. When
+	// invalid, computer use routes to the first enabled AI provider of
+	// the provider type.
+	aiProviderID uuid.NullUUID
+}
+
 func (p *Server) computerUseProviderAndModelFromConfig(
 	ctx context.Context,
-) (provider codersdk.ChatComputerUseProvider, modelProvider, modelName string, err error) {
-	rawProvider, err := p.db.GetChatComputerUseProvider(
-		computerUseConfigContext(ctx),
-	)
+) (computerUseConfig, error) {
+	configCtx := computerUseConfigContext(ctx)
+	rawProvider, err := p.db.GetChatComputerUseProvider(configCtx)
 	if err != nil {
-		return "", "", "", xerrors.Errorf("get computer use provider: %w", err)
+		return computerUseConfig{}, xerrors.Errorf("get computer use provider: %w", err)
 	}
 
-	provider = chattool.DefaultComputerUseProvider(
+	provider := chattool.DefaultComputerUseProvider(
 		codersdk.ChatComputerUseProvider(strings.TrimSpace(rawProvider)),
 	)
 
 	modelProvider, modelName, ok := chattool.DefaultComputerUseModel(provider)
 	if !ok {
-		return "", "", "", xerrors.Errorf(
+		return computerUseConfig{}, xerrors.Errorf(
 			"unknown computer-use provider %q configured in agents_computer_use_provider",
 			provider,
 		)
 	}
 
-	return provider, modelProvider, modelName, nil
+	rawAIProviderID, err := p.db.GetChatComputerUseAIProviderID(configCtx)
+	if err != nil {
+		return computerUseConfig{}, xerrors.Errorf("get computer use AI provider: %w", err)
+	}
+	var aiProviderID uuid.NullUUID
+	if trimmed := strings.TrimSpace(rawAIProviderID); trimmed != "" {
+		id, err := uuid.Parse(trimmed)
+		if err != nil {
+			return computerUseConfig{}, xerrors.Errorf(
+				"invalid computer-use AI provider ID %q configured in agents_computer_use_ai_provider_id: %w",
+				trimmed,
+				err,
+			)
+		}
+		aiProviderID = uuid.NullUUID{UUID: id, Valid: true}
+	}
+
+	return computerUseConfig{
+		provider:      provider,
+		modelProvider: modelProvider,
+		modelName:     modelName,
+		aiProviderID:  aiProviderID,
+	}, nil
 }
 
 type computerUseProviderToolOptions struct {

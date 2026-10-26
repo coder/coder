@@ -1420,12 +1420,19 @@ func (p ChatComputerUseProvider) Valid() bool {
 // provider setting.
 type ChatComputerUseProviderResponse struct {
 	Provider ChatComputerUseProvider `json:"provider"`
+	// AIProviderID is the configured AI provider used for computer use.
+	// When unset, computer use uses the first enabled AI provider of
+	// Provider's type.
+	AIProviderID *uuid.UUID `json:"ai_provider_id,omitempty" format:"uuid"`
 }
 
 // UpdateChatComputerUseProviderRequest is the request to update the computer use
 // provider setting.
 type UpdateChatComputerUseProviderRequest struct {
 	Provider ChatComputerUseProvider `json:"provider"`
+	// AIProviderID selects the enabled AI provider used for computer use.
+	// Its type must match Provider. Omitting it clears the selection.
+	AIProviderID *uuid.UUID `json:"ai_provider_id,omitempty" format:"uuid"`
 }
 
 // ChatDebugLoggingAdminSettings describes the runtime admin setting

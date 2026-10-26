@@ -468,6 +468,9 @@ type sqlcQuerier interface {
 	GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatByIDForShare(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error)
+	// GetChatComputerUseAIProviderID returns the ID of the AI provider selected
+	// for computer use, or '' when no specific provider is selected.
+	GetChatComputerUseAIProviderID(ctx context.Context) (string, error)
 	GetChatComputerUseProvider(ctx context.Context) (string, error)
 	// GetChatDebugLoggingAllowUsers returns the runtime admin setting that
 	// allows users to opt into chat debug logging when the deployment does
@@ -1801,6 +1804,7 @@ type sqlcQuerier interface {
 	// to JSON before invoking this query.
 	UpsertChatAdvisorConfig(ctx context.Context, value string) error
 	UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDays int32) error
+	UpsertChatComputerUseAIProviderID(ctx context.Context, aiProviderID string) error
 	UpsertChatComputerUseProvider(ctx context.Context, provider string) error
 	// UpsertChatDebugLoggingAllowUsers updates the runtime admin setting that
 	// allows users to opt into chat debug logging.

@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/codersdk"
 	entaudit "github.com/coder/coder/v2/enterprise/audit"
@@ -252,6 +253,28 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 			require.Empty(t, fixture.auditLogs(t))
 		})
 	}
+
+	// Switching the provider type and selecting a specific AI provider is one
+	// write, so both fields land in a single audit entry.
+	t.Run("ComputerUseAIProviderID", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newChatOperationalSettingsAuditFixture(t)
+		provider := dbgen.AIProvider(t, fixture.db, database.AIProvider{Type: database.AIProviderTypeOpenai})
+		require.NoError(t, fixture.client.UpdateChatComputerUseProvider(fixture.ctx, codersdk.UpdateChatComputerUseProviderRequest{
+			Provider:     codersdk.ChatComputerUseProviderOpenAI,
+			AIProviderID: &provider.ID,
+		}))
+
+		log := fixture.onlyAuditLog(t)
+		var diff audit.Map
+		require.NoError(t, json.Unmarshal(log.Diff, &diff))
+		require.Equal(t, audit.Map{
+			"computer_use_provider":       {Old: string(codersdk.ChatComputerUseProviderAnthropic), New: string(codersdk.ChatComputerUseProviderOpenAI)},
+			"computer_use_ai_provider_id": {Old: "", New: provider.ID.String()},
+		}, diff)
+		require.EqualValues(t, 204, log.StatusCode)
+	})
 
 	t.Run("InvalidWrite", func(t *testing.T) {
 		t.Parallel()

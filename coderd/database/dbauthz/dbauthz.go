@@ -3365,6 +3365,15 @@ func (q *querier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (datab
 	return fetch(q.log, q.auth, q.db.GetChatByIDForUpdate)(ctx, id)
 }
 
+func (q *querier) GetChatComputerUseAIProviderID(ctx context.Context) (string, error) {
+	// Read by authenticated chat users and chatd alongside the computer-use
+	// provider type, so it follows the same explicit-actor rule.
+	if _, ok := ActorFromContext(ctx); !ok {
+		return "", ErrNoActor
+	}
+	return q.db.GetChatComputerUseAIProviderID(ctx)
+}
+
 func (q *querier) GetChatComputerUseProvider(ctx context.Context) (string, error) {
 	// The computer-use provider is a deployment-wide runtime chat setting
 	// read by authenticated chat users and chatd. Feature and experiment
@@ -9503,6 +9512,13 @@ func (q *querier) UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDays
 		return err
 	}
 	return q.db.UpsertChatAutoArchiveDays(ctx, autoArchiveDays)
+}
+
+func (q *querier) UpsertChatComputerUseAIProviderID(ctx context.Context, aiProviderID string) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertChatComputerUseAIProviderID(ctx, aiProviderID)
 }
 
 func (q *querier) UpsertChatComputerUseProvider(ctx context.Context, provider string) error {
