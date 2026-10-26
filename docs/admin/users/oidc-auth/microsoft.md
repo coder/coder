@@ -23,7 +23,9 @@ This guide shows how to configure Coder to authenticate users with Microsoft Ent
 8. Once it's created, copy the value and save it somewhere secure for the next step
 9. Next, select the tab labeled "Token Configuration", then select "Add optional claim".
 10. Select the "ID" radio button, and finally check "upn" and hit "add" at the bottom
-11. Then, select the button labeled "Add groups claim" and check "Security groups" and select "Save" at the bottom
+11. Select the button labeled **Add groups claim**.
+12. Check **Security groups**.
+13. Select **Save**.
 12. Now, select the tab labeled "Authentication" and select "Add a platform".
 13. Select "Web" and for the redirect URI enter your Coder callback URL.
 14. Then hit "Configure" at the bottom:
