@@ -66,6 +66,11 @@ const mockDisabledGatewayAnthropicProvider: AIProvider = {
 	...mockGatewayAnthropicProvider,
 	enabled: false,
 };
+const mockBackupGatewayAnthropicProvider: AIProvider = {
+	...mockGatewayAnthropicProvider,
+	id: "9b2f4c1d-6e3a-4f5b-8c7d-0e1f2a3b4c5d",
+	name: "anthropic-gateway-backup",
+};
 const mockTeamOpenAIProvider: AIProvider = {
 	...MockAIProviderOpenAI,
 	display_name: "Team OpenAI",
@@ -323,6 +328,40 @@ export const VirtualDesktopSelectedProviderUnavailable: Story = {
 			provider: "anthropic",
 			ai_provider_id: mockGatewayAnthropicProvider.id,
 		},
+	},
+};
+
+export const VirtualDesktopStoredTypeMismatch: Story = {
+	args: {
+		showAdvisorSettings: false,
+		showVirtualDesktopSettings: true,
+		aiProviders: mockVirtualDesktopProviders,
+		computerUseProviderData: {
+			provider: "openai",
+			ai_provider_id: mockGatewayAnthropicProvider.id,
+		},
+	},
+};
+
+export const VirtualDesktopDuplicateDisplayNames: Story = {
+	args: {
+		showAdvisorSettings: false,
+		showVirtualDesktopSettings: true,
+		aiProviders: [
+			mockGatewayAnthropicProvider,
+			mockBackupGatewayAnthropicProvider,
+		],
+		computerUseProviderData: {
+			provider: "anthropic",
+			ai_provider_id: mockGatewayAnthropicProvider.id,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("combobox", {
+				name: "Computer use provider",
+			}),
+		);
 	},
 };
 

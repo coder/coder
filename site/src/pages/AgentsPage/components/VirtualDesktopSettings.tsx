@@ -1,5 +1,5 @@
 import { useFormik } from "formik";
-import { useId } from "react";
+import { useId, useRef } from "react";
 import { Link as RouterLink } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatComputerUseProviders } from "#/api/typesGenerated";
@@ -21,6 +21,7 @@ import { formatProviderLabel } from "#/utils/aiProviders";
 type MutationCallbacks = {
 	onSuccess?: () => void;
 	onError?: () => void;
+	onSettled?: () => void;
 };
 
 type VirtualDesktopSettingsProps = {
@@ -46,8 +47,8 @@ type ComputerUseAIProvider = {
 
 const getEligibleComputerUseProviders = (
 	providers: readonly TypesGen.AIProvider[],
-): ComputerUseAIProvider[] =>
-	providers.flatMap((provider) => {
+): ComputerUseAIProvider[] => {
+	const eligible = providers.flatMap((provider) => {
 		const type = ChatComputerUseProviders.find(
 			(computerUseType) => computerUseType === provider.type,
 		);
@@ -55,25 +56,40 @@ const getEligibleComputerUseProviders = (
 			return [];
 		}
 		return [
-			{
-				id: provider.id,
-				displayName: provider.display_name || provider.name,
-				typeLabel: formatProviderLabel(type),
-				type,
-			},
+			{ provider, type, baseName: provider.display_name || provider.name },
 		];
 	});
+	return eligible.map(({ provider, type, baseName }) => {
+		// Display names are not unique, but provider names are.
+		const needsNameSuffix =
+			baseName !== provider.name &&
+			eligible.some(
+				(other) =>
+					other.provider.id !== provider.id && other.baseName === baseName,
+			);
+		return {
+			id: provider.id,
+			displayName: needsNameSuffix
+				? `${baseName} (${provider.name})`
+				: baseName,
+			typeLabel: formatProviderLabel(type),
+			type,
+		};
+	});
+};
 
 type ComputerUseProviderHintKind =
 	| "no-eligible-providers"
 	| "no-eligible-provider-of-type"
 	| "unselected"
-	| "unavailable";
+	| "unavailable"
+	| "type-mismatch";
 
 const getComputerUseProviderHintKind = (
 	eligibleProviders: readonly ComputerUseAIProvider[],
 	selectedAIProviderID: string,
 	selectedProvider: ComputerUseAIProvider | undefined,
+	isStoredTypeMismatch: boolean,
 	storedProviderType: TypesGen.ChatComputerUseProvider,
 ): ComputerUseProviderHintKind | undefined => {
 	if (eligibleProviders.length === 0) {
@@ -86,7 +102,10 @@ const getComputerUseProviderHintKind = (
 			? "unselected"
 			: "no-eligible-provider-of-type";
 	}
-	return selectedProvider ? undefined : "unavailable";
+	if (!selectedProvider) {
+		return "unavailable";
+	}
+	return isStoredTypeMismatch ? "type-mismatch" : undefined;
 };
 
 type ComputerUseProviderHintProps = {
@@ -119,6 +138,8 @@ const ComputerUseProviderHint: React.FC<ComputerUseProviderHintProps> = ({
 				`No provider selected. Computer use uses the first enabled ${storedTypeLabel} provider.`}
 			{kind === "unavailable" &&
 				"The selected provider is disabled or was deleted. Select another provider."}
+			{kind === "type-mismatch" &&
+				`The saved computer use provider is ${storedTypeLabel}, which does not match the selected provider's type, so computer use is unavailable. Save to fix it.`}
 		</p>
 	);
 };
@@ -159,26 +180,34 @@ export const VirtualDesktopSettings: React.FC<VirtualDesktopSettingsProps> = ({
 }) => {
 	const { isSavedVisible, showSavedState } = useTemporarySavedState();
 	const hintId = useId();
+	// Formik does not block a second submit before the saving state
+	// re-renders, so several clicks in one tick would each send a request.
+	const isSubmittingRef = useRef(false);
 	const eligibleProviders = getEligibleComputerUseProviders(aiProviders ?? []);
+	const storedAIProviderID = computerUseProviderData?.ai_provider_id ?? "";
 
 	const form = useFormik<{ aiProviderID: string }>({
 		enableReinitialize: true,
 		initialValues: {
-			aiProviderID: computerUseProviderData?.ai_provider_id ?? "",
+			aiProviderID: storedAIProviderID,
 		},
 		onSubmit: (values, helpers) => {
 			const selected = eligibleProviders.find(
 				(provider) => provider.id === values.aiProviderID,
 			);
-			if (!selected) {
+			if (!selected || isSubmittingRef.current) {
 				return;
 			}
+			isSubmittingRef.current = true;
 			onSaveComputerUseProvider(
 				{ provider: selected.type, ai_provider_id: selected.id },
 				{
 					onSuccess: () => {
 						showSavedState();
 						helpers.resetForm({ values });
+					},
+					onSettled: () => {
+						isSubmittingRef.current = false;
 					},
 				},
 			);
@@ -194,7 +223,13 @@ export const VirtualDesktopSettings: React.FC<VirtualDesktopSettingsProps> = ({
 		isLoading ||
 		computerUseProviderData === undefined ||
 		eligibleProviders.length === 0;
-	const canSave = form.dirty && selectedProvider !== undefined;
+	const isStoredTypeMismatch =
+		computerUseProviderData !== undefined &&
+		selectedProvider !== undefined &&
+		selectedProvider.id === storedAIProviderID &&
+		selectedProvider.type !== computerUseProviderData.provider;
+	const canSave =
+		selectedProvider !== undefined && (form.dirty || isStoredTypeMismatch);
 	const selectValueContent = isLoading ? (
 		<Skeleton className="h-4 w-20" aria-hidden="true" />
 	) : (
@@ -206,6 +241,7 @@ export const VirtualDesktopSettings: React.FC<VirtualDesktopSettingsProps> = ({
 					eligibleProviders,
 					form.values.aiProviderID,
 					selectedProvider,
+					isStoredTypeMismatch,
 					computerUseProviderData.provider,
 				)
 			: undefined;
@@ -243,9 +279,13 @@ export const VirtualDesktopSettings: React.FC<VirtualDesktopSettingsProps> = ({
 				{aiProvidersError != null && <ErrorAlert error={aiProvidersError} />}
 				<Select
 					value={form.values.aiProviderID}
-					onValueChange={(value) =>
-						void form.setFieldValue("aiProviderID", value)
-					}
+					onValueChange={(value) => {
+						// Radix's hidden form select emits "" for a value with no
+						// matching option (disabled or not yet loaded), so ignore it.
+						if (eligibleProviders.some((provider) => provider.id === value)) {
+							void form.setFieldValue("aiProviderID", value);
+						}
+					}}
 					disabled={isFormDisabled}
 				>
 					<SelectTrigger
