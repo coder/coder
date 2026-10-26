@@ -168,8 +168,9 @@ func (p *Server) recordAutomationRun(ctx context.Context, run automationRun) {
 }
 
 // auditAutomationRun records one start entry for the automation per run,
-// attributed to the owner, whose authority the run used. A deleted
-// automation is not audited: there is no row to name.
+// attributed to the user who started a Run now, or else to the owner,
+// whose authority every run uses. A deleted automation is not audited:
+// there is no row to name.
 func (p *Server) auditAutomationRun(ctx context.Context, logger slog.Logger, run automationRun) {
 	if p.chatWorker == nil || p.chatWorker.opts.Auditor == nil {
 		return
@@ -198,10 +199,14 @@ func (p *Server) auditAutomationRun(ctx context.Context, logger slog.Logger, run
 	}
 	// Marshaling a map[string]string cannot fail.
 	fields, _ := json.Marshal(additional)
+	actorID := automation.OwnerID
+	if run.request.ActorID != uuid.Nil {
+		actorID = run.request.ActorID
+	}
 	audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.ChatAutomation]{
 		Audit:          *auditor,
 		Log:            logger,
-		UserID:         automation.OwnerID,
+		UserID:         actorID,
 		OrganizationID: automation.OrganizationID,
 		RequestID:      run.request.RequestID,
 		IP:             run.request.IP,

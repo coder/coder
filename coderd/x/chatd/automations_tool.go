@@ -50,7 +50,7 @@ const manageAutomationsDescription = "Manage the chat owner's automations in thi
 	"An existing_chat automation can only target this chat. A new_chat automation uses this chat's model config unless new_chat_model_config_id names another. " +
 	"A new_chat automation puts its chats into this chat's project, if this chat has one, unless project_id is empty; it cannot use another project. " +
 	"update, enable, and run_now work only on automations that follow these rules. " +
-	"Only the owner of an automation can create, update, enable, or run it; an administrator's chat can also get, disable, and delete other members' automations."
+	"The chat owner's permissions apply: an administrator's chat can also get, update, enable, disable, delete, and run other members' automations by id, and their runs still act as those members."
 
 // manageAutomationsListPromptMax and manageAutomationsGetPromptMax cap,
 // in runes, the prompt text list and get return, so a tool result stays
@@ -73,12 +73,11 @@ var manageAutomationsActions = []string{"list", "get", "create", "update", "enab
 
 var errManageAutomationsNotFound = xerrors.New("automation not found: call list for the chat owner's automations")
 
-// errManageAutomationsOwnerOnly replaces a NotAuthorized error from RBAC.
+// errManageAutomationsForbidden replaces a NotAuthorized error from RBAC.
 // The tool runs as the chat owner, who can read the automation but lacks
-// the permission the action needs, which only the automation's owner
-// holds.
-var errManageAutomationsOwnerOnly = xerrors.New("only the owner of this automation can create, update, enable, or run it; " +
-	"ask the owner to make the change on the Automations page")
+// the permission the action needs.
+var errManageAutomationsForbidden = xerrors.New("the chat owner does not have permission to do this to this automation; " +
+	"ask someone who can, such as its owner, to make the change on the Automations page")
 
 // manageAutomationsMultiUseSecretNote explains how to use a returned
 // multi-use secret.
@@ -733,7 +732,7 @@ func (p *Server) manageAutomationsError(ctx context.Context, logger slog.Logger,
 	case errors.Is(err, ErrAutomationNotFound):
 		return errManageAutomationsNotFound
 	case dbauthz.IsNotAuthorizedError(err):
-		return errManageAutomationsOwnerOnly
+		return errManageAutomationsForbidden
 	case errors.As(err, &validationErr):
 		return validationErr
 	case errors.As(err, &denied):

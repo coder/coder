@@ -359,7 +359,7 @@ func (api *API) chatAutomation(rw http.ResponseWriter, r *http.Request) {
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 // @Summary Update chat automation
-// @Description Only the owner of an automation can update it, except that anyone allowed to update it can send a request that only sets enabled to false. Disabling removes the messages the automation queued that have not started. Changing the prompt does not change messages already queued: they keep the prompt they were sent with. Re-enabling a schedule resumes at its next future occurrence. The kind, target mode, and webhook use of an automation cannot change: a request that sets one of them, or any unknown field, fails with 400. A request that changes nothing leaves updated_at as it was.
+// @Description Anyone allowed to update an automation, its owner or an administrator, can change it. A request that only sets enabled to false needs only permission to disable it. Runs always act as the owner. Disabling removes the messages the automation queued that have not started. Changing the prompt does not change messages already queued: they keep the prompt they were sent with. Re-enabling a schedule resumes at its next future occurrence. The kind, target mode, and webhook use of an automation cannot change: a request that sets one of them, or any unknown field, fails with 400. A request that changes nothing leaves updated_at as it was.
 // @ID update-chat-automation
 // @Security CoderSessionToken
 // @Accept json
@@ -396,7 +396,7 @@ func (api *API) patchChatAutomation(rw http.ResponseWriter, r *http.Request) {
 
 	old, updated, err := api.chatDaemon.UpdateAutomation(ctx, automation.ID, req, nil)
 	if err != nil {
-		api.writeChatAutomationChangeError(ctx, rw, err, "Only the owner of a chat automation can change it.")
+		api.writeChatAutomationError(ctx, rw, err)
 		return
 	}
 	// The row read under the update's lock is the accurate before-image;
@@ -516,7 +516,7 @@ func (api *API) deleteChatAutomation(rw http.ResponseWriter, r *http.Request) {
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 // @Summary Rotate chat automation webhook secret
-// @Description Only the owner of a webhook automation can rotate its secret. The previous secret stops working, and the new secret is returned only in this response.
+// @Description Rotating needs permission to update the webhook automation. The previous secret stops working, and the new secret is returned only in this response.
 // @ID rotate-chat-automation-secret
 // @Security CoderSessionToken
 // @Produce json
@@ -549,7 +549,7 @@ func (api *API) postChatAutomationSecretRotate(rw http.ResponseWriter, r *http.R
 
 	rotated, secret, err := api.chatDaemon.RotateAutomationSecret(ctx, automation.ID)
 	if err != nil {
-		api.writeChatAutomationChangeError(ctx, rw, err, "Only the owner of a chat automation can change it.")
+		api.writeChatAutomationError(ctx, rw, err)
 		return
 	}
 	aReq.New = rotated
@@ -563,7 +563,7 @@ func (api *API) postChatAutomationSecretRotate(rw http.ResponseWriter, r *http.R
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 // @Summary Run chat automation now
-// @Description Sends the saved prompt of an enabled schedule automation to its target now, like a scheduled run, as the owner. The schedule's next run does not change. Only the owner can run an automation.
+// @Description Sends the saved prompt of an enabled schedule automation to its target now, like a scheduled run, as the owner. The schedule's next run does not change. Running needs permission to update the automation, so an administrator can run another member's automation, which still acts as that member.
 // @ID run-chat-automation
 // @Security CoderSessionToken
 // @Produce json
@@ -591,7 +591,9 @@ func (api *API) postChatAutomationRun(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if automation.TargetMode == database.ChatAutomationTargetModeNewChat {
-		api.auditChatAutomationCreatedChat(ctx, r, automation, result)
+		// The run acts as the owner, but the caller, who may be an
+		// administrator, started it.
+		api.auditChatAutomationCreatedChat(ctx, r, automation, result, httpmw.APIKey(r).UserID)
 	}
 	httpapi.Write(ctx, rw, http.StatusAccepted, codersdk.ChatAutomationRunResponse{
 		InputID: result.InputID,
@@ -686,18 +688,6 @@ func (api *API) writeChatAutomationError(ctx context.Context, rw http.ResponseWr
 	}
 }
 
-// writeChatAutomationChangeError maps the errors of a change to an
-// automation the caller can read. RBAC refuses a change that needs update,
-// which only the owner holds, so a NotAuthorized error gets 403 with
-// ownerOnly as the message.
-func (api *API) writeChatAutomationChangeError(ctx context.Context, rw http.ResponseWriter, err error, ownerOnly string) {
-	if dbauthz.IsNotAuthorizedError(err) {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{Message: ownerOnly})
-		return
-	}
-	api.writeChatAutomationError(ctx, rw, err)
-}
-
 // writeChatAutomationRunError maps RunAutomation errors to responses.
 // Refusals reuse the webhook responses, except that a disabled
 // automation gets 409 instead of 403 and a missing one 404 instead of 401.
@@ -707,12 +697,7 @@ func (api *API) writeChatAutomationRunError(ctx context.Context, rw http.Respons
 	}
 	var validationErr *chatd.AutomationValidationError
 	switch {
-	case dbauthz.IsNotAuthorizedError(err):
-		// Running needs update, which only the owner holds.
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Only the owner of a chat automation can run it.",
-		})
-	case errors.As(err, &validationErr), errors.Is(err, chatd.ErrAutomationNotFound):
+	case errors.As(err, &validationErr), errors.Is(err, chatd.ErrAutomationNotFound), dbauthz.IsNotAuthorizedError(err):
 		api.writeChatAutomationError(ctx, rw, err)
 	case errors.Is(err, chatd.ErrAutomationDisabled):
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "Chat automation is disabled."})
@@ -844,7 +829,7 @@ func (api *API) postChatAutomationEvent(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 	if automation.TargetMode == database.ChatAutomationTargetModeNewChat {
-		api.auditChatAutomationCreatedChat(ctx, r, automation, result)
+		api.auditChatAutomationCreatedChat(ctx, r, automation, result, automation.OwnerID)
 	}
 	httpapi.Write(ctx, rw, http.StatusAccepted, codersdk.ChatAutomationEventResponse{
 		InputID: result.InputID,
@@ -853,11 +838,12 @@ func (api *API) postChatAutomationEvent(rw http.ResponseWriter, r *http.Request)
 }
 
 // auditChatAutomationCreatedChat records the chat that a new_chat
-// automation created, as chat creation through the chat API does. The
-// webhook caller has no Coder identity, so the entry names the automation
-// owner, whose authority created the chat, and carries the automation and
-// input ids.
-func (api *API) auditChatAutomationCreatedChat(ctx context.Context, r *http.Request, automation database.ChatAutomation, result chatd.PublishAutomationResult) {
+// automation created, as chat creation through the chat API does. actorID
+// is the user who started the run: the caller of Run now, or the
+// automation owner for a webhook, whose caller has no Coder identity. The
+// chat itself always belongs to the owner. The entry carries the
+// automation and input ids.
+func (api *API) auditChatAutomationCreatedChat(ctx context.Context, r *http.Request, automation database.ChatAutomation, result chatd.PublishAutomationResult, actorID uuid.UUID) {
 	// The chat is already committed, so a webhook sender that disconnects
 	// must not cancel the lookup or lose the audit entry.
 	auditCtx := context.WithoutCancel(ctx)
@@ -879,7 +865,7 @@ func (api *API) auditChatAutomationCreatedChat(ctx context.Context, r *http.Requ
 	audit.BackgroundAudit(auditCtx, &audit.BackgroundAuditParams[database.Chat]{
 		Audit:            *api.Auditor.Load(),
 		Log:              api.Logger,
-		UserID:           automation.OwnerID,
+		UserID:           actorID,
 		OrganizationID:   automation.OrganizationID,
 		Action:           database.AuditActionCreate,
 		New:              chat,

@@ -84,7 +84,9 @@ func TestChatAutomationRuns(t *testing.T) {
 		require.Equal(t, before, after, "running now must not change the automation")
 	})
 
-	t.Run("OnlyOwnerCanRun", func(t *testing.T) {
+	// Administrators can run another member's automation. The run acts as
+	// the owner, so its message lands in the owner's chat.
+	t.Run("AdministratorsCanRun", func(t *testing.T) {
 		t.Parallel()
 		env := newChatAutomationTestEnv(t, nil, nil)
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -95,22 +97,23 @@ func TestChatAutomationRuns(t *testing.T) {
 		webhook, err := env.member.CreateChatAutomation(ctx, env.orgID, env.webhookRequest())
 		require.NoError(t, err)
 
-		for name, client := range map[string]*codersdk.ExperimentalClient{
-			"OrgAdmin":  codersdk.NewExperimentalClient(orgAdminRaw),
-			"SiteOwner": env.owner,
-		} {
-			_, err := client.RunChatAutomation(ctx, env.orgID, created.Automation.ID)
-			sdkErr := requireSDKError(t, err, http.StatusForbidden)
-			require.Equal(t, "Only the owner of a chat automation can run it.", sdkErr.Message, name)
-			// The owner check comes first, so the kind of an automation
-			// someone else owns is not revealed.
-			_, err = client.RunChatAutomation(ctx, env.orgID, webhook.Automation.ID)
-			requireSDKError(t, err, http.StatusForbidden)
-		}
+		// A member who cannot read the automation does not learn it exists.
 		_, err = codersdk.NewExperimentalClient(otherRaw).RunChatAutomation(ctx, env.orgID, created.Automation.ID)
 		requireSDKError(t, err, http.StatusNotFound)
 		require.Empty(t, env.userMessages(t, env.memberChat.ID))
 		require.Empty(t, env.queuedMessageIDs(t, env.memberChat.ID))
+
+		for name, client := range map[string]*codersdk.ExperimentalClient{
+			"OrgAdmin":  codersdk.NewExperimentalClient(orgAdminRaw),
+			"SiteOwner": env.owner,
+		} {
+			run, err := client.RunChatAutomation(ctx, env.orgID, created.Automation.ID)
+			require.NoError(t, err, name)
+			require.Equal(t, env.memberChat.ID, run.ChatID, name)
+			_, err = client.RunChatAutomation(ctx, env.orgID, webhook.Automation.ID)
+			requireSDKError(t, err, http.StatusBadRequest)
+		}
+		require.Equal(t, 2, len(env.userMessages(t, env.memberChat.ID))+len(env.queuedMessageIDs(t, env.memberChat.ID)))
 	})
 
 	t.Run("Refused", func(t *testing.T) {

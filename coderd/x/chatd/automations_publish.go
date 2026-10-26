@@ -149,6 +149,9 @@ type AutomationRequest struct {
 	IP        string
 	UserAgent string
 	RequestID uuid.UUID
+	// ActorID is the user who started a Run now, such as an administrator.
+	// The run still acts as the owner. uuid.Nil means the owner.
+	ActorID uuid.UUID
 }
 
 // PublishAutomationResult identifies an accepted automation input.

@@ -290,12 +290,20 @@ func TestChatAutomations(t *testing.T) {
 		requireSDKError(t, err, http.StatusConflict)
 	})
 
-	t.Run("OnlyOwnerCanUpdate", func(t *testing.T) {
+	// Administrators manage other members' automations like other Coder
+	// resources: they can change, enable, run, and rotate them. Runs still
+	// act as the owner, and audit entries name the administrator.
+	t.Run("AdministratorsManage", func(t *testing.T) {
 		t.Parallel()
-		env := newChatAutomationTestEnv(t, nil, nil)
+		auditor := audit.NewMock()
+		env := newChatAutomationTestEnv(t, nil, func(o *coderdtest.Options) {
+			o.Auditor = auditor
+		})
 		ctx := testutil.Context(t, testutil.WaitLong)
-		orgAdminRaw, _ := coderdtest.CreateAnotherUser(t, env.owner.Client, env.orgID, rbac.ScopedRoleOrgAdmin(env.orgID))
+		orgAdminRaw, orgAdminUser := coderdtest.CreateAnotherUser(t, env.owner.Client, env.orgID, rbac.ScopedRoleOrgAdmin(env.orgID))
 		orgAdmin := codersdk.NewExperimentalClient(orgAdminRaw)
+		siteOwner, err := env.owner.User(ctx, codersdk.Me)
+		require.NoError(t, err)
 
 		created, err := env.member.CreateChatAutomation(ctx, env.orgID, env.scheduleRequest())
 		require.NoError(t, err)
@@ -303,54 +311,54 @@ func TestChatAutomations(t *testing.T) {
 		webhook, err := env.member.CreateChatAutomation(ctx, env.orgID, env.webhookRequest())
 		require.NoError(t, err)
 
-		rename := codersdk.UpdateChatAutomationRequest{Name: ptr.Ref("Renamed")}
 		disable := codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)}
 		enable := codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(true)}
-		// RBAC decides: administrators hold read, disable, and delete on
-		// automations they do not own, but not update, so every other
-		// change gets 403 with a message that names the owner rule.
-		requireOwnerOnly := func(t *testing.T, err error, message string) {
-			t.Helper()
-			requireSDKError(t, err, http.StatusForbidden)
-			var sdkErr *codersdk.Error
-			require.ErrorAs(t, err, &sdkErr)
-			require.Equal(t, message, sdkErr.Message)
-		}
-		for name, client := range map[string]*codersdk.ExperimentalClient{"OrgAdmin": orgAdmin, "SiteOwner": env.owner} {
-			_, err := client.UpdateChatAutomation(ctx, env.orgID, id, rename)
-			requireOwnerOnly(t, err, "Only the owner of a chat automation can change it.")
-			// Run now sends the prompt as the owner, so it needs update.
-			_, err = client.RunChatAutomation(ctx, env.orgID, id)
-			requireOwnerOnly(t, err, "Only the owner of a chat automation can run it.")
-			// Administrators can only disable: combining it with any other
-			// change, or enabling again, stays with the owner.
-			_, err = client.UpdateChatAutomation(ctx, env.orgID, id, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false), Name: ptr.Ref("Renamed")})
-			requireSDKError(t, err, http.StatusForbidden)
-			disabled, err := client.UpdateChatAutomation(ctx, env.orgID, id, disable)
+		for name, tc := range map[string]struct {
+			client  *codersdk.ExperimentalClient
+			actorID uuid.UUID
+		}{
+			"OrgAdmin":  {orgAdmin, orgAdminUser.ID},
+			"SiteOwner": {env.owner, siteOwner.ID},
+		} {
+			auditor.ResetLogs()
+			renamed, err := tc.client.UpdateChatAutomation(ctx, env.orgID, id, codersdk.UpdateChatAutomationRequest{Name: ptr.Ref("Renamed by " + name)})
 			require.NoError(t, err, name)
-			require.False(t, disabled.Enabled, name)
-			_, err = client.UpdateChatAutomation(ctx, env.orgID, id, enable)
-			requireOwnerOnly(t, err, "Only the owner of a chat automation can change it.")
-			_, err = client.RotateChatAutomationSecret(ctx, env.orgID, webhook.Automation.ID)
-			requireOwnerOnly(t, err, "Only the owner of a chat automation can change it.")
+			require.Equal(t, "Renamed by "+name, renamed.Name)
+			require.Equal(t, env.memberID, renamed.OwnerID, "an edit keeps the owner")
+			disabled, err := tc.client.UpdateChatAutomation(ctx, env.orgID, id, disable)
+			require.NoError(t, err, name)
+			require.False(t, disabled.Enabled)
+			enabled, err := tc.client.UpdateChatAutomation(ctx, env.orgID, id, enable)
+			require.NoError(t, err, name)
+			require.True(t, enabled.Enabled)
+			rotated, err := tc.client.RotateChatAutomationSecret(ctx, env.orgID, webhook.Automation.ID)
+			require.NoError(t, err, name)
+			require.NotEmpty(t, rotated.WebhookSecret)
 
-			list, err := client.ChatAutomations(ctx, env.orgID, codersdk.ChatAutomationsFilter{})
+			// Run now acts as the owner: the new chat is the member's.
+			run, err := tc.client.RunChatAutomation(ctx, env.orgID, id)
 			require.NoError(t, err, name)
-			require.Len(t, list, 2, name)
-			_, err = client.ChatAutomation(ctx, env.orgID, id)
-			require.NoError(t, err, name)
+			runChat, err := env.db.GetChatByID(dbauthz.AsSystemRestricted(ctx), run.ChatID)
+			require.NoError(t, err)
+			require.Equal(t, env.memberID, runChat.OwnerID, name)
+
+			// Every entry names the administrator who made the change.
+			// The run's start entry and the created chat's entry are
+			// written in the background.
+			require.Eventually(t, func() bool { return len(auditor.AuditLogs()) == 6 }, testutil.WaitShort, testutil.IntervalFast, name)
+			logs := auditor.AuditLogs()
+			for _, log := range logs {
+				require.Equal(t, tc.actorID, log.UserID, "%s: %s %s", name, log.Action, log.ResourceType)
+			}
 		}
 		stored, err := env.db.GetChatAutomationByID(dbauthz.AsSystemRestricted(ctx), webhook.Automation.ID)
 		require.NoError(t, err)
-		require.Equal(t, int64(1), stored.WebhookSecretVersion, "refused rotations change nothing")
+		require.Equal(t, int64(3), stored.WebhookSecretVersion, "both rotations applied")
 
-		updated, err := env.member.UpdateChatAutomation(ctx, env.orgID, id, rename)
+		// The owner keeps full control.
+		updated, err := env.member.UpdateChatAutomation(ctx, env.orgID, id, codersdk.UpdateChatAutomationRequest{Name: ptr.Ref("Renamed")})
 		require.NoError(t, err)
 		require.Equal(t, "Renamed", updated.Name)
-		require.False(t, updated.Enabled)
-		updated, err = env.member.UpdateChatAutomation(ctx, env.orgID, id, enable)
-		require.NoError(t, err)
-		require.True(t, updated.Enabled)
 		// A webhook has no schedule, so enabling it again sets no cursor.
 		_, err = env.member.UpdateChatAutomation(ctx, env.orgID, webhook.Automation.ID, disable)
 		require.NoError(t, err)
@@ -359,6 +367,14 @@ func TestChatAutomations(t *testing.T) {
 		require.True(t, updated.Enabled)
 		require.Nil(t, updated.ScheduleNextRunAt)
 		require.NoError(t, env.owner.DeleteChatAutomation(ctx, env.orgID, webhook.Automation.ID))
+
+		// Another member cannot read the automation, so it is not found.
+		otherRaw, _ := coderdtest.CreateAnotherUser(t, env.owner.Client, env.orgID)
+		other := codersdk.NewExperimentalClient(otherRaw)
+		_, err = other.UpdateChatAutomation(ctx, env.orgID, id, enable)
+		requireSDKError(t, err, http.StatusNotFound)
+		_, err = other.RunChatAutomation(ctx, env.orgID, id)
+		requireSDKError(t, err, http.StatusNotFound)
 
 		// The automation is not found under another organization's path,
 		// even for a caller who can read it.

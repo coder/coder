@@ -224,6 +224,21 @@ func TestChatAutomationsDeleteWithoutUpdate(t *testing.T) {
 	require.Equal(t, before.QueueGeneration, after.QueueGeneration)
 	require.Equal(t, before.UpdatedAt, after.UpdatedAt)
 
+	// A caller who may read but not update the automation gets the
+	// normal 403 for every other change.
+	disabler := codersdk.NewExperimentalClient(updater)
+	_, err = disabler.UpdateChatAutomation(ctx, owner.OrganizationID, created.Automation.ID, codersdk.UpdateChatAutomationRequest{Name: ptr.Ref("Renamed")})
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+	require.Equal(t, "Forbidden.", sdkErr.Message)
+	_, err = disabler.RotateChatAutomationSecret(ctx, owner.OrganizationID, created.Automation.ID)
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+	require.Equal(t, "Forbidden.", sdkErr.Message)
+	disabled, err := disabler.UpdateChatAutomation(ctx, owner.OrganizationID, created.Automation.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)})
+	require.NoError(t, err)
+	require.False(t, disabled.Enabled)
+
 	require.NoError(t, codersdk.NewExperimentalClient(deleter).DeleteChatAutomation(ctx, owner.OrganizationID, created.Automation.ID))
 	_, err = db.GetChatAutomationByID(dbauthz.AsSystemRestricted(ctx), created.Automation.ID)
 	require.ErrorIs(t, err, sql.ErrNoRows)

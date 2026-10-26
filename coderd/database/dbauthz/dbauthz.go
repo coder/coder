@@ -3340,8 +3340,8 @@ func (q *querier) GetChatAutomationByID(ctx context.Context, id uuid.UUID) (data
 }
 
 // GetChatAutomationByIDForUpdate locks the automation and requires update
-// on it, which only the owner holds, so other callers are refused before
-// their change is validated.
+// on it, so callers who may only read, disable, or delete it are refused
+// before their change is validated.
 func (q *querier) GetChatAutomationByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ChatAutomation, error) {
 	return fetchWithAction(q.log, q.auth, policy.ActionUpdate, q.db.GetChatAutomationByIDForUpdate)(ctx, id)
 }
@@ -7852,8 +7852,8 @@ func (q *querier) UpdateChatACLByID(ctx context.Context, arg database.UpdateChat
 // or model config or project (read). Unchanged references are not checked
 // again.
 //
-// Update is member-level only in the built-in roles, so only the owner
-// holds it; administrators disable automations through
+// The owner and administrators hold update. A caller with only the
+// disable action turns an automation off through
 // DisableChatAutomationByID. The schedule scanner writes only through
 // AdvanceChatAutomationScheduleCursor.
 func (q *querier) UpdateChatAutomationByID(ctx context.Context, arg database.UpdateChatAutomationByIDParams) (database.ChatAutomation, error) {
@@ -7908,8 +7908,7 @@ func (q *querier) UpdateChatAutomationLastRunByID(ctx context.Context, arg datab
 	return q.db.UpdateChatAutomationLastRunByID(ctx, arg)
 }
 
-// UpdateChatAutomationWebhookSecretByID authorizes update, which only the
-// owner holds.
+// UpdateChatAutomationWebhookSecretByID authorizes update.
 func (q *querier) UpdateChatAutomationWebhookSecretByID(ctx context.Context, arg database.UpdateChatAutomationWebhookSecretByIDParams) (database.ChatAutomation, error) {
 	fetch := func(ctx context.Context, arg database.UpdateChatAutomationWebhookSecretByIDParams) (database.ChatAutomation, error) {
 		return q.db.GetChatAutomationByID(ctx, arg.ID)

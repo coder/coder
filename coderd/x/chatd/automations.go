@@ -307,10 +307,11 @@ type AutomationGuard func(store database.Store, automation database.ChatAutomati
 // decides who may make the change, through the caller's subject in ctx: a
 // request that only disables the automation needs the disable action,
 // which administrators also hold on automations they do not own, and
-// every other request needs update, which only the owner holds. A denied
-// request returns a dbauthz.NotAuthorizedError. Each set field is
-// validated like on create, and fields that do not apply to the
-// automation's kind or target mode are rejected.
+// every other request needs update, which the owner and administrators
+// hold. Runs still act as the owner. A denied request returns a
+// dbauthz.NotAuthorizedError. Each set field is validated like on create,
+// and fields that do not apply to the automation's kind or target mode
+// are rejected.
 //
 // Disabling bumps the automation's queue generation in the update
 // transaction, which touches no chat rows, and then removes the messages
@@ -583,8 +584,8 @@ func lockAutomationForDisable(ctx context.Context, tx database.Store, id uuid.UU
 }
 
 // lockAutomationForChange locks the automation as the caller in ctx with
-// update, so a caller without update, which only the owner holds, is
-// refused before the change is validated.
+// update, so a caller without update is refused before the change is
+// validated.
 func lockAutomationForChange(ctx context.Context, tx database.Store, id uuid.UUID) (database.ChatAutomation, error) {
 	row, err := tx.GetChatAutomationByIDForUpdate(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -675,7 +676,7 @@ func (p *Server) deleteStaleAutomationQueuedMessages(ctx context.Context, automa
 // RotateAutomationSecret replaces the webhook secret of a webhook
 // automation and returns the new plaintext secret, which is not stored.
 // The previous secret stops matching when the rotation commits. Rotating
-// needs update on the automation, which only the owner holds; a denied
+// needs update on the automation; a denied
 // caller gets a dbauthz.NotAuthorizedError.
 func (p *Server) RotateAutomationSecret(ctx context.Context, id uuid.UUID) (database.ChatAutomation, string, error) {
 	var (
@@ -720,9 +721,9 @@ func (p *Server) RotateAutomationSecret(ctx context.Context, id uuid.UUID) (data
 // RunAutomation publishes the saved prompt of an enabled schedule
 // automation now, through the same admission as a scheduled occurrence
 // but without one: the schedule cursor and revision do not change. The
-// run sends the prompt as the owner, so the caller in ctx needs update on
-// the automation, which only the owner holds; a denied caller gets a
-// dbauthz.NotAuthorizedError.
+// caller in ctx needs update on the automation, which administrators also
+// hold, but the run always sends the prompt as the owner, never as the
+// caller. A denied caller gets a dbauthz.NotAuthorizedError.
 //
 // guard, when set, runs on the automation read before the send and again
 // at admission on the locked row whose input is accepted.
@@ -741,12 +742,21 @@ func (p *Server) RunAutomation(ctx context.Context, id uuid.UUID, guard Automati
 	}
 	// The kind cannot change, and admission checks enabled again on the
 	// locked row.
+	// The run's audit entry names the caller, who may be an administrator.
+	var request AutomationRequest
+	// System subjects use the all-zero ID, which means the owner.
+	if actor, ok := dbauthz.ActorFromContext(ctx); ok {
+		if actorID, err := uuid.Parse(actor.ID); err == nil {
+			request.ActorID = actorID
+		}
+	}
 	return p.publishAutomation(ctx, automationPublish{
 		automationID: id,
 		content: func(automation database.ChatAutomation) []codersdk.ChatMessagePart {
 			return []codersdk.ChatMessagePart{codersdk.ChatMessageText(automation.Prompt)}
 		},
-		guard: guard,
+		guard:   guard,
+		request: request,
 	})
 }
 

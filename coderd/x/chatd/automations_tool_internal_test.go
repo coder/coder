@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -517,9 +518,10 @@ func TestManageAutomationsTool(t *testing.T) {
 	// RBAC decides what the tool may do, through the chat owner's roles.
 	// A turn that an automation reached gets the same permissions as a
 	// human turn: the trigger only labels audit entries. An organization
-	// admin's chat can read, disable, and delete another member's
-	// automation, because the admin can, but cannot change, enable, or run
-	// it, because update is the owner's alone.
+	// admin's chat can use every action on another member's automation,
+	// because the admin can, and a run still acts as that member. A chat
+	// owner who may only read, disable, and delete it gets the forbidden
+	// error for the other actions.
 	t.Run("RBACDecidesEveryAction", func(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct {
@@ -566,8 +568,44 @@ func TestManageAutomationsTool(t *testing.T) {
 					require.NoError(t, err)
 					member := dbgen.User(t, f.db, database.User{})
 					dbgen.OrganizationMember(t, f.db, database.OrganizationMember{UserID: member.ID, OrganizationID: f.org.ID})
+					_, err = f.db.UpdateMemberRoles(ctx, database.UpdateMemberRolesParams{
+						GrantedRoles: []string{rbac.RoleAgentsAccess()},
+						UserID:       member.ID,
+						OrgID:        f.org.ID,
+					})
+					require.NoError(t, err)
 					// A new_chat automation without a project passes the
 					// tool's target checks, so RBAC makes every decision.
+					row := newChatAutomation(t, f.db, f.org.ID, member.ID, f.model.ID)
+					dbgen.ChatMessage(t, f.db, database.ChatMessage{ChatID: f.chat.ID, Role: database.ChatMessageRoleUser})
+					return row, map[string]string{"chat_id": f.chat.ID.String()}
+				},
+			},
+			{
+				name: "DisableOnlyRoleOtherMember",
+				setup: func(ctx context.Context, t *testing.T, f manageAutomationsFixture) (database.ChatAutomation, map[string]string) {
+					role, err := f.db.InsertCustomRole(ctx, database.InsertCustomRoleParams{
+						Name:            "automation-stopper",
+						DisplayName:     "Automation stopper",
+						OrganizationID:  uuid.NullUUID{UUID: f.org.ID, Valid: true},
+						SitePermissions: []database.CustomRolePermission{},
+						OrgPermissions: []database.CustomRolePermission{
+							{ResourceType: rbac.ResourceChatAutomation.Type, Action: policy.ActionRead},
+							{ResourceType: rbac.ResourceChatAutomation.Type, Action: policy.ActionDisable},
+							{ResourceType: rbac.ResourceChatAutomation.Type, Action: policy.ActionDelete},
+						},
+						UserPermissions:   []database.CustomRolePermission{},
+						MemberPermissions: []database.CustomRolePermission{},
+					})
+					require.NoError(t, err)
+					_, err = f.db.UpdateMemberRoles(ctx, database.UpdateMemberRolesParams{
+						GrantedRoles: []string{rbac.RoleAgentsAccess(), role.Name},
+						UserID:       f.owner.ID,
+						OrgID:        f.org.ID,
+					})
+					require.NoError(t, err)
+					member := dbgen.User(t, f.db, database.User{})
+					dbgen.OrganizationMember(t, f.db, database.OrganizationMember{UserID: member.ID, OrganizationID: f.org.ID})
 					row := newChatAutomation(t, f.db, f.org.ID, member.ID, f.model.ID)
 					dbgen.ChatMessage(t, f.db, database.ChatMessage{ChatID: f.chat.ID, Role: database.ChatMessageRoleUser})
 					return row, map[string]string{"chat_id": f.chat.ID.String()}
@@ -600,7 +638,7 @@ func TestManageAutomationsTool(t *testing.T) {
 					content, isError := f.callArgs(ctx, t, f.chat.ID, args)
 					if slices.Contains(tc.denied, action) {
 						require.True(t, isError, "%s: %s", action, content)
-						require.Equal(t, errManageAutomationsOwnerOnly.Error(), content, action)
+						require.Equal(t, errManageAutomationsForbidden.Error(), content, action)
 						f.requireUnchanged(ctx, t, before)
 						require.Len(t, f.changeAudits(), audits, action)
 						continue
@@ -615,6 +653,16 @@ func TestManageAutomationsTool(t *testing.T) {
 						logs := f.changeAudits()
 						require.Len(t, logs, audits+1, action)
 						requireAuditFields(t, logs[len(logs)-1], auditFields)
+					case "run_now":
+						// The run acts as the automation's owner, even from
+						// an administrator's chat.
+						var result struct {
+							ChatID uuid.UUID `json:"chat_id"`
+						}
+						require.NoError(t, json.Unmarshal([]byte(content), &result))
+						runChat, err := f.db.GetChatByID(ctx, result.ChatID)
+						require.NoError(t, err)
+						require.Equal(t, row.OwnerID, runChat.OwnerID)
 					case "delete":
 						require.Len(t, f.changeAudits(), audits+1, action)
 					}
