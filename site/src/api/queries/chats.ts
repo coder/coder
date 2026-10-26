@@ -2092,6 +2092,7 @@ export const updateChatWorkspace = (queryClient: QueryClient) => ({
 		await invalidateChatListQueries(queryClient);
 		await invalidateChatEntity(queryClient, chatId);
 		await invalidateChatsByWorkspace(queryClient);
+		await invalidateChatPreviews(queryClient, chatId);
 	},
 });
 
@@ -2571,6 +2572,24 @@ export const chatDebugRun = (chatId: string, runId: string) =>
 		refetchIntervalInBackground: false,
 	});
 
+const chatPreviewsKey = (chatId: string) =>
+	[...chatEntityKey(chatId), "previews"] as const;
+
+export const chatPreviews = (chatId: string, workspaceId: string) =>
+	queryOptions({
+		// The endpoint lists the previews of the chat's current workspace.
+		queryKey: [...chatPreviewsKey(chatId), workspaceId],
+		queryFn: ({ signal }) => API.experimental.getChatPreviews(chatId, signal),
+	});
+
+export const invalidateChatPreviews = (
+	queryClient: QueryClient,
+	chatId: string,
+) =>
+	queryClient.invalidateQueries({
+		queryKey: chatPreviewsKey(chatId),
+	});
+
 export const createChat = (queryClient: QueryClient) => ({
 	mutationFn: (req: TypesGen.CreateChatRequest) =>
 		API.experimental.createChat(req),
@@ -2691,6 +2710,8 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 		void invalidateChatEntity(queryClient, chatId);
 		void invalidateChatPrompts(queryClient, chatId);
 		void invalidateChatDebugRuns(queryClient, chatId);
+		// Edits delete later messages, and with them their previews.
+		void invalidateChatPreviews(queryClient, chatId);
 		void invalidateChatSearches(queryClient);
 	},
 });

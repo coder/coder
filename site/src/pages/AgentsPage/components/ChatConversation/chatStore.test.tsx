@@ -3,6 +3,7 @@ import { watchChat } from "#/api/api";
 import {
 	chatListKey,
 	chatMessagesKey,
+	chatPreviews,
 	toChatListParams,
 } from "#/api/queries/chats";
 
@@ -1107,6 +1108,82 @@ describe("useChatStore", () => {
 		expect(cached?.pages[1]?.messages[0]?.content).toEqual(
 			updatedMessage.content,
 		);
+	});
+
+	it.each<{ name: string; events: readonly TypesGen.ChatStreamEvent[] }>([
+		{
+			name: "an open_preview result arrives",
+			events: [
+				{
+					type: "message",
+					chat_id: "chat-1",
+					message: buildMessageWithContent("chat-1", 2, "tool", [
+						{
+							type: "tool-result",
+							tool_call_id: "call-1",
+							tool_name: "open_preview",
+							result: {},
+						},
+					]),
+				},
+			],
+		},
+		{
+			// An edit deletes later messages, and with them their previews.
+			name: "the history is replaced",
+			events: [
+				{ type: "history_reset", chat_id: "chat-1" },
+				{
+					type: "message",
+					chat_id: "chat-1",
+					message: buildMessage("chat-1", 1, "user", "edited"),
+				},
+				{ type: "preview_reset", chat_id: "chat-1" },
+			],
+		},
+	])("refreshes the chat's previews when $name", async ({ events }) => {
+		const chatID = "chat-1";
+		const existingMessage = buildMessage(chatID, 1, "user", "hello");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const previewsKey = chatPreviews(chatID, "workspace-1").queryKey;
+		queryClient.setQueryDefaults(previewsKey, {
+			gcTime: Number.POSITIVE_INFINITY,
+		});
+		queryClient.setQueryData(previewsKey, []);
+
+		renderHook(
+			() =>
+				useChatStore({
+					chatRecordUpdatedAt: 0,
+					chatID,
+					chatMessages: [existingMessage],
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages: [existingMessage],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				}),
+			{ wrapper: createWrapper(queryClient) },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		act(() => {
+			mockSocket.emitDataBatch(events);
+		});
+
+		await waitFor(() => {
+			expect(queryClient.getQueryState(previewsKey)?.isInvalidated).toBe(true);
+		});
 	});
 
 	it("clears stream state when a new durable message arrives", async () => {
