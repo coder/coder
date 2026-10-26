@@ -76,7 +76,8 @@ func newOpenCodeServer(options BackendOptions, clock quartz.Clock) *openCodeServ
 func (s *openCodeServer) descriptorPath() string {
 	return filepath.Join(s.options.StateDir, "opencode-server.json")
 }
-func (s *openCodeServer) home() string { return filepath.Join(s.options.StateDir, "opencode-home") }
+func openCodeHome(stateDir string) string { return filepath.Join(stateDir, "opencode-home") }
+func (s *openCodeServer) home() string    { return openCodeHome(s.options.StateDir) }
 func (s *openCodeServer) environment() []string {
 	return openCodeEnvironment(s.home(), s.options.Environment)
 }
@@ -103,9 +104,13 @@ func openCodeEnvironment(home string, original []string) []string {
 	return append(result, "HOME="+home, "XDG_CONFIG_HOME="+filepath.Join(home, "config"), "XDG_DATA_HOME="+filepath.Join(home, "data"), "XDG_STATE_HOME="+filepath.Join(home, "state"), "XDG_CACHE_HOME="+filepath.Join(home, "cache"), "TMPDIR="+filepath.Join(home, "tmp"), "OPENCODE_DISABLE_AUTOUPDATE=true", `OPENCODE_CONFIG_CONTENT={"update":"disable"}`)
 }
 
+func openCodeHomeDirectories(home string) []string {
+	return []string{home, filepath.Join(home, "config"), filepath.Join(home, "data"), filepath.Join(home, "state"), filepath.Join(home, "cache"), filepath.Join(home, "tmp")}
+}
+
 func openCodeMakeHome(home string) error {
-	for _, name := range []string{"", "config", "data", "state", "cache", "tmp"} {
-		if err := openCodePrivateDirectory(filepath.Join(home, name), openCodeCreateDirectory); err != nil {
+	for _, path := range openCodeHomeDirectories(home) {
+		if err := openCodePrivateDirectory(path, openCodeCreateDirectory); err != nil {
 			return err
 		}
 	}

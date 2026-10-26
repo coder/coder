@@ -124,10 +124,22 @@ func nativeAgentWithAuthFile(authFile string) *serpent.Command {
 				return err
 			}
 			path := filepath.Join(dir, "config.json")
-			if existing, err := nativeReadPrivate(path); err == nil {
-				return nativeSameConfig(existing, config)
+			existing, err := nativeReadPrivate(path)
+			configured := err == nil
+			if configured {
+				if err := nativeSameConfig(existing, config); err != nil {
+					return err
+				}
 			} else if !errors.Is(err, os.ErrNotExist) {
 				return xerrors.New("cannot read existing private native agent configuration")
+			}
+			if setup {
+				if err := agentnative.PrepareDirectories(dir, append(inv.Environ.ToOS(), "HOME="+home)); err != nil {
+					return xerrors.Errorf("prepare native directories: %w", err)
+				}
+			}
+			if configured {
+				return nil
 			}
 			if setup {
 				if err := nativeTemplateSetup(inv, dir, config.InitialJob, authFile); err != nil {

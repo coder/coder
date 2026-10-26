@@ -15,13 +15,22 @@ The template pins Claude Code to `2.1.309`, Codex to `0.164.0`, and OpenCode V2 
 OpenCode V1 from `opencode-ai` isn't compatible.
 Complete native project trust and provider setup before unattended work.
 Authentication is separate for each harness; selecting an initial harness doesn't authenticate the others.
-Codex creates its private home on first startup, but creating that directory doesn't authenticate it.
 The integration doesn't approve native permission dialogs.
 
 The template prepares the project, credentials, native installations, and initial-job configuration.
 The Go manager starts after the workspace's startup scripts finish.
 It restores saved conversations before attempting the configured initial job.
 Native subprocesses receive the workspace user's prepared environment, not a later browser or SSH client's environment.
+
+Before accepting sessions, the manager prepares prerequisite directories for all three harnesses, regardless of the initial harness:
+
+- Claude: `$HOME/.claude`.
+- Codex: `$CODEX_HOME`, or `$HOME/.codex` when unset or empty.
+- OpenCode: `opencode-home` within the manager's state directory, including its `config`, `data`, `state`, `cache`, and `tmp` directories.
+
+The template's `configure --setup` command also prepares these directories on every startup, including when it retains an existing job configuration.
+Missing directories are created with mode `0700`; unsafe existing paths are rejected without changing their permissions or contents.
+Directory preparation doesn't authenticate harnesses, start native processes, or change existing configuration and conversation files.
 
 ## Process and protocol boundaries
 

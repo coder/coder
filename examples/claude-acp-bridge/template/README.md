@@ -146,9 +146,9 @@ project and authentication, then saves the literal prompt in the private
 `/home/coder/.local/state/coder-native/config.json`. It does not contact the
 manager or start native inference. After startup scripts finish, the agent starts
 the manager, restores saved sessions, and attempts the initial job once.
-An identical configuration is a no-op apart from the exact generated Claude
-helper repair; divergent configuration is rejected without overwriting the
-existing file. No shell evaluates the prompt.
+An identical configuration still prepares all harnesses' prerequisite directories and repairs the exact generated Claude helper, but skips project and authentication setup.
+Divergent configuration is rejected without overwriting the existing file.
+No shell evaluates the prompt.
 
 Select a session on the workspace page to observe it. **Open** runs
 `coder native-agent attach SESSION_ID` in a terminal, connecting to the existing

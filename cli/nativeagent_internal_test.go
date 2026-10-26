@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -63,16 +64,87 @@ func TestNativeAgentConfigure(t *testing.T) {
 	files, err := os.ReadDir(dir)
 	require.NoError(t, err)
 	require.Len(t, files, 1, "configuration must not create a manager, native runtime, or dispatch record")
+	if runtime.GOOS != "linux" {
+		_, _, err = invokeNative(t, home, env, "configure", "--setup")
+		require.ErrorIs(t, err, agentnative.ErrUnsupported)
+		return
+	}
 
-	// Existing configuration short-circuits setup, even without auth or trust.
-	_, _, err = invokeNative(t, home, env, "configure", "--setup")
-	require.NoError(t, err)
-	_, _, err = invokeNative(t, home, env, "configure", "--harness", "codex")
+	// Retained configuration skips auth and project setup, but still prepares
+	// every harness's directories on each startup.
+	for range 2 {
+		_, _, err = invokeNative(t, home, env, "configure", "--setup")
+		require.NoError(t, err)
+		requireNativeDirectories(t, home, dir)
+		require.NoError(t, os.Remove(filepath.Join(home, ".codex")))
+	}
+	_, _, err = invokeNative(t, home, env, "configure", "--setup", "--harness", "codex")
 	require.ErrorContains(t, err, "differs")
 	require.NotContains(t, err.Error(), prompt)
+	blocked := filepath.Join(home, ".codex")
+	require.NoDirExists(t, blocked, "a configuration mismatch must not run setup")
+	require.NoError(t, os.WriteFile(blocked, []byte("preserved file"), 0o600))
+	_, _, err = invokeNative(t, home, env, "configure", "--setup")
+	require.ErrorContains(t, err, "prepare native directories")
+	contents, err := os.ReadFile(blocked)
+	require.NoError(t, err)
+	require.Equal(t, "preserved file", string(contents))
 	after, err := os.ReadFile(filepath.Join(dir, "config.json"))
 	require.NoError(t, err)
 	require.Equal(t, data, after)
+}
+
+func requireNativeDirectories(t *testing.T, home, stateDir string) {
+	t.Helper()
+	for _, path := range []string{
+		stateDir,
+		filepath.Join(home, ".claude"),
+		filepath.Join(home, ".codex"),
+		filepath.Join(stateDir, "opencode-home"),
+		filepath.Join(stateDir, "opencode-home", "config"),
+		filepath.Join(stateDir, "opencode-home", "data"),
+		filepath.Join(stateDir, "opencode-home", "state"),
+		filepath.Join(stateDir, "opencode-home", "cache"),
+		filepath.Join(stateDir, "opencode-home", "tmp"),
+	} {
+		info, err := os.Stat(path)
+		require.NoError(t, err, "prerequisite directory: %s", path)
+		require.True(t, info.IsDir())
+		require.EqualValues(t, 0o700, info.Mode().Perm())
+	}
+}
+
+func TestNativeAgentSetupDirectories(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS != "linux" {
+		t.Skip("native directory preparation requires Linux")
+	}
+	for _, harness := range []string{"claude", "opencode"} {
+		t.Run(harness, func(t *testing.T) {
+			t.Parallel()
+			home := t.TempDir()
+			stateDir := filepath.Join(home, "custom-state")
+			authFile := filepath.Join(home, "mounted-auth.json")
+			require.NoError(t, os.WriteFile(authFile, []byte(`{"ANTHROPIC_API_KEY":"private-test-key"}`), 0o600))
+			stdout, stderr, err := invokeNativeWithAuthFile(t, home, authFile, []string{
+				"CODER_NATIVE_JOB_HARNESS=" + harness,
+				"CODER_NATIVE_JOB_TRUST=true", "CODER_NATIVE_JOB_PROMPT_BASE64=dGFzaw==",
+				"PATH=" + t.TempDir(),
+			}, "--state-dir", stateDir, "configure", "--setup")
+			require.NoError(t, err)
+			require.Empty(t, stdout)
+			require.Empty(t, stderr)
+			requireNativeDirectories(t, home, stateDir)
+			entries, err := os.ReadDir(stateDir)
+			require.NoError(t, err)
+			var names []string
+			for _, entry := range entries {
+				names = append(names, entry.Name())
+			}
+			require.Equal(t, []string{"config.json", "opencode-home"}, names, "directory setup must not create runtime state")
+			require.NoFileExists(t, filepath.Join(home, ".codex", "auth.json"))
+		})
+	}
 }
 
 func TestNativeAgentConfigureRejectsLegacyJob(t *testing.T) {
@@ -432,6 +504,9 @@ func TestNativeAgentConfigurePromptFile(t *testing.T) {
 
 func TestNativeAgentCodexSetup(t *testing.T) {
 	t.Parallel()
+	if runtime.GOOS != "linux" {
+		t.Skip("native directory preparation requires Linux")
+	}
 	for _, existing := range []bool{false, true} {
 		t.Run(fmt.Sprint(existing), func(t *testing.T) {
 			t.Parallel()
@@ -439,8 +514,8 @@ func TestNativeAgentCodexSetup(t *testing.T) {
 			bin := filepath.Join(home, "bin")
 			codexHome := filepath.Join(home, ".codex")
 			require.NoError(t, os.Mkdir(bin, 0o700))
-			require.NoError(t, os.Mkdir(codexHome, 0o700))
 			if existing {
+				require.NoError(t, os.Mkdir(codexHome, 0o700))
 				require.NoError(t, os.WriteFile(filepath.Join(codexHome, "auth.json"), []byte(`{"retained":"auth"}`), 0o600))
 			}
 			script := `#!/bin/sh
@@ -477,6 +552,7 @@ printf private-test-key >&2
 			require.NoError(t, err)
 			require.Empty(t, stdout)
 			require.Empty(t, stderr)
+			requireNativeDirectories(t, home, agentnative.DefaultStateDir(home))
 			data, err := nativeReadPrivate(filepath.Join(codexHome, "auth.json"))
 			require.NoError(t, err)
 			if existing {
@@ -488,6 +564,9 @@ printf private-test-key >&2
 
 func TestNativeAgentCodexRejectsUnsafeMount(t *testing.T) {
 	t.Parallel()
+	if runtime.GOOS != "linux" {
+		t.Skip("native directory preparation requires Linux")
+	}
 	for _, kind := range []string{"missing", "public", "symlink", "invalid-json", "claude-only", "whitespace", "nul"} {
 		t.Run(kind, func(t *testing.T) {
 			t.Parallel()

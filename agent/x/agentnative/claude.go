@@ -127,7 +127,7 @@ var _ http.Handler = (*Claude)(nil)
 
 // NewClaude creates an observer without starting Claude or contacting its daemon.
 func NewClaude(options BackendOptions) (*Claude, error) {
-	if options.Host == nil || !claudeValidPath(options.StateDir) {
+	if options.Host == nil || !nativeValidPath(options.StateDir) {
 		return nil, xerrors.New("Claude requires a host and an absolute private state directory")
 	}
 	u, err := url.Parse(options.CallbackURL)
@@ -138,13 +138,9 @@ func NewClaude(options BackendOptions) (*Claude, error) {
 		options.Clock = quartz.NewReal()
 	}
 	options.Environment = slices.Clone(options.Environment)
-	home := claudeEnv(options.Environment, "HOME")
-	if !claudeValidPath(home) {
-		return nil, xerrors.New("Claude requires the workspace user's HOME")
-	}
-	root := filepath.Join(home, ".claude")
-	if configured := claudeEnv(options.Environment, "CLAUDE_CONFIG_DIR"); configured != "" && configured != root {
-		return nil, xerrors.Errorf("custom Claude config roots: %w", ErrUnsupported)
+	root, err := claudeConfigRoot(options.Environment)
+	if err != nil {
+		return nil, err
 	}
 	var execer agentexec.Execer
 	if options.Command == nil {
@@ -155,6 +151,18 @@ func NewClaude(options BackendOptions) (*Claude, error) {
 		}
 	}
 	return &Claude{options: options, clock: options.Clock, execer: execer, plugin: filepath.Join(options.StateDir, "claude-plugin"), descriptor: filepath.Join(options.StateDir, "claude-bridge.json"), root: root, done: make(chan struct{}), sessions: make(map[string]*claudeRuntime), launches: make(map[string]*claudeLaunch)}, nil
+}
+
+func claudeConfigRoot(environment []string) (string, error) {
+	home := claudeEnv(environment, "HOME")
+	if !nativeValidPath(home) {
+		return "", xerrors.New("Claude requires the workspace user's HOME")
+	}
+	root := filepath.Join(home, ".claude")
+	if configured := claudeEnv(environment, "CLAUDE_CONFIG_DIR"); configured != "" && configured != root {
+		return "", xerrors.Errorf("custom Claude config roots: %w", ErrUnsupported)
+	}
+	return root, nil
 }
 
 // installLocked refreshes the descriptor atomically. A live mod rereads this file
@@ -205,7 +213,7 @@ func (c *Claude) Create(ctx context.Context, cwd string) (Session, error) {
 	if err := ctx.Err(); err != nil {
 		return Session{}, err
 	}
-	if !claudeValidPath(cwd) {
+	if !nativeValidPath(cwd) {
 		return Session{}, xerrors.New("invalid Claude working directory")
 	}
 	if info, err := os.Stat(cwd); err != nil || !info.IsDir() {
@@ -352,7 +360,7 @@ func (c *Claude) Resume(ctx context.Context, session Session) error {
 }
 
 func (c *Claude) loadLocked(session Session) (*claudeRuntime, error) {
-	if session.Harness != "claude" || !claudeUUID(session.ID) || session.ID != session.NativeID || !claudeValidPath(session.Cwd) {
+	if session.Harness != "claude" || !claudeUUID(session.ID) || session.ID != session.NativeID || !nativeValidPath(session.Cwd) {
 		return nil, xerrors.New("invalid Claude session identity")
 	}
 	if r := c.sessions[session.ID]; r != nil {
@@ -390,7 +398,7 @@ func (c *Claude) ServeHTTP(w http.ResponseWriter, request *http.Request) {
 		http.Error(w, "invalid runtime heartbeat", http.StatusBadRequest)
 		return
 	}
-	if !claudeUUID(body.SessionID) || !claudeUUID(body.LaunchID) || len(body.RuntimeID) == 0 || len(body.RuntimeID) > 200 || !claudeValidPath(body.Cwd) || !claudeMode(body.Mode) || len(body.ActiveTurnID) > 200 || len(body.Events) > 128 {
+	if !claudeUUID(body.SessionID) || !claudeUUID(body.LaunchID) || len(body.RuntimeID) == 0 || len(body.RuntimeID) > 200 || !nativeValidPath(body.Cwd) || !claudeMode(body.Mode) || len(body.ActiveTurnID) > 200 || len(body.Events) > 128 {
 		http.Error(w, "invalid runtime identity", http.StatusBadRequest)
 		return
 	}
@@ -758,7 +766,7 @@ func (c *Claude) faultLocked(r *claudeRuntime, reason string) {
 
 // Attach returns a native terminal command without changing session control.
 func (c *Claude) Attach(_ context.Context, session Session) (Command, error) {
-	if session.Harness != "claude" || !claudeUUID(session.NativeID) || session.ID != session.NativeID || !claudeValidPath(session.Cwd) {
+	if session.Harness != "claude" || !claudeUUID(session.NativeID) || session.ID != session.NativeID || !nativeValidPath(session.Cwd) {
 		return Command{}, xerrors.New("invalid Claude session identity")
 	}
 	return Command{Path: "claude", Args: []string{"attach", session.NativeID[:8]}, Dir: session.Cwd, Env: slices.Clone(c.options.Environment)}, nil
@@ -854,9 +862,6 @@ func claudeUUID(value string) bool {
 	return err == nil && id != uuid.Nil && id.String() == value
 }
 func claudeMode(mode string) bool { return mode == "human" || mode == "automation" }
-func claudeValidPath(path string) bool {
-	return len(path) <= 4096 && filepath.IsAbs(path) && filepath.Clean(path) == path && !strings.ContainsFunc(path, func(r rune) bool { return r < 32 || r == 127 })
-}
 func claudeClone(state claudeState) claudeState {
 	state.Retired = slices.Clone(state.Retired)
 	receipts := make(map[string]claudeReceipt, len(state.Receipts))

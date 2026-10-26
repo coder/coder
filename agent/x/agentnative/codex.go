@@ -109,6 +109,32 @@ func NewCodex(options BackendOptions) (*Codex, error) {
 	return c, nil
 }
 
+func codexHome(environment []string) (string, error) {
+	var home, root string
+	for _, entry := range environment {
+		key, value, ok := strings.Cut(entry, "=")
+		if !ok {
+			continue
+		}
+		switch key {
+		case "HOME":
+			home = value
+		case "CODEX_HOME":
+			root = value
+		}
+	}
+	if root == "" {
+		if !nativeValidPath(home) {
+			return "", xerrors.New("native Codex requires an absolute HOME or CODEX_HOME")
+		}
+		root = filepath.Join(home, ".codex")
+	}
+	if !nativeValidPath(root) {
+		return "", xerrors.New("native Codex requires an absolute CODEX_HOME")
+	}
+	return root, nil
+}
+
 // command resolves the executable in the workspace user's PATH, not the
 // bootstrap agent's environment. Construction never probes or runs the CLI.
 func (c *Codex) command(ctx context.Context, args ...string) (*exec.Cmd, error) {

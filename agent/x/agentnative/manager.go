@@ -29,7 +29,9 @@ type Options struct {
 	Logger      slog.Logger
 	Clock       quartz.Clock
 	Command     func(context.Context, string, ...string) *exec.Cmd
-	Factories   map[string]func(BackendOptions) (Backend, error)
+	// Factories replaces the default backends when non-nil. Custom factories
+	// own their prerequisite directories; New prepares only StateDir for them.
+	Factories map[string]func(BackendOptions) (Backend, error)
 }
 
 // Manager journals native observations and guards at-most-once dispatch. It does
@@ -58,8 +60,8 @@ type Manager struct {
 	shutdownErr  error
 }
 
-// New opens only the private journal and local listener. Native processes are
-// initialized lazily by Create or Restore.
+// New prepares prerequisite directories and opens the private journal and local
+// listener. Native processes are initialized lazily by Create or Restore.
 func New(options Options) (_ *Manager, err error) {
 	if options.Clock == nil {
 		options.Clock = quartz.NewReal()
@@ -82,6 +84,11 @@ func New(options Options) (_ *Manager, err error) {
 	}()
 	if err := dir.acquire(); err != nil {
 		return nil, err
+	}
+	if options.Factories == nil {
+		if err := PrepareDirectories(options.StateDir, options.Environment); err != nil {
+			return nil, err
+		}
 	}
 	store, saved, err := openStore(dir)
 	if err != nil {

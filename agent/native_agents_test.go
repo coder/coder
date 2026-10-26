@@ -111,6 +111,21 @@ func TestAgentNativeAgentsStartupAndClose(t *testing.T) {
 	require.Equal(t, 1, response.ID)
 	require.NotEmpty(t, response.Result)
 	require.NoError(t, stream.Close())
+	for _, path := range []string{
+		filepath.Join(home, ".claude"),
+		filepath.Join(home, ".codex"),
+		filepath.Join(stateDir, "opencode-home"),
+		filepath.Join(stateDir, "opencode-home", "config"),
+		filepath.Join(stateDir, "opencode-home", "data"),
+		filepath.Join(stateDir, "opencode-home", "state"),
+		filepath.Join(stateDir, "opencode-home", "cache"),
+		filepath.Join(stateDir, "opencode-home", "tmp"),
+	} {
+		info, err := os.Stat(path)
+		require.NoError(t, err, "prerequisites must exist before the native API is ready: %s", path)
+		require.True(t, info.IsDir())
+		require.EqualValues(t, 0o700, info.Mode().Perm())
+	}
 
 	// Even the local bearer credential does not expose local REST on the
 	// remote API. Only ACP is mounted, never attach, shutdown or runtime.

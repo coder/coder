@@ -153,7 +153,7 @@ func claudeDirectory(path string, mask os.FileMode) error {
 }
 
 func claudeMakePrivate(path string) error {
-	if !claudeValidPath(path) {
+	if !nativeValidPath(path) {
 		return xerrors.New("invalid private path")
 	}
 	if _, err := os.Lstat(path); errors.Is(err, os.ErrNotExist) {
@@ -456,7 +456,7 @@ func (c *Claude) verifyTranscript(state claudeNativeState, session Session) erro
 		}
 		path = filepath.Join(projects, project, session.NativeID+".jsonl")
 	}
-	if !claudeValidPath(path) || filepath.Base(path) != session.NativeID+".jsonl" || filepath.Dir(filepath.Dir(path)) != projects {
+	if !nativeValidPath(path) || filepath.Base(path) != session.NativeID+".jsonl" || filepath.Dir(filepath.Dir(path)) != projects {
 		return xerrors.New("invalid native transcript path")
 	}
 	for _, directory := range []string{projects, filepath.Dir(path)} {
@@ -621,7 +621,7 @@ func (c *Claude) processSnapshot(mode claudeRegistryMode) (*claudeProcessSnapsho
 			return nil, err
 		}
 		for short, worker := range roster.Workers {
-			if !claudeUUID(worker.SessionID) || short != worker.SessionID[:8] || worker.CLIVersion != "2.1.309" || !claudeValidPath(worker.Cwd) {
+			if !claudeUUID(worker.SessionID) || short != worker.SessionID[:8] || worker.CLIVersion != "2.1.309" || !nativeValidPath(worker.Cwd) {
 				return nil, xerrors.New("ambiguous native worker")
 			}
 			if err := capture(worker.PID); err != nil {
