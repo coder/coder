@@ -5,25 +5,124 @@ same session in Claude's terminal UI. This is an experimental adapter for an
 existing Linux workspace, not a production-ready service. It requires a Coder
 build with the `native-agents` experiment, or a standalone ACP client.
 
-```text
-Coder UI / ACP client
-        |
-        | ACP v1 over WebSocket to Coder (standalone clients use stdio)
-        v
-Coder backend: workspace SSH exec "coder-acp acp"
-        |
-        | ACP v1, NDJSON over stdio
-        v
-persistent authenticated loopback broker -> mod in native Claude
-                                                    ^
-                                                    |
-Coder web terminal: coder-acp attach SESSION_ID -> claude attach
+## High-level architecture
+
+The integration adds an ACP relay to `coderd` and an adapter inside the workspace.
+It reuses Coder's workspace provisioning, authentication, SSH authorization,
+tailnet connectivity, and web terminal. It does not use Coder Agents or `chatd`.
+
+### Connections and process boundaries
+
+```mermaid
+flowchart TB
+    subgraph browser["Browser"]
+        panel["Native sessions panel (new)<br/>ACP client"]
+        terminal["Existing web terminal<br/>Native Claude TUI"]
+    end
+
+    subgraph deployment["Existing Coder deployment"]
+        coderd["coderd (daemon)<br/>Existing auth and SSH RBAC<br/>New ACP relay handler"]
+        proxy["Existing terminal proxy<br/>coderd or workspace proxy"]
+        database[("PostgreSQL<br/>Workspace and template metadata")]
+        provisioner["provisionerd (daemon)<br/>Terraform workspace builds"]
+    end
+
+    subgraph workspace["Linux workspace: same OS user for agent, adapter, and Claude"]
+        agent["coder agent (existing daemon)<br/>SSH server and reconnecting PTY"]
+        acp["coder-acp acp (new)<br/>One process per ACP connection"]
+        attach["coder-acp attach UUID<br/>then claude attach SHORT_ID"]
+        broker["coder-acp serve (new daemon)<br/>Detached, shared across connections"]
+        native["Native Claude supervisor and session workers<br/>Bridge mod inside each worker"]
+    end
+
+    model["Configured model API"]
+
+    panel <-->|"WSS: ACP v1 JSON-RPC / NDJSON<br/>Binary WebSocket frames"| coderd
+    terminal <-->|"WSS: terminal input and output"| proxy
+    coderd <-->|"SQL"| database
+    coderd <-->|"DRPC: workspace build jobs"| provisioner
+    provisioner -.->|"Terraform provisions workspace<br/>and configures agent"| agent
+    coderd <-->|"SSH over tailnet, no PTY"| agent
+    proxy <-->|"Reconnecting PTY over tailnet"| agent
+    agent <-->|"SSH exec: coder-acp acp<br/>ACP NDJSON on stdin/stdout"| acp
+    agent <-->|"Interactive PTY"| attach
+    acp <-->|"Bearer-authenticated HTTP/JSON<br/>127.0.0.1 only"| broker
+    attach <-->|"Loopback HTTP/JSON + bearer token<br/>Human mode or explicit resume"| broker
+    native <-->|"Bearer-authenticated HTTP/JSON<br/>Heartbeats, events, commands"| broker
+    broker -.->|"Native launch or explicit resume"| native
+    attach <-->|"Native local attach IPC"| native
+    native <-->|"HTTPS: model requests and responses"| model
 ```
 
-The mod uses `$.prompt.submit`, `$.turn.abort`, and structured turn/tool events.
-There is no Agent SDK conversation, terminal scraping, or synthetic keyboard
-input in the control path. Native Claude owns the conversation and execution.
-An ordinary Coder workspace is sufficient; Coder Agents is not required.
+Solid connections carry protocol traffic; dotted connections create or resume
+processes. The diagram assumes TLS at Coder's ingress (`WSS`); local development
+can use `WS`. Tailnet is Coder's existing encrypted WireGuard network, using a
+direct connection when possible or DERP relay otherwise. The browser does not
+connect directly to the broker. ACP enters through
+`/api/v2/workspaceagents/{agent}/experimental/acp`; the terminal uses the existing
+`/api/v2/workspaceagents/{agent}/pty` route. External provisioner DRPC uses yamux
+over a WebSocket; provisioning is not part of the ACP message path.
+
+The native mod initiates `/v1/runtime` HTTP requests containing registration,
+heartbeats, and structured events. Broker responses return acknowledgements and
+queued commands. ACP clients independently long-poll the broker for events.
+The mod uses `$.prompt.submit`, `$.turn.abort`, and structured turn/tool events;
+there is no terminal scraping or synthetic keyboard input in the control path.
+Claude owns model calls, native permissions, tool execution, and conversation
+state. The relay does not interpret ACP or own a second conversation.
+
+### Startup, persistence, and ownership
+
+```mermaid
+flowchart TB
+    startup["coder agent runs template startup<br/>Initial prompt is a workspace parameter"]
+    broker["Detached broker<br/>coder-acp serve"]
+    job["Optional detached job worker<br/>coder-acp run --detach"]
+    acp["Child ACP adapter<br/>coder-acp acp"]
+    native["Native Claude<br/>Supervisor and session workers"]
+
+    subgraph home["Persistent workspace home (Docker template volume)"]
+        bridgeFiles[("Private bridge files<br/>bridge.json: broker address and token<br/>bridge.json.sessions.json: bounded history<br/>broker-runtime.json: startup ownership")]
+        jobFile[("job.json<br/>Durable dispatch guard and outcome")]
+        nativeFiles[("~/.claude/<br/>Native jobs and saved conversations")]
+    end
+
+    startup -.->|"Start or recover broker availability"| broker
+    startup -.->|"Attempt initial job once"| job
+    job <-->|"ACP NDJSON / stdio"| acp
+    acp <-->|"Loopback HTTP/JSON"| broker
+    job <-->|"Check guard; record dispatch and outcome"| jobFile
+    startup <-->|"Validate ownership during recovery"| bridgeFiles
+    broker <-->|"Descriptor and atomic history snapshots"| bridgeFiles
+    broker -.->|"Explicit launch / resume only"| native
+    native <-->|"Read and write native state"| nativeFiles
+    broker -.->|"Read owned records for discovery<br/>and safe resume validation"| nativeFiles
+```
+
+Here dotted connections indicate startup, launch, or discovery work rather than
+the live ACP stream. The job worker exits after observing an outcome; it is not
+an always-on supervisor. The broker and native workers outlive individual SSH,
+ACP, and terminal connections. `coder-acp acp` is connection-scoped, not a daemon.
+
+- **Join:** ACP selects human mode before opening the existing Coder terminal.
+  For a stopped session, it explicitly requests a validated native resume of the
+  same UUID, without resending the original task. The terminal attaches to that
+  native session, not to a separate ACP-created conversation.
+- **Observe:** ACP hands new prompts back to automation. It neither closes an
+  open terminal nor cancels an existing turn. `Ctrl+Z` detaches the native TUI.
+- **Restart:** workspace shutdown kills processes, not the persistent home.
+  Startup restores broker availability and readable session archives, but does
+  not resume native work or replay a job. Join is the explicit resume boundary.
+- **Storage:** PostgreSQL remains Coder's workspace metadata store. This POC adds
+  no central conversation store: broker history, dispatch guards, and native
+  conversations live in the workspace. Full native history and bounded broker
+  transcript history are distinct.
+
+Implementation entry points: [ACP relay](../../coderd/workspaceagents_acp.go),
+[existing terminal proxy](../../coderd/workspaceapps/proxy.go),
+[ACP adapter](src/acp.mjs), [broker](src/broker.mjs),
+[native mod](plugin/hooks/register.js), [native resume](src/native-resume.mjs),
+[job worker](src/job.mjs), and [template startup](template/image/startup.mjs).
 
 ## Prerequisites
 
