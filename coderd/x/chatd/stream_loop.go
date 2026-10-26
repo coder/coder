@@ -463,8 +463,9 @@ func (l *streamLoop) messageEvents(snapshot streamDBSnapshot) []codersdk.ChatStr
 
 // versionedMessageEvents returns, for a stream opened with a snapshot
 // version, one history_reset per edit, from the lowest ID it removed, then a
-// message event per live row. changed holds only rows written since the
-// previous sync, so the client has received none of them. No full history
+// message event per live row. changed holds the rows written since the
+// previous sync; the first sync starts at snapshot_version - 1, so the client
+// can already hold the rows of commit snapshot_version. No full history
 // is needed: an edit removes every message from the edited one on, so each
 // live row at or above that ID was written by the edit or a later commit,
 // and is among the changed rows.

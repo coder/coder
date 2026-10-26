@@ -244,7 +244,7 @@ func (p *Server) Subscribe(
 }
 
 // SubscribeAuthorized subscribes an already-authorized chat to stream updates.
-// A non-zero snapshotVersion resumes from that version and ignores
+// A positive snapshotVersion resumes from that version and ignores
 // afterMessageID. ok is false, and nothing was sent, when the server has no
 // database or pubsub, or when the pubsub subscription or the initial read
 // fails. Only the two failures are logged.
