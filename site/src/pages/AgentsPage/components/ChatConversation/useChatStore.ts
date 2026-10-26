@@ -50,7 +50,7 @@ const shouldSurfaceReconnectState = (state: ChatStoreState): boolean =>
 export const chatStoreKey = (chatID: string) => ["chatStore", chatID] as const;
 
 /** Progress of loading a chat's newest messages page. */
-export type ChatLoadState =
+type ChatLoadState =
 	| { status: "loading" }
 	| { status: "loaded" }
 	| { status: "failed"; error: unknown };
