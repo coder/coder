@@ -182,6 +182,8 @@ type MessageScrollerContextValue = {
   observeVisibility: () => void
   preserveScrollOnPrependRef: React.RefObject<boolean>
   // LOCAL CHANGE
+  releaseAnchorHold: () => void
+  // LOCAL CHANGE
   resetBrowserScrollAnchor: () => void
   scrollToEnd: (options?: MessageScrollerScrollOptions) => boolean
   scrollToMessage: (
