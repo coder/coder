@@ -182,6 +182,21 @@ export const WithNetworkCalls: Story = {
 	},
 };
 
+// A request that failed upstream shows the error below its prompt.
+export const FailedRequest: Story = {
+	args: {
+		threads: [
+			{
+				...mockThread,
+				agentic_actions: [],
+				error_type: "bad_request",
+				error_message:
+					"messages.1.content.0: Invalid `signature` in `thinking` block.",
+			},
+		],
+	},
+};
+
 // A thread whose prompt is long enough to collapse past 200px, with the only
 // match near the end so a search must expand the full prompt to reveal it.
 const longFiller =

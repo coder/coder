@@ -8,6 +8,7 @@ import type {
 	AIBridgeThread,
 	MinimalUser,
 } from "#/api/typesGenerated";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
@@ -388,6 +389,14 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 								className="text-sm text-content-secondary font-normal bg-surface-secondary leading-relaxed rounded-md p-3 m-0 text-pretty"
 							/>
 						</>
+					)}
+					{thread.error_message && (
+						<Alert severity="error" className="mt-2">
+							<AlertTitle>Request failed</AlertTitle>
+							<AlertDescription className="break-words">
+								{thread.error_message}
+							</AlertDescription>
+						</Alert>
 					)}
 				</div>
 				<div className="flex flex-col gap-1 lg:max-w-64 min-w-0 shrink-0 w-full lg:w-auto">
