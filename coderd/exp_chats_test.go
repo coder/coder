@@ -19438,6 +19438,8 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tc.hasMore, resp.HasMore)
 			require.Len(t, resp.QueuedMessages, tc.wantQueued)
+			// A cursored page can leave out newer messages.
+			require.Equal(t, tc.opts == nil, resp.SnapshotVersion != 0, "only the page without a cursor includes snapshot_version")
 
 			want := make([]int64, len(tc.want))
 			for i, pos := range tc.want {
