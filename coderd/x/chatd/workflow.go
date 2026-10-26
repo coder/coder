@@ -62,7 +62,8 @@ const runWorkflowDescription = `Start a workflow run: a Starlark script (a Pytho
 
 Send the script inline in "script", or write it to a file in the workspace and send its absolute path in "script_path". Send one of the two. ` +
 	`chatd reads the file one time, when the run starts. A later edit of the file does not change a run that has started. ` +
-	`With a file, you can fix a script with small edits and start it again without sending the whole script.
+	`With a file, you can fix a script with small edits and start it again without sending the whole script. ` +
+	`run_workflow runs after the other tool calls in the same batch, so a write or edit of the file in that batch is done first.
 
 The script must define main(args). args is the "args" input (a JSON object). main must return a JSON value (dict, list, string, number, bool or None).
 
@@ -139,7 +140,7 @@ func (p *Server) workflowTools(ctx context.Context, opts rootChatToolsOptions) [
 		return nil
 	}
 	return []fantasy.AgentTool{
-		fantasy.NewAgentTool(
+		serialWorkflowTool{fantasy.NewAgentTool(
 			runWorkflowToolName,
 			runWorkflowDescription,
 			func(ctx context.Context, args runWorkflowArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
@@ -159,7 +160,7 @@ func (p *Server) workflowTools(ctx context.Context, opts rootChatToolsOptions) [
 				}
 				return workflowJSON(run.snapshot()), nil
 			},
-		),
+		)},
 		fantasy.NewAgentTool(
 			awaitWorkflowToolName,
 			awaitWorkflowDescription,
@@ -177,6 +178,13 @@ func (p *Server) workflowTools(ctx context.Context, opts rootChatToolsOptions) [
 		),
 	}
 }
+
+// serialWorkflowTool makes chatloop run run_workflow after the other tool
+// calls of the same step. A script_path call then reads the file after a
+// write_file or edit_files call in that step has changed it.
+type serialWorkflowTool struct{ fantasy.AgentTool }
+
+func (serialWorkflowTool) SerialToolCalls() bool { return true }
 
 // workflowScript returns args.Script, or the content of the workspace file
 // at args.ScriptPath. The run compiles this text one time, so a later edit
