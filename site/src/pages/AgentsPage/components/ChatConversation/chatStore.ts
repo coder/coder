@@ -437,9 +437,21 @@ export const createChatStore = (): ChatStore => {
 		batch,
 		replaceMessages: (messages) => {
 			historyResets++;
-			replaceMessages(messages);
+			batch(() => {
+				replaceMessages(messages);
+				endPending(["history"]);
+			});
 		},
-		upsertDurableMessage,
+		upsertDurableMessage: (message) => {
+			let result = { isDuplicate: false, changed: false };
+			batch(() => {
+				result = upsertDurableMessage(message);
+				if (message.role === "user") {
+					endPending(["message"]);
+				}
+			});
+			return result;
+		},
 		upsertDurableMessages: (messages) => {
 			batch(() => {
 				upsertDurableMessages(messages);
