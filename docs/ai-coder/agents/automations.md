@@ -79,18 +79,16 @@ When the experiment is off for a user:
 
 ## Who can manage automations
 
-The **Coder Agents User** (`agents-access`) organization role lets members create, read, update, turn off, and delete their own automations in that organization.
+The **Coder Agents User** (`agents-access`) organization role lets members create, read, update, and delete their own automations in that organization.
 Refer to [Getting started](./getting-started.md) for how members get this role.
-Users with the Owner role can read, turn off, and delete every automation.
+Users with the Owner role can read, update, and delete every automation.
 Organization admins can do the same for every automation in their organization.
+Only a member can create an automation, and only for themselves.
 
-An automation runs as its owner, so only the owner can create it, edit it, turn it back on, rotate its secret, or run it.
-Coder enforces this in its role-based access control: the `create` and `update` permissions on automations apply only to automations the user owns.
-Turning an automation off uses a separate `disable` permission.
-Other users get `403 Forbidden` for any other change.
-A custom organization role can't grant `create` or `update` on automations.
-Coder rejects such a role with `400 Bad Request`.
-On the **Automations** page, only the owner sees the delete button on the automation's row.
+The `update` permission covers every change: editing, turning the automation on or off, rotating its secret, and **Run now**.
+An automation always runs as its owner, with the owner's permissions, even when an administrator edits or runs it.
+Users without the permission get `403 Forbidden`.
+The **Automations** page shows the edit, **Run now**, and delete controls, and the on and off switch, only to users with the matching permission.
 Deleting an automation removes the messages it queued that haven't started yet.
 
 ## Create a webhook automation
@@ -407,7 +405,7 @@ When you change its cron expression or time zone, Coder recomputes its next run.
 To send a schedule's prompt immediately, select **Run now** on its row on the **Automations** page.
 With the API, send a `POST` request to `/api/experimental/organizations/{organization}/chat-automations/{automation}/runs`.
 
-Run now works only for schedule automations that are turned on, and only the owner can use it.
+Run now works only for schedule automations that are turned on, and needs permission to update the automation.
 It returns `202` with `input_id` and `chat_id`, and doesn't change the schedule's next run.
 Unlike a scheduled run, Run now reports refusals: `409` when the automation is off or the chat is busy and **When busy** is set to **Skip the run**, and `429` when the queue share or the queue is full.
 Other refusals return the same status codes as [webhook deliveries](#webhook-responses), such as `409` when the target chat or the model is unavailable.
@@ -491,8 +489,8 @@ The agent acts as you, so its automations count toward your limit and appear on 
 The agent has your permissions, in every turn.
 A turn that an automation started gets the same permissions as a turn that you start.
 The agent can list, read, turn off, and delete any of your automations in the chat's organization, including automations that target other chats.
-If you are an organization admin, the agent can also read, turn off, and delete other members' automations by ID, because you can.
-Only the owner of an automation can create, update, enable, or run it, so the agent can't do these things to other members' automations.
+If you are an organization admin, the agent can also read, update, enable, turn off, run, and delete other members' automations by ID, because you can.
+It can create automations only for you.
 Listing automations shows your own automations and their prompts in the chat, cut to 2,000 characters.
 Reading one automation shows its full prompt.
 
@@ -557,7 +555,8 @@ To cap each user's AI spend, refer to [Spend management](./platform-controls/spe
 
 ### Silent failures
 
-Every run of an automation is in the audit log as a **start** entry for the automation, attributed to its owner: each schedule occurrence, including skipped and missed ones, each **Run now**, and each webhook delivery with the right secret.
+Every run of an automation is in the audit log as a **start** entry for the automation: each schedule occurrence, including skipped and missed ones, each **Run now**, and each webhook delivery with the right secret.
+Coder attributes a **Run now** entry to the user who selected it, and every other entry to the automation's owner.
 The entry's additional fields name the `trigger` (`schedule`, `webhook`, or `run_now`), the `outcome`, the `reason`, the `input_id`, and the `chat_id`, and webhook entries carry the sender's IP address and user agent.
 Requests with a wrong secret or for an automation that doesn't exist aren't audited.
 
