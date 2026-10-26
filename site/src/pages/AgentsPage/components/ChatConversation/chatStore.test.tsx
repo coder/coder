@@ -36,6 +36,7 @@ import { createDeferred } from "#/testHelpers/deferred";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import {
+	type PendingAction,
 	selectChatStatus,
 	selectHasStreamState,
 	selectIsAwaitingFirstStreamChunk,
@@ -4714,6 +4715,11 @@ describe("chat stream contract", () => {
 				});
 				const { store } = chat;
 				return {
+					store,
+					pendingCount: useChatSelector(
+						store,
+						(state) => state.pendingActions.length,
+					),
 					fetchMoreMessages: chat.fetchMoreMessages,
 					isFetchingMoreMessages: chat.isFetchingMoreMessages,
 					messageIDs: useChatSelector(store, selectOrderedMessageIDs),
@@ -4737,6 +4743,142 @@ describe("chat stream contract", () => {
 		queued_messages: [],
 		has_more: false,
 		snapshot_version: snapshotVersion,
+	});
+
+	// The reconnect resends the events at the synced version 4.
+	it.each<{
+		name: string;
+		action: PendingAction;
+		status: TypesGen.ChatStatus;
+		replayed: TypesGen.ChatStreamEvent[];
+		result: TypesGen.ChatStreamEvent[];
+	}>([
+		{
+			name: "send",
+			action: {
+				kind: "send",
+				message: buildMessage(chatID, 0, "user", "second"),
+			},
+			status: "waiting",
+			replayed: [message(1, "user", 4)],
+			result: [message(3, "user", 5)],
+		},
+		{
+			name: "queued send",
+			action: {
+				kind: "send",
+				message: buildMessage(chatID, 0, "user", "second"),
+			},
+			status: "running",
+			replayed: [
+				{
+					type: "queue_update",
+					chat_id: chatID,
+					queued_messages: [],
+					snapshot_version: 4,
+				},
+			],
+			result: [
+				{
+					type: "queue_update",
+					chat_id: chatID,
+					queued_messages: [buildQueuedMessage(chatID, 10, "second")],
+					snapshot_version: 5,
+				},
+			],
+		},
+		{
+			name: "edit",
+			action: {
+				kind: "edit",
+				editedMessageID: 1,
+				message: buildMessage(chatID, 1, "user", "edited"),
+			},
+			status: "waiting",
+			replayed: [
+				{
+					type: "history_reset",
+					chat_id: chatID,
+					history_reset: { from_message_id: 1 },
+					snapshot_version: 4,
+				},
+				message(1, "user", 4),
+			],
+			result: [
+				{
+					type: "history_reset",
+					chat_id: chatID,
+					history_reset: { from_message_id: 1 },
+					snapshot_version: 5,
+				},
+				message(3, "user", 5),
+			],
+		},
+	])("keeps a pending $name through the events a reconnect resends", async ({
+		action,
+		status,
+		replayed,
+		result: committed,
+	}) => {
+		const sockets = mockWatchChatWithFreshSockets();
+		const { result } = renderChat(
+			page([buildMessage(chatID, 1, "user", "prompt")]),
+		);
+		await waitFor(() => expect(sockets).toHaveLength(1));
+		act(() => {
+			result.current.store.addPendingAction(action, status);
+		});
+		expect(result.current.pendingCount).toBe(1);
+
+		act(() => {
+			sockets[0].emitOpen();
+			sockets[0].emitDataBatch(replayed);
+		});
+		expect(result.current.pendingCount).toBe(1);
+
+		act(() => {
+			sockets[0].emitDataBatch(committed);
+		});
+		expect(result.current.pendingCount).toBe(0);
+	});
+
+	it("shows a chat's pending send in no other chat", async () => {
+		mockWatchChatWithFreshSockets();
+		const otherChatID = "chat-contract-other";
+		mockNewestPage(chatID, page([buildMessage(chatID, 1, "user", "prompt")]));
+		mockNewestPage(
+			otherChatID,
+			page([buildMessage(otherChatID, 2, "user", "other prompt")]),
+		);
+		const { result, rerender } = renderHook(
+			({ id }) => {
+				const { store, loadState } = useChatStore({
+					chatID: id,
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return {
+					store,
+					loadState,
+					messageIDs: useChatSelector(store, selectOrderedMessageIDs),
+				};
+			},
+			{
+				initialProps: { id: chatID },
+				wrapper: createWrapper(createTestQueryClient()),
+			},
+		);
+		await waitFor(() => expect(result.current.loadState.status).toBe("loaded"));
+		const sentFrom = result.current.store;
+		act(() => {
+			sentFrom.addPendingAction(
+				{ kind: "send", message: buildMessage(chatID, 0, "user", "sent") },
+				"waiting",
+			);
+		});
+
+		rerender({ id: otherChatID });
+		await waitFor(() => expect(result.current.messageIDs).toEqual([2]));
 	});
 
 	it("applies each event when it arrives", async () => {
