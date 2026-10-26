@@ -62,17 +62,17 @@ function useMessageScrollerItemContext() {
 }
 
 function useMessageScroller() {
-  const { releaseAnchorHold, scrollToEnd, scrollToMessage, scrollToStart } =
+  const { handleTurnEnd, scrollToEnd, scrollToMessage, scrollToStart } =
     useMessageScrollerContext()
 
   return React.useMemo(
     () => ({
-      releaseAnchorHold, // LOCAL CHANGE
+      handleTurnEnd, // LOCAL CHANGE
       scrollToEnd,
       scrollToMessage,
       scrollToStart,
     }),
-    [releaseAnchorHold, scrollToEnd, scrollToMessage, scrollToStart]
+    [handleTurnEnd, scrollToEnd, scrollToMessage, scrollToStart]
   )
 }
 
