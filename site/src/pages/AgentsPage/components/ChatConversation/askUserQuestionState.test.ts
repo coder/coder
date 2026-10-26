@@ -130,6 +130,23 @@ describe("deriveAskUserQuestionState", () => {
 		);
 	});
 
+	// A plan mode question ends the turn, and the turn end promotes a queued
+	// answer to an earlier async call.
+	it("keeps a blocking question open after an answer to an earlier call", () => {
+		const state = derive([
+			...questionStep("async-call", { async: true }),
+			...questionStep("blocking-call"),
+			userMessage(answerMessage("async-call")),
+		]);
+
+		expect(state.latestToolId).toBe("blocking-call");
+		expect(state.isLatestAnswered).toBe(false);
+		expect(state.responseTextByToolId.has("blocking-call")).toBe(false);
+		expect(state.responseTextByToolId.get("async-call")).toBe(
+			answerMessage("async-call"),
+		);
+	});
+
 	it("keeps the question open when a later call fails validation", () => {
 		const state = derive([
 			...questionStep("async-call", { async: true }),

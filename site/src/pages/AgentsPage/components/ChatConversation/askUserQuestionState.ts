@@ -35,8 +35,9 @@ const isValidAskUserQuestion = (tool: MergedTool): boolean =>
 	tool.name === "ask_user_question" && !tool.isError;
 
 /**
- * A blocking question is answered by the next user message; an async one
- * only by a message whose first line names its call.
+ * A blocking question is answered by the next user message that does not
+ * answer another call; an async one only by a message whose first line
+ * names its call.
  */
 export const deriveAskUserQuestionState = (
 	parsedMessages: readonly ParsedMessageEntry[],
@@ -63,20 +64,20 @@ export const deriveAskUserQuestionState = (
 			continue;
 		}
 
-		const responseText = getTextContent(message.content);
-		if (pendingBlockingToolId !== undefined) {
-			isLatestAnswered = true;
-			if (responseText !== undefined) {
-				responseTextByToolId.set(pendingBlockingToolId, responseText);
-			}
-			pendingBlockingToolId = undefined;
-		}
 		const asyncAnswer = readAsyncAnswer(message.content);
 		if (asyncAnswer) {
 			responseTextByToolId.set(asyncAnswer.toolCallId, asyncAnswer.messageText);
 			if (asyncAnswer.toolCallId === latestToolId) {
 				isLatestAnswered = true;
+				pendingBlockingToolId = undefined;
 			}
+		} else if (pendingBlockingToolId !== undefined) {
+			isLatestAnswered = true;
+			const responseText = getTextContent(message.content);
+			if (responseText !== undefined) {
+				responseTextByToolId.set(pendingBlockingToolId, responseText);
+			}
+			pendingBlockingToolId = undefined;
 		}
 	}
 

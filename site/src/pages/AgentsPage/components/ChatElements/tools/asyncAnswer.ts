@@ -1,6 +1,6 @@
 // Async ask_user_question answers are ordinary user messages whose first
 // line names the tool call they answer.
-const asyncAnswerPattern = /^Answer to ask_user_question call (\S+):\n/;
+const asyncAnswerPattern = /^Answer to ask_user_question call ([^\n]+):\n/;
 
 /** Returns the prefix line, newline included, that starts an answer to the call. */
 export const getAsyncAnswerPrefix = (toolCallId: string): string =>

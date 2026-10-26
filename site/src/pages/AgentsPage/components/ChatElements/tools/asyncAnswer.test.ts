@@ -6,11 +6,17 @@ import {
 } from "./asyncAnswer";
 
 describe("parseAsyncAnswer", () => {
-	it("splits an answer into the call it names and its body", () => {
-		expect(
-			parseAsyncAnswer(`${getAsyncAnswerPrefix("toolu_123")}1. Scope: Backend`),
-		).toEqual({ toolCallId: "toolu_123", body: "1. Scope: Backend" });
-	});
+	// Providers choose call IDs, so they may contain colons or spaces.
+	it.each(["toolu_123", "functions.ask_user_question:0", "call 123"])(
+		"splits an answer to the call ID %j into the ID and its body",
+		(toolCallId) => {
+			expect(
+				parseAsyncAnswer(
+					`${getAsyncAnswerPrefix(toolCallId)}1. Scope: Backend`,
+				),
+			).toEqual({ toolCallId, body: "1. Scope: Backend" });
+		},
+	);
 
 	it.each([
 		["text without the prefix", "Single migration"],
