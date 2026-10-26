@@ -137,7 +137,7 @@ To keep agents from using a skill on their own, add `disable-model-invocation: t
 The skill isn't in the list of skills the agent can choose from, and the agent can't load it.
 You can still invoke the skill from the `/` menu in the chat composer.
 For a workspace skill, `read_skill_file` still returns its supporting files, so the agent can read the files an invoked skill's instructions reference.
-When you invoke a workspace skill, the agent also gets the skill's directory, so the agent can run the scripts that the skill includes.
+When you invoke a workspace skill, the agent also gets the skill's directory, as long as the chat stays in that workspace, so the agent can run the scripts that the skill includes.
 
 For a personal, organization, or project skill, the key takes effect only when you create the skill.
 For details, refer to [Turn off automatic use](#turn-off-automatic-use).
