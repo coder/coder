@@ -303,7 +303,7 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 										<Badge
 											asChild
 											variant={item.isUnderEdit ? "warning" : "default"}
-											size="xs"
+											size="sm"
 											className="shrink-0 cursor-default"
 										>
 											<button type="button">{item.badge.label}</button>
