@@ -1551,10 +1551,10 @@ func TestRolePermissions(t *testing.T) {
 		{
 			// Members need agents-access in the automation's org to manage
 			// their own automations; the member role alone grants nothing.
-			// Create and update are member-level only: an automation runs
-			// as its owner, so nobody else can create or change one.
-			Name:     "ChatAutomationOwnCreateUpdate",
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate},
+			// Create is member-level only: no API creates an automation
+			// for another user.
+			Name:     "ChatAutomationOwnCreate",
+			Actions:  []policy.Action{policy.ActionCreate},
 			Resource: rbac.ResourceChatAutomation.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {orgAgentsAccessUser},
@@ -1562,10 +1562,10 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			// Administrators can read, stop, and remove automations they
-			// do not own.
-			Name:     "ChatAutomationOwnReadDisableDelete",
-			Actions:  []policy.Action{policy.ActionRead, policy.ActionDisable, policy.ActionDelete},
+			// Administrators manage automations they do not own, like
+			// other members' resources.
+			Name:     "ChatAutomationOwnManage",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionDisable, policy.ActionDelete},
 			Resource: rbac.ResourceChatAutomation.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin, orgAgentsAccessUser},
@@ -1575,8 +1575,8 @@ func TestRolePermissions(t *testing.T) {
 		{
 			// Automations are always org-scoped. An object missing its org
 			// must not fall through to the member role's user-level perms.
-			Name:     "ChatAutomationOwnWithoutOrgCreateUpdate",
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate},
+			Name:     "ChatAutomationOwnWithoutOrgCreate",
+			Actions:  []policy.Action{policy.ActionCreate},
 			Resource: rbac.ResourceChatAutomation.WithID(uuid.New()).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {},
@@ -1584,8 +1584,8 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			Name:     "ChatAutomationOwnWithoutOrgReadDisableDelete",
-			Actions:  []policy.Action{policy.ActionRead, policy.ActionDisable, policy.ActionDelete},
+			Name:     "ChatAutomationOwnWithoutOrgManage",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionDisable, policy.ActionDelete},
 			Resource: rbac.ResourceChatAutomation.WithID(uuid.New()).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
@@ -1594,8 +1594,8 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			// Another member's automation: agents-access grants nothing.
-			Name:     "ChatAutomationOtherOwnerCreateUpdate",
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate},
+			Name:     "ChatAutomationOtherOwnerCreate",
+			Actions:  []policy.Action{policy.ActionCreate},
 			Resource: rbac.ResourceChatAutomation.WithID(uuid.New()).InOrg(orgID).WithOwner(uuid.NewString()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {},
@@ -1603,8 +1603,8 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			Name:     "ChatAutomationOtherOwnerReadDisableDelete",
-			Actions:  []policy.Action{policy.ActionRead, policy.ActionDisable, policy.ActionDelete},
+			Name:     "ChatAutomationOtherOwnerManage",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionDisable, policy.ActionDelete},
 			Resource: rbac.ResourceChatAutomation.WithID(uuid.New()).InOrg(orgID).WithOwner(uuid.NewString()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin},
@@ -1614,8 +1614,8 @@ func TestRolePermissions(t *testing.T) {
 		{
 			// agents-access in one org grants nothing in another org, even
 			// for the member's own automations.
-			Name:     "ChatAutomationOwnOtherOrgCreateUpdate",
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate},
+			Name:     "ChatAutomationOwnOtherOrgCreate",
+			Actions:  []policy.Action{policy.ActionCreate},
 			Resource: rbac.ResourceChatAutomation.WithID(uuid.New()).InOrg(otherOrg).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {},
@@ -1623,8 +1623,8 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			Name:     "ChatAutomationOwnOtherOrgReadDisableDelete",
-			Actions:  []policy.Action{policy.ActionRead, policy.ActionDisable, policy.ActionDelete},
+			Name:     "ChatAutomationOwnOtherOrgManage",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionDisable, policy.ActionDelete},
 			Resource: rbac.ResourceChatAutomation.WithID(uuid.New()).InOrg(otherOrg).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, otherOrgAdmin},

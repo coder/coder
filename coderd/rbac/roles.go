@@ -286,9 +286,12 @@ func orgWorkspaceAccessMemberPerms() []Permission {
 }
 
 // chatAutomationAdminActions are the chat automation actions that
-// administrators hold on automations they do not own. Create and update
-// are member-level only, because an automation runs as its owner.
-var chatAutomationAdminActions = []policy.Action{policy.ActionRead, policy.ActionDisable, policy.ActionDelete}
+// administrators hold on automations they do not own, like on other
+// members' resources. Create is member-level only: no API creates an
+// automation for another user. Runs always act as the automation's
+// owner, so an administrator who edits an automation does not change
+// whose permissions its runs use.
+var chatAutomationAdminActions = []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionDisable, policy.ActionDelete}
 
 func allPermsExcept(excepts ...Objecter) []Permission {
 	resources := AllResources()
@@ -415,10 +418,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				ResourceWorkspace.Type:        ownerWorkspaceActions,
 				ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
 				ResourceUserSkill.Type:        {policy.ActionRead, policy.ActionDelete},
-				// Owners can stop or remove any chat automation, but cannot
-				// create one as another user or change what it does: an
-				// automation runs as its owner, so changing it would act as
-				// that user. Owners manage their own automations through the
+				// Owners can manage any chat automation but not create one
+				// for another user. They create their own through the
 				// member-level agents-access grant.
 				ResourceChatAutomation.Type: chatAutomationAdminActions,
 				// Owners manage AI Gateway keys but cannot update them. The
@@ -594,9 +595,9 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 						Org: append(
 							allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceAssignRole, ResourceUserSecret, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAiSeat, ResourceWorkspaceBuildOrchestration, ResourceChatAutomation),
 							Permissions(map[string][]policy.Action{
-								// Like site owners, organization admins can stop or
-								// remove any automation in the organization but not
-								// create or change one as another member.
+								// Like site owners, organization admins can manage
+								// any automation in the organization but not create
+								// one for another member.
 								ResourceChatAutomation.Type:   chatAutomationAdminActions,
 								ResourceWorkspace.Type:        slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH),
 								ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
