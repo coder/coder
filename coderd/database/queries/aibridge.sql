@@ -493,7 +493,9 @@ LEFT JOIN LATERAL (
 	SELECT
 		(ARRAY_AGG(ai.client ORDER BY ai.started_at, ai.id))[1] AS client,
 		(ARRAY_AGG(ai.metadata ORDER BY ai.started_at, ai.id))[1] AS metadata,
-		ARRAY_AGG(DISTINCT ai.provider ORDER BY ai.provider) AS providers,
+		-- Report configured provider names, which the provider_name filter
+		-- matches, rather than provider types.
+		ARRAY_AGG(DISTINCT ai.provider_name ORDER BY ai.provider_name) AS providers,
 		ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model) AS models,
 		ARRAY_AGG(ai.id) AS interception_ids,
 		BOOL_OR(ai.agent_firewall_session_id IS NOT NULL) AS firewall_active

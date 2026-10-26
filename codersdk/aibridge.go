@@ -140,8 +140,10 @@ type GroupMemberAISpend struct {
 }
 
 type AIBridgeSession struct {
-	ID                string                           `json:"id"`
-	Initiator         MinimalUser                      `json:"initiator"`
+	ID        string      `json:"id"`
+	Initiator MinimalUser `json:"initiator"`
+	// Providers are the configured provider names used in the session,
+	// sorted.
 	Providers         []string                         `json:"providers"`
 	Models            []string                         `json:"models"`
 	Client            *string                          `json:"client"`
@@ -190,8 +192,10 @@ type AIBridgeListSessionsResponse struct {
 // /api/v2/ai-gateway/sessions/{session_id} which returns a single
 // session with fully expanded threads.
 type AIBridgeSessionThreadsResponse struct {
-	ID                string                           `json:"id"`
-	Initiator         MinimalUser                      `json:"initiator"`
+	ID        string      `json:"id"`
+	Initiator MinimalUser `json:"initiator"`
+	// Providers are the configured provider names used in the session,
+	// sorted.
 	Providers         []string                         `json:"providers"`
 	Models            []string                         `json:"models"`
 	Client            *string                          `json:"client,omitempty"`

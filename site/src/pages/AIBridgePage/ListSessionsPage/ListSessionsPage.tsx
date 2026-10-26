@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { useQuery } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
-import { paginatedSessions } from "#/api/queries/aiBridge";
+import { aiBridgeProviders, paginatedSessions } from "#/api/queries/aiBridge";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import { useFilter, useFilterParamsKey } from "#/components/Filter/Filter";
 import { useUserFilterMenu } from "#/components/Filter/UserFilter";
@@ -48,6 +49,14 @@ const AISessionListPage: React.FC = () => {
 				searchParams.get(useFilterParamsKey) ?? "",
 				defaultRange,
 			),
+		enabled: canViewSessions,
+	});
+
+	// Sessions list configured provider names; the provider list resolves
+	// them to display names and icons. Rows wait for it so names do not
+	// flash as provider types.
+	const providersQuery = useQuery({
+		...aiBridgeProviders(),
 		enabled: canViewSessions,
 	});
 
@@ -118,11 +127,12 @@ const AISessionListPage: React.FC = () => {
 			<title>{pageTitle("Sessions", "AI Gateway")}</title>
 
 			<ListSessionsPageView
-				isLoading={sessionsQuery.isLoading}
+				isLoading={sessionsQuery.isLoading || providersQuery.isLoading}
 				isFetching={sessionsQuery.isFetching}
 				isAISessionsEntitled={isEntitled}
 				isAISessionsEnabled={isEnabled}
 				sessions={sessionsQuery.data?.sessions}
+				providers={providersQuery.data}
 				sessionsQuery={sessionsQuery}
 				onSessionRowClick={(sessionId) =>
 					navigate(`/ai-gateway/sessions/${sessionId}`)

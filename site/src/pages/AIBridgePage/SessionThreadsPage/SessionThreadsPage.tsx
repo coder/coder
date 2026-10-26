@@ -1,6 +1,9 @@
-import { useInfiniteQuery } from "react-query";
+import { useInfiniteQuery, useQuery } from "react-query";
 import { useLocation, useNavigate, useParams } from "react-router";
-import { infiniteSessionThreads } from "#/api/queries/aiBridge";
+import {
+	aiBridgeProviders,
+	infiniteSessionThreads,
+} from "#/api/queries/aiBridge";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
@@ -28,6 +31,14 @@ const SessionThreadsPage: React.FC = () => {
 		enabled: canViewSessionThreads,
 	});
 
+	// The session lists configured provider names; the provider list resolves
+	// them to display names and icons. The summary waits for it so names do
+	// not flash as provider types.
+	const providersQuery = useQuery({
+		...aiBridgeProviders(),
+		enabled: canViewSessionThreads,
+	});
+
 	const firstPage = sessionQuery.data?.pages[0];
 	const allThreads =
 		sessionQuery.data?.pages.flatMap((page) => page.threads) ?? [];
@@ -38,8 +49,9 @@ const SessionThreadsPage: React.FC = () => {
 
 			<SessionThreadsPageView
 				session={firstPage}
+				providers={providersQuery.data}
 				threads={allThreads}
-				loading={sessionQuery.isLoading}
+				loading={sessionQuery.isLoading || providersQuery.isLoading}
 				hasNextPage={sessionQuery.hasNextPage}
 				isFetchingNextPage={sessionQuery.isFetchingNextPage}
 				onFetchNextPage={sessionQuery.fetchNextPage}

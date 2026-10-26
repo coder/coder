@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen, userEvent, waitFor } from "storybook/test";
-import { MockSession } from "#/testHelpers/entities";
+import type { AIBridgeProvider } from "#/api/typesGenerated";
+import { MockAIBridgeProvider, MockSession } from "#/testHelpers/entities";
 import { SessionSummaryTable } from "./SessionSummaryTable";
 
 const meta: Meta<typeof SessionSummaryTable> = {
@@ -165,5 +166,28 @@ export const NetworkSingleDomain: Story = {
 	play: async ({ canvas }) => {
 		await expect(canvas.getByText("api.github.com")).toBeInTheDocument();
 		await expect(canvas.queryByText(/more$/)).toBeNull();
+	},
+};
+
+const mockDeepSeekProvider = {
+	...MockAIBridgeProvider,
+	name: "deepseek",
+	type: "openai",
+	display_name: "DeepSeek",
+	icon: "/icon/widgets.svg",
+} satisfies AIBridgeProvider;
+
+export const ConfiguredProviderNames: Story = {
+	args: {
+		...Default.args,
+		providers: [
+			"anthropic",
+			MockAIBridgeProvider.name,
+			mockDeepSeekProvider.name,
+		],
+		providersByName: new Map([
+			[MockAIBridgeProvider.name, MockAIBridgeProvider],
+			[mockDeepSeekProvider.name, mockDeepSeekProvider],
+		]),
 	},
 };

@@ -158,6 +158,10 @@ export interface AIBridgeProxyConfig {
 export interface AIBridgeSession {
 	readonly id: string;
 	readonly initiator: MinimalUser;
+	/**
+	 * Providers are the configured provider names used in the session,
+	 * sorted.
+	 */
 	readonly providers: readonly string[];
 	readonly models: readonly string[];
 	readonly client: string | null;
@@ -208,6 +212,10 @@ export interface AIBridgeSessionNetworkDomain {
 export interface AIBridgeSessionThreadsResponse {
 	readonly id: string;
 	readonly initiator: MinimalUser;
+	/**
+	 * Providers are the configured provider names used in the session,
+	 * sorted.
+	 */
 	readonly providers: readonly string[];
 	readonly models: readonly string[];
 	readonly client?: string;

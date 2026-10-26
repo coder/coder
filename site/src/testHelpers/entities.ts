@@ -5560,6 +5560,13 @@ export const MockSession: TypesGen.AIBridgeSession = {
 	last_active_at: "2026-03-09T10:28:15.03152Z",
 };
 
+export const MockAIBridgeProvider: TypesGen.AIBridgeProvider = {
+	name: "claude-platform",
+	type: "anthropic",
+	display_name: "Claude Platform",
+	icon: "",
+};
+
 export const MockAIBridgeThread: TypesGen.AIBridgeThread = {
 	id: "thread-1",
 	prompt: "Summarize the project structure",

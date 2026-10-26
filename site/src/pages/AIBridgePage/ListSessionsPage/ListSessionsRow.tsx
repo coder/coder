@@ -1,5 +1,5 @@
 import { ChevronRightIcon } from "lucide-react";
-import type { AIBridgeSession } from "#/api/typesGenerated";
+import type { AIBridgeProvider, AIBridgeSession } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
 import { TableCell, TableRow } from "#/components/Table/Table";
@@ -20,11 +20,14 @@ const PROMPT_PREVIEW_MAX_CHARS = 500;
 
 type ListSessionsRowProps = {
 	session: AIBridgeSession;
+	/** Configured providers by name; matches supply the label and icon. */
+	providersByName?: ReadonlyMap<string, AIBridgeProvider>;
 	onClick?: () => void;
 };
 
 export const ListSessionsRow: React.FC<ListSessionsRowProps> = ({
 	session,
+	providersByName,
 	onClick,
 }) => {
 	const [firstName, ...otherNames] = (
@@ -82,7 +85,10 @@ export const ListSessionsRow: React.FC<ListSessionsRowProps> = ({
 			</TableCell>
 			<TableCell className="w-40 max-w-40">
 				<div className="min-w-0 overflow-hidden">
-					<ProvidersBadge providers={session.providers} />
+					<ProvidersBadge
+						providers={session.providers}
+						providersByName={providersByName}
+					/>
 				</div>
 			</TableCell>
 			<TableCell className="w-40 max-w-40">

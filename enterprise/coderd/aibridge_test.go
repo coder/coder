@@ -119,6 +119,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 		s1i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID:     firstUser.UserID,
 			Provider:        "anthropic",
+			ProviderName:    "anthropic-prod",
 			Model:           "claude-4",
 			StartedAt:       now,
 			Client:          sql.NullString{String: "claude-code", Valid: true},
@@ -128,6 +129,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID:                firstUser.UserID,
 			Provider:                   "anthropic",
+			ProviderName:               "anthropic-prod",
 			Model:                      "claude-4-haiku",
 			StartedAt:                  now.Add(time.Minute),
 			Client:                     sql.NullString{String: "claude-code", Valid: true},
@@ -165,15 +167,17 @@ func TestAIBridgeListSessions(t *testing.T) {
 		// Session 2: Thread-based session (no client_session_id, shared thread_root_id).
 		s2i1EndedAt := now.Add(-time.Hour + time.Minute)
 		s2i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: firstUser.UserID,
-			Provider:    "openai",
-			Model:       "gpt-4",
-			StartedAt:   now.Add(-time.Hour),
+			InitiatorID:  firstUser.UserID,
+			Provider:     "openai",
+			ProviderName: "openai-prod",
+			Model:        "gpt-4",
+			StartedAt:    now.Add(-time.Hour),
 		}, &s2i1EndedAt)
 		s2i2EndedAt := now.Add(-time.Hour + 2*time.Minute)
 		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID:                firstUser.UserID,
 			Provider:                   "openai",
+			ProviderName:               "openai-prod",
 			Model:                      "gpt-4",
 			StartedAt:                  now.Add(-time.Hour + time.Minute),
 			ThreadRootInterceptionID:   uuid.NullUUID{UUID: s2i1.ID, Valid: true},
@@ -189,10 +193,11 @@ func TestAIBridgeListSessions(t *testing.T) {
 		// No prompt; last_active_at falls back to started_at.
 		s3EndedAt := now.Add(-2*time.Hour + time.Minute)
 		s3i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: firstUser.UserID,
-			Provider:    "anthropic",
-			Model:       "claude-4",
-			StartedAt:   now.Add(-2 * time.Hour),
+			InitiatorID:  firstUser.UserID,
+			Provider:     "anthropic",
+			ProviderName: "anthropic-prod",
+			Model:        "claude-4",
+			StartedAt:    now.Add(-2 * time.Hour),
 		}, &s3EndedAt)
 
 		// Session 4: Two distinct thread roots in one client_session_id.
@@ -200,6 +205,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 		s4i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID:     firstUser.UserID,
 			Provider:        "anthropic",
+			ProviderName:    "anthropic-prod",
 			Model:           "claude-4",
 			StartedAt:       now.Add(-3 * time.Hour),
 			ClientSessionID: sql.NullString{String: "session-multi", Valid: true},
@@ -208,6 +214,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID:     firstUser.UserID,
 			Provider:        "openai",
+			ProviderName:    "openai-prod",
 			Model:           "gpt-4",
 			StartedAt:       now.Add(-3*time.Hour + time.Minute),
 			ClientSessionID: sql.NullString{String: "session-multi", Valid: true},
@@ -234,7 +241,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 
 		// Verify session 1 aggregations.
 		s1 := res.Sessions[0]
-		require.ElementsMatch(t, []string{"anthropic"}, s1.Providers)
+		require.ElementsMatch(t, []string{"anthropic-prod"}, s1.Providers)
 		require.ElementsMatch(t, []string{"claude-4", "claude-4-haiku"}, s1.Models)
 		require.NotNil(t, s1.Client)
 		require.Equal(t, "claude-code", *s1.Client)
@@ -248,7 +255,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 
 		// Verify session 2 (thread-based).
 		s2 := res.Sessions[1]
-		require.ElementsMatch(t, []string{"openai"}, s2.Providers)
+		require.ElementsMatch(t, []string{"openai-prod"}, s2.Providers)
 		// Thread count: the root interception and its child share the same
 		// thread root, so count is 1.
 		require.EqualValues(t, 1, s2.Threads)
@@ -263,7 +270,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 		// so total is 2.
 		s4 := res.Sessions[3]
 		require.EqualValues(t, 2, s4.Threads)
-		require.ElementsMatch(t, []string{"anthropic", "openai"}, s4.Providers)
+		require.ElementsMatch(t, []string{"anthropic-prod", "openai-prod"}, s4.Providers)
 		require.ElementsMatch(t, []string{"claude-4", "gpt-4"}, s4.Models)
 	})
 

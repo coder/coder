@@ -53,6 +53,10 @@ type Story = StoryObj<typeof SessionThreadsPageView>;
 
 export const Default: Story = {};
 
+export const LoadingProviders: Story = {
+	args: { loading: true },
+};
+
 export const SearchFiltersEvents: Story = {
 	args: {
 		threads: [

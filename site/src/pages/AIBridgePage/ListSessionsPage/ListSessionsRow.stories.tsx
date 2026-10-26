@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, screen, userEvent, within } from "storybook/test";
 import { Table, TableBody } from "#/components/Table/Table";
-import { MockSession } from "#/testHelpers/entities";
+import { MockAIBridgeProvider, MockSession } from "#/testHelpers/entities";
 import { ListSessionsRow } from "./ListSessionsRow";
 
 const meta: Meta<typeof ListSessionsRow> = {
@@ -134,5 +134,19 @@ export const NoNetworkActivity: Story = {
 export const NetworkDisabled: Story = {
 	args: {
 		session: { ...MockSession, network_calls: undefined },
+	},
+};
+
+const mockProviderWithIcon = {
+	...MockAIBridgeProvider,
+	icon: "/icon/widgets.svg",
+};
+
+export const ConfiguredProviderName: Story = {
+	args: {
+		session: { ...MockSession, providers: [mockProviderWithIcon.name] },
+		providersByName: new Map([
+			[mockProviderWithIcon.name, mockProviderWithIcon],
+		]),
 	},
 };

@@ -19549,6 +19549,7 @@ const docTemplate = `{
                     ]
                 },
                 "providers": {
+                    "description": "Providers are the configured provider names used in the session,\nsorted.",
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -19648,6 +19649,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "providers": {
+                    "description": "Providers are the configured provider names used in the session,\nsorted.",
                     "type": "array",
                     "items": {
                         "type": "string"

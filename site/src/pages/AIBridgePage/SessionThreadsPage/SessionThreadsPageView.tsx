@@ -2,6 +2,7 @@ import { cn } from "cn";
 import { ArrowLeftIcon, InfoIcon } from "lucide-react";
 import { useState } from "react";
 import type {
+	AIBridgeProvider,
 	AIBridgeSessionThreadsResponse,
 	AIBridgeThread,
 } from "#/api/typesGenerated";
@@ -17,6 +18,7 @@ import {
 import { useDebouncedValue } from "#/hooks/debounce";
 import { PremiumPaywallAIGovernance } from "#/modules/paywall/PremiumPaywallAIGovernance";
 import { AIBridgeSetupAlert } from "../AIBridgeSetupAlert";
+import { getProvidersByName } from "../utils";
 import { SessionSummaryTable } from "./SessionSummaryTable";
 import { SessionTimeline } from "./SessionTimeline/SessionTimeline";
 import { SessionTimelineSkeleton } from "./SessionTimeline/SessionTimelineSkeleton";
@@ -52,6 +54,8 @@ const SessionSummaryTooltip: React.FC<React.PropsWithChildren> = ({
 
 type SessionThreadsPageViewProps = {
 	session: AIBridgeSessionThreadsResponse | undefined;
+	/** Configured providers used to label the session's provider names. */
+	providers?: readonly AIBridgeProvider[];
 	threads: readonly AIBridgeThread[];
 	loading: boolean;
 	hasNextPage: boolean;
@@ -64,6 +68,7 @@ type SessionThreadsPageViewProps = {
 
 export const SessionThreadsPageView: React.FC<SessionThreadsPageViewProps> = ({
 	session,
+	providers,
 	threads,
 	loading,
 	hasNextPage,
@@ -89,6 +94,8 @@ export const SessionThreadsPageView: React.FC<SessionThreadsPageViewProps> = ({
 	if (!isAISessionsEnabled) {
 		return <AIBridgeSetupAlert />;
 	}
+
+	const providersByName = getProvidersByName(providers);
 
 	// calculate the total number of tool calls across all loaded threads
 	const toolCallCount = threads.reduce(
@@ -168,7 +175,7 @@ export const SessionThreadsPageView: React.FC<SessionThreadsPageViewProps> = ({
 						</SessionSummaryTooltip>
 					</h2>
 					{loading && <Loader className="my-4" />}
-					{session && (
+					{session && !loading && (
 						<SessionSummaryTable
 							sessionId={session.id}
 							startTime={new Date(session.started_at)}
@@ -178,6 +185,7 @@ export const SessionThreadsPageView: React.FC<SessionThreadsPageViewProps> = ({
 							initiator={session.initiator}
 							client={session.client ?? "Unknown client"}
 							providers={session.providers}
+							providersByName={providersByName}
 							inputTokens={session.token_usage_summary.input_tokens}
 							outputTokens={session.token_usage_summary.output_tokens}
 							cacheReadTokens={
