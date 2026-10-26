@@ -10987,6 +10987,49 @@ func (q *sqlQuerier) GetChatModelConfigsForTelemetry(ctx context.Context) ([]Get
 	return items, nil
 }
 
+const getChatOpenPreviewResults = `-- name: GetChatOpenPreviewResults :many
+SELECT
+    (part->'result')::jsonb AS result
+FROM
+    chat_messages cm,
+    jsonb_array_elements(cm.content) WITH ORDINALITY AS t(part, ordinality)
+WHERE
+    cm.chat_id = $1::uuid
+    AND cm.role = 'tool'
+    AND cm.deleted = false
+    AND cm.visibility IN ('user', 'both')
+    AND cm.content @> '[{"type": "tool-result", "tool_name": "open_preview"}]'::jsonb
+    AND part->>'type' = 'tool-result'
+    AND part->>'tool_name' = 'open_preview'
+    AND part ? 'result'
+ORDER BY
+    cm.id, ordinality
+`
+
+// Returns the user-visible open_preview tool results in a chat, oldest first.
+func (q *sqlQuerier) GetChatOpenPreviewResults(ctx context.Context, chatID uuid.UUID) ([]json.RawMessage, error) {
+	rows, err := q.db.QueryContext(ctx, getChatOpenPreviewResults, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []json.RawMessage
+	for rows.Next() {
+		var result json.RawMessage
+		if err := rows.Scan(&result); err != nil {
+			return nil, err
+		}
+		items = append(items, result)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChatQueuedForCapacity = `-- name: GetChatQueuedForCapacity :one
 WITH active AS (
     SELECT
