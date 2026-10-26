@@ -1,7 +1,7 @@
 # Builds a pull request's docs/ tree with docs-engine's offline export and
 # publishes it as its own site on the Coder-owned domain in the repository
-# variable DOCS_PREVIEW_DOMAIN (docs-preview.cdr.dev, so PR 123's head is
-# https://coder-docs-pr-123.docs-preview.cdr.dev):
+# variable DOCS_PREVIEW_DOMAIN (coderite.app, so PR 123's head is
+# https://coder-docs-pr-123.coderite.app):
 #
 #   coder-docs-pr-<number>.<domain>             the PR head, re-aliased per build
 #   coder-docs-pr-<number>-<sha:0:9>.<domain>   one per built commit
