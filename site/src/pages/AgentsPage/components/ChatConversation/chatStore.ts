@@ -928,8 +928,7 @@ export const useChatMessages = (store: ChatStore): TypesGen.ChatMessage[] => {
 		if (!message && process.env.NODE_ENV !== "production") {
 			console.warn(
 				`[useChatMessages] orderedMessageIDs contains ID ${messageID} ` +
-					"not found in messagesByID. This may indicate a store/cache " +
-					"desync bug.",
+					"not found in messagesByID. This may indicate a store bug.",
 			);
 		}
 		return message ? [message] : [];

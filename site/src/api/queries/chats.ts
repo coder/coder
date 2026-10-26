@@ -1525,7 +1525,7 @@ const fetchMessagesPage = async (
 export const fetchNewestChatMessages = (chatId: string, signal?: AbortSignal) =>
 	fetchMessagesPage(chatId, undefined, signal);
 
-/** An older page. It has no `snapshot_version` and no queue. */
+/** Has no `snapshot_version` and no queue. */
 export const fetchOlderChatMessages = (chatId: string, beforeId: number) =>
 	fetchMessagesPage(chatId, beforeId);
 
