@@ -69,9 +69,9 @@ export const useChatStore = (
 	loadState: ChatLoadState;
 	retryLoad: () => void;
 	clearClientError: () => void;
-	loadOlderMessages: () => Promise<unknown>;
-	isLoadingOlderMessages: boolean;
-	hasLoadOlderMessagesError: boolean;
+	fetchMoreMessages: () => Promise<unknown>;
+	isFetchingMoreMessages: boolean;
+	hasFetchMoreError: boolean;
 } => {
 	const {
 		chatID,
@@ -135,9 +135,9 @@ export const useChatStore = (
 	);
 
 	const {
-		mutateAsync: loadOlderMessages,
-		isPending: isLoadingOlderMessages,
-		isError: hasLoadOlderMessagesError,
+		mutateAsync: fetchMoreMessages,
+		isPending: isFetchingMoreMessages,
+		isError: hasFetchMoreError,
 	} = useMutation({
 		mutationFn: async () => {
 			const oldestID = store.getSnapshot().orderedMessageIDs[0];
@@ -513,10 +513,10 @@ export const useChatStore = (
 		clearClientError: () => {
 			store.clearClientError();
 		},
-		// The catch drops the error, because hasLoadOlderMessagesError reports
+		// The catch drops the error, because hasFetchMoreError reports
 		// it.
-		loadOlderMessages: () => loadOlderMessages().catch(() => undefined),
-		isLoadingOlderMessages,
-		hasLoadOlderMessagesError,
+		fetchMoreMessages: () => fetchMoreMessages().catch(() => undefined),
+		isFetchingMoreMessages,
+		hasFetchMoreError,
 	};
 };
