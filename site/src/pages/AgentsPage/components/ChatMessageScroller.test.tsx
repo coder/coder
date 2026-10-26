@@ -1,5 +1,6 @@
 import { act, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { MockResizeObserver } from "#/testHelpers/resizeObserver";
 import {
 	MessageScroller,
 	useMessageScroller,
@@ -102,13 +103,15 @@ it.each([true, false])(
 );
 
 // Stacks the rows at the given heights in a viewport of viewportHeight, with
-// the tail spacer below them. The layout never resizes, but the unit setup's
-// ResizeObserver polyfill calls back after DOM changes, so turn it off.
+// the tail spacer below them. The layout never resizes on its own, and the
+// unit setup's ResizeObserver polyfill calls back after DOM changes, so a
+// controllable one replaces it.
 const mockLayout = (
 	viewportHeight: number,
 	heights: Record<string, number>,
 ) => {
-	vi.stubGlobal("ResizeObserver", undefined);
+	MockResizeObserver.reset();
+	vi.stubGlobal("ResizeObserver", MockResizeObserver);
 	const rowTop = (row: HTMLElement) => {
 		let top = 0;
 		for (const other of document.querySelectorAll<HTMLElement>(
@@ -330,6 +333,33 @@ it.each([
 		);
 	},
 );
+
+it("lets the reader scroll up from the held position during the turn", async () => {
+	mockLayout(400, { 1: 200, 2: 200, 3: 200, sent: 40, reply: 60 });
+	const { rerender, getByLabelText } = render(transcript(history, false));
+	await nextFrames();
+
+	rerender(transcript([...history, sent, { id: "reply" }], true));
+	await nextFrames();
+	const viewport = getByLabelText("Messages");
+	const spacer = viewport.querySelector<HTMLElement>(
+		"[data-message-scroller-spacer]",
+	);
+	const spacerHeight = spacer?.style.height;
+	fireEvent.wheel(viewport, { deltaY: -50 });
+	viewport.scrollTop -= 50;
+	fireEvent.scroll(viewport);
+	const scrolledTop = viewport.scrollTop;
+	// A browser reports a resize when the spacer height changes.
+	if (spacer?.style.height !== spacerHeight) {
+		for (const observer of MockResizeObserver.instances) {
+			observer.simulateResize(0);
+		}
+	}
+	await nextFrames();
+
+	expect(viewport.scrollTop).toBe(scrolledTop);
+});
 
 const LayoutToggle: React.FC = () => {
 	const userLayoutIntent = useMessageScrollerUserLayoutIntent();
