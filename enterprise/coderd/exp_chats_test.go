@@ -1210,7 +1210,7 @@ func TestCreateChatAgentsAccessDefaultRole(t *testing.T) {
 // TestCreateChatCrossOrgModelConfigRejected proves an explicit
 // model_config_id naming a config in a DIFFERENT org than the chat is
 // rejected as unavailable: post-cutover validation is org-aware, so a
-// config outside the chat's org is "not found or disabled" to the creator.
+// config outside the chat's org is "not found" to the creator.
 func TestCreateChatCrossOrgModelConfigRejected(t *testing.T) {
 	t.Parallel()
 
@@ -1263,7 +1263,7 @@ func TestCreateChatCrossOrgModelConfigRejected(t *testing.T) {
 	var sdkErr *codersdk.Error
 	require.ErrorAs(t, err, &sdkErr)
 	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-	require.Equal(t, "Invalid model_config_id: model config not found or disabled.", sdkErr.Message)
+	require.Equal(t, "Invalid model_config_id: model config not found.", sdkErr.Message)
 }
 
 func TestListChats_OrgAdminOnlySeesOwnChats(t *testing.T) {
