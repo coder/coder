@@ -398,7 +398,7 @@ describe("submitChatTurn", () => {
 		]);
 		store.setQueuedMessages([{ ...MockChatQueuedMessage, id: 8 }]);
 		store.applyMessagePart({ type: "text", text: "old partial answer" });
-		const edit = createDeferred<void>();
+		const edit = createDeferred<undefined>();
 		const editMessage = vi.fn(() => edit.promise);
 
 		const submitted = submitChatTurn(
@@ -413,7 +413,7 @@ describe("submitChatTurn", () => {
 		expect(selectQueuedMessages(store.getSnapshot())).toEqual([]);
 		expect(selectStreamState(store.getSnapshot())).toBeNull();
 
-		edit.resolve();
+		edit.resolve(undefined);
 		await submitted;
 		// A status does not end the pending edit.
 		store.applyServerChatStatus("running");

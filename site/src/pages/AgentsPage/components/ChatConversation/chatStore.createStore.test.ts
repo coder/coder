@@ -936,7 +936,7 @@ describe("pending actions", () => {
 			[makeQueuedMessage(10, "q10")],
 			"running",
 		);
-		const request = createDeferred<void>();
+		const request = createDeferred<undefined>();
 		const run = store.runPendingAction(
 			{ kind: "deleteQueued", queuedMessageID: 10 },
 			"running",
