@@ -1,5 +1,5 @@
 import capitalize from "lodash/capitalize";
-import { ExternalLinkIcon, FileIcon, LayoutGridIcon } from "lucide-react";
+import { ExternalLinkIcon, FileIcon } from "lucide-react";
 import { useState } from "react";
 import type {
 	WorkspaceAppStatus as APIWorkspaceAppStatus,
@@ -9,7 +9,6 @@ import type {
 } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
-import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import {
 	Tooltip,
@@ -17,7 +16,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { AppStatusStateIcon } from "#/modules/apps/AppStatusStateIcon";
-import { useAppLink } from "#/modules/apps/useAppLink";
+import { AppLink } from "#/modules/resources/AppLink/AppLink";
 import { timeFrom } from "#/utils/time";
 import { truncateURI } from "#/utils/uri";
 
@@ -82,6 +81,7 @@ export const AppStatuses: React.FC<AppStatusesProps> = ({
 							app={latestStatus.app}
 							agent={agent}
 							workspace={workspace}
+							size="sm"
 						/>
 					)}
 
@@ -160,29 +160,5 @@ export const AppStatuses: React.FC<AppStatusesProps> = ({
 				</ScrollArea>
 			)}
 		</div>
-	);
-};
-
-type AppLinkProps = {
-	app: WorkspaceApp;
-	agent: WorkspaceAgent;
-	workspace: Workspace;
-};
-
-const AppLink: React.FC<AppLinkProps> = ({ app, agent, workspace }) => {
-	const link = useAppLink(app, { agent, workspace });
-
-	return (
-		<Button asChild variant="outline" size="sm">
-			<a
-				href={link.href}
-				onClick={link.onClick}
-				target="_blank"
-				rel="noreferrer"
-			>
-				{app.icon ? <ExternalImage src={app.icon} /> : <LayoutGridIcon />}
-				{link.label}
-			</a>
-		</Button>
 	);
 };

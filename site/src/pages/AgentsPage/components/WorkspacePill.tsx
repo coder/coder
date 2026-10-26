@@ -2,7 +2,6 @@ import { cn } from "cn";
 import {
 	ChevronDownIcon,
 	CopyIcon,
-	LayoutGridIcon,
 	MonitorIcon,
 	SquareTerminalIcon,
 	UnlinkIcon,
@@ -13,11 +12,7 @@ import { Link } from "react-router";
 import { API } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
-import type {
-	Workspace,
-	WorkspaceAgent,
-	WorkspaceApp,
-} from "#/api/typesGenerated";
+import type { Workspace, WorkspaceAgent } from "#/api/typesGenerated";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -40,7 +35,7 @@ import {
 	getVSCodeHref,
 	openAppInNewWindow,
 } from "#/modules/apps/apps";
-import { useAppLink } from "#/modules/apps/useAppLink";
+import { AppLink } from "#/modules/resources/AppLink/AppLink";
 import {
 	canShowPortForwarding,
 	usePortsData,
@@ -224,12 +219,13 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 								/>
 							)}
 							{userApps.map((app) => (
-								<AppMenuItem
+								<AppLink
 									key={app.id}
+									grouped
 									app={app}
 									workspace={workspace}
 									agent={agent}
-									isRunning={isRunning}
+									disabled={!isRunning}
 								/>
 							))}
 							{hasTerminal && (
@@ -344,37 +340,6 @@ const VSCodeMenuItem: React.FC<{
 				className="size-3.5"
 			/>
 			{label}
-		</DropdownMenuItem>
-	);
-};
-
-const AppMenuItem: React.FC<{
-	app: WorkspaceApp;
-	workspace: Workspace;
-	agent: WorkspaceAgent;
-	isRunning: boolean;
-}> = ({ app, workspace, agent, isRunning }) => {
-	const link = useAppLink(app, { workspace, agent });
-
-	return (
-		<DropdownMenuItem asChild disabled={!isRunning || link.isLoading}>
-			<a
-				href={isRunning ? link.href : undefined}
-				onClick={link.onClick}
-				target="_blank"
-				rel="noreferrer"
-			>
-				{app.icon ? (
-					<ExternalImage
-						src={app.icon}
-						alt=""
-						className="size-3.5 rounded-sm"
-					/>
-				) : (
-					<LayoutGridIcon className="size-3.5" />
-				)}
-				{link.label}
-			</a>
 		</DropdownMenuItem>
 	);
 };

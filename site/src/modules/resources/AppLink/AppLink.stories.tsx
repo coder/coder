@@ -332,6 +332,7 @@ export const ExternalAppDefersSessionToken: Story = {
 			await user.click(trigger);
 			await waitFor(() => expect(API.getApiKey).toHaveBeenCalledTimes(1));
 		});
+		trigger.blur();
 	},
 };
 

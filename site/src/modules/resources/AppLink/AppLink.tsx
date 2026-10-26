@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { ButtonProps } from "#/components/Button/Button";
 import { DropdownMenuItem } from "#/components/DropdownMenu/DropdownMenu";
 import { Link } from "#/components/Link/Link";
 import { Markdown } from "#/components/Markdown/Markdown";
@@ -41,6 +42,8 @@ type AppLinkProps = {
 	app: TypesGen.WorkspaceApp;
 	agent: TypesGen.WorkspaceAgent;
 	grouped?: boolean;
+	disabled?: boolean;
+	size?: ButtonProps["size"];
 };
 
 export const AppLink: React.FC<AppLinkProps> = ({
@@ -48,18 +51,17 @@ export const AppLink: React.FC<AppLinkProps> = ({
 	workspace,
 	agent,
 	grouped,
+	disabled,
+	size,
 }) => {
 	const { proxy } = useProxy();
 	const host = proxy.preferredWildcardHostname;
 	const [iconError, setIconError] = useState(false);
 	const link = useAppLink(app, { agent, workspace });
 
-	// canClick is ONLY false when it's a subdomain app and the admin hasn't
-	// enabled wildcard access URL or the session token is being fetched.
-	//
 	// To avoid bugs in the healthcheck code locking users out of apps, we no
 	// longer block access to apps if they are unhealthy/initializing.
-	let canClick = true;
+	let canClick = !disabled;
 	let primaryTooltip: React.ReactNode = "";
 	let icon = !iconError && (
 		<BaseIcon app={app} onIconPathError={() => setIconError(true)} />
@@ -176,6 +178,7 @@ export const AppLink: React.FC<AppLinkProps> = ({
 	// disabled by AgentButton, and middle-clicking one would otherwise launch
 	// the custom protocol with an empty token.
 	const opensViaClick = link.href === undefined;
+	const isUnavailable = !canClick || link.isLoading;
 
 	const content = (
 		<>
@@ -186,10 +189,13 @@ export const AppLink: React.FC<AppLinkProps> = ({
 	);
 
 	const trigger = opensViaClick ? (
+		// aria-disabled instead of disabled keeps the button focusable, so its
+		// tooltip stays reachable from the keyboard.
 		<button
 			type="button"
-			onClick={link.onClick}
-			disabled={!canClick || link.isLoading}
+			onClick={isUnavailable ? undefined : link.onClick}
+			aria-disabled={isUnavailable || undefined}
+			className="aria-disabled:cursor-not-allowed"
 		>
 			{content}
 		</button>
@@ -205,9 +211,22 @@ export const AppLink: React.FC<AppLinkProps> = ({
 	);
 
 	const button = grouped ? (
-		<DropdownMenuItem asChild>{trigger}</DropdownMenuItem>
+		<DropdownMenuItem
+			asChild
+			disabled={disabled}
+			onSelect={isUnavailable ? (e) => e.preventDefault() : undefined}
+			className="w-full aria-disabled:opacity-50"
+		>
+			{trigger}
+		</DropdownMenuItem>
 	) : (
-		<AgentButton asChild>{trigger}</AgentButton>
+		<AgentButton
+			asChild
+			size={size}
+			className="aria-disabled:text-content-disabled"
+		>
+			{trigger}
+		</AgentButton>
 	);
 
 	if (primaryTooltip || app.tooltip) {
