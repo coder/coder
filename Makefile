@@ -275,6 +275,7 @@ FIND_EXCLUSIONS= \
 
 # Source files used for make targets, evaluated on use.
 GO_SRC_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.go' -not -name '*_test.go')
+NATIVE_AGENT_EMBED_FILES := $(shell find ./agent/x/agentnative/claudemod/hooks ./agent/x/agentnative/claudemod/.claude-plugin -type f)
 
 # All the shell files in the repo, excluding ignored files.
 SHELL_SRC_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.sh')
@@ -430,6 +431,7 @@ endef
 # calling this manually.
 $(CODER_ALL_BINARIES): go.mod go.sum \
 	$(GO_SRC_FILES) \
+	$(NATIVE_AGENT_EMBED_FILES) \
 	$(shell find ./examples/templates) \
 	site/static/error.html
 
@@ -1902,7 +1904,7 @@ test-clean:
 	go clean -testcache
 .PHONY: test-clean
 
-site/e2e/bin/coder: go.mod go.sum $(GO_SRC_FILES) site/out/index.html
+site/e2e/bin/coder: go.mod go.sum $(GO_SRC_FILES) $(NATIVE_AGENT_EMBED_FILES) site/out/index.html
 	go build -o $@ \
 		-tags embed,ts_omit_aws,ts_omit_bird,ts_omit_tap,ts_omit_kube \
 		./enterprise/cmd/coder

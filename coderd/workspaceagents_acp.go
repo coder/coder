@@ -6,21 +6,18 @@ import (
 	"net/http"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-
 	"cdr.dev/slog/v3"
-	"github.com/coder/websocket"
-
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/websocket"
 )
 
 // workspaceAgentACP relays ACP bytes without owning the native conversation.
-// Closing the connection stops only the workspace adapter's stdio process.
+// Closing the connection detaches observation without stopping native services.
 //
-// @Summary Connect to a workspace ACP adapter (experimental)
+// @Summary Connect to workspace native agents over ACP (experimental)
 // @ID connect-workspace-agent-acp
 // @Security CoderSessionToken
 // @Tags Agents
@@ -54,7 +51,7 @@ func (api *API) workspaceAgentACP(rw http.ResponseWriter, r *http.Request) {
 	api.WebsocketWaitMutex.Unlock()
 	defer api.WebsocketWaitGroup.Done()
 
-	// Accept first so a foreign Origin cannot cause workspace command execution.
+	// Accept first so a foreign Origin cannot cause any workspace-side work.
 	ws, err := websocket.Accept(rw, r, nil)
 	if err != nil {
 		return
@@ -67,7 +64,7 @@ func (api *API) workspaceAgentACP(rw http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// Start reading before dialing, with bounded backpressure until SSH is ready.
+	// Start reading before dialing, with bounded backpressure until the agent is ready.
 	input, output := io.Pipe()
 	inputDone := make(chan struct{})
 	go func() {
@@ -82,66 +79,36 @@ func (api *API) workspaceAgentACP(rw http.ResponseWriter, r *http.Request) {
 		<-inputDone
 	}()
 
-	fail := func(err error) {
-		api.Logger.Debug(ctx, "workspace acp adapter failed", slog.F("agent_id", waws.WorkspaceAgent.ID), slog.Error(err))
-		_ = ws.Close(websocket.StatusInternalError, "Workspace ACP adapter exited. Check coder-acp setup in the workspace.")
+	fail := func() {
+		// Agent errors may contain local credentials. Do not log their details.
+		api.Logger.Debug(ctx, "workspace native agents transport failed", slog.F("agent_id", waws.WorkspaceAgent.ID))
+		_ = ws.Close(websocket.StatusInternalError, "Workspace native agents are unavailable.")
 	}
 	dialCtx, dialCancel := context.WithTimeout(ctx, 30*time.Second)
 	defer dialCancel()
 	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, waws.WorkspaceAgent.ID)
 	if err != nil {
-		fail(err)
+		fail()
 		return
 	}
 	defer release()
-	rawConn, err := agentConn.SSHTCPConn(dialCtx)
-	if err != nil {
-		fail(err)
-		return
-	}
-	defer rawConn.Close()
-	// Bound the handshake itself, before an SSH client exists to close.
-	stopDial := context.AfterFunc(dialCtx, func() { _ = rawConn.Close() })
+	// The returned websocket retains its context for the whole connection.
+	// Bound its handshake without attaching the dial deadline to its lifetime.
+	stopDial := context.AfterFunc(dialCtx, cancel)
 	defer stopDial()
-	sshConn, channels, requests, err := ssh.NewClientConn(rawConn, "localhost:22", &ssh.ClientConfig{
-		// The authenticated tailnet connection identifies the workspace agent.
-		// #nosec G106
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-	})
+	nativeConn, err := agentConn.ConnectNativeAgentACP(ctx)
 	if err != nil {
-		fail(err)
+		fail()
 		return
 	}
-	sshClient := ssh.NewClient(sshConn, channels, requests)
-	defer sshClient.Close()
-	stopSSH := context.AfterFunc(ctx, func() { _ = sshClient.Close() })
-	defer stopSSH()
-	session, err := sshClient.NewSession()
-	if err != nil {
-		fail(err)
-		return
-	}
-	defer session.Close()
-	stdin, err := session.StdinPipe()
-	if err != nil {
-		fail(err)
-		return
-	}
-	session.Stdout = transport
-	// Diagnostics must never enter the protocol or expose workspace secrets in
-	// control-plane logs. The adapter keeps its own workspace-local service log.
-	session.Stderr = io.Discard
-	// This fixed executable is configured by the workspace owner/template. No
-	// browser-supplied command, shell argument, or environment is evaluated here.
-	if err := session.Start("coder-acp acp"); err != nil {
-		fail(err)
-		return
-	}
+	defer nativeConn.Close()
 	if !stopDial() {
-		fail(dialCtx.Err())
+		fail()
 		return
 	}
 	dialCancel()
+	stopNative := context.AfterFunc(ctx, func() { _ = nativeConn.Close() })
+	defer stopNative()
 	if auditor := api.tunnelAuditor(r); auditor != nil {
 		auditor.Audit(waws.WorkspaceAgent.ID, nil)
 	}
@@ -149,16 +116,16 @@ func (api *API) workspaceAgentACP(rw http.ResponseWriter, r *http.Request) {
 	copyDone := make(chan struct{})
 	go func() {
 		defer close(copyDone)
-		_, _ = io.Copy(stdin, input)
-		_ = stdin.Close()
+		_, _ = io.Copy(nativeConn, input)
+		_ = nativeConn.Close()
 	}()
-	err = session.Wait()
+	_, err = io.Copy(transport, nativeConn)
 	if err != nil && ctx.Err() == nil {
-		fail(err)
+		fail()
 	} else {
 		_ = ws.Close(websocket.StatusNormalClosure, "")
 	}
 	_ = input.Close()
-	_ = sshClient.Close()
+	_ = nativeConn.Close()
 	<-copyDone
 }

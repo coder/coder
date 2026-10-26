@@ -20,20 +20,11 @@ variable "docker_socket" {
 variable "claude_auth_file" {
   type        = string
   default     = ""
-  description = "Optional absolute Docker-host path to an owner-only Claude authentication JSON file. Required for a Claude initial job. Mounted read-only, never uploaded in the template."
+  description = "Optional absolute Docker-host path to an owner-only authentication JSON file containing Claude credentials, OPENAI_API_KEY for Codex, or both. Mounted read-only, never uploaded in the template. Existing native authentication is preserved."
   validation {
     condition     = var.claude_auth_file == "" || startswith(var.claude_auth_file, "/")
     error_message = "Use an absolute path on the Docker host."
   }
-}
-
-# coder_parameter has no sensitive-value support; UI masking alone does not
-# protect a key in provisioning logs. Keep this input sensitive in Terraform.
-variable "codex_api_key" {
-  type        = string
-  default     = ""
-  sensitive   = true
-  description = "Optional OpenAI API key for an initial Codex job. Stored in Terraform state. Leave empty when native Codex authentication is already provisioned in the persistent home. Restrict this template to the key's authorized owner."
 }
 
 provider "docker" {
@@ -69,7 +60,7 @@ data "coder_parameter" "harness" {
 data "coder_parameter" "prompt" {
   name         = "prompt"
   display_name = "Initial prompt"
-  description  = "The task to submit once when this workspace is first created (maximum 32,000 characters). This parameter is stored by Coder; do not include secrets."
+  description  = "The task to submit once when this workspace is first created (maximum 32,000 characters and 100,000 UTF-8 bytes). This parameter is stored by Coder; do not include secrets."
   type         = "string"
   form_type    = "textarea"
   default      = "Summarize what you can help with in this workspace. Do not use tools yet."
@@ -145,40 +136,39 @@ resource "coder_agent" "main" {
   dir  = "/home/coder/project"
   env = {
     HOME            = "/home/coder"
-    PATH            = "/home/coder/.local/bin:/usr/local/bin:/usr/bin:/bin"
+    PATH            = "/opt/coder/bin:/home/coder/.local/bin:/usr/local/bin:/usr/bin:/bin"
     CODEX_HOME      = "/home/coder/.codex"
     XDG_CONFIG_HOME = "/home/coder/.config"
     XDG_DATA_HOME   = "/home/coder/.local/share"
     XDG_STATE_HOME  = "/home/coder/.local/state"
     XDG_CACHE_HOME  = "/home/coder/.cache"
     # Agent environment values undergo variable expansion before startup.
-    CODER_NATIVE_JOB_HARNESS              = data.coder_parameter.harness.value
-    CODER_NATIVE_JOB_CODEX_API_KEY_BASE64 = base64encode(var.codex_api_key)
-    CODER_NATIVE_JOB_PROMPT_BASE64        = base64encode(data.coder_parameter.prompt.value)
-    CODER_NATIVE_JOB_REPO_BASE64          = base64encode(data.coder_parameter.repository.value)
-    CODER_NATIVE_JOB_MODEL                = data.coder_parameter.model.value
-    CODER_NATIVE_JOB_TRUST                = data.coder_parameter.trust_project.value
-    GIT_AUTHOR_NAME                       = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
-    GIT_AUTHOR_EMAIL                      = data.coder_workspace_owner.me.email
-    GIT_COMMITTER_NAME                    = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
-    GIT_COMMITTER_EMAIL                   = data.coder_workspace_owner.me.email
+    CODER_NATIVE_JOB_HARNESS       = data.coder_parameter.harness.value
+    CODER_NATIVE_JOB_PROMPT_BASE64 = base64encode(data.coder_parameter.prompt.value)
+    CODER_NATIVE_JOB_REPO_BASE64   = base64encode(data.coder_parameter.repository.value)
+    CODER_NATIVE_JOB_MODEL         = data.coder_parameter.model.value
+    CODER_NATIVE_JOB_TRUST         = data.coder_parameter.trust_project.value
+    GIT_AUTHOR_NAME                = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
+    GIT_AUTHOR_EMAIL               = data.coder_workspace_owner.me.email
+    GIT_COMMITTER_NAME             = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
+    GIT_COMMITTER_EMAIL            = data.coder_workspace_owner.me.email
   }
 }
 
 resource "coder_script" "job" {
   agent_id           = coder_agent.main.id
-  display_name       = "Start native background job"
+  display_name       = "Prepare native background job"
   run_on_start       = true
   start_blocks_login = true
-  script             = "#!/bin/sh\nset -eu\nexec node /opt/native-agent/startup.mjs\n"
+  script             = "#!/bin/sh\nset -eu\nexec sh /opt/native-agent/startup.sh\n"
 }
 
 resource "coder_script" "shutdown" {
   agent_id     = coder_agent.main.id
-  display_name = "Stop native Claude gracefully"
+  display_name = "Stop native agents gracefully"
   run_on_stop  = true
   timeout      = 60
-  script       = "#!/bin/sh\nset -eu\nexec node /opt/native-agent/shutdown.mjs\n"
+  script       = "#!/bin/sh\nset -eu\nexec coder native-agent shutdown\n"
 }
 
 resource "docker_volume" "home" {
@@ -206,7 +196,11 @@ resource "docker_container" "workspace" {
     drop = ["ALL"]
   }
   entrypoint = ["sh", "-c", replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")]
-  env        = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
+  env = [
+    "CODER_AGENT_TOKEN=${coder_agent.main.token}",
+    "CODER_AGENT_NATIVE_AGENTS=true",
+    "BINARY_DIR=/opt/coder/bin",
+  ]
 
   host {
     host = "host.docker.internal"

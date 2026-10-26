@@ -9,7 +9,7 @@ const nativeAgentSessionsKey = (agentID: string) => [
 ];
 
 /**
- * Discovers sessions through the existing SSH connection. An exact discovery
+ * Discovers sessions through the workspace agent API. An exact discovery
  * match can restore a saved selection's history, never create or prompt it.
  */
 export const nativeAgentSessions = (session: NativeAgentSession) =>

@@ -135,6 +135,7 @@ type AgentConn interface {
 	WatchContainers(ctx context.Context, logger slog.Logger) (<-chan codersdk.WorkspaceAgentListContainersResponse, io.Closer, error)
 	WatchGit(ctx context.Context, logger slog.Logger, chatID uuid.UUID) (*wsjson.Stream[codersdk.WorkspaceAgentGitServerMessage, codersdk.WorkspaceAgentGitClientMessage], error)
 	ConnectDesktopVNC(ctx context.Context) (net.Conn, error)
+	ConnectNativeAgentACP(ctx context.Context) (net.Conn, error)
 	ExecuteDesktopAction(ctx context.Context, action DesktopAction) (DesktopActionResponse, error)
 	StartDesktopRecording(ctx context.Context, req StartDesktopRecordingRequest) error
 	StopDesktopRecording(ctx context.Context, req StopDesktopRecordingRequest) (StopDesktopRecordingResponse, error)
@@ -856,6 +857,40 @@ func (c *agentConn) ConnectDesktopVNC(ctx context.Context) (net.Conn, error) {
 	conn.SetReadLimit(-1)
 
 	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
+}
+
+// ConnectNativeAgentACP opens the native-agent ACP byte stream. The connection
+// owns only this transport, not the lifetime of the workspace's native sessions.
+func (c *agentConn) ConnectNativeAgentACP(ctx context.Context) (net.Conn, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	host := net.JoinHostPort(c.agentAddress().String(), strconv.Itoa(AgentHTTPAPIServerPort))
+	dialOpts := &websocket.DialOptions{
+		HTTPClient:      c.apiClient(ctx),
+		CompressionMode: websocket.CompressionDisabled,
+	}
+	c.headersMu.RLock()
+	if len(c.extraHeaders) > 0 {
+		dialOpts.HTTPHeader = c.extraHeaders.Clone()
+	}
+	c.headersMu.RUnlock()
+
+	url := fmt.Sprintf("http://%s/api/v0/native-agents/acp", host)
+	conn, res, err := websocket.Dial(ctx, url, dialOpts)
+	if err != nil {
+		if res == nil {
+			return nil, err
+		}
+		return nil, codersdk.ReadBodyAsError(res)
+	}
+	if res != nil && res.Body != nil {
+		defer res.Body.Close()
+	}
+	stream := websocket.NetConn(ctx, conn, websocket.MessageBinary)
+	// NetConn disables read limits, so set ours after wrapping.
+	conn.SetReadLimit(4 << 20)
+	return stream, nil
 }
 
 // DesktopAction is the request body for the desktop action

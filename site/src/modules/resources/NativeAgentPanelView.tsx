@@ -142,7 +142,7 @@ export const NativeAgentPanelView: React.FC<NativeAgentPanelViewProps> = ({
 	} else if (mode === "human") {
 		transcriptStatus = `You have control in the native terminal. Observe returns control to the agent; it does not close or detach the terminal. ${
 			identity.name === "claude-acp-bridge"
-				? "Use Ctrl+Z in the terminal to detach with coder-acp."
+				? "Use the native terminal's detach command."
 				: "Exit the native terminal UI to detach."
 		}`;
 	} else if (!session?.modes) {
@@ -221,11 +221,11 @@ export const NativeAgentPanelView: React.FC<NativeAgentPanelViewProps> = ({
 			)}
 			{snapshot.error && !connected && (
 				<div className="text-content-secondary">
-					Install and configure a native ACP adapter in this workspace.{" "}
-					<code>coder-acp acp</code> must be on the SSH command PATH and serve
-					ACP over stdio without a PTY. <code>coder-acp attach SESSION_ID</code>{" "}
-					must attach to the same running session without restarting it.
-					Complete provider sign-in in the workspace terminal.
+					Enable <code>CODER_AGENT_NATIVE_AGENTS</code> for the workspace agent
+					and install the native harnesses. Check workspace startup logs and
+					complete provider sign-in in the terminal.{" "}
+					<code>coder native-agent attach SESSION_ID</code> attaches to an
+					existing session without restarting it.
 				</div>
 			)}
 			{(connected || session || sessions.length > 0) && (

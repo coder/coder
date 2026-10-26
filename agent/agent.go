@@ -14,7 +14,9 @@ import (
 	"net/http"
 	"net/netip"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -56,6 +58,7 @@ import (
 	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/agent/x/agentdesktop"
 	"github.com/coder/coder/v2/agent/x/agentmcp"
+	"github.com/coder/coder/v2/agent/x/agentnative"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/gitauth"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -125,6 +128,8 @@ type Options struct {
 	// StatsReportInterval is the interval for the connstats callback
 	// installed at statsReporter creation.
 	StatsReportInterval time.Duration
+	// NativeAgents enables the experimental native coding-agent manager.
+	NativeAgents bool
 }
 
 type Client interface {
@@ -241,6 +246,7 @@ func New(options Options) Agent {
 		metrics:            newAgentMetrics(prometheusRegistry),
 		execer:             options.Execer,
 
+		nativeAgents:                    options.NativeAgents,
 		devcontainers:                   options.Devcontainers,
 		containerAPIOptions:             options.DevcontainerAPIOptions,
 		gitAPIOptions:                   options.GitAPIOptions,
@@ -334,6 +340,15 @@ type agent struct {
 	// labeled in Coder with the agent + workspace.
 	metrics *agentMetrics
 	execer  agentexec.Execer
+
+	nativeAgents    bool
+	nativeStartOnce sync.Once
+	nativeManager   atomic.Pointer[agentnative.Manager]
+
+	// Protected by closeMutex. The cleanup owner includes managers that have
+	// not been published because startup overlapped agent shutdown.
+	nativeManagerForCleanup *agentnative.Manager
+	nativeAgentsStopped     bool
 
 	devcontainers       bool
 	containerAPIOptions []agentcontainers.Option
@@ -1391,6 +1406,10 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				// on them.
 				a.contextManager.SetReady()
 
+				// Native tools and configuration are installed by startup
+				// scripts. This is independent of the coderd connection.
+				a.startNativeAgents()
+
 				// Connect to workspace MCP servers after the
 				// lifecycle transition to avoid delaying Ready.
 				// This runs inside the tracked goroutine so it
@@ -1603,6 +1622,142 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 		updated = append(updated, fmt.Sprintf("%s=%s", k, v))
 	}
 	return updated, nil
+}
+
+// startNativeAgents runs only after the first manifest's startup scripts finish.
+// Closing this manager detaches observation; only an explicit local shutdown
+// request is allowed to stop native services.
+func (a *agent) startNativeAgents() {
+	if !a.nativeAgents || runtime.GOOS != "linux" {
+		return
+	}
+	a.nativeStartOnce.Do(func() {
+		ctx := a.gracefulCtx
+		if ctx.Err() != nil {
+			return
+		}
+		home, err := a.envInfo.HomeDir()
+		if err != nil || home == "" {
+			a.logger.Warn(ctx, "native agents home directory unavailable")
+			return
+		}
+		_, dir, env, err := a.sshServer.CommandEnv(a.envInfo, nil)
+		if err != nil {
+			a.logger.Warn(ctx, "native agents environment unavailable")
+			return
+		}
+		env = nativeAgentEnvironment(home, env)
+		stateDir := agentnative.DefaultStateDir(home)
+		manager, err := agentnative.New(agentnative.Options{
+			StateDir:    stateDir,
+			Environment: env,
+			Logger:      a.logger.Named("native-agents"),
+			Clock:       a.clock,
+			Command:     nativeAgentCommand(a.execer, dir, env),
+		})
+		if err != nil {
+			a.logger.Warn(ctx, "native agents manager initialization failed")
+			return
+		}
+		// Backend errors may contain command arguments, prompts or environment
+		// secrets. Log only the failed operation, never the underlying error.
+		if err := manager.Restore(ctx); err != nil {
+			a.logger.Warn(ctx, "native agents restore failed")
+		}
+		config, err := agentnative.ReadConfig(stateDir)
+		if err != nil {
+			a.logger.Warn(ctx, "native agents configuration unavailable")
+		} else if config.InitialJob != nil && ctx.Err() == nil {
+			if _, err := manager.RunJob(ctx, *config.InitialJob); err != nil {
+				a.logger.Warn(ctx, "native agents initial job failed")
+			}
+		}
+
+		// Serialize publication and cleanup ownership with Close. Even an
+		// unpublished manager must remain available to local stop scripts.
+		a.closeMutex.Lock()
+		stopped := a.nativeAgentsStopped
+		if !stopped {
+			a.nativeManagerForCleanup = manager
+			if !a.closing {
+				a.nativeManager.Store(manager)
+			}
+		}
+		a.closeMutex.Unlock()
+		if stopped {
+			if err := manager.Close(); err != nil {
+				a.logger.Warn(ctx, "native agents manager close failed")
+			}
+		}
+	})
+}
+
+// closeNativeAgents must run after stop scripts complete. Startup may still be
+// unwinding; nativeAgentsStopped makes it close any manager not yet handed off.
+func (a *agent) closeNativeAgents() {
+	a.closeMutex.Lock()
+	a.nativeAgentsStopped = true
+	a.nativeManager.Store(nil)
+	manager := a.nativeManagerForCleanup
+	a.nativeManagerForCleanup = nil
+	a.closeMutex.Unlock()
+	if manager != nil {
+		if err := manager.Close(); err != nil {
+			a.logger.Warn(a.gracefulCtx, "native agents manager close failed")
+		}
+	}
+}
+
+func nativeAgentEnvironment(home string, env []string) []string {
+	result := make([]string, 0, len(env)+1)
+	for _, entry := range env {
+		key, _, ok := strings.Cut(entry, "=")
+		if !ok || key == "HOME" || strings.HasPrefix(key, "CODER_NATIVE_JOB") ||
+			strings.HasPrefix(key, "CODER_AGENT_TOKEN") || strings.HasPrefix(key, "CODER_SESSION_TOKEN") {
+			continue
+		}
+		result = append(result, entry)
+	}
+	return append(result, "HOME="+home)
+}
+
+func nativeAgentCommand(execer agentexec.Execer, dir string, env []string) func(context.Context, string, ...string) *exec.Cmd {
+	var path string
+	for _, entry := range env {
+		if value, ok := strings.CutPrefix(entry, "PATH="); ok {
+			path = value
+		}
+	}
+	return func(ctx context.Context, name string, args ...string) *exec.Cmd {
+		resolved := name
+		var lookupErr error
+		if !strings.ContainsRune(name, filepath.Separator) {
+			// exec.CommandContext resolves using the agent's PATH before Env is
+			// assigned. Resolve against the workspace PATH instead, including
+			// startup script binaries. Relative entries cannot be resolved safely
+			// because a backend can assign a different working directory later.
+			lookupErr = &exec.Error{Name: name, Err: exec.ErrNotFound}
+			for _, prefix := range filepath.SplitList(path) {
+				if !filepath.IsAbs(prefix) {
+					continue
+				}
+				candidate := filepath.Join(prefix, name)
+				info, err := os.Stat(candidate)
+				if err == nil && info.Mode().IsRegular() && info.Mode().Perm()&0o111 != 0 {
+					resolved = candidate
+					lookupErr = nil
+					break
+				}
+			}
+		}
+		cmd := execer.CommandContext(ctx, resolved, args...)
+		if lookupErr != nil {
+			cmd.Err = lookupErr
+		}
+		cmd.Dir = dir
+		cmd.Env = slices.Clone(env)
+		return cmd
+	}
 }
 
 // writeSecretFiles writes user secrets with file_path set to disk.
@@ -2272,6 +2427,10 @@ func (a *agent) Close() error {
 	if err != nil {
 		a.logger.Error(a.hardCtx, "script runner close", slog.Error(err))
 	}
+
+	// Keep the local API available for stop scripts that explicitly request
+	// native shutdown. Agent-only restarts otherwise detach observation only.
+	a.closeNativeAgents()
 
 	if a.socketServer != nil {
 		if err := a.socketServer.Close(); err != nil {

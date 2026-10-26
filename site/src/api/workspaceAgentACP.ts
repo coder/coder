@@ -75,7 +75,7 @@ export class WorkspaceAgentACP {
 			fail(
 				new Error(
 					event.code === 1011
-						? "Workspace ACP adapter exited. Check coder-acp setup in the workspace."
+						? "Native session connection failed. Check workspace agent startup logs."
 						: "ACP disconnected. The native session may still be running. Reconnect to reload retained history; prompts are never resent.",
 				),
 			);
@@ -85,7 +85,7 @@ export class WorkspaceAgentACP {
 			if (socket.readyState === WebSocket.CLOSED) {
 				fail(
 					new Error(
-						"Could not connect to workspace ACP. Check workspace access and coder-acp setup.",
+						"Could not connect to workspace ACP. Check workspace access and native agent setup.",
 					),
 				);
 			}
@@ -123,7 +123,7 @@ export class WorkspaceAgentACP {
 			() =>
 				fail(
 					new Error(
-						"ACP connection timed out. Check coder-acp setup in the workspace.",
+						"ACP connection timed out. Check workspace agent startup logs.",
 					),
 				),
 			30_000,

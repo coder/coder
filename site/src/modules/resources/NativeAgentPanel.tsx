@@ -214,7 +214,7 @@ export const NativeAgentControls: React.FC<NativeAgentControlsProps> = ({
 				workspace: workspace.name,
 				agent: agent.name,
 				// Keep the shell alive after detach or a diagnostic; reconnect must not rerun attach.
-				command: `coder-acp attach '${info.sessionId.replaceAll("'", "'\\''")}'; exec "\${SHELL:-/bin/sh}" -l`,
+				command: `coder native-agent attach '${info.sessionId.replaceAll("'", "'\\''")}'; exec "\${SHELL:-/bin/sh}" -l`,
 			}),
 			"_blank",
 			"noopener,noreferrer",

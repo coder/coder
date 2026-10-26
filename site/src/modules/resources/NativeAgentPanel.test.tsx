@@ -1077,7 +1077,7 @@ it.each([
 			`/@${MockWorkspace.owner_name}/${MockWorkspace.name}.${MockWorkspaceAgent.name}/terminal`,
 		);
 		expect(url.searchParams.get("command")).toBe(
-			`coder-acp attach ${quotedID}; exec "\${SHELL:-/bin/sh}" -l`,
+			`coder native-agent attach ${quotedID}; exec "\${SHELL:-/bin/sh}" -l`,
 		);
 		expect(open).toHaveBeenCalledWith(href, "_blank", "noopener,noreferrer");
 		expect(mock.load).toHaveBeenCalledTimes(1);
@@ -1216,7 +1216,7 @@ it.each(
 		const href = open.mock.calls[0]?.[0];
 		if (!href) throw new Error("Expected a terminal URL");
 		expect(new URL(href, location.origin).searchParams.get("command")).toBe(
-			`coder-acp attach '${info.sessionId}'; exec "\${SHELL:-/bin/sh}" -l`,
+			`coder native-agent attach '${info.sessionId}'; exec "\${SHELL:-/bin/sh}" -l`,
 		);
 		expect(open).toHaveBeenLastCalledWith(
 			href,
@@ -2486,7 +2486,7 @@ it("reports the setup failure close code and never reconnects automatically", as
 		expect(session.getSnapshot()).toMatchObject({
 			status: "disconnected",
 			error:
-				"Workspace ACP adapter exited. Check coder-acp setup in the workspace.",
+				"Native session connection failed. Check workspace agent startup logs.",
 		}),
 	);
 	expect(mock.server.sockets).toHaveLength(1);

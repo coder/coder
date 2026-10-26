@@ -64,6 +64,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 		blockLocalPortForwarding        bool
 		agentHeaderCommand              string
 		agentHeader                     []string
+		nativeAgents                    bool
 		devcontainers                   bool
 		devcontainerProjectDiscovery    bool
 		devcontainerDiscoveryAutostart  bool
@@ -346,6 +347,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 					BlockReversePortForwarding: blockReversePortForwarding,
 					BlockLocalPortForwarding:   blockLocalPortForwarding,
 					Execer:                     execer,
+					NativeAgents:               nativeAgents,
 					Devcontainers:              devcontainers,
 					DevcontainerAPIOptions: []agentcontainers.Option{
 						agentcontainers.WithSubAgentURL(agentAuth.agentURL.String()),
@@ -539,6 +541,13 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			Env:         "CODER_AGENT_BLOCK_LOCAL_PORT_FORWARDING",
 			Description: "Block local port forwarding through the SSH server (ssh -L).",
 			Value:       serpent.BoolOf(&blockLocalPortForwarding),
+		},
+		{
+			Flag:        "native-agents",
+			Default:     "false",
+			Env:         "CODER_AGENT_NATIVE_AGENTS",
+			Description: "Enable the experimental native coding-agent manager.",
+			Value:       serpent.BoolOf(&nativeAgents),
 		},
 		{
 			Flag:        "devcontainers-enable",

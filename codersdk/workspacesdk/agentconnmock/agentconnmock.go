@@ -158,6 +158,21 @@ func (mr *MockAgentConnMockRecorder) ConnectDesktopVNC(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConnectDesktopVNC", reflect.TypeOf((*MockAgentConn)(nil).ConnectDesktopVNC), ctx)
 }
 
+// ConnectNativeAgentACP mocks base method.
+func (m *MockAgentConn) ConnectNativeAgentACP(ctx context.Context) (net.Conn, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ConnectNativeAgentACP", ctx)
+	ret0, _ := ret[0].(net.Conn)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ConnectNativeAgentACP indicates an expected call of ConnectNativeAgentACP.
+func (mr *MockAgentConnMockRecorder) ConnectNativeAgentACP(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConnectNativeAgentACP", reflect.TypeOf((*MockAgentConn)(nil).ConnectNativeAgentACP), ctx)
+}
+
 // ContextConfig mocks base method.
 func (m *MockAgentConn) ContextConfig(ctx context.Context) (workspacesdk.ContextConfigResponse, error) {
 	m.ctrl.T.Helper()

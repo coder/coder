@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/websocket"
 )
 
 // TestAgentConn_DialBoundedByRequestContext verifies that the
@@ -102,6 +103,17 @@ func TestAgentConnRejectsCrossAgentRedirects(t *testing.T) {
 			},
 		},
 		{
+			name:   "native ACP websocket 302",
+			status: http.StatusFound,
+			invoke: func(ctx context.Context, conn workspacesdk.AgentConn) error {
+				stream, err := conn.ConnectNativeAgentACP(ctx)
+				if stream != nil {
+					_ = stream.Close()
+				}
+				return err
+			},
+		},
+		{
 			name:   "post 308",
 			status: http.StatusPermanentRedirect,
 			invoke: func(ctx context.Context, conn workspacesdk.AgentConn) error {
@@ -139,6 +151,10 @@ func TestAgentConnRejectsCrossAgentRedirects(t *testing.T) {
 				victimHit.Store(true)
 				rw.WriteHeader(http.StatusOK)
 			})
+			victimRouter.HandleFunc("/api/v0/native-agents/acp", func(rw http.ResponseWriter, _ *http.Request) {
+				victimHit.Store(true)
+				rw.WriteHeader(http.StatusForbidden)
+			})
 			serveTailnetHTTP(t, victimConn, victimRouter)
 
 			victimBaseURL := fmt.Sprintf("http://[%s]:%d", victimIP, workspacesdk.AgentHTTPAPIServerPort)
@@ -160,6 +176,72 @@ func TestAgentConnRejectsCrossAgentRedirects(t *testing.T) {
 			require.False(t, victimHit.Load())
 		})
 	}
+}
+
+func TestAgentConnConnectNativeAgentACP(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
+	clientID, agentID := uuid.New(), uuid.New()
+	client, _ := newTailnetConn(t, derpMap, clientID, "client")
+	remote, agentIP := newTailnetConn(t, derpMap, agentID, "agent")
+	stitchTailnet(t, map[uuid.UUID]*tailnet.Conn{clientID: client, agentID: remote})
+	closed := make(chan struct{})
+	serveTailnetHTTP(t, remote, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer close(closed)
+		require.Equal(t, "/api/v0/native-agents/acp", r.URL.Path)
+		require.Equal(t, "test-native", r.Header.Get("X-Test-Session"))
+		ws, err := websocket.Accept(w, r, nil)
+		require.NoError(t, err)
+		defer ws.CloseNow()
+		stream := websocket.NetConn(ctx, ws, websocket.MessageBinary)
+		ws.SetReadLimit(4 << 20)
+		_, _ = io.Copy(stream, stream)
+	}))
+	require.True(t, client.AwaitReachable(ctx, agentIP))
+	conn := workspacesdk.NewAgentConn(client, workspacesdk.AgentConnOptions{AgentID: agentID})
+	conn.SetExtraHeaders(http.Header{"X-Test-Session": []string{"test-native"}})
+	stream, err := conn.ConnectNativeAgentACP(ctx)
+	require.NoError(t, err)
+	defer stream.Close()
+	payload := []byte(strings.Repeat("x", 64*1024) + "\n")
+	_, err = stream.Write(payload)
+	require.NoError(t, err)
+	got := make([]byte, len(payload))
+	_, err = io.ReadFull(stream, got)
+	require.NoError(t, err)
+	require.Equal(t, payload, got)
+	require.NoError(t, stream.Close())
+	testutil.TryReceive(ctx, t, closed)
+}
+
+func TestAgentConnConnectNativeAgentACPReadLimit(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
+	clientID, agentID := uuid.New(), uuid.New()
+	client, _ := newTailnetConn(t, derpMap, clientID, "client")
+	remote, agentIP := newTailnetConn(t, derpMap, agentID, "agent")
+	stitchTailnet(t, map[uuid.UUID]*tailnet.Conn{clientID: client, agentID: remote})
+	closed := make(chan struct{})
+	serveTailnetHTTP(t, remote, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer close(closed)
+		ws, err := websocket.Accept(w, r, nil)
+		require.NoError(t, err)
+		defer ws.CloseNow()
+		// The receiver may reject the message before this write completes.
+		_ = ws.Write(ctx, websocket.MessageBinary, []byte(strings.Repeat("x", (4<<20)+1)))
+		_ = ws.Close(websocket.StatusNormalClosure, "done")
+	}))
+	require.True(t, client.AwaitReachable(ctx, agentIP))
+	conn := workspacesdk.NewAgentConn(client, workspacesdk.AgentConnOptions{AgentID: agentID})
+	stream, err := conn.ConnectNativeAgentACP(ctx)
+	require.NoError(t, err)
+	defer stream.Close()
+	_, err = io.Copy(io.Discard, stream)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "read limited")
+	testutil.TryReceive(ctx, t, closed)
 }
 
 // TestAgentConnAppHTTPClientRefusesRedirects verifies the app HTTP client does

@@ -1,18 +1,21 @@
 package agent
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/agent/agentchat"
+	"github.com/coder/coder/v2/agent/x/agentnative"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/httpmw"
+	"github.com/coder/websocket"
 )
 
 func (a *agent) apiHandler(upgradeListener *httpUpgrader) http.Handler {
@@ -41,6 +44,9 @@ func (a *agent) apiHandler(upgradeListener *httpUpgrader) http.Handler {
 	r.Mount("/api/v0/tool-calls", a.toolCalls.Routes())
 	r.Mount("/api/v0/desktop", a.desktopAPI.Routes())
 	r.Mount("/api/v0/mcp", a.mcpAPI.Routes())
+	// The authenticated local manager API, including attach credentials, must
+	// never be mounted on the remotely accessible agent API.
+	r.Get("/api/v0/native-agents/acp", a.handleNativeAgentACP)
 	r.Mount("/api/v0/context-config", a.contextConfigAPI.Routes())
 	if a.contextAPI != nil {
 		r.Mount("/api/v0/context", a.contextAPI.Routes())
@@ -76,6 +82,37 @@ func (a *agent) apiHandler(upgradeListener *httpUpgrader) http.Handler {
 	r.Get("/debug/prometheus", promHandler.ServeHTTP)
 
 	return r
+}
+
+func (a *agent) handleNativeAgentACP(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !a.nativeAgents {
+		httpapi.Write(ctx, w, http.StatusNotFound, codersdk.Response{Message: "Native agents are disabled."})
+		return
+	}
+	manager := a.nativeManager.Load()
+	if manager == nil {
+		httpapi.Write(ctx, w, http.StatusServiceUnavailable, codersdk.Response{Message: "Native agents are not ready."})
+		return
+	}
+	ws, err := websocket.Accept(w, r, &websocket.AcceptOptions{CompressionMode: websocket.CompressionDisabled})
+	if err != nil {
+		return
+	}
+	defer func() { _ = ws.CloseNow() }()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	// Agent shutdown detaches this transport without stopping native services.
+	stop := context.AfterFunc(a.gracefulCtx, cancel)
+	defer stop()
+	ctx, transport := codersdk.WebsocketNetConn(ctx, ws, websocket.MessageBinary)
+	// NetConn disables read limits, so set ours after wrapping.
+	ws.SetReadLimit(4 << 20)
+	defer transport.Close()
+	if err := agentnative.ServeACP(ctx, transport, manager); err != nil && ctx.Err() == nil {
+		a.logger.Debug(ctx, "native agents ACP transport closed")
+		_ = ws.Close(websocket.StatusInternalError, "Native agents transport closed.")
+	}
 }
 
 type ListeningPortsGetter interface {

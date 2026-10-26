@@ -684,7 +684,7 @@ export const AdapterMissing: Story = {
 		snapshot: {
 			status: "disconnected",
 			error:
-				"Workspace ACP adapter exited. Check coder-acp setup in the workspace.",
+				"Native session connection failed. Check workspace agent startup logs.",
 		},
 		sessions: [],
 	},

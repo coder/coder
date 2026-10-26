@@ -1,7 +1,8 @@
 # Native workspace agents (experimental)
 
 Run **Claude Code, Codex, or OpenCode** in a Coder workspace, observe structured output in the browser, and open the same conversation in its native terminal UI.
-This POC requires the opt-in `native-agents` experiment; it isn't integrated with Coder Agents or `chatd`.
+This POC requires the opt-in `native-agents` experiment and `CODER_AGENT_NATIVE_AGENTS=true` in the workspace agent's environment.
+It isn't integrated with Coder Agents or `chatd`.
 
 ## Architecture
 
@@ -13,37 +14,34 @@ flowchart TB
     pty["Existing Coder terminal proxy"]
 
     subgraph workspace["Workspace: same OS user"]
-        acp["coder-acp acp"]
-        broker["Shared broker<br/>Discovery, input control, event journal"]
-        adapters["Native adapters"]
+        agent["coder agent (Go)<br/>ACP, session manager, native adapters"]
         claude["Claude Code<br/>Supervisor, workers, bridge mod"]
         codex["Codex<br/>Dedicated app-server"]
         opencode["OpenCode V2<br/>Dedicated server"]
-        attach["coder-acp attach<br/>Native TUI"]
+        attach["coder native-agent attach<br/>Native TUI"]
         state[("Persistent workspace storage<br/>Native conversations and dispatch guards")]
     end
 
     panel <-->|"ACP over WebSocket"| relay
-    relay <-->|"SSH over tailnet, no PTY"| acp
-    acp <-->|"Authenticated loopback HTTP"| broker
-    broker <--> adapters
-    adapters <-->|"Mod events and commands"| claude
-    adapters <-->|"Native RPC"| codex
-    adapters <-->|"HTTP and SSE"| opencode
+    relay <-->|"Agent API over tailnet"| agent
+    agent <-->|"Mod events and commands"| claude
+    agent <-->|"Native RPC"| codex
+    agent <-->|"HTTP and SSE"| opencode
     terminal <--> pty
     pty <-->|"Reconnecting PTY"| attach
-    attach <-->|"Session lookup and human control"| broker
+    attach <-->|"Authenticated loopback API"| agent
     attach <-->|"Attach to the same native session"| claude
     attach <--> codex
     attach <--> opencode
-    broker <--> state
+    agent <--> state
     claude <--> state
     codex <--> state
     opencode <--> state
 ```
 
 Coder provides authentication, workspace connectivity, and terminal transport.
-The broker normalizes native events; the ACP adapter exposes them to clients.
+The Go workspace agent owns native adapters, persistence, lifecycle, and ACP projection.
+There is no standalone Node broker, per-browser ACP process, or SSH protocol hop.
 Each harness owns model calls, tools, permissions, and its authoritative conversation history.
 There is no terminal scraping or second model loop.
 
@@ -55,10 +53,10 @@ There is no terminal scraping or second model loop.
 
 ## Behavior
 
-- **Background:** template startup can submit an initial job without a browser connection.
+- **Background:** after template setup finishes, the workspace agent restores saved sessions and attempts the configured initial job once, without a browser connection.
 - **Open:** opens another web terminal on the same native conversation. Attachment selects human control; it doesn't restore or restart sessions.
 - **Observe:** permits new automation prompts without closing terminals or cancelling active work. It isn't an exclusive lock against native terminal input.
-- **Restart:** template startup restores eligible saved sessions using their native identities, independently of the browser. It never resubmits the original task; uncertain state requires inspection.
+- **Restart:** the workspace agent restores eligible saved sessions using their native identities. It never resubmits the original task; uncertain state requires inspection. Agent-only restarts reconnect observation without intentionally stopping native work.
 - **Continuity:** native history and dispatch guards persist in the workspace. The browser retains bounded drafts and panel choices in tab-scoped storage across workspace rebuilds.
 
 ## Boundaries
@@ -68,7 +66,8 @@ Recovery, cancellation, approvals, and native process ownership remain harness-s
 The adapter refuses unsafe operations rather than pretending all harnesses support the same semantics.
 
 Native APIs are version-sensitive, permissions remain terminal-only, and conversation forking isn't implemented.
-Bounded broker history isn't a backup of native history; dispatch guards prevent automatic replay, not exactly-once tool side effects.
+Bounded agent history isn't a backup of native history; dispatch guards prevent automatic replay, not exactly-once tool side effects.
+The Go POC uses separate state rather than migrating the earlier JavaScript broker's saved sessions.
 
 ## Possible Coder Agents integration
 
@@ -84,5 +83,5 @@ This is a proposal, not implemented behavior.
 
 - [Setup, commands, safety limits, and verification](REFERENCE.md)
 - [Prompt-driven Docker workspace template](template/README.md)
-- [ACP relay](../../coderd/workspaceagents_acp.go), [ACP adapter](src/acp.mjs), and [broker routing](src/broker.mjs)
-- Native adapters: [Claude Code](plugin/hooks/register.js), [Codex](src/codex-service.mjs), [OpenCode](src/opencode-service.mjs)
+- [ACP relay](../../coderd/workspaceagents_acp.go), [Go session manager and adapters](../../agent/x/agentnative/), and [local CLI](../../cli/nativeagent.go)
+- [Claude's embedded JavaScript mod](../../agent/x/agentnative/claudemod/) remains inside the native Claude runtime.
