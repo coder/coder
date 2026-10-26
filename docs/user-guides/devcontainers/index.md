@@ -7,7 +7,7 @@ Coder's Dev Containers integration uses the [`@devcontainers/cli`](https://githu
 
 This guide covers the Dev Containers integration.
 For workspaces without Docker, administrators can configure [Envbuilder](../../admin/integrations/devcontainers/envbuilder/index.md) instead, which builds the workspace image itself from your dev container configuration.
-To define workspaces without containers, administrators can use [Nix(OS)](../../admin/integrations/nixos.md).
+Administrators can also define environments with Nix flakes; see [Nix(OS)](../../admin/integrations/nixos.md).
 
 ![Two dev containers running as sub-agents in a Coder workspace](../../images/user-guides/devcontainers/devcontainer-running.png)_Dev containers appear as sub-agents with their own apps, SSH access, and port forwarding_
 

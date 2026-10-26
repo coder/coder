@@ -151,5 +151,5 @@ coder templates delete <template-name>
 - [Image management](./image-management.md)
 - [Dev Containers integration](../../integrations/devcontainers/integration.md) (recommended)
 - [Envbuilder](../../integrations/devcontainers/envbuilder/index.md) (alternative for environments without Docker)
-- [Nix(OS)](../../integrations/nixos.md) (alternative without containers)
+- [Nix(OS)](../../integrations/nixos.md) (alternative using Nix flakes)
 - [Change management](./change-management.md)

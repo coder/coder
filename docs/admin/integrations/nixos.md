@@ -2,22 +2,44 @@
 title: Nix(OS)
 ---
 
-[NixOS](https://nixos.org) workspaces define the entire operating system as code, with no container images.
-Developers commit a [flake](https://nix.dev/concepts/flakes) to Git, and every workspace builds the same pinned system from it.
+[Nix](https://nixos.org) defines development environments as code.
+A [flake](https://nix.dev/concepts/flakes) committed to Git declares the tools a project needs, and its `flake.lock` pins every dependency, so every workspace builds the same environment.
 
-The [AWS EC2 (NixOS) template](https://registry.coder.com/templates/coder-labs/aws-nixos) runs each workspace as a NixOS virtual machine configured from your flake.
+You can use Nix in two ways, on any infrastructure, including containers and VMs:
 
-## Why NixOS instead of dev containers
+- **Nix**: the package manager installed on an existing distribution, such as a Debian or Ubuntu image.
+  Developers get a project's `nix develop` shell, and you keep your current base image and template.
+- **NixOS**: an operating system built entirely from a flake, including services, users, and system settings.
+
+## Why Nix instead of dev containers
 
 - **Reproducible**: `flake.lock` pins every package, so workspaces resolve identical versions.
-- **No container tooling**: no image builds, Docker daemon, Docker-in-Docker, or privileged containers.
-- **Fast updates**: packages come from binary caches such as `cache.nixos.org` instead of image rebuilds, and the Nix store persists across workspace restarts.
-- **Safe changes**: a configuration that fails to build leaves the running system unchanged, and you can roll back to a previous generation.
-- **Full-OS configuration**: services, users, and system settings live in the same flake as developer tools.
+- **No image builds**: environments come from the flake, not from building a container image per project.
+  You don't need a Docker daemon, Docker-in-Docker, or privileged containers to use them.
+- **Fast updates**: packages come from binary caches such as `cache.nixos.org`, and the Nix store can persist across workspace restarts.
+- **Safe changes (NixOS)**: a configuration that fails to build leaves the running system unchanged, and you can roll back to a previous generation.
 
-## How it works
+## Nix on an existing distribution
 
-On each boot, the template syncs your flake into `/etc/nixos` and runs `nixos-rebuild switch` before the Coder agent starts.
+Add the [Nix(OS) module](https://registry.coder.com/modules/coder-labs/nix) to any template whose image already has Nix installed.
+It adds a **Nix Develop** app and prebuilds the project's dev shell at workspace startup:
+
+```tf
+module "nix" {
+  source   = "registry.coder.com/coder-labs/nix/coder"
+  version  = "1.0.0"
+  agent_id = coder_agent.main.id
+  nixos    = { enabled = false }
+  develop  = { enabled = true, path = "~/project" }
+}
+```
+
+The module does not install Nix; include it in your image, for example with the [Nix installer](https://nixos.org/download/).
+
+## NixOS workspaces
+
+The [AWS EC2 (NixOS)](https://registry.coder.com/templates/coder-labs/aws-nixos) template runs each workspace as a NixOS virtual machine configured from your flake.
+On each boot, it syncs the flake into `/etc/nixos` and runs `nixos-rebuild switch` before the Coder agent starts.
 Rebuild progress streams to the **NixOS** log in the workspace dashboard.
 Local edits and commits in `/etc/nixos` are preserved, so developers can iterate on the configuration inside the workspace:
 
@@ -25,16 +47,13 @@ Local edits and commits in `/etc/nixos` are preserved, so developers can iterate
 sudo nixos-rebuild switch --flake /etc/nixos#coder-workspace-ec2-x86_64
 ```
 
-## Get started
+To get started:
 
 1. Fork the [example flake](https://github.com/coder/nixos-example-flake), edit `configuration.nix`, and commit your changes with `flake.lock`.
 1. Create a template from [AWS EC2 (NixOS)](https://registry.coder.com/templates/coder-labs/aws-nixos) and set `flake_ref` to your fork's Git URL.
 1. Create a workspace.
 
 To use an existing flake, import `github:coder/nixos-modules` and an EC2 hardware module.
-See the template README for details, prerequisites, and limitations.
+See the template README for prerequisites and limitations.
 
-## Other infrastructure
-
-The rebuild logic lives in the [Nix(OS) module](https://registry.coder.com/modules/coder-labs/nix), which you can wire into your own NixOS templates on other platforms.
-The module can also add a `nix develop` shell to existing Docker, Kubernetes, or VM templates whose images already include Nix.
+For NixOS on other infrastructure, use the template as a reference and wire the [Nix(OS) module](https://registry.coder.com/modules/coder-labs/nix)'s boot script into your own template.

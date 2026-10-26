@@ -11,4 +11,5 @@ For setup instructions, see [Envbuilder documentation](../../integrations/devcon
 
 For an alternative that uses Docker inside workspaces, see [Dev Containers Integration](../../integrations/devcontainers/integration.md).
 
-For an alternative without containers, see [Nix(OS)](../../integrations/nixos.md).
+Nix flakes also let developers define their environments in their repositories, without building images.
+See [Nix(OS)](../../integrations/nixos.md).
