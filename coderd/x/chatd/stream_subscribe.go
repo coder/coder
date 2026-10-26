@@ -245,8 +245,9 @@ func (p *Server) Subscribe(
 
 // SubscribeAuthorized subscribes an already-authorized chat to stream updates.
 // A non-zero snapshotVersion resumes from that version and ignores
-// afterMessageID. ok is false when the pubsub subscription or the initial
-// read fails; nothing was sent, and the cause is logged.
+// afterMessageID. ok is false, and nothing was sent, when the server has no
+// database or pubsub, or when the pubsub subscription or the initial read
+// fails. Only the two failures are logged.
 func (p *Server) SubscribeAuthorized(
 	ctx context.Context,
 	chat database.Chat,
