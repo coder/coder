@@ -390,7 +390,14 @@ describe("AgentChatInput", () => {
 		);
 	});
 
-	it("leaves focus where the user moved it when a send completes", async () => {
+	// The locked editor shows that the flush below lets Lexical commit a focus.
+	it.each([
+		{ lockWhileLoading: false, focused: "Elsewhere" },
+		{ lockWhileLoading: true, focused: "Chat message" },
+	])("focuses $focused when a send completes with lockWhileLoading $lockWhileLoading", async ({
+		lockWhileLoading,
+		focused,
+	}) => {
 		const user = userEvent.setup();
 		const input = (isLoading: boolean) => (
 			<AppProviders>
@@ -399,6 +406,7 @@ describe("AgentChatInput", () => {
 					onSend={vi.fn()}
 					isDisabled={false}
 					isLoading={isLoading}
+					lockWhileLoading={lockWhileLoading}
 					selectedModel={modelOptions[0].id}
 					onModelChange={vi.fn()}
 					modelOptions={modelOptions}
@@ -419,9 +427,13 @@ describe("AgentChatInput", () => {
 		await user.click(elsewhere);
 		rerender(input(false));
 		// Lexical moves DOM focus in its update commit, after this render.
-		await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+		await act(async () => {});
 
-		expect(elsewhere).toHaveFocus();
+		expect(
+			screen.getByRole(focused === "Elsewhere" ? "button" : "textbox", {
+				name: focused,
+			}),
+		).toHaveFocus();
 	});
 
 	it("attaches supported dropped files and reports unsupported ones", () => {

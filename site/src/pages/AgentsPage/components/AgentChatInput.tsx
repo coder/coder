@@ -1146,6 +1146,16 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		onContentChange(content, serializedEditorState, hasChipsInEditor);
 	};
 
+	// A locked editor loses focus during the request, so re-focus it after
+	// a send completes (isLoading goes from true to false).
+	const prevIsLoadingRef = useRef(isLoading);
+	useEffect(() => {
+		const wasLoading = prevIsLoadingRef.current;
+		prevIsLoadingRef.current = isLoading;
+		if (lockWhileLoading && wasLoading && !isLoading && !isMobileViewport()) {
+			internalRef.current?.focus();
+		}
+	}, [isLoading, lockWhileLoading]);
 	const workspaceUploadEntries = workspaceUploads?.uploads ?? [];
 	const hasActiveUploads =
 		attachments.some((file) => isUploadInProgress(uploadStates?.get(file))) ||
@@ -1519,8 +1529,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						onKeyDown={handleEditorKeyDown}
 						onEnter={handleSubmit}
 						sendShortcut={sendShortcut}
-						// Unless lockWhileLoading is set, the editor stays enabled
-						// during a send, so the user can write the next message.
 						// handleSubmit does not send while isLoading.
 						disabled={isReadOnly || (lockWhileLoading && isLoading)}
 						hasWorkspace={hasSkillsWorkspace}
