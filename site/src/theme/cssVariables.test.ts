@@ -68,7 +68,8 @@ function stripCssComments(css: string): string {
 	return css.replace(/\/\*[\s\S]*?\*\//g, "");
 }
 
-function extractBlock(css: string, selector: string): string | null {
+function extractBlocks(css: string, selector: string): string[] {
+	const blocks: string[] = [];
 	const cssWithoutComments = stripCssComments(css);
 	for (const match of cssWithoutComments.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
 		const selectorList = match[1];
@@ -79,10 +80,14 @@ function extractBlock(css: string, selector: string): string | null {
 
 		const selectors = selectorList.split(",").map((value) => value.trim());
 		if (selectors.includes(selector)) {
-			return block;
+			blocks.push(block);
 		}
 	}
-	return null;
+	return blocks;
+}
+
+function extractBlock(css: string, selector: string): string | null {
+	return extractBlocks(css, selector)[0] ?? null;
 }
 
 function extractVariable(block: string, variable: string): string | null {
@@ -179,24 +184,33 @@ describe("theme CSS variables", () => {
 		});
 	}
 
-	// Browsers color their chrome from these static values until
-	// ThemeProvider applies the user's theme, and the page paints the :root
-	// surface until then.
+	it("gives body the surface that ThemeProvider copies into theme-color", () => {
+		expect(extractBlocks(css, "body").join("\n")).toContain(
+			"bg-surface-primary",
+		);
+	});
+
+	// The page paints the :root surface before ThemeProvider runs, so the
+	// static theme-color and manifest colors must match it.
 	describe("static theme colors", () => {
-		const toRGB = (color: string | null | undefined) => {
+		const toRGB = (source: string, color: string | null | undefined) => {
 			const probe = document.createElement("div");
 			probe.style.color = color ?? "";
 			if (!probe.style.color) {
-				throw new Error(`${color} is not a CSS color.`);
+				throw new Error(`${source} is not a CSS color: ${color}`);
 			}
 			return probe.style.color;
 		};
-		const rootBlock = extractBlock(css, ":root") ?? "";
-		const rootSurface = toRGB(
-			`hsl(${extractVariable(rootBlock, "--surface-primary")})`,
-		);
+		const rootSurface = () => {
+			const rootBlock = extractBlock(css, ":root") ?? "";
+			return toRGB(
+				"--surface-primary in the index.css :root block",
+				`hsl(${extractVariable(rootBlock, "--surface-primary")})`,
+			);
+		};
 
 		it("matches the :root surface in index.html", () => {
+			const surface = rootSurface();
 			const html = fs.readFileSync(
 				path.resolve(__dirname, "../../index.html"),
 				"utf8",
@@ -207,11 +221,14 @@ describe("theme CSS variables", () => {
 
 			expect(metas).not.toHaveLength(0);
 			for (const meta of metas) {
-				expect(toRGB(meta.getAttribute("content"))).toBe(rootSurface);
+				expect(
+					toRGB("index.html theme-color", meta.getAttribute("content")),
+				).toBe(surface);
 			}
 		});
 
 		it("matches the :root surface in the PWA manifest", () => {
+			const surface = rootSurface();
 			const manifest: { theme_color?: string; background_color?: string } =
 				JSON.parse(
 					fs.readFileSync(
@@ -220,8 +237,12 @@ describe("theme CSS variables", () => {
 					),
 				);
 
-			expect(toRGB(manifest.theme_color)).toBe(rootSurface);
-			expect(toRGB(manifest.background_color)).toBe(rootSurface);
+			expect(toRGB("manifest.json theme_color", manifest.theme_color)).toBe(
+				surface,
+			);
+			expect(
+				toRGB("manifest.json background_color", manifest.background_color),
+			).toBe(surface);
 		});
 	});
 });
