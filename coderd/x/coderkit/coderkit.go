@@ -20,7 +20,6 @@ import (
 	"path"
 	"regexp"
 	"slices"
-	"strings"
 	"sync"
 
 	"golang.org/x/xerrors"
@@ -35,17 +34,27 @@ var kitFS embed.FS
 //go:embed SKILL.md
 var skillMarkdown string
 
+const (
+	kitCSSName = "coder-kit.css"
+	kitJSName  = "coder-kit.js"
+
+	// maxUnknownClasses bounds UnknownClasses, so a page full of made-up
+	// classes cannot flood a tool result.
+	maxUnknownClasses = 20
+)
+
 // These match the tags that coder-brand's pack.mjs replaces: any path that
-// ends in the kit's file name.
+// ends in the kit's file name. The file name is case-sensitive, so a byte
+// search for it can skip the regex.
 var (
-	kitLinkRe    = regexp.MustCompile(`(?i)<link\b[^>]*href=["'][^"']*coder-kit\.css["'][^>]*>`)
-	kitScriptRe  = regexp.MustCompile(`(?i)<script\b[^>]*src=["'][^"']*coder-kit\.js["'][^>]*>\s*</script>`)
+	kitLinkRe    = regexp.MustCompile(`(?i:<link\b[^>]*href=)["'][^"']*coder-kit\.css["'][^>]*>`)
+	kitScriptRe  = regexp.MustCompile(`(?i:<script\b[^>]*src=)["'][^"']*coder-kit\.js["'](?i:[^>]*>\s*</script>)`)
 	fontURLRe    = regexp.MustCompile(`url\("([^":]+\.woff2)"\)`)
 	importRe     = regexp.MustCompile(`(?m)^@import url\("([^":]+\.css)"\);[ \t]*$`)
 	cssCommentRe = regexp.MustCompile(`(?s)/\*.*?\*/`)
 	kitClassRe   = regexp.MustCompile(`\.(ck-[a-z0-9-]+)`)
 	scriptBodyRe = regexp.MustCompile(`(?is)(<script\b[^>]*>).*?(</script>)`)
-	classAttrRe  = regexp.MustCompile(`(?i)\bclass=["']([^"']*)["']`)
+	classAttrRe  = regexp.MustCompile(`(?i)\sclass=["']([^"']*)["']`)
 )
 
 // Theme is the color theme that the viewer of a page uses.
@@ -71,22 +80,24 @@ func ParseTheme(value string) Theme {
 	}
 }
 
-// stylesheet is coder-kit.css with its imports and fonts inlined.
-var stylesheet = sync.OnceValue(func() string {
+// styleTag is coder-kit.css with its imports and fonts inlined, in a
+// style element.
+var styleTag = sync.OnceValue(func() []byte {
 	css, err := inlineCSS("kit/coder-kit.css", map[string]bool{})
 	if err != nil {
 		// The kit is embedded, so this is a build defect that tests catch.
 		panic(xerrors.Errorf("inline the Coder Kit: %w", err))
 	}
-	return css
+	return []byte("<style data-coder-kit>\n" + css + "</style>")
 })
 
-var script = sync.OnceValue(func() string {
+// scriptTag is coder-kit.js in a script element.
+var scriptTag = sync.OnceValue(func() []byte {
 	js, err := kitFS.ReadFile("kit/coder-kit.js")
 	if err != nil {
 		panic(xerrors.Errorf("read coder-kit.js: %w", err))
 	}
-	return string(js)
+	return []byte("<script data-coder-kit>\n" + string(js) + "</script>")
 })
 
 // classes is every ck- class that the kit defines.
@@ -139,7 +150,7 @@ func inlineCSS(name string, seen map[string]bool) (string, error) {
 
 // LinksKit reports whether an HTML page links coder-kit.css.
 func LinksKit(html []byte) bool {
-	return kitLinkRe.Match(html)
+	return bytes.Contains(html, []byte(kitCSSName)) && kitLinkRe.Match(html)
 }
 
 // Pack returns the page with the first coder-kit.css link replaced by the
@@ -148,46 +159,55 @@ func LinksKit(html []byte) bool {
 // unless the page sets it. A page that does not link the kit is returned
 // as is.
 func Pack(html []byte, theme Theme) []byte {
+	// Most pages do not link the kit, so skip the regex for them.
+	if !bytes.Contains(html, []byte(kitCSSName)) {
+		return html
+	}
 	loc := kitLinkRe.FindIndex(html)
 	if loc == nil {
 		return html
 	}
-	var style strings.Builder
-	if theme != ThemeNone {
-		_, _ = style.WriteString(`<script data-coder-kit>(function(){var r=document.documentElement;if(!r.hasAttribute("data-theme"))r.setAttribute("data-theme","` + string(theme) + `")})()</script>`)
-	}
-	_, _ = style.WriteString("<style data-coder-kit>\n")
-	_, _ = style.WriteString(stylesheet())
-	_, _ = style.WriteString("</style>")
-
-	out := make([]byte, 0, len(html)+style.Len()+len(script()))
+	style, js := styleTag(), scriptTag()
+	out := make([]byte, 0, len(html)+len(style)+len(js)+256)
 	out = append(out, html[:loc[0]]...)
-	out = append(out, style.String()...)
+	if theme != ThemeNone {
+		out = append(out, `<script data-coder-kit>(function(){var r=document.documentElement;if(!r.hasAttribute("data-theme"))r.setAttribute("data-theme","`+string(theme)+`")})()</script>`...)
+	}
+	out = append(out, style...)
 	rest := html[loc[1]:]
-	if js := kitScriptRe.FindIndex(rest); js != nil {
-		out = append(out, rest[:js[0]]...)
-		out = append(out, "<script data-coder-kit>\n"...)
-		out = append(out, script()...)
-		out = append(out, "</script>"...)
-		rest = rest[js[1]:]
+	if bytes.Contains(rest, []byte(kitJSName)) {
+		if m := kitScriptRe.FindIndex(rest); m != nil {
+			out = append(out, rest[:m[0]]...)
+			out = append(out, js...)
+			rest = rest[m[1]:]
+		}
 	}
 	return append(out, rest...)
 }
 
-// UnknownClasses returns the ck- classes in the page's class attributes
-// that the kit does not define, sorted and without duplicates. Classes
-// that scripts build at run time are not checked.
+// UnknownClasses returns up to 20 ck- classes in the page's class
+// attributes that the kit does not define, sorted and without duplicates.
+// Classes that scripts build at run time are not checked.
 func UnknownClasses(html []byte) []string {
 	markup := scriptBodyRe.ReplaceAll(html, []byte("$1$2"))
 	known := classes()
 	var unknown []string
-	for _, m := range classAttrRe.FindAllSubmatch(markup, -1) {
-		for _, class := range bytes.Fields(m[1]) {
-			name := string(class)
-			if strings.HasPrefix(name, "ck-") && !known[name] && !slices.Contains(unknown, name) {
-				unknown = append(unknown, name)
+	for rest := markup; len(unknown) < maxUnknownClasses; {
+		loc := classAttrRe.FindSubmatchIndex(rest)
+		if loc == nil {
+			break
+		}
+		for _, class := range bytes.Fields(rest[loc[2]:loc[3]]) {
+			// The list holds at most maxUnknownClasses, so the scan stays linear.
+			if !bytes.HasPrefix(class, []byte("ck-")) || known[string(class)] || slices.Contains(unknown, string(class)) {
+				continue
+			}
+			unknown = append(unknown, string(class))
+			if len(unknown) == maxUnknownClasses {
+				break
 			}
 		}
+		rest = rest[loc[1]:]
 	}
 	slices.Sort(unknown)
 	return unknown

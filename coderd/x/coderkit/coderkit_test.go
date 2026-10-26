@@ -1,6 +1,7 @@
 package coderkit_test
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -43,6 +44,8 @@ func TestPack(t *testing.T) {
 		// The style and script bodies must not close their own tags.
 		css := packed[strings.Index(packed, "<style data-coder-kit>")+len("<style data-coder-kit>"):]
 		require.Equal(t, 1, strings.Count(strings.ToLower(css), "</style"))
+		js := packed[strings.Index(packed, "<script data-coder-kit>")+len("<script data-coder-kit>"):]
+		require.Equal(t, 1, strings.Count(strings.ToLower(js), "</script"))
 	})
 
 	t.Run("ThemeSetsRootUnlessPageDoes", func(t *testing.T) {
@@ -68,6 +71,7 @@ func TestParseTheme(t *testing.T) {
 func TestLinksKit(t *testing.T) {
 	t.Parallel()
 	require.True(t, coderkit.LinksKit([]byte(`<LINK REL="stylesheet" HREF='/a/coder-kit.css'>`)))
+	require.False(t, coderkit.LinksKit([]byte(`<link rel="stylesheet" href="CODER-KIT.CSS">`)), "the file name is case-sensitive")
 	require.False(t, coderkit.LinksKit([]byte(`<link rel="stylesheet" href="coder-kit.css.map">`)))
 	require.False(t, coderkit.LinksKit([]byte(`<p>coder-kit.css</p>`)))
 }
@@ -78,6 +82,15 @@ func TestUnknownClasses(t *testing.T) {
 		`<script>el.innerHTML = '<span class="ck-built-at-run-time"></span>';</script>`
 	require.Equal(t, []string{"ck-icon-rocket", "ck-panl"}, coderkit.UnknownClasses([]byte(page)))
 	require.Empty(t, coderkit.UnknownClasses([]byte(`<p class="lead">no kit</p>`)))
+	require.Empty(t, coderkit.UnknownClasses([]byte(`<p data-class="ck-not-a-class">x</p>`)))
+
+	var many strings.Builder
+	for i := range 50 {
+		_, _ = fmt.Fprintf(&many, `<b class="ck-made-up-%02d"></b>`, i)
+	}
+	unknown := coderkit.UnknownClasses([]byte(many.String()))
+	require.Len(t, unknown, 20, "the list is bounded")
+	require.Equal(t, "ck-made-up-00", unknown[0])
 }
 
 func TestSkill(t *testing.T) {

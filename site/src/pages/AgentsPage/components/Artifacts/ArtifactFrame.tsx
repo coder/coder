@@ -23,8 +23,11 @@ export const ArtifactFrame: React.FC<ArtifactFrameProps> = (props) => {
 	const [reloadCount, setReloadCount] = useState(0);
 	// A page that uses the Coder Kit follows the dashboard theme. A theme
 	// change gives the frame a new src, so the page reloads in that theme.
-	const theme = useTheme().palette.mode === "dark" ? "dark" : "light";
-	const src = getChatArtifactFrameURL(props.artifactId, props.version, theme);
+	const src = getChatArtifactFrameURL(
+		props.artifactId,
+		props.version,
+		useTheme().palette.mode,
+	);
 	return (
 		<FrameInstance
 			// A new src or a reload starts a fresh load count.
