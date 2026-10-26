@@ -550,6 +550,25 @@ WHERE chat_id = @chat_id::uuid
     AND content @> '[{"type": "file"}]'::jsonb
 ORDER BY id DESC;
 
+-- name: GetChatOpenPreviewResults :many
+-- Returns the user-visible open_preview tool results in a chat, oldest first.
+SELECT
+    (part->'result')::jsonb AS result
+FROM
+    chat_messages cm,
+    jsonb_array_elements(cm.content) WITH ORDINALITY AS t(part, ordinality)
+WHERE
+    cm.chat_id = @chat_id::uuid
+    AND cm.role = 'tool'
+    AND cm.deleted = false
+    AND cm.visibility IN ('user', 'both')
+    AND cm.content @> '[{"type": "tool-result", "tool_name": "open_preview"}]'::jsonb
+    AND part->>'type' = 'tool-result'
+    AND part->>'tool_name' = 'open_preview'
+    AND part ? 'result'
+ORDER BY
+    cm.id, ordinality;
+
 -- name: GetChatTurnStartID :one
 SELECT
     id

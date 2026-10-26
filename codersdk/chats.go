@@ -1181,6 +1181,21 @@ type ChatAttachmentsResponse struct {
 	Attachments []ChatAttachment `json:"attachments"`
 }
 
+// ChatPreview is a preview that open_preview opened in a chat. Exactly one of
+// Port or PreviewID addresses it on the named agent. A file or directory
+// preview keeps its Path but can get a new PreviewID when the path is reopened.
+type ChatPreview struct {
+	Title     string `json:"title"`
+	AgentName string `json:"agent_name"`
+	Port      int32  `json:"port,omitempty"`
+	PreviewID string `json:"preview_id,omitempty"`
+	// Path is the published workspace file or directory.
+	Path string `json:"path,omitempty"`
+	// URLPath is the path and query a port preview opens at. It is empty for
+	// the server's root.
+	URLPath string `json:"url_path,omitempty"`
+}
+
 // ChatModelProviderUnavailableReason explains why a provider cannot be used.
 type ChatModelProviderUnavailableReason string
 
@@ -3118,6 +3133,12 @@ func (c *ExperimentalClient) GetChatDebugRuns(ctx context.Context, chatID uuid.U
 // history. Use GetChatDebugRuns when only the run summary list is needed.
 func (c *ExperimentalClient) GetChatDebugRun(ctx context.Context, chatID uuid.UUID, runID uuid.UUID) (ChatDebugRun, error) {
 	return requestJSON[ChatDebugRun](ctx, c.Client, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/debug/runs/%s", chatID, runID), http.StatusOK, nil)
+}
+
+// GetChatPreviews returns the previews opened in the chat's current
+// workspace, in the order they were first opened.
+func (c *ExperimentalClient) GetChatPreviews(ctx context.Context, chatID uuid.UUID) ([]ChatPreview, error) {
+	return requestJSON[[]ChatPreview](ctx, c.Client, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/previews", chatID), http.StatusOK, nil)
 }
 
 // GetChat returns a chat by ID.

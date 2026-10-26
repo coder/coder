@@ -5,6 +5,7 @@ package dbmetrics
 
 import (
 	"context"
+	"encoding/json"
 	"slices"
 	"time"
 
@@ -1837,6 +1838,14 @@ func (m queryMetricsStore) GetChatModelConfigsForTelemetry(ctx context.Context) 
 	r0, r1 := m.s.GetChatModelConfigsForTelemetry(ctx)
 	m.queryLatencies.WithLabelValues("GetChatModelConfigsForTelemetry").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatModelConfigsForTelemetry").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatOpenPreviewResults(ctx context.Context, chatID uuid.UUID) ([]json.RawMessage, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatOpenPreviewResults(ctx, chatID)
+	m.queryLatencies.WithLabelValues("GetChatOpenPreviewResults").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatOpenPreviewResults").Inc()
 	return r0, r1
 }
 
