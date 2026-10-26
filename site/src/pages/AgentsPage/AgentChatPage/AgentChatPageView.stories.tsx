@@ -936,8 +936,8 @@ const mockOverviewCardGitWatcher: React.ComponentProps<
 	]),
 };
 
-// The chat widths are a 1920px and a 1440px window less the 320px left
-// sidebar.
+// The chat widths are a 1920px, a 1440px, and a 1280px window less the
+// 320px left sidebar.
 const overviewCardFrame =
 	(chatWidth: number): Decorator =>
 	(Story) => (
@@ -951,15 +951,30 @@ const pinOverviewCard = () => {
 	return () => localStorage.removeItem(OVERVIEW_CARD_PINNED_KEY);
 };
 
-/** Panel closed on a wide chat: the toggle opens the card beside the transcript. */
+const openOverviewCard: Story["play"] = async ({ canvasElement }) => {
+	const canvas = within(canvasElement);
+	await userEvent.click(
+		canvas.getByRole("button", { name: "Toggle overview" }),
+	);
+};
+
+/** A wide chat: the card opens in the margin and the transcript stays put. */
 export const OverviewCardBesideTranscript: Story = {
 	decorators: [overviewCardFrame(1600)],
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Toggle overview" }),
-		);
-	},
+	play: openOverviewCard,
+	render: () => (
+		<StoryAgentChatPageView
+			store={overviewCardStore}
+			chat={mockOverviewCardChat}
+			gitWatcher={mockOverviewCardGitWatcher}
+		/>
+	),
+};
+
+/** A mid-width chat: the transcript and composer move left to clear the card. */
+export const OverviewCardMovesTranscript: Story = {
+	decorators: [overviewCardFrame(1120)],
+	play: openOverviewCard,
 	render: () => (
 		<StoryAgentChatPageView
 			store={overviewCardStore}
@@ -971,7 +986,7 @@ export const OverviewCardBesideTranscript: Story = {
 
 /** A pinned card on a narrow chat: no card and no toggle. */
 export const OverviewCardHiddenWhenNarrow: Story = {
-	decorators: [overviewCardFrame(1120)],
+	decorators: [overviewCardFrame(960)],
 	beforeEach: pinOverviewCard,
 	render: () => (
 		<StoryAgentChatPageView

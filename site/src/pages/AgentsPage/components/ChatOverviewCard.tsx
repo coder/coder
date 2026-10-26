@@ -44,12 +44,18 @@ import { computeRepoStats, type DiffStats } from "./GitPanel/GitPanel";
 const OVERVIEW_MAX_LIST_ROWS = 3;
 
 /**
- * Fits the card beside the centered 48rem transcript and composer:
- * 48rem + 2 * (16rem card + 1rem inset + 1rem gap) = 84rem.
+ * The open card needs 18rem beside the 48rem transcript and composer: the
+ * 16rem card, its 1rem inset, and a 1rem gap. The card and its toggle show
+ * from a 66rem chat (48rem + 18rem). The room is only what the centered
+ * transcript lacks, max(0, 84rem - chat width), so from 84rem on nothing
+ * moves.
  */
-export const overviewToggleClassName = "hidden @min-[84rem]/chat:inline-flex";
+export const overviewToggleClassName = "hidden @min-[66rem]/chat:inline-flex";
+/** Set on the chat column while the card is open. */
+export const overviewRoomClassName =
+	"@min-[66rem]/chat:[--agents-overview-room:max(0px,calc(84rem_-_100%))]";
 const overviewCardPositionClassName =
-	"absolute top-full right-4 z-20 mt-2 hidden @min-[84rem]/chat:flex";
+	"absolute top-full right-4 z-20 mt-2 hidden @min-[66rem]/chat:flex";
 
 /** The right panel tabs that the overview card can open. */
 export type OverviewTabId = "summary" | "git";

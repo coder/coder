@@ -3,6 +3,10 @@ import { useEffect, useState } from "react";
 /** Keeps the overview card open in every chat and across reloads. */
 export const OVERVIEW_CARD_PINNED_KEY = "agents.overview-card-pinned";
 
+/** Whether the user pinned the overview card. */
+export const readOverviewCardPinned = (): boolean =>
+	localStorage.getItem(OVERVIEW_CARD_PINNED_KEY) === "true";
+
 /** Open state of the chat overview card and its top bar toggle. */
 export type OverviewCardState = {
 	isOpen: boolean;
@@ -29,9 +33,7 @@ export const useOverviewCard = ({
 	cardRef,
 	toggleRef,
 }: OverviewCardRefs): OverviewCardState => {
-	const [isPinned, setIsPinned] = useState(
-		() => localStorage.getItem(OVERVIEW_CARD_PINNED_KEY) === "true",
-	);
+	const [isPinned, setIsPinned] = useState(readOverviewCardPinned);
 	const [isOpen, setIsOpen] = useState(isPinned);
 
 	useEffect(() => {
