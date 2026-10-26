@@ -61,7 +61,7 @@ Project instructions are optional context injected into all chats in a project. 
 
 Project skills are the project's enabled skills, which every chat in the project gets as a project skill source alongside personal, organization, and workspace skills. Each turn checks ChatProjectUsableBy once for the chat owner, and that one result gates both project instructions and skills, so a chat gets both or neither. Skills are then read as chatd, so role grants do not count. Subagents use the root chat's project. If loading fails, the turn continues without them.
 
-<!-- TODO(ThomasK33): root chats now also get a `builtin` skill source with one skill, `coder-kit`, embedded in coderd (`coderd/x/coderkit`). It teaches the Coder Kit look for HTML artifacts and comes with the artifact tools, so subagents do not get it. read_skill serves its body; it has no supporting files and users cannot invoke it. -->
+Root chats also get a built-in skill source with one skill, `coder-kit`, which ships in the coderd binary (`coderd/x/coderkit`). It teaches the Coder Kit look for HTML artifacts, so it comes with the artifact tools and subagents don't get it. read_skill serves its body from the binary. It has no supporting files, and users can't invoke it.
 
 If the distinction isn't completely clear to you at this point, don't worry. It should become clearer as you learn more about the core state machine.
 
