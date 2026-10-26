@@ -14,8 +14,10 @@ export const TIME_GROUPS = [
 ] as const;
 type TimeGroup = (typeof TIME_GROUPS)[number];
 
-export function getTimeGroup(dateStr: string): TimeGroup {
-	const now = new Date();
+export function getTimeGroup(
+	dateStr: string,
+	now: Date = new Date(),
+): TimeGroup {
 	const date = new Date(dateStr);
 	const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 	const yesterday = new Date(today);

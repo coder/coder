@@ -47,6 +47,20 @@ SELECT
         FROM chat_artifact_versions
         WHERE chat_artifact_versions.artifact_id = chat_artifacts.id
     ), 0)::int AS latest_version,
+    COALESCE((
+        SELECT chat_artifact_versions.name
+        FROM chat_artifact_versions
+        WHERE chat_artifact_versions.artifact_id = chat_artifacts.id
+        ORDER BY chat_artifact_versions.version DESC
+        LIMIT 1
+    ), '')::text AS latest_name,
+    COALESCE((
+        SELECT chat_artifact_versions.mimetype
+        FROM chat_artifact_versions
+        WHERE chat_artifact_versions.artifact_id = chat_artifacts.id
+        ORDER BY chat_artifact_versions.version DESC
+        LIMIT 1
+    ), '')::text AS latest_media_type,
     visible_users.username AS owner_username,
     COALESCE(chat_projects.name, '')::text AS project_name
 FROM chat_artifacts
@@ -99,6 +113,20 @@ SELECT
         FROM chat_artifact_versions
         WHERE chat_artifact_versions.artifact_id = chat_artifacts.id
     ), 0)::int AS latest_version,
+    COALESCE((
+        SELECT chat_artifact_versions.name
+        FROM chat_artifact_versions
+        WHERE chat_artifact_versions.artifact_id = chat_artifacts.id
+        ORDER BY chat_artifact_versions.version DESC
+        LIMIT 1
+    ), '')::text AS latest_name,
+    COALESCE((
+        SELECT chat_artifact_versions.mimetype
+        FROM chat_artifact_versions
+        WHERE chat_artifact_versions.artifact_id = chat_artifacts.id
+        ORDER BY chat_artifact_versions.version DESC
+        LIMIT 1
+    ), '')::text AS latest_media_type,
     visible_users.username AS owner_username,
     COALESCE(chat_projects.name, '')::text AS project_name
 FROM chat_artifacts

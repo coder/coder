@@ -43,7 +43,8 @@ func (api *API) listChatArtifacts(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, slice.List(rows, func(row database.GetChatArtifactsOwnedOrInUserProjectsRow) codersdk.ChatArtifact {
-		return convertChatArtifact(row.ChatArtifact, row.LatestVersion, row.OwnerUsername, row.ProjectName)
+		// Both queries select the same columns, so the rows convert.
+		return convertChatArtifact(database.GetChatArtifactByIDRow(row))
 	}))
 }
 
@@ -64,7 +65,7 @@ func (api *API) getChatArtifact(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	artifact := convertChatArtifact(row.ChatArtifact, row.LatestVersion, row.OwnerUsername, row.ProjectName)
+	artifact := convertChatArtifact(row)
 	artifact.Versions = slice.List(versions, func(v database.GetChatArtifactVersionsMetadataRow) codersdk.ChatArtifactVersion {
 		return convertChatArtifactVersion(v, apiKey.UserID)
 	})
@@ -161,20 +162,23 @@ func isHTMLName(name string) bool {
 	return strings.HasSuffix(name, ".html") || strings.HasSuffix(name, ".htm")
 }
 
-func convertChatArtifact(a database.ChatArtifact, latestVersion int32, ownerUsername, projectName string) codersdk.ChatArtifact {
+func convertChatArtifact(row database.GetChatArtifactByIDRow) codersdk.ChatArtifact {
+	a := row.ChatArtifact
 	out := codersdk.ChatArtifact{
-		ID:             a.ID,
-		OrganizationID: a.OrganizationID,
-		OwnerID:        a.OwnerID,
-		OwnerUsername:  ownerUsername,
-		Title:          a.Title,
-		LatestVersion:  latestVersion,
-		CreatedAt:      a.CreatedAt,
-		UpdatedAt:      a.UpdatedAt,
+		ID:              a.ID,
+		OrganizationID:  a.OrganizationID,
+		OwnerID:         a.OwnerID,
+		OwnerUsername:   row.OwnerUsername,
+		Title:           a.Title,
+		LatestVersion:   row.LatestVersion,
+		LatestName:      row.LatestName,
+		LatestMediaType: row.LatestMediaType,
+		CreatedAt:       a.CreatedAt,
+		UpdatedAt:       a.UpdatedAt,
 	}
 	if a.ProjectID.Valid {
 		out.ProjectID = &a.ProjectID.UUID
-		out.ProjectName = projectName
+		out.ProjectName = row.ProjectName
 	}
 	return out
 }

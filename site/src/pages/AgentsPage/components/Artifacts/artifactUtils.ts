@@ -59,7 +59,7 @@ export const deriveSeenArtifactVersions = (
 	return versions;
 };
 
-type ArtifactKind =
+export type ArtifactKind =
 	| "html"
 	| "mermaid"
 	| "markdown"

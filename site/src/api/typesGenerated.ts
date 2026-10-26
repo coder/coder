@@ -2196,6 +2196,12 @@ export interface ChatArtifact {
 	readonly project_name: string;
 	readonly title: string;
 	readonly latest_version: number;
+	/**
+	 * LatestName is the file name of the latest version. Its extension
+	 * picks the renderer.
+	 */
+	readonly latest_name: string;
+	readonly latest_media_type: string;
 	readonly created_at: string;
 	readonly updated_at: string;
 	/**

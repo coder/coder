@@ -202,6 +202,8 @@ export const MockChatArtifact: ChatArtifact = {
 	project_name: "",
 	title: "Repo layout",
 	latest_version: 2,
+	latest_name: "repo-layout.md",
+	latest_media_type: "text/markdown",
 	created_at: MOCK_TIMESTAMP,
 	updated_at: MOCK_TIMESTAMP,
 	versions: [

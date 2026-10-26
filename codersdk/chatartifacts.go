@@ -22,10 +22,14 @@ type ChatArtifact struct {
 	ProjectID      *uuid.UUID `json:"project_id,omitempty" format:"uuid"`
 	// ProjectName is empty when ProjectID is unset.
 	ProjectName   string    `json:"project_name"`
-	Title         string    `json:"title"`
-	LatestVersion int32     `json:"latest_version"`
-	CreatedAt     time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt     time.Time `json:"updated_at" format:"date-time"`
+	Title         string `json:"title"`
+	LatestVersion int32  `json:"latest_version"`
+	// LatestName is the file name of the latest version. Its extension
+	// picks the renderer.
+	LatestName      string    `json:"latest_name"`
+	LatestMediaType string    `json:"latest_media_type"`
+	CreatedAt       time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt       time.Time `json:"updated_at" format:"date-time"`
 	// Versions is set only by GetChatArtifact, newest first.
 	Versions []ChatArtifactVersion `json:"versions,omitempty"`
 }

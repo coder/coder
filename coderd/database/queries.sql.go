@@ -5653,6 +5653,20 @@ SELECT
         FROM chat_artifact_versions
         WHERE chat_artifact_versions.artifact_id = chat_artifacts.id
     ), 0)::int AS latest_version,
+    COALESCE((
+        SELECT chat_artifact_versions.name
+        FROM chat_artifact_versions
+        WHERE chat_artifact_versions.artifact_id = chat_artifacts.id
+        ORDER BY chat_artifact_versions.version DESC
+        LIMIT 1
+    ), '')::text AS latest_name,
+    COALESCE((
+        SELECT chat_artifact_versions.mimetype
+        FROM chat_artifact_versions
+        WHERE chat_artifact_versions.artifact_id = chat_artifacts.id
+        ORDER BY chat_artifact_versions.version DESC
+        LIMIT 1
+    ), '')::text AS latest_media_type,
     visible_users.username AS owner_username,
     COALESCE(chat_projects.name, '')::text AS project_name
 FROM chat_artifacts
@@ -5662,10 +5676,12 @@ WHERE chat_artifacts.id = $1::uuid
 `
 
 type GetChatArtifactByIDRow struct {
-	ChatArtifact  ChatArtifact `db:"chat_artifact" json:"chat_artifact"`
-	LatestVersion int32        `db:"latest_version" json:"latest_version"`
-	OwnerUsername string       `db:"owner_username" json:"owner_username"`
-	ProjectName   string       `db:"project_name" json:"project_name"`
+	ChatArtifact    ChatArtifact `db:"chat_artifact" json:"chat_artifact"`
+	LatestVersion   int32        `db:"latest_version" json:"latest_version"`
+	LatestName      string       `db:"latest_name" json:"latest_name"`
+	LatestMediaType string       `db:"latest_media_type" json:"latest_media_type"`
+	OwnerUsername   string       `db:"owner_username" json:"owner_username"`
+	ProjectName     string       `db:"project_name" json:"project_name"`
 }
 
 func (q *sqlQuerier) GetChatArtifactByID(ctx context.Context, id uuid.UUID) (GetChatArtifactByIDRow, error) {
@@ -5680,6 +5696,8 @@ func (q *sqlQuerier) GetChatArtifactByID(ctx context.Context, id uuid.UUID) (Get
 		&i.ChatArtifact.CreatedAt,
 		&i.ChatArtifact.UpdatedAt,
 		&i.LatestVersion,
+		&i.LatestName,
+		&i.LatestMediaType,
 		&i.OwnerUsername,
 		&i.ProjectName,
 	)
@@ -5796,6 +5814,20 @@ SELECT
         FROM chat_artifact_versions
         WHERE chat_artifact_versions.artifact_id = chat_artifacts.id
     ), 0)::int AS latest_version,
+    COALESCE((
+        SELECT chat_artifact_versions.name
+        FROM chat_artifact_versions
+        WHERE chat_artifact_versions.artifact_id = chat_artifacts.id
+        ORDER BY chat_artifact_versions.version DESC
+        LIMIT 1
+    ), '')::text AS latest_name,
+    COALESCE((
+        SELECT chat_artifact_versions.mimetype
+        FROM chat_artifact_versions
+        WHERE chat_artifact_versions.artifact_id = chat_artifacts.id
+        ORDER BY chat_artifact_versions.version DESC
+        LIMIT 1
+    ), '')::text AS latest_media_type,
     visible_users.username AS owner_username,
     COALESCE(chat_projects.name, '')::text AS project_name
 FROM chat_artifacts
@@ -5825,10 +5857,12 @@ ORDER BY chat_artifacts.updated_at DESC, chat_artifacts.id
 `
 
 type GetChatArtifactsOwnedOrInUserProjectsRow struct {
-	ChatArtifact  ChatArtifact `db:"chat_artifact" json:"chat_artifact"`
-	LatestVersion int32        `db:"latest_version" json:"latest_version"`
-	OwnerUsername string       `db:"owner_username" json:"owner_username"`
-	ProjectName   string       `db:"project_name" json:"project_name"`
+	ChatArtifact    ChatArtifact `db:"chat_artifact" json:"chat_artifact"`
+	LatestVersion   int32        `db:"latest_version" json:"latest_version"`
+	LatestName      string       `db:"latest_name" json:"latest_name"`
+	LatestMediaType string       `db:"latest_media_type" json:"latest_media_type"`
+	OwnerUsername   string       `db:"owner_username" json:"owner_username"`
+	ProjectName     string       `db:"project_name" json:"project_name"`
 }
 
 // Lists the artifacts that the user owns or can reach through a chat
@@ -5852,6 +5886,8 @@ func (q *sqlQuerier) GetChatArtifactsOwnedOrInUserProjects(ctx context.Context, 
 			&i.ChatArtifact.CreatedAt,
 			&i.ChatArtifact.UpdatedAt,
 			&i.LatestVersion,
+			&i.LatestName,
+			&i.LatestMediaType,
 			&i.OwnerUsername,
 			&i.ProjectName,
 		); err != nil {

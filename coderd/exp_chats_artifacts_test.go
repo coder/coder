@@ -105,6 +105,8 @@ func TestChatArtifact(t *testing.T) {
 		got, err := owner.GetChatArtifact(ctx, shared.ID)
 		require.NoError(t, err)
 		require.Equal(t, int32(2), got.LatestVersion)
+		require.Equal(t, "funnel.md", got.LatestName)
+		require.Equal(t, "text/markdown", got.LatestMediaType)
 		require.Equal(t, ownerUser.Username, got.OwnerUsername)
 		require.Equal(t, &project.ID, got.ProjectID)
 		require.Equal(t, project.Name, got.ProjectName)
@@ -121,6 +123,10 @@ func TestChatArtifact(t *testing.T) {
 		require.ElementsMatch(t, []uuid.UUID{shared.ID, personal.ID}, artifactIDs(list))
 		for _, a := range list {
 			require.Empty(t, a.Versions, "the list has no versions")
+			if a.ID == shared.ID {
+				require.Equal(t, "funnel.md", a.LatestName, "the list names the latest version's file")
+				require.Equal(t, "text/markdown", a.LatestMediaType)
+			}
 		}
 	})
 
