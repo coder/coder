@@ -769,7 +769,7 @@
 								{
 									"title": "Script ordering",
 									"description": "Declare startup and shutdown script dependencies in Terraform, including ordering across modules and required outcomes.",
-									"path": "./admin/templates/script-ordering.md",
+									"path": "./admin/templates/extending-templates/script-ordering.md",
 									"state": ["beta"]
 								},
 								{

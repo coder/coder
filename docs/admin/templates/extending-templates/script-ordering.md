@@ -190,7 +190,7 @@ data "coder_script_order" "devcontainer_startup" {
 
 Both scripts run inside the same dev container because they use its `subagent_id` as their `agent_id`.
 **Build Application** waits for **Install Dependencies** to succeed.
-For setup instructions, refer to [Attach resources to dev containers](../integrations/devcontainers/integration.md#attach-resources-to-dev-containers).
+For setup instructions, refer to [Attach resources to dev containers](../../integrations/devcontainers/integration.md#attach-resources-to-dev-containers).
 
 ## Choose the lifecycle phase
 
@@ -307,7 +307,7 @@ Each entry identifies prerequisites by their full Terraform resource addresses.
 If Coder skips a script, its log names the prerequisites that failed, timed out, or were skipped.
 Cancellation logs distinguish scripts canceled before starting from scripts canceled while running.
 
-The [**Build timeline**](../../tutorials/best-practices/speed-up-templates.md#workspace-build-timeline) shows skipped and canceled startup scripts.
+The [**Build timeline**](../../../tutorials/best-practices/speed-up-templates.md#workspace-build-timeline) shows skipped and canceled startup scripts.
 A script that never started has zero execution duration.
 The agent logs include output from shutdown scripts.
 
@@ -346,7 +346,7 @@ To migrate:
 6. Restart a test workspace using the updated template version.
 7. Verify the execution order and required outcomes in its [script logs](#logs-and-build-timeline).
 
-The experimental [`coder exp sync` workflow](./startup-coordination/usage.md) remains available for coordination inside script bodies.
+The experimental [`coder exp sync` workflow](../startup-coordination/usage.md) remains available for coordination inside script bodies.
 Its unit status commands don't inspect declarative script dependencies.
 Use script logs and the **Build timeline** to observe declarative ordering.
 

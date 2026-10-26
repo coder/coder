@@ -169,7 +169,7 @@ Refer to the [`coder_script` resource](https://registry.terraform.io/providers/c
 ### `coder_script_order`
 
 The Terraform data source that declares dependencies between startup or shutdown scripts within one workspace agent or dev container sub-agent.
-Refer to [Order startup and shutdown scripts](../admin/templates/script-ordering.md).
+Refer to [Order startup and shutdown scripts](../admin/templates/extending-templates/script-ordering.md).
 
 ### `coderd`
 
