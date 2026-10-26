@@ -4,19 +4,16 @@ const asyncAnswerLead = "Answer to ask_user_question call";
 
 const asyncAnswerPattern = new RegExp(`^${asyncAnswerLead} (\\S+):\n`);
 
-/** Returns the first line of an answer to the given async question. */
+/** Returns the prefix line, newline included, that starts an answer to the call. */
 export const getAsyncAnswerPrefix = (toolCallId: string): string =>
 	`${asyncAnswerLead} ${toolCallId}:\n`;
 
-/** Returns the tool call ID an async answer names, or undefined. */
+/** Reads the tool call ID from an answer's first line, if it has the prefix. */
 export const getAsyncAnswerToolCallId = (
 	responseText: string,
 ): string | undefined => asyncAnswerPattern.exec(responseText)?.[1];
 
-/**
- * Returns the answer body when the text answers the given async question.
- * An unrelated later message does not answer it.
- */
+/** Returns the text after the prefix line when it names this call. */
 export const getAsyncAnswerText = (
 	responseText: string | undefined,
 	toolCallId: string,

@@ -639,12 +639,11 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 
 			// A queued message can land between an async question and its
 			// answer, so the answer is matched by the call it names.
-			const answeredToolId =
-				responseText === undefined
-					? undefined
-					: getAsyncAnswerToolCallId(responseText);
-			if (responseText !== undefined && answeredToolId !== undefined) {
-				askUserQuestionResponseTextByToolId.set(answeredToolId, responseText);
+			if (responseText !== undefined) {
+				const answeredToolId = getAsyncAnswerToolCallId(responseText);
+				if (answeredToolId !== undefined) {
+					askUserQuestionResponseTextByToolId.set(answeredToolId, responseText);
+				}
 			}
 		}
 		// A question still in the stream is newer than every persisted one.

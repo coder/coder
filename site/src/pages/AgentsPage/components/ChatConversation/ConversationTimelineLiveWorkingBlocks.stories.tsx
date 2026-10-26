@@ -248,35 +248,21 @@ const asyncQuestionResult = (question: string) => ({
 	async: true,
 });
 
-const MockEarlierAsyncQuestionMessages: ChatMessage[] = [
+const earlierAsyncQuestionMessages: ChatMessage[] = [
 	...MockWorkingMessages.slice(0, 1),
+	MockQuestionCallMessage,
 	{
 		...MockChatMessage,
-		id: 2,
-		role: "assistant",
-		created_at: workingFixtureTime(1),
-		content: [
-			{
-				type: "tool-call",
-				tool_call_id: "earlier-question",
-				tool_name: "ask_user_question",
-				args: {},
-				created_at: workingFixtureTime(1),
-			},
-		],
-	},
-	{
-		...MockChatMessage,
-		id: 3,
+		id: 5,
 		role: "tool",
-		created_at: workingFixtureTime(2),
+		created_at: workingFixtureTime(6),
 		content: [
 			{
 				type: "tool-result",
-				tool_call_id: "earlier-question",
+				tool_call_id: "question",
 				tool_name: "ask_user_question",
 				result: asyncQuestionResult("Which part should change first?"),
-				created_at: workingFixtureTime(2),
+				created_at: workingFixtureTime(6),
 			},
 		],
 	},
@@ -287,23 +273,21 @@ const MockEarlierAsyncQuestionMessages: ChatMessage[] = [
 export const AsyncQuestionBeforeStepPersists: Story = {
 	args: {
 		onSendAskUserQuestionResponse: fn(),
-		parsedMessages: parseMessagesWithMergedTools(
-			MockEarlierAsyncQuestionMessages,
-		),
+		parsedMessages: parseMessagesWithMergedTools(earlierAsyncQuestionMessages),
 		...buildStreamRenderState([
 			{
 				type: "tool-call",
 				tool_call_id: "live-question",
 				tool_name: "ask_user_question",
 				args: {},
-				created_at: workingFixtureTime(3),
+				created_at: workingFixtureTime(7),
 			},
 			{
 				type: "tool-result",
 				tool_call_id: "live-question",
 				tool_name: "ask_user_question",
 				result: asyncQuestionResult("Should the change ship behind a flag?"),
-				created_at: workingFixtureTime(4),
+				created_at: workingFixtureTime(8),
 			},
 		]),
 	},
