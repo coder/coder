@@ -713,14 +713,10 @@ func SplitWorkspaceIdentifier(identifier string) (owner, name string, err error)
 //
 // An optional WorkspaceOptions is forwarded to the underlying lookup,
 // so callers can request deleted workspaces or narrow the related data
-// loaded. Only the first option is used.
+// loaded. All options are applied in order, matching Workspace.
 func (c *Client) ResolveWorkspace(ctx context.Context, identifier string, opts ...WorkspaceOptions) (Workspace, error) {
-	var opt WorkspaceOptions
-	if len(opts) > 0 {
-		opt = opts[0]
-	}
 	if uid, err := uuid.Parse(identifier); err == nil {
-		ws, err := c.Workspace(ctx, uid, opt)
+		ws, err := c.Workspace(ctx, uid, opts...)
 		if err == nil {
 			return ws, nil
 		}
@@ -742,7 +738,7 @@ func (c *Client) ResolveWorkspace(ctx context.Context, identifier string, opts .
 	if err != nil {
 		return Workspace{}, err
 	}
-	return c.WorkspaceByOwnerAndName(ctx, owner, name, opt)
+	return c.WorkspaceByOwnerAndName(ctx, owner, name, opts...)
 }
 
 type WorkspaceQuota struct {

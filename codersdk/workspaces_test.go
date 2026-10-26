@@ -367,10 +367,14 @@ func TestResolveWorkspace(t *testing.T) {
 	t.Run("ForwardsOptions", func(t *testing.T) {
 		t.Parallel()
 
-		// The option must be forwarded whether the identifier resolves
-		// through the UUID endpoint or the owner-and-name endpoint.
-		config := wsrelated.Config{Template: true}
-		opt := codersdk.WorkspaceOptions{IncludeRelated: &config}
+		// Options must be applied in order on both lookup paths, just
+		// as they are by Client.Workspace.
+		firstConfig := wsrelated.Config{Template: true}
+		lastConfig := wsrelated.Config{LatestBuild: &wsrelated.LatestBuild{}}
+		opts := []codersdk.WorkspaceOptions{
+			{IncludeDeleted: true, IncludeRelated: &firstConfig},
+			{IncludeRelated: &lastConfig},
+		}
 
 		tests := []struct {
 			name       string
@@ -386,7 +390,8 @@ func TestResolveWorkspace(t *testing.T) {
 
 				r := chi.NewRouter()
 				r.Get(tt.path, func(w http.ResponseWriter, req *http.Request) {
-					assert.Equal(t, config.QueryParam(), req.URL.Query().Get("include_related"))
+					assert.Equal(t, "true", req.URL.Query().Get("include_deleted"))
+					assert.Equal(t, lastConfig.QueryParam(), req.URL.Query().Get("include_related"))
 					w.Header().Set("Content-Type", "application/json")
 					_ = json.NewEncoder(w).Encode(codersdk.Workspace{})
 				})
@@ -397,7 +402,7 @@ func TestResolveWorkspace(t *testing.T) {
 				require.NoError(t, err)
 				client := codersdk.New(u)
 
-				_, err = client.ResolveWorkspace(t.Context(), tt.identifier, opt)
+				_, err = client.ResolveWorkspace(t.Context(), tt.identifier, opts...)
 				require.NoError(t, err)
 			})
 		}
