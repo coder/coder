@@ -16,6 +16,12 @@ mkdir -p "${STATE}"
 [[ -n "${HARBOR_CODER_SKIP_BUILD:-}" ]] || (cd "${ROOT}" && CGO_ENABLED=0 go build -o "${STATE}/coder" ./cmd/coder)
 
 URL="http://localhost:${PORT}"
+# Otherwise the new server fails to bind inside nohup and bootstrap happily
+# talks to the old one, so a local A/B would evaluate the same build twice.
+if curl -fs -o /dev/null --max-time 2 "${URL}/healthz"; then
+	echo "something is already serving ${URL}; stop it (see ${STATE}/coderd.pid) or pass another port" >&2
+	exit 1
+fi
 nohup "${STATE}/coder" server --http-address "0.0.0.0:${PORT}" --access-url "${URL}" \
 	--telemetry=false --cache-dir "${STATE}/cache" --global-config "${STATE}/config" \
 	--provisioner-daemons 4 >"${STATE}/coderd.log" 2>&1 &

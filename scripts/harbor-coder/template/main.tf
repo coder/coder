@@ -50,16 +50,19 @@ data "coder_parameter" "memory_mb" {
 resource "coder_agent" "main" {
   arch = data.coder_provisioner.me.arch
   os   = "linux"
+  dir  = data.coder_parameter.workdir.value
 }
 
 resource "docker_container" "task" {
-  count      = data.coder_workspace.me.start_count
-  image      = data.coder_parameter.image.value
-  name       = "harbor-${data.coder_workspace.me.id}"
-  hostname   = data.coder_workspace.me.name
-  user       = "root"
-  cpu_shares = data.coder_parameter.cpus.value * 1024
-  memory     = data.coder_parameter.memory_mb.value
+  count    = data.coder_workspace.me.start_count
+  image    = data.coder_parameter.image.value
+  name     = "harbor-${data.coder_workspace.me.id}"
+  hostname = data.coder_workspace.me.name
+  user     = "root"
+  # A hard limit like Harbor's own Docker environment; cpu_shares is only a
+  # weight and would let trials borrow cores depending on runner load.
+  cpus   = tostring(data.coder_parameter.cpus.value)
+  memory = data.coder_parameter.memory_mb.value
 
   entrypoint = ["/usr/local/bin/coder", "agent"]
   env = [

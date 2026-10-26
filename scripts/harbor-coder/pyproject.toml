@@ -3,7 +3,9 @@ name = "harbor-coder"
 version = "0.1.0"
 description = "Harbor environment provider for Coder workspaces and a Harbor agent for Coder Agents."
 requires-python = ">=3.12"
-dependencies = ["harbor>=0.24", "dockerfile-parse>=2.0"]
+# Pinned: environment.py uses private BaseEnvironment members, and runs are
+# only comparable on the same Harbor. Bump with HARBOR_VERSION in the workflow.
+dependencies = ["harbor==0.24.0", "dockerfile-parse>=2.0"]
 
 [build-system]
 requires = ["setuptools>=68"]

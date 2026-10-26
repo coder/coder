@@ -55,6 +55,10 @@ class CoderEnvironment(BaseEnvironment):
         self.workspace_name = f"{base.strip('-')[:25].rstrip('-') or 'trial'}-{digest}"
         self.workspace_id: str | None = None
         self._dockerfile_workdir = parse_dockerfile_workdir(self.environment_dir / "Dockerfile")
+        # Part of the image tag so a rebuilt coder binary (the other arm of a
+        # local A/B) never reuses an image carrying the previous agent.
+        with open(self.coder_binary, "rb") as f:
+            self._coder_digest = hashlib.file_digest(f, "sha256").hexdigest()[:8]
 
     @staticmethod
     def type() -> str:
@@ -78,24 +82,31 @@ class CoderEnvironment(BaseEnvironment):
             self.environment_dir, docker_image=self.task_env_config.docker_image
         )
 
-    async def _run_local(self, *argv: str, input_bytes: bytes | None = None) -> ExecResult:
+    async def _run_local(
+        self, *argv: str, input_bytes: bytes | None = None, timeout_sec: float | None = None
+    ) -> tuple[bytes, bytes, int]:
         proc = await asyncio.create_subprocess_exec(
             *argv,
             stdin=asyncio.subprocess.PIPE if input_bytes is not None else asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        out, err = await proc.communicate(input_bytes)
-        return ExecResult(
-            stdout=out.decode(errors="replace"),
-            stderr=err.decode(errors="replace"),
-            return_code=proc.returncode or 0,
-        )
+        try:
+            out, err = await asyncio.wait_for(proc.communicate(input_bytes), timeout=timeout_sec)
+        except TimeoutError:
+            proc.kill()
+            await proc.wait()
+            raise
+        return out, err, proc.returncode or 0
+
+    async def _run_text(self, *argv: str, **kwargs: Any) -> ExecResult:
+        out, err, rc = await self._run_local(*argv, **kwargs)
+        return ExecResult(stdout=out.decode(errors="replace"), stderr=err.decode(errors="replace"), return_code=rc)
 
     async def _build_image(self, force_build: bool) -> str:
         name = _NAME_SANITIZE.sub("-", self.environment_name.lower())
-        tag = f"harbor-coder/{name}:{self.environment_id[:12]}"
-        if not force_build and (await self._run_local("docker", "image", "inspect", tag)).return_code == 0:
+        tag = f"harbor-coder/{name}:{self.environment_id[:12]}-{self._coder_digest}"
+        if not force_build and (await self._run_text("docker", "image", "inspect", tag)).return_code == 0:
             return tag
         if should_use_prebuilt_docker_image(
             self.environment_dir,
@@ -105,7 +116,7 @@ class CoderEnvironment(BaseEnvironment):
             base = self.task_env_config.docker_image
         else:
             base = f"harbor-coder/{name}-base:{self.environment_id[:12]}"
-            res = await self._run_local(
+            res = await self._run_text(
                 "docker", "build", "--platform", "linux/amd64", "-t", base, str(self.environment_dir)
             )
             if res.return_code != 0:
@@ -113,7 +124,7 @@ class CoderEnvironment(BaseEnvironment):
         with tempfile.TemporaryDirectory() as ctx:
             shutil.copy2(self.coder_binary, Path(ctx) / "coder")
             (Path(ctx) / "Dockerfile").write_text(_AGENT_LAYER_DOCKERFILE.format(base=base))
-            res = await self._run_local("docker", "build", "--platform", "linux/amd64", "-t", tag, ctx)
+            res = await self._run_text("docker", "build", "--platform", "linux/amd64", "-t", tag, ctx)
             if res.return_code != 0:
                 raise RuntimeError(f"agent layer build failed:\n{res.stderr}")
         return tag
@@ -121,7 +132,7 @@ class CoderEnvironment(BaseEnvironment):
     async def start(self, force_build: bool) -> None:
         image = await self._build_image(force_build)
         workdir = effective_exec_cwd(None, self.task_env_config.workdir, self._dockerfile_workdir) or "/"
-        res = await self._run_local(
+        res = await self._run_text(
             self.coder_binary, "create", self.workspace_name,
             "--template", self.template,
             "--parameter", f"image={image}",
@@ -132,9 +143,9 @@ class CoderEnvironment(BaseEnvironment):
         )  # fmt: skip
         if res.return_code != 0:
             raise RuntimeError(f"coder create failed:\n{res.stdout}\n{res.stderr}")
-        ws = await self.client.workspace_by_name("me", self.workspace_name)
-        self.workspace_id = ws["id"]
         try:
+            ws = await self.client.workspace_by_name("me", self.workspace_name)
+            self.workspace_id = ws["id"]
             await self.client.wait_for_agent(self.workspace_id, timeout_sec=300)
             # The agent reports connected slightly before SSH is accepted.
             for _ in range(30):
@@ -145,7 +156,9 @@ class CoderEnvironment(BaseEnvironment):
                 raise RuntimeError("coder ssh never succeeded")
         except BaseException:
             # Harbor only calls stop() after a successful start().
-            await self._run_local(self.coder_binary, "delete", self.workspace_name, "--yes")
+            res = await self._run_text(self.coder_binary, "delete", self.workspace_name, "--yes")
+            if res.return_code != 0:
+                self.logger.warning(f"cleanup: coder delete {self.workspace_name} failed: {res.stderr}")
             raise
         await self.ensure_dirs(self._mount_targets(writable_only=True))
         await self._upload_environment_dir_after_start()
@@ -154,34 +167,22 @@ class CoderEnvironment(BaseEnvironment):
         if not self.workspace_id:
             return
         verb = "delete" if delete else "stop"
-        res = await self._run_local(self.coder_binary, verb, self.workspace_name, "--yes")
+        res = await self._run_text(self.coder_binary, verb, self.workspace_name, "--yes")
         if res.return_code != 0:
             raise RuntimeError(f"coder {verb} {self.workspace_name} failed: {res.stderr}")
 
     async def _ssh(
         self, remote: str, *, input_bytes: bytes | None = None, timeout_sec: int | None = None
     ) -> ExecResult:
-        argv = [self.coder_binary, "ssh", self.workspace_name, "--", remote]
-        proc = await asyncio.create_subprocess_exec(
-            *argv,
-            stdin=asyncio.subprocess.PIPE if input_bytes is not None else asyncio.subprocess.DEVNULL,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
         try:
             # The remote `timeout` wrapper should fire first and report cleanly.
-            out, err = await asyncio.wait_for(
-                proc.communicate(input_bytes), timeout=(timeout_sec + 30) if timeout_sec else None
-            )
+            return await self._run_text(
+                self.coder_binary, "ssh", self.workspace_name, "--", remote,
+                input_bytes=input_bytes,
+                timeout_sec=(timeout_sec + 30) if timeout_sec else None,
+            )  # fmt: skip
         except TimeoutError:
-            proc.kill()
-            await proc.wait()
             raise RuntimeError(f"Command timed out after {timeout_sec} seconds") from None
-        return ExecResult(
-            stdout=out.decode(errors="replace"),
-            stderr=err.decode(errors="replace"),
-            return_code=proc.returncode or 0,
-        )
 
     async def exec(
         self,
@@ -225,14 +226,8 @@ class CoderEnvironment(BaseEnvironment):
             raise RuntimeError(f"upload_dir {target_dir} failed: {res.stderr}")
 
     async def _ssh_bytes(self, remote: str) -> bytes:
-        proc = await asyncio.create_subprocess_exec(
-            self.coder_binary, "ssh", self.workspace_name, "--", remote,
-            stdin=asyncio.subprocess.DEVNULL,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )  # fmt: skip
-        out, err = await proc.communicate()
-        if proc.returncode != 0:
+        out, err, rc = await self._run_local(self.coder_binary, "ssh", self.workspace_name, "--", remote)
+        if rc != 0:
             raise RuntimeError(f"{remote[:40]} failed: {err.decode(errors='replace')}")
         return out
 

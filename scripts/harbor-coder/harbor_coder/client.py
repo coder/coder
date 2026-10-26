@@ -104,6 +104,10 @@ class CoderClient:
 
     # Chats
 
+    async def default_chat_model(self, org_id: str) -> str | None:
+        models = await self.request("GET", f"/api/v2/organizations/{org_id}/chats/models")
+        return next((m["model"] for m in models.get("models") or [] if m.get("is_default")), None)
+
     async def create_chat(self, body: dict[str, Any]) -> dict[str, Any]:
         return await self.request("POST", "/api/v2/chats", body=body)
 
@@ -112,22 +116,23 @@ class CoderClient:
 
     async def chat_messages(self, chat_id: str) -> list[dict[str, Any]]:
         """Return all visible messages in ascending id order."""
+        # Without after_id the server pages newest-first, so walk backwards
+        # with before_id; after_id would stop after the newest page.
         out: list[dict[str, Any]] = []
-        after_id = 0
+        before_id: int | None = None
         while True:
             page = await self.request(
                 "GET",
                 f"/api/v2/chats/{chat_id}/messages",
-                query={"after_id": after_id, "limit": 200},
+                query={"before_id": before_id, "limit": 200},
             )
             msgs = page.get("messages") or []
-            if not msgs:
-                return out
-            msgs.sort(key=lambda m: m["id"])
             out.extend(msgs)
-            after_id = msgs[-1]["id"]
-            if not page.get("has_more"):
-                return out
+            if not msgs or not page.get("has_more"):
+                break
+            before_id = min(m["id"] for m in msgs)
+        out.sort(key=lambda m: m["id"])
+        return out
 
     async def chat_cost(self, chat_id: str) -> dict[str, Any]:
         return await self.request("GET", f"/api/v2/chats/{chat_id}/cost")

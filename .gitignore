@@ -61,6 +61,7 @@ out/
 
 # Local state for scripts/harbor-coder (coderd binary, logs, credentials, jobs)
 .harbor-coder/
+/jobs/
 scripts/harbor-coder/**/__pycache__/
 scripts/harbor-coder/*.egg-info/
 

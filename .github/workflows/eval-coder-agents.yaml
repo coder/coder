@@ -16,8 +16,13 @@ on:
 
 permissions: {}
 
+# Non-eval events (every other PR comment) get a group of their own so they
+# cannot replace a queued /coder-agents-eval run, which would cancel it.
 concurrency:
-  group: eval-coder-agents-${{ github.event.issue.number || github.ref }}
+  group: >-
+    ${{ (github.event_name == 'workflow_dispatch' || startsWith(github.event.comment.body, '/coder-agents-eval'))
+    && format('eval-coder-agents-{0}', github.event.issue.number || github.ref)
+    || format('eval-coder-agents-other-{0}', github.run_id) }}
   cancel-in-progress: false
 
 env:
@@ -35,7 +40,11 @@ env:
   # directions for a prompt change to move; Opus is near the ceiling.
   HARBOR_CODER_MODEL: claude-sonnet-5-5
   HARBOR_ATTEMPTS: "2"
-  HARBOR_CONCURRENCY: "8"
+  # chatd admits at most 5 concurrent root chats without a license
+  # (coderd/x/chatd/agentadmission.go). Above that, trials queue on Harbor's
+  # timeout and score 0 depending on start order.
+  HARBOR_CONCURRENCY: "5"
+  HARBOR_VERSION: "0.24.0"
 
 jobs:
   resolve:
@@ -50,6 +59,7 @@ jobs:
     outputs:
       candidate_ref: ${{ steps.pr.outputs.sha || github.sha }}
       candidate_label: ${{ steps.pr.outputs.ref || github.ref_name }}
+      baseline_ref: ${{ steps.base.outputs.sha }}
       pr_number: ${{ github.event.issue.number }}
     steps:
       - name: Harden Runner
@@ -76,7 +86,22 @@ jobs:
           fi
           echo "sha=$(gh pr view "${PR}" -R "${REPO}" --json headRefOid --jq .headRefOid)" >> "${GITHUB_OUTPUT}"
           echo "ref=$(gh pr view "${PR}" -R "${REPO}" --json headRefName --jq .headRefName)" >> "${GITHUB_OUTPUT}"
-          gh api -X POST "/repos/${REPO}/issues/comments/${COMMENT_ID}/reactions" -f content=eyes >/dev/null
+          gh api -X POST "/repos/${REPO}/issues/comments/${COMMENT_ID}/reactions" -f content=eyes >/dev/null ||
+            echo "::warning::could not react to comment ${COMMENT_ID}"
+
+      # Compare against the commit the candidate branched from, so commits
+      # that landed on main since then are not attributed to the candidate.
+      - name: Resolve baseline
+        id: base
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          CANDIDATE: ${{ steps.pr.outputs.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          sha="$(gh api "/repos/${REPO}/compare/main...${CANDIDATE}" --jq .merge_base_commit.sha)"
+          echo "baseline: ${sha}, candidate: ${CANDIDATE}"
+          echo "sha=${sha}" >> "${GITHUB_OUTPUT}"
 
   run:
     name: run (${{ matrix.arm }})
@@ -98,7 +123,7 @@ jobs:
       - name: Checkout arm ref
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ matrix.arm == 'baseline' && 'main' || needs.resolve.outputs.candidate_ref }}
+          ref: ${{ matrix.arm == 'baseline' && needs.resolve.outputs.baseline_ref || needs.resolve.outputs.candidate_ref }}
           fetch-depth: 1
           persist-credentials: false
 
@@ -117,7 +142,7 @@ jobs:
         with:
           install-args: "go"
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
-      - run: uv tool install --with-editable ./scripts/harbor-coder harbor
+      - run: uv tool install --with-editable ./scripts/harbor-coder "harbor==${HARBOR_VERSION}"
 
       - name: Build and serve coderd
         env:
@@ -149,6 +174,16 @@ jobs:
           name: harbor-${{ matrix.arm }}
           path: jobs/
 
+      # Only the log: the rest of .harbor-coder holds the owner password and
+      # session token. A separate artifact keeps the jobs/ layout compare expects.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: coderd-log-${{ matrix.arm }}
+          path: .harbor-coder/coderd.log
+          include-hidden-files: true
+          if-no-files-found: ignore
+
   compare:
     needs: [resolve, run]
     if: always() && needs.resolve.result == 'success'
@@ -176,13 +211,23 @@ jobs:
       - name: Compare
         env:
           LABEL: ${{ needs.resolve.outputs.candidate_label }}
+          RUN_RESULT: ${{ needs.run.result }}
+          BASELINE_SHA: ${{ needs.resolve.outputs.baseline_ref }}
+          CANDIDATE_SHA: ${{ needs.resolve.outputs.candidate_ref }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
-          mkdir -p jobs/baseline jobs/candidate
-          PYTHONPATH=scripts/harbor-coder python3 -m harbor_coder.compare \
-            --baseline jobs/baseline --candidate jobs/candidate --labels main "${LABEL}" > report.md
-          printf '\n%s, %s, %s attempt(s) per task. [Run](%s)\n' "${HARBOR_DATASET}" "${HARBOR_CODER_MODEL}" "${HARBOR_ATTEMPTS}" "${RUN_URL}" >> report.md
+          if [[ "${RUN_RESULT}" != "success" ]]; then
+            # A partial table would read as a verdict; the run log has the cause.
+            printf '## Coder Agents eval: %s vs main\n\n**The eval did not complete** (run: %s). See the [run](%s) for the failing arm.\n' \
+              "${LABEL}" "${RUN_RESULT}" "${RUN_URL}" > report.md
+          else
+            mkdir -p jobs/baseline jobs/candidate
+            PYTHONPATH=scripts/harbor-coder python3 -m harbor_coder.compare \
+              --baseline jobs/baseline --candidate jobs/candidate --labels main "${LABEL}" > report.md
+            printf '\n%s, %s, %s attempt(s) per task. Baseline %s (merge base with main), candidate %s. [Run](%s)\n' \
+              "${HARBOR_DATASET}" "${HARBOR_CODER_MODEL}" "${HARBOR_ATTEMPTS}" "${BASELINE_SHA:0:10}" "${CANDIDATE_SHA:0:10}" "${RUN_URL}" >> report.md
+          fi
           cat report.md >> "${GITHUB_STEP_SUMMARY}"
       - name: Comment on PR
         if: needs.resolve.outputs.pr_number != ''

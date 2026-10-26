@@ -16,18 +16,27 @@ Comment `/coder-agents-eval` on a PR to run `.github/workflows/eval-coder-agents
 each arm builds its own coderd (main vs the PR), runs `terminal-bench@2.0`
 (77 of 89 tasks: 3 are broken upstream and 9 are 20 to 60 minute ML and
 emulation tasks the prompt cannot affect) with Coder Agents on
-`claude-sonnet-5-5`, and the comparison is posted on the PR. The system
-prompt is Go code, so a prompt change is a branch and the unit of comparison
-is a build. Measured baseline on `main`: 73% on the full 86 tasks, about $30
-and 80 minutes per arm on the 77 at two attempts per task.
-Dataset, model, attempts, and concurrency are the `env` block at the top of
-the workflow.
+`claude-sonnet-5-5`, and the comparison is posted on the PR. The baseline is
+the commit the PR branched from, not the `main` tip, so later `main` changes
+are not attributed to the PR. The system prompt is Go code, so a prompt
+change is a branch and the unit of comparison is a build. The verdict calls
+a change better or worse only when a paired bootstrap 95% interval over
+tasks excludes zero.
+
+Measured on `main`: 73% on the full 86 tasks at two attempts, $31.54 and
+3.4h for one arm. Estimated for the 77-task set: about $30 and 80 to 100
+minutes per arm at concurrency 5 (chatd's unlicensed cap on concurrent
+chats). One `/coder-agents-eval` runs two arms, so about $60 of gateway
+spend and two 8-core runners.
+Dataset, model, attempts, concurrency, and the Harbor version are the `env`
+block at the top of the workflow.
 
 ## Local
 
 ```sh
-uv tool install --with-editable scripts/harbor-coder harbor
-export HARBOR_CODER_UPSTREAM_TOKEN=$(coder tokens create --lifetime 8h)   # dogfood gateway auth
+uv tool install --with-editable scripts/harbor-coder harbor==0.24.0
+# dogfood gateway auth; the gateway ignores token scopes, so keep it narrow
+export HARBOR_CODER_UPSTREAM_TOKEN=$(coder tokens create --lifetime 8h --scope user:read_personal)
 export HARBOR_CODER_MODEL=claude-sonnet-5-5
 ./scripts/harbor-coder/serve-coderd.sh .harbor-coder/env
 set -a; . .harbor-coder/env; set +a; export PATH="$PWD/.harbor-coder:$PATH"
@@ -37,8 +46,12 @@ harbor run -d terminal-bench@2.0 -x 'qemu-*' -x build-cython-ext \
   -k 2 -n 4 -o jobs --job-name main
 ```
 
-Rebuild from the other branch, rerun under another `--job-name`, then
+Stop the first coderd (`kill $(cat .harbor-coder/coderd.pid)`), check out the
+other branch, rerun `serve-coderd.sh` and Harbor under another `--job-name`, then
 `python -m harbor_coder.compare --baseline jobs/main --candidate jobs/branch`.
+`serve-coderd.sh` refuses to start while something answers on its port, and
+task images are tagged with the `coder` binary's hash, so the second run cannot
+silently reuse the first build.
 `--agent oracle` validates tasks without spending tokens. Any registry dataset
 works if its image has `bash` and `tar`, runs as root, and does not need
 `no-network` or a GPU.

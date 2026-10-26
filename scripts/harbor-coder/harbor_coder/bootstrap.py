@@ -25,15 +25,16 @@ DEFAULT_UPSTREAM_URL = "https://dogfood.cdr.dev/api/v2/ai-gateway/anthropic"
 FIRST_USER = {"email": "harbor@coder.invalid", "username": "harbor", "name": "Harbor Eval"}
 
 
-def _probe_upstream(token: str, base_url: str) -> None:
-    """One-token request so a bad token fails here, not as N identical trial errors."""
+def _probe_upstream(token: str, base_url: str, model: str) -> None:
+    """One-token request matching what chatd sends, so a bad token or model
+    name fails here, not as N identical trial errors."""
     req = urllib.request.Request(
         f"{base_url.rstrip('/')}/v1/messages",
         data=json.dumps(
-            {"model": "claude-haiku-4-5", "max_tokens": 1, "messages": [{"role": "user", "content": "hi"}]}
+            {"model": model, "max_tokens": 1, "messages": [{"role": "user", "content": "hi"}]}
         ).encode(),
         headers={
-            "Authorization": f"Bearer {token}",
+            "x-api-key": token,
             "anthropic-version": "2023-06-01",
             "content-type": "application/json",
         },
@@ -58,16 +59,16 @@ async def main() -> None:
         "HARBOR_CODER_UPSTREAM_TOKEN is required"
     )
     upstream_url = os.environ.get("HARBOR_CODER_UPSTREAM_URL", DEFAULT_UPSTREAM_URL)
-    _probe_upstream(upstream_token, upstream_url)
+    _probe_upstream(upstream_token, upstream_url, args.model)
 
     deadline = time.time() + 120
     while True:
         try:
             await asyncio.to_thread(lambda: urllib.request.urlopen(f"{args.url}/healthz", timeout=5).close())
             break
-        except Exception:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001
             if time.time() > deadline:
-                raise SystemExit(f"coderd at {args.url} not healthy")
+                raise SystemExit(f"coderd at {args.url} not healthy: {e!r}")
             await asyncio.sleep(2)
 
     anon = CoderClient(url=args.url, token="none")
@@ -128,8 +129,7 @@ async def main() -> None:
         # Creating a model only becomes the default when it is the first one;
         # a rerun with a different model must move the default explicitly.
         await client.request("PATCH", f"{models_path}/{existing['id']}", body={"is_default": True})
-    models = (await client.request("GET", models_path)).get("models") or []
-    default = next((m["model"] for m in models if m.get("is_default")), None)
+    default = await client.default_chat_model(org["id"])
     if default != args.model:
         raise SystemExit(f"default chat model is {default!r}, expected {args.model!r}")
     print(f"default chat model: {default}", file=sys.stderr)
