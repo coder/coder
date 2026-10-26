@@ -20,7 +20,7 @@ import {
 	type ChatStoreState,
 	createChatStore,
 	isActiveChatStatus,
-	selectStreamError,
+	selectShownError,
 	selectStreamState,
 } from "./chatStore";
 import type { RetryState } from "./types";
@@ -41,7 +41,7 @@ const isUnversionedEvent = (event: TypesGen.ChatStreamEvent): boolean =>
 	event.snapshot_version === undefined;
 
 const shouldSurfaceReconnectState = (state: ChatStoreState): boolean =>
-	selectStreamError(state) === null &&
+	selectShownError(state) === null &&
 	(selectStreamState(state) !== null ||
 		state.retryState !== null ||
 		isActiveChatStatus(state.chatStatus));
@@ -68,7 +68,7 @@ export const useChatStore = (
 	store: ChatStore;
 	loadState: ChatLoadState;
 	retryLoad: () => void;
-	clearStreamError: () => void;
+	clearClientError: () => void;
 	loadOlderMessages: () => Promise<unknown>;
 	isLoadingOlderMessages: boolean;
 	hasLoadOlderMessagesError: boolean;
@@ -252,7 +252,7 @@ export const useChatStore = (
 				// A lost frame can hold events that a later event's version would
 				// skip on reconnect, so resync from the last applied version.
 				discardBufferedParts();
-				store.setStreamError({
+				store.setClientError({
 					kind: "generic",
 					message: "Failed to parse chat stream update.",
 				});
@@ -378,7 +378,7 @@ export const useChatStore = (
 								// turn that was already running must not clear
 								// an unrelated request failure.
 								if (prevStatus === "error") {
-									store.clearStreamError();
+									store.clearClientError();
 								}
 							}
 							updateSidebarChat((chat) =>
@@ -510,8 +510,8 @@ export const useChatStore = (
 		retryLoad: () => {
 			void storeQuery.refetch();
 		},
-		clearStreamError: () => {
-			store.clearStreamError();
+		clearClientError: () => {
+			store.clearClientError();
 		},
 		// The catch drops the error, because hasLoadOlderMessagesError reports
 		// it.
