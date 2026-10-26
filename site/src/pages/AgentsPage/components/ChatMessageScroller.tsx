@@ -5,6 +5,7 @@ import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	MessageScroller,
+	useMessageScroller,
 	useMessageScrollerScrollable,
 } from "#/vendor/message-scroller";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
@@ -110,13 +111,25 @@ const EarlierMessages: React.FC<EarlierMessagesProps> = ({
 type ChatMessageScrollerProps = EarlierMessagesProps & {
 	/** One `MessageScroller.Item` per transcript row, and nothing else. */
 	children: React.ReactNode;
+	/** True until the chat's current turn ends. */
+	isTurnActive?: boolean;
 };
 
 export const ChatMessageScroller: React.FC<ChatMessageScrollerProps> = ({
 	children,
+	isTurnActive = false,
 	...earlierMessages
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
+	const { releaseAnchorHold } = useMessageScroller();
+
+	// A sent message stays at the top until its reply fills the view, so a
+	// shorter reply would keep blank space below it after the turn.
+	useEffect(() => {
+		if (!isTurnActive) {
+			releaseAnchorHold();
+		}
+	}, [isTurnActive, releaseAnchorHold]);
 
 	return (
 		<MessageScroller.Root className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
