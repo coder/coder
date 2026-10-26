@@ -18,6 +18,7 @@ import {
 	MockChatMessage,
 	MockChatQueuedMessage,
 } from "#/testHelpers/chatEntities";
+import { createDeferred } from "#/testHelpers/deferred";
 import { BuiltInCommandPendingError } from "../../hooks/useConversationEditingState";
 import { NIL_UUID } from "../../utils/modelOptions";
 import {
@@ -25,6 +26,7 @@ import {
 	selectMessagesByID,
 	selectOrderedMessageIDs,
 	selectQueuedMessages,
+	selectStreamState,
 } from "./chatStore";
 import {
 	resolveEditModelConfigID,
@@ -58,6 +60,7 @@ const buildParams = (
 		compact: vi.fn().mockResolvedValue(undefined),
 		clearChatContext: vi.fn().mockResolvedValue(undefined),
 		store,
+		chatStatus: store.getSnapshot().chatStatus,
 		agentId: "chat-1",
 		clearChatErrorReason: vi.fn(),
 		effectiveSelectedModel: pickerModel.id,
@@ -410,13 +413,9 @@ describe("submitChatTurn", () => {
 			textMessage(4, "assistant", "old answer"),
 		]);
 		store.setQueuedMessages([{ ...MockChatQueuedMessage, id: 8 }]);
-		let resolveEdit: () => void = () => {};
-		const editMessage = vi.fn(
-			() =>
-				new Promise<void>((resolve) => {
-					resolveEdit = resolve;
-				}),
-		);
+		store.applyMessagePart({ type: "text", text: "old partial answer" });
+		const edit = createDeferred<void>();
+		const editMessage = vi.fn(() => edit.promise);
 
 		const submitted = submitChatTurn(
 			buildParams({
@@ -428,8 +427,9 @@ describe("submitChatTurn", () => {
 		);
 		expect(visibleTexts(store)).toEqual(["first", "answer", "new"]);
 		expect(selectQueuedMessages(store.getSnapshot())).toEqual([]);
+		expect(selectStreamState(store.getSnapshot())).toBeNull();
 
-		resolveEdit();
+		edit.resolve();
 		await submitted;
 		// A status does not end the pending edit.
 		store.applyServerChatStatus("running");
@@ -477,13 +477,8 @@ describe("submitChatTurn", () => {
 
 	it("shows a sent message from submit until the stream reports it", async () => {
 		const store = seededStore([textMessage(1, "user", "first")]);
-		let resolveSend: () => void = () => {};
-		const sendMessage = vi.fn(
-			() =>
-				new Promise<{ queued: boolean }>((resolve) => {
-					resolveSend = () => resolve({ queued: false });
-				}),
-		);
+		const send = createDeferred<{ queued: boolean }>();
+		const sendMessage = vi.fn(() => send.promise);
 
 		const submitted = submitChatTurn(buildParams({ store, sendMessage }));
 		expect(sendMessage).toHaveBeenCalledWith(
@@ -494,7 +489,7 @@ describe("submitChatTurn", () => {
 		);
 		expect(visibleTexts(store)).toEqual(["first", "hello"]);
 
-		resolveSend();
+		send.resolve({ queued: false });
 		await submitted;
 		expect(visibleTexts(store)).toEqual(["first", "hello"]);
 
@@ -543,99 +538,13 @@ describe("submitChatTurn", () => {
 		expect(store.getSnapshot().pendingActions).toEqual([]);
 	});
 
-	it("removes only the promoted steer rows after a steer send to an errored chat", async () => {
-		const store = createChatStore();
-		store.setActiveChatID("chat-1");
-		store.setChatStatus("error");
-		const queued1: ChatQueuedMessage = { ...MockChatQueuedMessage, id: 1 };
-		const steer: ChatQueuedMessage = {
-			...MockChatQueuedMessage,
-			id: 2,
-			busy_behavior: "steer",
-		};
-		const queued2: ChatQueuedMessage = { ...MockChatQueuedMessage, id: 3 };
-		store.setQueuedMessages([queued1, steer, queued2]);
-		const promotedSteer: ChatMessage = {
-			...MockChatMessage,
-			id: 11,
-			role: "user",
-			queued_message_id: steer.id,
-		};
-		const sentMessage: ChatMessage = {
-			...MockChatMessage,
-			id: 12,
-			role: "user",
-		};
-		const sendMessage = vi.fn().mockResolvedValue({
-			queued: false,
-			message: sentMessage,
-			messages: [promotedSteer, sentMessage],
-		});
-		// Convergence stays in flight, so the checks below see only the
-		// local reconciliation.
-		const fetchQueueConvergence = vi.fn(() => new Promise<never>(() => {}));
-		const setCacheQueuedMessages = vi.fn();
-		const upsertCacheMessages = vi.fn();
+	it("places a send by the status the page shows", async () => {
+		const store = seededStore([]);
 
-		await submitChatTurn(
-			buildParams({
-				store,
-				sendMessage,
-				setCacheQueuedMessages,
-				fetchQueueConvergence,
-				upsertCacheMessages,
-			}),
-		);
+		await submitChatTurn(buildParams({ store, chatStatus: "running" }));
 
-		expect(upsertCacheMessages).toHaveBeenCalledWith([
-			promotedSteer,
-			sentMessage,
-		]);
-		expect(setCacheQueuedMessages).toHaveBeenCalledWith([queued1, queued2]);
-		const snapshot = store.getSnapshot();
-		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([
-			queued1.id,
-			queued2.id,
-		]);
-		expect(snapshot.chatStatus).toBe("running");
-		await vi.waitFor(() => {
-			expect(fetchQueueConvergence).toHaveBeenCalledWith("chat-1");
-		});
-	});
-
-	it("leaves a steer send to a busy chat for the queue_update stream", async () => {
-		const store = createChatStore();
-		store.setActiveChatID("chat-1");
-		store.setChatStatus("running");
-		const queued: ChatQueuedMessage = { ...MockChatQueuedMessage, id: 1 };
-		const steer: ChatQueuedMessage = {
-			...MockChatQueuedMessage,
-			id: 2,
-			busy_behavior: "steer",
-		};
-		store.setQueuedMessages([queued]);
-		const sendMessage = vi.fn().mockResolvedValue({
-			queued: true,
-			queued_message: steer,
-		});
-		const fetchQueueConvergence = vi.fn();
-		const setCacheQueuedMessages = vi.fn();
-
-		await submitChatTurn(
-			buildParams({
-				store,
-				sendMessage,
-				setCacheQueuedMessages,
-				fetchQueueConvergence,
-			}),
-		);
-
-		expect(setCacheQueuedMessages).not.toHaveBeenCalled();
-		expect(fetchQueueConvergence).not.toHaveBeenCalled();
-		expect(store.getSnapshot().chatStatus).toBe("running");
-		expect(store.getSnapshot().queuedMessages.map((m) => m.id)).toEqual([
-			queued.id,
-		]);
+		expect(visibleTexts(store)).toEqual([]);
+		expect(selectQueuedMessages(store.getSnapshot())).toHaveLength(1);
 	});
 
 	it("clears plan mode when implementing the plan", async () => {

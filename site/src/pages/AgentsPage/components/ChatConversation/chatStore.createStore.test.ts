@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
+import { createDeferred } from "#/testHelpers/deferred";
 import {
 	type ChatStore,
 	createChatStore,
@@ -812,6 +813,10 @@ const eagerSend = (text: string): PendingAction => ({
 	},
 });
 
+// Adds the action with the status the store shows, as the page does.
+const addPending = (store: ChatStore, action: PendingAction) =>
+	store.addPendingAction(action, store.getSnapshot().chatStatus);
+
 describe("pending actions", () => {
 	it.each(["error", "requires_action"] as const)(
 		"promote from %s shows the row as the next prompt",
@@ -822,7 +827,7 @@ describe("pending actions", () => {
 				status,
 			);
 
-			store.addPendingAction({ kind: "promoteQueued", queuedMessageID: 11 });
+			addPending(store, { kind: "promoteQueued", queuedMessageID: 11 });
 
 			expect(visible(store)).toMatchObject({
 				transcript: ["user:first", "assistant:a", "user:q11"],
@@ -840,7 +845,7 @@ describe("pending actions", () => {
 				status,
 			);
 
-			store.addPendingAction({ kind: "promoteQueued", queuedMessageID: 11 });
+			addPending(store, { kind: "promoteQueued", queuedMessageID: 11 });
 
 			expect(visible(store)).toMatchObject({
 				transcript: ["user:first"],
@@ -851,7 +856,7 @@ describe("pending actions", () => {
 
 	it("keeps a pending message through stream updates without user messages", () => {
 		const store = seededStore([makeMessage(1, "user", "first")], [], "waiting");
-		store.addPendingAction(eagerSend("second"));
+		addPending(store, eagerSend("second"));
 
 		store.upsertDurableMessages([makeMessage(2, "assistant", "late")]);
 		store.applyServerChatStatus("waiting");
@@ -870,12 +875,12 @@ describe("pending actions", () => {
 			[],
 			"running",
 		);
-		store.addPendingAction({
+		addPending(store, {
 			kind: "edit",
 			editedMessageID: 2,
 			message: makeMessage(2, "user", "new"),
 		});
-		store.addPendingAction(eagerSend("queued"));
+		addPending(store, eagerSend("queued"));
 
 		const state = store.getSnapshot();
 		const shown = selectOrderedMessageIDs(state).map((id) => [
@@ -891,7 +896,7 @@ describe("pending actions", () => {
 		).toEqual([true]);
 	});
 
-	it("keeps the queue when a running chat's head is promoted", () => {
+	it("keeps the queue when a running chat's head is promoted", async () => {
 		const store = seededStore(
 			[makeMessage(1, "user", "first")],
 			[makeQueuedMessage(10, "q10"), makeQueuedMessage(11, "q11")],
@@ -899,14 +904,17 @@ describe("pending actions", () => {
 		);
 
 		const before = store.getSnapshot();
-		const pendingID = store.addPendingAction({
-			kind: "promoteQueued",
-			queuedMessageID: 10,
-		});
+		const failed = store.runPendingAction(
+			{ kind: "promoteQueued", queuedMessageID: 10 },
+			"running",
+			async () => {
+				// The head does not move, so the commit sends no queue update.
+				expect(store.getSnapshot()).toBe(before);
+				throw new Error("failed");
+			},
+		);
 
-		// The head does not move, so the commit sends no queue update.
-		expect(store.getSnapshot()).toBe(before);
-		store.removePendingAction(pendingID);
+		await expect(failed).rejects.toThrow("failed");
 		expect(store.getSnapshot()).toBe(before);
 	});
 
@@ -918,25 +926,28 @@ describe("pending actions", () => {
 		);
 
 		const before = store.getSnapshot();
-		store.addPendingAction({ kind: "promoteQueued", queuedMessageID: 11 });
+		addPending(store, { kind: "promoteQueued", queuedMessageID: 11 });
 
 		expect(store.getSnapshot()).toBe(before);
 	});
 
-	it("removes a failed action's overlay", () => {
+	it("removes a failed action's overlay", async () => {
 		const store = seededStore(
 			[makeMessage(1, "user", "first")],
 			[makeQueuedMessage(10, "q10")],
 			"running",
 		);
-		const pendingID = store.addPendingAction({
-			kind: "deleteQueued",
-			queuedMessageID: 10,
-		});
+		const request = createDeferred<void>();
+		const run = store.runPendingAction(
+			{ kind: "deleteQueued", queuedMessageID: 10 },
+			"running",
+			() => request.promise,
+		);
 		expect(visible(store).queue).toEqual([]);
 
-		store.removePendingAction(pendingID);
+		request.reject(new Error("failed"));
 
+		await expect(run).rejects.toThrow("failed");
 		expect(visible(store).queue).toEqual(["q10"]);
 	});
 });
@@ -978,6 +989,17 @@ const convergenceScenarios: ConvergenceScenario[] = [
 		stream: (store) => store.setQueuedMessages([makeQueuedMessage(10, "q10")]),
 		statusAfter: "running",
 	},
+	...(["requires_action", "interrupting"] as const).map(
+		(status): ConvergenceScenario => ({
+			name: `send to a ${status} chat`,
+			messages: [makeMessage(1, "user", "first")],
+			queue: [],
+			status,
+			action: eagerSend("q10"),
+			stream: (store) => store.setQueuedMessages([makeQueuedMessage(10, "q10")]),
+			statusAfter: status,
+		}),
+	),
 	{
 		name: "send to an errored chat with a queue",
 		messages: [makeMessage(1, "user", "first")],
@@ -1089,7 +1111,7 @@ describe("pending actions converge with the stream", () => {
 			scenario.queue,
 			scenario.status,
 		);
-		actor.addPendingAction(scenario.action);
+		addPending(actor, scenario.action);
 		const shownBeforeStream = visible(actor);
 
 		for (const store of [actor, observer]) {
@@ -1119,7 +1141,7 @@ const partEndScenarios: {
 	status: TypesGen.ChatStatus;
 	action: PendingAction;
 	others: (store: ChatStore) => void;
-	end: (store: ChatStore) => void;
+	end: (store: ChatStore, version: number) => void;
 }[] = [
 	{
 		name: "an added message at a user message",
@@ -1130,8 +1152,8 @@ const partEndScenarios: {
 			store.resetHistoryFrom(99);
 			store.applyServerChatStatus("running");
 		},
-		end: (store) => {
-			store.upsertDurableMessages([makeMessage(3, "user", "second")]);
+		end: (store, version) => {
+			store.upsertDurableMessages([makeMessage(3, "user", "second")], version);
 		},
 	},
 	{
@@ -1143,7 +1165,8 @@ const partEndScenarios: {
 			store.resetHistoryFrom(99);
 			store.applyServerChatStatus("running");
 		},
-		end: (store) => store.setQueuedMessages([makeQueuedMessage(10, "q10")]),
+		end: (store, version) =>
+			store.setQueuedMessages([makeQueuedMessage(10, "q10")], version),
 	},
 	{
 		name: "a queue change at a queue update",
@@ -1154,7 +1177,7 @@ const partEndScenarios: {
 			store.resetHistoryFrom(99);
 			store.applyServerChatStatus("running");
 		},
-		end: (store) => store.setQueuedMessages([]),
+		end: (store, version) => store.setQueuedMessages([], version),
 	},
 	{
 		name: "an edit at a history reset",
@@ -1169,12 +1192,12 @@ const partEndScenarios: {
 			store.setQueuedMessages([makeQueuedMessage(10, "q10")]);
 			store.applyServerChatStatus("running");
 		},
-		end: (store) => store.resetHistoryFrom(1),
+		end: (store, version) => store.resetHistoryFrom(1, version),
 	},
 ];
 
 describe("pending part ends", () => {
-	it.each(partEndScenarios)("ends $name", (scenario) => {
+	const storeWithAction = (scenario: (typeof partEndScenarios)[number]) => {
 		const store = seededStore(
 			[makeMessage(1, "user", "first")],
 			scenario.action.kind === "deleteQueued"
@@ -1182,12 +1205,52 @@ describe("pending part ends", () => {
 				: [],
 			scenario.status,
 		);
-		store.addPendingAction(scenario.action);
+		addPending(store, scenario.action);
+		return store;
+	};
+
+	it.each(partEndScenarios)("ends $name", (scenario) => {
+		const store = storeWithAction(scenario);
 
 		scenario.others(store);
 		expect(store.getSnapshot().pendingActions).toHaveLength(1);
 
-		scenario.end(store);
+		scenario.end(store, 2);
+		expect(store.getSnapshot().pendingActions).toEqual([]);
+	});
+
+	// A reconnect resends the events at the synced version, which the click
+	// already saw.
+	it.each(partEndScenarios)(
+		"does not end $name replayed from before the click",
+		(scenario) => {
+			const store = storeWithAction(scenario);
+
+			scenario.end(store, 1);
+			expect(store.getSnapshot().pendingActions).toHaveLength(1);
+		},
+	);
+
+	it("ends a queued row's action only at the update without the row", () => {
+		const store = seededStore(
+			[makeMessage(1, "user", "first")],
+			[
+				makeQueuedMessage(10, "q10"),
+				makeQueuedMessage(11, "q11"),
+				makeQueuedMessage(12, "q12"),
+			],
+			"running",
+		);
+		addPending(store, { kind: "deleteQueued", queuedMessageID: 11 });
+		addPending(store, { kind: "deleteQueued", queuedMessageID: 12 });
+
+		store.setQueuedMessages(
+			[makeQueuedMessage(10, "q10"), makeQueuedMessage(12, "q12")],
+			2,
+		);
+		expect(visible(store).queue).toEqual(["q10"]);
+
+		store.setQueuedMessages([makeQueuedMessage(10, "q10")], 3);
 		expect(store.getSnapshot().pendingActions).toEqual([]);
 	});
 });
