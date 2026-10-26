@@ -285,36 +285,10 @@ type UseSmoothStreamingTextResult = {
 // Module-scoped grapheme segmenter, created once and shared across
 // all hook instances. Falls back to codepoint iteration when the
 // Intl.Segmenter API is unavailable.
-
-// Minimal type for the Intl.Segmenter API which is widely supported
-// at runtime but not included in all TypeScript lib bundles.
-type GraphemeSegment = {
-	index: number;
-	segment: string;
-};
-
-type GraphemeSegmenterInstance = {
-	segment(input: string): Iterable<GraphemeSegment>;
-};
-
-const graphemeSegmenter: GraphemeSegmenterInstance | null = (() => {
-	try {
-		const Seg = (Intl as Record<string, unknown>).Segmenter;
-		if (typeof Seg === "function") {
-			return new (
-				Seg as new (
-					locales?: string,
-					options?: { granularity?: string },
-				) => GraphemeSegmenterInstance
-			)(undefined, {
-				granularity: "grapheme",
-			});
-		}
-	} catch {
-		// Fallback to null when Intl.Segmenter is unavailable.
-	}
-	return null;
-})();
+const graphemeSegmenter =
+	typeof Intl.Segmenter === "function"
+		? new Intl.Segmenter(undefined, { granularity: "grapheme" })
+		: null;
 
 /**
  * Slice a string at the largest grapheme-cluster boundary that does
@@ -336,21 +310,15 @@ export function sliceAtGraphemeBoundary(
 	}
 
 	if (graphemeSegmenter) {
-		let safeEnd = 0;
-		// Iterate the segmenter lazily instead of materializing
-		// with Array.from(). The early break makes this O(prefix)
-		// instead of O(full text), which matters at 60fps during
-		// streaming where the visible prefix is much shorter than
-		// the full accumulated text.
-		for (const segment of graphemeSegmenter.segment(text)) {
-			const segmentEnd = segment.index + segment.segment.length;
-			if (segmentEnd > maxCodeUnitLength) {
-				break;
-			}
-			safeEnd = segmentEnd;
+		// Runs every animation frame while streaming; containing() avoids
+		// walking every earlier cluster.
+		const last = graphemeSegmenter
+			.segment(text)
+			.containing(maxCodeUnitLength - 1);
+		if (last) {
+			const end = last.index + last.segment.length;
+			return text.slice(0, end <= maxCodeUnitLength ? end : last.index);
 		}
-
-		return text.slice(0, safeEnd);
 	}
 
 	// Fallback: iterate by codepoint to avoid splitting surrogate
