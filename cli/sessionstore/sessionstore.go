@@ -76,10 +76,8 @@ type credential struct {
 // It supports storing multiple credentials for different server URLs.
 type credentialsMap map[string]credential
 
-// credentialKey returns the keyring map key and the normalized origin for the
-// server URL. HTTPS keys are the bare host plus any non-default port, as older
-// CLI versions write them. HTTP keys are the full origin, so they never share
-// an entry with HTTPS. Default ports are dropped so each origin has one key.
+// credentialKey returns the map key and normalized origin for u, without default ports.
+// HTTPS keys are the bare host, as older CLIs write them; HTTP keys are the full origin.
 func credentialKey(u *url.URL) (key, origin string, err error) {
 	if u == nil || u.Host == "" {
 		return "", "", xerrors.New("nil server URL")
@@ -132,7 +130,7 @@ func NewKeyringWithService(serviceName string) Keyring {
 }
 
 func (o Keyring) Read(serverURL *url.URL) (string, error) {
-	host, _, err := credentialKey(serverURL)
+	key, _, err := credentialKey(serverURL)
 	if err != nil {
 		return "", err
 	}
@@ -150,7 +148,7 @@ func (o Keyring) Read(serverURL *url.URL) (string, error) {
 		return "", xerrors.Errorf("read: parse existing credentials: %w", err)
 	}
 
-	cred, ok := creds[host]
+	cred, ok := creds[key]
 	if !ok {
 		return "", os.ErrNotExist
 	}
@@ -158,7 +156,7 @@ func (o Keyring) Read(serverURL *url.URL) (string, error) {
 }
 
 func (o Keyring) Write(serverURL *url.URL, token string) error {
-	host, origin, err := credentialKey(serverURL)
+	key, origin, err := credentialKey(serverURL)
 	if err != nil {
 		return err
 	}
@@ -173,7 +171,7 @@ func (o Keyring) Write(serverURL *url.URL, token string) error {
 		return xerrors.Errorf("write: parse existing credentials: %w", err)
 	}
 
-	creds[host] = credential{
+	creds[key] = credential{
 		CoderURL: origin,
 		APIToken: token,
 	}
@@ -191,7 +189,7 @@ func (o Keyring) Write(serverURL *url.URL, token string) error {
 }
 
 func (o Keyring) Delete(serverURL *url.URL) error {
-	host, _, err := credentialKey(serverURL)
+	key, _, err := credentialKey(serverURL)
 	if err != nil {
 		return err
 	}
@@ -206,11 +204,11 @@ func (o Keyring) Delete(serverURL *url.URL) error {
 		return xerrors.Errorf("failed to parse existing credentials: %w", err)
 	}
 
-	if _, ok := creds[host]; !ok {
+	if _, ok := creds[key]; !ok {
 		return os.ErrNotExist
 	}
 
-	delete(creds, host)
+	delete(creds, key)
 
 	// Delete the entire keyring entry when no credentials remain.
 	if len(creds) == 0 {

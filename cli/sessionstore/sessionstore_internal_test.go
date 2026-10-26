@@ -103,47 +103,43 @@ func TestCredentialsMap_RoundTrip(t *testing.T) {
 	require.Equal(t, creds, parsed)
 }
 
-// fakeKeyring is an in-memory keyringProvider so that the scheme scoping rules can
-// be exercised without depending on an operating system keyring.
-type fakeKeyring struct {
-	data map[string]string
-}
+// fakeKeyring is an in-memory keyringProvider keyed by service name.
+type fakeKeyring map[string]string
 
-func (f *fakeKeyring) Set(service, cred string) error {
-	f.data[service] = cred
+func (f fakeKeyring) Set(service, cred string) error {
+	f[service] = cred
 	return nil
 }
 
-func (f *fakeKeyring) Get(service string) ([]byte, error) {
-	v, ok := f.data[service]
+func (f fakeKeyring) Get(service string) ([]byte, error) {
+	v, ok := f[service]
 	if !ok {
 		return nil, os.ErrNotExist
 	}
 	return []byte(v), nil
 }
 
-func (f *fakeKeyring) Delete(service string) error {
-	if _, ok := f.data[service]; !ok {
+func (f fakeKeyring) Delete(service string) error {
+	if _, ok := f[service]; !ok {
 		return os.ErrNotExist
 	}
-	delete(f.data, service)
+	delete(f, service)
 	return nil
 }
 
 const (
-	testServiceName = "coder-v2-credentials-test"
-	testHost        = "coder.example.com"
-	testToken       = "test-token-12345"
+	testService = "coder-v2-credentials-test"
+	testHost    = "coder.example.com"
+	testToken   = "test-token-12345"
 )
 
-// newSeededKeyring returns a Keyring holding one entry under key whose
-// coder_url is storedURL.
-func newSeededKeyring(t *testing.T, key, storedURL string) (Keyring, *fakeKeyring) {
+// newSeededKeyring returns a Keyring holding testToken under key.
+func newSeededKeyring(t *testing.T, key string) (Keyring, fakeKeyring) {
 	t.Helper()
-	raw, err := json.Marshal(credentialsMap{key: {CoderURL: storedURL, APIToken: testToken}})
+	raw, err := json.Marshal(credentialsMap{key: {APIToken: testToken}})
 	require.NoError(t, err)
-	provider := &fakeKeyring{data: map[string]string{testServiceName: string(raw)}}
-	return Keyring{provider: provider, serviceName: testServiceName}, provider
+	provider := fakeKeyring{testService: string(raw)}
+	return Keyring{provider: provider, serviceName: testService}, provider
 }
 
 func TestKeyringSchemeScoping(t *testing.T) {
@@ -157,44 +153,41 @@ func TestKeyringSchemeScoping(t *testing.T) {
 	tests := []struct {
 		name      string
 		storedKey string
-		storedURL string
-		delete    bool
 		url       string
-		wantErr   error
+		delete    bool
+		wantMiss  bool
 	}{
-		{name: "ReadSameScheme", storedKey: testHost, storedURL: httpsURL, url: httpsURL},
-		{name: "ReadHTTPEntryOverHTTP", storedKey: httpURL, storedURL: httpURL, url: httpURL},
-		{name: "ReadHTTPSEntryOverHTTP", storedKey: testHost, storedURL: httpsURL, url: httpURL, wantErr: os.ErrNotExist},
-		{name: "ReadHTTPEntryOverHTTPS", storedKey: httpURL, storedURL: httpURL, url: httpsURL, wantErr: os.ErrNotExist},
-		{name: "ReadLegacyEntryOverHTTPS", storedKey: testHost, storedURL: testHost, url: httpsURL},
-		{name: "ReadLegacyEntryOverHTTP", storedKey: testHost, storedURL: testHost, url: httpURL, wantErr: os.ErrNotExist},
-		{name: "DeleteSameScheme", storedKey: testHost, storedURL: httpsURL, delete: true, url: httpsURL},
-		{name: "DeleteOtherScheme", storedKey: testHost, storedURL: httpsURL, delete: true, url: httpURL, wantErr: os.ErrNotExist},
+		{name: "ReadHTTPS", storedKey: testHost, url: httpsURL},
+		{name: "ReadHTTP", storedKey: httpURL, url: httpURL},
+		{name: "ReadHTTPSEntryOverHTTP", storedKey: testHost, url: httpURL, wantMiss: true},
+		{name: "ReadHTTPEntryOverHTTPS", storedKey: httpURL, url: httpsURL, wantMiss: true},
+		{name: "DeleteSameScheme", storedKey: testHost, url: httpsURL, delete: true},
+		{name: "DeleteOtherScheme", storedKey: testHost, url: httpURL, delete: true, wantMiss: true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			keyring, provider := newSeededKeyring(t, tt.storedKey, tt.storedURL)
-			before := provider.data[testServiceName]
+			keyring, provider := newSeededKeyring(t, tt.storedKey)
 			u, err := url.Parse(tt.url)
 			require.NoError(t, err)
 
 			if tt.delete {
+				before := provider[testService]
 				err = keyring.Delete(u)
-				if tt.wantErr != nil {
-					require.ErrorIs(t, err, tt.wantErr)
-					require.Equal(t, before, provider.data[testServiceName], "stored entry must be left intact")
+				if tt.wantMiss {
+					require.ErrorIs(t, err, os.ErrNotExist)
+					require.Equal(t, before, provider[testService], "stored entry must be left intact")
 					return
 				}
 				require.NoError(t, err)
-				require.NotContains(t, provider.data, testServiceName)
+				require.NotContains(t, provider, testService)
 				return
 			}
 
 			got, err := keyring.Read(u)
-			if tt.wantErr != nil {
-				require.ErrorIs(t, err, tt.wantErr)
+			if tt.wantMiss {
+				require.ErrorIs(t, err, os.ErrNotExist)
 				return
 			}
 			require.NoError(t, err)
@@ -206,24 +199,13 @@ func TestKeyringSchemeScoping(t *testing.T) {
 func TestKeyringHTTPAndHTTPSCoexist(t *testing.T) {
 	t.Parallel()
 
-	keyring, provider := newSeededKeyring(t, testHost, testHost)
-	httpURL, err := url.Parse("http://" + testHost)
-	require.NoError(t, err)
-	httpsURL, err := url.Parse("https://" + testHost)
-	require.NoError(t, err)
+	keyring, provider := newSeededKeyring(t, testHost)
+	require.NoError(t, keyring.Write(&url.URL{Scheme: "http", Host: testHost}, "http-token"))
 
-	const httpToken = "http-token"
-	require.NoError(t, keyring.Write(httpURL, httpToken))
-
-	creds, err := parseCredentialsJSON([]byte(provider.data[testServiceName]))
+	creds, err := parseCredentialsJSON([]byte(provider[testService]))
 	require.NoError(t, err)
-	require.Len(t, creds, 2)
-	require.Equal(t, "http://"+testHost, creds["http://"+testHost].CoderURL)
-
-	got, err := keyring.Read(httpURL)
-	require.NoError(t, err)
-	require.Equal(t, httpToken, got)
-	got, err = keyring.Read(httpsURL)
-	require.NoError(t, err)
-	require.Equal(t, testToken, got)
+	require.Equal(t, credentialsMap{
+		testHost:             {APIToken: testToken},
+		"http://" + testHost: {CoderURL: "http://" + testHost, APIToken: "http-token"},
+	}, creds)
 }
