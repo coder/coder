@@ -3,6 +3,7 @@ package chatd
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"strings"
 	"testing"
 
@@ -11,6 +12,8 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -20,6 +23,8 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -239,6 +244,46 @@ func awaitRegistered(ctx context.Context, t *testing.T, run *workflowRun) <-chan
 		return run.awaiters == 1
 	}, testutil.IntervalFast)
 	return out
+}
+
+func TestWorkflowScriptPath(t *testing.T) {
+	t.Parallel()
+	const path = "/home/coder/workflow.star"
+	connWithFile := func(t *testing.T, content string) func(context.Context) (workspacesdk.AgentConn, error) {
+		conn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+		// The limit is one byte over the cap, so an oversized file is caught.
+		conn.EXPECT().ReadFile(gomock.Any(), path, int64(0), int64(maxScriptBytes+1)).
+			Return(io.NopCloser(strings.NewReader(content)), "", nil)
+		return func(context.Context) (workspacesdk.AgentConn, error) { return conn, nil }
+	}
+	noConn := func(context.Context) (workspacesdk.AgentConn, error) {
+		return nil, xerrors.New("the workspace must not be read")
+	}
+
+	t.Run("ReadsTheFile", func(t *testing.T) {
+		t.Parallel()
+		const src = "def main(args):\n    return 1\n"
+		got, err := workflowScript(context.Background(), runWorkflowArgs{ScriptPath: path}, connWithFile(t, src))
+		require.NoError(t, err)
+		assert.Equal(t, src, got)
+	})
+	t.Run("InlineScriptSkipsTheWorkspace", func(t *testing.T) {
+		t.Parallel()
+		got, err := workflowScript(context.Background(), runWorkflowArgs{Script: "x"}, noConn)
+		require.NoError(t, err)
+		assert.Equal(t, "x", got)
+	})
+	t.Run("RejectsBoth", func(t *testing.T) {
+		t.Parallel()
+		_, err := workflowScript(context.Background(), runWorkflowArgs{Script: "x", ScriptPath: path}, noConn)
+		require.ErrorContains(t, err, "not both")
+	})
+	t.Run("RejectsAnOversizedFile", func(t *testing.T) {
+		t.Parallel()
+		big := strings.Repeat("#", maxScriptBytes+1)
+		_, err := workflowScript(context.Background(), runWorkflowArgs{ScriptPath: path}, connWithFile(t, big))
+		require.ErrorContains(t, err, "larger than")
+	})
 }
 
 func TestWorkflowReplay(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 	"time"
@@ -59,6 +60,10 @@ const runWorkflowDescription = `Start a workflow run: a Starlark script (a Pytho
 	`The tool returns at once with a run_id and status "running". The run continues in the background. ` +
 	`Call await_workflow with the run_id to get the result. If your turn ends first, you get a message when the run ends. Then call await_workflow.
 
+Send the script inline in "script", or write it to a file in the workspace and send its absolute path in "script_path". Send one of the two. ` +
+	`chatd reads the file one time, when the run starts. A later edit of the file does not change a run that has started. ` +
+	`With a file, you can fix a script with small edits and start it again without sending the whole script.
+
 The script must define main(args). args is the "args" input (a JSON object). main must return a JSON value (dict, list, string, number, bool or None).
 
 Built-ins:
@@ -71,12 +76,12 @@ Built-ins:
 type is "general" or "explore". schema is a JSON Schema dict with "type": "object" at the top level. ` +
 	`The step must call its workflow_report tool with a value that matches the schema. That value is the step value. Without a schema the value is {"text": "..."}.
 
-Rules: no load(), no clock, no files, no network. while loops are allowed. Recursion is not allowed. ` +
+Rules: the script has no load(), no clock, no file access and no network. while loops are allowed. Recursion is not allowed. ` +
 	`Limits: script 64 KiB, 50 steps per run, 10,000,000 execution steps, result 64 KiB. ` +
 	`Each step is a child chat of this chat. chatd limits how many sub-agent chats run at the same time. Extra steps wait in a queue.
 
 Resume: a run lives in the memory of one coderd replica. If await_workflow says that the run is not found, for example after a restart, ` +
-	`call run_workflow again with the same script, the same args and resume_run_id. Finished steps are reused and do not run again.`
+	`call run_workflow again with the same script (or script_path), the same args and resume_run_id. Finished steps are reused and do not run again.`
 
 const awaitWorkflowDescription = `Wait for a workflow run that run_workflow started. ` +
 	`It returns when the run ends, or after wait_seconds (default 600, at most 780). ` +
@@ -84,12 +89,13 @@ const awaitWorkflowDescription = `Wait for a workflow run that run_workflow star
 	`The result has status (running, completed or failed), result (what main returned), error, steps, and the last 50 log lines.`
 
 const workflowNotFoundHelp = `The run is not found on this coderd replica, for example because coderd restarted. ` +
-	`Call run_workflow again with the same script, the same args and resume_run_id set to this run_id. Finished steps are reused.`
+	`Call run_workflow again with the same script (or script_path), the same args and resume_run_id set to this run_id. Finished steps are reused.`
 
 type runWorkflowArgs struct {
-	Script      string `json:"script" description:"Starlark source that defines main(args)."`
+	Script      string `json:"script,omitempty" description:"Starlark source that defines main(args). Send this or script_path."`
+	ScriptPath  string `json:"script_path,omitempty" description:"Absolute path of a file in the workspace that holds the Starlark source. Send this or script."`
 	Args        any    `json:"args,omitempty" description:"A JSON object. main(args) receives it."`
-	ResumeRunID string `json:"resume_run_id,omitempty" description:"Continue this run after a restart. Send the same script and args again."`
+	ResumeRunID string `json:"resume_run_id,omitempty" description:"Continue this run after a restart. Send the same script (or script_path) and args again."`
 }
 
 type awaitWorkflowArgs struct {
@@ -142,6 +148,11 @@ func (p *Server) workflowTools(ctx context.Context, opts rootChatToolsOptions) [
 				if !ok {
 					return fantasy.NewTextErrorResponse("run_workflow needs a tool call ID"), nil
 				}
+				script, err := workflowScript(ctx, args, opts.workspaceCtx.getWorkspaceConn)
+				if err != nil {
+					return fantasy.NewTextErrorResponse(err.Error()), nil
+				}
+				args.Script = script
 				run, err := p.startWorkflowRun(ctx, opts.chat, opts.modelConfigID, args, callID)
 				if err != nil {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
@@ -165,6 +176,44 @@ func (p *Server) workflowTools(ctx context.Context, opts rootChatToolsOptions) [
 			},
 		),
 	}
+}
+
+// workflowScript returns args.Script, or the content of the workspace file
+// at args.ScriptPath. The run compiles this text one time, so a later edit
+// of the file changes only the next run.
+func workflowScript(
+	ctx context.Context,
+	args runWorkflowArgs,
+	getConn func(context.Context) (workspacesdk.AgentConn, error),
+) (string, error) {
+	path := strings.TrimSpace(args.ScriptPath)
+	if path == "" {
+		return args.Script, nil
+	}
+	if args.Script != "" {
+		return "", xerrors.New("send script or script_path, not both")
+	}
+	conn, err := getConn(ctx)
+	if err != nil {
+		return "", xerrors.Errorf("read script_path: %w", err)
+	}
+	// One byte more than the limit tells an oversized file from a full one.
+	rc, _, err := conn.ReadFile(ctx, path, 0, maxScriptBytes+1)
+	if err != nil {
+		return "", xerrors.Errorf("read script_path %q: %w", path, err)
+	}
+	defer rc.Close()
+	data, err := io.ReadAll(rc)
+	if err != nil {
+		return "", xerrors.Errorf("read script_path %q: %w", path, err)
+	}
+	if len(data) > maxScriptBytes {
+		return "", xerrors.Errorf("the file %q is larger than %d bytes", path, maxScriptBytes)
+	}
+	if strings.TrimSpace(string(data)) == "" {
+		return "", xerrors.Errorf("the file %q is empty; write the script to it first", path)
+	}
+	return string(data), nil
 }
 
 func workflowJSON(res runWorkflowResult) fantasy.ToolResponse {
