@@ -107,8 +107,8 @@ export const isActiveChatStatus = (
 	status === "interrupting";
 
 /**
- * A user request that the store shows from the click until the stream
- * reports its result or the request fails.
+ * A user request whose expected result the store shows from the click; see
+ * PendingEntry for when each part ends.
  */
 export type PendingAction =
 	| { kind: "edit"; editedMessageID: number; message?: TypesGen.ChatMessage }
@@ -122,8 +122,8 @@ type QueueEdit = (
 
 /**
  * The expected result of a pending action, computed at the click from the
- * shown state. The store shows each part until the stream's next update of
- * that part's kind.
+ * shown state. The store shows each part until a stream update of that
+ * part's kind ends it; syncedVersion and isRowDone limit which updates do.
  */
 type PendingEntry = {
 	id: number;
@@ -138,7 +138,7 @@ type PendingEntry = {
 	message?: { shown?: TypesGen.ChatMessage; queue?: QueueEdit };
 	queue?: QueueEdit;
 	// The history from the edited message on. A history reset ends it.
-	history?: { fromID: number; draft?: TypesGen.ChatMessage };
+	history?: { fromID: number; shown?: TypesGen.ChatMessage };
 };
 
 type PendingPart = "message" | "queue" | "history";
@@ -159,7 +159,7 @@ export type ChatStoreState = {
 	// Whether older messages exist below the oldest held one.
 	hasMoreMessages: boolean;
 	// These change only what view shows. view applies them in request order.
-	pendingActions: readonly PendingEntry[];
+	pendingEntries: readonly PendingEntry[];
 	// Built once per state, so selectors reading one state get the same
 	// values, which useSyncExternalStore requires.
 	view: ChatView;
@@ -247,15 +247,15 @@ const createInitialState = (): ChatStoreState => {
 		queuedMessages: [],
 		subagentStatusOverrides: new Map(),
 		hasMoreMessages: false,
-		pendingActions: [],
+		pendingEntries: [],
 	};
 	return { ...state, view: buildView(state) };
 };
 
 export const createChatStore = (): ChatStore => {
 	let state = createInitialState();
-	// Bookkeeping, deliberately outside the rendered state so observing a
-	// server event cannot trigger a re-render.
+	// Kept outside the rendered state, so changing them never triggers a
+	// re-render.
 	let historyResets = 0;
 	let syncedSnapshotVersion = 0;
 	let nextPendingActionID = 1;
@@ -307,15 +307,15 @@ export const createChatStore = (): ChatStore => {
 		rows?: readonly TypesGen.ChatQueuedMessage[],
 	): void => {
 		setState((current) => {
-			const pendingActions = endPendingParts(
-				current.pendingActions,
+			const pendingEntries = endPendingParts(
+				current.pendingEntries,
 				parts,
 				version,
 				rows,
 			);
-			return arraysEqual(pendingActions, current.pendingActions)
+			return arraysEqual(pendingEntries, current.pendingEntries)
 				? current
-				: { ...current, pendingActions };
+				: { ...current, pendingEntries };
 		});
 	};
 
@@ -450,8 +450,8 @@ export const createChatStore = (): ChatStore => {
 		}
 		setState((current) => ({
 			...current,
-			pendingActions: [
-				...current.pendingActions,
+			pendingEntries: [
+				...current.pendingEntries,
 				{ ...entry, syncedVersion: syncedSnapshotVersion },
 			],
 		}));
@@ -460,10 +460,10 @@ export const createChatStore = (): ChatStore => {
 
 	const removePendingAction = (id: number): void => {
 		setState((current) =>
-			current.pendingActions.some((entry) => entry.id === id)
+			current.pendingEntries.some((entry) => entry.id === id)
 				? {
 						...current,
-						pendingActions: current.pendingActions.filter(
+						pendingEntries: current.pendingEntries.filter(
 							(entry) => entry.id !== id,
 						),
 					}
@@ -776,9 +776,11 @@ const withoutRow =
 		rows.filter((row) => row.id !== id);
 
 // Pending rows take IDs from the top of the safe integer range, above any ID
-// the database assigns. They collide with no stored ID, and a later edit
-// hides them with the rest of the history from the edited message on.
-const pendingRowIDFloor = Number.MAX_SAFE_INTEGER - 2 ** 32;
+// the database assigns, so a later edit hides them with the rest of the
+// history from the edited message on. The IDs stay above the floor while a
+// store creates fewer than maxPendingActions actions.
+const maxPendingActions = 2 ** 32;
+const pendingRowIDFloor = Number.MAX_SAFE_INTEGER - maxPendingActions;
 
 /**
  * Whether a shown message or queued row comes from a pending action. The
@@ -795,26 +797,26 @@ const hasRow = (rows: readonly TypesGen.ChatQueuedMessage[], id: number) =>
 const pendingEntry = (
 	id: number,
 	action: PendingAction,
-	shown: ChatView,
+	view: ChatView,
 	status: TypesGen.ChatStatus | null,
 ): Omit<PendingEntry, "syncedVersion"> => {
-	const eagerID = Number.MAX_SAFE_INTEGER - id;
+	const pendingRowID = Number.MAX_SAFE_INTEGER - id;
 	const running = status === "running" || status === "interrupting";
 	switch (action.kind) {
 		case "send": {
-			const sent = { ...action.message, id: eagerID };
+			const sent = { ...action.message, id: pendingRowID };
 			const row = queuedRow(sent);
 			// A busy chat queues the message.
 			if (running || status === "requires_action") {
 				return { id, message: { queue: (rows) => [...rows, row] } };
 			}
 			// An errored chat with a queue sends its head and queues this one.
-			const head = status === "error" ? shown.queuedMessages[0] : undefined;
+			const head = status === "error" ? view.queuedMessages[0] : undefined;
 			if (head) {
 				return {
 					id,
 					message: {
-						shown: sentQueuedMessage(eagerID, head),
+						shown: sentQueuedMessage(pendingRowID, head),
 						queue: (rows) => [...withoutRow(head.id)(rows), row],
 					},
 				};
@@ -822,7 +824,7 @@ const pendingEntry = (
 			return { id, message: { shown: sent } };
 		}
 		case "promoteQueued": {
-			const target = shown.queuedMessages.find(
+			const target = view.queuedMessages.find(
 				(row) => row.id === action.queuedMessageID,
 			);
 			if (!target) {
@@ -836,7 +838,7 @@ const pendingEntry = (
 					isRowDone: (rows) =>
 						rows[0]?.id === target.id || !hasRow(rows, target.id),
 					queue:
-						shown.queuedMessages[0] === target
+						view.queuedMessages[0] === target
 							? undefined
 							: (rows) => [target, ...withoutRow(target.id)(rows)],
 				};
@@ -845,7 +847,7 @@ const pendingEntry = (
 				id,
 				isRowDone: (rows) => !hasRow(rows, target.id),
 				message: {
-					shown: sentQueuedMessage(eagerID, target),
+					shown: sentQueuedMessage(pendingRowID, target),
 					queue: withoutRow(target.id),
 				},
 			};
@@ -855,10 +857,10 @@ const pendingEntry = (
 				id,
 				history: {
 					fromID: action.editedMessageID,
-					draft: action.message && { ...action.message, id: eagerID },
+					shown: action.message && { ...action.message, id: pendingRowID },
 				},
 				// The server sends no queue update when the queue is already empty.
-				queue: shown.queuedMessages.length > 0 ? () => [] : undefined,
+				queue: view.queuedMessages.length > 0 ? () => [] : undefined,
 			};
 		case "deleteQueued":
 			return {
@@ -869,8 +871,6 @@ const pendingEntry = (
 	}
 };
 
-// Drops the parts an update at version ends from each entry, and each entry
-// left with none.
 const endPendingParts = (
 	entries: readonly PendingEntry[],
 	ended: readonly PendingPart[],
@@ -900,7 +900,6 @@ const endPendingParts = (
 		return [{ ...entry, message, queue, history }];
 	});
 
-// Returns the stored state with each pending entry applied in request order.
 const buildView = (state: Omit<ChatStoreState, "view">): ChatView => {
 	const view: ChatView = {
 		messagesByID: state.messagesByID,
@@ -912,7 +911,7 @@ const buildView = (state: Omit<ChatStoreState, "view">): ChatView => {
 		view.messagesByID = new Map(view.messagesByID).set(message.id, message);
 		view.orderedMessageIDs = [...view.orderedMessageIDs, message.id];
 	};
-	for (const { message, queue, history } of state.pendingActions) {
+	for (const { message, queue, history } of state.pendingEntries) {
 		if (history) {
 			view.messagesByID = new Map(
 				[...view.messagesByID].filter(([id]) => id < history.fromID),
@@ -921,8 +920,8 @@ const buildView = (state: Omit<ChatStoreState, "view">): ChatView => {
 				(id) => id < history.fromID,
 			);
 			view.streamState = null;
-			if (history.draft) {
-				show(history.draft);
+			if (history.shown) {
+				show(history.shown);
 			}
 		}
 		if (queue) {
@@ -959,7 +958,7 @@ export const selectReconnectState = (state: ChatStoreState) =>
 export const selectHasMoreMessages = (state: ChatStoreState) =>
 	state.hasMoreMessages;
 
-const selectLatestMessage = (
+const latestMessage = (
 	state: ChatView,
 ): TypesGen.ChatMessage | undefined => {
 	const latestMessageID =
@@ -972,13 +971,12 @@ const selectLatestMessage = (
 export const selectIsAwaitingFirstStreamChunk = (
 	state: ChatStoreState,
 ): boolean => {
-	const latestMessage = selectLatestMessage(state.view);
 	const latestMessageNeedsAssistantResponse =
-		latestMessage?.role !== "assistant";
-	// Show the Thinking indicator when the store has no stream
-	// data yet, the chat is running, and the conversation is
-	// waiting for an assistant response (any non-assistant latest
-	// message).
+		latestMessage(state.view)?.role !== "assistant";
+	// Show the Thinking indicator when the shown stream state is empty, the
+	// chat is running, and the latest shown message is not an assistant's. A
+	// pending edit clears the shown stream state, so an edit to a running
+	// chat shows Thinking.
 	if (state.view.streamState !== null || !latestMessageNeedsAssistantResponse) {
 		return false;
 	}
@@ -993,7 +991,10 @@ export const useChatSelector = <T>(
 	return useSyncExternalStore(store.subscribe, getSnapshot, getSnapshot);
 };
 
-/** The store's durable messages, oldest first. */
+/**
+ * The shown messages, oldest first. They include pending rows, so check an ID
+ * with isPendingRowID before sending it to the server.
+ */
 export const useChatMessages = (store: ChatStore): TypesGen.ChatMessage[] => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
