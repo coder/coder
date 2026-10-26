@@ -104,10 +104,11 @@ type ACPSession struct {
 type ACPEventKind string
 
 const (
-	ACPEventKindUpdate ACPEventKind = "update"
-	ACPEventKindStatus ACPEventKind = "status"
-	ACPEventKindError  ACPEventKind = "error"
-	ACPEventKindReset  ACPEventKind = "reset"
+	ACPEventKindUpdate   ACPEventKind = "update"
+	ACPEventKindStatus   ACPEventKind = "status"
+	ACPEventKindError    ACPEventKind = "error"
+	ACPEventKindReset    ACPEventKind = "reset"
+	ACPEventKindSnapshot ACPEventKind = "snapshot"
 )
 
 // ACPEvent carries an ACP update, runtime status, or error.

@@ -81,6 +81,11 @@ func (s *SessionFSM) updateStatusLocked(operation sessionOperation) error {
 	return nil
 }
 
+type sessionSubscriber struct {
+	events chan workspacesdk.ACPEvent
+	done   chan struct{}
+}
+
 // SessionFSM owns the process, tasks, operations, and ongoing transcript of one
 // adapter runtime. mu protects all mutable fields below it and the session ID
 // assigned during initialization.
@@ -94,12 +99,13 @@ type SessionFSM struct {
 	wg        sync.WaitGroup
 	closeOnce sync.Once
 
-	mu        sync.Mutex
-	closed    bool
-	info      workspacesdk.ACPSession
-	events    []workspacesdk.ACPEvent
-	assistant []assistantText
-	turn      uint64
+	mu          sync.Mutex
+	closed      bool
+	info        workspacesdk.ACPSession
+	events      []workspacesdk.ACPEvent
+	assistant   []assistantText
+	subscribers map[*sessionSubscriber]struct{}
+	turn        uint64
 
 	permissionCtx     context.Context
 	cancelPermissions context.CancelFunc
@@ -111,6 +117,7 @@ func newSessionFSM(ctx context.Context, req sessionInitRequest, info workspacesd
 	return &SessionFSM{
 		ctx: ctx, cancel: cancel, id: info.ID, request: req, info: info,
 		permissionCtx: permissionCtx, cancelPermissions: cancelPermissions,
+		subscribers: make(map[*sessionSubscriber]struct{}),
 	}
 }
 
@@ -155,7 +162,7 @@ func (s *SessionFSM) lock(ctx context.Context) (unlock func(), err error) {
 	return s.mu.Unlock, nil
 }
 
-// Close stops the process and waits for session tasks.
+// Close stops the process and subscriptions and waits for session tasks.
 func (s *SessionFSM) Close() {
 	s.closeOnce.Do(func() {
 		s.cancel()
@@ -165,6 +172,9 @@ func (s *SessionFSM) Close() {
 		}
 		s.mu.Lock()
 		s.closed = true
+		for subscriber := range s.subscribers {
+			s.unsubscribeLocked(subscriber)
+		}
 		s.mu.Unlock()
 		// Tasks are admitted under mu; none can start after closed is set.
 		s.wg.Wait()
@@ -226,8 +236,52 @@ func (s *SessionFSM) Read(ctx context.Context, after *workspacesdk.ACPCursor) (w
 	return s.snapshotLocked(after)
 }
 
+// Watch atomically returns a snapshot and a stream of subsequent events.
+// The stream stays open across turns until ctx is canceled, the FSM stops,
+// or its 64-event buffer fills. Callers must cancel ctx when finished.
+func (s *SessionFSM) Watch(ctx context.Context, after *workspacesdk.ACPCursor) (workspacesdk.ACPSessionResponse, <-chan workspacesdk.ACPEvent, error) {
+	unlock, err := s.lock(ctx)
+	if err != nil {
+		return workspacesdk.ACPSessionResponse{}, nil, err
+	}
+	defer unlock()
+	r, err := s.snapshotLocked(after)
+	if err != nil {
+		return r, nil, err
+	}
+	subscriber := &sessionSubscriber{
+		// Bound the backlog so a slow subscriber cannot block the session
+		// or accumulate an unbounded queue. On overflow, appendEventLocked
+		// removes the subscriber and closes this channel. After draining
+		// queued events, the caller can Watch again with its last cursor to
+		// replay missed events from the current transcript.
+		events: make(chan workspacesdk.ACPEvent, 64),
+		done:   make(chan struct{}),
+	}
+	s.subscribers[subscriber] = struct{}{}
+	s.wg.Go(func() {
+		select {
+		case <-ctx.Done():
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			s.unsubscribeLocked(subscriber)
+		case <-subscriber.done:
+		}
+	})
+	return r, subscriber.events, nil
+}
+
+func (s *SessionFSM) unsubscribeLocked(subscriber *sessionSubscriber) {
+	if _, ok := s.subscribers[subscriber]; !ok {
+		return
+	}
+	delete(s.subscribers, subscriber)
+	close(subscriber.done)
+	close(subscriber.events)
+}
+
 // Message writes a prompt while idle and returns after stdin admission.
-// Later completion and failure are available through Read.
+// Later completion and failure are available through Read and Watch.
 func (s *SessionFSM) Message(ctx context.Context, req workspacesdk.ACPMessageRequest) (workspacesdk.ACPMessageResponse, error) {
 	if strings.TrimSpace(req.Text) == "" {
 		return workspacesdk.ACPMessageResponse{}, ErrInvalid
@@ -382,6 +436,13 @@ func (s *SessionFSM) appendEventLocked(kind workspacesdk.ACPEventKind, text stri
 		e.Session = new(s.sessionInfoLocked())
 	}
 	s.events = append(s.events, e)
+	for subscriber := range s.subscribers {
+		select {
+		case subscriber.events <- cloneEvent(e):
+		default:
+			s.unsubscribeLocked(subscriber)
+		}
+	}
 }
 
 func (s *SessionFSM) snapshotLocked(after *workspacesdk.ACPCursor) (workspacesdk.ACPSessionResponse, error) {
