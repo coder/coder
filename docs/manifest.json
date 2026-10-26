@@ -1177,7 +1177,7 @@
 						},
 						{
 							"title": "Projects",
-							"description": "Group related Coder Agents chats into projects with shared, durable memory.",
+							"description": "Group Coder Agents chats into projects with shared instructions, skills, memory, and access.",
 							"path": "./ai-coder/agents/projects.md",
 							"state": ["early access"]
 						},

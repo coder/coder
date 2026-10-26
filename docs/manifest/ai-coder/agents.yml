@@ -21,6 +21,10 @@ children:
   - title: Chat sharing
     description: Give other users and groups read-only access to a Coder Agents conversation with chat sharing.
     path: ./ai-coder/agents/chat-sharing.md
+  - title: Projects
+    description: Group Coder Agents chats into projects with shared instructions, skills, memory, and access.
+    path: ./ai-coder/agents/projects.md
+    state: [early access]
   - title: Conversation search syntax
     description: Filter Coder Agents conversations by title, status, and linked pull requests with search syntax.
     path: ./ai-coder/agents/chat-search-syntax.md
