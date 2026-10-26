@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type { ChatProject, SkillMetadata } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
@@ -35,15 +36,20 @@ import {
 import { toast } from "#/components/Toaster/toast";
 import { DATE_FORMAT, formatDateTime, relativeTime } from "#/utils/time";
 import {
-	emptySkillFormValues,
+	emptyProjectSkillFormValues,
 	projectSkillsScope,
 	SKILLS_MAX_PER_OWNER,
 	type SkillFormValues,
 	type SkillsScope,
 	skillFormValuesFromSkill,
+	withDisabledModelInvocation,
 } from "../../utils/skills";
 import { RetryButton } from "../RetryButton";
-import { SkillEditorForm, type SkillErrorDisplay } from "../SkillEditor";
+import {
+	SkillEditorForm,
+	type SkillErrorDisplay,
+	type SkillSubmitHandler,
+} from "../SkillEditor";
 import { SkillEnabledSwitch } from "../SkillEnabledSwitch";
 import { downloadSkillFile, skillError } from "../SkillsTable";
 import { DeleteSkillDialog } from "../SkillsTableView";
@@ -112,7 +118,11 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 			downloadSkillFile(name, (skillName) =>
 				queryClient
 					.fetchQuery(scope.detail(skillName))
-					.then((skill) => skill.content),
+					.then((skill) =>
+						skill.model_invocable
+							? skill.content
+							: withDisabledModelInvocation(skill.content),
+					),
 			),
 		onError: (error) => {
 			toast.error(getErrorMessage(error, `Failed to download ${NOUN}.`), {
@@ -177,7 +187,12 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 						isSubmitting={isSubmitting}
 						backButtonRef={backButtonRef}
 						onBack={closeEditor}
-						onSubmit={(content, onSettled) => {
+						onSubmit={(values, content, onSettled, isContentChanged) => {
+							const req = {
+								content,
+								action: values.action,
+								model_invocable: values.modelInvocable,
+							};
 							const onSuccess = () => {
 								closeEditor();
 								toast.success(
@@ -185,10 +200,15 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 								);
 							};
 							if (editor.type === "create") {
-								createMutation.mutate({ content }, { onSuccess, onSettled });
+								createMutation.mutate(req, { onSuccess, onSettled });
 							} else {
 								updateMutation.mutate(
-									{ name: editor.name, req: { content } },
+									{
+										name: editor.name,
+										req: isContentChanged
+											? req
+											: { ...req, content: undefined },
+									},
 									{ onSuccess, onSettled },
 								);
 							}
@@ -337,7 +357,9 @@ type ProjectSkillEditorViewProps = {
 	readonly isSubmitting: boolean;
 	readonly backButtonRef: React.RefObject<HTMLButtonElement | null>;
 	readonly onBack: () => void;
-	readonly onSubmit: (content: string, onSettled: () => void) => void;
+	readonly onSubmit: (
+		...args: [...Parameters<SkillSubmitHandler>, isContentChanged: boolean]
+	) => void;
 };
 
 const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
@@ -363,7 +385,7 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 		skillQuery.error.response?.status === 404;
 	let loaded: ReturnType<typeof skillFormValuesFromSkill> | undefined;
 	if (view.type === "create") {
-		loaded = { ok: true, values: emptySkillFormValues };
+		loaded = { ok: true, values: emptyProjectSkillFormValues };
 	} else if (skillQuery.data) {
 		loaded = skillFormValuesFromSkill(skillQuery.data);
 	}
@@ -433,6 +455,7 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 				isSubmitting={isSubmitting}
 				nameHint="Lowercase letters, numbers, and hyphens."
 				bodyPlaceholder="Describe when and how the agent should use this skill."
+				showProjectSettings
 				header={({ isDirty }) => (
 					<ProjectSkillEditorHeader
 						title={title}
@@ -451,7 +474,19 @@ const ProjectSkillEditorView: React.FC<ProjectSkillEditorViewProps> = ({
 						</DialogFooter>
 					)
 				}
-				onSubmit={(_values, content, onSettled) => onSubmit(content, onSettled)}
+				onSubmit={(values, content, onSettled) => {
+					// A settings-only edit keeps the stored SKILL.md as written.
+					const opened = openedValues ?? loaded.values;
+					onSubmit(
+						values,
+						content,
+						onSettled,
+						view.type === "create" ||
+							values.name !== opened.name ||
+							values.description !== opened.description.trim() ||
+							values.body !== opened.body,
+					);
+				}}
 			/>
 			<ConfirmDialog
 				open={isDiscardOpen}
@@ -533,8 +568,12 @@ const ProjectSkillRow: React.FC<ProjectSkillRowProps> = ({
 }) => (
 	<TableRow>
 		<TableCell className="w-full max-w-0" title={skill.name}>
-			<div className="truncate font-medium text-content-primary">
-				{skill.name}
+			<div className="flex items-center gap-1.5">
+				<span className="truncate font-medium text-content-primary">
+					{skill.name}
+				</span>
+				{skill.action && <Badge size="sm">Action</Badge>}
+				{!skill.model_invocable && <Badge size="sm">Manual only</Badge>}
 			</div>
 			<div
 				className="truncate text-xs text-content-secondary"

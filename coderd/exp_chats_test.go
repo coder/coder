@@ -438,74 +438,6 @@ func (s *failNextUpsertChatPlanModeInstructionsStore) UpsertChatPlanModeInstruct
 	return s.Store.UpsertChatPlanModeInstructions(ctx, instructions)
 }
 
-// lockSwitchChatPlanModeInstructionsStore can disable the per-setting
-// advisory lock (to prove its effect) and stall each transaction after its
-// Old-capture read until every concurrent transaction has read, so the
-// stale-Old race the lock prevents is deterministic when the lock is off.
-// The lock must stay enabled in any test that leaves it on, or the barrier
-// deadlocks.
-type lockSwitchChatPlanModeInstructionsStore struct {
-	database.Store
-
-	lockEnabled *atomic.Bool
-	mu          *sync.Mutex
-	parked      *int
-	target      *atomic.Int64
-	release     chan struct{}
-}
-
-func newLockSwitchChatPlanModeInstructionsStore(store database.Store) *lockSwitchChatPlanModeInstructionsStore {
-	return &lockSwitchChatPlanModeInstructionsStore{
-		Store:       store,
-		lockEnabled: &atomic.Bool{},
-		mu:          &sync.Mutex{},
-		parked:      new(int),
-		target:      &atomic.Int64{},
-		release:     make(chan struct{}),
-	}
-}
-
-func (s *lockSwitchChatPlanModeInstructionsStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
-	return s.Store.InTx(func(tx database.Store) error {
-		return function(&lockSwitchChatPlanModeInstructionsStore{
-			Store:       tx,
-			lockEnabled: s.lockEnabled,
-			mu:          s.mu,
-			parked:      s.parked,
-			target:      s.target,
-			release:     s.release,
-		})
-	}, txOpts)
-}
-
-func (s *lockSwitchChatPlanModeInstructionsStore) AcquireLock(ctx context.Context, id int64) error {
-	if !s.lockEnabled.Load() {
-		return nil
-	}
-	return s.Store.AcquireLock(ctx, id)
-}
-
-func (s *lockSwitchChatPlanModeInstructionsStore) GetChatPlanModeInstructions(ctx context.Context) (string, error) {
-	// Read before parking so every waiter holds the same stale value no
-	// matter how goroutines are scheduled afterwards. Parking before the
-	// read lets the releasing goroutine write and commit before a slowly
-	// waking waiter executes its read, which then sees the committed new
-	// value under read committed and turns into a no-op.
-	instructions, err := s.Store.GetChatPlanModeInstructions(ctx)
-	if s.target.Load() > 0 {
-		s.mu.Lock()
-		*s.parked++
-		done := *s.parked >= int(s.target.Load())
-		s.mu.Unlock()
-		if done {
-			close(s.release)
-		} else {
-			<-s.release
-		}
-	}
-	return instructions, err
-}
-
 type chatModelConfigLockedReadMutation struct {
 	id    uuid.UUID
 	model string
@@ -766,112 +698,319 @@ func TestPostChats(t *testing.T) {
 		require.Equal(t, modelConfig.ID, chat.LastModelConfigID)
 	})
 
-	t.Run("NonDefaultOrgDoesNotUseDeploymentDefault", func(t *testing.T) {
+	t.Run("Rejects", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModel(t, client)
-		org := dbgen.Organization(t, db, database.Organization{IsDefault: false})
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, org.ID)
-		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-
-		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: org.ID,
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "require a local model",
-			}},
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "No chat model is available in this organization.", sdkErr.Message)
-		require.Equal(t, "Ask an organization administrator to configure and enable a chat model.", sdkErr.Detail)
-	})
-
-	t.Run("DisabledLocalDefaultDoesNotUseDefaultOrgDefault", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		defaultConfig := createChatModel(t, client)
-		org := dbgen.Organization(t, db, database.Organization{IsDefault: false})
-		dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			AIProviderID:   uuid.NullUUID{UUID: defaultConfig.AIProviderID, Valid: true},
-			Model:          "disabled-local-default-" + uuid.NewString(),
-			OrganizationID: org.ID,
-			IsDefault:      true,
-		}, func(params *database.InsertChatModelConfigParams) {
-			params.Enabled = false
-		})
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, org.ID)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+		newOrgMember := func(t *testing.T) (uuid.UUID, *codersdk.ExperimentalClient) {
+			t.Helper()
+			org := dbgen.Organization(t, db, database.Organization{})
+			orgMemberRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, org.ID)
+			return org.ID, codersdk.NewExperimentalClient(orgMemberRaw)
+		}
+		crossOrgMCPServerID, thirdOrgMCPServerID := uuid.New(), uuid.New()
 
-		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: org.ID,
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "do not use the deployment default model",
-			}},
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "No chat model is available in this organization.", sdkErr.Message)
-		require.Equal(t, "Ask an organization administrator to configure and enable a chat model.", sdkErr.Detail)
-	})
+		// Parallel cases share a deployment, so prepare must not mutate
+		// shared fixtures.
+		tests := []struct {
+			name        string
+			prepare     func(t *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient
+			wantStatus  int
+			wantMessage string
+			wantDetail  string
+		}{
+			{
+				name: "NonDefaultOrgDoesNotUseDeploymentDefault",
+				prepare: func(t *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient {
+					orgID, orgMember := newOrgMember(t)
+					req.OrganizationID = orgID
+					return orgMember
+				},
+				wantStatus:  http.StatusBadRequest,
+				wantMessage: "No chat model is available in this organization.",
+				wantDetail:  "Ask an organization administrator to configure and enable a chat model.",
+			},
+			{
+				name: "DisabledLocalDefaultDoesNotUseDefaultOrgDefault",
+				prepare: func(t *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient {
+					orgID, orgMember := newOrgMember(t)
+					dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+						AIProviderID:   uuid.NullUUID{UUID: defaultConfig.AIProviderID, Valid: true},
+						Model:          "disabled-local-default-" + uuid.NewString(),
+						OrganizationID: orgID,
+						IsDefault:      true,
+					}, func(params *database.InsertChatModelConfigParams) {
+						params.Enabled = false
+					})
+					req.OrganizationID = orgID
+					return orgMember
+				},
+				wantStatus:  http.StatusBadRequest,
+				wantMessage: "No chat model is available in this organization.",
+				wantDetail:  "Ask an organization administrator to configure and enable a chat model.",
+			},
+			{
+				name: "DefaultOrgExplicitModelRejectedForNonDefaultOrg",
+				prepare: func(t *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient {
+					orgID, orgMember := newOrgMember(t)
+					req.OrganizationID = orgID
+					req.ModelConfigID = ptr.Ref(defaultConfig.ID)
+					return orgMember
+				},
+				wantStatus:  http.StatusBadRequest,
+				wantMessage: "Invalid model_config_id: model config not found or disabled.",
+			},
+			{
+				name: "ThirdOrgExplicitModelRejected",
+				prepare: func(t *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient {
+					orgID, orgMember := newOrgMember(t)
+					thirdOrg := dbgen.Organization(t, db, database.Organization{})
+					thirdConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+						AIProviderID:   uuid.NullUUID{UUID: defaultConfig.AIProviderID, Valid: true},
+						Model:          "third-org-" + uuid.NewString(),
+						Enabled:        true,
+						IsDefault:      true,
+						OrganizationID: thirdOrg.ID,
+					})
+					req.OrganizationID = orgID
+					req.ModelConfigID = ptr.Ref(thirdConfig.ID)
+					return orgMember
+				},
+				wantStatus:  http.StatusBadRequest,
+				wantMessage: "Invalid model_config_id: model config not found or disabled.",
+			},
+			{
+				name: "MCPServerIDsCrossOrgRejected",
+				prepare: func(t *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient {
+					dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+						ID:             crossOrgMCPServerID,
+						OrganizationID: firstUser.OrganizationID,
+						Enabled:        true,
+					})
+					orgID, orgMember := newOrgMember(t)
+					dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+						AIProviderID:   uuid.NullUUID{UUID: defaultConfig.AIProviderID, Valid: true},
+						OrganizationID: orgID,
+						IsDefault:      true,
+					})
+					req.OrganizationID = orgID
+					req.MCPServerIDs = []uuid.UUID{crossOrgMCPServerID}
+					return orgMember
+				},
+				wantStatus:  http.StatusBadRequest,
+				wantMessage: "One or more MCP server IDs are invalid or disabled.",
+				wantDetail:  "Invalid IDs: " + crossOrgMCPServerID.String(),
+			},
+			{
+				name: "MCPServerIDsThirdOrgRejected",
+				prepare: func(t *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient {
+					thirdOrg := dbgen.Organization(t, db, database.Organization{})
+					dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+						ID:             thirdOrgMCPServerID,
+						OrganizationID: thirdOrg.ID,
+						Enabled:        true,
+					})
+					orgID, orgMember := newOrgMember(t)
+					dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+						AIProviderID:   uuid.NullUUID{UUID: defaultConfig.AIProviderID, Valid: true},
+						OrganizationID: orgID,
+						IsDefault:      true,
+					})
+					req.OrganizationID = orgID
+					req.MCPServerIDs = []uuid.UUID{thirdOrgMCPServerID}
+					return orgMember
+				},
+				wantStatus:  http.StatusBadRequest,
+				wantMessage: "One or more MCP server IDs are invalid or disabled.",
+				wantDetail:  "Invalid IDs: " + thirdOrgMCPServerID.String(),
+			},
+			{
+				name: "RejectsInvalidReasoningEffort",
+				prepare: func(_ *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient {
+					req.ReasoningEffort = ptr.Ref(" HIGH ")
+					return client
+				},
+				wantStatus:  http.StatusBadRequest,
+				wantMessage: "Invalid reasoning_effort value.",
+				wantDetail:  `Invalid value " HIGH ", must be one of none, minimal, low, medium, high, xhigh, max`,
+			},
+			{
+				name: "DisabledModelConfigRejected",
+				prepare: func(t *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient {
+					disabledConfig := createDisabledChatModel(
+						t,
+						client,
+						coderdtest.TestChatProviderOpenAICompat,
+						"gpt-4o-create-disabled-"+uuid.NewString(),
+					)
+					req.ModelConfigID = ptr.Ref(disabledConfig.ID)
+					return client
+				},
+				wantStatus:  http.StatusBadRequest,
+				wantMessage: "Invalid model_config_id: model config not found or disabled.",
+			},
+			{
+				name: "ProviderDisabledModelConfigRejected",
+				prepare: func(t *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient {
+					providerDisabledConfig := createProviderDisabledChatModel(
+						t,
+						client,
+						"openai",
+						"gpt-4o-create-provider-disabled-"+uuid.NewString(),
+					)
+					req.ModelConfigID = ptr.Ref(providerDisabledConfig.ID)
+					return client
+				},
+				wantStatus:  http.StatusBadRequest,
+				wantMessage: "Invalid model_config_id: provider is not enabled for this model.",
+			},
+			{
+				name: "DeniedSameOrganizationExplicitModelIsRejected",
+				prepare: func(t *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient {
+					provider := createAIProviderForTest(t, client, "openai-compat", "test-api-key")
+					privateConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+						AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+						Model:          "private-explicit-" + uuid.NewString(),
+						Enabled:        true,
+						OrganizationID: firstUser.OrganizationID,
+						GroupACL:       database.ChatACL{},
+					})
+					req.ModelConfigID = ptr.Ref(privateConfig.ID)
+					return memberClient
+				},
+				wantStatus:  http.StatusBadRequest,
+				wantMessage: "Invalid model_config_id: model config not found or disabled.",
+			},
+			{
+				name: "WorkspaceNotAccessible",
+				prepare: func(t *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient {
+					workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+						OrganizationID: firstUser.OrganizationID,
+						OwnerID:        firstUser.UserID,
+					}).WithAgent().Do()
+					req.WorkspaceID = &workspaceBuild.Workspace.ID
+					return memberClient
+				},
+				wantStatus:  http.StatusBadRequest,
+				wantMessage: "Workspace not found or you do not have access to this resource",
+			},
+			{
+				name: "WorkspaceAccessibleButNoSSH",
+				prepare: func(t *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient {
+					orgAdminClientRaw, _ := coderdtest.CreateAnotherUser(
+						t,
+						client.Client,
+						firstUser.OrganizationID,
+						rbac.ScopedRoleOrgAdmin(firstUser.OrganizationID),
+					)
+					workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+						OrganizationID: firstUser.OrganizationID,
+						OwnerID:        firstUser.UserID,
+					}).WithAgent().Do()
+					req.WorkspaceID = &workspaceBuild.Workspace.ID
+					return codersdk.NewExperimentalClient(orgAdminClientRaw)
+				},
+				wantStatus:  http.StatusBadRequest,
+				wantMessage: "Workspace not found or you do not have access to this resource",
+			},
+			{
+				name: "WorkspaceNotFound",
+				prepare: func(_ *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient {
+					req.WorkspaceID = ptr.Ref(uuid.New())
+					return client
+				},
+				wantStatus:  http.StatusBadRequest,
+				wantMessage: "Workspace not found or you do not have access to this resource",
+			},
+			{
+				name: "EmptyText",
+				// No model exists in the new org, so this also checks that
+				// input is rejected before model resolution.
+				prepare: func(t *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient {
+					orgID, orgMember := newOrgMember(t)
+					req.OrganizationID = orgID
+					req.Content[0].Text = "   "
+					return orgMember
+				},
+				wantStatus:  http.StatusBadRequest,
+				wantMessage: "Invalid input part.",
+				wantDetail:  "content[0].text cannot be empty.",
+			},
+			{
+				name: "UnsupportedPartType",
+				prepare: func(t *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient {
+					orgID, orgMember := newOrgMember(t)
+					req.OrganizationID = orgID
+					req.Content[0].Type = codersdk.ChatInputPartType("image")
+					return orgMember
+				},
+				wantStatus:  http.StatusBadRequest,
+				wantMessage: "Invalid input part.",
+				wantDetail:  `content[0].type "image" is not supported.`,
+			},
+			{
+				name: "NilOrganizationID",
+				prepare: func(_ *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient {
+					req.OrganizationID = uuid.Nil
+					return memberClient
+				},
+				wantStatus:  http.StatusBadRequest,
+				wantMessage: "organization_id is required.",
+			},
+			{
+				name: "NonMemberOrganization",
+				prepare: func(t *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient {
+					req.OrganizationID = dbgen.Organization(t, db, database.Organization{}).ID
+					return memberClient
+				},
+				wantStatus:  http.StatusForbidden,
+				wantMessage: "You are not a member of the specified organization.",
+			},
+			{
+				name: "CrossOrgWorkspaceMismatch",
+				prepare: func(t *testing.T, req *codersdk.CreateChatRequest) *codersdk.ExperimentalClient {
+					workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+						OrganizationID: firstUser.OrganizationID,
+						OwnerID:        firstUser.UserID,
+					}).WithAgent().Do()
+					// The admin joins the second organization so the request
+					// passes the membership check and fails on the workspace.
+					secondOrg := dbgen.Organization(t, db, database.Organization{})
+					dbgen.OrganizationMember(t, db, database.OrganizationMember{
+						OrganizationID: secondOrg.ID,
+						UserID:         firstUser.UserID,
+					})
+					req.OrganizationID = secondOrg.ID
+					req.WorkspaceID = &workspaceBuild.Workspace.ID
+					return client
+				},
+				wantStatus:  http.StatusBadRequest,
+				wantMessage: "Workspace does not belong to the specified organization.",
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
 
-	t.Run("DefaultOrgExplicitModelRejectedForNonDefaultOrg", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-		defaultConfig := createChatModel(t, client)
-		otherOrg := dbgen.Organization(t, db, database.Organization{IsDefault: false})
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, otherOrg.ID)
-		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-
-		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: otherOrg.ID,
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "reject an explicit deployment model",
-			}},
-			ModelConfigID: ptr.Ref(defaultConfig.ID),
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid model_config_id: model config not found or disabled.", sdkErr.Message)
-	})
-
-	t.Run("ThirdOrgExplicitModelRejected", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-		defaultConfig := createChatModel(t, client)
-		chatOrg := dbgen.Organization(t, db, database.Organization{IsDefault: false})
-		thirdOrg := dbgen.Organization(t, db, database.Organization{IsDefault: false})
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, chatOrg.ID)
-		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-		thirdConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			AIProviderID:   uuid.NullUUID{UUID: defaultConfig.AIProviderID, Valid: true},
-			Model:          "third-org-" + uuid.NewString(),
-			Enabled:        true,
-			IsDefault:      true,
-			OrganizationID: thirdOrg.ID,
-		})
-
-		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: chatOrg.ID,
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "reject a third organization's model",
-			}},
-			ModelConfigID: ptr.Ref(thirdConfig.ID),
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid model_config_id: model config not found or disabled.", sdkErr.Message)
+				ctx := testutil.Context(t, testutil.WaitLong)
+				req := codersdk.CreateChatRequest{
+					OrganizationID: firstUser.OrganizationID,
+					Content: []codersdk.ChatInputPart{{
+						Type: codersdk.ChatInputPartTypeText,
+						Text: "hello",
+					}},
+				}
+				chatClient := tt.prepare(t, &req)
+				_, err := chatClient.CreateChat(ctx, req)
+				sdkErr := requireSDKError(t, err, tt.wantStatus)
+				require.Equal(t, tt.wantMessage, sdkErr.Message)
+				require.Equal(t, tt.wantDetail, sdkErr.Detail)
+			})
+		}
 	})
 
 	t.Run("Success", func(t *testing.T) {
@@ -937,43 +1076,6 @@ func TestPostChats(t *testing.T) {
 			ResourceTarget: chat.ID.String()[:8],
 			UserID:         member.ID,
 		}))
-	})
-
-	t.Run("MCPServerIDsCrossOrgRejected", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		deploymentDefault := createChatModel(t, client)
-
-		defaultOrgConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-			OrganizationID: firstUser.OrganizationID,
-			Enabled:        true,
-		})
-
-		secondOrg := dbgen.Organization(t, db, database.Organization{})
-		_ = dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			AIProviderID:   uuid.NullUUID{UUID: deploymentDefault.AIProviderID, Valid: true},
-			OrganizationID: secondOrg.ID,
-			IsDefault:      true,
-		})
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, secondOrg.ID)
-		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-
-		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: secondOrg.ID,
-			Content: []codersdk.ChatInputPart{
-				{
-					Type: codersdk.ChatInputPartTypeText,
-					Text: "chat with a default-org MCP server",
-				},
-			},
-			MCPServerIDs: []uuid.UUID{defaultOrgConfig.ID},
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "One or more MCP server IDs are invalid or disabled.", sdkErr.Message)
-		require.Equal(t, "Invalid IDs: "+defaultOrgConfig.ID.String(), sdkErr.Detail)
 	})
 
 	t.Run("MCPServerIDsDuplicatesNormalized", func(t *testing.T) {
@@ -1159,44 +1261,6 @@ func TestPostChats(t *testing.T) {
 		require.Equal(t, "Invalid IDs: "+secondCfg.ID.String(), sdkErr.Detail)
 	})
 
-	t.Run("MCPServerIDsThirdOrgRejected", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		coderdtest.CreateFirstUser(t, client.Client)
-		deploymentDefault := createChatModel(t, client)
-
-		thirdOrg := dbgen.Organization(t, db, database.Organization{})
-		thirdOrgConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-			OrganizationID: thirdOrg.ID,
-			Enabled:        true,
-		})
-
-		secondOrg := dbgen.Organization(t, db, database.Organization{})
-		_ = dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			AIProviderID:   uuid.NullUUID{UUID: deploymentDefault.AIProviderID, Valid: true},
-			OrganizationID: secondOrg.ID,
-			IsDefault:      true,
-		})
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, secondOrg.ID)
-		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-
-		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: secondOrg.ID,
-			Content: []codersdk.ChatInputPart{
-				{
-					Type: codersdk.ChatInputPartTypeText,
-					Text: "chat with a third-org MCP server",
-				},
-			},
-			MCPServerIDs: []uuid.UUID{thirdOrgConfig.ID},
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "One or more MCP server IDs are invalid or disabled.", sdkErr.Message)
-		require.Equal(t, "Invalid IDs: "+thirdOrgConfig.ID.String(), sdkErr.Detail)
-	})
-
 	t.Run("MemberCanCreateChat", func(t *testing.T) {
 		t.Parallel()
 
@@ -1313,30 +1377,6 @@ func TestPostChats(t *testing.T) {
 		require.Equal(t, database.ChatReasoningEffortHigh, userMsg.ReasoningEffort.ChatReasoningEffort)
 	})
 
-	t.Run("RejectsInvalidReasoningEffort", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		user := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModel(t, client)
-
-		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: user.OrganizationID,
-			Content: []codersdk.ChatInputPart{
-				{
-					Type: codersdk.ChatInputPartTypeText,
-					Text: "hello",
-				},
-			},
-			ReasoningEffort: ptr.Ref(" HIGH "),
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid reasoning_effort value.", sdkErr.Message)
-		require.Contains(t, sdkErr.Detail, `Invalid value " HIGH "`)
-		require.Contains(t, sdkErr.Detail, "must be one of none, minimal, low, medium, high, xhigh, max")
-	})
-
 	t.Run("HidesSystemPromptMessages", func(t *testing.T) {
 		t.Parallel()
 
@@ -1361,58 +1401,6 @@ func TestPostChats(t *testing.T) {
 		for _, message := range messagesResult.Messages {
 			require.NotEqual(t, codersdk.ChatMessageRoleSystem, message.Role)
 		}
-	})
-
-	t.Run("DisabledModelConfigRejected", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModel(t, client)
-		disabledConfig := createDisabledChatModel(
-			t,
-			client,
-			coderdtest.TestChatProviderOpenAICompat,
-			"gpt-4o-create-disabled-"+uuid.NewString(),
-		)
-
-		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: firstUser.OrganizationID,
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "hello",
-			}},
-			ModelConfigID: ptr.Ref(disabledConfig.ID),
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid model_config_id: model config not found or disabled.", sdkErr.Message)
-	})
-
-	t.Run("ProviderDisabledModelConfigRejected", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModel(t, client)
-		providerDisabledConfig := createProviderDisabledChatModel(
-			t,
-			client,
-			"openai",
-			"gpt-4o-create-provider-disabled-"+uuid.NewString(),
-		)
-
-		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: firstUser.OrganizationID,
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "hello",
-			}},
-			ModelConfigID: ptr.Ref(providerDisabledConfig.ID),
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid model_config_id: provider is not enabled for this model.", sdkErr.Message)
 	})
 
 	t.Run("ProviderDisabledDefaultModelRejected", func(t *testing.T) {
@@ -1472,39 +1460,6 @@ func TestPostChats(t *testing.T) {
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "No chat model is available in this organization.", sdkErr.Message)
-	})
-
-	t.Run("DeniedSameOrganizationExplicitModelIsRejected", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		provider := createAIProviderForTest(t, client, "openai-compat", "test-api-key")
-		privateConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
-			Model:          "private-explicit-" + uuid.NewString(),
-			Enabled:        true,
-			OrganizationID: firstUser.OrganizationID,
-			GroupACL:       database.ChatACL{},
-		})
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(
-			t,
-			client.Client,
-			firstUser.OrganizationID,
-		)
-		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-
-		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: firstUser.OrganizationID,
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "do not admit the private model",
-			}},
-			ModelConfigID: &privateConfig.ID,
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid model_config_id: model config not found or disabled.", sdkErr.Message)
 	})
 
 	t.Run("WithPerChatSystemPrompt", func(t *testing.T) {
@@ -1593,101 +1548,6 @@ func TestPostChats(t *testing.T) {
 		}
 	})
 
-	t.Run("WorkspaceNotAccessible", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		adminClient, db := newChatClientWithDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
-		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-
-		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OrganizationID: firstUser.OrganizationID,
-			OwnerID:        firstUser.UserID,
-		}).WithAgent().Do()
-
-		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: firstUser.OrganizationID,
-			Content: []codersdk.ChatInputPart{
-				{
-					Type: codersdk.ChatInputPartTypeText,
-					Text: "hello",
-				},
-			},
-			WorkspaceID: &workspaceBuild.Workspace.ID,
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(
-			t,
-			"Workspace not found or you do not have access to this resource",
-			sdkErr.Message,
-		)
-	})
-
-	t.Run("WorkspaceAccessibleButNoSSH", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		adminClient, db := newChatClientWithDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
-		orgAdminClientRaw, _ := coderdtest.CreateAnotherUser(
-			t,
-			adminClient.Client,
-			firstUser.OrganizationID,
-			rbac.ScopedRoleOrgAdmin(firstUser.OrganizationID),
-		)
-		orgAdminClient := codersdk.NewExperimentalClient(orgAdminClientRaw)
-
-		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OrganizationID: firstUser.OrganizationID,
-			OwnerID:        firstUser.UserID,
-		}).WithAgent().Do()
-
-		_, err := orgAdminClient.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: firstUser.OrganizationID,
-			Content: []codersdk.ChatInputPart{
-				{
-					Type: codersdk.ChatInputPartTypeText,
-					Text: "hello",
-				},
-			},
-			WorkspaceID: &workspaceBuild.Workspace.ID,
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(
-			t,
-			"Workspace not found or you do not have access to this resource",
-			sdkErr.Message,
-		)
-	})
-
-	t.Run("WorkspaceNotFound", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-
-		workspaceID := uuid.New()
-		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: firstUser.OrganizationID,
-			Content: []codersdk.ChatInputPart{
-				{
-					Type: codersdk.ChatInputPartTypeText,
-					Text: "hello",
-				},
-			},
-			WorkspaceID: &workspaceID,
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(
-			t,
-			"Workspace not found or you do not have access to this resource",
-			sdkErr.Message,
-		)
-	})
-
 	t.Run("WorkspaceSelectsFirstAgent", func(t *testing.T) {
 		t.Parallel()
 
@@ -1754,130 +1614,6 @@ func TestPostChats(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, codersdk.ChatStatusWaiting, chat.Status)
-	})
-
-	t.Run("EmptyText", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-
-		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: firstUser.OrganizationID,
-			Content: []codersdk.ChatInputPart{
-				{
-					Type: codersdk.ChatInputPartTypeText,
-					Text: "   ",
-				},
-			},
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid input part.", sdkErr.Message)
-		require.Equal(t, "content[0].text cannot be empty.", sdkErr.Detail)
-	})
-
-	t.Run("UnsupportedPartType", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-
-		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: firstUser.OrganizationID,
-			Content: []codersdk.ChatInputPart{
-				{
-					Type: codersdk.ChatInputPartType("image"),
-					Text: "hello",
-				},
-			},
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid input part.", sdkErr.Message)
-		require.Equal(t, `content[0].type "image" is not supported.`, sdkErr.Detail)
-	})
-
-	t.Run("NilOrganizationID", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModel(t, client)
-
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
-		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-
-		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: uuid.Nil,
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "hello",
-			}},
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "organization_id is required.", sdkErr.Message)
-	})
-
-	t.Run("NonMemberOrganization", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModel(t, client)
-
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
-		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-
-		// Create a second organization via the database since the
-		// API endpoint is enterprise-only.
-		secondOrg := dbgen.Organization(t, db, database.Organization{})
-
-		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: secondOrg.ID,
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "hello",
-			}},
-		})
-		sdkErr := requireSDKError(t, err, http.StatusForbidden)
-		require.Equal(t, "You are not a member of the specified organization.", sdkErr.Message)
-	})
-
-	t.Run("CrossOrgWorkspaceMismatch", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModel(t, client)
-
-		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OrganizationID: firstUser.OrganizationID,
-			OwnerID:        firstUser.UserID,
-		}).WithAgent().Do()
-
-		// Create a second organization and add the admin as a member
-		// so the request passes the membership check but fails on
-		// the workspace org mismatch.
-		secondOrg := dbgen.Organization(t, db, database.Organization{})
-		dbgen.OrganizationMember(t, db, database.OrganizationMember{
-			OrganizationID: secondOrg.ID,
-			UserID:         firstUser.UserID,
-		})
-
-		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: secondOrg.ID,
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "hello",
-			}},
-			WorkspaceID: &workspaceBuild.Workspace.ID,
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Workspace does not belong to the specified organization.", sdkErr.Message)
 	})
 }
 
@@ -15618,27 +15354,16 @@ func TestChatPlanModeInstructions(t *testing.T) {
 		require.JSONEq(t, "{}", string(logs[0].Diff))
 	})
 
-	// Two concurrent identical PUTs both succeed, but the per-setting lock
-	// serializes the Old capture with the write, so the second
-	// transaction's comparison sees the first's committed state and only
-	// the first write is audited as a change. The barrier forces both
-	// transactions to the Old capture before either commits, so the
-	// lock-off case below reproduces the stale-Old race deterministically.
 	t.Run("AuditConcurrentIdenticalPUTsSingleEntry", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		rawDB, pubsub := dbtestutil.NewDB(t)
-		store := newLockSwitchChatPlanModeInstructionsStore(rawDB)
-		store.lockEnabled.Store(true)
+		db, pubsub, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 		mAudit := audit.NewMock()
-		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-			Database:         store,
-			Pubsub:           pubsub,
-			DeploymentValues: coderdtest.DeploymentValues(t),
-			Auditor:          mAudit,
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Database = db
+			opts.Pubsub = pubsub
+			opts.Auditor = mAudit
 		})
-		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-		client := codersdk.NewExperimentalClient(rawClient)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 		// Discard the login entry emitted by user creation.
 		mAudit.ResetLogs()
@@ -15648,87 +15373,52 @@ func TestChatPlanModeInstructions(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, mAudit.AuditLogs(), 1)
+
+		// Blocking both PUTs exposes duplicate audits if Old is read before locking.
+		holding := make(chan struct{})
+		release := make(chan struct{})
+		releaseLock := sync.OnceFunc(func() { close(release) })
+		t.Cleanup(releaseLock)
+		holderErr := make(chan error, 1)
+		go func() {
+			holderErr <- db.InTx(func(tx database.Store) error {
+				if err := tx.AcquireLock(ctx, database.LockIDChatInstructionPlanMode); err != nil {
+					return err
+				}
+				close(holding)
+				<-release
+				return nil
+			}, nil)
+		}()
+		testutil.TryReceive(ctx, t, holding)
 
 		// Concurrent identical PUTs of a NEW value under the lock: the
 		// first is a real change, the second sees the first's committed
 		// value and is a no-op.
 		mAudit.ResetLogs()
 		const puts = 2
-		start := make(chan struct{})
 		errs := make(chan error, puts)
-		var wg sync.WaitGroup
 		for range puts {
-			wg.Add(1)
 			go func() {
-				defer wg.Done()
-				<-start
 				errs <- client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
 					PlanModeInstructions: "Concurrent instructions.",
 				})
 			}()
 		}
-		close(start)
-		wg.Wait()
-		close(errs)
-		for err := range errs {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+			var waiting int
+			err := sqlDB.QueryRowContext(ctx, `SELECT count(*) FROM pg_locks
+				WHERE locktype = 'advisory' AND NOT granted
+				AND database = (SELECT oid FROM pg_database WHERE datname = current_database())`).Scan(&waiting)
 			require.NoError(t, err)
-		}
-		require.Len(t, mAudit.AuditLogs(), 1)
-	})
-
-	// With the lock removed, the barrier parks both transactions at the
-	// Old capture before either writes, so both read the same stale Old,
-	// both write, and both emit: the exact duplicate the lock prevents.
-	// This is the mutation proof for the lock.
-	t.Run("AuditConcurrentIdenticalPUTsDuplicateWithoutLock", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		rawDB, pubsub := dbtestutil.NewDB(t)
-		store := newLockSwitchChatPlanModeInstructionsStore(rawDB)
-		// Lock disabled.
-		mAudit := audit.NewMock()
-		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-			Database:         store,
-			Pubsub:           pubsub,
-			DeploymentValues: coderdtest.DeploymentValues(t),
-			Auditor:          mAudit,
-		})
-		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-		client := codersdk.NewExperimentalClient(rawClient)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-		// Discard the login entry emitted by user creation.
-		mAudit.ResetLogs()
-
-		err := client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
-			PlanModeInstructions: "Seed instructions.",
-		})
-		require.NoError(t, err)
-		require.Len(t, mAudit.AuditLogs(), 1)
-
-		mAudit.ResetLogs()
-		store.target.Store(2)
-		const puts = 2
-		start := make(chan struct{})
-		errs := make(chan error, puts)
-		var wg sync.WaitGroup
+			return waiting == puts
+		}, testutil.IntervalFast, "both PUTs wait for the lock")
+		releaseLock()
+		require.NoError(t, testutil.TryReceive(ctx, t, holderErr))
 		for range puts {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				<-start
-				errs <- client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
-					PlanModeInstructions: "Concurrent instructions.",
-				})
-			}()
+			require.NoError(t, testutil.TryReceive(ctx, t, errs))
 		}
-		close(start)
-		wg.Wait()
-		close(errs)
-		for err := range errs {
-			require.NoError(t, err)
-		}
-		// Both captured the same stale Old and both wrote: two entries.
-		require.Len(t, mAudit.AuditLogs(), 2)
+		require.Len(t, mAudit.AuditLogs(), 1)
 	})
 }
 
@@ -18705,23 +18395,20 @@ func TestChatStopWorkspace_BypassesRequireActiveVersion(t *testing.T) {
 func TestGetChatMessages_Pagination(t *testing.T) {
 	t.Parallel()
 
+	client, db := newChatClientWithDatabase(t)
+	user := coderdtest.CreateFirstUser(t, client.Client)
+	modelConfig := createChatModel(t, client)
+
 	// seedChat creates a chat and inserts `count` user messages, returning
 	// the chat and the inserted message IDs in the order they were
 	// persisted (ascending). Callers use these IDs as cursor values.
-	seedChat := func(
-		t *testing.T,
-		db database.Store,
-		ownerID uuid.UUID,
-		organizationID uuid.UUID,
-		modelConfigID uuid.UUID,
-		count int,
-	) (database.Chat, []int64) {
+	seedChat := func(t *testing.T, count int) (database.Chat, []int64) {
 		t.Helper()
 
 		chat := dbgen.Chat(t, db, database.Chat{
-			OrganizationID:    organizationID,
-			OwnerID:           ownerID,
-			LastModelConfigID: modelConfigID,
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
 			Title:             "pagination-test",
 		})
 
@@ -18734,8 +18421,8 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 
 			message := dbgen.ChatMessage(t, db, database.ChatMessage{
 				ChatID:        chat.ID,
-				CreatedBy:     uuid.NullUUID{UUID: ownerID, Valid: true},
-				ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
+				CreatedBy:     uuid.NullUUID{UUID: user.UserID, Valid: true},
+				ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 				Role:          database.ChatMessageRoleUser,
 				Content:       content,
 			})
@@ -18744,255 +18431,132 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 		return chat, ids
 	}
 
-	seedQueuedMessage := func(
-		ctx context.Context,
-		t *testing.T,
-		db database.Store,
-		chatID uuid.UUID,
-		modelConfigID uuid.UUID,
-	) {
-		t.Helper()
+	// Seed the queue so an empty QueuedMessages result tests cursor suppression.
+	for _, tc := range []struct {
+		name       string
+		opts       func(ids []int64) *codersdk.ChatMessagesPaginationOptions
+		want       []int
+		hasMore    bool
+		wantQueued int
+	}{
+		{
+			name:       "NoCursorReturnsAllDESCPlusQueued",
+			want:       []int{4, 3, 2, 1, 0},
+			wantQueued: 1,
+		},
+		{
+			name: "BeforeIDReturnsOlderAndSuppressesQueued",
+			opts: func(ids []int64) *codersdk.ChatMessagesPaginationOptions {
+				return &codersdk.ChatMessagesPaginationOptions{BeforeID: ids[2]}
+			},
+			want: []int{1, 0},
+		},
+		{
+			// ASC order so a polling caller can advance its cursor to
+			// max(returned_ids) without gaps.
+			name: "AfterIDReturnsNewerInASCOrderForMonotonicPolling",
+			opts: func(ids []int64) *codersdk.ChatMessagesPaginationOptions {
+				return &codersdk.ChatMessagesPaginationOptions{AfterID: ids[1]}
+			},
+			want: []int{2, 3, 4},
+		},
+		{
+			name: "AfterAndBeforeIDReturnsOpenRange",
+			opts: func(ids []int64) *codersdk.ChatMessagesPaginationOptions {
+				return &codersdk.ChatMessagesPaginationOptions{AfterID: ids[0], BeforeID: ids[4]}
+			},
+			want: []int{3, 2, 1},
+		},
+		{
+			// The ASC polling path returns the OLDEST unseen messages
+			// first. A burst larger than `limit` would otherwise silently
+			// drop the oldest rows between polls on the DESC path.
+			name: "LimitCapsAfterIDPageToOldestAndSetsHasMore",
+			opts: func(ids []int64) *codersdk.ChatMessagesPaginationOptions {
+				return &codersdk.ChatMessagesPaginationOptions{AfterID: ids[0], Limit: 2}
+			},
+			want:    []int{1, 2},
+			hasMore: true,
+		},
+		{
+			// The steady-state polling case: the caller already has every
+			// message, so after_id equals the largest seen id. The server
+			// must return an empty page, not the last row again.
+			name: "AfterIDAtOrAboveMaxReturnsEmpty",
+			opts: func(ids []int64) *codersdk.ChatMessagesPaginationOptions {
+				return &codersdk.ChatMessagesPaginationOptions{AfterID: ids[4]}
+			},
+			want: []int{},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		content, err := json.Marshal([]codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("queued"),
+			ctx := testutil.Context(t, testutil.WaitLong)
+			chat, ids := seedChat(t, 5)
+			content, err := json.Marshal([]codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("queued"),
+			})
+			require.NoError(t, err)
+			_ = insertTestChatQueuedMessage(ctx, t, db, chat.ID, content, modelConfig.ID)
+
+			var opts *codersdk.ChatMessagesPaginationOptions
+			if tc.opts != nil {
+				opts = tc.opts(ids)
+			}
+			resp, err := client.GetChatMessages(ctx, chat.ID, opts)
+			require.NoError(t, err)
+			require.Equal(t, tc.hasMore, resp.HasMore)
+			require.Len(t, resp.QueuedMessages, tc.wantQueued)
+
+			want := make([]int64, len(tc.want))
+			for i, pos := range tc.want {
+				want[i] = ids[pos]
+			}
+			got := make([]int64, len(resp.Messages))
+			for i, m := range resp.Messages {
+				got[i] = m.ID
+			}
+			require.Equal(t, want, got)
 		})
-		require.NoError(t, err)
-		_ = insertTestChatQueuedMessage(ctx, t, db, chatID, content, modelConfigID)
 	}
 
-	t.Run("NoCursorReturnsAllDESCPlusQueued", func(t *testing.T) {
-		t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		afterID string
+	}{
+		{"NegativeAfterIDReturns400", "-1"},
+		{"NonNumericAfterIDReturns400", "abc"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		user := coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createChatModel(t, client)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			chat, _ := seedChat(t, 1)
 
-		chat, ids := seedChat(t, db, user.UserID, user.OrganizationID, modelConfig.ID, 5)
-		seedQueuedMessage(ctx, t, db, chat.ID, modelConfig.ID)
-
-		resp, err := client.GetChatMessages(ctx, chat.ID, nil)
-		require.NoError(t, err)
-		require.Len(t, resp.Messages, 5)
-		require.False(t, resp.HasMore)
-		require.Len(t, resp.QueuedMessages, 1)
-
-		want := []int64{ids[4], ids[3], ids[2], ids[1], ids[0]}
-		got := make([]int64, len(resp.Messages))
-		for i, m := range resp.Messages {
-			got[i] = m.ID
-		}
-		require.Equal(t, want, got)
-	})
-
-	t.Run("BeforeIDReturnsOlderAndSuppressesQueued", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		user := coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createChatModel(t, client)
-
-		chat, ids := seedChat(t, db, user.UserID, user.OrganizationID, modelConfig.ID, 5)
-		seedQueuedMessage(ctx, t, db, chat.ID, modelConfig.ID)
-
-		resp, err := client.GetChatMessages(ctx, chat.ID, &codersdk.ChatMessagesPaginationOptions{
-			BeforeID: ids[2],
+			res, err := client.Request(
+				ctx,
+				http.MethodGet,
+				fmt.Sprintf("/api/v2/chats/%s/messages?after_id=%s", chat.ID, tc.afterID),
+				nil,
+			)
+			require.NoError(t, err)
+			defer res.Body.Close()
+			sdkErr := requireSDKError(t, codersdk.ReadBodyAsError(res), http.StatusBadRequest)
+			require.Equal(t, "Query parameters have invalid values.", sdkErr.Message)
+			require.True(t,
+				slices.ContainsFunc(sdkErr.Validations, func(v codersdk.ValidationError) bool {
+					return v.Field == "after_id"
+				}),
+				"expected validation error for after_id field",
+			)
 		})
-		require.NoError(t, err)
-		require.False(t, resp.HasMore)
-		require.Empty(t, resp.QueuedMessages)
-
-		want := []int64{ids[1], ids[0]}
-		got := make([]int64, len(resp.Messages))
-		for i, m := range resp.Messages {
-			got[i] = m.ID
-		}
-		require.Equal(t, want, got)
-	})
-
-	t.Run("AfterIDReturnsNewerInASCOrderForMonotonicPolling", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		user := coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createChatModel(t, client)
-
-		chat, ids := seedChat(t, db, user.UserID, user.OrganizationID, modelConfig.ID, 5)
-		seedQueuedMessage(ctx, t, db, chat.ID, modelConfig.ID)
-
-		resp, err := client.GetChatMessages(ctx, chat.ID, &codersdk.ChatMessagesPaginationOptions{
-			AfterID: ids[1],
-		})
-		require.NoError(t, err)
-		require.False(t, resp.HasMore)
-		require.Empty(t, resp.QueuedMessages)
-
-		// ASC order so a polling caller can advance its cursor to
-		// max(returned_ids) without gaps.
-		want := []int64{ids[2], ids[3], ids[4]}
-		got := make([]int64, len(resp.Messages))
-		for i, m := range resp.Messages {
-			got[i] = m.ID
-		}
-		require.Equal(t, want, got)
-	})
-
-	t.Run("AfterAndBeforeIDReturnsOpenRange", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		user := coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createChatModel(t, client)
-
-		chat, ids := seedChat(t, db, user.UserID, user.OrganizationID, modelConfig.ID, 5)
-		seedQueuedMessage(ctx, t, db, chat.ID, modelConfig.ID)
-
-		resp, err := client.GetChatMessages(ctx, chat.ID, &codersdk.ChatMessagesPaginationOptions{
-			AfterID:  ids[0],
-			BeforeID: ids[4],
-		})
-		require.NoError(t, err)
-		require.False(t, resp.HasMore)
-		require.Empty(t, resp.QueuedMessages)
-
-		want := []int64{ids[3], ids[2], ids[1]}
-		got := make([]int64, len(resp.Messages))
-		for i, m := range resp.Messages {
-			got[i] = m.ID
-		}
-		require.Equal(t, want, got)
-	})
-
-	t.Run("LimitCapsAfterIDPageToOldestAndSetsHasMore", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		user := coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createChatModel(t, client)
-
-		chat, ids := seedChat(t, db, user.UserID, user.OrganizationID, modelConfig.ID, 5)
-		// Seed a queued message so the Empty assertion below verifies
-		// the cursor suppresses queued rows, not just that none exist.
-		seedQueuedMessage(ctx, t, db, chat.ID, modelConfig.ID)
-
-		resp, err := client.GetChatMessages(ctx, chat.ID, &codersdk.ChatMessagesPaginationOptions{
-			AfterID: ids[0],
-			Limit:   2,
-		})
-		require.NoError(t, err)
-		require.True(t, resp.HasMore)
-		require.Empty(t, resp.QueuedMessages)
-
-		// The ASC polling path returns the OLDEST unseen messages
-		// first. A burst larger than `limit` would otherwise silently
-		// drop the oldest rows between polls on the DESC path.
-		want := []int64{ids[1], ids[2]}
-		got := make([]int64, len(resp.Messages))
-		for i, m := range resp.Messages {
-			got[i] = m.ID
-		}
-		require.Equal(t, want, got)
-	})
-
-	t.Run("NegativeAfterIDReturns400", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		user := coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createChatModel(t, client)
-
-		chat, _ := seedChat(t, db, user.UserID, user.OrganizationID, modelConfig.ID, 1)
-
-		res, err := client.Request(
-			ctx,
-			http.MethodGet,
-			fmt.Sprintf("/api/v2/chats/%s/messages?after_id=-1", chat.ID),
-			nil,
-		)
-		require.NoError(t, err)
-		defer res.Body.Close()
-		require.Equal(t, http.StatusBadRequest, res.StatusCode)
-
-		var sdkResp codersdk.Response
-		require.NoError(t, json.NewDecoder(res.Body).Decode(&sdkResp))
-		require.Equal(t, "Query parameters have invalid values.", sdkResp.Message)
-		require.True(t,
-			slices.ContainsFunc(sdkResp.Validations, func(v codersdk.ValidationError) bool {
-				return v.Field == "after_id"
-			}),
-			"expected validation error for after_id field",
-		)
-	})
-
-	t.Run("NonNumericAfterIDReturns400", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		user := coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createChatModel(t, client)
-
-		chat, _ := seedChat(t, db, user.UserID, user.OrganizationID, modelConfig.ID, 1)
-
-		res, err := client.Request(
-			ctx,
-			http.MethodGet,
-			fmt.Sprintf("/api/v2/chats/%s/messages?after_id=abc", chat.ID),
-			nil,
-		)
-		require.NoError(t, err)
-		defer res.Body.Close()
-		require.Equal(t, http.StatusBadRequest, res.StatusCode)
-
-		var sdkResp codersdk.Response
-		require.NoError(t, json.NewDecoder(res.Body).Decode(&sdkResp))
-		require.Equal(t, "Query parameters have invalid values.", sdkResp.Message)
-		require.True(t,
-			slices.ContainsFunc(sdkResp.Validations, func(v codersdk.ValidationError) bool {
-				return v.Field == "after_id"
-			}),
-			"expected validation error for after_id field",
-		)
-	})
-
-	t.Run("AfterIDAtOrAboveMaxReturnsEmpty", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		user := coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createChatModel(t, client)
-
-		chat, ids := seedChat(t, db, user.UserID, user.OrganizationID, modelConfig.ID, 3)
-		// Seed a queued message to prove the cursor path suppresses
-		// it even when nothing else comes back.
-		seedQueuedMessage(ctx, t, db, chat.ID, modelConfig.ID)
-
-		// The steady-state polling case: the caller already has every
-		// message, so after_id equals the largest seen id. The server
-		// must return an empty page, not the last row again.
-		resp, err := client.GetChatMessages(ctx, chat.ID, &codersdk.ChatMessagesPaginationOptions{
-			AfterID: ids[len(ids)-1],
-		})
-		require.NoError(t, err)
-		require.Empty(t, resp.Messages)
-		require.False(t, resp.HasMore)
-		require.Empty(t, resp.QueuedMessages)
-	})
+	}
 
 	t.Run("AfterIDGreaterThanOrEqualBeforeIDReturns400", func(t *testing.T) {
 		t.Parallel()
 
-		client, db := newChatClientWithDatabase(t)
-		user := coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createChatModel(t, client)
-
-		chat, ids := seedChat(t, db, user.UserID, user.OrganizationID, modelConfig.ID, 3)
+		chat, ids := seedChat(t, 3)
 
 		// Transposed cursors: after >= before. Fail loudly rather
 		// than return an empty page indistinguishable from
@@ -19022,9 +18586,6 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		user := coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createChatModel(t, client)
 
 		// Simulate a polling client that has already acknowledged the
 		// first message (cursor = ids[0]) when a burst of
@@ -19037,7 +18598,7 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 		const pageSize = 25
 		// Seed burstSize+1 rows; ids[0] is the "already acknowledged"
 		// message the client saw before the burst.
-		chat, ids := seedChat(t, db, user.UserID, user.OrganizationID, modelConfig.ID, burstSize+1)
+		chat, ids := seedChat(t, burstSize+1)
 
 		var seen []int64
 		cursor := ids[0]

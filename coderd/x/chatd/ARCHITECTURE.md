@@ -503,8 +503,6 @@ Setting `title` writes a `user` title. The write happens even when the text is u
 
 ### `POST /api/v2/chats/{chat}/messages`
 
-TODO (project-skills): `skill-invocation` content parts are resolved when a message is created, sent, or edited: chatd loads each invoked skill body as the chat owner (personal, organization, project via the chat's project, workspace from the pinned context snapshot), stores it on the part, and rejects the request with a 400 when the skill is not available. The prompt renders the stored body inside `<invoked-skill>`. Describe this here.
-
 For `busy_behavior=queue`, `SendMessage(m, queue)` supports:
 
 - `W -> SendMessage(m, queue) -> R0`
@@ -1083,7 +1081,7 @@ The first two happen together in `chatprovider.ProviderOptionsForCall`, the only
 
 Debug recording replaces the wrapped client and preserves the resolved transport. Computer-use turns substitute a hardcoded default model that has no config of its own; it carries its own transport, so the chat model's `openai_config` does not follow it.
 
-Azure is deliberately exempt: its provider always enables the Responses API for known models and exposes no equivalent per-model hook, so the transport keeps following the known-model list for Azure. Ignoring the override there is what keeps the decisions above in agreement with the Azure client. The exemption is narrower than it appears, because chatd never builds an azure-typed provider as a fantasy azure client: `fantasyConfigForAIBridge` folds every provider type other than anthropic, bedrock, and openai into openai-compat, which always speaks Chat Completions. Bedrock is the exception within that set: its fantasy client depends on the model ID, so `anthropic.*` bedrock models fold to the Anthropic Messages client while non-anthropic bedrock models fold to the OpenAI Responses client.
+`TransportFor` has no Azure case, because chatd never builds an azure-typed provider as a fantasy azure client: `fantasyConfigForAIBridge` folds every provider type other than anthropic, bedrock, and openai into openai-compat, which always speaks Chat Completions. Bedrock is the exception within that set: its fantasy client depends on the model ID, so `anthropic.*` bedrock models fold to the Anthropic Messages client while non-anthropic bedrock models fold to the OpenAI Responses client.
 
 Both transports read the same `provider_options.openai` config, but not every field applies to both wire formats. The table below records, per field, which transport honors it; `TestProviderOptionsTransportParity` fails when a field is honored on one transport and silently ignored on the other without being recorded there as intentional.
 

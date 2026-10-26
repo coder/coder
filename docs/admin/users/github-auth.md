@@ -58,7 +58,7 @@ CODER_OAUTH2_GITHUB_DEFAULT_PROVIDER_ENABLE=false
 1. GitHub will ask you for the following Coder parameters:
 
    - **Homepage URL**:
-     Set to your Coder deployment's [`CODER_ACCESS_URL`](../../reference/cli/server/index.md#--access-url) (e.g. `https://coder.domain.com`)
+     Set to your Coder deployment's [`CODER_ACCESS_URL`](../../reference/cli/server/index.md#--access-url) (for example, `https://coder.domain.com`)
    - **User Authorization Callback URL**:
      Set to `https://coder.domain.com`
 

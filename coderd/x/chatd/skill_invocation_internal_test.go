@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"slices"
 	"testing"
@@ -52,6 +53,9 @@ func TestResolveSkillInvocations(t *testing.T) {
 		skillMarkdown := func(name string) string {
 			return "---\nname: " + name + "\ndescription: Test\n---\n\nInstructions for " + name + ".\n"
 		}
+		// Every invoked stored skill is hidden from the agent: users can
+		// invoke skills the agent cannot use on its own.
+		manualOnly := sql.NullBool{Bool: false, Valid: true}
 		org := dbgen.Organization(t, db, database.Organization{})
 		owner := dbgen.User(t, db, database.User{})
 		other := dbgen.User(t, db, database.User{})
@@ -63,7 +67,7 @@ func TestResolveSkillInvocations(t *testing.T) {
 			name   string
 		}{{owner.ID, "notes"}, {other.ID, "secret"}} {
 			_, err := db.InsertUserSkill(ctx, database.InsertUserSkillParams{
-				ID: uuid.New(), UserID: skill.userID, Name: skill.name, Content: skillMarkdown(skill.name),
+				ID: uuid.New(), UserID: skill.userID, Name: skill.name, Content: skillMarkdown(skill.name), ModelInvocable: manualOnly,
 			})
 			require.NoError(t, err)
 		}
@@ -74,9 +78,13 @@ func TestResolveSkillInvocations(t *testing.T) {
 			GroupACL:       database.ChatACL{org.ID.String(): {Permissions: []policy.Action{policy.ActionRead}}},
 			UserACL:        database.ChatACL{},
 		})
+		_, err := db.UpdateOrganizationSkillByOrganizationIDAndName(ctx, database.UpdateOrganizationSkillByOrganizationIDAndNameParams{
+			ModelInvocable: manualOnly, OrganizationID: org.ID, Name: "team-review",
+		})
+		require.NoError(t, err)
 		project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
-		_, err := db.InsertProjectSkill(ctx, database.InsertProjectSkillParams{
-			ID: uuid.New(), ProjectID: project.ID, Name: "triage", Content: skillMarkdown("triage"),
+		_, err = db.InsertProjectSkill(ctx, database.InsertProjectSkillParams{
+			ID: uuid.New(), ProjectID: project.ID, Name: "triage", Content: skillMarkdown("triage"), ModelInvocable: manualOnly,
 		})
 		require.NoError(t, err)
 

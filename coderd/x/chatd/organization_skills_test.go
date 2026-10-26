@@ -122,19 +122,33 @@ func TestOrganizationSkillsFollowChatOwnerAccess(t *testing.T) {
 		GroupACL:       everyone,
 		UserACL:        database.ChatACL{},
 	})
+	dbgen.OrganizationSkill(t, db, database.Skill{
+		OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
+		Name:           "org-manual",
+		Description:    "Manual org process",
+		GroupACL:       everyone,
+		UserACL:        database.ChatACL{},
+	})
 	_, err := db.UpdateOrganizationSkillByOrganizationIDAndName(ctx, database.UpdateOrganizationSkillByOrganizationIDAndNameParams{
 		Enabled:        sql.NullBool{Bool: false, Valid: true},
 		OrganizationID: org.ID,
 		Name:           "org-disabled",
 	})
 	require.NoError(t, err)
-	for _, name := range []string{"personal-on", "personal-off"} {
+	_, err = db.UpdateOrganizationSkillByOrganizationIDAndName(ctx, database.UpdateOrganizationSkillByOrganizationIDAndNameParams{
+		ModelInvocable: sql.NullBool{Bool: false, Valid: true},
+		OrganizationID: org.ID,
+		Name:           "org-manual",
+	})
+	require.NoError(t, err)
+	for _, name := range []string{"personal-on", "personal-off", "personal-manual"} {
 		_, err := db.InsertUserSkill(ctx, database.InsertUserSkillParams{
-			ID:          uuid.New(),
-			UserID:      member.ID,
-			Name:        name,
-			Description: "Personal process " + name,
-			Content:     "---\nname: " + name + "\ndescription: Personal process " + name + "\n---\n\nPersonal instructions.\n",
+			ID:             uuid.New(),
+			UserID:         member.ID,
+			Name:           name,
+			Description:    "Personal process " + name,
+			Content:        "---\nname: " + name + "\ndescription: Personal process " + name + "\n---\n\nPersonal instructions.\n",
+			ModelInvocable: sql.NullBool{Bool: name != "personal-manual", Valid: true},
 		})
 		require.NoError(t, err)
 	}
@@ -189,18 +203,24 @@ func TestOrganizationSkillsFollowChatOwnerAccess(t *testing.T) {
 	}
 
 	// A team member sees enabled personal and org skills, including the
-	// team-only one, and can read it. Disabled skills are not offered.
-	memberChatID, calls := runTurn(t, member.ID, uuid.Nil, readSkillsDirective+"team-review,org-disabled,personal-off")
+	// team-only one, and can read it. Disabled skills and skills that are
+	// not model-invocable are not offered.
+	memberChatID, calls := runTurn(t, member.ID, uuid.Nil, readSkillsDirective+"team-review,org-disabled,personal-off,org-manual,personal-manual")
 	require.Len(t, calls, 2)
 	require.Contains(t, calls[0].system, "- team-review: Team review process\n")
 	require.Contains(t, calls[0].system, "- org-wide: Org-wide process\n")
 	require.Contains(t, calls[0].system, "- personal-on: Personal process personal-on\n")
-	require.NotContains(t, calls[0].system, "org-disabled")
-	require.NotContains(t, calls[0].system, "personal-off")
-	require.Len(t, calls[1].toolResults, 3)
+	for _, hidden := range []string{"org-disabled", "personal-off", "org-manual", "personal-manual"} {
+		require.NotContains(t, calls[0].system, hidden)
+	}
+	require.Len(t, calls[1].toolResults, 5)
 	require.Contains(t, calls[1].toolResults[0], "Team review instructions.")
-	require.Equal(t, `skill "org-disabled" not found`, calls[1].toolResults[1])
-	require.Equal(t, `skill "personal-off" not found`, calls[1].toolResults[2])
+	require.Equal(t, []string{
+		`skill "org-disabled" not found`,
+		`skill "personal-off" not found`,
+		`skill "org-manual" not found`,
+		`skill "personal-manual" not found`,
+	}, calls[1].toolResults[1:])
 
 	// An org member outside the team, with no personal or workspace skills,
 	// gets read_skill for the org-wide skill only.

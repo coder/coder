@@ -11,6 +11,7 @@ import {
 	parseSkillTrigger,
 	SKILL_MAX_SIZE_BYTES,
 	tryParseSkillMarkdown,
+	withDisabledModelInvocation,
 } from "./skills";
 
 const now = "2026-05-08T00:00:00Z";
@@ -24,6 +25,8 @@ const skill = (
 	name,
 	description,
 	enabled: true,
+	action: false,
+	model_invocable: true,
 	created_at: now,
 	updated_at: now,
 });
@@ -350,5 +353,24 @@ describe("getSkillContentSizeBytes", () => {
 
 	it("exposes the backend size limit", () => {
 		expect(SKILL_MAX_SIZE_BYTES).toBe(65_536);
+	});
+});
+
+describe("withDisabledModelInvocation", () => {
+	it.each([
+		["LF", "---\nname: triage\n---\nTriage issues.\n"],
+		["CRLF", "---\r\nname: triage\r\n---\r\nTriage issues.\r\n"],
+	])(
+		"marks %s frontmatter so re-importing keeps the skill manual",
+		(_, content) => {
+			expect(
+				parseSkillMarkdown(withDisabledModelInvocation(content)).modelInvocable,
+			).toBe(false);
+		},
+	);
+
+	it("leaves content unmarked when the marker would pass the size limit", () => {
+		const content = `---\nname: big\n---\n${"a".repeat(SKILL_MAX_SIZE_BYTES - 20)}`;
+		expect(withDisabledModelInvocation(content)).toBe(content);
 	});
 });

@@ -42,7 +42,7 @@ Some of the modules we publish are,
 5. [`jfrog-oauth`](https://registry.coder.com/modules/coder/jfrog-oauth) and [`jfrog-token`](https://registry.coder.com/modules/coder/jfrog-token)
 6. [`vault-github`](https://registry.coder.com/modules/coder/vault-github)
 
-For a full list of available modules please check [Coder module registry](https://registry.coder.com/modules).
+For a full list of available modules, check [Coder module registry](https://registry.coder.com/modules).
 
 ## Module caching
 

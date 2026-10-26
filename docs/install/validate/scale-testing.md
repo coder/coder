@@ -184,4 +184,4 @@ Another option is to scale based on metrics such as the number of workspaces or 
 It's important to note that as new users onboard, the autoscaling configuration should account for ongoing workspaces.
 
 Scaling down workspace nodes to zero is not recommended, as it will result in longer wait times for workspace provisioning by users.
-However, this may be necessary for workspaces with special resource requirements (e.g. GPUs) that incur significant cost overheads.
+However, this may be necessary for workspaces with special resource requirements (for example, GPUs) that incur significant cost overheads.
