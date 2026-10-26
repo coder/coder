@@ -56,6 +56,11 @@ const (
 // attachments.
 const MaxChatFileSizeBytes = 10 * 1024 * 1024
 
+// ChatStreamKeepaliveIntervalSeconds is how long the chat stream goes
+// without writing before the server writes an empty batch. The web client
+// derives its silence timeout from it.
+const ChatStreamKeepaliveIntervalSeconds = 15
+
 // Inline MCP server declaration caps. Clients can validate before sending.
 const (
 	MaxInlineMCPServers                = 5

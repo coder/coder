@@ -4049,7 +4049,8 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	// long gap between messages as a frozen connection, and the empty
 	// batches written on this ticker keep an idle stream from having such a
 	// gap.
-	keepalive := api.Clock.NewTicker(httpapi.HeartbeatInterval, "chatStream", "keepalive")
+	keepaliveInterval := codersdk.ChatStreamKeepaliveIntervalSeconds * time.Second
+	keepalive := api.Clock.NewTicker(keepaliveInterval, "chatStream", "keepalive")
 	defer keepalive.Stop()
 
 	for {
@@ -4073,7 +4074,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 				logger.Debug(ctx, "failed to send chat stream event", slog.Error(err))
 				return
 			}
-			keepalive.Reset(httpapi.HeartbeatInterval, "chatStream", "keepalive")
+			keepalive.Reset(keepaliveInterval, "chatStream", "keepalive")
 			if streamClosed {
 				return
 			}
