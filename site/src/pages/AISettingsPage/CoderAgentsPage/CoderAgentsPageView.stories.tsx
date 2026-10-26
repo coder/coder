@@ -400,4 +400,14 @@ export const VirtualDesktopSaveError: Story = {
 		},
 		computerUseProviderSaveError: new Error("Failed to save"),
 	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("combobox", {
+				name: "Computer use provider",
+			}),
+		);
+		await userEvent.click(
+			await screen.findByRole("option", { name: /Team OpenAI/ }),
+		);
+	},
 };

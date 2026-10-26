@@ -44,7 +44,7 @@ type ComputerUseAIProvider = {
 	type: TypesGen.ChatComputerUseProvider;
 };
 
-const getComputerUseAIProviders = (
+const getEligibleComputerUseProviders = (
 	providers: readonly TypesGen.AIProvider[],
 ): ComputerUseAIProvider[] =>
 	providers.flatMap((provider) => {
@@ -130,7 +130,11 @@ type ComputerUseProviderOptionLabelProps = {
 const ComputerUseProviderOptionLabel: React.FC<
 	ComputerUseProviderOptionLabelProps
 > = ({ provider }) => {
-	if (provider.displayName.toLowerCase() === provider.typeLabel.toLowerCase()) {
+	if (
+		provider.displayName
+			.toLowerCase()
+			.includes(provider.typeLabel.toLowerCase())
+	) {
 		return provider.displayName;
 	}
 	return (
@@ -155,7 +159,7 @@ export const VirtualDesktopSettings: React.FC<VirtualDesktopSettingsProps> = ({
 }) => {
 	const { isSavedVisible, showSavedState } = useTemporarySavedState();
 	const hintId = useId();
-	const eligibleProviders = getComputerUseAIProviders(aiProviders ?? []);
+	const eligibleProviders = getEligibleComputerUseProviders(aiProviders ?? []);
 
 	const form = useFormik<{ aiProviderID: string }>({
 		enableReinitialize: true,
@@ -191,6 +195,11 @@ export const VirtualDesktopSettings: React.FC<VirtualDesktopSettingsProps> = ({
 		computerUseProviderData === undefined ||
 		eligibleProviders.length === 0;
 	const canSave = form.dirty && selectedProvider !== undefined;
+	const selectValueContent = isLoading ? (
+		<Skeleton className="h-4 w-20" aria-hidden="true" />
+	) : (
+		(selectedProvider?.displayName ?? "Select provider")
+	);
 	const hintKind =
 		computerUseProviderData && aiProviders
 			? getComputerUseProviderHintKind(
@@ -244,20 +253,8 @@ export const VirtualDesktopSettings: React.FC<VirtualDesktopSettingsProps> = ({
 						aria-describedby={hintKind ? hintId : undefined}
 						className="h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm shadow-none"
 					>
-						<SelectValue
-							placeholder={
-								isLoading ? (
-									<Skeleton className="h-4 w-20" aria-hidden="true" />
-								) : (
-									"Select provider"
-								)
-							}
-						>
-							{isLoading ? (
-								<Skeleton className="h-4 w-20" aria-hidden="true" />
-							) : (
-								(selectedProvider?.displayName ?? "Select provider")
-							)}
+						<SelectValue placeholder={selectValueContent}>
+							{selectValueContent}
 						</SelectValue>
 					</SelectTrigger>
 					<SelectContent align="end" className="min-w-44">
