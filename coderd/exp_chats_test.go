@@ -48,9 +48,11 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/jwtutils"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -171,13 +173,16 @@ func insertTestChatQueuedMessageWithReasoningEffort(
 ) database.ChatQueuedMessage {
 	t.Helper()
 
-	queued, err := db.InsertChatQueuedMessage(
+	chat, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chatID)
+	require.NoError(t, err)
+	queued, err := db.InsertChatQueuedMessageWithCreator(
 		dbauthz.AsSystemRestricted(ctx),
-		database.InsertChatQueuedMessageParams{
+		database.InsertChatQueuedMessageWithCreatorParams{
 			ChatID:          chatID,
 			Content:         content,
 			ModelConfigID:   uuid.NullUUID{UUID: modelConfigID, Valid: modelConfigID != uuid.Nil},
 			ReasoningEffort: database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffort(reasoningEffort), Valid: reasoningEffort != ""},
+			CreatedBy:       chat.OwnerID,
 		},
 	)
 	require.NoError(t, err)
@@ -6112,7 +6117,10 @@ func TestGetChatUserPrompts(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, msgs, 1)
 		if deleted {
-			require.NoError(t, db.SoftDeleteChatMessageByID(dbauthz.AsSystemRestricted(ctx), msgs[0].ID))
+			require.NoError(t, db.SoftDeleteChatMessagesAfterID(dbauthz.AsSystemRestricted(ctx), database.SoftDeleteChatMessagesAfterIDParams{
+				ChatID:  chatID,
+				AfterID: msgs[0].ID - 1,
+			}))
 		}
 		return database.ChatMessage(msgs[0])
 	}
@@ -10922,18 +10930,20 @@ func TestStreamChat(t *testing.T) {
 		t.Parallel()
 
 		for _, tt := range []struct {
-			name string
-			err  error
-			want int
+			name          string
+			failRead      bool
+			failSubscribe bool
 		}{
-			{name: "ReadFails", err: xerrors.New("read failed"), want: http.StatusInternalServerError},
+			{name: "ReadFails", failRead: true},
+			{name: "SubscribeFails", failSubscribe: true},
 		} {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 
 				ctx := testutil.Context(t, testutil.WaitLong)
-				rawDB, ps := dbtestutil.NewDB(t)
+				rawDB, rawPS := dbtestutil.NewDB(t)
 				store := &chatStreamReadFailStore{Store: rawDB, fail: &atomic.Pointer[chatStreamReadFailure]{}}
+				ps := &chatStreamSubscribeFailPubsub{Pubsub: rawPS}
 				client := newChatClient(t, withChatWorkerDisabled, func(opts *coderdtest.Options) {
 					opts.Database = store
 					opts.Pubsub = ps
@@ -10947,7 +10957,13 @@ func TestStreamChat(t *testing.T) {
 					Title:             "stream setup failure",
 					Status:            database.ChatStatusWaiting,
 				})
-				store.fail.Store(&chatStreamReadFailure{chatID: chat.ID, err: tt.err})
+				if tt.failRead {
+					store.fail.Store(&chatStreamReadFailure{chatID: chat.ID, err: xerrors.New("read failed")})
+				}
+				if tt.failSubscribe {
+					channel := coderdpubsub.ChatStateUpdateChannel(chat.ID)
+					ps.failEvent.Store(&channel)
+				}
 
 				u, err := client.URL.Parse(fmt.Sprintf("/api/v2/chats/%s/stream", chat.ID))
 				require.NoError(t, err)
@@ -10962,7 +10978,7 @@ func TestStreamChat(t *testing.T) {
 				if res.Body != nil {
 					_ = res.Body.Close()
 				}
-				require.Equal(t, tt.want, res.StatusCode)
+				require.Equal(t, http.StatusInternalServerError, res.StatusCode)
 			})
 		}
 	})
@@ -14925,15 +14941,15 @@ func waitForChatStatus(ctx context.Context, t testing.TB, client *codersdk.Exper
 // chatTab models the state a web client tab keeps for one chat: the IDs
 // of the messages it holds and its snapshot version.
 type chatTab struct {
-	ids     map[int64]bool
-	version int64
+	ids             map[int64]bool
+	snapshotVersion int64
 	// withoutSnapshotVersion opens the stream without snapshot_version, as
 	// clients that predate it do.
 	withoutSnapshotVersion bool
 }
 
 func newChatTab(page codersdk.ChatMessagesResponse) *chatTab {
-	tab := &chatTab{ids: map[int64]bool{}, version: page.SnapshotVersion}
+	tab := &chatTab{ids: map[int64]bool{}, snapshotVersion: page.SnapshotVersion}
 	tab.hold(page.Messages...)
 	return tab
 }
@@ -14956,7 +14972,7 @@ func (tab *chatTab) connect(ctx context.Context, t *testing.T, client *codersdk.
 	afterID := slices.Max(append(tab.sortedIDs(), 0))
 	opts := &codersdk.StreamChatOptions{AfterID: &afterID}
 	if !tab.withoutSnapshotVersion {
-		opts.SnapshotVersion = tab.version
+		opts.SnapshotVersion = tab.snapshotVersion
 	}
 	events, closer, err := client.StreamChat(ctx, chatID, opts)
 	require.NoError(t, err)
@@ -14967,8 +14983,8 @@ func (tab *chatTab) connect(ctx context.Context, t *testing.T, client *codersdk.
 	return applied, events
 }
 
-// applyUntil applies stream events to the tab until done reports true
-// after an event.
+// applyUntil fails the test if the stream closes or ctx expires before done
+// returns true.
 func (tab *chatTab) applyUntil(ctx context.Context, t *testing.T, events <-chan codersdk.ChatStreamEvent, done func(codersdk.ChatStreamEvent) bool) []codersdk.ChatStreamEvent {
 	t.Helper()
 	var applied []codersdk.ChatStreamEvent
@@ -14977,7 +14993,7 @@ func (tab *chatTab) applyUntil(ctx context.Context, t *testing.T, events <-chan 
 		for _, event := range applied {
 			types = append(types, event.Type)
 		}
-		return fmt.Sprintf("applied %v, snapshot version %d", types, tab.version)
+		return fmt.Sprintf("applied %v, snapshot version %d", types, tab.snapshotVersion)
 	}
 	for {
 		select {
@@ -14988,7 +15004,7 @@ func (tab *chatTab) applyUntil(ctx context.Context, t *testing.T, events <-chan 
 				require.FailNow(t, "stream closed early", progress())
 			}
 			applied = append(applied, event)
-			tab.version = max(tab.version, event.SnapshotVersion)
+			tab.snapshotVersion = max(tab.snapshotVersion, event.SnapshotVersion)
 			switch event.Type {
 			case codersdk.ChatStreamEventTypeHistoryReset:
 				var fromID int64
@@ -15065,6 +15081,20 @@ func (s *chatStreamReadFailTx) GetChatByID(ctx context.Context, id uuid.UUID) (d
 		return database.Chat{}, failure.err
 	}
 	return s.Store.GetChatByID(ctx, id)
+}
+
+// chatStreamSubscribeFailPubsub fails subscriptions to failEvent only, so
+// coderd's other subscriptions keep working.
+type chatStreamSubscribeFailPubsub struct {
+	dbpubsub.Pubsub
+	failEvent atomic.Pointer[string]
+}
+
+func (p *chatStreamSubscribeFailPubsub) SubscribeWithErr(event string, listener dbpubsub.ListenerWithErr) (func(), error) {
+	if failEvent := p.failEvent.Load(); failEvent != nil && *failEvent == event {
+		return nil, xerrors.New("subscribe failed")
+	}
+	return p.Pubsub.SubscribeWithErr(event, listener)
 }
 
 func createChatModelWithBaseURL(t testing.TB, client *codersdk.ExperimentalClient, baseURL string) codersdk.ChatModel {
@@ -19568,11 +19598,14 @@ func TestGetChatMessages_TurnStartID(t *testing.T) {
 	_ = insert(roleUser, modelOnly)
 	afterModelOnly := insert(roleAssistant, both)
 	deletedPrompt := insert(roleUser, both)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	require.NoError(t, db.SoftDeleteChatMessagesAfterID(dbauthz.AsSystemRestricted(ctx), database.SoftDeleteChatMessagesAfterIDParams{
+		ChatID:  chat.ID,
+		AfterID: deletedPrompt - 1,
+	}))
 	afterDeletedPrompt := insert(roleAssistant, both)
 	lastPrompt := insert(roleUser, both)
 	lastStep := insert(roleAssistant, both)
-	ctx := testutil.Context(t, testutil.WaitLong)
-	require.NoError(t, db.SoftDeleteChatMessageByID(dbauthz.AsSystemRestricted(ctx), deletedPrompt))
 
 	tests := []struct {
 		name string

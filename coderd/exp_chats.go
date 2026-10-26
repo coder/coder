@@ -3947,7 +3947,7 @@ func (api *API) clearChatReadCursor(ctx context.Context, chatID uuid.UUID) error
 // @Description
 // @Description Each WebSocket message is a JSON array of events.
 // @Description
-// @Description The server increases a chat's `snapshot_version` by 1 each time it commits a change to the chat.
+// @Description The server increases a chat's `snapshot_version` by 1 each time it commits a change to the chat's messages, queue, or status.
 // @Description Each change has the `snapshot_version` of the commit that made it.
 // @Description Only the newest messages page, which `GET /api/v2/chats/{chat}/messages` returns when you set neither `before_id` nor `after_id`, includes the chat's `snapshot_version`.
 // @Description The server reads `snapshot_version` before the messages and the queue, so a change that it commits between those reads is in the page, and the stream sends that change again.
@@ -4016,12 +4016,12 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	// A chat's snapshot version never decreases, so a cursor above it was
-	// never issued for this chat.
+	// A chat's snapshot version decreases only when the database is restored,
+	// so a cursor above it is from before a restore or was never issued.
 	if snapshotVersion > chat.SnapshotVersion {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid snapshot_version parameter.",
-			Detail:  fmt.Sprintf("snapshot_version %d is above the chat's snapshot version %d.", snapshotVersion, chat.SnapshotVersion),
+			Detail:  fmt.Sprintf("snapshot_version %d is above the chat's snapshot version %d. Request the chat's newest messages page again and open the stream with its snapshot_version.", snapshotVersion, chat.SnapshotVersion),
 		})
 		return
 	}
@@ -4031,7 +4031,8 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	snapshot, events, cancelSub, ok := api.chatDaemon.SubscribeAuthorized(ctx, chat, r.Header, afterMessageID, snapshotVersion)
 	if !ok {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Chat streaming is not available.",
+			Message: "Failed to open the chat stream.",
+			Detail:  "Retry the request, or check the coderd logs for this chat.",
 		})
 		return
 	}

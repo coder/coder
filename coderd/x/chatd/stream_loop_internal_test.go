@@ -831,15 +831,17 @@ func TestStreamLoopTombstoneResets(t *testing.T) {
 	})
 }
 
-// streamStore is the chat state a stream loop reads in one sync.
-type streamStore struct {
+// streamDBContents is the database that syncAgainst serves to the loop's
+// queries. rows holds every row of the chat, and each query filters them.
+type streamDBContents struct {
 	chat  database.Chat
 	rows  []database.ChatMessage
 	queue []database.ChatQueuedMessage
 }
 
-// syncAgainst runs one syncDB of loop against a mock store holding s.
-func syncAgainst(t *testing.T, loop *streamLoop, s streamStore) []codersdk.ChatStreamEvent {
+// syncAgainst runs one syncDB of loop against s, and fails the test when the
+// sync reports no change.
+func syncAgainst(t *testing.T, loop *streamLoop, s streamDBContents) []codersdk.ChatStreamEvent {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	ctrl := gomock.NewController(t)
@@ -890,9 +892,8 @@ func syncAgainst(t *testing.T, loop *streamLoop, s streamStore) []codersdk.ChatS
 	return events
 }
 
-// streamEvent is the part of a stream event the snapshot version tests
-// check. id is the message ID of a message event and the from_message_id
-// of a history_reset.
+// id is the message ID of a message event and the from_message_id of a
+// history_reset.
 type streamEvent struct {
 	typ             codersdk.ChatStreamEventType
 	id              int64
@@ -914,8 +915,6 @@ func summarizeStreamEvents(events []codersdk.ChatStreamEvent) []streamEvent {
 	return summary
 }
 
-// applyStreamEvents returns the message IDs a client holding held has
-// after it applies events.
 func applyStreamEvents(held []int64, events []codersdk.ChatStreamEvent) []int64 {
 	ids := slices.Clone(held)
 	for _, event := range events {
@@ -951,7 +950,7 @@ func TestStreamLoopSnapshotVersion(t *testing.T) {
 		}
 		return streamMessage(t, chatID, id, revision, role, "text", deleted)
 	}
-	store := streamStore{
+	store := streamDBContents{
 		chat: database.Chat{
 			ID:              chatID,
 			Status:          database.ChatStatusWaiting,
@@ -977,8 +976,10 @@ func TestStreamLoopSnapshotVersion(t *testing.T) {
 		want []streamEvent
 	}{
 		{
+			// afterID names a live message above the cursor, so the row fails if
+			// the loop stops ignoring after_id.
 			name:    "resume across two edits",
-			afterID: 4, snapshotVersion: 4,
+			afterID: 7, snapshotVersion: 4,
 			held: []int64{1, 2, 3, 4},
 			want: []streamEvent{
 				{codersdk.ChatStreamEventTypeHistoryReset, 3, 5},
@@ -1057,7 +1058,7 @@ func TestStreamLoopSnapshotVersionOrder(t *testing.T) {
 
 	chatID := uuid.New()
 	prompt := streamMessage(t, chatID, 1, 1, database.ChatMessageRoleUser, "prompt", false)
-	store := streamStore{
+	store := streamDBContents{
 		chat: database.Chat{ID: chatID, Status: database.ChatStatusRunning, SnapshotVersion: 1, HistoryVersion: 1},
 		rows: []database.ChatMessage{prompt},
 	}
