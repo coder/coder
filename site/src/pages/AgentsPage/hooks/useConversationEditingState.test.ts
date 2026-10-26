@@ -288,6 +288,30 @@ describe("useConversationEditingState", () => {
 		unmount();
 	});
 
+	it("edits an async answer without its prefix line and sends it back with the line", async () => {
+		const { result, onSend, unmount } = renderEditing();
+
+		act(() => {
+			result.current.handleEditUserMessage(
+				7,
+				"Answer to ask_user_question call question:\nBackend",
+			);
+		});
+		expect(result.current.editorInitialValue).toBe("Backend");
+
+		await act(async () => {
+			await result.current.handleSendFromInput({ message: "Frontend" });
+		});
+
+		expect(onSend).toHaveBeenCalledWith({
+			message: "Answer to ask_user_question call question:\nFrontend",
+			attachments: undefined,
+			workspaceUploads: undefined,
+			editedMessageID: 7,
+		});
+		unmount();
+	});
+
 	it("forwards pending attachments through history-edit send", async () => {
 		const { result, onSend, unmount } = renderEditing();
 		const attachments: PendingAttachment[] = [

@@ -9691,12 +9691,13 @@ type mockWebpushDispatcher struct {
 }
 
 func (m *mockWebpushDispatcher) Dispatch(_ context.Context, userID uuid.UUID, msg codersdk.WebpushMessage) error {
-	m.dispatchCount.Add(1)
 	m.mu.Lock()
 	m.messages = append(m.messages, msg)
 	m.lastMessage = msg
 	m.lastUserID = userID
 	m.mu.Unlock()
+	// Count after recording so a waiter that sees the count also sees the message.
+	m.dispatchCount.Add(1)
 	return nil
 }
 

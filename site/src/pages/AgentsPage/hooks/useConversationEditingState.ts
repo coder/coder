@@ -2,6 +2,10 @@ import { useLayoutEffect, useRef, useState } from "react";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import { isMobileViewport } from "#/utils/mobile";
 import type { ChatMessageInputRef } from "../components/AgentChatInput";
+import {
+	getAsyncAnswerPrefix,
+	parseAsyncAnswer,
+} from "../components/ChatElements/tools/asyncAnswer";
 import type { SendChatMessageOptions } from "../components/ChatPageContent";
 import {
 	draftInputStorageKeyPrefix,
@@ -59,6 +63,9 @@ export function useConversationEditingState(deps: {
 	const [editingFileBlocks, setEditingFileBlocks] = useState<
 		readonly ChatMessagePart[]
 	>([]);
+	// The composer shows an async answer without its prefix line, so the
+	// edit puts the line back to keep the answer tied to its question.
+	const [editingAnswerPrefix, setEditingAnswerPrefix] = useState("");
 
 	const handleEditUserMessage = (
 		messageId: number,
@@ -78,14 +85,19 @@ export function useConversationEditingState(deps: {
 				editorState: currentEditorState,
 			});
 		}
+		const asyncAnswer = parseAsyncAnswer(text);
+		const editText = asyncAnswer?.body ?? text;
+		setEditingAnswerPrefix(
+			asyncAnswer ? getAsyncAnswerPrefix(asyncAnswer.toolCallId) : "",
+		);
 		setEditingMessageId(messageId);
 		setDraftState({
-			editorInitialValue: text,
+			editorInitialValue: editText,
 			initialEditorState: editorState,
 		});
 		serializedEditorStateRef.current = editorState;
 		setRemountKey((k) => k + 1);
-		inputValueRef.current = text;
+		inputValueRef.current = editText;
 		setEditingFileBlocks(fileBlocks ?? []);
 	};
 
@@ -102,6 +114,7 @@ export function useConversationEditingState(deps: {
 		setEditingMessageId(null);
 		setDraftBeforeHistoryEdit(null);
 		setEditingFileBlocks([]);
+		setEditingAnswerPrefix("");
 	};
 
 	// Clears the composer for an in-flight history edit and
@@ -143,6 +156,7 @@ export function useConversationEditingState(deps: {
 		if (editedMessageID !== undefined) {
 			setDraftBeforeHistoryEdit(null);
 			setEditingFileBlocks([]);
+			setEditingAnswerPrefix("");
 		}
 	};
 
@@ -155,7 +169,8 @@ export function useConversationEditingState(deps: {
 		const editedMessageID =
 			editingMessageId !== null ? editingMessageId : undefined;
 		const sendPromise = onSend({
-			message,
+			message:
+				editedMessageID !== undefined ? editingAnswerPrefix + message : message,
 			attachments,
 			workspaceUploads,
 			editedMessageID,

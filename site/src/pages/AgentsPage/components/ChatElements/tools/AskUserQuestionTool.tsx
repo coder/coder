@@ -5,12 +5,11 @@ import {
 	TriangleAlertIcon,
 } from "lucide-react";
 import { useId, useState } from "react";
-import { useMutation } from "react-query";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
-import { getAsyncAnswerPrefix, getAsyncAnswerText } from "./asyncAnswer";
 import { ToolCall } from "./ToolCall";
+import { useAnswerSubmission } from "./useAnswerSubmission";
 import type { ToolStatus } from "./utils";
 
 export type AskUserQuestion = {
@@ -389,36 +388,13 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 		() => filteredQuestions.map(getDefaultAnswer),
 	);
 	const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-	const [submittedResponseText, setSubmittedResponseText] = useState<
-		string | null
-	>(null);
-	const submitAnswerMutation = useMutation({
-		mutationFn: async (answerText: string) => {
-			await onSubmitAnswer?.(
-				isAsync
-					? getAsyncAnswerPrefix(asyncToolCallId) + answerText
-					: answerText,
-			);
-		},
-		onSuccess: (_data, answerText) => {
-			setSubmittedResponseText(answerText);
-		},
+	const submission = useAnswerSubmission({
+		asyncToolCallId,
+		previousResponseText,
+		onSubmitAnswer,
 	});
 	const isRunning = status === "running";
-	const answeredResponseText = isAsync
-		? getAsyncAnswerText(previousResponseText, asyncToolCallId)
-		: previousResponseText;
-	// An async answer can leave the queue without being delivered, so the
-	// local copy only bridges the send until the queue or transcript has it.
-	if (
-		isAsync &&
-		submittedResponseText !== null &&
-		answeredResponseText !== undefined
-	) {
-		setSubmittedResponseText(null);
-	}
-	const displayedSubmittedResponseText =
-		answeredResponseText ?? submittedResponseText;
+	const displayedSubmittedResponseText = submission.responseText;
 	const hasSubmittedResponse = displayedSubmittedResponseText != null;
 	const showAnsweredState = status === "completed" && hasSubmittedResponse;
 	const showSubmittedResponse = showAnsweredState && isLatestAskUserQuestion;
@@ -438,8 +414,8 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 		status === "completed" &&
 		!isLatestAskUserQuestion &&
 		!hasSubmittedResponse;
-	const isSubmitting = submitAnswerMutation.isPending;
-	const submitError = getSubmissionErrorMessage(submitAnswerMutation.error);
+	const isSubmitting = submission.isSubmitting;
+	const submitError = getSubmissionErrorMessage(submission.error);
 	const canAdvanceToNextQuestion = isAnswerValid(currentAnswer);
 	const canSubmitAllAnswers = filteredQuestions.every((_, questionIndex) =>
 		isAnswerValid(answers[questionIndex]),
@@ -460,7 +436,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 				}));
 
 	const resetSubmitState = () => {
-		submitAnswerMutation.reset();
+		submission.reset();
 	};
 
 	const setAnswerAtIndex = (
@@ -539,7 +515,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 			finalizedAnswers,
 		);
 		resetSubmitState();
-		submitAnswerMutation.mutate(answerText);
+		submission.submit(answerText);
 	};
 
 	const handleFormSubmit = (event: React.FormEvent<HTMLFormElement>) => {

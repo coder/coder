@@ -5,7 +5,6 @@ import { getMessageText } from "./messageParsing";
 import type { MergedTool, ParsedMessageEntry } from "./types";
 
 type AskUserQuestionState = {
-	/** The newest valid question. */
 	latestToolId: string | undefined;
 	/** Set only by delivered messages, never by queued ones. */
 	isLatestAnswered: boolean;

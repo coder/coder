@@ -520,4 +520,36 @@ describe("ConversationTimeline async questions", () => {
 			"Answer to ask_user_question call question:\nBackend",
 		);
 	});
+
+	it("copies a delivered answer without its prefix line", async () => {
+		const user = userEvent.setup();
+		const writeText = vi
+			.spyOn(navigator.clipboard, "writeText")
+			.mockResolvedValue();
+		renderTimeline({
+			messages: [
+				...mockAsyncQuestionThenUnrelatedMessages.slice(0, 3),
+				{
+					...MockChatMessage,
+					id: 6,
+					role: "user",
+					created_at: workingFixtureTime(7),
+					content: [
+						{
+							type: "text",
+							text: "Answer to ask_user_question call question:\nBackend",
+						},
+					],
+				},
+			],
+		});
+
+		await user.click(
+			within(screen.getByTestId("chat-message-message:6")).getByRole("button", {
+				name: "Copy message",
+			}),
+		);
+
+		expect(writeText).toHaveBeenCalledWith("Backend");
+	});
 });
