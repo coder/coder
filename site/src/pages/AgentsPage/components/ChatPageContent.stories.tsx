@@ -335,7 +335,7 @@ export const ErrorClearsStreamingTool: Story = {
 	play: async () => {
 		errorClearsStreamStore.batch(() => {
 			errorClearsStreamStore.applyServerChatStatus("error");
-			errorClearsStreamStore.setStreamError({
+			errorClearsStreamStore.setClientError({
 				kind: "generic",
 				message: "The chat session ended unexpectedly.",
 			});
