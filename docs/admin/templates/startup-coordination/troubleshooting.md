@@ -2,8 +2,10 @@
 title: Workspace startup coordination troubleshooting
 ---
 
+For dependencies between whole startup or shutdown scripts, use [declarative script ordering](../extending-templates/script-ordering.md) instead of `coder exp sync`.
+
 > [!NOTE]
-> This feature is experimental and may change without notice in future releases.
+> The `coder exp sync` commands are experimental and might change without notice.
 
 ## Test Sync Availability
 
@@ -79,8 +81,9 @@ coder exp sync list --output json
 If the workspace startup scripts appear to 'hang', one or more of your startup scripts may be waiting for a dependency that never completes.
 
 * Inside the workspace, review `/tmp/coder-script-*.log` for more details on your script's execution.
-    > **Tip:** add `set -x` to the top of your script to enable debug mode and update/restart the workspace.
-* Review your template and verify that `coder exp sync complete <unit>` is called after the script completes e.g. with an exit trap.
+    > **Tip:**
+    > add `set -x` to the top of your script to enable debug mode and update/restart the workspace.
+* Review your template and verify that `coder exp sync complete <unit>` is called after the script completes, for example, with an exit trap.
 * List all units to identify which ones are blocked: `coder exp sync list`.
 * View the unit status using `coder exp sync status <unit>`.
 
@@ -104,5 +107,5 @@ error: declare dependency failed: cannot add dependency: adding edge for unit "b
 adding edge (bar -> foo): cycle detected
 ```
 
-To fix this, review your dependency declarations and redesign them to remove the cycle. It may help to draw out the dependency graph to find
-the cycle.
+To fix this, review your dependency declarations and redesign them to remove the cycle.
+It may help to draw out the dependency graph to find the cycle.

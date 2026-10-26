@@ -3,14 +3,14 @@ title: Zed
 ---
 
 > [!NOTE]
-> AI Gateway is part of [AI Governance](../../ai-governance.md), which is
-> included with a Premium license.
+> AI Gateway is part of [AI Governance](../../ai-governance.md), which is included with a Premium license.
 
 Zed IDE supports AI Gateway via its `language_models` configuration in `settings.json`.
 
 ## Centralized API Key
 
-To configure Zed to use AI Gateway, you need to edit your `settings.json` file. You can access this by pressing `Cmd/Ctrl + ,` or opening the command palette and searching for "Open Settings".
+To configure Zed to use AI Gateway, you need to edit your `settings.json` file.
+You can access this by pressing `Cmd/Ctrl + ,` or opening the command palette and searching for "Open Settings".
 
 You can configure both Anthropic and OpenAI providers to point to AI Gateway.
 
@@ -43,11 +43,14 @@ You can configure both Anthropic and OpenAI providers to point to AI Gateway.
 *Replace `coder.example.com` with your Coder deployment URL.*
 
 > [!NOTE]
-> These settings and environment variables need to be configured from client side. Zed currently does not support reading these settings from remote configuration. See this [feature request](https://github.com/zed-industries/zed/discussions/47058) for more details.
+> These settings and environment variables need to be configured from client side.
+> Zed currently does not support reading these settings from remote configuration.
+> See this [feature request](https://github.com/zed-industries/zed/discussions/47058) for more details.
 
 ## Authentication
 
-Zed requires an API key for these providers. For AI Gateway, this key is your **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
+Zed requires an API key for these providers.
+For AI Gateway, this key is your **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
 
 You can set this in two ways:
 
@@ -71,4 +74,5 @@ You can set this in two ways:
 > [!NOTE]
 > At the time of writing, Zed Agent does not support sending custom headers, so BYOK mode is not available.
 
-**References:** [Configuring Zed - Language Models](https://zed.dev/docs/reference/all-settings#language-models)
+**References:**
+[Configuring Zed - Language Models](https://zed.dev/docs/reference/all-settings#language-models)

@@ -30,8 +30,8 @@ func TitlePasteText(data []byte) string {
 }
 
 // TitleText derives title-generation input from message parts. Text,
-// file-reference, and workspace-file-reference parts are joined in
-// part order. When they yield nothing, the content of synthetic
+// file-reference, workspace-file-reference, and skill-invocation parts
+// are joined in part order. When they yield nothing, the content of synthetic
 // pasted-text attachments is used instead, looked up in pasteText by
 // file ID and truncated to syntheticPasteTitleBudget runes per file.
 func TitleText(parts []codersdk.ChatMessagePart, pasteText map[uuid.UUID]string) string {
@@ -54,6 +54,8 @@ func TitleText(parts []codersdk.ChatMessagePart, pasteText map[uuid.UUID]string)
 				continue
 			}
 			texts = append(texts, name)
+		case codersdk.ChatMessagePartTypeSkillInvocation:
+			texts = append(texts, "/"+SkillInvocationAlias(part))
 		}
 	}
 	if joined := strings.TrimSpace(strings.Join(texts, " ")); joined != "" {

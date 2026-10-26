@@ -472,25 +472,6 @@ func TestTools(t *testing.T) {
 		},
 	})
 
-	t.Run("ReportTask", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitShort)
-		tb, err := toolsdk.NewDeps(memberClient, toolsdk.WithTaskReporter(func(args toolsdk.ReportTaskArgs) error {
-			return agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
-				AppSlug: "some-agent-app",
-				Message: args.Summary,
-				URI:     args.Link,
-				State:   codersdk.WorkspaceAppStatusState(args.State),
-			})
-		}))
-		require.NoError(t, err)
-		_, err = testTool(t, toolsdk.ReportTask, tb, toolsdk.ReportTaskArgs{
-			Summary: "test summary",
-			State:   "complete",
-			Link:    "https://example.com",
-		})
-		require.NoError(t, err)
-	})
-
 	t.Run("GetWorkspace", func(t *testing.T) {
 		tb, err := toolsdk.NewDeps(memberClient)
 		require.NoError(t, err)
@@ -2282,60 +2263,6 @@ func TestMain(m *testing.M) {
 	}
 
 	os.Exit(code)
-}
-
-func TestReportTaskNilPointerDeref(t *testing.T) {
-	t.Parallel()
-
-	// Create deps without a task reporter (simulating remote MCP server scenario)
-	client, _ := coderdtest.NewWithDatabase(t, nil)
-	deps, err := toolsdk.NewDeps(client)
-	require.NoError(t, err)
-
-	// Prepare test arguments
-	args := toolsdk.ReportTaskArgs{
-		Summary: "Test task",
-		Link:    "https://example.com",
-		State:   string(codersdk.WorkspaceAppStatusStateWorking),
-	}
-
-	_, err = toolsdk.ReportTask.Handler(t.Context(), deps, args)
-
-	// We expect an error, not a panic
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "task reporting not available")
-}
-
-func TestReportTaskWithReporter(t *testing.T) {
-	t.Parallel()
-
-	// Create deps with a task reporter
-	client, _ := coderdtest.NewWithDatabase(t, nil)
-
-	called := false
-	reporter := func(args toolsdk.ReportTaskArgs) error {
-		called = true
-		require.Equal(t, "Test task", args.Summary)
-		require.Equal(t, "https://example.com", args.Link)
-		require.Equal(t, string(codersdk.WorkspaceAppStatusStateWorking), args.State)
-		return nil
-	}
-
-	deps, err := toolsdk.NewDeps(client, toolsdk.WithTaskReporter(reporter))
-	require.NoError(t, err)
-
-	args := toolsdk.ReportTaskArgs{
-		Summary: "Test task",
-		Link:    "https://example.com",
-		State:   string(codersdk.WorkspaceAppStatusStateWorking),
-	}
-
-	result, err := toolsdk.ReportTask.Handler(t.Context(), deps, args)
-	require.NoError(t, err)
-	require.True(t, called)
-
-	// Verify response
-	require.Equal(t, "Thanks for reporting!", result.Message)
 }
 
 func TestNormalizeWorkspaceInput(t *testing.T) {

@@ -1,5 +1,5 @@
 title: Workspace startup coordination
-description: Coordinate workspace startup scripts with dependency management so they run in the right order.
+description: Coordinate units of work within startup scripts using experimental coder exp sync commands.
 path: ./admin/templates/startup-coordination/index.md
 state: [early access]
 children:

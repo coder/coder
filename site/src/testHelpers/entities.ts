@@ -202,8 +202,8 @@ export const MockWorkspaceProxies: TypesGen.WorkspaceProxy[] = [
 	},
 ];
 
-export const MockProxyLatencies: Record<string, ProxyLatencyReport> = {
-	...MockWorkspaceProxies.reduce(
+export const MockProxyLatencies: Record<string, ProxyLatencyReport> =
+	MockWorkspaceProxies.reduce(
 		(acc, proxy) => {
 			if (!proxy.healthy) {
 				return acc;
@@ -234,8 +234,7 @@ export const MockProxyLatencies: Record<string, ProxyLatencyReport> = {
 			return acc;
 		},
 		{} as Record<string, ProxyLatencyReport>,
-	),
-};
+	);
 
 export const MockBuildInfo: TypesGen.BuildInfoResponse = {
 	agent_api_version: "1.0",
@@ -556,7 +555,29 @@ export const MockChatProject: TypesGen.ChatProject = {
 	icon: "",
 	created_at: "2026-09-01T12:00:00Z",
 	updated_at: "2026-09-02T12:00:00Z",
+	permissions: { update: true, delete: true, share: true },
 };
+
+export const MockChatProjectInstructions: TypesGen.ChatProjectInstructions = {
+	project_id: MockChatProject.id,
+	instructions:
+		"Use TypeScript for new code.\nRun the linters before committing.",
+	updated_by: {
+		id: MockUserOwner.id,
+		username: MockUserOwner.username,
+		name: MockUserOwner.name,
+		avatar_url: MockUserOwner.avatar_url,
+	},
+	updated_at: "2026-10-02T12:00:00Z",
+};
+
+export const MockUnsetChatProjectInstructions: TypesGen.ChatProjectInstructions =
+	{
+		project_id: MockChatProject.id,
+		instructions: "",
+		updated_by: null,
+		updated_at: null,
+	};
 
 export const MockUserMember: TypesGen.User = {
 	id: "test-user-2",
@@ -1350,6 +1371,22 @@ export const MockWorkspaceAgentStartError: TypesGen.WorkspaceAgent = {
 			log_source_id: "d2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
 			display_name: "running",
 		},
+		{
+			...MockWorkspaceAgentScript,
+			id: "58eaca83-1221-4fad-b882-d1136981f54d",
+			log_source_id: "e2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			exit_code: 0,
+			status: "skipped",
+			display_name: "skipped",
+		},
+		{
+			...MockWorkspaceAgentScript,
+			id: "68eaca83-1221-4fad-b882-d1136981f54d",
+			log_source_id: "f2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			exit_code: 0,
+			status: "canceled",
+			display_name: "canceled",
+		},
 	],
 	logs_length: 4,
 	log_sources: [
@@ -1375,6 +1412,16 @@ export const MockWorkspaceAgentStartError: TypesGen.WorkspaceAgent = {
 			...MockWorkspaceAgentLogSource,
 			id: "d2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
 			display_name: "running",
+		},
+		{
+			...MockWorkspaceAgentLogSource,
+			id: "e2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			display_name: "skipped",
+		},
+		{
+			...MockWorkspaceAgentLogSource,
+			id: "f2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			display_name: "canceled",
 		},
 	],
 };
@@ -3387,6 +3434,14 @@ export const MockMCPServerConfigACLAvailable: TypesGen.ACLAvailable = {
 	groups: [MockGroup, MockGroup2, MockEveryoneGroup],
 };
 
+export const MockOrganizationSkillACL: TypesGen.OrganizationSkillACL = {
+	users: [{ ...MockUserMember, role: "read" }],
+	groups: [
+		{ ...MockGroup, role: "read" },
+		{ ...MockEveryoneGroup, role: "read" },
+	],
+};
+
 export const MockTemplateACL: TypesGen.TemplateACL = {
 	group: [
 		{ ...MockEveryoneGroup, role: "use" },
@@ -3450,6 +3505,7 @@ export const MockPermissions: Permissions = {
 	editAnySettings: true,
 	viewAnyIdpSyncSettings: true,
 	viewAnyMCPServerConfigs: true,
+	viewAnyOrganizationSkills: true,
 	createAnyMCPServerConfig: true,
 	updateAnyMCPServerConfig: true,
 	deleteAnyMCPServerConfig: true,
@@ -3497,6 +3553,7 @@ export const MockNoPermissions: Permissions = {
 	editAnySettings: false,
 	viewAnyIdpSyncSettings: false,
 	viewAnyMCPServerConfigs: false,
+	viewAnyOrganizationSkills: false,
 	createAnyMCPServerConfig: false,
 	updateAnyMCPServerConfig: false,
 	deleteAnyMCPServerConfig: false,
@@ -3538,6 +3595,11 @@ export const MockOrganizationPermissions: OrganizationPermissions = {
 	updateMCPServerConfig: true,
 	deleteMCPServerConfig: true,
 	shareMCPServerConfig: true,
+	viewOrganizationSkills: true,
+	createOrganizationSkill: true,
+	updateOrganizationSkill: true,
+	deleteOrganizationSkill: true,
+	shareOrganizationSkill: true,
 	viewChatModelConfigs: true,
 	createChatModelConfigs: true,
 	editChatModelConfigs: true,
@@ -3567,6 +3629,11 @@ export const MockNoOrganizationPermissions: OrganizationPermissions = {
 	updateMCPServerConfig: false,
 	deleteMCPServerConfig: false,
 	shareMCPServerConfig: false,
+	viewOrganizationSkills: false,
+	createOrganizationSkill: false,
+	updateOrganizationSkill: false,
+	deleteOrganizationSkill: false,
+	shareOrganizationSkill: false,
 	viewChatModelConfigs: false,
 	createChatModelConfigs: false,
 	editChatModelConfigs: false,
@@ -5507,6 +5574,15 @@ export const MockAIBridgeThread: TypesGen.AIBridgeThread = {
 		cache_read_input_tokens: 900,
 		cache_write_input_tokens: 140,
 		metadata: {},
+		cost_micros: 15_325,
+		has_unpriced_usage: false,
+	},
+	priced_model: {
+		model: "claude-opus-4-6",
+		input_price: 5_000_000,
+		output_price: 25_000_000,
+		cache_read_price: 500_000,
+		cache_write_price: 6_250_000,
 	},
 	attribution: {
 		workspace_id: "workspace-1",
@@ -5524,6 +5600,8 @@ export const MockAIBridgeThread: TypesGen.AIBridgeThread = {
 				cache_read_input_tokens: 450,
 				cache_write_input_tokens: 70,
 				metadata: {},
+				cost_micros: 0,
+				has_unpriced_usage: false,
 			},
 			thinking: [],
 			tool_calls: [

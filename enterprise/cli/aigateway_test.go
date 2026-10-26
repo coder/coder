@@ -191,6 +191,42 @@ func TestAIGatewayKeys(t *testing.T) {
 		require.ErrorContains(t, err, "Invalid key name")
 	})
 
+	t.Run("CreateJSON", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Use an isolated deployment so this subtest's key does not interfere
+		// with the shared ownerClient's key list used by other subtests.
+		jsonDV := coderdtest.DeploymentValues(t)
+		jsonDV.AI.BridgeConfig.Enabled = true
+		jsonOwnerClient, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: jsonDV,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
+			},
+		})
+
+		stdout, _, err := runAIGatewayKeys(ctx, t, jsonOwnerClient, "create", "json-key", "--output=json")
+		require.NoError(t, err)
+
+		var created codersdk.CreateAIGatewayKeyResponse
+		require.NoError(t, json.Unmarshal([]byte(stdout), &created))
+		require.Equal(t, "json-key", created.Name)
+		require.NotEmpty(t, created.ID)
+		require.NotEmpty(t, created.KeyPrefix)
+		require.Len(t, created.Key, keys.KeyLength)
+
+		listed := listAIGatewayKeys(ctx, t, jsonOwnerClient)
+		require.Len(t, listed, 1)
+		require.Equal(t, created.ID, listed[0].ID)
+		require.Equal(t, created.Name, listed[0].Name)
+		require.Equal(t, created.KeyPrefix, listed[0].KeyPrefix)
+	})
+
 	t.Run("MemberForbidden", func(t *testing.T) {
 		t.Parallel()
 

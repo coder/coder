@@ -1,4 +1,6 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import { ACPToolNames } from "../ChatElements/tools/acpToolNames";
+import { mergeACPTranscriptDelta } from "../ChatElements/tools/acpTranscript";
 import { appendTextBlock } from "./blockUtils";
 import {
 	ensureToolBlock,
@@ -26,30 +28,28 @@ export const applyMessagePartToStreamState = (
 
 	switch (part.type) {
 		case "text": {
-			// Skip empty and whitespace-only deltas so they don't
-			// create a non-null StreamState with empty blocks, which
-			// would prematurely end the "starting" phase.
-			if (!part.text.trim()) {
+			const blocks = appendTextBlock(
+				nextState.blocks,
+				"response",
+				part.text,
+				part.narration,
+			);
+			// Keeps a leading whitespace-only delta from creating a non-null
+			// state with no blocks, which would end the "starting" phase early.
+			if (blocks === nextState.blocks) {
 				return prev;
 			}
-			return {
-				...nextState,
-				blocks: appendTextBlock(
-					nextState.blocks,
-					"response",
-					part.text,
-					part.narration,
-				),
-			};
+			return { ...nextState, blocks };
 		}
 		case "reasoning": {
-			if (!part.text.trim()) {
+			const blocks = appendTextBlock(nextState.blocks, "thinking", part.text);
+			if (blocks === nextState.blocks) {
 				return prev;
 			}
 			return {
 				...nextState,
 				startedAt: nextState.startedAt ?? part.created_at,
-				blocks: appendTextBlock(nextState.blocks, "thinking", part.text),
+				blocks,
 			};
 		}
 		case "tool-call": {
@@ -148,18 +148,31 @@ export const applyMessagePartToStreamState = (
 				};
 			}
 
-			const nextResult = mergeStreamPayload(
-				existing?.result,
-				existing?.resultRaw,
-				part.result,
-				part.result_delta,
-			);
+			const nextToolName =
+				part.tool_name ||
+				existing?.name ||
+				nextState.toolCalls[toolCallID]?.name ||
+				"Tool";
+			const nextResult =
+				nextToolName === ACPToolNames.WaitAgent &&
+				!isFinalResult &&
+				typeof part.result_delta === "string"
+					? mergeACPTranscriptDelta(
+							existing?.result,
+							existing?.resultRaw,
+							part.result_delta,
+						)
+					: mergeStreamPayload(
+							existing?.result,
+							existing?.resultRaw,
+							part.result,
+							part.result_delta,
+						);
 			// Reasoning is transient, so the final result drops it.
 			const nextReasoning = isFinalResult
 				? undefined
 				: `${existing?.reasoning ?? ""}${part.reasoning_delta ?? ""}` ||
 					undefined;
-			const nextToolName = part.tool_name || existing?.name || "Tool";
 			const isStreaming = !isFinalResult && (existing?.isStreaming || hasDelta);
 			const nextIsError =
 				existing?.isError ||
@@ -243,6 +256,9 @@ export const applyMessagePartToStreamState = (
 		// workspace-file-reference parts only appear in persisted
 		// user messages, never via SSE streaming.
 		case "workspace-file-reference":
+		// skill-invocation parts only appear in persisted user
+		// messages, never via SSE streaming.
+		case "skill-invocation":
 			return prev;
 		default: {
 			const _exhaustive: never = part;

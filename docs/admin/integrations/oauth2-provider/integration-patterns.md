@@ -13,7 +13,8 @@ This page covers how a client proves who it is and completes a login: the suppor
 
 Coder supports the following OAuth2 client authentication methods at the token endpoint (`/oauth2/tokens`):
 
-- `client_secret_basic` (recommended): HTTP Basic authentication (RFC 6749 §2.3.1). The username is `client_id` and the password is `client_secret`.
+- `client_secret_basic` (recommended): HTTP Basic authentication (RFC 6749 §2.3.1).
+  The username is `client_id` and the password is `client_secret`.
 - `client_secret_post`: Form-based authentication where `client_id` and `client_secret` are sent in the request body.
 - `none`: No client secret.
   The client is a public client and authenticates with PKCE alone (RFC 7591 §2, OAuth 2.1 §2.1).
@@ -25,11 +26,14 @@ Send `client_secret` in the request body or in the `Authorization` header.
 `POST /oauth2/tokens` and `POST /oauth2/revoke` reject a `client_secret` value in the URL query string with `invalid_request`, because OAuth 2.1 section 2.4.1 does not allow it there.
 Refer to ["invalid_request" for `client_secret` in the query string](./troubleshooting.md#invalid_request-for-client_secret-in-the-query-string) for the exceptions and the log line to search for.
 
-Public clients suit native, mobile, and CLI applications that cannot keep a secret confidential. Note the redirect URI restrictions below before choosing one.
+Public clients suit native, mobile, and CLI applications that cannot keep a secret confidential.
+Note the redirect URI restrictions below before choosing one.
 
 Opening a public client on the **OAuth2 Applications** page shows no client secrets section, since a public client has no secret to display or generate.
 
-If you use Dynamic Client Registration (RFC 7591) and omit `token_endpoint_auth_method`, clients default to `client_secret_basic`. To request `client_secret_post`, set `token_endpoint_auth_method` to `client_secret_post` in the registration request. To register a public client, set it to `none`: Coder issues no `client_secret`, and the registration response omits that field entirely.
+If you use Dynamic Client Registration (RFC 7591) and omit `token_endpoint_auth_method`, clients default to `client_secret_basic`.
+To request `client_secret_post`, set `token_endpoint_auth_method` to `client_secret_post` in the registration request.
+To register a public client, set it to `none`: Coder issues no `client_secret`, and the registration response omits that field entirely.
 
 > [!IMPORTANT]
 > Which redirect URI schemes and hosts a client may register, including the loopback host and port rules for public and confidential clients, is a separate restriction from client authentication.
@@ -120,9 +124,12 @@ Coder enforces PKCE in compliance with the OAuth 2.1 specification, for both pub
 
 Coder provides OAuth2 discovery endpoints for programmatic integration:
 
-- **Authorization Server Metadata**: `GET /.well-known/oauth-authorization-server`
-- **REST API protected resource metadata**: `GET /.well-known/oauth-protected-resource`
-- **MCP protected resource metadata**: `GET /.well-known/oauth-protected-resource/api/experimental/mcp/http`
+- **Authorization Server Metadata**:
+  `GET /.well-known/oauth-authorization-server`
+- **REST API protected resource metadata**:
+  `GET /.well-known/oauth-protected-resource`
+- **MCP protected resource metadata**:
+  `GET /.well-known/oauth-protected-resource/api/experimental/mcp/http`
 
 These endpoints return server capabilities and endpoint URLs according to [RFC 8414](https://datatracker.ietf.org/doc/html/rfc8414) and [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728).
 The REST API metadata identifies the deployment URL as its `resource`, while the MCP metadata identifies the full MCP endpoint URL.
