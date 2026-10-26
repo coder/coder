@@ -412,3 +412,30 @@ export const ErrorState: Story = {
 		result: "The planning agent could not deliver follow-up questions.",
 	},
 };
+
+const asyncSingleQuestionPayload = { ...singleQuestionPayload, async: true };
+
+// Async questions stay answerable while the agent keeps working.
+export const AsyncInteractiveWhileRunning: Story = {
+	args: {
+		toolCallId: "call-async",
+		status: "completed",
+		result: JSON.stringify(asyncSingleQuestionPayload),
+		isChatCompleted: false,
+		isLatestAskUserQuestion: true,
+		onSendAskUserQuestionResponse: fn(),
+	},
+};
+
+// A later question or message closes an unanswered async question.
+export const AsyncClosed: Story = {
+	args: {
+		toolCallId: "call-async",
+		status: "completed",
+		result: JSON.stringify(asyncSingleQuestionPayload),
+		isChatCompleted: false,
+		isLatestAskUserQuestion: false,
+		previousResponseText: "Use the other approach instead.",
+		onSendAskUserQuestionResponse: fn(),
+	},
+};

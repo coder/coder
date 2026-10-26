@@ -1,8 +1,11 @@
 package chattool
 
 import (
+	"context"
+	"encoding/json"
 	"testing"
 
+	"charm.land/fantasy"
 	"github.com/stretchr/testify/require"
 )
 
@@ -138,4 +141,60 @@ func validAskUserQuestionOptions(count int) []askUserQuestionOption {
 	}
 
 	return append([]askUserQuestionOption(nil), options[:count]...)
+}
+
+func TestAskUserQuestionToolRun(t *testing.T) {
+	t.Parallel()
+
+	validInput := `{"questions":[{"header":"Scope","question":"What should we build?","options":[` +
+		`{"label":"Backend","description":"Build the API first."},` +
+		`{"label":"Frontend","description":"Build the UI first."}]}]}`
+
+	tests := []struct {
+		name      string
+		async     bool
+		input     string
+		wantAsked []string
+		wantError bool
+	}{
+		{name: "Blocking", input: validInput, wantAsked: []string{"What should we build?"}},
+		{name: "Async", async: true, input: validInput, wantAsked: []string{"What should we build?"}},
+		{name: "AsyncInvalid", async: true, input: `{"questions":[]}`, wantError: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var asked []string
+			tool := NewAskUserQuestionTool(AskUserQuestionOptions{
+				Async: tt.async,
+				OnAsked: func(_ context.Context, question string) {
+					asked = append(asked, question)
+				},
+			})
+			response, err := tool.Run(t.Context(), fantasy.ToolCall{
+				ID:    "call-123",
+				Name:  askUserQuestionToolName,
+				Input: tt.input,
+			})
+			require.NoError(t, err)
+			require.Equal(t, tt.wantError, response.IsError)
+			require.Equal(t, tt.wantAsked, asked)
+			if tt.wantError {
+				return
+			}
+
+			var result map[string]any
+			require.NoError(t, json.Unmarshal([]byte(response.Content), &result))
+			require.Contains(t, result, "questions")
+			if !tt.async {
+				// Plan mode rows have no async marker, so the UI keeps
+				// rendering them as blocking questions.
+				require.Len(t, result, 1)
+				return
+			}
+			require.Equal(t, true, result["async"])
+			require.Contains(t, result["status"], "Answer to ask_user_question call call-123:")
+		})
+	}
 }

@@ -222,7 +222,7 @@ The agent has access to a set of workspace tools that it uses to accomplish task
 | `start_workspace`                           | Start a stopped workspace for the current chat                                                                                                                        |
 | `stop_workspace`                            | Stop the current chat's workspace and wait for the stop build to finish                                                                                               |
 | `propose_plan`                              | Present a Markdown plan file for user review                                                                                                                          |
-| `ask_user_question`                         | Ask the user structured clarification questions during plan mode                                                                                                      |
+| `ask_user_question`                         | Ask the user structured clarification questions in plan mode, or without stopping work in chats created from the web UI                                               |
 | `read_file`                                 | Read file contents from the workspace                                                                                                                                 |
 | `write_file`                                | Write a file to the workspace                                                                                                                                         |
 | `edit_files`                                | Replace `old_text` with `new_text` across files                                                                                                                       |
@@ -252,7 +252,8 @@ Sub-agents do not have access to these tools and cannot create workspaces or spa
 `spawn_agent` with `type=computer_use` additionally requires an Anthropic or OpenAI provider and the virtual desktop feature to be enabled by an administrator.
 `read_skill` and `read_skill_file` are available when the workspace contains skills in its `.agents/skills/` directory.
 
-`propose_plan` and `ask_user_question` are only available while plan mode is active.
+`propose_plan` is only available while plan mode is active.
+In chats created through the API, `ask_user_question` is also only available while plan mode is active.
 In plan mode, the agent can still inspect the workspace and template metadata, execute shell commands for exploration, and read process output.
 `write_file` and `edit_files` remain available only for the chat-specific plan file under `.coder/plans/`.
 Workspace MCP tools are unavailable in plan mode, and plan-mode sub-agents receive no MCP tools.
@@ -269,6 +270,7 @@ While plan mode is active:
 - The agent can inspect repository files, workspace state, and available templates.
 - `write_file` and `edit_files` can only modify the chat-specific plan file under `.coder/plans/`.
 - `ask_user_question` can gather structured clarification from the user before a plan is proposed.
+  Asking a question ends the agent's turn, so you can answer before planning continues.
 - `propose_plan` snapshots the current plan file into the transcript so you can review it before implementation starts.
 - `execute` and `process_output` remain available for exploration, such as cloning repositories, searching code, and running inspection commands.
 - External MCP tools are available to root chats only for the server configurations an administrator approved for plan mode; workspace MCP tools and MCP tools for plan-mode sub-agents are not available.
@@ -277,3 +279,13 @@ While plan mode is active:
 
 This keeps planning turns focused on analysis and plan authoring rather than implementation.
 Once you select **Implement plan**, the next turn runs in normal mode again.
+
+## Questions outside plan mode
+
+In chats created from the Coder web UI, the agent can also call `ask_user_question` outside plan mode.
+The question does not stop the agent, which keeps working on anything that does not depend on the answer.
+You can answer while the agent runs, and your answer arrives in the chat as a later message.
+If the agent cannot continue without the answer, it ends its turn with a note of what is blocked, and your answer starts the next turn.
+When the agent asks a question, Coder sends you a [push notification](./getting-started.md#use-https-for-push-notifications) if push notifications are enabled.
+A newer question replaces an earlier unanswered one, and the earlier question shows as closed.
+Chats created through the API keep `ask_user_question` in plan mode only.

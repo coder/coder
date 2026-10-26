@@ -13,6 +13,16 @@ import (
 const (
 	askUserQuestionToolName = "ask_user_question"
 	askUserQuestionToolDesc = "Ask the user one or more structured clarification questions during plan mode. Use this instead of listing open questions in prose. Each question should have a short label, a detailed question, and 2-4 answer options."
+	// The async description is model-facing guidance for questions that
+	// do not end the turn.
+	askUserQuestionAsyncToolDesc = "Ask the user one or more structured questions without stopping your work. " +
+		"The call returns immediately and does not wait for an answer. " +
+		"Use it only for decisions that depend on the user's context or preference; if one option is clearly best, proceed with it and state the assumption. " +
+		"Continue with work that does not depend on the answer and state the assumptions you make. " +
+		"The answer arrives later as a user message that names this tool call's ID, possibly only after your turn ends. " +
+		"If you cannot continue without the answer, finish what you can and end your turn with a short note of what is blocked. " +
+		"Asking again replaces an earlier unanswered question. " +
+		"Each question should have a short label, a detailed question, and 2-4 answer options."
 )
 
 var (
@@ -35,12 +45,23 @@ type askUserQuestionArgs struct {
 	Questions []askUserQuestion `json:"questions"`
 }
 
+// AskUserQuestionOptions configures the ask_user_question tool.
+type AskUserQuestionOptions struct {
+	// Async makes the call return at once without ending the turn. The
+	// user answers later in an ordinary user message that names the call.
+	Async bool
+	// OnAsked, when set, runs after each valid call with the first
+	// question's text.
+	OnAsked func(ctx context.Context, question string)
+}
+
 // NewAskUserQuestionTool creates the ask_user_question tool.
-func NewAskUserQuestionTool() fantasy.AgentTool {
-	return &askUserQuestionTool{}
+func NewAskUserQuestionTool(opts AskUserQuestionOptions) fantasy.AgentTool {
+	return &askUserQuestionTool{opts: opts}
 }
 
 type askUserQuestionTool struct {
+	opts            AskUserQuestionOptions
 	providerOptions fantasy.ProviderOptions
 }
 
@@ -52,10 +73,14 @@ func (*askUserQuestionTool) GetName() string {
 	return askUserQuestionToolName
 }
 
-func (*askUserQuestionTool) Info() fantasy.ToolInfo {
+func (t *askUserQuestionTool) Info() fantasy.ToolInfo {
+	description := askUserQuestionToolDesc
+	if t.opts.Async {
+		description = askUserQuestionAsyncToolDesc
+	}
 	return fantasy.ToolInfo{
 		Name:        askUserQuestionToolName,
-		Description: askUserQuestionToolDesc,
+		Description: description,
 		Parameters: map[string]any{
 			"questions": map[string]any{
 				"type":        "array",
@@ -101,7 +126,7 @@ func (*askUserQuestionTool) Info() fantasy.ToolInfo {
 	}
 }
 
-func (*askUserQuestionTool) Run(_ context.Context, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+func (t *askUserQuestionTool) Run(ctx context.Context, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 	var args askUserQuestionArgs
 	if err := json.Unmarshal([]byte(call.Input), &args); err != nil {
 		return fantasy.NewTextErrorResponse(fmt.Sprintf("invalid parameters: %s", err)), nil
@@ -111,9 +136,23 @@ func (*askUserQuestionTool) Run(_ context.Context, call fantasy.ToolCall) (fanta
 		return fantasy.NewTextErrorResponse(err.Error()), nil
 	}
 
-	data, err := json.Marshal(map[string]any{"questions": args.Questions})
+	result := map[string]any{"questions": args.Questions}
+	if t.opts.Async {
+		// The UI reads "async" to keep the question answerable while the
+		// agent keeps working.
+		result["async"] = true
+		result["status"] = fmt.Sprintf(
+			"The questions are shown to the user. Do not wait for an answer; continue with work that does not depend on it. "+
+				"The answer arrives later as a user message that starts with \"Answer to ask_user_question call %s:\".",
+			call.ID,
+		)
+	}
+	data, err := json.Marshal(result)
 	if err != nil {
 		return fantasy.NewTextErrorResponse("failed to marshal questions: " + err.Error()), nil
+	}
+	if t.opts.OnAsked != nil {
+		t.opts.OnAsked(ctx, args.Questions[0].Question)
 	}
 	return fantasy.NewTextResponse(string(data)), nil
 }

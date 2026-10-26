@@ -37,6 +37,11 @@ type AskUserQuestionToolProps = {
 	isChatCompleted?: boolean;
 	isLatestAskUserQuestion?: boolean;
 	previousResponseText?: string;
+	/**
+	 * Set for questions that did not end the agent's turn. They stay
+	 * answerable while the agent runs, and the answer names this call.
+	 */
+	asyncToolCallId?: string;
 	onSubmitAnswer?: (message: string) => Promise<void> | void;
 };
 
@@ -119,6 +124,9 @@ const formatOutgoingMessage = (
 		})
 		.join("\n");
 };
+
+const getAsyncAnswerPrefix = (toolCallId: string): string =>
+	`Answer to ask_user_question call ${toolCallId}:\n`;
 
 const getSubmissionErrorMessage = (error: unknown): string | undefined => {
 	if (!error) {
@@ -376,9 +384,14 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	isChatCompleted = false,
 	isLatestAskUserQuestion = false,
 	previousResponseText,
+	asyncToolCallId,
 	onSubmitAnswer,
 }) => {
 	const idPrefix = useId();
+	const isAsync = asyncToolCallId !== undefined;
+	const asyncAnswerPrefix = isAsync
+		? getAsyncAnswerPrefix(asyncToolCallId)
+		: "";
 	const filteredQuestions = questions.map(filterQuestionOptions);
 	const [answers, setAnswers] = useState<Array<QuestionAnswer | undefined>>(
 		() => filteredQuestions.map(getDefaultAnswer),
@@ -388,16 +401,21 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 		string | null
 	>(null);
 	const submitAnswerMutation = useMutation({
-		mutationFn: async (message: string) => {
-			await onSubmitAnswer?.(message);
+		mutationFn: async (answerText: string) => {
+			await onSubmitAnswer?.(asyncAnswerPrefix + answerText);
 		},
-		onSuccess: (_data, message) => {
-			setSubmittedResponseText(message);
+		onSuccess: (_data, answerText) => {
+			setSubmittedResponseText(answerText);
 		},
 	});
 	const isRunning = status === "running";
+	// An async question can be followed by an unrelated message, so only a
+	// message that names this call answers it.
+	const previousAnswerText = previousResponseText?.startsWith(asyncAnswerPrefix)
+		? previousResponseText.slice(asyncAnswerPrefix.length)
+		: undefined;
 	const displayedSubmittedResponseText =
-		previousResponseText ?? submittedResponseText;
+		previousAnswerText ?? submittedResponseText;
 	const hasSubmittedResponse = displayedSubmittedResponseText != null;
 	const showAnsweredState = status === "completed" && hasSubmittedResponse;
 	const showSubmittedResponse = showAnsweredState && isLatestAskUserQuestion;
@@ -407,11 +425,16 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	);
 	const currentAnswer = answers[activeQuestionIndex];
 	const isInteractive =
-		isChatCompleted &&
+		(isAsync || isChatCompleted) &&
 		status === "completed" &&
 		isLatestAskUserQuestion &&
 		!hasSubmittedResponse &&
 		Boolean(onSubmitAnswer);
+	const isClosed =
+		isAsync &&
+		status === "completed" &&
+		!isLatestAskUserQuestion &&
+		!hasSubmittedResponse;
 	const isSubmitting = submitAnswerMutation.isPending;
 	const submitError = getSubmissionErrorMessage(submitAnswerMutation.error);
 	const canAdvanceToNextQuestion = isAnswerValid(currentAnswer);
@@ -508,12 +531,12 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 			return;
 		}
 
-		const outgoingMessage = formatOutgoingMessage(
+		const answerText = formatOutgoingMessage(
 			filteredQuestions,
 			finalizedAnswers,
 		);
 		resetSubmitState();
-		submitAnswerMutation.mutate(outgoingMessage);
+		submitAnswerMutation.mutate(answerText);
 	};
 
 	const handleFormSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -621,6 +644,12 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 						{displayedSubmittedResponseText || "No answer recorded."}
 					</p>
 				</div>
+			)}
+
+			{isClosed && (
+				<p className="mt-3 text-[13px] text-content-secondary">
+					This question is closed.
+				</p>
 			)}
 
 			{submitError && (

@@ -9934,6 +9934,7 @@ func TestInterruptChatDoesNotSendWebPushNotification(t *testing.T) {
 type mockWebpushDispatcher struct {
 	dispatchCount atomic.Int32
 	mu            sync.Mutex
+	messages      []codersdk.WebpushMessage
 	lastMessage   codersdk.WebpushMessage
 	lastUserID    uuid.UUID
 }
@@ -9941,10 +9942,17 @@ type mockWebpushDispatcher struct {
 func (m *mockWebpushDispatcher) Dispatch(_ context.Context, userID uuid.UUID, msg codersdk.WebpushMessage) error {
 	m.dispatchCount.Add(1)
 	m.mu.Lock()
+	m.messages = append(m.messages, msg)
 	m.lastMessage = msg
 	m.lastUserID = userID
 	m.mu.Unlock()
 	return nil
+}
+
+func (m *mockWebpushDispatcher) getMessages() []codersdk.WebpushMessage {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return slices.Clone(m.messages)
 }
 
 func (m *mockWebpushDispatcher) getLastMessage() codersdk.WebpushMessage {
@@ -10033,6 +10041,78 @@ func TestSuccessfulChatSendsWebPushWithNavigationData(t *testing.T) {
 	expectedURL := fmt.Sprintf("/agents/%s", chat.ID)
 	require.Equal(t, expectedURL, capturedMsg.Data["url"],
 		"web push Data should contain the chat navigation URL")
+}
+
+// TestAsyncAskUserQuestionContinuesTurnAndSendsWebPush verifies that in a
+// chat created from the web UI, ask_user_question outside plan mode does not
+// end the turn and alerts the owner with a web push naming the question.
+func TestAsyncAskUserQuestionContinuesTurnAndSendsWebPush(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	var streamCalls atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if streamCalls.Add(1) == 1 {
+			return chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk("ask_user_question",
+				`{"questions":[{"header":"Database","question":"Which database should we use?","options":[`+
+					`{"label":"Postgres","description":"Use Postgres."},`+
+					`{"label":"SQLite","description":"Use SQLite."}]}]}`,
+			))
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("continuing")...)
+	})
+
+	mockPush := &mockWebpushDispatcher{}
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := newChatdServer(t, ps, chatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  uuid.New(),
+		PendingChatAcquireInterval: 10 * time.Millisecond,
+		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+		WebpushDispatcher:          mockPush,
+		AIBridgeTransportFactory:   chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL)),
+	})
+	server.Start()
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+
+	user, org, model := seedChatDependencies(t, db)
+	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "async-question-push",
+		ModelConfigID:      model.ID,
+		ClientType:         database.ChatClientTypeUi,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	// One push for the question and one when the turn finishes.
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
+		if dbErr != nil {
+			return false
+		}
+		return fromDB.Status == database.ChatStatusWaiting && !fromDB.WorkerID.Valid && mockPush.dispatchCount.Load() == 2
+	}, testutil.IntervalFast)
+
+	require.Equal(t, int32(2), streamCalls.Load(),
+		"the model should be called again after an async question")
+	require.Contains(t, mockPush.getMessages(), codersdk.WebpushMessage{
+		Title: "async-question-push",
+		Body:  "Question: Which database should we use?",
+		Icon:  "/favicon.ico",
+		Data:  map[string]string{"url": fmt.Sprintf("/agents/%s", chat.ID)},
+	})
 }
 
 func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T) {

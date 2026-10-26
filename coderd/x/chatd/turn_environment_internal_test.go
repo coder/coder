@@ -799,6 +799,10 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 		// replaceMCP sends a follow-up message that asks to replace the
 		// MCP selection before the next turn is prepared.
 		replaceMCP bool
+		// ui creates the chat as the web UI does.
+		ui bool
+		// askStops reports whether ask_user_question ends the turn.
+		askStops bool
 		// prompt lists the instructions the system prompt must contain;
 		// the others in the set must be absent.
 		prompt   []string
@@ -814,8 +818,21 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			dontWant: []string{"filtered__hidden", "unselected__echo", "ask_user_question"},
 		},
 		{
+			name: "UIRoot",
+			ui:   true,
+			want: []string{"ask_user_question", "spawn_agent"},
+		},
+		{
+			name:     "UIChild",
+			ui:       true,
+			child:    true,
+			want:     []string{"read_file"},
+			dontWant: []string{"ask_user_question"},
+		},
+		{
 			name:     "PlanRoot",
 			planMode: plan,
+			askStops: true,
 			spawn:    true,
 			prompt:   []string{planRootOverlay, proposePlan},
 			want: []string{
@@ -894,6 +911,9 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 					ContentVersion: chatprompt.CurrentContentVersion,
 				}},
 			}
+			if tt.ui {
+				input.ClientType = database.ChatClientTypeUi
+			}
 			if tt.child {
 				input.ParentChatID = uuid.NullUUID{UUID: parent.ID, Valid: true}
 				input.RootChatID = input.ParentChatID
@@ -950,6 +970,8 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 					require.False(t, loaded[name], name)
 				}
 			}
+			_, askStops := env.StopAfterTools["ask_user_question"]
+			require.Equal(t, tt.askStops, askStops)
 			// chatloop offers every registered tool when the active list is
 			// empty, so an Explore child must not register a tool it hides.
 			if tt.child && tt.mode == explore {
