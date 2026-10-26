@@ -2836,8 +2836,8 @@ func TestSpawnAgent_ComputerUseRejectsInvalidConfiguredProviderWithStableReason(
 	))
 }
 
-// The computer_use key check must use the selected AI provider even when an
-// alphabetically earlier provider of the same type has a usable key.
+// The computer_use key check must use the selected AI provider even when
+// another enabled provider of the same type has a usable key.
 func TestSpawnAgent_ComputerUseKeyCheckUsesSelectedAIProvider(t *testing.T) {
 	t.Parallel()
 

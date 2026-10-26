@@ -46,23 +46,12 @@ describe("VirtualDesktopSettings", () => {
 		const onSave = vi.fn();
 		render(
 			<VirtualDesktopSettings
-				computerUseProviderData={{
-					provider: "anthropic",
-					ai_provider_id: mockEnabledAnthropicProvider.id,
-				}}
-				isLoadingComputerUseProvider={false}
-				aiProviders={[mockEnabledAnthropicProvider, mockTeamOpenAIProvider]}
-				isLoadingAIProviders={false}
-				aiProvidersError={null}
+				{...defaultProps}
 				onSaveComputerUseProvider={onSave}
-				isSavingComputerUseProvider={false}
-				computerUseProviderSaveError={null}
 			/>,
 		);
 
-		await user.click(
-			screen.getByRole("combobox", { name: "Computer use provider" }),
-		);
+		await user.click(getProviderPicker());
 		await user.click(
 			await screen.findByRole("option", { name: /Team OpenAI/ }),
 		);
