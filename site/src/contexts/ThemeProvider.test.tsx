@@ -59,15 +59,10 @@ describe("ThemeProvider theme-color", () => {
 			.light body { background-color: ${lightSurface}; }
 			.dark body { background-color: ${darkSurface}; }
 		`;
-		// Mirrors the per-scheme defaults in index.html.
-		themeColorMetas = [
-			{ media: "(prefers-color-scheme: light)", content: "#ffffff" },
-			{ media: "(prefers-color-scheme: dark)", content: "#09090b" },
-		].map(({ media, content }) => {
+		themeColorMetas = ["light", "dark"].map((scheme) => {
 			const meta = document.createElement("meta");
 			meta.name = "theme-color";
-			meta.media = media;
-			meta.content = content;
+			meta.media = `(prefers-color-scheme: ${scheme})`;
 			return meta;
 		});
 		document.head.append(style, ...themeColorMetas);

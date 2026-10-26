@@ -215,7 +215,7 @@ describe("theme CSS variables", () => {
 			);
 		};
 
-		it("follows the OS color scheme in index.html", () => {
+		it("gives each OS color scheme its theme's surface in index.html", () => {
 			const html = fs.readFileSync(
 				path.resolve(__dirname, "../../index.html"),
 				"utf8",
