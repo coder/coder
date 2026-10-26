@@ -1,7 +1,11 @@
-import type {
-	Workspace,
-	WorkspaceAgent,
-	WorkspaceApp,
+import {
+	JetBrainsSessionTokenHandlers,
+	VSCodeCoderExtensionID,
+	VSCodeSessionTokenPaths,
+	VSCodeSessionTokenSchemes,
+	type Workspace,
+	type WorkspaceAgent,
+	type WorkspaceApp,
 } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 
@@ -11,36 +15,28 @@ import { toast } from "#/components/Toaster/toast";
 // be used internally, and is highly subject to break.
 export const SESSION_TOKEN_PLACEHOLDER = "$SESSION_TOKEN";
 
-type SessionTokenHandler = {
+type SessionTokenHandlerParts = {
 	/** Scheme and authority, matched case-insensitively. */
 	base: string;
 	/** Path through the first required param, matched exactly. */
 	path: string;
 };
 
-// The only deep-link handlers that may receive the session token.
-const SESSION_TOKEN_HANDLERS: SessionTokenHandler[] = [
-	...[
-		"vscode",
-		"vscode-insiders",
-		"windsurf",
-		"devin",
-		"cursor",
-		"kiro",
-		"positron",
-		"antigravity",
-		"antigravity-ide",
-	].flatMap((scheme) =>
-		["/open?", "/openDevContainer?"].map((path) => ({
-			base: `${scheme}://coder.coder-remote`,
-			path,
-		})),
+// The only deep-link handlers that may receive the session token. As in
+// cli/open.go, the scheme and authority end at the first `/`, `?` or `#` after
+// `://`.
+const SESSION_TOKEN_HANDLERS: SessionTokenHandlerParts[] = [
+	...VSCodeSessionTokenSchemes.flatMap((scheme) =>
+		VSCodeSessionTokenPaths.map(
+			(path) => `${scheme}://${VSCodeCoderExtensionID}${path}`,
+		),
 	),
-	{ base: "jetbrains://gateway", path: "/coder?" },
-	{ base: "jetbrains://gateway", path: "/com.coder.toolbox?" },
-	// Gateway also handles non-Coder providers, such as `type=ssh`.
-	{ base: "jetbrains-gateway://connect", path: "#type=coder&" },
-];
+	...JetBrainsSessionTokenHandlers,
+].map((prefix) => {
+	const authority = prefix.indexOf("://") + "://".length;
+	const pathStart = authority + prefix.slice(authority).search(/[/?#]/);
+	return { base: prefix.slice(0, pathStart), path: prefix.slice(pathStart) };
+});
 
 type GetVSCodeHrefParams = {
 	owner: string;
@@ -71,7 +67,7 @@ export const getVSCodeHref = (
 	if (chatId) {
 		query.set("chatId", chatId);
 	}
-	return `${app}://coder.coder-remote/open?${query}`;
+	return `${app}://${VSCodeCoderExtensionID}/open?${query}`;
 };
 
 type GetTerminalHrefParams = {
@@ -242,7 +238,7 @@ export const isSessionTokenDestinationTrusted = (
 };
 
 /** The known handler the link starts with, if any. Case folding is ASCII only. */
-const getHandler = (appUrl: string): SessionTokenHandler | undefined =>
+const getHandler = (appUrl: string): SessionTokenHandlerParts | undefined =>
 	SESSION_TOKEN_HANDLERS.find(
 		({ base, path }) =>
 			appUrl.slice(0, base.length).replace(/[A-Z]/g, (c) => c.toLowerCase()) ===
