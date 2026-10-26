@@ -3,17 +3,6 @@ title: Order startup and shutdown scripts
 ---
 
 As a template author, you can use the `coder_script_order` data source to declare dependencies between startup or shutdown scripts.
-For example, for existing `coder_script.clone` and `coder_script.install` scripts, add:
-
-```tf
-data "coder_script_order" "startup" {
-  rule {
-    run   = ["coder_script.install"]
-    after = ["coder_script.clone"]
-  }
-}
-```
-
 By default, Coder runs each dependent script after its prerequisites succeed, while independent scripts run concurrently.
 You can order individual `coder_script` resources or all scripts in a child module without adding coordination commands to script bodies.
 
@@ -27,10 +16,6 @@ Script ordering requires compatible versions of every component:
 
 Older components can ignore ordering declarations and run scripts concurrently without reporting a compatibility error.
 Updating the provider alone doesn't enable ordering on older Coder deployments or agents.
-
-Every selected script must set exactly one of `run_on_start` or `run_on_stop`.
-A rule can order scripts only within one workspace agent or one dev container sub-agent.
-Each rule applies to one lifecycle phase, either startup or shutdown.
 
 ## Declare dependencies
 
@@ -66,12 +51,12 @@ If cloning fails, Coder skips dependency installation.
 
 Each `coder_script_order` data source contains one or more `rule` blocks:
 
-| Attribute  | Required | Meaning                                                 |
-|------------|----------|---------------------------------------------------------|
-| `run`      | Yes      | A nonempty list of selectors for scripts that wait.     |
-| `after`    | Yes      | A nonempty list of selectors for prerequisite scripts.  |
-| `requires` | No       | `success` (default) or `completion`.                    |
-| `phase`    | No       | `start` or `stop`. Coder infers the phase when omitted. |
+| Attribute                              | Required | Meaning                                                                                          |
+|----------------------------------------|----------|--------------------------------------------------------------------------------------------------|
+| `run`                                  | Yes      | A nonempty list of selectors for scripts that wait.                                              |
+| `after`                                | Yes      | A nonempty list of selectors for prerequisite scripts.                                           |
+| `requires`                             | No       | `success` (default) or `completion`.                                                             |
+| [`phase`](#choose-the-lifecycle-phase) | No       | `start` or `stop`. Required for module-only rules that select both startup and shutdown scripts. |
 
 Every script selected by `run` waits for every script selected by `after`.
 The order of selectors within either list doesn't determine execution order.
@@ -336,34 +321,6 @@ Dependencies across agents or sub-agents don't fail template import, but they fa
 
 Ordering supports scripts within one workspace agent or one dev container sub-agent.
 Dependencies between agents, between an agent and its sub-agent, or between different sub-agents aren't supported.
-
-## Migrate from `coder exp sync`
-
-For dependencies between whole lifecycle scripts, you can replace script-level sync coordination with `coder_script_order` rules.
-
-Declarative ordering uses the outcome of the whole prerequisite script.
-If a script calls `coder exp sync complete` before it finishes, split it into separate `coder_script` resources at that point before migrating.
-
-Calling `coder exp sync complete` from an `EXIT` trap lets dependent scripts run even if the prerequisite script fails.
-With `coder_script_order`, the default `requires = "success"` skips dependent scripts after a failure.
-Use [`requires = "completion"`](#choose-the-required-outcome) if they need to run even after the prerequisite fails.
-
-The default five-minute wait timeout of `coder exp sync start` doesn't carry over.
-If you rely on that limit, set the [`timeout`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script#timeout-1) attribute on prerequisite `coder_script` resources before migrating.
-
-To migrate:
-
-1. Map each sync unit to its `coder_script` resource or child module selector.
-2. Add a rule with the waiting script in `run` and its prerequisites in `after`.
-3. Choose `success` or `completion` to match the intended failure behavior.
-4. Remove the corresponding sync calls and completion traps from those scripts.
-5. Publish the updated template.
-6. Restart a test workspace using the updated template version.
-7. Verify the execution order and required outcomes in its [script logs](#logs-and-build-timeline).
-
-The experimental [`coder exp sync` workflow](./startup-coordination/usage.md) remains available for coordination inside script bodies.
-Its unit status commands don't inspect declarative script dependencies.
-Use script logs and the **Build timeline** to observe declarative ordering.
 
 ## Learn more
 
