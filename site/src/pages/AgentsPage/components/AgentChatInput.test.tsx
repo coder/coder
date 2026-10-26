@@ -394,47 +394,47 @@ describe("AgentChatInput", () => {
 	it.each([
 		{ lockWhileLoading: false, focused: "Elsewhere" },
 		{ lockWhileLoading: true, focused: "Chat message" },
-	])("focuses $focused when a send completes with lockWhileLoading $lockWhileLoading", async ({
-		lockWhileLoading,
-		focused,
-	}) => {
-		const user = userEvent.setup();
-		const input = (isLoading: boolean) => (
-			<AppProviders>
-				<button type="button">Elsewhere</button>
-				<AgentChatInput
-					onSend={vi.fn()}
-					isDisabled={false}
-					isLoading={isLoading}
-					lockWhileLoading={lockWhileLoading}
-					selectedModel={modelOptions[0].id}
-					onModelChange={vi.fn()}
-					modelOptions={modelOptions}
-					modelSelectorPlaceholder="Select model"
-					hasModelOptions
-					canConfigureAgentSetup={false}
-					initialValue=""
-					onContentChange={vi.fn()}
-					planModeEnabled={false}
-					onPlanModeToggle={vi.fn()}
-					isModelCatalogLoading={false}
-				/>
-			</AppProviders>
-		);
-		const { rerender } = render(input(true));
+	])(
+		"focuses $focused when a send completes with lockWhileLoading $lockWhileLoading",
+		async ({ lockWhileLoading, focused }) => {
+			const user = userEvent.setup();
+			const input = (isLoading: boolean) => (
+				<AppProviders>
+					<button type="button">Elsewhere</button>
+					<AgentChatInput
+						onSend={vi.fn()}
+						isDisabled={false}
+						isLoading={isLoading}
+						lockWhileLoading={lockWhileLoading}
+						selectedModel={modelOptions[0].id}
+						onModelChange={vi.fn()}
+						modelOptions={modelOptions}
+						modelSelectorPlaceholder="Select model"
+						hasModelOptions
+						canConfigureAgentSetup={false}
+						initialValue=""
+						onContentChange={vi.fn()}
+						planModeEnabled={false}
+						onPlanModeToggle={vi.fn()}
+						isModelCatalogLoading={false}
+					/>
+				</AppProviders>
+			);
+			const { rerender } = render(input(true));
 
-		const elsewhere = screen.getByRole("button", { name: "Elsewhere" });
-		await user.click(elsewhere);
-		rerender(input(false));
-		// Lexical moves DOM focus in its update commit, after this render.
-		await act(async () => {});
+			const elsewhere = screen.getByRole("button", { name: "Elsewhere" });
+			await user.click(elsewhere);
+			rerender(input(false));
+			// Lexical moves DOM focus in its update commit, after this render.
+			await act(async () => {});
 
-		expect(
-			screen.getByRole(focused === "Elsewhere" ? "button" : "textbox", {
-				name: focused,
-			}),
-		).toHaveFocus();
-	});
+			expect(
+				screen.getByRole(focused === "Elsewhere" ? "button" : "textbox", {
+					name: focused,
+				}),
+			).toHaveFocus();
+		},
+	);
 
 	it("attaches supported dropped files and reports unsupported ones", () => {
 		const onAttach = vi.fn();
