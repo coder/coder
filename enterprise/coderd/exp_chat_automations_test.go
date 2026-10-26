@@ -157,9 +157,10 @@ func logEntryText(entry slog.SinkEntry) string {
 // TestChatAutomationsDeleteWithoutUpdate checks that deleting an
 // automation needs only read and delete permission: disabling it first is
 // part of the deletion, not a separate update. It also checks that a
-// delete denied to a user with disable but no delete permission leaves the
-// automation unchanged, so the deletion never disables it partway. Custom
-// roles cannot grant update on automations.
+// delete denied to a user with update but no delete permission leaves the
+// automation unchanged, so the deletion never disables it partway, and
+// that a caller without update gets the normal 403 for every change,
+// including turning the automation off.
 func TestChatAutomationsDeleteWithoutUpdate(t *testing.T) {
 	t.Parallel()
 
@@ -202,10 +203,10 @@ func TestChatAutomationsDeleteWithoutUpdate(t *testing.T) {
 
 	//nolint:gocritic // Owner access isolates custom-role setup from the behavior under test.
 	updaterRole, err := client.CreateOrganizationRole(ctx, codersdk.Role{
-		Name:           "automation-disabler",
+		Name:           "automation-updater",
 		OrganizationID: owner.OrganizationID.String(),
 		OrganizationPermissions: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
-			codersdk.ResourceChatAutomation: {codersdk.ActionRead, codersdk.ActionDisable},
+			codersdk.ResourceChatAutomation: {codersdk.ActionRead, codersdk.ActionUpdate},
 		}),
 	})
 	require.NoError(t, err)
@@ -224,22 +225,29 @@ func TestChatAutomationsDeleteWithoutUpdate(t *testing.T) {
 	require.Equal(t, before.QueueGeneration, after.QueueGeneration)
 	require.Equal(t, before.UpdatedAt, after.UpdatedAt)
 
-	// A caller who may read but not update the automation gets the
-	// normal 403 for every other change.
-	disabler := codersdk.NewExperimentalClient(updater)
-	_, err = disabler.UpdateChatAutomation(ctx, owner.OrganizationID, created.Automation.ID, codersdk.UpdateChatAutomationRequest{Name: ptr.Ref("Renamed")})
+	// A caller who may read and delete, but not update, the automation
+	// gets the normal 403 for every change.
+	deleterClient := codersdk.NewExperimentalClient(deleter)
+	for _, req := range []codersdk.UpdateChatAutomationRequest{
+		{Name: ptr.Ref("Renamed")},
+		{Enabled: ptr.Ref(false)},
+	} {
+		_, err = deleterClient.UpdateChatAutomation(ctx, owner.OrganizationID, created.Automation.ID, req)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+		require.Equal(t, "Forbidden.", sdkErr.Message)
+	}
+	_, err = deleterClient.RotateChatAutomationSecret(ctx, owner.OrganizationID, created.Automation.ID)
 	require.ErrorAs(t, err, &sdkErr)
 	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
 	require.Equal(t, "Forbidden.", sdkErr.Message)
-	_, err = disabler.RotateChatAutomationSecret(ctx, owner.OrganizationID, created.Automation.ID)
-	require.ErrorAs(t, err, &sdkErr)
-	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
-	require.Equal(t, "Forbidden.", sdkErr.Message)
-	disabled, err := disabler.UpdateChatAutomation(ctx, owner.OrganizationID, created.Automation.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)})
+
+	// Update covers turning the automation off.
+	disabled, err := codersdk.NewExperimentalClient(updater).UpdateChatAutomation(ctx, owner.OrganizationID, created.Automation.ID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)})
 	require.NoError(t, err)
 	require.False(t, disabled.Enabled)
 
-	require.NoError(t, codersdk.NewExperimentalClient(deleter).DeleteChatAutomation(ctx, owner.OrganizationID, created.Automation.ID))
+	require.NoError(t, deleterClient.DeleteChatAutomation(ctx, owner.OrganizationID, created.Automation.ID))
 	_, err = db.GetChatAutomationByID(dbauthz.AsSystemRestricted(ctx), created.Automation.ID)
 	require.ErrorIs(t, err, sql.ErrNoRows)
 }

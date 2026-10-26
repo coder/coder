@@ -50,7 +50,6 @@ const (
 	ScopeChatUpdate                          ScopeName = "chat:update"
 	ScopeChatAutomationCreate                ScopeName = "chat_automation:create"
 	ScopeChatAutomationDelete                ScopeName = "chat_automation:delete"
-	ScopeChatAutomationDisable               ScopeName = "chat_automation:disable"
 	ScopeChatAutomationRead                  ScopeName = "chat_automation:read"
 	ScopeChatAutomationUpdate                ScopeName = "chat_automation:update"
 	ScopeChatModelConfigCreate               ScopeName = "chat_model_config:create"
@@ -256,7 +255,6 @@ func (e ScopeName) Valid() bool {
 		ScopeChatUpdate,
 		ScopeChatAutomationCreate,
 		ScopeChatAutomationDelete,
-		ScopeChatAutomationDisable,
 		ScopeChatAutomationRead,
 		ScopeChatAutomationUpdate,
 		ScopeChatModelConfigCreate,
@@ -463,7 +461,6 @@ func AllScopeNameValues() []ScopeName {
 		ScopeChatUpdate,
 		ScopeChatAutomationCreate,
 		ScopeChatAutomationDelete,
-		ScopeChatAutomationDisable,
 		ScopeChatAutomationRead,
 		ScopeChatAutomationUpdate,
 		ScopeChatModelConfigCreate,

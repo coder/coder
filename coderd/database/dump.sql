@@ -299,8 +299,7 @@ CREATE TYPE api_key_scope AS ENUM (
     'chat_project_memory:*',
     'chat_project_memory:create',
     'chat_project_memory:read',
-    'chat_project_memory:delete',
-    'chat_automation:disable'
+    'chat_project_memory:delete'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (

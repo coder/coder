@@ -359,7 +359,7 @@ func (api *API) chatAutomation(rw http.ResponseWriter, r *http.Request) {
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 // @Summary Update chat automation
-// @Description Anyone allowed to update an automation, its owner or an administrator, can change it. A request that only sets enabled to false needs only permission to disable it. Runs always act as the owner. Disabling removes the messages the automation queued that have not started. Changing the prompt does not change messages already queued: they keep the prompt they were sent with. Re-enabling a schedule resumes at its next future occurrence. The kind, target mode, and webhook use of an automation cannot change: a request that sets one of them, or any unknown field, fails with 400. A request that changes nothing leaves updated_at as it was.
+// @Description Anyone allowed to update an automation, its owner or an administrator, can change it. Turning the automation on or off also needs update. Runs always act as the owner. Disabling removes the messages the automation queued that have not started. Changing the prompt does not change messages already queued: they keep the prompt they were sent with. Re-enabling a schedule resumes at its next future occurrence. The kind, target mode, and webhook use of an automation cannot change: a request that sets one of them, or any unknown field, fails with 400. A request that changes nothing leaves updated_at as it was.
 // @ID update-chat-automation
 // @Security CoderSessionToken
 // @Accept json

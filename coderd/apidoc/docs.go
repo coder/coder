@@ -811,7 +811,7 @@ const docTemplate = `{
                 }
             },
             "patch": {
-                "description": "Only the owner of an automation can update it, except that anyone allowed to update it can send a request that only sets enabled to false. Disabling removes the messages the automation queued that have not started. Changing the prompt does not change messages already queued: they keep the prompt they were sent with. Re-enabling a schedule resumes at its next future occurrence. The kind, target mode, and webhook use of an automation cannot change: a request that sets one of them, or any unknown field, fails with 400. A request that changes nothing leaves updated_at as it was.",
+                "description": "Anyone allowed to update an automation, its owner or an administrator, can change it. Turning the automation on or off also needs update. Runs always act as the owner. Disabling removes the messages the automation queued that have not started. Changing the prompt does not change messages already queued: they keep the prompt they were sent with. Re-enabling a schedule resumes at its next future occurrence. The kind, target mode, and webhook use of an automation cannot change: a request that sets one of them, or any unknown field, fails with 400. A request that changes nothing leaves updated_at as it was.",
                 "consumes": [
                     "application/json"
                 ],
@@ -869,7 +869,7 @@ const docTemplate = `{
         },
         "/api/experimental/organizations/{organization}/chat-automations/{automation}/runs": {
             "post": {
-                "description": "Sends the saved prompt of an enabled schedule automation to its target now, like a scheduled run, as the owner. The schedule's next run does not change. Only the owner can run an automation.",
+                "description": "Sends the saved prompt of an enabled schedule automation to its target now, like a scheduled run, as the owner. The schedule's next run does not change. Running needs permission to update the automation, so an administrator can run another member's automation, which still acts as that member.",
                 "produces": [
                     "application/json"
                 ],
@@ -951,7 +951,7 @@ const docTemplate = `{
         },
         "/api/experimental/organizations/{organization}/chat-automations/{automation}/secret/rotate": {
             "post": {
-                "description": "Only the owner of a webhook automation can rotate its secret. The previous secret stops working, and the new secret is returned only in this response.",
+                "description": "Rotating needs permission to update the webhook automation. The previous secret stops working, and the new secret is returned only in this response.",
                 "produces": [
                     "application/json"
                 ],
@@ -19863,7 +19863,6 @@ const docTemplate = `{
                 "chat_automation:*",
                 "chat_automation:create",
                 "chat_automation:delete",
-                "chat_automation:disable",
                 "chat_automation:read",
                 "chat_automation:update",
                 "chat_model_config:*",
@@ -20125,7 +20124,6 @@ const docTemplate = `{
                 "APIKeyScopeChatAutomationAll",
                 "APIKeyScopeChatAutomationCreate",
                 "APIKeyScopeChatAutomationDelete",
-                "APIKeyScopeChatAutomationDisable",
                 "APIKeyScopeChatAutomationRead",
                 "APIKeyScopeChatAutomationUpdate",
                 "APIKeyScopeChatModelConfigAll",
@@ -29937,7 +29935,6 @@ const docTemplate = `{
                 "create_agent",
                 "delete",
                 "delete_agent",
-                "disable",
                 "read",
                 "read_personal",
                 "ssh",
@@ -29958,7 +29955,6 @@ const docTemplate = `{
                 "ActionCreateAgent",
                 "ActionDelete",
                 "ActionDeleteAgent",
-                "ActionDisable",
                 "ActionRead",
                 "ActionReadPersonal",
                 "ActionSSH",

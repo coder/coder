@@ -1,2 +1,0 @@
--- No-op: Postgres cannot drop enum values safely, so the api_key_scope
--- addition is intentionally not reverted.

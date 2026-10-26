@@ -132,7 +132,6 @@ var (
 	// Valid Actions
 	//  - "ActionCreate" :: create a new chat automation
 	//  - "ActionDelete" :: delete a chat automation
-	//  - "ActionDisable" :: disable a chat automation
 	//  - "ActionRead" :: read chat automations
 	//  - "ActionUpdate" :: update a chat automation
 	ResourceChatAutomation = Object{
@@ -606,7 +605,6 @@ func AllActions() []policy.Action {
 		policy.ActionCreateAgent,
 		policy.ActionDelete,
 		policy.ActionDeleteAgent,
-		policy.ActionDisable,
 		policy.ActionRead,
 		policy.ActionReadPersonal,
 		policy.ActionSSH,

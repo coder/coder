@@ -291,7 +291,7 @@ func orgWorkspaceAccessMemberPerms() []Permission {
 // automation for another user. Runs always act as the automation's
 // owner, so an administrator who edits an automation does not change
 // whose permissions its runs use.
-var chatAutomationAdminActions = []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionDisable, policy.ActionDelete}
+var chatAutomationAdminActions = []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionDelete}
 
 func allPermsExcept(excepts ...Objecter) []Permission {
 	resources := AllResources()
@@ -769,7 +769,6 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 								policy.ActionCreate,
 								policy.ActionRead,
 								policy.ActionUpdate,
-								policy.ActionDisable,
 								policy.ActionDelete,
 							},
 							// Projects group a member's own chats, so they follow chat

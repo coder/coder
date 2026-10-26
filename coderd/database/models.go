@@ -544,7 +544,6 @@ const (
 	ApiKeyScopeChatProjectMemoryCreate             APIKeyScope = "chat_project_memory:create"
 	ApiKeyScopeChatProjectMemoryRead               APIKeyScope = "chat_project_memory:read"
 	ApiKeyScopeChatProjectMemoryDelete             APIKeyScope = "chat_project_memory:delete"
-	ApiKeyScopeChatAutomationDisable               APIKeyScope = "chat_automation:disable"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -840,8 +839,7 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatProjectMemory,
 		ApiKeyScopeChatProjectMemoryCreate,
 		ApiKeyScopeChatProjectMemoryRead,
-		ApiKeyScopeChatProjectMemoryDelete,
-		ApiKeyScopeChatAutomationDisable:
+		ApiKeyScopeChatProjectMemoryDelete:
 		return true
 	}
 	return false
@@ -1106,7 +1104,6 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatProjectMemoryCreate,
 		ApiKeyScopeChatProjectMemoryRead,
 		ApiKeyScopeChatProjectMemoryDelete,
-		ApiKeyScopeChatAutomationDisable,
 	}
 }
 
