@@ -34,7 +34,7 @@ import {
 	FIXTURE_NOW,
 	MockAsyncQuestionMessages,
 	MockAsyncQuestionResult,
-	MockQuestionCallMessage,
+	MockAsyncQuestionResultMessage,
 	MockWorkingMessages,
 } from "./ChatConversation/storyFixtures";
 import { ChatPageInput, ChatPageTimeline } from "./ChatPageContent";
@@ -569,26 +569,38 @@ const buildAsyncQuestionStore = (
 	return store;
 };
 
+// An archived chat, the read-only case shown here, renders no chat input.
+const AsyncQuestionChatPage: React.FC<{
+	store: ReturnType<typeof createChatStore>;
+	className: string;
+	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
+	isReadOnly?: boolean;
+}> = ({ store, className, onSendAskUserQuestionResponse, isReadOnly }) => (
+	<div className={className}>
+		<StoryChatPageTimeline
+			store={store}
+			onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+			isReadOnly={isReadOnly}
+		/>
+		{!isReadOnly && <StoryChatPageInput store={store} />}
+	</div>
+);
+
 export const AsyncQuestionDockedAboveInput: Story = {
 	render: () => {
-		const store = buildAsyncQuestionStore();
-
 		return (
-			<div className="flex h-160 flex-col">
-				<StoryChatPageTimeline
-					store={store}
-					onSendAskUserQuestionResponse={fn()}
-				/>
-				<StoryChatPageInput store={store} />
-			</div>
+			<AsyncQuestionChatPage
+				store={buildAsyncQuestionStore()}
+				className="flex h-160 flex-col"
+				onSendAskUserQuestionResponse={fn()}
+			/>
 		);
 	},
 };
 
-const MockTallAsyncQuestionMessages: TypesGen.ChatMessage[] = [
-	...MockWorkingMessages.slice(0, 1),
-	MockQuestionCallMessage,
-	buildMessage(5, "tool", [
+const MockTallAsyncQuestionResultMessage: TypesGen.ChatMessage = {
+	...MockAsyncQuestionResultMessage,
+	content: [
 		{
 			type: "tool-result",
 			tool_call_id: "question",
@@ -625,32 +637,35 @@ const MockTallAsyncQuestionMessages: TypesGen.ChatMessage[] = [
 				],
 			},
 		},
-	]),
+	],
+};
+
+const MockTallAsyncQuestionMessages: TypesGen.ChatMessage[] = [
+	...MockAsyncQuestionMessages.slice(0, 2),
+	MockTallAsyncQuestionResultMessage,
 ];
 
 // The question outgrows the dock's height cap, so the dock scrolls on its own
 // and the chat input stays on screen.
 export const AsyncQuestionDockedAboveInputMobile: Story = {
 	render: () => {
-		const store = buildAsyncQuestionStore(MockTallAsyncQuestionMessages);
-
 		return (
-			<div className="flex h-175 w-[390px] flex-col">
-				<StoryChatPageTimeline
-					store={store}
-					onSendAskUserQuestionResponse={fn()}
-				/>
-				<StoryChatPageInput store={store} />
-			</div>
+			<AsyncQuestionChatPage
+				store={buildAsyncQuestionStore(MockTallAsyncQuestionMessages)}
+				className="flex h-175 w-[390px] flex-col"
+				onSendAskUserQuestionResponse={fn()}
+			/>
 		);
 	},
 };
 
 export const AsyncQuestionReadOnlyViewer: Story = {
 	render: () => (
-		<div className="flex h-160 flex-col">
-			<StoryChatPageTimeline store={buildAsyncQuestionStore()} isReadOnly />
-		</div>
+		<AsyncQuestionChatPage
+			store={buildAsyncQuestionStore()}
+			className="flex h-160 flex-col"
+			isReadOnly
+		/>
 	),
 };
 
@@ -658,13 +673,11 @@ export const AsyncQuestionReadOnlyViewer: Story = {
 // pending, so the dock stays in place with its form disabled.
 export const AsyncQuestionDockedDisabled: Story = {
 	render: () => {
-		const store = buildAsyncQuestionStore();
-
 		return (
-			<div className="flex h-160 flex-col">
-				<StoryChatPageTimeline store={store} />
-				<StoryChatPageInput store={store} />
-			</div>
+			<AsyncQuestionChatPage
+				store={buildAsyncQuestionStore()}
+				className="flex h-160 flex-col"
+			/>
 		);
 	},
 };
@@ -688,13 +701,11 @@ export const AsyncQuestionDockedFromStream: Story = {
 		});
 
 		return (
-			<div className="flex h-160 flex-col">
-				<StoryChatPageTimeline
-					store={store}
-					onSendAskUserQuestionResponse={fn()}
-				/>
-				<StoryChatPageInput store={store} />
-			</div>
+			<AsyncQuestionChatPage
+				store={store}
+				className="flex h-160 flex-col"
+				onSendAskUserQuestionResponse={fn()}
+			/>
 		);
 	},
 };

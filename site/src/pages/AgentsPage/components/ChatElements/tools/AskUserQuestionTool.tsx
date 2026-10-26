@@ -40,7 +40,7 @@ type AskUserQuestionToolProps = {
 	previousResponseText?: string;
 	/** Set for async questions; their answer names this call. */
 	asyncToolCallId?: string;
-	/** The question is answered in the dock above the chat input, so this card shows the question text and a pointer to the dock instead of a form. */
+	/** The question is answered in the dock above the chat input instead of in this card. */
 	isDocked?: boolean;
 	onSubmitAnswer?: (message: string) => Promise<void> | void;
 };

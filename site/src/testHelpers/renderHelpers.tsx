@@ -40,8 +40,8 @@ export function createTestQueryClient() {
 }
 
 /**
- * Creates a test query client whose preference settings are already loaded,
- * so components that read them render their settled layout on first paint.
+ * Creates a test query client seeded with preference settings that never go
+ * stale, so they never refetch on mount or focus.
  */
 export function createPreferenceSeededQueryClient(
 	preferences: TypesGen.UserPreferenceSettings = MockUserPreferenceSettings,

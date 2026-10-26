@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
+import { createDeferred } from "#/testHelpers/deferred";
 import {
 	createPreferenceSeededQueryClient,
 	renderComponent,
@@ -200,13 +201,13 @@ type AnswerCallback = (message: string) => Promise<void> | void;
 type TimelineStageProps = {
 	store: ReturnType<typeof createChatStore>;
 	queryClient: QueryClient;
-	onSend?: AnswerCallback;
+	onSendAskUserQuestionResponse?: AnswerCallback;
 };
 
 const TimelineStage: React.FC<TimelineStageProps> = ({
 	store,
 	queryClient,
-	onSend,
+	onSendAskUserQuestionResponse,
 }) => (
 	<QueryClientProvider client={queryClient}>
 		<MessageScroller.Provider autoScroll defaultScrollPosition="end">
@@ -221,7 +222,7 @@ const TimelineStage: React.FC<TimelineStageProps> = ({
 				onFetchMoreMessages={async () => {}}
 				urlTransform={defaultUrlTransform}
 				mcpServers={[]}
-				onSendAskUserQuestionResponse={onSend}
+				onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 				isReadOnly={false}
 			/>
 		</MessageScroller.Provider>
@@ -238,17 +239,17 @@ const renderChatPageTimeline = (
 		<TimelineStage
 			store={store}
 			queryClient={queryClient}
-			onSend={onSendAskUserQuestionResponse}
+			onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 		/>,
 	);
 	return {
 		store,
-		rerenderWith: (onSend?: AnswerCallback) =>
+		rerenderWith: (onSendAskUserQuestionResponse?: AnswerCallback) =>
 			rerender(
 				<TimelineStage
 					store={store}
 					queryClient={queryClient}
-					onSend={onSend}
+					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 				/>,
 			),
 	};
@@ -274,7 +275,7 @@ describe("ChatPageTimeline question dock", () => {
 
 	it("keeps the dock's draft through a failed send", async () => {
 		const user = userEvent.setup();
-		const pendingSend = Promise.withResolvers<undefined>();
+		const pendingSend = createDeferred<undefined>();
 		const onSendAskUserQuestionResponse = vi
 			.fn<AnswerCallback>()
 			.mockReturnValueOnce(pendingSend.promise);
