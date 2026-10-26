@@ -43,15 +43,12 @@ import { computeRepoStats, type DiffStats } from "./GitPanel/GitPanel";
 /** Rows a list section shows before it folds the rest behind a toggle. */
 const OVERVIEW_MAX_LIST_ROWS = 3;
 
-/**
- * The open card needs 18rem beside the 48rem transcript and composer: the
- * 16rem card, its 1rem inset, and a 1rem gap. The card and its toggle show
- * from a 66rem chat (48rem + 18rem). The room is only what the centered
- * transcript lacks, max(0, 84rem - chat width), so from 84rem on nothing
- * moves.
- */
+/** The card and its toggle need the 48rem transcript plus 18rem: 66rem. */
 export const overviewToggleClassName = "hidden @min-[66rem]/chat:inline-flex";
-/** Set on the chat column while the card is open. */
+/**
+ * Room for an open or pinned card: the part of its 18rem (card, inset, gap)
+ * that the centered 48rem transcript lacks, so 0 from an 84rem chat on.
+ */
 export const overviewRoomClassName =
 	"@min-[66rem]/chat:[--agents-overview-room:max(0px,calc(84rem_-_100%))]";
 const overviewCardPositionClassName =
