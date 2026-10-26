@@ -17,6 +17,7 @@ import {
   getMessageScrollerScrollable,
   getMessageScrollerVisibilityState,
   getNewScrollAnchor,
+  getTailSpacerHeight, // LOCAL CHANGE
   getUnanchoredScrollAnchor,
   hasMultipleNewScrollAnchors,
 } from "./geometry"
@@ -302,6 +303,7 @@ function useMessageScrollerController({
     scrollToEnd,
     scrollToMessage,
     scrollToStart,
+    setTailSpacerHeight, // LOCAL CHANGE
   } = useMessageScrollerCommands({
     refs,
     commitScrollState,
@@ -670,17 +672,43 @@ function useMessageScrollerController({
     scrollTowardItemEnd,
   ])
 
-  // LOCAL CHANGE: placing the turn again first sizes the spacer for a reply
-  // whose resize has not run yet.
-  const releaseAnchorHold = React.useCallback(() => {
-    if (
-      autoScrollRef.current &&
-      reanchorToAnchoredMessage() &&
-      spacerHeightRef.current > 0
-    ) {
-      scrollToEnd({ behavior: "auto" })
+  // LOCAL CHANGE: placing the turn again sizes the spacer before the reply's
+  // resize runs. The hold stays when the reply fills the view.
+  const handleTurnEnd = React.useCallback(() => {
+    if (reanchorToAnchoredMessage()) {
+      if (
+        autoScrollRef.current &&
+        !followSuppressedRef.current &&
+        spacerHeightRef.current > 0
+      ) {
+        scrollToEnd({ behavior: "auto" })
+      }
+
+      return
     }
-  }, [reanchorToAnchoredMessage, scrollToEnd])
+
+    // The hold ended early, as on a gesture. Keep only the spacer the current
+    // position needs, so the view does not move.
+    const content = contentRef.current
+    const viewport = viewportRef.current
+
+    if (content && viewport) {
+      setTailSpacerHeight(
+        getTailSpacerHeight({
+          content,
+          scrollTop: viewport.scrollTop,
+          spacer: spacerRef.current,
+          viewport,
+        })
+      )
+      scheduleStateCommit()
+    }
+  }, [
+    reanchorToAnchoredMessage,
+    scheduleStateCommit,
+    scrollToEnd,
+    setTailSpacerHeight,
+  ])
 
   const observeVisibility = React.useCallback(() => {
     const viewport = viewportRef.current
@@ -1002,9 +1030,9 @@ function useMessageScrollerController({
     () => ({
       handleContentChange,
       handleResize,
+      handleTurnEnd, // LOCAL CHANGE
       observeVisibility,
       preserveScrollOnPrependRef,
-      releaseAnchorHold, // LOCAL CHANGE
       resetBrowserScrollAnchor, // LOCAL CHANGE
       scrollToEnd,
       scrollToMessage,
@@ -1026,8 +1054,8 @@ function useMessageScrollerController({
     [
       handleContentChange,
       handleResize,
+      handleTurnEnd, // LOCAL CHANGE
       observeVisibility,
-      releaseAnchorHold, // LOCAL CHANGE
       resetBrowserScrollAnchor, // LOCAL CHANGE
       scrollToEnd,
       scrollToMessage,
