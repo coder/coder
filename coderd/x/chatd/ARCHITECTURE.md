@@ -1174,6 +1174,7 @@ The generation goroutine supports:
 - subagents (`spawn_agent`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`, `list_subagent_models`)
 - file links
 - workspace binding
+  <!-- TODO(DanielleMaywood): add `open_preview` to this list: root chats outside plan mode get it when a wildcard app hostname is configured; it requires a title and exactly one of port or path; the workspace agent publishes a path, and the result stores the agent's preview ID and canonical path. -->
 - plan mode
 - respecting model configuration
 - provider-specific tools like web search and computer use

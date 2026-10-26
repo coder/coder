@@ -1334,17 +1334,24 @@ func (c *turnWorkspaceContext) close() {
 
 func (c *turnWorkspaceContext) clearCachedWorkspaceState() {
 	c.mu.Lock()
+	releaseConn := c.clearCachedWorkspaceStateLocked()
+	c.mu.Unlock()
+
+	if releaseConn != nil {
+		releaseConn()
+	}
+}
+
+// clearCachedWorkspaceStateLocked clears the cached agent, conn, and workspace
+// ID and returns the conn's release func for the caller to run after unlocking.
+func (c *turnWorkspaceContext) clearCachedWorkspaceStateLocked() func() {
 	releaseConn := c.releaseConn
 	c.agent = database.WorkspaceAgent{}
 	c.agentLoaded = false
 	c.conn = nil
 	c.releaseConn = nil
 	c.cachedWorkspaceID = uuid.NullUUID{}
-	c.mu.Unlock()
-
-	if releaseConn != nil {
-		releaseConn()
-	}
+	return releaseConn
 }
 
 func (c *turnWorkspaceContext) setCurrentChat(chat database.Chat) {
@@ -1454,15 +1461,22 @@ func (c *turnWorkspaceContext) ensureWorkspaceAgent(
 	ctx context.Context,
 ) (database.Chat, database.WorkspaceAgent, error) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
+	var staleRelease func()
+	defer func() {
+		c.mu.Unlock()
+		if staleRelease != nil {
+			staleRelease()
+		}
+	}()
 
 	if c.agentLoaded {
 		chatSnapshot := c.currentChatSnapshot()
 		if nullUUIDEqual(c.cachedWorkspaceID, chatSnapshot.WorkspaceID) {
 			return chatSnapshot, c.agent, nil
 		}
-		c.agent = database.WorkspaceAgent{}
-		c.agentLoaded = false
+		// Reloading sets cachedWorkspaceID to the new workspace, which would
+		// pair it with the old workspace's conn.
+		staleRelease = c.clearCachedWorkspaceStateLocked()
 	}
 
 	return c.loadWorkspaceAgentLocked(ctx)
@@ -1676,13 +1690,7 @@ func (c *turnWorkspaceContext) getWorkspaceConnLocked() (workspacesdk.AgentConn,
 		return c.conn, nil
 	}
 
-	agentRelease := c.releaseConn
-	c.agent = database.WorkspaceAgent{}
-	c.agentLoaded = false
-	c.conn = nil
-	c.releaseConn = nil
-	c.cachedWorkspaceID = uuid.NullUUID{}
-	return nil, agentRelease
+	return nil, c.clearCachedWorkspaceStateLocked()
 }
 
 // isAgentUnreachable reports whether the given agent row's
@@ -1913,26 +1921,25 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 				return nil, err
 			}
 			chatSnapshot = updatedChat
-
-			c.mu.Lock()
-			c.agent = switchedAgent
-			c.agentLoaded = true
-			c.cachedWorkspaceID = chatSnapshot.WorkspaceID
-			c.mu.Unlock()
+			agent = switchedAgent
 		}
 
+		c.mu.Lock()
 		if _, workspaceMatches := c.currentWorkspaceMatches(chatSnapshot.WorkspaceID); !workspaceMatches {
+			c.mu.Unlock()
 			if agentRelease != nil {
 				agentRelease()
 			}
 			c.clearCachedWorkspaceState()
 			continue
 		}
-
-		c.mu.Lock()
+		// Cache the agent with the conn so readers never pair a conn with an
+		// agent that a concurrent call cleared or switched.
 		if c.conn == nil {
 			c.conn = agentConn
 			c.releaseConn = agentRelease
+			c.agent = agent
+			c.agentLoaded = true
 			c.cachedWorkspaceID = chatSnapshot.WorkspaceID
 
 			var ancestorIDs []string
@@ -1969,6 +1976,28 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 	}
 
 	return nil, xerrors.New("chat workspace changed while connecting")
+}
+
+// getPreviewWorkspace returns the cached conn, workspace ID, and agent name
+// read under one lock, so the result names the workspace and agent the conn
+// belongs to.
+func (c *turnWorkspaceContext) getPreviewWorkspace(ctx context.Context) (chattool.PreviewWorkspace, error) {
+	if _, err := c.getWorkspaceConn(ctx); err != nil {
+		return chattool.PreviewWorkspace{}, err
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.conn == nil || !nullUUIDEqual(c.cachedWorkspaceID, c.currentChatSnapshot().WorkspaceID) {
+		return chattool.PreviewWorkspace{}, xerrors.New("chat workspace changed while connecting")
+	}
+
+	return chattool.PreviewWorkspace{
+		Conn:        c.conn,
+		WorkspaceID: c.cachedWorkspaceID.UUID,
+		AgentName:   c.agent.Name,
+	}, nil
 }
 
 func isExploreSubagentMode(mode database.NullChatMode) bool {
@@ -2557,6 +2586,12 @@ func (p *Server) appendRootChatTools(
 		// Notify the frontend immediately so it can start streaming
 		// build logs before the tool completes.
 		p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
+	}
+
+	if p.enablePreviews {
+		tools = append(tools, chattool.OpenPreview(chattool.OpenPreviewOptions{
+			GetPreviewWorkspace: opts.workspaceCtx.getPreviewWorkspace,
+		}))
 	}
 
 	tools = append(tools,

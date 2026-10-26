@@ -179,6 +179,7 @@ type Server struct {
 	providerAPIKeys                chatprovider.ProviderAPIKeys
 	allowBYOK                      bool
 	disableCallerSuppliedTools     bool
+	enablePreviews                 bool
 	oidcTokenSource                mcpclient.UserOIDCTokenSource
 	mcpHTTPClient                  *http.Client
 	internalMCPServers             []InternalMCPServer
@@ -1251,6 +1252,10 @@ type Config struct {
 
 	AgentCapacityUnlock AgentCapacityUnlock
 
+	// EnablePreviews registers the open_preview tool. Previews are served
+	// on wildcard app hostnames, so enable it only when one is configured.
+	EnablePreviews bool
+
 	// OIDCTokenSource resolves the calling user's OIDC access
 	// token for MCP servers configured with auth_type=user_oidc.
 	// May be nil if the deployment has no OIDC provider; servers
@@ -1355,6 +1360,7 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 		providerAPIKeys:                cfg.ProviderAPIKeys,
 		allowBYOK:                      allowBYOK,
 		disableCallerSuppliedTools:     cfg.DisableCallerSuppliedTools,
+		enablePreviews:                 cfg.EnablePreviews,
 		oidcTokenSource:                cfg.OIDCTokenSource,
 		mcpHTTPClient:                  mcpHTTPClient,
 		internalMCPServers:             cfg.InternalMCPServers,

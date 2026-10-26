@@ -1310,10 +1310,9 @@ func TestTurnWorkspaceContext_StaleBindingRepair(t *testing.T) {
 	require.Equal(t, updatedChat, currentChat)
 }
 
-func TestTurnWorkspaceContextGetWorkspaceConnLazyValidationSwitchesWorkspaceAgent(t *testing.T) {
+func TestTurnWorkspaceContextGetPreviewWorkspaceLazyValidationSwitchesWorkspaceAgent(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	expectAgentBindingTx(db)
@@ -1335,7 +1334,7 @@ func TestTurnWorkspaceContextGetWorkspaceConnLazyValidationSwitchesWorkspaceAgen
 		},
 	}
 	staleAgent := database.WorkspaceAgent{ID: staleAgentID}
-	currentAgent := database.WorkspaceAgent{ID: currentAgentID}
+	currentAgent := database.WorkspaceAgent{ID: currentAgentID, Name: "main"}
 	updatedChat := chat
 	updatedChat.BuildID = uuid.NullUUID{UUID: buildID, Valid: true}
 	updatedChat.AgentID = uuid.NullUUID{UUID: currentAgentID, Valid: true}
@@ -1380,15 +1379,63 @@ func TestTurnWorkspaceContextGetWorkspaceConnLazyValidationSwitchesWorkspaceAgen
 	}
 	t.Cleanup(workspaceCtx.close)
 
-	gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	preview, err := workspaceCtx.getPreviewWorkspace(ctx)
 	require.NoError(t, err)
-	require.Same(t, conn, gotConn)
+	require.Equal(t, "main", preview.AgentName)
+	require.Same(t, conn, preview.Conn)
+	require.Equal(t, workspaceID, preview.WorkspaceID)
 	require.Equal(t, []uuid.UUID{staleAgentID, currentAgentID}, dialed)
 	require.Equal(t, updatedChat, currentChat)
 
 	gotAgent, err := workspaceCtx.getWorkspaceAgent(ctx)
 	require.NoError(t, err)
 	require.Equal(t, currentAgent, gotAgent)
+}
+
+func TestTurnWorkspaceContextGetPreviewWorkspaceAgentClearedDuringDial(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	workspaceID := uuid.New()
+	expectLiveWorkspace(db, workspaceID)
+	agent := database.WorkspaceAgent{ID: uuid.New(), Name: "main"}
+	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agent.ID).Return(agent, nil).AnyTimes()
+	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return([]database.WorkspaceAgent{agent}, nil).AnyTimes()
+
+	conn := agentconnmock.NewMockAgentConn(ctrl)
+	conn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
+
+	chat := database.Chat{
+		ID:          uuid.New(),
+		WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
+		AgentID:     uuid.NullUUID{UUID: agent.ID, Valid: true},
+	}
+	currentChat := chat
+	workspaceCtx := &turnWorkspaceContext{
+		chatStateMu:      &sync.Mutex{},
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return chat, nil },
+	}
+	workspaceCtx.server = &Server{
+		db:                             db,
+		clock:                          quartz.NewReal(),
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		dialTimeout:                    30 * time.Second,
+		agentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			// A parallel tool call whose dial timed out clears the cache.
+			workspaceCtx.clearCachedWorkspaceState()
+			return conn, func() {}, nil
+		},
+	}
+	t.Cleanup(workspaceCtx.close)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	preview, err := workspaceCtx.getPreviewWorkspace(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "main", preview.AgentName)
 }
 
 func TestTurnWorkspaceContextGetWorkspaceConnFastFailsWithoutCurrentAgent(t *testing.T) {
@@ -1793,6 +1840,9 @@ func TestTurnWorkspaceContext_EnsureWorkspaceAgentIgnoresCachedAgentForDifferent
 	workspaceCtx.agent = cachedAgent
 	workspaceCtx.agentLoaded = true
 	workspaceCtx.cachedWorkspaceID = uuid.NullUUID{UUID: workspaceOneID, Valid: true}
+	workspaceCtx.conn = agentconnmock.NewMockAgentConn(ctrl)
+	releases := 0
+	workspaceCtx.releaseConn = func() { releases++ }
 	defer workspaceCtx.close()
 
 	chatSnapshot, agent, err := workspaceCtx.ensureWorkspaceAgent(ctx)
@@ -1800,6 +1850,9 @@ func TestTurnWorkspaceContext_EnsureWorkspaceAgentIgnoresCachedAgentForDifferent
 	require.Equal(t, updatedChat, chatSnapshot)
 	require.Equal(t, resolvedAgent, agent)
 	require.Equal(t, updatedChat, currentChat)
+	// The old workspace's conn must not stay cached under the new workspace.
+	require.Nil(t, workspaceCtx.conn)
+	require.Equal(t, 1, releases)
 }
 
 func TestSubscribeRejectsUnauthorizedCallerBeforeSharedFetches(t *testing.T) {
