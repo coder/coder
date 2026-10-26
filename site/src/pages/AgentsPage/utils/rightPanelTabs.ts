@@ -19,6 +19,7 @@ export const singletonRightPanelTabIds = [
 	"browser",
 	"desktop",
 	"debug",
+	"preview",
 ] as const;
 
 export type SingletonRightPanelTabId =

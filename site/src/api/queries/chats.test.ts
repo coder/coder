@@ -67,6 +67,7 @@ import {
 	chatModelACLAvailableKey,
 	chatModelACLKey,
 	chatModelKey,
+	chatPreviews,
 	chatProjectListFamilyKey,
 	chatPromptsKey,
 	chatSearch,
@@ -1995,6 +1996,9 @@ describe("mutation invalidation scope", () => {
 		const chatId = "chat-1";
 		seedAllActiveQueries(queryClient, chatId);
 
+		const previewsKey = chatPreviews(chatId, "workspace-1").queryKey;
+		queryClient.setQueryData(previewsKey, []);
+
 		const mutation = editChatMessage(queryClient, chatId);
 		mutation.onSettled();
 
@@ -2022,6 +2026,8 @@ describe("mutation invalidation scope", () => {
 			queryClient.getQueryState(chatDebugRunsKey(chatId))?.isInvalidated,
 			"chatDebugRunsKey should be invalidated",
 		).toBe(true);
+
+		expect(queryClient.getQueryState(previewsKey)?.isInvalidated).toBe(true);
 	});
 
 	it("editChatMessage onError invalidates messages", async () => {
@@ -2623,6 +2629,19 @@ describe("mutation invalidation scope", () => {
 				?.isInvalidated,
 			"by-workspace entry should be invalidated",
 		).toBe(true);
+	});
+
+	it("updateChatWorkspace onSettled invalidates previews", async () => {
+		const queryClient = createTestQueryClient();
+		const previewsKey = chatPreviews("chat-1", "ws-1").queryKey;
+		queryClient.setQueryData(previewsKey, []);
+
+		await updateChatWorkspace(queryClient).onSettled(undefined, undefined, {
+			chatId: "chat-1",
+			workspaceId: "ws-1",
+		});
+
+		expect(queryClient.getQueryState(previewsKey)?.isInvalidated).toBe(true);
 	});
 
 	it("archiveChat onSuccess synchronously removes the chat's by-workspace mappings", () => {
