@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -20,19 +21,19 @@ import (
 )
 
 const (
-	// personalSkillJSONEscapeExpansion is the maximum expansion for one byte in a JSON string.
-	personalSkillJSONEscapeExpansion = 6
-	// personalSkillRequestEnvelopeBytes leaves room for the surrounding JSON object.
-	personalSkillRequestEnvelopeBytes = 1024
-	// maxPersonalSkillRequestBytes allows worst-case JSON string escaping for
+	// skillJSONEscapeExpansion is the maximum expansion for one byte in a JSON string.
+	skillJSONEscapeExpansion = 6
+	// skillRequestEnvelopeBytes leaves room for the surrounding JSON object.
+	skillRequestEnvelopeBytes = 1024
+	// maxSkillRequestBytes allows worst-case JSON string escaping for
 	// otherwise valid raw skill content.
-	maxPersonalSkillRequestBytes = skills.MaxPersonalSkillSizeBytes*personalSkillJSONEscapeExpansion + personalSkillRequestEnvelopeBytes
+	maxSkillRequestBytes = skills.MaxPersonalSkillSizeBytes*skillJSONEscapeExpansion + skillRequestEnvelopeBytes
 
 	// These names are raised by trigger functions with USING CONSTRAINT.
 	// They are not table CHECK constraints, so dbgen does not emit them in
 	// check_constraint.go.
-	userSkillsPerUserLimitConstraint database.CheckConstraint = "user_skills_per_user_limit"
-	userSkillUserDeletedConstraint   database.CheckConstraint = "user_skill_user_deleted"
+	skillsPerUserLimitConstraint   database.CheckConstraint = "skills_per_user_limit"
+	userSkillUserDeletedConstraint database.CheckConstraint = "user_skill_user_deleted"
 )
 
 // @Summary Create a user skill
@@ -42,8 +43,8 @@ const (
 // @Produce json
 // @Tags Users
 // @Param user path string true "User ID, username, or me"
-// @Param request body codersdk.CreateUserSkillRequest true "Create user skill request"
-// @Success 201 {object} codersdk.UserSkill
+// @Param request body codersdk.CreateSkillRequest true "Create user skill request"
+// @Success 201 {object} codersdk.Skill
 // @Router /api/experimental/users/{user}/skills [post]
 // @x-apidocgen {"skip": true}
 func (api *API) postUserSkill(rw http.ResponseWriter, r *http.Request) {
@@ -51,7 +52,7 @@ func (api *API) postUserSkill(rw http.ResponseWriter, r *http.Request) {
 		ctx               = r.Context()
 		user              = httpmw.UserParam(r)
 		auditor           = api.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.UserSkill](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.Skill](rw, &audit.RequestParams{
 			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,
@@ -60,55 +61,20 @@ func (api *API) postUserSkill(rw http.ResponseWriter, r *http.Request) {
 	)
 	defer commitAudit()
 
-	var req codersdk.CreateUserSkillRequest
-	if !httpapi.ReadLimit(ctx, rw, r, maxPersonalSkillRequestBytes, &req) {
-		return
-	}
-
-	parsedSkill, err := skills.ParsePersonalSkillMarkdown([]byte(req.Content))
-	if err != nil {
-		writeInvalidUserSkillContent(ctx, rw, err)
-		return
-	}
-
-	params := database.InsertUserSkillParams{
-		ID:          uuid.New(),
-		UserID:      user.ID,
-		Name:        parsedSkill.Name,
-		Description: parsedSkill.Description,
-		Content:     req.Content,
-	}
-	skill, err := api.Database.InsertUserSkill(ctx, params)
-	if err != nil {
-		if httpapi.IsUnauthorizedError(err) {
-			httpapi.Forbidden(rw)
-			return
-		}
-		if database.IsCheckViolation(err, userSkillUserDeletedConstraint) {
-			writeCannotCreateUserSkillForDeletedUser(ctx, rw)
-			return
-		}
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		if database.IsCheckViolation(err, userSkillsPerUserLimitConstraint) {
-			writeUserSkillLimitReached(ctx, rw)
-			return
-		}
-		if database.IsUniqueViolation(err, database.UniqueUserSkillsUserIDNameIndex) {
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "A skill with that name already exists.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		httpapi.InternalServerError(rw, err)
+	skill, ok := createSkill(ctx, rw, r, userSkillCreateErrors, skillOwnerPersonal, func(parsed skills.ParsedSkill, create skillCreate) (database.Skill, error) {
+		return api.Database.InsertUserSkill(ctx, database.InsertUserSkillParams{
+			ID:             uuid.New(),
+			UserID:         user.ID,
+			Name:           parsed.Name,
+			Description:    parsed.Description,
+			Content:        create.Content,
+			ModelInvocable: create.ModelInvocable,
+		})
+	})
+	if !ok {
 		return
 	}
 	aReq.New = skill
-
-	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.UserSkill(skill))
 }
 
 // @Summary List user skills
@@ -117,7 +83,7 @@ func (api *API) postUserSkill(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Users
 // @Param user path string true "User ID, username, or me"
-// @Success 200 {array} codersdk.UserSkillMetadata
+// @Success 200 {array} codersdk.SkillMetadata
 // @Router /api/experimental/users/{user}/skills [get]
 // @x-apidocgen {"skip": true}
 func (api *API) getUserSkills(rw http.ResponseWriter, r *http.Request) { //nolint:revive // Method name matches route.
@@ -144,7 +110,7 @@ func (api *API) getUserSkills(rw http.ResponseWriter, r *http.Request) { //nolin
 // @Tags Users
 // @Param user path string true "User ID, username, or me"
 // @Param skillName path string true "Skill name"
-// @Success 200 {object} codersdk.UserSkill
+// @Success 200 {object} codersdk.Skill
 // @Router /api/experimental/users/{user}/skills/{skillName} [get]
 // @x-apidocgen {"skip": true}
 func (api *API) getUserSkill(rw http.ResponseWriter, r *http.Request) { //nolint:revive // Method name matches route.
@@ -165,7 +131,7 @@ func (api *API) getUserSkill(rw http.ResponseWriter, r *http.Request) { //nolint
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.UserSkill(skill))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Skill(skill))
 }
 
 // @Summary Update a user skill
@@ -176,8 +142,8 @@ func (api *API) getUserSkill(rw http.ResponseWriter, r *http.Request) { //nolint
 // @Tags Users
 // @Param user path string true "User ID, username, or me"
 // @Param skillName path string true "Skill name"
-// @Param request body codersdk.UpdateUserSkillRequest true "Update user skill request"
-// @Success 200 {object} codersdk.UserSkill
+// @Param request body codersdk.UpdateSkillRequest true "Update user skill request"
+// @Success 200 {object} codersdk.Skill
 // @Router /api/experimental/users/{user}/skills/{skillName} [patch]
 // @x-apidocgen {"skip": true}
 func (api *API) patchUserSkill(rw http.ResponseWriter, r *http.Request) {
@@ -186,7 +152,7 @@ func (api *API) patchUserSkill(rw http.ResponseWriter, r *http.Request) {
 		user              = httpmw.UserParam(r)
 		name              = chi.URLParam(r, "skillName")
 		auditor           = api.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.UserSkill](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.Skill](rw, &audit.RequestParams{
 			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,
@@ -195,75 +161,32 @@ func (api *API) patchUserSkill(rw http.ResponseWriter, r *http.Request) {
 	)
 	defer commitAudit()
 
-	var req codersdk.UpdateUserSkillRequest
-	if !httpapi.ReadLimit(ctx, rw, r, maxPersonalSkillRequestBytes, &req) {
-		return
-	}
-
-	parsedSkill, err := skills.ParsePersonalSkillMarkdown([]byte(req.Content))
-	if err != nil {
-		writeInvalidUserSkillContent(ctx, rw, err)
-		return
-	}
-	if parsedSkill.Name != name {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Skill name in path does not match frontmatter name.",
-			Detail:  fmt.Sprintf("path has %q, frontmatter has %q", name, parsedSkill.Name),
-		})
-		return
-	}
-
-	params := database.UpdateUserSkillByUserIDAndNameParams{
-		UserID:      user.ID,
-		Name:        name,
-		Description: parsedSkill.Description,
-		Content:     req.Content,
-	}
-
-	var (
-		skill    database.UserSkill
-		oldSkill database.UserSkill
-	)
-	err = api.Database.InTx(func(tx database.Store) error {
+	oldSkill, skill, ok := api.updateSkill(ctx, rw, r, name, userSkillUpdateErrors, skillOwnerPersonal, func(tx database.Store, update skillUpdate) (database.Skill, database.Skill, error) {
 		fetched, err := tx.GetUserSkillByUserIDAndName(ctx, database.GetUserSkillByUserIDAndNameParams{
 			UserID: user.ID,
 			Name:   name,
 		})
 		if err != nil {
-			return xerrors.Errorf("fetch user skill: %w", err)
+			return database.Skill{}, database.Skill{}, xerrors.Errorf("fetch user skill: %w", err)
 		}
-
-		updated, err := tx.UpdateUserSkillByUserIDAndName(ctx, params)
+		updated, err := tx.UpdateUserSkillByUserIDAndName(ctx, database.UpdateUserSkillByUserIDAndNameParams{
+			UserID:         user.ID,
+			Name:           name,
+			Description:    update.Description,
+			Content:        update.Content,
+			Enabled:        update.Enabled,
+			ModelInvocable: update.ModelInvocable,
+		})
 		if err != nil {
-			return xerrors.Errorf("update user skill: %w", err)
+			return database.Skill{}, database.Skill{}, xerrors.Errorf("update user skill: %w", err)
 		}
-		oldSkill = fetched
-		skill = updated
-		return nil
-	}, nil)
-	if err != nil {
-		if httpapi.IsUnauthorizedError(err) {
-			httpapi.Forbidden(rw)
-			return
-		}
-		if database.IsCheckViolation(err, userSkillUserDeletedConstraint) {
-			writeCannotModifyUserSkillForDeletedUser(ctx, rw)
-			return
-		}
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		httpapi.InternalServerError(rw, err)
+		return fetched, updated, nil
+	})
+	if !ok {
 		return
 	}
-
-	// Assign audit state after InTx returns so the audit log can never
-	// claim a rolled-back update was committed.
 	aReq.Old = oldSkill
 	aReq.New = skill
-
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.UserSkill(skill))
 }
 
 // @Summary Delete a user skill
@@ -281,7 +204,7 @@ func (api *API) deleteUserSkill(rw http.ResponseWriter, r *http.Request) {
 		user              = httpmw.UserParam(r)
 		name              = chi.URLParam(r, "skillName")
 		auditor           = api.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.UserSkill](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.Skill](rw, &audit.RequestParams{
 			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,
@@ -307,31 +230,221 @@ func (api *API) deleteUserSkill(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-func writeCannotCreateUserSkillForDeletedUser(ctx context.Context, rw http.ResponseWriter) {
-	httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-		Message: "Cannot create skills for deleted users.",
-		Detail:  "This user has been deleted and cannot be modified.",
+var (
+	userSkillCreateErrors = skillWriteErrors{
+		ownerDeleted: userDeletedSkillResponse("Cannot create skills for deleted users."),
+		limit:        skillsPerUserLimitConstraint,
+		limitReached: codersdk.Response{
+			Message: "Personal skill limit reached.",
+			Detail:  fmt.Sprintf("Each user can have at most %d personal skills.", skills.MaxPersonalSkillsPerUser),
+		},
+		nameIndex: database.UniqueSkillsUserIDNameIndex,
+	}
+	userSkillUpdateErrors = skillWriteErrors{
+		ownerDeleted: userDeletedSkillResponse("Cannot modify skills for deleted users."),
+	}
+)
+
+func userDeletedSkillResponse(message string) codersdk.Response {
+	return codersdk.Response{Message: message, Detail: "This user has been deleted and cannot be modified."}
+}
+
+// skillWriteErrors holds the owner-specific responses for errors from a
+// skill insert or update. Empty responses leave their error to the generic
+// mapping, and an empty forbidden response uses httpapi.Forbidden.
+type skillWriteErrors struct {
+	forbidden    codersdk.Response
+	ownerDeleted codersdk.Response
+	limit        database.CheckConstraint
+	limitReached codersdk.Response
+	nameIndex    database.UniqueConstraint
+}
+
+func (e skillWriteErrors) write(ctx context.Context, rw http.ResponseWriter, err error) {
+	switch {
+	case httpapi.IsUnauthorizedError(err) && e.forbidden.Message == "":
+		httpapi.Forbidden(rw)
+	case httpapi.IsUnauthorizedError(err):
+		httpapi.Write(ctx, rw, http.StatusForbidden, e.forbidden)
+	case e.ownerDeleted.Message != "" && database.IsCheckViolation(err, userSkillUserDeletedConstraint):
+		httpapi.Write(ctx, rw, http.StatusConflict, e.ownerDeleted)
+	case httpapi.Is404Error(err):
+		httpapi.ResourceNotFound(rw)
+	case e.limitReached.Message != "" && database.IsCheckViolation(err, e.limit):
+		httpapi.Write(ctx, rw, http.StatusConflict, e.limitReached)
+	case e.nameIndex != "" && database.IsUniqueViolation(err, e.nameIndex):
+		writeSkillNameConflict(ctx, rw)
+	case database.IsCheckViolation(err, database.CheckSkillsActionProjectOnly):
+		writeSkillActionNotAllowed(ctx, rw)
+	default:
+		httpapi.InternalServerError(rw, err)
+	}
+}
+
+// skillOwnerKind is the kind of owner a skill route manages.
+type skillOwnerKind int
+
+const (
+	skillOwnerPersonal skillOwnerKind = iota
+	skillOwnerOrganization
+	skillOwnerProject
+)
+
+// allowsAction reports whether skills of this owner kind can be actions.
+func (k skillOwnerKind) allowsAction() bool {
+	return k == skillOwnerProject
+}
+
+// skillCreate holds the columns a skill create request writes. Unset
+// optional columns keep their database defaults.
+type skillCreate struct {
+	Content        string
+	Action         sql.NullBool
+	ModelInvocable sql.NullBool
+}
+
+// createSkill parses a skill create request, stores the skill with insert,
+// and writes the response. It returns false when it wrote an error.
+func createSkill(
+	ctx context.Context,
+	rw http.ResponseWriter,
+	r *http.Request,
+	errs skillWriteErrors,
+	kind skillOwnerKind,
+	insert func(parsed skills.ParsedSkill, create skillCreate) (database.Skill, error),
+) (database.Skill, bool) {
+	var req codersdk.CreateSkillRequest
+	if !httpapi.ReadLimit(ctx, rw, r, maxSkillRequestBytes, &req) {
+		return database.Skill{}, false
+	}
+	if req.Action != nil && !kind.allowsAction() {
+		writeSkillActionNotAllowed(ctx, rw)
+		return database.Skill{}, false
+	}
+	parsed, err := skills.ParsePersonalSkillMarkdown([]byte(req.Content))
+	if err != nil {
+		writeInvalidSkillContent(ctx, rw, err)
+		return database.Skill{}, false
+	}
+	skill, err := insert(parsed, skillCreate{
+		Content:        req.Content,
+		Action:         nullBool(req.Action),
+		ModelInvocable: nullBool(req.ModelInvocable),
+	})
+	if err != nil {
+		errs.write(ctx, rw, err)
+		return database.Skill{}, false
+	}
+	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.Skill(skill))
+	return skill, true
+}
+
+// updateSkill applies a skill PATCH request for the skill named name and
+// writes the response. apply runs in a transaction and returns the rows
+// before and after the update. Callers assign audit state only after it
+// returns true, so the audit log never claims a rolled-back update.
+func (api *API) updateSkill(
+	ctx context.Context,
+	rw http.ResponseWriter,
+	r *http.Request,
+	name string,
+	errs skillWriteErrors,
+	kind skillOwnerKind,
+	apply func(tx database.Store, update skillUpdate) (old database.Skill, updated database.Skill, err error),
+) (old database.Skill, updated database.Skill, ok bool) {
+	update, ok := readSkillUpdate(ctx, rw, r, name, kind)
+	if !ok {
+		return database.Skill{}, database.Skill{}, false
+	}
+	err := api.Database.InTx(func(tx database.Store) error {
+		var err error
+		old, updated, err = apply(tx, update)
+		return err
+	}, nil)
+	if err != nil {
+		errs.write(ctx, rw, err)
+		return database.Skill{}, database.Skill{}, false
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Skill(updated))
+	return old, updated, true
+}
+
+// skillUpdate holds the optional columns a skill PATCH writes.
+type skillUpdate struct {
+	Description    sql.NullString
+	Content        sql.NullString
+	Enabled        sql.NullBool
+	Action         sql.NullBool
+	ModelInvocable sql.NullBool
+}
+
+// readSkillUpdate reads and validates a PATCH request for the skill named
+// name for an owner of the given kind. It writes the error response and
+// returns false when the request is invalid.
+func readSkillUpdate(ctx context.Context, rw http.ResponseWriter, r *http.Request, name string, kind skillOwnerKind) (skillUpdate, bool) {
+	var req codersdk.UpdateSkillRequest
+	if !httpapi.ReadLimit(ctx, rw, r, maxSkillRequestBytes, &req) {
+		return skillUpdate{}, false
+	}
+	if req.Action != nil && !kind.allowsAction() {
+		writeSkillActionNotAllowed(ctx, rw)
+		return skillUpdate{}, false
+	}
+	if req.Content == nil && req.Enabled == nil && req.Action == nil && req.ModelInvocable == nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "No skill fields to update.",
+			Detail:  "Set at least one of content, enabled, action, or model_invocable.",
+		})
+		return skillUpdate{}, false
+	}
+
+	update := skillUpdate{
+		Enabled:        nullBool(req.Enabled),
+		Action:         nullBool(req.Action),
+		ModelInvocable: nullBool(req.ModelInvocable),
+	}
+	if req.Content == nil {
+		return update, true
+	}
+	parsed, err := skills.ParsePersonalSkillMarkdown([]byte(*req.Content))
+	if err != nil {
+		writeInvalidSkillContent(ctx, rw, err)
+		return skillUpdate{}, false
+	}
+	if parsed.Name != name {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Skill name in path does not match frontmatter name.",
+			Detail:  fmt.Sprintf("path has %q, frontmatter has %q", name, parsed.Name),
+		})
+		return skillUpdate{}, false
+	}
+	update.Description = sql.NullString{String: parsed.Description, Valid: true}
+	update.Content = sql.NullString{String: *req.Content, Valid: true}
+	return update, true
+}
+
+func nullBool(value *bool) sql.NullBool {
+	if value == nil {
+		return sql.NullBool{}
+	}
+	return sql.NullBool{Bool: *value, Valid: true}
+}
+
+func writeSkillActionNotAllowed(ctx context.Context, rw http.ResponseWriter) {
+	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		Message: "Only project skills can be actions.",
+		Detail:  "Remove the action field; personal and organization skills cannot be shown as actions.",
 	})
 }
 
-func writeCannotModifyUserSkillForDeletedUser(ctx context.Context, rw http.ResponseWriter) {
+func writeSkillNameConflict(ctx context.Context, rw http.ResponseWriter) {
 	httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-		Message: "Cannot modify skills for deleted users.",
-		Detail:  "This user has been deleted and cannot be modified.",
+		Message: "A skill with that name already exists.",
+		Detail:  "Choose a different name, or edit the existing skill.",
 	})
 }
 
-func writeUserSkillLimitReached(ctx context.Context, rw http.ResponseWriter) {
-	httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-		Message: "Personal skill limit reached.",
-		Detail: fmt.Sprintf(
-			"Each user can have at most %d personal skills.",
-			skills.MaxPersonalSkillsPerUser,
-		),
-	})
-}
-
-func writeInvalidUserSkillContent(ctx context.Context, rw http.ResponseWriter, err error) {
+func writeInvalidSkillContent(ctx context.Context, rw http.ResponseWriter, err error) {
 	message := "Invalid skill content."
 	switch {
 	case errors.Is(err, skills.ErrInvalidSkillName):

@@ -39,7 +39,8 @@ CODER_OIDC_ICON_URL=/icon/google.svg
 
 ## Enable refresh tokens (recommended)
 
-Google uses auth URL parameters to issue refresh tokens. Configure:
+Google uses auth URL parameters to issue refresh tokens.
+Configure:
 
 ```dotenv
 # Keep standard scopes

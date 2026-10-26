@@ -55,7 +55,9 @@ export default defineConfig({
 	build: {
 		outDir: path.resolve(import.meta.dirname, "./out"),
 		emptyOutDir: false, // We need to keep the /bin folder and GITKEEP files
-		sourcemap: isProfilingBuild ? true : "hidden",
+		// Source maps are roughly 100 MB and are embedded in the coder binary,
+		// so only profiling builds include them.
+		sourcemap: isProfilingBuild,
 		rolldownOptions: {
 			input: {
 				index: path.resolve(import.meta.dirname, "./index.html"),

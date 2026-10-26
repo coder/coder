@@ -21,8 +21,7 @@ For more details, visit the [official JetBrains documentation](https://www.jetbr
 1. Enter the URL address and select **Sign In**.
    ![JetBrains Toolbox Coder provider URL](../../../images/user-guides/jetbrains/toolbox/login-url.png)
 1. Authenticate to Coder adding a token for the session and select **Connect**.
-   ![JetBrains Toolbox Coder provider token](../../../images/user-guides/jetbrains/toolbox/login-token.png)
-   After the authentication is completed, you are connected to your development environment and can open and work on projects.
+   ![JetBrains Toolbox Coder provider token](../../../images/user-guides/jetbrains/toolbox/login-token.png) After the authentication is completed, you are connected to your development environment and can open and work on projects.
    ![JetBrains Toolbox Coder Workspaces](../../../images/user-guides/jetbrains/toolbox/workspaces.png)
 
 ## Use URI parameters
@@ -43,7 +42,7 @@ Optional parameters:
 
 - `agent_id`: ID of the agent (only required if workspace has multiple agents)
 - `folder`: Specific project folder path to open
-- `ide_product_code`: Specific IDE product code (e.g., "IU" for IntelliJ IDEA Ultimate)
+- `ide_product_code`: Specific IDE product code (for example, "IU" for IntelliJ IDEA Ultimate)
 - `ide_build_number`: Specific build number of the JetBrains IDE
 
 For more details, see the [coder-jetbrains-toolbox repository](https://github.com/coder/coder-jetbrains-toolbox#connect-to-a-coder-workspace-via-jetbrains-toolbox-uri).

@@ -64,43 +64,22 @@ func dynamicToolJSON(name string) []byte {
 // messages do not collide.
 func assistantToolCallMessage(t *testing.T, modelID uuid.UUID, toolName, callID string) chatstate.Message {
 	t.Helper()
-	raw, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
-		Type:       codersdk.ChatMessagePartTypeToolCall,
-		ToolCallID: callID,
-		ToolName:   toolName,
-		Args:       json.RawMessage(`{}`),
-	}})
-	require.NoError(t, err)
-	return chatstate.Message{
-		Role:           database.ChatMessageRoleAssistant,
-		Content:        raw,
-		Visibility:     database.ChatMessageVisibilityBoth,
-		ContentVersion: chatprompt.CurrentContentVersion,
-		ModelConfigID:  uuid.NullUUID{UUID: modelID, Valid: true},
-	}
+	return chatMessage(t, modelID, database.ChatMessageRoleAssistant,
+		codersdk.ChatMessageToolCall(callID, toolName, json.RawMessage(`{}`)))
 }
 
 func mixedAssistantToolCallMessage(t *testing.T, modelID uuid.UUID, dynamicTool, dynCallID, nonDynCallID string) chatstate.Message {
 	t.Helper()
-	parts := []codersdk.ChatMessagePart{
-		{
-			Type:       codersdk.ChatMessagePartTypeToolCall,
-			ToolCallID: dynCallID,
-			ToolName:   dynamicTool,
-			Args:       json.RawMessage(`{}`),
-		},
-		{
-			Type:       codersdk.ChatMessagePartTypeToolCall,
-			ToolCallID: nonDynCallID,
-			ToolName:   "non_dynamic_tool",
-			Args:       json.RawMessage(`{}`),
-		},
-	}
-	raw, err := chatprompt.MarshalParts(parts)
-	require.NoError(t, err)
+	return chatMessage(t, modelID, database.ChatMessageRoleAssistant,
+		codersdk.ChatMessageToolCall(dynCallID, dynamicTool, json.RawMessage(`{}`)),
+		codersdk.ChatMessageToolCall(nonDynCallID, "non_dynamic_tool", json.RawMessage(`{}`)))
+}
+
+func chatMessage(t *testing.T, modelID uuid.UUID, role database.ChatMessageRole, parts ...codersdk.ChatMessagePart) chatstate.Message {
+	t.Helper()
 	return chatstate.Message{
-		Role:           database.ChatMessageRoleAssistant,
-		Content:        raw,
+		Role:           role,
+		Content:        mustMarshalParts(t, parts),
 		Visibility:     database.ChatMessageVisibilityBoth,
 		ContentVersion: chatprompt.CurrentContentVersion,
 		ModelConfigID:  uuid.NullUUID{UUID: modelID, Valid: true},
@@ -456,20 +435,20 @@ func seedStateMultiQueued(t *testing.T, f *testFixture, state chatstate.Executio
 	case chatstate.StateI1:
 		created := createTestChat(t, f)
 		m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-		firstBody := "queued-i1-a"
-		first := sendQueuedMessage(t, f, m, firstBody)
-		require.NotNil(t, first.QueuedMessage)
+		tailBody := "queued-i1-b"
+		tail := sendQueuedMessage(t, f, m, tailBody)
+		require.NotNil(t, tail.QueuedMessage)
 		// R1 -> I1 via interrupt-mode SendMessage queues a second
 		// message and flips status to interrupting.
-		secondBody := "queued-i1-b"
-		second := sendInterruptMessage(t, f, m, created.Chat.ID, secondBody)
-		require.NotNil(t, second.QueuedMessage)
+		headBody := "queued-i1-a"
+		head := sendInterruptMessage(t, f, m, created.Chat.ID, headBody)
+		require.NotNil(t, head.QueuedMessage)
 		return seededChat{
 			chatID:               created.Chat.ID,
 			exists:               true,
 			initialUserMessageID: firstUserMessageID(ctx, t, f, created.Chat.ID),
-			queuedMessageIDs:     []int64{first.QueuedMessage.ID, second.QueuedMessage.ID},
-			queuedMessageBodies:  []string{firstBody, secondBody},
+			queuedMessageIDs:     []int64{head.QueuedMessage.ID, tail.QueuedMessage.ID},
+			queuedMessageBodies:  []string{headBody, tailBody},
 		}
 
 	case chatstate.StateA1:
@@ -482,7 +461,8 @@ func seedStateMultiQueued(t *testing.T, f *testFixture, state chatstate.Executio
 // seedA1WithMixedOutstandingToolCalls seeds A1 with one queued message
 // and one assistant message carrying both a dynamic and non-dynamic
 // outstanding tool call. It is used by PromoteQueuedMessage(A1) to
-// prove all tool calls are closed before inserting the promoted user.
+// prove all tool calls are closed before inserting the promoted user,
+// and by CancelRequiresAction(A1) to prove only the dynamic one is.
 func seedA1WithMixedOutstandingToolCalls(t *testing.T, f *testFixture, queuedExtras int, namePrefix string) seededChat {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)

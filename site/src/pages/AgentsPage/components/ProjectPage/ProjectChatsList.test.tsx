@@ -1,15 +1,21 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClientProvider } from "react-query";
+import { type InfiniteData, QueryClientProvider } from "react-query";
 import { MemoryRouter, Outlet, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
+import { projectChatsKey } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
+import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
 import { MockChat, mockChatCost } from "#/testHelpers/chatEntities";
 import {
+	MockAppearanceConfig,
+	MockBuildInfo,
 	MockChatProject,
+	MockDefaultOrganization,
+	MockEntitlements,
 	MockUserMember,
 	MockUserOwner,
 	MockWorkspace,
@@ -46,9 +52,15 @@ class MockIntersectionObserver {
 	}
 }
 
+const mockProjectChat: Chat = {
+	...MockChat,
+	organization_id: MockChatProject.organization_id,
+	project_id: MockChatProject.id,
+};
+
 const buildChats = (count: number, offset = 0): Chat[] =>
 	Array.from({ length: count }, (_, index) => ({
-		...MockChat,
+		...mockProjectChat,
 		id: `chat-${offset + index}`,
 		title: `Chat ${offset + index}`,
 	}));
@@ -73,21 +85,34 @@ const LocationDisplay: React.FC = () => {
 const renderList = (
 	outletContext = buildOutletContext(),
 	initialEntry = "/agents/projects/project",
+	queryClient = createTestQueryClient(),
 ) => {
 	render(
 		<ThemeOverride theme={themes[DEFAULT_THEME]}>
-			<QueryClientProvider client={createTestQueryClient()}>
-				<MemoryRouter initialEntries={[initialEntry]}>
-					<Routes>
-						<Route element={<Outlet context={outletContext} />}>
-							<Route
-								path="/agents/projects/project"
-								element={<ProjectChatsList project={MockChatProject} />}
-							/>
-						</Route>
-						<Route path="/agents/:agentId" element={<LocationDisplay />} />
-					</Routes>
-				</MemoryRouter>
+			<QueryClientProvider client={queryClient}>
+				<DashboardContext.Provider
+					value={{
+						entitlements: MockEntitlements,
+						experiments: ["chat-projects"],
+						appearance: MockAppearanceConfig,
+						buildInfo: MockBuildInfo,
+						organizations: [MockDefaultOrganization],
+						showOrganizations: false,
+						canViewOrganizationSettings: false,
+					}}
+				>
+					<MemoryRouter initialEntries={[initialEntry]}>
+						<Routes>
+							<Route element={<Outlet context={outletContext} />}>
+								<Route
+									path="/agents/projects/project"
+									element={<ProjectChatsList project={MockChatProject} />}
+								/>
+							</Route>
+							<Route path="/agents/:agentId" element={<LocationDisplay />} />
+						</Routes>
+					</MemoryRouter>
+				</DashboardContext.Provider>
 			</QueryClientProvider>
 		</ThemeOverride>,
 	);
@@ -200,7 +225,7 @@ describe("ProjectChatsList", () => {
 				.spyOn(navigator.clipboard, "writeText")
 				.mockResolvedValue();
 			vi.spyOn(API.experimental, "getChats").mockResolvedValue([
-				{ ...MockChat, owner_id: owner.id },
+				{ ...mockProjectChat, owner_id: owner.id },
 			]);
 			renderList();
 
@@ -229,7 +254,7 @@ describe("ProjectChatsList", () => {
 			.mockResolvedValue();
 		vi.spyOn(API.experimental, "getChats").mockResolvedValue([
 			{
-				...MockChat,
+				...mockProjectChat,
 				diff_status: {
 					chat_id: MockChat.id,
 					pull_request_title: "",
@@ -261,7 +286,7 @@ describe("ProjectChatsList", () => {
 		"archives and deletes a project chat workspace (confirmation: %s)",
 		async (requiresConfirmation) => {
 			const user = userEvent.setup();
-			const chat = { ...MockChat, workspace_id: MockWorkspace.id };
+			const chat = { ...mockProjectChat, workspace_id: MockWorkspace.id };
 			vi.spyOn(API.experimental, "getChats").mockResolvedValue([chat]);
 			vi.spyOn(API, "getWorkspace").mockResolvedValue({
 				...MockWorkspace,
@@ -315,7 +340,7 @@ describe("ProjectChatsList", () => {
 		async ({ action, pinOrder, expectedOrder }) => {
 			const user = userEvent.setup();
 			vi.spyOn(API.experimental, "getChats").mockResolvedValue([
-				{ ...MockChat, pin_order: pinOrder },
+				{ ...mockProjectChat, pin_order: pinOrder },
 			]);
 			vi.spyOn(API.experimental, "updateChat").mockResolvedValue(undefined);
 			renderList();
@@ -341,7 +366,7 @@ describe("ProjectChatsList", () => {
 		async ({ action, pinOrder }) => {
 			const user = userEvent.setup();
 			vi.spyOn(API.experimental, "getChats").mockResolvedValue([
-				{ ...MockChat, pin_order: pinOrder },
+				{ ...mockProjectChat, pin_order: pinOrder },
 			]);
 			vi.spyOn(API.experimental, "updateChat").mockRejectedValue(
 				new Error("Pin update rejected"),
@@ -427,5 +452,53 @@ describe("ProjectChatsList", () => {
 			expect(outletContext.clearChatErrorReason).toHaveBeenCalledWith("chat-0");
 		});
 		expect(outletContext.navigateAfterArchive).not.toHaveBeenCalled();
+	});
+
+	it("moves a chat to another project from its row menu", async () => {
+		const user = userEvent.setup();
+		const queryClient = createTestQueryClient();
+		const mockBillingProject = {
+			...MockChatProject,
+			id: "billing",
+			name: "Billing",
+		};
+		vi.spyOn(API.experimental, "getChats").mockResolvedValue(buildChats(1));
+		vi.spyOn(API.experimental, "getChatProjects").mockResolvedValue([
+			MockChatProject,
+			mockBillingProject,
+		]);
+		// The move stays pending, so no refetch replaces the optimistic project.
+		vi.spyOn(API.experimental, "updateChat").mockReturnValue(
+			new Promise(() => {}),
+		);
+		renderList(buildOutletContext(), "/agents/projects/project", queryClient);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: "Open chat actions for Chat 0",
+			}),
+		);
+		const trigger = await screen.findByRole("menuitem", {
+			name: "Move to project",
+		});
+		trigger.focus();
+		await user.keyboard("{ArrowRight}");
+		const current = await screen.findByRole("menuitem", {
+			name: MockChatProject.name,
+		});
+		await waitFor(() => expect(current).toHaveFocus());
+		await user.keyboard("{ArrowDown}");
+		expect(screen.getByRole("menuitem", { name: "Billing" })).toHaveFocus();
+		await user.keyboard("{Enter}");
+
+		expect(API.experimental.updateChat).toHaveBeenCalledWith("chat-0", {
+			project_id: mockBillingProject.id,
+		});
+		expect(
+			queryClient
+				.getQueryData<InfiniteData<Chat[]>>(projectChatsKey(MockChatProject.id))
+				?.pages.flat()
+				.find((chat) => chat.id === "chat-0")?.project_id,
+		).toBe(mockBillingProject.id);
 	});
 });

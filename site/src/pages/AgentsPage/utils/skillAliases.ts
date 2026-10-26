@@ -1,0 +1,58 @@
+import type { ChatSkillSource } from "#/api/typesGenerated";
+
+/** Where a skill is stored, named by its alias prefix. */
+export type SkillSource = ChatSkillSource;
+
+export type SkillSourceList<T extends { name: string }> = {
+	source: SkillSource;
+	/** Undefined while the source's list is still unknown. */
+	skills: readonly T[] | undefined;
+};
+
+export type SkillTrigger = {
+	source: SkillSource;
+	name: string;
+	description: string;
+	triggerText: string;
+	// The qualified alias stays searchable even when the displayed trigger
+	// is bare, so a typed qualified query keeps matching after collision
+	// state changes mid-trigger.
+	altTriggerText: string;
+};
+
+/** Returns the source-qualified alias of a skill, such as "/project/triage". */
+export const getSkillAlias = (source: SkillSource, name: string): string =>
+	`/${source}/${name}`;
+
+/**
+ * Builds every "/" trigger. Workspace skills and names in more than one
+ * source (chatd's MergeSkills) are qualified, as is every trigger while any
+ * list is unknown.
+ */
+export const resolveSkillTriggers = (
+	lists: readonly SkillSourceList<{ name: string; description: string }>[],
+): SkillTrigger[] => {
+	const hasUnknownList = lists.some((list) => list.skills === undefined);
+	const sourceCountByName = new Map<string, number>();
+	for (const list of lists) {
+		for (const name of new Set(list.skills?.map((skill) => skill.name))) {
+			sourceCountByName.set(name, (sourceCountByName.get(name) ?? 0) + 1);
+		}
+	}
+	return lists.flatMap(({ source, skills }) =>
+		(skills ?? []).map((skill) => {
+			const qualified = getSkillAlias(source, skill.name);
+			const isQualified =
+				source === "workspace" ||
+				hasUnknownList ||
+				(sourceCountByName.get(skill.name) ?? 0) > 1;
+			return {
+				source,
+				name: skill.name,
+				description: skill.description,
+				triggerText: isQualified ? qualified : `/${skill.name}`,
+				altTriggerText: qualified,
+			};
+		}),
+	);
+};
