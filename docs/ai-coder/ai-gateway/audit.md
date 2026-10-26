@@ -65,9 +65,17 @@ While a query is active, the timeline shows only matching events and a count bel
 Matches render in bold in prompts, tool names, and network call destinations, and a matching prompt expands to show the match.
 A "No events match your search in the loaded events." message appears when nothing in the loaded events matches.
 
-Within a thread, each step shows token usage, tool call details (including arguments and MCP server URLs), duration, and any errors or warnings.
+Within a thread, the prompt shows the total token usage and cost of the thread, including all its agentic actions.
+Token usage is broken down into input, output, cache read, and cache write tokens.
+A warning next to the model means either that the model was unpriced, or that Coder used the price of the model the provider reports serving instead of the requested model.
+To see which model was used for pricing, hover over the model.
+The agentic loop shows its duration and number of tool calls, and each step shows tool call details (including arguments and MCP server URLs).
 
-The **Session summary** card beside the timeline reports the session's [Agent Firewall](../agent-firewall/index.md) activity:
+The **Session summary** card beside the timeline shows the session's total token usage, with the same breakdown, and its total cost.
+A warning next to a cost means some usage was unpriced, so the actual cost may be higher.
+To learn how Coder prices usage and how to add missing prices, refer to [How spend is calculated](./cost-controls.md#how-spend-is-calculated).
+
+The card also reports the session's [Agent Firewall](../agent-firewall/index.md) activity:
 
 - **Network requests** is the total number of requests the session made.
   It shows `Disabled` when the session did not pass through Agent Firewall, so monitoring was not active, and `No activity` when the session made no requests.
