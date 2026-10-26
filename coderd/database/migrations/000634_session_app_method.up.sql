@@ -39,6 +39,18 @@ WHERE created_at >= (
 )
 	AND session_counts <> '{}'::jsonb;
 
+-- Rejects the previous release's flat writes, and keys that are not session
+-- methods, either of which would stall the rollup. NOT VALID skips the
+-- unconverted rows outside the window, which nothing reads. It locks
+-- workspace_agent_stats before template_usage_stats_session_apps, the order
+-- the rollup uses, so it cannot deadlock with a previous release's rollup.
+-- From here, reads of workspace_agent_stats wait for the commit.
+ALTER TABLE workspace_agent_stats
+	ADD CONSTRAINT workspace_agent_stats_session_counts_check
+		CHECK (NOT jsonb_path_exists(session_counts, '$.keyvalue() ? (@.value.type() != "object" || !(@.key == "ssh" || @.key == "reconnecting_pty" || @.key == "port_forwarding"))')) NOT VALID;
+
+COMMENT ON COLUMN workspace_agent_stats.session_counts IS 'Positive session counts keyed by connection method, then by the canonical app name reported by the agent.';
+
 -- The default fills existing rows without rewriting them; rows recorded
 -- without a method derive it from the app name.
 ALTER TABLE template_usage_stats_session_apps
@@ -71,12 +83,3 @@ LANGUAGE sql STABLE STRICT PARALLEL SAFE ROWS 4 AS $$
 $$;
 
 COMMENT ON FUNCTION session_count_apps(jsonb) IS 'Expands workspace_agent_stats.session_counts into one row per connection method and app name.';
-
--- Rejects the flat writes of the previous release. NOT VALID skips the
--- unconverted rows outside the window, which nothing reads. Last, because it
--- blocks reads until the migration commits.
-ALTER TABLE workspace_agent_stats
-	ADD CONSTRAINT workspace_agent_stats_session_counts_check
-		CHECK (NOT jsonb_path_exists(session_counts, '$.* ? (@.type() != "object")')) NOT VALID;
-
-COMMENT ON COLUMN workspace_agent_stats.session_counts IS 'Positive session counts keyed by connection method, then by the canonical app name reported by the agent.';

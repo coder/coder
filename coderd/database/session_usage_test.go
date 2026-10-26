@@ -448,6 +448,51 @@ func TestSessionUsageResponseCap(t *testing.T) {
 	})
 }
 
+// The SQL fold matches codersdk.FoldUnregisteredSessionApps across methods:
+// ties break by method, then app name, and each method has its own overflow.
+func TestSessionUsageResponseCapAcrossMethods(t *testing.T) {
+	t.Parallel()
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.Up(sqlDB))
+	ctx := context.Background()
+	start := dbtime.Now().Add(-time.Hour).Truncate(30 * time.Minute)
+	user, template := uuid.New(), uuid.New()
+	_, err := sqlDB.ExecContext(ctx, `INSERT INTO template_usage_stats(start_time,end_time,user_id,template_id,usage_mins) VALUES($1,$2,$3,$4,30)`,
+		start, start.Add(30*time.Minute), user, template)
+	require.NoError(t, err)
+
+	// port_forwarding/z_tie takes the last slot from ssh/a_tie: port_forwarding
+	// sorts before ssh.
+	want := map[codersdk.ConnectionLogMethod]map[string]int64{
+		codersdk.ConnectionLogMethodSSH:            {"a_tie": 4, "ssh_fold": 1},
+		codersdk.ConnectionLogMethodPortForwarding: {"z_tie": 4, "pf_fold": 1},
+	}
+	for i := range int(codersdk.TemplateInsightsMaxUnregisteredApps) - 1 {
+		want[codersdk.ConnectionLogMethodSSH][fmt.Sprintf("app_%02d", i)] = 6
+	}
+	for method, apps := range want {
+		for app, mins := range apps {
+			_, err := sqlDB.ExecContext(ctx, `INSERT INTO template_usage_stats_session_apps(start_time,template_id,user_id,method,app_name,usage_mins) VALUES($1,$2,$3,$4,$5,$6)`,
+				start, template, user, method, app, mins)
+			require.NoError(t, err)
+		}
+	}
+	require.Equal(t, 3, codersdk.FoldUnregisteredSessionApps(want))
+	require.NotContains(t, want[codersdk.ConnectionLogMethodSSH], "a_tie")
+
+	usage, err := database.New(sqlDB).GetTemplateInsights(ctx, templateInsightsParams(start, start.Add(30*time.Minute), template))
+	require.NoError(t, err)
+	require.Len(t, usage.SessionFoldedMethods, 2)
+	got, err := codersdk.DecodeMethodAppMap[int64](usage.SessionAppUsageSeconds)
+	require.NoError(t, err)
+	for _, apps := range got {
+		for app := range apps {
+			apps[app] /= 60
+		}
+	}
+	require.Equal(t, want, got)
+}
+
 // TestTemplateAppInsightsMergesBySlug checks that apps sharing a slug across
 // templates form one row, presented by the newest app.
 func TestTemplateAppInsightsMergesBySlug(t *testing.T) {

@@ -85,16 +85,28 @@ func TestMigration000634SessionAppMethod(t *testing.T) {
 	require.NoError(t, tx.QueryRowContext(ctx, `EXPLAIN SELECT * FROM session_count_apps('{}')`).Scan(&plan))
 	require.Contains(t, plan, "rows=4 ")
 
-	// A previous release's flat write is rejected.
-	_, err = tx.ExecContext(ctx, `SAVEPOINT before_flat`)
-	require.NoError(t, err)
-	_, err = tx.ExecContext(ctx, `
-		INSERT INTO workspace_agent_stats (id, created_at, user_id, agent_id, workspace_id, template_id, session_counts)
-		VALUES (gen_random_uuid(), now(), gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), '{"vscode": 1}')
-	`)
-	require.ErrorContains(t, err, "workspace_agent_stats_session_counts_check")
-	_, err = tx.ExecContext(ctx, `ROLLBACK TO SAVEPOINT before_flat`)
-	require.NoError(t, err)
+	// Nested writes over session methods are accepted. A previous release's
+	// flat write, and keys that are not session methods, are rejected.
+	for sessionCounts, valid := range map[string]bool{
+		`{"ssh": {"vscode": 1}, "reconnecting_pty": {"reconnecting_pty": 1}, "port_forwarding": {"port_forwarding": 1}}`: true,
+		`{"vscode": 1}`:             false,
+		`{"vscode": {"vscode": 1}}`: false,
+		`{"tunnel": {"vscode": 1}}`: false,
+	} {
+		_, err = tx.ExecContext(ctx, `SAVEPOINT before_write`)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO workspace_agent_stats (id, created_at, user_id, agent_id, workspace_id, template_id, session_counts)
+			VALUES (gen_random_uuid(), now(), gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), $1)
+		`, sessionCounts)
+		if valid {
+			require.NoError(t, err, sessionCounts)
+		} else {
+			require.ErrorContains(t, err, "workspace_agent_stats_session_counts_check", sessionCounts)
+		}
+		_, err = tx.ExecContext(ctx, `ROLLBACK TO SAVEPOINT before_write`)
+		require.NoError(t, err)
+	}
 
 	// The same app over another method gets its own row, and only session
 	// methods are allowed.

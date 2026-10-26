@@ -4957,7 +4957,7 @@ ALTER TABLE ONLY workspace_agent_logs
     ADD CONSTRAINT workspace_agent_startup_logs_pkey PRIMARY KEY (id);
 
 ALTER TABLE workspace_agent_stats
-    ADD CONSTRAINT workspace_agent_stats_session_counts_check CHECK ((NOT jsonb_path_exists(session_counts, '$.*?(@.type() != "object")'::jsonpath))) NOT VALID;
+    ADD CONSTRAINT workspace_agent_stats_session_counts_check CHECK ((NOT jsonb_path_exists(session_counts, '$.keyvalue()?(@."value".type() != "object" || !((@."key" == "ssh" || @."key" == "reconnecting_pty") || @."key" == "port_forwarding"))'::jsonpath))) NOT VALID;
 
 ALTER TABLE ONLY workspace_agent_volume_resource_monitors
     ADD CONSTRAINT workspace_agent_volume_resource_monitors_pkey PRIMARY KEY (agent_id, path);

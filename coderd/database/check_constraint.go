@@ -107,4 +107,5 @@ const (
 	CheckUserAclIsObject                                     CheckConstraint = "user_acl_is_object"                                        // workspaces
 	CheckWorkspaceSecretsRequiresTarget                      CheckConstraint = "workspace_secrets_requires_target"                         // workspace_secrets
 	CheckWorkspaceSecretsValueCleared                        CheckConstraint = "workspace_secrets_value_cleared"                           // workspace_secrets
+	CheckWorkspaceAgentStatsSessionCountsCheck               CheckConstraint = "workspace_agent_stats_session_counts_check"                // workspace_agent_stats
 )
