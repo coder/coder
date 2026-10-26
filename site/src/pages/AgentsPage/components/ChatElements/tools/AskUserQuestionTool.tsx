@@ -9,6 +9,7 @@ import { useMutation } from "react-query";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
+import { getAsyncAnswerPrefix, getAsyncAnswerText } from "./asyncAnswer";
 import { ToolCall } from "./ToolCall";
 import type { ToolStatus } from "./utils";
 
@@ -120,33 +121,6 @@ const formatOutgoingMessage = (
 			return `${questionIndex + 1}. ${getQuestionHeader(question, questionIndex)}: ${formatAnswer(answers[questionIndex])}`;
 		})
 		.join("\n");
-};
-
-const asyncAnswerLead = "Answer to ask_user_question call";
-
-const getAsyncAnswerPrefix = (toolCallId: string): string =>
-	`${asyncAnswerLead} ${toolCallId}:\n`;
-
-const asyncAnswerPattern = new RegExp(`^${asyncAnswerLead} (\\S+):\n`);
-
-/**
- * Returns the tool call ID named by the first line of an async answer, or
- * undefined when the text does not start with that line.
- */
-export const getAsyncAnswerToolCallId = (
-	responseText: string,
-): string | undefined => asyncAnswerPattern.exec(responseText)?.[1];
-
-// An async question can be followed by an unrelated message, so only a
-// message that names the call answers it.
-const getAsyncAnswerText = (
-	responseText: string | undefined,
-	toolCallId: string,
-): string | undefined => {
-	const prefix = getAsyncAnswerPrefix(toolCallId);
-	return responseText?.startsWith(prefix)
-		? responseText.slice(prefix.length)
-		: undefined;
 };
 
 const getSubmissionErrorMessage = (error: unknown): string | undefined => {
@@ -431,11 +405,10 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 		},
 	});
 	const isRunning = status === "running";
-	const previousAnswerText = isAsync
-		? getAsyncAnswerText(previousResponseText, asyncToolCallId)
-		: previousResponseText;
 	const displayedSubmittedResponseText =
-		previousAnswerText ?? submittedResponseText;
+		(isAsync
+			? getAsyncAnswerText(previousResponseText, asyncToolCallId)
+			: previousResponseText) ?? submittedResponseText;
 	const hasSubmittedResponse = displayedSubmittedResponseText != null;
 	const showAnsweredState = status === "completed" && hasSubmittedResponse;
 	const showSubmittedResponse = showAnsweredState && isLatestAskUserQuestion;

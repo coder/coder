@@ -22,7 +22,7 @@ import { MessageScroller, useMessageScroller } from "#/vendor/message-scroller";
 import { ConversationItem } from "../ChatElements/Conversation";
 import { Message, MessageContent } from "../ChatElements/Message";
 import { Response } from "../ChatElements/Response";
-import { getAsyncAnswerToolCallId } from "../ChatElements/tools/AskUserQuestionTool";
+import { getAsyncAnswerToolCallId } from "../ChatElements/tools/asyncAnswer";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";

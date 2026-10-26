@@ -282,8 +282,8 @@ const MockEarlierAsyncQuestionMessages: ChatMessage[] = [
 	},
 ];
 
-// A question still streaming supersedes the persisted one, and stays open
-// until its step persists and it becomes answerable.
+// A question still streaming supersedes the persisted one. It is not closed,
+// and it becomes answerable once its step persists.
 export const AsyncQuestionBeforeStepPersists: Story = {
 	args: {
 		onSendAskUserQuestionResponse: fn(),
