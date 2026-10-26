@@ -237,8 +237,9 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 			</ChatMessageScroller>
 			{/* The empty state sits outside the scroller content, which holds
 			    transcript rows only. */}
-			{/* The wrapper takes the overview card's room, like the scroller. */}
-			<div className="pr-[var(--agents-overview-room,0px)]">
+			{/* The room pads a wrapper, not the max-w-3xl column, so the
+			    column keeps its full width. */}
+			<div className="pr-(--agents-overview-room,0px)">
 				<div
 					className={cn("mx-auto w-full px-4", chatWidthClass(chatFullWidth))}
 				>

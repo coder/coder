@@ -84,7 +84,7 @@ const countDiffLines = (unifiedDiff: string): DiffStats => {
 	return { additions, deletions };
 };
 
-// Per-repo diff stats, repos with no net change excluded.
+/** Per-repo diff stats, repos with no net change excluded. */
 export const computeRepoStats = (
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>,
 ): Map<string, DiffStats> => {
@@ -124,7 +124,8 @@ const GIT_NOT_SETUP_BODY =
 const GIT_STATUS_LOADING_TITLE = "Waiting for Git status";
 const GIT_STATUS_LOADING_BODY = "Checking the workspace for Git repositories.";
 
-type DiffStats = {
+/** Added and deleted line counts of one diff. */
+export type DiffStats = {
 	additions: number;
 	deletions: number;
 };

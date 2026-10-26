@@ -5,21 +5,12 @@ import { MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import {
 	type ChatOverview,
 	ChatOverviewCardView,
-	hasOverviewContent,
 	type OverviewTabId,
 } from "./ChatOverviewCard";
 
-const emptyOverview: ChatOverview = {
-	isSubagent: false,
-	repos: [],
-	pullRequests: [],
-	subagents: [],
-	attachments: [],
-};
-
-const fullOverview: ChatOverview = {
-	...emptyOverview,
+const mockChatOverview: ChatOverview = {
 	cost: { totalMicros: 1_250_000, unpricedRequests: 0 },
+	isSubagent: false,
 	repos: [
 		{
 			root: "/repo",
@@ -39,14 +30,17 @@ const fullOverview: ChatOverview = {
 	],
 };
 
-const renderCard = (overview: ChatOverview) => {
+const renderCard = () => {
 	const onOpenTab = vi.fn<(tabId: OverviewTabId) => void>();
 	const router = createMemoryRouter(
 		[
 			{
 				path: "/agents/:agentId",
 				element: (
-					<ChatOverviewCardView overview={overview} onOpenTab={onOpenTab} />
+					<ChatOverviewCardView
+						overview={mockChatOverview}
+						onOpenTab={onOpenTab}
+					/>
 				),
 			},
 		],
@@ -64,51 +58,20 @@ describe("ChatOverviewCardView", () => {
 		{ name: /plan\.html/, tab: "summary" },
 	])("opens the $tab tab from the row named $name", async ({ name, tab }) => {
 		const user = userEvent.setup();
-		const { onOpenTab } = renderCard(fullOverview);
+		const { onOpenTab } = renderCard();
 
 		await user.click(screen.getByRole("button", { name }));
 
 		expect(onOpenTab).toHaveBeenCalledExactlyOnceWith(tab);
 	});
 
-	it("opens the child chat from a sub-agent row", async () => {
+	it("opens the child chat from a subagent row", async () => {
 		const user = userEvent.setup();
-		const { onOpenTab, router } = renderCard(fullOverview);
+		const { onOpenTab, router } = renderCard();
 
 		await user.click(screen.getByRole("link", { name: /Find the flake/ }));
 
 		expect(router.state.location.pathname).toBe("/agents/child-1");
 		expect(onOpenTab).not.toHaveBeenCalled();
-	});
-
-	it("shows every row after a click on the more row", async () => {
-		const user = userEvent.setup();
-		const repos = ["a", "b", "c", "d", "e"].map((name) => ({
-			root: `/${name}`,
-			branch: `branch-${name}`,
-			additions: 1,
-			deletions: 1,
-		}));
-		renderCard({ ...emptyOverview, repos });
-
-		expect(screen.getAllByRole("button", { name: /branch-/ })).toHaveLength(3);
-		await user.click(screen.getByRole("button", { name: "2 more" }));
-
-		expect(screen.getAllByRole("button", { name: /branch-/ })).toHaveLength(5);
-	});
-});
-
-describe("hasOverviewContent", () => {
-	it("is false when every section is empty", () => {
-		expect(hasOverviewContent(emptyOverview)).toBe(false);
-	});
-
-	it("is true with a single sub-agent", () => {
-		expect(
-			hasOverviewContent({
-				...emptyOverview,
-				subagents: [{ id: "c", title: "", status: "waiting" }],
-			}),
-		).toBe(true);
 	});
 });

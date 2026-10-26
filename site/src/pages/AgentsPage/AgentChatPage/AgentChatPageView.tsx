@@ -329,11 +329,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	const isArchived = chat.archived;
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chat.status;
-	const [chatFullWidth] = useChatFullWidth();
-	const { isEmbedded } = useEmbedContext();
-	// The overview card's room follows the layout, not the card's data, so
-	// the transcript does not move when the card fills or empties.
-	const showOverviewRoom = !showSidebarPanel && !chatFullWidth && !isEmbedded;
+	const showOverviewRoom = useShowOverviewRoom(showSidebarPanel);
 
 	const canSubmitChatTurn = !isInputDisabled && !isSubmissionPending;
 
@@ -839,7 +835,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 								"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden sm:min-w-(--agents-chat-panel-min-width,0px)",
 								visualExpanded && "hidden",
 								shouldShowSidebar && "max-lg:hidden",
-								// 48rem transcript + 1rem gap + 16rem card + 1rem inset.
 								showOverviewRoom &&
 									"@min-[66rem]/chat:[--agents-overview-room:18rem]",
 							)}
@@ -885,6 +880,9 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 											"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
 									}}
 								/>
+								{/* The 18rem room is the w-64 card plus its right-4 inset
+								    and a 1rem gap. 66rem fits it beside the max-w-3xl
+								    transcript. */}
 								{showOverviewRoom && (
 									<ChatOverviewCard
 										chat={chat}
@@ -1030,6 +1028,17 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	);
 };
 
+/**
+ * The chat reserves room for the overview card while the right panel is
+ * closed. The room follows the layout, not the card's data, so the
+ * transcript does not move when the card fills or empties.
+ */
+const useShowOverviewRoom = (showRightPanel: boolean): boolean => {
+	const [chatFullWidth] = useChatFullWidth();
+	const { isEmbedded } = useEmbedContext();
+	return !showRightPanel && !chatFullWidth && !isEmbedded;
+};
+
 type AgentChatPageLoadingViewProps = {
 	inputRef: React.RefObject<ChatMessageInputRef | null>;
 	initialValue: string;
@@ -1072,10 +1081,9 @@ export const AgentChatPageLoadingView: React.FC<
 	showRightPanel,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
-	const { isEmbedded } = useEmbedContext();
 	// Same room as the loaded view, so the transcript does not move when the
 	// chat loads.
-	const showOverviewRoom = !showRightPanel && !chatFullWidth && !isEmbedded;
+	const showOverviewRoom = useShowOverviewRoom(showRightPanel);
 	return (
 		<div
 			className={cn(
@@ -1096,7 +1104,7 @@ export const AgentChatPageLoadingView: React.FC<
 						onToggleSidebar: () => {},
 					}}
 				/>
-				<div className="min-h-0 flex-1 overflow-y-auto pr-[var(--agents-overview-room,0px)] scrollbar-gutter-stable scrollbar-thin">
+				<div className="min-h-0 flex-1 overflow-y-auto pr-(--agents-overview-room,0px) scrollbar-gutter-stable scrollbar-thin">
 					<div className="px-4">
 						<div
 							className={cn(

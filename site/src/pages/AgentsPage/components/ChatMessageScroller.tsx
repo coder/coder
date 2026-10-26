@@ -93,7 +93,7 @@ const EarlierMessages: React.FC<EarlierMessagesProps> = ({
 	}
 
 	return (
-		<div className="absolute left-0 right-[var(--agents-overview-room,0px)] top-2 z-10 flex justify-center">
+		<div className="absolute left-0 right-(--agents-overview-room,0px) top-2 z-10 flex justify-center">
 			<Button
 				variant="outline"
 				size="sm"
@@ -123,7 +123,7 @@ export const ChatMessageScroller: React.FC<ChatMessageScrollerProps> = ({
 			{/* The overview card's room (0px without the card) pads the
 			    scroll viewport, so the transcript centers beside the card
 			    while the scrollbar stays at the edge. */}
-			<MessageScroller.Viewport className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain scrollbar-gutter-stable scrollbar-thin pr-[var(--agents-overview-room,0px)]">
+			<MessageScroller.Viewport className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain scrollbar-gutter-stable scrollbar-thin pr-(--agents-overview-room,0px)">
 				<MessageScroller.Content
 					data-testid="conversation-timeline"
 					aria-busy={earlierMessages.isFetchingMoreMessages || undefined}

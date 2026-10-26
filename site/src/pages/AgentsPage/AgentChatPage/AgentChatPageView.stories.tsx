@@ -892,16 +892,6 @@ const overviewCardStore = buildStoreWithMessages(
 	buildLongConversation(AGENT_ID, 12),
 );
 
-const overviewCardRepoDiff = [
-	"diff --git a/ci.yaml b/ci.yaml",
-	"--- a/ci.yaml",
-	"+++ b/ci.yaml",
-	"@@ -1,3 +1,4 @@",
-	"-jobs: all",
-	"+jobs: changed",
-	"+queue: true",
-].join("\n");
-
 const OverviewCardLayout: React.FC = () => (
 	<StoryAgentChatPageView
 		store={overviewCardStore}
@@ -931,7 +921,15 @@ const OverviewCardLayout: React.FC = () => (
 					{
 						repo_root: "/home/coder/coder",
 						branch: "ci/queue-only-jobs",
-						unified_diff: overviewCardRepoDiff,
+						unified_diff: [
+							"diff --git a/ci.yaml b/ci.yaml",
+							"--- a/ci.yaml",
+							"+++ b/ci.yaml",
+							"@@ -1,3 +1,4 @@",
+							"-jobs: all",
+							"+jobs: changed",
+							"+queue: true",
+						].join("\n"),
 					},
 				],
 			]),
@@ -940,7 +938,7 @@ const OverviewCardLayout: React.FC = () => (
 );
 
 // The chat widths are a 1440px and a 1280px window less the 320px left
-// sidebar. The card needs a 66rem (1056px) chat.
+// sidebar.
 const overviewCardFrame =
 	(chatWidth: number): Decorator =>
 	(Story) => (

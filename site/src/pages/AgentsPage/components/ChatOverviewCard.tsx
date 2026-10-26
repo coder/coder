@@ -11,13 +11,14 @@ import { Link, useOutletContext } from "react-router";
 import { chatCost } from "#/api/queries/chats";
 import type {
 	Chat,
+	ChatCost,
 	ChatDiffStatus,
-	ChatStatus,
 	WorkspaceAgentRepoChanges,
 } from "#/api/typesGenerated";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { formatCostMicros } from "#/utils/currency";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
+import { getPathBasename } from "../utils/path";
 import { prNumber } from "../utils/pullRequest";
 import { getChatCostTreeID } from "./ChatConversation/chatHelpers";
 import {
@@ -34,40 +35,35 @@ import {
 	getChatStatusDisplay,
 	getPRIconConfig,
 } from "./ChatsSidebar/tree/statusConfig";
-import { computeRepoStats } from "./GitPanel/GitPanel";
+import { DiffStatBadge } from "./DiffViewer/DiffStats";
+import { computeRepoStats, type DiffStats } from "./GitPanel/GitPanel";
 
-/** Rows a list section shows before it folds the rest into one "N more" row. */
+/** Rows a list section shows before it folds the rest behind a toggle. */
 const OVERVIEW_MAX_LIST_ROWS = 3;
 
 /** The right panel tabs that the overview card can open. */
 export type OverviewTabId = "summary" | "git";
 
+type OverviewSubagent = Pick<Chat, "id" | "title" | "status">;
+
+/** What the overview card shows. Each empty section is left out. */
 export type ChatOverview = {
-	/** Chat tree cost. Absent without AI Gateway or before the first request. */
-	cost?: { totalMicros: number; unpricedRequests: number };
-	/** The cost covers the parent chat and its other sub-agents too. */
+	/**
+	 * Chat tree cost. Absent without AI Gateway or before the first request;
+	 * "unavailable" when the cost request failed.
+	 */
+	cost?: { totalMicros: number; unpricedRequests: number } | "unavailable";
+	/** The cost covers the parent chat and its other subagents too. */
 	isSubagent: boolean;
 	/** Repositories with uncommitted changes, from the git watcher. */
-	repos: Array<{
-		root: string;
-		branch: string;
-		additions: number;
-		deletions: number;
-	}>;
+	repos: Array<DiffStats & { root: string; branch: string }>;
 	/** Pull requests of the chat, the same refs as the top-bar PR chip. */
 	pullRequests: ChatDiffStatus[];
 	/** Child chats, with the live status from the chat stream. */
-	subagents: Array<{ id: string; title: string; status: ChatStatus }>;
+	subagents: OverviewSubagent[];
 	/** Files the agent attached, newest first, from the loaded messages. */
 	attachments: AgentAttachment[];
 };
-
-export const hasOverviewContent = (overview: ChatOverview): boolean =>
-	overview.cost !== undefined ||
-	overview.repos.length > 0 ||
-	overview.pullRequests.length > 0 ||
-	overview.subagents.length > 0 ||
-	overview.attachments.length > 0;
 
 type ChatOverviewCardProps = {
 	chat: Chat;
@@ -79,10 +75,8 @@ type ChatOverviewCardProps = {
 };
 
 /**
- * A floating summary of the chat for when the right panel is closed. The
- * data hooks live here, not in the page view, so a new message renders this
- * card again and not the whole page. The card renders nothing when it has
- * nothing to show.
+ * Owns the data hooks, so a new message renders this card again and not the
+ * whole page view. Renders nothing when no section has data.
  */
 export const ChatOverviewCard: React.FC<ChatOverviewCardProps> = ({
 	chat,
@@ -92,7 +86,7 @@ export const ChatOverviewCard: React.FC<ChatOverviewCardProps> = ({
 	onOpenTab,
 	className,
 }) => {
-	const showCost = Boolean(useFeatureVisibility().aibridge);
+	const showCost = useFeatureVisibility().aibridge;
 	const costQuery = useQuery({
 		...chatCost(getChatCostTreeID(chat) ?? chat.id),
 		enabled: showCost,
@@ -102,30 +96,20 @@ export const ChatOverviewCard: React.FC<ChatOverviewCardProps> = ({
 	const { activeChatChildren } =
 		useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
 
-	const costData = costQuery.data;
-	const repoStats = computeRepoStats(repositories);
 	const overview: ChatOverview = {
-		// The cost endpoint always returns a row, so a chat with no requests
-		// yet reports zero rather than nothing.
-		cost:
-			showCost && costData && costData.request_count > 0
-				? {
-						totalMicros: costData.total_cost_micros,
-						unpricedRequests: costData.unpriced_request_count,
-					}
-				: undefined,
+		cost: getOverviewCost(showCost, costQuery),
 		isSubagent: Boolean(chat.parent_chat_id),
-		repos: [...repoStats.entries()]
+		repos: [...computeRepoStats(repositories)]
 			.map(([root, stats]) => ({
 				root,
-				branch: repositories.get(root)?.branch || repoFolderName(root),
+				branch: repositories.get(root)?.branch || getPathBasename(root),
 				...stats,
 			}))
 			.sort((a, b) => a.root.localeCompare(b.root)),
 		pullRequests: (chat.diff_statuses ?? []).filter(
 			(status) => prNumber(status) !== undefined,
 		),
-		subagents: (activeChatChildren ?? chat.children ?? []).map((child) => ({
+		subagents: (activeChatChildren ?? chat.children).map((child) => ({
 			id: child.id,
 			title: child.title,
 			status: statusOverrides.get(child.id) ?? child.status,
@@ -133,7 +117,13 @@ export const ChatOverviewCard: React.FC<ChatOverviewCardProps> = ({
 		attachments: getLoadedAgentAttachments(messages, isHydratingMessages) ?? [],
 	};
 
-	if (!hasOverviewContent(overview)) {
+	if (
+		overview.cost === undefined &&
+		overview.repos.length === 0 &&
+		overview.pullRequests.length === 0 &&
+		overview.subagents.length === 0 &&
+		overview.attachments.length === 0
+	) {
 		return null;
 	}
 	return (
@@ -145,8 +135,26 @@ export const ChatOverviewCard: React.FC<ChatOverviewCardProps> = ({
 	);
 };
 
-const repoFolderName = (root: string): string =>
-	root.split(/[\\/]/).filter(Boolean).at(-1) ?? root;
+const getOverviewCost = (
+	showCost: boolean,
+	costQuery: { isError: boolean; data?: ChatCost },
+): ChatOverview["cost"] => {
+	if (!showCost) {
+		return undefined;
+	}
+	if (costQuery.isError) {
+		return "unavailable";
+	}
+	// The endpoint always returns a row, so a chat without requests reports
+	// zero rather than nothing.
+	if (!costQuery.data || costQuery.data.request_count === 0) {
+		return undefined;
+	}
+	return {
+		totalMicros: costQuery.data.total_cost_micros,
+		unpricedRequests: costQuery.data.unpriced_request_count,
+	};
+};
 
 type ChatOverviewCardViewProps = {
 	overview: ChatOverview;
@@ -154,21 +162,16 @@ type ChatOverviewCardViewProps = {
 	className?: string;
 };
 
-/** The card itself: data in, tab requests out. */
+/**
+ * The card itself. Rows open a right panel tab through `onOpenTab`, except
+ * subagent rows, which link to the subagent's chat.
+ */
 export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 	overview,
 	onOpenTab,
 	className,
 }) => {
 	const { cost } = overview;
-	const costNote = [
-		overview.isSubagent ? "Whole chat tree" : undefined,
-		cost && cost.unpricedRequests > 0
-			? `Excludes ${cost.unpricedRequests} unpriced request${cost.unpricedRequests === 1 ? "" : "s"}`
-			: undefined,
-	]
-		.filter(Boolean)
-		.join(" · ");
 
 	return (
 		<aside
@@ -183,8 +186,14 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 					<OverviewRow
 						icon={CoinsIcon}
 						label="Cost"
-						sub={costNote || undefined}
-						detail={formatCostMicros(cost.totalMicros)}
+						subtitle={getCostSubtitle(overview)}
+						detail={
+							cost === "unavailable" ? (
+								<span className="text-content-secondary">Unavailable</span>
+							) : (
+								formatCostMicros(cost.totalMicros)
+							)
+						}
 						onClick={() => onOpenTab("summary")}
 					/>
 				</div>
@@ -200,7 +209,7 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 								icon={GitBranchIcon}
 								label={repo.branch}
 								detail={
-									<LineStats
+									<DiffStatBadge
 										additions={repo.additions}
 										deletions={repo.deletions}
 									/>
@@ -228,11 +237,11 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 			)}
 
 			{overview.subagents.length > 0 && (
-				<OverviewSection title="Sub-agents">
+				<OverviewSection title="Subagents">
 					<OverviewList
 						items={overview.subagents}
 						render={(subagent) => (
-							<SubagentRow key={subagent.id} {...subagent} />
+							<SubagentRow key={subagent.id} subagent={subagent} />
 						)}
 					/>
 				</OverviewSection>
@@ -257,7 +266,25 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 	);
 };
 
-const OverviewSection: React.FC<React.PropsWithChildren<{ title: string }>> = ({
+/** Matches the notes under the Summary tab's cost. */
+const getCostSubtitle = (overview: ChatOverview): string | undefined => {
+	const parts: string[] = [];
+	if (overview.isSubagent) {
+		parts.push("Whole chat tree");
+	}
+	const { cost } = overview;
+	if (cost && cost !== "unavailable" && cost.unpricedRequests > 0) {
+		const plural = cost.unpricedRequests === 1 ? "" : "s";
+		parts.push(
+			`Excludes unpriced usage from ${cost.unpricedRequests} request${plural}`,
+		);
+	}
+	return parts.length > 0 ? parts.join(" · ") : undefined;
+};
+
+type OverviewSectionProps = React.PropsWithChildren<{ title: string }>;
+
+const OverviewSection: React.FC<OverviewSectionProps> = ({
 	title,
 	children,
 }) => (
@@ -269,97 +296,98 @@ const OverviewSection: React.FC<React.PropsWithChildren<{ title: string }>> = ({
 	</section>
 );
 
-/** The first rows of a list, then one row that shows the rest. */
-const OverviewList = <T,>({
-	items,
-	render,
-}: {
+type OverviewListProps<T> = {
 	items: readonly T[];
 	render: (item: T) => React.ReactNode;
-}) => {
+};
+
+/**
+ * The first rows of a list and a toggle for the rest. The toggle stays
+ * rendered in both states, so keyboard focus stays on it.
+ */
+const OverviewList = <T,>({ items, render }: OverviewListProps<T>) => {
 	const [expanded, setExpanded] = useState(false);
-	const hidden = items.length - OVERVIEW_MAX_LIST_ROWS;
-	const shown =
-		expanded || hidden <= 0 ? items : items.slice(0, OVERVIEW_MAX_LIST_ROWS);
+	const hiddenCount = items.length - OVERVIEW_MAX_LIST_ROWS;
+	if (hiddenCount <= 0) {
+		return <>{items.map(render)}</>;
+	}
 	return (
 		<>
-			{shown.map(render)}
-			{!expanded && hidden > 0 && (
-				<button
-					type="button"
-					onClick={() => setExpanded(true)}
-					className={cn(rowClassName, "pl-7 text-xs text-content-secondary")}
-				>
-					{hidden} more
-				</button>
-			)}
+			{(expanded ? items : items.slice(0, OVERVIEW_MAX_LIST_ROWS)).map(render)}
+			<button
+				type="button"
+				aria-expanded={expanded}
+				onClick={() => setExpanded(!expanded)}
+				className="-mx-1.5 rounded-md py-1 pl-7 pr-1.5 text-left text-xs text-content-secondary hover:bg-surface-secondary hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+			>
+				{expanded ? "Show less" : `Show ${hiddenCount} more`}
+			</button>
 		</>
 	);
 };
 
-const rowClassName =
-	"-mx-1.5 flex min-w-0 items-center gap-2 rounded-md border-0 bg-transparent px-1.5 py-1 text-left text-sm text-content-primary no-underline cursor-pointer hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link";
-
-type OverviewRowContentProps = {
+type OverviewRowProps = {
 	icon: LucideIcon;
 	iconClassName?: string;
+	/** Names the icon for screen readers when it carries a state. */
 	iconLabel?: string;
 	label: string;
-	sub?: string;
+	subtitle?: string;
 	detail?: React.ReactNode;
-};
+} & ({ onClick: () => void; to?: never } | { to: string; onClick?: never });
 
-const OverviewRowContent: React.FC<OverviewRowContentProps> = ({
+/** A card row: a button that opens a tab, or a link to another chat. */
+const OverviewRow: React.FC<OverviewRowProps> = ({
 	icon: Icon,
 	iconClassName,
 	iconLabel,
 	label,
-	sub,
+	subtitle,
 	detail,
-}) => (
-	<>
-		<Icon
-			className={cn("size-4 shrink-0 text-content-secondary", iconClassName)}
-			{...(iconLabel
-				? { role: "img", "aria-label": iconLabel }
-				: { "aria-hidden": true })}
-		/>
-		<span className="flex min-w-0 flex-1 flex-col">
-			<span className="truncate">{label}</span>
-			{sub && (
-				<span className="truncate text-xs text-content-secondary">{sub}</span>
-			)}
-		</span>
-		{detail && <span className="shrink-0 tabular-nums">{detail}</span>}
-	</>
-);
+	onClick,
+	to,
+}) => {
+	const className =
+		"-mx-1.5 flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm text-content-primary no-underline hover:bg-surface-secondary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link";
+	const content = (
+		<>
+			<Icon
+				className={cn("size-4 shrink-0 text-content-secondary", iconClassName)}
+				{...(iconLabel
+					? { role: "img", "aria-label": iconLabel }
+					: { "aria-hidden": true })}
+			/>
+			<span className="flex min-w-0 flex-1 flex-col">
+				<span className="truncate">{label}</span>
+				{subtitle && (
+					<span className="truncate text-xs text-content-secondary">
+						{subtitle}
+					</span>
+				)}
+			</span>
+			{detail && <span className="shrink-0 tabular-nums">{detail}</span>}
+		</>
+	);
+	if (to !== undefined) {
+		return (
+			<Link to={to} className={className}>
+				{content}
+			</Link>
+		);
+	}
+	return (
+		<button type="button" onClick={onClick} className={className}>
+			{content}
+		</button>
+	);
+};
 
-const OverviewRow: React.FC<
-	OverviewRowContentProps & { onClick: () => void }
-> = ({ onClick, ...content }) => (
-	<button type="button" onClick={onClick} className={rowClassName}>
-		<OverviewRowContent {...content} />
-	</button>
-);
-
-const LineStats: React.FC<{ additions: number; deletions: number }> = ({
-	additions,
-	deletions,
-}) => (
-	<span className="inline-flex items-center gap-1 text-xs">
-		<span className="text-git-added-bright">
-			+{additions.toLocaleString("en-US")}
-		</span>
-		<span className="text-git-deleted-bright">
-			&minus;{deletions.toLocaleString("en-US")}
-		</span>
-	</span>
-);
-
-const PullRequestRow: React.FC<{
+type PullRequestRowProps = {
 	status: ChatDiffStatus;
 	onClick: () => void;
-}> = ({ status, onClick }) => {
+};
+
+const PullRequestRow: React.FC<PullRequestRowProps> = ({ status, onClick }) => {
 	const icon = getPRIconConfig(status);
 	const number = prNumber(status);
 	const title = status.pull_request_title || "Pull request";
@@ -370,32 +398,27 @@ const PullRequestRow: React.FC<{
 			iconLabel={icon?.label}
 			label={number ? `#${number} ${title}` : title}
 			detail={
-				status.additions > 0 || status.deletions > 0 ? (
-					<LineStats
-						additions={status.additions}
-						deletions={status.deletions}
-					/>
-				) : undefined
+				<DiffStatBadge
+					additions={status.additions}
+					deletions={status.deletions}
+				/>
 			}
 			onClick={onClick}
 		/>
 	);
 };
 
-const SubagentRow: React.FC<{
-	id: string;
-	title: string;
-	status: ChatStatus;
-}> = ({ id, title, status }) => {
-	const display = getChatStatusDisplay(status);
+type SubagentRowProps = { subagent: OverviewSubagent };
+
+const SubagentRow: React.FC<SubagentRowProps> = ({ subagent }) => {
+	const display = getChatStatusDisplay(subagent.status);
 	return (
-		<Link to={`/agents/${id}`} className={rowClassName}>
-			<OverviewRowContent
-				icon={display.icon}
-				iconClassName={display.className}
-				iconLabel={display.label}
-				label={title || "Untitled agent"}
-			/>
-		</Link>
+		<OverviewRow
+			icon={display.icon}
+			iconClassName={display.className}
+			iconLabel={display.label}
+			label={subagent.title || "Untitled agent"}
+			to={`/agents/${subagent.id}`}
+		/>
 	);
 };
