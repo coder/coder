@@ -176,3 +176,32 @@ func requireInvalidScope(t *testing.T, resp *http.Response, wantReason string) {
 
 	requireAuthorizeErrorRedirect(t, resp, codersdk.OAuth2ErrorCodeInvalidScope, wantReason)
 }
+
+// A callback with a blocked scheme must not receive the invalid_scope
+// redirect: the scheme check runs before the session check.
+func TestOAuth2AuthorizeSessionCeilingBlockedScheme(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+	app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+		Name:        testutil.GetRandomName(t),
+		CallbackURL: "ftp://example.com/callback",
+	})
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	token, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+		Scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeCoderWorkspacesAccess},
+	})
+	require.NoError(t, err)
+	session := codersdk.New(client.URL, codersdk.WithSessionToken(token.Key))
+
+	resp := authorizeRequest(ctx, t, session, http.MethodGet, app.ID.String(), "")
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	require.Empty(t, resp.Header.Get("Location"))
+}
