@@ -404,27 +404,13 @@ export const InterruptingShowsBusyComposer: Story = {
 	render: () => {
 		const store = buildInterruptingStore();
 		return (
-			<MessageScroller.Provider autoScroll defaultScrollPosition="end">
-				<div className="flex h-full flex-col">
-					<ChatPageTimeline
-						organizationId="organization-id"
-						store={store}
-						persistedError={undefined}
-						hasMoreMessages={false}
-						isFetchingMoreMessages={false}
-						isHydratingMessages={false}
-						hasFetchMoreError={false}
-						onFetchMoreMessages={async () => {}}
-						urlTransform={(url) => url}
-						mcpServers={[]}
-						isReadOnly={false}
-					/>
-					<StoryChatPageInput
-						store={store}
-						onInterrupt={interruptingOnInterrupt}
-					/>
-				</div>
-			</MessageScroller.Provider>
+			<div className="flex h-full flex-col">
+				<StoryChatPageTimeline store={store} />
+				<StoryChatPageInput
+					store={store}
+					onInterrupt={interruptingOnInterrupt}
+				/>
+			</div>
 		);
 	},
 	play: async ({ canvasElement }) => {
@@ -660,14 +646,27 @@ export const AsyncQuestionDockedAboveInputMobile: Story = {
 	},
 };
 
-// A viewer who cannot act on the chat gets no dock; the question stays in the
-// transcript without a form.
 export const AsyncQuestionReadOnlyViewer: Story = {
 	render: () => (
 		<div className="flex h-160 flex-col">
 			<StoryChatPageTimeline store={buildAsyncQuestionStore()} isReadOnly />
 		</div>
 	),
+};
+
+// The page withholds the answer callback while models load or a send is
+// pending, so the dock stays in place with its form disabled.
+export const AsyncQuestionDockedDisabled: Story = {
+	render: () => {
+		const store = buildAsyncQuestionStore();
+
+		return (
+			<div className="flex h-160 flex-col">
+				<StoryChatPageTimeline store={store} />
+				<StoryChatPageInput store={store} />
+			</div>
+		);
+	},
 };
 
 // The question arrives on the live stream before its step persists.

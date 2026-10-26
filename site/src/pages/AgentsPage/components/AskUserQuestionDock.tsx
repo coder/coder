@@ -1,4 +1,5 @@
 import { cn } from "cn";
+import { useId } from "react";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import type { MergedTool } from "./ChatConversation/types";
 import { AskUserQuestionRenderer } from "./ChatElements/tools/Tool";
@@ -18,17 +19,24 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 	onSubmitAnswer,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
+	const labelId = useId();
 
 	return (
 		<div className="shrink-0 px-4">
 			{/* Bounded so a long question set never pushes the input off a short screen. */}
 			<section
-				aria-label="Open question"
+				aria-labelledby={labelId}
 				className={cn(
 					"mx-auto mb-2 max-h-[50vh] w-full overflow-y-auto rounded-lg border border-solid border-border bg-surface-primary p-3 shadow-sm scrollbar-thin",
 					chatWidthClass(chatFullWidth),
 				)}
 			>
+				<p
+					id={labelId}
+					className="mb-2 text-xs font-medium text-content-secondary"
+				>
+					Open question
+				</p>
 				<AskUserQuestionRenderer
 					toolCallId={question.id}
 					args={question.args}

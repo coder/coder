@@ -1,7 +1,7 @@
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
-import { QueryClientProvider } from "react-query";
+import { type QueryClient, QueryClientProvider } from "react-query";
 import { defaultUrlTransform } from "streamdown";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
@@ -197,38 +197,60 @@ describe("ChatPageInput", () => {
 
 type AnswerCallback = (message: string) => Promise<void> | void;
 
+type TimelineStageProps = {
+	store: ReturnType<typeof createChatStore>;
+	queryClient: QueryClient;
+	onSend?: AnswerCallback;
+};
+
+const TimelineStage: React.FC<TimelineStageProps> = ({
+	store,
+	queryClient,
+	onSend,
+}) => (
+	<QueryClientProvider client={queryClient}>
+		<MessageScroller.Provider autoScroll defaultScrollPosition="end">
+			<ChatPageTimeline
+				organizationId="organization-id"
+				store={store}
+				persistedError={undefined}
+				hasMoreMessages={false}
+				isFetchingMoreMessages={false}
+				isHydratingMessages={false}
+				hasFetchMoreError={false}
+				onFetchMoreMessages={async () => {}}
+				urlTransform={defaultUrlTransform}
+				mcpServers={[]}
+				onSendAskUserQuestionResponse={onSend}
+				isReadOnly={false}
+			/>
+		</MessageScroller.Provider>
+	</QueryClientProvider>
+);
+
 const renderChatPageTimeline = (
-	onSendAskUserQuestionResponse?: AnswerCallback,
+	onSendAskUserQuestionResponse: AnswerCallback,
 ) => {
 	const store = createChatStore();
 	store.replaceMessages(MockAsyncQuestionMessages);
 	const queryClient = createPreferenceSeededQueryClient();
-	const renderStage = (onSend?: AnswerCallback) => (
-		<QueryClientProvider client={queryClient}>
-			<MessageScroller.Provider autoScroll defaultScrollPosition="end">
-				<ChatPageTimeline
-					organizationId="organization-id"
-					store={store}
-					persistedError={undefined}
-					hasMoreMessages={false}
-					isFetchingMoreMessages={false}
-					isHydratingMessages={false}
-					hasFetchMoreError={false}
-					onFetchMoreMessages={async () => {}}
-					urlTransform={defaultUrlTransform}
-					mcpServers={[]}
-					onSendAskUserQuestionResponse={onSend}
-					isReadOnly={false}
-				/>
-			</MessageScroller.Provider>
-		</QueryClientProvider>
-	);
 	const { rerender } = renderComponent(
-		renderStage(onSendAskUserQuestionResponse),
+		<TimelineStage
+			store={store}
+			queryClient={queryClient}
+			onSend={onSendAskUserQuestionResponse}
+		/>,
 	);
 	return {
 		store,
-		rerenderWith: (onSend?: AnswerCallback) => rerender(renderStage(onSend)),
+		rerenderWith: (onSend?: AnswerCallback) =>
+			rerender(
+				<TimelineStage
+					store={store}
+					queryClient={queryClient}
+					onSend={onSend}
+				/>,
+			),
 	};
 };
 
@@ -250,7 +272,7 @@ describe("ChatPageTimeline question dock", () => {
 		);
 	});
 
-	it("keeps the dock and its draft while its answer is in flight", async () => {
+	it("keeps the dock's draft through a failed send", async () => {
 		const user = userEvent.setup();
 		const pendingSend = Promise.withResolvers<undefined>();
 		const onSendAskUserQuestionResponse = vi
