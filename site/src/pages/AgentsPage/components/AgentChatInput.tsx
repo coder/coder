@@ -57,6 +57,7 @@ import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import {
+	belowMdViewportMediaQuery,
 	isBelowMdViewport,
 	isMobileViewport,
 	mobileViewportMediaQuery,
@@ -856,8 +857,12 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const [composerElement, setComposerElement] = useState<HTMLDivElement | null>(
 		null,
 	);
+	// A custom property change on `<html>` restyles every element in the
+	// document, and only the below-md `mobile-full-width-dropdown*` utilities
+	// read these variables.
+	const isBelowMd = useMediaQuery(belowMdViewportMediaQuery);
 	useEffect(() => {
-		if (!composerElement) return;
+		if (!composerElement || !isBelowMd) return;
 		// Radix popover wrappers are fixed-positioned, so their
 		// inset values need to be in layout-viewport coordinates.
 		// The visual viewport can be offset inside the layout
@@ -881,6 +886,10 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		const composerGap = 8;
 		const viewportPadding = 16;
 		const minimumMenuHeight = 96;
+		const setRootVariable = (name: string, value: string) => {
+			if (root.style.getPropertyValue(name) === value) return;
+			root.style.setProperty(name, value);
+		};
 		const update = () => {
 			const rect = composerElement.getBoundingClientRect();
 			const fixedViewportBottom = fixedProbe.getBoundingClientRect().bottom;
@@ -909,14 +918,14 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				minimumMenuHeight,
 				maxHeightCandidates.length > 0 ? Math.min(...maxHeightCandidates) : 0,
 			);
-			root.style.setProperty("--mobile-dropdown-bottom", `${bottom}px`);
-			root.style.setProperty("--mobile-dropdown-left", `${rect.left}px`);
-			root.style.setProperty("--mobile-dropdown-width", `${rect.width}px`);
-			root.style.setProperty(
+			setRootVariable("--mobile-dropdown-bottom", `${bottom}px`);
+			setRootVariable("--mobile-dropdown-left", `${rect.left}px`);
+			setRootVariable("--mobile-dropdown-width", `${rect.width}px`);
+			setRootVariable(
 				"--mobile-dropdown-above-composer-bottom",
 				`${aboveComposerBottom}px`,
 			);
-			root.style.setProperty(
+			setRootVariable(
 				"--mobile-dropdown-above-composer-max-height",
 				`${aboveComposerMaxHeight}px`,
 			);
@@ -991,7 +1000,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			root.style.removeProperty("--mobile-dropdown-above-composer-bottom");
 			root.style.removeProperty("--mobile-dropdown-above-composer-max-height");
 		};
-	}, [composerElement]);
+	}, [composerElement, isBelowMd]);
 
 	// Workspace uploads eagerly write bytes into the workspace, so a
 	// disabled (read-only) composer must not route files to them. The
