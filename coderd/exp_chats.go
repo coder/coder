@@ -4090,12 +4090,14 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 // the web client's silence timeout and be requested again forever.
 //
 // The encoder escapes <, > and &, so encoding a chunk as a JSON string at
-// most doubles it. The WSWatcher probe still fails on a slow link when its
-// ping waits over 5 s for the write lock or over 15 s for the pong, and
-// both waits grow with the bytes queued ahead of the ping, not with chunk
-// size. With a 10 MiB image, an unsplit message failed at 1 and 4 Mbit/s;
-// chunks passed at 4 Mbit/s, and at 1 Mbit/s only while under about
-// 1.9 MB was queued.
+// most doubles it. The WSWatcher probe closes the stream when its Ping
+// takes over 15 s, and the Ping's lock wait plus write may take only 5 s.
+// A message holds the write lock until the kernel accepts it, so the 5 s
+// cap needs a 512 KiB worst-case chunk message to drain at 0.84 Mbit/s or
+// more. The 15 s total also covers the pong, which waits for every byte
+// queued in the kernel and proxies. With a 10 MiB image, an unsplit
+// message failed at 1 and 4 Mbit/s; chunks passed at 4 Mbit/s, and at
+// 1 Mbit/s only while under about 1.9 MB was queued.
 func writeChatStreamBatch(w io.Writer, batch []codersdk.ChatStreamEvent) error {
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(batch); err != nil {
