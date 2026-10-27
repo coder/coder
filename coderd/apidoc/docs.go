@@ -24024,6 +24024,10 @@ const docTemplate = `{
         "codersdk.ConnectionLogSSHInfo": {
             "type": "object",
             "properties": {
+                "client_session_id": {
+                    "description": "ClientSessionID is set by the client and isn't guaranteed to be unique.",
+                    "type": "string"
+                },
                 "connection_id": {
                     "type": "string",
                     "format": "uuid"

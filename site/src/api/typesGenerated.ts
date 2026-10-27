@@ -4267,6 +4267,10 @@ export interface ConnectionLogResponse {
 export interface ConnectionLogSSHInfo {
 	readonly connection_id: string;
 	/**
+	 * ClientSessionID is set by the client and isn't guaranteed to be unique.
+	 */
+	readonly client_session_id?: string;
+	/**
 	 * DisconnectTime is omitted if a disconnect event with the same connection ID
 	 * has not yet been seen.
 	 */
