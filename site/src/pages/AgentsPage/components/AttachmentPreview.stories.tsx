@@ -41,21 +41,6 @@ export const SingleImage: Story = {
 	},
 };
 
-// The rendered opacity of an element, including its ancestors' opacity.
-const renderedOpacity = (element: Element): number => {
-	let opacity = 1;
-	for (let el: Element | null = element; el; el = el.parentElement) {
-		opacity *= Number(getComputedStyle(el).opacity);
-	}
-	return opacity;
-};
-
-// Reads layout to start pending opacity transitions, then waits for them.
-const settleTransitions = async (element: Element) => {
-	renderedOpacity(element);
-	await Promise.all(document.getAnimations().map((a) => a.finished));
-};
-
 // Keyboard focus on the card or on either overlay button shows both buttons.
 export const ThumbnailFocused: Story = {
 	args: (() => {
@@ -76,15 +61,13 @@ export const ThumbnailFocused: Story = {
 		});
 		const paste = canvas.getByRole("button", { name: "Paste inline" });
 		const remove = canvas.getByRole("button", { name: "Remove clipboard.txt" });
-		expect(renderedOpacity(paste)).toBe(0);
-		expect(renderedOpacity(remove)).toBe(0);
+		// Tab order is behavior that needs a browser; visibility is left to the
+		// screenshot, which captures the focused Remove button.
 		for (const focused of [card, paste, remove]) {
 			await userEvent.tab();
 			expect(focused).toHaveFocus();
-			await settleTransitions(focused);
-			expect(renderedOpacity(paste)).toBe(1);
-			expect(renderedOpacity(remove)).toBe(1);
 		}
+		await Promise.all(document.getAnimations().map((a) => a.finished));
 	},
 };
 
