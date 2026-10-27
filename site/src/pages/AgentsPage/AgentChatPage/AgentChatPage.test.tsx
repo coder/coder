@@ -166,21 +166,41 @@ describe("AgentChatPage", () => {
 		expect(composer).not.toHaveFocus();
 	});
 
-	it("leaves focus where the user moved it while an answer was sending", async () => {
-		mockChatPageAPI(MockAsyncQuestionMessages);
-		const pendingSend = createDeferred<CreateChatMessageResponse>();
-		vi.spyOn(API.experimental, "createChatMessage").mockReturnValue(
-			pendingSend.promise,
-		);
+	it.each([
+		{
+			moveKind: "to another control",
+			moveFocus: async () => {
+				const editButton = screen.getByRole("button", {
+					name: "Edit message",
+				});
+				act(() => editButton.focus());
+				return editButton;
+			},
+		},
+		{
+			moveKind: "by a click on the page background",
+			moveFocus: async () => {
+				await userEvent.click(document.body);
+				return document.body;
+			},
+		},
+	])(
+		"leaves focus that the user moved $moveKind while an answer was sending",
+		async ({ moveFocus }) => {
+			mockChatPageAPI(MockAsyncQuestionMessages);
+			const pendingSend = createDeferred<CreateChatMessageResponse>();
+			vi.spyOn(API.experimental, "createChatMessage").mockReturnValue(
+				pendingSend.promise,
+			);
 
-		const { composer } = await answerFromDockOnNarrowScreen();
-		const editButton = screen.getByRole("button", { name: "Edit message" });
-		act(() => editButton.focus());
-		await act(async () => pendingSend.resolve({ queued: true }));
+			const { composer } = await answerFromDockOnNarrowScreen();
+			const focusTarget = await moveFocus();
+			await act(async () => pendingSend.resolve({ queued: true }));
 
-		expect(editButton).toHaveFocus();
-		expect(composer).not.toHaveFocus();
-	});
+			expect(focusTarget).toHaveFocus();
+			expect(composer).not.toHaveFocus();
+		},
+	);
 
 	it("keeps the call line when an async answer that starts with a skill chip is edited", async () => {
 		mockChatPageAPI([

@@ -23,13 +23,19 @@ export const useComposerFocusAfterSend = (
 	}, [focusRequest, chatInputRef]);
 
 	return async (request) => {
-		const focusedAtSend = document.activeElement;
-		const response = await send(request);
-		// Focus the user moved elsewhere during the send stays there.
-		if (
-			document.activeElement === focusedAtSend ||
-			document.activeElement === document.body
-		) {
+		let userMovedFocus = false;
+		const noteUserMove = () => {
+			userMovedFocus = true;
+		};
+		// A click, even on text that takes no focus, or a focus change while the
+		// answer sends is the user's own move, and the chat input leaves it alone.
+		document.addEventListener("pointerdown", noteUserMove, true);
+		document.addEventListener("focusin", noteUserMove, true);
+		const response = await send(request).finally(() => {
+			document.removeEventListener("pointerdown", noteUserMove, true);
+			document.removeEventListener("focusin", noteUserMove, true);
+		});
+		if (!userMovedFocus) {
 			setFocusRequest((count) => count + 1);
 		}
 		return response;
