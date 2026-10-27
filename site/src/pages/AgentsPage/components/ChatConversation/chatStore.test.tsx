@@ -2521,7 +2521,7 @@ describe("useChatStore", () => {
 			});
 		});
 
-		// Transition to running — should clear retry state.
+		// Transition to running, which should clear retry state.
 		act(() => {
 			mockSocket.emitData({
 				type: "status",
