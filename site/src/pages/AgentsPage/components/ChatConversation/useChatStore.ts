@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useEffectEvent, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { watchChat } from "#/api/api";
 import {
@@ -76,8 +76,8 @@ export const useChatStore = (
 	const queryClient = useQueryClient();
 	// A chat keeps its store as long as the query cache keeps an unused query,
 	// so reopening it shows the chat as it was left and the stream resumes
-	// from the store's snapshot version. After the newest page, only stream
-	// events and older pages change the store, so the query never refetches.
+	// from the store's snapshot version. The stream keeps the store current,
+	// so the query never refetches.
 	const storeQuery = useQuery({
 		queryKey: chatStoreKey(chatID),
 		queryFn: async ({ signal }) => {
@@ -95,7 +95,7 @@ export const useChatStore = (
 	const [emptyStore] = useState(createChatStore);
 	const store = storeQuery.data ?? emptyStore;
 	const initialDataLoaded = storeQuery.isSuccess;
-	const loadState: ChatLoadState = storeQuery.isSuccess
+	const loadState: ChatLoadState = initialDataLoaded
 		? { status: "loaded" }
 		: storeQuery.isError
 			? { status: "failed", error: storeQuery.error }
@@ -106,7 +106,7 @@ export const useChatStore = (
 	const setChatErrorReasonEvent = useEffectEvent(setChatErrorReason);
 	const clearChatErrorReasonEvent = useEffectEvent(clearChatErrorReason);
 
-	const onDurableMessages = useCallback(
+	const invalidateMessageQueries = useEffectEvent(
 		(messages: readonly TypesGen.ChatMessage[]) => {
 			if (messages.length === 0) {
 				return;
@@ -118,7 +118,6 @@ export const useChatStore = (
 			}
 			void invalidateChatSearches(queryClient);
 		},
-		[chatID, queryClient],
 	);
 
 	const {
@@ -264,7 +263,7 @@ export const useChatStore = (
 			const flushMessages = () => {
 				if (pendingMessages.length > 0) {
 					store.upsertDurableMessages(pendingMessages, userMessageVersion);
-					onDurableMessages(pendingMessages.splice(0));
+					invalidateMessageQueries(pendingMessages.splice(0));
 					userMessageVersion = 0;
 				}
 			};
@@ -499,7 +498,6 @@ export const useChatStore = (
 		aiGatewayDisabled,
 		chatID,
 		initialDataLoaded,
-		onDurableMessages,
 		queryClient,
 		store,
 	]);
