@@ -173,7 +173,8 @@ const maxRootFoldWork = 1 << 20
 // root, or whose copied content would declare a resource or an anchor a
 // second time, is not folded, which only drops constraints. Removed
 // content that a reference still points into moves under the root
-// definitions, and those references follow it.
+// definitions, and those references follow it, as do the references to
+// a root schema, such as a property, that folding narrowed.
 func enforceObjectRoot(inputSchema map[string]any) map[string]any {
 	var banned []string
 	for _, key := range bannedRootKeys {
@@ -206,6 +207,12 @@ func foldRootComposition(inputSchema map[string]any, banned []string) map[string
 		maxMerged:         compositionEntries(inputSchema) + maxRootMergeSchemas,
 		ignoreRefSiblings: ignoresRefSiblings(inputSchema),
 		dialect:           toolschema.Dialect(inputSchema),
+	}
+	source := make(map[string]any, len(foldedRootKeywords))
+	for key := range foldedRootKeywords {
+		if value, ok := inputSchema[key]; ok {
+			source[key] = value
+		}
 	}
 	shape := objectShape{properties: map[string]any{}}
 	if ref, ok := inputSchema["$ref"].(string); ok && folder.ignoreRefSiblings {
@@ -276,7 +283,185 @@ func foldRootComposition(inputSchema map[string]any, banned []string) map[string
 	} else {
 		delete(inputSchema, "required")
 	}
+	inputSchema = keepReferencedRootSchemas(inputSchema, source, removed)
 	return relocateReferencedRootKeywords(inputSchema, removed)
+}
+
+// foldedRootKeywords are the root keywords whose values root folding
+// can narrow, each reporting whether it maps names to schemas rather
+// than holding one schema.
+var foldedRootKeywords = map[string]bool{
+	"properties":           true,
+	"patternProperties":    true,
+	"dependentSchemas":     true,
+	"dependencies":         true,
+	"additionalProperties": false,
+	"propertyNames":        false,
+}
+
+// keepReferencedRootSchemas keeps the references into root schemas that
+// folding narrowed meaning what they did. A property that an "allOf"
+// branch narrows, for one, holds the branch's constraints at the root
+// afterwards, but a reference to "#/properties/x" holds only the root's
+// own. source holds the root's values of foldedRootKeywords before
+// folding. Each such schema that a reference points at or into moves
+// into the root definitions under a name of its own, and the references
+// follow it. Where the folded value still holds the schema, a reference
+// to the definition takes its place, so that the schema and the anchors
+// it declares appear once.
+func keepReferencedRootSchemas(inputSchema, source, removed map[string]any) map[string]any {
+	// narrowed holds the source schemas folding replaced, by the JSON
+	// Pointer of their place in the root.
+	narrowed := map[string]any{}
+	for key, value := range source {
+		if _, gone := removed[key]; gone {
+			continue
+		}
+		if !foldedRootKeywords[key] {
+			if isSchemaValue(value) && !reflect.DeepEqual(value, inputSchema[key]) {
+				narrowed[toolschema.EncodePointer([]string{key})] = value
+			}
+			continue
+		}
+		entries, _ := value.(map[string]any)
+		folded, _ := inputSchema[key].(map[string]any)
+		for name, entry := range entries {
+			if isSchemaValue(entry) && !reflect.DeepEqual(entry, folded[name]) {
+				narrowed[toolschema.EncodePointer([]string{key, name})] = entry
+			}
+		}
+	}
+	if len(narrowed) == 0 {
+		return inputSchema
+	}
+	// place returns the tokens of the place in the root that tokens lie
+	// in, when that is a narrowed schema.
+	place := func(tokens []string) ([]string, bool) {
+		if len(tokens) == 0 {
+			return nil, false
+		}
+		end := 1
+		if foldedRootKeywords[tokens[0]] {
+			end = 2
+		}
+		if len(tokens) < end {
+			return nil, false
+		}
+		_, ok := narrowed[toolschema.EncodePointer(tokens[:end])]
+		return tokens[:end], ok
+	}
+	referenced := map[string][]string{}
+	scan := []map[string]any{inputSchema}
+	for _, key := range slices.Sorted(maps.Keys(removed)) {
+		scan = append(scan, placedAtRoot(inputSchema, key, removed[key]))
+	}
+	// A moved schema can point at further narrowed schemas, which then
+	// move as well.
+	for len(scan) > 0 {
+		schema := scan[0]
+		scan = scan[1:]
+		for _, tokens := range toolschema.RootPointerRefs(schema) {
+			at, ok := place(tokens)
+			if !ok {
+				continue
+			}
+			pointer := toolschema.EncodePointer(at)
+			if _, seen := referenced[pointer]; seen {
+				continue
+			}
+			referenced[pointer] = at
+			value := narrowed[pointer]
+			if len(at) == 2 {
+				value = map[string]any{at[1]: value}
+			}
+			scan = append(scan, placedAtRoot(inputSchema, at[0], value))
+		}
+	}
+	if len(referenced) == 0 {
+		return inputSchema
+	}
+
+	definitions := newRootDefinitions(inputSchema)
+	names := make(map[string]string, len(referenced))
+	cloned := map[string]bool{}
+	for _, pointer := range slices.Sorted(maps.Keys(referenced)) {
+		at := referenced[pointer]
+		schema := narrowed[pointer]
+		name := definitions.define(at, schema)
+		names[pointer] = name
+		ref := map[string]any{"$ref": "#" + toolschema.EncodePointer([]string{definitions.container, name})}
+		if len(at) == 1 {
+			inputSchema[at[0]] = replaceFirstConjunct(inputSchema[at[0]], schema, ref)
+			continue
+		}
+		folded, _ := inputSchema[at[0]].(map[string]any)
+		value, ok := folded[at[1]]
+		if !ok {
+			continue
+		}
+		if !cloned[at[0]] {
+			folded = maps.Clone(folded)
+			inputSchema[at[0]] = folded
+			cloned[at[0]] = true
+		}
+		folded[at[1]] = replaceFirstConjunct(value, schema, ref)
+	}
+	rewrite := func(tokens []string) ([]string, bool) {
+		at, ok := place(tokens)
+		if !ok {
+			return nil, false
+		}
+		name, ok := names[toolschema.EncodePointer(at)]
+		if !ok {
+			return nil, false
+		}
+		return append([]string{definitions.container, name}, tokens[len(at):]...), true
+	}
+	for key, value := range removed {
+		removed[key] = toolschema.RewriteRefs(placedAtRoot(inputSchema, key, value), rewrite)[key]
+	}
+	return toolschema.RewriteRefs(inputSchema, rewrite)
+}
+
+// isSchemaValue reports whether value can be a schema: an object or a
+// boolean.
+func isSchemaValue(value any) bool {
+	switch value.(type) {
+	case map[string]any, bool:
+		return true
+	default:
+		return false
+	}
+}
+
+// replaceFirstConjunct returns folded with schema replaced by
+// replacement where folding kept it: folded itself, or the first schema
+// of the "allOf" that addProperty and conjoinSchemas wrap a narrowed
+// schema in, at any depth. folded is not modified.
+func replaceFirstConjunct(folded, schema, replacement any) any {
+	if sameSchemaObject(folded, schema) {
+		return replacement
+	}
+	node, ok := folded.(map[string]any)
+	if !ok || len(node) != 1 {
+		return folded
+	}
+	conjuncts, ok := node["allOf"].([]any)
+	if !ok || len(conjuncts) != 2 {
+		return folded
+	}
+	first := replaceFirstConjunct(conjuncts[0], schema, replacement)
+	if sameSchemaObject(first, conjuncts[0]) {
+		return folded
+	}
+	return map[string]any{"allOf": []any{first, conjuncts[1]}}
+}
+
+// sameSchemaObject reports whether a and b are the same schema object.
+func sameSchemaObject(a, b any) bool {
+	nodeA, okA := a.(map[string]any)
+	nodeB, okB := b.(map[string]any)
+	return okA && okB && reflect.ValueOf(nodeA).UnsafePointer() == reflect.ValueOf(nodeB).UnsafePointer()
 }
 
 // ignoresRefSiblings reports whether a schema declares a draft before
@@ -724,8 +909,9 @@ func compositionEntries(value any) int {
 // reference points below a top-level definition, so the moved schemas
 // become top-level definitions instead of staying under the keyword they
 // came from.
-// An embedded resource that a reference names by URI moves the same way
-// and keeps its "$id", so such references need no rewrite.
+// An embedded resource that a reference names by URI, and a subschema
+// that one names by an anchor of the root resource, move the same way
+// and keep their "$id" and anchors, so such references need no rewrite.
 // Moved content can point into further removed content, which then
 // moves as well. A schema inside another moved schema stays inside it,
 // so that no anchor is declared twice. A keyword whose referenced
@@ -738,11 +924,7 @@ func relocateReferencedRootKeywords(inputSchema map[string]any, removed map[stri
 	// probe places content found under the removed keywords where its
 	// references resolve as they did at the root.
 	probe := func(key string, value any) map[string]any {
-		placed := map[string]any{key: value}
-		if id, ok := inputSchema["$id"]; ok {
-			placed["$id"] = id
-		}
-		return placed
+		return placedAtRoot(inputSchema, key, value)
 	}
 	type target struct {
 		tokens []string
@@ -795,12 +977,17 @@ func relocateReferencedRootKeywords(inputSchema map[string]any, removed map[stri
 			queue = append(queue, probe(tokens[0], removed[tokens[0]]))
 			return nil, false
 		})
-		// An embedded resource keeps its "$id" when it moves, so the
-		// references that name it by URI keep resolving without a
-		// rewrite. One nested in another resource moves with the
-		// outermost one, against which its "$id" may resolve.
-		for _, tokens := range resolver.ResourceRefs(queue[0]) {
-			if _, ok := removed[tokens[0]]; !ok || whole[tokens[0]] {
+		// An embedded resource keeps its "$id" when it moves, and a
+		// subschema its anchors, so the references that name them by URI
+		// or anchor keep resolving without a rewrite. A resource nested in
+		// another one moves with the outermost one, against which its
+		// "$id" may resolve.
+		named := append(resolver.ResourceRefs(queue[0]), resolver.AnchorRefs(queue[0])...)
+		for _, tokens := range named {
+			if len(tokens) == 0 || whole[tokens[0]] {
+				continue
+			}
+			if _, ok := removed[tokens[0]]; !ok {
 				continue
 			}
 			pointer := toolschema.EncodePointer(tokens)
@@ -823,66 +1010,90 @@ func relocateReferencedRootKeywords(inputSchema map[string]any, removed map[stri
 		return inputSchema
 	}
 
-	container := "$defs"
-	if _, hasDefs := inputSchema["$defs"]; !hasDefs {
-		if _, hasDefinitions := inputSchema["definitions"].(map[string]any); hasDefinitions {
-			container = "definitions"
-		}
-	}
-	definitions := map[string]any{}
-	if existing, ok := inputSchema[container].(map[string]any); ok {
-		for name, definition := range existing {
-			definitions[name] = definition
-		}
-	}
-	define := func(tokens []string, definition any) string {
-		parts := make([]string, len(tokens))
-		for i, token := range tokens {
-			parts[i] = strings.Map(func(r rune) rune {
-				if r == '_' || r == '-' || r == '.' || ('a' <= r && r <= 'z') || ('A' <= r && r <= 'Z') || ('0' <= r && r <= '9') {
-					return r
-				}
-				return '_'
-			}, strings.TrimPrefix(token, "$"))
-		}
-		base := "coder_root_" + strings.Join(parts, "_")
-		name := base
-		for i := 2; ; i++ {
-			if _, taken := definitions[name]; !taken {
-				break
-			}
-			name = fmt.Sprintf("%s_%d", base, i)
-		}
-		definitions[name] = definition
-		return name
-	}
-
+	definitions := newRootDefinitions(inputSchema)
 	wholeNames := map[string]string{}
 	for _, key := range slices.Sorted(maps.Keys(whole)) {
-		wholeNames[key] = define([]string{key}, map[string]any{key: removed[key]})
+		wholeNames[key] = definitions.define([]string{key}, map[string]any{key: removed[key]})
 	}
 	for _, pointer := range slices.Sorted(maps.Keys(targets)) {
 		moved := targets[pointer]
 		if whole[moved.tokens[0]] || enclosed(moved.tokens) {
 			continue
 		}
-		tree.at(moved.tokens).name = define(moved.tokens, moved.schema)
+		tree.at(moved.tokens).name = definitions.define(moved.tokens, moved.schema)
 	}
-	inputSchema[container] = definitions
 	return toolschema.RewriteRefs(inputSchema, func(tokens []string) ([]string, bool) {
 		if len(tokens) == 0 {
 			return nil, false
 		}
 		if name, ok := wholeNames[tokens[0]]; ok {
-			return append([]string{container, name}, tokens...), true
+			return append([]string{definitions.container, name}, tokens...), true
 		}
 		// The shortest target holding the one at tokens is never enclosed,
 		// so it was defined.
 		if node, end := tree.enclosing(tokens); node != nil {
-			return append([]string{container, node.name}, tokens[end:]...), true
+			return append([]string{definitions.container, node.name}, tokens[end:]...), true
 		}
 		return nil, false
 	})
+}
+
+// placedAtRoot returns a schema that holds value, found under key in
+// root, where its references resolve as they do in root.
+func placedAtRoot(root map[string]any, key string, value any) map[string]any {
+	placed := map[string]any{key: value}
+	if id, ok := root["$id"]; ok {
+		placed["$id"] = id
+	}
+	return placed
+}
+
+// rootDefinitions adds schemas to the definitions of a root schema under
+// names of their own: "$defs", unless the root keeps them in
+// "definitions" only.
+type rootDefinitions struct {
+	root        map[string]any
+	container   string
+	definitions map[string]any
+}
+
+func newRootDefinitions(root map[string]any) *rootDefinitions {
+	container := "$defs"
+	if _, hasDefs := root["$defs"]; !hasDefs {
+		if _, hasDefinitions := root["definitions"].(map[string]any); hasDefinitions {
+			container = "definitions"
+		}
+	}
+	definitions := map[string]any{}
+	if existing, ok := root[container].(map[string]any); ok {
+		maps.Copy(definitions, existing)
+	}
+	return &rootDefinitions{root: root, container: container, definitions: definitions}
+}
+
+// define adds definition, found at the JSON Pointer tokens in the source
+// root, under a name derived from them, and returns that name.
+func (d *rootDefinitions) define(tokens []string, definition any) string {
+	parts := make([]string, len(tokens))
+	for i, token := range tokens {
+		parts[i] = strings.Map(func(r rune) rune {
+			if r == '_' || r == '-' || r == '.' || ('a' <= r && r <= 'z') || ('A' <= r && r <= 'Z') || ('0' <= r && r <= '9') {
+				return r
+			}
+			return '_'
+		}, strings.TrimPrefix(token, "$"))
+	}
+	base := "coder_root_" + strings.Join(parts, "_")
+	name := base
+	for i := 2; ; i++ {
+		if _, taken := d.definitions[name]; !taken {
+			break
+		}
+		name = fmt.Sprintf("%s_%d", base, i)
+	}
+	d.definitions[name] = definition
+	d.root[d.container] = d.definitions
+	return name
 }
 
 // pointerTree holds JSON Pointers by their tokens, so that the pointers

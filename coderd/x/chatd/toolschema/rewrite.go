@@ -1371,7 +1371,7 @@ type Resolver struct {
 // an anchor.
 type embeddedResource struct {
 	node map[string]any
-	// outer is the path to the resource, or to the outermost embedded
+	// outer is the path to the subschema, or to the outermost embedded
 	// resource holding it.
 	outer *pathToken
 	// dialect is the dialect node is read in (see UpgradeLegacyDrafts).
@@ -1402,11 +1402,15 @@ func (r *Resolver) index() {
 				r.resources[resource] = append(r.resources[resource], embeddedResource{node: node, outer: scope.outer, dialect: scope.dialect})
 			}
 		}
+		outer := scope.outer
+		if !scope.nested {
+			outer = scope.path
+		}
 		for _, anchor := range plainAnchors(node) {
 			if r.anchors[resource] == nil {
 				r.anchors[resource] = map[string][]embeddedResource{}
 			}
-			r.anchors[resource][anchor] = append(r.anchors[resource][anchor], embeddedResource{node: node, dialect: scope.dialect})
+			r.anchors[resource][anchor] = append(r.anchors[resource][anchor], embeddedResource{node: node, outer: outer, dialect: scope.dialect})
 		}
 	})
 }
@@ -1524,6 +1528,55 @@ func (r *Resolver) ResourceRefs(schema map[string]any) [][]string {
 			}
 			if embedded, ok := r.embedded(uri); ok {
 				found = append(found, embedded.outer.tokens())
+			}
+		}
+	})
+	return found
+}
+
+// AnchorRefs returns the JSON Pointer tokens, in the root, of the
+// subschemas that references in schema name by an anchor of the root
+// resource. schema is read like ResourceRefs reads it.
+func (r *Resolver) AnchorRefs(schema map[string]any) [][]string {
+	var found [][]string
+	walkNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
+		for _, key := range []string{"$ref", "$dynamicRef"} {
+			ref, ok := node[key].(string)
+			if !ok {
+				continue
+			}
+			prefix, fragment, _ := strings.Cut(ref, "#")
+			anchor, ok := anchorFragment(fragment)
+			if !ok {
+				continue
+			}
+			if prefix == "" {
+				if scope.nested {
+					continue
+				}
+			} else if uri, ok := scope.resolve(prefix); !ok || !r.isRoot(uri) {
+				continue
+			}
+			r.index()
+			if declared := r.anchors[""][anchor]; len(declared) == 1 {
+				found = append(found, declared[0].outer.tokens())
+			}
+		}
+	})
+	return found
+}
+
+// RootPointerRefs returns the decoded JSON Pointer tokens of the
+// references in schema that RewriteRefs would pass to its rewrite
+// function, without copying schema.
+func RootPointerRefs(schema map[string]any) [][]string {
+	var found [][]string
+	walkNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
+		for _, key := range []string{"$ref", "$dynamicRef"} {
+			if ref, ok := node[key].(string); ok {
+				if tokens, ok := scope.rootPointer(ref); ok {
+					found = append(found, tokens)
+				}
 			}
 		}
 	})

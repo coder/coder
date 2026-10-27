@@ -1224,10 +1224,17 @@ func configSecrets(cfg ServerConfig, env []string) []string {
 		parts := strings.FieldsFunc(value, func(r rune) bool {
 			return unicode.IsSpace(r) || r == ';' || r == ','
 		})
-		for _, part := range parts {
+		for i, part := range parts {
 			addValue(part)
 			if _, v, ok := strings.Cut(part, "="); ok {
 				addValue(strings.Trim(v, `"`))
+			}
+			// A server may echo the user name or password that a Basic
+			// authorization encodes decoded.
+			if strings.EqualFold(part, "Basic") && i+1 < len(parts) {
+				if userinfo, ok := decodeBasicToken(parts[i+1]); ok {
+					addValue(userinfo)
+				}
 			}
 		}
 	}
@@ -1245,13 +1252,44 @@ func configSecrets(cfg ServerConfig, env []string) []string {
 		add(value)
 	}
 	for _, entry := range env {
-		if _, value, ok := strings.Cut(entry, "="); ok {
+		if name, value, ok := strings.Cut(entry, "="); ok && !describesProcess(name) {
 			add(value)
+		}
+	}
+	// A credential of digits, such as a PIN, reaches containsSecret as a
+	// JSON number, which keeps neither leading zeros nor digits past
+	// float64 precision, so the number it decodes to is a secret too.
+	for _, value := range values {
+		if number, err := strconv.ParseFloat(value, 64); err == nil {
+			values = append(values, strconv.FormatFloat(number, 'f', -1, 64))
 		}
 	}
 	return slices.DeleteFunc(values, func(value string) bool {
 		return len(value) < minSecretBytes
 	})
+}
+
+// decodeBasicToken returns the user information that the token of a
+// Basic authorization encodes, and false when the token is not Base64.
+func decodeBasicToken(token string) (string, bool) {
+	decoded, err := base64.StdEncoding.DecodeString(token)
+	if err != nil {
+		decoded, err = base64.RawStdEncoding.DecodeString(token)
+	}
+	return string(decoded), err == nil
+}
+
+// describesProcess reports whether an environment variable is one that
+// describes the process, such as HOME or LANG, and never holds a
+// credential. configSecrets skips those a stdio server inherits, so that
+// a schema naming the home directory, say, keeps its full form.
+func describesProcess(name string) bool {
+	switch name {
+	case "HOME", "PATH", "PWD", "OLDPWD", "SHELL", "TERM", "LANG", "LANGUAGE", "USER", "LOGNAME", "TMPDIR", "SHLVL", "HOSTNAME", "TZ", "_":
+		return true
+	default:
+		return strings.HasPrefix(name, "LC_")
+	}
 }
 
 // containsSecret reports whether a JSON value holds one of secrets in a
