@@ -31,7 +31,8 @@ export const restoreOptimisticRequestSnapshot = (
  * actual user message is delivered via SSE or the messages REST endpoint.
  * Suppress the promoted ID so the transient reordered queue published by
  * the running-case backend does not flash the message back into the
- * visible queue. Roll back queue, status, and suppression on API error.
+ * visible queue, and hold the message until the transcript has it. Roll
+ * back queue, status, and suppression on API error.
  *
  * @internal Exported for testing.
  */
@@ -43,6 +44,7 @@ export const runPromoteQueuedMessage = async (params: {
 		| "clearStreamError"
 		| "clearStreamState"
 		| "getSnapshot"
+		| "holdPromotingQueuedMessage"
 		| "setChatStatus"
 		| "setQueuedMessages"
 		| "setStreamError"
@@ -64,8 +66,14 @@ export const runPromoteQueuedMessage = async (params: {
 		onError,
 	} = params;
 	const previousSnapshot = store.getSnapshot();
+	const promotedMessage = previousSnapshot.queuedMessages.find(
+		(message) => message.id === id,
+	);
 	store.batch(() => {
 		store.suppressQueuedMessageID(id);
+		if (promotedMessage) {
+			store.holdPromotingQueuedMessage(promotedMessage);
+		}
 		store.setQueuedMessages(
 			previousSnapshot.queuedMessages.filter((message) => message.id !== id),
 		);
