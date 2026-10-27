@@ -92,9 +92,11 @@ func TestChatClientRequests(t *testing.T) {
 		})
 		model, err := client.ChatModel(t.Context(), uuid.New(), uuid.New())
 		require.ErrorIs(t, err, errTransport)
+		require.IsType(t, &url.Error{}, err)
 		require.Zero(t, model)
 		err = client.DeleteChatModel(t.Context(), uuid.New(), uuid.New())
 		require.ErrorIs(t, err, errTransport)
+		require.IsType(t, &url.Error{}, err)
 	})
 
 	t.Run("UnexpectedStatus", func(t *testing.T) {
