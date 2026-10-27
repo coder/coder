@@ -13,9 +13,10 @@ export const getAsyncAnswerPrefix = (toolCallId: string): string =>
 export const isAsyncAnswerPrompt = (text: string): boolean =>
 	text.startsWith(asyncAnswerLead);
 
-/** The call an answer names, and its text without the prefix line, as users see it. */
+/** An answer split at its prefix line. */
 export type AsyncAnswer = {
 	toolCallId: string;
+	/** The answer without its prefix line, as users see it. */
 	body: string;
 };
 
