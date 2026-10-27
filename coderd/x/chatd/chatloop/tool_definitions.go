@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"reflect"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -134,6 +135,11 @@ var bannedRootKeys = [...]string{"$ref", "anyOf", "oneOf", "allOf", "enum", "con
 // a reference cycle or a long chain cannot expand without limit.
 const maxRootMergeDepth = 32
 
+// maxRootMergeSchemas bounds how many schemas root composition merges in
+// total. Branches that share a reference expand it again on every path,
+// so a small schema could otherwise take exponential work.
+const maxRootMergeSchemas = 1000
+
 // enforceObjectRoot returns the tool input schema with the plain object
 // root MCP mandates and every provider accepts: "type" is "object" and
 // "properties" is never null. It runs after toolschema.Normalize, which
@@ -191,19 +197,50 @@ func foldRootComposition(inputSchema map[string]any, banned []string) map[string
 		removed[key] = inputSchema[key]
 		delete(inputSchema, key)
 	}
-	inputSchema["properties"] = shape.properties
+	// Some providers reject a required name missing from "properties".
 	required := make([]string, 0, len(shape.required))
 	for _, name := range shape.required {
-		if _, ok := shape.properties[name]; ok {
-			required = append(required, name)
+		if _, ok := shape.properties[name]; !ok {
+			property, allowed := undeclaredPropertySchema(inputSchema, name)
+			if !allowed {
+				continue
+			}
+			shape.properties[name] = property
 		}
+		required = append(required, name)
 	}
+	inputSchema["properties"] = shape.properties
 	if len(required) > 0 {
 		inputSchema["required"] = required
 	} else {
 		delete(inputSchema, "required")
 	}
 	return relocateReferencedRootKeywords(inputSchema, removed)
+}
+
+// undeclaredPropertySchema returns a property schema for a name the root
+// does not list in "properties" that keeps the root's constraints on it:
+// any value when a "patternProperties" pattern matches the name, since
+// the pattern keeps applying, and otherwise the "additionalProperties"
+// schema. It reports false when "additionalProperties" forbids the name,
+// which no argument can then hold.
+func undeclaredPropertySchema(root map[string]any, name string) (any, bool) {
+	if patterns, ok := root["patternProperties"].(map[string]any); ok {
+		for pattern := range patterns {
+			// A pattern Go cannot compile is treated as not matching.
+			if re, err := regexp.Compile(pattern); err == nil && re.MatchString(name) {
+				return map[string]any{}, true
+			}
+		}
+	}
+	switch additional := root["additionalProperties"].(type) {
+	case map[string]any:
+		return additional, true
+	case bool:
+		return map[string]any{}, additional
+	default:
+		return map[string]any{}, true
+	}
 }
 
 // relocateReferencedRootKeywords keeps references into removed root
@@ -312,14 +349,17 @@ type rootFolder struct {
 	root map[string]any
 	// visiting holds the references being followed on the current path.
 	visiting map[string]struct{}
+	// merged counts the schemas merged so far.
+	merged int
 }
 
 // mergeAll merges a schema that must hold in addition to the root.
 func (f *rootFolder) mergeAll(shape *objectShape, branch any, depth int) {
 	node, ok := branch.(map[string]any)
-	if !ok || depth > maxRootMergeDepth {
+	if !ok || depth > maxRootMergeDepth || f.merged >= maxRootMergeSchemas {
 		return
 	}
+	f.merged++
 	if _, ok := node["$id"]; ok && toolschema.HasRefs(node) {
 		// References in a separate resource resolve against its own
 		// "$id", so its content cannot move into the root resource.
@@ -375,6 +415,11 @@ func (f *rootFolder) mergeRef(shape *objectShape, ref string, depth int) {
 // alternative that does not define a property allows any value for it,
 // unless it forbids additional properties.
 func (f *rootFolder) mergeAlternatives(shape *objectShape, branches []any, depth int) {
+	// A false alternative never holds, so it allows nothing.
+	branches = slices.DeleteFunc(slices.Clone(branches), func(branch any) bool {
+		holds, ok := branch.(bool)
+		return ok && !holds
+	})
 	if len(branches) == 0 {
 		return
 	}

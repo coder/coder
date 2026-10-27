@@ -1,6 +1,7 @@
 package chatd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 
@@ -63,8 +64,16 @@ func dynamicToolsFromSDK(logger slog.Logger, tools []codersdk.DynamicTool) []fan
 				// Also keep the schema whole so keys the typed
 				// extraction cannot carry ($defs, combinators,
 				// additionalProperties, ...) reach the provider.
+				// Numbers keep their exact text, since float64
+				// would round large integers in "const" or "enum".
+				decoder := json.NewDecoder(bytes.NewReader(t.InputSchema))
+				decoder.UseNumber()
 				var full map[string]any
-				if err := json.Unmarshal(t.InputSchema, &full); err == nil {
+				if err := decoder.Decode(&full); err != nil {
+					logger.Warn(context.Background(), "failed to decode full dynamic tool input schema",
+						slog.F("tool_name", t.Name),
+						slog.Error(err))
+				} else {
 					dt.inputSchema = full
 				}
 			}

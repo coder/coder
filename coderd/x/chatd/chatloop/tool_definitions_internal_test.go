@@ -2,6 +2,7 @@ package chatloop
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"charm.land/fantasy"
@@ -689,6 +690,25 @@ func TestBuildToolDefinitionsFullSchemaRootAlternativesMissingProperty(t *testin
 			accepted: []string{`{"a": 1}`},
 		},
 		{
+			// A false alternative never holds, so the other one decides.
+			name: "FalseAlternative",
+			source: map[string]any{
+				"anyOf": []any{
+					false,
+					map[string]any{
+						"properties": map[string]any{"q": map[string]any{"type": "string"}},
+						"required":   []any{"q"},
+					},
+				},
+			},
+			want: `{
+				"type": "object",
+				"properties": {"q": {"type": "string"}},
+				"required": ["q"]
+			}`,
+			accepted: []string{`{"q": "x"}`},
+		},
+		{
 			name: "ClosedAlternatives",
 			source: map[string]any{
 				"oneOf": []any{
@@ -753,6 +773,104 @@ func TestBuildToolDefinitionsFullSchemaRootAlternativesMissingProperty(t *testin
 			}
 		})
 	}
+}
+
+// TestBuildToolDefinitionsFullSchemaRootFoldUndeclaredRequired verifies
+// that root folding keeps a required name that has no property schema,
+// and gives it the schema that governs it, since some providers reject
+// a required name missing from "properties".
+func TestBuildToolDefinitionsFullSchemaRootFoldUndeclaredRequired(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		source   string
+		want     string
+		accepted []string
+		rejected []string
+	}{
+		{
+			name:     "AnyValue",
+			source:   `{"type": "object", "required": ["query"], "allOf": [{}]}`,
+			want:     `{"type": "object", "properties": {"query": {}}, "required": ["query"]}`,
+			accepted: []string{`{"query": 1}`},
+			rejected: []string{`{}`},
+		},
+		{
+			name:     "AdditionalProperties",
+			source:   `{"type": "object", "required": ["query"], "additionalProperties": {"type": "string"}, "allOf": [{}]}`,
+			want:     `{"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"], "additionalProperties": {"type": "string"}}`,
+			accepted: []string{`{"query": "x"}`},
+			rejected: []string{`{}`, `{"query": 1}`},
+		},
+		{
+			// The pattern keeps applying beside the property.
+			name:     "PatternProperties",
+			source:   `{"type": "object", "required": ["x-id"], "patternProperties": {"^x-": {"type": "integer"}}, "additionalProperties": false, "allOf": [{}]}`,
+			want:     `{"type": "object", "properties": {"x-id": {}}, "required": ["x-id"], "patternProperties": {"^x-": {"type": "integer"}}, "additionalProperties": false}`,
+			accepted: []string{`{"x-id": 1}`},
+			rejected: []string{`{}`, `{"x-id": "a"}`},
+		},
+		{
+			name:     "RequiredByEveryAlternative",
+			source:   `{"type": "object", "oneOf": [{"required": ["id"]}, {"required": ["id", "name"]}]}`,
+			want:     `{"type": "object", "properties": {"id": {}}, "required": ["id"]}`,
+			accepted: []string{`{"id": 1}`},
+			rejected: []string{`{"name": "x"}`},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var source map[string]any
+			require.NoError(t, json.Unmarshal([]byte(tc.source), &source))
+			defs := BuildToolDefinitions([]fantasy.AgentTool{fullSchemaTestTool{schema: source}}, nil, nil)
+			require.Len(t, defs, 1)
+			ft, ok := defs[0].(fantasy.FunctionTool)
+			require.True(t, ok)
+			raw, err := json.Marshal(ft.InputSchema)
+			require.NoError(t, err)
+			require.JSONEq(t, tc.want, string(raw))
+			for _, instance := range tc.accepted {
+				require.NoError(t, validateSchemaInstance(t, ft.InputSchema, instance))
+			}
+			for _, instance := range tc.rejected {
+				require.Error(t, validateSchemaInstance(t, source, instance), "the source schema must reject %s", instance)
+				require.Error(t, validateSchemaInstance(t, ft.InputSchema, instance))
+			}
+		})
+	}
+}
+
+// TestBuildToolDefinitionsFullSchemaRootFoldBoundsWork verifies that
+// root folding stays cheap when many branches reference the same
+// schemas, which it would otherwise expand again on every path.
+func TestBuildToolDefinitionsFullSchemaRootFoldBoundsWork(t *testing.T) {
+	t.Parallel()
+
+	const levels, fanOut = 8, 10
+	refs := func(level int) []any {
+		branches := make([]any, fanOut)
+		for i := range branches {
+			branches[i] = map[string]any{"$ref": fmt.Sprintf("#/$defs/L%d", level)}
+		}
+		return branches
+	}
+	defs := map[string]any{}
+	want := map[string]any{}
+	for level := 0; level <= levels; level++ {
+		name := fmt.Sprintf("p%d", level)
+		def := map[string]any{"properties": map[string]any{name: map[string]any{"type": "string"}}}
+		// The last level points back to the first, so no expansion is
+		// complete enough to reuse.
+		def["allOf"] = refs((level + 1) % (levels + 1))
+		defs[fmt.Sprintf("L%d", level)] = def
+		want[name] = map[string]any{"type": "string"}
+	}
+	source := map[string]any{"type": "object", "allOf": refs(0), "$defs": defs}
+
+	inputSchema := ToolInputSchema(fullSchemaTestTool{schema: source})
+	require.Equal(t, want, inputSchema["properties"])
 }
 
 // TestBuildToolDefinitionsFullSchemaAnchorRefs verifies that a

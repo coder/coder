@@ -78,7 +78,7 @@ func TestDynamicToolsFromSDK(t *testing.T) {
 		require.Equal(t, "bad_schema", info.Name)
 		require.Nil(t, info.Parameters)
 		require.Nil(t, info.Required)
-		full, ok := result[0].(fullSchemaTool)
+		full, ok := result[0].(*dynamicTool)
 		require.True(t, ok)
 		require.Nil(t, full.FullInputSchema())
 	})
@@ -86,7 +86,8 @@ func TestDynamicToolsFromSDK(t *testing.T) {
 	t.Run("SchemaKeptWhole", func(t *testing.T) {
 		t.Parallel()
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-		schema := `{"type":"object","properties":{"filter":{"$ref":"#/$defs/Filter"}},"required":["filter"],"additionalProperties":false,"$defs":{"Filter":{"type":"string"}}}`
+		// 9007199254740993 has no exact float64 form.
+		schema := `{"type":"object","properties":{"filter":{"$ref":"#/$defs/Filter"}},"required":["filter"],"additionalProperties":false,"$defs":{"Filter":{"type":"string"},"ID":{"const":9007199254740993}}}`
 		tools := []codersdk.DynamicTool{
 			{
 				Name:        "ref_tool",
@@ -97,11 +98,12 @@ func TestDynamicToolsFromSDK(t *testing.T) {
 		result := dynamicToolsFromSDK(logger, tools)
 		require.Len(t, result, 1)
 
-		full, ok := result[0].(fullSchemaTool)
+		full, ok := result[0].(*dynamicTool)
 		require.True(t, ok)
 		raw, err := json.Marshal(full.FullInputSchema())
 		require.NoError(t, err)
 		require.JSONEq(t, schema, string(raw))
+		require.Contains(t, string(raw), `{"const":9007199254740993}`)
 
 		// Info() keeps carrying the flattened pair.
 		info := result[0].Info()
@@ -132,7 +134,7 @@ func TestDynamicToolsFromSDK(t *testing.T) {
 
 		var kept []string
 		for _, tool := range result {
-			full, ok := tool.(fullSchemaTool)
+			full, ok := tool.(*dynamicTool)
 			require.True(t, ok)
 			if full.FullInputSchema() != nil {
 				kept = append(kept, tool.Info().Name)
