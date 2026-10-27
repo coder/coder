@@ -8,6 +8,7 @@ import {
 	FilePenLineIcon,
 	FileTextIcon,
 	FileUpIcon,
+	GlobeIcon,
 	LightbulbIcon,
 	type LucideIcon,
 	MonitorIcon,
@@ -59,6 +60,7 @@ export const toolIcons: Partial<Record<string, LucideIcon>> = {
 	find_tools: SearchIcon,
 	publish_artifact: FileUpIcon,
 	read_artifact: FileDownIcon,
+	web_search: GlobeIcon,
 };
 
 export const ToolIcon: React.FC<{

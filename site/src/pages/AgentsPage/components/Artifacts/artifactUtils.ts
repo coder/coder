@@ -94,7 +94,14 @@ export const kindOf = (name: string, mediaType: string): ArtifactKind => {
 	return "download";
 };
 
-const kindIcons: Record<ArtifactKind, React.FC<{ className?: string }>> = {
+/**
+ * The icon of each kind. Index it during render with `kindOf`, so that
+ * `react(static-components)` sees a static component.
+ */
+export const artifactKindIcons: Record<
+	ArtifactKind,
+	React.FC<{ className?: string }>
+> = {
 	html: CodeXmlIcon,
 	mermaid: WorkflowIcon,
 	markdown: FileTextIcon,
@@ -102,10 +109,6 @@ const kindIcons: Record<ArtifactKind, React.FC<{ className?: string }>> = {
 	text: FileCodeIcon,
 	download: FileIcon,
 };
-
-/** The icon of the latest version's kind. */
-export const artifactIcon = (artifact: ChatArtifact) =>
-	kindIcons[kindOf(artifact.latest_name, artifact.latest_media_type)];
 
 /** The route of the artifact gallery. Artifact pages live below it. */
 export const artifactsGalleryPath = "/agents/artifacts";

@@ -543,6 +543,11 @@ type sqlcQuerier interface {
 	// The compaction boundary and final ordering must use the same key so tool
 	// results remain after their assistant calls.
 	GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error)
+	// Returns the user-visible user and assistant messages in a chat that hold
+	// at least one file part, newest first, optionally only those before
+	// @before_id. Backs the attachments endpoint so a client can list every
+	// attachment without paging through the transcript.
+	GetChatMessagesWithFilePartsByChatID(ctx context.Context, arg GetChatMessagesWithFilePartsByChatIDParams) ([]ChatMessage, error)
 	GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error)
 	GetChatModelConfigs(ctx context.Context, organizationID uuid.UUID) ([]ChatModelConfig, error)
 	// All live configs in one organization, unfiltered. Consumed ONLY by
@@ -941,10 +946,8 @@ type sqlcQuerier interface {
 	// GetTemplateInsightsByTemplate is used for Prometheus metrics. Keep
 	// in sync with GetTemplateInsights and UpsertTemplateUsageStats.
 	//
-	// Session usage is reported per app family. It reads the raw agent stats
-	// because the rollup stores minutes per app, which can't show whether two
-	// apps of one family were open in the same minute. @app_families maps each
-	// app name to its family; names missing from the map count as unknown.
+	// Session usage is per app name. It reads raw agent stats because rollup
+	// buckets are coarser than the metrics window.
 	GetTemplateInsightsByTemplate(ctx context.Context, arg GetTemplateInsightsByTemplateParams) ([]GetTemplateInsightsByTemplateRow, error)
 	// GetTemplateParameterInsights does for each template in a given timeframe,
 	// look for the latest workspace build (for every workspace) that has been

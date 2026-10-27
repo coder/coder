@@ -76,5 +76,7 @@ Instead of maintaining an image for every combination, developers can layer thei
 
 - [Dev Containers](https://containers.dev): developers define their project's dependencies in a `devcontainer.json` in their Git repository, and Coder builds the environment on top of your base image.
   Visit [configure a template for Dev Containers](../../integrations/devcontainers/integration.md).
+- [Nix(OS)](../../integrations/nix.md): developers declare their project's tech stack in a Nix dev shell in their Git repository, on top of your existing image.
+  Template administrators can also replace the base image itself with a NixOS flake.
 - [mise](https://mise.jdx.dev/): developers install and pin language runtimes and CLI tools at workspace startup without rebuilding the image.
   Visit the [install command-line tools guide](../../../get-started/customize-your-template/install-command-line-tools.md).

@@ -61,7 +61,11 @@ func (p *Server) resolveChatSkillInvocations(
 // depend on the skill being listed in the turn's skill index, and skills
 // that are not model-invocable still load. Workspace
 // skills come from the chat's pinned context snapshot, so a chat without
-// one cannot invoke them.
+// one cannot invoke them. An invoked workspace skill also stores its
+// directory: read_skill refuses a skill hidden from the model, so the
+// invocation is the only place the model is told where its scripts are.
+// The directory is stored with the chat's workspace, because the path
+// means nothing once the chat is bound to another workspace.
 func (p *Server) resolveSkillInvocations(
 	ctx context.Context,
 	chat database.Chat,
@@ -81,18 +85,23 @@ func (p *Server) resolveSkillInvocations(
 		_, skills, err := p.resolveTurnWorkspaceContext(ctx, chat, database.WorkspaceAgent{})
 		return skills, err
 	})
-	loadBody := func(part codersdk.ChatMessagePart) (string, error) {
+	type invokedSkill struct {
+		body        string
+		dir         string
+		workspaceID uuid.UUID
+	}
+	loadSkill := func(part codersdk.ChatMessagePart) (invokedSkill, error) {
 		switch part.SkillSource {
 		case codersdk.ChatSkillSourcePersonal:
 			parsed, err := p.loadPersonalSkillBody(ctx, chat.OwnerID, part.SkillName, skillLoaderUser)
-			return parsed.Body, err
+			return invokedSkill{body: parsed.Body}, err
 		case codersdk.ChatSkillSourceOrganization:
 			owner, err := loadOwner()
 			if err != nil {
-				return "", err
+				return invokedSkill{}, err
 			}
 			parsed, err := p.loadOrganizationSkillBody(ctx, owner, chat.OrganizationID, part.SkillName, skillLoaderUser)
-			return parsed.Body, err
+			return invokedSkill{body: parsed.Body}, err
 		case codersdk.ChatSkillSourceProject:
 			// Read as chatd behind the chat owner's project usability check,
 			// like project skill loading for turns.
@@ -100,22 +109,23 @@ func (p *Server) resolveSkillInvocations(
 			chatdCtx := dbauthz.AsChatd(ctx)
 			projectID := p.resolveUsableChatProjectID(chatdCtx, p.logger, chat)
 			if !projectID.Valid {
-				return "", skillspkg.ErrSkillNotFound
+				return invokedSkill{}, skillspkg.ErrSkillNotFound
 			}
 			parsed, err := p.loadProjectSkillBody(chatdCtx, projectID.UUID, part.SkillName, skillLoaderUser)
-			return parsed.Body, err
+			return invokedSkill{body: parsed.Body}, err
 		case codersdk.ChatSkillSourceWorkspace:
 			skills, err := loadWorkspaceSkills()
 			if err != nil {
-				return "", err
+				return invokedSkill{}, err
 			}
 			for _, skill := range skills {
 				if skill.Name == part.SkillName {
-					return chattool.PinnedWorkspaceSkillBody(skill)
+					body, err := chattool.PinnedWorkspaceSkillBody(skill)
+					return invokedSkill{body: body, dir: skill.Dir, workspaceID: chat.WorkspaceID.UUID}, err
 				}
 			}
 		}
-		return "", skillspkg.ErrSkillNotFound
+		return invokedSkill{}, skillspkg.ErrSkillNotFound
 	}
 
 	// A message that repeats a skill loads it once.
@@ -123,26 +133,28 @@ func (p *Server) resolveSkillInvocations(
 		source codersdk.ChatSkillSource
 		name   string
 	}
-	bodies := make(map[skillKey]string, invocations)
+	loaded := make(map[skillKey]invokedSkill, invocations)
 	resolved := slices.Clone(parts)
 	for i, part := range resolved {
 		if !isSkillInvocation(part) {
 			continue
 		}
 		key := skillKey{source: part.SkillSource, name: part.SkillName}
-		if body, ok := bodies[key]; ok {
-			resolved[i].SkillBody = body
-			continue
+		skill, ok := loaded[key]
+		if !ok {
+			var err error
+			skill, err = loadSkill(part)
+			if errors.Is(err, skillspkg.ErrSkillNotFound) {
+				return nil, &SkillInvocationUnavailableError{Source: part.SkillSource, Name: part.SkillName}
+			}
+			if err != nil {
+				return nil, xerrors.Errorf("load invoked skill %s/%s: %w", part.SkillSource, part.SkillName, err)
+			}
+			loaded[key] = skill
 		}
-		body, err := loadBody(part)
-		if errors.Is(err, skillspkg.ErrSkillNotFound) {
-			return nil, &SkillInvocationUnavailableError{Source: part.SkillSource, Name: part.SkillName}
-		}
-		if err != nil {
-			return nil, xerrors.Errorf("load invoked skill %s/%s: %w", part.SkillSource, part.SkillName, err)
-		}
-		bodies[key] = body
-		resolved[i].SkillBody = body
+		resolved[i].SkillBody = skill.body
+		resolved[i].SkillDir = skill.dir
+		resolved[i].SkillWorkspaceID = skill.workspaceID
 	}
 	return resolved, nil
 }

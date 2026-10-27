@@ -2154,6 +2154,56 @@ func TestPersonalAndWorkspaceSkillCollisionInSystemPrompt(t *testing.T) {
 	require.ErrorContains(t, err, "workspace/deploy")
 }
 
+func TestModelHiddenWorkspaceSkillsLeftOutOfModelSkills(t *testing.T) {
+	t.Parallel()
+
+	hiddenSkill := func(name string) chattool.SkillMeta {
+		return chattool.SkillMeta{
+			Name:        name,
+			Description: "Manual " + name,
+			Dir:         "/skills/" + name,
+			Meta:        []byte("---\nname: " + name + "\ndescription: Manual " + name + "\ndisable-model-invocation: true\n---\nManual body.\n"),
+		}
+	}
+	workspaceSkills := []chattool.SkillMeta{hiddenSkill("deploy"), hiddenSkill("release")}
+	resolved := mergeTurnSkills(
+		[]skillspkg.Skill{{
+			Name:        "deploy",
+			Description: "Personal deployment process",
+			Source:      skillspkg.SourcePersonal,
+		}},
+		nil,
+		nil,
+		workspaceSkills,
+		nil,
+	)
+
+	text := systemPromptText(t, buildSystemPrompt(nil, "", "", resolved, "", "", "", systemPromptBehaviorContext{}))
+	// The hidden workspace deploy skill must not force a qualified alias on
+	// the personal one, and the header lines describe only listed skills.
+	require.Contains(t, text, "\n- deploy: Personal deployment process\n")
+	require.NotContains(t, text, "Manual")
+	require.NotContains(t, text, "read_skill_file")
+	require.NotContains(t, text, "source prefix")
+
+	readSkill := chattool.ReadSkill(chattool.ReadSkillOptions{
+		GetSkills: func() []chattool.SkillMeta { return workspaceSkills },
+		ResolveAlias: func(alias string) (skillspkg.ResolvedSkill, error) {
+			return skillspkg.Lookup(resolved, alias)
+		},
+	})
+	for _, name := range []string{"release", "workspace/release", "workspace/deploy"} {
+		resp, err := readSkill.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-" + name,
+			Name:  "read_skill",
+			Input: `{"name":"` + name + `"}`,
+		})
+		require.NoError(t, err)
+		require.True(t, resp.IsError, name)
+		require.Equal(t, `skill "`+name+`" not found`, resp.Content)
+	}
+}
+
 func requireUserSkillContextActor(ctx context.Context, t *testing.T, userID uuid.UUID) {
 	t.Helper()
 	actor, ok := dbauthz.ActorFromContext(ctx)

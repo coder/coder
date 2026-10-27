@@ -2193,12 +2193,19 @@ type systemPromptBehaviorContext struct {
 	isRootChat           bool
 }
 
+// workspaceSkillsForResolution returns the workspace skills the model may
+// list and load. Skills hidden from the model are left out before merging,
+// like stored skills that are not model-invocable, so they neither appear
+// in the index nor change the aliases of listed skills.
 func workspaceSkillsForResolution(workspaceSkills []chattool.SkillMeta) []skillspkg.Skill {
 	if len(workspaceSkills) == 0 {
 		return nil
 	}
 	resolved := make([]skillspkg.Skill, 0, len(workspaceSkills))
 	for _, skill := range workspaceSkills {
+		if !skill.ModelInvocable() {
+			continue
+		}
 		resolved = append(resolved, skillspkg.Skill{
 			Name:        skill.Name,
 			Description: skill.Description,

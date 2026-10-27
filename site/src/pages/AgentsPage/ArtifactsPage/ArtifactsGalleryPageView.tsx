@@ -10,8 +10,9 @@ import { Loader } from "#/components/Loader/Loader";
 import { SearchField } from "#/components/SearchField/SearchField";
 import { timeFrom } from "#/utils/time";
 import {
-	artifactIcon,
+	artifactKindIcons,
 	getArtifactPagePath,
+	kindOf,
 } from "../components/Artifacts/artifactUtils";
 import { getTimeGroup, TIME_GROUPS } from "../utils/timeGroups";
 
@@ -73,7 +74,8 @@ const ArtifactListItem: React.FC<ArtifactItemProps> = ({
 	now,
 	galleryPath,
 }) => {
-	const Icon = artifactIcon(artifact);
+	const Icon =
+		artifactKindIcons[kindOf(artifact.latest_name, artifact.latest_media_type)];
 	return (
 		<li>
 			<Link
@@ -113,7 +115,8 @@ const ArtifactCard: React.FC<ArtifactItemProps> = ({
 	now,
 	galleryPath,
 }) => {
-	const Icon = artifactIcon(artifact);
+	const Icon =
+		artifactKindIcons[kindOf(artifact.latest_name, artifact.latest_media_type)];
 	return (
 		<li>
 			<Link

@@ -3,9 +3,10 @@ import type { ChatMessage } from "#/api/typesGenerated";
 import { SectionHeader } from "../SectionHeader";
 import { useArtifactTabs } from "./ArtifactTabsContext";
 import {
-	artifactIcon,
+	artifactKindIcons,
 	deriveArtifactIds,
 	deriveSeenArtifactVersions,
+	kindOf,
 } from "./artifactUtils";
 import { useChatArtifact } from "./useChatArtifact";
 
@@ -75,7 +76,8 @@ const ChatArtifactRow: React.FC<ChatArtifactRowProps> = ({
 	}
 
 	const title = data.title || "Untitled artifact";
-	const Icon = artifactIcon(data);
+	const Icon =
+		artifactKindIcons[kindOf(data.latest_name, data.latest_media_type)];
 	return (
 		<li>
 			<button
