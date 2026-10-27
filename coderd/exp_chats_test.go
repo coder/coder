@@ -11042,7 +11042,7 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 			require.NoError(t, json.Unmarshal(rawFollowUp, &followUp))
 			require.NotNil(t, followUp.Store)
 			require.Equal(t, tt.store == nil || *tt.store, *followUp.Store)
-			var inputItems []string
+			var inputKinds []string
 			var replayed json.RawMessage
 			for _, raw := range followUp.Input {
 				var item struct {
@@ -11057,12 +11057,12 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 					replayed = raw
 				}
 				if item.Role != "" {
-					inputItems = append(inputItems, item.Role)
+					inputKinds = append(inputKinds, item.Role)
 				} else {
-					inputItems = append(inputItems, item.Type)
+					inputKinds = append(inputKinds, item.Type)
 				}
 			}
-			require.Equal(t, []string{"user", "web_search_call", "assistant", "user"}, inputItems)
+			require.Equal(t, []string{"user", "web_search_call", "assistant", "user"}, inputKinds)
 			require.JSONEq(t, tt.wantReplay, string(replayed))
 		})
 	}
