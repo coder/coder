@@ -844,7 +844,15 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	if newVersion.IsRC() {
 		infof(w, "Skipping docs update for release candidate.")
 	} else {
-		promptAndUpdateDocs(inv, p, newVersion, channel, opts.DryRun)
+		if err := promptAndUpdateDocs(inv, p, newVersion, channel, opts.DryRun); err != nil {
+			// The release is already published, so an unattended run
+			// fails loudly to make the missing docs PR visible.
+			if opts.NonInteractive {
+				return xerrors.Errorf("release %s was triggered, but the docs PR was not created; update the release docs manually: %w", newVersion, err)
+			}
+			warnf(w, "Failed to create docs PR: %v", err)
+			warnf(w, "You'll need to update release docs manually.")
+		}
 	}
 
 	fmt.Fprintln(w)
