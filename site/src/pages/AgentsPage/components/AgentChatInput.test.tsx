@@ -1100,10 +1100,11 @@ describe("AgentChatInput", () => {
 			"--mobile-dropdown-left",
 			"999px",
 		);
+		const writesBeforeKey = setProperty.mock.calls.length;
 		await user.keyboard("s");
-		expect(
-			document.documentElement.style.getPropertyValue("--mobile-dropdown-left"),
-		).toBe(left);
+		expect(setProperty.mock.calls.slice(writesBeforeKey)).toEqual([
+			["--mobile-dropdown-left", left],
+		]);
 
 		unmount();
 		for (const name of mobileDropdownVariables) {
