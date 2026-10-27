@@ -38,7 +38,8 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 		}
 		section.scrollTop = 0;
 		// A newer question replaced the form, and focus inside it fell to the
-		// page body. Focus elsewhere, such as in the chat input, stays put.
+		// page body. Focus elsewhere, such as in the chat input, stays put. The
+		// region takes focus, so no radio or text input opens the keyboard.
 		if (document.activeElement === document.body) {
 			section.focus({ preventScroll: true });
 		}
@@ -60,7 +61,7 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 				aria-labelledby={labelId}
 				tabIndex={-1}
 				className={cn(
-					"mx-auto mb-2 max-h-[50vh] w-full overflow-y-auto rounded-lg border border-solid border-border bg-surface-primary p-3 shadow-sm scrollbar-thin",
+					"mx-auto mb-2 max-h-[50vh] w-full overflow-y-auto rounded-lg border border-solid border-border bg-surface-primary p-3 shadow-sm scrollbar-thin focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
 					chatWidthClass(chatFullWidth),
 				)}
 			>

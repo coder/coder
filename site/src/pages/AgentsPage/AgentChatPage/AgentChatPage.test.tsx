@@ -114,9 +114,9 @@ describe("AgentChatPage", () => {
 	});
 
 	it("focuses the chat input after an answer sends on a narrow screen", async () => {
-		const matchMedia = window.matchMedia;
+		const originalMatchMedia = window.matchMedia;
 		vi.stubGlobal("matchMedia", (query: string) => ({
-			...matchMedia(query),
+			...originalMatchMedia(query),
 			matches: query === mobileViewportMediaQuery,
 		}));
 		mockChatPageAPI(MockAsyncQuestionMessages);
