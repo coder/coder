@@ -59,7 +59,6 @@ export const useChatStore = (
 	store: ChatStore;
 	loadState: ChatLoadState;
 	retryLoad: () => void;
-	clearClientError: () => void;
 	fetchMoreMessages: () => Promise<unknown>;
 	isFetchingMoreMessages: boolean;
 	hasFetchMoreError: boolean;
@@ -497,9 +496,6 @@ export const useChatStore = (
 			if (storeQuery.isError) {
 				void storeQuery.refetch();
 			}
-		},
-		clearClientError: () => {
-			store.clearClientError();
 		},
 		// The catch drops the error, because hasFetchMoreError reports
 		// it.
