@@ -14,7 +14,9 @@ import (
 // unwrapped root even when the server's input schema lacks it. MCP
 // requires an object schema, but not every server enforces it (the SDK
 // test server does, hence an internal test). Models fill an untyped
-// argument with a JSON string, and providers reject null members.
+// argument with a JSON string, and providers reject null members. The
+// required list is that of the rewritten schema, which holds the draft
+// 3 "required": true of each property.
 func TestFullInputSchemaModelIntentObjectArguments(t *testing.T) {
 	t.Parallel()
 
@@ -44,6 +46,15 @@ func TestFullInputSchemaModelIntentObjectArguments(t *testing.T) {
 			name:        "null members",
 			inputSchema: map[string]any{"type": "object", "properties": nil, "required": nil},
 			want:        `{"type": "object", "properties": {}}`,
+		},
+		{
+			name: "draft 3 required",
+			inputSchema: map[string]any{
+				"$schema":    "http://json-schema.org/draft-03/schema#",
+				"type":       "object",
+				"properties": map[string]any{"a": map[string]any{"type": "string", "required": true}},
+			},
+			want: `{"type": "object", "properties": {"a": {"type": "string"}}, "required": ["a"]}`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -71,7 +71,21 @@ func ToolInputSchema(tool fantasy.AgentTool) map[string]any {
 			inputSchema["required"] = info.Required
 		}
 	}
-	return enforceObjectRoot(toolschema.Normalize(inputSchema))
+	inputSchema = enforceObjectRoot(toolschema.Normalize(inputSchema))
+	// JSON-unmarshaled schemas carry "required" as []any, which some
+	// provider drivers silently drop on a []string type assertion.
+	// Coerce to []string, and drop the key when empty so it never
+	// serializes to null, which OpenAI rejects. Normalize may add names
+	// to the list, so this runs after it.
+	if raw, ok := inputSchema["required"]; ok {
+		required := coerceRequiredStrings(raw)
+		if len(required) > 0 {
+			inputSchema["required"] = required
+		} else {
+			delete(inputSchema, "required")
+		}
+	}
+	return inputSchema
 }
 
 // fullInputSchema returns a shallow copy of the tool's full input schema, or
@@ -89,18 +103,6 @@ func fullInputSchema(tool fantasy.AgentTool) map[string]any {
 	inputSchema := make(map[string]any, len(source)+1)
 	for key, value := range source {
 		inputSchema[key] = value
-	}
-	// JSON-unmarshaled schemas carry "required" as []any, which some
-	// provider drivers silently drop on a []string type assertion.
-	// Coerce to []string, and drop the key when empty so it never
-	// serializes to null, which OpenAI rejects.
-	if raw, ok := inputSchema["required"]; ok {
-		required := coerceRequiredStrings(raw)
-		if len(required) > 0 {
-			inputSchema["required"] = required
-		} else {
-			delete(inputSchema, "required")
-		}
 	}
 	return inputSchema
 }

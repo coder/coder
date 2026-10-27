@@ -318,27 +318,49 @@ func UpgradeLegacyDrafts(schema map[string]any) map[string]any {
 // "properties", "type" "any" goes, schemas in a "type" list become an
 // "anyOf", "disallow" becomes a "not", "extends" becomes an "allOf",
 // "divisibleBy" becomes "multipleOf", a "dependencies" property name
-// becomes a list of one, and "$schema" names draft 4. The keywords draft
-// 4 added are removed first, as UpgradeLegacyDrafts describes, so the
-// rewriting adds only the ones that hold as in the source.
+// becomes a list of one, and "$schema" names draft 4. A reference to a
+// schema that moves follows it. The keywords draft 4 added are removed
+// first, as UpgradeLegacyDrafts describes, so the rewriting adds only
+// the ones that hold as in the source.
 func upgradeDraft3(schema map[string]any) map[string]any {
 	if !readsIn(schema, isDraft3) {
 		return schema
 	}
 	schema = removeUnknownKeywords(schema, isDraft3, draft3UnknownKeywords[:], "x-draft3-", "")
+	// moved maps each schema the rewriting moves, by its encoded path
+	// through the draft 3 keyword of its rewritten holder, to its new
+	// path.
+	moved := map[string][]string{}
 	var visit visitFunc
 	visit = func(node map[string]any, scope refScope) {
 		if !isDraft3(scope.dialect) {
 			return
 		}
 		// Draft 3 holds schemas under "extends" and in "type" and
-		// "disallow" lists, which the copy did not reach.
-		copyAll := func(key string, values []any) []any {
-			copied := make([]any, len(values))
-			for i, value := range values {
-				copied[i] = copySchema(value, scope.at(key).at(strconv.Itoa(i)), visit)
+		// "disallow" lists, which the copy did not reach. move copies the
+		// schemas found in a keyword's value to the paths, relative to
+		// node, that to returns.
+		move := func(key string, value any, schemas []any, to func(i int) []string) []any {
+			_, isList := value.([]any)
+			copied := make([]any, len(schemas))
+			for i, schema := range schemas {
+				from := append(scope.path.tokens(), key)
+				if isList {
+					from = append(from, strconv.Itoa(i))
+				}
+				target := scope
+				for _, token := range to(i) {
+					target = target.at(token)
+				}
+				moved[EncodePointer(from)] = target.path.tokens()
+				copied[i] = copySchema(schema, target, visit)
 			}
 			return copied
+		}
+		at := func(tokens ...string) func(i int) []string {
+			return func(i int) []string {
+				return append(slices.Clone(tokens), strconv.Itoa(i))
+			}
 		}
 		if value, ok := node["divisibleBy"]; ok {
 			delete(node, "divisibleBy")
@@ -350,13 +372,13 @@ func upgradeDraft3(schema map[string]any) map[string]any {
 			if !ok {
 				list = []any{value}
 			}
-			node["allOf"] = copyAll("allOf", list)
+			node["allOf"] = move("extends", value, list, at("allOf"))
 		}
 		if variants, ok := draft3Types(node["type"]); ok {
-			delete(node, "type")
 			if !slices.ContainsFunc(variants, isEmptySchema) {
-				node["anyOf"] = copyAll("anyOf", variants)
+				node["anyOf"] = move("type", node["type"], variants, at("anyOf"))
 			}
+			delete(node, "type")
 		}
 		if value, ok := node["disallow"]; ok {
 			delete(node, "disallow")
@@ -364,12 +386,12 @@ func upgradeDraft3(schema map[string]any) map[string]any {
 			if !ok {
 				variants = []any{map[string]any{"type": value}}
 			}
-			switch variants = copyAll("not", variants); len(variants) {
+			switch len(variants) {
 			case 0:
 			case 1:
-				node["not"] = variants[0]
+				node["not"] = move("disallow", value, variants, func(int) []string { return []string{"not"} })[0]
 			default:
-				node["not"] = map[string]any{"anyOf": variants}
+				node["not"] = map[string]any{"anyOf": move("disallow", value, variants, at("not", "anyOf"))}
 			}
 		}
 		if dependencies, ok := node["dependencies"].(map[string]any); ok {
@@ -417,7 +439,24 @@ func upgradeDraft3(schema map[string]any) map[string]any {
 		}
 		node["required"] = required
 	})
-	return upgraded
+	if len(moved) == 0 {
+		return upgraded
+	}
+	// References through a moved schema follow it. The paths are
+	// compared encoded, built a token at a time.
+	return RewriteRefs(upgraded, func(tokens []string) ([]string, bool) {
+		renamed := make([]string, 0, len(tokens))
+		var path []byte
+		for _, token := range tokens {
+			renamed = append(renamed, token)
+			path = append(path, EncodePointer([]string{token})...)
+			if to, ok := moved[string(path)]; ok {
+				renamed = slices.Clone(to)
+				path = append(path[:0], EncodePointer(to)...)
+			}
+		}
+		return renamed, !slices.Equal(renamed, tokens)
+	})
 }
 
 // draft3Types returns the schemas of the alternatives that a draft 3
