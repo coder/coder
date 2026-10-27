@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { QueryClientProvider } from "react-query";
@@ -493,7 +493,7 @@ describe("ConversationTimeline attachment previews", () => {
 			await screen.findByRole("dialog");
 			await user.keyboard("{Escape}");
 
-			expect(attachment).toHaveFocus();
+			await waitFor(() => expect(attachment).toHaveFocus());
 		},
 	);
 
@@ -511,10 +511,11 @@ describe("ConversationTimeline attachment previews", () => {
 		attachment.focus();
 		await user.keyboard("{Enter}");
 		await user.tab();
+		expect(attachment).not.toHaveFocus();
 		download.resolve("hello");
 		await screen.findByRole("dialog");
 		await user.keyboard("{Escape}");
 
-		expect(attachment).toHaveFocus();
+		await waitFor(() => expect(attachment).toHaveFocus());
 	});
 });

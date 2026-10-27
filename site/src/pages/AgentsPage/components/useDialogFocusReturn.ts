@@ -15,8 +15,7 @@ export const useDialogFocusReturn = () => {
 	const triggerRef = useRef<HTMLButtonElement | null>(null);
 	const primaryFallbackRef = useRef<HTMLButtonElement | null>(null);
 	const secondaryFallbackRef = useRef<HTMLButtonElement | null>(null);
-	/** For openers that run after the click handler returns, when the
-	 * event's currentTarget is null. */
+	/** For openers that run after an await, when currentTarget is null. */
 	const rememberTriggerButton = (button: HTMLButtonElement) => {
 		triggerRef.current = button;
 	};

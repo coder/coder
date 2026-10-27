@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { MockPngBase64 } from "#/testHelpers/files";
@@ -22,6 +22,6 @@ describe("ToolResultImage", () => {
 		await screen.findByRole("dialog");
 		await user.keyboard("{Escape}");
 
-		expect(image).toHaveFocus();
+		await waitFor(() => expect(image).toHaveFocus());
 	});
 });
