@@ -50,7 +50,8 @@ var (
 // reference, and a reference to an anchor that the root resource declares
 // once becomes a JSON Pointer reference. So does a "$dynamicRef" to such
 // an anchor that no other schema declares as a dynamic anchor, since it
-// then resolves like "$ref". Instance data such as "const" and "enum"
+// then resolves like "$ref", and a "$dynamicRef" to the root resource by
+// JSON Pointer becomes a "$ref". Instance data such as "const" and "enum"
 // values keeps its exact shape. The source is not modified.
 func Normalize(schema map[string]any) map[string]any {
 	schema = UpgradeDraft4(schema)
@@ -75,9 +76,6 @@ func Normalize(schema map[string]any) map[string]any {
 			pointers[anchor] = EncodePointer(scope.path)
 		}
 	})
-	if len(pointers) == 0 {
-		return normalized
-	}
 	// Some providers ignore anchors, and validators of drafts before
 	// 2019-09 do not read "$anchor", but all of them follow a JSON
 	// Pointer. Normalizing kept every subschema at its source path.
@@ -103,6 +101,11 @@ func Normalize(schema map[string]any) map[string]any {
 		// Root folding follows only "$ref" into the keywords it removes.
 		ref, ok := node["$dynamicRef"].(string)
 		if !ok {
+			return
+		}
+		if _, ok := scope.rootPointer(ref); ok {
+			node["$ref"] = ref
+			delete(node, "$dynamicRef")
 			return
 		}
 		if _, fragment, _ := strings.Cut(ref, "#"); dynamicAnchors[fragment] > 1 {
@@ -249,28 +252,32 @@ func isComposite(value any) bool {
 	}
 }
 
-// RewriteRefs returns a copy of a schema in which every "$ref" that
-// locates its target in the root schema resource by JSON Pointer is
-// passed to rewrite as the decoded pointer tokens. When rewrite reports a
-// change, the reference is re-encoded with the returned tokens. Anchor
-// references and references into other resources, including subschemas
-// that declare their own "$id", are kept. The source is not modified.
+// RewriteRefs returns a copy of a schema in which every "$ref" or
+// "$dynamicRef" that locates its target in the root schema resource by
+// JSON Pointer is passed to rewrite as the decoded pointer tokens. A
+// "$dynamicRef" with a JSON Pointer resolves like "$ref". When rewrite
+// reports a change, the reference is re-encoded with the returned
+// tokens. Anchor references and references into other resources,
+// including subschemas that declare their own "$id", are kept. The
+// source is not modified.
 func RewriteRefs(schema map[string]any, rewrite func(tokens []string) ([]string, bool)) map[string]any {
 	return copyNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
-		ref, ok := node["$ref"].(string)
-		if !ok {
-			return
+		for _, key := range []string{"$ref", "$dynamicRef"} {
+			ref, ok := node[key].(string)
+			if !ok {
+				continue
+			}
+			tokens, ok := scope.rootPointer(ref)
+			if !ok {
+				continue
+			}
+			tokens, changed := rewrite(tokens)
+			if !changed {
+				continue
+			}
+			prefix, _, _ := strings.Cut(ref, "#")
+			node[key] = prefix + "#" + EncodePointer(tokens)
 		}
-		tokens, ok := scope.rootPointer(ref)
-		if !ok {
-			return
-		}
-		tokens, changed := rewrite(tokens)
-		if !changed {
-			return
-		}
-		prefix, _, _ := strings.Cut(ref, "#")
-		node["$ref"] = prefix + "#" + EncodePointer(tokens)
 	})
 }
 

@@ -152,11 +152,12 @@ const maxRootMergeSchemas = 1000
 // with a name required only when every alternative requires it. The
 // keywords of merged "allOf" and "$ref" schemas that constrain the
 // object as a whole, such as "additionalProperties" and "minProperties",
-// apply at the root as well, and an alternative that no value satisfies
-// is dropped. A schema declaring a draft before 2019-09 ignores every
-// keyword beside "$ref", so only the reference is folded there. Removed
-// content that a reference still points into moves under the root
-// definitions, and those references follow it.
+// apply at the root as well, the "additionalProperties" of each schema
+// still holds for the names the others add, and an alternative that no
+// object satisfies is dropped. A schema declaring a draft before 2019-09
+// ignores every keyword beside "$ref", so only the reference is folded
+// there. Removed content that a reference still points into moves under
+// the root definitions, and those references follow it.
 func enforceObjectRoot(inputSchema map[string]any) map[string]any {
 	var banned []string
 	for _, key := range bannedRootKeys {
@@ -218,6 +219,11 @@ func foldRootComposition(inputSchema map[string]any, banned []string) map[string
 			}
 		}
 	}
+	restricting := shape.merged
+	if !folder.ignoreRefSiblings || inputSchema["$ref"] == nil {
+		restricting = append(slices.Clone(restricting), maps.Clone(inputSchema))
+	}
+	folder.applyAdditionalProperties(&shape, restricting)
 	// Folding can leave names that the source evaluated unevaluated at
 	// the root, which "unevaluatedProperties" would then constrain.
 	if _, ok := inputSchema["unevaluatedProperties"]; ok && (folder.opaque || slices.ContainsFunc(shape.merged, evaluatesUnhoisted)) {
@@ -278,9 +284,11 @@ type patternMatcher struct {
 // match returns the sorted patterns in patterns that name matches. It
 // reports false when that is unknown: maxPatternMatchCost is spent, or a
 // pattern Go cannot compile, such as one using lookahead, might match.
+// Patterns are tried in sorted order, so the budget a call spends, and
+// with it the folded schema, does not vary between runs.
 func (m *patternMatcher) match(patterns map[string]any, name string) ([]string, bool) {
 	var matched []string
-	for pattern := range patterns {
+	for _, pattern := range slices.Sorted(maps.Keys(patterns)) {
 		if m.cost > maxPatternMatchCost {
 			return nil, false
 		}
@@ -308,7 +316,6 @@ func (m *patternMatcher) match(patterns map[string]any, name string) ([]string, 
 			matched = append(matched, pattern)
 		}
 	}
-	slices.Sort(matched)
 	return matched, true
 }
 
@@ -744,6 +751,11 @@ func (f *rootFolder) mergeAll(shape *objectShape, branch any) {
 		f.opaque = true
 		return
 	}
+	if excludesObjects(node) {
+		// The root accepts only objects.
+		shape.impossible = true
+		return
+	}
 	shape.merged = append(shape.merged, node)
 	if ref, ok := node["$ref"].(string); ok {
 		f.mergeRef(shape, ref)
@@ -804,6 +816,7 @@ func (f *rootFolder) mergeAlternatives(shape *objectShape, branches []any) {
 	for _, branch := range branches {
 		alternative := objectShape{properties: map[string]any{}}
 		f.mergeAll(&alternative, branch)
+		f.applyAdditionalProperties(&alternative, alternative.merged)
 		if alternative.impossible {
 			continue
 		}
@@ -845,6 +858,11 @@ func (f *rootFolder) mergeAlternatives(shape *objectShape, branches []any) {
 		}
 	}
 	if restriction := alternativesRestriction(alternatives); restriction != nil {
+		listed := make(map[string]any, len(names))
+		for name := range names {
+			listed[name] = map[string]any{}
+		}
+		restriction["properties"] = listed
 		shape.merged = append(shape.merged, restriction)
 	}
 
@@ -860,6 +878,57 @@ func (f *rootFolder) mergeAlternatives(shape *objectShape, branches []any) {
 			shape.addRequired([]string{name})
 		}
 	}
+}
+
+// applyAdditionalProperties makes the "additionalProperties" of each of
+// nodes hold for the properties of shape that the node neither lists in
+// "properties" nor matches with "patternProperties", as it does in the
+// source. A name it forbids leaves the shape, which becomes impossible
+// when the name is required.
+func (f *rootFolder) applyAdditionalProperties(shape *objectShape, nodes []map[string]any) {
+	for _, node := range nodes {
+		additional := node["additionalProperties"]
+		forbids := isBooleanSchema(additional, false)
+		if schema, ok := additional.(map[string]any); !forbids && (!ok || len(schema) == 0) {
+			continue
+		}
+		listed, _ := node["properties"].(map[string]any)
+		patterns, _ := node["patternProperties"].(map[string]any)
+		for _, name := range slices.Sorted(maps.Keys(shape.properties)) {
+			if _, ok := listed[name]; ok {
+				continue
+			}
+			if matched, known := f.patterns.match(patterns, name); !known || len(matched) > 0 {
+				continue
+			}
+			if !forbids {
+				shape.properties[name] = conjoinSchemas(shape.properties[name], additional)
+				continue
+			}
+			delete(shape.properties, name)
+			if _, required := shape.requiredSet[name]; required {
+				shape.impossible = true
+			}
+		}
+	}
+}
+
+// excludesObjects reports whether node allows no object, through a
+// "type", "const" or "enum" that names none.
+func excludesObjects(node map[string]any) bool {
+	if kind, ok := node["type"].(string); ok && kind != "object" {
+		return true
+	}
+	if value, ok := node["const"]; ok {
+		if _, isObject := value.(map[string]any); !isObject {
+			return true
+		}
+	}
+	values, ok := node["enum"].([]any)
+	return ok && !slices.ContainsFunc(values, func(value any) bool {
+		_, isObject := value.(map[string]any)
+		return isObject
+	})
 }
 
 // undeclaredSchema returns the schema that the schemas merged into shape
