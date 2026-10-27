@@ -3929,6 +3929,9 @@ func (api *API) clearChatReadCursor(ctx context.Context, chatID uuid.UUID) error
 }
 
 // @Summary Stream chat events via WebSockets
+// @Description Each message is a JSON array of codersdk.ChatStreamEvent. An empty array is a keepalive.
+// @Description An array that encodes to more than 256 KiB arrives as consecutive codersdk.ChatStreamChunk
+// @Description objects; concatenating their chunk strings up to the one with last set gives the array.
 // @ID stream-chat-events-via-websockets
 // @Security CoderSessionToken
 // @Tags Chats
