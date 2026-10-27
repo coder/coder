@@ -1,6 +1,7 @@
-import { NetworkIcon } from "lucide-react";
+import { NetworkIcon, TimerIcon } from "lucide-react";
 import type { ConnectionLog } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
+import { Badge } from "#/components/Badge/Badge";
 import { StatusBadge } from "#/components/StatusBadge/StatusBadge";
 import { TableCell } from "#/components/Table/Table";
 import { TimelineEntry } from "#/components/Timeline/TimelineEntry";
@@ -10,7 +11,8 @@ import { ConnectionLogDetailsPopover } from "./ConnectionLogDetailsPopover";
 
 type ConnectionTiming = {
 	range: string;
-	detail?: string;
+	duration?: string;
+	warning?: string;
 };
 
 const formatTime = (time: string): string =>
@@ -39,12 +41,12 @@ const connectionTiming = ({
 	if (durationMs < 0) {
 		return {
 			range: `${start} → ${end}`,
-			detail: "Disconnect recorded before connect",
+			warning: "Disconnect recorded before connect",
 		};
 	}
 	return {
 		range: `${start} → ${end}`,
-		detail: humanDurationShort(durationMs),
+		duration: humanDurationShort(durationMs),
 	};
 };
 
@@ -83,16 +85,22 @@ export const ConnectionLogRow: React.FC<ConnectionLogRowProps> = ({
 						)}
 
 						<div className="flex flex-row items-center justify-between w-full">
-							<div className="flex flex-row items-baseline gap-2 text-base">
+							<div className="flex flex-row items-center gap-2 text-base">
 								<ConnectionLogDescription connectionLog={connectionLog} />
-								<span className="text-content-secondary text-xs">
-									{timing.range}
-								</span>
-								{timing.detail && (
-									<span className="text-content-secondary text-xs">
-										{timing.detail}
-									</span>
-								)}
+								<div className="flex flex-row items-center gap-1">
+									<Badge size="sm">{timing.range}</Badge>
+									{timing.duration && (
+										<Badge size="sm">
+											<TimerIcon />
+											{timing.duration}
+										</Badge>
+									)}
+									{timing.warning && (
+										<Badge size="sm" variant="warning">
+											{timing.warning}
+										</Badge>
+									)}
+								</div>
 							</div>
 
 							<div className="flex flex-row items-center gap-4">

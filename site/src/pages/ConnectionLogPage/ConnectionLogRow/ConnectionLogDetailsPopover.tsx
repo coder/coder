@@ -5,12 +5,9 @@ import userAgentParser from "ua-parser-js";
 import type { ConnectionLog } from "#/api/typesGenerated";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { useFilterParamsKey } from "#/components/Filter/Filter";
-import {
-	HelpPopover,
-	HelpPopoverContent,
-	HelpPopoverIconTrigger,
-} from "#/components/HelpPopover/HelpPopover";
+import { HelpPopoverIconTrigger } from "#/components/HelpPopover/HelpPopover";
 import { Link } from "#/components/Link/Link";
+import { Popover, PopoverContent } from "#/components/Popover/Popover";
 
 type ConnectionLogDetailsPopoverProps = {
 	connectionLog: ConnectionLog;
@@ -29,13 +26,14 @@ export const ConnectionLogDetailsPopover: React.FC<
 	const clientSessionId = sshInfo?.client_session_id;
 
 	return (
-		<HelpPopover open={isOpen} onOpenChange={setIsOpen}>
+		<Popover open={isOpen} onOpenChange={setIsOpen}>
 			<HelpPopoverIconTrigger aria-label="Connection details">
 				<InfoIcon />
 			</HelpPopoverIconTrigger>
-			<HelpPopoverContent
+			<PopoverContent
 				ref={contentRef}
 				align="end"
+				className="w-auto max-w-72 px-3 py-2 flex flex-col gap-4 text-xs font-normal"
 				// Focus the panel so the copy button's tooltip doesn't open.
 				onOpenAutoFocus={(event) => {
 					event.preventDefault();
@@ -62,32 +60,35 @@ export const ConnectionLogDetailsPopover: React.FC<
 						</Detail>
 					)}
 					{sshInfo?.disconnect_reason && (
-						<Detail title="Close Reason">{sshInfo.disconnect_reason}</Detail>
+						<Detail title="Close reason">{sshInfo.disconnect_reason}</Detail>
 					)}
 					{clientSessionId && (
-						<Detail title="Client Session ID">
+						<Detail title="Client session ID">
 							<div className="flex flex-row items-center gap-1">
-								<code className="break-all">{clientSessionId}</code>
+								<span className="min-w-0 truncate">{clientSessionId}</span>
 								<CopyButton
 									text={clientSessionId}
 									label="Copy client session ID"
+									className="size-6 shrink-0"
 								/>
 							</div>
-							<Link asChild size="sm" showExternalIcon={false} className="px-0">
-								<RouterLink
-									to={`/connectionlog?${new URLSearchParams({
-										[useFilterParamsKey]: `client_session_id:${clientSessionId} workspace_id:${connectionLog.workspace_id}`,
-									})}`}
-									onClick={() => setIsOpen(false)}
-								>
-									View related connections
-								</RouterLink>
-							</Link>
 						</Detail>
 					)}
 				</dl>
-			</HelpPopoverContent>
-		</HelpPopover>
+				{clientSessionId && (
+					<Link asChild size="sm" showExternalIcon={false} className="px-0">
+						<RouterLink
+							to={`/connectionlog?${new URLSearchParams({
+								[useFilterParamsKey]: `client_session_id:${clientSessionId} workspace_id:${connectionLog.workspace_id}`,
+							})}`}
+							onClick={() => setIsOpen(false)}
+						>
+							View related connections
+						</RouterLink>
+					</Link>
+				)}
+			</PopoverContent>
+		</Popover>
 	);
 };
 
@@ -98,9 +99,7 @@ type DetailProps = {
 
 const Detail: React.FC<DetailProps> = ({ title, children }) => (
 	<div>
-		<dt className="text-sm font-semibold leading-[150%] text-content-primary">
-			{title}
-		</dt>
-		<dd className="m-0 text-xs text-content-secondary">{children}</dd>
+		<dt className="text-content-secondary">{title}</dt>
+		<dd className="m-0 text-content-primary">{children}</dd>
 	</div>
 );
