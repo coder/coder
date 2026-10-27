@@ -591,7 +591,15 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	}
 
 	prMeta := emptyPRMetadata()
-	if ghAvailable {
+	switch {
+	case ghAvailable && opts.NonInteractive:
+		// Missing metadata drops label-based sections and authors from
+		// the notes, which nobody reviews in an unattended run.
+		prMeta, err = ghBuildPRMetadataMap(commits)
+		if err != nil {
+			return xerrors.Errorf("fetching PR metadata for release notes: %w", err)
+		}
+	case ghAvailable:
 		prMeta = loadPRMetadata(w, commits)
 	}
 
