@@ -42,9 +42,9 @@ var (
 // Normalize returns a copy of a schema in the shapes provider drivers
 // accept: every type list is rewritten into an equivalent "anyOf", every
 // array schema without "items" gets an empty one, an "enum" with an
-// array or object member becomes an "anyOf" of "const" values, and a
-// reference that names the root resource by URI becomes a fragment
-// reference. Instance data such as "const" and "enum" values keeps its
+// array or object member becomes an "anyOf" of "const" values, "$id"
+// loses its fragment, and a reference that names the root resource by
+// URI becomes a fragment reference. Instance data such as "const" and "enum" values keeps its
 // exact shape. The source is not modified.
 func Normalize(schema map[string]any) map[string]any {
 	return copyNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
@@ -79,6 +79,19 @@ func normalizeNode(node map[string]any, scope refScope) {
 		}
 		delete(node, "enum")
 		requireAnyOf(node, variants)
+	}
+
+	// Providers validate tool schemas against draft 2020-12, which
+	// forbids a fragment in "$id". The resource is the URI without it,
+	// and an "$id" that is only a fragment starts no resource.
+	if id, ok := node["$id"].(string); ok {
+		if base, fragment, _ := strings.Cut(id, "#"); fragment != "" {
+			if base == "" {
+				delete(node, "$id")
+			} else {
+				node["$id"] = base
+			}
+		}
 	}
 
 	// Some providers resolve only fragment references.

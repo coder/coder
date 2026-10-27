@@ -1321,6 +1321,20 @@ func (t *mcpToolWrapper) FullInputSchema() map[string]any {
 	// resolving, and every other pointer into the tool's schema is
 	// rebased onto its new location.
 	inner := toolschema.RewriteRefs(t.inputSchema, rebaseOntoModelIntentSchema)
+	// The arguments get the object shape an unwrapped root is given.
+	// Without a type, models send them as a JSON string, and a null
+	// "properties" or "required" fails the provider request.
+	if inner["type"] != "object" {
+		inner["type"] = "object"
+	}
+	if properties, _ := inner["properties"].(map[string]any); properties == nil {
+		inner["properties"] = map[string]any{}
+	}
+	if len(t.required) > 0 {
+		inner["required"] = t.required
+	} else {
+		delete(inner, "required")
+	}
 	wrapped := map[string]any{
 		"type": "object",
 		"properties": map[string]any{
