@@ -372,7 +372,8 @@ const AgentChatPage: React.FC = () => {
 	const { scrollToEnd } = useMessageScroller();
 	const {
 		store,
-		loadState,
+		loadStatus,
+		loadError,
 		retryLoad,
 		fetchMoreMessages,
 		isFetchingMoreMessages,
@@ -695,15 +696,12 @@ const AgentChatPage: React.FC = () => {
 	// so the DOM actually contains them when the parent scrolls.
 	const chatReadyFiredRef = useRef<string | null>(null);
 	useEffect(() => {
-		if (
-			chatReadyFiredRef.current === agentId ||
-			loadState.status !== "loaded"
-		) {
+		if (chatReadyFiredRef.current === agentId || loadStatus !== "success") {
 			return;
 		}
 		chatReadyFiredRef.current = agentId;
 		onChatReady();
-	}, [onChatReady, loadState.status, agentId]);
+	}, [onChatReady, loadStatus, agentId]);
 
 	// Primitives extracted from proxy/workspace so the compiler
 	// tracks stable strings, not object identity.
@@ -796,7 +794,7 @@ const AgentChatPage: React.FC = () => {
 	const isWaitingForPreferences =
 		preferencesQuery.isLoading &&
 		!chatQuery.isLoadingError &&
-		loadState.status !== "failed";
+		loadStatus !== "error";
 
 	return (
 		<>
@@ -804,7 +802,7 @@ const AgentChatPage: React.FC = () => {
 				{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
 			</title>
 			{chatQuery.isLoading ||
-			loadState.status === "loading" ||
+			loadStatus === "pending" ||
 			isWaitingForPreferences ? (
 				<AgentChatPageLoadingView
 					inputRef={editing.chatInputRef}
@@ -825,18 +823,12 @@ const AgentChatPage: React.FC = () => {
 					onPlanModeToggle={handlePlanModeToggle}
 					showRightPanel={showSidebarPanel}
 				/>
-			) : chatQuery.isLoadingError || loadState.status === "failed" ? (
+			) : chatQuery.isLoadingError || loadStatus === "error" ? (
 				getErrorStatus(chatQuery.error) === 404 ? (
 					<AgentChatPageNotFoundView />
 				) : (
 					<AgentChatPageErrorView
-						error={
-							chatQuery.isLoadingError
-								? chatQuery.error
-								: loadState.status === "failed"
-									? loadState.error
-									: undefined
-						}
+						error={chatQuery.isLoadingError ? chatQuery.error : loadError}
 						onRetry={() => {
 							if (chatQuery.isLoadingError) {
 								void chatQuery.refetch();
