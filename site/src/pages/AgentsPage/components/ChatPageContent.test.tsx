@@ -364,8 +364,9 @@ describe("ChatPageInput", () => {
 			workspace_id: MockWorkspace.id,
 		});
 		const edit = createDeferred<undefined>();
-		// Switches modes as useConversationEditingState does: Edit enters edit
-		// mode, and an edit submit leaves it while the request runs.
+		// Switches modes as useConversationEditingState does and marks the edit
+		// pending as AgentChatPage does: Edit enters edit mode, and an edit
+		// submit leaves it while the request runs.
 		const EditingChatPageInput: React.FC<ChatPageInputProps> = (props) => {
 			const [isEditing, setIsEditing] = useState(false);
 			const [isSendPending, setIsSendPending] = useState(false);
