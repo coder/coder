@@ -2666,8 +2666,8 @@ describe("useChatStore", () => {
 	});
 
 	it("opens the stream at the page's snapshot version and reconnects at the highest event version", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
 		immediateAnimationFrame();
-		vi.spyOn(Math, "random").mockReturnValue(0.5);
 
 		const chatID = "chat-snapshot-version";
 		const mockSocket1 = createMockSocket();
@@ -2704,12 +2704,10 @@ describe("useChatStore", () => {
 			mockSocket1.emitError();
 		});
 
-		await waitFor(
-			() => {
-				expect(watchChat).toHaveBeenNthCalledWith(2, chatID, 5);
-			},
-			{ timeout: 3_000 },
-		);
+		await act(async () => {
+			vi.advanceTimersByTime(1_500);
+		});
+		expect(watchChat).toHaveBeenNthCalledWith(2, chatID, 5);
 
 		act(() => {
 			mockSocket2.emitOpen();
@@ -2737,12 +2735,10 @@ describe("useChatStore", () => {
 			mockSocket2.emitError();
 		});
 
-		await waitFor(
-			() => {
-				expect(watchChat).toHaveBeenNthCalledWith(3, chatID, 7);
-			},
-			{ timeout: 3_000 },
-		);
+		await act(async () => {
+			vi.advanceTimersByTime(1_500);
+		});
+		expect(watchChat).toHaveBeenNthCalledWith(3, chatID, 7);
 	});
 
 	it("renders a reopened chat without the previous visit's stream state", async () => {
@@ -5047,7 +5043,7 @@ describe("chat stream contract", () => {
 	});
 
 	it("reconnects at the last applied version without the retry", async () => {
-		vi.spyOn(Math, "random").mockReturnValue(0.5);
+		vi.useFakeTimers({ shouldAdvanceTime: true });
 		const sockets = mockWatchChatWithFreshSockets();
 		const { result } = renderChat(
 			page([buildMessage(chatID, 1, "user", "prompt")]),
@@ -5068,7 +5064,10 @@ describe("chat stream contract", () => {
 		act(() => {
 			sockets[0].emitError();
 		});
-		await waitFor(() => expect(sockets).toHaveLength(2), { timeout: 3_000 });
+		await act(async () => {
+			vi.advanceTimersByTime(1_500);
+		});
+		expect(sockets).toHaveLength(2);
 		expect(watchChat).toHaveBeenLastCalledWith(chatID, 5);
 		act(() => {
 			sockets[1].emitOpen();
@@ -5109,7 +5108,7 @@ describe("chat stream contract", () => {
 	});
 
 	it("resyncs from the last applied version when a frame fails to parse", async () => {
-		vi.spyOn(Math, "random").mockReturnValue(0.5);
+		vi.useFakeTimers({ shouldAdvanceTime: true });
 		const sockets = mockWatchChatWithFreshSockets();
 		const { result } = renderChat(
 			page([buildMessage(chatID, 1, "user", "prompt")]),
@@ -5129,7 +5128,10 @@ describe("chat stream contract", () => {
 			sockets[0].emitClose();
 		});
 
-		await waitFor(() => expect(sockets).toHaveLength(2), { timeout: 3_000 });
+		await act(async () => {
+			vi.advanceTimersByTime(1_500);
+		});
+		expect(sockets).toHaveLength(2);
 		expect(watchChat).toHaveBeenLastCalledWith(chatID, 5);
 		act(() => {
 			sockets[1].emitOpen();
