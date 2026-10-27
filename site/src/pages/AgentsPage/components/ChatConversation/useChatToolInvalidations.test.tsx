@@ -8,8 +8,8 @@ import {
 	chatsByWorkspace,
 } from "#/api/queries/chats";
 import { getWorkspaceQuotaQueryKey } from "#/api/queries/workspaceQuota";
-import type * as TypesGen from "#/api/typesGenerated";
 import { workspacesQueryKeyPrefix } from "#/api/queries/workspaces";
+import type * as TypesGen from "#/api/typesGenerated";
 import { createChatStore } from "./chatStore";
 import { useChatToolInvalidations } from "./useChatToolInvalidations";
 
