@@ -261,6 +261,9 @@ export const createChatStore = (): ChatStore => {
 	// re-render.
 	let historyResets = 0;
 	let syncedSnapshotVersion = 0;
+	// The version of the newest reset the store holds. The newest page holds
+	// every reset up to its snapshot version.
+	let resetVersion = 0;
 	let nextPendingActionID = 1;
 	const listeners = new Set<() => void>();
 
@@ -353,6 +356,7 @@ export const createChatStore = (): ChatStore => {
 
 	const seed = (page: TypesGen.ChatMessagesResponse): void => {
 		syncedSnapshotVersion = page.snapshot_version ?? 0;
+		resetVersion = syncedSnapshotVersion;
 		setState((current) => ({
 			...current,
 			messagesByID: buildMessageMap(page.messages),
@@ -485,11 +489,12 @@ export const createChatStore = (): ChatStore => {
 		},
 		seed,
 		resetHistoryFrom: (fromID, snapshotVersion) => {
-			// Each stream open resends the synced commit, which the store
-			// already holds.
-			if (snapshotVersion <= syncedSnapshotVersion) {
+			// A commit has at most one reset, so a reset at or below
+			// resetVersion is a resend.
+			if (snapshotVersion <= resetVersion) {
 				return;
 			}
+			resetVersion = snapshotVersion;
 			historyResets++;
 			batch(() => {
 				replaceMessages(
