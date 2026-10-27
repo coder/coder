@@ -1341,17 +1341,15 @@ export const AssistantMessageWithImage: Story = {
 		expect(
 			canvas.getByRole("link", { name: "Download generated-image.png" }),
 		).toHaveFocus();
-		await Promise.all(document.getAnimations().map((a) => a.finished));
 	},
 };
 
 // Keyboard focus on View shows the Download link.
 export const AssistantMessageWithImageViewFocused: Story = {
 	args: AssistantMessageWithImage.args,
-	play: async ({ canvasElement }) => {
+	play: ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		canvas.getByRole("button", { name: "View generated-image.png" }).focus();
-		await Promise.all(document.getAnimations().map((a) => a.finished));
 	},
 };
 

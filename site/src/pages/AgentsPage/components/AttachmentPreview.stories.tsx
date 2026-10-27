@@ -41,46 +41,51 @@ export const SingleImage: Story = {
 	},
 };
 
-const textAttachmentArgs = (() => {
-	const file = createMockFile("clipboard.txt", "text/plain", 2048);
-	return {
-		attachments: [file],
-		uploadStates: new Map<File, UploadState>([
-			[file, { status: "uploaded", fileId: "file-1" }],
-		]),
-		previewUrls: new Map<File, string>(),
-		textContents: new Map<File, string>([[file, "Pasted text."]]),
-	};
-})();
-
-// Tabs through the card's controls and stops on the nth. Hidden buttons
-// leave the tab order, so Tab reaches Paste and Remove only once focus on
-// the card shows them. The screenshot captures their visibility.
-const tabToControl = async (canvasElement: HTMLElement, count: number) => {
-	const canvas = within(canvasElement);
-	await canvas.findByRole("button", { name: "View clipboard.txt" });
-	const names = ["View clipboard.txt", "Paste inline", "Remove clipboard.txt"];
-	for (const name of names.slice(0, count)) {
-		await userEvent.tab();
-		expect(canvas.getByRole("button", { name })).toHaveFocus();
-	}
-	await Promise.all(document.getAnimations().map((a) => a.finished));
-};
-
 // Keyboard focus on the card, Paste inline or Remove shows both buttons.
+// Hidden buttons leave the tab order, so Tab reaches Paste and Remove only
+// once focus on the card shows them.
 export const CardFocused: Story = {
-	args: textAttachmentArgs,
-	play: ({ canvasElement }) => tabToControl(canvasElement, 1),
+	args: (() => {
+		const file = createMockFile("clipboard.txt", "text/plain", 2048);
+		return {
+			attachments: [file],
+			uploadStates: new Map<File, UploadState>([
+				[file, { status: "uploaded", fileId: "file-1" }],
+			]),
+			previewUrls: new Map<File, string>(),
+			textContents: new Map<File, string>([[file, "Pasted text."]]),
+		};
+	})(),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("button", { name: "View clipboard.txt" });
+		await userEvent.tab();
+	},
 };
 
 export const PasteFocused: Story = {
-	args: textAttachmentArgs,
-	play: ({ canvasElement }) => tabToControl(canvasElement, 2),
+	args: CardFocused.args,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("button", { name: "View clipboard.txt" });
+		await userEvent.tab();
+		await userEvent.tab();
+		expect(canvas.getByRole("button", { name: "Paste inline" })).toHaveFocus();
+	},
 };
 
 export const RemoveFocused: Story = {
-	args: textAttachmentArgs,
-	play: ({ canvasElement }) => tabToControl(canvasElement, 3),
+	args: CardFocused.args,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("button", { name: "View clipboard.txt" });
+		await userEvent.tab();
+		await userEvent.tab();
+		await userEvent.tab();
+		expect(
+			canvas.getByRole("button", { name: "Remove clipboard.txt" }),
+		).toHaveFocus();
+	},
 };
 
 export const MultipleImages: Story = {
