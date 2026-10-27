@@ -1203,7 +1203,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		try {
 			await request(id);
 		} catch {
-			// The page reports a failed request.
+			// The caller handles the failure; a failed delete shows the row again.
 		}
 		setBusyRows((current) => {
 			const next = new Map(current);
