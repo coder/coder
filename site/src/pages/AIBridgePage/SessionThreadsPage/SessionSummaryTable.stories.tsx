@@ -77,6 +77,15 @@ export const UnpricedUsageTooltip: Story = {
 	},
 };
 
+export const CostInfoTooltip: Story = {
+	args: Default.args,
+	play: async ({ canvas }) => {
+		await userEvent.hover(
+			canvas.getByRole("button", { name: "Approximate cost" }),
+		);
+	},
+};
+
 export const NoCacheTokens: Story = {
 	args: {
 		...Default.args,

@@ -75,6 +75,27 @@ const searchResult = (
 	provider_executed: true,
 	created_at: createdAt,
 });
+// A provider-executed call that, unlike web_search, renders no row.
+const hiddenCall = (
+	id: string,
+	createdAt?: string,
+): TypesGen.ChatMessagePart => ({
+	type: "tool-call",
+	tool_call_id: id,
+	tool_name: "code_execution",
+	provider_executed: true,
+	created_at: createdAt,
+});
+const hiddenResult = (
+	id: string,
+	createdAt?: string,
+): TypesGen.ChatMessagePart => ({
+	type: "tool-result",
+	tool_call_id: id,
+	tool_name: "code_execution",
+	provider_executed: true,
+	created_at: createdAt,
+});
 const call = (
 	id: string,
 	createdAt?: string,
@@ -288,13 +309,13 @@ describe("groupWorkingBlocks", () => {
 		expect(blocks[0]).toMatchObject({ stepCount: 1, endsWithAnswer: true });
 	});
 
-	it("counts a reissued search once, ignoring its unanswered first call", () => {
+	it("counts a reissued hidden call once, ignoring its unanswered first call", () => {
 		const prompt = user("Go");
-		const steps = step("a", 1, 2, { leading: [searchCall("unanswered")] });
+		const steps = step("a", 1, 2, { leading: [hiddenCall("unanswered")] });
 		const answer = message("assistant", [
-			searchCall("search"),
+			hiddenCall("search"),
 			citation,
-			searchResult("search"),
+			hiddenResult("search"),
 			text("Go 1.27 is out."),
 		]);
 		const { blocks } = group([prompt, ...steps, answer]);
@@ -327,17 +348,17 @@ describe("groupWorkingBlocks", () => {
 		},
 	);
 
-	it("counts a search that rendered no row before the block's first step", () => {
+	it("counts a hidden call that rendered no row before the block's first step", () => {
 		const prompt = user("Go");
-		// The answer's own search stays out of the block that follows it.
+		// The answer's own call stays out of the block that follows it.
 		const answer = message("assistant", [
-			searchCall("first", at(1)),
-			searchResult("first", at(2)),
+			hiddenCall("first", at(1)),
+			hiddenResult("first", at(2)),
 			text("Nothing found."),
 		]);
 		const search = message("assistant", [
-			searchCall("second", at(3)),
-			searchResult("second", at(4)),
+			hiddenCall("second", at(3)),
+			hiddenResult("second", at(4)),
 		]);
 		const steps = step("a", 5, 6);
 
@@ -706,9 +727,9 @@ describe("groupWorkingBlocks", () => {
 			]);
 		});
 
-		it("starts no block from a search without citations alone", () => {
+		it("starts no block from a hidden call without citations alone", () => {
 			const prompt = user("Go");
-			const parts = [searchCall("s", at(1)), searchResult("s"), text("Hi.")];
+			const parts = [hiddenCall("s", at(1)), hiddenResult("s"), text("Hi.")];
 
 			for (const index of parts.keys()) {
 				expect(groupLive([prompt], parts.slice(0, index + 1)).blocks).toEqual(

@@ -14,6 +14,7 @@ import {
 	SUCCESS_STATUSES,
 } from "#/pages/AgentsPage/components/RightPanel/DebugPanel/debugPanelUtils";
 import {
+	MockChatAttachment,
 	MockChatMessage,
 	MockMCPServerConfig,
 } from "#/testHelpers/chatEntities";
@@ -46,6 +47,8 @@ import {
 	chatACLKey,
 	chatAdvisorConfig,
 	chatAdvisorConfigKey,
+	chatAttachments,
+	chatAttachmentsKey,
 	chatCost,
 	chatCostTreeKey,
 	chatDebugRunKey,
@@ -145,6 +148,7 @@ vi.mock("#/api/api", () => ({
 			deleteChatQueuedMessage: vi.fn(),
 			getChats: vi.fn(),
 			getChatsByWorkspace: vi.fn(),
+			getChatAttachments: vi.fn(),
 			getChatCost: vi.fn(),
 			getChatDiffContents: vi.fn(),
 			getChatMessages: vi.fn(),
@@ -1716,6 +1720,70 @@ describe("chat cost query factories", () => {
 			chatId,
 			expect.any(AbortSignal),
 		);
+	});
+});
+
+describe("chatAttachments", () => {
+	const mockEarlierAttachment: TypesGen.ChatAttachment = {
+		...MockChatAttachment,
+		message_id: 5,
+	};
+
+	it.each([
+		{
+			name: "seeds an earlier boundary from a later boundary's list",
+			chatId: "chat-1",
+			beforeId: 10,
+			seeded: true,
+		},
+		{
+			name: "fetches a boundary that no cached list covers",
+			chatId: "chat-1",
+			beforeId: 30,
+			seeded: false,
+		},
+		{
+			name: "fetches another chat's boundary",
+			chatId: "chat-2",
+			beforeId: 10,
+			seeded: false,
+		},
+	])("$name", ({ chatId, beforeId, seeded }) => {
+		vi.mocked(API.experimental.getChatAttachments).mockReturnValue(
+			new Promise(() => {}),
+		);
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatAttachmentsKey("chat-1", 20), {
+			attachments: [
+				{ ...MockChatAttachment, message_id: 15 },
+				mockEarlierAttachment,
+			],
+		});
+		const observer = new QueryObserver(
+			queryClient,
+			chatAttachments(queryClient, chatId, beforeId),
+		);
+		const unsubscribe = observer.subscribe(() => {});
+
+		expect(observer.getCurrentResult().data).toEqual(
+			seeded ? { attachments: [mockEarlierAttachment] } : undefined,
+		);
+		expect(API.experimental.getChatAttachments).toHaveBeenCalledTimes(
+			seeded ? 0 : 1,
+		);
+		unsubscribe();
+	});
+
+	it("requests nothing until a boundary exists", () => {
+		const queryClient = createTestQueryClient();
+		const observer = new QueryObserver(
+			queryClient,
+			chatAttachments(queryClient, "chat-1", undefined),
+		);
+		const unsubscribe = observer.subscribe(() => {});
+
+		expect(API.experimental.getChatAttachments).not.toHaveBeenCalled();
+		unsubscribe();
 	});
 });
 

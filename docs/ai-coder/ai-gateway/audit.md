@@ -101,6 +101,7 @@ When investigating an incident (policy violation, destructive action, and so on)
 1. **Review model reasoning.**
    If extended thinking was enabled, check the model's reasoning at each step to understand why specific tools were called.
 1. **Assess attribution.**
+
    The session identifies the human who initiated the action.
    Subsequent interceptions represent agent-driven actions that stem from that original prompt.
 

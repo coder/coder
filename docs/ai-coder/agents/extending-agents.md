@@ -85,7 +85,7 @@ The agent looks for skill directories in the immediate children of these contain
 
 Because `~/.coder/skills` is itself a scan root, skills placed directly under it are discovered too.
 
-Each discovered skill contributes its name and description to the `<available-skills>` block in the agent's system prompt.
+Each discovered skill contributes its name and description to the `<available-skills>` block in the agent's system prompt, unless its frontmatter sets `disable-model-invocation: true`.
 The full instructions are loaded only when the agent calls a tool, and they are served from the chat's pinned snapshot rather than read live from the workspace.
 A skill added after a chat pinned its snapshot appears in that chat after you refresh its context.
 
@@ -132,6 +132,15 @@ description: "Multi-reviewer code review with domain-specific reviewers"
 
 Instructions for the skill go here...
 ```
+
+To keep agents from using a skill on their own, add `disable-model-invocation: true` to its frontmatter.
+The skill isn't in the list of skills the agent can choose from, and the agent can't load it.
+You can still invoke the skill from the `/` menu in the chat composer.
+For a workspace skill, `read_skill_file` still returns its supporting files, so the agent can read the files an invoked skill's instructions reference.
+When you invoke a workspace skill, the agent also gets the skill's directory, as long as the chat stays in that workspace, so the agent can run the scripts that the skill includes.
+
+For a personal, organization, or project skill, the key takes effect only when you create the skill.
+For details, refer to [Turn off automatic use](#turn-off-automatic-use).
 
 ### Naming and size constraints
 
@@ -283,6 +292,18 @@ For example, auditors on the **Skills** admin page and everyone in the **From yo
 A skill that is turned off stays stored, but it is hidden from the `/` menu and from the list of skills the agent can choose from.
 If the agent asks for a skill that is turned off, `read_skill` reports that the skill was not found.
 When a chat has no skills left to load, the agent doesn't get the `read_skill` tool at all.
+A chat that has only workspace skills that set `disable-model-invocation: true` still gets `read_skill` and `read_skill_file`.
+
+### Turn off automatic use
+
+When automatic use is off, the agent can't use the skill on its own, but you can still invoke it from the `/` menu.
+The `disable-model-invocation: true` key turns off automatic use for a personal, organization, or project skill only when you create the skill in one of these ways:
+
+- You import a `SKILL.md` file that sets the key while you add a project skill.
+  The import turns off **Agents can use it automatically**, which [Project skills](#project-skills) describes.
+- You create the skill through the API from content that sets the key, and the request leaves out `model_invocable`.
+
+Adding the key to an existing skill doesn't change automatic use.
 
 ### Skills with the same name
 
@@ -297,6 +318,7 @@ Instead, each copy gets a qualified alias that names its source:
 | Project      | `project/<name>`   |
 | Workspace    | `workspace/<name>` |
 
+A workspace skill that sets `disable-model-invocation: true` isn't listed for the agent, so a listed skill that has the same name keeps its bare name.
 A bare name that matches more than one source is ambiguous, so `read_skill` rejects it.
 The agent must pass the qualified alias instead, for example `org/code-review`.
 

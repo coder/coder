@@ -517,95 +517,17 @@ func ApplyAnthropicProviderToolGuard(
 		affectedMessages,
 		len(violations),
 	)
-	if isSafeAnthropicProviderToolPrompt(guarded) {
-		return guarded, nil
-	}
-
-	fallbackViolations := ValidateAnthropicProviderToolHistory(guarded)
-	fallbackAffectedMessages := providerExecutedToolMessageIndexes(guarded)
-	guarded = sanitizeAnthropicProviderToolGuardMessages(
-		ctx,
-		logger,
-		provider,
-		modelName,
-		guarded,
-		fallbackAffectedMessages,
-		len(fallbackViolations),
-		slog.F("fallback", true),
-	)
-	if isSafeAnthropicProviderToolPrompt(guarded) {
-		return guarded, nil
-	}
-
-	// The guard sanitizer should normally remove every typed provider block it
-	// selects. The strip path is a fail-closed backstop for analyzer and
-	// provider serialization drift, not a path we can drive without hooks.
-	preStripViolations := ValidateAnthropicProviderToolHistory(guarded)
-	stripMessages := messageIndexesFromAnthropicProviderToolViolations(
-		preStripViolations,
-		len(guarded),
-	)
-
-	var stripStats AnthropicProviderToolSanitizationStats
-	guarded, stripStats = stripAnthropicProviderToolHistoryFromMessages(
-		guarded,
-		stripMessages,
-	)
-	var sanitizeStats AnthropicProviderToolSanitizationStats
-	guarded, sanitizeStats = SanitizeAnthropicProviderToolHistory(
-		provider,
-		guarded,
-	)
-	stripStats = addAnthropicProviderToolSanitizationStats(stripStats, sanitizeStats)
-
-	if !isSafeAnthropicProviderToolPrompt(guarded) {
-		guarded, sanitizeStats = stripAnthropicProviderToolHistoryFromMessages(
-			guarded,
-			providerExecutedToolMessageIndexes(guarded),
-		)
-		stripStats = addAnthropicProviderToolSanitizationStats(stripStats, sanitizeStats)
-		guarded, sanitizeStats = SanitizeAnthropicProviderToolHistory(
-			provider,
-			guarded,
-		)
-		stripStats = addAnthropicProviderToolSanitizationStats(stripStats, sanitizeStats)
-	}
-
-	details, truncated := anthropicProviderToolViolationLogDetails(
-		preStripViolations,
-	)
-	LogAnthropicProviderToolSanitization(
-		ctx,
-		logger,
-		"pre_request_guard_fallback_strip",
-		provider,
-		modelName,
-		stripStats,
-		slog.F("validation_violations", len(preStripViolations)),
-		slog.F("validation_violation_details", details),
-		slog.F("truncated_violations", truncated),
-	)
-
 	finalViolations := ValidateAnthropicProviderToolHistory(guarded)
 	if len(finalViolations) == 0 {
 		return guarded, nil
 	}
 
-	immutableLatestSignedAssistant := false
-	if immutableIndex := latestAssistantMessageIndexWithSignedReasoning(guarded); immutableIndex >= 0 {
-		for _, violation := range finalViolations {
-			if violation.MessageIndex == immutableIndex {
-				immutableLatestSignedAssistant = true
-				break
-			}
-		}
-	}
 	finalDetails, finalTruncated := anthropicProviderToolViolationLogDetails(
 		finalViolations,
 	)
 	logger.Error(
 		ctx,
-		"anthropic provider tool guard postcondition failed: prompt still unsafe after nuclear strip",
+		"anthropic provider tool guard postcondition failed: invalid provider tool history remains in the latest signed assistant message",
 		slog.F("phase", "pre_request_guard_postcondition_failed"),
 		slog.F("tool_type", "provider_executed"),
 		slog.F("provider", provider),
@@ -613,10 +535,6 @@ func ApplyAnthropicProviderToolGuard(
 		slog.F("validation_violations", len(finalViolations)),
 		slog.F("validation_violation_details", finalDetails),
 		slog.F("truncated_violations", finalTruncated),
-		slog.F(
-			"immutable_latest_signed_assistant",
-			immutableLatestSignedAssistant,
-		),
 	)
 	return nil, ErrAnthropicProviderToolPromptUnsafe
 }
@@ -971,7 +889,6 @@ func sanitizeAnthropicProviderToolGuardMessages(
 	messages []fantasy.Message,
 	affectedMessages map[int]struct{},
 	validationViolations int,
-	extraFields ...slog.Field,
 ) []fantasy.Message {
 	excludeImmutableSignedReasoningMessages(messages, affectedMessages)
 	if len(affectedMessages) == 0 {
@@ -981,10 +898,6 @@ func sanitizeAnthropicProviderToolGuardMessages(
 	// Marking affected provider calls invalid lets the sanitizer remove the
 	// unsafe history while preserving result payloads as plain text.
 	sanitized, stats := SanitizeAnthropicProviderToolHistory(provider, guardPrompt)
-	extra := []slog.Field{
-		slog.F("validation_violations", validationViolations),
-	}
-	extra = append(extra, extraFields...)
 	LogAnthropicProviderToolSanitization(
 		ctx,
 		logger,
@@ -992,13 +905,9 @@ func sanitizeAnthropicProviderToolGuardMessages(
 		provider,
 		modelName,
 		stats,
-		extra...,
+		slog.F("validation_violations", validationViolations),
 	)
 	return sanitized
-}
-
-func isSafeAnthropicProviderToolPrompt(messages []fantasy.Message) bool {
-	return len(ValidateAnthropicProviderToolHistory(messages)) == 0
 }
 
 func dropOrphanAnthropicProviderToolCallsFromMessages(
@@ -1065,65 +974,6 @@ func messageIndexesFromAnthropicProviderToolViolations(
 		indexes[violation.MessageIndex] = struct{}{}
 	}
 	return indexes
-}
-
-func providerExecutedToolMessageIndexes(messages []fantasy.Message) map[int]struct{} {
-	indexes := make(map[int]struct{})
-	for messageIndex, message := range messages {
-		for _, part := range message.Content {
-			if toolCall, ok := safeMessageToolCallPart(part); ok && toolCall.ProviderExecuted {
-				indexes[messageIndex] = struct{}{}
-				break
-			}
-			if toolResult, ok := safeMessageToolResultPart(part); ok && toolResult.ProviderExecuted {
-				indexes[messageIndex] = struct{}{}
-				break
-			}
-		}
-	}
-	return indexes
-}
-
-func stripAnthropicProviderToolHistoryFromMessages(
-	messages []fantasy.Message,
-	affectedMessages map[int]struct{},
-) ([]fantasy.Message, AnthropicProviderToolSanitizationStats) {
-	var stats AnthropicProviderToolSanitizationStats
-	excludeImmutableSignedReasoningMessages(messages, affectedMessages)
-	if len(affectedMessages) == 0 {
-		return messages, stats
-	}
-
-	out := make([]fantasy.Message, 0, len(messages))
-	for messageIndex, message := range messages {
-		if _, affected := affectedMessages[messageIndex]; !affected {
-			out = appendSanitizedMessage(out, message)
-			continue
-		}
-
-		parts := make([]fantasy.MessagePart, 0, len(message.Content))
-		for _, part := range message.Content {
-			if toolCall, ok := safeMessageToolCallPart(part); ok && toolCall.ProviderExecuted {
-				stats.RemovedToolCalls++
-				continue
-			}
-			if toolResult, ok := safeMessageToolResultPart(part); ok && toolResult.ProviderExecuted {
-				stats.RemovedToolResults++
-				if textPart, ok := AnthropicProviderToolResultTextPart(part); ok {
-					parts = append(parts, textPart)
-				}
-				continue
-			}
-			parts = append(parts, part)
-		}
-		if len(parts) == 0 {
-			stats.DroppedMessages++
-			continue
-		}
-		message.Content = parts
-		out = appendSanitizedMessage(out, message)
-	}
-	return out, stats
 }
 
 func appendSanitizedMessage(out []fantasy.Message, msg fantasy.Message) []fantasy.Message {
@@ -1229,17 +1079,6 @@ func mergeProviderOptions(first, second fantasy.ProviderOptions) fantasy.Provide
 		}
 	}
 	return merged
-}
-
-func addAnthropicProviderToolSanitizationStats(
-	first AnthropicProviderToolSanitizationStats,
-	second AnthropicProviderToolSanitizationStats,
-) AnthropicProviderToolSanitizationStats {
-	return AnthropicProviderToolSanitizationStats{
-		RemovedToolCalls:   first.RemovedToolCalls + second.RemovedToolCalls,
-		RemovedToolResults: first.RemovedToolResults + second.RemovedToolResults,
-		DroppedMessages:    first.DroppedMessages + second.DroppedMessages,
-	}
 }
 
 func anthropicProviderToolViolationLogDetails(

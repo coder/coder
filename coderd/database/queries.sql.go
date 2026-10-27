@@ -10515,6 +10515,76 @@ func (q *sqlQuerier) GetChatMessagesForPromptByChatID(ctx context.Context, chatI
 	return items, nil
 }
 
+const getChatMessagesWithFilePartsByChatID = `-- name: GetChatMessagesWithFilePartsByChatID :many
+SELECT id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id FROM chat_messages
+WHERE chat_id = $1::uuid
+    AND CASE WHEN $2::bigint > 0 THEN id < $2::bigint ELSE true END
+    AND deleted = false
+    AND visibility IN ('user', 'both')
+    AND role IN ('user', 'assistant')
+    AND content @> '[{"type": "file"}]'::jsonb
+ORDER BY id DESC
+`
+
+type GetChatMessagesWithFilePartsByChatIDParams struct {
+	ChatID   uuid.UUID `db:"chat_id" json:"chat_id"`
+	BeforeID int64     `db:"before_id" json:"before_id"`
+}
+
+// Returns the user-visible user and assistant messages in a chat that hold
+// at least one file part, newest first, optionally only those before
+// @before_id. Backs the attachments endpoint so a client can list every
+// attachment without paging through the transcript.
+func (q *sqlQuerier) GetChatMessagesWithFilePartsByChatID(ctx context.Context, arg GetChatMessagesWithFilePartsByChatIDParams) ([]ChatMessage, error) {
+	rows, err := q.db.QueryContext(ctx, getChatMessagesWithFilePartsByChatID, arg.ChatID, arg.BeforeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatMessage
+	for rows.Next() {
+		var i ChatMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.ModelConfigID,
+			&i.CreatedAt,
+			&i.Role,
+			&i.Content,
+			&i.Visibility,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.TotalTokens,
+			&i.ReasoningTokens,
+			&i.CacheCreationTokens,
+			&i.CacheReadTokens,
+			&i.ContextLimit,
+			&i.Compressed,
+			&i.CreatedBy,
+			&i.ContentVersion,
+			&i.TotalCostMicros,
+			&i.RuntimeMs,
+			&i.Deleted,
+			&i.ProviderResponseID,
+			&i.Revision,
+			&i.ReasoningEffort,
+			&i.SearchTsv,
+			&i.SearchTsvConfig,
+			&i.QueuedMessageID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChatModelConfigsForTelemetry = `-- name: GetChatModelConfigsForTelemetry :many
 SELECT cmc.id, ap.type::text AS provider, cmc.model, cmc.context_limit, cmc.enabled, cmc.is_default, cmc.organization_id
 FROM chat_model_configs cmc
@@ -15833,11 +15903,16 @@ SELECT COUNT(*) AS count FROM (
 				connection_logs.connection_id = $14
 			ELSE true
 		END
-		-- Filter by whether the session has a disconnect_time
 		AND CASE
 			WHEN $15 :: text != '' THEN
-				(($15 = 'ongoing' AND disconnect_time IS NULL) OR
-				($15 = 'completed' AND disconnect_time IS NOT NULL)) AND
+				connection_logs.client_session_id = $15
+			ELSE true
+		END
+		-- Filter by whether the session has a disconnect_time
+		AND CASE
+			WHEN $16 :: text != '' THEN
+				(($16 = 'ongoing' AND disconnect_time IS NULL) OR
+				($16 = 'completed' AND disconnect_time IS NOT NULL)) AND
 				-- Exclude point-in-time events reported by coderd, since we
 				-- don't know their close time.
 				connection_method IN ('ssh', 'reconnecting_pty')
@@ -15847,7 +15922,7 @@ SELECT COUNT(*) AS count FROM (
 		-- CountAuthorizedConnectionLogs
 		-- @authorize_filter
 	-- NOTE: See the CountAuditLogs LIMIT note.
-	LIMIT NULLIF($16::int, 0) + 1
+	LIMIT NULLIF($17::int, 0) + 1
 ) AS limited_count
 `
 
@@ -15866,6 +15941,7 @@ type CountConnectionLogsParams struct {
 	ConnectedBefore     time.Time `db:"connected_before" json:"connected_before"`
 	WorkspaceID         uuid.UUID `db:"workspace_id" json:"workspace_id"`
 	ConnectionID        uuid.UUID `db:"connection_id" json:"connection_id"`
+	ClientSessionID     string    `db:"client_session_id" json:"client_session_id"`
 	Status              string    `db:"status" json:"status"`
 	CountCap            int32     `db:"count_cap" json:"count_cap"`
 }
@@ -15886,6 +15962,7 @@ func (q *sqlQuerier) CountConnectionLogs(ctx context.Context, arg CountConnectio
 		arg.ConnectedBefore,
 		arg.WorkspaceID,
 		arg.ConnectionID,
+		arg.ClientSessionID,
 		arg.Status,
 		arg.CountCap,
 	)
@@ -16046,11 +16123,16 @@ WHERE
 			connection_logs.connection_id = $14
 		ELSE true
 	END
-	-- Filter by whether the session has a disconnect_time
 	AND CASE
 		WHEN $15 :: text != '' THEN
-			(($15 = 'ongoing' AND disconnect_time IS NULL) OR
-			($15 = 'completed' AND disconnect_time IS NOT NULL)) AND
+			connection_logs.client_session_id = $15
+		ELSE true
+	END
+	-- Filter by whether the session has a disconnect_time
+	AND CASE
+		WHEN $16 :: text != '' THEN
+			(($16 = 'ongoing' AND disconnect_time IS NULL) OR
+			($16 = 'completed' AND disconnect_time IS NOT NULL)) AND
 			-- Exclude point-in-time events reported by coderd, since we
 			-- don't know their close time.
 			connection_method IN ('ssh', 'reconnecting_pty')
@@ -16065,9 +16147,9 @@ LIMIT
 	-- a limit of 0 means "no limit". The connection log table is unbounded
 	-- in size, and is expected to be quite large. Implement a default
 	-- limit of 100 to prevent accidental excessively large queries.
-	COALESCE(NULLIF($17 :: int, 0), 100)
+	COALESCE(NULLIF($18 :: int, 0), 100)
 OFFSET
-	$16
+	$17
 `
 
 type GetConnectionLogsOffsetParams struct {
@@ -16085,6 +16167,7 @@ type GetConnectionLogsOffsetParams struct {
 	ConnectedBefore     time.Time `db:"connected_before" json:"connected_before"`
 	WorkspaceID         uuid.UUID `db:"workspace_id" json:"workspace_id"`
 	ConnectionID        uuid.UUID `db:"connection_id" json:"connection_id"`
+	ClientSessionID     string    `db:"client_session_id" json:"client_session_id"`
 	Status              string    `db:"status" json:"status"`
 	OffsetOpt           int32     `db:"offset_opt" json:"offset_opt"`
 	LimitOpt            int32     `db:"limit_opt" json:"limit_opt"`
@@ -16126,6 +16209,7 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 		arg.ConnectedBefore,
 		arg.WorkspaceID,
 		arg.ConnectionID,
+		arg.ClientSessionID,
 		arg.Status,
 		arg.OffsetOpt,
 		arg.LimitOpt,
@@ -18711,14 +18795,14 @@ WITH
 			BOOL_OR(connection_count > 0)
 	),
 	insights AS (
-		-- A minute counts once per family, however many of its apps were
+		-- A minute counts once per app, however many of its sessions were
 		-- open, which COUNT(DISTINCT) does in the grouping. Deduplicating the
 		-- expanded rows first instead spills to disk once a deployment has a
 		-- few thousand agents.
 		SELECT
 			was.template_id,
 			was.user_id,
-			COALESCE($3::jsonb ->> app_name, 'unknown') AS family,
+			app_name,
 			COUNT(DISTINCT date_trunc('minute', was.created_at)) AS usage_mins
 		FROM
 			workspace_agent_stats AS was
@@ -18734,22 +18818,22 @@ WITH
 			AND was.created_at < $2::timestamptz
 			AND was.session_counts <> '{}'::jsonb
 		GROUP BY
-			was.template_id, was.user_id, family
+			was.template_id, was.user_id, app_name
 	),
-	app_family_usage AS (
+	app_usage AS (
 		SELECT
 			template_id,
-			jsonb_object_agg(family, usage_seconds) AS session_family_usage_seconds
+			jsonb_object_agg(app_name, usage_seconds) AS session_app_usage_seconds
 		FROM (
 			SELECT
 				template_id,
-				family,
+				app_name,
 				(SUM(usage_mins) * 60)::bigint AS usage_seconds
 			FROM
 				insights
 			GROUP BY
-				template_id, family
-		) AS family_seconds
+				template_id, app_name
+		) AS app_seconds
 		GROUP BY
 			template_id
 	),
@@ -18766,38 +18850,35 @@ WITH
 SELECT
 	active_users.template_id,
 	active_users.active_users,
-	app_family_usage.session_family_usage_seconds
+	app_usage.session_app_usage_seconds
 FROM
 	active_users
 JOIN
-	-- Every counted template has at least one family; both sides come from
+	-- Every counted template has at least one app; both sides come from
 	-- insights.
-	app_family_usage
+	app_usage
 ON
-	app_family_usage.template_id = active_users.template_id
+	app_usage.template_id = active_users.template_id
 `
 
 type GetTemplateInsightsByTemplateParams struct {
-	StartTime   time.Time       `db:"start_time" json:"start_time"`
-	EndTime     time.Time       `db:"end_time" json:"end_time"`
-	AppFamilies json.RawMessage `db:"app_families" json:"app_families"`
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	EndTime   time.Time `db:"end_time" json:"end_time"`
 }
 
 type GetTemplateInsightsByTemplateRow struct {
-	TemplateID                uuid.UUID      `db:"template_id" json:"template_id"`
-	ActiveUsers               int64          `db:"active_users" json:"active_users"`
-	SessionFamilyUsageSeconds StringMapOfInt `db:"session_family_usage_seconds" json:"session_family_usage_seconds"`
+	TemplateID             uuid.UUID      `db:"template_id" json:"template_id"`
+	ActiveUsers            int64          `db:"active_users" json:"active_users"`
+	SessionAppUsageSeconds StringMapOfInt `db:"session_app_usage_seconds" json:"session_app_usage_seconds"`
 }
 
 // GetTemplateInsightsByTemplate is used for Prometheus metrics. Keep
 // in sync with GetTemplateInsights and UpsertTemplateUsageStats.
 //
-// Session usage is reported per app family. It reads the raw agent stats
-// because the rollup stores minutes per app, which can't show whether two
-// apps of one family were open in the same minute. @app_families maps each
-// app name to its family; names missing from the map count as unknown.
+// Session usage is per app name. It reads raw agent stats because rollup
+// buckets are coarser than the metrics window.
 func (q *sqlQuerier) GetTemplateInsightsByTemplate(ctx context.Context, arg GetTemplateInsightsByTemplateParams) ([]GetTemplateInsightsByTemplateRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTemplateInsightsByTemplate, arg.StartTime, arg.EndTime, arg.AppFamilies)
+	rows, err := q.db.QueryContext(ctx, getTemplateInsightsByTemplate, arg.StartTime, arg.EndTime)
 	if err != nil {
 		return nil, err
 	}
@@ -18805,7 +18886,7 @@ func (q *sqlQuerier) GetTemplateInsightsByTemplate(ctx context.Context, arg GetT
 	var items []GetTemplateInsightsByTemplateRow
 	for rows.Next() {
 		var i GetTemplateInsightsByTemplateRow
-		if err := rows.Scan(&i.TemplateID, &i.ActiveUsers, &i.SessionFamilyUsageSeconds); err != nil {
+		if err := rows.Scan(&i.TemplateID, &i.ActiveUsers, &i.SessionAppUsageSeconds); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
