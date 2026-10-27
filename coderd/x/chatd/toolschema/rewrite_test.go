@@ -503,11 +503,11 @@ func TestNormalize(t *testing.T) {
 				"$id": "https://example.com/tool.json",
 				"properties": {
 					"args": {"$ref": "child.json#/definitions/Args"},
-					"meta": {"$ref": "https://example.com/child.json#/definitions/Meta"},
+					"meta": {"$ref": "https://example.com/child.json#meta"},
 					"child": {
 						"$id": "child.json",
 						"properties": {"self": {"$ref": "#/definitions/Args"}, "up": {"$ref": "tool.json#/properties/args"}},
-						"definitions": {"Args": {"$anchor": "args", "type": "object"}, "Meta": {"$dynamicAnchor": "meta", "type": "string"}}
+						"definitions": {"Args": {"$anchor": "args", "type": "object"}, "Meta": {"type": "string"}}
 					}
 				}
 			}`,
@@ -551,7 +551,7 @@ func TestNormalize(t *testing.T) {
 					"path case": {"$id": "c.json", "$schema": "https://json-schema.org/DRAFT/2020-12/schema"},
 					"other": {"$id": "d.json", "$schema": "https://example.com/meta"},
 					"legacy": {"$id": "e.json", "$schema": "http://json-schema.org/draft-06/hyper-schema#"},
-					"draft 3": {"$id": "f.json", "$schema": "http://json-schema.org/draft-03/schema#"}
+					"draft 3": {"id": "f.json", "$schema": "http://json-schema.org/draft-03/schema#"}
 				}
 			}`,
 			want: `{
@@ -564,6 +564,75 @@ func TestNormalize(t *testing.T) {
 					"legacy": {"$id": "e.json", "$schema": "http://json-schema.org/draft-07/schema#"},
 					"draft 3": {"$id": "f.json", "$schema": "http://json-schema.org/draft-07/schema#"}
 				}
+			}`,
+		},
+		{
+			// Each resource's references are read against its own "id",
+			// so a nested resource does not stop the copies.
+			name: "draft 4 copies referenced data beside nested resources",
+			schema: `{
+				"$schema": "http://json-schema.org/draft-04/schema#",
+				"properties": {
+					"a": {"$ref": "#/x-target"},
+					"child": {"id": "child.json", "properties": {"b": {"$ref": "#/x-inner"}}, "x-inner": {"const": 2, "type": "integer"}}
+				},
+				"x-target": {"const": 1, "type": "integer"}
+			}`,
+			want: `{
+				"$schema": "http://json-schema.org/draft-07/schema#",
+				"properties": {
+					"a": {"$ref": "#/definitions/x-target"},
+					"child": {"$id": "child.json", "properties": {"b": {"$ref": "#/definitions/x-inner"}}, "x-inner": {"const": 2, "type": "integer"}, "definitions": {"x-inner": {"type": "integer"}}}
+				},
+				"x-target": {"const": 1, "type": "integer"},
+				"definitions": {"x-target": {"type": "integer"}}
+			}`,
+		},
+		{
+			// Draft 4 names resources with "id" and ignores "$id" and
+			// "$anchor", so they go, and the references in such a schema
+			// still resolve against the resource around it.
+			name: "draft 4 ignores later identifiers",
+			schema: `{
+				"$schema": "http://json-schema.org/draft-04/schema#",
+				"properties": {
+					"child": {"$id": "child.json", "$anchor": "c", "properties": {"s": {"$ref": "#/definitions/S"}}},
+					"named": {"id": "named.json", "$id": "other.json", "properties": {"t": {"$ref": "#/definitions/T"}}, "definitions": {"T": {"type": "integer"}}}
+				},
+				"definitions": {"S": {"type": "string"}}
+			}`,
+			want: `{
+				"$schema": "http://json-schema.org/draft-07/schema#",
+				"properties": {
+					"child": {"properties": {"s": {"$ref": "#/definitions/S"}}},
+					"named": {"$id": "named.json", "properties": {"t": {"$ref": "#/definitions/T"}}, "definitions": {"T": {"type": "integer"}}}
+				},
+				"definitions": {"S": {"type": "string"}}
+			}`,
+		},
+		{
+			// Draft 7 names anchors with a "$id" fragment and has no
+			// dynamic references, so "$anchor", "$dynamicAnchor", and
+			// "$dynamicRef" go rather than constrain what the source
+			// does not.
+			name: "draft 7 ignores later anchors and dynamic references",
+			schema: `{
+				"$schema": "http://json-schema.org/draft-07/schema#",
+				"properties": {
+					"a": {"$dynamicRef": "#/definitions/S"},
+					"b": {"$ref": "#c2"},
+					"d": {"$dynamicAnchor": "d", "type": "boolean"}
+				},
+				"definitions": {"S": {"type": "string"}, "C": {"$anchor": "c", "$id": "#c2", "type": "integer"}}
+			}`,
+			want: `{
+				"$schema": "http://json-schema.org/draft-07/schema#",
+				"properties": {
+					"a": {},
+					"b": {"$ref": "#/definitions/C"},
+					"d": {"type": "boolean"}
+				},
+				"definitions": {"S": {"type": "string"}, "C": {"$anchor": "c2", "type": "integer"}}
 			}`,
 		},
 		{
@@ -989,7 +1058,9 @@ func TestReplaceRecursiveRefs(t *testing.T) {
 			// In a resource whose root declares "$recursiveAnchor", the
 			// outermost such resource of the dynamic scope is the target,
 			// as for a "$dynamicRef" to a "$dynamicAnchor" each of them
-			// declares. The name is one no anchor uses.
+			// declares, so the schema is rewritten in draft 2020-12. The
+			// name is one no anchor uses, and the "$dynamicRef" that
+			// draft 2019-09 ignores goes.
 			name: "references in an anchored resource become dynamic",
 			schema: `{
 				"$schema": "https://json-schema.org/draft/2019-09/schema",
@@ -1001,22 +1072,84 @@ func TestReplaceRecursiveRefs(t *testing.T) {
 				"$defs": {"R": {"$anchor": "recursive"}, "S": {"$id": "#recursive2"}}
 			}`,
 			want: `{
-				"$schema": "https://json-schema.org/draft/2019-09/schema",
+				"$schema": "https://json-schema.org/draft/2020-12/schema",
 				"$dynamicAnchor": "recursive3",
 				"properties": {
 					"a": {"$ref": "#recursive"},
-					"tree": {"$id": "tree.json", "$dynamicAnchor": "recursive3", "items": {"$dynamicRef": "#/items", "allOf": [{"$dynamicRef": "#recursive3"}]}}
+					"tree": {"$id": "tree.json", "$dynamicAnchor": "recursive3", "items": {"$dynamicRef": "#recursive3"}}
 				},
 				"$defs": {"R": {"$anchor": "recursive"}, "S": {"$id": "#recursive2"}}
 			}`,
 		},
 		{
-			// An anchored resource root that declares a dynamic anchor
-			// has no room for another, so the reference is left out,
-			// which only drops a constraint.
-			name:   "a dynamic anchor already declared leaves the reference out",
+			// Draft 2019-09 ignores "$dynamicAnchor", so it makes room
+			// for the one that replaces "$recursiveAnchor".
+			name:   "a dynamic anchor draft 2019-09 ignores goes",
 			schema: `{"$schema": "https://json-schema.org/draft/2019-09/schema", "properties": {"tree": {"$id": "tree.json", "$recursiveAnchor": true, "$dynamicAnchor": "node", "items": {"$recursiveRef": "#"}}, "leaf": {"$recursiveRef": "#"}}}`,
-			want:   `{"$schema": "https://json-schema.org/draft/2019-09/schema", "properties": {"tree": {"$id": "tree.json", "$dynamicAnchor": "node", "items": {}}, "leaf": {"$ref": "#"}}}`,
+			want:   `{"$schema": "https://json-schema.org/draft/2020-12/schema", "properties": {"tree": {"$id": "tree.json", "$dynamicAnchor": "recursive", "items": {"$dynamicRef": "#recursive"}}, "leaf": {"$ref": "#"}}}`,
+		},
+		{
+			// Draft 2020-12 lists the schemas of the first items in
+			// "prefixItems" and those of the rest in "items", and
+			// references follow them.
+			name: "draft 2019-09 item lists move with dynamic references",
+			schema: `{
+				"$schema": "https://json-schema.org/draft/2019-09/schema",
+				"$recursiveAnchor": true,
+				"properties": {
+					"tree": {"$id": "tree.json", "$recursiveAnchor": true, "items": [{"type": "string"}, {"$recursiveRef": "#"}], "additionalItems": {"$ref": "#/items/0"}},
+					"pair": {"items": [{"type": "integer"}], "additionalItems": false},
+					"nested": {"items": [{"items": [{"type": "boolean"}]}]},
+					"one": {"items": {"type": "null"}, "additionalItems": false},
+					"first": {"$ref": "#/properties/pair/items/0"},
+					"rest": {"$ref": "#/properties/pair/additionalItems"},
+					"deep": {"$ref": "#/properties/nested/items/0/items/0"}
+				}
+			}`,
+			want: `{
+				"$schema": "https://json-schema.org/draft/2020-12/schema",
+				"$dynamicAnchor": "recursive",
+				"properties": {
+					"tree": {"$id": "tree.json", "$dynamicAnchor": "recursive", "prefixItems": [{"type": "string"}, {"$dynamicRef": "#recursive"}], "items": {"$ref": "#/prefixItems/0"}},
+					"pair": {"prefixItems": [{"type": "integer"}], "items": false},
+					"nested": {"prefixItems": [{"prefixItems": [{"type": "boolean"}]}]},
+					"one": {"items": {"type": "null"}, "additionalItems": false},
+					"first": {"$ref": "#/properties/pair/prefixItems/0"},
+					"rest": {"$ref": "#/properties/pair/items"},
+					"deep": {"$ref": "#/properties/nested/prefixItems/0/prefixItems/0"}
+				}
+			}`,
+		},
+		{
+			// Draft 2020-12 counts the items "contains" matches as
+			// evaluated, so with "unevaluatedItems" the schema stays in
+			// draft 2019-09 and the reference is left out, which only
+			// drops a constraint.
+			name:   "contains beside unevaluated items leaves dynamic references out",
+			schema: `{"$schema": "https://json-schema.org/draft/2019-09/schema", "properties": {"tree": {"$id": "tree.json", "$recursiveAnchor": true, "items": [{"$recursiveRef": "#"}], "contains": {"type": "string"}, "unevaluatedItems": false}, "leaf": {"$recursiveRef": "#"}}}`,
+			want:   `{"$schema": "https://json-schema.org/draft/2019-09/schema", "properties": {"tree": {"$id": "tree.json", "items": [{}], "contains": {"type": "string"}, "unevaluatedItems": false}, "leaf": {"$ref": "#"}}}`,
+		},
+		{
+			// The rewriting reads these keywords as draft 2020-12 does,
+			// so they go where the dialect ignores them. A pointer
+			// through one keeps its value under a key no draft defines.
+			name: "keywords a dialect ignores go",
+			schema: `{
+				"$schema": "http://json-schema.org/draft-07/schema#",
+				"properties": {
+					"a": {"$dynamicRef": "#/definitions/S", "$anchor": "a", "$dynamicAnchor": "d"},
+					"new": {"$id": "new.json", "$schema": "https://json-schema.org/draft/2019-09/schema", "$anchor": "n", "$dynamicAnchor": "m", "prefixItems": [{"type": "string"}], "items": {"$dynamicRef": "#m"}, "contains": {"$ref": "#/prefixItems/0"}}
+				},
+				"definitions": {"S": {"type": "string"}}
+			}`,
+			want: `{
+				"$schema": "http://json-schema.org/draft-07/schema#",
+				"properties": {
+					"a": {},
+					"new": {"$id": "new.json", "$schema": "https://json-schema.org/draft/2019-09/schema", "$anchor": "n", "x-ignored-prefixItems": [{"type": "string"}], "items": {}, "contains": {"$ref": "#/x-ignored-prefixItems/0"}}
+				},
+				"definitions": {"S": {"type": "string"}}
+			}`,
 		},
 		{
 			name:   "references to other targets stay",

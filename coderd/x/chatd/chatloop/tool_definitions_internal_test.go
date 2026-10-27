@@ -670,6 +670,62 @@ func TestBuildToolDefinitionsFullSchemaRootRefTargets(t *testing.T) {
 			want:   `{"properties": {}}`,
 		},
 		{
+			// Folding leaves a target's definitions where they are, so
+			// the identifiers there are declared once.
+			name:   "target with identifiers only in its definitions",
+			schema: `{"$ref": "#/$defs/A", "$defs": {"A": {"properties": {"p": {"type": "string"}}, "required": ["p"], "$defs": {"S": {"$anchor": "s"}, "T": {"$id": "https://example.com/t.json"}, "U": {"$dynamicAnchor": "u"}}}}}`,
+			want:   params,
+		},
+		{
+			// The relocated "allOf" still declares the resource that
+			// "q" names, so copying the branch would declare it twice.
+			name: "composition branch with a nested resource",
+			schema: `{
+				"allOf": [{"properties": {"p": {"$id": "https://example.com/p.json", "type": "string"}}, "required": ["p"]}],
+				"properties": {"q": {"$ref": "https://example.com/p.json"}}
+			}`,
+			want: `{"properties": {"q": {"$ref": "https://example.com/p.json"}}}`,
+		},
+		{
+			name:   "composition branch with identifiers only in its definitions",
+			schema: `{"allOf": [{"properties": {"p": {"type": "string"}}, "required": ["p"], "$defs": {"S": {"$anchor": "s"}}}]}`,
+			want:   params,
+		},
+		{
+			// Draft 7 ignores "unevaluatedProperties", so the target's
+			// content would no longer forbid other names at the root.
+			name: "target in another dialect",
+			schema: `{
+				"$schema": "http://json-schema.org/draft-07/schema#",
+				"$ref": "https://example.com/child.json",
+				"definitions": {"C": {"$id": "https://example.com/child.json", "$schema": "https://json-schema.org/draft/2020-12/schema", "properties": {"p": {"type": "string"}}, "required": ["p"], "unevaluatedProperties": false}}
+			}`,
+			want: `{"properties": {}}`,
+		},
+		{
+			// A subschema is read in the dialect of its resource.
+			name: "target inside a resource in another dialect",
+			schema: `{
+				"$ref": "https://example.com/child.json#/definitions/X",
+				"$defs": {"C": {"$id": "https://example.com/child.json", "$schema": "http://json-schema.org/draft-07/schema#", "definitions": {"X": ` + params + `}}}
+			}`,
+			want: `{"properties": {}}`,
+		},
+		{
+			name:   "composition branch in another dialect",
+			schema: `{"allOf": [{"$schema": "http://json-schema.org/draft-07/schema#", "properties": {"p": {"type": "string"}}, "required": ["p"]}]}`,
+			want:   `{"properties": {}}`,
+		},
+		{
+			// MCP reads a schema without "$schema" as draft 2020-12.
+			name: "target that names the default dialect",
+			schema: `{
+				"$ref": "https://example.com/child.json",
+				"$defs": {"C": {"$id": "https://example.com/child.json", "$schema": "https://json-schema.org/draft/2020-12/schema", "properties": {"p": {"type": "string"}}, "required": ["p"]}}
+			}`,
+			want: params,
+		},
+		{
 			name:   "anchor",
 			schema: `{"$ref": "#args", "$defs": {"Args": {"$anchor": "args", "properties": {"p": {"type": "string"}}, "required": ["p"]}}}`,
 			want:   params,
