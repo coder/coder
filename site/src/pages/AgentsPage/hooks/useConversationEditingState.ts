@@ -217,19 +217,27 @@ export function useConversationEditingState(deps: {
 		};
 	};
 
+	// Saves draft as the chat's draft, or removes the saved draft if it is empty.
+	const saveDraft = (draft: string | undefined) => {
+		if (!draft) {
+			localStorage.removeItem(draftStorageKey);
+			return;
+		}
+		try {
+			localStorage.setItem(draftStorageKey, draft);
+		} catch {
+			// QuotaExceededError, silently discard the draft.
+		}
+	};
+
 	// The composer was cleared at submit, so after a successful send it holds
 	// only what was typed during the request, which is the chat's draft now.
 	const finalizeSuccessfulSend = (editedMessageID: number | undefined) => {
-		const draft = serializedEditorStateRef.current;
-		if (hasContent(composerContent()) && draft) {
-			try {
-				localStorage.setItem(draftStorageKey, draft);
-			} catch {
-				// QuotaExceededError, silently discard the draft.
-			}
-		} else {
-			localStorage.removeItem(draftStorageKey);
-		}
+		saveDraft(
+			hasContent(composerContent())
+				? serializedEditorStateRef.current
+				: undefined,
+		);
 		if (editedMessageID !== undefined) {
 			setDraftBeforeHistoryEdit(null);
 			setEditingFileBlocks([]);
@@ -287,28 +295,13 @@ export function useConversationEditingState(deps: {
 				return;
 			}
 			const draft = restoredDraft(sendInFlight, composerContent());
-			const saved = draft.editorState ?? draft.text;
-			if (!saved) {
-				localStorage.removeItem(draftStorageKey);
-				return;
-			}
-			try {
-				localStorage.setItem(draftStorageKey, saved);
-			} catch {
-				// QuotaExceededError, silently discard the draft.
-			}
+			saveDraft(draft.editorState ?? draft.text);
 			return;
 		}
 
-		if (hasContent(composerContent())) {
-			try {
-				localStorage.setItem(draftStorageKey, serializedEditorState);
-			} catch {
-				// QuotaExceededError, silently discard the draft.
-			}
-		} else {
-			localStorage.removeItem(draftStorageKey);
-		}
+		saveDraft(
+			hasContent(composerContent()) ? serializedEditorState : undefined,
+		);
 	};
 
 	// Separate from handleContentChange, which avoids setState to prevent
