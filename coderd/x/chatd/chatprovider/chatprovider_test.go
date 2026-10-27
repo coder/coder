@@ -944,6 +944,66 @@ func TestModelFromConfig_AnthropicPDFFilePartReachesProvider(t *testing.T) {
 	_ = testutil.TryReceive(ctx, t, called)
 }
 
+func TestModelFromConfig_AnthropicToolInputSchemaReachesProvider(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// Decode from JSON so "required" is []any, the shape chatd builds
+	// from MCP tool schemas.
+	const schemaJSON = `{
+		"type": "object",
+		"properties": {"filter": {"$ref": "#/$defs/Filter"}},
+		"required": ["filter"],
+		"additionalProperties": false,
+		"$defs": {
+			"Filter": {
+				"type": "object",
+				"properties": {"term": {"type": "string", "const": "coder"}},
+				"required": ["term"]
+			}
+		}
+	}`
+	var inputSchema map[string]any
+	require.NoError(t, json.Unmarshal([]byte(schemaJSON), &inputSchema))
+
+	called := make(chan struct{})
+	serverURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+		defer close(called)
+
+		require.Len(t, req.Tools, 1)
+		assert.Equal(t, "search", req.Tools[0].Name)
+		assert.JSONEq(t, schemaJSON, string(req.Tools[0].InputSchema))
+
+		return chattest.AnthropicNonStreamingResponse("ok")
+	})
+
+	keys := chatprovider.ProviderAPIKeys{
+		ByProvider:        map[string]string{"anthropic": "test-key"},
+		BaseURLByProvider: map[string]string{"anthropic": serverURL},
+	}
+
+	model, err := chatprovider.ModelFromConfig("anthropic", "claude-sonnet-4-20250514", keys, chatprovider.UserAgent(), nil, nil, nil)
+	require.NoError(t, err)
+
+	_, err = model.LanguageModel().Generate(ctx, fantasy.Call{
+		Prompt: []fantasy.Message{
+			{
+				Role:    fantasy.MessageRoleUser,
+				Content: []fantasy.MessagePart{fantasy.TextPart{Text: "search"}},
+			},
+		},
+		Tools: []fantasy.Tool{
+			fantasy.FunctionTool{
+				Name:        "search",
+				Description: "Search records.",
+				InputSchema: inputSchema,
+			},
+		},
+	})
+	require.NoError(t, err)
+	_ = testutil.TryReceive(ctx, t, called)
+}
+
 func TestModelFromConfig_NilExtraHeaders(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
