@@ -2772,8 +2772,9 @@ describe("useChatStore", () => {
 					});
 					const status = useChatSelector(store, selectChatStatus);
 					const streamState = useChatSelector(store, selectStreamState);
+					const shownError = useChatSelector(store, selectShownError);
 					renders.push(status);
-					return { store, status, streamState };
+					return { store, status, streamState, shownError };
 				},
 				{ wrapper },
 			);
@@ -2798,12 +2799,68 @@ describe("useChatStore", () => {
 			expect(first.result.current.streamState).not.toBeNull(),
 		);
 		first.unmount();
+		// A request that fails after the visit ends still sets clientError.
+		act(() => {
+			first.result.current.store.setClientError({
+				kind: "generic",
+				message: "late failure",
+			});
+		});
 		renders.length = 0;
 
 		const second = renderChat();
 		expect(second.result.current.store).toBe(first.result.current.store);
 		expect(renders[0]).toBeNull();
 		expect(second.result.current.streamState).toBeNull();
+		expect(second.result.current.shownError).toBeNull();
+	});
+
+	it("renders a reopened chat without the previous visit's client error when the stream is off", async () => {
+		const chatID = "chat-reopen-no-stream";
+		const wrapper = createWrapper(
+			new QueryClient({
+				defaultOptions: {
+					queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
+				},
+			}),
+		);
+		mockNewestPage(chatID, {
+			messages: [buildMessage(chatID, 1, "user", "prompt")],
+			queued_messages: [],
+			has_more: false,
+			snapshot_version: 5,
+		});
+		const shownErrors: unknown[] = [];
+		const renderChat = () =>
+			renderHook(
+				() => {
+					const { store, loadState } = useChatStore({
+						chatID,
+						aiGatewayDisabled: true,
+						setChatErrorReason: vi.fn(),
+						clearChatErrorReason: vi.fn(),
+					});
+					shownErrors.push(useChatSelector(store, selectShownError));
+					return { store, loadState };
+				},
+				{ wrapper },
+			);
+
+		const first = renderChat();
+		await waitFor(() =>
+			expect(first.result.current.loadState.status).toBe("loaded"),
+		);
+		act(() => {
+			first.result.current.store.setClientError({
+				kind: "generic",
+				message: "promote failed",
+			});
+		});
+		first.unmount();
+		shownErrors.length = 0;
+
+		renderChat();
+		expect(shownErrors[0]).toBeNull();
 	});
 
 	it("reopens a remounted chat at its last snapshot version without fetching its page again", async () => {
