@@ -166,8 +166,8 @@ func NewManager(opts ManagerOptions) *Manager {
 	// catalog changes (see agent wiring). Wire it before SetReady runs
 	// the first resolve.
 	if resolver.MCPResources == nil && opts.MCPCatalog != nil {
-		resolver.MCPResources = func() []Resource {
-			return buildMCPServerResources(m.logger, opts.MCPCatalog())
+		resolver.MCPResources = func(others []Resource) []Resource {
+			return buildMCPServerResources(m.logger, opts.MCPCatalog(), others)
 		}
 	}
 

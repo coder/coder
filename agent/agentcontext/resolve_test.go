@@ -549,7 +549,7 @@ func TestResolver_MCPResources(t *testing.T) {
 		Description: "GitHub MCP server",
 	}
 	r := &agentcontext.Resolver{
-		MCPResources: func() []agentcontext.Resource { return []agentcontext.Resource{mcpRes} },
+		MCPResources: func([]agentcontext.Resource) []agentcontext.Resource { return []agentcontext.Resource{mcpRes} },
 	}
 
 	snap := r.Resolve([]agentcontext.ScanRoot{{Path: dir}})
@@ -579,7 +579,7 @@ func TestResolver_MCPResourcesRespectAggregateByteCap(t *testing.T) {
 	}
 	r := &agentcontext.Resolver{
 		MaxSnapshotBytes: 512,
-		MCPResources:     func() []agentcontext.Resource { return []agentcontext.Resource{mcpRes} },
+		MCPResources:     func([]agentcontext.Resource) []agentcontext.Resource { return []agentcontext.Resource{mcpRes} },
 	}
 
 	snap := r.Resolve([]agentcontext.ScanRoot{{Path: dir}})
@@ -612,7 +612,7 @@ func TestResolver_MCPExcludedFromAggregateHash(t *testing.T) {
 		Tools:       []agentcontext.MCPTool{{Name: "search"}},
 	}
 	withMCP := (&agentcontext.Resolver{
-		MCPResources: func() []agentcontext.Resource { return []agentcontext.Resource{mcpRes} },
+		MCPResources: func([]agentcontext.Resource) []agentcontext.Resource { return []agentcontext.Resource{mcpRes} },
 	}).Resolve([]agentcontext.ScanRoot{{Path: dir}})
 
 	// The MCP server resource is present in the snapshot...

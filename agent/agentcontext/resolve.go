@@ -119,11 +119,13 @@ type Resolver struct {
 	MaxResources int
 	// MCPResources, when non-nil, is consulted after the
 	// filesystem pass and returns the KindMCPServer resources
-	// for live MCP servers. It must not block: the resolver
+	// for live MCP servers. others holds every other resource of
+	// the snapshot, so the provider can keep the whole push under
+	// coderd's aggregate body cap. It must not block: the resolver
 	// calls it on every re-resolve. In production the manager
 	// wires this to its MCP runner's snapshot; tests inject a
 	// closure directly.
-	MCPResources func() []Resource
+	MCPResources func(others []Resource) []Resource
 	// ACPResources returns cached harness metadata; it must never launch processes.
 	ACPResources func() []Resource
 }
@@ -167,9 +169,7 @@ func (r *Resolver) ResolveContext(ctx context.Context, roots []ScanRoot) Snapsho
 	// Append discovered resources after the filesystem caps so providers
 	// cannot crowd out instruction files. MCP resources take priority over ACP.
 	startIdx := len(resources)
-	if r.MCPResources != nil {
-		resources = append(resources, r.MCPResources()...)
-	}
+	var harnesses []Resource
 	if r.ACPResources != nil {
 		for _, harness := range r.ACPResources() {
 			if harness.SizeBytes > res.MaxResourceBytes {
@@ -178,9 +178,13 @@ func (r *Resolver) ResolveContext(ctx context.Context, roots []ScanRoot) Snapsho
 				harness.Payload = nil
 				harness.ACPHarness = nil
 			}
-			resources = append(resources, harness)
+			harnesses = append(harnesses, harness)
 		}
 	}
+	if r.MCPResources != nil {
+		resources = append(resources, r.MCPResources(slices.Concat(resources, harnesses))...)
+	}
+	resources = append(resources, harnesses...)
 	resources, snapErrs = res.applyProviderCaps(resources, startIdx, totalBytes, snapErrs)
 
 	// Deterministic order by ID for stable IDs and hashes.

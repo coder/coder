@@ -250,6 +250,7 @@ func foldRootComposition(inputSchema map[string]any, banned []string) map[string
 		delete(inputSchema, key)
 	}
 	hoistKeywords(inputSchema, shape.merged)
+	folder.closeHoistedPatterns(inputSchema, restricting)
 	hoistConditionals(inputSchema, shape.merged, removed)
 	// Some providers reject a required name missing from "properties".
 	var undeclared []string
@@ -408,6 +409,45 @@ func hoistKeywords(root map[string]any, merged []map[string]any) {
 			}
 		}
 	}
+}
+
+// closeHoistedPatterns makes the "additionalProperties" of each of
+// nodes, schemas folded into root, hold for the names that match a
+// pattern hoisted from another schema, which no longer counts them as
+// additional at the root. It is added to the pattern when the node has
+// no patterns and lists no name the pattern matches, so that it holds
+// for every such name in the source. Otherwise it is left out there,
+// which only drops a constraint.
+func (f *rootFolder) closeHoistedPatterns(root map[string]any, nodes []map[string]any) {
+	hoisted, _ := root["patternProperties"].(map[string]any)
+	if len(hoisted) == 0 {
+		return
+	}
+	closed := maps.Clone(hoisted)
+	for _, node := range nodes {
+		additional := node["additionalProperties"]
+		if schema, ok := additional.(map[string]any); !isBooleanSchema(additional, false) && (!ok || len(schema) == 0) {
+			continue
+		}
+		if patterns, _ := node["patternProperties"].(map[string]any); len(patterns) > 0 {
+			continue
+		}
+		listed, _ := node["properties"].(map[string]any)
+		if !f.spend(len(hoisted) * (1 + len(listed))) {
+			return
+		}
+		for _, pattern := range slices.Sorted(maps.Keys(hoisted)) {
+			only := map[string]any{pattern: hoisted[pattern]}
+			if slices.ContainsFunc(slices.Sorted(maps.Keys(listed)), func(name string) bool {
+				matched, known := f.patterns.match(only, name)
+				return !known || len(matched) > 0
+			}) {
+				continue
+			}
+			closed[pattern] = conjoinSchemas(closed[pattern], additional)
+		}
+	}
+	root["patternProperties"] = closed
 }
 
 // conditionalKeywords are the keywords of a JSON Schema conditional.
@@ -870,9 +910,19 @@ type rootFolder struct {
 	ignoreRefSiblings bool
 	// opaque reports that the fold left out how a schema evaluates
 	// property names, which "unevaluatedProperties" depends on.
-	opaque     bool
+	opaque bool
+	// skipped counts the schemas the fold did not merge where they
+	// appear: those it left out, and references already merged or being
+	// followed.
+	skipped    int
 	patterns   patternMatcher
 	refScanner toolschema.RefScanner
+}
+
+// leaveOut records that the fold left a schema out.
+func (f *rootFolder) leaveOut() {
+	f.opaque = true
+	f.skipped++
 }
 
 // spend charges cost against maxRootFoldWork and reports whether the
@@ -880,7 +930,7 @@ type rootFolder struct {
 func (f *rootFolder) spend(cost int) bool {
 	f.work += cost
 	if f.work > maxRootFoldWork {
-		f.opaque = true
+		f.leaveOut()
 		return false
 	}
 	return true
@@ -914,7 +964,7 @@ func (f *rootFolder) mergeAll(shape *objectShape, branch any) {
 		return
 	}
 	if f.merged >= f.maxMerged || !f.spend(keywordEntries(node)) {
-		f.opaque = true
+		f.leaveOut()
 		return
 	}
 	f.merged++
@@ -925,7 +975,7 @@ func (f *rootFolder) mergeAll(shape *objectShape, branch any) {
 	if _, ok := node["$id"]; ok && f.refScanner.HasRefs(node) {
 		// References in a separate resource resolve against its own
 		// "$id", so its content cannot move into the root resource.
-		f.opaque = true
+		f.leaveOut()
 		return
 	}
 	if excludesObjects(node) {
@@ -934,6 +984,7 @@ func (f *rootFolder) mergeAll(shape *objectShape, branch any) {
 		return
 	}
 	shape.merged = append(shape.merged, node)
+	start, skipped := len(shape.merged)-1, f.skipped
 	if value, ok := node["const"].(map[string]any); ok {
 		f.mergeAll(shape, objectConstSchema(value))
 	}
@@ -956,24 +1007,74 @@ func (f *rootFolder) mergeAll(shape *objectShape, branch any) {
 			f.mergeAlternatives(shape, branches)
 		}
 	}
+	if f.skipped == skipped && !f.ignoreRefSiblings {
+		if restriction := unevaluatedRestriction(node, shape.merged[start:]); restriction != nil {
+			shape.merged = append(shape.merged, restriction)
+		}
+	}
+}
+
+// unevaluatedRestriction returns a schema whose "additionalProperties"
+// is the "unevaluatedProperties" of node, for the names that node and
+// the schemas merged from it, subtree, list or match. It holds where
+// node's does in the source when those schemas evaluate names only
+// through "properties" and "patternProperties". It returns nil
+// otherwise, or when node's constrains nothing.
+func unevaluatedRestriction(node map[string]any, subtree []map[string]any) map[string]any {
+	unevaluated, ok := node["unevaluatedProperties"]
+	if schema, isSchema := unevaluated.(map[string]any); !ok || (!isBooleanSchema(unevaluated, false) && (!isSchema || len(schema) == 0)) {
+		return nil
+	}
+	listed := map[string]any{}
+	patterns := map[string]any{}
+	for i, merged := range subtree {
+		for _, key := range evaluatingKeywords {
+			if _, ok := merged[key]; ok && (key != "unevaluatedProperties" || i > 0) {
+				return nil
+			}
+		}
+		properties, _ := merged["properties"].(map[string]any)
+		for name := range properties {
+			listed[name] = true
+		}
+		matched, _ := merged["patternProperties"].(map[string]any)
+		for pattern := range matched {
+			patterns[pattern] = true
+		}
+	}
+	restriction := map[string]any{"properties": listed, "additionalProperties": unevaluated}
+	if len(patterns) > 0 {
+		restriction["patternProperties"] = patterns
+	}
+	return restriction
+}
+
+// evaluatingKeywords are the keywords beside "properties" and
+// "patternProperties" through which a schema can evaluate property
+// names.
+var evaluatingKeywords = [...]string{
+	"additionalProperties", "unevaluatedProperties", "anyOf", "oneOf", "if",
+	"dependentSchemas", "dependencies", "$dynamicRef", "$recursiveRef",
 }
 
 func (f *rootFolder) mergeRef(shape *objectShape, ref string) {
 	if _, ok := f.visiting[ref]; ok {
+		f.skipped++
 		return
 	}
 	if _, ok := shape.refs[ref]; ok {
+		f.skipped++
 		return
 	}
 	target, sameResource, ok := f.resolver.Resolve(ref)
 	if !ok {
-		f.opaque = true
+		f.leaveOut()
 		return
 	}
 	if node, ok := target.(map[string]any); ok && !sameResource && f.refScanner.HasRefs(node) {
 		// As in mergeAll, references inside another resource resolve
 		// against its own "$id".
-		f.opaque = true
+		f.leaveOut()
 		return
 	}
 	if shape.refs == nil {
