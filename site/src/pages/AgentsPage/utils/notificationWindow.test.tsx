@@ -71,34 +71,40 @@ afterEach(() => {
 });
 
 describe("notification window", () => {
-	it("opens the chat on top of the chat list once the list has loaded", async () => {
-		vi.useFakeTimers({
-			toFake: [
-				"setTimeout",
-				"clearTimeout",
-				"requestAnimationFrame",
-				"cancelAnimationFrame",
-			],
-		});
-		openWindow(`${chatPath}?archived=false#latest`);
+	it.each([
+		{ name: "unrendered user metadata", userMetadata: undefined },
+		{ name: "a signed-in visitor", userMetadata: '{"id":"user"}' },
+	])(
+		"opens the chat on top of the chat list once the list has loaded, for $name",
+		async ({ userMetadata }) => {
+			vi.useFakeTimers({
+				toFake: [
+					"setTimeout",
+					"clearTimeout",
+					"requestAnimationFrame",
+					"cancelAnimationFrame",
+				],
+			});
+			openWindow(`${chatPath}?archived=false#latest`, { userMetadata });
 
-		openChatListFirst();
-		const router = createAgentsRouter();
-		render(<RouterProvider router={router} />);
+			openChatListFirst();
+			const router = createAgentsRouter();
+			render(<RouterProvider router={router} />);
 
-		expect(router.state.location).toMatchObject({
-			pathname: "/agents",
-			search: "?archived=false",
-		});
-		await vi.advanceTimersByTimeAsync(50);
-		expect(router.state.location).toMatchObject({
-			pathname: chatPath,
-			search: "?archived=false",
-			hash: "#latest",
-		});
-		expect(router.state.historyAction).toBe(NavigationType.Push);
-		router.dispose();
-	});
+			expect(router.state.location).toMatchObject({
+				pathname: "/agents",
+				search: "?archived=false",
+			});
+			await vi.advanceTimersByTimeAsync(50);
+			expect(router.state.location).toMatchObject({
+				pathname: chatPath,
+				search: "?archived=false",
+				hash: "#latest",
+			});
+			expect(router.state.historyAction).toBe(NavigationType.Push);
+			router.dispose();
+		},
+	);
 
 	it("opens the chat after 1.5 s while the list is still loading", async () => {
 		vi.useFakeTimers({
