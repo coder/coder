@@ -1,7 +1,6 @@
 package agentcontext
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -294,9 +293,29 @@ func TestBuildMCPServerResourcesInputSchemaCaps(t *testing.T) {
 		got := buildMCPServerResources(testutil.Logger(t), []MCPServerStatus{{Name: "fs", Connected: true, Tools: serverTools}}, nil)
 		require.Equal(t, map[string]bool{"fs/t1": true, "fs/t2": true, "fs/t3": true, "fs/t4": false}, fullSchemas(got))
 		// The bound holds for coderd binaries that add a space after
-		// every comma.
+		// every comma between values.
 		body := coderdMCPServerBody(t, got[0])
-		require.LessOrEqual(t, len(body)+bytes.Count(body, []byte(",")), maxContextResourceBodyBytes)
+		require.LessOrEqual(t, len(body)+valueCommas(body), maxContextResourceBodyBytes)
+	})
+
+	t.Run("IgnoresCommasInStrings", func(t *testing.T) {
+		t.Parallel()
+		// protojson adds no space after a comma in a string, so schemas
+		// full of them fit coderd's cap as their length does.
+		serverTools := make([]MCPTool, 3)
+		for i := range serverTools {
+			schema := padded(0)
+			schema["$defs"] = map[string]any{"Filter": map[string]any{
+				"type":        "string",
+				"description": strings.Repeat(",", (64<<10)-200),
+			}}
+			serverTools[i] = MCPTool{Name: fmt.Sprintf("t%d", i+1), InputSchema: schema}
+		}
+
+		got := buildMCPServerResources(testutil.Logger(t), []MCPServerStatus{{Name: "fs", Connected: true, Tools: serverTools}}, nil)
+		require.Equal(t, map[string]bool{"fs/t1": true, "fs/t2": true, "fs/t3": true}, fullSchemas(got))
+		body := coderdMCPServerBody(t, got[0])
+		require.LessOrEqual(t, len(body)+valueCommas(body), maxContextResourceBodyBytes)
 	})
 
 	t.Run("KeepsOversizedBodyReduced", func(t *testing.T) {
@@ -381,7 +400,8 @@ func acpHarnessBodyBytesBound(t *testing.T, r Resource) int {
 
 // coderdPushBodyBytesBound sums the bodies of snap's push the way
 // coderd/agentapi encodes them for its aggregate cap, counting a space
-// after every comma so the bound holds for every coderd binary.
+// after every comma between values so the bound holds for every coderd
+// binary.
 func coderdPushBodyBytesBound(t *testing.T, snap Snapshot) int {
 	t.Helper()
 	total := 0
@@ -397,7 +417,7 @@ func coderdPushBodyBytesBound(t *testing.T, snap Snapshot) int {
 		}
 		encoded, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(body)
 		require.NoError(t, err)
-		total += len(encoded) + bytes.Count(encoded, []byte(","))
+		total += len(encoded) + valueCommas(encoded)
 	}
 	return total
 }
