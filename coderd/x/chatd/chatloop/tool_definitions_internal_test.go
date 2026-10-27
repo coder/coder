@@ -315,6 +315,58 @@ func TestBuildToolDefinitionsFullSchemaRootComposition(t *testing.T) {
 	require.Error(t, validateSchemaInstance(t, ft.InputSchema, `{"alias": 1, "id": 1, "name": "n", "phone": "p"}`))
 }
 
+// TestBuildToolDefinitionsFullSchemaRootCompositionAbsoluteRefs verifies
+// that root composition follows references written as the root "$id"
+// URI, not only fragment references.
+func TestBuildToolDefinitionsFullSchemaRootCompositionAbsoluteRefs(t *testing.T) {
+	t.Parallel()
+
+	source := map[string]any{
+		"$id":  "https://example.com/tool.json",
+		"$ref": "https://example.com/tool.json#/$defs/Base",
+		"allOf": []any{
+			map[string]any{"$ref": "tool.json#/$defs/Named"},
+		},
+		"$defs": map[string]any{
+			"Base": map[string]any{
+				"type":       "object",
+				"properties": map[string]any{"id": map[string]any{"type": "integer"}},
+				"required":   []any{"id"},
+			},
+			"Named": map[string]any{
+				"properties": map[string]any{"name": map[string]any{"type": "string"}},
+				"required":   []any{"name"},
+			},
+		},
+	}
+	defs := BuildToolDefinitions([]fantasy.AgentTool{fullSchemaTestTool{schema: source}}, nil, nil)
+	require.Len(t, defs, 1)
+	ft, ok := defs[0].(fantasy.FunctionTool)
+	require.True(t, ok)
+	raw, err := json.Marshal(ft.InputSchema)
+	require.NoError(t, err)
+	require.JSONEq(t, `{
+		"$id": "https://example.com/tool.json",
+		"type": "object",
+		"properties": {
+			"id": {"type": "integer"},
+			"name": {"type": "string"}
+		},
+		"required": ["id", "name"],
+		"$defs": {
+			"Base": {
+				"type": "object",
+				"properties": {"id": {"type": "integer"}},
+				"required": ["id"]
+			},
+			"Named": {
+				"properties": {"name": {"type": "string"}},
+				"required": ["name"]
+			}
+		}
+	}`, string(raw))
+}
+
 // TestBuildToolDefinitionsFullSchemaKeepsInstanceValues verifies that
 // normalization rewrites type lists only where they are schemas, so
 // "const", "enum", and "default" values that look like schemas reach

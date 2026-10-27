@@ -102,14 +102,12 @@ func RewriteRefs(schema map[string]any, rewrite func(tokens []string) ([]string,
 	})
 }
 
-// ResolveLocalRef returns the value a same-document reference such as
-// "#/$defs/Filter" points at in root.
+// ResolveLocalRef returns the value that a reference made from root's
+// own resource points at in root. This covers fragment references such
+// as "#/$defs/Filter" and, when root declares "$id", references that
+// name that URI, such as "https://example.com/tool.json#/$defs/Filter".
 func ResolveLocalRef(root map[string]any, ref string) (any, bool) {
-	fragment, ok := strings.CutPrefix(ref, "#")
-	if !ok {
-		return nil, false
-	}
-	tokens, ok := decodePointer(fragment)
+	tokens, ok := rootScope(root).rootPointer(ref)
 	if !ok {
 		return nil, false
 	}
