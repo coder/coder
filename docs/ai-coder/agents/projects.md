@@ -12,9 +12,6 @@ Every chat in a project gets the project's instructions, skills, and memory, so 
 
 ## Enable projects
 
-`chat-projects` is a safe experiment, so it's ready for users to try but is off by default.
-Enable it by name:
-
 ```sh
 coder server --experiments=chat-projects
 ```
@@ -24,9 +21,6 @@ Or set the environment variable:
 ```sh
 CODER_EXPERIMENTS=chat-projects
 ```
-
-`--experiments='*'` also enables projects, along with every other safe experiment.
-Restart every Coder server replica with the same value.
 
 When the experiment is on, the **Agents** page sidebar shows a **Projects** section.
 
