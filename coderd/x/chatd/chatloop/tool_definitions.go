@@ -145,9 +145,11 @@ const maxRootMergeSchemas = 1000
 // keywords providers reject are removed, but their meaning is folded
 // into the root first: properties and required names from "allOf" and
 // "$ref" are merged in, and those from "anyOf" and "oneOf" are merged
-// with a name required only when every alternative requires it. Removed
-// content that a reference still points into moves under the root
-// definitions, and those references follow it.
+// with a name required only when every alternative requires it. A
+// schema declaring a draft before 2019-09 ignores every keyword beside
+// "$ref", so only the reference is folded there. Removed content that a
+// reference still points into moves under the root definitions, and
+// those references follow it.
 func enforceObjectRoot(inputSchema map[string]any) map[string]any {
 	var banned []string
 	for _, key := range bannedRootKeys {
@@ -167,26 +169,45 @@ func enforceObjectRoot(inputSchema map[string]any) map[string]any {
 	return inputSchema
 }
 
+// keptBesideLegacyRootRef lists the root keywords a schema declaring a
+// draft before 2019-09 keeps beside a root "$ref": the dialect and
+// resource identity, the definitions references resolve into, and
+// annotations. Every other keyword there is ignored, so it is removed.
+var keptBesideLegacyRootRef = [...]string{"$schema", "$id", "$defs", "definitions", "$comment", "title", "description"}
+
 func foldRootComposition(inputSchema map[string]any, banned []string) map[string]any {
-	folder := rootFolder{root: inputSchema, visiting: map[string]struct{}{}}
+	folder := rootFolder{
+		root:              inputSchema,
+		visiting:          map[string]struct{}{},
+		ignoreRefSiblings: ignoresRefSiblings(inputSchema),
+	}
 	shape := objectShape{properties: map[string]any{}}
-	if properties, ok := inputSchema["properties"].(map[string]any); ok {
-		for name, property := range properties {
-			shape.properties[name] = property
+	if ref, ok := inputSchema["$ref"].(string); ok && folder.ignoreRefSiblings {
+		for key := range inputSchema {
+			if !slices.Contains(keptBesideLegacyRootRef[:], key) && !slices.Contains(banned, key) {
+				banned = append(banned, key)
+			}
 		}
-	}
-	shape.addRequired(coerceRequiredStrings(inputSchema["required"]))
-	if ref, ok := inputSchema["$ref"].(string); ok {
 		folder.mergeRef(&shape, ref)
-	}
-	if branches, ok := inputSchema["allOf"].([]any); ok {
-		for _, branch := range branches {
-			folder.mergeAll(&shape, branch)
+	} else {
+		if properties, ok := inputSchema["properties"].(map[string]any); ok {
+			for name, property := range properties {
+				shape.properties[name] = property
+			}
 		}
-	}
-	for _, key := range []string{"anyOf", "oneOf"} {
-		if branches, ok := inputSchema[key].([]any); ok {
-			folder.mergeAlternatives(&shape, branches)
+		shape.addRequired(coerceRequiredStrings(inputSchema["required"]))
+		if ref, ok := inputSchema["$ref"].(string); ok {
+			folder.mergeRef(&shape, ref)
+		}
+		if branches, ok := inputSchema["allOf"].([]any); ok {
+			for _, branch := range branches {
+				folder.mergeAll(&shape, branch)
+			}
+		}
+		for _, key := range []string{"anyOf", "oneOf"} {
+			if branches, ok := inputSchema[key].([]any); ok {
+				folder.mergeAlternatives(&shape, branches)
+			}
 		}
 	}
 
@@ -196,17 +217,17 @@ func foldRootComposition(inputSchema map[string]any, banned []string) map[string
 		delete(inputSchema, key)
 	}
 	// Some providers reject a required name missing from "properties".
-	required := make([]string, 0, len(shape.required))
+	var undeclared []string
 	for _, name := range shape.required {
 		if _, ok := shape.properties[name]; !ok {
-			property, allowed := undeclaredPropertySchema(inputSchema, name)
-			if !allowed {
-				continue
-			}
-			shape.properties[name] = property
+			undeclared = append(undeclared, name)
 		}
-		required = append(required, name)
 	}
+	maps.Copy(shape.properties, undeclaredPropertySchemas(inputSchema, undeclared))
+	required := slices.DeleteFunc(shape.required, func(name string) bool {
+		_, declared := shape.properties[name]
+		return !declared
+	})
 	inputSchema["properties"] = shape.properties
 	if len(required) > 0 {
 		inputSchema["required"] = required
@@ -216,29 +237,89 @@ func foldRootComposition(inputSchema map[string]any, banned []string) map[string
 	return relocateReferencedRootKeywords(inputSchema, removed)
 }
 
-// undeclaredPropertySchema returns a property schema for a name the root
-// does not list in "properties" that keeps the root's constraints on it:
-// any value when a "patternProperties" pattern matches the name, since
-// the pattern keeps applying, and otherwise the "additionalProperties"
-// schema. It reports false when "additionalProperties" forbids the name,
-// which no argument can then hold.
-func undeclaredPropertySchema(root map[string]any, name string) (any, bool) {
-	if patterns, ok := root["patternProperties"].(map[string]any); ok {
-		for pattern := range patterns {
-			// A pattern Go cannot compile is treated as not matching.
-			if re, err := regexp.Compile(pattern); err == nil && re.MatchString(name) {
-				return map[string]any{}, true
-			}
+// ignoresRefSiblings reports whether a schema declares a draft before
+// 2019-09, in which every keyword beside "$ref" is ignored.
+func ignoresRefSiblings(schema map[string]any) bool {
+	dialect, _ := schema["$schema"].(string)
+	return strings.Contains(dialect, "json-schema.org/draft-0")
+}
+
+// maxPatternMatchCost bounds the regular expression work of matching the
+// required names the root does not declare against its
+// "patternProperties", since a schema can pair many such names with many
+// patterns. Matching a name costs the product of the name and pattern
+// lengths, and compiling a pattern is charged as matching it against a
+// 15 byte name, which costs about as much.
+const maxPatternMatchCost = 1 << 12
+
+// undeclaredPropertySchemas returns property schemas for required names
+// the root does not list in "properties" that keep the root's
+// constraints on them: any value when a "patternProperties" pattern
+// matches the name, since the pattern keeps applying, and otherwise the
+// "additionalProperties" schema. A name that "additionalProperties"
+// forbids is left out, since no argument can then hold it.
+func undeclaredPropertySchemas(root map[string]any, names []string) map[string]any {
+	properties := make(map[string]any, len(names))
+	additional, restricted := root["additionalProperties"].(map[string]any)
+	if allowed, ok := root["additionalProperties"].(bool); ok && !allowed {
+		restricted = true
+	}
+	var matched map[string]bool
+	if restricted {
+		matched = patternMatchedNames(root, names)
+	}
+	for _, name := range names {
+		switch {
+		case !restricted || matched[name]:
+			properties[name] = map[string]any{}
+		case additional != nil:
+			properties[name] = additional
 		}
 	}
-	switch additional := root["additionalProperties"].(type) {
-	case map[string]any:
-		return additional, true
-	case bool:
-		return map[string]any{}, additional
-	default:
-		return map[string]any{}, true
+	return properties
+}
+
+// patternMatchedNames returns the names that a root "patternProperties"
+// pattern matches, compiling each pattern once. A pattern Go cannot
+// compile is treated as not matching. Once maxPatternMatchCost is
+// spent, every name counts as matching, which allows any value for it.
+func patternMatchedNames(root map[string]any, names []string) map[string]bool {
+	patterns, _ := root["patternProperties"].(map[string]any)
+	matched := make(map[string]bool, len(names))
+	unchecked := slices.Clone(names)
+	cost := 0
+	for _, pattern := range slices.Sorted(maps.Keys(patterns)) {
+		if len(unchecked) == 0 {
+			break
+		}
+		cost += 16 * (len(pattern) + 1)
+		if cost > maxPatternMatchCost {
+			break
+		}
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			continue
+		}
+		remaining := unchecked[:0]
+		for _, name := range unchecked {
+			cost += (len(name) + 1) * (len(pattern) + 1)
+			if cost > maxPatternMatchCost {
+				break
+			}
+			if re.MatchString(name) {
+				matched[name] = true
+			} else {
+				remaining = append(remaining, name)
+			}
+		}
+		unchecked = remaining
 	}
+	if cost > maxPatternMatchCost {
+		for _, name := range names {
+			matched[name] = true
+		}
+	}
+	return matched
 }
 
 // relocateReferencedRootKeywords keeps references into removed root
@@ -357,10 +438,8 @@ func relocateReferencedRootKeywords(inputSchema map[string]any, removed map[stri
 	}
 
 	wholeNames := map[string]string{}
-	for _, key := range bannedRootKeys {
-		if whole[key] {
-			wholeNames[key] = define([]string{key}, map[string]any{key: removed[key]})
-		}
+	for _, key := range slices.Sorted(maps.Keys(whole)) {
+		wholeNames[key] = define([]string{key}, map[string]any{key: removed[key]})
 	}
 	names := map[string]string{}
 	for _, pointer := range slices.Sorted(maps.Keys(targets)) {
@@ -392,6 +471,8 @@ func relocateReferencedRootKeywords(inputSchema map[string]any, removed map[stri
 type objectShape struct {
 	properties map[string]any
 	required   []string
+	// requiredSet holds the names in required.
+	requiredSet map[string]struct{}
 	// closed reports that names outside properties are forbidden.
 	closed bool
 	// refs holds the references already merged into the shape. Merging
@@ -401,9 +482,14 @@ type objectShape struct {
 
 func (s *objectShape) addRequired(names []string) {
 	for _, name := range names {
-		if !slices.Contains(s.required, name) {
-			s.required = append(s.required, name)
+		if _, ok := s.requiredSet[name]; ok {
+			continue
 		}
+		if s.requiredSet == nil {
+			s.requiredSet = map[string]struct{}{}
+		}
+		s.requiredSet[name] = struct{}{}
+		s.required = append(s.required, name)
 	}
 }
 
@@ -425,6 +511,9 @@ type rootFolder struct {
 	visiting map[string]struct{}
 	// merged counts the schemas merged so far.
 	merged int
+	// ignoreRefSiblings reports that the schema declares a draft before
+	// 2019-09, which ignores every keyword beside "$ref".
+	ignoreRefSiblings bool
 }
 
 // mergeAll merges a schema that must hold in addition to the root.
@@ -434,6 +523,10 @@ func (f *rootFolder) mergeAll(shape *objectShape, branch any) {
 		return
 	}
 	f.merged++
+	if ref, ok := node["$ref"].(string); ok && f.ignoreRefSiblings {
+		f.mergeRef(shape, ref)
+		return
+	}
 	if _, ok := node["$id"]; ok && toolschema.HasRefs(node) {
 		// References in a separate resource resolve against its own
 		// "$id", so its content cannot move into the root resource.
@@ -510,16 +603,13 @@ func (f *rootFolder) mergeAlternatives(shape *objectShape, branches []any) {
 		f.mergeAll(&alternatives[i], branch)
 	}
 
-	var names []string
+	names := map[string]struct{}{}
 	for _, alternative := range alternatives {
 		for name := range alternative.properties {
-			if !slices.Contains(names, name) {
-				names = append(names, name)
-			}
+			names[name] = struct{}{}
 		}
 	}
-	slices.Sort(names)
-	for _, name := range names {
+	for _, name := range slices.Sorted(maps.Keys(names)) {
 		var options []any
 		for _, alternative := range alternatives {
 			property, ok := alternative.properties[name]
@@ -546,7 +636,7 @@ func (f *rootFolder) mergeAlternatives(shape *objectShape, branches []any) {
 	for _, name := range alternatives[0].required {
 		requiredByAll := true
 		for _, alternative := range alternatives[1:] {
-			if !slices.Contains(alternative.required, name) {
+			if _, ok := alternative.requiredSet[name]; !ok {
 				requiredByAll = false
 				break
 			}
