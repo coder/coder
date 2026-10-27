@@ -131,7 +131,6 @@ export const ManagePendingChange: Story = {
 
 const orgId = MockChatProject.organization_id;
 
-/** Back-End is picked in the add row and its add is saving. */
 export const ManagePendingAdd: Story = {
 	args: { canManage: true, pendingPrincipalId: MockGroup3.id },
 	parameters: {
@@ -143,7 +142,6 @@ export const ManagePendingAdd: Story = {
 			},
 		],
 	},
-	// The role comes first: picking the pending principal disables its select.
 	play: async () => {
 		await userEvent.click(
 			await screen.findByRole("combobox", { name: "Role" }),
