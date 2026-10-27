@@ -174,7 +174,7 @@ This displays the current latency to your selected workspace proxy in the bottom
 
 ## Configuration File Support
 
-The Web Terminal doesn't read a configuration file, including a Ghostty configuration file on your computer.
+The Web Terminal doesn't read any configuration files, including the Ghostty configuration file on your computer.
 However, you can customize various aspects:
 
 ### User-Side Customization
