@@ -473,15 +473,27 @@ describe("ChatPageTimeline question dock", () => {
 		},
 	);
 
-	it("leaves focus outside the dock in place when a newer question arrives", () => {
-		const { store } = renderChatPageTimeline(vi.fn());
-		const outside = document.createElement("button");
-		document.body.append(outside);
-		onTestFinished(() => outside.remove());
-		outside.focus();
+	it.each([
+		{
+			focusKind: "a control outside the dock",
+			getFocusTarget: () => {
+				const outside = document.createElement("button");
+				document.body.append(outside);
+				onTestFinished(() => outside.remove());
+				return outside;
+			},
+		},
+		{ focusKind: "the page body", getFocusTarget: () => document.body },
+	])(
+		"leaves focus on $focusKind when a newer question arrives",
+		({ getFocusTarget }) => {
+			const { store } = renderChatPageTimeline(vi.fn());
+			const focusTarget = getFocusTarget();
+			focusTarget.focus();
 
-		upsertNewerQuestion(store, "newer-question");
+			upsertNewerQuestion(store, "newer-question");
 
-		expect(outside).toHaveFocus();
-	});
+			expect(focusTarget).toHaveFocus();
+		},
+	);
 });

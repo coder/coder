@@ -22,22 +22,21 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
 	const labelId = useId();
-	const sectionRef = useRef<HTMLElement>(null);
-	// Providers can reuse a call ID, so the start time tells the calls apart
-	// and a reused ID still gets a fresh form.
+	const sectionRef = useRef<HTMLElement | null>(null);
+	const replacedFocusedSectionRef = useRef(false);
+	// Providers can reuse a call ID, so the start time tells the calls apart.
+	// Keying the section by it gives a newer question a fresh form that starts
+	// scrolled to the top.
 	const questionKey = `${question.id}:${question.startedAt ?? ""}`;
-	const shownQuestionKeyRef = useRef(questionKey);
 	useEffect(() => {
-		// The effect also runs on mount, and a first question replaces nothing.
-		if (shownQuestionKeyRef.current === questionKey) {
+		if (!replacedFocusedSectionRef.current) {
 			return;
 		}
-		shownQuestionKeyRef.current = questionKey;
-		// A newer question replaced the form that had focus. The region takes
-		// it, so screen readers announce "Open question" and Tab reaches the form.
-		if (document.activeElement === document.body) {
-			sectionRef.current?.focus({ preventScroll: true });
-		}
+		replacedFocusedSectionRef.current = false;
+		// The focus fell to the page body with the replaced section. The region
+		// takes it, so screen readers announce "Open question" and Tab reaches
+		// the form.
+		sectionRef.current?.focus({ preventScroll: true });
 	}, [questionKey]);
 
 	return (
@@ -53,7 +52,16 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 			    pushes the input off a short screen. */}
 			<section
 				key={questionKey}
-				ref={sectionRef}
+				ref={(section) => {
+					sectionRef.current = section;
+					return () => {
+						// React detaches a ref before it removes the node, so a
+						// section that a newer question replaces still holds focus.
+						replacedFocusedSectionRef.current =
+							section?.contains(document.activeElement) ?? false;
+						sectionRef.current = null;
+					};
+				}}
 				aria-labelledby={labelId}
 				tabIndex={-1}
 				className={cn(

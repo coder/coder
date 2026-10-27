@@ -119,10 +119,12 @@ describe("AgentChatPage", () => {
 
 	const answerFromDockOnNarrowScreen = async () => {
 		const originalMatchMedia = window.matchMedia;
-		vi.stubGlobal("matchMedia", (query: string) => ({
-			...originalMatchMedia(query),
-			matches: query === mobileViewportMediaQuery,
-		}));
+		vi.stubGlobal("matchMedia", (query: string) => {
+			const result = originalMatchMedia(query);
+			return query === mobileViewportMediaQuery
+				? { ...result, matches: true }
+				: result;
+		});
 		const user = userEvent.setup();
 		renderChatPage();
 		const dock = await screen.findByRole("region", { name: "Open question" });
