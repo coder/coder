@@ -317,7 +317,8 @@ func TestBuildToolDefinitionsFullSchemaRootComposition(t *testing.T) {
 
 // TestBuildToolDefinitionsFullSchemaRootCompositionAbsoluteRefs verifies
 // that root composition follows references written as the root "$id"
-// URI, not only fragment references.
+// URI, not only fragment references, and that other such references
+// reach the wire as fragment references.
 func TestBuildToolDefinitionsFullSchemaRootCompositionAbsoluteRefs(t *testing.T) {
 	t.Parallel()
 
@@ -326,6 +327,9 @@ func TestBuildToolDefinitionsFullSchemaRootCompositionAbsoluteRefs(t *testing.T)
 		"$ref": "https://example.com/tool.json#/$defs/Base",
 		"allOf": []any{
 			map[string]any{"$ref": "tool.json#/$defs/Named"},
+		},
+		"properties": map[string]any{
+			"alias": map[string]any{"$ref": "https://example.com/tool.json#/$defs/Named/properties/name"},
 		},
 		"$defs": map[string]any{
 			"Base": map[string]any{
@@ -349,6 +353,7 @@ func TestBuildToolDefinitionsFullSchemaRootCompositionAbsoluteRefs(t *testing.T)
 		"$id": "https://example.com/tool.json",
 		"type": "object",
 		"properties": {
+			"alias": {"$ref": "#/$defs/Named/properties/name"},
 			"id": {"type": "integer"},
 			"name": {"type": "string"}
 		},
@@ -365,6 +370,123 @@ func TestBuildToolDefinitionsFullSchemaRootCompositionAbsoluteRefs(t *testing.T)
 			}
 		}
 	}`, string(raw))
+}
+
+// TestBuildToolDefinitionsFullSchemaRootCompositionResourceBranches
+// verifies that a root "allOf" branch declaring its own "$id" still
+// contributes its parameters when it holds no references, which would
+// resolve differently once its content leaves that resource.
+func TestBuildToolDefinitionsFullSchemaRootCompositionResourceBranches(t *testing.T) {
+	t.Parallel()
+
+	source := map[string]any{
+		"type": "object",
+		"allOf": []any{
+			map[string]any{
+				"$id":        "https://example.com/plain.json",
+				"properties": map[string]any{"a": map[string]any{"type": "string"}},
+				"required":   []any{"a"},
+			},
+			map[string]any{
+				"$id":        "https://example.com/linked.json",
+				"properties": map[string]any{"c": map[string]any{"$ref": "#/$defs/C"}},
+				"required":   []any{"c"},
+				"$defs":      map[string]any{"C": map[string]any{"type": "integer"}},
+			},
+			map[string]any{
+				"properties": map[string]any{"b": map[string]any{"type": "integer"}},
+				"required":   []any{"b"},
+			},
+		},
+	}
+	defs := BuildToolDefinitions([]fantasy.AgentTool{fullSchemaTestTool{schema: source}}, nil, nil)
+	require.Len(t, defs, 1)
+	ft, ok := defs[0].(fantasy.FunctionTool)
+	require.True(t, ok)
+	raw, err := json.Marshal(ft.InputSchema)
+	require.NoError(t, err)
+	require.JSONEq(t, `{
+		"type": "object",
+		"properties": {
+			"a": {"type": "string"},
+			"b": {"type": "integer"}
+		},
+		"required": ["a", "b"]
+	}`, string(raw))
+}
+
+// TestBuildToolDefinitionsFullSchemaRootRefTargets verifies that a root
+// "$ref" contributes its parameters however it names its target: through
+// a relative or differently spelled root "$id", or through the "$id" of a
+// resource the schema embeds, which merges only when it holds no
+// references of its own.
+func TestBuildToolDefinitionsFullSchemaRootRefTargets(t *testing.T) {
+	t.Parallel()
+
+	params := `{"properties": {"p": {"type": "string"}}, "required": ["p"]}`
+	for _, tc := range []struct {
+		name   string
+		schema string
+		want   string
+	}{
+		{
+			name:   "relative root $id",
+			schema: `{"$id": "tool.json", "$ref": "tool.json#/$defs/X", "$defs": {"X": ` + params + `}}`,
+			want:   params,
+		},
+		{
+			name:   "root $id with a different host case",
+			schema: `{"$id": "https://Example.COM/t.json", "$ref": "https://example.com/t.json#/$defs/X", "$defs": {"X": ` + params + `}}`,
+			want:   params,
+		},
+		{
+			name: "embedded resource named by its $id",
+			schema: `{
+				"$id": "https://example.com/root.json",
+				"$ref": "https://example.com/other.json",
+				"$defs": {"O": {"$id": "other.json", "properties": {"p": {"type": "string"}}, "required": ["p"]}}
+			}`,
+			want: params,
+		},
+		{
+			name: "embedded resource without a root $id",
+			schema: `{
+				"$ref": "https://example.com/other.json#/$defs/X",
+				"$defs": {"O": {"$id": "https://example.com/other.json", "$defs": {"X": ` + params + `}}}
+			}`,
+			want: params,
+		},
+		{
+			// The reference inside resolves against "linked.json", so
+			// its content cannot move into the root resource.
+			name: "embedded resource with references",
+			schema: `{
+				"$ref": "https://example.com/linked.json#/$defs/X",
+				"$defs": {"L": {
+					"$id": "https://example.com/linked.json",
+					"$defs": {"X": {"properties": {"p": {"$ref": "#/$defs/S"}}}, "S": {"type": "string"}}
+				}}
+			}`,
+			want: `{"properties": {}}`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var source map[string]any
+			require.NoError(t, json.Unmarshal([]byte(tc.schema), &source))
+			defs := BuildToolDefinitions([]fantasy.AgentTool{fullSchemaTestTool{schema: source}}, nil, nil)
+			require.Len(t, defs, 1)
+			ft, ok := defs[0].(fantasy.FunctionTool)
+			require.True(t, ok)
+			got := map[string]any{"properties": ft.InputSchema["properties"]}
+			if required, ok := ft.InputSchema["required"]; ok {
+				got["required"] = required
+			}
+			raw, err := json.Marshal(got)
+			require.NoError(t, err)
+			require.JSONEq(t, tc.want, string(raw))
+		})
+	}
 }
 
 // TestBuildToolDefinitionsFullSchemaKeepsInstanceValues verifies that
@@ -409,7 +531,7 @@ func TestBuildToolDefinitionsFullSchemaKeepsInstanceValues(t *testing.T) {
 			"Payload": {
 				"type": "object",
 				"const": {"type": ["string", "number"]},
-				"enum": [{"type": ["boolean"]}],
+				"anyOf": [{"const": {"type": ["boolean"]}}],
 				"default": {"type": "array"}
 			}
 		}
