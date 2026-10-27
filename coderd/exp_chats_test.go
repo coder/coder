@@ -10788,7 +10788,7 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 			wantReplay: `{"type":"web_search_call","status":"failed","action":{"type":"search","queries":["tokyo population"]}}`,
 		},
 		{
-			name:  "UnstoredSearch",
+			name:  "UnstoredQueriesAndSources",
 			store: ptr.Ref(false),
 			webSearch: chattest.OpenAIWebSearchCall{
 				Queries: []string{"tokyo population", "tokyo census 2025"},
