@@ -66,7 +66,8 @@ func IsKeyword(value string) bool {
 }
 
 // Normalize returns a copy of a schema in the shapes provider drivers
-// accept: draft 4 schemas are rewritten in draft 7 (see UpgradeDraft4),
+// accept: draft 3 and draft 4 schemas are rewritten in draft 7 (see
+// UpgradeLegacyDrafts),
 // recursive references are replaced (see ReplaceRecursiveRefs), a
 // "$schema" that names a published dialect is spelled as published, one
 // that does not is removed, or names draft 7 when it is a draft before
@@ -85,7 +86,7 @@ func IsKeyword(value string) bool {
 // such as "const" and "enum" values keeps its exact shape. The source is
 // not modified.
 func Normalize(schema map[string]any) map[string]any {
-	schema = ReplaceRecursiveRefs(UpgradeDraft4(schema))
+	schema = ReplaceRecursiveRefs(UpgradeLegacyDrafts(schema))
 	// Pointers are encoded only for the anchors references name.
 	anchors := map[resourceAnchor]anchorPath{}
 	duplicated := map[resourceAnchor]bool{}
@@ -257,28 +258,33 @@ var draft4UnknownKeywords = [...]string{
 	"prefixItems", "unevaluatedItems", "unevaluatedProperties", "$dynamicRef",
 }
 
-// UpgradeDraft4 returns a copy of a schema in which every schema read in
-// draft 4 is rewritten in draft 7, which names resources with "$id" and
-// has "const", as the rest of the rewriting and the providers expect. A
-// schema is read in the dialect that its "$schema" names or, without
-// one, that of the nearest schema around it that has one, so the root
-// and the resources it embeds may differ, and every draft 4 URI, such as
-// that of its hyper-schema, names draft 4. In those schemas "id" becomes
-// "$id", a boolean "exclusiveMinimum" or "exclusiveMaximum" becomes the
-// number that draft 7 expects, and "$schema" names draft 7. The keywords
-// draft 4 ignores but later drafts apply are removed, except where a
-// reference's JSON Pointer passes through one: that occurrence keeps its
-// value under a key no draft defines, which validators also ignore, and
-// the references follow it. Normalize may then add some back where they
-// hold as in the source, such as "const" for an "enum". Schemas read in
-// other dialects keep their keywords, and a schema without any read in
+// draft3UnknownKeywords are keywords that draft 4 added, so that a draft
+// 3 validator ignores them.
+var draft3UnknownKeywords = [...]string{
+	"allOf", "anyOf", "oneOf", "not", "multipleOf", "minProperties", "maxProperties",
+}
+
+// UpgradeLegacyDrafts returns a copy of a schema in which every schema
+// read in draft 3 or draft 4 is rewritten in draft 7, which names
+// resources with "$id" and has "const", as the rest of the rewriting and
+// the providers expect. A schema is read in the dialect that its
+// "$schema" names or, without one, that of the nearest schema around it
+// that has one, so the root and the resources it embeds may differ, and
+// every URI under a draft, such as that of its hyper-schema, names that
+// draft. Draft 3 schemas are first rewritten in draft 4 (see
+// upgradeDraft3). In draft 4 schemas "id" becomes "$id", a boolean
+// "exclusiveMinimum" or "exclusiveMaximum" becomes the number that draft
+// 7 expects, and "$schema" names draft 7. The keywords a draft ignores
+// but later drafts apply are removed, except where a reference's JSON
+// Pointer passes through one: that occurrence keeps its value under a
+// key no draft defines, which validators also ignore, and the references
+// follow it. Normalize may then add some back where they hold as in the
+// source, such as "const" for an "enum". Schemas read in other dialects
+// keep their keywords, and a schema without any read in draft 3 or
 // draft 4 is returned as is.
-func UpgradeDraft4(schema map[string]any) map[string]any {
-	draft4 := false
-	walkNode(schema, rootScope(schema), func(_ map[string]any, scope refScope) {
-		draft4 = draft4 || isDraft4(scope.dialect)
-	})
-	if !draft4 {
+func UpgradeLegacyDrafts(schema map[string]any) map[string]any {
+	schema = upgradeDraft3(schema)
+	if !readsIn(schema, isDraft4) {
 		return schema
 	}
 	upgraded := copyNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
@@ -301,7 +307,169 @@ func UpgradeDraft4(schema map[string]any) map[string]any {
 			}
 		}
 	})
-	return removeDraft4UnknownKeywords(upgraded)
+	return removeUnknownKeywords(upgraded, isDraft4, draft4UnknownKeywords[:], "x-draft4-", "http://json-schema.org/draft-07/schema#")
+}
+
+// upgradeDraft3 returns a copy of a schema in which every schema read in
+// draft 3 is rewritten in draft 4, or the schema itself when none is.
+// Draft 4 changed what some draft 3 keywords mean, and providers reject
+// the draft 3 forms: a "required": true in a property's schema becomes
+// the property's name in the "required" list of the schema holding
+// "properties", "type" "any" goes, schemas in a "type" list become an
+// "anyOf", "disallow" becomes a "not", "extends" becomes an "allOf",
+// "divisibleBy" becomes "multipleOf", a "dependencies" property name
+// becomes a list of one, and "$schema" names draft 4. The keywords draft
+// 4 added are removed first, as UpgradeLegacyDrafts describes, so the
+// rewriting adds only the ones that hold as in the source.
+func upgradeDraft3(schema map[string]any) map[string]any {
+	if !readsIn(schema, isDraft3) {
+		return schema
+	}
+	schema = removeUnknownKeywords(schema, isDraft3, draft3UnknownKeywords[:], "x-draft3-", "")
+	var visit visitFunc
+	visit = func(node map[string]any, scope refScope) {
+		if !isDraft3(scope.dialect) {
+			return
+		}
+		// Draft 3 holds schemas under "extends" and in "type" and
+		// "disallow" lists, which the copy did not reach.
+		copyAll := func(key string, values []any) []any {
+			copied := make([]any, len(values))
+			for i, value := range values {
+				copied[i] = copySchema(value, scope.at(key).at(strconv.Itoa(i)), visit)
+			}
+			return copied
+		}
+		if value, ok := node["divisibleBy"]; ok {
+			delete(node, "divisibleBy")
+			node["multipleOf"] = value
+		}
+		if value, ok := node["extends"]; ok {
+			delete(node, "extends")
+			list, ok := value.([]any)
+			if !ok {
+				list = []any{value}
+			}
+			node["allOf"] = copyAll("allOf", list)
+		}
+		if variants, ok := draft3Types(node["type"]); ok {
+			delete(node, "type")
+			if !slices.ContainsFunc(variants, isEmptySchema) {
+				node["anyOf"] = copyAll("anyOf", variants)
+			}
+		}
+		if value, ok := node["disallow"]; ok {
+			delete(node, "disallow")
+			variants, ok := draft3Types(value)
+			if !ok {
+				variants = []any{map[string]any{"type": value}}
+			}
+			switch variants = copyAll("not", variants); len(variants) {
+			case 0:
+			case 1:
+				node["not"] = variants[0]
+			default:
+				node["not"] = map[string]any{"anyOf": variants}
+			}
+		}
+		if dependencies, ok := node["dependencies"].(map[string]any); ok {
+			for name, dependency := range dependencies {
+				if property, ok := dependency.(string); ok {
+					dependencies[name] = []any{property}
+				}
+			}
+		}
+	}
+	upgraded := copyNode(schema, rootScope(schema), visit)
+	// A property's "required" is read before the property's own schema
+	// replaces it with the names of its properties.
+	walkNode(upgraded, rootScope(upgraded), func(node map[string]any, scope refScope) {
+		if !isDraft3(scope.dialect) {
+			return
+		}
+		if _, ok := node["$schema"].(string); ok {
+			node["$schema"] = "http://json-schema.org/draft-04/schema#"
+		}
+		if _, ok := node["required"].(bool); ok {
+			delete(node, "required")
+		}
+		properties, _ := node["properties"].(map[string]any)
+		var names []string
+		for name, property := range properties {
+			if property, ok := property.(map[string]any); ok {
+				if required, _ := property["required"].(bool); required {
+					names = append(names, name)
+				}
+			}
+		}
+		if len(names) == 0 {
+			return
+		}
+		slices.Sort(names)
+		// A list is not draft 3, but it names required properties as
+		// in draft 4.
+		required, _ := node["required"].([]any)
+		required = slices.Clone(required)
+		for _, name := range names {
+			if !slices.Contains(required, any(name)) {
+				required = append(required, name)
+			}
+		}
+		node["required"] = required
+	})
+	return upgraded
+}
+
+// draft3Types returns the schemas of the alternatives that a draft 3
+// "type" or "disallow" value lists, with an empty schema for "any", and
+// reports false when the value is a type name or list of type names that
+// draft 4 reads the same way.
+func draft3Types(value any) ([]any, bool) {
+	list, ok := value.([]any)
+	if !ok {
+		list = []any{value}
+	}
+	plain := true
+	variants := make([]any, len(list))
+	for i, item := range list {
+		switch item {
+		case "any":
+			plain = false
+			variants[i] = map[string]any{}
+		default:
+			if _, ok := item.(map[string]any); ok {
+				plain = false
+				variants[i] = item
+			} else {
+				variants[i] = map[string]any{"type": item}
+			}
+		}
+	}
+	if plain {
+		return nil, false
+	}
+	return variants, true
+}
+
+func isEmptySchema(value any) bool {
+	node, ok := value.(map[string]any)
+	return ok && len(node) == 0
+}
+
+// readsIn reports whether a schema or one of its subschemas is read in a
+// dialect for which is returns true (see UpgradeLegacyDrafts).
+func readsIn(schema map[string]any, is func(dialect string) bool) bool {
+	found := false
+	walkNode(schema, rootScope(schema), func(_ map[string]any, scope refScope) {
+		found = found || is(scope.dialect)
+	})
+	return found
+}
+
+// isDraft3 reports whether a dialect that Dialect returned is a draft 3
+// dialect.
+func isDraft3(dialect string) bool {
+	return strings.Contains(dialect, "json-schema.org/draft-03/")
 }
 
 // isDraft4 reports whether a dialect that Dialect returned is a draft 4
@@ -310,11 +478,12 @@ func isDraft4(dialect string) bool {
 	return strings.Contains(dialect, "json-schema.org/draft-04/")
 }
 
-// removeDraft4UnknownKeywords removes draft4UnknownKeywords from the
-// schemas read in draft 4 that UpgradeDraft4 rewrote, keeping the
-// occurrences that references pass through as UpgradeDraft4 describes,
-// and makes their "$schema" name draft 7.
-func removeDraft4UnknownKeywords(schema map[string]any) map[string]any {
+// removeUnknownKeywords returns a copy of a schema without the unknown
+// keywords in the schemas read in a dialect that legacy reports, keeping
+// the occurrences that references pass through under a key that starts
+// with prefix, as UpgradeLegacyDrafts describes. When target is not
+// empty, their "$schema" becomes target.
+func removeUnknownKeywords(schema map[string]any, legacy func(dialect string) bool, unknown []string, prefix, target string) map[string]any {
 	// kept maps the encoded path of each occurrence a reference passes
 	// through to the key that keeps its value.
 	kept := map[string]string{}
@@ -333,34 +502,34 @@ func removeDraft4UnknownKeywords(schema map[string]any) map[string]any {
 		}
 		keywords := PointerKeywords(tokens)
 		for i, token := range tokens {
-			if !keywords[i] || !slices.Contains(draft4UnknownKeywords[:], token) {
+			if !keywords[i] || !slices.Contains(unknown, token) {
 				continue
 			}
 			path := append(slices.Clone(resource), tokens[:i+1]...)
 			holder, dialect, ok := schemaAt(schema, path[:len(path)-1])
-			if !ok || !isDraft4(dialect) {
+			if !ok || !legacy(dialect) {
 				continue
 			}
 			if _, ok := holder[token]; !ok {
 				continue
 			}
-			name := "x-draft4-" + token
+			name := prefix + token
 			for n := 2; ; n++ {
 				if _, taken := holder[name]; !taken {
 					break
 				}
-				name = "x-draft4-" + token + "-" + strconv.Itoa(n)
+				name = prefix + token + "-" + strconv.Itoa(n)
 			}
 			kept[EncodePointer(path)] = name
 		}
 	})
 	return copyNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
-		if isDraft4(scope.dialect) {
-			if _, ok := node["$schema"].(string); ok {
-				node["$schema"] = "http://json-schema.org/draft-07/schema#"
+		if legacy(scope.dialect) {
+			if _, ok := node["$schema"].(string); ok && target != "" {
+				node["$schema"] = target
 			}
 			var path []string
-			for _, key := range draft4UnknownKeywords {
+			for _, key := range unknown {
 				value, ok := node[key]
 				if !ok {
 					continue
@@ -398,7 +567,7 @@ func removeDraft4UnknownKeywords(schema map[string]any) map[string]any {
 
 // schemaAt returns the schema object that JSON Pointer tokens locate in
 // root, passing only through the positions that hold schemas, and the
-// dialect it is read in (see UpgradeDraft4). It reports false when the
+// dialect it is read in (see UpgradeLegacyDrafts). It reports false when the
 // tokens locate no such schema.
 func schemaAt(root map[string]any, tokens []string) (map[string]any, string, bool) {
 	node, dialect := root, Dialect(root)
@@ -635,9 +804,8 @@ func normalizeNode(node map[string]any, scope refScope) {
 }
 
 // publishedDialects are the "$schema" URIs of the published JSON Schema
-// dialects that Normalize keeps. Draft 3 is not among them: the
-// rewriting gives its schemas keywords that draft 3 does not define,
-// such as "anyOf", so a draft 3 schema names draft 7 instead.
+// dialects that Normalize keeps. Draft 3 is not among them:
+// UpgradeLegacyDrafts rewrites draft 3 schemas in draft 7.
 var publishedDialects = [...]string{
 	"http://json-schema.org/draft-04/schema#",
 	"http://json-schema.org/draft-06/schema#",
@@ -1182,7 +1350,7 @@ type refScope struct {
 	resource     map[string]any
 	resourcePath *pathToken
 	// dialect is the dialect the subschema is read in (see
-	// UpgradeDraft4), as Dialect returns it.
+	// UpgradeLegacyDrafts), as Dialect returns it.
 	dialect string
 }
 

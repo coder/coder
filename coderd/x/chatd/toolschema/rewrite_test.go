@@ -541,8 +541,7 @@ func TestNormalize(t *testing.T) {
 			// Providers reject a "$schema" that is not spelled as
 			// published. One under a legacy draft is read as that draft,
 			// and one for another dialect goes, which reads as 2020-12.
-			// Draft 3 does not define keywords the rewriting adds, such
-			// as "anyOf", so it names draft 7.
+			// Draft 3 is rewritten in draft 7.
 			name: "published dialects are spelled as published",
 			schema: `{
 				"$schema": "HTTP://JSON-SCHEMA.ORG/draft-07/schema#",
@@ -678,6 +677,104 @@ func TestNormalize(t *testing.T) {
 					"k": {"const": 1},
 					"legacy": {"$schema": "http://json-schema.org/draft-07/schema#", "$id": "legacy.json", "exclusiveMinimum": 0},
 					"hyper": {"$schema": "http://json-schema.org/draft-07/schema#", "$id": "hyper.json", "exclusiveMaximum": 9}
+				}
+			}`,
+		},
+		{
+			// Providers reject the draft 3 forms of keywords whose
+			// meaning draft 4 changed. A "required": true moves to the
+			// list of the schema holding "properties", after the names of
+			// a list that the schema already has, and the schemas draft 3
+			// holds under "extends", "type" and "disallow" are rewritten
+			// too. Keywords draft 4 added go, since draft 3 ignores them,
+			// and "type" "any" allows every value.
+			name: "draft 3 is rewritten in draft 7",
+			schema: `{
+				"$schema": "http://json-schema.org/draft-03/schema#",
+				"type": "object",
+				"required": ["extra"],
+				"properties": {
+					"name": {"type": "string", "required": true},
+					"count": {"type": "integer", "divisibleBy": 5, "minimum": 0, "exclusiveMinimum": true, "required": false},
+					"child": {"type": "object", "required": true, "properties": {"leaf": {"type": "any", "required": true}}},
+					"either": {"type": ["string", {"type": "object", "properties": {"x": {"type": "string", "required": true}}}]},
+					"mode": {"type": "string", "disallow": ["null", {"enum": ["off"]}], "extends": {"maxLength": 9}},
+					"link": {"extends": [{"minLength": 1}, {"$ref": "#/definitions/Short"}], "dependencies": {"a": "b", "c": ["d"]}},
+					"plain": {"type": ["string", "null"], "disallow": "integer"},
+					"loose": {"type": ["string", "any"], "anyOf": [{"type": "integer"}], "const": 3}
+				},
+				"definitions": {"Short": {"maxLength": 3}}
+			}`,
+			want: `{
+				"$schema": "http://json-schema.org/draft-07/schema#",
+				"type": "object",
+				"required": ["extra", "child", "name"],
+				"properties": {
+					"name": {"type": "string"},
+					"count": {"type": "integer", "multipleOf": 5, "exclusiveMinimum": 0},
+					"child": {"type": "object", "required": ["leaf"], "properties": {"leaf": {}}},
+					"either": {"anyOf": [{"type": "string"}, {"type": "object", "required": ["x"], "properties": {"x": {"type": "string"}}}]},
+					"mode": {"type": "string", "not": {"anyOf": [{"type": "null"}, {"enum": ["off"]}]}, "allOf": [{"maxLength": 9}]},
+					"link": {"allOf": [{"minLength": 1}, {"$ref": "#/definitions/Short"}], "dependencies": {"a": ["b"], "c": ["d"]}},
+					"plain": {"anyOf": [{"type": "string"}, {"type": "null"}], "not": {"type": "integer"}},
+					"loose": {}
+				},
+				"definitions": {"Short": {"maxLength": 3}}
+			}`,
+		},
+		{
+			// A pointer that passes through a keyword draft 4 added keeps
+			// it under a key no draft defines, as in draft 4, and a draft 3
+			// hyper-schema is draft 3.
+			name: "draft 3 keeps keywords that pointers pass through",
+			schema: `{
+				"$schema": "http://json-schema.org/draft-03/hyper-schema#",
+				"properties": {
+					"a": {"allOf": [{"type": "string"}], "minProperties": 1, "required": true},
+					"b": {"$ref": "#/definitions/D/oneOf/0"}
+				},
+				"definitions": {"D": {"oneOf": [{"type": "integer"}]}}
+			}`,
+			want: `{
+				"$schema": "http://json-schema.org/draft-07/schema#",
+				"required": ["a"],
+				"properties": {
+					"a": {},
+					"b": {"$ref": "#/definitions/D/x-draft3-oneOf/0"}
+				},
+				"definitions": {"D": {"x-draft3-oneOf": [{"type": "integer"}]}}
+			}`,
+		},
+		{
+			// A draft 3 resource is rewritten in a root of another
+			// dialect, while a resource of another dialect inside it keeps
+			// its keywords.
+			name: "draft 3 rewriting skips resources in other dialects",
+			schema: `{
+				"properties": {
+					"modern": {"required": ["y"], "anyOf": [{"type": "string"}]},
+					"legacy": {
+						"$schema": "http://json-schema.org/draft-03/schema#",
+						"id": "legacy.json",
+						"properties": {
+							"x": {"type": "integer", "required": true},
+							"inner": {"$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "inner.json", "required": ["z"], "anyOf": [{"type": "object"}]}
+						}
+					}
+				}
+			}`,
+			want: `{
+				"properties": {
+					"modern": {"required": ["y"], "anyOf": [{"type": "string"}]},
+					"legacy": {
+						"$schema": "http://json-schema.org/draft-07/schema#",
+						"$id": "legacy.json",
+						"required": ["x"],
+						"properties": {
+							"x": {"type": "integer"},
+							"inner": {"$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "inner.json", "required": ["z"], "anyOf": [{"type": "object"}]}
+						}
+					}
 				}
 			}`,
 		},
