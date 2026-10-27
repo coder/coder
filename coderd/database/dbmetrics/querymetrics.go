@@ -1800,6 +1800,14 @@ func (m queryMetricsStore) GetChatMessagesForPromptByChatID(ctx context.Context,
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatMessagesWithFilePartsByChatID(ctx context.Context, arg database.GetChatMessagesWithFilePartsByChatIDParams) ([]database.ChatMessage, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatMessagesWithFilePartsByChatID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatMessagesWithFilePartsByChatID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatMessagesWithFilePartsByChatID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (database.ChatModelConfig, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatModelConfigByID(ctx, id)

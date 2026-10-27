@@ -719,6 +719,22 @@ func TestSanitizeAnthropicProviderToolHistory(t *testing.T) {
 			wantRemovedResults: 1,
 		},
 		{
+			name:     "drops provider result without output text",
+			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{{
+				Role: fantasy.MessageRoleUser,
+				Content: []fantasy.MessagePart{
+					textPart,
+					fantasy.ToolResultPart{ToolCallID: "srvtoolu_empty", ProviderExecuted: true},
+				},
+			}},
+			want: []fantasy.Message{{
+				Role:    fantasy.MessageRoleUser,
+				Content: []fantasy.MessagePart{textPart},
+			}},
+			wantRemovedResults: 1,
+		},
+		{
 			name:     "handles pointer tool parts",
 			provider: fantasyanthropic.Name,
 			messages: []fantasy.Message{{

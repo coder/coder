@@ -241,12 +241,13 @@ const WorkspaceParametersPage: React.FC = () => {
 		}
 	};
 
+	const { parameters } = latestResponse ?? {};
 	const sortedParams = useMemo(() => {
-		if (!latestResponse?.parameters) {
+		if (!parameters) {
 			return [];
 		}
-		return [...latestResponse.parameters].sort((a, b) => a.order - b.order);
-	}, [latestResponse?.parameters]);
+		return [...parameters].sort((a, b) => a.order - b.order);
+	}, [parameters]);
 
 	const error =
 		wsError || startWithParameters.error || restartWithParameters.error;

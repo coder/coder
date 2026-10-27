@@ -2,6 +2,7 @@ package chatloop
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -51,21 +52,42 @@ func summaryTextStream() fantasy.StreamResponse {
 	)
 }
 
-func TestStartCompactionDebugRun_DoesNotReportDebugErrors(t *testing.T) {
+func TestStartCompactionDebugRun(t *testing.T) {
 	t.Parallel()
 
+	parentRun := chatdebug.RunContext{
+		RunID:               uuid.New(),
+		RootChatID:          uuid.New(),
+		ParentChatID:        uuid.New(),
+		ModelConfigID:       uuid.New(),
+		TriggerMessageID:    41,
+		HistoryTipMessageID: 42,
+		Provider:            "fake-provider",
+		Model:               "fake-model",
+	}
 	newParentContext := func(chatID uuid.UUID) context.Context {
-		return chatdebug.ContextWithRun(context.Background(), &chatdebug.RunContext{
-			RunID:               uuid.New(),
-			ChatID:              chatID,
-			RootChatID:          uuid.New(),
-			ParentChatID:        uuid.New(),
-			ModelConfigID:       uuid.New(),
-			TriggerMessageID:    41,
-			HistoryTipMessageID: 42,
-			Provider:            "fake-provider",
-			Model:               "fake-model",
-		})
+		run := parentRun
+		run.ChatID = chatID
+		return chatdebug.ContextWithRun(context.Background(), &run)
+	}
+	expectRunInsert := func(t *testing.T, db *dbmock.MockStore, want chatdebug.RunContext, run database.ChatDebugRun, err error) {
+		db.EXPECT().InsertChatDebugRun(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(_ context.Context, params database.InsertChatDebugRunParams) (database.ChatDebugRun, error) {
+				params.StartedAt, params.UpdatedAt = sql.NullTime{}, sql.NullTime{}
+				require.Equal(t, database.InsertChatDebugRunParams{
+					ChatID:              want.ChatID,
+					RootChatID:          uuid.NullUUID{UUID: want.RootChatID, Valid: true},
+					ParentChatID:        uuid.NullUUID{UUID: want.ParentChatID, Valid: true},
+					ModelConfigID:       uuid.NullUUID{UUID: want.ModelConfigID, Valid: true},
+					TriggerMessageID:    sql.NullInt64{Int64: want.TriggerMessageID, Valid: true},
+					HistoryTipMessageID: sql.NullInt64{Int64: want.HistoryTipMessageID, Valid: true},
+					Kind:                string(chatdebug.KindCompaction),
+					Status:              string(chatdebug.StatusInProgress),
+					Provider:            sql.NullString{String: want.Provider, Valid: true},
+					Model:               sql.NullString{String: want.Model, Valid: true},
+				}, params)
+				return run, err
+			})
 	}
 
 	t.Run("CreateRun", func(t *testing.T) {
@@ -76,10 +98,9 @@ func TestStartCompactionDebugRun_DoesNotReportDebugErrors(t *testing.T) {
 		svc := chatdebug.NewService(db, testutil.Logger(t), nil)
 		chatID := uuid.New()
 
-		db.EXPECT().InsertChatDebugRun(
-			gomock.Any(),
-			gomock.AssignableToTypeOf(database.InsertChatDebugRunParams{}),
-		).Return(database.ChatDebugRun{}, xerrors.New("insert compaction debug run"))
+		want := parentRun
+		want.ChatID = chatID
+		expectRunInsert(t, db, want, database.ChatDebugRun{}, xerrors.New("insert compaction debug run"))
 
 		ctx := newParentContext(chatID)
 		compactionCtx, finish := startCompactionDebugRun(ctx, GenerateCompactionOptions{
@@ -107,13 +128,18 @@ func TestStartCompactionDebugRun_DoesNotReportDebugErrors(t *testing.T) {
 		}})
 		require.NoError(t, err)
 
-		db.EXPECT().InsertChatDebugRun(
-			gomock.Any(),
-			gomock.AssignableToTypeOf(database.InsertChatDebugRunParams{}),
-		).Return(database.ChatDebugRun{ //nolint:exhaustruct // Test only needs IDs.
-			ID:     runID,
-			ChatID: chatID,
-		}, nil)
+		want := chatdebug.RunContext{
+			RunID:               runID,
+			ChatID:              chatID,
+			RootChatID:          parentRun.RootChatID,
+			ParentChatID:        parentRun.ParentChatID,
+			ModelConfigID:       uuid.New(),
+			TriggerMessageID:    parentRun.TriggerMessageID,
+			HistoryTipMessageID: 43,
+			Provider:            "summary-provider",
+			Model:               "summary-model",
+		}
+		expectRunInsert(t, db, want, database.ChatDebugRun{ID: runID, ChatID: chatID}, nil)
 		db.EXPECT().GetChatDebugStepsByRunID(gomock.Any(), runID).Return([]database.ChatDebugStep{{
 			ID:       uuid.New(),
 			RunID:    runID,
@@ -128,18 +154,24 @@ func TestStartCompactionDebugRun_DoesNotReportDebugErrors(t *testing.T) {
 		).DoAndReturn(func(_ context.Context, params database.UpdateChatDebugRunParams) (database.ChatDebugRun, error) {
 			require.Equal(t, chatID, params.ChatID)
 			require.Equal(t, runID, params.ID)
+			require.Equal(t, string(chatdebug.StatusCompleted), params.Status.String)
 			require.True(t, params.Summary.Valid)
 			require.JSONEq(t, `{"endpoint_label":"POST /v1/messages","step_count":1,"total_input_tokens":7,"total_output_tokens":3}`,
 				string(params.Summary.RawMessage))
 			return database.ChatDebugRun{ID: runID, ChatID: chatID}, nil
 		})
 
-		ctx := newParentContext(chatID)
-		compactionCtx, finish := startCompactionDebugRun(ctx, GenerateCompactionOptions{
-			DebugSvc: svc,
-			ChatID:   chatID,
+		compactionCtx, finish := startCompactionDebugRun(newParentContext(chatID), GenerateCompactionOptions{
+			DebugSvc:            svc,
+			ChatID:              chatID,
+			HistoryTipMessageID: want.HistoryTipMessageID,
+			ResolvedProvider:    want.Provider,
+			ResolvedModel:       want.Model,
+			ModelConfigID:       want.ModelConfigID,
 		})
-		require.NotSame(t, ctx, compactionCtx)
+		got, ok := chatdebug.RunFromContext(compactionCtx)
+		require.True(t, ok)
+		require.Equal(t, want, *got)
 		finish(nil)
 	})
 
@@ -152,18 +184,15 @@ func TestStartCompactionDebugRun_DoesNotReportDebugErrors(t *testing.T) {
 		chatID := uuid.New()
 		runID := uuid.New()
 
-		db.EXPECT().InsertChatDebugRun(
-			gomock.Any(),
-			gomock.AssignableToTypeOf(database.InsertChatDebugRunParams{}),
-		).Return(database.ChatDebugRun{ //nolint:exhaustruct // Test only needs IDs.
-			ID:     runID,
-			ChatID: chatID,
-		}, nil)
+		want := parentRun
+		want.ChatID = chatID
+		expectRunInsert(t, db, want, database.ChatDebugRun{ID: runID, ChatID: chatID}, nil)
 		db.EXPECT().GetChatDebugStepsByRunID(gomock.Any(), runID).Return(nil, xerrors.New("aggregate compaction debug run"))
-		db.EXPECT().UpdateChatDebugRun(
-			gomock.Any(),
-			gomock.AssignableToTypeOf(database.UpdateChatDebugRunParams{}),
-		).Return(database.ChatDebugRun{}, xerrors.New("finalize compaction debug run"))
+		db.EXPECT().UpdateChatDebugRun(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(_ context.Context, params database.UpdateChatDebugRunParams) (database.ChatDebugRun, error) {
+				require.Equal(t, string(chatdebug.StatusInterrupted), params.Status.String)
+				return database.ChatDebugRun{}, xerrors.New("finalize compaction debug run")
+			})
 
 		ctx := newParentContext(chatID)
 		compactionCtx, finish := startCompactionDebugRun(ctx, GenerateCompactionOptions{
@@ -171,7 +200,7 @@ func TestStartCompactionDebugRun_DoesNotReportDebugErrors(t *testing.T) {
 			ChatID:   chatID,
 		})
 		require.NotSame(t, ctx, compactionCtx)
-		finish(nil)
+		finish(context.Canceled)
 	})
 }
 

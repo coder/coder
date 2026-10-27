@@ -155,8 +155,11 @@ See the [workspace tags documentation](../../../admin/templates/extending-templa
 A provisioner can run a given build job if one of the below is true:
 
 1. A job with no explicit tags can only be run on a provisioner with no explicit tags.
+
    This way you can introduce tagging into your deployment without disrupting existing provisioners and jobs.
-1. If a job has any explicit tags, it can only run on a provisioner with those explicit tags (the provisioner could have additional tags).
+1. If a job has any explicit tags, it can only run on a provisioner with those explicit tags.
+
+   The provisioner could have additional tags.
 
 The external provisioner in the above example can run build jobs in the same organization with tags:
 
