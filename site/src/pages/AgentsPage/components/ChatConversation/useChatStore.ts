@@ -158,8 +158,9 @@ export const useChatStore = (
 		};
 
 		// The cleanups clear the transient state when the visit ends, so a
-		// reopened store renders without it. This reset covers clientError,
-		// which a request that fails after the visit ended still sets.
+		// reopened store renders without it. A request that fails after the
+		// visit ended still sets clientError, which shows for one frame until
+		// this reset.
 		store.resetTransientState();
 
 		if (!initialDataLoaded || aiGatewayDisabled) {
