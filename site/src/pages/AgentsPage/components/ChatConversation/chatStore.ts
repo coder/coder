@@ -476,8 +476,8 @@ export const createChatStore = (): ChatStore => {
 		},
 		seed,
 		resetHistoryFrom: (fromID, snapshotVersion) => {
-			// A reconnect resends the reset of the synced commit, which the
-			// store already applied.
+			// Each stream open resends the synced commit, which the store
+			// already holds.
 			if (snapshotVersion <= syncedSnapshotVersion) {
 				return;
 			}
