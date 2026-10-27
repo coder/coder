@@ -85,6 +85,9 @@ export function useConversationEditingState(deps: {
 	// The composer shows an async answer without its prefix line, so the
 	// send adds the line back to keep the answer tied to its question.
 	const [editingAnswerPrefix, setEditingAnswerPrefix] = useState("");
+	// Counts opened edits, so an edit that finishes sending after the user
+	// opened another one leaves the newer edit's composer and state alone.
+	const openedEditCountRef = useRef(0);
 
 	const handleEditUserMessage = (
 		messageId: number,
@@ -92,6 +95,7 @@ export function useConversationEditingState(deps: {
 		fileBlocks?: readonly ChatMessagePart[],
 		editorState?: string,
 	) => {
+		openedEditCountRef.current += 1;
 		if (editingMessageId === null) {
 			// Read the current serialized editor state from localStorage
 			// (kept up-to-date by handleContentChange) rather than from
@@ -191,6 +195,7 @@ export function useConversationEditingState(deps: {
 			editingMessageId !== null ? editingMessageId : undefined;
 		const answerPrefix =
 			editedMessageID !== undefined ? editingAnswerPrefix : "";
+		const openedEditCount = openedEditCountRef.current;
 		const sendPromise = onSend({
 			message: answerPrefix + message,
 			attachments,
@@ -221,6 +226,12 @@ export function useConversationEditingState(deps: {
 			throw error;
 		}
 
+		if (
+			editedMessageID !== undefined &&
+			openedEditCountRef.current !== openedEditCount
+		) {
+			return;
+		}
 		finalizeSuccessfulSend(editedMessageID);
 	};
 

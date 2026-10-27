@@ -42,10 +42,7 @@ import {
 	deriveMessageDisplayState,
 	getVisibleContent,
 } from "./messageHelpers";
-import {
-	getEditableUserMessagePayload,
-	parseAsyncAnswerContent,
-} from "./messageParsing";
+import { getEditableUserMessagePayload } from "./messageParsing";
 import { assignTimelineRows } from "./timelineRows";
 import type {
 	MergedTool,
@@ -335,12 +332,7 @@ const ChatMessageItem = memo<{
 						>
 							{displayState.hasCopyableContent && parsed && (
 								<CopyButton
-									text={
-										isUser
-											? (parseAsyncAnswerContent(message.content)?.body ??
-												parsed.markdown)
-											: parsed.markdown
-									}
+									text={displayState.copyText}
 									label="Copy message"
 									className="size-6"
 									tooltipSide="bottom"
