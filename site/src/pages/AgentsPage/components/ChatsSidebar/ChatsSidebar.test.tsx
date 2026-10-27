@@ -154,7 +154,6 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 
 describe("ChatsSidebar projects", () => {
 	beforeEach(() => {
-		// Open project folders fetch their project's chats.
 		server.use(http.get("/api/v2/chats", () => HttpResponse.json([])));
 	});
 

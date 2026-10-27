@@ -52,9 +52,9 @@ type MergeProjectFolderChatsOptions = {
 };
 
 /**
- * Lists a project folder's chats, newest first. The filed copy wins because
- * the sidebar list sees creates and moves first, and fetched rows are checked
- * again because cached rows change in place after the fetch.
+ * The filed copy wins because the sidebar list sees creates and moves first,
+ * and fetched rows are checked again because cached rows change in place
+ * after the fetch.
  */
 export const mergeProjectFolderChats = ({
 	projectId,

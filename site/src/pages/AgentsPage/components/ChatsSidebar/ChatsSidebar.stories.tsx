@@ -2912,7 +2912,6 @@ const mockProjectChats = [
 	}),
 ];
 
-/** Open folders fetch their project's chats with the sidebar's filters. */
 const launchFolderChatsKey = projectFolderChatsKey(
 	MockChatProject.id,
 	toChatListParams(getSidebarChatListInput(defaultSidebarFilters)),

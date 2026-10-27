@@ -29,10 +29,7 @@ type ProjectFolderChatsProps = {
 	readonly emptyMessage: string;
 };
 
-/**
- * An expanded folder's chats. The folder fetches its project's chats itself,
- * because the sidebar's loaded pages may not reach the older ones.
- */
+/** Fetches on its own, since the sidebar's loaded pages may not reach a project's older chats. */
 export const ProjectFolderChats: React.FC<ProjectFolderChatsProps> = ({
 	projectId,
 	projectLabel,
