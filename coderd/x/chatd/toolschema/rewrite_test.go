@@ -281,6 +281,27 @@ func TestNormalize(t *testing.T) {
 			}`,
 		},
 		{
+			name: "a root $id anchor beside $anchor stays referable",
+			schema: `{
+				"$id": "https://example.com/tool.json#root",
+				"$anchor": "other",
+				"properties": {
+					"child": {"$ref": "#root"},
+					"absolute": {"$ref": "https://example.com/tool.json#root"},
+					"other": {"$ref": "#other"}
+				}
+			}`,
+			want: `{
+				"$id": "https://example.com/tool.json",
+				"$anchor": "other",
+				"properties": {
+					"child": {"$ref": "#"},
+					"absolute": {"$ref": "#"},
+					"other": {"$ref": "#"}
+				}
+			}`,
+		},
+		{
 			// Some providers do not resolve anchors, and a draft 7
 			// validator does not read "$anchor", so a reference to an
 			// anchor of the root resource becomes a JSON Pointer. A
@@ -291,6 +312,7 @@ func TestNormalize(t *testing.T) {
 				"$anchor": "root",
 				"properties": {
 					"def": {"$ref": "#A"},
+					"draft 7 beside $anchor": {"$ref": "#old"},
 					"list item": {"$ref": "#item"},
 					"escaped": {"$ref": "#slash"},
 					"root": {"$ref": "#root"},
@@ -301,16 +323,18 @@ func TestNormalize(t *testing.T) {
 				},
 				"$defs": {
 					"A": {"$anchor": "A", "type": "string"},
+					"Old": {"$id": "#old", "$anchor": "new", "type": "string"},
 					"List": {"allOf": [{"type": "integer"}, {"$anchor": "item", "minimum": 1}]},
 					"S/T": {"$anchor": "slash", "type": "boolean"},
 					"D1": {"$anchor": "dup", "type": "string"},
-					"D2": {"$anchor": "dup", "type": "number"}
+					"D2": {"$id": "#dup", "type": "number"}
 				}
 			}`,
 			want: `{
 				"$anchor": "root",
 				"properties": {
 					"def": {"$ref": "#/$defs/A"},
+					"draft 7 beside $anchor": {"$ref": "#/$defs/Old"},
 					"list item": {"$ref": "#/$defs/List/allOf/1"},
 					"escaped": {"$ref": "#/$defs/S~1T"},
 					"root": {"$ref": "#"},
@@ -321,6 +345,7 @@ func TestNormalize(t *testing.T) {
 				},
 				"$defs": {
 					"A": {"$anchor": "A", "type": "string"},
+					"Old": {"$anchor": "new", "type": "string"},
 					"List": {"allOf": [{"type": "integer"}, {"$anchor": "item", "minimum": 1}]},
 					"S/T": {"$anchor": "slash", "type": "boolean"},
 					"D1": {"$anchor": "dup", "type": "string"},
