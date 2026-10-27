@@ -195,6 +195,7 @@ export const applyMessagePartToStreamState = (
 						isStreaming: isStreaming || undefined,
 						mcpServerConfigId:
 							part.mcp_server_config_id || existing?.mcpServerConfigId,
+						mcpApp: part.mcp_app ?? existing?.mcpApp,
 					},
 				},
 			};
@@ -297,6 +298,7 @@ export const buildStreamTools = (
 			isMedia: result?.isMedia,
 			status: getStreamToolStatus(result),
 			mcpServerConfigId: call.mcpServerConfigId || result?.mcpServerConfigId,
+			mcpApp: result?.mcpApp,
 			modelIntent: call.modelIntent,
 			parsedCommands: call.parsedCommands,
 			startedAt: call.startedAt,
@@ -315,6 +317,7 @@ export const buildStreamTools = (
 					isMedia: result.isMedia,
 					status: getStreamToolStatus(result),
 					mcpServerConfigId: result.mcpServerConfigId,
+					mcpApp: result.mcpApp,
 				});
 			}
 		}

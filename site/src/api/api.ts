@@ -3865,6 +3865,45 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	getChatMCPAppEntrypoints = async (
+		chatId: string,
+		mcpServerIds: readonly string[],
+	): Promise<TypesGen.ChatMCPAppEntrypoint[]> => {
+		const params = new URLSearchParams();
+		for (const id of mcpServerIds) {
+			params.append("mcp_server_id", id);
+		}
+		const response = await this.axios.get<TypesGen.ChatMCPAppEntrypoint[]>(
+			`/api/experimental/chats/${chatId}/mcp-apps/entrypoints?${params}`,
+		);
+		return response.data;
+	};
+
+	openChatMCPApp = async (
+		chatId: string,
+		mcpServerConfigId: string,
+		req: TypesGen.ChatMCPAppOpenRequest,
+	): Promise<TypesGen.ChatMCPApp> => {
+		const response = await this.axios.post<TypesGen.ChatMCPApp>(
+			`/api/experimental/chats/${chatId}/mcp-apps/${mcpServerConfigId}/open`,
+			req,
+		);
+		return response.data;
+	};
+
+	/** Runs a tools/call request of an MCP Apps view. Returns the raw MCP CallToolResult. */
+	callChatMCPAppTool = async (
+		chatId: string,
+		mcpServerConfigId: string,
+		req: TypesGen.ChatMCPAppToolCallRequest,
+	): Promise<Record<string, unknown>> => {
+		const response = await this.axios.post<Record<string, unknown>>(
+			`/api/experimental/chats/${chatId}/mcp-apps/${mcpServerConfigId}/tools/call`,
+			req,
+		);
+		return response.data;
+	};
+
 	getChatAdvisorConfig = async (): Promise<AdvisorConfig> => {
 		const response = await this.axios.get<AdvisorConfig>(
 			"/api/experimental/chats/config/advisor",

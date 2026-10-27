@@ -6,6 +6,7 @@ import type {
 	ChatCost,
 	ChatDiffStatus,
 	ChatFileMetadata,
+	ChatMCPApp,
 	ChatMessage,
 	ChatQueuedMessage,
 	MCPServerConfig,
@@ -172,6 +173,14 @@ export const MockChatMessage: ChatMessage = {
 	created_at: MOCK_TIMESTAMP,
 	role: "user",
 	content: [{ type: "text", text: "Hello" }],
+};
+
+export const MockChatMCPApp: ChatMCPApp = {
+	mcp_server_config_id: "server-1",
+	tool_name: "show_dice_board",
+	title: "Dice board",
+	resource_uri: "ui://dice/board.html",
+	tool_input: {},
 };
 
 export const MockChatFileMetadata: ChatFileMetadata = {

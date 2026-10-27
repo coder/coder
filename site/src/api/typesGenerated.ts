@@ -3007,6 +3007,81 @@ export const ChatListSources: ChatListSource[] = [
 
 // From codersdk/chats.go
 /**
+ * ChatMCPApp is the data that an MCP Apps view (SEP-1865) needs to show
+ * a tool result. EXPERIMENTAL: the mcp-apps experiment gates it.
+ */
+export interface ChatMCPApp {
+	/**
+	 * MCPServerConfigID is set here because live stream parts do not
+	 * carry ChatMessagePart.MCPServerConfigID.
+	 */
+	readonly mcp_server_config_id: string;
+	/**
+	 * ToolName is the tool name on the MCP server, without the slug.
+	 */
+	readonly tool_name: string;
+	/**
+	 * Title is the tool title, then annotations.title, then the name.
+	 */
+	readonly title: string;
+	/**
+	 * ResourceURI is the tool's _meta.ui.resourceUri.
+	 */
+	readonly resource_uri: string;
+	/**
+	 * ToolInput is the tool arguments, without the model_intent
+	 * wrapper. It is {} when the tool has no input.
+	 */
+	// empty interface{} type, falling back to unknown
+	readonly tool_input: Record<string, unknown>;
+	/**
+	 * ToolResult is the raw MCP CallToolResult. It is empty when the
+	 * result is above 256 KiB. The type is map[string]any, not
+	 * json.RawMessage, which apitypings types as map[string]string.
+	 */
+	// empty interface{} type, falling back to unknown
+	readonly tool_result?: Record<string, unknown>;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatMCPAppEntrypoint is a view that the user can open from the right
+ * panel without a tool call: a tool with an OpenAI thread entry point
+ * (OpenAI MCP Extensions). EXPERIMENTAL.
+ */
+export interface ChatMCPAppEntrypoint {
+	readonly mcp_server_config_id: string;
+	readonly server_display_name: string;
+	readonly tool_name: string;
+	/**
+	 * Title is the tool title, then annotations.title, then the name.
+	 */
+	readonly title: string;
+	readonly resource_uri: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatMCPAppOpenRequest opens a thread entry point: coderd calls the
+ * tool with {}. EXPERIMENTAL.
+ */
+export interface ChatMCPAppOpenRequest {
+	readonly tool_name: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatMCPAppToolCallRequest is a tools/call request from an MCP Apps
+ * view. EXPERIMENTAL.
+ */
+export interface ChatMCPAppToolCallRequest {
+	readonly name: string;
+	// empty interface{} type, falling back to unknown
+	readonly arguments?: Record<string, unknown>;
+}
+
+// From codersdk/chats.go
+/**
  * ChatMessage represents a single message in a chat.
  */
 export interface ChatMessage {
@@ -4047,6 +4122,12 @@ export interface ChatToolResultPart {
 	readonly result_reset?: boolean;
 	readonly is_error?: boolean;
 	readonly is_media?: boolean;
+	/**
+	 * MCPApp is set on the result of an MCP tool that declares a ui://
+	 * view (MCP Apps, mcp-apps experiment). Only the browser reads it.
+	 * The model never gets it.
+	 */
+	readonly mcp_app?: ChatMCPApp;
 	/**
 	 * ProviderExecuted indicates the tool call was executed by
 	 * the provider (e.g. Anthropic computer use).
@@ -5737,6 +5818,7 @@ export type Experiment =
 	| "chat-virtual-desktop"
 	| "enable-ai-workspace-debug"
 	| "example"
+	| "mcp-apps"
 	| "mcp-server-http"
 	| "mcp-tool-search"
 	| "no_nats_pubsub"
@@ -5818,6 +5900,7 @@ export const Experiments: Experiment[] = [
 	"chat-virtual-desktop",
 	"enable-ai-workspace-debug",
 	"example",
+	"mcp-apps",
 	"mcp-server-http",
 	"mcp-tool-search",
 	"no_nats_pubsub",

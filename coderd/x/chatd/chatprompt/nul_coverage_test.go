@@ -171,6 +171,9 @@ func TestChatMessagePartNULCoverage(t *testing.T) {
 func chatMessagePartNaturalSentinelProbeValue(t *testing.T, typ reflect.Type) reflect.Value {
 	t.Helper()
 
+	if typ == reflect.TypeFor[*codersdk.ChatMCPApp]() {
+		return chatMCPAppProbeValue(naturalSentinelProbe)
+	}
 	if typ == reflect.TypeFor[json.RawMessage]() {
 		return reflect.ValueOf(json.RawMessage(`{"key":"value"}`))
 	}
@@ -204,7 +207,7 @@ func chatMessagePartNULProbe(t *testing.T, field reflect.StructField) (reflect.V
 }
 
 func chatMessagePartNULTransforms(typ reflect.Type) bool {
-	if typ == reflect.TypeFor[json.RawMessage]() {
+	if typ == reflect.TypeFor[json.RawMessage]() || typ == reflect.TypeFor[*codersdk.ChatMCPApp]() {
 		return true
 	}
 	if typ.Kind() == reflect.String {
@@ -244,6 +247,9 @@ func chatMessagePartNULSafeType(typ reflect.Type) bool {
 func chatMessagePartNULProbeValue(t *testing.T, typ reflect.Type) reflect.Value {
 	t.Helper()
 
+	if typ == reflect.TypeFor[*codersdk.ChatMCPApp]() {
+		return chatMCPAppProbeValue(nulProbe)
+	}
 	if typ == reflect.TypeFor[json.RawMessage]() {
 		return reflect.ValueOf(json.RawMessage(`{"key\u0000":"value\u0000"}`))
 	}
@@ -305,4 +311,18 @@ func chatMessagePartStringContainerValue(t *testing.T, typ reflect.Type, probe s
 		t.Fatalf("unsupported recursive string container %s", typ)
 		return reflect.Value{}
 	}
+}
+
+// chatMCPAppProbeValue puts probe in every string of a ChatMCPApp,
+// including the keys and nested values of its JSON objects.
+func chatMCPAppProbeValue(probe string) reflect.Value {
+	return reflect.ValueOf(&codersdk.ChatMCPApp{
+		ToolName:    probe,
+		Title:       probe,
+		ResourceURI: probe,
+		ToolInput:   map[string]any{probe: probe},
+		ToolResult: map[string]any{
+			"content": []any{map[string]any{"type": "text", "text": probe}},
+		},
+	})
 }

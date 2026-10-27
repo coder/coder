@@ -599,6 +599,7 @@ func (p *Server) buildTurnEnvironment(
 					})
 					continue
 				}
+				srv.MCPApps = p.experiments.Enabled(codersdk.ExperimentMCPApps)
 				mcpServers = append(mcpServers, srv)
 			}
 			connectCtx, connectSpan := p.stages.Start(ctx, chatloop.StageMCPConnect)

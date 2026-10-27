@@ -34,6 +34,7 @@ import {
 
 import { QueuedForCapacityCallout } from "../components/ChatConversation/QueuedForCapacityCallout";
 import { DesktopPanelContext } from "../components/ChatElements/tools/DesktopPanelContext";
+import { McpAppTabContext } from "../components/ChatElements/tools/McpAppTabContext";
 import type { SendChatMessageOptions } from "../components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "../components/ChatPageContent";
 import { ChatSummaryPanel } from "../components/ChatSummaryPanel";
@@ -43,9 +44,12 @@ import { ChatTopBar } from "../components/ChatTopBar";
 import { GitPanel } from "../components/GitPanel/GitPanel";
 import { DebugPanel } from "../components/RightPanel/DebugPanel/DebugPanel";
 import { DesktopPanel } from "../components/RightPanel/DesktopPanel";
+import { McpAppPanel } from "../components/RightPanel/McpAppPanel/McpAppPanel";
+import { useMcpAppTabs } from "../components/RightPanel/McpAppPanel/useMcpAppTabs";
 import { PortPreviewPanel } from "../components/RightPanel/PortPreviewPanel";
 import { RightPanel } from "../components/RightPanel/RightPanel";
 import { RightPanelAddTabControl } from "../components/RightPanel/RightPanelAddTabControl";
+import { UnavailableTabMessage } from "../components/RightPanel/UnavailableTabMessage";
 import { getWorkspaceStatus, StatusIcon } from "../components/StatusIcon";
 import { TerminalPanel } from "../components/TerminalPanel";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
@@ -160,6 +164,7 @@ type AgentChatPageViewProps = {
 
 	onImplementPlan: () => Promise<void> | void;
 	onSendAskUserQuestionResponse: (message: string) => Promise<void> | void;
+	onSendMcpAppMessage: (message: string) => Promise<void>;
 
 	// Pagination for loading older messages.
 	hasMoreMessages: boolean;
@@ -180,15 +185,11 @@ type AgentChatPageViewProps = {
 	desktopChatId?: string;
 };
 
-const UnavailableTabMessage: React.FC<{ message: string }> = ({ message }) => (
-	<div className="flex h-full min-h-0 items-center justify-center px-6 text-center text-xs text-content-secondary">
-		{message}
-	</div>
-);
-
 type UserTabContentProps = {
 	tab: UserRightPanelTab;
 	chatId: string;
+	store: ChatStoreHandle;
+	onSendMcpAppMessage: ((message: string) => Promise<void>) | undefined;
 	workspace: TypesGen.Workspace | undefined;
 	workspaceAgent: TypesGen.WorkspaceAgent | undefined;
 	wildcardHostname: string;
@@ -201,6 +202,8 @@ type UserTabContentProps = {
 const UserTabContent: React.FC<UserTabContentProps> = ({
 	tab,
 	chatId,
+	store,
+	onSendMcpAppMessage,
 	workspace,
 	workspaceAgent,
 	wildcardHostname,
@@ -258,6 +261,16 @@ const UserTabContent: React.FC<UserTabContentProps> = ({
 				/>
 			);
 		}
+		case "mcp_app":
+			return (
+				<McpAppPanel
+					chatId={chatId}
+					tab={tab}
+					isVisible={sidebarVisible && isActive}
+					store={store}
+					onSendMessage={onSendMcpAppMessage}
+				/>
+			);
 		default: {
 			const _exhaustive: never = tab;
 			return _exhaustive;
@@ -306,6 +319,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	handlePromoteQueuedMessage,
 	onImplementPlan,
 	onSendAskUserQuestionResponse,
+	onSendMcpAppMessage,
 	hasMoreMessages,
 	isFetchingMoreMessages,
 	isHydratingMessages,
@@ -391,6 +405,23 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 			savePersistedVisibleSingletonTabs(agentId, visibleSingletonTabs);
 		}
 	}, [agentId, isArchived, visibleSingletonTabs]);
+
+	const activateRightPanelTab = (tabId: string) => {
+		onSetShowSidebarPanel(true);
+		setPendingTabId(null);
+		setSidebarTabId(tabId);
+	};
+
+	const mcpAppTabs = useMcpAppTabs({
+		chat,
+		store,
+		initialMessages,
+		selectedMCPServerIds,
+		tabs: userRightPanelTabs,
+		addTab: (tab) =>
+			setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]),
+		activateTab: activateRightPanelTab,
+	});
 
 	const shouldShowSidebar = showSidebarPanel;
 
@@ -496,12 +527,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	];
 	const sidebarTabIds = sidebarTabConfigs.map((tab) => tab.id);
 	const effectiveSidebarTabId = getEffectiveTabId(sidebarTabIds, sidebarTabId);
-
-	const activateRightPanelTab = (tabId: string) => {
-		onSetShowSidebarPanel(true);
-		setPendingTabId(null);
-		setSidebarTabId(tabId);
-	};
 
 	const showSingletonTab = (tabId: SingletonRightPanelTabId) => {
 		setVisibleSingletonTabsState((currentTabIds) =>
@@ -719,6 +744,11 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 					<UserTabContent
 						tab={userTab}
 						chatId={agentId}
+						store={store}
+						// canSubmitChatTurn is false for archived chats and other users' chats.
+						onSendMcpAppMessage={
+							canSubmitChatTurn ? onSendMcpAppMessage : undefined
+						}
 						workspace={workspace}
 						workspaceAgent={workspaceAgent}
 						wildcardHostname={wildcardHostname}
@@ -873,46 +903,50 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									}}
 								/>
 							</div>
-							<ChatPageTimeline
-								key={agentId}
-								organizationId={organizationId}
-								store={store}
-								chatFiles={chat.files}
-								initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
-								persistedError={persistedError}
-								hasMoreMessages={hasMoreMessages}
-								isFetchingMoreMessages={isFetchingMoreMessages}
-								isHydratingMessages={isHydratingMessages}
-								hasFetchMoreError={hasFetchMoreError}
-								onFetchMoreMessages={onFetchMoreMessages}
-								onEditUserMessage={
-									isOtherUserReadOnly
-										? undefined
-										: editing.handleEditUserMessage
-								}
-								editingMessageId={editing.editingMessageId}
-								urlTransform={urlTransform}
-								mcpServers={mcpServers}
-								onImplementPlan={
-									isOtherUserReadOnly || !canSubmitChatTurn
-										? undefined
-										: onImplementPlan
-								}
-								onSendAskUserQuestionResponse={
-									isOtherUserReadOnly || !canSubmitChatTurn
-										? undefined
-										: onSendAskUserQuestionResponse
-								}
-								footer={
-									chat.queued_for_capacity ? (
-										<QueuedForCapacityCallout
-											hasLicense={hasLicense}
-											canManageLicenses={canManageLicenses}
-											agentHoursHardLimit={agentHoursHardLimit}
-										/>
-									) : undefined
-								}
-							/>
+							<McpAppTabContext
+								value={{ onOpenMcpApp: mcpAppTabs.onOpenMcpApp }}
+							>
+								<ChatPageTimeline
+									key={agentId}
+									organizationId={organizationId}
+									store={store}
+									chatFiles={chat.files}
+									initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
+									persistedError={persistedError}
+									hasMoreMessages={hasMoreMessages}
+									isFetchingMoreMessages={isFetchingMoreMessages}
+									isHydratingMessages={isHydratingMessages}
+									hasFetchMoreError={hasFetchMoreError}
+									onFetchMoreMessages={onFetchMoreMessages}
+									onEditUserMessage={
+										isOtherUserReadOnly
+											? undefined
+											: editing.handleEditUserMessage
+									}
+									editingMessageId={editing.editingMessageId}
+									urlTransform={urlTransform}
+									mcpServers={mcpServers}
+									onImplementPlan={
+										isOtherUserReadOnly || !canSubmitChatTurn
+											? undefined
+											: onImplementPlan
+									}
+									onSendAskUserQuestionResponse={
+										isOtherUserReadOnly || !canSubmitChatTurn
+											? undefined
+											: onSendAskUserQuestionResponse
+									}
+									footer={
+										chat.queued_for_capacity ? (
+											<QueuedForCapacityCallout
+												hasLicense={hasLicense}
+												canManageLicenses={canManageLicenses}
+												agentHoursHardLimit={agentHoursHardLimit}
+											/>
+										) : undefined
+									}
+								/>
+							</McpAppTabContext>
 							{!isArchived && (
 								<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
 									<ChatPageInput
@@ -990,6 +1024,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										onOpenWorkspaceApp={handleOpenWorkspaceAppTab}
 										onOpenCommandApp={handleOpenCommandAppTab}
 										onOpenPort={handleOpenPortTab}
+										mcpApps={mcpAppTabs.menu}
 									/>
 								}
 								onClose={() => onSetShowSidebarPanel(false)}

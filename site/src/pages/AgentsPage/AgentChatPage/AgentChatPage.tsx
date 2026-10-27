@@ -719,7 +719,7 @@ const AgentChatPage: React.FC = () => {
 		});
 	}
 
-	const handleSendAskUserQuestionResponse = async (message: string) => {
+	const handleSendUserMessage = async (message: string) => {
 		await submitChatTurn({
 			...chatTurnDeps,
 			message,
@@ -837,7 +837,8 @@ const AgentChatPage: React.FC = () => {
 					handleDeleteQueuedMessage={handleDeleteQueuedMessage}
 					handlePromoteQueuedMessage={handlePromoteQueuedMessage}
 					onImplementPlan={handleImplementPlan}
-					onSendAskUserQuestionResponse={handleSendAskUserQuestionResponse}
+					onSendAskUserQuestionResponse={handleSendUserMessage}
+					onSendMcpAppMessage={handleSendUserMessage}
 					urlTransform={urlTransform}
 					hasMoreMessages={Boolean(chatMessagesQuery.hasNextPage)}
 					isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}

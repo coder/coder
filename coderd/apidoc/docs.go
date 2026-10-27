@@ -22296,6 +22296,38 @@ const docTemplate = `{
                 "ChatInputPartTypeSkillInvocation"
             ]
         },
+        "codersdk.ChatMCPApp": {
+            "type": "object",
+            "properties": {
+                "mcp_server_config_id": {
+                    "description": "MCPServerConfigID is set here because live stream parts do not\ncarry ChatMessagePart.MCPServerConfigID.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "resource_uri": {
+                    "description": "ResourceURI is the tool's _meta.ui.resourceUri.",
+                    "type": "string"
+                },
+                "title": {
+                    "description": "Title is the tool title, then annotations.title, then the name.",
+                    "type": "string"
+                },
+                "tool_input": {
+                    "description": "ToolInput is the tool arguments, without the model_intent\nwrapper. It is {} when the tool has no input.",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "tool_name": {
+                    "description": "ToolName is the tool name on the MCP server, without the slug.",
+                    "type": "string"
+                },
+                "tool_result": {
+                    "description": "ToolResult is the raw MCP CallToolResult. It is empty when the\nresult is above 256 KiB. The type is map[string]any, not\njson.RawMessage, which apitypings types as map[string]string.",
+                    "type": "object",
+                    "additionalProperties": {}
+                }
+            }
+        },
         "codersdk.ChatMessage": {
             "type": "object",
             "properties": {
@@ -22416,6 +22448,14 @@ const docTemplate = `{
                 },
                 "is_media": {
                     "type": "boolean"
+                },
+                "mcp_app": {
+                    "description": "MCPApp is set on the result of an MCP tool that declares a ui://\nview (MCP Apps, mcp-apps experiment). Only the browser reads it.\nThe model never gets it.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatMCPApp"
+                        }
+                    ]
                 },
                 "mcp_server_config_id": {
                     "type": "string",
@@ -26069,7 +26109,8 @@ const docTemplate = `{
                 "chat-inline-mcp-servers",
                 "enable-ai-workspace-debug",
                 "chat-stage-metrics",
-                "chat-acp-subagents"
+                "chat-acp-subagents",
+                "mcp-apps"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
@@ -26083,6 +26124,7 @@ const docTemplate = `{
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentEnableAIWorkspaceDebug": "Enables debugging failed workspace builds with Coder Agents.",
                 "ExperimentExample": "This isn't used for anything.",
+                "ExperimentMCPApps": "Shows MCP Apps views in the agent chat right panel.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
                 "ExperimentMCPToolSearch": "Defers MCP tool schemas behind a searchable catalog in agent chats.",
                 "ExperimentNoNATSPubsub": "Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.",
@@ -26109,7 +26151,8 @@ const docTemplate = `{
                 "Enables inline MCP servers declared on POST /chats.",
                 "Enables debugging failed workspace builds with Coder Agents.",
                 "Exposes chat lifecycle stage durations as Prometheus metrics.",
-                "Enables workspace-local ACP subagent tools in root chats."
+                "Enables workspace-local ACP subagent tools in root chats.",
+                "Shows MCP Apps views in the agent chat right panel."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -26129,7 +26172,8 @@ const docTemplate = `{
                 "ExperimentChatInlineMCPServers",
                 "ExperimentEnableAIWorkspaceDebug",
                 "ExperimentChatStageMetrics",
-                "ExperimentChatACPSubagents"
+                "ExperimentChatACPSubagents",
+                "ExperimentMCPApps"
             ]
         },
         "codersdk.ExperimentRule": {

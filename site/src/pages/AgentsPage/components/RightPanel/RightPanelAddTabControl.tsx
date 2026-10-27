@@ -1,5 +1,6 @@
 import { cn } from "cn";
 import {
+	AppWindowIcon,
 	BugIcon,
 	ChevronDownIcon,
 	GlobeIcon,
@@ -9,7 +10,10 @@ import {
 	SquareTerminalIcon,
 } from "lucide-react";
 import { useState } from "react";
+import { useQuery } from "react-query";
+import { chatMCPAppEntrypoints } from "#/api/queries/chats";
 import type {
+	ChatMCPAppEntrypoint,
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceApp,
@@ -20,6 +24,7 @@ import {
 	DropdownMenuCheckboxItem,
 	DropdownMenuContent,
 	DropdownMenuItem,
+	DropdownMenuLabel,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
@@ -78,6 +83,55 @@ const AgentPortsSubMenu: React.FC<{
 	);
 };
 
+export type McpAppsMenuSource = {
+	chatId: string;
+	mcpServerIds: readonly string[];
+	onOpen: (entrypoint: ChatMCPAppEntrypoint) => void;
+};
+
+// Lists the MCP Apps thread entry points of the selected MCP servers. It
+// mounts only while the menu is open, so coderd connects to the servers
+// only then.
+const McpAppsMenuItems: React.FC<McpAppsMenuSource> = ({
+	chatId,
+	mcpServerIds,
+	onOpen,
+}) => {
+	const entrypointsQuery = useQuery(
+		chatMCPAppEntrypoints(chatId, mcpServerIds),
+	);
+	const entrypoints = entrypointsQuery.data;
+	if (entrypoints?.length === 0 && !entrypointsQuery.isError) {
+		return null;
+	}
+	return (
+		<>
+			<DropdownMenuSeparator className="my-1" />
+			<DropdownMenuLabel className="px-2 py-1 text-2xs text-content-secondary">
+				MCP apps
+			</DropdownMenuLabel>
+			{entrypointsQuery.isError && (
+				<DropdownMenuItem disabled>Could not load MCP apps.</DropdownMenuItem>
+			)}
+			{entrypoints === undefined && !entrypointsQuery.isError && (
+				<DropdownMenuItem disabled>Loading MCP apps...</DropdownMenuItem>
+			)}
+			{entrypoints?.map((entrypoint) => (
+				<DropdownMenuItem
+					key={`${entrypoint.mcp_server_config_id}:${entrypoint.tool_name}`}
+					onSelect={() => onOpen(entrypoint)}
+				>
+					<AppWindowIcon />
+					<span className="truncate">{entrypoint.title}</span>
+					<span className="ml-auto truncate text-content-secondary">
+						{entrypoint.server_display_name}
+					</span>
+				</DropdownMenuItem>
+			))}
+		</>
+	);
+};
+
 export const RightPanelAddTabControl: React.FC<{
 	workspace?: Workspace;
 	agent?: WorkspaceAgent;
@@ -90,6 +144,8 @@ export const RightPanelAddTabControl: React.FC<{
 	onOpenWorkspaceApp: (app: WorkspaceApp) => void;
 	onOpenCommandApp: (app: WorkspaceApp) => void;
 	onOpenPort: (selection: PortSelection) => void;
+	/** Set when MCP Apps views can open from this menu. */
+	mcpApps?: McpAppsMenuSource;
 }> = ({
 	workspace,
 	agent,
@@ -102,6 +158,7 @@ export const RightPanelAddTabControl: React.FC<{
 	onOpenWorkspaceApp,
 	onOpenCommandApp,
 	onOpenPort,
+	mcpApps,
 }) => {
 	const [open, setOpen] = useState(false);
 	// agent-browser already has the built-in Browser tab.
@@ -242,6 +299,10 @@ export const RightPanelAddTabControl: React.FC<{
 								onPortSelect={onOpenPort}
 							/>
 						</>
+					)}
+
+					{open && mcpApps && mcpApps.mcpServerIds.length > 0 && (
+						<McpAppsMenuItems {...mcpApps} />
 					)}
 				</DropdownMenuContent>
 			</DropdownMenu>

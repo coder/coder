@@ -3340,6 +3340,65 @@ export const updateOrganizationChatSystemPrompt = (
 	},
 });
 
+// ── MCP Apps (mcp-apps experiment) ───────────────────────────
+
+export const chatMCPAppEntrypointsKey = (
+	chatId: string,
+	mcpServerIds: readonly string[],
+) =>
+	[...chatEntityKey(chatId), "mcp-app-entrypoints", ...mcpServerIds] as const;
+
+export const chatMCPAppEntrypoints = (
+	chatId: string,
+	mcpServerIds: readonly string[],
+) =>
+	queryOptions({
+		queryKey: chatMCPAppEntrypointsKey(chatId, mcpServerIds),
+		queryFn: () =>
+			API.experimental.getChatMCPAppEntrypoints(chatId, mcpServerIds),
+	});
+
+const openChatMCPAppKey = (
+	chatId: string,
+	mcpServerConfigId: string,
+	toolName: string,
+) =>
+	[
+		...chatEntityKey(chatId),
+		"mcp-app-open",
+		mcpServerConfigId,
+		toolName,
+	] as const;
+
+/**
+ * The result never goes stale. The tool runs again after a page reload, or
+ * when the cache drops the result 5 minutes after the last tab that shows
+ * it closes.
+ */
+export const openChatMCPApp = (
+	chatId: string,
+	mcpServerConfigId: string,
+	toolName: string,
+) =>
+	queryOptions({
+		queryKey: openChatMCPAppKey(chatId, mcpServerConfigId, toolName),
+		queryFn: () =>
+			API.experimental.openChatMCPApp(chatId, mcpServerConfigId, {
+				tool_name: toolName,
+			}),
+		staleTime: Number.POSITIVE_INFINITY,
+		retry: false,
+	});
+
+/** Returns the raw MCP CallToolResult. */
+export const callChatMCPAppTool = (
+	chatId: string,
+	mcpServerConfigId: string,
+) => ({
+	mutationFn: (req: TypesGen.ChatMCPAppToolCallRequest) =>
+		API.experimental.callChatMCPAppTool(chatId, mcpServerConfigId, req),
+});
+
 // ── MCP Server Configs ───────────────────────────────────────
 
 const mcpServersKey = ["mcp", "servers"] as const;

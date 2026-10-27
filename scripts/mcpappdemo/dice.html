@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dice board</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --fg: #1f2328;
+    --muted: #656d76;
+    --border: #d0d7de;
+    --panel: #f6f8fa;
+    --die-bg: #ffffff;
+    --accent: #0969da;
+    --accent-fg: #ffffff;
+    --error: #cf222e;
+    --ok: #1a7f37;
+  }
+  [data-theme="dark"] {
+    --bg: #0d1117;
+    --fg: #e6edf3;
+    --muted: #8d96a0;
+    --border: #30363d;
+    --panel: #161b22;
+    --die-bg: #21262d;
+    --accent: #2f81f7;
+    --accent-fg: #ffffff;
+    --error: #f85149;
+    --ok: #3fb950;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px;
+    overflow: auto;
+    background: var(--bg);
+    color: var(--fg);
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  h1 { margin: 0; font-size: 16px; }
+  h2 { margin: 0 0 6px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .muted { color: var(--muted); }
+  .error { color: var(--error); }
+  .ok { color: var(--ok); }
+  #dice { display: flex; flex-wrap: wrap; gap: 8px; min-height: 52px; align-items: center; }
+  .die {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    background: var(--die-bg);
+    font-size: 20px;
+    font-weight: 600;
+  }
+  #total { font-size: 15px; font-weight: 600; }
+  .buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+  button {
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel);
+    color: var(--fg);
+    font: inherit;
+    cursor: pointer;
+  }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  section { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; background: var(--panel); }
+  ul { margin: 0; padding: 0; list-style: none; }
+  #checks li, #log li { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+  #log { max-height: 160px; overflow: auto; }
+</style>
+</head>
+<body>
+  <h1>Dice board</h1>
+  <div id="args" class="muted">Waiting for the host...</div>
+  <div id="dice"></div>
+  <div id="total"></div>
+  <div class="buttons">
+    <button id="roll" class="primary" disabled>Roll again</button>
+    <button id="ask" disabled>Ask the agent</button>
+    <button id="time" disabled>Server time (model only)</button>
+  </div>
+  <div id="status" class="muted"></div>
+  <section>
+    <h2>Sandbox checks</h2>
+    <ul id="checks"></ul>
+  </section>
+  <section>
+    <h2>Protocol log</h2>
+    <ul id="log"></ul>
+  </section>
+<script>
+(function () {
+  "use strict";
+
+  var PROTOCOL_VERSION = "2026-01-26";
+  var nextId = 1;
+  var pending = new Map();
+  var state = { count: 2, sides: 6, rolls: [], total: 0 };
+
+  var el = {
+    args: document.getElementById("args"),
+    dice: document.getElementById("dice"),
+    total: document.getElementById("total"),
+    roll: document.getElementById("roll"),
+    ask: document.getElementById("ask"),
+    time: document.getElementById("time"),
+    status: document.getElementById("status"),
+    checks: document.getElementById("checks"),
+    log: document.getElementById("log")
+  };
+
+  function addLine(list, text, cls) {
+    var li = document.createElement("li");
+    li.textContent = text;
+    if (cls) {
+      li.className = cls;
+    }
+    list.appendChild(li);
+    return li;
+  }
+
+  function logMessage(direction, msg) {
+    var arrow = direction === "send" ? "-> " : "<- ";
+    var text;
+    if (msg.method) {
+      text = msg.method + (msg.id !== undefined ? " #" + msg.id : "");
+    } else if (msg.error) {
+      text = "error #" + msg.id + " (" + msg.error.code + ")";
+    } else {
+      text = "result #" + msg.id;
+    }
+    addLine(el.log, arrow + text, msg.error ? "error" : "");
+    el.log.scrollTop = el.log.scrollHeight;
+  }
+
+  function setStatus(text, cls) {
+    el.status.textContent = text;
+    el.status.className = cls || "muted";
+  }
+
+  function send(msg) {
+    logMessage("send", msg);
+    window.parent.postMessage(msg, "*");
+  }
+
+  function request(method, params) {
+    var id = nextId++;
+    return new Promise(function (resolve, reject) {
+      pending.set(id, { resolve: resolve, reject: reject });
+      send({ jsonrpc: "2.0", id: id, method: method, params: params });
+    });
+  }
+
+  function notify(method, params) {
+    send({ jsonrpc: "2.0", method: method, params: params || {} });
+  }
+
+  function respond(id, result) {
+    send({ jsonrpc: "2.0", id: id, result: result });
+  }
+
+  function respondError(id, code, message) {
+    send({ jsonrpc: "2.0", id: id, error: { code: code, message: message } });
+  }
+
+  function applyTheme(ctx) {
+    if (ctx && (ctx.theme === "light" || ctx.theme === "dark")) {
+      document.documentElement.setAttribute("data-theme", ctx.theme);
+    }
+  }
+
+  function showArgs(args) {
+    if (args && typeof args.count === "number") {
+      state.count = args.count;
+    }
+    if (args && typeof args.sides === "number") {
+      state.sides = args.sides;
+    }
+    el.args.textContent = "Arguments: " + JSON.stringify(args || {});
+  }
+
+  function toolErrorText(result) {
+    var parts = (result.content || []).filter(function (c) {
+      return c && c.type === "text";
+    }).map(function (c) {
+      return c.text;
+    });
+    return parts.join(" ") || "tool returned isError";
+  }
+
+  // renderResult shows a CallToolResult. It returns false when the result
+  // is an error or has no dice to render.
+  function renderResult(result) {
+    if (!result) {
+      setStatus("Empty tool result", "error");
+      return false;
+    }
+    if (result.isError) {
+      setStatus("Tool error: " + toolErrorText(result), "error");
+      return false;
+    }
+    var sc = result.structuredContent;
+    if (!sc || !Array.isArray(sc.rolls)) {
+      setStatus("The result has no structuredContent.rolls", "error");
+      return false;
+    }
+    state.count = sc.count || sc.rolls.length;
+    state.sides = sc.sides || state.sides;
+    state.rolls = sc.rolls;
+    state.total = sc.total;
+    el.dice.textContent = "";
+    sc.rolls.forEach(function (roll) {
+      var die = document.createElement("div");
+      die.className = "die";
+      die.textContent = String(roll);
+      el.dice.appendChild(die);
+    });
+    el.total.textContent = state.count + "d" + state.sides + " total: " + state.total;
+    return true;
+  }
+
+  function handleNotification(msg) {
+    var params = msg.params || {};
+    switch (msg.method) {
+      case "ui/notifications/tool-input":
+        showArgs(params.arguments);
+        break;
+      case "ui/notifications/tool-result":
+        if (renderResult(params)) {
+          setStatus("Received the tool result", "ok");
+        }
+        break;
+      case "ui/notifications/host-context-changed":
+        applyTheme(params);
+        break;
+      default:
+        break;
+    }
+  }
+
+  function handleRequest(msg) {
+    switch (msg.method) {
+      case "ping":
+        respond(msg.id, {});
+        break;
+      case "ui/resource-teardown":
+        respond(msg.id, {});
+        break;
+      default:
+        respondError(msg.id, -32601, "Method not found: " + msg.method);
+        break;
+    }
+  }
+
+  function handleResponse(msg) {
+    var entry = pending.get(msg.id);
+    if (!entry) {
+      return;
+    }
+    pending.delete(msg.id);
+    if (msg.error) {
+      var err = new Error(msg.error.message || "JSON-RPC error");
+      err.code = msg.error.code;
+      entry.reject(err);
+    } else {
+      entry.resolve(msg.result);
+    }
+  }
+
+  window.addEventListener("message", function (event) {
+    if (event.source !== window.parent) {
+      return;
+    }
+    var msg = event.data;
+    if (!msg || typeof msg !== "object" || msg.jsonrpc !== "2.0") {
+      return;
+    }
+    logMessage("recv", msg);
+    if (typeof msg.method === "string") {
+      if (msg.id !== undefined && msg.id !== null) {
+        handleRequest(msg);
+      } else {
+        handleNotification(msg);
+      }
+    } else if (msg.id !== undefined) {
+      handleResponse(msg);
+    }
+  });
+
+  function errorText(err) {
+    return err.code !== undefined ? err.message + " (" + err.code + ")" : String(err.message || err);
+  }
+
+  el.roll.addEventListener("click", function () {
+    setStatus("Rolling...");
+    request("tools/call", { name: "roll_dice", arguments: { count: state.count, sides: state.sides } })
+      .then(function (result) {
+        if (renderResult(result)) {
+          setStatus("Rolled again", "ok");
+        }
+      })
+      .catch(function (err) {
+        setStatus("roll_dice failed: " + errorText(err), "error");
+      });
+  });
+
+  el.ask.addEventListener("click", function () {
+    if (state.rolls.length === 0) {
+      setStatus("Roll the dice first", "error");
+      return;
+    }
+    var text = "I rolled " + state.rolls.join(", ") + " (total " + state.total +
+      ") on the dice board. What are the odds of that?";
+    request("ui/message", { role: "user", content: [{ type: "text", text: text }] })
+      .then(function (result) {
+        if (result && result.isError) {
+          setStatus("The chat refused the message", "error");
+        } else {
+          setStatus("Sent to the chat", "ok");
+        }
+      })
+      .catch(function (err) {
+        setStatus("ui/message failed: " + errorText(err), "error");
+      });
+  });
+
+  el.time.addEventListener("click", function () {
+    request("tools/call", { name: "get_server_time", arguments: {} })
+      .then(function (result) {
+        if (result && result.isError) {
+          setStatus("get_server_time refused: " + toolErrorText(result), "ok");
+        } else {
+          setStatus("get_server_time was allowed, but it is model only: " + JSON.stringify(result), "error");
+        }
+      })
+      .catch(function (err) {
+        setStatus("get_server_time refused (expected): " + errorText(err), "ok");
+      });
+  });
+
+  function errorName(err) {
+    return (err && err.name) || String(err);
+  }
+
+  function runSandboxChecks() {
+    addLine(el.checks, "origin: " + self.origin);
+    try {
+      addLine(el.checks, "document.cookie: " + JSON.stringify(document.cookie));
+    } catch (err) {
+      addLine(el.checks, "document.cookie: " + errorName(err));
+    }
+    try {
+      window.localStorage.setItem("mcpappdemo", "1");
+      window.localStorage.removeItem("mcpappdemo");
+      addLine(el.checks, "localStorage: ok");
+    } catch (err) {
+      addLine(el.checks, "localStorage: " + errorName(err));
+    }
+    var fetchLine = addLine(el.checks, "fetch(\"/api/v2/users/me\"): pending");
+    try {
+      fetch("/api/v2/users/me")
+        .then(function (res) {
+          fetchLine.textContent = "fetch(\"/api/v2/users/me\"): status " + res.status;
+        })
+        .catch(function (err) {
+          fetchLine.textContent = "fetch(\"/api/v2/users/me\"): " + errorName(err);
+        });
+    } catch (err) {
+      fetchLine.textContent = "fetch(\"/api/v2/users/me\"): " + errorName(err);
+    }
+    try {
+      void window.parent.document.title;
+      addLine(el.checks, "parent.document: ok");
+    } catch (err) {
+      addLine(el.checks, "parent.document: " + errorName(err));
+    }
+  }
+
+  function start() {
+    runSandboxChecks();
+    if (window.parent === window) {
+      setStatus("Not framed by a host. Open this view from an MCP Apps host.", "error");
+      return;
+    }
+    request("ui/initialize", {
+      protocolVersion: PROTOCOL_VERSION,
+      appInfo: { name: "mcpappdemo-dice", version: "0.1.0" },
+      appCapabilities: {}
+    }).then(function (result) {
+      applyTheme(result && result.hostContext);
+      notify("ui/notifications/initialized");
+      el.roll.disabled = false;
+      el.ask.disabled = false;
+      el.time.disabled = false;
+      el.args.textContent = "Connected. Waiting for the tool input...";
+    }).catch(function (err) {
+      setStatus("ui/initialize failed: " + errorText(err), "error");
+    });
+  }
+
+  start();
+})();
+</script>
+</body>
+</html>

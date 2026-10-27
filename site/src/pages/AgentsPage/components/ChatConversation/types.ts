@@ -18,6 +18,7 @@ export type ParsedToolResult = {
 	isError: boolean;
 	isMedia?: boolean;
 	mcpServerConfigId?: string;
+	mcpApp?: TypesGen.ChatMCPApp;
 };
 
 export type MergedTool = {
@@ -31,6 +32,8 @@ export type MergedTool = {
 	isMedia?: boolean;
 	status: "completed" | "error" | "running";
 	mcpServerConfigId?: string;
+	/** MCP Apps view data of an MCP tool result with a ui:// view. */
+	mcpApp?: TypesGen.ChatMCPApp;
 	modelIntent?: string;
 	parsedCommands?: readonly string[][];
 	hookRewritten?: boolean;
@@ -121,6 +124,7 @@ type StreamToolResult = {
 	/** True while result or reasoning deltas are still accumulating before the final result. */
 	isStreaming?: boolean;
 	mcpServerConfigId?: string;
+	mcpApp?: TypesGen.ChatMCPApp;
 };
 
 export type StreamState = {

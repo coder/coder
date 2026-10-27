@@ -166,6 +166,27 @@ describe("right-panel tab validation", () => {
 
 		expect(validated).toEqual([]);
 	});
+
+	it("keeps MCP app tabs in a chat with no workspace", () => {
+		const mockMcpAppTab: UserRightPanelTab = {
+			id: "mcp-app-1",
+			kind: "mcp_app",
+			label: "Dice board",
+			mcpServerConfigId: "server-1",
+			toolCallId: "call-1",
+		};
+
+		const validated = validateUserRightPanelTabs(
+			[terminalTab(), mockMcpAppTab],
+			{
+				workspace: undefined,
+				workspaceAgent: undefined,
+				wildcardHostname: "*.apps.example.com",
+			},
+		);
+
+		expect(validated).toEqual([mockMcpAppTab]);
+	});
 });
 
 function buildWorkspace(resourceAgents: readonly WorkspaceAgent[]): Workspace {
@@ -278,6 +299,45 @@ describe("right-panel tab storage", () => {
 		savePersistedRightPanelTabs("chat-1", tabs);
 
 		expect(getPersistedRightPanelTabs("chat-1")).toEqual(tabs);
+	});
+
+	it("persists MCP app tabs with exactly one source", () => {
+		const mockMcpAppFromToolCall: UserRightPanelTab = {
+			id: "mcp-app-1",
+			kind: "mcp_app",
+			label: "Dice board",
+			mcpServerConfigId: "server-1",
+			toolCallId: "call-1",
+		};
+		const mockMcpAppFromEntrypoint: UserRightPanelTab = {
+			id: "mcp-app-2",
+			kind: "mcp_app",
+			label: "Dice board",
+			mcpServerConfigId: "server-1",
+			entrypointToolName: "show_dice_board",
+		};
+		localStorage.setItem(
+			`${rightPanelTabStorageKeyPrefix}chat-1`,
+			JSON.stringify([
+				mockMcpAppFromToolCall,
+				mockMcpAppFromEntrypoint,
+				{
+					...mockMcpAppFromToolCall,
+					id: "both",
+					entrypointToolName: "show_dice_board",
+				},
+				{
+					...mockMcpAppFromEntrypoint,
+					id: "neither",
+					entrypointToolName: undefined,
+				},
+			]),
+		);
+
+		expect(getPersistedRightPanelTabs("chat-1")).toEqual([
+			mockMcpAppFromToolCall,
+			mockMcpAppFromEntrypoint,
+		]);
 	});
 
 	it("ignores invalid stored values", () => {
