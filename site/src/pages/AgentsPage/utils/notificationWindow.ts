@@ -13,6 +13,13 @@ const takePendingChatPath = () => {
 	return chatPath;
 };
 
+// The server leaves the user metadata empty for a signed-out visitor
+// (site/site.go). The development server leaves it unrendered.
+const isRenderedSignedOut = () =>
+	document
+		.querySelector<HTMLMetaElement>('meta[property="user"]')
+		?.getAttribute("content") === "";
+
 /**
  * When a standalone window opens on a chat as its only history entry, as a
  * push notification click does, makes the chat list the window's first
@@ -22,11 +29,16 @@ const takePendingChatPath = () => {
  * pushed without user activation, down to the first entry
  * (WebBackForwardList::goBackItemSkippingItemsWithoutUserGesture), which is
  * the chat. Does nothing in a browser tab, in a window with more than one
- * history entry, or on a path other than /agents/:agentId (agent settings
- * excluded). Call before createBrowserRouter reads the location.
+ * history entry, on a path other than /agents/:agentId (agent settings
+ * excluded), or for a signed-out visitor, whose sign-in redirect must keep
+ * the chat. Call before createBrowserRouter reads the location.
  */
 export function openChatListFirst(): void {
-	if (window.history.length !== 1 || !isStandaloneDisplayMode()) {
+	if (
+		window.history.length !== 1 ||
+		!isStandaloneDisplayMode() ||
+		isRenderedSignedOut()
+	) {
 		return;
 	}
 	const { pathname, search, hash } = window.location;
