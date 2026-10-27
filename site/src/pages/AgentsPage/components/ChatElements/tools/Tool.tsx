@@ -145,6 +145,7 @@ type ToolRendererProps = {
 	startedAt?: string;
 	shellToolDisplayMode: TypesGen.AgentDisplayMode;
 	codeDiffDisplayMode: TypesGen.AgentDisplayMode;
+	providerExecuted?: boolean;
 	foundPages?: readonly SourceLink[];
 };
 
@@ -1151,14 +1152,19 @@ const WorkspaceLifecycleRenderer: React.FC<ToolRendererProps> = ({
 	);
 };
 
-const WebSearchRenderer: React.FC<ToolRendererProps> = (props) => (
-	<WebSearchTool
-		action={getWebSearchAction(props.args)}
-		state={getWebSearchState(props)}
-		foundPages={props.foundPages ?? []}
-		errorMessage={asString(asRecord(props.result)?.error)}
-	/>
-);
+// A client dynamic tool can also be named web_search, so only
+// provider-executed calls get the web search row.
+const WebSearchRenderer: React.FC<ToolRendererProps> = (props) =>
+	props.providerExecuted ? (
+		<WebSearchTool
+			action={getWebSearchAction(props.args)}
+			state={getWebSearchState(props)}
+			foundPages={props.foundPages ?? []}
+			errorMessage={asString(asRecord(props.result)?.error)}
+		/>
+	) : (
+		<GenericToolRenderer {...props} />
+	);
 
 // ---------------------------------------------------------------------------
 // Renderer lookup map for tool names and specialized renderers.
@@ -1203,23 +1209,6 @@ export const toolRenderers: Record<string, React.FC<ToolRendererProps>> = {
 // registered renderer instead of a hand-picked subset.
 export const toolRendererNames: readonly string[] = Object.keys(toolRenderers);
 
-/**
- * Picks the renderer for a tool call. A client dynamic tool can also be
- * named web_search, so only provider-executed calls get the web search row.
- */
-const getToolRenderer = (
-	name: string,
-	providerExecuted: boolean | undefined,
-): React.FC<ToolRendererProps> => {
-	if (isSubagentToolName(name)) {
-		return SubagentRenderer;
-	}
-	if (name === "web_search" && !providerExecuted) {
-		return GenericToolRenderer;
-	}
-	return toolRenderers[name] ?? GenericToolRenderer;
-};
-
 // ---------------------------------------------------------------------------
 // Public Tool component with a single wrapper div and map dispatch.
 // ---------------------------------------------------------------------------
@@ -1258,7 +1247,9 @@ export const Tool = memo(
 		ref,
 		...props
 	}: ToolProps) => {
-		const Renderer = getToolRenderer(name, providerExecuted);
+		const Renderer = isSubagentToolName(name)
+			? SubagentRenderer
+			: (toolRenderers[name] ?? GenericToolRenderer);
 		const isShellTool = name === "execute" || name === "process_output";
 		if (!shouldRenderTool({ name, status, args, result })) {
 			return null;
@@ -1303,6 +1294,7 @@ export const Tool = memo(
 						startedAt={startedAt}
 						shellToolDisplayMode={shellToolDisplayMode}
 						codeDiffDisplayMode={codeDiffDisplayMode}
+						providerExecuted={providerExecuted}
 						foundPages={foundPages}
 					/>
 				</ToolCall.PolicyProvider>
