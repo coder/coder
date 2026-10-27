@@ -2,6 +2,10 @@ import { EventEmitter } from "node:events";
 
 export const FOREIGN_ID_BASE = 1_000_000_000;
 
+// On a large page, starting or stopping recording has taken more than the
+// default 10 s.
+const BUSY_PAGE_TIMEOUT = 180_000;
+
 // WebKit's remote inspector broadcasts every response to all attached
 // frontends, and Playwright's WKSession asserts on a response whose id it
 // did not issue. Playwright bundles WKSession without exporting it (1.63
@@ -247,10 +251,18 @@ export class WebKitInspector {
 		this.memory = [];
 		this.network = [];
 		this.otherEvents = new Map();
-		await this.send("Timeline.start", { maxCallStackDepth: 24 });
+		await this.send(
+			"Timeline.start",
+			{ maxCallStackDepth: 24 },
+			BUSY_PAGE_TIMEOUT,
+		);
 		// JS sampling profiler (stack samples) and per-thread CPU usage; CPU
 		// tells unattributed main-thread work apart from waiting on IPC.
-		await this.send("ScriptProfiler.startTracking", { includeSamples: true });
+		await this.send(
+			"ScriptProfiler.startTracking",
+			{ includeSamples: true },
+			BUSY_PAGE_TIMEOUT,
+		);
 		// CPU needs ENABLE(RESOURCE_USAGE); Playwright's Linux WebKit lacks it.
 		this.hasCPU = await this.send("CPU.startTracking").then(
 			() => true,
@@ -267,14 +279,13 @@ export class WebKitInspector {
 			this.trackingDone = resolve;
 			setTimeout(resolve, 15_000);
 		});
-		// On large pages and long phases the page can take more than the
-		// default 10 s to answer stop requests.
-		const stopTimeout = 180_000;
-		if (this.hasCPU) await this.send("CPU.stopTracking", {}, stopTimeout);
+		if (this.hasCPU) await this.send("CPU.stopTracking", {}, BUSY_PAGE_TIMEOUT);
 		if (this.hasMemory)
-			await this.send("Memory.stopTracking", {}, stopTimeout).catch(() => {});
-		await this.send("ScriptProfiler.stopTracking", {}, stopTimeout);
-		await this.send("Timeline.stop", {}, stopTimeout);
+			await this.send("Memory.stopTracking", {}, BUSY_PAGE_TIMEOUT).catch(
+				() => {},
+			);
+		await this.send("ScriptProfiler.stopTracking", {}, BUSY_PAGE_TIMEOUT);
+		await this.send("Timeline.stop", {}, BUSY_PAGE_TIMEOUT);
 		await done;
 		return {
 			records: this.records,
