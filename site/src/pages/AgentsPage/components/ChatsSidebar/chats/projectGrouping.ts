@@ -82,6 +82,36 @@ export const mergeProjectFolderChats = ({
 	);
 };
 
+type CountProjectFolderPinsOptions = {
+	readonly projectId: string;
+	readonly filedPinnedChats: readonly Chat[];
+	readonly fetchedChats: readonly Chat[];
+	readonly currentUserId: string;
+};
+
+/**
+ * Counts the viewer's pins in a project. The sidebar list may not reach
+ * every pin, so the folder's own fetch counts too.
+ */
+export const countProjectFolderPins = ({
+	projectId,
+	filedPinnedChats,
+	fetchedChats,
+	currentUserId,
+}: CountProjectFolderPinsOptions): number => {
+	const pinnedIds = new Set(filedPinnedChats.map((chat) => chat.id));
+	for (const chat of fetchedChats) {
+		if (
+			chat.project_id === projectId &&
+			chat.pin_order > 0 &&
+			canManageChat(chat, currentUserId)
+		) {
+			pinnedIds.add(chat.id);
+		}
+	}
+	return pinnedIds.size;
+};
+
 /**
  * Maps project IDs to their organization's name for projects whose name is
  * also used in another organization, so same-named projects stay

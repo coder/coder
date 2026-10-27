@@ -163,9 +163,7 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 									project={project}
 									organizationLabel={organizationLabels.get(project.id)}
 									chats={chatsByProjectId.get(project.id) ?? []}
-									pinnedCount={
-										pinnedChatsByProjectId.get(project.id)?.length ?? 0
-									}
+									pinnedChats={pinnedChatsByProjectId.get(project.id) ?? []}
 									chatListInput={chatListInput}
 									expanded={Boolean(expandedProjectIds[project.id])}
 									locationSearch={location.search}
@@ -187,7 +185,7 @@ type ProjectFolderProps = {
 	readonly project: ChatProject;
 	readonly organizationLabel: string | undefined;
 	readonly chats: readonly Chat[];
-	readonly pinnedCount: number;
+	readonly pinnedChats: readonly Chat[];
 	readonly chatListInput: ChatListInput;
 	readonly expanded: boolean;
 	readonly locationSearch: string;
@@ -201,7 +199,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 	project,
 	organizationLabel,
 	chats,
-	pinnedCount,
+	pinnedChats,
 	chatListInput,
 	expanded,
 	locationSearch,
@@ -323,7 +321,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 						projectId={project.id}
 						projectLabel={projectLabel}
 						filedChats={chats}
-						pinnedCount={pinnedCount}
+						filedPinnedChats={pinnedChats}
 						chatListInput={chatListInput}
 						emptyMessage={emptyMessage}
 					/>

@@ -9,6 +9,7 @@ import {
 	MockUserOwner,
 } from "#/testHelpers/entities";
 import {
+	countProjectFolderPins,
 	getOrganizationLabels,
 	groupChatsByProject,
 	mergeProjectFolderChats,
@@ -118,6 +119,37 @@ describe("mergeProjectFolderChats", () => {
 				[mockPinnedChat, mockMovedChat, mockArchivedChat, mockSharedChat],
 			),
 		).toEqual([]);
+	});
+});
+
+describe("countProjectFolderPins", () => {
+	const mockPinnedChat: Chat = {
+		...MockChat,
+		id: "pinned-chat",
+		owner_id: MockUserOwner.id,
+		project_id: MockChatProject.id,
+		pin_order: 1,
+	};
+	const mockUnloadedPinnedChat: Chat = {
+		...mockPinnedChat,
+		id: "unloaded-pinned-chat",
+		pin_order: 51,
+	};
+
+	it("counts pins only the folder fetched, once each", () => {
+		expect(
+			countProjectFolderPins({
+				projectId: MockChatProject.id,
+				filedPinnedChats: [mockPinnedChat],
+				fetchedChats: [
+					mockPinnedChat,
+					mockUnloadedPinnedChat,
+					{ ...mockPinnedChat, id: "unpinned-chat", pin_order: 0 },
+					{ ...mockPinnedChat, id: "shared-chat", owner_id: MockUserMember.id },
+				],
+				currentUserId: MockUserOwner.id,
+			}),
+		).toBe(2);
 	});
 });
 

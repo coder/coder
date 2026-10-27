@@ -12,7 +12,10 @@ import { ChatTreeContext, useChatTree } from "../tree/ChatTreeContext";
 import { buildChatTree, collectVisibleChatIDs } from "../tree/chatTree";
 import { DraggableChatTreeNode } from "../tree/DraggableChatTreeNode";
 import { LoadMoreSentinel } from "./LoadMoreSentinel";
-import { mergeProjectFolderChats } from "./projectGrouping";
+import {
+	countProjectFolderPins,
+	mergeProjectFolderChats,
+} from "./projectGrouping";
 
 type ProjectFolderChatsProps = {
 	readonly projectId: string;
@@ -20,7 +23,8 @@ type ProjectFolderChatsProps = {
 	readonly projectLabel: string;
 	/** The loaded sidebar chats filed under this project. */
 	readonly filedChats: readonly Chat[];
-	readonly pinnedCount: number;
+	/** The loaded sidebar pins in this project. */
+	readonly filedPinnedChats: readonly Chat[];
 	readonly chatListInput: ChatListInput;
 	readonly emptyMessage: string;
 };
@@ -33,7 +37,7 @@ export const ProjectFolderChats: React.FC<ProjectFolderChatsProps> = ({
 	projectId,
 	projectLabel,
 	filedChats,
-	pinnedCount,
+	filedPinnedChats,
 	chatListInput,
 	emptyMessage,
 }) => {
@@ -41,12 +45,19 @@ export const ProjectFolderChats: React.FC<ProjectFolderChatsProps> = ({
 	const folderQuery = useInfiniteQuery(
 		infiniteProjectFolderChats(projectId, chatListInput),
 	);
+	const fetchedChats = folderQuery.data?.pages.flat() ?? [];
 	const chats = mergeProjectFolderChats({
 		projectId,
 		filedChats,
-		fetchedChats: folderQuery.data?.pages.flat() ?? [],
+		fetchedChats,
 		currentUserId: chatTreeContext.currentUserId,
 		archived: chatListInput.archived ?? false,
+	});
+	const pinnedCount = countProjectFolderPins({
+		projectId,
+		filedPinnedChats,
+		fetchedChats,
+		currentUserId: chatTreeContext.currentUserId,
 	});
 	// Fetched chats are missing from the panel's tree, which rows read
 	// their subagents from.

@@ -97,10 +97,7 @@ const writeSidebarFilters = (
 	}
 };
 
-/**
- * Builds the chat list request for the sidebar filters. Selecting every chat
- * status sends no status filter.
- */
+/** Selecting every chat status sends no status filter. */
 export const getSidebarChatListInput = (
 	filters: AgentSidebarFilters,
 ): ChatListInput => ({

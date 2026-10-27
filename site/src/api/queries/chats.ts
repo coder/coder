@@ -1425,10 +1425,6 @@ export const getChatListQueryString = (
 export const chatListKey = (params: ChatListParams) =>
 	[...chatListFamilyKey, params] as const;
 
-/**
- * Pages through the chats that match the sidebar's filters, optionally
- * within one project.
- */
 const sidebarChatListOptions = <TQueryKey extends QueryKey>(
 	queryKey: TQueryKey,
 	params: ChatListParams,

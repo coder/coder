@@ -123,12 +123,6 @@ const meta: Meta<typeof ChatsSidebar> = {
 		isPersonalModelOverridesEnabled: true,
 		onSidebarFiltersChange: fn(),
 	},
-	// Open project folders fetch their project's chats. Stories have no API
-	// server, so folders show only the sidebar's chats unless a story seeds
-	// the folder query.
-	beforeEach: () => {
-		spyOn(API.experimental, "getChats").mockResolvedValue([]);
-	},
 	parameters: {
 		layout: "fullscreen",
 		user: MockUserOwner,
@@ -2918,6 +2912,12 @@ const mockProjectChats = [
 	}),
 ];
 
+/** Open folders fetch their project's chats with the sidebar's filters. */
+const launchFolderChatsKey = projectFolderChatsKey(
+	MockChatProject.id,
+	toChatListParams(getSidebarChatListInput(defaultSidebarFilters)),
+);
+
 export const ProjectFolderCollapsed: Story = {
 	args: { chats: mockProjectChats },
 	parameters: {
@@ -2958,6 +2958,7 @@ export const ChatDroppedOnProjectFolder: Story = {
 		experiments: ["chat-projects"],
 		queries: [
 			{ key: chatProjectsKey, data: [MockChatProject] },
+			{ key: launchFolderChatsKey, data: { pages: [[]], pageParams: [0] } },
 			{
 				key: chatListKey(
 					toChatListParams({ sources: defaultSidebarFilters.sources }),
@@ -2968,6 +2969,8 @@ export const ChatDroppedOnProjectFolder: Story = {
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "updateChat").mockResolvedValue(undefined);
+		// The move refetches the opened folder's chats.
+		spyOn(API.experimental, "getChats").mockResolvedValue([]);
 	},
 	render: function ChatDroppedOnProjectFolderRender(args) {
 		// Stories have no API server, so the list must not fetch.
@@ -3040,6 +3043,7 @@ export const ProjectChatDragMutesItsFolder: Story = {
 				key: chatProjectsKey,
 				data: [MockChatProject, mockBillingProject],
 			},
+			{ key: launchFolderChatsKey, data: { pages: [[]], pageParams: [0] } },
 		],
 		reactRouter: reactRouterParameters({
 			location: {
@@ -3063,6 +3067,7 @@ export const ProjectFolderExpanded: Story = {
 				key: chatProjectsKey,
 				data: [MockChatProject],
 			},
+			{ key: launchFolderChatsKey, data: { pages: [[]], pageParams: [0] } },
 		],
 		reactRouter: reactRouterParameters({
 			location: {
@@ -3087,7 +3092,10 @@ export const ProjectFolderWithPinnedChat: Story = {
 	args: { chats: [...mockProjectChats, mockPinnedProjectChat] },
 	parameters: {
 		experiments: ["chat-projects"],
-		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
+			{ key: launchFolderChatsKey, data: { pages: [[]], pageParams: [0] } },
+		],
 		reactRouter: reactRouterParameters({
 			location: {
 				path: `/agents/projects/${MockChatProject.id}`,
@@ -3115,7 +3123,10 @@ export const ProjectFolderWithOnlyPinnedChats: Story = {
 	},
 	parameters: {
 		experiments: ["chat-projects"],
-		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
+			{ key: launchFolderChatsKey, data: { pages: [[]], pageParams: [0] } },
+		],
 		reactRouter: reactRouterParameters({
 			location: {
 				path: `/agents/projects/${MockChatProject.id}`,
@@ -3144,10 +3155,7 @@ export const ProjectFolderWithUnloadedChat: Story = {
 		queries: [
 			{ key: chatProjectsKey, data: [MockChatProject] },
 			{
-				key: projectFolderChatsKey(
-					MockChatProject.id,
-					toChatListParams(getSidebarChatListInput(defaultSidebarFilters)),
-				),
+				key: launchFolderChatsKey,
 				data: { pages: [[mockOlderProjectChat]], pageParams: [0] },
 			},
 		],
@@ -3411,7 +3419,10 @@ export const ProjectFolderEmptyWithEmojiIcon: Story = {
 	args: { chats: [buildChat({ id: "loose-chat", title: "Loose chat" })] },
 	parameters: {
 		experiments: ["chat-projects"],
-		queries: [{ key: chatProjectsKey, data: [mockEmojiProject] }],
+		queries: [
+			{ key: chatProjectsKey, data: [mockEmojiProject] },
+			{ key: launchFolderChatsKey, data: { pages: [[]], pageParams: [0] } },
+		],
 		reactRouter: reactRouterParameters({
 			location: {
 				path: `/agents/projects/${mockEmojiProject.id}`,
