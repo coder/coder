@@ -17,10 +17,13 @@ const takePendingChatPath = () => {
  * When a standalone window opens on a chat as its only history entry, as a
  * push notification click does, makes the chat list the window's first
  * entry. useOpenNotificationChat then opens the chat on top of it, so the
- * back swipe (the iOS edge swipe) returns to the list. Does nothing in a
- * browser tab, in a window with more than one history entry, or on a path
- * other than /agents/:agentId (agent settings excluded). Call before
- * createBrowserRouter reads the location.
+ * back swipe (the iOS edge swipe) returns to the list. Pushing the list
+ * instead would not: WebKit's back swipe skips entries that JavaScript
+ * pushed without user activation, down to the first entry
+ * (WebBackForwardList::goBackItemSkippingItemsWithoutUserGesture), which is
+ * the chat. Does nothing in a browser tab, in a window with more than one
+ * history entry, or on a path other than /agents/:agentId (agent settings
+ * excluded). Call before createBrowserRouter reads the location.
  */
 export function openChatListFirst(): void {
 	if (window.history.length !== 1 || !isStandaloneDisplayMode()) {
