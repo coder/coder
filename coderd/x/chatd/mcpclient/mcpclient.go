@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -1074,6 +1075,9 @@ const MinSensitiveValueBytes = 8
 // Redaction can lengthen its input, so size caps are checked after it.
 type secretRedactor struct {
 	values []string
+	// names holds the redacted name of each schema name that
+	// withSchemaNames renamed.
+	names map[string]string
 }
 
 func newSecretRedactor(values []string) secretRedactor {
@@ -1190,52 +1194,76 @@ func (r secretRedactor) redactValue(value any) any {
 	}
 }
 
-// redactSchemaMap redacts an input schema like redactMap, but keeps the
-// JSON Schema keywords that make up its structure: keyword keys, the
-// names of properties, definitions, and anchors, the names "required"
-// lists, and the keyword segments of references and resource URIs. A
-// sensitive value such as a URL path segment named "properties" would
-// otherwise rename keywords, the property names "required" lists, and
-// the pointers references follow, while keeping them shows nothing that
-// every schema does not. Instance data and annotations, such as "enum"
-// values and descriptions, are redacted like any other text.
+// redactSchemaMap redacts an input schema like redactMap, but keeps its
+// structure: keys that are JSON Schema keywords, and the tokens of
+// references' JSON Pointers that name such keys, show nothing every
+// schema does not, while a sensitive value such as a URL path segment
+// named "properties" would otherwise rename them. Names, such as those
+// of properties, definitions, and anchors, are redacted even when they
+// are spelled like keywords, to the names withSchemaNames gives them, so
+// maps of names, "required" lists, and references keep agreeing on what
+// each name is. A published "$schema" is kept, since it is public and
+// decides how the schema is read. Instance data and annotations, such
+// as "enum" values and descriptions, are redacted like any other text.
 func (r secretRedactor) redactSchemaMap(schema map[string]any) map[string]any {
 	if len(schema) == 0 || len(r.values) == 0 {
 		return schema
 	}
-	return r.redactNamedMap(schema, r.redactKeywordValue)
-}
-
-// redactNamedMap returns named with each name redacted like
-// redactSchemaName and each value by redactItem. Of the names that
-// redact to the same text, the first in sorted order keeps its value, so
-// the result does not depend on map iteration order.
-func (r secretRedactor) redactNamedMap(named map[string]any, redactItem func(name string, item any) any) map[string]any {
-	redacted := make(map[string]any, len(named))
-	for _, name := range slices.Sorted(maps.Keys(named)) {
-		key := r.redactSchemaName(name)
-		if _, ok := redacted[key]; ok {
-			continue
-		}
-		redacted[key] = redactItem(name, named[name])
+	redacted := make(map[string]any, len(schema))
+	for key, value := range schema {
+		redacted[r.redactSchemaKey(key)] = r.redactKeywordValue(key, value)
 	}
 	return redacted
 }
 
-// redactKeywordValue redacts the value of key in a schema object.
-func (r secretRedactor) redactKeywordValue(key string, value any) any {
+// redactSchemaKey redacts a key of a schema object, keeping it when it
+// is a keyword.
+func (r secretRedactor) redactSchemaKey(key string) string {
+	if toolschema.IsKeyword(key) {
+		return key
+	}
+	return r.redactSchemaName(key)
+}
+
+// redactNamedMap returns named with each name redacted like
+// redactSchemaName and each value by redactItem.
+func (r secretRedactor) redactNamedMap(named map[string]any, redactItem func(item any) any) map[string]any {
+	redacted := make(map[string]any, len(named))
+	for name, item := range named {
+		redacted[r.redactSchemaName(name)] = redactItem(item)
+	}
+	return redacted
+}
+
+// isReferenceKeyword reports whether key holds a reference or a resource
+// URI, whose fragment names an anchor or a JSON Pointer.
+func isReferenceKeyword(key string) bool {
 	switch key {
 	case "$ref", "$dynamicRef", "$recursiveRef", "$id", "id":
-		if ref, ok := value.(string); ok {
-			return r.redactReference(ref)
+		return true
+	default:
+		return false
+	}
+}
+
+// redactKeywordValue redacts the value of key in a schema object.
+func (r secretRedactor) redactKeywordValue(key string, value any) any {
+	if text, ok := value.(string); ok {
+		if isReferenceKeyword(key) {
+			return r.redactReference(text)
 		}
+		if key == "$schema" {
+			if _, published := toolschema.PublishedDialect(text); published {
+				return text
+			}
+		}
+	}
+	switch key {
 	case "$anchor", "$dynamicAnchor", "required":
 		return r.redactSchemaNames(value)
 	case "dependentRequired":
 		if named, ok := value.(map[string]any); ok {
-			return r.redactNamedMap(named, func(_ string, names any) any {
-				return r.redactSchemaNames(names)
-			})
+			return r.redactNamedMap(named, r.redactSchemaNames)
 		}
 	}
 	switch toolschema.KeywordSubschemas(key, value) {
@@ -1263,7 +1291,7 @@ func (r secretRedactor) redactSchemaProperties(named map[string]any) map[string]
 	if len(named) == 0 || len(r.values) == 0 {
 		return named
 	}
-	return r.redactNamedMap(named, func(_ string, item any) any {
+	return r.redactNamedMap(named, func(item any) any {
 		switch item.(type) {
 		case []any, []string:
 			return r.redactSchemaNames(item)
@@ -1284,9 +1312,7 @@ func (r secretRedactor) redactSubschema(value any) any {
 	}
 }
 
-// redactSchemaNames redacts a name or a list of names in a schema. A
-// list keeps the first of the names that redact to the same text, since
-// schemas require the names in a list to be unique.
+// redactSchemaNames redacts a name or a list of names in a schema.
 func (r secretRedactor) redactSchemaNames(value any) any {
 	switch typed := value.(type) {
 	case string:
@@ -1294,18 +1320,12 @@ func (r secretRedactor) redactSchemaNames(value any) any {
 	case []string:
 		return r.redactSchemaStrings(typed)
 	case []any:
-		redacted := make([]any, 0, len(typed))
-		seen := make(map[string]bool, len(typed))
-		for _, item := range typed {
-			name, ok := item.(string)
-			if !ok {
-				redacted = append(redacted, r.redactValue(item))
-				continue
-			}
-			name = r.redactSchemaName(name)
-			if !seen[name] {
-				seen[name] = true
-				redacted = append(redacted, name)
+		redacted := make([]any, len(typed))
+		for i, item := range typed {
+			if name, ok := item.(string); ok {
+				redacted[i] = r.redactSchemaName(name)
+			} else {
+				redacted[i] = r.redactValue(item)
 			}
 		}
 		return redacted
@@ -1318,85 +1338,261 @@ func (r secretRedactor) redactSchemaStrings(values []string) []string {
 	if len(values) == 0 || len(r.values) == 0 {
 		return values
 	}
-	redacted := make([]string, 0, len(values))
-	for _, item := range values {
-		if name := r.redactSchemaName(item); !slices.Contains(redacted, name) {
-			redacted = append(redacted, name)
-		}
+	redacted := make([]string, len(values))
+	for i, item := range values {
+		redacted[i] = r.redactSchemaName(item)
 	}
 	return redacted
 }
 
-// redactSchemaName redacts a keyword key or a name in a schema, keeping
-// it when it is a keyword.
+// redactSchemaName returns the name withSchemaNames gave a name in a
+// schema, or the name with each sensitive value replaced.
 func (r secretRedactor) redactSchemaName(value string) string {
-	if toolschema.IsKeyword(value) {
-		return value
+	if name, ok := r.names[value]; ok {
+		return name
 	}
 	return r.replace(value, redactedNamePlaceholder)
 }
 
-// redactReference redacts a reference so that it still names its target
-// in the redacted schema. A JSON Pointer fragment is redacted token by
-// token like the names its tokens are, and an anchor fragment like an
-// anchor. The URI before the fragment is redacted like redactSchemaName,
-// except that each occurrence of a sensitive value made only of path
-// delimiters and segments that are JSON Schema keywords is kept.
-func (r secretRedactor) redactReference(ref string) string {
-	uri, fragment, hasFragment := strings.Cut(ref, "#")
-	uri = r.redactReferenceURI(uri)
-	switch {
-	case !hasFragment:
-		return uri
-	case !strings.HasPrefix(fragment, "/"):
-		return uri + "#" + r.redactSchemaName(fragment)
+// withSchemaNames returns r set to give each name in schema that
+// redaction changes a redacted name of its own, so that names that
+// differ in schema still differ once redacted, and every map of names,
+// "required" list, and reference keeps agreeing with the others on what
+// each name is. A name whose redacted text is taken, by a name that
+// redaction keeps or by one before it in sorted order, has its last
+// placeholder numbered, as in "x_REDACT_2", which keeps names from
+// growing. A name in a reference's JSON Pointer that an occurrence of a
+// sensitive value overlaps is renamed everywhere to a numbered
+// placeholder, so that the pointer does not show a value that spans
+// tokens and still names its target. Names are taken from every key
+// and string in schema and from the fragment of each reference, which
+// reserves more names than schema has but never fewer.
+func (r secretRedactor) withSchemaNames(schema map[string]any) secretRedactor {
+	if len(r.values) == 0 {
+		return r
 	}
-	tokens := strings.Split(fragment[1:], "/")
-	for i, token := range tokens {
-		tokens[i] = pointerEscaper.Replace(r.redactSchemaName(pointerUnescaper.Replace(token)))
+	names := make(schemaNames)
+	r.collectSchemaNames(schema, names)
+	taken := make(map[string]bool, len(names))
+	var renamed []string
+	for name, overlapped := range names {
+		if overlapped || r.replace(name, redactedNamePlaceholder) != name {
+			renamed = append(renamed, name)
+		} else {
+			taken[name] = true
+		}
 	}
-	return uri + "#/" + strings.Join(tokens, "/")
+	slices.Sort(renamed)
+	r.names = make(map[string]string, len(renamed))
+	for _, name := range renamed {
+		base := r.replace(name, redactedNamePlaceholder)
+		if base == name {
+			base = redactedNamePlaceholder
+		}
+		last := strings.LastIndex(base, redactedNamePlaceholder)
+		redacted := base
+		for n := 2; taken[redacted]; n++ {
+			suffix := "_" + strconv.Itoa(n)
+			placeholder := redactedNamePlaceholder[:max(0, len(redactedNamePlaceholder)-len(suffix))] + suffix
+			redacted = base[:last] + placeholder + base[last+len(redactedNamePlaceholder):]
+		}
+		taken[redacted] = true
+		r.names[name] = redacted
+	}
+	return r
 }
 
-var (
-	pointerUnescaper = strings.NewReplacer("~1", "/", "~0", "~")
-	pointerEscaper   = strings.NewReplacer("~", "~0", "/", "~1")
-)
+// schemaNames maps each name in a schema to whether a sensitive value
+// overlaps it in a JSON Pointer, which renames it even when it holds no
+// such value.
+type schemaNames map[string]bool
 
-func (r secretRedactor) redactReferenceURI(uri string) string {
-	kept := make([]bool, len(uri))
-	start := 0
-	for i := 0; i <= len(uri); i++ {
-		if i < len(uri) && uri[i] != '/' {
-			continue
+func (n schemaNames) add(name string, overlapped bool) {
+	n[name] = n[name] || overlapped
+}
+
+// collectSchemaNames adds every key and string in value to names, along
+// with the names in the fragment of each reference.
+func (r secretRedactor) collectSchemaNames(value any, names schemaNames) {
+	switch typed := value.(type) {
+	case string:
+		names.add(typed, false)
+	case []string:
+		for _, item := range typed {
+			names.add(item, false)
 		}
-		if i < len(uri) {
-			kept[i] = true
+	case []any:
+		for _, item := range typed {
+			r.collectSchemaNames(item, names)
 		}
-		if toolschema.IsKeyword(uri[start:i]) {
-			for j := start; j < i; j++ {
-				kept[j] = true
+	case map[string]any:
+		for key, item := range typed {
+			names.add(key, false)
+			if ref, ok := item.(string); ok && isReferenceKeyword(key) {
+				r.collectReferenceNames(ref, names)
+			}
+			r.collectSchemaNames(item, names)
+		}
+	}
+}
+
+// collectReferenceNames adds the anchor or the JSON Pointer names in the
+// fragment of ref to names, marking each one that an occurrence of a
+// sensitive value overlaps.
+func (r secretRedactor) collectReferenceNames(ref string, names schemaNames) {
+	_, fragment, ok := strings.Cut(ref, "#")
+	if !ok {
+		return
+	}
+	pointer, ok := parseReferencePointer(fragment)
+	if !ok {
+		names.add(referenceAnchor(fragment), false)
+		return
+	}
+	var text maskedText
+	for i, token := range pointer.escaped {
+		text.write("/", true)
+		text.write(token, pointer.keywords[i])
+	}
+	exposed := r.exposedBytes(text.String(), text.kept)
+	start := 1
+	for i, token := range pointer.escaped {
+		end := start + len(token)
+		if !pointer.keywords[i] {
+			names.add(pointer.tokens[i], slices.Contains(exposed[start:end], true))
+		}
+		start = end + 1
+	}
+}
+
+// referencePointer is the JSON Pointer in the fragment of a reference.
+type referencePointer struct {
+	// escaped holds the tokens of the percent-decoded pointer, which are
+	// still escaped as JSON Pointer tokens, and tokens holds them
+	// unescaped.
+	escaped []string
+	tokens  []string
+	// keywords marks the tokens that are keys of schema objects (see
+	// toolschema.PointerKeywords).
+	keywords []bool
+}
+
+// parseReferencePointer parses a URI fragment that holds a JSON Pointer
+// with at least one token. Like the rest of a fragment, the pointer may
+// be percent-encoded.
+func parseReferencePointer(fragment string) (referencePointer, bool) {
+	text, err := url.PathUnescape(fragment)
+	if err != nil || !strings.HasPrefix(text, "/") {
+		return referencePointer{}, false
+	}
+	escaped := strings.Split(text[1:], "/")
+	tokens := make([]string, len(escaped))
+	for i, token := range escaped {
+		tokens[i] = pointerUnescaper.Replace(token)
+	}
+	return referencePointer{escaped: escaped, tokens: tokens, keywords: toolschema.PointerKeywords(tokens)}, true
+}
+
+// referenceAnchor returns the anchor name a URI fragment holds, which may
+// be percent-encoded.
+func referenceAnchor(fragment string) string {
+	if name, err := url.PathUnescape(fragment); err == nil {
+		return name
+	}
+	return fragment
+}
+
+// redactReference redacts a reference so that it still names its target
+// in the redacted schema: an anchor fragment and each name in a JSON
+// Pointer fragment are redacted like the names they are, and the pointer
+// tokens that are keywords stay. Each occurrence of a sensitive value
+// left in the reference, as in its URI, is then replaced like
+// redactSchemaName does, unless it lies within those keyword tokens and
+// the delimiters between them, which show nothing every schema does not.
+// A URI that percent-encodes a sensitive value is replaced whole.
+func (r secretRedactor) redactReference(ref string) string {
+	uri, fragment, hasFragment := strings.Cut(ref, "#")
+	if decoded, err := url.PathUnescape(uri); err == nil && decoded != uri && r.replace(decoded, "") != decoded {
+		uri = redactedNamePlaceholder
+	}
+	var text maskedText
+	text.write(uri, false)
+	if hasFragment {
+		text.write("#", true)
+		if pointer, ok := parseReferencePointer(fragment); ok {
+			for i, token := range pointer.tokens {
+				if !pointer.keywords[i] {
+					token = r.redactSchemaName(token)
+				}
+				text.write("/", true)
+				text.write(toolschema.EncodePointer([]string{token})[1:], pointer.keywords[i])
+			}
+		} else if name, err := url.PathUnescape(fragment); err == nil {
+			text.write((&url.URL{Fragment: r.redactSchemaName(name)}).EscapedFragment(), false)
+		} else {
+			text.write(r.redactSchemaName(fragment), false)
+		}
+	}
+	return r.redactReferenceText(text.String(), text.kept)
+}
+
+var pointerUnescaper = strings.NewReplacer("~1", "/", "~0", "~")
+
+// maskedText is text with each byte marked as kept or not, for
+// redactReferenceText.
+type maskedText struct {
+	strings.Builder
+	kept []bool
+}
+
+func (t *maskedText) write(s string, kept bool) {
+	_, _ = t.WriteString(s)
+	for range len(s) {
+		t.kept = append(t.kept, kept)
+	}
+}
+
+// exposedBytes marks the bytes of each occurrence of a sensitive value in
+// text that the kept bytes do not cover in full.
+func (r secretRedactor) exposedBytes(text string, kept []bool) []bool {
+	exposed := make([]bool, len(text))
+	for _, secret := range r.values {
+		for i := 0; i < len(text); i++ {
+			found := strings.Index(text[i:], secret)
+			if found < 0 {
+				break
+			}
+			i += found
+			if slices.Contains(kept[i:i+len(secret)], false) {
+				for j := i; j < i+len(secret); j++ {
+					exposed[j] = true
+				}
 			}
 		}
-		start = i + 1
 	}
+	return exposed
+}
+
+// redactReferenceText replaces each occurrence of a sensitive value in
+// ref that the kept bytes do not cover in full.
+func (r secretRedactor) redactReferenceText(ref string, kept []bool) string {
 	for _, secret := range r.values {
 		var b strings.Builder
 		next := make([]bool, 0, len(kept))
-		for i := 0; i < len(uri); {
-			if strings.HasPrefix(uri[i:], secret) && slices.Contains(kept[i:i+len(secret)], false) {
+		for i := 0; i < len(ref); {
+			if strings.HasPrefix(ref[i:], secret) && slices.Contains(kept[i:i+len(secret)], false) {
 				_, _ = b.WriteString(redactedNamePlaceholder)
 				next = append(next, make([]bool, len(redactedNamePlaceholder))...)
 				i += len(secret)
 				continue
 			}
-			_ = b.WriteByte(uri[i])
+			_ = b.WriteByte(ref[i])
 			next = append(next, kept[i])
 			i++
 		}
-		uri, kept = b.String(), next
+		ref, kept = b.String(), next
 	}
-	return uri
+	return ref
 }
 
 func (r secretRedactor) redactResponse(response fantasy.ToolResponse) fantasy.ToolResponse {
@@ -1448,6 +1644,7 @@ func newMCPTool(
 	maxResultBytes int,
 ) *mcpToolWrapper {
 	inputSchema, properties, required := splitInputSchema(tool.InputSchema)
+	schemaRedactor := redactor.withSchemaNames(inputSchema)
 	// Model-visible fields are redacted once here. originalName is
 	// deliberately left as is: it is the name sent in tools/call and the
 	// server must recognize it.
@@ -1456,9 +1653,9 @@ func newMCPTool(
 		prefixedName:   truncateToolName(aidmcp.SanitizeToolName(redactor.redactString(serverSlug)) + toolNameSep + aidmcp.SanitizeToolName(redactor.redactString(tool.Name))),
 		originalName:   tool.Name,
 		description:    redactor.redactString(tool.Description),
-		inputSchema:    redactor.redactSchemaMap(inputSchema),
-		parameters:     redactor.redactSchemaProperties(properties),
-		required:       redactor.redactSchemaStrings(required),
+		inputSchema:    schemaRedactor.redactSchemaMap(inputSchema),
+		parameters:     schemaRedactor.redactSchemaProperties(properties),
+		required:       schemaRedactor.redactSchemaStrings(required),
 		modelIntent:    modelIntent,
 		session:        session,
 		redactor:       redactor,

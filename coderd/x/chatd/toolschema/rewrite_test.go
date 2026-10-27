@@ -402,6 +402,43 @@ func TestNormalize(t *testing.T) {
 			}`,
 		},
 		{
+			// Both references apply, so one the schema gains beside its
+			// "$ref" joins "allOf".
+			name: "dynamic references beside references join allOf",
+			schema: `{
+				"properties": {
+					"pointer": {"$ref": "#/$defs/A", "$dynamicRef": "#/$defs/B"},
+					"anchor": {"$ref": "#/$defs/A", "$dynamicRef": "#leaf"},
+					"both": {"$ref": "#leaf", "$dynamicRef": "#/$defs/B", "allOf": [{"required": ["x"]}]}
+				},
+				"$defs": {"A": {"minLength": 1}, "B": {"maxLength": 3}, "Leaf": {"$anchor": "leaf", "type": "string"}}
+			}`,
+			want: `{
+				"properties": {
+					"pointer": {"$ref": "#/$defs/A", "allOf": [{"$ref": "#/$defs/B"}]},
+					"anchor": {"$ref": "#/$defs/A", "allOf": [{"$ref": "#/$defs/Leaf"}]},
+					"both": {"$ref": "#/$defs/Leaf", "allOf": [{"required": ["x"]}, {"$ref": "#/$defs/B"}]}
+				},
+				"$defs": {"A": {"minLength": 1}, "B": {"maxLength": 3}, "Leaf": {"$anchor": "leaf", "type": "string"}}
+			}`,
+		},
+		{
+			// Drafts 6 and 7 allow colons in the plain name of a "$id"
+			// fragment, which "$anchor" does not, so references to it
+			// become pointers.
+			name: "legacy anchors with colons become pointers",
+			schema: `{
+				"$schema": "http://json-schema.org/draft-07/schema#",
+				"properties": {"filter": {"$ref": "#filter:string"}, "encoded": {"$ref": "#filter%3Astring"}},
+				"definitions": {"F": {"$id": "#filter:string", "type": "string"}}
+			}`,
+			want: `{
+				"$schema": "http://json-schema.org/draft-07/schema#",
+				"properties": {"filter": {"$ref": "#/definitions/F"}, "encoded": {"$ref": "#/definitions/F"}},
+				"definitions": {"F": {"type": "string"}}
+			}`,
+		},
+		{
 			// Draft 4 names resources and anchors with "id" and spells
 			// exclusive bounds as booleans. "id" as a property name or in
 			// instance data stays.
@@ -491,6 +528,9 @@ func TestNormalize(t *testing.T) {
 			// Some providers check a schema against the dialect only when
 			// "$schema" spells it as published. URIs compare their scheme
 			// and host without case, and an empty fragment is no fragment.
+			// Providers reject a "$schema" that is not spelled as
+			// published. One under a legacy draft is read as that draft,
+			// and one for another dialect goes, which reads as 2020-12.
 			name: "published dialects are spelled as published",
 			schema: `{
 				"$schema": "HTTP://JSON-SCHEMA.ORG/draft-07/schema#",
@@ -498,7 +538,8 @@ func TestNormalize(t *testing.T) {
 					"secure": {"$id": "a.json", "$schema": "https://json-schema.org/draft-07/schema"},
 					"insecure": {"$id": "b.json", "$schema": "http://Json-Schema.org/draft/2020-12/schema#"},
 					"path case": {"$id": "c.json", "$schema": "https://json-schema.org/DRAFT/2020-12/schema"},
-					"other": {"$id": "d.json", "$schema": "https://example.com/meta"}
+					"other": {"$id": "d.json", "$schema": "https://example.com/meta"},
+					"legacy": {"$id": "e.json", "$schema": "http://json-schema.org/draft-06/hyper-schema#"}
 				}
 			}`,
 			want: `{
@@ -506,8 +547,9 @@ func TestNormalize(t *testing.T) {
 				"properties": {
 					"secure": {"$id": "a.json", "$schema": "http://json-schema.org/draft-07/schema#"},
 					"insecure": {"$id": "b.json", "$schema": "https://json-schema.org/draft/2020-12/schema"},
-					"path case": {"$id": "c.json", "$schema": "https://json-schema.org/DRAFT/2020-12/schema"},
-					"other": {"$id": "d.json", "$schema": "https://example.com/meta"}
+					"path case": {"$id": "c.json"},
+					"other": {"$id": "d.json"},
+					"legacy": {"$id": "e.json", "$schema": "http://json-schema.org/draft-07/schema#"}
 				}
 			}`,
 		},
@@ -520,7 +562,9 @@ func TestNormalize(t *testing.T) {
 		},
 		{
 			// Draft 4 ignores the keywords later drafts define, so they
-			// go, except one that a reference's pointer names.
+			// go. The one occurrence a reference's pointer passes through
+			// keeps its value under a key that no draft defines, and a
+			// property named like a keyword is only a name.
 			name: "draft 4 drops keywords it ignores",
 			schema: `{
 				"$schema": "http://json-schema.org/draft-04/schema#",
@@ -528,9 +572,11 @@ func TestNormalize(t *testing.T) {
 					"mode": {"type": "string", "const": "fixed", "if": {"minLength": 2}, "then": {"maxLength": 3}},
 					"tags": {"type": "array", "contains": {"type": "string"}},
 					"meta": {"type": "object", "propertyNames": {"maxLength": 3}, "dependentRequired": {"a": ["b"]}},
-					"other": {"$ref": "#/properties/kept/else"},
-					"kept": {"else": {"type": "integer"}}
-				}
+					"other": {"$ref": "#/definitions/Holder/const"},
+					"const": {"type": "integer", "const": 7},
+					"same": {"$ref": "#/properties/const"}
+				},
+				"definitions": {"Holder": {"const": {"type": "integer"}, "x-draft4-const": "taken"}}
 			}`,
 			want: `{
 				"$schema": "http://json-schema.org/draft-07/schema#",
@@ -538,8 +584,29 @@ func TestNormalize(t *testing.T) {
 					"mode": {"type": "string"},
 					"tags": {"type": "array", "items": {}},
 					"meta": {"type": "object"},
-					"other": {"$ref": "#/properties/kept/else"},
-					"kept": {"else": {"type": "integer"}}
+					"other": {"$ref": "#/definitions/Holder/x-draft4-const-2"},
+					"const": {"type": "integer"},
+					"same": {"$ref": "#/properties/const"}
+				},
+				"definitions": {"Holder": {"x-draft4-const-2": {"type": "integer"}, "x-draft4-const": "taken"}}
+			}`,
+		},
+		{
+			// A pointer starts at the resource that the reference names
+			// or is in.
+			name: "draft 4 keeps keywords that pointers into embedded resources pass through",
+			schema: `{
+				"$schema": "http://json-schema.org/draft-04/schema#",
+				"properties": {
+					"tree": {"id": "tree.json", "properties": {"a": {"$ref": "#/definitions/T/if"}}, "definitions": {"T": {"if": {"type": "integer"}}}},
+					"b": {"$ref": "tree.json#/definitions/T/if"}
+				}
+			}`,
+			want: `{
+				"$schema": "http://json-schema.org/draft-07/schema#",
+				"properties": {
+					"tree": {"$id": "tree.json", "properties": {"a": {"$ref": "#/definitions/T/x-draft4-if"}}, "definitions": {"T": {"x-draft4-if": {"type": "integer"}}}},
+					"b": {"$ref": "tree.json#/definitions/T/x-draft4-if"}
 				}
 			}`,
 		},
@@ -636,8 +703,8 @@ func TestReplaceRecursiveRefs(t *testing.T) {
 			// Without "$recursiveAnchor" at its root, a resource is the
 			// target of its own recursive references.
 			name:   "references in an unanchored resource name it",
-			schema: `{"$recursiveAnchor": true, "properties": {"tree": {"$id": "tree.json", "$recursiveAnchor": false, "items": {"$recursiveRef": "tree.json"}}}}`,
-			want:   `{"properties": {"tree": {"$id": "tree.json", "items": {"$ref": "#"}}}}`,
+			schema: `{"$schema": "https://json-schema.org/draft/2019-09/schema", "$recursiveAnchor": true, "properties": {"tree": {"$id": "tree.json", "$recursiveAnchor": false, "items": {"$recursiveRef": "tree.json"}}}}`,
+			want:   `{"$schema": "https://json-schema.org/draft/2019-09/schema", "properties": {"tree": {"$id": "tree.json", "items": {"$ref": "#"}}}}`,
 		},
 		{
 			// In a resource whose root declares "$recursiveAnchor", the
@@ -646,6 +713,7 @@ func TestReplaceRecursiveRefs(t *testing.T) {
 			// declares. The name is one no anchor uses.
 			name: "references in an anchored resource become dynamic",
 			schema: `{
+				"$schema": "https://json-schema.org/draft/2019-09/schema",
 				"$recursiveAnchor": true,
 				"properties": {
 					"a": {"$ref": "#recursive"},
@@ -654,6 +722,7 @@ func TestReplaceRecursiveRefs(t *testing.T) {
 				"$defs": {"R": {"$anchor": "recursive"}, "S": {"$id": "#recursive2"}}
 			}`,
 			want: `{
+				"$schema": "https://json-schema.org/draft/2019-09/schema",
 				"$dynamicAnchor": "recursive3",
 				"properties": {
 					"a": {"$ref": "#recursive"},
@@ -667,19 +736,25 @@ func TestReplaceRecursiveRefs(t *testing.T) {
 			// has no room for another, so the reference is left out,
 			// which only drops a constraint.
 			name:   "a dynamic anchor already declared leaves the reference out",
-			schema: `{"properties": {"tree": {"$id": "tree.json", "$recursiveAnchor": true, "$dynamicAnchor": "node", "items": {"$recursiveRef": "#"}}, "leaf": {"$recursiveRef": "#"}}}`,
-			want:   `{"properties": {"tree": {"$id": "tree.json", "$dynamicAnchor": "node", "items": {}}, "leaf": {"$ref": "#"}}}`,
+			schema: `{"$schema": "https://json-schema.org/draft/2019-09/schema", "properties": {"tree": {"$id": "tree.json", "$recursiveAnchor": true, "$dynamicAnchor": "node", "items": {"$recursiveRef": "#"}}, "leaf": {"$recursiveRef": "#"}}}`,
+			want:   `{"$schema": "https://json-schema.org/draft/2019-09/schema", "properties": {"tree": {"$id": "tree.json", "$dynamicAnchor": "node", "items": {}}, "leaf": {"$ref": "#"}}}`,
 		},
 		{
 			name:   "references to other targets stay",
-			schema: `{"properties": {"a": {"$recursiveRef": "#/$defs/A"}, "b": {"$recursiveRef": "other.json"}}}`,
-			want:   `{"properties": {"a": {"$recursiveRef": "#/$defs/A"}, "b": {"$recursiveRef": "other.json"}}}`,
+			schema: `{"$schema": "https://json-schema.org/draft/2019-09/schema", "properties": {"a": {"$recursiveRef": "#/$defs/A"}, "b": {"$recursiveRef": "other.json"}}}`,
+			want:   `{"$schema": "https://json-schema.org/draft/2019-09/schema", "properties": {"a": {"$recursiveRef": "#/$defs/A"}, "b": {"$recursiveRef": "other.json"}}}`,
 		},
 		{
 			// Draft 7 and draft 2020-12 ignore both keywords.
 			name:   "other dialects drop the keywords",
 			schema: `{"$schema": "https://json-schema.org/draft/2020-12/schema", "$recursiveAnchor": true, "properties": {"a": {"$recursiveRef": "#"}}}`,
 			want:   `{"$schema": "https://json-schema.org/draft/2020-12/schema", "properties": {"a": {}}}`,
+		},
+		{
+			// MCP reads a schema without "$schema" as draft 2020-12.
+			name:   "a schema without a dialect drops the keywords",
+			schema: `{"$recursiveAnchor": true, "properties": {"a": {"$recursiveRef": "#"}}}`,
+			want:   `{"properties": {"a": {}}}`,
 		},
 		{
 			name:   "draft 7 drops the keywords",
@@ -697,6 +772,29 @@ func TestReplaceRecursiveRefs(t *testing.T) {
 			source, err := json.Marshal(schema)
 			require.NoError(t, err)
 			require.JSONEq(t, tc.schema, string(source), "the source must not be modified")
+		})
+	}
+}
+
+func TestPointerKeywords(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		pointer string
+		want    []bool
+	}{
+		// A name in a map of schemas is only a name, even when it is
+		// spelled like a keyword.
+		{pointer: "/properties/description/description", want: []bool{true, false, true}},
+		// Draft 7 "items" may hold a list of schemas, and instance data
+		// holds no keywords.
+		{pointer: "/$defs/A/items/0/const/properties", want: []bool{true, false, true, false, true, false}},
+		{pointer: "/allOf/1/required/0", want: []bool{true, false, true, false}},
+		{pointer: "/x-custom/properties", want: []bool{false, false}},
+	} {
+		t.Run(tc.pointer, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, toolschema.PointerKeywords(strings.Split(tc.pointer[1:], "/")))
 		})
 	}
 }
