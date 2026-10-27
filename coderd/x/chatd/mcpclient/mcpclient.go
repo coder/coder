@@ -1883,8 +1883,10 @@ func (t *mcpToolWrapper) FullInputSchema() map[string]any {
 	if properties, _ := inner["properties"].(map[string]any); properties == nil {
 		inner["properties"] = map[string]any{}
 	}
-	if len(t.required) > 0 {
-		inner["required"] = t.required
+	// The required names come from the rewritten schema, which moves a
+	// draft 3 "required": true to its holder's list.
+	if _, _, required := splitInputSchema(inner); len(required) > 0 {
+		inner["required"] = required
 	} else {
 		delete(inner, "required")
 	}

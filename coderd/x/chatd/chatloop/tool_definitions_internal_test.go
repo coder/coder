@@ -155,6 +155,26 @@ func TestBuildToolDefinitionsFullSchema(t *testing.T) {
 	require.Equal(t, []any{"filter"}, source["required"])
 }
 
+// TestBuildToolDefinitionsFullSchemaDraft3Required verifies that the
+// root "required" of a draft 3 schema keeps the names it lists and adds
+// the properties marked "required": true, as the []string that provider
+// drivers read.
+func TestBuildToolDefinitionsFullSchemaDraft3Required(t *testing.T) {
+	t.Parallel()
+
+	var source map[string]any
+	require.NoError(t, json.Unmarshal([]byte(`{
+		"$schema": "http://json-schema.org/draft-03/schema#",
+		"required": ["a"],
+		"properties": {"a": {"type": "string"}, "q": {"type": "string", "required": true}}
+	}`), &source))
+	defs := BuildToolDefinitions([]fantasy.AgentTool{fullSchemaTestTool{schema: source}}, nil, nil)
+	require.Len(t, defs, 1)
+	ft, ok := defs[0].(fantasy.FunctionTool)
+	require.True(t, ok)
+	require.Equal(t, []string{"a", "q"}, ft.InputSchema["required"])
+}
+
 // TestBuildToolDefinitionsFullSchemaNormalization verifies the
 // defensive guards on the full-schema path: a plain object root gets
 // "type" defaulted and a non-nil properties object, and an empty
