@@ -101,8 +101,10 @@ export function useConversationEditingState(deps: {
 	// would restore as the draft, so a reload or unmount mid-send keeps the
 	// sent message and what was typed since.
 	const sendInFlightRef = useRef<SendInFlight | null>(null);
-	// A request that settles after unmount belongs to an earlier visit, so it
-	// must not overwrite the draft that a later visit saved.
+	// The draft this hook last stored, or null after it removed the draft.
+	const storedDraftRef = useRef<string | null>(null);
+	// Unmount ends the visit. A request that settles after it replaces the
+	// stored draft only if no later visit has changed it.
 	useEffect(
 		() => () => {
 			sendInFlightRef.current = null;
@@ -238,10 +240,12 @@ export function useConversationEditingState(deps: {
 	const saveDraft = (draft: string | undefined) => {
 		if (!draft) {
 			localStorage.removeItem(draftStorageKey);
+			storedDraftRef.current = null;
 			return;
 		}
 		try {
 			localStorage.setItem(draftStorageKey, draft);
+			storedDraftRef.current = draft;
 		} catch {
 			// QuotaExceededError, silently discard the draft.
 		}
@@ -280,19 +284,21 @@ export function useConversationEditingState(deps: {
 		try {
 			await sendPromise;
 		} catch (error) {
-			if (sendInFlightRef.current) {
-				rollback();
-			}
+			rollback();
 			sendInFlightRef.current = null;
 			if (error instanceof BuiltInCommandPendingError) {
 				return;
 			}
 			throw error;
 		}
-		if (!sendInFlightRef.current) {
+		const visitEnded = sendInFlightRef.current === null;
+		sendInFlightRef.current = null;
+		if (
+			visitEnded &&
+			localStorage.getItem(draftStorageKey) !== storedDraftRef.current
+		) {
 			return;
 		}
-		sendInFlightRef.current = null;
 
 		finalizeSuccessfulSend(target);
 	};
