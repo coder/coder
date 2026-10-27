@@ -245,10 +245,10 @@ and opens a PR that updates the release docs.
 The wizard stops the run when a safety check fails. Two checks have
 overrides you can enable on a re-run:
 
-| Check                                       | Workflow input           |
-|---------------------------------------------|--------------------------|
-| Open PRs target the release branch          | `allow_open_prs`         |
-| A patch release contains breaking changes   | `allow_breaking_changes` |
+| Check                                     | Workflow input           |
+|-------------------------------------------|--------------------------|
+| Open PRs target the release branch        | `allow_open_prs`         |
+| A patch release contains breaking changes | `allow_breaking_changes` |
 
 Other checks, such as a version downgrade or an existing tag, have no
 override. Fix the cause, or run the wizard locally.
