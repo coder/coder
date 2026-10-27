@@ -298,7 +298,10 @@ export const useChatStore = (
 
 					// The stream sets it on message, queue_update and history_reset.
 					const version = streamEvent.snapshot_version ?? 0;
-					store.advanceSnapshotVersion(version);
+					// resetHistoryFrom compares its version with the synced one.
+					if (streamEvent.type !== "history_reset") {
+						store.advanceSnapshotVersion(version);
+					}
 
 					// Every other event applies after the messages before it.
 					if (streamEvent.type !== "message") {
@@ -312,6 +315,7 @@ export const useChatStore = (
 							streamEvent.history_reset?.from_message_id ?? 0,
 							version,
 						);
+						store.advanceSnapshotVersion(version);
 						void invalidateChatSearches(queryClient);
 						needsStreamReset = false;
 						continue;

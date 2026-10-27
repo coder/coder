@@ -806,12 +806,12 @@ describe("useChatStore", () => {
 						part: { type: "text", text: "stale" },
 					},
 				},
-				{ type: "history_reset", chat_id: chatID, snapshot_version: 1 },
+				{ type: "history_reset", chat_id: chatID, snapshot_version: 2 },
 				{
 					type: "message",
 					chat_id: chatID,
 					message: replacementMessage,
-					snapshot_version: 1,
+					snapshot_version: 2,
 				},
 				{ type: "preview_reset", chat_id: chatID },
 			]);
@@ -5144,6 +5144,47 @@ describe("chat stream contract", () => {
 			]);
 		});
 		expect(result.current.streamState).toBeNull();
+	});
+
+	it("keeps an older page across a resent history reset", async () => {
+		const sockets = mockWatchChatWithFreshSockets();
+		const { result } = renderChat({
+			...page([buildMessage(chatID, 10, "user", "prompt")], 5),
+			has_more: true,
+		});
+		await waitFor(() => expect(sockets).toHaveLength(1));
+
+		const olderPage = createDeferred<TypesGen.ChatMessagesResponse>();
+		vi.mocked(API.experimental.getChatMessages).mockReturnValueOnce(
+			olderPage.promise,
+		);
+		act(() => {
+			result.current.fetchMoreMessages();
+		});
+		await waitFor(() =>
+			expect(result.current.isFetchingMoreMessages).toBe(true),
+		);
+
+		// The first sync resends commit 5, whose edit the page already holds.
+		act(() => {
+			sockets[0].emitDataBatch([
+				{
+					type: "history_reset",
+					chat_id: chatID,
+					history_reset: { from_message_id: 10 },
+					snapshot_version: 5,
+				},
+				message(10, "user", 5),
+			]);
+		});
+		await act(async () => {
+			olderPage.resolve(page([buildMessage(chatID, 9, "assistant", "old")]));
+		});
+
+		await waitFor(() =>
+			expect(result.current.isFetchingMoreMessages).toBe(false),
+		);
+		expect(result.current.messageIDs).toEqual([9, 10]);
 	});
 
 	it("discards an older page requested before a history reset", async () => {

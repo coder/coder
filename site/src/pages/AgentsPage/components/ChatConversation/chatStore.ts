@@ -357,13 +357,14 @@ export const createChatStore = (): ChatStore => {
 		}));
 	};
 
-	// Applies all messages in one pass: one Map copy and one sort.
-	const upsertDurableMessages = (
+	// Returns whether a user message changed.
+	const writeMessages = (
 		messages: readonly TypesGen.ChatMessage[],
-	): void => {
+	): boolean => {
 		if (messages.length === 0) {
-			return;
+			return false;
 		}
+		let userMessageChanged = false;
 		setState((current) => {
 			let nextMessagesByID: Map<number, TypesGen.ChatMessage> | null = null;
 			for (const message of messages) {
@@ -377,6 +378,9 @@ export const createChatStore = (): ChatStore => {
 					nextMessagesByID = new Map(current.messagesByID);
 				}
 				nextMessagesByID.set(message.id, message);
+				if (message.role === "user") {
+					userMessageChanged = true;
+				}
 			}
 			if (!nextMessagesByID) {
 				return current;
@@ -391,6 +395,7 @@ export const createChatStore = (): ChatStore => {
 				orderedMessageIDs: nextOrderedMessageIDs,
 			};
 		});
+		return userMessageChanged;
 	};
 
 	const addPendingAction = (
@@ -456,10 +461,11 @@ export const createChatStore = (): ChatStore => {
 			};
 		},
 		batch,
+		// An event that changes nothing ends no part: the first sync resends
+		// commits that the newest page already holds.
 		upsertDurableMessages: (messages, userMessageVersion) => {
 			batch(() => {
-				upsertDurableMessages(messages);
-				if (messages.some((message) => message.role === "user")) {
+				if (writeMessages(messages)) {
 					endPending(["message"], userMessageVersion);
 				}
 			});
@@ -467,20 +473,21 @@ export const createChatStore = (): ChatStore => {
 		applyMessagePart: (part) => applyMessageParts([part]),
 		applyMessageParts,
 		setQueuedMessages: (queuedMessages, version) => {
+			if (chatQueuedMessagesEqualByID(state.queuedMessages, queuedMessages)) {
+				return;
+			}
 			batch(() => {
-				setState((current) => {
-					if (
-						chatQueuedMessagesEqualByID(current.queuedMessages, queuedMessages)
-					) {
-						return current;
-					}
-					return { ...current, queuedMessages };
-				});
+				setState((current) => ({ ...current, queuedMessages }));
 				endPending(["message", "queue"], version, queuedMessages);
 			});
 		},
 		seed,
 		resetHistoryFrom: (fromID, version) => {
+			// A reconnect resends the reset of the synced commit, which the
+			// store already applied.
+			if (version <= syncedSnapshotVersion) {
+				return;
+			}
 			historyResets++;
 			batch(() => {
 				replaceMessages(
@@ -499,7 +506,7 @@ export const createChatStore = (): ChatStore => {
 			const older = messages.filter(
 				(message) => !state.messagesByID.has(message.id),
 			);
-			upsertDurableMessages(older);
+			writeMessages(older);
 			setState((current) =>
 				current.hasMoreMessages === hasMore
 					? current
