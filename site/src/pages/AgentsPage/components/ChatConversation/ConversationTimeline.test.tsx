@@ -492,7 +492,7 @@ describe("ConversationTimeline async questions", () => {
 			.mockResolvedValue();
 		renderTimeline({
 			messages: [
-				...mockAsyncQuestionThenUnrelatedMessages.slice(0, 3),
+				...MockAsyncQuestionMessages,
 				{
 					...MockChatMessage,
 					id: 6,

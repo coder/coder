@@ -7,6 +7,7 @@ import {
 	parseAsyncAnswer,
 } from "../components/ChatElements/tools/asyncAnswer";
 import type { SendChatMessageOptions } from "../components/ChatPageContent";
+import type { ChatComposerContentPart } from "../utils/chatInputContent";
 import {
 	draftInputStorageKeyPrefix,
 	type ParsedDraft,
@@ -17,6 +18,24 @@ export class BuiltInCommandPendingError extends Error {}
 
 export type SendChatTurnOptions = SendChatMessageOptions & {
 	editedMessageID?: number;
+	/** Content to send in place of the composer's current parts. */
+	composerParts?: readonly ChatComposerContentPart[];
+};
+
+// Returns undefined for an empty composer, so the send falls back to the
+// message text, which already starts with the prefix line.
+const prependAnswerPrefix = (
+	prefix: string,
+	parts: readonly ChatComposerContentPart[],
+): readonly ChatComposerContentPart[] | undefined => {
+	const [firstPart, ...restParts] = parts;
+	if (!firstPart) {
+		return undefined;
+	}
+	if (firstPart.type === "text") {
+		return [{ type: "text", text: prefix + firstPart.text }, ...restParts];
+	}
+	return [{ type: "text", text: prefix }, ...parts];
 };
 
 /** @internal Exported for testing. */
@@ -170,12 +189,19 @@ export function useConversationEditingState(deps: {
 	}: SendChatMessageOptions) => {
 		const editedMessageID =
 			editingMessageId !== null ? editingMessageId : undefined;
+		const answerPrefix =
+			editedMessageID !== undefined ? editingAnswerPrefix : "";
 		const sendPromise = onSend({
-			message:
-				editedMessageID !== undefined ? editingAnswerPrefix + message : message,
+			message: answerPrefix + message,
 			attachments,
 			workspaceUploads,
 			editedMessageID,
+			composerParts: answerPrefix
+				? prependAnswerPrefix(
+						answerPrefix,
+						chatInputRef.current?.getContentParts() ?? [],
+					)
+				: undefined,
 		});
 
 		// For history edits, clear input immediately and prepare

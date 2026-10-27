@@ -804,6 +804,15 @@ export const UserMessageBubbleAlignment: Story = {
 	},
 };
 
+/** An async question answer shows an Answer label in place of its call line. */
+export const UserMessageAsyncQuestionAnswer: Story = {
+	args: buildStoryArgs(
+		buildUserMessage({
+			text: `${getAsyncAnswerPrefix("ask-tool-async")}${askUserQuestionSubmittedResponse}`,
+		}),
+	),
+};
+
 /** Regression guard: a single image attachment must not be duplicated. */
 export const UserMessageWithSingleImage: Story = {
 	args: {

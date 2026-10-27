@@ -708,6 +708,7 @@ const AgentChatPage: React.FC = () => {
 		attachments,
 		workspaceUploads,
 		editedMessageID,
+		composerParts,
 	}: SendChatTurnOptions) {
 		await submitChatTurn({
 			...chatTurnDeps,
@@ -715,7 +716,8 @@ const AgentChatPage: React.FC = () => {
 			attachments,
 			workspaceUploads,
 			editedMessageID,
-			composerParts: editing.chatInputRef.current?.getContentParts() ?? [],
+			composerParts:
+				composerParts ?? editing.chatInputRef.current?.getContentParts() ?? [],
 		});
 	}
 
