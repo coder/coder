@@ -492,13 +492,7 @@ export const useChatStore = (
 			}
 			store.resetTransientState();
 		};
-	}, [
-		aiGatewayDisabled,
-		chatID,
-		initialDataLoaded,
-		queryClient,
-		store,
-	]);
+	}, [aiGatewayDisabled, chatID, initialDataLoaded, queryClient, store]);
 	return {
 		store,
 		loadState,
