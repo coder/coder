@@ -107,10 +107,12 @@ When none matches, it uses the server URL with the scheme and host lowercased an
 Explicit `oauth2_revocation_url` and `oauth2_resource` values in the request take precedence over the discovered values.
 Discovery runs only when a configuration is created, so to add a resource indicator to an existing configuration, set `oauth2_resource` on it or re-create the server.
 
-Users connect through a popup that redirects through the OAuth2 provider.
+Users connect in **Agents** > **Settings** > **MCP connections**, through a popup that redirects through the OAuth2 provider.
+Connected servers then appear in the chat's **+** menu under **MCP servers**, where users turn each server on or off for that chat.
+A server that a chat used stays in that list after its connection ends and shows as disconnected until the user connects again.
 Tokens are stored per-user and refreshed automatically.
 Changing the server URL, authentication type, `oauth2_client_id`, `oauth2_token_url`, `oauth2_revocation_url`, or `oauth2_resource` deletes every user's stored token, so users must connect again.
-Users can disconnect via the UI or API to remove stored tokens.
+Users can disconnect in **MCP connections** or through the API to remove stored tokens.
 When a revocation endpoint is configured, disconnecting also asks the provider to revoke the token (RFC 7009).
 Provider revocation is best-effort: the stored token is always deleted from Coder, and the disconnect response reports whether provider revocation succeeded via `token_revoked` and `token_revocation_error`.
 

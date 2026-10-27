@@ -8,6 +8,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
+import { createMemoryRouter, MemoryRouter, useLocation } from "react-router";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
 import { API } from "#/api/api";
@@ -18,7 +19,10 @@ import { toast } from "#/components/Toaster/toast";
 import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import { MockChatProject } from "#/testHelpers/entities";
 import { createMockFile } from "#/testHelpers/files";
-import { createTestQueryClient } from "#/testHelpers/renderHelpers";
+import {
+	createTestQueryClient,
+	renderWithRouter,
+} from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
 import { mobileViewportMediaQuery } from "#/utils/mobile";
 import type * as speechRecognition from "../hooks/useSpeechRecognition";
@@ -127,8 +131,11 @@ const mockNotionMCP: TypesGen.MCPServerConfig = {
 const mockMCPServers = [mockSentryMCP, mockLinearMCP, mockGitHubMCP];
 const mockSelectedMCPServerIds = mockMCPServers.map((server) => server.id);
 
+// The input navigates to the MCP connections settings page.
 const renderInput = (children: React.ReactNode) => {
-	return render(<AppProviders>{children}</AppProviders>);
+	return render(<AppProviders>{children}</AppProviders>, {
+		wrapper: MemoryRouter,
+	});
 };
 
 beforeAll(() => {
@@ -215,6 +222,7 @@ describe("AgentChatInput", () => {
 					chatOrganizationId="org-1"
 				/>
 			</AppProviders>,
+			{ wrapper: MemoryRouter },
 		);
 
 		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
@@ -264,6 +272,7 @@ describe("AgentChatInput", () => {
 					chatProjectId="project-1"
 				/>
 			</AppProviders>,
+			{ wrapper: MemoryRouter },
 		);
 
 		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
@@ -300,6 +309,7 @@ describe("AgentChatInput", () => {
 					chatProjectId="project-1"
 				/>
 			</AppProviders>,
+			{ wrapper: MemoryRouter },
 		);
 
 		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
@@ -333,7 +343,7 @@ describe("AgentChatInput", () => {
 			</AppProviders>
 		);
 
-		const { rerender } = render(renderInput(true));
+		const { rerender } = render(renderInput(true), { wrapper: MemoryRouter });
 		await screen.findByRole("textbox", { name: "Chat message" });
 		expect(getChatProjectSkills).not.toHaveBeenCalled();
 
@@ -380,7 +390,7 @@ describe("AgentChatInput", () => {
 		);
 	});
 
-	it("removes a selected MCP server from the group", async () => {
+	it("turns a server off from the group pill's menu", async () => {
 		const user = userEvent.setup();
 		const onMCPSelectionChange = vi.fn();
 		renderInput(
@@ -394,8 +404,8 @@ describe("AgentChatInput", () => {
 
 		await user.click(screen.getByRole("button", { name: "3 MCPs" }));
 		await user.click(
-			within(screen.getByRole("dialog")).getByRole("button", {
-				name: "Remove Linear",
+			within(screen.getByRole("dialog")).getByRole("switch", {
+				name: "Disable Linear",
 			}),
 		);
 		expect(onMCPSelectionChange).toHaveBeenCalledWith([
@@ -404,7 +414,7 @@ describe("AgentChatInput", () => {
 		]);
 	});
 
-	it("enables an unselected MCP server from the plus menu while the group is collapsed", async () => {
+	it("enables an unselected MCP server from the MCP servers submenu", async () => {
 		const user = userEvent.setup();
 		const onMCPSelectionChange = vi.fn();
 		renderInput(
@@ -417,6 +427,9 @@ describe("AgentChatInput", () => {
 		);
 
 		await user.click(screen.getByRole("button", { name: "More options" }));
+		await user.click(
+			await screen.findByRole("button", { name: /MCP servers/ }),
+		);
 		await user.click(
 			await screen.findByRole("switch", { name: "Enable Notion" }),
 		);
@@ -482,11 +495,53 @@ describe("AgentChatInput", () => {
 
 		await user.click(screen.getByRole("button", { name: "3 MCPs" }));
 		await user.click(
-			within(screen.getByRole("dialog")).getByRole("button", {
-				name: "Remove Linear",
+			within(screen.getByRole("dialog")).getByRole("switch", {
+				name: "Disable Linear",
 			}),
 		);
 		expect(onMCPSelectionChange).not.toHaveBeenCalled();
+	});
+
+	it("opens MCP connections settings with a way back to the chat", async () => {
+		const user = userEvent.setup();
+		const SettingsPage = () => {
+			const location = useLocation();
+			return <pre>{JSON.stringify(location.state)}</pre>;
+		};
+		renderWithRouter(
+			createMemoryRouter(
+				[
+					{
+						path: "/agents/:chatId",
+						element: (
+							<AgentChatInput
+								{...inputProps}
+								chatOrganizationId="org-1"
+								mcpServers={[mockLinearMCP]}
+								selectedMCPServerIds={[]}
+								onMCPSelectionChange={vi.fn()}
+							/>
+						),
+					},
+					{
+						path: "/agents/settings/mcp-connections",
+						element: <SettingsPage />,
+					},
+				],
+				{ initialEntries: ["/agents/chat-1?tab=git"] },
+			),
+		);
+
+		await user.click(screen.getByRole("button", { name: "More options" }));
+		await user.click(
+			await screen.findByRole("button", { name: /MCP servers/ }),
+		);
+		await user.click(
+			await screen.findByRole("button", { name: "Manage connections" }),
+		);
+		expect(
+			JSON.parse((await screen.findByText(/organizationId/)).textContent ?? ""),
+		).toEqual({ from: "/agents/chat-1?tab=git", organizationId: "org-1" });
 	});
 
 	it("swaps Stop for the Queue button once a draft is entered while streaming", async () => {
@@ -698,7 +753,7 @@ describe("AgentChatInput", () => {
 				<AgentChatInput {...inputProps} inputRef={inputRef} />
 			</AppProviders>
 		);
-		const { rerender } = render(input());
+		const { rerender } = render(input(), { wrapper: MemoryRouter });
 		await waitFor(() => expect(inputRef.current).not.toBeNull());
 		act(() => inputRef.current?.insertSkill("project", "triage"));
 		const chip = {

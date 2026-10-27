@@ -99,3 +99,28 @@ export const saveMCPSelection = (
 		JSON.stringify(ids),
 	);
 };
+
+const needsSignIn = (server: TypesGen.MCPServerConfig) =>
+	server.auth_type === "oauth2" && !server.auth_connected;
+
+/**
+ * Servers the chat's MCP menu lists: those usable right now, plus those
+ * the chat selected (or an admin forces on) whose sign-in has lapsed, so
+ * the user can see why they stopped working.
+ */
+export const getMCPMenuServers = (
+	servers: readonly TypesGen.MCPServerConfig[],
+	selectedIds: readonly string[] | undefined,
+): { server: TypesGen.MCPServerConfig; isDisconnected: boolean }[] =>
+	servers.flatMap((server) => {
+		const isDisconnected = needsSignIn(server);
+		const isSelected =
+			server.availability === "force_on" ||
+			(selectedIds?.includes(server.id) ?? false);
+		return !isDisconnected || isSelected ? [{ server, isDisconnected }] : [];
+	});
+
+/** Number of servers that need the user to sign in before use. */
+export const countMCPServersNeedingSignIn = (
+	servers: readonly TypesGen.MCPServerConfig[],
+): number => servers.filter(needsSignIn).length;

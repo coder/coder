@@ -11,19 +11,17 @@ import {
 	MonitorIcon,
 	PaperclipIcon,
 	PencilIcon,
+	PlugIcon,
 	PlusIcon,
 	ServerIcon,
 	SquareIcon,
 	TriangleAlertIcon,
-	UnlinkIcon,
 	XIcon,
 } from "lucide-react";
 import type React from "react";
 import { useEffect, useId, useImperativeHandle, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Link } from "react-router";
-import { getErrorMessage } from "#/api/errors";
-import { disconnectMCPServerOAuth2 } from "#/api/queries/chats";
+import { useQuery } from "react-query";
+import { Link, useLocation, useNavigate } from "react-router";
 import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
@@ -37,7 +35,6 @@ import {
 	CommandItem,
 	CommandList,
 } from "#/components/Command/Command";
-import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
 	Popover,
@@ -48,7 +45,6 @@ import {
 import { Separator } from "#/components/Separator/Separator";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { Switch } from "#/components/Switch/Switch";
 import { toast } from "#/components/Toaster/toast";
 import {
 	Tooltip,
@@ -69,7 +65,6 @@ import {
 	mobileViewportMediaQuery,
 } from "#/utils/mobile";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
-import { useMCPOAuthFlow } from "../hooks/useMCPOAuthFlow";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import {
@@ -101,6 +96,7 @@ import type { AgentContextUsage } from "./ContextUsageIndicator";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { ImageLightbox } from "./ImageLightbox";
 import { MCPServerIconStack } from "./MCPServerIconStack";
+import { MCPServersMenuContent } from "./MCPServersMenuContent";
 import { ProjectSkillActions } from "./ProjectSkillActions";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
@@ -229,7 +225,6 @@ type AgentChatInputProps = {
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
-	onMCPAuthComplete?: (serverId: string) => void;
 	workspaceSkills?: readonly SkillMetadata[];
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
@@ -323,15 +318,13 @@ const BadgeDismissButton: React.FC<{
 
 type MCPGroupBadgeProps = {
 	servers: readonly TypesGen.MCPServerConfig[];
-	onRemoveMcp?: (serverId: string) => void;
-	isDisabled: boolean;
+	menu: React.ReactNode;
 	className: string;
 };
 
 const MCPGroupBadge: React.FC<MCPGroupBadgeProps> = ({
 	servers,
-	onRemoveMcp,
-	isDisabled,
+	menu,
 	className,
 }) => {
 	const [open, setOpen] = useState(false);
@@ -355,16 +348,9 @@ const MCPGroupBadge: React.FC<MCPGroupBadgeProps> = ({
 					/>
 				</button>
 			</PopoverTrigger>
-			<BadgePopoverContent>
-				{servers.map((server) => (
-					<ToolBadge
-						key={server.id}
-						badge={{ kind: "mcp", server }}
-						onRemoveMcp={onRemoveMcp}
-						isDisabled={isDisabled}
-					/>
-				))}
-			</BadgePopoverContent>
+			<PopoverContent side="top" align="start" className="w-72 p-1">
+				{menu}
+			</PopoverContent>
 		</Popover>
 	);
 };
@@ -374,6 +360,8 @@ const ToolBadge: React.FC<{
 	onRemoveWorkspace?: () => void;
 	onRemoveMcp?: (serverId: string) => void;
 	onRemovePlanning?: () => void;
+	/** Rendered by the MCP group pill's popover. */
+	mcpMenu?: React.ReactNode;
 	isDisabled: boolean;
 	className?: string;
 	// The overflow popover auto-focuses badges; suppress the tooltip there.
@@ -383,6 +371,7 @@ const ToolBadge: React.FC<{
 	onRemoveWorkspace,
 	onRemoveMcp,
 	onRemovePlanning,
+	mcpMenu,
 	isDisabled,
 	className,
 	disableTooltip,
@@ -466,8 +455,7 @@ const ToolBadge: React.FC<{
 		return (
 			<MCPGroupBadge
 				servers={badge.servers}
-				onRemoveMcp={onRemoveMcp}
-				isDisabled={isDisabled}
+				menu={mcpMenu}
 				className={badgeCls}
 			/>
 		);
@@ -557,7 +545,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	mcpServers,
 	selectedMCPServerIds,
 	onMCPSelectionChange,
-	onMCPAuthComplete,
 	workspaceSkills,
 	workspace,
 	workspaceAgent,
@@ -602,33 +589,13 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		string | null
 	>(null);
 	const [plusMenuOpen, setPlusMenuOpen] = useState(false);
-	const [plusMenuView, setPlusMenuView] = useState<"main" | "workspace">(
-		"main",
-	);
+	const [plusMenuView, setPlusMenuView] = useState<
+		"main" | "workspace" | "mcp"
+	>("main");
 	const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
-	const { connectingServerId: mcpConnectingId, connect: connectMCPServer } =
-		useMCPOAuthFlow({
-			organizationId: chatOrganizationId,
-			onAuthComplete: onMCPAuthComplete,
-			onFlowSuccess: (serverID) => {
-				if (
-					onMCPSelectionChange &&
-					selectedMCPServerIds &&
-					mcpServers?.some(
-						(server) => server.id === serverID && server.enabled,
-					) &&
-					!selectedMCPServerIds.includes(serverID)
-				) {
-					onMCPSelectionChange([...selectedMCPServerIds, serverID]);
-				}
-			},
-		});
-	const [mcpDisconnectTarget, setMcpDisconnectTarget] =
-		useState<TypesGen.MCPServerConfig | null>(null);
-	const queryClient = useQueryClient();
-	const mcpDisconnectMutation = useMutation(
-		disconnectMCPServerOAuth2(queryClient),
-	);
+	const [mcpMenuOpen, setMcpMenuOpen] = useState(false);
+	const navigate = useNavigate();
+	const location = useLocation();
 
 	const [hasChips, setHasChips] = useState(false);
 	const [cycleIndex, setCycleIndex] = useState<number | null>(null);
@@ -717,28 +684,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		}
 	};
 
-	const handleMcpDisconnectConfirm = () => {
-		if (!mcpDisconnectTarget) {
-			return;
-		}
-		const name = mcpDisconnectTarget.display_name;
-		mcpDisconnectMutation.mutate(mcpDisconnectTarget.id, {
-			onSuccess: (response) => {
-				setMcpDisconnectTarget(null);
-				if (response.token_revocation_error) {
-					toast.warning(`Disconnected ${name}.`, {
-						description: response.token_revocation_error,
-					});
-				} else {
-					toast.success(`Disconnected ${name}.`);
-				}
-			},
-			onError: (error) => {
-				toast.error(getErrorMessage(error, `Failed to disconnect ${name}.`));
-			},
-		});
-	};
-
 	// Only a chat-bound workspace counts: an unbound selection (new chat
 	// form, or a picked workspace before the first send) has no pinned
 	// context to resolve, so treating it as a workspace would leave the
@@ -812,6 +757,27 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const handleRemoveMcp = isReadOnlyView
 		? undefined
 		: (serverId: string) => handleMcpToggle(serverId, false);
+
+	const handleManageConnections = () => {
+		setMcpMenuOpen(false);
+		setPlusMenuOpen(false);
+		setPlusMenuView("main");
+		navigate("/agents/settings/mcp-connections", {
+			state: {
+				from: location.pathname + location.search,
+				organizationId: chatOrganizationId,
+			},
+		});
+	};
+	const mcpMenuContent = (
+		<MCPServersMenuContent
+			servers={enabledMcpServers}
+			selectedServerIds={selectedMCPServerIds}
+			isDisabled={isDisabled}
+			onToggle={isReadOnlyView ? undefined : handleMcpToggle}
+			onManageConnections={isReadOnlyView ? undefined : handleManageConnections}
+		/>
+	);
 
 	const handlePlanModeToggle = () => {
 		onPlanModeToggle(!planModeEnabled);
@@ -1545,7 +1511,10 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 							open={plusMenuOpen}
 							onOpenChange={(open) => {
 								setPlusMenuOpen(open);
-								if (!open) setPlusMenuView("main");
+								if (!open) {
+									setPlusMenuView("main");
+									setMcpMenuOpen(false);
+								}
 							}}
 						>
 							{" "}
@@ -1573,7 +1542,20 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 								align="start"
 								className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-auto min-w-[200px] p-1"
 							>
-								{plusMenuView === "workspace" ? (
+								{plusMenuView === "mcp" ? (
+									<div className="p-0">
+										<button
+											type="button"
+											onClick={() => setPlusMenuView("main")}
+											className="flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
+										>
+											<ArrowLeftIcon className="size-3.5 shrink-0" />
+											<span>Back</span>
+										</button>
+										<Separator className="my-1" />
+										{mcpMenuContent}
+									</div>
+								) : plusMenuView === "workspace" ? (
 									<div className="p-0">
 										<button
 											type="button"
@@ -1677,99 +1659,59 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 													</PopoverContent>
 												</Popover>
 											))}
-										{enabledMcpServers.length > 0 && (
-											<>
-												<Separator className="my-1" />
-												{enabledMcpServers.map((server) => {
-													const isForceOn = server.availability === "force_on";
-													const isSelected =
-														isForceOn ||
-														(selectedMCPServerIds?.includes(server.id) ??
-															false);
-													const needsAuth =
-														server.auth_type === "oauth2" &&
-														!server.auth_connected;
-													const isConnecting = mcpConnectingId === server.id;
-													return (
-														<div
-															key={server.id}
-															className="flex items-center gap-1.5 px-1 py-1.5"
-														>
-															{server.icon_url ? (
-																<ExternalImage
-																	src={server.icon_url}
-																	alt=""
-																	className="size-3.5 shrink-0 rounded-sm"
+										{enabledMcpServers.length > 0 &&
+											(isBelowMdViewport() ? (
+												<>
+													<Separator className="my-1" />
+													<button
+														type="button"
+														onClick={() => setPlusMenuView("mcp")}
+														className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
+													>
+														<PlugIcon className="size-3.5 shrink-0" />
+														<span>MCP servers</span>
+														<span className="ml-auto">
+															{activeMcpServers.length} on
+														</span>
+														<ChevronRightIcon className="size-icon-sm" />
+													</button>
+												</>
+											) : (
+												<>
+													<Separator className="my-1" />
+													<Popover
+														open={mcpMenuOpen}
+														onOpenChange={setMcpMenuOpen}
+													>
+														<PopoverTrigger asChild>
+															<button
+																type="button"
+																className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
+															>
+																<PlugIcon className="size-3.5 shrink-0" />
+																<span>MCP servers</span>
+																<span className="ml-auto">
+																	{activeMcpServers.length} on
+																</span>
+																<ChevronRightIcon
+																	className={cn(
+																		"size-icon-sm transition-transform",
+																		mcpMenuOpen && "rotate-180",
+																	)}
 																/>
-															) : (
-																<ServerIcon className="size-3.5 shrink-0 text-content-secondary" />
-															)}
-															<span className="min-w-0 flex-1 truncate text-xs text-content-secondary">
-																{server.display_name}
-															</span>
-															{isForceOn && (
-																<LockIcon className="size-3 shrink-0 text-content-secondary" />
-															)}
-															{needsAuth ? (
-																<>
-																	{isForceOn && (
-																		<span className="sr-only">Always on</span>
-																	)}
-																	<Button
-																		variant="outline"
-																		size="sm"
-																		className="h-6 shrink-0 px-2 text-[10px] leading-none"
-																		onClick={() => connectMCPServer(server.id)}
-																		disabled={
-																			isDisabled || mcpConnectingId !== null
-																		}
-																	>
-																		{isConnecting ? (
-																			<Spinner
-																				loading
-																				className="h-2.5 w-2.5"
-																			/>
-																		) : null}
-																		Auth
-																	</Button>
-																</>
-															) : (
-																<>
-																	{server.auth_type === "oauth2" && (
-																		<Button
-																			variant="subtle"
-																			size="icon"
-																			className="size-6 shrink-0 text-content-secondary [&>svg]:size-3"
-																			onClick={() => {
-																				setPlusMenuOpen(false);
-																				setMcpDisconnectTarget(server);
-																			}}
-																			disabled={isDisabled}
-																			aria-label={`Disconnect ${server.display_name}`}
-																		>
-																			<UnlinkIcon />
-																		</Button>
-																	)}
-																	<Switch
-																		size="sm"
-																		checked={isSelected}
-																		onCheckedChange={(checked) =>
-																			handleMcpToggle(server.id, checked)
-																		}
-																		disabled={isDisabled || isForceOn}
-																		aria-label={
-																			isForceOn
-																				? `${server.display_name} always on`
-																				: `${isSelected ? "Disable" : "Enable"} ${server.display_name}`
-																		}
-																	/>
-																</>
-															)}
-														</div>
-													);
-												})}
-											</>
-										)}
+															</button>
+														</PopoverTrigger>
+														<PopoverContent
+															side="right"
+															align="end"
+															sideOffset={8}
+															className="w-72 p-1"
+														>
+															{mcpMenuContent}
+														</PopoverContent>
+													</Popover>
+												</>
+											))}
 									</>
 								)}
 							</PopoverContent>
@@ -1862,6 +1804,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 										onRemoveWorkspace={removeWorkspaceHandler}
 										onRemoveMcp={handleRemoveMcp}
 										onRemovePlanning={handleDisablePlanMode}
+										mcpMenu={mcpMenuContent}
 										isDisabled={isDisabled}
 										className={isOverflow ? "hidden" : undefined}
 									/>
@@ -1933,6 +1876,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 												onRemoveWorkspace={removeWorkspaceHandler}
 												onRemoveMcp={handleRemoveMcp}
 												onRemovePlanning={handleDisablePlanMode}
+												mcpMenu={mcpMenuContent}
 												isDisabled={isDisabled}
 												disableTooltip
 											/>
@@ -2078,16 +2022,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					}}
 				/>
 			)}
-			<ConfirmDialog
-				open={mcpDisconnectTarget !== null}
-				title={`Disconnect ${mcpDisconnectTarget?.display_name ?? "MCP server"}?`}
-				description="This removes your credentials for this MCP server from Coder. You can authenticate again later."
-				type="delete"
-				confirmText="Disconnect"
-				confirmLoading={mcpDisconnectMutation.isPending}
-				onConfirm={handleMcpDisconnectConfirm}
-				onClose={() => setMcpDisconnectTarget(null)}
-			/>
 		</>
 	);
 };

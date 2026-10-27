@@ -55,7 +55,6 @@ const renderChatPageInput = (
 			mcpServers={[]}
 			selectedMCPServerIds={[]}
 			onMCPSelectionChange={vi.fn()}
-			onMCPAuthComplete={vi.fn()}
 			isWorkspaceLoading={false}
 			{...overrides}
 		/>,

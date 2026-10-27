@@ -3496,6 +3496,9 @@ export const EditAppliesMCPServerSelection: Story = {
 		);
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
 		await userEvent.click(
+			await body.findByRole("button", { name: /MCP servers/ }),
+		);
+		await userEvent.click(
 			await body.findByRole("switch", {
 				name: `Enable ${MockMCPServerConfig.display_name}`,
 			}),

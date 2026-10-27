@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { MCPServerConfig } from "#/api/typesGenerated";
 import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import {
+	countMCPServersNeedingSignIn,
 	getDefaultMCPSelection,
+	getMCPMenuServers,
 	getSavedMCPSelection,
 	mcpSelectionStorageKey,
 	saveMCPSelection,
@@ -228,5 +230,50 @@ describe("MCP selection persistence", () => {
 			];
 			expect(getDefaultMCPSelection(servers)).toEqual([]);
 		});
+	});
+});
+
+describe("getMCPMenuServers", () => {
+	const usable = buildServer({ id: "linear", auth_type: "api_key" });
+	const connected = buildServer({
+		id: "github",
+		auth_type: "oauth2",
+		auth_connected: true,
+	});
+	const lapsedSelected = buildServer({
+		id: "notion",
+		auth_type: "oauth2",
+		auth_connected: false,
+	});
+	const lapsedForced = buildServer({
+		id: "slack",
+		auth_type: "oauth2",
+		auth_connected: false,
+		availability: "force_on",
+	});
+	const neverConnected = buildServer({
+		id: "wiz",
+		auth_type: "oauth2",
+		auth_connected: false,
+	});
+	const servers = [
+		usable,
+		connected,
+		lapsedSelected,
+		lapsedForced,
+		neverConnected,
+	];
+
+	it("lists usable servers and selected or forced servers whose sign-in lapsed", () => {
+		expect(getMCPMenuServers(servers, [lapsedSelected.id])).toEqual([
+			{ server: usable, isDisconnected: false },
+			{ server: connected, isDisconnected: false },
+			{ server: lapsedSelected, isDisconnected: true },
+			{ server: lapsedForced, isDisconnected: true },
+		]);
+	});
+
+	it("counts every server that needs sign-in", () => {
+		expect(countMCPServersNeedingSignIn(servers)).toBe(3);
 	});
 });

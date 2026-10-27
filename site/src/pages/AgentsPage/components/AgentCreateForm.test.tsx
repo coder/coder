@@ -705,6 +705,9 @@ describe("AgentCreateForm organization lock", () => {
 		);
 		await user().click(screen.getByRole("button", { name: "More options" }));
 		await user().click(
+			await screen.findByRole("button", { name: /MCP servers/ }),
+		);
+		await user().click(
 			await screen.findByRole("switch", { name: "Enable Notion" }),
 		);
 
