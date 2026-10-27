@@ -7,7 +7,6 @@ Dev containers extend your template with containerized development environments,
 Coder's Dev Containers Integration uses the standard `@devcontainers/cli` and Docker to run containers inside workspaces.
 
 For setup instructions, see [Dev Containers Integration](../../integrations/devcontainers/integration.md).
-For an alternative approach that doesn't require Docker, see [Envbuilder](../../integrations/devcontainers/envbuilder/index.md) (maintenance mode ⚠️).
 
 > [!TIP]
 > Nix flakes are an alternate way to handle dependency management which lets developers and/or template administrators define environments and manage dependencies at a much deeper level, without requiring a container runtime.
