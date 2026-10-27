@@ -16,10 +16,10 @@ import {
 	SquarePenIcon,
 } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
-import { useMutation, useQueryClient } from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link, type Location, NavLink } from "react-router";
 import { getErrorMessage } from "#/api/errors";
-import { reorderPinnedChat } from "#/api/queries/chats";
+import { chat as chatQuery, reorderPinnedChat } from "#/api/queries/chats";
 import type {
 	Chat,
 	ChatModel,
@@ -342,10 +342,18 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		}
 	}, [activeChatId]);
 
+	// The chat page loads the active chat, so its cached entity names the
+	// project when the sidebar's pages have not reached the chat. Disabled so
+	// the sidebar only reads that entry.
+	const { data: activeChatEntity } = useQuery({
+		...chatQuery(activeChatId ?? ""),
+		enabled: false,
+	});
 	// Folders default open for the active chat's project or the project page.
 	const activeProjectId =
-		(activeChatId ? chatById.get(activeChatId)?.project_id : undefined) ??
-		viewedProjectId;
+		(activeChatId
+			? (chatById.get(activeChatId) ?? activeChatEntity)?.project_id
+			: undefined) ?? viewedProjectId;
 	const [seenActiveProjectId, setSeenActiveProjectId] =
 		useState(activeProjectId);
 	if (activeProjectId !== seenActiveProjectId) {
