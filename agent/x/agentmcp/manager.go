@@ -789,14 +789,7 @@ func (m *Manager) refreshCatalog(ctx context.Context, wanted map[string]ServerCo
 				mu.Unlock()
 				return nil
 			}
-			tools := make([]ToolInfo, 0, len(result.Tools))
-			for _, tool := range result.Tools {
-				tools = append(tools, ToolInfo{
-					Name:        tool.Name,
-					Description: tool.Description,
-					InputSchema: toolInputSchemaMap(tool.InputSchema),
-				})
-			}
+			tools := toolInfos(result.Tools)
 			mu.Lock()
 			results[name] = listResult{tools: tools}
 			mu.Unlock()
@@ -1089,25 +1082,56 @@ type ToolInfo struct {
 	InputSchema map[string]any
 }
 
-// maxToolInputSchemaBytes matches coderd's per-tool definition cap for
-// inline MCP servers. Context snapshot caps count resource payloads, not
-// tool lists, so this bound is applied here.
-const maxToolInputSchemaBytes = 64 << 10
+// Caps on the full input schemas forwarded for one server's tools,
+// matching coderd's definition caps for inline MCP servers. Context
+// snapshot caps count resource payloads, not tool lists, so these
+// bounds are applied here.
+const (
+	maxToolInputSchemaBytes  = 64 << 10
+	maxToolInputSchemasBytes = 256 << 10
+)
+
+// toolInfos converts one server's tool list. A schema over
+// maxToolInputSchemaBytes, or one that would take the server's full
+// schemas past maxToolInputSchemasBytes, keeps only type, properties,
+// and required, so it costs no more than before full schemas were
+// forwarded.
+func toolInfos(tools []*mcp.Tool) []ToolInfo {
+	infos := make([]ToolInfo, 0, len(tools))
+	fullSchemaBytes := 0
+	for _, tool := range tools {
+		inputSchema := toolInputSchemaMap(tool.InputSchema)
+		if inputSchema != nil {
+			encoded, err := json.Marshal(inputSchema)
+			if err == nil && len(encoded) <= min(maxToolInputSchemaBytes, maxToolInputSchemasBytes-fullSchemaBytes) {
+				fullSchemaBytes += len(encoded)
+			} else {
+				inputSchema = reducedToolInputSchema(inputSchema)
+			}
+		}
+		infos = append(infos, ToolInfo{
+			Name:        tool.Name,
+			Description: tool.Description,
+			InputSchema: inputSchema,
+		})
+	}
+	return infos
+}
 
 // The schema map is passed through whole so coderd sees every key the
 // server reported ($defs, additionalProperties, combinators, ...);
-// non-object and empty schemas leave InputSchema unset. A schema over
-// maxToolInputSchemaBytes keeps only type, properties, and required,
-// so it costs no more than before full schemas were forwarded.
+// non-object and empty schemas leave InputSchema unset.
 func toolInputSchemaMap(schema any) map[string]any {
 	m, ok := schema.(map[string]any)
 	if !ok || len(m) == 0 {
 		return nil
 	}
-	encoded, err := json.Marshal(m)
-	if err == nil && len(encoded) <= maxToolInputSchemaBytes {
-		return m
-	}
+	return m
+}
+
+// reducedToolInputSchema keeps only the type, properties, and required
+// names of a schema, or returns nil when it has none of them.
+func reducedToolInputSchema(m map[string]any) map[string]any {
 	out := map[string]any{}
 	if typ, ok := m["type"].(string); ok && typ != "" {
 		out["type"] = typ
