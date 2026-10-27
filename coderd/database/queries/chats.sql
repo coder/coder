@@ -536,6 +536,20 @@ ORDER BY
 LIMIT
     COALESCE(NULLIF(@limit_val::int, 0), 500);
 
+-- name: GetChatMessagesWithFilePartsByChatID :many
+-- Returns the user-visible user and assistant messages in a chat that hold
+-- at least one file part, newest first, optionally only those before
+-- @before_id. Backs the attachments endpoint so a client can list every
+-- attachment without paging through the transcript.
+SELECT * FROM chat_messages
+WHERE chat_id = @chat_id::uuid
+    AND CASE WHEN @before_id::bigint > 0 THEN id < @before_id::bigint ELSE true END
+    AND deleted = false
+    AND visibility IN ('user', 'both')
+    AND role IN ('user', 'assistant')
+    AND content @> '[{"type": "file"}]'::jsonb
+ORDER BY id DESC;
+
 -- name: GetChatTurnStartID :one
 SELECT
     id

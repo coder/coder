@@ -5590,6 +5590,7 @@ var ExperimentsKnown = Experiments{
 // not be included here and will be essentially hidden.
 var ExperimentsSafe = Experiments{
 	ExperimentChatStageMetrics,
+	ExperimentChatProjects,
 }
 
 // ExperimentsUserScoped lists the experiments that accept runtime rules

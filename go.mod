@@ -115,8 +115,16 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    (item ID, encrypted content, summary) and replay it in full
 //    regardless of store. Skip hosted search references from unstored
 //    source responses.
-// See: https://github.com/coder/fantasy/commits/85ffbbe29d54
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261026052140-85ffbbe29d54
+// 15) coder/fantasy#62, request OpenAI web_search_call sources, report
+//    the search action in the tool call input, and tag web search
+//    sources with the search that found them. Upstream as
+//    charmbracelet/fantasy#435.
+// 16) coder/fantasy#67, separate OpenAI Responses reasoning summary
+//    parts with a blank line, also before the first part, so each
+//    part's bold title renders on its own line. Upstream as
+//    charmbracelet/fantasy#436.
+// See: https://github.com/coder/fantasy/commits/2e8e2cbf4aea
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261027133624-2e8e2cbf4aea
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
@@ -272,7 +280,7 @@ require (
 	golang.org/x/text v0.43.0
 	golang.org/x/tools v0.52.0
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
-	google.golang.org/api v0.307.0
+	google.golang.org/api v0.308.0
 	google.golang.org/grpc v1.84.0
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/DataDog/dd-trace-go.v1 v1.74.0
@@ -559,10 +567,10 @@ require (
 	github.com/invopop/jsonschema v0.14.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/nats-io/nats-server/v2 v2.15.0
-	github.com/nats-io/nats.go v1.54.0
+	github.com/nats-io/nats.go v1.55.0
 	github.com/openai/openai-go/v3 v3.50.0
 	github.com/scim2/filter-parser/v2 v2.3.1
-	github.com/shopspring/decimal v1.5.0
+	github.com/shopspring/decimal v1.6.0
 	github.com/smallstep/pkcs7 v0.2.1
 	github.com/sony/gobreaker/v2 v2.4.0
 	github.com/tidwall/sjson v1.2.5

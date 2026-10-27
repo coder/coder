@@ -184,6 +184,7 @@ If your identity provider manages group membership (for example, an `sre-oncall`
    ```
 
 1. When your IdP rotates group membership, Coder group membership updates on next login.
+
    All current members have access.
    Removed members lose access after a workspace restart.
 

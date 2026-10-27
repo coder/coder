@@ -25,6 +25,19 @@ func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler 
 	return rateLimitWithEndpointKey(count, window, keyByNormalizedEndpoint, nil)
 }
 
+// RateLimitPerCaller returns a handler that limits requests per-minute
+// based on IP and user ID (if available), ignoring the request path. Every
+// route mounted behind one instance shares one budget per caller, so path
+// parameters such as a chat ID cannot be varied to get a fresh bucket.
+func RateLimitPerCaller(count int, window time.Duration) func(http.Handler) http.Handler {
+	return rateLimitWithEndpointKey(count, window,
+		func(*http.Request) (string, error) {
+			return "", nil
+		},
+		nil,
+	)
+}
+
 // RateLimitOAuth2 returns a handler that limits requests per-minute based on
 // the caller. Mount it on each route, since every call is a separate bucket.
 //

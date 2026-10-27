@@ -436,7 +436,8 @@ The pattern is two API calls:
 
 1. Create a workspace from a specific template via [`POST /api/v2/users/{user}/workspaces`](../../reference/api/workspaces.md#create-user-workspace).
    You control the template, the version, and any rich parameters.
-2. Create the chat with `workspace_id` set to the workspace you just created.
+2. Create the chat with `workspace_id` set to the new workspace.
+
    The agent runs against that workspace instead of selecting one heuristically.
 
 ```sh

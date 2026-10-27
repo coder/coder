@@ -95,9 +95,13 @@ A `suggestion` rule can ship with existing findings, as the severity notes below
 The PR that adds a rule is the rule's complete unit:
 
 1. **Cleanup commit**: fix every existing-content violation of the new rule so `make lint/prose` reports zero findings for it.
+
    The cleanup ships in the same PR as the enable, ordered first.
    For a `suggestion` rule, the cleanup is optional.
-2. **Enable commit**: add the rule to `.vale.ini` at its chosen severity, write a corresponding section under the matching subpage of `docs/.style/style-guide/`, and add the custom rule YAML under `docs/.style/styles/Coder/` if applicable.
+2. **Enable commit**: enable the rule in `.vale.ini`, document it in the style guide, and add its YAML if applicable.
+
+   Set the rule's chosen severity in `.vale.ini`.
+   Write a corresponding section under the matching subpage of `docs/.style/style-guide/`, and add the custom rule YAML under `docs/.style/styles/Coder/`.
    The rule's `message:` field points at the relevant style-guide subpage anchor.
    Update the coverage tables on [`style-guide/README.md`](style-guide/README.md) in the same commit.
    `make lint/style-claims` fails when a rule lands without its section, when the tables disagree with `.vale.ini`, or when an annotation claims enforcement that doesn't exist.
