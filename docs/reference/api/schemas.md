@@ -2747,6 +2747,109 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `groups` | array of [codersdk.ChatGroup](#codersdkchatgroup) | false    |              |             |
 | `users`  | array of [codersdk.ChatUser](#codersdkchatuser)   | false    |              |             |
 
+## codersdk.ChatAttachment
+
+```json
+{
+  "file": {
+    "data": "string",
+    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+    "media_type": "string",
+    "name": "string",
+    "type": "file"
+  },
+  "message_id": 0,
+  "part_index": 0,
+  "role": "user"
+}
+```
+
+### Properties
+
+| Name         | Type                                                       | Required | Restrictions | Description                                                                                  |
+|--------------|------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------|
+| `file`       | [codersdk.ChatAttachmentFile](#codersdkchatattachmentfile) | false    |              |                                                                                              |
+| `message_id` | integer                                                    | false    |              |                                                                                              |
+| `part_index` | integer                                                    | false    |              | Part index is the file part's position in the message content the messages endpoint returns. |
+| `role`       | [codersdk.ChatAttachmentRole](#codersdkchatattachmentrole) | false    |              |                                                                                              |
+
+## codersdk.ChatAttachmentFile
+
+```json
+{
+  "data": "string",
+  "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+  "media_type": "string",
+  "name": "string",
+  "type": "file"
+}
+```
+
+### Properties
+
+| Name         | Type                                                               | Required | Restrictions | Description                                                               |
+|--------------|--------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------|
+| `data`       | string                                                             | false    |              | Data holds an inline file's bytes, which JSON carries as a base64 string. |
+| `file_id`    | string                                                             | false    |              | Omitted, not null, for an inline file.                                    |
+| `media_type` | string                                                             | false    |              |                                                                           |
+| `name`       | string                                                             | false    |              |                                                                           |
+| `type`       | [codersdk.ChatAttachmentFileType](#codersdkchatattachmentfiletype) | false    |              |                                                                           |
+
+## codersdk.ChatAttachmentFileType
+
+```json
+"file"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s) |
+|----------|
+| `file`   |
+
+## codersdk.ChatAttachmentRole
+
+```json
+"user"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)            |
+|---------------------|
+| `assistant`, `user` |
+
+## codersdk.ChatAttachmentsResponse
+
+```json
+{
+  "attachments": [
+    {
+      "file": {
+        "data": "string",
+        "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+        "media_type": "string",
+        "name": "string",
+        "type": "file"
+      },
+      "message_id": 0,
+      "part_index": 0,
+      "role": "user"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name          | Type                                                        | Required | Restrictions | Description |
+|---------------|-------------------------------------------------------------|----------|--------------|-------------|
+| `attachments` | array of [codersdk.ChatAttachment](#codersdkchatattachment) | false    |              |             |
+
 ## codersdk.ChatAutoArchiveDaysResponse
 
 ```json

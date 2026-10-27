@@ -315,7 +315,7 @@ const NO_FILE_IDS: ReadonlySet<string> = new Set();
  * Chat files a message part references, in the order the server linked
  * them. A wait_agent result stores its recording before its thumbnail.
  */
-const partFileIds = (part: TypesGen.ChatMessagePart): string[] => {
+export const partFileIds = (part: TypesGen.ChatMessagePart): string[] => {
 	switch (part.type) {
 		case "file":
 			return part.file_id ? [part.file_id] : [];
@@ -336,11 +336,13 @@ const partFileIds = (part: TypesGen.ChatMessagePart): string[] => {
  * lists the attachments that remain. An attachment referenced before the
  * newest remaining one but absent from the record has been evicted. Later
  * references are newer than the record, so a message that lands before the
- * next chat refetch is never mistaken for an evicted one.
+ * next chat refetch is never mistaken for an evicted one. `earlierFileIds`
+ * predate the record, so one the record lacks has been evicted.
  */
 export const deriveEvictedFileIds = (
 	entries: readonly Pick<ParsedMessageEntry, "message">[],
 	chatFiles: readonly TypesGen.ChatFileMetadata[] | undefined,
+	earlierFileIds: readonly string[] = [],
 ): ReadonlySet<string> => {
 	if (!chatFiles) {
 		return NO_FILE_IDS;
@@ -353,49 +355,62 @@ export const deriveEvictedFileIds = (
 		linkedFileIds.has(fileId),
 	);
 	return new Set(
-		referencedFileIds
-			.slice(0, Math.max(newestLinkedIndex, 0))
-			.filter((fileId) => !linkedFileIds.has(fileId)),
+		[
+			...earlierFileIds,
+			...referencedFileIds.slice(0, Math.max(newestLinkedIndex, 0)),
+		].filter((fileId) => !linkedFileIds.has(fileId)),
 	);
 };
 
-/** A downloadable file the agent attached, keyed by message and part. */
-export type AgentAttachment = {
+/** A downloadable file in a chat message, keyed by message and part. */
+export type MessageAttachment = {
 	key: string;
+	role: TypesGen.ChatMessageRole;
 	file: TypesGen.ChatFilePart;
 	href: string;
 };
 
+const toMessageAttachments = (
+	messageId: number,
+	partIndex: number,
+	role: TypesGen.ChatMessageRole,
+	file: TypesGen.ChatFilePart,
+): MessageAttachment[] => {
+	const href = getAttachmentHref(file);
+	return href ? [{ key: `${messageId}:${partIndex}`, role, file, href }] : [];
+};
+
 /**
- * Downloadable files the agent attached to its messages, newest first. Files
- * the user uploaded are left out.
+ * Downloadable files the user uploaded and the agent attached, newest first.
  */
-export const getAgentAttachments = (
+export const getMessageAttachments = (
 	messages: readonly TypesGen.ChatMessage[],
-): AgentAttachment[] =>
+): MessageAttachment[] =>
 	messages
-		.filter((message) => message.role === "assistant")
+		.filter(
+			(message) => message.role === "user" || message.role === "assistant",
+		)
 		.flatMap((message) =>
-			(message.content ?? []).flatMap((part, partIndex) => {
-				if (part.type !== "file") {
-					return [];
-				}
-				const href = getAttachmentHref(part);
-				return href
-					? [{ key: `${message.id}:${partIndex}`, file: part, href }]
-					: [];
-			}),
+			(message.content ?? []).flatMap((part, partIndex) =>
+				part.type === "file"
+					? toMessageAttachments(message.id, partIndex, message.role, part)
+					: [],
+			),
 		)
 		.reverse();
 
 /**
- * Undefined until the chat's first message page reaches the store; gating on
- * isHydratingMessages alone would blank the list on every live message.
+ * The server's attachments from messages before the loaded ones, newest
+ * first, keyed like loaded attachments.
  */
-export const getLoadedAgentAttachments = (
-	messages: readonly TypesGen.ChatMessage[],
-	isHydratingMessages: boolean,
-): AgentAttachment[] | undefined =>
-	isHydratingMessages && messages.length === 0
-		? undefined
-		: getAgentAttachments(messages);
+export const getEarlierMessageAttachments = (
+	attachments: readonly TypesGen.ChatAttachment[],
+): MessageAttachment[] =>
+	attachments.flatMap((attachment) =>
+		toMessageAttachments(
+			attachment.message_id,
+			attachment.part_index,
+			attachment.role,
+			attachment.file,
+		),
+	);

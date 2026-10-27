@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	stderrors "errors"
 	"fmt"
@@ -6423,6 +6424,243 @@ func TestGetChatUserPrompts(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, resp.Prompts, "prompts must be [] not nil")
 		require.Empty(t, resp.Prompts)
+	})
+}
+
+func TestGetChatAttachments(t *testing.T) {
+	t.Parallel()
+
+	insertMessage := func(
+		t *testing.T,
+		ctx context.Context,
+		db database.Store,
+		chat database.Chat,
+		role database.ChatMessageRole,
+		parts []codersdk.ChatMessagePart,
+		visibility database.ChatMessageVisibility,
+		deleted bool,
+	) database.ChatMessage {
+		t.Helper()
+		content, err := chatprompt.MarshalParts(parts)
+		require.NoError(t, err)
+		msgs, err := db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessagesParams{
+			ChatID:              chat.ID,
+			CreatedBy:           []uuid.UUID{chat.OwnerID},
+			ModelConfigID:       []uuid.UUID{chat.LastModelConfigID},
+			Role:                []database.ChatMessageRole{role},
+			ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+			Content:             []string{string(content.RawMessage)},
+			Visibility:          []database.ChatMessageVisibility{visibility},
+			InputTokens:         []int64{0},
+			OutputTokens:        []int64{0},
+			TotalTokens:         []int64{0},
+			ReasoningTokens:     []int64{0},
+			CacheCreationTokens: []int64{0},
+			CacheReadTokens:     []int64{0},
+			ContextLimit:        []int64{0},
+			Compressed:          []bool{false},
+			RuntimeMs:           []int64{0},
+		})
+		require.NoError(t, err)
+		require.Len(t, msgs, 1)
+		if deleted {
+			require.NoError(t, db.SoftDeleteChatMessageByID(dbauthz.AsSystemRestricted(ctx), msgs[0].ID))
+		}
+		return database.ChatMessage(msgs[0])
+	}
+
+	insertChat := func(t *testing.T, ctx context.Context, db database.Store, user codersdk.CreateFirstUserResponse, modelConfigID uuid.UUID) database.Chat {
+		t.Helper()
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OrganizationID:    user.OrganizationID,
+			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfigID,
+			Title:             "attachments route test",
+		})
+		require.NoError(t, err)
+		return chat
+	}
+
+	t.Run("NewestFirstFiltering", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		chat := insertChat(t, ctx, db, user, modelConfig.ID)
+
+		fileA := codersdk.ChatMessageFile(uuid.New(), "image/png", "a.png")
+		fileB := codersdk.ChatMessageFile(uuid.New(), "text/plain", "b.txt")
+		fileC := codersdk.ChatMessageFile(uuid.New(), "text/plain", "c.txt")
+		fileD := codersdk.ChatMessageFile(uuid.New(), "image/png", "d.png")
+		text := codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "hello"}
+
+		userUpload := insertMessage(t, ctx, db, chat, database.ChatMessageRoleUser,
+			[]codersdk.ChatMessagePart{text, fileA},
+			database.ChatMessageVisibilityBoth, false)
+		agentFiles := insertMessage(t, ctx, db, chat, database.ChatMessageRoleAssistant,
+			[]codersdk.ChatMessagePart{fileB, text, fileC},
+			database.ChatMessageVisibilityBoth, false)
+		// Each of these hides its file part from the user, so none may
+		// appear in the response.
+		insertMessage(t, ctx, db, chat, database.ChatMessageRoleUser,
+			[]codersdk.ChatMessagePart{codersdk.ChatMessageFile(uuid.New(), "text/plain", "deleted.txt")},
+			database.ChatMessageVisibilityBoth, true)
+		insertMessage(t, ctx, db, chat, database.ChatMessageRoleUser,
+			[]codersdk.ChatMessagePart{codersdk.ChatMessageFile(uuid.New(), "text/plain", "model.txt")},
+			database.ChatMessageVisibilityModel, false)
+		insertMessage(t, ctx, db, chat, database.ChatMessageRoleTool,
+			[]codersdk.ChatMessagePart{codersdk.ChatMessageFile(uuid.New(), "image/png", "tool.png")},
+			database.ChatMessageVisibilityBoth, false)
+		insertMessage(t, ctx, db, chat, database.ChatMessageRoleUser,
+			[]codersdk.ChatMessagePart{text},
+			database.ChatMessageVisibilityBoth, false)
+		// The hook-context part is stripped from client responses, so the
+		// file part's index must shift to match the messages endpoint.
+		hookPrompt := insertMessage(t, ctx, db, chat, database.ChatMessageRoleUser,
+			[]codersdk.ChatMessagePart{
+				{Type: codersdk.ChatMessagePartTypeHookContext, Text: "model only"},
+				fileD,
+			},
+			database.ChatMessageVisibilityUser, false)
+		// An inline part keeps its bytes because it has no stored file.
+		inlinePaste := insertMessage(t, ctx, db, chat, database.ChatMessageRoleUser,
+			[]codersdk.ChatMessagePart{
+				{Type: codersdk.ChatMessagePartTypeFile, MediaType: "text/plain", Data: []byte("pasted")},
+			},
+			database.ChatMessageVisibilityBoth, false)
+
+		resp, err := client.GetChatAttachments(ctx, chat.ID, nil)
+		require.NoError(t, err)
+
+		type attachment struct {
+			MessageID int64
+			PartIndex int
+			Role      codersdk.ChatAttachmentRole
+			FileID    uuid.UUID
+		}
+		got := make([]attachment, 0, len(resp.Attachments))
+		for _, a := range resp.Attachments {
+			got = append(got, attachment{a.MessageID, a.PartIndex, a.Role, a.File.FileID.UUID})
+		}
+		require.Equal(t, []attachment{
+			{inlinePaste.ID, 0, codersdk.ChatAttachmentRoleUser, uuid.Nil},
+			{hookPrompt.ID, 0, codersdk.ChatAttachmentRoleUser, fileD.FileID.UUID},
+			{agentFiles.ID, 2, codersdk.ChatAttachmentRoleAssistant, fileC.FileID.UUID},
+			{agentFiles.ID, 0, codersdk.ChatAttachmentRoleAssistant, fileB.FileID.UUID},
+			{userUpload.ID, 1, codersdk.ChatAttachmentRoleUser, fileA.FileID.UUID},
+		}, got)
+
+		messages, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		contentByID := make(map[int64][]codersdk.ChatMessagePart, len(messages.Messages))
+		for _, m := range messages.Messages {
+			contentByID[m.ID] = m.Content
+		}
+		for _, a := range resp.Attachments {
+			content := contentByID[a.MessageID]
+			require.Less(t, a.PartIndex, len(content))
+			part := content[a.PartIndex]
+			require.Equal(t, codersdk.ChatMessagePartTypeFile, part.Type)
+			require.Equal(t, codersdk.ChatAttachmentFile{
+				Type:      codersdk.ChatAttachmentFileTypeFile,
+				MediaType: part.MediaType,
+				Name:      part.Name,
+				Data:      part.Data,
+				FileID:    part.FileID,
+			}, a.File, "attachment must carry the messages endpoint part's file fields")
+		}
+
+		before, err := client.GetChatAttachments(ctx, chat.ID, &codersdk.ChatAttachmentsOptions{BeforeID: agentFiles.ID})
+		require.NoError(t, err)
+		require.Len(t, before.Attachments, 1)
+		require.Equal(t, userUpload.ID, before.Attachments[0].MessageID)
+
+		none, err := client.GetChatAttachments(ctx, chat.ID, &codersdk.ChatAttachmentsOptions{BeforeID: userUpload.ID})
+		require.NoError(t, err)
+		require.NotNil(t, none.Attachments, "attachments must be [] not nil")
+		require.Empty(t, none.Attachments)
+	})
+
+	t.Run("InlineFileWireFormat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		chat := insertChat(t, ctx, db, user, modelConfig.ID)
+		stored := codersdk.ChatMessageFile(uuid.New(), "text/plain", "stored.txt")
+		insertMessage(t, ctx, db, chat, database.ChatMessageRoleUser,
+			[]codersdk.ChatMessagePart{
+				stored,
+				{Type: codersdk.ChatMessagePartTypeFile, MediaType: "text/plain", Data: []byte("pasted")},
+			},
+			database.ChatMessageVisibilityBoth, false)
+
+		res, err := client.Request(ctx, http.MethodGet,
+			fmt.Sprintf("/api/v2/chats/%s/attachments", chat.ID), nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		var body struct {
+			Attachments []struct {
+				PartIndex int                        `json:"part_index"`
+				File      map[string]json.RawMessage `json:"file"`
+			} `json:"attachments"`
+		}
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&body))
+		files := make(map[int]map[string]json.RawMessage, len(body.Attachments))
+		for _, a := range body.Attachments {
+			files[a.PartIndex] = a.File
+		}
+		require.Len(t, files, 2)
+
+		require.JSONEq(t, fmt.Sprintf("%q", stored.FileID.UUID), string(files[0]["file_id"]))
+		require.NotContains(t, files[1], "file_id", "an inline file must omit file_id, not send null")
+		var data string
+		require.NoError(t, json.Unmarshal(files[1]["data"], &data), "data must be a base64 string")
+		require.Equal(t, base64.StdEncoding.EncodeToString([]byte("pasted")), data)
+	})
+
+	t.Run("InvalidBeforeIDRejected", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		chat := insertChat(t, ctx, db, user, modelConfig.ID)
+
+		res, err := client.Request(ctx, http.MethodGet,
+			fmt.Sprintf("/api/v2/chats/%s/attachments?before_id=-1", chat.ID), nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+
+	t.Run("NotFoundForOtherUsers", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		chat := insertChat(t, ctx, db, firstUser, modelConfig.ID)
+		insertMessage(t, ctx, db, chat, database.ChatMessageRoleUser,
+			[]codersdk.ChatMessagePart{codersdk.ChatMessageFile(uuid.New(), "text/plain", "private.txt")},
+			database.ChatMessageVisibilityBoth, false)
+
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberExp := codersdk.NewExperimentalClient(memberClient)
+		_, err := memberExp.GetChatAttachments(ctx, chat.ID, nil)
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 	})
 }
 

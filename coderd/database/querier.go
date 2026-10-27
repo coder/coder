@@ -532,6 +532,11 @@ type sqlcQuerier interface {
 	// The compaction boundary and final ordering must use the same key so tool
 	// results remain after their assistant calls.
 	GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error)
+	// Returns the user-visible user and assistant messages in a chat that hold
+	// at least one file part, newest first, optionally only those before
+	// @before_id. Backs the attachments endpoint so a client can list every
+	// attachment without paging through the transcript.
+	GetChatMessagesWithFilePartsByChatID(ctx context.Context, arg GetChatMessagesWithFilePartsByChatIDParams) ([]ChatMessage, error)
 	GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error)
 	GetChatModelConfigs(ctx context.Context, organizationID uuid.UUID) ([]ChatModelConfig, error)
 	// All live configs in one organization, unfiltered. Consumed ONLY by

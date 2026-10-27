@@ -2173,6 +2173,74 @@ func (api *API) getChatUserPrompts(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary List chat attachments
+// @ID list-chat-attachments
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param chat path string true "Chat ID" format(uuid)
+// @Param before_id query int false "Return attachments from messages with id < before_id"
+// @Success 200 {object} codersdk.ChatAttachmentsResponse
+// @Router /api/v2/chats/{chat}/attachments [get]
+// @Description Returns every file part in the user-visible user and assistant messages of a chat, newest first, so a client can list a chat's attachments without paging through every message in the chat.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) getChatAttachments(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+
+	parser := httpapi.NewQueryParamParser()
+	beforeID := parser.PositiveInt64(r.URL.Query(), 0, "before_id")
+	if len(parser.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: parser.Errors,
+		})
+		return
+	}
+
+	messages, err := api.Database.GetChatMessagesWithFilePartsByChatID(ctx, database.GetChatMessagesWithFilePartsByChatIDParams{
+		ChatID:   chat.ID,
+		BeforeID: beforeID,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chat attachments.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	attachments := make([]codersdk.ChatAttachment, 0, len(messages))
+	for _, m := range messages {
+		// Use the messages endpoint's conversion so part_index and the
+		// part match what GET /messages returns for the same message.
+		msg := convertChatMessage(m)
+		for i := len(msg.Content) - 1; i >= 0; i-- {
+			part := msg.Content[i]
+			if part.Type != codersdk.ChatMessagePartTypeFile {
+				continue
+			}
+			attachments = append(attachments, codersdk.ChatAttachment{
+				MessageID: msg.ID,
+				PartIndex: i,
+				Role:      codersdk.ChatAttachmentRole(msg.Role),
+				File: codersdk.ChatAttachmentFile{
+					Type:      codersdk.ChatAttachmentFileTypeFile,
+					MediaType: part.MediaType,
+					Name:      part.Name,
+					Data:      part.Data,
+					FileID:    part.FileID,
+				},
+			})
+		}
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatAttachmentsResponse{
+		Attachments: attachments,
+	})
+}
+
 // authorizeChatWorkspaceExec enforces the workspace-level permissions
 // shared by the chat stream endpoints that proxy a live websocket into
 // the workspace agent (currently /stream/git and /stream/desktop).
