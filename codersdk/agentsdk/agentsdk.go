@@ -730,7 +730,8 @@ type PatchAppStatus struct {
 	AppSlug string                           `json:"app_slug"`
 	State   codersdk.WorkspaceAppStatusState `json:"state"`
 	Message string                           `json:"message"`
-	URI     string                           `json:"uri"`
+	// URI is dropped unless it is an http, https, or file URI.
+	URI string `json:"uri"`
 	// Deprecated: this field is unused and will be removed in a future version.
 	Icon string `json:"icon"`
 	// Deprecated: this field is unused and will be removed in a future version.

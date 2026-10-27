@@ -159,7 +159,11 @@ Each app supports the following properties:
 
 An external app's `url` must include a scheme and a host, such as `zed://ssh/...` or `https://...`.
 Coder rejects `javascript`, `vbscript`, `data`, `blob`, `file`, and `filesystem` URLs, and URLs that contain control characters.
-Coder doesn't substitute a session token into dev container apps, and it removes any `$SESSION_TOKEN` placeholder from the `url`.
+If an external app's `url` is invalid, Coder skips that app and still starts the dev container.
+The reason is logged in the workspace agent log, `/tmp/coder-agent.log`.
+
+Dev container apps don't support the `$SESSION_TOKEN` placeholder that template apps use.
+Coder removes the placeholder from the `url` and keeps the rest of the URL, so a link such as `token=$SESSION_TOKEN` becomes `token=`.
 
 ### Health checks
 

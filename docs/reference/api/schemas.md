@@ -153,7 +153,7 @@ title: Schemas
 | `message`              | string                                                               | false    |              |                                                                           |
 | `needs_user_attention` | boolean                                                              | false    |              | Deprecated: this field is unused and will be removed in a future version. |
 | `state`                | [codersdk.WorkspaceAppStatusState](#codersdkworkspaceappstatusstate) | false    |              |                                                                           |
-| `uri`                  | string                                                               | false    |              |                                                                           |
+| `uri`                  | string                                                               | false    |              | URI is dropped unless it is an http, https, or file URI.                  |
 
 ## agentsdk.PatchLogs
 

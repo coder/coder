@@ -19229,6 +19229,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.WorkspaceAppStatusState"
                 },
                 "uri": {
+                    "description": "URI is dropped unless it is an http, https, or file URI.",
                     "type": "string"
                 }
             }
