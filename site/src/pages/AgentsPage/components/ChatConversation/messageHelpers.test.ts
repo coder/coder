@@ -188,6 +188,28 @@ describe("deriveMessageDisplayState", () => {
 		expect(getDisplayState(message).hasCopyableContent).toBe(true);
 	});
 
+	it.each<[string, TypesGen.ChatMessagePart[]]>([
+		[
+			"no text after its prefix line",
+			[{ type: "text", text: "Answer to ask_user_question call question:" }],
+		],
+		[
+			"only a skill chip after its prefix line",
+			[
+				{ type: "text", text: "Answer to ask_user_question call question:" },
+				{
+					type: "skill-invocation",
+					skill_source: "project",
+					skill_name: "triage",
+				},
+			],
+		],
+	])("does not mark an async answer with %s as copyable", (_, content) => {
+		expect(getDisplayState(buildMessage(content)).hasCopyableContent).toBe(
+			false,
+		);
+	});
+
 	it("does not mark user messages with file attachments as copyable", () => {
 		const message = buildMessage([
 			{ type: "text", text: "Copy should not omit this file." },
