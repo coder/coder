@@ -23,7 +23,11 @@ import type {
 	PendingAttachment,
 	PendingWorkspaceUpload,
 } from "../ChatPageContent";
-import { type ChatStore, selectMessagesByID } from "./chatStore";
+import {
+	type ChatStore,
+	type PendingAction,
+	selectMessagesByID,
+} from "./chatStore";
 
 export type SubmitChatTurnParams = {
 	message: string;
@@ -221,6 +225,24 @@ export async function submitChatTurn(
 		setCachedChatPlanMode,
 	} = params;
 
+	// A failed send or edit removes the prompt shown at the click, so the
+	// transcript scrolls to the end, where the latest state is.
+	const runTurnRequest = async (
+		action: PendingAction,
+		request: () => Promise<unknown>,
+	) => {
+		clearChatErrorReason(agentId);
+		store.clearClientError();
+		try {
+			await store.runPendingAction(action, chatStatus, request);
+		} catch (error) {
+			scrollToEnd({ behavior: "smooth" });
+			onRequestError(error);
+			invalidateChat(agentId);
+			throw error;
+		}
+	};
+
 	const { content, hasContent } = buildChatInputContent({
 		message,
 		attachments,
@@ -274,30 +296,20 @@ export async function submitChatTurn(
 			}),
 			mcp_server_ids: [...mcpServerIds],
 		};
-		clearChatErrorReason(agentId);
-		store.clearClientError();
-		try {
-			await store.runPendingAction(
-				{
-					kind: "edit",
-					editedMessageID,
-					message:
-						originalEditedMessage &&
-						buildOptimisticEditedMessage({
-							requestContent: request.content,
-							originalMessage: originalEditedMessage,
-							attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
-						}),
-				},
-				chatStatus,
-				() => editMessage({ messageId: editedMessageID, req: request }),
-			);
-		} catch (error) {
-			scrollToEnd({ behavior: "smooth" });
-			onRequestError(error);
-			invalidateChat(agentId);
-			throw error;
-		}
+		await runTurnRequest(
+			{
+				kind: "edit",
+				editedMessageID,
+				message:
+					originalEditedMessage &&
+					buildOptimisticEditedMessage({
+						requestContent: request.content,
+						originalMessage: originalEditedMessage,
+						attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
+					}),
+			},
+			() => editMessage({ messageId: editedMessageID, req: request }),
+		);
 		return;
 	}
 
@@ -310,35 +322,24 @@ export async function submitChatTurn(
 		...planModeFieldsForCreateMessage(clearPlanMode),
 		busy_behavior: busyBehavior,
 	};
-	clearChatErrorReason(agentId);
-	store.clearClientError();
-
-	try {
-		await store.runPendingAction(
-			{
-				kind: "send",
-				message: buildOptimisticEditedMessage({
-					requestContent: content,
-					originalMessage: {
-						// The store replaces the ID with a pending row ID.
-						id: 0,
-						chat_id: agentId,
-						created_at: new Date().toISOString(),
-						role: "user",
-						model_config_id: selectedModelConfigID,
-					},
-					attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
-				}),
-			},
-			chatStatus,
-			() => sendMessage(request),
-		);
-	} catch (error) {
-		scrollToEnd({ behavior: "smooth" });
-		onRequestError(error);
-		invalidateChat(agentId);
-		throw error;
-	}
+	await runTurnRequest(
+		{
+			kind: "send",
+			message: buildOptimisticEditedMessage({
+				requestContent: content,
+				originalMessage: {
+					// The store replaces the ID with a pending row ID.
+					id: 0,
+					chat_id: agentId,
+					created_at: new Date().toISOString(),
+					role: "user",
+					model_config_id: selectedModelConfigID,
+				},
+				attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
+			}),
+		},
+		() => sendMessage(request),
+	);
 	if (clearPlanMode) {
 		setCachedChatPlanMode(agentId, undefined);
 	}
