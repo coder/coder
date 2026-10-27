@@ -128,8 +128,11 @@ type QueueEdit = (
  */
 type PendingEntry = {
 	id: number;
-	// The snapshot version synced at the click. The request's result has a
-	// higher version, so an event at or below it ends no part.
+	// The snapshot version synced at the click. An event at or below it is
+	// from a commit before the request. An event above it ends a part even
+	// if it changes nothing in the stored state. A stream open resends the
+	// commit at the version it opens with, and for an entry from before the
+	// open, those events already ended a part or never arrived.
 	syncedVersion: number;
 	// Set for a delete. A row's ID never returns to the queue, so the part
 	// ends at the first queue update without the row, whichever commit
@@ -350,14 +353,10 @@ export const createChatStore = (): ChatStore => {
 		}));
 	};
 
-	// Returns whether a user message changed.
-	const writeMessages = (
-		messages: readonly TypesGen.ChatMessage[],
-	): boolean => {
+	const writeMessages = (messages: readonly TypesGen.ChatMessage[]): void => {
 		if (messages.length === 0) {
-			return false;
+			return;
 		}
-		let userMessageChanged = false;
 		setState((current) => {
 			let nextMessagesByID: Map<number, TypesGen.ChatMessage> | null = null;
 			for (const message of messages) {
@@ -371,9 +370,6 @@ export const createChatStore = (): ChatStore => {
 					nextMessagesByID = new Map(current.messagesByID);
 				}
 				nextMessagesByID.set(message.id, message);
-				if (message.role === "user") {
-					userMessageChanged = true;
-				}
 			}
 			if (!nextMessagesByID) {
 				return current;
@@ -388,7 +384,6 @@ export const createChatStore = (): ChatStore => {
 				orderedMessageIDs: nextOrderedMessageIDs,
 			};
 		});
-		return userMessageChanged;
 	};
 
 	const addPendingAction = (
@@ -454,11 +449,10 @@ export const createChatStore = (): ChatStore => {
 			};
 		},
 		batch,
-		// An event that changes nothing ends no part: the first sync resends
-		// commits that the newest page already holds.
 		upsertDurableMessages: (messages, userMessageVersion) => {
 			batch(() => {
-				if (writeMessages(messages)) {
+				writeMessages(messages);
+				if (messages.some((message) => message.role === "user")) {
 					endPending(["message"], userMessageVersion);
 				}
 			});
@@ -466,11 +460,12 @@ export const createChatStore = (): ChatStore => {
 		applyMessagePart: (part) => applyMessageParts([part]),
 		applyMessageParts,
 		setQueuedMessages: (queuedMessages, snapshotVersion) => {
-			if (chatQueuedMessagesEqualByID(state.queuedMessages, queuedMessages)) {
-				return;
-			}
 			batch(() => {
-				setState((current) => ({ ...current, queuedMessages }));
+				setState((current) =>
+					chatQueuedMessagesEqualByID(current.queuedMessages, queuedMessages)
+						? current
+						: { ...current, queuedMessages },
+				);
 				endPending(["message", "queue"], snapshotVersion, queuedMessages);
 			});
 		},
