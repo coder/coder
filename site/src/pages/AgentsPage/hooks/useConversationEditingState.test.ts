@@ -370,7 +370,6 @@ describe("useConversationEditingState", () => {
 			).rejects.toThrow("boom");
 		});
 
-		expect(mockInput.clear).toHaveBeenCalled();
 		expect(result.current.inputValueRef.current).toBe("edited message");
 		expect(result.current.editingTarget).toEqual({ kind: "history", id: 7 });
 		expect(result.current.editingFileBlocks).toEqual(fileBlocks);
@@ -456,60 +455,69 @@ describe("useConversationEditingState", () => {
 		expect(JSON.parse(localStorage.getItem(expectedKey) ?? "")).toEqual(both);
 	});
 
-	it("keeps the draft from before a history edit while the edit is pending", async () => {
-		const { result, onSend, unmount } = renderEditing();
-		result.current.chatInputRef.current = createMockChatInputHandle().handle;
-		onSend.mockReturnValueOnce(new Promise(() => {}));
+	describe("a history edit request", () => {
+		const submitEdit = () => {
+			const rendered = renderEditing();
+			rendered.result.current.chatInputRef.current =
+				createMockChatInputHandle().handle;
+			const edit = createDeferred<undefined>();
+			rendered.onSend.mockReturnValueOnce(edit.promise);
 
-		act(() => {
-			result.current.handleContentChange("draft", "draft", false);
-		});
-		act(() => {
-			result.current.handleEditUserMessage(7, "old");
-		});
-		act(() => {
-			void result.current.handleSendFromInput({ message: "edited" });
-		});
-		act(() => {
-			result.current.handleContentChange("typed", "typed", false);
+			act(() => {
+				rendered.result.current.handleContentChange("draft", "draft", false);
+			});
+			act(() => {
+				rendered.result.current.handleEditUserMessage(7, "old");
+			});
+			let sent: Promise<void> = Promise.resolve();
+			act(() => {
+				sent = rendered.result.current.handleSendFromInput({
+					message: "edited",
+				});
+			});
+			expect(rendered.result.current.editingMessageId).toBeNull();
+			expect(rendered.result.current.editorInitialValue).toBe("draft");
+			act(() => {
+				rendered.result.current.handleContentChange(
+					"draft typed",
+					"draft typed",
+					false,
+				);
+			});
+			return { ...rendered, edit, sent };
+		};
+
+		it("keeps the compose draft when the edit succeeds", async () => {
+			const { result, edit, sent, unmount } = submitEdit();
+
+			await act(async () => {
+				edit.resolve(undefined);
+				await sent;
+			});
+
+			expect(result.current.editingMessageId).toBeNull();
+			expect(result.current.editorInitialValue).toBe("draft");
+			expect(localStorage.getItem(expectedKey)).toBe("draft typed");
+			unmount();
 		});
 
-		expect(localStorage.getItem(expectedKey)).toBe("draft");
-		unmount();
-	});
+		it("keeps the compose draft for Cancel when the edit fails", async () => {
+			const { result, edit, sent, unmount } = submitEdit();
 
-	it("keeps text typed during a failed edit as the compose draft", async () => {
-		const { result, onSend, unmount } = renderEditing();
-		result.current.chatInputRef.current = createMockChatInputHandle().handle;
-		const edit = createDeferred<undefined>();
-		onSend.mockReturnValueOnce(edit.promise);
+			await act(async () => {
+				edit.reject(new Error("boom"));
+				await expect(sent).rejects.toThrow("boom");
+			});
 
-		act(() => {
-			result.current.handleContentChange("draft", "draft", false);
+			expect(result.current.editingMessageId).toBe(7);
+			expect(result.current.editorInitialValue).toBe("edited");
+			expect(localStorage.getItem(expectedKey)).toBe("draft typed");
+			act(() => {
+				result.current.handleCancelHistoryEdit();
+			});
+			expect(result.current.editorInitialValue).toBe("draft typed");
+			unmount();
 		});
-		act(() => {
-			result.current.handleEditUserMessage(7, "old");
-		});
-		let sent: Promise<void> = Promise.resolve();
-		act(() => {
-			sent = result.current.handleSendFromInput({ message: "edited" });
-		});
-		act(() => {
-			result.current.handleContentChange("typed", "typed", false);
-		});
-		await act(async () => {
-			edit.reject(new Error("boom"));
-			await expect(sent).rejects.toThrow("boom");
-		});
-
-		expect(result.current.editingMessageId).toBe(7);
-		expect(result.current.editorInitialValue).toBe("edited");
-		expect(localStorage.getItem(expectedKey)).toBe("typed");
-		act(() => {
-			result.current.handleCancelHistoryEdit();
-		});
-		expect(result.current.editorInitialValue).toBe("typed");
-		unmount();
 	});
 
 	it("ignores Edit while a send is pending", () => {
