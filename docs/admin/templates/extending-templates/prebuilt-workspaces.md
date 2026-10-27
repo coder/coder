@@ -27,7 +27,7 @@ Prebuilt workspaces are tightly integrated with [workspace presets](./parameters
 1. The preset must define all required parameters needed to build the workspace.
 1. The preset parameters define the base configuration and are immutable once a prebuilt workspace is provisioned.
 1. Parameters that are not defined in the preset can still be customized by users when they claim a workspace.
-1. If a user does not select a preset but provides parameters that match one or more presets, Coder will automatically select the most specific matching preset and assign a prebuilt workspace if one is available.
+1. Without a selected preset, Coder picks the most specific preset matching the user's parameters and assigns an available prebuilt workspace.
 
 ## Prerequisites
 
@@ -90,7 +90,9 @@ Prebuilt workspaces follow a specific lifecycle from creation through eligibilit
    1. Developer selects a template and preset that has prebuilt workspaces configured.
    1. If an eligible prebuilt workspace exists, ownership transfers from the `prebuilds` user to the requesting user.
    1. The workspace name changes to the user's requested name.
-   1. `terraform apply` is executed using the new ownership details, which may affect the [`coder_workspace`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace) and [`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner) datasources (see [Prevent resource replacement](#prevent-resource-replacement) for further considerations).
+   1. `terraform apply` is executed using the new ownership details.
+
+      This may affect the [`coder_workspace`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace) and [`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner) datasources (see [Prevent resource replacement](#prevent-resource-replacement) for further considerations).
 
    The claiming process is transparent to the developer — the workspace will just be ready faster than usual.
 
@@ -437,11 +439,13 @@ This keeps other provisioners available to handle user-initiated jobs.
 #### Setup
 
 1. Create a provisioner key with a prebuild tag (for example, `is_prebuild=true`).
+
    Provisioner keys are org-scoped and their tags are inferred automatically by provisioner daemons that use the key.
    **Note:** `coder_workspace_tags` are cumulative, so if your template already defines provisioner tags, you will need to create the provisioner key with the same tags plus the `is_prebuild=true` tag so that prebuild jobs correctly match the dedicated prebuild pool.
    See [Scoped Key](../../../install/operate/provisioners/index.md#scoped-key-recommended) for instructions on how to create a provisioner key.
 
 1. Deploy a separate provisioner pool using that key (for example, via the [Helm coder-provisioner chart](https://github.com/coder/coder/pkgs/container/chart%2Fcoder-provisioner)).
+
    Daemons in this pool will only execute jobs that include all of the tags specified in their provisioner key.
    See [External provisioners](../../../install/operate/provisioners/index.md) for environment-specific deployment examples.
 
@@ -473,14 +477,17 @@ Follow these steps:
 1. Publish the new template version.
 
 1. Validate the status of the prebuild provisioners.
+
    Check the Provisioners page in the Coder dashboard or run the [`coder provisioner list`](../../../reference/cli/provisioner/list.md) CLI command to ensure all prebuild provisioners are up to date and the tags are properly set.
 
 1. Wait for the prebuilds reconciliation loop to run.
+
    The loop frequency is controlled by the configuration value [`CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL`](../../../reference/cli/server/index.md#--workspace-prebuilds-reconciliation-interval).
    When the loop runs, it will provision prebuilds for the new template version and deprovision prebuilds for the previous version.
    Both provisioning and deprovisioning jobs for prebuilds should display the tag `is_prebuild=true`.
 
 1. Create a new workspace from a preset.
+
    Whether the preset uses a prebuild pool or not, the resulting job should not include the `is_prebuild=true` tag.
    This confirms that only prebuild-related jobs are routed to the dedicated prebuild provisioner pool.
 

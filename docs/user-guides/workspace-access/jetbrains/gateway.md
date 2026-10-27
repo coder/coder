@@ -38,7 +38,7 @@ Gateway can connect to a Coder workspace using Coder's Gateway plugin or through
 
    Select the <kbd>+</kbd> icon to open a browser and go to the templates page in your Coder deployment to create a workspace.
 
-1. If a workspace already exists but is stopped, select the workspace from the list, then select the green arrow to start the workspace.
+1. If a stopped workspace exists, select it from the list, then select the green arrow to start it.
 
 1. When the workspace status is **Running**, select **Select IDE and Project**:
 
@@ -176,6 +176,7 @@ This is in lieu of using Coder's Gateway plugin which automatically performs the
    ![Gateway Continue](../../../images/gateway/gateway-continue.png)
 
 1. Select the JetBrains IDE for your project and the project directory.
+
    SSH into your server to create a directory or check out code if you haven't already.
 
    ![Gateway Choose IDE](../../../images/gateway/gateway-choose-ide.png)

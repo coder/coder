@@ -15,21 +15,6 @@ import (
 	"github.com/coder/websocket"
 )
 
-type fakePartsSession struct {
-	parts chan osschatd.StreamPart
-}
-
-func newFakePartsSession() *fakePartsSession {
-	return &fakePartsSession{parts: make(chan osschatd.StreamPart)}
-}
-
-func (*fakePartsSession) SelectEpisode(context.Context, int64, int64) error { return nil }
-func (s *fakePartsSession) Parts() <-chan osschatd.StreamPart               { return s.parts }
-func (s *fakePartsSession) Close() error {
-	close(s.parts)
-	return nil
-}
-
 func TestRelayDialErrorIsUnrecoverable(t *testing.T) {
 	t.Parallel()
 
@@ -51,34 +36,6 @@ func TestRelayDialErrorIsUnrecoverable(t *testing.T) {
 			require.Equal(t, tc.want, err.IsUnrecoverable())
 		})
 	}
-}
-
-func TestStreamPartsDialerUsesConfiguredDialer(t *testing.T) {
-	t.Parallel()
-
-	chatID := uuid.New()
-	workerID := uuid.New()
-	headers := http.Header{codersdk.SessionTokenHeader: {"token-value"}}
-	wantSession := newFakePartsSession()
-
-	var gotInput osschatd.StreamPartsDialInput
-	dialer := entchatd.NewStreamPartsDialer(entchatd.StreamPartsDialerConfig{
-		DialerFn: func(_ context.Context, input osschatd.StreamPartsDialInput) (osschatd.StreamPartsSession, error) {
-			gotInput = input
-			return wantSession, nil
-		},
-	})
-
-	session, err := dialer(context.Background(), osschatd.StreamPartsDialInput{
-		ChatID:        chatID,
-		WorkerID:      workerID,
-		RequestHeader: headers,
-	})
-	require.NoError(t, err)
-	require.Same(t, wantSession, session)
-	require.Equal(t, chatID, gotInput.ChatID)
-	require.Equal(t, workerID, gotInput.WorkerID)
-	require.Equal(t, "token-value", gotInput.RequestHeader.Get(codersdk.SessionTokenHeader))
 }
 
 func TestStreamPartsDialerDialsPartsEndpoint(t *testing.T) {

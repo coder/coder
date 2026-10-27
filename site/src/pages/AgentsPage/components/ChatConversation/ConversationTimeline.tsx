@@ -25,6 +25,7 @@ import { Response } from "../ChatElements/Response";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
+import { useDialogFocusReturn } from "../useDialogFocusReturn";
 import { AssistantOutput } from "./AssistantOutput";
 import type { PreviewTextAttachment } from "./AttachmentBlocks";
 import { FileProbeProvider } from "./FileProbeContext";
@@ -189,6 +190,18 @@ const ChatMessageItem = memo<{
 		const [previewImage, setPreviewImage] = useState<string | null>(null);
 		const [previewText, setPreviewText] =
 			useState<PreviewTextAttachment | null>(null);
+		const { rememberTriggerButton, restoreFocus } = useDialogFocusReturn();
+		const openImagePreview = (src: string, trigger: HTMLButtonElement) => {
+			rememberTriggerButton(trigger);
+			setPreviewImage(src);
+		};
+		const openTextPreview = (
+			attachment: PreviewTextAttachment,
+			trigger: HTMLButtonElement,
+		) => {
+			rememberTriggerButton(trigger);
+			setPreviewText(attachment);
+		};
 		const displayState =
 			message && parsed
 				? deriveMessageDisplayState({
@@ -273,8 +286,8 @@ const ChatMessageItem = memo<{
 							isEditing={
 								messageId !== undefined && editingMessageId === messageId
 							}
-							onImageClick={setPreviewImage}
-							onTextFileClick={setPreviewText}
+							onImageClick={openImagePreview}
+							onTextFileClick={openTextPreview}
 						/>
 					) : (
 						<Message className="w-full">
@@ -301,8 +314,8 @@ const ChatMessageItem = memo<{
 									hasUserResponseAfterAskQuestion={
 										hasUserResponseAfterAskQuestion
 									}
-									onImageClick={setPreviewImage}
-									onTextFileClick={setPreviewText}
+									onImageClick={openImagePreview}
+									onTextFileClick={openTextPreview}
 									urlTransform={urlTransform}
 									mcpServers={mcpServers}
 								/>
@@ -428,6 +441,7 @@ const ChatMessageItem = memo<{
 					<ImageLightbox
 						src={previewImage}
 						onClose={() => setPreviewImage(null)}
+						onCloseAutoFocus={restoreFocus}
 					/>
 				)}
 				{previewText !== null && (
@@ -436,6 +450,7 @@ const ChatMessageItem = memo<{
 						fileName={previewText.fileName}
 						mediaType={previewText.mediaType}
 						onClose={() => setPreviewText(null)}
+						onCloseAutoFocus={restoreFocus}
 					/>
 				)}
 			</div>

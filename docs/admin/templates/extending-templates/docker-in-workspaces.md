@@ -224,7 +224,9 @@ Before using Podman, review the following documentation:
    > ⚠️ **Warning**: If you are using a managed Kubernetes distribution (for example, AKS, EKS, GKE), be sure to set node labels via your cloud provider.
    > Otherwise, your nodes may drop the labels and break podman functionality.
 
-3. For systems running SELinux (typically Fedora-, CentOS-, and Red Hat-based systems), you might need to disable SELinux or set it to permissive mode.
+3. For systems running SELinux, you might need to disable SELinux or set it to permissive mode.
+
+   These are typically Fedora-, CentOS-, and Red Hat-based systems.
 
 4. Create a template from the built-in `kubernetes` starter, then adapt it for rootless Podman:
 

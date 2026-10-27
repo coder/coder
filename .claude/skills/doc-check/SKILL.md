@@ -98,7 +98,7 @@ Each persona file says which rules to load and how to find them.
 | Reader Advocate   | [`audience.md`](./personas/audience.md)       | No docs changed                                    |
 | Architect         | [`structure.md`](./personas/structure.md)     | No docs changed                                    |
 | Copy Editor       | [`language.md`](./personas/language.md)       | No docs prose changed                              |
-| Skeptic           | [`verifier.md`](./personas/verifier.md)       | Never. Runs last, over every finding               |
+| Skeptic           | [`verifier.md`](./personas/verifier.md)       | Never. Runs last, once per group of findings       |
 
 When you can spawn sub-agents and the prompt gives you a model configuration ID for them, run each persona as its own sub-agent with that ID, in parallel.
 Give each one the change model, the PR reference, its persona file, and the finding schema from [`output.md`](./output.md).
@@ -109,8 +109,24 @@ Each persona returns findings in the schema in [`output.md`](./output.md), or th
 
 ### 6. Verify
 
-Run [`verifier.md`](./personas/verifier.md) over every finding.
-Drop what it rejects, and keep the count of rejected findings for the trace.
+First, run the two mechanical checks yourself, because they need a lookup, not judgment:
+
+- **The quote exists.** For each finding with a `line`, confirm the `quote` appears on the PR head at `file:line`, such as with `sed -n '<line>,+2p' <file>`.
+  A quote that spans lines starts at `line`.
+- **Not already reported.** Compare each finding with the open doc-check review threads you read in step 1.
+
+Drop each finding that fails, and record which check it failed.
+
+Then group the remaining findings: findings about the same sentence form one group, and findings about the same missing page form one group.
+Run [`verifier.md`](./personas/verifier.md) once per group.
+A group holds every finding that could duplicate or contradict another, so groups never need to see each other.
+
+When you can spawn sub-agents and the prompt gives you a model configuration ID, run each group as its own sub-agent with that ID.
+Give each one its group's findings, the change model, the PR reference, and the verifier file.
+Spawn every group before you wait for any of them, then wait for all of them without doing other work.
+Without a model configuration ID, verify the groups yourself, one at a time.
+
+Drop what the verifiers reject, and keep the count of rejected findings for the trace.
 A finding the verifier rejects never reaches the author.
 
 ### 7. Decide and report

@@ -641,6 +641,44 @@ func TestSubAgentAPI(t *testing.T) {
 					},
 				},
 			},
+			{
+				name: "ExternalAppSessionTokenPlaceholderStripped",
+				apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:     "ide",
+						External: new(true),
+						Url:      new("vscode://coder.coder-remote/open?url=https://attacker.example&token=$SESSION_TOKEN"),
+					},
+				},
+				expectApps: []database.WorkspaceApp{
+					{
+						Slug:         "nr31smqr-ide",
+						External:     true,
+						Url:          sql.NullString{Valid: true, String: "vscode://coder.coder-remote/open?url=https://attacker.example&token="},
+						SharingLevel: database.AppSharingLevelOwner,
+						Health:       database.WorkspaceAppHealthDisabled,
+						OpenIn:       database.WorkspaceAppOpenInSlimWindow,
+					},
+				},
+			},
+			{
+				name: "ExternalAppBlockedScheme",
+				apps: []*proto.CreateSubAgentRequest_App{
+					{
+						Slug:     "evil",
+						External: new(true),
+						Url:      new("javascript://x/%0aalert(1)"),
+					},
+				},
+				expectApps: []database.WorkspaceApp{},
+				expectedAppErrors: []expectedAppError{
+					{
+						index: 0,
+						field: "url",
+						error: "\"javascript\" URLs are not allowed",
+					},
+				},
+			},
 		}
 
 		for _, tt := range tests {
