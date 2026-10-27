@@ -102,8 +102,12 @@ In both cases, peers fallback to DERP connections if they cannot establish a dir
 If your workspaces are behind a "hard" NAT, you can:
 
 1. Ensure clients are not also behind a "hard" NAT.
+
    You may have limited ability to control this if end users connect from their homes.
-2. Ensure firewalls on client devices (for example, Windows Defender Firewall) have an inbound policy allowing all UDP ports either to the `coder` or `coder.exe` CLI binary, or from the IP addresses of your workspace NATs.
+2. Allow all inbound UDP ports in client firewalls, either to the `coder` or `coder.exe` binary or from workspace NAT IPs.
+
+   For example, add an inbound policy to Windows Defender Firewall.
+
 3. Reconfigure your workspace network's NAT connection to the public internet to be an "easy" NAT.
    See below for specific examples.
 

@@ -102,9 +102,9 @@ This applies to every model family Bedrock serves, including Anthropic and OpenA
 
 For each provider request, Coder selects credentials in this order:
 
-1. If BYOK is enabled and the user has saved a personal key for the selected provider, Coder uses the user's key.
+1. If BYOK is enabled and the user saved a personal key for the provider, Coder uses it.
 1. Otherwise, Coder uses centralized provider credentials when they are configured.
-1. If neither a usable user key nor centralized credentials are available, the provider is unavailable for that user.
+1. If neither a usable user key nor centralized credentials exist, the provider is unavailable for that user.
 
 ## Models
 
