@@ -652,6 +652,24 @@ func TestBuildToolDefinitionsFullSchemaRootRefTargets(t *testing.T) {
 			want: `{"properties": {}}`,
 		},
 		{
+			// The target stays where it is, so moving its content into
+			// the root would declare its nested resource twice.
+			name: "embedded resource with a nested resource",
+			schema: `{
+				"$id": "https://example.com/root.json",
+				"$ref": "https://example.com/child.json",
+				"$defs": {"C": {"$id": "child.json", "properties": {"p": {"$id": "https://example.com/p.json", "type": "string"}}, "required": ["p"]}}
+			}`,
+			want: `{"properties": {}}`,
+		},
+		{
+			// So would moving the content of a target in the root
+			// resource that holds an anchor.
+			name:   "target with a nested anchor",
+			schema: `{"$ref": "#/$defs/A", "$defs": {"A": {"properties": {"p": {"$anchor": "p", "type": "string"}}, "required": ["p"]}}}`,
+			want:   `{"properties": {}}`,
+		},
+		{
 			name:   "anchor",
 			schema: `{"$ref": "#args", "$defs": {"Args": {"$anchor": "args", "properties": {"p": {"type": "string"}}, "required": ["p"]}}}`,
 			want:   params,
@@ -1275,6 +1293,33 @@ func TestBuildToolDefinitionsFullSchemaRootFoldObjectKeywords(t *testing.T) {
 			rejected: []string{`{}`, `{"x": "s"}`, `{"z": 1}`},
 		},
 		{
+			// An alternative whose "propertyNames" rejects a name gives
+			// it no schema.
+			name:     "PropertyNamesAlternative",
+			source:   `{"type": "object", "anyOf": [{"propertyNames": false}, {"properties": {"x": {"type": "integer"}}, "required": ["x"]}]}`,
+			want:     `{"type": "object", "properties": {"x": {"type": "integer"}}}`,
+			accepted: []string{`{}`, `{"x": 1}`},
+			rejected: []string{`{"x": "s"}`},
+		},
+		{
+			// An alternative that requires a name its "propertyNames"
+			// rejects allows no value.
+			name:     "PropertyNamesRequiredAlternative",
+			source:   `{"type": "object", "anyOf": [{"propertyNames": {"maxLength": 3}, "required": ["long"]}, {"properties": {"y": {"type": "string"}}, "required": ["y"]}]}`,
+			want:     `{"type": "object", "properties": {"y": {"type": "string"}}, "required": ["y"]}`,
+			accepted: []string{`{"y": "s"}`},
+			rejected: []string{`{}`, `{"long": 1}`},
+		},
+		{
+			// ECMAScript's "\s" matches U+00A0 and Go's does not, so
+			// whether the pattern matches that name is unknown, and the
+			// alternative requiring it stays.
+			name:     "NonPortablePatternAlternative",
+			source:   `{"type": "object", "anyOf": [{"allOf": [{"patternProperties": {"^\\s$": {}}, "additionalProperties": false}, {"required": ["\u00a0"]}]}, {"properties": {"y": {"type": "string"}}, "required": ["y"]}]}`,
+			want:     `{"type": "object", "properties": {"y": {"type": "string"}, "\u00a0": {}}}`,
+			accepted: []string{`{"y": "s"}`},
+		},
+		{
 			name:       "ObjectKeywordsRawNumbers",
 			source:     objectKeywords,
 			rawNumbers: true,
@@ -1838,5 +1883,32 @@ func rawNumbers(value any) {
 		for i, item := range typed {
 			typed[i] = convert(item)
 		}
+	}
+}
+
+// TestPatternMatcherPortability verifies that a match is unknown where Go
+// and the ECMAScript semantics of JSON Schema patterns might disagree.
+func TestPatternMatcherPortability(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		pattern string
+		name    string
+		known   bool
+	}{
+		{pattern: `^(?:a|b)\d+$`, name: "a1", known: true},
+		{pattern: `^\s$`, name: " ", known: true},
+		{pattern: `^\s$`, name: "\u00a0"},
+		{pattern: `^\s$`, name: "\v"},
+		{pattern: `^.$`, name: "\r"},
+		{pattern: `(?i)^a$`, name: "A"},
+		{pattern: `^\pL$`, name: "a"},
+		{pattern: `^[[:alpha:]]$`, name: "a"},
+		{pattern: `[]a]`, name: "a"},
+		{pattern: `^é$`, name: "a"},
+	} {
+		var matcher patternMatcher
+		_, known := matcher.match(map[string]any{tc.pattern: true}, tc.name)
+		require.Equal(t, tc.known, known, "pattern %q, name %q", tc.pattern, tc.name)
 	}
 }

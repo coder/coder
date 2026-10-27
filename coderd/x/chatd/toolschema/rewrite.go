@@ -281,9 +281,11 @@ var draft3UnknownKeywords = [...]string{
 // follow it. Normalize may then add some back where they hold as in the
 // source, such as "const" for an "enum". Schemas read in other dialects
 // keep their keywords, and a schema without any read in draft 3 or
-// draft 4 is returned as is.
+// draft 4 is returned as is. A reference to an object outside the
+// positions that hold schemas first names a copy of it that the
+// rewriting reaches (see pullReferencedData).
 func UpgradeLegacyDrafts(schema map[string]any) map[string]any {
-	schema = upgradeDraft3(schema)
+	schema = upgradeDraft3(pullReferencedData(schema))
 	if !readsIn(schema, isDraft4) {
 		return schema
 	}
@@ -308,6 +310,137 @@ func UpgradeLegacyDrafts(schema map[string]any) map[string]any {
 		}
 	})
 	return removeUnknownKeywords(upgraded, isDraft4, draft4UnknownKeywords[:], "x-draft4-", "http://json-schema.org/draft-07/schema#")
+}
+
+// pullReferencedData returns a copy of a schema in which each "$ref"
+// whose JSON Pointer locates an object outside the positions that hold
+// schemas, such as under a key no draft defines, in a resource read in
+// draft 3 or draft 4, names a copy of that object added to the
+// "definitions" of that resource, where the rewriting reaches it. Left where it is,
+// the object would keep what its draft reads unlike draft 7, such as a
+// "const" that draft 4 ignores. The object also stays, as instance data.
+// An object that declares an identifier is not copied, since in
+// "definitions" it would declare it, and neither is one whose resource
+// has "definitions" that is not an object. The schema itself is returned
+// when nothing is copied, or when a schema read in those drafts other
+// than the root names a resource with "id", which the scopes read only
+// once it becomes "$id".
+func pullReferencedData(schema map[string]any) map[string]any {
+	legacy := func(dialect string) bool { return isDraft3(dialect) || isDraft4(dialect) }
+	if !readsIn(schema, legacy) {
+		return schema
+	}
+	resources := map[string][]*pathToken{}
+	// roots maps the encoded path of each resource root to its scope.
+	roots := map[string]refScope{}
+	unread := false
+	walkNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
+		if id, ok := node["id"].(string); ok && scope.path != nil && legacy(scope.dialect) && !strings.HasPrefix(id, "#") {
+			unread = true
+		}
+		if _, ok := resourceID(node); ok && scope.nested && scope.base != nil {
+			uri := canonicalURI(scope.base)
+			resources[uri] = append(resources[uri], scope.path)
+		}
+		if scope.path == scope.resourcePath {
+			roots[EncodePointer(scope.path.tokens())] = scope
+		}
+	})
+	if unread {
+		return schema
+	}
+	// names maps the encoded path of each object copied to the name of
+	// its copy, and added maps the encoded path of each resource root to
+	// the objects copied into its "definitions" by name.
+	names := map[string]string{}
+	added := map[string]map[string]map[string]any{}
+	var find visitFunc
+	find = func(node map[string]any, scope refScope) {
+		ref, _ := node["$ref"].(string)
+		resource, tokens, ok := scope.resourcePointer(ref, resources)
+		if !ok || len(tokens) == 0 {
+			return
+		}
+		path := append(slices.Clone(resource), tokens...)
+		if _, ok := names[EncodePointer(path)]; ok {
+			return
+		}
+		if _, _, ok := schemaAt(schema, path); ok {
+			return
+		}
+		value, _ := lookupPointer(schema, path)
+		object, ok := value.(map[string]any)
+		if !ok || declaresIdentifier(object) {
+			return
+		}
+		root, dialect, ok := schemaAt(schema, resource)
+		if !ok || !legacy(dialect) {
+			return
+		}
+		definitions, ok := root["definitions"].(map[string]any)
+		if _, exists := root["definitions"]; exists && !ok {
+			return
+		}
+		key := EncodePointer(resource)
+		copies := added[key]
+		if copies == nil {
+			copies = map[string]map[string]any{}
+			added[key] = copies
+		}
+		base := tokens[len(tokens)-1]
+		name := base
+		for n := 2; ; n++ {
+			_, taken := definitions[name]
+			if _, given := copies[name]; !taken && !given {
+				break
+			}
+			name = base + "-" + strconv.Itoa(n)
+		}
+		copies[name] = object
+		names[EncodePointer(path)] = name
+		walkNode(object, roots[key].at("definitions").at(name).enter(object), find)
+	}
+	walkNode(schema, rootScope(schema), find)
+	if len(names) == 0 {
+		return schema
+	}
+	var visit visitFunc
+	visit = func(node map[string]any, scope refScope) {
+		if copies, ok := added[EncodePointer(scope.path.tokens())]; ok && scope.path == scope.resourcePath {
+			definitions, _ := node["definitions"].(map[string]any)
+			if definitions == nil {
+				definitions = make(map[string]any, len(copies))
+			}
+			for name, object := range copies {
+				definitions[name] = copySchema(object, scope.at("definitions").at(name), visit)
+			}
+			node["definitions"] = definitions
+		}
+		ref, _ := node["$ref"].(string)
+		resource, tokens, ok := scope.resourcePointer(ref, resources)
+		if !ok {
+			return
+		}
+		if name, ok := names[EncodePointer(append(resource, tokens...))]; ok {
+			prefix, _, _ := strings.Cut(ref, "#")
+			node["$ref"] = prefix + "#" + EncodePointer([]string{"definitions", name})
+		}
+	}
+	return copyNode(schema, rootScope(schema), visit)
+}
+
+// declaresIdentifier reports whether a schema or one of its subschemas
+// declares a resource or an anchor.
+func declaresIdentifier(schema map[string]any) bool {
+	found := false
+	walkNode(schema, rootScope(schema), func(node map[string]any, _ refScope) {
+		for _, key := range []string{"id", "$id", "$anchor", "$dynamicAnchor"} {
+			if _, ok := node[key].(string); ok {
+				found = true
+			}
+		}
+	})
+	return found
 }
 
 // upgradeDraft3 returns a copy of a schema in which every schema read in
@@ -335,6 +468,11 @@ func upgradeDraft3(schema map[string]any) map[string]any {
 	visit = func(node map[string]any, scope refScope) {
 		if !isDraft3(scope.dialect) {
 			return
+		}
+		// removeUnknownKeywords did not reach the schemas that moved here
+		// either.
+		for _, key := range draft3UnknownKeywords {
+			delete(node, key)
 		}
 		// Draft 3 holds schemas under "extends" and in "type" and
 		// "disallow" lists, which the copy did not reach. move copies the
@@ -508,13 +646,37 @@ func readsIn(schema map[string]any, is func(dialect string) bool) bool {
 // isDraft3 reports whether a dialect that Dialect returned is a draft 3
 // dialect.
 func isDraft3(dialect string) bool {
-	return strings.Contains(dialect, "json-schema.org/draft-03/")
+	return strings.HasPrefix(draftPath(dialect), "/draft-03/")
 }
 
 // isDraft4 reports whether a dialect that Dialect returned is a draft 4
 // dialect.
 func isDraft4(dialect string) bool {
-	return strings.Contains(dialect, "json-schema.org/draft-04/")
+	return strings.HasPrefix(draftPath(dialect), "/draft-04/")
+}
+
+// isDraft201909 reports whether a dialect that Dialect returned is a
+// draft 2019-09 dialect.
+func isDraft201909(dialect string) bool {
+	return strings.HasPrefix(draftPath(dialect), "/draft/2019-09/")
+}
+
+// IsLegacyDialect reports whether a dialect that Dialect returned is a
+// draft before 2019-09, in which a "$ref" makes its schema ignore every
+// other keyword.
+func IsLegacyDialect(dialect string) bool {
+	return strings.HasPrefix(draftPath(dialect), "/draft-0")
+}
+
+// draftPath returns the path of a dialect that Dialect returned when it
+// is an http or https URI on json-schema.org, which publishes the JSON
+// Schema drafts, or "" for any other dialect.
+func draftPath(dialect string) string {
+	uri, err := url.Parse(dialect)
+	if err != nil || (uri.Scheme != "http" && uri.Scheme != "https") || uri.Host != "json-schema.org" {
+		return ""
+	}
+	return uri.Path
 }
 
 // removeUnknownKeywords returns a copy of a schema without the unknown
@@ -615,7 +777,19 @@ func schemaAt(root map[string]any, tokens []string) (map[string]any, string, boo
 		if !ok {
 			return nil, "", false
 		}
-		switch KeywordSubschemas(tokens[i], value) {
+		kind := KeywordSubschemas(tokens[i], value)
+		if isDraft3(dialect) && (tokens[i] == "extends" || tokens[i] == "type" || tokens[i] == "disallow") {
+			// Draft 3 holds a schema or a list of them under "extends",
+			// and upgradeDraft3 reads "type" and "disallow" the same way,
+			// where a list may also name types.
+			switch value.(type) {
+			case []any:
+				kind = SubschemaList
+			case map[string]any:
+				kind = SingleSubschema
+			}
+		}
+		switch kind {
 		case SingleSubschema:
 		case SubschemaList, SubschemaMap:
 			i++
@@ -672,12 +846,12 @@ func lookupPointer(root any, tokens []string) (any, bool) {
 // becomes a "$dynamicRef" to a "$dynamicAnchor" that each such resource
 // root declares, which resolves the same way. It is left out when a name
 // for that anchor cannot be added, which only drops a constraint. Other
-// values are kept. Only a schema that declares draft 2019-09 has these
-// keywords: other dialects ignore them, and so does a schema without
-// "$schema", which MCP reads as draft 2020-12, so they are only removed.
-// Other schemas are returned as is.
+// values are kept. Only a schema read in draft 2019-09 (see
+// UpgradeLegacyDrafts) has these keywords: other dialects ignore them,
+// and so does a schema read without "$schema", which MCP reads as draft
+// 2020-12, so there they are only removed. Other schemas are returned as
+// is.
 func ReplaceRecursiveRefs(schema map[string]any) map[string]any {
-	recursive := strings.Contains(Dialect(schema), "json-schema.org/draft/2019-09/")
 	found, dynamic, clash := false, false, false
 	used := map[string]bool{}
 	walkNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
@@ -693,6 +867,9 @@ func ReplaceRecursiveRefs(schema map[string]any) map[string]any {
 			if name, ok := anchorFragment(fragment); ok {
 				used[name] = true
 			}
+		}
+		if !isDraft201909(scope.dialect) {
+			return
 		}
 		if _, ok := node["$dynamicAnchor"]; ok && recursiveAnchor(node) && scope.resourcePath == scope.path {
 			clash = true
@@ -711,7 +888,7 @@ func ReplaceRecursiveRefs(schema map[string]any) map[string]any {
 	return copyNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
 		anchored := recursiveAnchor(node)
 		delete(node, "$recursiveAnchor")
-		if !recursive {
+		if !isDraft201909(scope.dialect) {
 			delete(node, "$recursiveRef")
 			return
 		}
@@ -834,7 +1011,7 @@ func normalizeNode(node map[string]any, scope refScope) {
 		switch published, ok := PublishedDialect(dialect); {
 		case ok:
 			node["$schema"] = published
-		case strings.Contains(Dialect(node), "json-schema.org/draft-0"):
+		case IsLegacyDialect(Dialect(node)):
 			node["$schema"] = "http://json-schema.org/draft-07/schema#"
 		default:
 			delete(node, "$schema")
@@ -980,18 +1157,51 @@ func RewriteRefs(schema map[string]any, rewrite func(tokens []string) ([]string,
 // Schema objects are told apart by address, so they must stay reachable
 // while the scanner is in use. The zero value is ready to use.
 type RefScanner struct {
-	scanned map[uintptr]bool
+	scanner keywordScanner
 }
 
 // HasRefs reports whether schema or one of its subschemas holds a
 // reference keyword.
 func (s *RefScanner) HasRefs(schema map[string]any) bool {
+	return s.scanner.holds(schema, []string{"$ref", "$dynamicRef", "$recursiveRef"})
+}
+
+// IdentifierScanner reports whether schemas hold identifier keywords,
+// remembering the answers like RefScanner. The zero value is ready to
+// use.
+type IdentifierScanner struct {
+	scanner keywordScanner
+}
+
+// HasNestedIdentifiers reports whether a subschema of schema, other than
+// schema itself, declares a resource or an anchor through "$id",
+// "$anchor" or "$dynamicAnchor".
+func (s *IdentifierScanner) HasNestedIdentifiers(schema map[string]any) bool {
+	found := false
+	for key, value := range schema {
+		forEachSubschema(key, value, refScope{}, func(node map[string]any, _ refScope) {
+			found = found || s.scanner.holds(node, []string{"$id", "$anchor", "$dynamicAnchor"})
+		})
+		if found {
+			return true
+		}
+	}
+	return false
+}
+
+// keywordScanner reports whether schemas or their subschemas hold any of
+// a set of keywords, which must be the same on every call.
+type keywordScanner struct {
+	scanned map[uintptr]bool
+}
+
+func (s *keywordScanner) holds(schema map[string]any, keywords []string) bool {
 	address := reflect.ValueOf(schema).Pointer()
 	if found, ok := s.scanned[address]; ok {
 		return found
 	}
 	found := false
-	for _, key := range []string{"$ref", "$dynamicRef", "$recursiveRef"} {
+	for _, key := range keywords {
 		if _, ok := schema[key]; ok {
 			found = true
 		}
@@ -1001,7 +1211,7 @@ func (s *RefScanner) HasRefs(schema map[string]any) bool {
 			break
 		}
 		forEachSubschema(key, value, refScope{}, func(node map[string]any, _ refScope) {
-			found = found || s.HasRefs(node)
+			found = found || s.holds(node, keywords)
 		})
 	}
 	if s.scanned == nil {
