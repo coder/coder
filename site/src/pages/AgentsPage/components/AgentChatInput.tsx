@@ -1186,6 +1186,21 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		hasModelOptions &&
 		hasSendableContent &&
 		!hasActiveUploads;
+	// A promoted row stays at the head of a running chat's queue, so Enter
+	// and Send now share this lock to send one promote per row.
+	const promotingIDsRef = useRef(new Set<number>());
+	const promoteQueuedMessage = async (id: number) => {
+		if (!onPromoteQueuedMessage || promotingIDsRef.current.has(id)) {
+			return;
+		}
+		promotingIDsRef.current.add(id);
+		try {
+			await onPromoteQueuedMessage(id);
+		} finally {
+			promotingIDsRef.current.delete(id);
+		}
+	};
+
 	const handleSubmit = () => {
 		const text = internalRef.current?.getValue()?.trim() ?? "";
 
@@ -1202,7 +1217,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			!isPendingRowID(queuedMessages[0].id) &&
 			onPromoteQueuedMessage
 		) {
-			void onPromoteQueuedMessage(queuedMessages[0].id);
+			void promoteQueuedMessage(queuedMessages[0].id);
 			return;
 		}
 
@@ -1412,7 +1427,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				<QueuedMessagesList
 					messages={queuedMessages}
 					onDelete={(id) => onDeleteQueuedMessage?.(id)}
-					onPromote={(id) => onPromoteQueuedMessage?.(id)}
+					onPromote={promoteQueuedMessage}
 					className="mb-2"
 				/>
 			)}

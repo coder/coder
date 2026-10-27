@@ -390,6 +390,44 @@ describe("ChatPageInput", () => {
 		expect(onDeleteQueuedMessage).not.toHaveBeenCalled();
 	});
 
+	it("sends one promote for a running chat's head row until it settles", async () => {
+		const user = userEvent.setup();
+		const promote = createDeferred<undefined>();
+		const onPromoteQueuedMessage = vi
+			.fn()
+			.mockReturnValueOnce(promote.promise)
+			.mockResolvedValue(undefined);
+		const store = createChatStore();
+		store.seed({
+			messages: [],
+			queued_messages: [
+				{
+					id: 1,
+					chat_id: "",
+					created_at: "2025-01-01T00:00:00.000Z",
+					content: [{ type: "text", text: "queued" }],
+				},
+			],
+			has_more: false,
+			snapshot_version: 1,
+		});
+		store.applyServerChatStatus("running");
+
+		renderChatPageInput(store, { onPromoteQueuedMessage });
+		await screen.findByText("queued");
+		await user.click(screen.getByTestId("chat-message-input"));
+		await user.keyboard("{Enter}");
+		await user.keyboard("{Enter}");
+		await user.click(screen.getByRole("button", { name: "Send now" }));
+		expect(onPromoteQueuedMessage.mock.calls).toEqual([[1]]);
+
+		await act(async () => {
+			promote.resolve(undefined);
+		});
+		await user.keyboard("{Enter}");
+		expect(onPromoteQueuedMessage.mock.calls).toEqual([[1], [1]]);
+	});
+
 	it("lets another queued row act while one row's request is in flight", async () => {
 		const user = userEvent.setup();
 		const onDeleteQueuedMessage = vi
