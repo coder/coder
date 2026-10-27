@@ -126,9 +126,10 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 // 17) coder/fantasy#78 (unmerged), replay OpenAI web searches inline
 //    from their result metadata unless they go back as an item
 //    reference, which needs a stored request, a stored source response
-//    and a reasoning item before the search. Pinned to the PR branch.
-// See: https://github.com/coder/fantasy/commits/50bf6c5f5382
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261027173522-50bf6c5f5382
+//    and the reasoning item right before the search, and each search
+//    replays once. Pinned to the PR branch.
+// See: https://github.com/coder/fantasy/commits/9bd10018bb59
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261027183532-9bd10018bb59
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
