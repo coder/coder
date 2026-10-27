@@ -138,9 +138,11 @@ type PendingEntry = {
 	// The message the request adds. The next user message or queue update
 	// ends it, because the server queues the message when the chat is busy.
 	message?: { shown?: TypesGen.ChatMessage; queue?: QueueEdit };
+	// The queue change of a delete, promote, edit or send. The next queue
+	// update ends it.
 	queue?: QueueEdit;
-	// The history from the edited message on. A history reset ends it.
-	history?: { fromID: number; shown?: TypesGen.ChatMessage };
+	// Hides the history from the edited message on. A history reset ends it.
+	history?: { fromID: number };
 };
 
 type PendingPart = "message" | "queue" | "history";
@@ -743,10 +745,8 @@ const pendingEntry = (
 			if (head) {
 				return {
 					id,
-					message: {
-						shown: sentQueuedMessage(pendingRowID, head),
-						queue: (rows) => [...withoutRow(head.id)(rows), row],
-					},
+					message: { shown: sentQueuedMessage(pendingRowID, head) },
+					queue: (rows) => [...withoutRow(head.id)(rows), row],
 				};
 			}
 			return { id, message: { shown: sent } };
@@ -771,18 +771,16 @@ const pendingEntry = (
 			}
 			return {
 				id,
-				message: {
-					shown: sentQueuedMessage(pendingRowID, target),
-					queue: withoutRow(target.id),
-				},
+				message: { shown: sentQueuedMessage(pendingRowID, target) },
+				queue: withoutRow(target.id),
 			};
 		}
 		case "edit":
 			return {
 				id,
-				history: {
-					fromID: action.editedMessageID,
-					shown: action.message && { ...action.message, id: pendingRowID },
+				history: { fromID: action.editedMessageID },
+				message: action.message && {
+					shown: { ...action.message, id: pendingRowID },
 				},
 				// The server sends no queue update when the queue is already empty.
 				queue: view.queuedMessages.length > 0 ? () => [] : undefined,
@@ -846,9 +844,6 @@ const buildView = (state: Omit<ChatStoreState, "view">): ChatView => {
 				(id) => id < history.fromID,
 			);
 			view.streamState = null;
-			if (history.shown) {
-				show(history.shown);
-			}
 		}
 		if (queue) {
 			view.queuedMessages = queue(view.queuedMessages);

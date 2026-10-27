@@ -1240,6 +1240,63 @@ describe("pending part ends", () => {
 	});
 });
 
+// The server can send one commit's events in two frames.
+describe("a commit split across frames", () => {
+	it("shows an edit's message between its history reset and its message", () => {
+		const store = seededStore(
+			[
+				makeMessage(1, "user", "first"),
+				makeMessage(2, "assistant", "a"),
+				makeMessage(3, "user", "old"),
+				makeMessage(4, "assistant", "b"),
+			],
+			[],
+			"waiting",
+		);
+		addPending(store, {
+			kind: "edit",
+			editedMessageID: 3,
+			message: makeMessage(3, "user", "new"),
+		});
+
+		store.resetHistoryFrom(3, 2);
+		expect(visible(store).transcript).toEqual([
+			"user:first",
+			"assistant:a",
+			"user:new",
+		]);
+
+		store.upsertDurableMessages([makeMessage(5, "user", "new")], 2);
+		expect(visible(store).transcript).toEqual([
+			"user:first",
+			"assistant:a",
+			"user:new",
+		]);
+		expect(store.getSnapshot().pendingEntries).toEqual([]);
+	});
+
+	it("keeps a promoted row out of the queue between its message and its queue update", () => {
+		const store = seededStore(
+			[makeMessage(1, "user", "first")],
+			[makeQueuedMessage(10, "q10"), makeQueuedMessage(11, "q11")],
+			"error",
+		);
+		addPending(store, { kind: "promoteQueued", queuedMessageID: 11 });
+
+		store.upsertDurableMessages(
+			[{ ...makeMessage(2, "user", "q11"), queued_message_id: 11 }],
+			2,
+		);
+		expect(visible(store)).toMatchObject({
+			transcript: ["user:first", "user:q11"],
+			queue: ["q10"],
+		});
+
+		store.setQueuedMessages([makeQueuedMessage(10, "q10")], 2);
+		expect(store.getSnapshot().pendingEntries).toEqual([]);
+	});
+});
+
 describe("prependOlderMessages", () => {
 	it("prepends an older page", () => {
 		const store = createChatStore();
