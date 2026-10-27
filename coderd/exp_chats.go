@@ -4172,7 +4172,7 @@ func (api *API) compactChat(rw http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, chatstate.ErrTransitionNotAllowed):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "Cannot compact the chat in its current state.",
-				Detail:  "Compaction is not available while the chat is generating.",
+				Detail:  "Compaction is available only while the chat is waiting or errored.",
 			})
 		default:
 			logger.Error(ctx, "failed to compact chat", slog.Error(err))
