@@ -994,6 +994,12 @@ func TestBuildToolDefinitionsFullSchemaRootFoldLegacyRef(t *testing.T) {
 			rejected: []string{`{"x": "a"}`, `{"y": "a"}`, `{"y": 1, "z": 1}`},
 		},
 		{
+			// Draft 4 names the referenced schema with "id".
+			name:   "Draft4Root",
+			source: `{"$schema": "http://json-schema.org/draft-04/schema#", "$ref": "#args", "definitions": {"Args": {"id": "#args", "properties": {"q": {"type": "string"}}, "required": ["q"]}}}`,
+			want:   `{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"q": {"type": "string"}}, "required": ["q"], "definitions": {"Args": {"$anchor": "args", "properties": {"q": {"type": "string"}}, "required": ["q"]}}}`,
+		},
+		{
 			name:     "LaterDraft",
 			source:   `{"type": "object", "$defs": {"N": {"properties": {"q": {"type": "number"}}}}, "allOf": [{"$ref": "#/$defs/N", "properties": {"q": {"type": "string"}}, "required": ["q"]}]}`,
 			want:     `{"type": "object", "$defs": {"N": {"properties": {"q": {"type": "number"}}}}, "properties": {"q": {"allOf": [{"type": "number"}, {"type": "string"}]}}, "required": ["q"]}`,
@@ -1117,6 +1123,40 @@ func TestBuildToolDefinitionsFullSchemaAnchorRefs(t *testing.T) {
 				},
 			},
 			wantRef: "#/$defs/coder_root_anyOf_0_defs_Code",
+		},
+		{
+			// A dynamic reference to an anchor declared once resolves
+			// like a reference, so it follows the anchored schema too.
+			name: "DynamicAnchorInRemovedRootKeyword",
+			source: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"code": map[string]any{"$dynamicRef": "#code"},
+				},
+				"anyOf": []any{
+					map[string]any{
+						"$defs": map[string]any{
+							"Code": map[string]any{"$dynamicAnchor": "code", "type": "string", "minLength": 3},
+						},
+					},
+				},
+			},
+			wantRef: "#/$defs/coder_root_anyOf_0_defs_Code",
+		},
+		{
+			// Draft 4 declares anchors with "id".
+			name: "Draft4Anchor",
+			source: map[string]any{
+				"$schema": "http://json-schema.org/draft-04/schema#",
+				"type":    "object",
+				"properties": map[string]any{
+					"code": map[string]any{"$ref": "#code"},
+				},
+				"definitions": map[string]any{
+					"Code": map[string]any{"id": "#code", "type": "string", "minLength": 3},
+				},
+			},
+			wantRef: "#/definitions/Code",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

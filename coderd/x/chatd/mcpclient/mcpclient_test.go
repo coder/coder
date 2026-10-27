@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -251,6 +252,45 @@ func TestConnectAll_CallTool(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, resp.IsError)
 	assert.Equal(t, "echo: hello world", resp.Content)
+}
+
+// TestConnectAll_CallToolKeepsExactNumbers verifies that tool call
+// arguments reach the MCP server with the numbers the model wrote, since
+// float64 would round an integer such as 9007199254740993.
+func TestConnectAll_CallToolKeepsExactNumbers(t *testing.T) {
+	t.Parallel()
+
+	for _, modelIntent := range []bool{false, true} {
+		t.Run(fmt.Sprintf("ModelIntent=%t", modelIntent), func(t *testing.T) {
+			t.Parallel()
+			ctx := context.Background()
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+			ts := newTestMCPServer(t, testTool{
+				tool: &mcp.Tool{Name: "raw", InputSchema: map[string]any{"type": "object"}},
+				handler: func(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+					return textToolResult(string(req.Params.Arguments)), nil
+				},
+			})
+			cfg := makeConfig("srv", ts.URL)
+			cfg.ModelIntent = modelIntent
+			tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []mcpclient.Server{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
+			t.Cleanup(cleanup)
+			require.Len(t, tools, 1)
+
+			const args = `{"id":9007199254740993,"ratio":0.1000000000000000055511151231257827}`
+			input := args
+			if modelIntent {
+				input = `{"model_intent":"Calling raw","properties":` + args + `}`
+			}
+			resp, err := tools[0].Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "srv__raw", Input: input})
+			require.NoError(t, err)
+			require.False(t, resp.IsError, resp.Content)
+			require.JSONEq(t, args, resp.Content)
+			require.Contains(t, resp.Content, "9007199254740993")
+			require.Contains(t, resp.Content, "0.1000000000000000055511151231257827")
+		})
+	}
 }
 
 func TestConnectAll_ToolAllowList(t *testing.T) {
@@ -951,6 +991,75 @@ func TestConnectAll_FullInputSchema_ModelIntentResources(t *testing.T) {
 		require.Error(t, validateSchemaInstance(t, inputSchema, arguments), name)
 		require.Error(t, validateSchemaInstance(t, schema, wrap(arguments)), name)
 	}
+}
+
+// TestConnectAll_FullInputSchema_ModelIntentDraft4 verifies that the
+// model_intent wrapper reads the resources of a draft 4 schema, which
+// names them with "id".
+func TestConnectAll_FullInputSchema_ModelIntentDraft4(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	inputSchema := map[string]any{
+		"$schema": "http://json-schema.org/draft-04/schema#",
+		"id":      "https://example.com/tool.json",
+		"type":    "object",
+		"properties": map[string]any{
+			"a": map[string]any{"type": "string"},
+			"b": map[string]any{"$ref": "#/properties/a"},
+			"nested": map[string]any{
+				"id":   "https://example.com/nested.json",
+				"type": "object",
+				"properties": map[string]any{
+					"x": map[string]any{"type": "integer"},
+					"y": map[string]any{"$ref": "#/properties/x"},
+				},
+			},
+		},
+	}
+	ts := newTestMCPServer(t, testTool{
+		tool: &mcp.Tool{Name: "draft4", InputSchema: inputSchema},
+		handler: func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return textToolResult("ok"), nil
+		},
+	})
+	cfg := makeConfig("srv", ts.URL)
+	cfg.ModelIntent = true
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []mcpclient.Server{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
+	t.Cleanup(cleanup)
+	require.Len(t, tools, 1)
+	full, ok := tools[0].(fullSchemaTool)
+	require.True(t, ok)
+	schema := full.FullInputSchema()
+
+	assert.Equal(t, "https://example.com/tool.json", schema["$id"])
+	assert.Equal(t, "http://json-schema.org/draft-07/schema#", schema["$schema"])
+	wrapped, ok := schema["properties"].(map[string]any)
+	require.True(t, ok)
+	inner, ok := wrapped["properties"].(map[string]any)
+	require.True(t, ok)
+	rawInner, err := json.Marshal(inner)
+	require.NoError(t, err)
+	require.JSONEq(t, `{
+		"type": "object",
+		"properties": {
+			"a": {"type": "string"},
+			"b": {"$ref": "#/properties/properties/properties/a"},
+			"nested": {
+				"$id": "https://example.com/nested.json",
+				"type": "object",
+				"properties": {"x": {"type": "integer"}, "y": {"$ref": "#/properties/x"}}
+			}
+		}
+	}`, string(rawInner))
+
+	wrap := func(arguments string) string {
+		return `{"model_intent": "Testing", "properties": ` + arguments + `}`
+	}
+	require.NoError(t, validateSchemaInstance(t, schema, wrap(`{"a": "s", "b": "s", "nested": {"x": 1, "y": 2}}`)))
+	require.Error(t, validateSchemaInstance(t, schema, wrap(`{"b": 1}`)))
+	require.Error(t, validateSchemaInstance(t, schema, wrap(`{"nested": {"y": "s"}}`)))
 }
 
 // TestConnectAll_FullInputSchema_ModelIntentAnchors verifies that a
