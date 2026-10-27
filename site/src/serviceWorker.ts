@@ -52,8 +52,8 @@ self.addEventListener("push", (event) => {
 				// iOS app loads it in its own window, also when already running.
 				// A window from clients.openWindow() opens over a blank one
 				// instead, and a back swipe to its first page closes it and
-				// leaves the blank one on screen. Other browsers ignore the
-				// member.
+				// leaves the blank one on screen. Browsers without Declarative Web
+				// Push ignore the member.
 				const options: NotificationOptions & { navigate: string } = {
 					body: payload.body || "",
 					icon: payload.icon || "/favicon.ico",
