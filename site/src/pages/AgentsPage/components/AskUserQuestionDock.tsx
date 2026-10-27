@@ -19,8 +19,9 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 	const sectionRef = useRef<HTMLElement>(null);
 
 	return (
-		<div className="shrink-0 px-4">
-			{/* Bounded so a long question set never pushes the input off a short screen. */}
+		<div className="flex min-h-0 flex-col px-4">
+			{/* Capped at half the screen, and shrinks before the chat input does, so a
+			    long question set never pushes the input off a short screen. */}
 			<section
 				ref={sectionRef}
 				aria-labelledby={labelId}

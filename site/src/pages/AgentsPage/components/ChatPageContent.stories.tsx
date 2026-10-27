@@ -582,7 +582,7 @@ const AsyncQuestionChatPage: React.FC<{
 	onSendAskUserQuestionResponse,
 	isReadOnly,
 }) => (
-	<div className={className}>
+	<div data-testid="async-question-chat-page" className={className}>
 		<StoryChatPageTimeline
 			store={store}
 			onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
@@ -663,6 +663,29 @@ export const AsyncQuestionDockedAboveInputMobile: Story = {
 		);
 	},
 	parameters: { pixel: { matrix: pixelWithPhone } },
+};
+
+// On a short landscape screen the dock gives up height before the chat input
+// does, so Send stays on screen.
+export const AsyncQuestionDockedShortScreen: Story = {
+	render: () => (
+		<AsyncQuestionChatPage
+			store={buildAsyncQuestionStore([
+				...MockAsyncQuestionMessages.slice(0, 2),
+				MockTallAsyncQuestionResultMessage,
+			])}
+			className="flex h-[390px] w-[844px] flex-col overflow-hidden"
+			onSendAskUserQuestionResponse={fn()}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const page = canvas.getByTestId("async-question-chat-page");
+		const send = canvas.getByRole("button", { name: "Send" });
+		expect(send.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+			page.getBoundingClientRect().bottom,
+		);
+	},
 };
 
 export const AsyncQuestionArchivedChat: Story = {
