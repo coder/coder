@@ -229,12 +229,14 @@ type TimelineStageProps = {
 	store: ReturnType<typeof createChatStore>;
 	queryClient: QueryClient;
 	onSendAskUserQuestionResponse: AnswerCallback | undefined;
+	editingMessageId?: number;
 };
 
 const TimelineStage: React.FC<TimelineStageProps> = ({
 	store,
 	queryClient,
 	onSendAskUserQuestionResponse,
+	editingMessageId,
 }) => (
 	<QueryClientProvider client={queryClient}>
 		<MessageScroller.Provider autoScroll defaultScrollPosition="end">
@@ -250,6 +252,7 @@ const TimelineStage: React.FC<TimelineStageProps> = ({
 				urlTransform={defaultUrlTransform}
 				mcpServers={[]}
 				onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+				editingMessageId={editingMessageId}
 				isReadOnly={false}
 			/>
 		</MessageScroller.Provider>
@@ -273,12 +276,14 @@ const renderChatPageTimeline = (
 		store,
 		rerenderWith: (
 			nextOnSendAskUserQuestionResponse: AnswerCallback | undefined,
+			editingMessageId?: number,
 		) =>
 			rerender(
 				<TimelineStage
 					store={store}
 					queryClient={queryClient}
 					onSendAskUserQuestionResponse={nextOnSendAskUserQuestionResponse}
+					editingMessageId={editingMessageId}
 				/>,
 			),
 	};
@@ -341,6 +346,33 @@ describe("ChatPageTimeline question dock", () => {
 		expect(onSendAskUserQuestionResponse).toHaveBeenCalledTimes(2);
 		expect(onSendAskUserQuestionResponse).toHaveBeenNthCalledWith(
 			2,
+			"Answer to ask_user_question call question:\nFrontend",
+		);
+	});
+
+	it("locks the dock's draft while a history edit is open", async () => {
+		const user = userEvent.setup();
+		const onSendAskUserQuestionResponse = vi.fn();
+		const { rerenderWith } = renderChatPageTimeline(
+			onSendAskUserQuestionResponse,
+		);
+
+		await user.click(
+			within(getQuestionDock()).getByRole("radio", { name: /^Frontend/ }),
+		);
+		rerenderWith(
+			onSendAskUserQuestionResponse,
+			MockAsyncQuestionMessages[0].id,
+		);
+		await user.click(
+			within(getQuestionDock()).getByRole("radio", { name: /^Backend/ }),
+		);
+		rerenderWith(onSendAskUserQuestionResponse);
+		await user.click(
+			within(getQuestionDock()).getByRole("button", { name: "Submit" }),
+		);
+
+		expect(onSendAskUserQuestionResponse).toHaveBeenCalledExactlyOnceWith(
 			"Answer to ask_user_question call question:\nFrontend",
 		);
 	});

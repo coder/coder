@@ -517,7 +517,7 @@ export const MockAsyncQuestionMessages: TypesGen.ChatMessage[] = [
 	MockAsyncQuestionResultMessage,
 ];
 
-/** MockAsyncQuestionResultMessage with another result for the same call. */
+/** Keeps MockAsyncQuestionResultMessage's IDs, so it answers MockQuestionCallMessage. */
 export const buildQuestionResultMessage = (
 	result: unknown,
 ): TypesGen.ChatMessage => ({

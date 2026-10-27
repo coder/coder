@@ -727,6 +727,24 @@ export const AsyncQuestionDockedDisabled: Story = {
 	},
 };
 
+export const AsyncQuestionDockedSubmitError: Story = {
+	render: () => (
+		<AsyncQuestionChatPage
+			store={buildAsyncQuestionStore()}
+			onSendAskUserQuestionResponse={fn(async () => {
+				throw new Error("Failed to send your answer. Try again.");
+			})}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const dock = within(
+			within(canvasElement).getByRole("region", { name: "Open question" }),
+		);
+		await userEvent.click(dock.getByRole("button", { name: "Submit" }));
+		await dock.findByRole("alert");
+	},
+};
+
 const buildLiveAsyncQuestionStore = () => {
 	const store = buildAsyncQuestionStore(MockWorkingMessages.slice(0, 1));
 	store.setChatStatus("running");
