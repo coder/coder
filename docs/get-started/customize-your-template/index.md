@@ -69,7 +69,7 @@ Open it for editing now, either in the Coder web editor or in your local editor 
 
 The template web editor opens:
 
-![Coder template web editor](../../images/screenshots/template-web-editor.png)_Coder template web editor_
+![The template editor with main.tf open beside a file list, and Build and Publish buttons at the top](../../images/screenshots/template-web-editor.png)_Coder template web editor_
 
 ### CLI
 

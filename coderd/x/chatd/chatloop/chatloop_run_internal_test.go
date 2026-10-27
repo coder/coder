@@ -25,7 +25,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
@@ -985,34 +984,19 @@ func TestExecuteToolsNotifiesStepToolCallObservers(t *testing.T) {
 		},
 	)
 
-	executeTools(
-		context.Background(),
-		quartz.NewReal(),
-		[]fantasy.AgentTool{observer, uncalledObserver, other},
-		nil,
-		nil,
-		nil,
-		[]fantasy.ToolCallContent{
-			{ToolCallID: "1", ToolName: "observer_alias", Input: "{}"},
-			{ToolCallID: "2", ToolName: "other_tool", Input: "{}"},
-		},
-		[]fantasy.ToolCallContent{
+	newToolBatch(ExecuteLocalToolsOptions{
+		Tools: []fantasy.AgentTool{observer, uncalledObserver, other},
+		ObservedToolCalls: []fantasy.ToolCallContent{
 			{ToolCallID: "1", ToolName: "observer_alias", Input: "{}"},
 			{ToolCallID: "2", ToolName: "other_tool", Input: "{}"},
 			{ToolCallID: "3", ToolName: "denied_tool", Input: "{}"},
 		},
-		NewMetrics(prometheus.NewRegistry()),
-		slog.Make(),
-		"fake", "fake-model",
-		map[string]bool{},
-		defaultToolResultBytes,
-		map[string]string{"observer_alias": "observer_tool"},
-		time.Time{},
-		nil,
-		nil,
-		nil,
-		StageModel{},
-	)
+		ToolNameAliases: map[string]string{"observer_alias": "observer_tool"},
+		Clock:           quartz.NewReal(),
+	}, "fake", "fake-model").run(context.Background(), []fantasy.ToolCallContent{
+		{ToolCallID: "1", ToolName: "observer_alias", Input: "{}"},
+		{ToolCallID: "2", ToolName: "other_tool", Input: "{}"},
+	}, time.Time{})
 
 	require.Equal(t, []string{"observer_tool", "other_tool", "denied_tool"}, observedNames,
 		"a called observer sees every observed tool-call name, including calls denied before execution")
@@ -1065,29 +1049,14 @@ func TestExecuteToolsNotifiesStepToolResultObservers(t *testing.T) {
 		{ToolCallID: "2", ToolName: "failing_tool", Input: "{}"},
 		{ToolCallID: "3", ToolName: "missing_tool", Input: "{}"},
 	}
-	executeTools(
-		context.Background(),
-		quartz.NewReal(),
-		[]fantasy.AgentTool{observer, failing},
-		nil,
-		nil,
-		nil,
-		executed,
-		append(slices.Clone(executed), fantasy.ToolCallContent{
+	newToolBatch(ExecuteLocalToolsOptions{
+		Tools: []fantasy.AgentTool{observer, failing},
+		ObservedToolCalls: append(slices.Clone(executed), fantasy.ToolCallContent{
 			ToolCallID: "4", ToolName: "rejected_tool", Input: "{not json",
 		}),
-		NewMetrics(prometheus.NewRegistry()),
-		slog.Make(),
-		"fake", "fake-model",
-		map[string]bool{},
-		defaultToolResultBytes,
-		map[string]string{"observer_alias": "observer_tool"},
-		time.Time{},
-		nil,
-		nil,
-		nil,
-		StageModel{},
-	)
+		ToolNameAliases: map[string]string{"observer_alias": "observer_tool"},
+		Clock:           quartz.NewReal(),
+	}, "fake", "fake-model").run(context.Background(), executed, time.Time{})
 
 	require.Equal(t, 1, notifications, "each called observer is notified once per step")
 	require.Equal(t, []string{"observer_tool", "failing_tool", "missing_tool", "rejected_tool"}, gotNames,
@@ -1145,30 +1114,13 @@ func TestExecuteToolsReconcilesResultsBeforeSerialCalls(t *testing.T) {
 		},
 	)
 
-	results := executeTools(
-		context.Background(),
-		quartz.NewReal(),
-		[]fantasy.AgentTool{serial, failing},
-		nil,
-		nil,
-		nil,
-		[]fantasy.ToolCallContent{
-			{ToolCallID: "1", ToolName: "serial_observer", Input: "{}"},
-			{ToolCallID: "2", ToolName: "failing_tool", Input: "{}"},
-		},
-		nil,
-		NewMetrics(prometheus.NewRegistry()),
-		slog.Make(),
-		"fake", "fake-model",
-		map[string]bool{},
-		defaultToolResultBytes,
-		nil,
-		time.Time{},
-		nil,
-		nil,
-		nil,
-		StageModel{},
-	)
+	results := newToolBatch(ExecuteLocalToolsOptions{
+		Tools: []fantasy.AgentTool{serial, failing},
+		Clock: quartz.NewReal(),
+	}, "fake", "fake-model").run(context.Background(), []fantasy.ToolCallContent{
+		{ToolCallID: "1", ToolName: "serial_observer", Input: "{}"},
+		{ToolCallID: "2", ToolName: "failing_tool", Input: "{}"},
+	}, time.Time{})
 
 	require.True(t, notified)
 	require.Equal(t, []string{"failing_tool"}, erroredAtRun,
@@ -1216,30 +1168,14 @@ func TestExecuteToolsSerialToolCallOrder(t *testing.T) {
 	calls := []fantasy.ToolCallContent{
 		{ToolCallID: "a", ToolName: "serial_tool", Input: "{}"},
 		{ToolCallID: "p", ToolName: "parallel_tool", Input: "{}"},
-		{ToolCallID: "b", ToolName: "serial_tool", Input: "{}"},
+		{ToolCallID: "b", ToolName: "serial_alias", Input: "{}"},
 		{ToolCallID: "c", ToolName: "serial_tool", Input: "{}"},
 	}
-	results := executeTools(
-		context.Background(),
-		quartz.NewReal(),
-		[]fantasy.AgentTool{serial, parallel},
-		nil,
-		nil,
-		nil,
-		calls,
-		nil,
-		NewMetrics(prometheus.NewRegistry()),
-		slog.Make(),
-		"fake", "fake-model",
-		map[string]bool{},
-		defaultToolResultBytes,
-		nil,
-		time.Time{},
-		nil,
-		nil,
-		nil,
-		StageModel{},
-	)
+	results := newToolBatch(ExecuteLocalToolsOptions{
+		Tools:           []fantasy.AgentTool{serial, parallel},
+		ToolNameAliases: map[string]string{"serial_alias": "serial_tool"},
+		Clock:           quartz.NewReal(),
+	}, "fake", "fake-model").run(context.Background(), calls, time.Time{})
 
 	require.Equal(t, []string{"a:start", "a:end", "b:start", "b:end", "c:start", "c:end"}, events,
 		"serial tool calls must run one at a time in tool-call order")
@@ -1311,27 +1247,11 @@ func TestExecuteToolsReturnsExecutionIntervals(t *testing.T) {
 	batchStart := time.Date(2024, time.January, 1, 0, 0, 0, 0, time.UTC)
 	resultsCh := make(chan []toolExecutionResult, 1)
 	go func() {
-		resultsCh <- executeTools(
-			ctx,
-			quartz.NewReal(),
-			[]fantasy.AgentTool{slow, fast, serial},
-			nil,
-			nil,
-			nil,
-			calls,
-			nil,
-			NewMetrics(prometheus.NewRegistry()),
-			slog.Make(),
-			"fake", "fake-model",
-			map[string]bool{},
-			defaultToolResultBytes,
-			nil,
-			batchStart,
-			liveToolBillingRecorder{started: started, completed: completed},
-			nil,
-			nil,
-			StageModel{},
-		)
+		resultsCh <- newToolBatch(ExecuteLocalToolsOptions{
+			Tools:           []fantasy.AgentTool{slow, fast, serial},
+			BillingRecorder: liveToolBillingRecorder{started: started, completed: completed},
+			Clock:           quartz.NewReal(),
+		}, "fake", "fake-model").run(ctx, calls, batchStart)
 	}()
 
 	startByIndex := make([]time.Time, len(calls))
@@ -1374,8 +1294,6 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 	t.Parallel()
 
 	originalBytes := []byte{0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10}
-	metrics := NewMetrics(prometheus.NewRegistry())
-	logger := slog.Make()
 
 	t.Run("EncodesRawBytesToBase64", func(t *testing.T) {
 		t.Parallel()
@@ -1392,31 +1310,16 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			},
 		)
 
-		toolMap := map[string]fantasy.AgentTool{
-			"screenshot": tool,
-		}
 		tc := fantasy.ToolCallContent{
 			ToolCallID: "call-1",
 			ToolName:   "screenshot",
 			Input:      "{}",
 		}
 
-		result, _ := executeSingleTool(
-			context.Background(),
-			toolMap,
-			tc,
-			metrics,
-			logger,
-			"fake", "fake-model",
-			map[string]bool{},
-			[]string{"screenshot"},
-			nil,
-			map[string]struct{}{},
-			nil,
-			defaultToolResultBytes,
-			nil,
-			nil,
-		)
+		result, _ := newToolBatch(ExecuteLocalToolsOptions{
+			Tools:       []fantasy.AgentTool{tool},
+			ActiveTools: []string{"screenshot"},
+		}, "fake", "fake-model").runOne(context.Background(), tc, nil)
 
 		media, ok := result.Result.(fantasy.ToolResultOutputContentMedia)
 		require.True(t, ok, "expected ToolResultOutputContentMedia")
@@ -1443,31 +1346,16 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			},
 		)
 
-		toolMap := map[string]fantasy.AgentTool{
-			"screenshot": tool,
-		}
 		tc := fantasy.ToolCallContent{
 			ToolCallID: "call-2",
 			ToolName:   "screenshot",
 			Input:      "{}",
 		}
 
-		result, _ := executeSingleTool(
-			context.Background(),
-			toolMap,
-			tc,
-			metrics,
-			logger,
-			"fake", "fake-model",
-			map[string]bool{},
-			[]string{"screenshot"},
-			nil,
-			map[string]struct{}{},
-			nil,
-			defaultToolResultBytes,
-			nil,
-			nil,
-		)
+		result, _ := newToolBatch(ExecuteLocalToolsOptions{
+			Tools:       []fantasy.AgentTool{tool},
+			ActiveTools: []string{"screenshot"},
+		}, "fake", "fake-model").runOne(context.Background(), tc, nil)
 
 		media, ok := result.Result.(fantasy.ToolResultOutputContentMedia)
 		require.True(t, ok, "expected ToolResultOutputContentMedia")
@@ -1489,31 +1377,16 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			},
 		)
 
-		toolMap := map[string]fantasy.AgentTool{
-			"echo": tool,
-		}
 		tc := fantasy.ToolCallContent{
 			ToolCallID: "call-3",
 			ToolName:   "echo",
 			Input:      "{}",
 		}
 
-		result, _ := executeSingleTool(
-			context.Background(),
-			toolMap,
-			tc,
-			metrics,
-			logger,
-			"fake", "fake-model",
-			map[string]bool{},
-			[]string{"echo"},
-			nil,
-			map[string]struct{}{},
-			nil,
-			defaultToolResultBytes,
-			nil,
-			nil,
-		)
+		result, _ := newToolBatch(ExecuteLocalToolsOptions{
+			Tools:       []fantasy.AgentTool{tool},
+			ActiveTools: []string{"echo"},
+		}, "fake", "fake-model").runOne(context.Background(), tc, nil)
 
 		textOutput, ok := result.Result.(fantasy.ToolResultOutputContentText)
 		require.True(t, ok, "expected ToolResultOutputContentText, got %T", result.Result)
@@ -1550,20 +1423,12 @@ func TestExecuteSingleTool_NormalizesMedia(t *testing.T) {
 					return fantasy.ToolResponse{Type: "media", Data: tc.data, MediaType: tc.mediaType, Content: "Ran Playwright code"}, nil
 				},
 			)
-			result, _ := executeSingleTool(
+			result, _ := newToolBatch(ExecuteLocalToolsOptions{
+				Tools:       []fantasy.AgentTool{tool},
+				ActiveTools: []string{"screenshot"},
+			}, "openai", "model").runOne(
 				context.Background(),
-				map[string]fantasy.AgentTool{"screenshot": tool},
 				fantasy.ToolCallContent{ToolCallID: "call-1", ToolName: "screenshot", Input: "{}"},
-				NewMetrics(prometheus.NewRegistry()),
-				slog.Make(),
-				"openai", "model",
-				map[string]bool{},
-				[]string{"screenshot"},
-				nil,
-				map[string]struct{}{},
-				nil,
-				defaultToolResultBytes,
-				nil,
 				nil,
 			)
 
@@ -1584,9 +1449,6 @@ func TestExecuteSingleTool_NormalizesMedia(t *testing.T) {
 func TestExecuteSingleTool_ResolvesToolNameAlias(t *testing.T) {
 	t.Parallel()
 
-	metrics := NewMetrics(prometheus.NewRegistry())
-	logger := slog.Make()
-
 	var gotName string
 	tool := fantasy.NewAgentTool(
 		"interrupt_agent",
@@ -1596,7 +1458,6 @@ func TestExecuteSingleTool_ResolvesToolNameAlias(t *testing.T) {
 			return fantasy.ToolResponse{Content: `{"interrupted":true}`}, nil
 		},
 	)
-	toolMap := map[string]fantasy.AgentTool{"interrupt_agent": tool}
 
 	// The model emits the deprecated name from old history; only the
 	// canonical name is advertised/active.
@@ -1606,22 +1467,11 @@ func TestExecuteSingleTool_ResolvesToolNameAlias(t *testing.T) {
 		Input:      "{}",
 	}
 
-	result, _ := executeSingleTool(
-		context.Background(),
-		toolMap,
-		tc,
-		metrics,
-		logger,
-		"fake", "fake-model",
-		map[string]bool{},
-		[]string{"interrupt_agent"},
-		nil,
-		map[string]struct{}{},
-		nil,
-		defaultToolResultBytes,
-		map[string]string{"close_agent": "interrupt_agent"},
-		nil,
-	)
+	result, _ := newToolBatch(ExecuteLocalToolsOptions{
+		Tools:           []fantasy.AgentTool{tool},
+		ActiveTools:     []string{"interrupt_agent"},
+		ToolNameAliases: map[string]string{"close_agent": "interrupt_agent"},
+	}, "fake", "fake-model").runOne(context.Background(), tc, nil)
 
 	textOutput, ok := result.Result.(fantasy.ToolResultOutputContentText)
 	require.True(t, ok, "expected text output, got %T", result.Result)
@@ -1636,9 +1486,6 @@ func TestExecuteSingleTool_ResolvesToolNameAlias(t *testing.T) {
 func TestExecuteSingleTool_UnknownAliasFallsThrough(t *testing.T) {
 	t.Parallel()
 
-	metrics := NewMetrics(prometheus.NewRegistry())
-	logger := slog.Make()
-
 	tc := fantasy.ToolCallContent{
 		ToolCallID: "call-missing",
 		ToolName:   "close_agent",
@@ -1648,22 +1495,9 @@ func TestExecuteSingleTool_UnknownAliasFallsThrough(t *testing.T) {
 	// No alias provided: the deprecated name is neither active nor in the
 	// tool map, so it surfaces a clear not-active error and the model can
 	// self-correct to the advertised name.
-	result, _ := executeSingleTool(
-		context.Background(),
-		map[string]fantasy.AgentTool{},
-		tc,
-		metrics,
-		logger,
-		"fake", "fake-model",
-		map[string]bool{},
-		[]string{"interrupt_agent"},
-		nil,
-		map[string]struct{}{},
-		nil,
-		defaultToolResultBytes,
-		nil,
-		nil,
-	)
+	result, _ := newToolBatch(ExecuteLocalToolsOptions{
+		ActiveTools: []string{"interrupt_agent"},
+	}, "fake", "fake-model").runOne(context.Background(), tc, nil)
 
 	errOutput, ok := result.Result.(fantasy.ToolResultOutputContentError)
 	require.True(t, ok, "expected error output, got %T", result.Result)
@@ -1679,23 +1513,60 @@ func TestExecuteSingleTool_AllowsDeferredDirectCall(t *testing.T) {
 			return fantasy.NewTextResponse("ok"), nil
 		},
 	)
-	result, _ := executeSingleTool(
+	result, _ := newToolBatch(ExecuteLocalToolsOptions{
+		Tools:              []fantasy.AgentTool{tool},
+		ActiveTools:        []string{"find_tools"},
+		AllowInactiveTools: map[string]bool{"server__direct": true},
+	}, "fake", "fake-model").runOne(
 		context.Background(),
-		map[string]fantasy.AgentTool{"server__direct": tool},
 		fantasy.ToolCallContent{ToolCallID: "call-direct", ToolName: "server__direct", Input: "{}"},
-		NewMetrics(prometheus.NewRegistry()),
-		slog.Make(),
-		"fake", "fake-model",
-		map[string]bool{},
-		[]string{"find_tools"},
-		map[string]bool{"server__direct": true},
-		map[string]struct{}{},
-		nil,
-		defaultToolResultBytes,
-		nil,
 		nil,
 	)
 	text, ok := result.Result.(fantasy.ToolResultOutputContentText)
 	require.True(t, ok)
 	require.Equal(t, "ok", text.Text)
+}
+
+func TestExecuteLocalTools_ProviderToolRunner(t *testing.T) {
+	t.Parallel()
+
+	runner := fantasy.NewAgentTool(
+		"computer",
+		"runs a provider-defined tool locally",
+		func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			return fantasy.NewTextResponse("screenshot taken"), nil
+		},
+	)
+	metadata := fantasy.ProviderMetadata{
+		fantasyopenai.Name: &fantasyopenai.ComputerCallOutputOptions{Detail: "original"},
+	}
+	step, err := ExecuteLocalTools(context.Background(), ExecuteLocalToolsOptions{
+		// The runner is neither a regular tool nor an active one.
+		ActiveTools: []string{"read_file"},
+		ProviderTools: []ProviderTool{
+			{Definition: fantasy.ProviderDefinedTool{ID: "web_search", Name: "web_search"}},
+			{
+				Runner: runner,
+				ResultProviderMetadata: func(fantasy.ToolResponse) fantasy.ProviderMetadata {
+					return metadata
+				},
+			},
+		},
+		ToolCalls: []fantasy.ToolCallContent{
+			{ToolCallID: "call-search", ToolName: "web_search", Input: "{}", ProviderExecuted: true},
+			{ToolCallID: "call-computer", ToolName: "computer", Input: "{}"},
+			{ToolCallID: "call-alias", ToolName: "computer_alias", Input: "{}"},
+		},
+		ToolNameAliases: map[string]string{"computer_alias": "computer"},
+		Clock:           quartz.NewReal(),
+	})
+	require.NoError(t, err)
+	require.Len(t, step.Content, 2, "provider-executed calls are skipped")
+	for i, id := range []string{"call-computer", "call-alias"} {
+		result, ok := step.Content[i].(fantasy.ToolResultContent)
+		require.True(t, ok)
+		require.Equal(t, id, result.ToolCallID)
+		require.Equal(t, fantasy.ToolResultOutputContentText{Text: "screenshot taken"}, result.Result)
+		require.Equal(t, metadata, result.ProviderMetadata)
+	}
 }

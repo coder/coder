@@ -63,13 +63,14 @@ func NewServer(logger slog.Logger, commandCreator *agentssh.Server,
 func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr error) {
 	var wg sync.WaitGroup
 	for ctx.Err() == nil {
-		conn, err := l.Accept()
+		netConn, err := l.Accept()
 		if err != nil {
 			s.logger.Debug(ctx, "accept pty failed", slog.Error(err))
 			retErr = err
 			break
 		}
-		clientSessionID := agentssh.ClientSessionIDFromConn(conn)
+		clientSessionID := agentssh.ClientSessionIDFromConn(netConn)
+		conn := &connTracker{Conn: netConn}
 		clog := s.logger.With(
 			slog.F("remote", conn.RemoteAddr()),
 			slog.F("local", conn.LocalAddr()),
@@ -93,19 +94,27 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 			ClientSessionID: clientSessionID,
 		})
 		closed := make(chan struct{})
+		// The handler and the forced shutdown below can both finish a
+		// connection, so only the first one logs and reports its close.
+		var reportClose sync.Once
 		go func() {
 			defer wg.Done()
 			select {
 			case <-closed:
 			case <-hardCtx.Done():
-				clog.Info(hardCtx, "reconnecting pty closed",
-					codersdk.ConnectionDirectionAgentToClient.SlogField(),
-					codersdk.DisconnectReasonServerShutdown.SlogField(),
-					codersdk.DisconnectReasonServerShutdown.SlogExpectedField(),
-				)
-				connReporter.Disconnect(proto.DisconnectEvent{
-					Code:   1,
-					Reason: "server shut down",
+				reportClose.Do(func() {
+					clog.Info(hardCtx, "reconnecting pty closed",
+						codersdk.ConnectionDirectionAgentToClient.SlogField(),
+						codersdk.DisconnectReasonServerShutdown.SlogField(),
+						codersdk.DisconnectReasonServerShutdown.SlogExpectedField(),
+						codersdk.DisconnectInitiatorAgent.SlogField(),
+					)
+					connReporter.Disconnect(proto.DisconnectEvent{
+						Code:    1,
+						Reason:  string(codersdk.DisconnectReasonServerShutdown),
+						RxBytes: conn.RxBytes(),
+						TxBytes: conn.TxBytes(),
+					})
 				})
 				_ = conn.Close()
 			}
@@ -118,10 +127,15 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 			var reason codersdk.DisconnectReason
 			var code int
 			var detail string
+			fields := []slog.Field{codersdk.ConnectionDirectionAgentToClient.SlogField()}
 			switch {
-			case err != nil && ctx.Err() != nil:
+			case ctx.Err() != nil:
+				// Canceling ctx closes the PTY, which closes its attached
+				// connections. The read loop treats that like any other
+				// closed connection, so the handler returns without an error.
 				reason = codersdk.DisconnectReasonServerShutdown
 				code = 1
+				fields = append(fields, codersdk.DisconnectInitiatorAgent.SlogField())
 			case err != nil:
 				reason = codersdk.DisconnectReasonNetworkError
 				detail = err.Error()
@@ -129,16 +143,19 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 			default:
 				reason = codersdk.DisconnectReasonGraceful
 			}
-			clog.Info(ctx, "reconnecting pty closed",
-				codersdk.ConnectionDirectionAgentToClient.SlogField(),
-				reason.SlogField(),
-				reason.SlogExpectedField(),
-				codersdk.SlogDisconnectDetail(detail),
-				slog.F("exit_code", code),
-			)
-			connReporter.Disconnect(proto.DisconnectEvent{
-				Code:   code,
-				Reason: string(reason),
+			reportClose.Do(func() {
+				clog.Info(ctx, "reconnecting pty closed", append(fields,
+					reason.SlogField(),
+					reason.SlogExpectedField(),
+					codersdk.SlogDisconnectDetail(detail),
+					slog.F("exit_code", code),
+				)...)
+				connReporter.Disconnect(proto.DisconnectEvent{
+					Code:    code,
+					Reason:  string(reason),
+					RxBytes: conn.RxBytes(),
+					TxBytes: conn.TxBytes(),
+				})
 			})
 		}()
 	}
@@ -270,4 +287,30 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 		sendConnected <- rpty
 	}
 	return rpty.Attach(ctx, connectionID, conn, msg.Height, msg.Width, connLogger)
+}
+
+// connTracker is a wrapper around net.Conn that tracks the transferred bytes.
+type connTracker struct {
+	net.Conn
+	rxBytes atomic.Int64
+	txBytes atomic.Int64
+}
+
+func (s *connTracker) RxBytes() int64 { return s.rxBytes.Load() }
+func (s *connTracker) TxBytes() int64 { return s.txBytes.Load() }
+
+func (s *connTracker) Read(p []byte) (int, error) {
+	n, err := s.Conn.Read(p)
+	if n > 0 {
+		s.rxBytes.Add(int64(n))
+	}
+	return n, err
+}
+
+func (s *connTracker) Write(p []byte) (int, error) {
+	n, err := s.Conn.Write(p)
+	if n > 0 {
+		s.txBytes.Add(int64(n))
+	}
+	return n, err
 }

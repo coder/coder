@@ -1,6 +1,10 @@
+---
+review-personas: [language, structure]
+---
+
 # Capitalization and punctuation
 
-Coder documentation uses sentence-case headings, the Oxford comma, US-style quotation, and no em-dashes or en-dashes in prose.
+Coder documentation uses sentence-case headings, the Oxford comma, US-style quotation, no semicolons in prose, and no em-dashes or en-dashes in prose.
 The rules on this page set those defaults.
 
 For heading structure (H1, H2, H3 placement and order), refer to [Accessibility and inclusion](./accessibility-and-inclusion.md#heading-structure-and-placement).
@@ -199,30 +203,59 @@ This placement is the United States convention and matches the dominant style of
 
 **Do**:
 
-> The error message reads, "workspace not found."
+> Developers call this pattern "infrastructure as code."
 
 **Don't**:
 
-> The error message reads, "workspace not found".
+> Developers call this pattern "infrastructure as code".
+
+To quote literal text that the product displays, such as an error message, use a code span instead of quotation marks (refer to [Code font](./formatting.md#code-font)).
 
 *Enforced by `Google.Quotes` (planned; third-party rules aren't loaded by default).*
 
-## Semicolons sparingly
+## No semicolons in prose
 
-Prefer two sentences.
-A semicolon joins two complete thoughts when they're tightly related and a period would lose the connection, but in technical prose two sentences read more clearly.
+Write two sentences instead of joining them with a semicolon.
+In technical prose, two sentences read more clearly, and the reader doesn't need to parse where one thought ends.
+When the semicolon implied a relationship between the two thoughts, keep it with a connecting word such as `because`, `as a result`, or `however`.
+
+The rule covers prose, list items, and callouts.
+Code, configuration values, and table cells, where space is limited, keep their semicolons.
 
 **Do**:
 
 > The provisioner uses Terraform.
 > It reads the template files and creates the workspace.
+>
+> The proxy is in another region.
+> As a result, connections through it are slower.
 
 **Don't**:
 
 > The provisioner uses Terraform; it reads the template files and creates the workspace.
+>
+> The proxy is in another region; connections through it are slower.
 
-*Documentation-only.
-No Vale rule.*
+*Adapted from ASD-STE100 Issue 9, rule 8.1.
+Enforced by `Coder.Semicolons` (planned).*
+
+## No periods in acronyms
+
+Write acronyms and initialisms without periods: `API`, `US`, `URL`.
+Periods inside an acronym add noise and break search.
+
+The rule covers capitalized acronyms.
+Lowercase Latin abbreviations such as `e.g.` keep their periods (refer to [Latin abbreviations](./accessibility-and-inclusion.md#latin-abbreviations)).
+
+**Do**:
+
+> The API returns the user's region, such as US or EU.
+
+**Don't**:
+
+> The A.P.I. returns the user's region, such as U.S. or E.U.
+
+*Enforced by `Coder.AcronymPeriods` (`warning`).*
 
 ## Exclamation points rare in prose
 
