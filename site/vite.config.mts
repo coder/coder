@@ -73,26 +73,10 @@ export default defineConfig({
 						: "assets/[name]-[hash].js";
 				},
 				codeSplitting: {
-					// Lazy groups must not take their imports, or monaco takes React and
-					// loads on every page. radix-ui keeps them to avoid a chunk cycle.
-					groups: [
-						{
-							name: "monaco",
-							test: /monaco-editor/,
-							includeDependenciesRecursively: false,
-						},
-						{
-							name: "xterm",
-							test: /@xterm/,
-							includeDependenciesRecursively: false,
-						},
-						{
-							name: "emoji-mart",
-							test: /emoji-mart/,
-							includeDependenciesRecursively: false,
-						},
-						{ name: "radix-ui", test: /radix-ui/ },
-					],
+					// No groups for lazily loaded libraries (monaco, xterm, emoji-mart): a
+					// group also takes every module they import, so a monaco group took
+					// React and made every page load monaco.
+					groups: [{ name: "radix-ui", test: /radix-ui/ }],
 				},
 			},
 		},
