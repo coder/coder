@@ -128,8 +128,8 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    reference, which needs a stored request, a stored source response
 //    and the reasoning item right before the search. Each search
 //    replays at most once. Pinned to the PR branch.
-// See: https://github.com/coder/fantasy/commits/f60a36a53956
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261027212739-f60a36a53956
+// See: https://github.com/coder/fantasy/commits/0167276b9fba
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261027214248-0167276b9fba
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
