@@ -103,6 +103,7 @@ func TestWriteFile(t *testing.T) {
 			{name: "Symlinked", resolved: "/home/coder/README.md", want: "the chat-specific plan path /home/coder/.coder/plans/PLAN-test-uuid.md resolves to /home/coder/README.md; symlinked plan paths are not allowed during plan turns"},
 			{name: "ResolvePathNotFound", err: notFound, want: "resolve plan path: " + notFound.Error()},
 			{name: "ResolvePathError", err: internal, want: "resolve plan path: " + internal.Error()},
+			{name: "ResolvePathTransportError", err: xerrors.New("do request: connection refused"), want: "resolve plan path: do request: connection refused"},
 		}
 		for _, tc := range tests {
 			t.Run(tc.name, func(t *testing.T) {
