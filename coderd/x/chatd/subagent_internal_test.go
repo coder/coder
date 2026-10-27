@@ -2676,7 +2676,7 @@ func TestSpawnAgent_InvalidTypeAndCredentialErrorAreDistinct(t *testing.T) {
 		spawnAgentArgs{Type: subagentTypeComputerUse, Prompt: "open browser"},
 	)
 	require.True(t, credentialResp.IsError)
-	require.Contains(t, credentialResp.Content, `type "computer_use" is unavailable because credentials for AI provider`)
+	require.Contains(t, credentialResp.Content, `type "computer_use" is unavailable because no computer use model is configured and credentials for AI provider`)
 	require.Contains(t, credentialResp.Content, `model "claude-opus-5"`)
 }
 
@@ -2820,6 +2820,37 @@ func TestResolveComputerUseModel(t *testing.T) {
 		_, reason, err := server.resolveComputerUseModel(ctx, user.ID, org.ID)
 		require.NoError(t, err)
 		require.Equal(t, `type "computer_use" is unavailable because no computer use model is configured and the organization has no default chat model available to the chat owner`, reason)
+	})
+
+	t.Run("UnavailableOverrideWithoutDefaultModel", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+		ctx := chatdTestContext(t)
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		insertEnabledAnthropicProvider(t, db, user.ID)
+		disabled := insertInternalChatModelConfigForProvider(t, db, org.ID, "anthropic", "claude-opus-5", false)
+		upsertInternalChatOrganizationModelOverride(t, db, org.ID, codersdk.ChatModelOverrideContextComputerUse, disabled.ID.String())
+
+		_, reason, err := server.resolveComputerUseModel(ctx, user.ID, org.ID)
+		require.NoError(t, err)
+		require.Equal(t, `type "computer_use" is unavailable because the configured computer use model cannot be used and the organization has no default chat model available to the chat owner`, reason)
+	})
+
+	t.Run("UnsupportedOverrideProviderTypeWithUnsupportedDefault", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+		ctx := chatdTestContext(t)
+		user, org, _ := seedComputerUseDeps(t, db, database.AIProviderTypeGoogle, "test-key", "gemini-test")
+		insertInternalAIProvider(t, db, database.AIProviderTypeOpenrouter, "test-key", true)
+		override := insertInternalChatModelConfigForProvider(t, db, org.ID, "openrouter", "openai/gpt-test", true)
+		upsertInternalChatOrganizationModelOverride(t, db, org.ID, codersdk.ChatModelOverrideContextComputerUse, override.ID.String())
+
+		_, reason, err := server.resolveComputerUseModel(ctx, user.ID, org.ID)
+		require.NoError(t, err)
+		require.Contains(t, reason, `type "computer_use" is unavailable because the configured computer use model cannot be used and model "gemini-test" uses AI provider`)
 	})
 
 	t.Run("DefaultModelFollowsOwnerModelACL", func(t *testing.T) {

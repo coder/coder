@@ -69,6 +69,12 @@ func (p *Server) resolveComputerUseModel(
 	if err != nil {
 		return computerUseModel{}, "", err
 	}
+	overrideState := "no computer use model is configured"
+	if override.Set || override.Unavailable {
+		// A usable override returns below, so a reason built after this point
+		// means the saved override cannot be used.
+		overrideState = "the configured computer use model cannot be used"
+	}
 	if override.Set {
 		// resolveModelOverride returns only enabled models of enabled AI
 		// providers whose credentials the owner can use.
@@ -99,7 +105,10 @@ func (p *Server) resolveComputerUseModel(
 	}
 	model.config, err = effectiveDefaultChatModelConfig(modelCtx, p.db, organizationID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return computerUseModel{}, `type "computer_use" is unavailable because no computer use model is configured and the organization has no default chat model available to the chat owner`, nil
+		return computerUseModel{}, fmt.Sprintf(
+			`type "computer_use" is unavailable because %s and the organization has no default chat model available to the chat owner`,
+			overrideState,
+		), nil
 	}
 	if err != nil {
 		return computerUseModel{}, "", xerrors.Errorf("get default chat model config: %w", err)
@@ -113,8 +122,8 @@ func (p *Server) resolveComputerUseModel(
 	provider, ok := computerUseProviderForAIProviderType(string(aiProvider.Type))
 	if !ok {
 		return computerUseModel{}, fmt.Sprintf(
-			`type "computer_use" is unavailable because model %s uses AI provider %q of type %q; computer use requires an Anthropic or OpenAI AI provider`,
-			label, aiProvider.Name, aiProvider.Type,
+			`type "computer_use" is unavailable because %s and model %s uses AI provider %q of type %q; computer use requires an Anthropic or OpenAI AI provider`,
+			overrideState, label, aiProvider.Name, aiProvider.Type,
 		), nil
 	}
 	model.provider = provider
@@ -125,8 +134,8 @@ func (p *Server) resolveComputerUseModel(
 	}
 	if !userCanUseProviderKeys(providerKeys, string(provider)) {
 		return computerUseModel{}, fmt.Sprintf(
-			`type "computer_use" is unavailable because credentials for AI provider %q, used by model %s, are not configured`,
-			aiProvider.Name, label,
+			`type "computer_use" is unavailable because %s and credentials for AI provider %q, used by model %s, are not configured`,
+			overrideState, aiProvider.Name, label,
 		), nil
 	}
 	return model, "", nil
