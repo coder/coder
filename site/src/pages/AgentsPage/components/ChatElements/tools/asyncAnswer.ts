@@ -8,6 +8,7 @@ const asyncAnswerPattern =
 export const getAsyncAnswerPrefix = (toolCallId: string): string =>
 	`Answer to ask_user_question call ${toolCallId}:\n`;
 
+/** An answer message split into the call it names and its body. */
 export type AsyncAnswer = {
 	toolCallId: string;
 	/** The answer without its prefix line, as users see it. */
