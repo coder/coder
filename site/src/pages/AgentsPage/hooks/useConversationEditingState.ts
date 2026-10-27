@@ -176,8 +176,9 @@ export function useConversationEditingState(deps: {
 		setEditingFileBlocks([]);
 	};
 
-	// Returns a rollback for a failed send. The composer stays editable during
-	// the request, so the rollback puts the message before anything typed since.
+	// Returns a rollback for a failed send: the message, then anything typed
+	// during the request. An edit comes back alone, because the composer showed
+	// the compose draft during it, and the typed text stays that draft.
 	const clearInputForSend = (message: string) => {
 		const snapshot: SendInFlight = {
 			message,
@@ -193,7 +194,17 @@ export function useConversationEditingState(deps: {
 		setEditingMessageId(null);
 
 		return () => {
-			const { text, editorState } = restoredDraft(snapshot, composerContent());
+			const typed = composerContent();
+			const isEdit = snapshot.editedMessageId !== null;
+			const { text, editorState } = isEdit
+				? { text: snapshot.message, editorState: snapshot.editorState }
+				: restoredDraft(snapshot, typed);
+			if (isEdit && hasContent(typed)) {
+				setDraftBeforeHistoryEdit({
+					text: typed.text,
+					editorState: typed.editorState,
+				});
+			}
 			setDraftState({
 				editorInitialValue: text,
 				initialEditorState: editorState,
