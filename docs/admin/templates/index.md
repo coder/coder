@@ -42,7 +42,7 @@ As your Coder deployment grows, you can create more templates to meet the needs 
 - [Image management](./managing-templates/image-management.md): Learn how to create and publish images for use within Coder workspaces & templates.
 - [Dev Containers integration](../integrations/devcontainers/integration.md): Enable native dev containers support using `@devcontainers/cli` and Docker.
 - [Envbuilder](../integrations/devcontainers/envbuilder/index.md): Alternative approach for environments without Docker access.
-- [Nix(OS)](../integrations/nixos.md): Define environments with Nix flakes, on an existing distribution or with NixOS.
+- [Nix(OS)](../integrations/nixos.md): Define environments with Nix flakes, with or without NixOS.
 - [Template hardening](./extending-templates/resource-persistence.md#-bulletproofing): Configure your template to prevent certain resources from being destroyed (e.g. user disks).
 - [Manage templates with Ci/Cd pipelines](./managing-templates/change-management.md): Learn how to source control your templates and use GitOps to ensure template changes are reviewed and tested.
 - [Permissions and Policies](./template-permissions.md): Control who may access and modify your template.
