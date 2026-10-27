@@ -29,7 +29,7 @@ const LiveAssistantOutput = ({
 		liveStatus={liveStatus}
 		subagentTitles={new Map()}
 		subagentVariants={new Map()}
-		hasUserResponseAfterAskQuestion={false}
+		isLatestAskUserQuestionAnswered={false}
 		onImageClick={fn()}
 		onTextFileClick={fn()}
 	/>

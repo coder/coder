@@ -406,7 +406,7 @@ const isEditableUserMessageFileBlock = (
  * GetChatUserPromptsByChatID; parseMessageContent/appendText drops leading
  * whitespace-only chunks.
  */
-const getMessageText = (
+export const getMessageText = (
 	content: readonly TypesGen.ChatMessagePart[] | undefined,
 ): string =>
 	(content ?? [])

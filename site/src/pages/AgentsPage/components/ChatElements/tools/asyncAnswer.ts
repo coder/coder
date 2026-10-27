@@ -31,3 +31,13 @@ export const parseAsyncAnswer = (text: string): AsyncAnswer | undefined => {
 	}
 	return { toolCallId: match[1], body: text.slice(match[0].length) };
 };
+
+/** Returns undefined unless the text is an answer to this call. */
+export const getAsyncAnswerText = (
+	responseText: string | undefined,
+	toolCallId: string,
+): string | undefined => {
+	const answer =
+		responseText === undefined ? undefined : parseAsyncAnswer(responseText);
+	return answer?.toolCallId === toolCallId ? answer.body : undefined;
+};

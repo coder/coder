@@ -412,3 +412,37 @@ export const ErrorState: Story = {
 		result: "The planning agent could not deliver follow-up questions.",
 	},
 };
+
+const asyncSingleQuestionPayload = { ...singleQuestionPayload, async: true };
+
+export const BlockingWhileRunning: Story = {
+	args: {
+		status: "completed",
+		result: JSON.stringify(singleQuestionPayload),
+		isChatCompleted: false,
+		isLatestAskUserQuestion: true,
+		onSendAskUserQuestionResponse: fn(),
+	},
+};
+
+export const AsyncInteractiveWhileRunning: Story = {
+	args: {
+		toolCallId: "call-async",
+		status: "completed",
+		result: JSON.stringify(asyncSingleQuestionPayload),
+		isChatCompleted: false,
+		isLatestAskUserQuestion: true,
+		onSendAskUserQuestionResponse: fn(),
+	},
+};
+
+export const AsyncClosed: Story = {
+	args: {
+		toolCallId: "call-async",
+		status: "completed",
+		result: JSON.stringify(asyncSingleQuestionPayload),
+		isChatCompleted: false,
+		isLatestAskUserQuestion: false,
+		onSendAskUserQuestionResponse: fn(),
+	},
+};

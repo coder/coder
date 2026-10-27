@@ -45,6 +45,7 @@ import {
 	asString,
 	buildEditDiff,
 	DIFFS_FONT_STYLE,
+	findAskUserQuestionResultRecord,
 	formatModelIntentLabel,
 	formatResultOutput,
 	formatToolInput,
@@ -53,6 +54,7 @@ import {
 	getFileViewerOptionsNoHeader,
 	getWriteFileDiff,
 	humanizeMCPToolName,
+	isAsyncAskUserQuestionResult,
 	isSubagentSuccessStatus,
 	mapSubagentStatusToToolStatus,
 	parseArgs,
@@ -75,6 +77,7 @@ import { WriteFileTool } from "./WriteFileTool";
 type ToolProps = Omit<React.ComponentProps<"div">, "children"> & {
 	organizationId: string;
 	name: string;
+	toolCallId?: string;
 	status?: ToolStatus;
 	args?: unknown;
 	result?: unknown;
@@ -121,6 +124,7 @@ type ToolProps = Omit<React.ComponentProps<"div">, "children"> & {
 type ToolRendererProps = {
 	organizationId: string;
 	name: string;
+	toolCallId?: string;
 	status: ToolStatus;
 	args: unknown;
 	result: unknown;
@@ -209,37 +213,21 @@ const getWorkspaceQuotaTitle = (
 	return asString(rec.title).trim() || "Workspace quota reached";
 };
 
+type AskUserQuestionResult = {
+	questions: AskUserQuestion[];
+	isAsync: boolean;
+};
+
 const parseAskUserQuestionResult = (
 	result: unknown,
-): AskUserQuestion[] | null => {
-	const parsedResult = parseArgs(result);
-	const directQuestions = parsedResult
-		? parseAskUserQuestions(parsedResult.questions)
-		: null;
-	if (directQuestions) {
-		return directQuestions;
-	}
-
-	const resultRecord = asRecord(result);
-	if (!resultRecord) {
+): AskUserQuestionResult | null => {
+	const questions = parseAskUserQuestions(
+		findAskUserQuestionResultRecord(result)?.questions,
+	);
+	if (!questions) {
 		return null;
 	}
-
-	for (const value of [
-		resultRecord.output,
-		resultRecord.content,
-		resultRecord.text,
-	]) {
-		const parsedValue = parseArgs(value);
-		const questions = parsedValue
-			? parseAskUserQuestions(parsedValue.questions)
-			: null;
-		if (questions) {
-			return questions;
-		}
-	}
-
-	return null;
+	return { questions, isAsync: isAsyncAskUserQuestionResult(result) };
 };
 
 const ExecuteRenderer: React.FC<ToolRendererProps> = ({
@@ -696,6 +684,7 @@ const ChatSummarizedRenderer: React.FC<ToolRendererProps> = ({
 };
 
 const AskUserQuestionRenderer: React.FC<ToolRendererProps> = ({
+	toolCallId,
 	args,
 	status,
 	result,
@@ -709,7 +698,8 @@ const AskUserQuestionRenderer: React.FC<ToolRendererProps> = ({
 	const questionsFromArgs = parsedArgs
 		? parseAskUserQuestions(parsedArgs.questions)
 		: null;
-	const questionsFromResult = parseAskUserQuestionResult(result);
+	const parsedResult = parseAskUserQuestionResult(result);
+	const questionsFromResult = parsedResult?.questions;
 	const questions =
 		questionsFromArgs && questionsFromArgs.length > 0
 			? questionsFromArgs
@@ -732,6 +722,7 @@ const AskUserQuestionRenderer: React.FC<ToolRendererProps> = ({
 			isChatCompleted={isChatCompleted}
 			isLatestAskUserQuestion={isLatestAskUserQuestion}
 			previousResponseText={previousResponseText}
+			asyncToolCallId={parsedResult?.isAsync ? toolCallId : undefined}
 		/>
 	);
 };
@@ -1218,6 +1209,7 @@ export const Tool = memo(
 		className,
 		organizationId,
 		name,
+		toolCallId,
 		status = "completed",
 		args,
 		result,
@@ -1271,6 +1263,7 @@ export const Tool = memo(
 					<Renderer
 						organizationId={organizationId}
 						name={name}
+						toolCallId={toolCallId}
 						status={status}
 						args={args}
 						result={result}

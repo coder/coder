@@ -70,9 +70,9 @@ export type BlockListProps = {
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
-	latestAskUserQuestionToolId?: string;
-	askUserQuestionResponseTextByToolId?: ReadonlyMap<string, string>;
-	hasUserResponseAfterAskQuestion: boolean;
+	latestAskUserQuestion?: MergedTool;
+	askUserQuestionResponseTextByTool?: ReadonlyMap<MergedTool, string>;
+	isLatestAskUserQuestionAnswered: boolean;
 	urlTransform: UrlTransform;
 };
 
@@ -96,9 +96,9 @@ export const BlockList: React.FC<BlockListProps> = ({
 	onImplementPlan,
 	onSendAskUserQuestionResponse,
 	isChatCompleted,
-	latestAskUserQuestionToolId,
-	askUserQuestionResponseTextByToolId,
-	hasUserResponseAfterAskQuestion,
+	latestAskUserQuestion,
+	askUserQuestionResponseTextByTool,
+	isLatestAskUserQuestionAnswered,
 	urlTransform,
 }) => {
 	const prefQuery = useQuery(preferenceSettings());
@@ -223,6 +223,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 								organizationId={organizationId}
 								key={tool.id}
 								name={tool.name}
+								toolCallId={tool.id}
 								args={tool.args}
 								result={tool.result}
 								reasoning={tool.reasoning}
@@ -244,12 +245,12 @@ export const BlockList: React.FC<BlockListProps> = ({
 								onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 								isChatCompleted={isChatCompleted}
 								isLatestAskUserQuestion={
-									tool.id === latestAskUserQuestionToolId &&
-									!hasUserResponseAfterAskQuestion
+									tool === latestAskUserQuestion &&
+									!isLatestAskUserQuestionAnswered
 								}
 								previousResponseText={
 									tool.name === "ask_user_question"
-										? askUserQuestionResponseTextByToolId?.get(tool.id)
+										? askUserQuestionResponseTextByTool?.get(tool)
 										: undefined
 								}
 								modelIntent={tool.modelIntent}
@@ -293,6 +294,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 					organizationId={organizationId}
 					key={tool.id}
 					name={tool.name}
+					toolCallId={tool.id}
 					args={tool.args}
 					result={tool.result}
 					reasoning={tool.reasoning}
@@ -314,12 +316,11 @@ export const BlockList: React.FC<BlockListProps> = ({
 					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 					isChatCompleted={isChatCompleted}
 					isLatestAskUserQuestion={
-						tool.id === latestAskUserQuestionToolId &&
-						!hasUserResponseAfterAskQuestion
+						tool === latestAskUserQuestion && !isLatestAskUserQuestionAnswered
 					}
 					previousResponseText={
 						tool.name === "ask_user_question"
-							? askUserQuestionResponseTextByToolId?.get(tool.id)
+							? askUserQuestionResponseTextByTool?.get(tool)
 							: undefined
 					}
 					modelIntent={tool.modelIntent}

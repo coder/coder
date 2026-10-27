@@ -137,7 +137,8 @@ type ToolStep = {
 	result: TypesGen.ChatToolResultPart["result"];
 };
 
-const workingStepMessages = (
+/** A tool call whose result sits in its own tool message, as the server stores it. */
+export const workingStepMessages = (
 	id: number,
 	toolCallId: string,
 	callAt: number,
@@ -482,7 +483,7 @@ export const MockQuestionCallMessage: TypesGen.ChatMessage = {
 };
 
 /** An async ask_user_question result; the agent keeps working while it is open. */
-const MockAsyncQuestionResult = {
+export const MockAsyncQuestionResult = {
 	questions: [
 		{
 			header: "Scope",
@@ -518,6 +519,25 @@ export const MockAsyncQuestionMessages: TypesGen.ChatMessage[] = [
 	...MockWorkingMessages.slice(0, 1),
 	MockQuestionCallMessage,
 	MockAsyncQuestionResultMessage,
+];
+
+/** MockAsyncQuestionMessages followed by an exchange that leaves the question open. */
+export const MockAsyncQuestionThenUnrelatedMessages: TypesGen.ChatMessage[] = [
+	...MockAsyncQuestionMessages,
+	{
+		...MockChatMessage,
+		id: 6,
+		role: "user",
+		created_at: workingFixtureTime(7),
+		content: [{ type: "text", text: "Also update the docs." }],
+	},
+	{
+		...MockChatMessage,
+		id: 7,
+		role: "assistant",
+		created_at: workingFixtureTime(8),
+		content: [{ type: "text", text: "Updating the docs." }],
+	},
 ];
 
 export const buildReconnectState = (

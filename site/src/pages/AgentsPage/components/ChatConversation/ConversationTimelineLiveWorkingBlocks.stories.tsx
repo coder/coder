@@ -12,6 +12,8 @@ import {
 import {
 	buildLiveStatus,
 	buildStreamRenderState,
+	MockAsyncQuestionMessages,
+	MockAsyncQuestionResult,
 	MockAttachedFileMessages,
 	MockCollapsedStepsPreferences,
 	MockQuestionCallMessage,
@@ -282,4 +284,39 @@ export const PromptlessLiveBlock: Story = {
 		liveStatus: { phase: "idle", hasAccumulatedOutput: false },
 	},
 	play: expandBlock("Working for at least 12s"),
+};
+
+const MockLiveAsyncQuestionResult = {
+	...MockAsyncQuestionResult,
+	questions: [
+		{
+			...MockAsyncQuestionResult.questions[0],
+			question: "Should the change ship behind a flag?",
+		},
+	],
+};
+
+// A question still streaming supersedes the persisted one. It is not closed,
+// but its options stay disabled until its step persists.
+export const AsyncQuestionBeforeStepPersists: Story = {
+	args: {
+		onSendAskUserQuestionResponse: fn(),
+		parsedMessages: parseMessagesWithMergedTools(MockAsyncQuestionMessages),
+		...buildStreamRenderState([
+			{
+				type: "tool-call",
+				tool_call_id: "live-question",
+				tool_name: "ask_user_question",
+				args: {},
+				created_at: workingFixtureTime(7),
+			},
+			{
+				type: "tool-result",
+				tool_call_id: "live-question",
+				tool_name: "ask_user_question",
+				result: MockLiveAsyncQuestionResult,
+				created_at: workingFixtureTime(8),
+			},
+		]),
+	},
 };

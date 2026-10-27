@@ -193,6 +193,32 @@ export const parseStringList = (value: unknown): string[] | null =>
 		typeof item === "string" ? item.trim() : null,
 	)?.filter(Boolean) ?? null;
 
+/**
+ * Returns the ask_user_question result object that holds the questions,
+ * read from the result itself or its output, content, or text field.
+ */
+export const findAskUserQuestionResultRecord = (
+	result: unknown,
+): Record<string, unknown> | null => {
+	const resultRecord = asRecord(result);
+	for (const value of [
+		result,
+		resultRecord?.output,
+		resultRecord?.content,
+		resultRecord?.text,
+	]) {
+		const parsedValue = parseArgs(value);
+		if (Array.isArray(parsedValue?.questions)) {
+			return parsedValue;
+		}
+	}
+	return null;
+};
+
+/** Reports whether the server marked the question as not ending the agent's turn. */
+export const isAsyncAskUserQuestionResult = (result: unknown): boolean =>
+	findAskUserQuestionResultRecord(result)?.async === true;
+
 const getToolInputPayload = (args: unknown): unknown => {
 	const rec = asRecord(args);
 	if (!rec || typeof rec.model_intent !== "string") {

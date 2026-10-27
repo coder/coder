@@ -12,7 +12,10 @@ import {
 import { defaultUrlTransform } from "streamdown";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChatFileMetadata } from "#/testHelpers/chatEntities";
+import {
+	MockChatFileMetadata,
+	MockChatQueuedMessage,
+} from "#/testHelpers/chatEntities";
 import { MockUserPreferenceSettings } from "#/testHelpers/entities";
 import { MockPngBase64 } from "#/testHelpers/files";
 import { MessageScroller } from "#/vendor/message-scroller";
@@ -21,7 +24,11 @@ import { getAsyncAnswerPrefix } from "../ChatElements/tools/asyncAnswer";
 import { ChatMessageScroller } from "../ChatMessageScroller";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
-import { buildLiveStatus } from "./storyFixtures";
+import {
+	buildLiveStatus,
+	MockAsyncQuestionThenUnrelatedMessages,
+	workingFixtureTime,
+} from "./storyFixtures";
 import type { ParsedMessageEntry } from "./types";
 
 // The timeline renders scroller items, so every story needs the scroller
@@ -1869,6 +1876,42 @@ export const AskUserQuestionSubmittedAnswer: Story = {
 				id: 4,
 				role: "user",
 				content: [{ type: "text", text: askUserQuestionSubmittedResponse }],
+			},
+		]),
+	},
+};
+
+export const AsyncAskUserQuestionAnswerQueued: Story = {
+	args: {
+		...defaultArgs,
+		isChatCompleted: false,
+		onSendAskUserQuestionResponse: fn(),
+		parsedMessages: buildMessages(MockAsyncQuestionThenUnrelatedMessages),
+		queuedMessages: [
+			{
+				...MockChatQueuedMessage,
+				created_at: workingFixtureTime(9),
+				content: [
+					{ type: "text", text: `${getAsyncAnswerPrefix("question")}Backend` },
+				],
+			},
+		],
+	},
+};
+
+export const AsyncAskUserQuestionAnsweredAfterUnrelatedMessage: Story = {
+	args: {
+		...defaultArgs,
+		isChatCompleted: true,
+		parsedMessages: buildMessages([
+			...MockAsyncQuestionThenUnrelatedMessages,
+			{
+				...baseMessage,
+				id: 8,
+				role: "user",
+				content: [
+					{ type: "text", text: `${getAsyncAnswerPrefix("question")}Backend` },
+				],
 			},
 		]),
 	},
