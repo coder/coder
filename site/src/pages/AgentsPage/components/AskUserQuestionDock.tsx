@@ -36,6 +36,7 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 		if (!section) {
 			return;
 		}
+		// The section outlives the form, so a new question starts at its top.
 		section.scrollTop = 0;
 		// A newer question replaced the form, and focus inside it fell to the
 		// page body. Focus elsewhere, such as in the chat input, stays put. The
