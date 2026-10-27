@@ -123,16 +123,13 @@ type QueueEdit = (
 /**
  * The expected result of a pending action, computed at the click from the
  * shown state. The store shows each part until a stream update of that
- * part's kind ends it; syncedVersion and isRowDone limit which updates do.
+ * part's kind ends it, unless the update is at or below syncedVersion.
  */
 type PendingEntry = {
 	id: number;
 	// The snapshot version synced at the click. The request's result has a
 	// higher version, so an event at or below it ends no part.
 	syncedVersion: number;
-	// Set for an action on a queued row. A queue update ends no part until it
-	// shows the row's result, so one row's update does not end another's action.
-	isRowDone?: (rows: readonly TypesGen.ChatQueuedMessage[]) => boolean;
 	// The message the request adds. The next user message or queue update
 	// ends it, because the server queues the message when the chat is busy.
 	message?: { shown?: TypesGen.ChatMessage; queue?: QueueEdit };
@@ -304,14 +301,12 @@ export const createChatStore = (): ChatStore => {
 	const endPending = (
 		parts: readonly PendingPart[],
 		version: number,
-		rows?: readonly TypesGen.ChatQueuedMessage[],
 	): void => {
 		setState((current) => {
 			const pendingEntries = endPendingParts(
 				current.pendingEntries,
 				parts,
 				version,
-				rows,
 			);
 			return arraysEqual(pendingEntries, current.pendingEntries)
 				? current
@@ -540,7 +535,7 @@ export const createChatStore = (): ChatStore => {
 					}
 					return { ...current, queuedMessages };
 				});
-				endPending(["message", "queue"], version, queuedMessages);
+				endPending(["message", "queue"], version);
 			});
 		},
 		seed,
@@ -785,9 +780,6 @@ const pendingRowIDFloor = Number.MAX_SAFE_INTEGER - maxPendingActions;
  */
 export const isPendingRowID = (id: number) => id > pendingRowIDFloor;
 
-const hasRow = (rows: readonly TypesGen.ChatQueuedMessage[], id: number) =>
-	rows.some((row) => row.id === id);
-
 // pendingEntry places a request's message as chatstate SendMessage and
 // PromoteQueuedMessage do, but by the state shown at the click. The server
 // uses the state the request finds, which can differ.
@@ -832,8 +824,6 @@ const pendingEntry = (
 			if (running) {
 				return {
 					id,
-					isRowDone: (rows) =>
-						rows[0]?.id === target.id || !hasRow(rows, target.id),
 					queue:
 						view.queuedMessages[0] === target
 							? undefined
@@ -842,7 +832,6 @@ const pendingEntry = (
 			}
 			return {
 				id,
-				isRowDone: (rows) => !hasRow(rows, target.id),
 				message: {
 					shown: sentQueuedMessage(pendingRowID, target),
 					queue: withoutRow(target.id),
@@ -862,7 +851,6 @@ const pendingEntry = (
 		case "deleteQueued":
 			return {
 				id,
-				isRowDone: (rows) => !hasRow(rows, action.queuedMessageID),
 				queue: withoutRow(action.queuedMessageID),
 			};
 	}
@@ -872,13 +860,9 @@ const endPendingParts = (
 	entries: readonly PendingEntry[],
 	ended: readonly PendingPart[],
 	version: number,
-	rows?: readonly TypesGen.ChatQueuedMessage[],
 ): readonly PendingEntry[] =>
 	entries.flatMap((entry) => {
-		if (
-			version <= entry.syncedVersion ||
-			(rows && entry.isRowDone && !entry.isRowDone(rows))
-		) {
+		if (version <= entry.syncedVersion) {
 			return [entry];
 		}
 		const message = ended.includes("message") ? undefined : entry.message;
