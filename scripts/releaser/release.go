@@ -391,6 +391,11 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		if ghAvailable {
 			openPRs, err = ghListOpenPRs(currentBranch)
 			if err != nil {
+				// An unattended run cannot tell a failed query from no
+				// open PRs, so it must not continue.
+				if opts.NonInteractive && !opts.AllowOpenPRs {
+					return xerrors.Errorf("checking open PRs against %s: %w", currentBranch, err)
+				}
 				warnf(w, "Failed to check open PRs: %v", err)
 			}
 		} else {
@@ -470,7 +475,15 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 			}
 
 			prMeta := emptyPRMetadata()
-			if ghAvailable {
+			switch {
+			case ghAvailable && opts.NonInteractive && !opts.AllowBreakingChanges:
+				// Without PR labels, breaking changes marked only by the
+				// release/breaking label would go undetected.
+				prMeta, err = ghBuildPRMetadataMap(commits)
+				if err != nil {
+					return xerrors.Errorf("fetching PR metadata for breaking change check: %w", err)
+				}
+			case ghAvailable:
 				prMeta = loadPRMetadata(w, commits)
 			}
 			breakingCommits := findBreakingCommits(commits, prMeta)
