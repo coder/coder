@@ -89,3 +89,11 @@ export const UnavailableArtifact: Story = {
 		);
 	},
 };
+
+export const LoadingArtifact: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatArtifact").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+};

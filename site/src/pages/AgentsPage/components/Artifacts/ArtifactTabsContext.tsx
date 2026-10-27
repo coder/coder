@@ -1,6 +1,6 @@
 import { createContext, useContext } from "react";
 
-type ArtifactsPanelContextValue = {
+type ArtifactTabsContextValue = {
 	/**
 	 * Opens the artifact in its own right panel tab, at `version`, or at the
 	 * latest version when it is unset. An open tab of the artifact is reused.
@@ -12,8 +12,6 @@ type ArtifactsPanelContextValue = {
 	) => void;
 };
 
-export const ArtifactsPanelContext = createContext<ArtifactsPanelContextValue>(
-	{},
-);
+export const ArtifactTabsContext = createContext<ArtifactTabsContextValue>({});
 
-export const useArtifactsPanel = () => useContext(ArtifactsPanelContext);
+export const useArtifactTabs = () => useContext(ArtifactTabsContext);

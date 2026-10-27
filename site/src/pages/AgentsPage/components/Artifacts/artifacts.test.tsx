@@ -11,7 +11,7 @@ import {
 } from "#/testHelpers/chatEntities";
 import { renderWithRouter } from "#/testHelpers/renderHelpers";
 import { ArtifactToolCard } from "../ChatElements/tools/ArtifactToolCard";
-import { ArtifactsPanelContext } from "./ArtifactsPanelContext";
+import { ArtifactTabsContext } from "./ArtifactTabsContext";
 import {
 	ARTIFACT_PROMPT_TYPE,
 	acceptArtifactMessage,
@@ -298,7 +298,7 @@ describe("ArtifactToolCard", () => {
 		const onOpenArtifact = vi.fn();
 		render(
 			<TooltipProvider>
-				<ArtifactsPanelContext value={{ onOpenArtifact }}>
+				<ArtifactTabsContext value={{ onOpenArtifact }}>
 					<ArtifactToolCard
 						toolName="publish_artifact"
 						status="completed"
@@ -312,7 +312,7 @@ describe("ArtifactToolCard", () => {
 							untrusted: false,
 						}}
 					/>
-				</ArtifactsPanelContext>
+				</ArtifactTabsContext>
 			</TooltipProvider>,
 		);
 		await user.click(screen.getByRole("button", { name: "Open" }));
@@ -340,9 +340,19 @@ describe("ChatArtifacts", () => {
 				{
 					path: "/",
 					element: (
-						<ArtifactsPanelContext value={{ onOpenArtifact }}>
-							<ChatArtifacts artifactIds={[MockChatArtifact.id]} isVisible />
-						</ArtifactsPanelContext>
+						<ArtifactTabsContext value={{ onOpenArtifact }}>
+							<ChatArtifacts
+								messages={[
+									message(1, [
+										toolResult("publish_artifact", {
+											artifact_id: MockChatArtifact.id,
+											version: 2,
+										}),
+									]),
+								]}
+								isVisible
+							/>
+						</ArtifactTabsContext>
 					),
 				},
 			]),

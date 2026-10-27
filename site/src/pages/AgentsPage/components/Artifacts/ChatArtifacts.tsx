@@ -1,13 +1,17 @@
 import { PanelRightOpenIcon } from "lucide-react";
-import { useQuery } from "react-query";
-import { chatArtifact } from "#/api/queries/chatArtifacts";
+import type { ChatMessage } from "#/api/typesGenerated";
 import { SectionHeader } from "../SectionHeader";
-import { useArtifactsPanel } from "./ArtifactsPanelContext";
-import { artifactIcon } from "./artifactUtils";
+import { useArtifactTabs } from "./ArtifactTabsContext";
+import {
+	artifactIcon,
+	deriveArtifactIds,
+	deriveSeenArtifactVersions,
+} from "./artifactUtils";
+import { useChatArtifact } from "./useChatArtifact";
 
 type ChatArtifactsProps = {
-	/** The artifacts that the loaded messages published or read, newest first. */
-	artifactIds: readonly string[];
+	/** The loaded messages. Only their artifacts show. */
+	messages: readonly ChatMessage[];
 	/** Gates the artifact reads on the Summary tab being visible. */
 	isVisible: boolean;
 };
@@ -17,9 +21,11 @@ type ChatArtifactsProps = {
  * own right panel tab. Chats without artifacts show no section.
  */
 export const ChatArtifacts: React.FC<ChatArtifactsProps> = ({
-	artifactIds,
+	messages,
 	isVisible,
 }) => {
+	const artifactIds = deriveArtifactIds(messages);
+	const seenVersions = deriveSeenArtifactVersions(messages);
 	if (artifactIds.length === 0) {
 		return null;
 	}
@@ -34,6 +40,7 @@ export const ChatArtifacts: React.FC<ChatArtifactsProps> = ({
 					<ChatArtifactRow
 						key={artifactId}
 						artifactId={artifactId}
+						seenVersion={seenVersions.get(artifactId) ?? 0}
 						isVisible={isVisible}
 					/>
 				))}
@@ -44,16 +51,18 @@ export const ChatArtifacts: React.FC<ChatArtifactsProps> = ({
 
 type ChatArtifactRowProps = {
 	artifactId: string;
+	/** The highest version that a tool result in the chat names. */
+	seenVersion: number;
 	isVisible: boolean;
 };
 
 const ChatArtifactRow: React.FC<ChatArtifactRowProps> = ({
 	artifactId,
+	seenVersion,
 	isVisible,
 }) => {
-	const { onOpenArtifact } = useArtifactsPanel();
-	const { data, isError } = useQuery({
-		...chatArtifact(artifactId),
+	const { onOpenArtifact } = useArtifactTabs();
+	const { data, isError } = useChatArtifact(artifactId, seenVersion, {
 		enabled: isVisible,
 	});
 
@@ -73,7 +82,7 @@ const ChatArtifactRow: React.FC<ChatArtifactRowProps> = ({
 				type="button"
 				onClick={() => onOpenArtifact?.(artifactId, title)}
 				disabled={!onOpenArtifact}
-				className="flex h-16 w-full cursor-pointer items-center gap-3 rounded-md border border-solid border-border bg-surface-tertiary px-3 py-2 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+				className="flex h-16 w-full items-center gap-3 rounded-md border border-solid border-border bg-surface-tertiary px-3 py-2 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link disabled:hover:bg-surface-tertiary"
 			>
 				<span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-surface-secondary text-content-secondary">
 					<Icon className="size-4" />

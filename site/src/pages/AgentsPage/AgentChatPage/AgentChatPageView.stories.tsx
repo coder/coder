@@ -55,7 +55,10 @@ import {
 	rightPanelTabStorageKeyPrefix,
 	visibleSingletonTabsStorageKeyPrefix,
 } from "../utils/rightPanelTabStorage";
-import type { SingletonRightPanelTabId } from "../utils/rightPanelTabs";
+import type {
+	SingletonRightPanelTabId,
+	UserRightPanelTab,
+} from "../utils/rightPanelTabs";
 import { lastActiveSidebarTabStorageKeyPrefix } from "../utils/sidebarTabStorage";
 import {
 	AgentChatPageLoadingView,
@@ -1552,44 +1555,32 @@ export const PersistsSidebarTabClick: Story = {
 const mockCacheArtifact: TypesGen.ChatArtifact = {
 	...MockChatArtifact,
 	id: "artifact-cache",
-	title: "Cache options",
+	title: "Cache options for the template list and the build queue",
 };
-
-const publishMessage = (
-	id: number,
-	artifact: TypesGen.ChatArtifact,
-): TypesGen.ChatMessage =>
-	buildMessageWithContent(id, "assistant", [
-		{
-			type: "tool-call",
-			tool_call_id: `publish-${artifact.id}`,
-			tool_name: "publish_artifact",
-			args: { path: `/tmp/${artifact.latest_name}` },
-		},
-		{
-			type: "tool-result",
-			tool_call_id: `publish-${artifact.id}`,
-			tool_name: "publish_artifact",
-			result: {
-				ok: true,
-				artifact_id: artifact.id,
-				version: artifact.latest_version,
-				title: artifact.title,
-				name: artifact.latest_name,
-			},
-		},
-	]);
 
 const rightPanelTabsStorageKey = `${rightPanelTabStorageKeyPrefix}${AGENT_ID}`;
 
-/**
- * Each artifact opens in its own right panel tab, from a chat card or from
- * the Summary tab, and opening an artifact again selects its open tab.
- */
-export const OpensEachArtifactInItsOwnTab: Story = {
+/** Two artifacts open in their own tabs. A long title stops short. */
+export const WithArtifactTabs: Story = {
 	beforeEach: () => {
-		localStorage.removeItem(rightPanelTabsStorageKey);
-		localStorage.removeItem(sidebarTabStorageKey);
+		localStorage.setItem(
+			rightPanelTabsStorageKey,
+			JSON.stringify([
+				{
+					id: "artifact-tab-repo",
+					kind: "artifact",
+					label: MockChatArtifact.title,
+					artifactId: MockChatArtifact.id,
+				},
+				{
+					id: "artifact-tab-cache",
+					kind: "artifact",
+					label: mockCacheArtifact.title,
+					artifactId: mockCacheArtifact.id,
+				},
+			] satisfies UserRightPanelTab[]),
+		);
+		localStorage.setItem(sidebarTabStorageKey, "artifact-tab-repo");
 		spyOn(API.experimental, "getChatArtifact").mockImplementation(
 			async (artifactId) =>
 				artifactId === mockCacheArtifact.id
@@ -1597,58 +1588,14 @@ export const OpensEachArtifactInItsOwnTab: Story = {
 					: MockChatArtifact,
 		);
 		spyOn(API.experimental, "getChatArtifactVersionText").mockResolvedValue(
-			"# Notes",
+			"# Repo layout\n\n- `coderd/` API server\n- `site/` frontend\n",
 		);
 		return () => {
 			localStorage.removeItem(rightPanelTabsStorageKey);
 			localStorage.removeItem(sidebarTabStorageKey);
 		};
 	},
-	render: () => (
-		<StoryAgentChatPageView
-			showSidebarPanel
-			store={buildStoreWithMessages([
-				buildMessage(1, "user", "Publish the repo layout and cache options."),
-				publishMessage(2, MockChatArtifact),
-				publishMessage(3, mockCacheArtifact),
-			])}
-		/>
-	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const openButtons = await canvas.findAllByRole("button", { name: "Open" });
-		expect(openButtons).toHaveLength(2);
-
-		await userEvent.click(openButtons[0]);
-		await waitFor(() => {
-			expect(canvas.getByRole("tab", { name: "Repo layout" })).toHaveAttribute(
-				"aria-selected",
-				"true",
-			);
-		});
-
-		// The Summary tab lists both artifacts and opens the second one.
-		await userEvent.click(canvas.getByRole("tab", { name: "Summary" }));
-		await userEvent.click(
-			await canvas.findByRole("button", { name: /Cache options/ }),
-		);
-		await waitFor(() => {
-			expect(
-				canvas.getByRole("tab", { name: "Cache options" }),
-			).toHaveAttribute("aria-selected", "true");
-		});
-
-		// Opening the first artifact again selects its tab, not a new one.
-		await userEvent.click(openButtons[0]);
-		await waitFor(() => {
-			expect(canvas.getByRole("tab", { name: "Repo layout" })).toHaveAttribute(
-				"aria-selected",
-				"true",
-			);
-		});
-		expect(canvas.getAllByRole("tab", { name: "Repo layout" })).toHaveLength(1);
-		expect(canvas.queryByRole("tab", { name: "Artifacts" })).toBeNull();
-	},
+	render: () => <StoryAgentChatPageView showSidebarPanel />,
 };
 
 /**

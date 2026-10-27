@@ -26,7 +26,7 @@ import {
 	RightPanelSkeleton,
 } from "../components/AgentsSkeletons";
 import { ArtifactPanel } from "../components/Artifacts/ArtifactPanel";
-import { ArtifactsPanelContext } from "../components/Artifacts/ArtifactsPanelContext";
+import { ArtifactTabsContext } from "../components/Artifacts/ArtifactTabsContext";
 import { useArtifactPromptHandler } from "../components/Artifacts/artifactBridge";
 import type { ChatDetailError } from "../components/ChatConversation/chatError";
 import {
@@ -68,6 +68,7 @@ import {
 	singletonRightPanelTabIds,
 	type UserRightPanelTab,
 	validateUserRightPanelTabs,
+	withArtifactTab,
 } from "../utils/rightPanelTabs";
 import {
 	getPersistedSidebarTabId,
@@ -671,24 +672,16 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		version?: number,
 	) => {
 		setArtifactVersions((current) => ({ ...current, [artifactId]: version }));
-		const existingTab = validatedUserRightPanelTabs.find(
-			(tab) => tab.kind === "artifact" && tab.artifactId === artifactId,
+		const next = withArtifactTab(
+			userRightPanelTabs,
+			{ artifactId, title },
+			createUserRightPanelTabId("artifact"),
 		);
-		if (existingTab) {
-			activateRightPanelTab(existingTab.id);
-			return;
-		}
-		const tab: UserRightPanelTab = {
-			id: createUserRightPanelTabId("artifact"),
-			kind: "artifact",
-			label: title,
-			artifactId,
-		};
-		setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]);
-		activateRightPanelTab(tab.id);
+		setUserRightPanelTabsState(next.tabs);
+		activateRightPanelTab(next.tabId);
 	};
 
-	const artifactsPanelCtx = { onOpenArtifact: handleOpenArtifactTab };
+	const artifactTabsCtx = { onOpenArtifact: handleOpenArtifactTab };
 
 	const renderTabContent = (tabId: string): React.ReactNode => {
 		switch (tabId) {
@@ -887,7 +880,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 				}}
 			>
 				<DesktopPanelContext value={desktopPanelCtx}>
-					<ArtifactsPanelContext value={artifactsPanelCtx}>
+					<ArtifactTabsContext value={artifactTabsCtx}>
 						<div
 							className={cn(
 								"relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]",
@@ -1074,7 +1067,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 								/>
 							</RightPanel>
 						</div>
-					</ArtifactsPanelContext>
+					</ArtifactTabsContext>
 				</DesktopPanelContext>
 			</ChatWorkspaceContext>
 		</TerminalClientSessionContext>

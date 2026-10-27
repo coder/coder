@@ -130,6 +130,35 @@ export function isUserRightPanelTab(
 	return false;
 }
 
+/**
+ * Returns the tabs with a tab for the artifact, and the ID of that tab. An
+ * open tab of the artifact is reused, so `newTabId` names only a new tab.
+ */
+export function withArtifactTab(
+	tabs: UserRightPanelTab[],
+	artifact: { artifactId: string; title: string },
+	newTabId: string,
+): { tabs: UserRightPanelTab[]; tabId: string } {
+	const openTab = tabs.find(
+		(tab) => tab.kind === "artifact" && tab.artifactId === artifact.artifactId,
+	);
+	if (openTab) {
+		return { tabs, tabId: openTab.id };
+	}
+	return {
+		tabs: [
+			...tabs,
+			{
+				id: newTabId,
+				kind: "artifact",
+				label: artifact.title,
+				artifactId: artifact.artifactId,
+			},
+		],
+		tabId: newTabId,
+	};
+}
+
 export function validateUserRightPanelTabs(
 	tabs: readonly UserRightPanelTab[],
 	{

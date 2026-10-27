@@ -1,7 +1,7 @@
 import { PanelRightOpenIcon } from "lucide-react";
 import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
-import { useArtifactsPanel } from "../../Artifacts/ArtifactsPanelContext";
+import { useArtifactTabs } from "../../Artifacts/ArtifactTabsContext";
 import { getArtifactLink } from "../../Artifacts/artifactUtils";
 import { ToolCall } from "./ToolCall";
 import type { ToolStatus } from "./utils";
@@ -34,7 +34,7 @@ export const ArtifactToolCard: React.FC<ArtifactToolCardProps> = ({
 	errorMessage,
 	artifact,
 }) => {
-	const { onOpenArtifact } = useArtifactsPanel();
+	const { onOpenArtifact } = useArtifactTabs();
 	const isPublish = toolName === "publish_artifact";
 	const isRunning = status === "running";
 	const title = artifact?.title || artifact?.name || "artifact";

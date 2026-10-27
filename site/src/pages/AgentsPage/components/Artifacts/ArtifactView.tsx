@@ -47,7 +47,7 @@ type ArtifactViewProps = {
 	currentUserId: string;
 	/** Shown before the title, such as a back link. */
 	leading?: React.ReactNode;
-	/** Hides the title, such as in a right panel tab whose label shows it. */
+	/** Shows the title. Right panel tabs turn it off, because their label shows it. */
 	showTitle?: boolean;
 	/** Adds a link that opens the artifact page in a new tab. */
 	showPageLink?: boolean;

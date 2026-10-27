@@ -1,11 +1,9 @@
-import { useEffect, useRef } from "react";
-import { useQuery } from "react-query";
-import { chatArtifact } from "#/api/queries/chatArtifacts";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { type ChatStore, useChatMessages } from "../ChatConversation/chatStore";
 import { ArtifactView } from "./ArtifactView";
 import { deriveSeenArtifactVersions } from "./artifactUtils";
+import { useChatArtifact } from "./useChatArtifact";
 
 type ArtifactPanelProps = {
 	artifactId: string;
@@ -31,22 +29,8 @@ export const ArtifactPanel: React.FC<ArtifactPanelProps> = ({
 }) => {
 	const messages = useChatMessages(store);
 	const seenVersion = deriveSeenArtifactVersions(messages).get(artifactId) ?? 0;
-	const artifactQuery = useQuery(chatArtifact(artifactId));
-	const { data, refetch } = artifactQuery;
-	const refetchedForVersionRef = useRef(0);
-
-	// A tool result that names a newer version than the cache means the
-	// chat published again. Refetch once for each such version.
-	useEffect(() => {
-		if (
-			data &&
-			seenVersion > data.latest_version &&
-			refetchedForVersionRef.current < seenVersion
-		) {
-			refetchedForVersionRef.current = seenVersion;
-			void refetch();
-		}
-	}, [data, seenVersion, refetch]);
+	const artifactQuery = useChatArtifact(artifactId, seenVersion);
+	const { data } = artifactQuery;
 
 	// A failed background refetch keeps the cached artifact on screen.
 	if (data) {

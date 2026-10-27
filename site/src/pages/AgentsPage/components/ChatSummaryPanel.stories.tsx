@@ -5,6 +5,7 @@ import { chatCostTreeKey, chatEntityKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockChat,
+	MockChatArtifact,
 	MockChatFileMetadata,
 	MockChatMessage,
 } from "#/testHelpers/chatEntities";
@@ -212,6 +213,54 @@ export const WithAttachments: Story = {
 	render: (args) => (
 		<ChatSummaryPanel {...args} store={createAttachmentStore()} />
 	),
+	parameters: {
+		queries: [
+			{ key: chatEntityKey(MockChat.id), data: mockSummaryChat },
+			{ key: chatCostTreeKey(MockChat.id), data: mockCost },
+		],
+	},
+};
+
+const publishResult = (
+	id: number,
+	artifactId: string,
+): TypesGen.ChatMessage => ({
+	...MockChatMessage,
+	id,
+	role: "tool",
+	content: [
+		{
+			type: "tool-result",
+			tool_name: "publish_artifact",
+			result: { ok: true, artifact_id: artifactId, version: 1 },
+		},
+	],
+});
+
+/** One artifact of each row state: loaded, loading and unavailable. */
+export const WithArtifacts: Story = {
+	render: (args) => {
+		const store = createChatStore();
+		store.replaceMessages([
+			publishResult(1, "artifact-unavailable"),
+			publishResult(2, "artifact-loading"),
+			publishResult(3, MockChatArtifact.id),
+		]);
+		return <ChatSummaryPanel {...args} store={store} />;
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatArtifact").mockImplementation(
+			(artifactId) => {
+				if (artifactId === "artifact-loading") {
+					return new Promise(() => {});
+				}
+				if (artifactId === "artifact-unavailable") {
+					return Promise.reject(new Error("Artifact not found."));
+				}
+				return Promise.resolve(MockChatArtifact);
+			},
+		);
+	},
 	parameters: {
 		queries: [
 			{ key: chatEntityKey(MockChat.id), data: mockSummaryChat },
