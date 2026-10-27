@@ -44,17 +44,13 @@ const makeQueuedMessage = (
 		content: [{ type: "text", text }],
 	}) as TypesGen.ChatQueuedMessage;
 
-// ---------------------------------------------------------------------------
-// replaceMessages
-// ---------------------------------------------------------------------------
-
-describe("replaceMessages", () => {
+describe("upsertDurableMessages", () => {
 	it("populates messagesByID and orderedMessageIDs", () => {
 		const store = createChatStore();
 		const msg1 = makeMessage(1, "user", "first");
 		const msg2 = makeMessage(2, "assistant", "second");
 
-		store.replaceMessages([msg1, msg2]);
+		store.upsertDurableMessages([msg1, msg2]);
 
 		const state = store.getSnapshot();
 		expect(state.messagesByID.size).toBe(2);
@@ -74,30 +70,25 @@ describe("replaceMessages", () => {
 			created_at: "2025-01-01T00:00:01.000Z",
 		} as TypesGen.ChatMessage;
 
-		// Insert in reverse order.
-		store.replaceMessages([second, first]);
+		store.upsertDurableMessages([second, first]);
 
 		expect(store.getSnapshot().orderedMessageIDs).toEqual([1, 2]);
 	});
 
 	it("does not notify subscribers when content is unchanged", () => {
 		const store = createChatStore();
-		const msg = makeMessage(1, "user", "hello");
-		store.replaceMessages([msg]);
+		store.upsertDurableMessages([makeMessage(1, "user", "hello")]);
 
 		let notified = false;
 		store.subscribe(() => {
 			notified = true;
 		});
 
-		// Same object reference — maps compare equal by ref.
-		store.replaceMessages([msg]);
+		store.upsertDurableMessages([makeMessage(1, "user", "hello")]);
 
 		expect(notified).toBe(false);
 	});
-});
 
-describe("upsertDurableMessages", () => {
 	it("orders merged messages by id rather than by arrival", () => {
 		const store = createChatStore();
 		const sharedCreatedAt = "2025-01-01T00:00:00.000Z";
@@ -109,7 +100,7 @@ describe("upsertDurableMessages", () => {
 			created_at: sharedCreatedAt,
 		});
 
-		store.replaceMessages([
+		store.upsertDurableMessages([
 			withSharedCreatedAt(3, "assistant"),
 			withSharedCreatedAt(4, "tool"),
 		]);
@@ -120,61 +111,35 @@ describe("upsertDurableMessages", () => {
 
 		expect(store.getSnapshot().orderedMessageIDs).toEqual([1, 2, 3, 4]);
 	});
-});
-
-// ---------------------------------------------------------------------------
-// upsertDurableMessage
-// ---------------------------------------------------------------------------
-
-describe("upsertDurableMessage", () => {
-	it("inserts a new message and reports isDuplicate=false, changed=true", () => {
-		const store = createChatStore();
-		const msg = makeMessage(1, "user", "hello");
-
-		const result = store.upsertDurableMessage(msg);
-
-		expect(result).toEqual({ isDuplicate: false, changed: true });
-		expect(store.getSnapshot().messagesByID.get(1)).toBe(msg);
-		expect(store.getSnapshot().orderedMessageIDs).toEqual([1]);
-	});
-
-	it("reports isDuplicate=true, changed=false for value-equal duplicate", () => {
-		const store = createChatStore();
-		const msg = makeMessage(1, "user", "hello");
-		store.upsertDurableMessage(msg);
-
-		// Different object reference, same field values.
-		const dup = makeMessage(1, "user", "hello");
-		const result = store.upsertDurableMessage(dup);
-
-		expect(result).toEqual({ isDuplicate: true, changed: false });
-	});
-
-	it("reports isDuplicate=true, changed=true when content differs", () => {
-		const store = createChatStore();
-		store.upsertDurableMessage(makeMessage(1, "assistant", "draft"));
-
-		const updated = makeMessage(1, "assistant", "final");
-		const result = store.upsertDurableMessage(updated);
-
-		expect(result).toEqual({ isDuplicate: true, changed: true });
-		expect(store.getSnapshot().messagesByID.get(1)?.content).toEqual(
-			updated.content,
-		);
-	});
 
 	it("does not reorder when updating an existing message in place", () => {
 		const store = createChatStore();
-		store.upsertDurableMessage(makeMessage(1, "user", "first"));
-		store.upsertDurableMessage(makeMessage(2, "assistant", "second"));
+		store.upsertDurableMessages([
+			makeMessage(1, "user", "first"),
+			makeMessage(2, "assistant", "second"),
+		]);
 		const orderBefore = store.getSnapshot().orderedMessageIDs;
 
-		// Update content of existing message (same ID, same map size).
-		store.upsertDurableMessage(makeMessage(2, "assistant", "edited"));
+		store.upsertDurableMessages([makeMessage(2, "assistant", "edited")]);
 
-		// Same reference — no reorder needed because the map size
-		// didn't change and the ID already existed.
+		expect(store.getSnapshot().messagesByID.get(2)?.content).toEqual([
+			{ type: "text", text: "edited" },
+		]);
 		expect(store.getSnapshot().orderedMessageIDs).toBe(orderBefore);
+	});
+
+	it("keeps one ID for a message that appears twice", () => {
+		const store = createChatStore();
+
+		store.upsertDurableMessages([
+			makeMessage(1, "user", "hello"),
+			makeMessage(2, "assistant", "hi"),
+			makeMessage(2, "assistant", "hi"),
+		]);
+
+		const state = store.getSnapshot();
+		expect(state.messagesByID.size).toBe(2);
+		expect(state.orderedMessageIDs).toEqual([1, 2]);
 	});
 });
 
@@ -602,7 +567,7 @@ describe("resetTransientState", () => {
 
 	it("preserves messages and queued messages", () => {
 		const store = createChatStore();
-		store.replaceMessages([makeMessage(1, "user", "hello")]);
+		store.upsertDurableMessages([makeMessage(1, "user", "hello")]);
 		store.setQueuedMessages([makeQueuedMessage(10, "queued")]);
 		store.setClientError({
 			kind: "generic",
@@ -675,7 +640,7 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 	it("returns true when running with no stream state and no assistant message", () => {
 		const store = createChatStore();
 		store.applyServerChatStatus("running");
-		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
+		store.upsertDurableMessages([makeMessage(1, "user", "hello")]);
 
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
 	});
@@ -683,8 +648,8 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 	it("returns false when the latest message is from the assistant", () => {
 		const store = createChatStore();
 		store.applyServerChatStatus("running");
-		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
-		store.upsertDurableMessage(makeMessage(2, "assistant", "hi there"));
+		store.upsertDurableMessages([makeMessage(1, "user", "hello")]);
+		store.upsertDurableMessages([makeMessage(2, "assistant", "hi there")]);
 
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
 	});
@@ -692,7 +657,7 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 	it("returns false when stream state is present", () => {
 		const store = createChatStore();
 		store.applyServerChatStatus("running");
-		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
+		store.upsertDurableMessages([makeMessage(1, "user", "hello")]);
 		store.applyMessagePart({ type: "text", text: "response" });
 
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
@@ -701,7 +666,7 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 	it("returns false during waiting status when latest message is from user", () => {
 		const store = createChatStore();
 		store.applyServerChatStatus("waiting");
-		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
+		store.upsertDurableMessages([makeMessage(1, "user", "hello")]);
 
 		// "waiting" means the chat is idle; nothing is generating,
 		// so no Thinking indicator should show.
@@ -710,7 +675,7 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 
 	it("returns false when chat status is null", () => {
 		const store = createChatStore();
-		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
+		store.upsertDurableMessages([makeMessage(1, "user", "hello")]);
 
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
 	});
@@ -718,9 +683,9 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 	it("returns true when latest message is a tool result during running", () => {
 		const store = createChatStore();
 		store.applyServerChatStatus("running");
-		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
-		store.upsertDurableMessage(makeMessage(2, "assistant", "calling tool"));
-		store.upsertDurableMessage(makeMessage(3, "tool", "tool result"));
+		store.upsertDurableMessages([makeMessage(1, "user", "hello")]);
+		store.upsertDurableMessages([makeMessage(2, "assistant", "calling tool")]);
+		store.upsertDurableMessages([makeMessage(3, "tool", "tool result")]);
 
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
 	});
@@ -731,29 +696,11 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 		// This is the event order from the server when the user
 		// sends a message. The Thinking indicator must appear
 		// before the first stream chunk arrives.
-		store.upsertDurableMessage(makeMessage(1, "user", "sweet ty"));
+		store.upsertDurableMessages([makeMessage(1, "user", "sweet ty")]);
 		store.applyServerChatStatus("running");
 		store.clearStreamState();
 
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
-	});
-});
-
-describe("duplicate message deduplication", () => {
-	it("replaceMessages deduplicates orderedMessageIDs when input has duplicate IDs", () => {
-		const store = createChatStore();
-		const msg1 = makeMessage(1, "user", "hello");
-		const msg2 = makeMessage(2, "assistant", "hi");
-		// Simulate cross-page duplication: same ID appears twice.
-		const msg2Copy = makeMessage(2, "assistant", "hi");
-
-		store.replaceMessages([msg1, msg2, msg2Copy]);
-
-		const state = store.getSnapshot();
-		// Map deduplicates by key — only 2 unique entries.
-		expect(state.messagesByID.size).toBe(2);
-		// orderedMessageIDs MUST also have only 2 entries.
-		expect(state.orderedMessageIDs).toEqual([1, 2]);
 	});
 });
 
