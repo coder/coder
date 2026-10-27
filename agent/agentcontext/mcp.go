@@ -126,7 +126,9 @@ const (
 // fitMCPToolInputSchemas returns tools with each schema reduced unless
 // its full form fits the per-tool cap, the remaining catalog budget,
 // and res's MCP server body under coderd's body cap. It returns the
-// unspent budget. Tools are considered in the order given.
+// unspent budget. Tools are considered in the order given. A schema
+// with no keys beyond the reduced shape takes no budget, since coderd
+// cannot tell it from a reduced one.
 func fitMCPToolInputSchemas(logger slog.Logger, res Resource, tools []MCPTool, budget int) ([]MCPTool, int) {
 	ctx := context.Background()
 	fitted := make([]MCPTool, len(tools))
@@ -145,14 +147,18 @@ func fitMCPToolInputSchemas(logger slog.Logger, res Resource, tools []MCPTool, b
 		if tool.InputSchema == nil {
 			continue
 		}
-		encoded, err := json.Marshal(tool.InputSchema)
-		if err != nil {
-			logger.Warn(ctx, "failed to encode MCP tool input schema, sending it reduced",
-				slog.F("server", res.Name), slog.F("tool", tool.Name), slog.Error(err))
-			continue
-		}
-		if len(encoded) > min(maxMCPToolInputSchemaBytes, budget) {
-			continue
+		schemaBytes := 0
+		if hasKeysBeyondReducedSchema(tool.InputSchema) {
+			encoded, err := json.Marshal(tool.InputSchema)
+			if err != nil {
+				logger.Warn(ctx, "failed to encode MCP tool input schema, sending it reduced",
+					slog.F("server", res.Name), slog.F("tool", tool.Name), slog.Error(err))
+				continue
+			}
+			if len(encoded) > min(maxMCPToolInputSchemaBytes, budget) {
+				continue
+			}
+			schemaBytes = len(encoded)
 		}
 		extraBytes, err := fullSchemaExtraBodyBytes(tool, fitted[i])
 		if err != nil {
@@ -164,7 +170,7 @@ func fitMCPToolInputSchemas(logger slog.Logger, res Resource, tools []MCPTool, b
 			continue
 		}
 		bodyBytes += extraBytes
-		budget -= len(encoded)
+		budget -= schemaBytes
 		fitted[i] = tool
 	}
 	return fitted, budget
@@ -196,6 +202,19 @@ func coderdBodyBytesBound(msg proto.Message) (int, error) {
 		return 0, xerrors.Errorf("encode %T: %w", msg, err)
 	}
 	return len(encoded) + bytes.Count(encoded, []byte(",")), nil
+}
+
+// hasKeysBeyondReducedSchema reports whether schema has a key that
+// reducedToolInputSchema drops.
+func hasKeysBeyondReducedSchema(schema map[string]any) bool {
+	for key := range schema {
+		switch key {
+		case "type", "properties", "required":
+		default:
+			return true
+		}
+	}
+	return false
 }
 
 // reducedToolInputSchema keeps only the type, properties, and required

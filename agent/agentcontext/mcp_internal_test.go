@@ -2,6 +2,7 @@ package agentcontext
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -234,6 +235,47 @@ func TestBuildMCPServerResourcesInputSchemaCaps(t *testing.T) {
 			"a/t1": true, "a/t2": true, "a/t3": true,
 			"b/t1": true, "b/t2": false, "b/t3": false,
 		}, fullSchemas(got))
+	})
+
+	t.Run("ReducedShapeSchemasTakeNoBudget", func(t *testing.T) {
+		t.Parallel()
+		// coderd cannot tell a reduced fallback from a schema that only
+		// ever had type, properties, and required, so neither counts.
+		simple := MCPTool{Name: "simple", InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{"q": map[string]any{
+				"type":        "string",
+				"description": strings.Repeat("x", 30_000),
+			}},
+		}}
+		jsonBytes := func(schema map[string]any) int {
+			encoded, err := json.Marshal(schema)
+			require.NoError(t, err)
+			return len(encoded)
+		}
+		full := tools("t", 4, 60_000)
+		remaining := maxMCPCatalogInputSchemasBytes
+		for _, tool := range full {
+			remaining -= jsonBytes(tool.InputSchema)
+		}
+		lastPadding := remaining - jsonBytes(padded(0))
+		require.Equal(t, remaining, jsonBytes(padded(lastPadding)))
+		catalog := func(lastPadding int) []MCPServerStatus {
+			return []MCPServerStatus{
+				{Name: "a", Connected: true, Tools: []MCPTool{simple}},
+				{Name: "b", Connected: true, Tools: full},
+				{Name: "c", Connected: true, Tools: []MCPTool{{Name: "last", InputSchema: padded(lastPadding)}}},
+			}
+		}
+
+		got := buildMCPServerResources(testutil.Logger(t), catalog(lastPadding))
+		require.Equal(t, simple.InputSchema, got[0].Tools[0].InputSchema)
+		require.Equal(t, map[string]bool{
+			"b/t1": true, "b/t2": true, "b/t3": true, "b/t4": true, "c/last": true,
+		}, fullSchemas(got[1:]))
+
+		got = buildMCPServerResources(testutil.Logger(t), catalog(lastPadding+1))
+		require.False(t, fullSchemas(got[1:])["c/last"])
 	})
 
 	t.Run("KeepsServerBodyUnderCoderdCap", func(t *testing.T) {
