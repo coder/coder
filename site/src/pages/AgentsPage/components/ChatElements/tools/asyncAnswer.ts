@@ -4,15 +4,21 @@
 const asyncAnswerPattern =
 	/^Answer to ask_user_question call ([^\n]+):(?:\n|$)/;
 
+const asyncAnswerLead = "Answer to ask_user_question call ";
+
 /** Returns the prefix line, newline included, that starts an answer to the call. */
 export const getAsyncAnswerPrefix = (toolCallId: string): string =>
-	`Answer to ask_user_question call ${toolCallId}:\n`;
+	`${asyncAnswerLead}${toolCallId}:\n`;
 
 /**
- * Text that starts with an answer prefix line, split into the call the line
- * names and the rest. An answer message carries the line in its first text
- * part.
+ * Reports whether a prompt history entry is an answer. The history joins a
+ * message's text parts, which drops the line break after the call ID when a
+ * chip followed it, so only the start of the prefix line is compared.
  */
+export const isAsyncAnswerPrompt = (text: string): boolean =>
+	text.startsWith(asyncAnswerLead);
+
+/** Answer text split into the call its prefix line names and the rest. */
 export type AsyncAnswer = {
 	toolCallId: string;
 	/** The answer without its prefix line, as users see it. */
