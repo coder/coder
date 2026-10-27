@@ -3,6 +3,7 @@ package agentmcp
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -1165,7 +1166,9 @@ const minSecretBytes = 8
 // information, since a value such as user:password or
 // user:password@host holds a credential without a URL. The rest after
 // that colon is parsed as a URL too, as in
-// jdbc:postgresql://db/app?password=secret.
+// jdbc:postgresql://db/app?password=secret. A value that is a JSON
+// object or array adds each string and number it holds, like a value of
+// its own.
 func configSecrets(cfg ServerConfig, env []string) []string {
 	var values []string
 	addURL := func(u *url.URL) {
@@ -1219,8 +1222,19 @@ func configSecrets(cfg ServerConfig, env []string) []string {
 			values = append(values, rest[:i])
 		}
 	}
-	add := func(value string) {
+	var add func(value string)
+	add = func(value string) {
 		addValue(value)
+		// A JSON value, such as service account credentials, holds its
+		// credentials as members that a server may echo on their own.
+		if trimmed := strings.TrimSpace(value); strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[") {
+			decoder := json.NewDecoder(strings.NewReader(trimmed))
+			decoder.UseNumber()
+			var decoded any
+			if decoder.Decode(&decoded) == nil {
+				jsonScalars(decoded, add)
+			}
+		}
 		parts := strings.FieldsFunc(value, func(r rune) bool {
 			return unicode.IsSpace(r) || r == ';' || r == ','
 		})
@@ -1267,6 +1281,26 @@ func configSecrets(cfg ServerConfig, env []string) []string {
 	return slices.DeleteFunc(values, func(value string) bool {
 		return len(value) < minSecretBytes
 	})
+}
+
+// jsonScalars calls add with each string and number that a decoded JSON
+// value holds, but not with the names of object members, which are not
+// secrets.
+func jsonScalars(value any, add func(string)) {
+	switch typed := value.(type) {
+	case map[string]any:
+		for _, member := range typed {
+			jsonScalars(member, add)
+		}
+	case []any:
+		for _, element := range typed {
+			jsonScalars(element, add)
+		}
+	case string:
+		add(typed)
+	case json.Number:
+		add(typed.String())
+	}
 }
 
 // decodeBasicToken returns the user information that the token of a

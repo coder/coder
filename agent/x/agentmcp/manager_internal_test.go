@@ -568,6 +568,7 @@ func TestConfigSecrets(t *testing.T) {
 			"WORKDIR":      "/home/coder/workspace",
 			"BASIC_AUTH":   "basicuser1:basicpassword1",
 			"JDBC_URL":     "jdbc:postgresql://db/app?user=jdbcuser1&password=jdbcpassword1",
+			"CREDENTIALS":  `{"type": "service_account", "private_key_id": "jsonkeyid12", "auth": {"token": "jsonsecret1"}, "keys": ["jsonlistkey1"], "pin": 12345678901}`,
 			"DSN":          "dsnuser01:dsnpassword1@db/app",
 			"PIN":          "0012345678",
 			"LONG_PIN":     "12345678901234567890",
@@ -587,12 +588,13 @@ func TestConfigSecrets(t *testing.T) {
 		"jdbcpassword1", "dsnpassword1",
 		"inheritedsecret1",
 		"proxyuser1", "proxypassword1",
+		"jsonkeyid12", "jsonsecret1", "jsonlistkey1", "12345678901",
 	} {
 		require.Contains(t, secrets, want)
 	}
 	// A plain path is not split: its segments are ordinary words. The
 	// variables that describe the process hold no credentials.
-	for _, notSecret := range []string{"abc", "u", "mcp", "Bearer", "fast", "token", "workspace", "/home/coder", "/usr/local/bin", "en_US.UTF-8"} {
+	for _, notSecret := range []string{"abc", "u", "mcp", "Bearer", "fast", "token", "workspace", "/home/coder", "/usr/local/bin", "en_US.UTF-8", "private_key_id"} {
 		require.NotContains(t, secrets, notSecret)
 	}
 	// Numeric credentials match the numbers a schema decodes them to.
