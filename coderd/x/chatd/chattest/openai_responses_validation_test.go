@@ -33,6 +33,25 @@ func TestValidateResponsesAPIInput(t *testing.T) {
 		require.Contains(t, errResp.Message, "reasoning")
 	})
 
+	t.Run("rejects inline web search with id without reasoning", func(t *testing.T) {
+		t.Parallel()
+
+		errResp := chattest.ValidateResponsesAPIInput([]interface{}{
+			map[string]interface{}{"type": "web_search_call", "id": "ws_inline", "status": "completed"},
+		})
+		require.NotNil(t, errResp)
+		require.Contains(t, errResp.Message, "reasoning")
+	})
+
+	t.Run("accepts inline web search without id or reasoning", func(t *testing.T) {
+		t.Parallel()
+
+		errResp := chattest.ValidateResponsesAPIInput([]interface{}{
+			map[string]interface{}{"type": "web_search_call", "status": "completed"},
+		})
+		require.Nil(t, errResp)
+	})
+
 	t.Run("valid function call and output", func(t *testing.T) {
 		t.Parallel()
 

@@ -35,7 +35,10 @@ func validateResponsesWebSearchReasoning(items []interface{}) *ErrorResponse {
 	previousKind := responsesInputOther
 	for _, raw := range items {
 		item := classifyResponsesInputItem(raw)
-		if item.kind == responsesInputWebSearch && previousKind != responsesInputReasoning {
+		// OpenAI resolves a web search with an id to its stored item, which
+		// needs its reasoning item before it. Inline searches without an id
+		// need none.
+		if item.kind == responsesInputWebSearch && item.id != "" && previousKind != responsesInputReasoning {
 			return openAIResponsesValidationError(fmt.Sprintf(
 				"Item %q of type 'web_search_call' was provided without its required 'reasoning' item.",
 				item.id,
