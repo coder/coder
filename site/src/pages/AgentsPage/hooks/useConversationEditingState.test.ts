@@ -530,45 +530,52 @@ describe("useConversationEditingState", () => {
 		{
 			outcome: "fails",
 			draft: JSON.stringify({
-				root: { type: "root", children: [paragraph("hello"), paragraph("chip")] },
+				root: {
+					type: "root",
+					children: [paragraph("hello"), paragraph("chip")],
+				},
 			}),
 		},
-	])("keeps a chip added during a send that $outcome", async ({
-		outcome,
-		draft,
-	}) => {
-		const { result, onSend, unmount } = renderEditing();
-		const mockInput = createMockChatInputHandle("hello");
-		mockInput.clear.mockImplementation(() =>
-			result.current.handleContentChange("", "", false),
-		);
-		result.current.chatInputRef.current = mockInput.handle;
-		const send = createDeferred<undefined>();
-		onSend.mockReturnValueOnce(send.promise);
+	])(
+		"keeps a chip added during a send that $outcome",
+		async ({ outcome, draft }) => {
+			const { result, onSend, unmount } = renderEditing();
+			const mockInput = createMockChatInputHandle("hello");
+			mockInput.clear.mockImplementation(() =>
+				result.current.handleContentChange("", "", false),
+			);
+			result.current.chatInputRef.current = mockInput.handle;
+			const send = createDeferred<undefined>();
+			onSend.mockReturnValueOnce(send.promise);
 
-		act(() => {
-			result.current.handleContentChange("hello", editorState("hello"), false);
-		});
-		let sent: Promise<void> = Promise.resolve();
-		act(() => {
-			sent = result.current.handleSendFromInput({ message: "hello" });
-		});
-		act(() => {
-			result.current.handleContentChange("", editorState("chip"), true);
-		});
-		await act(async () => {
-			if (outcome === "succeeds") {
-				send.resolve(undefined);
-				await sent;
-			} else {
-				send.reject(new Error("boom"));
-				await expect(sent).rejects.toThrow("boom");
-			}
-		});
+			act(() => {
+				result.current.handleContentChange(
+					"hello",
+					editorState("hello"),
+					false,
+				);
+			});
+			let sent: Promise<void> = Promise.resolve();
+			act(() => {
+				sent = result.current.handleSendFromInput({ message: "hello" });
+			});
+			act(() => {
+				result.current.handleContentChange("", editorState("chip"), true);
+			});
+			await act(async () => {
+				if (outcome === "succeeds") {
+					send.resolve(undefined);
+					await sent;
+				} else {
+					send.reject(new Error("boom"));
+					await expect(sent).rejects.toThrow("boom");
+				}
+			});
 
-		expect(localStorage.getItem(expectedKey)).toBe(draft);
-		unmount();
-	});
+			expect(localStorage.getItem(expectedKey)).toBe(draft);
+			unmount();
+		},
+	);
 
 	it("puts a failed message in front of what was typed during it", async () => {
 		const { result, onSend, unmount } = renderEditing();
