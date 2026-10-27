@@ -89,10 +89,7 @@ type CountProjectFolderPinsOptions = {
 	readonly currentUserId: string;
 };
 
-/**
- * Counts the viewer's pins in a project. The sidebar list may not reach
- * every pin, so the folder's own fetch counts too.
- */
+/** The folder's fetch adds pins that the sidebar's loaded pages lack. */
 export const countProjectFolderPins = ({
 	projectId,
 	filedPinnedChats,

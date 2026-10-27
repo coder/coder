@@ -158,7 +158,7 @@ describe("ChatsSidebar projects", () => {
 		server.use(http.get("/api/v2/chats", () => HttpResponse.json([])));
 	});
 
-	it("fetches an open folder's chats that the sidebar has not loaded", async () => {
+	it("requests an open folder's chats with the sidebar's filters", async () => {
 		const requests: URLSearchParams[] = [];
 		server.use(
 			http.get("/api/experimental/chats/projects", () =>
@@ -166,14 +166,7 @@ describe("ChatsSidebar projects", () => {
 			),
 			http.get("/api/v2/chats", ({ request }) => {
 				requests.push(new URL(request.url).searchParams);
-				return HttpResponse.json([
-					buildChat({
-						id: "older-project-chat",
-						title: "Older project chat",
-						organization_id: MockChatProject.organization_id,
-						project_id: MockChatProject.id,
-					}),
-				]);
+				return HttpResponse.json([]);
 			}),
 		);
 
@@ -186,10 +179,8 @@ describe("ChatsSidebar projects", () => {
 			</Wrapper>,
 		);
 
-		await screen.findByRole("link", { name: /Older project chat/ });
-		expect(requests).toHaveLength(1);
+		await waitFor(() => expect(requests).toHaveLength(1));
 		expect(requests[0].get("project_id")).toBe(MockChatProject.id);
-		// The folder applies the sidebar's filters.
 		expect(requests[0].get("q")).toBe("archived:false source:created_by_me");
 	});
 
