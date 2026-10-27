@@ -5026,6 +5026,7 @@ describe("chat stream contract", () => {
 			sockets[0].emitData(sentHead);
 		});
 		// The head shows as a message and not in the queue.
+		expect(result.current.messageIDs).toContain(2);
 		expect(result.current.queuedIDs).toHaveLength(1);
 		expect(result.current.queuedIDs).not.toContain(10);
 		act(() => {
