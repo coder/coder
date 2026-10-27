@@ -1,7 +1,9 @@
 import { act, renderHook } from "@testing-library/react";
 import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MockChatMessage } from "#/testHelpers/chatEntities";
 import type { ChatMessageInputRef } from "../components/AgentChatInput";
+import { getEditableUserMessagePayload } from "../components/ChatConversation/messageParsing";
 import type { PendingAttachment } from "../components/ChatPageContent";
 import { draftInputStorageKeyPrefix } from "../utils/draftStorage";
 import { useConversationEditingState } from "./useConversationEditingState";
@@ -326,26 +328,33 @@ describe("useConversationEditingState", () => {
 	it("puts an edited async answer's prefix line before a leading chip", async () => {
 		const { result, onSend, unmount } = renderEditing();
 		const mockInput = createMockChatInputHandle();
-		const mockFileReference = {
-			type: "file-reference",
-			reference: {
-				fileName: "main.go",
-				startLine: 1,
-				endLine: 2,
-				content: "package main",
-			},
+		const mockSkill = {
+			type: "skill-invocation",
+			source: "project",
+			name: "triage",
 		} as const;
 		vi.mocked(mockInput.handle.getContentParts).mockReturnValue([
-			mockFileReference,
+			mockSkill,
 			{ type: "text", text: " Frontend" },
 		]);
 		result.current.chatInputRef.current = mockInput.handle;
+		// The server trims each text part, so an answer stored with a leading
+		// chip has a prefix line without its line break.
+		const { text, editorState } = getEditableUserMessagePayload({
+			...MockChatMessage,
+			content: [
+				{ type: "text", text: "Answer to ask_user_question call question:" },
+				{
+					type: "skill-invocation",
+					skill_source: "project",
+					skill_name: "triage",
+				},
+				{ type: "text", text: "Backend" },
+			],
+		});
 
 		act(() => {
-			result.current.handleEditUserMessage(
-				7,
-				"Answer to ask_user_question call question:\nBackend",
-			);
+			result.current.handleEditUserMessage(7, text, undefined, editorState);
 		});
 		await act(async () => {
 			await result.current.handleSendFromInput({ message: " Frontend" });
@@ -358,7 +367,7 @@ describe("useConversationEditingState", () => {
 						type: "text",
 						text: "Answer to ask_user_question call question:\n",
 					},
-					mockFileReference,
+					mockSkill,
 					{ type: "text", text: " Frontend" },
 				],
 			}),
