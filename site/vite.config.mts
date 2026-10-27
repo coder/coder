@@ -74,8 +74,8 @@ export default defineConfig({
 				},
 				codeSplitting: {
 					// No groups for lazily loaded libraries (monaco, xterm, emoji-mart): a
-					// group also takes every module they import, so a monaco group took
-					// React and made every page load monaco.
+					// group also takes every module they import, so a monaco group would
+					// take React and make every page load monaco.
 					groups: [{ name: "radix-ui", test: /radix-ui/ }],
 				},
 			},
