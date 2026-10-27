@@ -745,8 +745,13 @@ const pendingSend = (text: string): PendingAction => ({
 });
 
 // Adds the action with the status the store shows, as the page does.
+// The request never settles, so only a stream update ends the action.
 const addPending = (store: ChatStore, action: PendingAction) =>
-	store.addPendingAction(action, store.getSnapshot().chatStatus);
+	void store.runPendingAction(
+		action,
+		store.getSnapshot().chatStatus,
+		() => new Promise(() => {}),
+	);
 
 describe("pending actions", () => {
 	it.each(["error", "requires_action"] as const)(
