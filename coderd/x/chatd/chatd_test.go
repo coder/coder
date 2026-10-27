@@ -13834,6 +13834,139 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	require.Contains(t, string(result.Result), advisorReply)
 }
 
+// TestAdvisorMaxUsesPerTurn verifies that max_uses_per_run holds across
+// the model steps of one user turn, including a compaction between
+// them, that a refunded provider failure does not consume a use, and
+// that the next user prompt starts a fresh budget.
+func TestAdvisorMaxUsesPerTurn(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	advisorCall := func(inputTokens int) chattest.AnthropicResponse {
+		chunks := chattest.AnthropicToolCallChunks(chatadvisor.ToolName, `{"question":"what next?"}`)
+		for i := range chunks {
+			if chunks[i].Type == "message_start" {
+				chunks[i].Message.Usage = map[string]int{"input_tokens": inputTokens}
+			}
+		}
+		return chattest.AnthropicStreamingResponse(chunks...)
+	}
+
+	var parentCalls, adviceCalls, compactions atomic.Int32
+	anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+		if !req.Stream {
+			return chattest.AnthropicNonStreamingResponse("title")
+		}
+		if strings.Contains(anthropicRequestBody(t, *req), "You are performing a context compaction") {
+			compactions.Add(1)
+			return anthropicCompactionResponse(t, req, "advisor quota summary")
+		}
+		// The nested advisor call is the only streamed generation
+		// without tools.
+		if len(req.Tools) == 0 {
+			if parentCalls.Load() == 1 {
+				return chattest.AnthropicResponse{Error: &chattest.ErrorResponse{
+					StatusCode: http.StatusBadRequest,
+					Type:       "invalid_request_error",
+					Message:    "advisor request rejected",
+				}}
+			}
+			adviceCalls.Add(1)
+			return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks("advice")...)
+		}
+		switch parentCalls.Add(1) {
+		case 1, 3, 5:
+			return advisorCall(10)
+		case 2:
+			// Usage over the compaction threshold compacts the chat
+			// after this step's advisor call completes.
+			return advisorCall(80)
+		default:
+			return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks("done")...)
+		}
+	})
+
+	user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+	model = updateChatModelCompressionThreshold(t, db, model, 100, 70)
+	seedAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{
+		MaxUsesPerRun:   1,
+		MaxOutputTokens: 1024,
+	})
+	server := newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(
+			chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()),
+		)
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "advisor-max-uses",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("plan this change"),
+		},
+	})
+	require.NoError(t, err)
+	server.Start()
+
+	waitForTurn := func(minParentCalls int32) {
+		t.Helper()
+		require.Eventually(t, func() bool {
+			got, getErr := db.GetChatByID(ctx, chat.ID)
+			return getErr == nil &&
+				got.Status == database.ChatStatusWaiting &&
+				parentCalls.Load() >= minParentCalls
+		}, testutil.WaitLong, testutil.IntervalFast)
+	}
+	waitForTurn(4)
+	require.EqualValues(t, 1, compactions.Load(), "the turn must compact between advisor calls")
+	require.EqualValues(t, 1, adviceCalls.Load(),
+		"the advisor call after the use limit must not reach the provider")
+
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:    chat.ID,
+		CreatedBy: user.ID,
+		Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("continue")},
+	})
+	require.NoError(t, err)
+	waitForTurn(6)
+	require.EqualValues(t, 2, adviceCalls.Load(), "a new user prompt must get a fresh advisor budget")
+
+	messages := chatMessages(ctx, t, db, chat.ID)
+	compressed := compressedChatSummarizedMessages(t, messages)
+	require.Len(t, compressed.results, 1)
+	summaryID := compressed.results[0].ID
+	type advisorOutcome struct {
+		resultType   chatadvisor.ResultType
+		afterSummary bool
+	}
+	var outcomes []advisorOutcome
+	for _, msg := range messages {
+		if msg.Role != database.ChatMessageRoleTool || msg.Compressed {
+			continue
+		}
+		parts, parseErr := chatprompt.ParseContent(msg)
+		require.NoError(t, parseErr)
+		for _, part := range parts {
+			if part.Type != codersdk.ChatMessagePartTypeToolResult || part.ToolName != chatadvisor.ToolName {
+				continue
+			}
+			var result chatadvisor.AdvisorResult
+			require.NoError(t, json.Unmarshal(part.Result, &result))
+			outcomes = append(outcomes, advisorOutcome{resultType: result.Type, afterSummary: msg.ID > summaryID})
+		}
+	}
+	require.Equal(t, []advisorOutcome{
+		{resultType: chatadvisor.ResultTypeError},
+		{resultType: chatadvisor.ResultTypeAdvice},
+		{resultType: chatadvisor.ResultTypeLimitReached, afterSummary: true},
+		{resultType: chatadvisor.ResultTypeAdvice, afterSummary: true},
+	}, outcomes)
+}
+
 // TestProviderSwitchSanitizesAndRestoresPEToolHistory verifies the A→B→A
 // provider-switch contract:
 //

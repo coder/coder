@@ -288,11 +288,15 @@ func (p *Server) buildTurnEnvironment(
 		if cfgErr != nil {
 			return turnEnvironment{}, xerrors.Errorf("load advisor config: %w", cfgErr)
 		}
-		var advisorErr error
+		advisorUses, advisorErr := currentTurnAdvisorUses(ctx, logger, input.Messages)
+		if advisorErr != nil {
+			return turnEnvironment{}, xerrors.Errorf("count advisor uses: %w", advisorErr)
+		}
 		advisorRuntime, advisorErr = p.newAdvisorRuntime(
 			ctx,
 			chat,
 			advisorCfg,
+			advisorUses,
 			modelOpts,
 			logger,
 		)

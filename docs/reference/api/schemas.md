@@ -1519,11 +1519,11 @@ None
 
 ### Properties
 
-| Name                | Type    | Required | Restrictions | Description                                                                                      |
-|---------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------|
-| `enabled`           | boolean | false    |              | Enabled is always true and cannot be changed.                                                    |
-| `max_output_tokens` | integer | false    |              | Max output tokens caps the advisor model response tokens. 0 means use the runtime default.       |
-| `max_uses_per_run`  | integer | false    |              | Max uses per run caps how many times the advisor can be invoked per chat run. 0 means unlimited. |
+| Name                | Type    | Required | Restrictions | Description                                                                                       |
+|---------------------|---------|----------|--------------|---------------------------------------------------------------------------------------------------|
+| `enabled`           | boolean | false    |              | Enabled is always true and cannot be changed.                                                     |
+| `max_output_tokens` | integer | false    |              | Max output tokens caps the advisor model response tokens. 0 means use the runtime default.        |
+| `max_uses_per_run`  | integer | false    |              | Max uses per run caps how many times the advisor can be invoked per chat turn. 0 means unlimited. |
 
 ## codersdk.AgentChatSendShortcut
 

@@ -6,7 +6,7 @@ title: Advisor
 
 Lets a root agent pause its current turn and request strategic guidance from a separate, single-step model call.
 The advisor sees recent conversation context, runs without any tools, and returns concise advice for the root agent rather than the end user.
-While active, it is the only tool the root agent can call for that turn.
+The root agent must call the advisor on its own, not alongside other tools in the same step.
 
 Useful for planning ambiguity, architectural tradeoffs, debugging strategy after repeated failures, or risk reduction before a destructive operation.
 

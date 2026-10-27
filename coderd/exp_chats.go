@@ -6335,6 +6335,8 @@ func (api *API) getChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Param request body codersdk.UpdateAdvisorConfigRequest true "Request body"
 // @Success 204
+// @Failure 400 {object} codersdk.Response
+// @Failure 403 {object} codersdk.Response
 // @Router /api/v2/chats/config/advisor [put]
 func (api *API) putChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

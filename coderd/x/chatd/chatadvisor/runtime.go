@@ -20,17 +20,19 @@ type RuntimeConfig struct {
 	// MaxRetries is the maximum number of retries after a transient
 	// provider error within one advisor call. It must be positive.
 	MaxRetries int
+	// PriorUses is the number of successful advisor calls already made
+	// in the current turn. chatd builds a new Runtime for every model
+	// step, so the per-turn quota is seeded from history.
+	PriorUses int
 }
 
 // Runtime executes nested, tool-less advisor runs against the configured
 // language model.
 //
-// Each Runtime instance is scoped to a single outer chat run. The
-// MaxUsesPerRun counter increments on every successful advisor call and
-// is never reset, so callers must construct a fresh Runtime (via
-// NewRuntime) for each outer run. There is intentionally no Reset method:
-// the per-run quota is a safety bound on a single run, not a rolling
-// window.
+// The MaxUsesPerRun counter starts at PriorUses, increments on every
+// successful advisor call, and is never reset. There is intentionally no
+// Reset method: the quota is a safety bound on a single turn, not a
+// rolling window.
 type Runtime struct {
 	cfg  RuntimeConfig
 	used atomic.Int64
@@ -64,7 +66,9 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	maxOutputTokens := cfg.MaxOutputTokens
 	normalized.CallTemplate.MaxOutputTokens = &maxOutputTokens
 
-	return &Runtime{cfg: normalized}, nil
+	rt := &Runtime{cfg: normalized}
+	rt.used.Store(int64(cfg.PriorUses))
+	return rt, nil
 }
 
 // cloneProviderOptions returns a copy of opts with pointer entries for
