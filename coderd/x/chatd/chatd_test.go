@@ -15164,3 +15164,20 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		require.Zero(t, chatd.StageAnomalyCount(t, h.registry, chatloop.StageAnomalyStaleAnchor))
 	})
 }
+
+func TestResyncAgentContextAsync(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	resynced := make(chan struct{})
+	conn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+	conn.EXPECT().ResyncContext(gomock.Any()).Do(func(context.Context) { close(resynced) })
+	server := newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
+		cfg.AgentConn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			return conn, func() {}, nil
+		}
+	})
+
+	server.ResyncAgentContextAsync(uuid.New())
+	testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, resynced)
+}

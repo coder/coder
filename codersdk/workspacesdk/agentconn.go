@@ -105,6 +105,7 @@ type AgentConn interface {
 	CallMCPTool(ctx context.Context, req CallMCPToolRequest) (CallMCPToolResponse, error)
 	Close() error
 	ContextConfig(ctx context.Context) (ContextConfigResponse, error)
+	ResyncContext(ctx context.Context) error
 	DebugLogs(ctx context.Context, opts ...DebugLogsOption) ([]byte, error)
 	DebugMagicsock(ctx context.Context) ([]byte, error)
 	DebugManifest(ctx context.Context) ([]byte, error)
@@ -1546,6 +1547,22 @@ func (c *agentConn) ContextConfig(ctx context.Context) (ContextConfigResponse, e
 	}
 	var resp ContextConfigResponse
 	return resp, decodeAgentJSON(res, &resp)
+}
+
+// ResyncContext asks the agent to retry failed MCP servers and re-resolve
+// its context.
+func (c *agentConn) ResyncContext(ctx context.Context) error {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/context/resync", nil)
+	if err != nil {
+		return xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return codersdk.ReadBodyAsError(res)
+	}
+	return nil
 }
 
 // CallMCPTool proxies a tool call to an MCP server running in

@@ -79,6 +79,7 @@ import {
 } from "./ChatElements/tools/ACPContext";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import { ChatMessageScroller } from "./ChatMessageScroller";
+import { hasFailedMcpServer } from "./ContextUsageIndicator";
 import { getWorkspaceOptionsWithLinkedWorkspace } from "./workspaceOptions";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
@@ -438,7 +439,12 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	);
 	const handleRefreshContext = () =>
 		refreshContextMutation.mutate(undefined, {
-			onSuccess: () => toast.success("Context refreshed."),
+			onSuccess: () =>
+				toast.success(
+					hasFailedMcpServer(chatContext)
+						? "Context refreshed. Retrying failed MCP servers."
+						: "Context refreshed.",
+				),
 			onError: () => toast.error("Failed to refresh context."),
 		});
 	const composeAttachments = useChatDraftAttachments(organizationId, chatId, {
