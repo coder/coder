@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -424,13 +425,17 @@ func TestResolveWorkingDir(t *testing.T) {
 // TestToolInputSchemaMap verifies that object schemas pass through
 // whole, so keys beyond type, properties, and required ($defs,
 // additionalProperties, combinators, ...) reach coderd, while
-// non-object and empty schemas leave InputSchema unset.
+// non-object and empty schemas leave InputSchema unset and schemas past
+// the size caps are reduced to type, properties, and required.
 func TestToolInputSchemaMap(t *testing.T) {
 	t.Parallel()
 
-	require.Nil(t, toolInputSchemaMap(nil))
-	require.Nil(t, toolInputSchemaMap("bogus"))
-	require.Nil(t, toolInputSchemaMap(map[string]any{}))
+	inputSchema := func(tool *mcp.Tool) map[string]any {
+		return toolInfos([]*mcp.Tool{tool})[0].InputSchema
+	}
+	require.Nil(t, inputSchema(&mcp.Tool{}))
+	require.Nil(t, inputSchema(&mcp.Tool{InputSchema: "bogus"}))
+	require.Nil(t, inputSchema(&mcp.Tool{InputSchema: map[string]any{}}))
 
 	schema := map[string]any{
 		"type": "object",
@@ -441,7 +446,40 @@ func TestToolInputSchemaMap(t *testing.T) {
 		"additionalProperties": false,
 		"$defs":                map[string]any{"Filter": map[string]any{"type": "string"}},
 	}
-	require.Equal(t, schema, toolInputSchemaMap(schema))
+	require.Equal(t, schema, inputSchema(&mcp.Tool{InputSchema: schema}))
+
+	// Past the per-tool cap, or once the server's full schemas pass the
+	// total cap, only type, properties, and required are kept, so a large
+	// $defs tree adds nothing to context pushes.
+	padded := func(padding int) map[string]any {
+		return map[string]any{
+			"type":                 "object",
+			"properties":           schema["properties"],
+			"required":             []any{"filter"},
+			"additionalProperties": false,
+			"$defs": map[string]any{"Filter": map[string]any{
+				"type":        "string",
+				"description": strings.Repeat("x", padding),
+			}},
+		}
+	}
+	reduced := map[string]any{
+		"type":       "object",
+		"properties": schema["properties"],
+		"required":   []any{"filter"},
+	}
+	require.Equal(t, reduced, inputSchema(&mcp.Tool{InputSchema: padded(64 << 10)}))
+
+	tools := make([]*mcp.Tool, 5)
+	for i := range tools {
+		tools[i] = &mcp.Tool{Name: fmt.Sprintf("big_%d", i), InputSchema: padded(55_000)}
+	}
+	infos := toolInfos(tools)
+	require.Len(t, infos, len(tools))
+	for i, info := range infos[:4] {
+		require.Equal(t, tools[i].InputSchema, info.InputSchema, info.Name)
+	}
+	require.Equal(t, reduced, infos[4].InputSchema)
 }
 
 // runFakeMCPServer implements a minimal JSON-RPC / MCP server over

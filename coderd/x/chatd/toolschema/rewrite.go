@@ -179,31 +179,36 @@ func HasRefs(schema map[string]any) bool {
 
 // ResolveLocalRef returns the value in root that a reference made from
 // root's own resource points at. The reference may be a fragment such as
-// "#/$defs/Filter", name root's "$id", or name the "$id" of a resource
-// that root embeds. sameResource reports whether the value belongs to
-// root's resource, so that references inside it resolve as they would
-// at the root.
+// "#/$defs/Filter" or an "$anchor" name such as "#filter", and may name
+// root's "$id" or the "$id" of a resource that root embeds. sameResource
+// reports whether the value belongs to root's resource, so that
+// references inside it resolve as they would at the root.
 func ResolveLocalRef(root map[string]any, ref string) (target any, sameResource bool, ok bool) {
 	scope := rootScope(root)
 	prefix, fragment, _ := strings.Cut(ref, "#")
-	tokens, ok := decodePointer(fragment)
-	if !ok {
+	tokens, isPointer := decodePointer(fragment)
+	if !isPointer && !anchorName.MatchString(fragment) {
 		return nil, false, false
 	}
-	current, sameResource := any(root), true
+	resource, sameResource := root, true
 	if prefix != "" {
 		uri, ok := scope.resolve(prefix)
 		if !ok {
 			return nil, false, false
 		}
 		if scope.rootBase == nil || canonicalURI(uri) != canonicalURI(scope.rootBase) {
-			current, ok = embeddedResource(root, scope, uri)
+			resource, ok = embeddedResource(root, scope, uri)
 			if !ok {
 				return nil, false, false
 			}
 			sameResource = false
 		}
 	}
+	if !isPointer {
+		node, ok := findAnchor(resource, fragment)
+		return node, sameResource, ok
+	}
+	current := any(resource)
 	for _, token := range tokens {
 		switch typed := current.(type) {
 		case map[string]any:
@@ -238,6 +243,19 @@ func embeddedResource(root map[string]any, scope refScope, uri *url.URL) (map[st
 	copyNode(root, scope, func(node map[string]any, scope refScope) {
 		if _, ok := resourceID(node); ok && scope.nested && scope.base != nil &&
 			found == nil && canonicalURI(scope.base) == want {
+			found = node
+		}
+	})
+	return found, found != nil
+}
+
+// findAnchor returns the subschema of resource that declares anchor with
+// "$anchor". Subschemas that start another resource are skipped, since
+// their anchors belong to that resource.
+func findAnchor(resource map[string]any, anchor string) (map[string]any, bool) {
+	var found map[string]any
+	copyNode(resource, refScope{}, func(node map[string]any, scope refScope) {
+		if !scope.nested && found == nil && node["$anchor"] == anchor {
 			found = node
 		}
 	})

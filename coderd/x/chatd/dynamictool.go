@@ -7,6 +7,7 @@ import (
 	"charm.land/fantasy"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -33,6 +34,8 @@ func dynamicToolsFromSDK(logger slog.Logger, tools []codersdk.DynamicTool) []fan
 		return nil
 	}
 	result := make([]fantasy.AgentTool, 0, len(tools))
+	fullSchemaBytes := 0
+	var reduced []string
 	for _, t := range tools {
 		dt := &dynamicTool{
 			name:        t.Name,
@@ -66,10 +69,41 @@ func dynamicToolsFromSDK(logger slog.Logger, tools []codersdk.DynamicTool) []fan
 				}
 			}
 		}
+		if dt.inputSchema != nil {
+			// Measured as the model receives it; the request size limit
+			// alone would let full schemas add megabytes to every turn.
+			encoded, err := json.Marshal(chatloop.ToolInputSchema(dt))
+			switch {
+			case err != nil:
+				logger.Warn(context.Background(), "failed to encode dynamic tool input schema",
+					slog.F("tool_name", t.Name),
+					slog.Error(err))
+				dt.inputSchema = nil
+			case len(encoded) > min(maxDynamicToolSchemaBytes, maxDynamicToolSchemasBytes-fullSchemaBytes):
+				reduced = append(reduced, t.Name)
+				dt.inputSchema = nil
+			default:
+				fullSchemaBytes += len(encoded)
+			}
+		}
 		result = append(result, dt)
+	}
+	if len(reduced) > 0 {
+		logger.Warn(context.Background(), "dynamic tool input schemas exceed size limits, sending only properties and required",
+			slog.F("tool_names", reduced),
+			slog.F("max_schema_bytes", maxDynamicToolSchemaBytes),
+			slog.F("max_total_schema_bytes", maxDynamicToolSchemasBytes))
 	}
 	return result
 }
+
+// Caps on full dynamic tool input schemas, matching the definition caps
+// for inline MCP servers. A schema past either one keeps only the
+// properties and required names, as before full schemas were sent.
+const (
+	maxDynamicToolSchemaBytes  = 64 << 10
+	maxDynamicToolSchemasBytes = 256 << 10
+)
 
 func (t *dynamicTool) Info() fantasy.ToolInfo {
 	return fantasy.ToolInfo{

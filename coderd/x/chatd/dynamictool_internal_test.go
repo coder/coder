@@ -2,6 +2,8 @@ package chatd
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -105,6 +107,42 @@ func TestDynamicToolsFromSDK(t *testing.T) {
 		info := result[0].Info()
 		require.Contains(t, info.Parameters, "filter")
 		require.Equal(t, []string{"filter"}, info.Required)
+	})
+
+	t.Run("OversizedSchemasFallBack", func(t *testing.T) {
+		t.Parallel()
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		schema := func(padding int) json.RawMessage {
+			return json.RawMessage(fmt.Sprintf(
+				`{"type":"object","properties":{"q":{"type":"string"}},"required":["q"],"$defs":{"P":{"description":%q}}}`,
+				strings.Repeat("a", padding),
+			))
+		}
+		// One schema is over the 64 KiB per-tool cap. Of the five under it,
+		// the fifth would take the total past the 256 KiB cap.
+		tools := []codersdk.DynamicTool{{Name: "huge", InputSchema: schema(64 << 10)}}
+		for i := range 5 {
+			tools = append(tools, codersdk.DynamicTool{
+				Name:        fmt.Sprintf("big_%d", i),
+				InputSchema: schema(55_000),
+			})
+		}
+		result := dynamicToolsFromSDK(logger, tools)
+		require.Len(t, result, len(tools))
+
+		var kept []string
+		for _, tool := range result {
+			full, ok := tool.(fullSchemaTool)
+			require.True(t, ok)
+			if full.FullInputSchema() != nil {
+				kept = append(kept, tool.Info().Name)
+			}
+			// A tool past a cap keeps the flattened pair.
+			info := tool.Info()
+			require.Contains(t, info.Parameters, "q")
+			require.Equal(t, []string{"q"}, info.Required)
+		}
+		require.Equal(t, []string{"big_0", "big_1", "big_2", "big_3"}, kept)
 	})
 
 	t.Run("MultipleTools", func(t *testing.T) {
