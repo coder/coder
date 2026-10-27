@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createDeferred } from "#/testHelpers/deferred";
+import { createDeferred, type Deferred } from "#/testHelpers/deferred";
 import type { ChatMessageInputRef } from "../components/AgentChatInput";
 import type { PendingAttachment } from "../components/ChatPageContent";
 import { draftInputStorageKeyPrefix } from "../utils/draftStorage";
@@ -519,6 +519,54 @@ describe("useConversationEditingState", () => {
 			unmount();
 		});
 	});
+
+	it.each([
+		{
+			request: "a failed edit",
+			editedMessageID: 7,
+			settle: (request: Deferred<undefined>) =>
+				request.reject(new Error("boom")),
+		},
+		{
+			request: "a successful send",
+			editedMessageID: undefined,
+			settle: (request: Deferred<undefined>) => request.resolve(undefined),
+		},
+	])(
+		"keeps a later visit's draft when $request from an earlier visit settles",
+		async ({ editedMessageID, settle }) => {
+			const earlier = renderEditing();
+			earlier.result.current.chatInputRef.current =
+				createMockChatInputHandle().handle;
+			const request = createDeferred<undefined>();
+			earlier.onSend.mockReturnValueOnce(request.promise);
+			act(() => {
+				earlier.result.current.handleContentChange("draft", "draft", false);
+			});
+			if (editedMessageID !== undefined) {
+				act(() => {
+					earlier.result.current.handleEditUserMessage(editedMessageID, "old");
+				});
+			}
+			let sent: Promise<void> = Promise.resolve();
+			act(() => {
+				sent = earlier.result.current.handleSendFromInput({ message: "sent" });
+			});
+			earlier.unmount();
+
+			const later = renderEditing();
+			act(() => {
+				later.result.current.handleContentChange("newer", "newer", false);
+			});
+			await act(async () => {
+				settle(request);
+				await sent.catch(() => {});
+			});
+
+			expect(localStorage.getItem(expectedKey)).toBe("newer");
+			later.unmount();
+		},
+	);
 
 	it("ignores Edit while a send is pending", () => {
 		const { result, onSend, unmount } = renderEditing();
