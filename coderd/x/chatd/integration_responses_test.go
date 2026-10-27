@@ -990,8 +990,8 @@ func assertNoResponsesProviderItemReplay(
 	t.Helper()
 	switch typed := value.(type) {
 	case map[string]interface{}:
-		if chattest.ResponsesItemReferenceID(typed) != "" {
-			require.FailNow(t, "prompt replayed provider item reference")
+		if id := chattest.ResponsesItemReferenceID(typed); id != "" {
+			require.FailNowf(t, "prompt replayed provider item reference", "id %q", id)
 		}
 		for key, raw := range typed {
 			if text, ok := raw.(string); ok {
