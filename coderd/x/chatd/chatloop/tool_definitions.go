@@ -264,6 +264,8 @@ func relocateReferencedRootKeywords(inputSchema map[string]any, removed map[stri
 type objectShape struct {
 	properties map[string]any
 	required   []string
+	// closed reports that names outside properties are forbidden.
+	closed bool
 }
 
 func (s *objectShape) addRequired(names []string) {
@@ -302,6 +304,11 @@ func (f *rootFolder) mergeAll(shape *objectShape, branch any, depth int) {
 		// References in a separate resource resolve against its own
 		// "$id", so its content cannot move into the root resource.
 		return
+	}
+	if additional, ok := node["additionalProperties"].(bool); ok && !additional {
+		if _, hasPatterns := node["patternProperties"]; !hasPatterns {
+			shape.closed = true
+		}
 	}
 	if ref, ok := node["$ref"].(string); ok {
 		f.mergeRef(shape, ref, depth)
@@ -343,8 +350,10 @@ func (f *rootFolder) mergeRef(shape *objectShape, ref string, depth int) {
 }
 
 // mergeAlternatives merges schemas of which at least one must hold. Each
-// property becomes the "anyOf" of the alternatives that define it, and a
-// name is required only when every alternative requires it.
+// property becomes the "anyOf" of the alternatives' schemas for it, and a
+// name is required only when every alternative requires it. An
+// alternative that does not define a property allows any value for it,
+// unless it forbids additional properties.
 func (f *rootFolder) mergeAlternatives(shape *objectShape, branches []any, depth int) {
 	if len(branches) == 0 {
 		return
@@ -368,7 +377,13 @@ func (f *rootFolder) mergeAlternatives(shape *objectShape, branches []any, depth
 		var options []any
 		for _, alternative := range alternatives {
 			property, ok := alternative.properties[name]
-			if !ok || slices.ContainsFunc(options, func(option any) bool {
+			if !ok {
+				if alternative.closed {
+					continue
+				}
+				property = map[string]any{}
+			}
+			if slices.ContainsFunc(options, func(option any) bool {
 				return reflect.DeepEqual(option, property)
 			}) {
 				continue

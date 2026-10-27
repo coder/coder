@@ -716,7 +716,7 @@ func validateToolDefinitions(tools []fantasy.AgentTool, limits toolLimits) error
 
 	totalBytes := 0
 	for _, tool := range tools {
-		definition, err := json.Marshal(tool.Info())
+		definition, err := json.Marshal(modelToolDefinition(tool))
 		if err != nil {
 			return xerrors.Errorf("marshal MCP tool definition: %w", err)
 		}
@@ -735,6 +735,26 @@ func validateToolDefinitions(tools []fantasy.AgentTool, limits toolLimits) error
 		}
 	}
 	return nil
+}
+
+// modelToolDefinition returns the definition the model receives for a
+// tool: its full input schema when it has one, which can carry keys
+// such as "$defs" that Info() does not.
+func modelToolDefinition(tool fantasy.AgentTool) any {
+	info := tool.Info()
+	full, ok := tool.(interface{ FullInputSchema() map[string]any })
+	if !ok {
+		return info
+	}
+	schema := full.FullInputSchema()
+	if schema == nil {
+		return info
+	}
+	return map[string]any{
+		"name":         info.Name,
+		"description":  info.Description,
+		"input_schema": schema,
+	}
 }
 
 // Closing the client session ends the server session through the shared pipe.
@@ -1343,16 +1363,21 @@ func (t *mcpToolWrapper) FullInputSchema() map[string]any {
 		},
 		"required": []string{"model_intent", "properties"},
 	}
-	keys := []string{"$schema", "$defs", "definitions"}
-	if id, ok := inner["$id"].(string); ok && !strings.HasPrefix(id, "#") {
-		// A fragment-only "$id" is a draft 7 anchor naming the tool's
-		// schema itself, so it stays with it.
-		keys = append(keys, "$id")
-	}
-	for _, key := range keys {
+	for _, key := range []string{"$schema", "$defs", "definitions"} {
 		if value, ok := inner[key]; ok {
 			wrapped[key] = value
 			delete(inner, key)
+		}
+	}
+	if id, ok := inner["$id"].(string); ok && !strings.HasPrefix(id, "#") {
+		// The resource URI moves up, but a fragment is a draft 7 anchor
+		// naming the tool's schema itself, so it stays with it, as a
+		// fragment-only "$id" does.
+		wrapped["$id"] = id
+		delete(inner, "$id")
+		if base, fragment, _ := strings.Cut(id, "#"); fragment != "" {
+			wrapped["$id"] = base
+			inner["$id"] = "#" + fragment
 		}
 	}
 	return wrapped

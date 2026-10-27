@@ -240,27 +240,35 @@ func TestNormalize(t *testing.T) {
 		{
 			// Providers validate tool schemas against draft 2020-12,
 			// which forbids a non-empty fragment in "$id". Earlier
-			// drafts used one to name an anchor.
-			name: "fragments are removed from $id",
+			// drafts used one to name an anchor, which 2020-12 spells
+			// "$anchor".
+			name: "fragments in $id become anchors",
 			schema: `{
 				"$id": "https://example.com/tool.json#root",
 				"properties": {
 					"a": {"$ref": "https://example.com/tool.json#/$defs/A"},
 					"anchor": {"$id": "#anchor", "type": "string"},
+					"to anchor": {"$ref": "https://example.com/tool.json#anchor"},
 					"nested": {"$id": "nested.json#n", "type": "string"},
-					"empty fragment": {"$id": "empty.json#", "type": "string"}
+					"empty fragment": {"$id": "empty.json#", "type": "string"},
+					"pointer": {"$id": "#/properties/pointer", "type": "string"},
+					"kept anchor": {"$id": "#old", "$anchor": "new", "type": "string"}
 				},
 				"$defs": {"A": {"$id": "#A", "type": "string"}}
 			}`,
 			want: `{
 				"$id": "https://example.com/tool.json",
+				"$anchor": "root",
 				"properties": {
 					"a": {"$ref": "#/$defs/A"},
-					"anchor": {"type": "string"},
-					"nested": {"$id": "nested.json", "type": "string"},
-					"empty fragment": {"$id": "empty.json#", "type": "string"}
+					"anchor": {"$anchor": "anchor", "type": "string"},
+					"to anchor": {"$ref": "#anchor"},
+					"nested": {"$id": "nested.json", "$anchor": "n", "type": "string"},
+					"empty fragment": {"$id": "empty.json#", "type": "string"},
+					"pointer": {"type": "string"},
+					"kept anchor": {"$anchor": "new", "type": "string"}
 				},
-				"$defs": {"A": {"type": "string"}}
+				"$defs": {"A": {"$anchor": "A", "type": "string"}}
 			}`,
 		},
 	} {
