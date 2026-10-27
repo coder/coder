@@ -128,7 +128,7 @@ const ChatMessageItem = memo<{
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
 	latestAskUserQuestion?: MergedTool;
-	askUserQuestionResponseTextByToolId?: ReadonlyMap<string, string>;
+	askUserQuestionResponseTextByTool?: ReadonlyMap<MergedTool, string>;
 	isLatestAskUserQuestionAnswered?: boolean;
 	prevUserMessageKey?: string;
 	nextUserMessageKey?: string;
@@ -156,7 +156,7 @@ const ChatMessageItem = memo<{
 		onSendAskUserQuestionResponse,
 		isChatCompleted,
 		latestAskUserQuestion,
-		askUserQuestionResponseTextByToolId,
+		askUserQuestionResponseTextByTool,
 		isLatestAskUserQuestionAnswered = false,
 		prevUserMessageKey,
 		nextUserMessageKey,
@@ -279,8 +279,8 @@ const ChatMessageItem = memo<{
 									onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 									isChatCompleted={isChatCompleted}
 									latestAskUserQuestion={latestAskUserQuestion}
-									askUserQuestionResponseTextByToolId={
-										askUserQuestionResponseTextByToolId
+									askUserQuestionResponseTextByTool={
+										askUserQuestionResponseTextByTool
 									}
 									isLatestAskUserQuestionAnswered={
 										isLatestAskUserQuestionAnswered
@@ -594,9 +594,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			queuedMessages,
 		);
 		const latestAskUserQuestion = askUserQuestionState.latestTool;
-		const askUserQuestionResponseTextByToolId =
-			askUserQuestionState.responseTextByToolId.size > 0
-				? askUserQuestionState.responseTextByToolId
+		const askUserQuestionResponseTextByTool =
+			askUserQuestionState.responseTextByTool.size > 0
+				? askUserQuestionState.responseTextByTool
 				: undefined;
 
 		// The work section keeps the row's key, so a row that becomes an answer
@@ -651,9 +651,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 					isChatCompleted={isChatCompleted}
 					latestAskUserQuestion={latestAskUserQuestion}
-					askUserQuestionResponseTextByToolId={
-						askUserQuestionResponseTextByToolId
-					}
+					askUserQuestionResponseTextByTool={askUserQuestionResponseTextByTool}
 					isLatestAskUserQuestionAnswered={
 						askUserQuestionState.isLatestAnswered
 					}

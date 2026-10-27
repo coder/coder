@@ -10,7 +10,7 @@ type AskUserQuestionState = {
 	/** Set only by delivered messages, never by queued ones. */
 	isLatestAnswered: boolean;
 	/** Whole answer messages, prefix line included, from delivered and queued messages. */
-	responseTextByToolId: ReadonlyMap<string, string>;
+	responseTextByTool: ReadonlyMap<MergedTool, string>;
 };
 
 // A call that is still running or failed validation supersedes nothing.
@@ -38,9 +38,11 @@ export const deriveAskUserQuestionState = (
 ): AskUserQuestionState => {
 	let latestTool: MergedTool | undefined;
 	let isLatestAnswered = false;
-	let pendingBlockingToolId: string | undefined;
-	const responseTextByToolId = new Map<string, string>();
-	const startedAtByToolId = new Map<string, string | undefined>();
+	let pendingBlockingTool: MergedTool | undefined;
+	const responseTextByTool = new Map<MergedTool, string>();
+	// Providers can reuse a call ID in a later turn, so an answer belongs to
+	// the newest call before it that has its ID.
+	const latestToolById = new Map<string, MergedTool>();
 
 	for (const { message, parsed } of parsedMessages) {
 		// The calls before a tool message already carry its results.
@@ -53,13 +55,10 @@ export const deriveAskUserQuestionState = (
 			}
 			latestTool = tool;
 			isLatestAnswered = false;
-			// Providers can reuse a call ID in a later turn, so only the answers
-			// that follow this call count for it.
-			responseTextByToolId.delete(tool.id);
-			startedAtByToolId.set(tool.id, tool.startedAt);
-			pendingBlockingToolId = isAsyncAskUserQuestionResult(tool.result)
+			latestToolById.set(tool.id, tool);
+			pendingBlockingTool = isAsyncAskUserQuestionResult(tool.result)
 				? undefined
-				: tool.id;
+				: tool;
 		}
 		if (message.role !== "user") {
 			continue;
@@ -67,18 +66,21 @@ export const deriveAskUserQuestionState = (
 
 		const asyncAnswer = parseAsyncAnswerContent(message.content);
 		if (asyncAnswer) {
-			responseTextByToolId.set(asyncAnswer.toolCallId, asyncAnswer.text);
+			const answeredTool = latestToolById.get(asyncAnswer.toolCallId);
+			if (answeredTool) {
+				responseTextByTool.set(answeredTool, asyncAnswer.text);
+			}
 			if (asyncAnswer.toolCallId === latestTool?.id) {
 				isLatestAnswered = true;
-				pendingBlockingToolId = undefined;
+				pendingBlockingTool = undefined;
 			}
-		} else if (pendingBlockingToolId !== undefined) {
+		} else if (pendingBlockingTool !== undefined) {
 			isLatestAnswered = true;
 			const responseText = getMessageText(message.content);
 			if (responseText.length > 0) {
-				responseTextByToolId.set(pendingBlockingToolId, responseText);
+				responseTextByTool.set(pendingBlockingTool, responseText);
 			}
-			pendingBlockingToolId = undefined;
+			pendingBlockingTool = undefined;
 		}
 	}
 
@@ -87,25 +89,24 @@ export const deriveAskUserQuestionState = (
 	if (liveQuestion) {
 		latestTool = liveQuestion;
 		isLatestAnswered = false;
-		responseTextByToolId.delete(liveQuestion.id);
-		startedAtByToolId.set(liveQuestion.id, liveQuestion.startedAt);
+		latestToolById.set(liveQuestion.id, liveQuestion);
 	}
 
 	// A queued answer is not delivered yet, but it already answers its call,
 	// so another tab or a reload does not offer the question again.
 	for (const queuedMessage of queuedMessages) {
 		const asyncAnswer = parseAsyncAnswerContent(queuedMessage.content);
+		const answeredTool =
+			asyncAnswer && latestToolById.get(asyncAnswer.toolCallId);
 		if (
 			asyncAnswer &&
-			!responseTextByToolId.has(asyncAnswer.toolCallId) &&
-			!isQueuedBeforeCall(
-				queuedMessage,
-				startedAtByToolId.get(asyncAnswer.toolCallId),
-			)
+			answeredTool &&
+			!responseTextByTool.has(answeredTool) &&
+			!isQueuedBeforeCall(queuedMessage, answeredTool.startedAt)
 		) {
-			responseTextByToolId.set(asyncAnswer.toolCallId, asyncAnswer.text);
+			responseTextByTool.set(answeredTool, asyncAnswer.text);
 		}
 	}
 
-	return { latestTool, isLatestAnswered, responseTextByToolId };
+	return { latestTool, isLatestAnswered, responseTextByTool };
 };
