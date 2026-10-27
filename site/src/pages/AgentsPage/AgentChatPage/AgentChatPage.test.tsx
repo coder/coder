@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Outlet } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -18,8 +18,10 @@ import {
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
 import { createMockWebSocket } from "#/testHelpers/websockets";
+import { mobileViewportMediaQuery } from "#/utils/mobile";
 import { OneWayWebSocket } from "#/utils/OneWayWebSocket";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
+import { MockAsyncQuestionMessages } from "../components/ChatConversation/storyFixtures";
 import AgentChatPage from "./AgentChatPage";
 
 const mockProjectChat = { ...MockChat, project_id: "project-1" };
@@ -33,6 +35,7 @@ const outletContext: Partial<AgentsPageOutletContext> = {
 
 afterEach(() => {
 	vi.restoreAllMocks();
+	vi.unstubAllGlobals();
 });
 
 const mockChatPageAPI = (messages: ChatMessage[] = []) => {
@@ -108,6 +111,37 @@ describe("AgentChatPage", () => {
 				listRequestsBeforeSend + 1,
 			),
 		);
+	});
+
+	it("focuses the chat input after an answer sends on a narrow screen", async () => {
+		const matchMedia = window.matchMedia;
+		vi.stubGlobal("matchMedia", (query: string) => ({
+			...matchMedia(query),
+			matches: query === mobileViewportMediaQuery,
+		}));
+		mockChatPageAPI(MockAsyncQuestionMessages);
+		const createChatMessage = vi
+			.spyOn(API.experimental, "createChatMessage")
+			.mockResolvedValue({ queued: true });
+		const user = userEvent.setup();
+
+		renderChatPage();
+		const dock = await screen.findByRole("region", { name: "Open question" });
+		const composer = screen.getByRole("textbox", { name: "Chat message" });
+		// jsdom focuses the editor only while the DOM selection is already in
+		// it, so the answer is given with the keyboard after a click there.
+		await user.click(composer);
+		act(() =>
+			within(dock)
+				.getByRole("radio", { name: /^Frontend/ })
+				.focus(),
+		);
+		await user.keyboard(" ");
+		act(() => within(dock).getByRole("button", { name: "Submit" }).focus());
+		await user.keyboard("{Enter}");
+
+		await waitFor(() => expect(createChatMessage).toHaveBeenCalledTimes(1));
+		await waitFor(() => expect(composer).toHaveFocus());
 	});
 
 	it("keeps the call line when an async answer that starts with a skill chip is edited", async () => {

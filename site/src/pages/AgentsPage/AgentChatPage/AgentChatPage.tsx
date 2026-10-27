@@ -721,10 +721,26 @@ const AgentChatPage: React.FC = () => {
 		});
 	}
 
+	// The composer skips its own refocus after a send on narrow screens so
+	// the on-screen keyboard stays closed. An answer's form closes when it
+	// sends and focus would fall to the page body, so answers refocus the
+	// composer on every screen size. The effect waits for the render in which
+	// the finished send enables the editor again.
+	const [composerFocusRequest, setComposerFocusRequest] = useState(0);
+	useEffect(() => {
+		if (composerFocusRequest > 0) {
+			chatInputRef.current?.focus();
+		}
+	}, [composerFocusRequest]);
+
 	const handleSendAskUserQuestionResponse = async (message: string) => {
 		await submitChatTurn({
 			...chatTurnDeps,
 			message,
+			sendMessage: (request) =>
+				sendMessage(request).finally(() => {
+					setComposerFocusRequest((count) => count + 1);
+				}),
 		});
 	};
 
