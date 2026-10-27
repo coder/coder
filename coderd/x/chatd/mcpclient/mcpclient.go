@@ -1099,8 +1099,9 @@ func newSecretRedactor(values []string) secretRedactor {
 
 // newServerRedactor hides every value an inline server's operator
 // supplied, whole and as each structural component, because a server
-// may echo a path segment or a header credential on its own. The URL
-// origin is public, as in redactServerURL. Org servers are not redacted.
+// may echo a path segment, a URL credential, or a header credential on
+// its own. The URL origin is public, as in redactServerURL. Org servers
+// are not redacted.
 func newServerRedactor(kind connectionKind, srv Server) secretRedactor {
 	if kind != connectionKindInline {
 		return secretRedactor{}
@@ -1111,6 +1112,7 @@ func newServerRedactor(kind connectionKind, srv Server) secretRedactor {
 			values = append(values, path)
 			values = append(values, strings.Split(path, "/")...)
 		}
+		values = append(values, urlCredentials(u)...)
 	}
 	for _, value := range srv.Headers {
 		values = append(values, value)
@@ -1129,6 +1131,34 @@ func newServerRedactor(kind connectionKind, srv Server) secretRedactor {
 		}
 	}
 	return newSecretRedactor(values)
+}
+
+// urlCredentials returns the parts of a URL that may hold a credential
+// on their own: its user information, whole and as the user name and
+// password, and its query, whole and as each value, both as spelled and
+// decoded. Query parameter names are not secret, like header names.
+func urlCredentials(u *url.URL) []string {
+	var values []string
+	if u.User != nil {
+		userinfo := u.User.String()
+		values = append(values, userinfo, u.User.Username())
+		values = append(values, strings.SplitN(userinfo, ":", 2)...)
+		if password, ok := u.User.Password(); ok {
+			values = append(values, password)
+		}
+	}
+	if u.RawQuery != "" {
+		values = append(values, u.RawQuery)
+		for _, part := range strings.Split(u.RawQuery, "&") {
+			if _, value, ok := strings.Cut(part, "="); ok {
+				values = append(values, value)
+				if decoded, err := url.QueryUnescape(value); err == nil {
+					values = append(values, decoded)
+				}
+			}
+		}
+	}
+	return values
 }
 
 func (r secretRedactor) redactString(value string) string {
@@ -1309,14 +1339,15 @@ func (r secretRedactor) redactSchemaData(value any) any {
 }
 
 // redactSchemaProperties redacts a map from names to schemas, such as
-// "properties", or to lists of names, as draft 7 "dependencies" may hold.
+// "properties", or to names, as "dependencies" may hold: a list of them,
+// or in draft 3 a single name.
 func (r secretRedactor) redactSchemaProperties(named map[string]any) map[string]any {
 	if len(named) == 0 || len(r.values) == 0 {
 		return named
 	}
 	return r.redactNamedMap(named, func(item any) any {
 		switch item.(type) {
-		case []any, []string:
+		case string, []any, []string:
 			return r.redactSchemaNames(item)
 		default:
 			return r.redactSubschema(item)
@@ -1510,20 +1541,36 @@ func (r secretRedactor) collectReferenceNames(ref string, names schemaNames) {
 		names.add(referenceAnchor(fragment), false)
 		return
 	}
+	kept := r.keptTokens(pointer)
 	var text maskedText
 	for i, token := range pointer.escaped {
 		text.write("/", true)
-		text.write(token, pointer.keywords[i])
+		text.write(token, kept[i])
 	}
 	exposed := r.exposedBytes(text.String(), text.kept)
 	start := 1
 	for i, token := range pointer.escaped {
 		end := start + len(token)
-		if !pointer.keywords[i] {
+		if !kept[i] {
 			names.add(pointer.tokens[i], slices.Contains(exposed[start:end], true))
 		}
 		start = end + 1
 	}
+}
+
+// keptTokens marks the tokens of a reference's JSON Pointer that
+// redaction keeps as they are: the keywords, and the tokens spelled like
+// array indexes that hold no sensitive value. Such a token may be a
+// position in a list, which cannot be renamed, and it shows nothing the
+// structure of the schema does not.
+func (r secretRedactor) keptTokens(pointer referencePointer) []bool {
+	kept := slices.Clone(pointer.keywords)
+	for i, token := range pointer.tokens {
+		if token != "" && strings.Trim(token, "0123456789") == "" && r.replace(token, redactedNamePlaceholder) == token {
+			kept[i] = true
+		}
+	}
+	return kept
 }
 
 // referencePointer is the JSON Pointer in the fragment of a reference.
@@ -1566,10 +1613,10 @@ func referenceAnchor(fragment string) string {
 // redactReference redacts a reference so that it still names its target
 // in the redacted schema: an anchor fragment and each name in a JSON
 // Pointer fragment are redacted like the names they are, and the pointer
-// tokens that are keywords stay. Each occurrence of a sensitive value
+// tokens keptTokens marks stay. Each occurrence of a sensitive value
 // left in the reference is then replaced like redactSchemaName does,
-// unless it lies within those keyword tokens and the delimiters between
-// them, which show nothing every schema does not. The URI part is
+// unless it lies within those kept tokens and the delimiters between
+// them, which show nothing the structure of the schema does not. The URI part is
 // redacted by redactReferenceURI first.
 func (r secretRedactor) redactReference(ref string) string {
 	uri, fragment, hasFragment := strings.Cut(ref, "#")
@@ -1578,12 +1625,13 @@ func (r secretRedactor) redactReference(ref string) string {
 	if hasFragment {
 		text.write("#", true)
 		if pointer, ok := parseReferencePointer(fragment); ok {
+			kept := r.keptTokens(pointer)
 			for i, token := range pointer.tokens {
-				if !pointer.keywords[i] {
+				if !kept[i] {
 					token = r.redactSchemaName(token)
 				}
 				text.write("/", true)
-				text.write(toolschema.EncodePointer([]string{token})[1:], pointer.keywords[i])
+				text.write(toolschema.EncodePointer([]string{token})[1:], kept[i])
 			}
 		} else if name, err := url.PathUnescape(fragment); err == nil {
 			text.write((&url.URL{Fragment: r.redactSchemaName(name)}).EscapedFragment(), false)

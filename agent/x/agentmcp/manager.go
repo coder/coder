@@ -1143,9 +1143,11 @@ const minSecretBytes = 8
 
 // configSecrets returns the values of a server's configuration that may
 // be credentials, whole and as each part a server may echo on its own:
-// the URL and its path segments, and the header, environment, and
-// argument values with their space, semicolon, or comma separated parts
-// and the value of each name=value part.
+// the URL, its path segments, its user information with the user name
+// and password, and its query with each parameter value, as spelled and
+// decoded, and the header, environment, and argument values with their
+// space, semicolon, or comma separated parts and the value of each
+// name=value part.
 func configSecrets(cfg ServerConfig) []string {
 	var values []string
 	add := func(value string) {
@@ -1165,6 +1167,25 @@ func configSecrets(cfg ServerConfig) []string {
 		for _, path := range []string{u.EscapedPath(), u.Path} {
 			values = append(values, path)
 			values = append(values, strings.Split(path, "/")...)
+		}
+		if u.User != nil {
+			userinfo := u.User.String()
+			values = append(values, userinfo, u.User.Username())
+			values = append(values, strings.SplitN(userinfo, ":", 2)...)
+			if password, ok := u.User.Password(); ok {
+				values = append(values, password)
+			}
+		}
+		if u.RawQuery != "" {
+			values = append(values, u.RawQuery)
+			for _, part := range strings.Split(u.RawQuery, "&") {
+				if _, value, ok := strings.Cut(part, "="); ok {
+					values = append(values, value)
+					if decoded, err := url.QueryUnescape(value); err == nil {
+						values = append(values, decoded)
+					}
+				}
+			}
 		}
 	}
 	for _, value := range cfg.Headers {

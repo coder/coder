@@ -3,6 +3,7 @@ package agentcontext
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 	"testing"
@@ -12,6 +13,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -397,6 +399,14 @@ func TestBuildMCPServerResourcesInputSchemaCaps(t *testing.T) {
 		got := build(errorBytes)
 		require.Equal(t, map[string]bool{"fs/t1": false, "fs/t2": true}, fullSchemas(got))
 		require.LessOrEqual(t, pushWireBytes(others(errorBytes), got), maxPushWireBytes)
+		// The headroom fits the longest snapshot error coderd accepts.
+		push := &PushRequest{
+			Version:       math.MaxUint64,
+			Initial:       true,
+			SnapshotError: strings.Repeat("e", maxSnapshotErrorBytes),
+			Resources:     slices.Concat(others(errorBytes), got),
+		}
+		require.LessOrEqual(t, proto.Size(pushRequestToProto(push)), drpcsdk.MaxMessageSize)
 		got = build(errorBytes + 1)
 		require.Equal(t, map[string]bool{"fs/t1": false, "fs/t2": false}, fullSchemas(got))
 	})

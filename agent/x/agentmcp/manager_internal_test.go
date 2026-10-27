@@ -512,21 +512,24 @@ func TestToolInputSchemaMapSecrets(t *testing.T) {
 func TestConfigSecrets(t *testing.T) {
 	t.Parallel()
 
+	const rawURL = "https://svc-account:pass%2Fword1@mcp.example.com/u/pathsecret1/mcp?token=query%2Bsecret1&mode=fast"
 	secrets := configSecrets(ServerConfig{
-		URL:     "https://mcp.example.com/u/pathsecret1/mcp",
+		URL:     rawURL,
 		Headers: map[string]string{"Authorization": "Bearer headersecret1", "X-Short": "abc"},
 		Env:     map[string]string{"API": "session=envsecret1; mode=fast"},
 		Args:    []string{"--key=argsecret12"},
 	})
 	for _, want := range []string{
-		"https://mcp.example.com/u/pathsecret1/mcp", "pathsecret1",
+		rawURL, "pathsecret1",
+		"svc-account", "pass%2Fword1", "pass/word1",
+		"query%2Bsecret1", "query+secret1",
 		"Bearer headersecret1", "headersecret1",
 		"session=envsecret1", "envsecret1",
 		"--key=argsecret12", "argsecret12",
 	} {
 		require.Contains(t, secrets, want)
 	}
-	for _, short := range []string{"abc", "u", "mcp", "Bearer", "fast"} {
+	for _, short := range []string{"abc", "u", "mcp", "Bearer", "fast", "token"} {
 		require.NotContains(t, secrets, short)
 	}
 }

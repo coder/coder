@@ -490,6 +490,38 @@ func TestConnectInline_RedactsSensitiveValues(t *testing.T) {
 	require.NotContains(t, summaries[0].Error, "querytoken")
 }
 
+// TestConnectInline_RedactsURLCredentials verifies that the user name,
+// password, and query values of an inline server's URL are redacted on
+// their own, as a server may echo them.
+func TestConnectInline_RedactsURLCredentials(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	account := testTool{
+		tool: &mcp.Tool{
+			Name:        "lookup_account",
+			Description: "Signs in as svc-account-name with pass-word-secret, then sends query+token-value.",
+			InputSchema: map[string]any{"type": "object", "properties": map[string]any{}},
+		},
+		handler: func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return textToolResult("ok"), nil
+		},
+	}
+	ts := newTestMCPServer(t, account)
+	serverURL := strings.Replace(ts.URL, "://", "://svc-account-name:pass-word-secret@", 1) + "?token=query%2Btoken-value"
+	cfg := makeInlineConfig("data-bot", serverURL, nil)
+
+	tools, summaries, cleanup := mcpclient.ConnectInlineForTest(
+		ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
+	)
+	t.Cleanup(cleanup)
+	require.Len(t, summaries, 1)
+	require.Equal(t, mcpclient.ConnectOutcomeConnected, summaries[0].Outcome)
+	require.Len(t, tools, 1)
+	require.Equal(t, "Signs in as [REDACTED] with [REDACTED], then sends [REDACTED].", tools[0].Info().Description)
+}
+
 // TestConnectInline_IgnoresShortSensitiveValues verifies that a
 // sensitive value shorter than MinSensitiveValueBytes is dropped rather
 // than redacted, so a one-letter value cannot mangle tool names,
@@ -870,6 +902,85 @@ func TestConnectInline_RedactsEncodedAndKeywordReferences(t *testing.T) {
 			"REDACT_2": map[string]any{"properties": map[string]any{"x": map[string]any{"type": "integer"}}},
 		},
 	}, fullSchema.FullInputSchema())
+}
+
+// TestConnectInline_KeepsIndexesAndDraft3DependencyNames verifies that a
+// reference keeps an array index that a sensitive value spans, since a
+// list position cannot be renamed, and that a draft 3 dependency on a
+// single name is redacted like the property it names.
+func TestConnectInline_KeepsIndexesAndDraft3DependencyNames(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	handler := func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return textToolResult("ok"), nil
+	}
+	indexed := testTool{
+		tool: &mcp.Tool{
+			Name: "indexed",
+			InputSchema: map[string]any{
+				"type":  "object",
+				"anyOf": []any{map[string]any{"required": []any{"x"}}, map[string]any{"required": []any{"y"}}},
+				"properties": map[string]any{
+					"x": map[string]any{"$ref": "#/anyOf/0"},
+					"y": map[string]any{"type": "string"},
+				},
+			},
+		},
+		handler: handler,
+	}
+	legacy := testTool{
+		tool: &mcp.Tool{
+			Name: "legacy",
+			InputSchema: map[string]any{
+				"$schema": "http://json-schema.org/draft-03/schema#",
+				"type":    "object",
+				"properties": map[string]any{
+					"a":           map[string]any{"type": "string"},
+					"k_topsecret": map[string]any{"type": "string"},
+				},
+				"dependencies": map[string]any{"a": "k_topsecret"},
+			},
+		},
+		handler: handler,
+	}
+	ts := newTestMCPServer(t, indexed, legacy)
+	cfg := makeInlineConfig("data-bot", ts.URL+"/mcp", map[string]string{
+		"X-Path": "/anyOf/0",
+		"X-Key":  "topsecret",
+	})
+
+	tools, summaries, cleanup := mcpclient.ConnectInlineForTest(
+		ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
+	)
+	t.Cleanup(cleanup)
+	require.Len(t, summaries, 1)
+	require.Equal(t, mcpclient.ConnectOutcomeConnected, summaries[0].Outcome)
+	require.Len(t, tools, 2)
+	schemas := make(map[string]map[string]any, len(tools))
+	for _, tool := range tools {
+		fullSchema, ok := tool.(fullSchemaTool)
+		require.True(t, ok)
+		schemas[tool.Info().Name] = fullSchema.FullInputSchema()
+	}
+	require.Equal(t, map[string]any{
+		"type":  "object",
+		"anyOf": []any{map[string]any{"required": []any{"x"}}, map[string]any{"required": []any{"y"}}},
+		"properties": map[string]any{
+			"x": map[string]any{"$ref": "#/anyOf/0"},
+			"y": map[string]any{"type": "string"},
+		},
+	}, schemas["data-bot__indexed"])
+	require.Equal(t, map[string]any{
+		"$schema": "http://json-schema.org/draft-03/schema#",
+		"type":    "object",
+		"properties": map[string]any{
+			"a":          map[string]any{"type": "string"},
+			"k_REDACTED": map[string]any{"type": "string"},
+		},
+		"dependencies": map[string]any{"a": "k_REDACTED"},
+	}, schemas["data-bot__legacy"])
 }
 
 func TestConnectInline_BodyCap(t *testing.T) {

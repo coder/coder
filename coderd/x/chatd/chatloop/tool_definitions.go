@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"charm.land/fantasy"
 
@@ -278,7 +279,7 @@ func foldRootComposition(inputSchema map[string]any, banned []string) map[string
 // ignoresRefSiblings reports whether a schema declares a draft before
 // 2019-09, in which every keyword beside "$ref" is ignored.
 func ignoresRefSiblings(schema map[string]any) bool {
-	return strings.Contains(toolschema.Dialect(schema), "json-schema.org/draft-0")
+	return toolschema.IsLegacyDialect(toolschema.Dialect(schema))
 }
 
 // maxPatternMatchCost bounds the regular expression work of matching the
@@ -299,11 +300,16 @@ type patternMatcher struct {
 }
 
 // match returns the sorted patterns in patterns that name matches. It
-// reports false when that is unknown: maxPatternMatchCost is spent, or a
-// pattern Go cannot compile, such as one using lookahead, might match.
-// Patterns are tried in sorted order, so the budget a call spends, and
-// with it the folded schema, does not vary between runs.
+// reports false when that is unknown: maxPatternMatchCost is spent, a
+// pattern Go cannot compile, such as one using lookahead, might match,
+// or Go and the ECMAScript semantics of JSON Schema patterns might not
+// agree on the match (see portablePattern and portableName). Patterns
+// are tried in sorted order, so the budget a call spends, and with it
+// the folded schema, does not vary between runs.
 func (m *patternMatcher) match(patterns map[string]any, name string) ([]string, bool) {
+	if len(patterns) > 0 && !portableName(name) {
+		return nil, false
+	}
 	var matched []string
 	for _, pattern := range slices.Sorted(maps.Keys(patterns)) {
 		if m.cost > maxPatternMatchCost {
@@ -316,7 +322,7 @@ func (m *patternMatcher) match(patterns map[string]any, name string) ([]string, 
 				m.compiled = map[string]*regexp.Regexp{}
 			}
 			var err error
-			if re, err = regexp.Compile(pattern); err != nil {
+			if re, err = regexp.Compile(pattern); err != nil || !portablePattern(pattern) {
 				m.compiled[pattern] = nil
 				return nil, false
 			}
@@ -334,6 +340,48 @@ func (m *patternMatcher) match(patterns map[string]any, name string) ([]string, 
 		}
 	}
 	return matched, true
+}
+
+// portableName reports whether Go and ECMAScript match name alike
+// against a portable pattern: an ASCII name without a carriage return,
+// which ECMAScript's "." does not match, or a vertical tab, which its
+// "\s" does. ECMAScript's "\s" also matches Unicode spaces, and without
+// the "u" flag it counts the characters outside the Basic Multilingual
+// Plane twice.
+func portableName(name string) bool {
+	for i := range len(name) {
+		if name[i] >= utf8.RuneSelf || name[i] == '\r' || name[i] == '\v' {
+			return false
+		}
+	}
+	return true
+}
+
+// portablePattern reports whether a pattern Go compiles uses only syntax
+// that ECMAScript reads the same way. It rejects Go's groups that start
+// with "(?" other than "(?:", its POSIX classes, a class that starts
+// with "]", which ECMAScript reads as an empty class, escapes other than
+// those of a character, a class such as "\d", or a word boundary, and
+// characters outside ASCII, which ECMAScript without the "u" flag reads
+// as UTF-16 code units.
+func portablePattern(pattern string) bool {
+	const portableEscapes = `dDwWsSbBtnrfv.\/-^$|()[]{}*+?`
+	if strings.Contains(pattern, "[:") || strings.Contains(pattern, "[]") || strings.Contains(pattern, "[^]") {
+		return false
+	}
+	for i := 0; i < len(pattern); i++ {
+		switch {
+		case pattern[i] == '\\':
+			if i+1 == len(pattern) || !strings.ContainsRune(portableEscapes, rune(pattern[i+1])) {
+				return false
+			}
+			i++
+		case pattern[i] >= utf8.RuneSelf,
+			strings.HasPrefix(pattern[i:], "(?") && !strings.HasPrefix(pattern[i:], "(?:"):
+			return false
+		}
+	}
+	return true
 }
 
 // undeclaredRootProperties returns property schemas for required names
@@ -947,6 +995,7 @@ type rootFolder struct {
 	skipped    int
 	patterns   patternMatcher
 	refScanner toolschema.RefScanner
+	idScanner  toolschema.IdentifierScanner
 }
 
 // leaveOut records that the fold left a schema out.
@@ -1101,9 +1150,11 @@ func (f *rootFolder) mergeRef(shape *objectShape, ref string) {
 		f.leaveOut()
 		return
 	}
-	if node, ok := target.(map[string]any); ok && !sameResource && f.refScanner.HasRefs(node) {
+	if node, ok := target.(map[string]any); ok && ((!sameResource && f.refScanner.HasRefs(node)) || f.idScanner.HasNestedIdentifiers(node)) {
 		// As in mergeAll, references inside another resource resolve
-		// against its own "$id".
+		// against its own "$id". The target also stays where it is, so
+		// copying a resource or an anchor it declares would declare it
+		// twice.
 		f.leaveOut()
 		return
 	}
@@ -1201,6 +1252,9 @@ func (f *rootFolder) alternativeOptions(alternatives []objectShape, name string)
 		if !f.spend(1 + len(options) + len(alternatives[i].merged)) {
 			return nil, false
 		}
+		if f.forbidsName(&alternatives[i], name) {
+			continue
+		}
 		property, ok := alternatives[i].properties[name]
 		if !ok {
 			property, ok = f.undeclaredSchema(&alternatives[i], name)
@@ -1230,11 +1284,81 @@ func (f *rootFolder) requiresForbidden(shape *objectShape) bool {
 		if !ok {
 			property, ok = f.undeclaredSchema(shape, name)
 		}
-		if !ok || isBooleanSchema(property, false) {
+		if !ok || isBooleanSchema(property, false) || f.forbidsName(shape, name) {
 			return true
 		}
 	}
 	return false
+}
+
+// forbidsName reports whether the "propertyNames" of a schema merged into
+// shape, an alternative, rejects name, which then cannot be a property
+// of an object the alternative allows. It tells only through false and
+// the keywords that test a name on their own, and reports false when it
+// cannot tell.
+func (f *rootFolder) forbidsName(shape *objectShape, name string) bool {
+	for _, node := range shape.merged {
+		names, ok := node["propertyNames"]
+		if !ok {
+			continue
+		}
+		if isBooleanSchema(names, false) {
+			return true
+		}
+		schema, ok := names.(map[string]any)
+		if !ok {
+			continue
+		}
+		if _, ok := schema["$ref"]; ok && f.ignoreRefSiblings {
+			continue
+		}
+		if f.rejectsName(schema, name) {
+			return true
+		}
+	}
+	return false
+}
+
+// rejectsName reports whether a "type", "const", "enum", "pattern",
+// "minLength" or "maxLength" in schema rejects name. Lengths count code
+// points, and for "minLength" UTF-16 code units, which a validator may
+// count instead, so that both counts reject the name.
+func (f *rootFolder) rejectsName(schema map[string]any, name string) bool {
+	switch kind := schema["type"].(type) {
+	case string:
+		if kind != "string" {
+			return true
+		}
+	case []any:
+		if !slices.Contains(kind, any("string")) {
+			return true
+		}
+	}
+	if value, ok := schema["const"]; ok {
+		if text, isText := value.(string); !isText || text != name {
+			return true
+		}
+	}
+	if values, ok := schema["enum"].([]any); ok && !slices.Contains(values, any(name)) {
+		return true
+	}
+	if pattern, ok := schema["pattern"].(string); ok {
+		if matched, known := f.patterns.match(map[string]any{pattern: true}, name); known && len(matched) == 0 {
+			return true
+		}
+	}
+	points := utf8.RuneCountInString(name)
+	if limit, ok := schemaNumber(schema["maxLength"]); ok && float64(points) > limit {
+		return true
+	}
+	units := points
+	for _, r := range name {
+		if r > 0xFFFF {
+			units++
+		}
+	}
+	limit, ok := schemaNumber(schema["minLength"])
+	return ok && float64(units) < limit
 }
 
 // applyAdditionalProperties makes the "additionalProperties" of each of

@@ -141,9 +141,12 @@ const (
 	maxPushBodyBytes = 4 << 20
 	// maxPushWireBytes bounds the serialized PushContextStateRequest,
 	// which dRPC refuses past drpcsdk.MaxMessageSize. The headroom
-	// covers the request fields outside its resources: its version,
-	// hash, and snapshot error, a short message.
-	maxPushWireBytes = drpcsdk.MaxMessageSize - 1<<10
+	// covers the request fields outside its resources: its version and
+	// hash, and its snapshot error, which coderd accepts up to
+	// maxSnapshotErrorBytes.
+	maxPushWireBytes = drpcsdk.MaxMessageSize - maxSnapshotErrorBytes - 1<<10
+	// maxSnapshotErrorBytes is coderd's maxContextErrorBytes.
+	maxSnapshotErrorBytes = 4 << 10
 	// wirePrefixGrowthBytes bounds how much a longer tool lengthens the
 	// three length prefixes around it in the request: its own, its
 	// server body's, and its resource's. Each is a varint of a length

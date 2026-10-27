@@ -575,8 +575,10 @@ func TestNormalize(t *testing.T) {
 		},
 		{
 			// Draft 4 ignores the keywords later drafts define, so they
-			// go. The one occurrence a reference's pointer passes through
-			// keeps its value under a key that no draft defines, and a
+			// go. The one occurrence of a keyword holding a schema that a
+			// reference's pointer passes through keeps its value under a
+			// key that no draft defines, a schema in the value of another
+			// keyword is copied as pullReferencedData describes, and a
 			// property named like a keyword is only a name.
 			name: "draft 4 drops keywords it ignores",
 			schema: `{
@@ -585,11 +587,12 @@ func TestNormalize(t *testing.T) {
 					"mode": {"type": "string", "const": "fixed", "if": {"minLength": 2}, "then": {"maxLength": 3}},
 					"tags": {"type": "array", "contains": {"type": "string"}},
 					"meta": {"type": "object", "propertyNames": {"maxLength": 3}, "dependentRequired": {"a": ["b"]}},
-					"other": {"$ref": "#/definitions/Holder/const"},
+					"other": {"$ref": "#/definitions/Holder/if"},
+					"pinned": {"$ref": "#/definitions/Holder/const"},
 					"const": {"type": "integer", "const": 7},
 					"same": {"$ref": "#/properties/const"}
 				},
-				"definitions": {"Holder": {"const": {"type": "integer"}, "x-draft4-const": "taken"}}
+				"definitions": {"Holder": {"if": {"type": "integer", "const": 1}, "x-draft4-if": "taken", "const": {"type": "string", "const": "x"}}}
 			}`,
 			want: `{
 				"$schema": "http://json-schema.org/draft-07/schema#",
@@ -597,11 +600,15 @@ func TestNormalize(t *testing.T) {
 					"mode": {"type": "string"},
 					"tags": {"type": "array", "items": {}},
 					"meta": {"type": "object"},
-					"other": {"$ref": "#/definitions/Holder/x-draft4-const-2"},
+					"other": {"$ref": "#/definitions/Holder/x-draft4-if-2"},
+					"pinned": {"$ref": "#/definitions/const"},
 					"const": {"type": "integer"},
 					"same": {"$ref": "#/properties/const"}
 				},
-				"definitions": {"Holder": {"x-draft4-const-2": {"type": "integer"}, "x-draft4-const": "taken"}}
+				"definitions": {
+					"Holder": {"x-draft4-if-2": {"type": "integer"}, "x-draft4-if": "taken"},
+					"const": {"type": "string"}
+				}
 			}`,
 		},
 		{
@@ -824,6 +831,65 @@ func TestNormalize(t *testing.T) {
 			}`,
 		},
 		{
+			// The schemas that draft 3 holds under "extends" and in
+			// "type" lists lose the keywords draft 4 added too.
+			name: "draft 3 drops keywords from the schemas it moves",
+			schema: `{
+				"$schema": "http://json-schema.org/draft-03/schema#",
+				"properties": {
+					"m": {"extends": {"anyOf": [{"type": "string"}], "minProperties": 1}, "type": [{"oneOf": [{"type": "integer"}]}, "null"]}
+				}
+			}`,
+			want: `{
+				"$schema": "http://json-schema.org/draft-07/schema#",
+				"properties": {
+					"m": {"allOf": [{}], "anyOf": [{}, {"type": "null"}]}
+				}
+			}`,
+		},
+		{
+			// Only json-schema.org publishes the drafts, so a draft 4 path
+			// on another host is a dialect Normalize does not know.
+			name:   "a draft 4 path on another host is not draft 4",
+			schema: `{"$schema": "https://notjson-schema.org/draft-04/schema#", "properties": {"mode": {"type": "string", "const": "fixed"}}}`,
+			want:   `{"properties": {"mode": {"type": "string", "const": "fixed"}}}`,
+		},
+		{
+			// A reference to an object under a key no draft defines names
+			// a copy in "definitions", which is rewritten, and so do the
+			// references in the copy. The object stays as instance data,
+			// and one that declares an identifier stays the target.
+			name: "draft 4 copies the referenced objects that are not in schema positions",
+			schema: `{
+				"$schema": "http://json-schema.org/draft-04/schema#",
+				"properties": {
+					"a": {"$ref": "#/x-target"},
+					"b": {"$ref": "#/x-meta/inner"},
+					"c": {"$ref": "#/x-target"}
+				},
+				"x-target": {"type": "object", "properties": {"next": {"$ref": "#/x-target"}, "low": {"$ref": "#/x-low"}}},
+				"x-low": {"type": "number", "minimum": 1, "exclusiveMinimum": true, "const": 2},
+				"x-meta": {"inner": {"id": "#inner", "const": 1}},
+				"definitions": {"x-target": {"type": "integer"}}
+			}`,
+			want: `{
+				"$schema": "http://json-schema.org/draft-07/schema#",
+				"properties": {
+					"a": {"$ref": "#/definitions/x-target-2"},
+					"b": {"$ref": "#/x-meta/inner"},
+					"c": {"$ref": "#/definitions/x-target-2"}
+				},
+				"x-target": {"type": "object", "properties": {"next": {"$ref": "#/x-target"}, "low": {"$ref": "#/x-low"}}},
+				"x-low": {"type": "number", "minimum": 1, "exclusiveMinimum": true, "const": 2},
+				"x-meta": {"inner": {"id": "#inner", "const": 1}},
+				"definitions": {
+					"x-target": {"type": "integer"},
+					"x-target-2": {"type": "object", "properties": {"next": {"$ref": "#/definitions/x-target-2"}, "low": {"$ref": "#/definitions/x-low"}}},
+					"x-low": {"type": "number", "exclusiveMinimum": 1}
+				}
+			}`,
+		},
+		{
 			// URIs compare their scheme and host without case.
 			name:   "an uppercase draft 4 URI is draft 4",
 			schema: `{"$schema": "HTTP://JSON-SCHEMA.ORG/draft-04/schema#", "properties": {"low": {"type": "number", "minimum": 1, "exclusiveMinimum": true}}}`,
@@ -973,6 +1039,23 @@ func TestReplaceRecursiveRefs(t *testing.T) {
 			name:   "draft 7 drops the keywords",
 			schema: `{"$schema": "http://json-schema.org/draft-07/schema#", "properties": {"a": {"$recursiveRef": "#"}}}`,
 			want:   `{"$schema": "http://json-schema.org/draft-07/schema#", "properties": {"a": {}}}`,
+		},
+		{
+			// Each resource is read in its own dialect.
+			name:   "a draft 2019-09 resource in another dialect keeps its references",
+			schema: `{"$schema": "https://json-schema.org/draft/2020-12/schema", "properties": {"tree": {"$id": "tree.json", "$schema": "https://json-schema.org/draft/2019-09/schema", "items": {"$recursiveRef": "#"}}, "a": {"$recursiveRef": "#"}}}`,
+			want:   `{"$schema": "https://json-schema.org/draft/2020-12/schema", "properties": {"tree": {"$id": "tree.json", "$schema": "https://json-schema.org/draft/2019-09/schema", "items": {"$ref": "#"}}, "a": {}}}`,
+		},
+		{
+			name:   "a resource in another dialect inside draft 2019-09 drops the keywords",
+			schema: `{"$schema": "https://json-schema.org/draft/2019-09/schema", "$recursiveAnchor": true, "properties": {"new": {"$id": "new.json", "$schema": "https://json-schema.org/draft/2020-12/schema", "$recursiveAnchor": true, "items": {"$recursiveRef": "#"}}, "a": {"$recursiveRef": "#"}}}`,
+			want:   `{"$schema": "https://json-schema.org/draft/2019-09/schema", "properties": {"new": {"$id": "new.json", "$schema": "https://json-schema.org/draft/2020-12/schema", "items": {}}, "a": {"$ref": "#"}}}`,
+		},
+		{
+			// Only json-schema.org publishes the drafts.
+			name:   "a draft 2019-09 path on another host drops the keywords",
+			schema: `{"$schema": "https://notjson-schema.org/draft/2019-09/schema", "$recursiveAnchor": true, "properties": {"a": {"$recursiveRef": "#"}}}`,
+			want:   `{"$schema": "https://notjson-schema.org/draft/2019-09/schema", "properties": {"a": {}}}`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
