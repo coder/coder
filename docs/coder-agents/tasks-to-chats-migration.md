@@ -207,6 +207,10 @@ To keep your client in sync with the chat:
    1. Open the stream again with the stored `snapshot_version`.
    1. If the server returns `400 Bad Request`, discard your client's state and start again from step 1.
 
+An array that encodes to more than 256&nbsp;KiB arrives instead as consecutive objects of the form `{"chunk": "...", "last": false}`, with no other message between them.
+Concatenate the `chunk` strings up to and including the object where `last` is `true`, then parse the result as the array.
+Discard a partial array when you reconnect.
+
 When no events occur for 15&nbsp;seconds, the server sends an empty array (`[]`), which you can skip.
 To detect a connection that stops delivering data without closing, start a 40-second timer when you open the WebSocket, restart it on every message, and reconnect when it fires.
 
