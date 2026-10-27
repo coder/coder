@@ -2,6 +2,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { ChatAttachmentMediaTypes } from "#/api/typesGenerated";
 import { asRecord, asString } from "../ChatElements/runtimeTypeUtils";
 import {
+	type AsyncAnswer,
 	getAsyncAnswerPrefix,
 	parseAsyncAnswer,
 } from "../ChatElements/tools/asyncAnswer";
@@ -410,6 +411,14 @@ const withoutAsyncAnswerPrefix = (
 		: content;
 };
 
+type AsyncAnswerContent = AsyncAnswer & {
+	/**
+	 * The whole answer with its prefix line. The line keeps its line break,
+	 * so the text still parses as an answer.
+	 */
+	text: string;
+};
+
 /**
  * Reads an async answer from its message parts. The joined message text
  * cannot show where the call ID ends when a chip follows the prefix line,
@@ -417,16 +426,19 @@ const withoutAsyncAnswerPrefix = (
  */
 export const parseAsyncAnswerContent = (
 	content: readonly TypesGen.ChatMessagePart[] | undefined,
-): { toolCallId: string; body: string } | undefined => {
-	const [firstPart, ...restParts] = content ?? [];
+): AsyncAnswerContent | undefined => {
+	const firstPart = content?.at(0);
 	const answer =
 		firstPart?.type === "text" ? parseAsyncAnswer(firstPart.text) : undefined;
-	return (
-		answer && {
-			toolCallId: answer.toolCallId,
-			body: answer.body + getMessageText(restParts),
-		}
-	);
+	if (!answer) {
+		return undefined;
+	}
+	const body = answer.body + getMessageText(content?.slice(1));
+	return {
+		toolCallId: answer.toolCallId,
+		body,
+		text: getAsyncAnswerPrefix(answer.toolCallId) + body,
+	};
 };
 
 export const getEditableUserMessagePayload = (
@@ -437,13 +449,9 @@ export const getEditableUserMessagePayload = (
 	/** Restores skill chips in place; undefined when there are none. */
 	editorState: string | undefined;
 } => {
-	const answer = parseAsyncAnswerContent(message.content);
-	// The editing state reads the answered call from the text's prefix line,
-	// so the line gets back the line break that the server trims when a chip
-	// follows it.
-	const text = answer
-		? getAsyncAnswerPrefix(answer.toolCallId) + answer.body
-		: getMessageText(message.content);
+	const text =
+		parseAsyncAnswerContent(message.content)?.text ??
+		getMessageText(message.content);
 	const parsed = parseMessageContent(message.content);
 	const fileBlocks = parsed.blocks.filter(isEditableUserMessageFileBlock);
 	return {
