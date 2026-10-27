@@ -21,6 +21,7 @@ import {
 	buildStreamRenderState,
 	MockCollapsedStepsPreferences,
 	MockLongTurnPageLoads,
+	MockQuestionCallMessage,
 	MockWebSearchAnswerMessages,
 	MockWorkingMessages,
 	pinFixtureClock,
@@ -452,5 +453,87 @@ describe("ConversationTimeline live working blocks", () => {
 			liveStatus: idleLive,
 		});
 		expect(copyCommand).toHaveFocus();
+	});
+});
+
+const mockAsyncQuestionThenUnrelatedMessages: ChatMessage[] = [
+	...MockWorkingMessages.slice(0, 1),
+	MockQuestionCallMessage,
+	{
+		...MockChatMessage,
+		id: 5,
+		role: "tool",
+		created_at: workingFixtureTime(6),
+		content: [
+			{
+				type: "tool-result",
+				tool_call_id: "question",
+				tool_name: "ask_user_question",
+				result: {
+					output: JSON.stringify({
+						questions: [
+							{
+								header: "Scope",
+								question: "Which part should change first?",
+								options: [
+									{ label: "Backend", description: "Change the API first." },
+									{ label: "Frontend", description: "Change the UI first." },
+								],
+							},
+						],
+						async: true,
+					}),
+				},
+				created_at: workingFixtureTime(6),
+			},
+		],
+	},
+	{
+		...MockChatMessage,
+		id: 6,
+		role: "user",
+		created_at: workingFixtureTime(7),
+		content: [{ type: "text", text: "Also update the docs." }],
+	},
+	{
+		...MockChatMessage,
+		id: 7,
+		role: "assistant",
+		created_at: workingFixtureTime(8),
+		content: [{ type: "text", text: "Updating the docs." }],
+	},
+];
+
+describe("ConversationTimeline async questions", () => {
+	it("copies a delivered answer without its prefix line", async () => {
+		const user = userEvent.setup();
+		const writeText = vi
+			.spyOn(navigator.clipboard, "writeText")
+			.mockResolvedValue();
+		renderTimeline({
+			messages: [
+				...mockAsyncQuestionThenUnrelatedMessages.slice(0, 3),
+				{
+					...MockChatMessage,
+					id: 6,
+					role: "user",
+					created_at: workingFixtureTime(7),
+					content: [
+						{
+							type: "text",
+							text: "Answer to ask_user_question call question:\nBackend",
+						},
+					],
+				},
+			],
+		});
+
+		await user.click(
+			within(screen.getByTestId("chat-message-message:6")).getByRole("button", {
+				name: "Copy message",
+			}),
+		);
+
+		expect(writeText).toHaveBeenCalledWith("Backend");
 	});
 });

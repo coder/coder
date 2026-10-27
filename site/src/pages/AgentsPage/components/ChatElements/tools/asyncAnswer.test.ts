@@ -1,0 +1,31 @@
+import { describe, expect, it } from "vitest";
+import { getAsyncAnswerPrefix, parseAsyncAnswer } from "./asyncAnswer";
+
+describe("parseAsyncAnswer", () => {
+	// Providers choose call IDs, so they may contain colons or spaces.
+	it.each(["toolu_123", "functions.ask_user_question:0", "call 123"])(
+		"splits an answer to the call ID %j into the ID and its body",
+		(toolCallId) => {
+			expect(
+				parseAsyncAnswer(
+					`${getAsyncAnswerPrefix(toolCallId)}1. Scope: Backend`,
+				),
+			).toEqual({ toolCallId, body: "1. Scope: Backend" });
+		},
+	);
+
+	it.each([
+		["text without the prefix", "Single migration"],
+		[
+			"a prefix without its line break",
+			"Answer to ask_user_question call toolu_123: yes",
+		],
+		[
+			"a prefix after other text",
+			"Note\nAnswer to ask_user_question call toolu_123:\nyes",
+		],
+		["a different lead", "Answer to question call toolu_123:\nyes"],
+	])("leaves %s alone", (_, text) => {
+		expect(parseAsyncAnswer(text)).toBeUndefined();
+	});
+});
