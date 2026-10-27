@@ -355,6 +355,15 @@ application's callback URL to a valid scheme (see
 
 Verify that the `code_verifier` used in the token request matches the one used to generate the `code_challenge`.
 
+### "invalid_scope" returned to your callback
+
+A grant never exceeds the session that authorizes it. Because every access token has full API access, that session must hold the `coder:all` scope and an allow list of `*:*`, which every browser session has. The `error_description` names the reason:
+
+- `scope requests permissions beyond the signed-in session`: the session authorizing the request does not hold `coder:all`.
+  Authorize from a browser session, which holds every scope.
+- `the signed-in session is restricted to an allow list`: the session authorizing the request has an allow list other than `*:*`.
+  Authorize from a browser session, which has none.
+
 ### "public clients may not use the mailto/tel/sms scheme"
 
 This error appears during client registration when a public client
