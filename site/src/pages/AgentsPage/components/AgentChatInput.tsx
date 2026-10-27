@@ -1194,11 +1194,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			return;
 		}
 		promotingIDsRef.current.add(id);
-		try {
-			await onPromoteQueuedMessage(id);
-		} finally {
+		await Promise.resolve(onPromoteQueuedMessage(id)).finally(() => {
 			promotingIDsRef.current.delete(id);
-		}
+		});
 	};
 
 	const handleSubmit = () => {
