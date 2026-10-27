@@ -5436,7 +5436,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `editing_since`    | string                                                        | false    |              | Editing since is set while the owner edits the message. A message under edit and every message behind it wait until the edit ends; a turn that ends at a message under edit pauses the chat. |
 | `id`               | integer                                                       | false    |              |                                                                                                                                                                                              |
 | `model_config_id`  | string                                                        | false    |              |                                                                                                                                                                                              |
-| `reasoning_effort` | string                                                        | false    |              | Reasoning effort is the message's reasoning effort override, when one is set.                                                                                                                |
+| `reasoning_effort` | string                                                        | false    |              |                                                                                                                                                                                              |
 
 ## codersdk.ChatRetentionDaysResponse
 

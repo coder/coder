@@ -23884,7 +23884,6 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "reasoning_effort": {
-                    "description": "ReasoningEffort is the message's reasoning effort override, when\none is set.",
                     "type": "string"
                 }
             }

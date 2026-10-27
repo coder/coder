@@ -2079,14 +2079,12 @@ const (
 
 // ChatQueuedMessage represents a queued message waiting to be processed.
 type ChatQueuedMessage struct {
-	ID            int64             `json:"id"`
-	ChatID        uuid.UUID         `json:"chat_id" format:"uuid"`
-	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
-	Content       []ChatMessagePart `json:"content"`
-	CreatedAt     time.Time         `json:"created_at" format:"date-time"`
-	// ReasoningEffort is the message's reasoning effort override, when
-	// one is set.
-	ReasoningEffort *string `json:"reasoning_effort,omitempty"`
+	ID              int64             `json:"id"`
+	ChatID          uuid.UUID         `json:"chat_id" format:"uuid"`
+	ModelConfigID   *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
+	Content         []ChatMessagePart `json:"content"`
+	CreatedAt       time.Time         `json:"created_at" format:"date-time"`
+	ReasoningEffort *string           `json:"reasoning_effort,omitempty"`
 	// EditingSince is set while the owner edits the message. A message
 	// under edit and every message behind it wait until the edit ends; a
 	// turn that ends at a message under edit pauses the chat.

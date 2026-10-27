@@ -3711,10 +3711,6 @@ export interface ChatQueuedMessage {
 	readonly model_config_id?: string;
 	readonly content: readonly ChatMessagePart[];
 	readonly created_at: string;
-	/**
-	 * ReasoningEffort is the message's reasoning effort override, when
-	 * one is set.
-	 */
 	readonly reasoning_effort?: string;
 	/**
 	 * EditingSince is set while the owner edits the message. A message
