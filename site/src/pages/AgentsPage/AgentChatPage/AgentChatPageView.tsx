@@ -1043,6 +1043,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									addTabControl={
 										<RightPanelAddTabControl
 											workspace={workspace}
+											store={store}
 											agent={workspaceAgent}
 											host={wildcardHostname}
 											isRunning={workspace?.latest_build.status === "running"}

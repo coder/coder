@@ -10,7 +10,9 @@ import {
 	MockChatArtifactVersion,
 } from "#/testHelpers/chatEntities";
 import { renderWithRouter } from "#/testHelpers/renderHelpers";
+import { createChatStore } from "../ChatConversation/chatStore";
 import { ArtifactToolCard } from "../ChatElements/tools/ArtifactToolCard";
+import { RightPanelAddTabControl } from "../RightPanel/RightPanelAddTabControl";
 import { ArtifactTabsContext } from "./ArtifactTabsContext";
 import {
 	ARTIFACT_PROMPT_TYPE,
@@ -361,6 +363,68 @@ describe("ChatArtifacts", () => {
 		await user.click(
 			await screen.findByRole("button", { name: /Repo layout/ }),
 		);
+
+		// The latest version opens, so the call names no version.
+		expect(onOpenArtifact).toHaveBeenCalledWith(
+			MockChatArtifact.id,
+			"Repo layout",
+		);
+	});
+});
+
+describe("RightPanelAddTabControl", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it("opens an artifact of the chat from the add panel menu", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "getChatArtifact").mockResolvedValue(
+			MockChatArtifact,
+		);
+		const store = createChatStore();
+		store.replaceMessages([
+			message(1, [
+				toolResult("publish_artifact", {
+					artifact_id: MockChatArtifact.id,
+					version: 2,
+				}),
+			]),
+		]);
+		const onOpenArtifact = vi.fn();
+		renderWithRouter(
+			createMemoryRouter([
+				{
+					path: "/",
+					element: (
+						<ArtifactTabsContext value={{ onOpenArtifact }}>
+							<RightPanelAddTabControl
+								host=""
+								isRunning={false}
+								store={store}
+								supportedSingletonTabs={[]}
+								visibleSingletonTabs={[]}
+								onToggleSingletonTab={vi.fn()}
+								onNewTerminal={vi.fn()}
+								onOpenWorkspaceApp={vi.fn()}
+								onOpenCommandApp={vi.fn()}
+								onOpenPort={vi.fn()}
+							/>
+						</ArtifactTabsContext>
+					),
+				},
+			]),
+		);
+
+		await user.click(screen.getByRole("button", { name: "Add panel" }));
+		// Radix opens a submenu from the keyboard in jsdom, not on hover.
+		const trigger = await screen.findByRole("menuitem", { name: "Artifacts" });
+		trigger.focus();
+		await user.keyboard("{ArrowRight}");
+		// The item loads after the submenu opens, so focus it once it shows.
+		const item = await screen.findByRole("menuitem", { name: /Repo layout/ });
+		item.focus();
+		await user.keyboard("{Enter}");
 
 		// The latest version opens, so the call names no version.
 		expect(onOpenArtifact).toHaveBeenCalledWith(

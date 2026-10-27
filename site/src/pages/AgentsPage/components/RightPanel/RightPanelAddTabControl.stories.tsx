@@ -1,7 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
-import type { WorkspaceApp } from "#/api/typesGenerated";
+import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { API } from "#/api/api";
+import type {
+	ChatArtifact,
+	ChatMessage,
+	WorkspaceApp,
+} from "#/api/typesGenerated";
 import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
+import { MockChatArtifact, MockChatMessage } from "#/testHelpers/chatEntities";
 import {
 	MockListeningPortsResponse,
 	MockSharedPortsResponse,
@@ -10,6 +16,7 @@ import {
 	MockWorkspaceApp,
 } from "#/testHelpers/entities";
 import { withProxyProvider } from "#/testHelpers/storybook";
+import { createChatStore } from "../ChatConversation/chatStore";
 import { RightPanelAddTabControl } from "./RightPanelAddTabControl";
 
 const embeddableApp: WorkspaceApp = {
@@ -64,6 +71,7 @@ const meta = {
 		},
 		host: "*.apps.example.com",
 		isRunning: true,
+		store: createChatStore(),
 		supportedSingletonTabs: ["browser", "desktop", "debug"],
 		visibleSingletonTabs: ["desktop"],
 		onToggleSingletonTab: fn(),
@@ -175,6 +183,59 @@ export const Default: Story = {
 		await expect(args.onOpenPort).toHaveBeenCalledWith(
 			expect.objectContaining({ port: 8080 }),
 		);
+	},
+};
+
+const mockCacheArtifact: ChatArtifact = {
+	...MockChatArtifact,
+	id: "cache-options",
+	title: "Cache options",
+	latest_version: 1,
+	latest_name: "chart.html",
+	latest_media_type: "text/plain",
+};
+
+const publishResult = (id: number, artifactId: string): ChatMessage => ({
+	...MockChatMessage,
+	id,
+	role: "tool",
+	content: [
+		{
+			type: "tool-result",
+			tool_name: "publish_artifact",
+			result: { ok: true, artifact_id: artifactId, version: 1 },
+		},
+	],
+});
+
+/** The Artifacts submenu lists the chat's artifacts. */
+export const WithArtifacts: Story = {
+	render: (args) => {
+		const store = createChatStore();
+		store.replaceMessages([
+			publishResult(1, MockChatArtifact.id),
+			publishResult(2, mockCacheArtifact.id),
+		]);
+		return <RightPanelAddTabControl {...args} store={store} />;
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatArtifact").mockImplementation(
+			(artifactId) =>
+				Promise.resolve(
+					artifactId === mockCacheArtifact.id
+						? mockCacheArtifact
+						: MockChatArtifact,
+				),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByLabelText("Add panel"));
+		const body = within(document.body);
+		await userEvent.hover(
+			await body.findByRole("menuitem", { name: "Artifacts" }),
+		);
+		await body.findByRole("menuitem", { name: /Cache options/ });
 	},
 };
 

@@ -37,6 +37,8 @@ import type {
 	PortSelection,
 	SingletonRightPanelTabId,
 } from "../../utils/rightPanelTabs";
+import { ArtifactsSubMenu } from "../Artifacts/ArtifactsSubMenu";
+import type { ChatStore } from "../ChatConversation/chatStore";
 import { PortsMenuItem } from "../WorkspacePillPorts";
 
 const singletonTabMenuEntries: readonly {
@@ -83,6 +85,8 @@ export const RightPanelAddTabControl: React.FC<{
 	agent?: WorkspaceAgent;
 	host: string;
 	isRunning: boolean;
+	/** The chat's messages. The menu lists the chat's artifacts from them. */
+	store: ChatStore;
 	supportedSingletonTabs: readonly SingletonRightPanelTabId[];
 	visibleSingletonTabs: readonly SingletonRightPanelTabId[];
 	onToggleSingletonTab: (tabId: SingletonRightPanelTabId) => void;
@@ -95,6 +99,7 @@ export const RightPanelAddTabControl: React.FC<{
 	agent,
 	host,
 	isRunning,
+	store,
 	supportedSingletonTabs,
 	visibleSingletonTabs,
 	onToggleSingletonTab,
@@ -243,6 +248,8 @@ export const RightPanelAddTabControl: React.FC<{
 							/>
 						</>
 					)}
+
+					<ArtifactsSubMenu store={store} />
 				</DropdownMenuContent>
 			</DropdownMenu>
 		</div>
