@@ -2230,6 +2230,8 @@ type AgentsVirtualDesktopTelemetry struct {
 // model overrides. Organizations without an override use their default chat
 // model.
 type AgentsComputerUseTelemetry struct {
+	// Overrides is null when the overrides could not be read, so a failed
+	// query stays distinguishable from an empty list.
 	Overrides []AgentsComputerUseOverrideTelemetry `json:"overrides"`
 }
 
@@ -2263,14 +2265,12 @@ type AgentsAdvisorTelemetry struct {
 func CollectAgentsVirtualDesktop(ctx context.Context, opts Options) json.RawMessage {
 	payload := AgentsVirtualDesktopTelemetry{
 		Enabled: opts.Experiments.Enabled(codersdk.ExperimentChatVirtualDesktop),
-		ComputerUse: AgentsComputerUseTelemetry{
-			Overrides: []AgentsComputerUseOverrideTelemetry{},
-		},
 	}
 	overrides, err := opts.Database.GetChatOrganizationModelOverridesByContext(ctx, string(codersdk.ChatModelOverrideContextComputerUse))
 	if err != nil {
 		opts.Logger.Warn(ctx, "get chat computer use model overrides for telemetry", slog.Error(err))
 	} else {
+		payload.ComputerUse.Overrides = []AgentsComputerUseOverrideTelemetry{}
 		for _, override := range overrides {
 			// When the override's model is disabled or deleted, or its AI
 			// provider type does not support computer use, the runtime falls

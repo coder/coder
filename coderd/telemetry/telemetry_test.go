@@ -1983,7 +1983,7 @@ func TestCollectAgentsVirtualDesktop(t *testing.T) {
 		expectOverrides(db, nil, sql.ErrConnDone)
 
 		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
-		require.Empty(t, payload.ComputerUse.Overrides)
+		require.Nil(t, payload.ComputerUse.Overrides)
 	})
 }
 
