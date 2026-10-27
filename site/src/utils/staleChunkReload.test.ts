@@ -55,4 +55,17 @@ describe("registerStaleChunkReload", () => {
 		expect(reload).toHaveBeenCalledTimes(1);
 		expect(staleChunkReload.isStaleChunkReloadPending()).toBe(true);
 	});
+
+	it("ignores a failed prefetch and reloads on a later failure", async () => {
+		// Vite dispatches the event before the import rejects.
+		await staleChunkReload.prefetchChunk(async () => {
+			dispatchPreloadError();
+			throw new Error("chunk not found");
+		});
+		expect(reload).not.toHaveBeenCalled();
+		expect(staleChunkReload.isStaleChunkReloadPending()).toBe(false);
+
+		dispatchPreloadError();
+		expect(reload).toHaveBeenCalledTimes(1);
+	});
 });

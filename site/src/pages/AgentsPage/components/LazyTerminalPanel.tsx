@@ -1,8 +1,14 @@
 import { lazy, Suspense, useState } from "react";
 import { Loader } from "#/components/Loader/Loader";
+import { prefetchChunk } from "#/utils/staleChunkReload";
 
 const loadTerminalPanel = () => import("./TerminalPanel");
-const TerminalPanel = lazy(loadTerminalPanel);
+let prefetch: Promise<void> | undefined;
+// A load during the prefetch would skip the stale-chunk reload with it.
+const TerminalPanel = lazy(async () => {
+	await prefetch;
+	return loadTerminalPanel();
+});
 
 /**
  * Starts loading `TerminalPanel` before a terminal tab opens. A new tab stays
@@ -10,7 +16,7 @@ const TerminalPanel = lazy(loadTerminalPanel);
  * wait for the chunk.
  */
 export const preloadTerminalPanel = (): void => {
-	void loadTerminalPanel();
+	prefetch ??= prefetchChunk(loadTerminalPanel);
 };
 
 type LazyTerminalPanelProps = React.ComponentProps<typeof TerminalPanel>;
