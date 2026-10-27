@@ -216,7 +216,6 @@ export type ChatStore = {
 		status: TypesGen.ChatStatus | null,
 		request: () => Promise<unknown>,
 	) => Promise<void>;
-	setStreamState: (streamState: StreamState | null) => void;
 	setClientError: (reason: ChatDetailError | null) => void;
 	clearClientError: () => void;
 	setRetryState: (state: RetryState) => void;
@@ -542,20 +541,6 @@ export const createChatStore = (): ChatStore => {
 				removePendingAction(id);
 				throw error;
 			}
-		},
-		setStreamState: (streamState) => {
-			if (state.streamState === streamState) {
-				return;
-			}
-			setState((current) => {
-				if (current.streamState === streamState) {
-					return current;
-				}
-				return {
-					...current,
-					streamState,
-				};
-			});
 		},
 		setClientError: (reason) => {
 			setState((current) => {

@@ -209,27 +209,6 @@ describe("advanceSnapshotVersion", () => {
 });
 
 // ---------------------------------------------------------------------------
-// setStreamState
-// ---------------------------------------------------------------------------
-
-describe("setStreamState", () => {
-	it("does not notify when setting the same stream state reference", () => {
-		const store = createChatStore();
-		store.applyMessagePart({ type: "text", text: "hello" });
-		const streamState = store.getSnapshot().streamState;
-		expect(streamState).not.toBeNull();
-
-		let notified = false;
-		store.subscribe(() => {
-			notified = true;
-		});
-
-		store.setStreamState(streamState);
-		expect(notified).toBe(false);
-	});
-});
-
-// ---------------------------------------------------------------------------
 // setClientError / clearClientError
 // ---------------------------------------------------------------------------
 
