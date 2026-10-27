@@ -44,7 +44,8 @@ module "nix" {
 ```
 
 > [!WARNING]
-> The module does not install Nix and assumes it is available in the `PATH`; if you aren't running NixOS, include it in your image.
+> The module does not install Nix and assumes it is available in the `PATH`.
+> If you aren't running NixOS, include it in your image.
 >
 > To install the `nix` CLI, you can use the official [Nix](https://nixos.org/download/) installer, or the installer for the [Lix](https://lix.systems/install/) Nix fork, for a more modern experience.
 
