@@ -10729,7 +10729,8 @@ func TestStreamChat(t *testing.T) {
 		for chunks := 0; ; chunks++ {
 			_, data, err := conn.Read(ctx)
 			require.NoError(t, err)
-			// Escaping at most doubles a chunk.
+			// Escaping at most doubles a chunk; 64 bytes cover the
+			// {"chunk":"","last":false} wrapper and newline.
 			require.LessOrEqual(t, len(data), 2*codersdk.ChatStreamChunkBytes+64)
 			largest = max(largest, len(data))
 			var chunk codersdk.ChatStreamChunk
