@@ -11,10 +11,11 @@ import {
 	type SelectFilterOption,
 } from "#/components/Filter/SelectFilter";
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
+import { getConfiguredProviderLabel } from "../utils";
 
 const toFilterOption = (provider: AIBridgeProvider): SelectFilterOption => ({
 	value: provider.name,
-	label: provider.display_name || provider.name,
+	label: getConfiguredProviderLabel(provider),
 	startIcon: <ProviderIcon provider={provider.type} icon={provider.icon} />,
 });
 

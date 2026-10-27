@@ -1,5 +1,6 @@
 import { BanIcon } from "lucide-react";
 import type {
+	AIBridgeProvider,
 	AIBridgeSessionNetworkCallSummary,
 	AIBridgeSessionNetworkDomain,
 	MinimalUser,
@@ -7,15 +8,15 @@ import type {
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
 import { AIBridgeClientIcon } from "#/pages/AIBridgePage/icons/AIBridgeClientIcon";
-import { AIBridgeProviderIcon } from "#/pages/AIBridgePage/icons/AIBridgeProviderIcon";
 import { formatDateTime } from "#/utils/time";
 import { CostBadge } from "../CostBadge";
+import { ProviderNameIcon } from "../icons/ProviderNameIcon";
 import {
 	NetworkMonitoringDisabled,
 	NetworkNoActivity,
 } from "../NetworkRequestStates";
 import { TokenBadges } from "../TokenBadges";
-import { getProviderDisplayName } from "../utils";
+import { getProviderNameLabel } from "../utils";
 
 const Separator = () => <div className="border-0 border-t border-solid my-1" />;
 
@@ -25,7 +26,10 @@ type SessionSummaryTableProps = {
 	endTime?: Date;
 	initiator: MinimalUser;
 	client: string;
+	/** Configured provider names used in the session. */
 	providers: readonly string[];
+	/** Configured providers by name; matches supply the label and icon. */
+	providersByName?: ReadonlyMap<string, AIBridgeProvider>;
 	inputTokens: number;
 	outputTokens: number;
 	cacheReadTokens: number;
@@ -53,6 +57,7 @@ export const SessionSummaryTable = ({
 	endTime,
 	initiator,
 	providers,
+	providersByName,
 	client,
 	inputTokens,
 	outputTokens,
@@ -159,20 +164,24 @@ export const SessionSummaryTable = ({
 					Provider
 				</dt>
 				<dd className="ml-4 min-w-0 truncate text-content-primary flex flex-wrap gap-1">
-					{providers.map((p) => (
-						<Badge
-							key={p}
-							className="gap-1.5 max-w-full min-w-0 overflow-hidden"
-						>
-							<AIBridgeProviderIcon provider={p} className="size-icon-xs" />
-							<span
-								className="truncate min-w-0 flex-1"
-								title={getProviderDisplayName(p)}
+					{providers.map((p) => {
+						const label = getProviderNameLabel(p, providersByName);
+						return (
+							<Badge
+								key={p}
+								className="gap-1.5 max-w-full min-w-0 overflow-hidden"
 							>
-								{getProviderDisplayName(p)}
-							</span>
-						</Badge>
-					))}
+								<ProviderNameIcon
+									provider={p}
+									providersByName={providersByName}
+									className="size-icon-xs"
+								/>
+								<span className="truncate min-w-0 flex-1" title={label}>
+									{label}
+								</span>
+							</Badge>
+						);
+					})}
 				</dd>
 			</div>
 

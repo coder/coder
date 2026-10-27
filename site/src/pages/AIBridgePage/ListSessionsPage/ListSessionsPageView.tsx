@@ -1,5 +1,5 @@
 import { InfoIcon } from "lucide-react";
-import type { AIBridgeSession } from "#/api/typesGenerated";
+import type { AIBridgeProvider, AIBridgeSession } from "#/api/typesGenerated";
 import {
 	PaginationContainer,
 	type PaginationResult,
@@ -22,6 +22,7 @@ import {
 import { PremiumPaywallAIGovernance } from "#/modules/paywall/PremiumPaywallAIGovernance";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 import { AIBridgeSetupAlert } from "../AIBridgeSetupAlert";
+import { getProvidersByName } from "../utils";
 import { ListSessionsFilter } from "./ListSessionsFilter";
 import { ListSessionsRow } from "./ListSessionsRow";
 
@@ -31,6 +32,8 @@ type ListSessionsPageViewProps = {
 	isAISessionsEntitled: boolean;
 	isAISessionsEnabled: boolean;
 	sessions?: readonly AIBridgeSession[];
+	/** Configured providers used to label the provider names in each row. */
+	providers?: readonly AIBridgeProvider[];
 	sessionsQuery: PaginationResult;
 	filterProps: React.ComponentProps<typeof ListSessionsFilter>;
 	onSessionRowClick?: (sessionId: string) => void;
@@ -66,6 +69,7 @@ export const ListSessionsPageView: React.FC<ListSessionsPageViewProps> = ({
 	isAISessionsEntitled,
 	isAISessionsEnabled,
 	sessions,
+	providers,
 	sessionsQuery,
 	filterProps,
 	onSessionRowClick,
@@ -84,6 +88,7 @@ export const ListSessionsPageView: React.FC<ListSessionsPageViewProps> = ({
 	}
 
 	const utcOffset = formatDateTime(new Date(), DATE_FORMAT.UTC_OFFSET);
+	const providersByName = getProvidersByName(providers);
 
 	return (
 		<>
@@ -149,6 +154,7 @@ export const ListSessionsPageView: React.FC<ListSessionsPageViewProps> = ({
 							sessions?.map((session) => (
 								<ListSessionsRow
 									session={session}
+									providersByName={providersByName}
 									key={session.id}
 									onClick={() => onSessionRowClick?.(session.id)}
 								/>

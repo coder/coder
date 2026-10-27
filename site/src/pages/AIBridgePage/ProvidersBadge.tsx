@@ -1,8 +1,7 @@
 import type { AIBridgeProvider } from "#/api/typesGenerated";
-import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { ItemsBadge } from "./ItemsBadge";
-import { AIBridgeProviderIcon } from "./icons/AIBridgeProviderIcon";
-import { getProviderDisplayName } from "./utils";
+import { ProviderNameIcon } from "./icons/ProviderNameIcon";
+import { getProviderNameLabel } from "./utils";
 
 type ProvidersBadgeProps = {
 	providers: readonly string[];
@@ -16,23 +15,16 @@ export const ProvidersBadge: React.FC<ProvidersBadgeProps> = ({
 }) => (
 	<ItemsBadge
 		noun="providers"
-		items={providers.map((provider) => {
-			const configured = providersByName?.get(provider);
-			return {
-				key: provider,
-				label: configured
-					? configured.display_name || configured.name
-					: getProviderDisplayName(provider),
-				icon: configured ? (
-					<ProviderIcon
-						provider={configured.type}
-						icon={configured.icon}
-						className="size-icon-xs"
-					/>
-				) : (
-					<AIBridgeProviderIcon provider={provider} className="size-icon-xs" />
-				),
-			};
-		})}
+		items={providers.map((provider) => ({
+			key: provider,
+			label: getProviderNameLabel(provider, providersByName),
+			icon: (
+				<ProviderNameIcon
+					provider={provider}
+					providersByName={providersByName}
+					className="size-icon-xs"
+				/>
+			),
+		}))}
 	/>
 );

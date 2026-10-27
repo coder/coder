@@ -20,6 +20,7 @@ import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { ClientsBadge } from "#/pages/AIBridgePage/ClientsBadge";
 import { ModelsBadge } from "#/pages/AIBridgePage/ModelsBadge";
 import { ProvidersBadge } from "#/pages/AIBridgePage/ProvidersBadge";
+import { getProvidersByName } from "#/pages/AIBridgePage/utils";
 import { SpendAmount } from "./SpendAmount";
 
 export type SpendReportQuery =
@@ -39,9 +40,7 @@ export const SpendUsersTable: React.FC<SpendUsersTableProps> = ({
 	reportQuery,
 	providers,
 }) => {
-	const providersByName = new Map(
-		(providers ?? []).map((provider) => [provider.name, provider]),
-	);
+	const providersByName = getProvidersByName(providers);
 	const retryButton = (
 		<Button
 			variant="outline"

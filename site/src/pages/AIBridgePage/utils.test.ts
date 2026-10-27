@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { getProviderDisplayName, roundTokenDisplay } from "./utils";
+import type { AIBridgeProvider } from "#/api/typesGenerated";
+import { MockAIBridgeProvider } from "#/testHelpers/entities";
+import {
+	getProviderDisplayName,
+	getProviderNameLabel,
+	getProvidersByName,
+	roundTokenDisplay,
+} from "./utils";
 
 describe("roundTokenDisplay", () => {
 	it.each([
@@ -38,5 +45,29 @@ describe("getProviderDisplayName", () => {
 
 	it("returns Unknown for empty string", () => {
 		expect(getProviderDisplayName("")).toBe("Unknown");
+	});
+});
+
+describe("getProviderNameLabel", () => {
+	const mockUnnamedProvider: AIBridgeProvider = {
+		...MockAIBridgeProvider,
+		name: "internal",
+		display_name: "",
+	};
+	const mockProvidersByName = getProvidersByName([
+		MockAIBridgeProvider,
+		mockUnnamedProvider,
+	]);
+
+	it.each([
+		["claude-platform", "Claude Platform"],
+		["internal", "internal"],
+		["anthropic", "Anthropic"],
+	])("labels %s as %s", (input, expected) => {
+		expect(getProviderNameLabel(input, mockProvidersByName)).toBe(expected);
+	});
+
+	it("labels names as types without the provider list", () => {
+		expect(getProviderNameLabel("openai", undefined)).toBe("OpenAI");
 	});
 });
