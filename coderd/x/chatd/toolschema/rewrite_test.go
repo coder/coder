@@ -1220,6 +1220,12 @@ func TestPointerKeywords(t *testing.T) {
 		{pointer: "/$defs/A/items/0/const/properties", want: []bool{true, false, true, false, true, false}},
 		{pointer: "/allOf/1/required/0", want: []bool{true, false, true, false}},
 		{pointer: "/x-custom/properties", want: []bool{false, false}},
+		// Draft 3 holds schemas under "extends" and in "type" and
+		// "disallow" lists.
+		{pointer: "/extends/properties/x", want: []bool{true, true, false}},
+		{pointer: "/extends/0/properties", want: []bool{true, false, true}},
+		{pointer: "/type/1/properties/x", want: []bool{true, false, true, false}},
+		{pointer: "/disallow/0/required", want: []bool{true, false, true}},
 	} {
 		t.Run(tc.pointer, func(t *testing.T) {
 			t.Parallel()

@@ -42,7 +42,7 @@ var (
 	}
 )
 
-// keywords lists the JSON Schema keywords of drafts 4 to 2020-12, and the
+// keywords lists the JSON Schema keywords of drafts 3 to 2020-12, and the
 // OpenAPI "nullable" that some servers send.
 var keywords = [...]string{
 	"$anchor", "$comment", "$defs", "$dynamicAnchor", "$dynamicRef", "$id",
@@ -50,8 +50,9 @@ var keywords = [...]string{
 	"additionalItems", "additionalProperties", "allOf", "anyOf", "const",
 	"contains", "contentEncoding", "contentMediaType", "contentSchema",
 	"default", "definitions", "dependencies", "dependentRequired",
-	"dependentSchemas", "deprecated", "description", "else", "enum",
-	"examples", "exclusiveMaximum", "exclusiveMinimum", "format", "id", "if",
+	"dependentSchemas", "deprecated", "description", "disallow",
+	"divisibleBy", "else", "enum", "examples", "exclusiveMaximum",
+	"exclusiveMinimum", "extends", "format", "id", "if",
 	"items", "maxContains", "maximum", "maxItems", "maxLength",
 	"maxProperties", "minContains", "minimum", "minItems", "minLength",
 	"minProperties", "multipleOf", "not", "nullable", "oneOf", "pattern",
@@ -806,10 +807,7 @@ func schemaAt(root map[string]any, tokens []string) (map[string]any, string, boo
 			return nil, "", false
 		}
 		kind := KeywordSubschemas(tokens[i], value)
-		if isDraft3(dialect) && (tokens[i] == "extends" || tokens[i] == "type" || tokens[i] == "disallow") {
-			// Draft 3 holds a schema or a list of them under "extends",
-			// and upgradeDraft3 reads "type" and "disallow" the same way,
-			// where a list may also name types.
+		if isDraft3(dialect) && HoldsDraft3Schemas(tokens[i]) {
 			switch value.(type) {
 			case []any:
 				kind = SubschemaList
@@ -1636,10 +1634,17 @@ func PointerKeywords(tokens []string) []bool {
 				continue
 			}
 			keywords[i] = true
+			listed := i+1 < len(tokens) && isIndex(tokens[i+1])
+			if HoldsDraft3Schemas(token) {
+				if listed {
+					role = member
+				}
+				continue
+			}
 			switch KeywordSubschemas(token, nil) {
 			case SingleSubschema:
 				// "items" holds a list of schemas before draft 2020-12.
-				if token == "items" && i+1 < len(tokens) && isIndex(tokens[i+1]) {
+				if token == "items" && listed {
 					role = member
 				}
 			case SubschemaList, SubschemaMap:
@@ -1650,6 +1655,13 @@ func PointerKeywords(tokens []string) []bool {
 		}
 	}
 	return keywords
+}
+
+// HoldsDraft3Schemas reports whether a keyword holds a schema or a list
+// of schemas in draft 3: "extends" does, and upgradeDraft3 reads "type"
+// and "disallow" the same way, where a list may also name types.
+func HoldsDraft3Schemas(key string) bool {
+	return key == "extends" || key == "type" || key == "disallow"
 }
 
 func isIndex(token string) bool {

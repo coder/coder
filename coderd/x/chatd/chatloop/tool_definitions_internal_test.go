@@ -1376,6 +1376,14 @@ func TestBuildToolDefinitionsFullSchemaRootFoldObjectKeywords(t *testing.T) {
 			accepted: []string{`{"y": "s"}`},
 		},
 		{
+			// Python's and PCRE's "$" also matches before a final line
+			// feed, so whether the pattern matches that name is unknown.
+			name:     "NewlineNameAlternative",
+			source:   `{"type": "object", "anyOf": [{"allOf": [{"patternProperties": {"^a$": {}}, "additionalProperties": false}, {"required": ["a\n"]}]}, {"properties": {"y": {"type": "string"}}, "required": ["y"]}]}`,
+			want:     `{"type": "object", "properties": {"y": {"type": "string"}, "a\n": {}}}`,
+			accepted: []string{`{"y": "s"}`},
+		},
+		{
 			name:       "ObjectKeywordsRawNumbers",
 			source:     objectKeywords,
 			rawNumbers: true,
