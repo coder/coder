@@ -412,10 +412,7 @@ const withoutAsyncAnswerPrefix = (
 };
 
 type AsyncAnswerContent = AsyncAnswer & {
-	/**
-	 * The whole answer with its prefix line. The line keeps its line break,
-	 * so the text still parses as an answer.
-	 */
+	/** The whole answer, keeping the prefix line's break so it still parses. */
 	text: string;
 };
 
