@@ -8,49 +8,24 @@ import {
 	chatsByWorkspace,
 } from "#/api/queries/chats";
 import { getWorkspaceQuotaQueryKey } from "#/api/queries/workspaceQuota";
+import type * as TypesGen from "#/api/typesGenerated";
 import { workspacesQueryKeyPrefix } from "#/api/queries/workspaces";
 import { createChatStore } from "./chatStore";
-import type { StreamState } from "./types";
 import { useChatToolInvalidations } from "./useChatToolInvalidations";
 
 const ORGANIZATION_NAME = "coder";
 const USERNAME = "alice";
 
-type ToolResultOverrides = Partial<StreamState["toolResults"][string]>;
-
-const createStreamState = (
+const toolResult = (
 	name: string,
-	id = "tool-1",
-	resultOverrides: ToolResultOverrides = {},
-): StreamState => ({
-	blocks: [],
-	toolCalls: {
-		[id]: {
-			id,
-			name,
-			args: {},
-		},
-	},
-	toolResults: {
-		[id]: {
-			id,
-			name,
-			isError: false,
-			...resultOverrides,
-		},
-	},
-	sources: [],
+	overrides: Partial<TypesGen.ChatToolResultPart> = {},
+): TypesGen.ChatToolResultPart => ({
+	type: "tool-result",
+	tool_call_id: "tool-1",
+	tool_name: name,
+	result: {},
+	...overrides,
 });
-
-const createTestStore = (initial: StreamState | null = null) => {
-	const store = createChatStore();
-	store.setStreamState(initial);
-
-	return {
-		store,
-		setStreamState: store.setStreamState,
-	};
-};
 
 const createWrapper = (
 	queryClient: QueryClient,
@@ -82,7 +57,7 @@ describe("useChatToolInvalidations", () => {
 		organizationName?: string;
 		username?: string;
 	} = {}) => {
-		const { store, setStreamState } = createTestStore();
+		const store = createChatStore();
 		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 		const result = renderHook(
 			(props: { chatID: string; organizationName: string; username: string }) =>
@@ -99,15 +74,15 @@ describe("useChatToolInvalidations", () => {
 		return {
 			...result,
 			invalidateSpy,
-			setStreamState,
+			applyMessagePart: store.applyMessagePart,
 		};
 	};
 
 	it("dispatches chat binding and workspace mutation invalidations on create_workspace completion", async () => {
-		const { invalidateSpy, setStreamState } = renderInvalidations();
+		const { invalidateSpy, applyMessagePart } = renderInvalidations();
 
 		await act(async () => {
-			setStreamState(createStreamState("create_workspace"));
+			applyMessagePart(toolResult("create_workspace"));
 		});
 
 		await waitFor(() => {
@@ -135,10 +110,10 @@ describe("useChatToolInvalidations", () => {
 		queryClient.setQueryData(chatsByWorkspace(["ws-1"]).queryKey, {
 			"ws-1": "chat-1",
 		});
-		const { setStreamState } = renderInvalidations();
+		const { applyMessagePart } = renderInvalidations();
 
 		await act(async () => {
-			setStreamState(createStreamState("create_workspace"));
+			applyMessagePart(toolResult("create_workspace"));
 		});
 
 		await waitFor(() => {
@@ -159,10 +134,10 @@ describe("useChatToolInvalidations", () => {
 	});
 
 	it("dispatches workspace mutation invalidations on start_workspace completion", async () => {
-		const { invalidateSpy, setStreamState } = renderInvalidations();
+		const { invalidateSpy, applyMessagePart } = renderInvalidations();
 
 		await act(async () => {
-			setStreamState(createStreamState("start_workspace"));
+			applyMessagePart(toolResult("start_workspace"));
 		});
 
 		await waitFor(() => {
@@ -186,12 +161,10 @@ describe("useChatToolInvalidations", () => {
 	});
 
 	it("dispatches workspace mutation invalidations for errored workspace tools", async () => {
-		const { invalidateSpy, setStreamState } = renderInvalidations();
+		const { invalidateSpy, applyMessagePart } = renderInvalidations();
 
 		await act(async () => {
-			setStreamState(
-				createStreamState("stop_workspace", "tool-1", { isError: true }),
-			);
+			applyMessagePart(toolResult("stop_workspace", { is_error: true }));
 		});
 
 		await waitFor(() => {
@@ -210,12 +183,12 @@ describe("useChatToolInvalidations", () => {
 	});
 
 	it("invalidates workspace queries without quota when the quota key is incomplete", async () => {
-		const { invalidateSpy, setStreamState } = renderInvalidations({
+		const { invalidateSpy, applyMessagePart } = renderInvalidations({
 			organizationName: "",
 		});
 
 		await act(async () => {
-			setStreamState(createStreamState("create_workspace"));
+			applyMessagePart(toolResult("create_workspace"));
 		});
 
 		await waitFor(() => {
@@ -234,21 +207,20 @@ describe("useChatToolInvalidations", () => {
 	});
 
 	it("does not invalidate queries for tools without invalidation signals", async () => {
-		const { invalidateSpy, setStreamState } = renderInvalidations();
+		const { invalidateSpy, applyMessagePart } = renderInvalidations();
 
 		await act(async () => {
-			setStreamState(createStreamState("read_file"));
+			applyMessagePart(toolResult("read_file"));
 		});
 
 		expect(invalidateSpy).not.toHaveBeenCalled();
 	});
 
 	it("does not process the same tool call ID twice", async () => {
-		const { invalidateSpy, setStreamState } = renderInvalidations();
-		const streamState = createStreamState("create_workspace");
+		const { invalidateSpy, applyMessagePart } = renderInvalidations();
 
 		await act(async () => {
-			setStreamState(streamState);
+			applyMessagePart(toolResult("create_workspace"));
 		});
 
 		await waitFor(() => {
@@ -256,7 +228,7 @@ describe("useChatToolInvalidations", () => {
 		});
 
 		await act(async () => {
-			setStreamState(streamState);
+			applyMessagePart(toolResult("create_workspace"));
 		});
 
 		await waitFor(() => {
@@ -265,10 +237,10 @@ describe("useChatToolInvalidations", () => {
 	});
 
 	it("resets processed tool call IDs when chatID changes", async () => {
-		const { invalidateSpy, rerender, setStreamState } = renderInvalidations();
+		const { invalidateSpy, rerender, applyMessagePart } = renderInvalidations();
 
 		await act(async () => {
-			setStreamState(createStreamState("create_workspace"));
+			applyMessagePart(toolResult("create_workspace"));
 		});
 
 		await waitFor(() => {
@@ -282,7 +254,7 @@ describe("useChatToolInvalidations", () => {
 		});
 
 		await act(async () => {
-			setStreamState(createStreamState("create_workspace"));
+			applyMessagePart(toolResult("create_workspace"));
 		});
 
 		await waitFor(() => {
@@ -295,12 +267,13 @@ describe("useChatToolInvalidations", () => {
 	});
 
 	it("waits for completed tool results before invalidating", async () => {
-		const { invalidateSpy, setStreamState } = renderInvalidations();
+		const { invalidateSpy, applyMessagePart } = renderInvalidations();
 
 		await act(async () => {
-			setStreamState(
-				createStreamState("create_workspace", "tool-1", {
-					isStreaming: true,
+			applyMessagePart(
+				toolResult("create_workspace", {
+					result: undefined,
+					result_delta: "{",
 				}),
 			);
 		});
@@ -308,7 +281,7 @@ describe("useChatToolInvalidations", () => {
 		expect(invalidateSpy).not.toHaveBeenCalled();
 
 		await act(async () => {
-			setStreamState(createStreamState("create_workspace"));
+			applyMessagePart(toolResult("create_workspace"));
 		});
 
 		await waitFor(() => {
@@ -317,7 +290,7 @@ describe("useChatToolInvalidations", () => {
 	});
 
 	it("does nothing when streamState is null", () => {
-		const { store } = createTestStore(null);
+		const store = createChatStore();
 		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
 		renderHook(
