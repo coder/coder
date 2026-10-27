@@ -198,8 +198,6 @@ Example of a [human readable](../../reference/cli/server/index.md#--log-human) c
 2026-10-07 11:34:37.428 [info]  coderd: connection_log  ID=909a0310-a14c-4761-89d3-9779a328f14f  OrganizationID=dc39157d-b298-415d-8fc7-590e9055f244  WorkspaceOwnerID=17f1cc14-ac7a-4703-976e-73ea4547dceb  WorkspaceID=f2e648d4-95bc-4df3-a5c2-ee5be991da29  WorkspaceName=dev  AgentName=main  ConnectionMethod=workspace_app  Code=200  IP=127.0.0.1  UserAgent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36"  UserID=17f1cc14-ac7a-4703-976e-73ea4547dceb  AppNameOrPort=code-server  ConnectionID=<nil>  DisconnectReason=""  ClientSessionID=""  Time="2026-10-07 11:34:37.428773435 +0000 UTC"  ConnectionStatus=connected
 ```
 
-To follow one client session across client, `coderd`, and agent logs with `ClientSessionID`, refer to [Trace workspace connections](./trace-connections.md).
-
 ## Data Retention
 
 Coder supports configurable retention policies that automatically purge old Connection Logs.
