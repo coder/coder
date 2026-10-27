@@ -466,7 +466,6 @@ type ConversationTimelineProps = {
 	hasActiveStream: boolean;
 	isAwaitingFirstStreamChunk: boolean;
 	queuedMessages?: readonly TypesGen.ChatQueuedMessage[];
-	/** Tool-call ID of the async question pinned above the chat input. */
 	dockedAskUserQuestionToolId?: string;
 };
 

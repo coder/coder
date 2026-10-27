@@ -36,6 +36,7 @@ import {
 	MockAsyncQuestionMessages,
 	MockAsyncQuestionResult,
 	MockAsyncQuestionResultMessage,
+	MockTwoAsyncQuestionsMessages,
 	MockWorkingMessages,
 } from "./ChatConversation/storyFixtures";
 import { ChatPageInput, ChatPageTimeline } from "./ChatPageContent";
@@ -703,34 +704,10 @@ export const AsyncQuestionDockedFromStream: Story = {
 	},
 };
 
-const MockTwoAsyncQuestionsResultMessage = buildQuestionResultMessage({
-	...MockAsyncQuestionResult,
-	questions: [
-		...MockAsyncQuestionResult.questions,
-		{
-			header: "Testing",
-			question: "How should the change be verified?",
-			options: [
-				{
-					label: "Unit tests",
-					description: "Cover the change with unit tests.",
-				},
-				{
-					label: "Manual check",
-					description: "Verify the change in a dev deployment.",
-				},
-			],
-		},
-	],
-});
-
 export const AsyncQuestionDockedSecondStep: Story = {
 	render: () => (
 		<AsyncQuestionChatPage
-			store={buildAsyncQuestionStore([
-				...MockAsyncQuestionMessages.slice(0, 2),
-				MockTwoAsyncQuestionsResultMessage,
-			])}
+			store={buildAsyncQuestionStore(MockTwoAsyncQuestionsMessages)}
 			onSendAskUserQuestionResponse={fn()}
 		/>
 	),

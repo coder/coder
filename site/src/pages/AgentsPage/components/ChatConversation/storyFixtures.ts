@@ -472,6 +472,41 @@ export const MockAsyncQuestionMessages: TypesGen.ChatMessage[] = [
 	MockAsyncQuestionResultMessage,
 ];
 
+/** MockAsyncQuestionMessages with a second question, so the form has two steps. */
+export const MockTwoAsyncQuestionsMessages: TypesGen.ChatMessage[] = [
+	...MockAsyncQuestionMessages.slice(0, 2),
+	{
+		...MockAsyncQuestionResultMessage,
+		content: [
+			{
+				type: "tool-result",
+				tool_call_id: "question",
+				tool_name: "ask_user_question",
+				result: {
+					...MockAsyncQuestionResult,
+					questions: [
+						...MockAsyncQuestionResult.questions,
+						{
+							header: "Testing",
+							question: "How should the change be verified?",
+							options: [
+								{
+									label: "Unit tests",
+									description: "Cover the change with unit tests.",
+								},
+								{
+									label: "Manual check",
+									description: "Verify the change in a dev deployment.",
+								},
+							],
+						},
+					],
+				},
+			},
+		],
+	},
+];
+
 export const buildReconnectState = (
 	overrides: Partial<ReconnectState> = {},
 ): ReconnectState => ({

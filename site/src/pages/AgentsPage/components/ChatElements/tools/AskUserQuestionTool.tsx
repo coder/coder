@@ -43,6 +43,8 @@ type AskUserQuestionToolProps = {
 	/** The question is answered in the dock above the chat input instead of in this card. */
 	isDocked?: boolean;
 	onSubmitAnswer?: (message: string) => Promise<void> | void;
+	/** Called when the form moves to another question. */
+	onStepChange?: () => void;
 };
 
 const OTHER_OPTION_VALUE = "other";
@@ -384,6 +386,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	asyncToolCallId,
 	isDocked = false,
 	onSubmitAnswer,
+	onStepChange,
 }) => {
 	const idPrefix = useId();
 	const isAsync = asyncToolCallId !== undefined;
@@ -513,6 +516,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 			return Math.max(currentIndex - 1, 0);
 		});
 		resetSubmitState();
+		onStepChange?.();
 	};
 
 	const handleNext = () => {
@@ -524,6 +528,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 			return Math.min(currentIndex + 1, filteredQuestions.length - 1);
 		});
 		resetSubmitState();
+		onStepChange?.();
 	};
 
 	const handleSubmit = () => {

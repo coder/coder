@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { useId } from "react";
+import { useId, useRef } from "react";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import type { MergedTool } from "./ChatConversation/types";
 import { AskUserQuestionRenderer } from "./ChatElements/tools/Tool";
@@ -9,21 +9,20 @@ type AskUserQuestionDockProps = {
 	onSubmitAnswer?: (message: string) => Promise<void> | void;
 };
 
-/**
- * Pins the open async question's answer form above the chat input. Callers
- * must pass the question that deriveAskUserQuestionState reports as open.
- */
+/** Callers must pass the question that deriveAskUserQuestionState reports as open. */
 export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 	question,
 	onSubmitAnswer,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
 	const labelId = useId();
+	const sectionRef = useRef<HTMLElement>(null);
 
 	return (
 		<div className="shrink-0 px-4">
 			{/* Bounded so a long question set never pushes the input off a short screen. */}
 			<section
+				ref={sectionRef}
 				aria-labelledby={labelId}
 				className={cn(
 					"mx-auto mb-2 max-h-[50vh] w-full overflow-y-auto rounded-lg border border-solid border-border bg-surface-primary p-3 shadow-sm scrollbar-thin",
@@ -44,6 +43,11 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 					isError={question.isError}
 					isLatestAskUserQuestion
 					onSendAskUserQuestionResponse={onSubmitAnswer}
+					onStepChange={() => {
+						if (sectionRef.current) {
+							sectionRef.current.scrollTop = 0;
+						}
+					}}
 				/>
 			</section>
 		</div>
