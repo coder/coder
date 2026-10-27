@@ -10,7 +10,11 @@ import {
 } from "components/Tooltip/Tooltip";
 import { useProxy } from "contexts/ProxyContext";
 import { CircleAlertIcon } from "lucide-react";
-import { isExternalApp, needsSessionToken } from "modules/apps/apps";
+import {
+	isExternalApp,
+	needsSessionToken,
+	SESSION_TOKEN_LINK_BLOCKED_MESSAGE,
+} from "modules/apps/apps";
 import { useAppLink } from "modules/apps/useAppLink";
 import { type FC, type ReactNode, useState } from "react";
 import { AgentButton } from "../AgentButton";
@@ -103,7 +107,38 @@ export const AppLink: FC<AppLinkProps> = ({
 		);
 	}
 
-	if (isExternalApp(app) && needsSessionToken(app) && !link.hasToken) {
+	if (link.isBlocked) {
+		canClick = false;
+		icon = (
+			<CircleAlertIcon
+				aria-hidden="true"
+				className="size-icon-sm text-content-warning"
+			/>
+		);
+		primaryTooltip = (
+			<>
+				{SESSION_TOKEN_LINK_BLOCKED_MESSAGE}{" "}
+				{agent.parent_id ? (
+					<>
+						Fix the app's <code>url</code> in the dev container's{" "}
+						<code>devcontainer.json</code>.
+					</>
+				) : (
+					<>
+						Ask your template administrator to fix the app's <code>url</code> in
+						the template's <code>coder_app</code> configuration.
+					</>
+				)}
+			</>
+		);
+	}
+
+	if (
+		isExternalApp(app) &&
+		needsSessionToken(app) &&
+		!agent.parent_id &&
+		!link.hasToken
+	) {
 		canClick = false;
 	}
 

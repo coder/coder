@@ -463,7 +463,7 @@ require (
 )
 
 require (
-	github.com/andybalholm/brotli v1.2.0
+	github.com/andybalholm/brotli v1.2.7
 	github.com/anthropics/anthropic-sdk-go v1.18.0
 	github.com/brianvoe/gofakeit/v7 v7.9.0
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
