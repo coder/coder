@@ -1159,7 +1159,7 @@ describe("AgentChatInput", () => {
 		}
 	});
 
-	it("positions mobile dropdowns from the composer below the md breakpoint without rewriting unchanged values", async () => {
+	it("writes mobile dropdown variables below the md breakpoint and rewrites only changed values", async () => {
 		stubViewportBelowMd();
 		const user = userEvent.setup();
 		const setProperty = vi.spyOn(document.documentElement.style, "setProperty");
