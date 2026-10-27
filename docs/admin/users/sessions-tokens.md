@@ -164,7 +164,7 @@ coder tokens create --name "workspace-token" \
 
 **Important:**
 Allow lists are exclusive - the token can **only** perform actions on resources explicitly listed.
-In the example above, the token can only read the specified workspace and cannot access any other resources (templates, organizations, other workspaces, etc.).
+In the example above, the token can only read the specified workspace and cannot access any other resources (templates, organizations, other workspaces, and so on).
 To maintain access to other resources, you must explicitly add them to the allow list:
 
 ```sh

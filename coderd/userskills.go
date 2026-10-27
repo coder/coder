@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 const (
@@ -326,10 +327,14 @@ func createSkill(
 		writeInvalidSkillContent(ctx, rw, err)
 		return database.Skill{}, false
 	}
+	modelInvocable := nullBool(req.ModelInvocable)
+	if !modelInvocable.Valid && workspacesdk.SkillDisablesModelInvocation(req.Content) {
+		modelInvocable = sql.NullBool{Bool: false, Valid: true}
+	}
 	skill, err := insert(parsed, skillCreate{
 		Content:        req.Content,
 		Action:         nullBool(req.Action),
-		ModelInvocable: nullBool(req.ModelInvocable),
+		ModelInvocable: modelInvocable,
 	})
 	if err != nil {
 		errs.write(ctx, rw, err)

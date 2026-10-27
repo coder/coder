@@ -2684,6 +2684,15 @@ func (api *API) updateChat(
 		})
 	}
 
+	// The binding decides where the owner's later prompts and tool calls
+	// run. Checking the owner's SSH access to the target is not enough,
+	// because a non-owner can first share their own workspace with them.
+	if req.WorkspaceID != nil && chat.OwnerID != callerID {
+		return database.Chat{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
+			Message: "Only the chat owner can change its workspace.",
+		})
+	}
+
 	var title string
 	if req.Title != nil {
 		normalized, resp := normalizeChatTitle(*req.Title)
@@ -7301,6 +7310,7 @@ const (
 	chatWorkspaceUploadArchivedMessage          = "Cannot upload files to an archived chat."
 	chatWorkspaceUploadOwnerOnlyMessage         = "Only the chat owner may upload files to a chat's workspace."
 	chatWorkspaceUploadMissingFilenameMessage   = "Filename is required."
+	chatWorkspaceUploadUnusableFilenameMessage  = "Filename is unusable."
 	chatWorkspaceUploadNoChatAgentMessage       = "No chat-compatible workspace agent found."
 	chatWorkspaceUploadAgentDialTimeout         = 30 * time.Second
 	// Transport errors embed the agent's tailnet URL, so they are logged
@@ -7426,16 +7436,25 @@ func (api *API) postChatWorkspaceFile(rw http.ResponseWriter, r *http.Request) {
 	filename := chatFilenameFromContentDisposition(r.Header.Get("Content-Disposition"))
 	sanitizedName, err := chatfiles.SanitizeWorkspaceUploadName(filename)
 	if err != nil {
+		if strings.TrimSpace(filename) == "" {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: chatWorkspaceUploadMissingFilenameMessage,
+				Detail:  "Provide a filename via the Content-Disposition header.",
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: chatWorkspaceUploadMissingFilenameMessage,
-			Detail:  "Provide a filename via the Content-Disposition header.",
+			Message: chatWorkspaceUploadUnusableFilenameMessage,
+			Detail:  "The provided filename has no safe characters left after sanitization or is a reserved device name.",
 		})
 		return
 	}
 	name = sanitizedName
 
-	contentType := chatfiles.BaseMediaType(r.Header.Get("Content-Type"))
-	if contentType == "" {
+	// The client echoes media_type back as workspace_file_media_type, so
+	// it must pass the same strict parse the message endpoint applies.
+	contentType, err := chatfiles.ParseBaseMediaType(r.Header.Get("Content-Type"))
+	if err != nil {
 		contentType = "application/octet-stream"
 	}
 
@@ -7865,11 +7884,16 @@ func createChatInputFromParts(
 					Detail:  fmt.Sprintf("%s[%d].workspace_file_path must reference a file uploaded to this chat.", fieldName, i),
 				}
 			}
-			if strings.ContainsRune(part.WorkspaceFileMediaType, 0) {
-				return nil, nil, &codersdk.Response{
-					Message: "Invalid input part.",
-					Detail:  fmt.Sprintf("%s[%d].workspace_file_media_type must not contain NUL bytes.", fieldName, i),
+			var workspaceFileMediaType string
+			if part.WorkspaceFileMediaType != "" {
+				parsed, err := chatfiles.ParseBaseMediaType(part.WorkspaceFileMediaType)
+				if err != nil {
+					return nil, nil, &codersdk.Response{
+						Message: "Invalid input part.",
+						Detail:  fmt.Sprintf("%s[%d].workspace_file_media_type must be a valid media type of at most %d bytes without control characters.", fieldName, i, chatfiles.MaxMediaTypeBytes),
+					}
 				}
+				workspaceFileMediaType = parsed
 			}
 			// The referenced bytes live in one specific workspace's
 			// filesystem. Reject references from a workspace other
@@ -7892,7 +7916,7 @@ func createChatInputFromParts(
 				workspaceFilePath,
 				part.WorkspaceFileName,
 				part.WorkspaceFileSize,
-				chatfiles.BaseMediaType(part.WorkspaceFileMediaType),
+				workspaceFileMediaType,
 			))
 		// chatd loads the skill body as the chat owner when the message
 		// is sent; only the shape is checked here.

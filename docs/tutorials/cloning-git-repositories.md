@@ -55,5 +55,5 @@ module "git-clone" {
 
 If you need more customization, you can read the [Git Clone module](https://registry.coder.com/modules/git-clone) documentation to learn more about the module.
 
-Don't forget to build and publish the template changes before creating a new workspace.
+Do not forget to build and publish the template changes before creating a new workspace.
 You can check if the repository is cloned by accessing the workspace terminal and listing the directories.

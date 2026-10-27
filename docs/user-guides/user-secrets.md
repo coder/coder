@@ -284,6 +284,7 @@ If you keep secrets in a dotenv file, a flat JSON object, or a flat YAML mapping
 
 1. Go to the [**Secrets** page](#manage-secrets-from-the-dashboard) and select **Add secret**.
 1. Drop or select a `.env`, `.json`, `.yaml`, or `.yml` file in the upload area.
+
    Coder imports the file as soon as you choose it.
 
 Every key in the file becomes a secret.

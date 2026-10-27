@@ -14,15 +14,22 @@ This guide shows how to configure Coder to authenticate users with Microsoft Ent
 1. Open Microsoft Azure Portal (https://portal.azure.com) → Microsoft Entra ID → App Registrations → New Registration
 2. Name: Name your application appropriately
 3. Supported Account Types: Choose the appropriate radio button according to your needs.
+
    Most organizations will want to use the first one labeled "Accounts in this organizational directory only"
 4. Select "Register"
 5. On the next screen, select: "Certificates and Secrets"
 6. Select "New Client Secret" and under description, enter an appropriate description.
-   Then set an expiry and hit "Add" once it's created, copy the value and save it somewhere secure for the next step
-7. Next, select the tab labeled "Token Configuration", then select "Add optional claim" and select the "ID" radio button, and finally check "upn" and hit "add" at the bottom
-8. Then, select the button labeled "Add groups claim" and check "Security groups" and select "Save" at the bottom
-9. Now, select the tab labeled "Authentication" and select "Add a platform", select "Web" and for the redirect URI enter your Coder callback URL, and then hit "Configure" at the bottom:
-   - `https://coder.example.com/api/v2/users/oidc/callback`
+7. Set an expiry and hit "Add".
+8. Once it's created, copy the value and save it somewhere secure for the next step
+9. Select the tab labeled "Token Configuration", then select "Add optional claim".
+10. Select the "ID" radio button, and finally check "upn" and hit "add" at the bottom
+11. Select the button labeled **Add groups claim**.
+12. Check **Security groups**.
+13. Select **Save**.
+14. Select the tab labeled "Authentication" and select "Add a platform".
+15. Select "Web" and for the redirect URI enter your Coder callback URL.
+16. Then select "Configure" at the bottom:
+    - `https://coder.example.com/api/v2/users/oidc/callback`
 
 ## Step 2: Configure Coder OIDC for Microsoft Entra ID
 
@@ -31,7 +38,7 @@ Set the following environment variables on your Coder deployment and restart Cod
 ```dotenv
 CODER_OIDC_ISSUER_URL=https://login.microsoftonline.com/{tenant-id}/v2.0 # Replace {tenant-id} with your Azure tenant ID
 CODER_OIDC_CLIENT_ID=<client id, located in "Overview">
-CODER_OIDC_CLIENT_SECRET=<client secret, saved from step 6>
+CODER_OIDC_CLIENT_SECRET=<client secret, saved from step 8>
 # Restrict to one or more email domains (comma-separated)
 CODER_OIDC_EMAIL_DOMAIN="example.com"
 CODER_OIDC_EMAIL_FIELD="upn" # This is set because EntraID typically uses .onmicrosoft.com domains by default, this should pull the user's username@domain email.

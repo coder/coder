@@ -2,6 +2,7 @@ package codersdk_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"path"
 	"path/filepath"
 	"slices"
@@ -306,6 +307,27 @@ func TestDecodeAppMap(t *testing.T) {
 			require.Zero(t, got["ssh"])
 		})
 	}
+}
+
+func TestFoldUnregisteredSessionApps(t *testing.T) {
+	t.Parallel()
+
+	// Exempt names carry the lowest counts, so only the exemption keeps them.
+	apps := map[string]int64{"vscode": 1, "unknown": 1, codersdk.AppNameOverflow: 1}
+	for i := range codersdk.TemplateInsightsMaxUnregisteredApps - 1 {
+		apps[fmt.Sprintf("tool_%02d", i)] = 10
+	}
+	// A tie at the cutoff keeps the name that sorts first.
+	apps["tie_a"], apps["tie_b"], apps["quiet"] = 5, 5, 2
+
+	require.Equal(t, 2, codersdk.FoldUnregisteredSessionApps(apps))
+	require.EqualValues(t, 5, apps["tie_a"])
+	require.NotContains(t, apps, "tie_b")
+	require.NotContains(t, apps, "quiet")
+	require.EqualValues(t, 1+5+2, apps[codersdk.AppNameOverflow])
+	require.EqualValues(t, 1, apps["vscode"])
+	require.EqualValues(t, 1, apps["unknown"])
+	require.Zero(t, codersdk.FoldUnregisteredSessionApps(map[string]int64{"a": 1}))
 }
 
 func TestSessionCountApps(t *testing.T) {

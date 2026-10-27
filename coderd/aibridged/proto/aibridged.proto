@@ -189,6 +189,7 @@ message IsAuthorizedResponse {
   string username = 3;
   string workspace_id = 4; // UUID. Empty when workspace attribution is unknown.
   string email = 5;
+  string organization_id = 6; // UUID. Empty when no organization could be resolved for the request.
 }
 
 message IsBudgetExceededRequest {

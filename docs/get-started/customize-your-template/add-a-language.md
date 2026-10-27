@@ -45,9 +45,9 @@ data "coder_parameter" "languages" {
 }
 ```
 
-This produces the following dropdown parameter:
+This produces the following multi-select parameter:
 
-![Programming Languages multi-select with Python selected and Node.js, Go, Rust, Java, and C/C++ offered](../../images/screenshots/quickstart-language-param.png)_Programming Language dropdown parameter from the Quickstart template_
+![Programming Languages multi-select with Python selected and Node.js, Go, Rust, Java, and C/C++ offered](../../images/screenshots/quickstart-language-param.png)_Programming Languages multi-select parameter from the Quickstart template_
 
 Adding an `option` adds a choice to that list.
 
@@ -119,7 +119,7 @@ When prompted for **Programming Languages**, add **Ruby**, then let the workspac
 
 Adding the Ruby option to the parameter shows the following:
 
-![The same Programming Languages multi-select, now offering Ruby after C/C++](../../images/screenshots/quickstart-language-param-ruby.png)_Programming Language dropdown parameter from the Quickstart template with Ruby_
+![The same Programming Languages multi-select, now offering Ruby after C/C++](../../images/screenshots/quickstart-language-param-ruby.png)_Programming Languages multi-select parameter from the Quickstart template with Ruby_
 
 ## Step 3: Check whether Ruby is installed
 

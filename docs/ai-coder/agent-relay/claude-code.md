@@ -16,9 +16,11 @@ Coder provides the workspace where the runner executes and logs that correlate t
 
 ## How it works
 
-1. A developer starts a Claude Code session at claude.ai/code or in Claude Desktop, targeting a self-hosted runner pool mapped to a Coder organization and workspace template.
-1. Agent Relay claims the pending work order for that session and asks the Coder control plane to provision a workspace from the mapped template for that user.
-1. A Claude Code self-hosted runner inside the workspace registers with the corresponding Claude Code session and executes the agent's tool calls.
+1. A developer starts a Claude Code session at claude.ai/code or in Claude Desktop, targeting a self-hosted runner pool.
+
+   The runner pool is mapped to a Coder organization and workspace template.
+1. Agent Relay claims the session's pending work order and asks Coder to provision the user's workspace from the mapped template.
+1. A Claude Code self-hosted runner inside the workspace registers with the session and executes the agent's tool calls.
 1. When the session ends, Agent Relay manages workspace teardown.
 
 Each Claude Code session gets its own ephemeral workspace.
