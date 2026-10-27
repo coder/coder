@@ -229,8 +229,10 @@ type GenerateCompactionOptions struct {
 	DebugSvc            *chatdebug.Service
 	ChatID              uuid.UUID
 	HistoryTipMessageID int64
-	ToolCallID          string
-	ToolName            string
+	// ToolCallID and ToolName identify the synthetic tool call
+	// used to represent compaction in the message stream.
+	ToolCallID string
+	ToolName   string
 
 	// ResolvedProvider, ResolvedModel, and ModelConfigID identify the
 	// summary model, which can differ from the chat model when a
@@ -252,6 +254,9 @@ type GenerateCompactionOptions struct {
 	// summary call uses the exact same ordered definitions.
 	ToolDefinitions []fantasy.Tool
 
+	// PublishMessagePart publishes streaming parts to connected
+	// clients so they see "Summarizing..." / "Summarized" UI
+	// transitions during compaction.
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 
 	// Clock measures the summary call duration. Required.
@@ -264,6 +269,9 @@ type GenerateCompactionOptions struct {
 	// OnModelStreamStart runs immediately before the summary model call,
 	// at the instant CompactionResult.Runtime starts measuring.
 	OnModelStreamStart func()
+
+	// Logger records summary requests the model rejects for their size.
+	Logger slog.Logger
 }
 
 // ProviderTool pairs a provider-native tool definition with an
@@ -632,30 +640,8 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Pers
 		}, nil
 	}
 
-	maxResultBytes := ToolResultByteBudget(opts.ContextLimit)
 	batchStart := clockNow(opts.Clock)
-	toolExecutions := executeTools(
-		ctx,
-		opts.Clock,
-		opts.Tools,
-		opts.ActiveTools,
-		opts.AllowInactiveTools,
-		opts.ProviderTools,
-		localCalls,
-		opts.ObservedToolCalls,
-		opts.Metrics,
-		opts.Logger,
-		provider,
-		modelName,
-		opts.BuiltinToolNames,
-		maxResultBytes,
-		opts.ToolNameAliases,
-		batchStart,
-		opts.BillingRecorder,
-		opts.ToolCallContext,
-		opts.Stages,
-		opts.StageModel,
-	)
+	toolExecutions := newToolBatch(opts, provider, modelName).run(ctx, localCalls, batchStart)
 	for _, execution := range toolExecutions {
 		tr := execution.content
 		completedAt := execution.interval.End
@@ -663,6 +649,13 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Pers
 		publishToolAttachments(ctx, opts.Logger, tr, completedAt, publishMessagePart)
 		ssePart := chatprompt.PartFromContentWithLogger(ctx, opts.Logger, tr)
 		ssePart.CreatedAt = &completedAt
+		userResult, projectionErr := chattool.UserResultFromMetadata(tr.ClientMetadata)
+		if projectionErr != nil {
+			return PersistedStep{}, projectionErr
+		}
+		if len(userResult) > 0 {
+			ssePart.Result = userResult
+		}
 		publishMessagePart(codersdk.ChatMessageRoleTool, ssePart)
 		result.content = append(result.content, tr)
 	}
@@ -944,8 +937,8 @@ func guardedStream(
 				switch part.Type {
 				case fantasy.StreamPartTypeError:
 					finishTTFT(part.Error)
-				case fantasy.StreamPartTypeWarnings, fantasy.StreamPartTypeFinish:
-					// Neither is model output, so the window stays open.
+				case fantasy.StreamPartTypeWarnings, fantasy.StreamPartTypeKeepalive, fantasy.StreamPartTypeFinish:
+					// None is model output, so the window stays open.
 				default:
 					// Start markers such as text_start count as output.
 					finishTTFT(nil)
@@ -1194,60 +1187,28 @@ type toolExecutionResult struct {
 	interval BilledInterval
 }
 
-// executeTools runs non-serial calls concurrently, then SerialToolCalls in
-// call order. Results are returned in original order after all tools finish.
-// recorder, if set, receives live start and completion timestamps.
-func executeTools(
-	ctx context.Context,
-	clock quartz.Clock,
-	allTools []fantasy.AgentTool,
-	activeTools []string,
-	allowInactiveTools map[string]bool,
-	providerTools []ProviderTool,
-	toolCalls []fantasy.ToolCallContent,
-	observedToolCalls []fantasy.ToolCallContent,
-	metrics *Metrics,
-	logger slog.Logger,
-	provider, model string,
-	builtinToolNames map[string]bool,
-	maxResultBytes int,
-	toolNameAliases map[string]string,
-	batchStart time.Time,
-	recorder ToolBillingRecorder,
-	toolCallContext func(context.Context, fantasy.ToolCallContent) context.Context,
-	stages *StageTracer,
-	stageModel StageModel,
-) []toolExecutionResult {
-	if len(toolCalls) == 0 {
-		return nil
-	}
+type toolBatch struct {
+	opts            ExecuteLocalToolsOptions
+	provider, model string
+	maxResultBytes  int
+	tools           map[string]fantasy.AgentTool
+	providerRunners map[string]struct{}
+	resultMetadata  map[string]func(fantasy.ToolResponse) fantasy.ProviderMetadata
+}
 
-	// Filter out provider-executed tool calls. These were
-	// handled server-side by the LLM provider (e.g., web
-	// search) and their results are already in the stream
-	// content.
-	localToolCalls := make([]fantasy.ToolCallContent, 0, len(toolCalls))
-	for _, tc := range toolCalls {
-		if !tc.ProviderExecuted {
-			localToolCalls = append(localToolCalls, tc)
-		}
-	}
-	if len(localToolCalls) == 0 {
-		return nil
-	}
-
-	toolMap := make(map[string]fantasy.AgentTool, len(allTools))
-	for _, t := range allTools {
+func newToolBatch(opts ExecuteLocalToolsOptions, provider, model string) *toolBatch {
+	toolMap := make(map[string]fantasy.AgentTool, len(opts.Tools))
+	for _, t := range opts.Tools {
 		toolMap[t.Info().Name] = t
 	}
-	providerRunnerNames := make(map[string]struct{}, len(providerTools))
+	providerRunnerNames := make(map[string]struct{}, len(opts.ProviderTools))
 	resultProviderMetadata := make(
 		map[string]func(fantasy.ToolResponse) fantasy.ProviderMetadata,
-		len(providerTools),
+		len(opts.ProviderTools),
 	)
 	// Include runners from provider tools so locally-executed
 	// provider tools (e.g. computer use) can be dispatched.
-	for _, pt := range providerTools {
+	for _, pt := range opts.ProviderTools {
 		if pt.Runner == nil {
 			continue
 		}
@@ -1259,23 +1220,42 @@ func executeTools(
 			resultProviderMetadata[name] = pt.ResultProviderMetadata
 		}
 	}
+	return &toolBatch{
+		opts:            opts,
+		provider:        provider,
+		model:           model,
+		maxResultBytes:  ToolResultByteBudget(opts.ContextLimit),
+		tools:           toolMap,
+		providerRunners: providerRunnerNames,
+		resultMetadata:  resultProviderMetadata,
+	}
+}
 
-	observed := observedToolCalls
+func (b *toolBatch) resolve(name string) string {
+	if alias, ok := b.opts.ToolNameAliases[name]; ok {
+		return alias
+	}
+	return name
+}
+
+func (b *toolBatch) run(ctx context.Context, localToolCalls []fantasy.ToolCallContent, batchStart time.Time) []toolExecutionResult {
+	observed := b.opts.ObservedToolCalls
 	if observed == nil {
 		observed = localToolCalls
 	}
-	notifyStepToolCallObservers(toolMap, toolNameAliases, observed)
+	b.notifyStepToolCallObservers(observed)
 
+	recorder := b.opts.BillingRecorder
 	executions := make([]toolExecutionResult, len(localToolCalls))
 	runCall := func(i int, tc fantasy.ToolCallContent) {
 		// Started only if the tool runs, so rejected calls record no stage.
 		var toolSpan *StageSpan
 		startRun := func(ctx context.Context) context.Context {
 			var toolCtx context.Context
-			toolCtx, toolSpan = stages.Start(ctx, StageToolCall,
+			toolCtx, toolSpan = b.opts.Stages.Start(ctx, StageToolCall,
 				attribute.String(AttrToolName, tc.ToolName),
 			)
-			toolSpan.SetModel(stageModel)
+			toolSpan.SetModel(b.opts.StageModel)
 			return toolCtx
 		}
 		var execErr error
@@ -1293,7 +1273,7 @@ func executeTools(
 			// Record when this tool completed (or panicked).
 			// Captured per call so parallel tools get
 			// accurate individual completion times.
-			completedAt := clockNow(clock)
+			completedAt := clockNow(b.opts.Clock)
 			executions[i].interval.End = completedAt
 			if recorder != nil {
 				recorder.RecordComplete(i, completedAt)
@@ -1301,33 +1281,17 @@ func executeTools(
 			toolSpan.End(execErr)
 		}()
 		callCtx := ctx
-		if toolCallContext != nil {
-			callCtx = toolCallContext(ctx, tc)
+		if b.opts.ToolCallContext != nil {
+			callCtx = b.opts.ToolCallContext(ctx, tc)
 		}
-		executions[i].content, execErr = executeSingleTool(
-			callCtx,
-			toolMap,
-			tc,
-			metrics,
-			logger,
-			provider,
-			model,
-			builtinToolNames,
-			activeTools,
-			allowInactiveTools,
-			providerRunnerNames,
-			resultProviderMetadata,
-			maxResultBytes,
-			toolNameAliases,
-			startRun,
-		)
+		executions[i].content, execErr = b.runOne(callCtx, tc, startRun)
 	}
 	// SerialToolCalls run in call order after concurrent siblings settle, so
 	// order-sensitive state observes final sibling outcomes.
 	var serialIndexes []int
 	var wg sync.WaitGroup
 	for i, tc := range localToolCalls {
-		if isSerialToolCall(toolMap, toolNameAliases, tc.ToolName) {
+		if b.isSerialToolCall(tc.ToolName) {
 			serialIndexes = append(serialIndexes, i)
 			continue
 		}
@@ -1350,11 +1314,11 @@ func executeTools(
 			settled = append(settled, executions[i].content)
 		}
 	}
-	notifyStepToolResultObservers(toolMap, toolNameAliases, localToolCalls, observed, settled)
+	b.notifyStepToolResultObservers(localToolCalls, observed, settled)
 
 	for _, i := range serialIndexes {
 		// Stamp serial calls at launch, not batch start.
-		startedAt := clockNow(clock)
+		startedAt := clockNow(b.opts.Clock)
 		executions[i].interval.Start = startedAt
 		if recorder != nil {
 			recorder.RecordStart(i, startedAt)
@@ -1388,11 +1352,6 @@ func applyExclusiveToolPolicy(
 	return results, true
 }
 
-// recordToolResultMetrics observes tool result size and increments
-// tool_errors_total when the result carries an error output. Mirrors
-// the metric-recording defer in executeSingleTool so that synthetic
-// results (e.g. exclusive-tool policy errors) contribute to operator
-// visibility.
 func recordToolResultMetrics(metrics *Metrics, provider, model string, tr fantasy.ToolResultContent) {
 	if metrics == nil {
 		return
@@ -1456,23 +1415,11 @@ func exclusiveToolSkippedErrorMessage(toolName string) string {
 	return "this tool was skipped because " + toolName + " must run alone in its batch. Retry your tool calls without " + toolName + ", or call " + toolName + " separately first."
 }
 
-// executeSingleTool executes one tool call and converts the
-// response into a ToolResultContent. The error is non-nil only when
-// tool.Run fails. startRun, if set, supplies the context the tool runs on.
-func executeSingleTool(
+// runOne returns an error only when tool.Run fails, so stage tracing
+// can tell those failures from other model-facing error results.
+func (b *toolBatch) runOne(
 	ctx context.Context,
-	toolMap map[string]fantasy.AgentTool,
 	tc fantasy.ToolCallContent,
-	metrics *Metrics,
-	logger slog.Logger,
-	provider, model string,
-	builtinToolNames map[string]bool,
-	activeTools []string,
-	allowInactiveTools map[string]bool,
-	providerRunnerNames map[string]struct{},
-	resultProviderMetadata map[string]func(fantasy.ToolResponse) fantasy.ProviderMetadata,
-	maxResultBytes int,
-	toolNameAliases map[string]string,
 	startRun func(context.Context) context.Context,
 ) (fantasy.ToolResultContent, error) {
 	result := fantasy.ToolResultContent{
@@ -1481,35 +1428,23 @@ func executeSingleTool(
 		ProviderExecuted: false,
 	}
 	defer func() {
-		metricLabel := tc.ToolName
-		if metricLabel == "" {
-			metricLabel = "unknown"
-		}
-		metrics.ToolResultSizeBytes.WithLabelValues(provider, model, metricLabel).Observe(
-			float64(ToolResultSize(result)),
-		)
-		if _, ok := result.Result.(fantasy.ToolResultOutputContentError); ok {
-			metrics.RecordToolError(provider, model, metricLabel)
-		}
+		recordToolResultMetrics(b.opts.Metrics, b.provider, b.model, result)
 	}()
 
 	// Resolve backward-compatible tool aliases (for example a renamed
 	// tool whose old name still appears in chat history) to the canonical
 	// tool before the active-tool and dispatch lookups.
-	resolvedName := tc.ToolName
-	if alias, ok := toolNameAliases[tc.ToolName]; ok {
-		resolvedName = alias
-	}
+	resolvedName := b.resolve(tc.ToolName)
 
-	_, isProviderRunner := providerRunnerNames[resolvedName]
-	if !isProviderRunner && !isToolActive(resolvedName, activeTools) && !allowInactiveTools[resolvedName] {
+	_, isProviderRunner := b.providerRunners[resolvedName]
+	if !isProviderRunner && !isToolActive(resolvedName, b.opts.ActiveTools) && !b.opts.AllowInactiveTools[resolvedName] {
 		result.Result = fantasy.ToolResultOutputContentError{
 			Error: xerrors.New("Tool not active in this turn: " + resolvedName),
 		}
 		return result, nil
 	}
 
-	tool, exists := toolMap[resolvedName]
+	tool, exists := b.tools[resolvedName]
 	if !exists {
 		result.Result = fantasy.ToolResultOutputContentError{
 			Error: xerrors.New("Tool not found: " + resolvedName),
@@ -1517,11 +1452,11 @@ func executeSingleTool(
 		return result, nil
 	}
 
-	logger.Debug(ctx, "tool execution",
+	b.opts.Logger.Debug(ctx, "tool execution",
 		slog.F("tool_name", tc.ToolName),
 		slog.F("resolved_tool_name", resolvedName),
 		slog.F("tool_call_id", tc.ToolCallID),
-		slog.F("builtin", builtinToolNames[resolvedName]),
+		slog.F("builtin", b.opts.BuiltinToolNames[resolvedName]),
 		slog.F("is_provider_runner", isProviderRunner),
 	)
 	if startRun != nil {
@@ -1537,7 +1472,7 @@ func executeSingleTool(
 			Error: err,
 		}
 		result.ClientMetadata = resp.Metadata
-		logger.Error(ctx, "tool execution failed",
+		b.opts.Logger.Error(ctx, "tool execution failed",
 			slog.F("tool_name", tc.ToolName),
 			slog.F("tool_call_id", tc.ToolCallID),
 			slog.Error(err),
@@ -1550,13 +1485,13 @@ func executeSingleTool(
 	// Bound text so one tool result cannot overflow the model's context window.
 	// Media limits are applied separately by normalizeToolMedia.
 	content := resp.Content
-	if truncated, didTruncate := TruncateToolResultText(content, maxResultBytes); didTruncate {
-		metrics.RecordToolResultTruncated(provider, model, tc.ToolName)
-		logger.Warn(ctx, "tool result truncated to fit model context",
+	if truncated, didTruncate := TruncateToolResultText(content, b.maxResultBytes); didTruncate {
+		b.opts.Metrics.RecordToolResultTruncated(b.provider, b.model, tc.ToolName)
+		b.opts.Logger.Warn(ctx, "tool result truncated to fit model context",
 			slog.F("tool_name", tc.ToolName),
 			slog.F("tool_call_id", tc.ToolCallID),
 			slog.F("original_bytes", len(content)),
-			slog.F("max_bytes", maxResultBytes),
+			slog.F("max_bytes", b.maxResultBytes),
 		)
 		content = truncated
 	}
@@ -1566,7 +1501,7 @@ func executeSingleTool(
 		result.Result = fantasy.ToolResultOutputContentError{
 			Error: xerrors.New(content),
 		}
-		logger.Info(ctx, "tool returned error result",
+		b.opts.Logger.Info(ctx, "tool returned error result",
 			slog.F("tool_name", tc.ToolName),
 			slog.F("tool_call_id", tc.ToolCallID),
 			slog.F("tool_error", content),
@@ -1574,7 +1509,7 @@ func executeSingleTool(
 	case resp.Type == "image" || resp.Type == "media":
 		text := strings.ToValidUTF8(content, "\uFFFD")
 		if note, rejected := normalizeToolMedia(&resp); rejected {
-			logger.Warn(ctx, "tool result media rejected, keeping text only",
+			b.opts.Logger.Warn(ctx, "tool result media rejected, keeping text only",
 				slog.F("tool_name", tc.ToolName),
 				slog.F("tool_call_id", tc.ToolCallID),
 				slog.F("media_type", resp.MediaType),
@@ -1601,7 +1536,7 @@ func executeSingleTool(
 		return result, nil
 	}
 	if len(result.ProviderMetadata) == 0 {
-		if callback := resultProviderMetadata[tc.ToolName]; callback != nil {
+		if callback := b.resultMetadata[resolvedName]; callback != nil {
 			metadata := callback(resp)
 			if len(metadata) > 0 {
 				result.ProviderMetadata = metadata
@@ -1649,14 +1584,10 @@ type stepToolCallObserver interface{ ObserveStepToolCalls(names []string) }
 
 // notifyStepToolCallObservers passes the step's resolved tool-call
 // names to each distinct called tool that observes them.
-func notifyStepToolCallObservers(toolMap map[string]fantasy.AgentTool, toolNameAliases map[string]string, calls []fantasy.ToolCallContent) {
+func (b *toolBatch) notifyStepToolCallObservers(calls []fantasy.ToolCallContent) {
 	names := make([]string, 0, len(calls))
 	for _, tc := range calls {
-		name := tc.ToolName
-		if alias, ok := toolNameAliases[name]; ok {
-			name = alias
-		}
-		names = append(names, name)
+		names = append(names, b.resolve(tc.ToolName))
 	}
 	notified := make(map[string]struct{}, len(names))
 	for _, name := range names {
@@ -1664,11 +1595,7 @@ func notifyStepToolCallObservers(toolMap map[string]fantasy.AgentTool, toolNameA
 			continue
 		}
 		notified[name] = struct{}{}
-		tool, ok := toolMap[name]
-		if !ok {
-			continue
-		}
-		if observer, ok := tool.(stepToolCallObserver); ok {
+		if observer, ok := b.tools[name].(stepToolCallObserver); ok {
 			observer.ObserveStepToolCalls(names)
 		}
 	}
@@ -1692,13 +1619,7 @@ type stepToolResultObserver interface {
 // results always carry IsError. Serial calls have not run yet, so
 // their own outcomes are reported as not errored; observers only need
 // the concurrent siblings they share state with.
-func notifyStepToolResultObservers(toolMap map[string]fantasy.AgentTool, toolNameAliases map[string]string, calls, observed []fantasy.ToolCallContent, settled []fantasy.ToolResultContent) {
-	resolve := func(name string) string {
-		if alias, ok := toolNameAliases[name]; ok {
-			return alias
-		}
-		return name
-	}
+func (b *toolBatch) notifyStepToolResultObservers(calls, observed []fantasy.ToolCallContent, settled []fantasy.ToolResultContent) {
 	erroredByID := make(map[string]bool, len(settled))
 	for _, tr := range settled {
 		_, isErr := tr.Result.(fantasy.ToolResultOutputContentError)
@@ -1711,7 +1632,7 @@ func notifyStepToolResultObservers(toolMap map[string]fantasy.AgentTool, toolNam
 	names := make([]string, 0, len(observed))
 	errored := make([]bool, 0, len(observed))
 	for _, tc := range observed {
-		names = append(names, resolve(tc.ToolName))
+		names = append(names, b.resolve(tc.ToolName))
 		if isErr, ok := erroredByID[tc.ToolCallID]; ok {
 			errored = append(errored, isErr)
 			continue
@@ -1721,33 +1642,19 @@ func notifyStepToolResultObservers(toolMap map[string]fantasy.AgentTool, toolNam
 	}
 	notified := make(map[string]struct{}, len(calls))
 	for _, tc := range calls {
-		name := tc.ToolName
-		if alias, ok := toolNameAliases[name]; ok {
-			name = alias
-		}
+		name := b.resolve(tc.ToolName)
 		if _, dup := notified[name]; dup {
 			continue
 		}
 		notified[name] = struct{}{}
-		tool, ok := toolMap[name]
-		if !ok {
-			continue
-		}
-		if observer, ok := tool.(stepToolResultObserver); ok {
+		if observer, ok := b.tools[name].(stepToolResultObserver); ok {
 			observer.ObserveStepToolResults(names, errored)
 		}
 	}
 }
 
-func isSerialToolCall(toolMap map[string]fantasy.AgentTool, toolNameAliases map[string]string, name string) bool {
-	if alias, ok := toolNameAliases[name]; ok {
-		name = alias
-	}
-	tool, ok := toolMap[name]
-	if !ok {
-		return false
-	}
-	serial, ok := tool.(serialToolCaller)
+func (b *toolBatch) isSerialToolCall(name string) bool {
+	serial, ok := b.tools[b.resolve(name)].(serialToolCaller)
 	return ok && serial.SerialToolCalls()
 }
 

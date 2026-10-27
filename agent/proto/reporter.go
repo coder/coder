@@ -31,6 +31,8 @@ type ConnectEvent struct {
 }
 
 type DisconnectEvent struct {
-	Code   int
-	Reason string
+	Code    int
+	Reason  string
+	RxBytes int64
+	TxBytes int64
 }

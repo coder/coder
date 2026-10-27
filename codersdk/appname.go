@@ -3,7 +3,6 @@ package codersdk
 import (
 	"cmp"
 	"encoding/json"
-	"maps"
 	"slices"
 	"strings"
 	"unicode"
@@ -47,7 +46,7 @@ func (f AppFamilyName) DisplayName() string {
 	return appFamilyDisplayNames[f]
 }
 
-// AppNameOverflow sums the app names past the per-report cap.
+// AppNameOverflow sums the unregistered app names past the limit of 64.
 const AppNameOverflow = "overflow"
 
 // SessionCountApp is one app's session count and how to present it.
@@ -111,7 +110,7 @@ var sessionApps = map[string]sessionApp{
 	// Zed speaks SSH, so it counts toward the SSH total.
 	"zed":              {AppFamilySSH, "Zed", "/icon/zed.svg"},
 	"ssh":              {AppFamilySSH, "SSH", "/icon/terminal.svg"},
-	"reconnecting_pty": {AppFamilyReconnectingPTY, "Web Terminal", ""},
+	"reconnecting_pty": {AppFamilyReconnectingPTY, "Web Terminal", "/icon/terminal.svg"},
 	"port_forwarding":  {AppFamilyPortForwarding, "Port Forwarding", ""},
 }
 
@@ -119,15 +118,33 @@ var sessionApps = map[string]sessionApp{
 func SessionCountApps(counts map[string]int64) map[string]SessionCountApp {
 	apps := make(map[string]SessionCountApp, len(counts))
 	for appName, count := range counts {
-		app := sessionApps[NormalizeAppName(appName)]
+		displayName, icon, family := SessionAppPresentation(appName)
 		apps[appName] = SessionCountApp{
 			Count:       count,
-			DisplayName: cmp.Or(app.displayName, appName),
-			Icon:        app.icon,
-			Family:      cmp.Or(app.family, AppFamilyUnknown),
+			DisplayName: displayName,
+			Icon:        icon,
+			Family:      family,
 		}
 	}
 	return apps
+}
+
+// SessionAppPresentation returns registry metadata or an unknown-family label.
+func SessionAppPresentation(appName string) (displayName, icon string, family AppFamilyName) {
+	appName = NormalizeAppName(appName)
+	if app, ok := sessionApps[appName]; ok {
+		return app.displayName, app.icon, app.family
+	}
+
+	// Accounting labels are not registered apps and must not bypass app limits.
+	switch appName {
+	case string(AppFamilyUnknown):
+		return "Unknown", "", AppFamilyUnknown
+	case AppNameOverflow:
+		return "Other apps", "", AppFamilyUnknown
+	default:
+		return appName, "", AppFamilyUnknown
+	}
 }
 
 // SessionCountAppFamilies returns a copy of the registry's app-to-family mapping.
@@ -145,27 +162,6 @@ func SumByFamily(byApp map[string]int64) map[AppFamilyName]int64 {
 	byFamily := make(map[AppFamilyName]int64)
 	for appName, value := range byApp {
 		byFamily[AppNameFamily(appName)] += value
-	}
-	return byFamily
-}
-
-// UnionByFamily folds per-app template IDs into the distinct set each family
-// was seen in, ordered by app name.
-func UnionByFamily(byApp map[string][]uuid.UUID) map[AppFamilyName][]uuid.UUID {
-	byFamily := make(map[AppFamilyName][]uuid.UUID, len(byApp))
-	seen := make(map[AppFamilyName]map[uuid.UUID]struct{}, len(byApp))
-	for _, appName := range slices.Sorted(maps.Keys(byApp)) {
-		family := AppNameFamily(appName)
-		if seen[family] == nil {
-			seen[family] = map[uuid.UUID]struct{}{}
-		}
-		for _, id := range byApp[appName] {
-			if _, ok := seen[family][id]; ok {
-				continue
-			}
-			seen[family][id] = struct{}{}
-			byFamily[family] = append(byFamily[family], id)
-		}
 	}
 	return byFamily
 }
@@ -226,4 +222,43 @@ func DecodeAppMap[V appMapValue](raw json.RawMessage) (map[string]V, error) {
 		decoded = map[string]V{}
 	}
 	return decoded, nil
+}
+
+// SessionAppMethod derives a session app's method from its normalized name.
+// Every reporter's app name implies its method, so none is stored.
+func SessionAppMethod(appName string) ConnectionLogMethod {
+	switch AppFamilyName(appName) {
+	case AppFamilyReconnectingPTY:
+		return ConnectionLogMethodReconnectingPTY
+	case AppFamilyPortForwarding:
+		return ConnectionLogMethodPortForwarding
+	default:
+		return ConnectionLogMethodSSH
+	}
+}
+
+// FoldUnregisteredSessionApps applies the session app fold rule, which
+// GetTemplateInsights mirrors in SQL. Registered apps, unknown, overflow, and
+// the busiest TemplateInsightsMaxUnregisteredApps other apps keep their
+// entries; the rest are added to overflow. Ties break by app name in byte
+// order. It edits apps in place and returns the number of apps folded.
+func FoldUnregisteredSessionApps(apps map[string]int64) int {
+	var unregistered []string
+	for app := range apps {
+		if _, ok := sessionApps[app]; !ok && app != string(AppFamilyUnknown) && app != AppNameOverflow {
+			unregistered = append(unregistered, app)
+		}
+	}
+	if len(unregistered) <= TemplateInsightsMaxUnregisteredApps {
+		return 0
+	}
+	slices.SortFunc(unregistered, func(a, b string) int {
+		return cmp.Or(cmp.Compare(apps[b], apps[a]), strings.Compare(a, b))
+	})
+	folded := unregistered[TemplateInsightsMaxUnregisteredApps:]
+	for _, app := range folded {
+		apps[AppNameOverflow] += apps[app]
+		delete(apps, app)
+	}
+	return len(folded)
 }
