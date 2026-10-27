@@ -292,9 +292,9 @@ export const useChatStore = (
 						continue;
 					}
 
-					if (streamEvent.snapshot_version !== undefined) {
-						store.advanceSnapshotVersion(streamEvent.snapshot_version);
-					}
+					// The stream sets it on message, queue_update and history_reset.
+					const version = streamEvent.snapshot_version ?? 0;
+					store.advanceSnapshotVersion(version);
 
 					// Every other event applies after the messages before it.
 					if (streamEvent.type !== "message") {
@@ -306,7 +306,7 @@ export const useChatStore = (
 						store.clearStreamState();
 						store.resetHistoryFrom(
 							streamEvent.history_reset?.from_message_id ?? 0,
-							streamEvent.snapshot_version,
+							version,
 						);
 						void invalidateChatSearches(queryClient);
 						needsStreamReset = false;
@@ -335,10 +335,7 @@ export const useChatStore = (
 							store.clearRetryState();
 							pendingMessages.push(message);
 							if (message.role === "user") {
-								userMessageVersion = Math.max(
-									userMessageVersion,
-									streamEvent.snapshot_version ?? 0,
-								);
+								userMessageVersion = Math.max(userMessageVersion, version);
 							}
 							if (message.role === "assistant") {
 								needsStreamReset = true;
@@ -348,7 +345,7 @@ export const useChatStore = (
 						case "queue_update":
 							store.setQueuedMessages(
 								streamEvent.queued_messages ?? [],
-								streamEvent.snapshot_version,
+								version,
 							);
 							continue;
 						case "status": {
