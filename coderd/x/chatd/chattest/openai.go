@@ -44,8 +44,8 @@ type OpenAIReasoningItem struct {
 // Responses API test server.
 type OpenAIWebSearchCall struct {
 	ID string `json:"id,omitempty"`
-	// Action is action.type. It defaults to "search".
-	Action string `json:"action,omitempty"`
+	// ActionType is action.type. It defaults to "search".
+	ActionType string `json:"action_type,omitempty"`
 	// URL is action.url for open_page and find_in_page.
 	URL string `json:"url,omitempty"`
 	// Pattern is action.pattern for find_in_page.
@@ -659,7 +659,7 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, req *OpenAI
 		}
 		includeSources := requestIncludes(req.RawBody, "web_search_call.action.sources")
 		newAction := func(sourceURLs []string) map[string]interface{} {
-			actionType := resp.WebSearch.Action
+			actionType := resp.WebSearch.ActionType
 			if actionType == "" {
 				actionType = "search"
 			}

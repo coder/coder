@@ -10801,8 +10801,8 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 			name:  "UnstoredOpenPage",
 			store: ptr.Ref(false),
 			webSearch: chattest.OpenAIWebSearchCall{
-				Action: "open_page",
-				URL:    "https://www.metro.tokyo.lg.jp/",
+				ActionType: "open_page",
+				URL:        "https://www.metro.tokyo.lg.jp/",
 			},
 			wantArgs:   `{"type":"open_page","url":"https://www.metro.tokyo.lg.jp/"}`,
 			wantResult: `{}`,
@@ -10812,9 +10812,9 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 			name:  "UnstoredFindInPage",
 			store: ptr.Ref(false),
 			webSearch: chattest.OpenAIWebSearchCall{
-				Action:  "find_in_page",
-				URL:     "https://www.metro.tokyo.lg.jp/",
-				Pattern: "population",
+				ActionType: "find_in_page",
+				URL:        "https://www.metro.tokyo.lg.jp/",
+				Pattern:    "population",
 			},
 			wantArgs:   `{"type":"find_in_page","url":"https://www.metro.tokyo.lg.jp/","pattern":"population"}`,
 			wantResult: `{}`,
