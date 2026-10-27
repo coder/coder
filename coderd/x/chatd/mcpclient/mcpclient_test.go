@@ -847,6 +847,9 @@ func TestConnectAll_FullInputSchema_ModelIntentRebasesRefs(t *testing.T) {
 			Name: "tree_search",
 			InputSchema: map[string]any{
 				"type": "object",
+				// Providers reject "$recursiveAnchor", which the
+				// recursive reference no longer needs as a "$ref".
+				"$recursiveAnchor": true,
 				"properties": map[string]any{
 					"kind":       map[string]any{"type": "string", "enum": []any{"a", "b"}},
 					"other_kind": map[string]any{"$ref": "#/properties/kind"},

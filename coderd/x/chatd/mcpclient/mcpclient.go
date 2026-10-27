@@ -1049,6 +1049,15 @@ const toolCallIDMetaKey = "com.coder/tool_call_id"
 // redactedPlaceholder replaces each sensitive value in redacted text.
 const redactedPlaceholder = "[REDACTED]"
 
+// redactedNamePlaceholder replaces each sensitive value in a schema name
+// or reference. Providers reject a property name outside
+// ^[a-zA-Z0-9_.-]{1,64}$, which the brackets of redactedPlaceholder
+// would break, and a reference must still name the definition it did.
+// It is no longer than a sensitive value, so names do not grow, and it
+// is a substring of redactedPlaceholder, so the values newSecretRedactor
+// drops for overlapping one also cover the other.
+const redactedNamePlaceholder = "REDACTED"
+
 // MinSensitiveValueBytes is the shortest value the redactor will
 // replace. Shorter values cannot be secrets, and replacing them would
 // rewrite ordinary text, tool names, and schema property names.
@@ -1116,8 +1125,12 @@ func newServerRedactor(kind connectionKind, srv Server) secretRedactor {
 }
 
 func (r secretRedactor) redactString(value string) string {
+	return r.replace(value, redactedPlaceholder)
+}
+
+func (r secretRedactor) replace(value, placeholder string) string {
 	for _, secret := range r.values {
-		value = strings.ReplaceAll(value, secret, redactedPlaceholder)
+		value = strings.ReplaceAll(value, secret, placeholder)
 	}
 	return value
 }
@@ -1178,42 +1191,110 @@ func (r secretRedactor) redactValue(value any) any {
 }
 
 // redactSchemaMap redacts an input schema like redactMap, but keeps the
-// keys and strings that are JSON Schema keywords, and the keyword
-// segments of references. A sensitive value such as a URL path segment
-// named "properties" would otherwise rename keywords, the property names
-// "required" lists, and the pointers references follow, while keeping
-// them shows nothing that every schema does not.
+// JSON Schema keywords that make up its structure: keyword keys, the
+// names of properties, definitions, and anchors, the names "required"
+// lists, and the keyword segments of references and resource URIs. A
+// sensitive value such as a URL path segment named "properties" would
+// otherwise rename keywords, the property names "required" lists, and
+// the pointers references follow, while keeping them shows nothing that
+// every schema does not. Instance data and annotations, such as "enum"
+// values and descriptions, are redacted like any other text.
 func (r secretRedactor) redactSchemaMap(schema map[string]any) map[string]any {
 	if len(schema) == 0 || len(r.values) == 0 {
 		return schema
 	}
 	redacted := make(map[string]any, len(schema))
 	for key, item := range schema {
-		if ref, ok := item.(string); ok && (key == "$ref" || key == "$dynamicRef" || key == "$recursiveRef") {
-			redacted[key] = r.redactReference(ref)
-			continue
-		}
-		redacted[r.redactSchemaString(key)] = r.redactSchemaValue(item)
+		redacted[r.redactSchemaName(key)] = r.redactKeywordValue(key, item)
 	}
 	return redacted
 }
 
-func (r secretRedactor) redactSchemaValue(value any) any {
+// redactKeywordValue redacts the value of key in a schema object.
+func (r secretRedactor) redactKeywordValue(key string, value any) any {
+	switch key {
+	case "$ref", "$dynamicRef", "$recursiveRef", "$id", "id":
+		if ref, ok := value.(string); ok {
+			return r.redactReference(ref)
+		}
+	case "$anchor", "$dynamicAnchor", "required":
+		return r.redactSchemaNames(value)
+	case "dependentRequired":
+		if named, ok := value.(map[string]any); ok {
+			redacted := make(map[string]any, len(named))
+			for name, names := range named {
+				redacted[r.redactSchemaName(name)] = r.redactSchemaNames(names)
+			}
+			return redacted
+		}
+	}
+	switch toolschema.KeywordSubschemas(key, value) {
+	case toolschema.SingleSubschema:
+		return r.redactSubschema(value)
+	case toolschema.SubschemaList:
+		if list, ok := value.([]any); ok {
+			redacted := make([]any, len(list))
+			for i, item := range list {
+				redacted[i] = r.redactSubschema(item)
+			}
+			return redacted
+		}
+	case toolschema.SubschemaMap:
+		if named, ok := value.(map[string]any); ok {
+			return r.redactSchemaProperties(named)
+		}
+	}
+	return r.redactValue(value)
+}
+
+// redactSchemaProperties redacts a map from names to schemas, such as
+// "properties", or to lists of names, as draft 7 "dependencies" may hold.
+func (r secretRedactor) redactSchemaProperties(named map[string]any) map[string]any {
+	if len(named) == 0 || len(r.values) == 0 {
+		return named
+	}
+	redacted := make(map[string]any, len(named))
+	for name, item := range named {
+		switch item.(type) {
+		case []any, []string:
+			redacted[r.redactSchemaName(name)] = r.redactSchemaNames(item)
+		default:
+			redacted[r.redactSchemaName(name)] = r.redactSubschema(item)
+		}
+	}
+	return redacted
+}
+
+func (r secretRedactor) redactSubschema(value any) any {
 	switch typed := value.(type) {
-	case string:
-		return r.redactSchemaString(typed)
 	case map[string]any:
 		return r.redactSchemaMap(typed)
+	case bool:
+		return typed
+	default:
+		return r.redactValue(value)
+	}
+}
+
+// redactSchemaNames redacts a name or a list of names in a schema.
+func (r secretRedactor) redactSchemaNames(value any) any {
+	switch typed := value.(type) {
+	case string:
+		return r.redactSchemaName(typed)
+	case []string:
+		return r.redactSchemaStrings(typed)
 	case []any:
 		redacted := make([]any, len(typed))
 		for i, item := range typed {
-			redacted[i] = r.redactSchemaValue(item)
+			if name, ok := item.(string); ok {
+				redacted[i] = r.redactSchemaName(name)
+			} else {
+				redacted[i] = r.redactValue(item)
+			}
 		}
 		return redacted
-	case []string:
-		return r.redactSchemaStrings(typed)
 	default:
-		return value
+		return r.redactValue(value)
 	}
 }
 
@@ -1223,21 +1304,23 @@ func (r secretRedactor) redactSchemaStrings(values []string) []string {
 	}
 	redacted := make([]string, len(values))
 	for i, item := range values {
-		redacted[i] = r.redactSchemaString(item)
+		redacted[i] = r.redactSchemaName(item)
 	}
 	return redacted
 }
 
-func (r secretRedactor) redactSchemaString(value string) string {
+// redactSchemaName redacts a keyword key or a name in a schema, keeping
+// it when it is a keyword.
+func (r secretRedactor) redactSchemaName(value string) string {
 	if toolschema.IsKeyword(value) {
 		return value
 	}
-	return r.redactString(value)
+	return r.replace(value, redactedNamePlaceholder)
 }
 
-// redactReference redacts a reference like redactString, but keeps each
-// occurrence of a sensitive value made only of pointer delimiters and
-// pointer segments that are JSON Schema keywords.
+// redactReference redacts a reference like redactSchemaName, but keeps
+// each occurrence of a sensitive value made only of pointer delimiters
+// and pointer segments that are JSON Schema keywords.
 func (r secretRedactor) redactReference(ref string) string {
 	kept := make([]bool, len(ref))
 	start := 0
@@ -1260,8 +1343,8 @@ func (r secretRedactor) redactReference(ref string) string {
 		next := make([]bool, 0, len(kept))
 		for i := 0; i < len(ref); {
 			if strings.HasPrefix(ref[i:], secret) && slices.Contains(kept[i:i+len(secret)], false) {
-				_, _ = b.WriteString(redactedPlaceholder)
-				next = append(next, make([]bool, len(redactedPlaceholder))...)
+				_, _ = b.WriteString(redactedNamePlaceholder)
+				next = append(next, make([]bool, len(redactedNamePlaceholder))...)
 				i += len(secret)
 				continue
 			}
@@ -1332,7 +1415,7 @@ func newMCPTool(
 		originalName:   tool.Name,
 		description:    redactor.redactString(tool.Description),
 		inputSchema:    redactor.redactSchemaMap(inputSchema),
-		parameters:     redactor.redactSchemaMap(properties),
+		parameters:     redactor.redactSchemaProperties(properties),
 		required:       redactor.redactSchemaStrings(required),
 		modelIntent:    modelIntent,
 		session:        session,
@@ -1431,8 +1514,10 @@ func (t *mcpToolWrapper) FullInputSchema() map[string]any {
 	// the definitions move up to the wrapper, where "#/$defs/..." keeps
 	// resolving, and every other pointer into the tool's schema is
 	// rebased onto its new location. A draft 4 schema names resources
-	// with "id", so it is first rewritten in draft 7, which uses "$id".
-	inner := toolschema.RewriteRefs(toolschema.UpgradeDraft4(t.inputSchema), rebaseOntoModelIntentSchema)
+	// with "id", so it is first rewritten in draft 7, which uses "$id",
+	// and recursive references, which cannot hold a pointer, are first
+	// replaced with references that can.
+	inner := toolschema.RewriteRefs(toolschema.ReplaceRecursiveRefs(toolschema.UpgradeDraft4(t.inputSchema)), rebaseOntoModelIntentSchema)
 	// The arguments get the object shape an unwrapped root is given.
 	// Without a type, models send them as a JSON string, and a null
 	// "properties" or "required" fails the provider request.

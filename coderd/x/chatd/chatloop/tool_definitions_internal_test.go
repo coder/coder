@@ -1174,6 +1174,50 @@ func TestBuildToolDefinitionsFullSchemaRootFoldObjectKeywords(t *testing.T) {
 			accepted: []string{`{"a": "s"}`, `{"x1": 1}`},
 		},
 		{
+			// A reference target evaluates only the names it lists, so
+			// its "unevaluatedProperties" closes the root.
+			name:     "UnevaluatedRefTarget",
+			source:   `{"$ref": "#/$defs/Args", "$defs": {"Args": {"properties": {"q": {"type": "string"}}, "unevaluatedProperties": false}}}`,
+			want:     `{"type": "object", "properties": {"q": {"type": "string"}}, "additionalProperties": false, "$defs": {"Args": {"properties": {"q": {"type": "string"}}, "unevaluatedProperties": false}}}`,
+			accepted: []string{`{"q": "x"}`, `{}`},
+			rejected: []string{`{"q": "x", "extra": 1}`, `{"q": 1}`},
+		},
+		{
+			// The branch evaluates the names its reference target and its
+			// patterns do, and no other branch's.
+			name:     "UnevaluatedBranchExtendsRef",
+			source:   `{"type": "object", "allOf": [{"$ref": "#/$defs/Base", "properties": {"b": {}}, "patternProperties": {"^x": {}}, "unevaluatedProperties": {"type": "integer"}}, {"properties": {"c": {"type": "string"}}}], "$defs": {"Base": {"properties": {"a": {"type": "string"}}}}}`,
+			want:     `{"type": "object", "properties": {"a": {"type": "string"}, "b": {}, "c": {"allOf": [{"type": "string"}, {"type": "integer"}]}}, "patternProperties": {"^x": {}}, "additionalProperties": {"type": "integer"}, "$defs": {"Base": {"properties": {"a": {"type": "string"}}}}}`,
+			accepted: []string{`{"a": "s", "b": true, "x1": "s", "d": 1}`},
+			rejected: []string{`{"d": "s"}`, `{"c": "s"}`, `{"a": 1}`},
+		},
+		{
+			// An alternative decides which names the branch evaluates, so
+			// its "unevaluatedProperties" is left out.
+			name:     "UnevaluatedBranchWithAlternatives",
+			source:   `{"type": "object", "allOf": [{"anyOf": [{"properties": {"a": {}}}, {"properties": {"b": {}}}], "unevaluatedProperties": false}]}`,
+			want:     `{"type": "object", "properties": {"a": {}, "b": {}}}`,
+			accepted: []string{`{"a": 1}`, `{"b": 1}`, `{"a": 1, "b": 1}`},
+		},
+		{
+			// A closed branch forbids the names another branch's pattern
+			// matches, which the hoisted pattern would otherwise exempt.
+			name:     "ClosedBranchBesidePattern",
+			source:   `{"type": "object", "allOf": [{"additionalProperties": false}, {"patternProperties": {"^x": {"type": "string"}}}]}`,
+			want:     `{"type": "object", "properties": {}, "patternProperties": {"^x": false}, "additionalProperties": false}`,
+			accepted: []string{`{}`},
+			rejected: []string{`{"x": "s"}`, `{"y": 1}`},
+		},
+		{
+			// The closed branch lists a name the pattern matches, which
+			// its closure does not constrain, so the pattern stays open.
+			name:     "ClosedBranchListsPatternName",
+			source:   `{"type": "object", "allOf": [{"properties": {"xa": {}}, "additionalProperties": {"minLength": 2}}, {"patternProperties": {"^x": {"type": "string"}}}]}`,
+			want:     `{"type": "object", "properties": {"xa": {}}, "patternProperties": {"^x": {"type": "string"}}, "additionalProperties": {"minLength": 2}}`,
+			accepted: []string{`{"xa": "s"}`, `{"y": "ab"}`},
+			rejected: []string{`{"xa": 1}`, `{"y": "a"}`},
+		},
+		{
 			name:       "ObjectKeywordsRawNumbers",
 			source:     objectKeywords,
 			rawNumbers: true,
@@ -1507,7 +1551,7 @@ func TestBuildToolDefinitionsFullSchemaRootFoldLegacyRef(t *testing.T) {
 			// URIs compare their scheme and host without case.
 			name:   "UppercaseDialect",
 			source: `{"$schema": "HTTP://JSON-SCHEMA.ORG/draft-07/schema#", "type": "object", "definitions": {"N": {"properties": {"q": {"type": "number"}}}}, "allOf": [{"$ref": "#/definitions/N", "properties": {"q": {"type": "string"}}, "required": ["q"]}]}`,
-			want:   `{"$schema": "HTTP://JSON-SCHEMA.ORG/draft-07/schema#", "type": "object", "definitions": {"N": {"properties": {"q": {"type": "number"}}}}, "properties": {"q": {"type": "number"}}}`,
+			want:   `{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "definitions": {"N": {"properties": {"q": {"type": "number"}}}}, "properties": {"q": {"type": "number"}}}`,
 		},
 		{
 			// A reference into an ignored keyword still resolves.

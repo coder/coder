@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -549,8 +551,10 @@ func TestConnectInline_IgnoresShortSensitiveValues(t *testing.T) {
 // TestConnectInline_KeepsSchemaKeywords verifies that a sensitive value
 // that is a JSON Schema keyword, or part of one, such as a URL path
 // segment named "properties", is redacted from descriptions, schema text,
-// and results but does not rename the keywords of input schemas, the
-// names "required" lists, or the keyword segments of references.
+// instance data, and results but does not rename the keywords of input
+// schemas, the names "required" lists, or the keyword segments of
+// references. Other names and references keep a placeholder that
+// providers accept in a property name.
 func TestConnectInline_KeepsSchemaKeywords(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -564,12 +568,15 @@ func TestConnectInline_KeepsSchemaKeywords(t *testing.T) {
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
-					"name":        map[string]any{"type": "string", "description": "Name in the properties list"},
-					"description": map[string]any{"$ref": "#/properties/name"},
-					"token":       map[string]any{"$ref": "#/$defs/" + secret},
+					"name":         map[string]any{"type": "string", "description": "Name in the properties list"},
+					"description":  map[string]any{"$ref": "#/properties/name"},
+					"token":        map[string]any{"$ref": "#/$defs/" + secret},
+					"mode":         map[string]any{"title": "description", "enum": []any{"required", "optional"}, "default": "required", "examples": []any{"description"}},
+					"is_required":  map[string]any{"type": "boolean"},
+					secret + "_id": map[string]any{"type": "string"},
 				},
 				"$defs":                map[string]any{secret: map[string]any{"type": "string"}},
-				"required":             []string{"name", "description"},
+				"required":             []string{"name", "description", "is_required"},
 				"additionalProperties": false,
 			},
 		},
@@ -600,13 +607,18 @@ func TestConnectInline_KeepsSchemaKeywords(t *testing.T) {
 		"properties": map[string]any{
 			"name":        map[string]any{"type": "string", "description": "Name in the [REDACTED] list"},
 			"description": map[string]any{"$ref": "#/properties/name"},
-			"token":       map[string]any{"$ref": "#/$defs/[REDACTED]"},
+			"token":       map[string]any{"$ref": "#/$defs/REDACTED"},
+			"mode":        map[string]any{"title": "[REDACTED]", "enum": []any{"[REDACTED]", "optional"}, "default": "[REDACTED]", "examples": []any{"[REDACTED]"}},
+			"is_REDACTED": map[string]any{"type": "boolean"},
+			"REDACTED_id": map[string]any{"type": "string"},
 		},
-		"$defs":                map[string]any{"[REDACTED]": map[string]any{"type": "string"}},
-		"required":             []any{"name", "description"},
+		"$defs":                map[string]any{"REDACTED": map[string]any{"type": "string"}},
+		"required":             []any{"name", "description", "is_REDACTED"},
 		"additionalProperties": false,
 	}, fullSchema.FullInputSchema())
-	require.Equal(t, []string{"name", "description"}, tools[0].Info().Required)
+	// Providers reject property names outside ^[a-zA-Z0-9_.-]{1,64}$.
+	require.Equal(t, []string{"name", "description", "is_REDACTED"}, tools[0].Info().Required)
+	require.ElementsMatch(t, []string{"name", "description", "token", "mode", "is_REDACTED", "REDACTED_id"}, slices.Collect(maps.Keys(tools[0].Info().Parameters)))
 
 	resp, err := tools[0].Run(ctx, fantasy.ToolCall{ID: "call-1", Input: `{"name":"alice","description":"alice"}`})
 	require.NoError(t, err)
