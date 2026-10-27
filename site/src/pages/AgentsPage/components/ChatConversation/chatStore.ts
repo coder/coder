@@ -169,8 +169,6 @@ export type ChatStore = {
 	// Fills a new store with the newest messages page. After that, only
 	// stream events and older pages change the stored state.
 	seed: (page: TypesGen.ChatMessagesResponse) => void;
-	// Replaces the whole history, as a history_reset from the first message.
-	replaceMessages: (messages: readonly TypesGen.ChatMessage[]) => void;
 	// Applies a history_reset: drops the messages with IDs at or above fromID.
 	// The version arguments of the stream writers are the event's snapshot
 	// version; without one, the write ends every pending part of its kind.
@@ -182,10 +180,6 @@ export type ChatStore = {
 		hasMore: boolean,
 		resetCount: number,
 	) => void;
-	upsertDurableMessage: (message: TypesGen.ChatMessage) => {
-		isDuplicate: boolean;
-		changed: boolean;
-	};
 	// userMessageVersion is the highest snapshot version of the user messages.
 	upsertDurableMessages: (
 		messages: readonly TypesGen.ChatMessage[],
@@ -354,49 +348,7 @@ export const createChatStore = (): ChatStore => {
 		}));
 	};
 
-	const upsertDurableMessage = (message: TypesGen.ChatMessage) => {
-		// Use `state` for the early-return guard so we can return
-		// the result synchronously. The actual mutation below uses
-		// `current` inside the updater to avoid overwriting a
-		// concurrent state change (TOCTOU).
-		const existing = state.messagesByID.get(message.id);
-		const isDuplicate = state.messagesByID.has(message.id);
-		if (existing && isEqual(existing, message)) {
-			return { isDuplicate, changed: false };
-		}
-
-		let actuallyChanged = false;
-		setState((current) => {
-			// Re-check inside the updater: another call may have
-			// already applied this exact message.
-			const curExisting = current.messagesByID.get(message.id);
-			if (curExisting && isEqual(curExisting, message)) {
-				return current;
-			}
-
-			actuallyChanged = true;
-
-			const nextMessagesByID = new Map(current.messagesByID);
-			nextMessagesByID.set(message.id, message);
-
-			const curIsDuplicate = current.messagesByID.has(message.id);
-			const needsReorder =
-				!curIsDuplicate || nextMessagesByID.size !== current.messagesByID.size;
-			const nextOrderedMessageIDs = needsReorder
-				? buildOrderedMessageIDs(Array.from(nextMessagesByID.values()))
-				: current.orderedMessageIDs;
-
-			return {
-				...current,
-				messagesByID: nextMessagesByID,
-				orderedMessageIDs: nextOrderedMessageIDs,
-			};
-		});
-		return { isDuplicate, changed: actuallyChanged };
-	};
-
-	// Bulk variant that applies all messages in a single pass —
-	// one Map copy and one sort instead of N copies and N sorts.
+	// Applies all messages in one pass: one Map copy and one sort.
 	const upsertDurableMessages = (
 		messages: readonly TypesGen.ChatMessage[],
 	): void => {
@@ -495,23 +447,6 @@ export const createChatStore = (): ChatStore => {
 			};
 		},
 		batch,
-		replaceMessages: (messages) => {
-			historyResets++;
-			batch(() => {
-				replaceMessages(messages);
-				endPending(["history"], Number.POSITIVE_INFINITY);
-			});
-		},
-		upsertDurableMessage: (message) => {
-			let result = { isDuplicate: false, changed: false };
-			batch(() => {
-				result = upsertDurableMessage(message);
-				if (message.role === "user") {
-					endPending(["message"], Number.POSITIVE_INFINITY);
-				}
-			});
-			return result;
-		},
 		upsertDurableMessages: (
 			messages,
 			userMessageVersion = Number.POSITIVE_INFINITY,
