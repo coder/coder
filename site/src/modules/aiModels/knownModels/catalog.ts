@@ -1,3 +1,4 @@
+import type { ChatComputerUseProvider } from "#/api/typesGenerated";
 import { normalizeProvider } from "#/modules/aiModels/helpers";
 import knownModelsGenerated from "./knownModelsGenerated.json";
 import type { KnownModel } from "./types";
@@ -78,10 +79,12 @@ export const findKnownModelByCanonicalId = (
 	);
 };
 
-// Canonical identifiers verified to accept chatd's computer use tool
-// (Anthropic computer_20251124, OpenAI Responses computer tool).
+/**
+ * Canonical identifiers verified to accept chatd's computer use tool
+ * (Anthropic computer_20251124, OpenAI Responses computer tool).
+ */
 export const knownComputerUseModels: readonly {
-	readonly provider: string;
+	readonly provider: ChatComputerUseProvider;
 	readonly modelIdentifier: string;
 }[] = [
 	{ provider: "anthropic", modelIdentifier: "claude-fable-5-1" },
@@ -104,18 +107,16 @@ export const knownComputerUseModels: readonly {
 	{ provider: "openai", modelIdentifier: "gpt-5.4-mini" },
 ];
 
-/**
- * Reports whether a model is on the curated computer use list. Only the exact
- * canonical identifier matches; aliases and dated snapshots do not.
- */
+/** Matches exact canonical identifiers only, not aliases or dated snapshots. */
 export const isKnownComputerUseModel = (
 	provider: string,
-	model: string,
+	modelId: string,
 ): boolean => {
 	const normalizedProvider = normalizeProvider(provider);
 	return knownComputerUseModels.some(
 		(entry) =>
-			entry.provider === normalizedProvider && entry.modelIdentifier === model,
+			entry.provider === normalizedProvider &&
+			entry.modelIdentifier === modelId,
 	);
 };
 

@@ -24,28 +24,31 @@ const contexts: readonly ChatModelOverrideContext[] = [
 	"title_generation",
 	"compaction",
 	"advisor",
+	"computer_use",
 ];
 
 type OrganizationAgentSettingsProps = {
 	organization: Organization;
 	canEdit: boolean;
 	showAdvisor: boolean;
+	showComputerUse: boolean;
 };
 
 export const OrganizationAgentSettings: React.FC<
 	OrganizationAgentSettingsProps
-> = ({ organization, canEdit, showAdvisor }) => (
+> = ({ organization, canEdit, showAdvisor, showComputerUse }) => (
 	<OrganizationAgentSettingsContent
 		key={organization.id}
 		organization={organization}
 		canEdit={canEdit}
 		showAdvisor={showAdvisor}
+		showComputerUse={showComputerUse}
 	/>
 );
 
 const OrganizationAgentSettingsContent: React.FC<
 	OrganizationAgentSettingsProps
-> = ({ organization, canEdit, showAdvisor }) => {
+> = ({ organization, canEdit, showAdvisor, showComputerUse }) => {
 	const queryClient = useQueryClient();
 	const modelsQuery = useQuery(chatModels(organization.id));
 	const overridesQuery = useQuery(
@@ -86,12 +89,20 @@ const OrganizationAgentSettingsContent: React.FC<
 			"advisor",
 		),
 	);
+	const computerUseMutation = useMutation(
+		updateOrganizationChatModelOverride(
+			queryClient,
+			organization.id,
+			"computer_use",
+		),
+	);
 	const mutations = [
 		generalMutation,
 		exploreMutation,
 		titleMutation,
 		compactionMutation,
 		advisorMutation,
+		computerUseMutation,
 	] as const;
 	const defaultModelMutation = useMutation(updateChatModel(queryClient));
 	const providerInfoByID = providerInfoByIDFromDescriptors(
@@ -140,6 +151,7 @@ const OrganizationAgentSettingsContent: React.FC<
 			modelsError={modelsQuery.error}
 			canEdit={canEdit}
 			showAdvisor={showAdvisor}
+			showComputerUse={showComputerUse}
 			saveByContext={saveByContext}
 			savingContexts={
 				new Set(contexts.filter((_, index) => mutations[index]?.isPending))

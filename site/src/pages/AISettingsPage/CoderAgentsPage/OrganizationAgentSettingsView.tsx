@@ -1,6 +1,10 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import { ChatComputerUseProviders } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
+import { normalizeProvider } from "#/modules/aiModels/helpers";
+import { isKnownComputerUseModel } from "#/modules/aiModels/knownModels/catalog";
 import {
 	bindingCompactionTriggerSource,
 	compactionDisabledThresholdPercent,
@@ -38,6 +42,7 @@ type OrganizationAgentSettingsViewProps = {
 	modelsError: unknown;
 	canEdit: boolean;
 	showAdvisor: boolean;
+	showComputerUse: boolean;
 	saveByContext: ReadonlyMap<
 		TypesGen.ChatModelOverrideContext,
 		SaveModelOverride
@@ -50,6 +55,7 @@ const settings: readonly {
 	context: TypesGen.ChatModelOverrideContext;
 	title: string;
 	description: string;
+	unsetPlaceholder?: string;
 	unavailableModelWarning?: string;
 }[] = [
 	{
@@ -83,7 +89,54 @@ const settings: readonly {
 		title: "Advisor",
 		description: "Used by the advisor for strategic guidance.",
 	},
+	{
+		context: "computer_use",
+		title: "Computer use",
+		description:
+			"Used by the computer use subagent to operate the virtual desktop. Only Anthropic and OpenAI models are supported.",
+		unsetPlaceholder: "Use default model",
+	},
 ];
+
+const getProviderType = (
+	model: TypesGen.ChatModel,
+	providerInfoByID: ReadonlyMap<string, ProviderInfo>,
+) => providerInfoByID.get(model.ai_provider_id)?.provider ?? "";
+
+// The API rejects computer use overrides for other provider types.
+const filterComputerUseProviderModels = (
+	models: readonly TypesGen.ChatModel[],
+	providerInfoByID: ReadonlyMap<string, ProviderInfo>,
+) =>
+	models.filter((model) => {
+		const providerType = normalizeProvider(
+			getProviderType(model, providerInfoByID),
+		);
+		return ChatComputerUseProviders.some(
+			(provider) => provider === providerType,
+		);
+	});
+
+// Computer use falls back to the organization default model when the override
+// is unset or no longer enabled, so the warning follows that model instead.
+const isUnverifiedComputerUseModel = (
+	selectedModelID: string,
+	defaultModelID: string | undefined,
+	computerUseProviderModels: readonly TypesGen.ChatModel[],
+	enabledModels: readonly TypesGen.ChatModel[],
+	providerInfoByID: ReadonlyMap<string, ProviderInfo>,
+) => {
+	const effectiveModel =
+		computerUseProviderModels.find((model) => model.id === selectedModelID) ??
+		enabledModels.find((model) => model.id === defaultModelID);
+	return (
+		effectiveModel !== undefined &&
+		!isKnownComputerUseModel(
+			getProviderType(effectiveModel, providerInfoByID),
+			effectiveModel.model,
+		)
+	);
+};
 
 const formatModelList = (modelNames: readonly string[]) => {
 	const visibleNames = modelNames.slice(0, 3);
@@ -162,6 +215,7 @@ const OrganizationAgentSettingsView: React.FC<
 	modelsError,
 	canEdit,
 	showAdvisor,
+	showComputerUse,
 	saveByContext,
 	savingContexts,
 	errorContexts,
@@ -173,9 +227,28 @@ const OrganizationAgentSettingsView: React.FC<
 	const visibleSettings =
 		overridesLoadError == null
 			? settings.filter(
-					(setting) => setting.context !== "advisor" || showAdvisor,
+					(setting) =>
+						(setting.context !== "advisor" || showAdvisor) &&
+						(setting.context !== "computer_use" || showComputerUse),
 				)
 			: [];
+	const computerUseProviderModels = filterComputerUseProviderModels(
+		enabledModels,
+		providerInfoByID,
+	);
+	const renderComputerUseWarning = (selectedModelID: string) =>
+		overrides !== undefined &&
+		isUnverifiedComputerUseModel(
+			selectedModelID,
+			defaultModelID,
+			computerUseProviderModels,
+			enabledModels,
+			providerInfoByID,
+		) && (
+			<InfoTooltip type="warning" ariaLabel="Computer use model warning">
+				Make sure that the selected model supports computer use.
+			</InfoTooltip>
+		);
 
 	return (
 		<div className="flex flex-col gap-6">
@@ -207,13 +280,16 @@ const OrganizationAgentSettingsView: React.FC<
 					if (!onSave) {
 						return null;
 					}
+					const isComputerUse = setting.context === "computer_use";
 					return (
 						<SubagentModelOverrideSettings
 							key={setting.context}
 							title={setting.title}
 							description={setting.description}
 							modelOverrideData={overrides === undefined ? undefined : saved}
-							enabledModels={enabledModels}
+							enabledModels={
+								isComputerUse ? computerUseProviderModels : enabledModels
+							}
 							providerInfoByID={providerInfoByID}
 							modelsError={modelsError}
 							isLoading={isModelsLoading || isOverridesLoading}
@@ -233,7 +309,10 @@ const OrganizationAgentSettingsView: React.FC<
 										)
 									: undefined
 							}
-							unsetPlaceholder="Use chat model"
+							renderSelectorAdornment={
+								isComputerUse ? renderComputerUseWarning : undefined
+							}
+							unsetPlaceholder={setting.unsetPlaceholder ?? "Use chat model"}
 							disabled={!canEdit}
 						/>
 					);

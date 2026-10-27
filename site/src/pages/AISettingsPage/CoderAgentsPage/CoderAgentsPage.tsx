@@ -43,6 +43,7 @@ const CoderAgentsPage: React.FC = () => {
 		? organizationPermissionsQuery.data?.[activeOrganization.id]
 		: undefined;
 	const showAdvisorSettings = experiments.includes("chat-advisor");
+	const showComputerUseSettings = experiments.includes("chat-virtual-desktop");
 	const personalOverridesQuery = useQuery({
 		...chatPersonalModelOverridesAdminSettings(),
 		enabled: canEditDeploymentConfig,
@@ -78,6 +79,7 @@ const CoderAgentsPage: React.FC = () => {
 					(activeOrganizationPermissions?.editChatModelConfigs ?? false)
 				}
 				showAdvisor={showAdvisorSettings}
+				showComputerUse={showComputerUseSettings}
 			/>
 		) : undefined;
 
