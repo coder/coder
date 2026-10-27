@@ -19,7 +19,7 @@ For workspaces without Docker, administrators can configure [Envbuilder](../../a
 > [!TIP]
 > Nix flakes let developers and/or template administrators define environments and manage dependencies at a much deeper level, without requiring a container runtime.
 >
-> To use them in Coder with or without NixOS, see [Nix(OS)](../../admin/integrations/nix.md).
+> To use them in Coder with or without NixOS, consult the [Nix(OS)](../../admin/integrations/nix.md) page.
 
 ![Two dev containers running as sub-agents in a Coder workspace](../../images/user-guides/devcontainers/devcontainer-running.png)_Dev containers appear as sub-agents with their own apps, SSH access, and port forwarding_
 

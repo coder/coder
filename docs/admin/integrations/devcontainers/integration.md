@@ -5,7 +5,7 @@ title: Configure a template for Dev Containers
 > [!TIP]
 > Nix flakes are an alternate way to handle dependency management which lets developers and/or template administrators define environments and manage dependencies at a much deeper level, without requiring a container runtime.
 >
-> To use them in Coder with or without NixOS, see [Nix(OS)](../nix.md).
+> To use them in Coder with or without NixOS, consult the [Nix(OS)](../nix.md) page.
 
 This guide covers the Dev Containers Integration, which uses Docker.
 For environments without Docker, see [Envbuilder](./envbuilder/index.md) (maintenance mode ⚠️) as an alternative.
