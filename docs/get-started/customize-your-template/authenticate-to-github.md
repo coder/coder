@@ -70,7 +70,8 @@ coder templates push -d ~/coder-quickstart -y quickstart
 ## Step 2: Connect your workspace to GitHub
 
 Update the workspace you built in [Launch your first workspace](../index.md) to the version you just published.
-Because the local control plane is already connected to GitHub, you don't configure an OAuth app; you only authorize the workspace.
+Because the local control plane is already connected to GitHub, you don't configure an OAuth app.
+You only authorize the workspace.
 
 <div class="tabs">
 
@@ -80,7 +81,7 @@ On your workspace, select **Update**.
 The update form shows a **Login with GitHub** button: select it, follow the prompts to authorize Coder, then select **Update and restart**.
 The following screenshot shows the **External Authentication** section of the workspace creation screen before connecting GitHub:
 
-![External Authentication with GitHub before logging in](../../images/screenshots/login-with-github-logged-out.png)_External Authentication with GitHub before logging in_
+![External Authentication panel with GitHub marked Required and a Login with GitHub button](../../images/screenshots/login-with-github-logged-out.png)_External Authentication with GitHub before logging in_
 
 ### CLI
 
@@ -90,14 +91,15 @@ Update the workspace:
 coder update <your-workspace>
 ```
 
-If you aren't authenticated yet, Coder prints a URL to log in with GitHub; open it, authorize Coder, then run the command again.
+If you aren't authenticated yet, Coder prints a URL to log in with GitHub.
+Open it, authorize Coder, then run the command again.
 
 </div>
 
 Once you authorize Coder, the workspace starts, and Coder stores and refreshes your GitHub token for later builds.
 After authorizing Coder, Coder replaces the **Login with GitHub** button with an **Authenticated** message:
 
-![External Authentication with GitHub after logging in](../../images/screenshots/login-with-github-logged-in.png)_External Authentication with GitHub after logging in_
+![External Authentication panel with GitHub marked Authenticated](../../images/screenshots/login-with-github-logged-in.png)_External Authentication with GitHub after logging in_
 
 ## Step 3: Clone a private repository
 

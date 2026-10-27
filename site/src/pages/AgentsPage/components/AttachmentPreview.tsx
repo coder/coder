@@ -33,13 +33,15 @@ export const isUploadInProgress = (state: UploadState | undefined): boolean =>
 /** Renders an image thumbnail from a pre-created preview URL. */
 export const ImageThumbnail: React.FC<{
 	previewUrl: string;
-	name: string;
+	alt: string;
 	className?: string;
+	loading?: React.ComponentProps<"img">["loading"];
 	onError?: React.ReactEventHandler<HTMLImageElement>;
-}> = ({ previewUrl, name, className, onError }) => (
+}> = ({ previewUrl, alt, className, loading, onError }) => (
 	<img
 		src={previewUrl}
-		alt={name}
+		alt={alt}
+		loading={loading}
 		className={cn(
 			"size-16 rounded-md border border-border object-cover",
 			className,
@@ -148,7 +150,7 @@ export const AttachmentPreview: React.FC<{
 									className="border-0 bg-transparent p-0 cursor-pointer transition-opacity hover:opacity-80"
 									onClick={() => onPreview(previewUrl)}
 								>
-									<ImageThumbnail previewUrl={previewUrl} name={file.name} />
+									<ImageThumbnail previewUrl={previewUrl} alt={file.name} />
 								</button>
 							) : hasTextAttachment ? (
 								<button

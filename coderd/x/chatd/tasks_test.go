@@ -26,7 +26,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
@@ -1093,7 +1092,7 @@ func TestStartGeneration_CancelsDeletedToolCallsOnAgent(t *testing.T) {
 				dials.Add(1)
 				return conn, func() {}, nil
 			}
-			debugTurn := newRunnerDebugTurn(ctx, starter.opts.Logger)
+			debugTurn := newRunnerDebugTurn(starter.opts.Logger)
 			defer debugTurn.Finalize(ctx)
 			current, err := f.db.GetChatByID(ctx, chat.ID)
 			require.NoError(t, err)
@@ -1692,8 +1691,7 @@ func TestRunner_StartsRealAbandonTask(t *testing.T) {
 
 type taskTestFixture struct {
 	db     database.Store
-	pubsub *taskRecordingPubsub
-	rawPS  dbpubsub.Pubsub
+	pubsub *recordingPubsub
 	sqlDB  *sql.DB
 	user   database.User
 	org    database.Organization
@@ -1717,7 +1715,7 @@ func newTaskTestFixture(t *testing.T) *taskTestFixture {
 		OrganizationID: org.ID,
 	})
 	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
-	return &taskTestFixture{db: db, pubsub: newTaskRecordingPubsub(ps), rawPS: ps, sqlDB: sqlDB, user: user, org: org, model: model, apiKey: apiKey}
+	return &taskTestFixture{db: db, pubsub: newRecordingPubsub(ps), sqlDB: sqlDB, user: user, org: org, model: model, apiKey: apiKey}
 }
 
 func (f *taskTestFixture) createRunningChat(t *testing.T) database.Chat {
@@ -1909,71 +1907,11 @@ func taskAssistantToolCallMessage(t *testing.T, modelConfigID uuid.UUID, toolNam
 	}
 }
 
-type taskPublishedEvent struct {
-	channel string
-	payload []byte
-}
-
-type taskRecordingPubsub struct {
-	inner     dbpubsub.Pubsub
-	mu        sync.Mutex
-	sent      []taskPublishedEvent
-	onPublish func(channel string)
-}
-
-func newTaskRecordingPubsub(inner dbpubsub.Pubsub) *taskRecordingPubsub {
-	return &taskRecordingPubsub{inner: inner}
-}
-
-func (p *taskRecordingPubsub) Publish(channel string, payload []byte) error {
-	p.mu.Lock()
-	p.sent = append(p.sent, taskPublishedEvent{channel: channel, payload: append([]byte(nil), payload...)})
-	onPublish := p.onPublish
-	p.mu.Unlock()
-	if onPublish != nil {
-		onPublish(channel)
-	}
-	return p.inner.Publish(channel, payload)
-}
-
-func (p *taskRecordingPubsub) SubscribeWithErr(channel string, listener dbpubsub.ListenerWithErr) (func(), error) {
-	return p.inner.SubscribeWithErr(channel, listener)
-}
-
-func (p *taskRecordingPubsub) clear() {
-	p.mu.Lock()
-	p.sent = nil
-	p.mu.Unlock()
-}
-
-func (p *taskRecordingPubsub) events() []taskPublishedEvent {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return append([]taskPublishedEvent(nil), p.sent...)
-}
-
-func (p *taskRecordingPubsub) watchEvents(t *testing.T) []codersdk.ChatWatchEvent {
-	t.Helper()
-	events := p.events()
-	out := make([]codersdk.ChatWatchEvent, 0)
-	for _, event := range events {
-		var payload codersdk.ChatWatchEvent
-		if err := json.Unmarshal(event.payload, &payload); err != nil {
-			continue
-		}
-		if event.channel != coderdpubsub.ChatWatchEventChannel(payload.Chat.OwnerID) {
-			continue
-		}
-		out = append(out, payload)
-	}
-	return out
-}
-
 func startRealTaskWorker(t *testing.T, f *taskTestFixture) *chatWorker {
 	t.Helper()
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
 	t.Cleanup(buffer.Close)
-	worker, err := newChatWorker(newUnstartedServer(t, f.rawPS, f.db), chatWorkerOptions{
+	worker, err := newChatWorker(newUnstartedServer(t, f.pubsub.Pubsub, f.db), chatWorkerOptions{
 		WorkerID:                   uuid.New(),
 		Store:                      f.db,
 		Pubsub:                     f.pubsub,
@@ -2108,7 +2046,7 @@ func newTestTaskStarterWithClock(
 	t.Helper()
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{Clock: clock})
 	t.Cleanup(buffer.Close)
-	starter, err := newTaskStarter(newUnstartedServer(t, f.rawPS, f.db, serverOpts...), chatWorkerOptions{
+	starter, err := newTaskStarter(newUnstartedServer(t, f.pubsub.Pubsub, f.db, serverOpts...), chatWorkerOptions{
 		Store:                   f.db,
 		Pubsub:                  f.pubsub,
 		Logger:                  slog.Make(),

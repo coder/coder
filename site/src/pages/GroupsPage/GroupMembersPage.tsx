@@ -154,7 +154,9 @@ const GroupMembersPage: React.FC = () => {
 												<StatusIconTooltip
 													message={
 														<>
-															{aiBudgetNote} <SpendEstimateDocsLink />
+															{aiBudgetNote}
+															<br />
+															<SpendEstimateDocsLink />
 														</>
 													}
 												/>

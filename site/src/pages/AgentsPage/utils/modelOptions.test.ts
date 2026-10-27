@@ -24,7 +24,6 @@ import {
 	isUnsetModelRef,
 	NIL_UUID,
 	providerInfoByIDFromUserConfigs,
-	providerTypeByIDFromUserConfigs,
 	resolveModelOptionId,
 	resolveModelSelector,
 } from "./modelOptions";
@@ -1031,31 +1030,6 @@ describe("providerInfoByIDFromUserConfigs", () => {
 			enabled: true,
 		});
 		expect(map.size).toBe(1);
-	});
-});
-
-describe("providerTypeByIDFromUserConfigs", () => {
-	it("maps UserChatProviderConfig.provider_id to its provider type", () => {
-		const map = providerTypeByIDFromUserConfigs([
-			{
-				provider_id: "prov-openai",
-				provider: "openai",
-				display_name: "OpenAI",
-				icon: "",
-				enabled: true,
-				has_user_api_key: false,
-				has_central_api_key_fallback: true,
-				byok_enabled: true,
-			},
-		]);
-
-		expect(map.get("prov-openai")).toBe("openai");
-		expect(map.size).toBe(1);
-	});
-
-	it("returns an empty map for nullish input", () => {
-		expect(providerTypeByIDFromUserConfigs(undefined).size).toBe(0);
-		expect(providerTypeByIDFromUserConfigs(null).size).toBe(0);
 	});
 });
 

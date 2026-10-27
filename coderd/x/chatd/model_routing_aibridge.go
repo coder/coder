@@ -122,13 +122,6 @@ func (a aiGatewayProviderAuth) GoString() string {
 	return a.String()
 }
 
-type aiGatewayRequestFormat int
-
-const (
-	aiGatewayRequestFormatOpenAI aiGatewayRequestFormat = iota
-	aiGatewayRequestFormatAnthropic
-)
-
 // stageSpanRoundTripper records a provider_attempt stage per round trip,
 // so each retry gets its own span.
 type stageSpanRoundTripper struct {
@@ -362,26 +355,29 @@ func bedrockIsAnthropicModel(model string) bool {
 		strings.Contains(model, ".anthropic.")
 }
 
-func fantasyConfigForAIBridge(providerType database.AIProviderType, model string) aibridgeFantasyConfig {
-	var fantasyProvider string
-	baseURL := aibridgeLocalBaseURL + "/v1"
+func aibridgeClientProvider(providerType database.AIProviderType, model string) string {
 	switch providerType {
 	case database.AIProviderTypeAnthropic:
-		fantasyProvider = fantasyanthropic.Name
-		baseURL = aibridgeLocalBaseURL
+		return fantasyanthropic.Name
 	case database.AIProviderTypeBedrock:
 		// Bedrock Mantle serves both Anthropic Messages and OpenAI Responses
 		// shapes; the model ID vendor prefix picks the wire format.
 		if bedrockIsAnthropicModel(model) {
-			fantasyProvider = fantasyanthropic.Name
-			baseURL = aibridgeLocalBaseURL
-		} else {
-			fantasyProvider = fantasyopenai.Name
+			return fantasyanthropic.Name
 		}
+		return fantasyopenai.Name
 	case database.AIProviderTypeOpenai:
-		fantasyProvider = fantasyopenai.Name
+		return fantasyopenai.Name
 	default:
-		fantasyProvider = fantasyopenaicompat.Name
+		return fantasyopenaicompat.Name
+	}
+}
+
+func fantasyConfigForAIBridge(providerType database.AIProviderType, model string) aibridgeFantasyConfig {
+	fantasyProvider := aibridgeClientProvider(providerType, model)
+	baseURL := aibridgeLocalBaseURL + "/v1"
+	if fantasyProvider == fantasyanthropic.Name {
+		baseURL = aibridgeLocalBaseURL
 	}
 	return aibridgeFantasyConfig{
 		ProviderHint: fantasyProvider,
@@ -396,26 +392,11 @@ func fantasyConfigForAIBridge(providerType database.AIProviderType, model string
 	}
 }
 
-func aiGatewayRequestFormatForProviderType(providerType database.AIProviderType, model string) aiGatewayRequestFormat {
-	switch providerType {
-	case database.AIProviderTypeAnthropic:
-		return aiGatewayRequestFormatAnthropic
-	case database.AIProviderTypeBedrock:
-		// The BYOK header shape must agree with the inferred wire format.
-		if bedrockIsAnthropicModel(model) {
-			return aiGatewayRequestFormatAnthropic
-		}
-		return aiGatewayRequestFormatOpenAI
-	default:
-		return aiGatewayRequestFormatOpenAI
-	}
-}
-
 func (p *Server) aiGatewayProviderAuthForUser(
 	ctx context.Context,
 	ownerID uuid.UUID,
 	provider database.AIProvider,
-	format aiGatewayRequestFormat,
+	clientProvider string,
 ) (aiGatewayProviderAuth, error) {
 	if !p.allowBYOK {
 		return aiGatewayProviderAuth{}, nil
@@ -436,8 +417,8 @@ func (p *Server) aiGatewayProviderAuthForUser(
 	}
 
 	headers := map[string]string{}
-	switch format {
-	case aiGatewayRequestFormatAnthropic:
+	switch clientProvider {
+	case fantasyanthropic.Name:
 		headers["X-Api-Key"] = apiKey
 	default:
 		headers["Authorization"] = "Bearer " + apiKey
@@ -456,7 +437,7 @@ func (p *Server) resolveAIGatewayRoute(
 		ctx,
 		ownerID,
 		provider,
-		aiGatewayRequestFormatForProviderType(provider.Type, model),
+		aibridgeClientProvider(provider.Type, model),
 	)
 	if err != nil {
 		return aiGatewayModelRoute{}, xerrors.Errorf("resolve AI Gateway provider auth: %w", err)

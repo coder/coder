@@ -30,10 +30,6 @@ func chatCallerSuppliedToolsDisabledError() error {
 	})
 }
 
-func writeChatCallerSuppliedToolsDisabled(ctx context.Context, rw http.ResponseWriter) {
-	writeChatError(ctx, rw, chatCallerSuppliedToolsDisabledError())
-}
-
 func inlineMCPServersExperimentRequiredError() error {
 	return httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
 		Message: "Inline MCP servers are not enabled on this deployment.",
@@ -41,19 +37,11 @@ func inlineMCPServersExperimentRequiredError() error {
 	})
 }
 
-func writeInlineMCPServersExperimentRequired(ctx context.Context, rw http.ResponseWriter) {
-	writeChatError(ctx, rw, inlineMCPServersExperimentRequiredError())
-}
-
 func inlineMCPServersInvalidError(validations []codersdk.ValidationError) error {
 	return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
 		Message:     "Invalid inline_mcp_servers.",
 		Validations: validations,
 	})
-}
-
-func writeInlineMCPServersInvalid(ctx context.Context, rw http.ResponseWriter, validations []codersdk.ValidationError) {
-	writeChatError(ctx, rw, inlineMCPServersInvalidError(validations))
 }
 
 // chatInlineMCPServers returns the inline MCP servers declared on a chat,
