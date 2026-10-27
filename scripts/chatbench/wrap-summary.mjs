@@ -4,18 +4,18 @@
 // type-start and type-end marks) counts, so the prefill and the final clear
 // are left out.
 //
-// The probe's ResizeObserver reports a growth after the frame that rendered
-// the wrap, so the wrapping keystroke is the slowest one in the window
-// before the growth: --window=1000 suits Chromium, and WebKit needs 4000
-// when a root restyle holds that frame for several seconds.
+// The wrapping keystroke is the one whose input changed the composer's
+// height. On main, the dropdown effect writes the changed variables to
+// <html> inside that keystroke's input handler, so the last keystroke before
+// a growth's first <html> style mutation record is the wrapping one. Without
+// records, the probe's ResizeObserver reports the growth in the frame that
+// rendered the keystroke, so it is the last keystroke before the growth.
+// The filler text is deterministic, so the printed positions should match
+// across runs of one browser; exits non-zero if a growth pairs with no
+// keystroke.
 //
-//   node scripts/chatbench/wrap-summary.mjs [--window=<ms>] <results.json>...
+//   node scripts/chatbench/wrap-summary.mjs <results.json>...
 import fs from "node:fs";
-
-const args = process.argv.slice(2);
-const windowArg = args.find((a) => a.startsWith("--window="));
-const back = Number(windowArg?.split("=")[1] ?? 1000);
-const files = args.filter((a) => !a.startsWith("--"));
 
 const median = (xs) => {
 	const s = [...xs].sort((a, b) => a - b);
@@ -23,7 +23,8 @@ const median = (xs) => {
 };
 
 const pooled = [];
-for (const file of files) {
+let unpaired = 0;
+for (const file of process.argv.slice(2)) {
 	const results = JSON.parse(fs.readFileSync(file, "utf8"));
 	const raw = results.phases["idle-type"].raw;
 	const marks = Object.fromEntries(raw.marks.map((m) => [m.name, m.t]));
@@ -33,26 +34,33 @@ for (const file of files) {
 	const keys = raw.interactions.filter(
 		(i) => i.type === "key" && i.key.length === 1 && inTyping(i.t0),
 	);
-	const growths = raw.probe.growths.filter((g) => inTyping(g.t));
-	const wrap = new Set();
+	const growths = raw.probe.growths.map((g) => g.t).filter(inTyping);
+	const records = raw.probe.rootWrites.filter(inTyping);
+	const lastKeyAtOrBefore = (t) => keys.findLastIndex((k) => k.t0 <= t);
+	const positions = [];
+	let previous = t0;
 	for (const g of growths) {
-		let slowest = -1;
-		keys.forEach((k, j) => {
-			if (k.t0 < g.t - back || k.t0 > g.t) return;
-			if (slowest < 0 || k.latency > keys[slowest].latency) slowest = j;
-		});
-		if (slowest >= 0) wrap.add(slowest);
+		const record = records.find((r) => r > previous && r <= g);
+		const position = lastKeyAtOrBefore(record ?? g);
+		previous = g;
+		if (position < 0) {
+			console.error(`${file}: growth at ${g} ms pairs with no keystroke`);
+			unpaired++;
+			continue;
+		}
+		positions.push(position);
 	}
-	const wrapLatencies = [...wrap].map((j) => keys[j].latency);
+	const wrap = new Set(positions);
+	const wrapLatencies = positions.map((j) => keys[j].latency);
 	pooled.push(...wrapLatencies);
 	const other = keys.filter((_, j) => !wrap.has(j)).map((k) => k.latency);
-	const records = raw.probe.rootWrites.filter(inTyping).length;
 	console.log(
-		`${file}: ${keys.length} keys, ${growths.length} growths, ${records} <html> style mutation records;` +
-			` wrap keys ${wrapLatencies.sort((a, b) => a - b).join("/")} ms; other keys p50 ${median(other)} ms`,
+		`${file}: ${keys.length} keys, ${growths.length} growths, ${records.length} <html> style mutation records;` +
+			` wrap positions ${positions.join("/")}; wrap keys ${wrapLatencies.join("/")} ms; other keys p50 ${median(other)} ms`,
 	);
 }
 if (pooled.length)
 	console.log(
 		`all wrap keys pooled: n=${pooled.length} min ${Math.min(...pooled)} ms max ${Math.max(...pooled)} ms median ${median(pooled)} ms`,
 	);
+if (unpaired) process.exit(1);
