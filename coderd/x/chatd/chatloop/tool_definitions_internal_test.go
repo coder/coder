@@ -1433,15 +1433,14 @@ func TestBuildToolDefinitionsFullSchemaRootFoldObjectKeywords(t *testing.T) {
 			}`,
 			want: `{
 				"type": "object",
-				"properties": {"nested": {"$ref": "#/$defs/coder_root_then"}},
+				"properties": {"nested": {"$ref": "#/then/allOf/0/then"}},
 				"if": {},
 				"then": {"allOf": [
 					{"if": {"required": ["a"]}, "then": {"required": ["b"]}},
 					{"if": {"required": ["c"]}, "then": {"required": ["d"]}, "else": {"required": ["e"]}}
 				]},
 				"$defs": {
-					"C": {"if": {"required": ["c"]}, "then": {"required": ["d"]}, "else": {"required": ["e"]}},
-					"coder_root_then": {"required": ["b"]}
+					"C": {"if": {"required": ["c"]}, "then": {"required": ["d"]}, "else": {"required": ["e"]}}
 				}
 			}`,
 			accepted: []string{`{"a": 1, "b": 1, "e": 1}`, `{"c": 1, "d": 1, "nested": {"b": 1}}`},
@@ -1455,6 +1454,13 @@ func TestBuildToolDefinitionsFullSchemaRootFoldObjectKeywords(t *testing.T) {
 			want:     `{"type": "object", "properties": {"x": {"allOf": [{"$ref": "#/$defs/coder_root_properties_x"}, {"minLength": 5}]}, "y": {"$ref": "#/$defs/coder_root_properties_x"}}, "$defs": {"coder_root_properties_x": {"type": "string"}}}`,
 			accepted: []string{`{"x": "abcde", "y": "a"}`},
 			rejected: []string{`{"x": "a"}`, `{"y": 1}`},
+		},
+		{
+			name:     "ReferencedRootConditionalBesideBranchConditional",
+			source:   `{"type": "object", "properties": {"a": {"type": "string"}, "b": {"$ref": "#/if/properties/a"}, "c": {"$ref": "#cond"}}, "if": {"$anchor": "cond", "properties": {"a": {"const": "x"}}, "required": ["a"]}, "then": {"required": ["b"]}, "allOf": [{"if": {"required": ["c"]}, "then": {"required": ["a"]}}]}`,
+			want:     `{"type": "object", "properties": {"a": {"type": "string"}, "b": {"$ref": "#/then/allOf/0/if/properties/a"}, "c": {"$ref": "#/then/allOf/0/if"}}, "if": {}, "then": {"allOf": [{"if": {"$anchor": "cond", "properties": {"a": {"const": "x"}}, "required": ["a"]}, "then": {"required": ["b"]}}, {"if": {"required": ["c"]}, "then": {"required": ["a"]}}]}}`,
+			accepted: []string{`{"a": "x", "b": "x"}`, `{"a": "y"}`, `{"a": "y", "c": {"a": "x"}}`},
+			rejected: []string{`{"a": "x"}`, `{"b": "y"}`, `{"c": {"a": "x"}}`},
 		},
 		{
 			name:     "NarrowedPropertyReferencingNarrowed",

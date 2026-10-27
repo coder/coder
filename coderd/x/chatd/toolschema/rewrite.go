@@ -878,6 +878,9 @@ func lookupPointer(root any, tokens []string) (any, bool) {
 // items that "contains" matches as evaluated, so when those schemas have
 // both "contains" and "unevaluatedItems", the references that would
 // become dynamic are left out instead, which only drops a constraint.
+// Draft 2019-09 defines a "$recursiveRef" only to "#", but one to another
+// target that no "$recursiveAnchor" can replace resolves like a "$ref",
+// so it becomes one, and other such references are left out.
 // Other values are kept. Only a schema read in draft 2019-09 (see
 // UpgradeLegacyDrafts) has these keywords: other dialects ignore them,
 // and so does a schema read without "$schema", which MCP reads as draft
@@ -887,7 +890,7 @@ func lookupPointer(root any, tokens []string) (any, bool) {
 // are returned as is.
 func ReplaceRecursiveRefs(schema map[string]any) map[string]any {
 	schema = removeIgnoredKeywords(schema)
-	found, dynamic, contains, unevaluatedItems := false, false, false, false
+	found, recursive, dynamic, contains, unevaluatedItems := false, false, false, false, false
 	used := map[string]bool{}
 	walkNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
 		_, hasRef := node["$recursiveRef"]
@@ -906,6 +909,7 @@ func ReplaceRecursiveRefs(schema map[string]any) map[string]any {
 		if !isDraft201909(scope.dialect) {
 			return
 		}
+		recursive = recursive || recursiveAnchor(node)
 		_, hasContains := node["contains"]
 		_, hasUnevaluated := node["unevaluatedItems"]
 		contains = contains || hasContains
@@ -963,10 +967,16 @@ func ReplaceRecursiveRefs(schema map[string]any) map[string]any {
 			}
 		}
 		ref, ok := node["$recursiveRef"].(string)
-		if !ok || !scope.namesResource(ref) {
+		if !ok {
 			return
 		}
 		delete(node, "$recursiveRef")
+		if !scope.namesResource(ref) {
+			if !recursive || !mayRecurse(ref, scope) {
+				addReference(node, "$ref", ref)
+			}
+			return
+		}
 		switch {
 		case !scope.nested || !recursiveAnchor(scope.resource):
 			addReference(node, "$ref", "#")
@@ -1018,6 +1028,21 @@ func removeIgnoredKeywords(schema map[string]any) map[string]any {
 func recursiveAnchor(node map[string]any) bool {
 	anchored, _ := node["$recursiveAnchor"].(bool)
 	return anchored
+}
+
+// mayRecurse reports whether the target that a "$recursiveRef" in scope
+// names other than its resource may declare "$recursiveAnchor", which
+// lets the dynamic scope pick another target. Only the target of a JSON
+// Pointer into the current resource is looked up.
+func mayRecurse(ref string, scope refScope) bool {
+	prefix, fragment, _ := strings.Cut(ref, "#")
+	tokens, ok := decodePointer(fragment)
+	if prefix != "" || !ok {
+		return true
+	}
+	target, ok := lookupPointer(scope.resource, tokens)
+	node, isNode := target.(map[string]any)
+	return !ok || (isNode && recursiveAnchor(node))
 }
 
 // addReference adds a reference keyword to node, in its "allOf" when
