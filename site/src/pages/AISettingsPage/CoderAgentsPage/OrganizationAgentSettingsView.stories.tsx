@@ -280,12 +280,12 @@ const computerUseArgs = {
 		],
 	]),
 };
-const unverifiedComputerUseOverrides: readonly TypesGen.ChatModelOverrideResponse[] =
+const mockUnverifiedComputerUseOverrides: readonly TypesGen.ChatModelOverrideResponse[] =
 	[...overrides, { context: "computer_use", model_config_id: model.id }];
 
 // The gpt-5 model behind model-1 is not on the curated computer use list.
 export const ComputerUseUnverifiedModel: Story = {
-	args: { ...computerUseArgs, overrides: unverifiedComputerUseOverrides },
+	args: { ...computerUseArgs, overrides: mockUnverifiedComputerUseOverrides },
 	play: async ({ canvasElement }) => {
 		within(canvasElement)
 			.getByRole("button", { name: "Computer use model warning" })
@@ -308,7 +308,7 @@ export const ComputerUseUnverifiedDefaultModel: Story = {
 	play: ComputerUseUnverifiedModel.play,
 };
 
-const responsesAPIDisabledModel: TypesGen.ChatModel = {
+const mockResponsesAPIDisabledModel: TypesGen.ChatModel = {
 	...model,
 	id: "model-gpt-5-4",
 	model: "gpt-5.4",
@@ -323,13 +323,13 @@ export const ComputerUseResponsesAPIDisabled: Story = {
 		...computerUseArgs,
 		enabledModels: [
 			...computerUseArgs.enabledModels,
-			responsesAPIDisabledModel,
+			mockResponsesAPIDisabledModel,
 		],
 		overrides: [
 			...overrides,
 			{
 				context: "computer_use",
-				model_config_id: responsesAPIDisabledModel.id,
+				model_config_id: mockResponsesAPIDisabledModel.id,
 			},
 		],
 	},
@@ -375,7 +375,7 @@ export const ComputerUseReadOnly: Story = {
 	args: {
 		...computerUseArgs,
 		canEdit: false,
-		overrides: unverifiedComputerUseOverrides,
+		overrides: mockUnverifiedComputerUseOverrides,
 	},
 };
 
