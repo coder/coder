@@ -16,8 +16,8 @@ type TemplateSettingsPageViewProps = {
 		typeof TemplateSettingsForm
 	>["initialTouched"];
 	accessControlEnabled: boolean;
-	advancedSchedulingEnabled: boolean;
 	sharedPortControlsEnabled: boolean;
+	canViewPremium: boolean;
 };
 
 export const TemplateSettingsPageView: React.FC<
@@ -30,8 +30,8 @@ export const TemplateSettingsPageView: React.FC<
 	submitError,
 	initialTouched,
 	accessControlEnabled,
-	advancedSchedulingEnabled,
 	sharedPortControlsEnabled,
+	canViewPremium,
 }) => {
 	return (
 		<div className="flex flex-col gap-12">
@@ -50,8 +50,8 @@ export const TemplateSettingsPageView: React.FC<
 				onCancel={onCancel}
 				error={submitError}
 				accessControlEnabled={accessControlEnabled}
-				advancedSchedulingEnabled={advancedSchedulingEnabled}
 				portSharingControlsEnabled={sharedPortControlsEnabled}
+				canViewPremium={canViewPremium}
 			/>
 		</div>
 	);

@@ -8,6 +8,7 @@ import {
 } from "#/api/queries/templates";
 import type { UpdateTemplateMeta } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { pageTitle } from "#/utils/page";
@@ -20,10 +21,9 @@ const TemplateSettingsPage: React.FC = () => {
 	const getLink = useLinks();
 	const { template } = useTemplateSettings();
 	const queryClient = useQueryClient();
+	const { permissions } = useAuthenticated();
 	const { entitlements } = useDashboard();
 	const accessControlEnabled = entitlements.features.access_control.enabled;
-	const advancedSchedulingEnabled =
-		entitlements.features.advanced_template_scheduling.enabled;
 	const sharedPortControlsEnabled =
 		entitlements.features.control_shared_ports.enabled;
 
@@ -83,8 +83,8 @@ const TemplateSettingsPage: React.FC = () => {
 					});
 				}}
 				accessControlEnabled={accessControlEnabled}
-				advancedSchedulingEnabled={advancedSchedulingEnabled}
 				sharedPortControlsEnabled={sharedPortControlsEnabled}
+				canViewPremium={permissions.viewAllLicenses}
 			/>
 		</>
 	);
