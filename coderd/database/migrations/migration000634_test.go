@@ -61,11 +61,22 @@ func TestMigration000634ChatModelOverrideComputerUse(t *testing.T) {
 	// Before the migration, computer_use is not a valid context.
 	requireCheckViolation(insertOverride("computer_use"))
 	require.NoError(t, insertOverride("advisor"))
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO site_configs (key, value)
+		VALUES ('agents_computer_use_provider', 'openai'), ('migration000634_control', 'kept')`)
+	require.NoError(t, err)
 
 	_, err = sqlDB.ExecContext(ctx, string(upSQL))
 	require.NoError(t, err)
 	require.NoError(t, insertOverride("computer_use"))
 	require.ElementsMatch(t, []string{"advisor", "computer_use"}, overrideContexts(ctx, t, sqlDB, orgID))
+	var legacyRows, controlRows int
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT count(*) FILTER (WHERE key = 'agents_computer_use_provider'),
+			count(*) FILTER (WHERE key = 'migration000634_control')
+		FROM site_configs`).Scan(&legacyRows, &controlRows))
+	require.Zero(t, legacyRows)
+	require.Equal(t, 1, controlRows)
 
 	// Rolling back drops computer_use rows, keeps the others, and restores
 	// the old constraint.
