@@ -28,23 +28,26 @@ const userMessage = (text: string): ChatMessage => ({
 	content: [{ type: "text", text }],
 });
 
+const questionCall = (toolCallId: string, startedAt?: string): ChatMessage => ({
+	...MockChatMessage,
+	id: nextMessageId++,
+	role: "assistant",
+	content: [
+		{
+			type: "tool-call",
+			tool_call_id: toolCallId,
+			tool_name: "ask_user_question",
+			args: {},
+			created_at: startedAt,
+		},
+	],
+});
+
 const questionStep = (
 	toolCallId: string,
-	result: { async?: boolean; isError?: boolean } = {},
+	result: { async?: boolean; isError?: boolean; startedAt?: string } = {},
 ): ChatMessage[] => [
-	{
-		...MockChatMessage,
-		id: nextMessageId++,
-		role: "assistant",
-		content: [
-			{
-				type: "tool-call",
-				tool_call_id: toolCallId,
-				tool_name: "ask_user_question",
-				args: {},
-			},
-		],
-	},
+	questionCall(toolCallId, result.startedAt),
 	{
 		...MockChatMessage,
 		id: nextMessageId++,
@@ -71,9 +74,10 @@ const questionStep = (
 const answerMessage = (toolCallId: string) =>
 	`Answer to ask_user_question call ${toolCallId}:\nSingle migration`;
 
-const queued = (text: string): ChatQueuedMessage => ({
+const queued = (text: string, createdAt?: string): ChatQueuedMessage => ({
 	...MockChatQueuedMessage,
 	content: [{ type: "text", text }],
+	created_at: createdAt ?? MockChatQueuedMessage.created_at,
 });
 
 const derive = (
@@ -81,16 +85,59 @@ const derive = (
 	{
 		liveTools = [],
 		queuedMessages = [],
+		pendingToolCallIDs,
 	}: {
 		liveTools?: MergedTool[];
 		queuedMessages?: ChatQueuedMessage[];
+		pendingToolCallIDs?: ReadonlySet<string>;
 	} = {},
 ) =>
 	deriveAskUserQuestionState(
-		parseMessagesWithMergedTools(messages),
+		parseMessagesWithMergedTools(messages, { pendingToolCallIDs }),
 		liveTools,
 		queuedMessages,
 	);
+
+const reusedCallStartedAt = "2026-01-01T00:02:00Z";
+
+const reusingCalls = [
+	{
+		source: "a persisted call",
+		deriveAfter: (
+			messages: ChatMessage[],
+			queuedMessages: ChatQueuedMessage[] = [],
+		) =>
+			derive(
+				[
+					...messages,
+					...questionStep("reused-call", {
+						async: true,
+						startedAt: reusedCallStartedAt,
+					}),
+				],
+				{ queuedMessages },
+			),
+	},
+	{
+		source: "a live call",
+		deriveAfter: (
+			messages: ChatMessage[],
+			queuedMessages: ChatQueuedMessage[] = [],
+		) =>
+			derive(messages, {
+				queuedMessages,
+				liveTools: [
+					{
+						id: "reused-call",
+						name: "ask_user_question",
+						status: "completed",
+						isError: false,
+						startedAt: reusedCallStartedAt,
+					},
+				],
+			}),
+	},
+];
 
 describe("deriveAskUserQuestionState", () => {
 	it("keeps an async question open after an unrelated user message", () => {
@@ -178,15 +225,29 @@ describe("deriveAskUserQuestionState", () => {
 		);
 	});
 
-	it("keeps the question open when a later call fails validation", () => {
-		const state = derive([
-			...questionStep("async-call", { async: true }),
-			...questionStep("invalid-call", { isError: true }),
-		]);
+	it.each([
+		{
+			outcome: "fails validation",
+			laterCall: questionStep("later-call", { isError: true }),
+			pendingToolCallIDs: undefined,
+		},
+		{
+			outcome: "is still running",
+			laterCall: [questionCall("later-call")],
+			pendingToolCallIDs: new Set(["later-call"]),
+		},
+	])(
+		"keeps the question open when a later call $outcome",
+		({ laterCall, pendingToolCallIDs }) => {
+			const state = derive(
+				[...questionStep("async-call", { async: true }), ...laterCall],
+				{ pendingToolCallIDs },
+			);
 
-		expect(state.latestToolId).toBe("async-call");
-		expect(state.isLatestAnswered).toBe(false);
-	});
+			expect(state.latestToolId).toBe("async-call");
+			expect(state.isLatestAnswered).toBe(false);
+		},
+	);
 
 	it("records a queued answer without marking it delivered", () => {
 		const state = derive(questionStep("async-call", { async: true }), {
@@ -212,29 +273,9 @@ describe("deriveAskUserQuestionState", () => {
 		expect(state.openAsyncQuestion).toBeUndefined();
 	});
 
-	it.each([
-		[
-			"a persisted call",
-			(messages: ChatMessage[]) =>
-				derive([...messages, ...questionStep("reused-call", { async: true })]),
-		],
-		[
-			"a live call",
-			(messages: ChatMessage[]) =>
-				derive(messages, {
-					liveTools: [
-						{
-							id: "reused-call",
-							name: "ask_user_question",
-							status: "completed",
-							isError: false,
-						},
-					],
-				}),
-		],
-	])(
-		"ignores an earlier answer when %s reuses its call ID",
-		(_, deriveAfter) => {
+	it.each(reusingCalls)(
+		"ignores an earlier answer when $source reuses its call ID",
+		({ deriveAfter }) => {
 			const state = deriveAfter([
 				...questionStep("reused-call", { async: true }),
 				userMessage(answerMessage("reused-call")),
@@ -243,6 +284,19 @@ describe("deriveAskUserQuestionState", () => {
 			expect(state.latestToolId).toBe("reused-call");
 			expect(state.isLatestAnswered).toBe(false);
 			expect(state.responseTextByToolId.has("reused-call")).toBe(false);
+		},
+	);
+
+	it.each(reusingCalls)(
+		"counts a queued answer only if it is newer than $source that reuses its call ID",
+		({ deriveAfter }) => {
+			const isAnsweredByAnswerQueuedAt = (createdAt: string) =>
+				deriveAfter(questionStep("reused-call", { async: true }), [
+					queued(answerMessage("reused-call"), createdAt),
+				]).responseTextByToolId.has("reused-call");
+
+			expect(isAnsweredByAnswerQueuedAt("2026-01-01T00:01:00Z")).toBe(false);
+			expect(isAnsweredByAnswerQueuedAt("2026-01-01T00:03:00Z")).toBe(true);
 		},
 	);
 

@@ -6,7 +6,7 @@ import { defaultUrlTransform } from "streamdown";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChat, MockChatQueuedMessage } from "#/testHelpers/chatEntities";
+import { MockChat } from "#/testHelpers/chatEntities";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
 	createPreferenceSeededQueryClient,
@@ -22,6 +22,7 @@ import {
 	MockAsyncQuestionResult,
 	MockAsyncQuestionResultMessage,
 	MockQuestionCallMessage,
+	MockQueuedQuestionAnswer,
 } from "./ChatConversation/storyFixtures";
 import { ChatPageInput, ChatPageTimeline } from "./ChatPageContent";
 
@@ -319,9 +320,7 @@ describe("ChatPageTimeline question dock", () => {
 			within(getQuestionDock()).getByRole("button", { name: "Submit" }),
 		);
 		act(() => {
-			store.setQueuedMessages([
-				{ ...MockChatQueuedMessage, content: [{ type: "text", text: answer }] },
-			]);
+			store.setQueuedMessages([MockQueuedQuestionAnswer]);
 		});
 		act(() => {
 			store.setQueuedMessages([]);

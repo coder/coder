@@ -562,6 +562,7 @@ export const MockQueuedQuestionAnswer: TypesGen.ChatQueuedMessage = {
 	content: [
 		{ type: "text", text: `${getAsyncAnswerPrefix("question")}Frontend` },
 	],
+	created_at: workingFixtureTime(7),
 };
 
 export const buildReconnectState = (

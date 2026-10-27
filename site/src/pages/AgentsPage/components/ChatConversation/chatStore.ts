@@ -222,7 +222,7 @@ const withoutDeliveredMessages = (
 		(held) =>
 			!messages.some((message) => message.queued_message_id === held.id),
 	);
-	return undelivered.length === promotingQueuedMessages.length
+	return chatQueuedMessagesEqualByID(promotingQueuedMessages, undelivered)
 		? promotingQueuedMessages
 		: undelivered;
 };
