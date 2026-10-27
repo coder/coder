@@ -1,15 +1,13 @@
-import { cn } from "cn";
-import { useEffect, useRef } from "react";
-import { Link, type Location } from "react-router";
+import type { Location } from "react-router";
 import { CHAT_SEARCH_LIMIT } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
-import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { shortRelativeTime } from "#/utils/time";
-import { ChatNodePRIcon } from "../tree/ChatNodePRIcon";
-import { getChatDisplayConfig } from "../tree/statusConfig";
+import {
+	ChatSearchResultRow,
+	ChatSearchResultsSkeleton,
+} from "./ChatSearchResultRows";
 
 type ChatSearchResultsProps = {
 	readonly chats: readonly Chat[] | undefined;
@@ -236,121 +234,3 @@ const ChatSearchResultsList: React.FC<ChatSearchResultsListProps> = ({
 		</div>
 	);
 };
-
-type ChatSearchResultRowProps = {
-	readonly chat: Chat;
-	readonly id: string;
-	readonly isSelected: boolean;
-	readonly location: Location;
-	readonly onSelect: () => void;
-};
-
-const ChatSearchResultRow: React.FC<ChatSearchResultRowProps> = ({
-	chat,
-	id,
-	isSelected,
-	location,
-	onSelect,
-}) => {
-	const rowRef = useRef<HTMLAnchorElement | null>(null);
-	const {
-		icon: StatusIcon,
-		className: statusClassName,
-		label: statusLabel,
-		prStatuses,
-	} = getChatDisplayConfig(chat);
-	// Line stats only make sense for one PR; several PRs have no
-	// single set of counts, and the icon shows the count instead.
-	const solePR = prStatuses.length === 1 ? prStatuses[0] : undefined;
-
-	const additions = solePR?.additions ?? 0;
-	const deletions = solePR?.deletions ?? 0;
-	const changedFiles = solePR?.changed_files ?? 0;
-	const hasLineStats =
-		Boolean(solePR?.url) &&
-		(additions > 0 || deletions > 0 || changedFiles > 0);
-	const subtitle = chat.last_turn_summary?.trim() || "No summary available";
-
-	useEffect(() => {
-		if (isSelected) {
-			rowRef.current?.scrollIntoView({ block: "nearest" });
-		}
-	}, [isSelected]);
-
-	return (
-		<Link
-			ref={rowRef}
-			id={id}
-			role="option"
-			aria-selected={isSelected}
-			tabIndex={-1}
-			to={{ pathname: `/agents/${chat.id}`, search: location.search }}
-			onClick={onSelect}
-			className={cn(
-				"grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2 rounded-md px-1.5 py-1 text-content-secondary no-underline hover:bg-surface-tertiary/40 hover:text-content-primary",
-				isSelected && "bg-surface-tertiary/40 text-content-primary",
-			)}
-		>
-			<StatusIcon
-				role="img"
-				aria-label={statusLabel}
-				className={cn("mt-1 size-3.5 shrink-0", statusClassName)}
-			/>
-			<div className="min-w-0">
-				<div className="truncate text-sm text-content-primary">
-					{chat.title}
-				</div>
-				<div className="flex min-w-0 items-center gap-1.5 text-xs">
-					<ChatNodePRIcon prStatuses={prStatuses} />
-					{hasLineStats && (
-						<span className="inline-flex shrink-0 items-center gap-0.5 tabular-nums">
-							<span className="text-git-added-bright">+{additions}</span>
-							<span className="text-git-deleted-bright">
-								&minus;{deletions}
-							</span>
-						</span>
-					)}
-					<span className="min-w-0 flex-1 truncate text-content-secondary">
-						{subtitle}
-					</span>
-				</div>
-			</div>
-			<span className="inline-flex shrink-0 items-center gap-1.5 pt-0.5 text-xs text-content-secondary">
-				{chat.has_unread && (
-					<span
-						className="size-1.5 shrink-0 rounded-full bg-content-link"
-						aria-hidden="true"
-					/>
-				)}
-				{/* Pin the ignored mask width so Pixel does not diff bounding rect changes. */}
-				<span data-pixel="ignore" className="inline-block w-7 text-right">
-					{shortRelativeTime(chat.updated_at)}
-				</span>
-			</span>
-		</Link>
-	);
-};
-
-const ChatSearchResultsSkeleton: React.FC = () => (
-	<div className="space-y-1.5">
-		{Array.from({ length: 6 }, (_, index) => (
-			<div
-				key={`search-skeleton-${index}`}
-				className="flex items-start gap-2 rounded-md px-1.5 py-1"
-			>
-				<Skeleton className="mt-1 size-3.5 shrink-0 rounded-full" />
-				<div className="min-w-0 flex-1 space-y-1.5">
-					<Skeleton
-						className="h-3.5"
-						style={{ width: `${60 + ((index * 11) % 30)}%` }}
-					/>
-					<Skeleton
-						className="h-3"
-						style={{ width: `${50 + ((index * 13) % 35)}%` }}
-					/>
-				</div>
-				<Skeleton className="h-3 w-6" />
-			</div>
-		))}
-	</div>
-);
