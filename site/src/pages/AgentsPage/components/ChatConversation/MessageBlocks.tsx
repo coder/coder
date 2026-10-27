@@ -69,7 +69,7 @@ export type BlockListProps = {
 	isChatCompleted?: boolean;
 	latestAskUserQuestion?: MergedTool;
 	dockedAskUserQuestion?: MergedTool;
-	askUserQuestionResponseTextByToolId?: ReadonlyMap<string, string>;
+	askUserQuestionResponseTextByTool?: ReadonlyMap<MergedTool, string>;
 	isLatestAskUserQuestionAnswered: boolean;
 	urlTransform: UrlTransform;
 };
@@ -96,7 +96,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 	isChatCompleted,
 	latestAskUserQuestion,
 	dockedAskUserQuestion,
-	askUserQuestionResponseTextByToolId,
+	askUserQuestionResponseTextByTool,
 	isLatestAskUserQuestionAnswered,
 	urlTransform,
 }) => {
@@ -250,7 +250,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 								isDockedAskUserQuestion={tool === dockedAskUserQuestion}
 								previousResponseText={
 									tool.name === "ask_user_question"
-										? askUserQuestionResponseTextByToolId?.get(tool.id)
+										? askUserQuestionResponseTextByTool?.get(tool)
 										: undefined
 								}
 								modelIntent={tool.modelIntent}
@@ -319,7 +319,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 					isDockedAskUserQuestion={tool === dockedAskUserQuestion}
 					previousResponseText={
 						tool.name === "ask_user_question"
-							? askUserQuestionResponseTextByToolId?.get(tool.id)
+							? askUserQuestionResponseTextByTool?.get(tool)
 							: undefined
 					}
 					modelIntent={tool.modelIntent}

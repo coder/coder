@@ -130,7 +130,7 @@ const ChatMessageItem = memo<{
 	isChatCompleted?: boolean;
 	latestAskUserQuestion?: MergedTool;
 	dockedAskUserQuestion?: MergedTool;
-	askUserQuestionResponseTextByToolId?: ReadonlyMap<string, string>;
+	askUserQuestionResponseTextByTool?: ReadonlyMap<MergedTool, string>;
 	isLatestAskUserQuestionAnswered?: boolean;
 	prevUserMessageKey?: string;
 	nextUserMessageKey?: string;
@@ -159,7 +159,7 @@ const ChatMessageItem = memo<{
 		isChatCompleted,
 		latestAskUserQuestion,
 		dockedAskUserQuestion,
-		askUserQuestionResponseTextByToolId,
+		askUserQuestionResponseTextByTool,
 		isLatestAskUserQuestionAnswered = false,
 		prevUserMessageKey,
 		nextUserMessageKey,
@@ -283,8 +283,8 @@ const ChatMessageItem = memo<{
 									isChatCompleted={isChatCompleted}
 									latestAskUserQuestion={latestAskUserQuestion}
 									dockedAskUserQuestion={dockedAskUserQuestion}
-									askUserQuestionResponseTextByToolId={
-										askUserQuestionResponseTextByToolId
+									askUserQuestionResponseTextByTool={
+										askUserQuestionResponseTextByTool
 									}
 									isLatestAskUserQuestionAnswered={
 										isLatestAskUserQuestionAnswered
@@ -592,9 +592,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			});
 		}
 		const latestAskUserQuestion = askUserQuestionState.latestTool;
-		const askUserQuestionResponseTextByToolId =
-			askUserQuestionState.responseTextByToolId.size > 0
-				? askUserQuestionState.responseTextByToolId
+		const askUserQuestionResponseTextByTool =
+			askUserQuestionState.responseTextByTool.size > 0
+				? askUserQuestionState.responseTextByTool
 				: undefined;
 
 		// The work section keeps the row's key, so a row that becomes an answer
@@ -615,8 +615,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						liveTools={liveTools}
 						latestAskUserQuestion={latestAskUserQuestion}
 						dockedAskUserQuestion={dockedAskUserQuestion}
-						askUserQuestionResponseTextByToolId={
-							askUserQuestionResponseTextByToolId
+						askUserQuestionResponseTextByTool={
+							askUserQuestionResponseTextByTool
 						}
 						isLatestAskUserQuestionAnswered={
 							askUserQuestionState.isLatestAnswered
@@ -657,9 +657,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					isChatCompleted={isChatCompleted}
 					latestAskUserQuestion={latestAskUserQuestion}
 					dockedAskUserQuestion={dockedAskUserQuestion}
-					askUserQuestionResponseTextByToolId={
-						askUserQuestionResponseTextByToolId
-					}
+					askUserQuestionResponseTextByTool={askUserQuestionResponseTextByTool}
 					isLatestAskUserQuestionAnswered={
 						askUserQuestionState.isLatestAnswered
 					}

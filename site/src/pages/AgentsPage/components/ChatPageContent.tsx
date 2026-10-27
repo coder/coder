@@ -222,7 +222,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 		: askUserQuestionState.openAsyncQuestion;
 	const queuedAnswerText =
 		dockedQuestion &&
-		askUserQuestionState.responseTextByToolId.get(dockedQuestion.id);
+		askUserQuestionState.responseTextByTool.get(dockedQuestion);
 
 	return (
 		<ACPContext value={acpSessions}>
