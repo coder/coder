@@ -64,6 +64,9 @@ kubectl create secret generic agent-relay-pools \
 
 For Docker, set the key in the container's environment.
 
+Agent Relay reads pool secrets only at startup.
+When you rotate a key, update the secret, then restart Agent Relay.
+
 The API key never leaves Agent Relay.
 When Agent Relay claims a request, it exchanges the key for a session-scoped Cursor token and passes that token to the workspace as an ephemeral, masked parameter.
 The token:
@@ -160,7 +163,8 @@ cursorWorkerPools:
     idle_release_timeout: 600
 ```
 
-Set `CURSOR_SERVICE_ACCOUNT_KEY` in the container's environment.
+Pass `CURSOR_SERVICE_ACCOUNT_KEY` to the container alongside `CODER_AGENT_RELAY_CODERD_SESSION_TOKEN`, as shown in [Install with Docker](./setup.md#docker).
+Agent Relay doesn't start without the session token.
 
 </div>
 
@@ -315,6 +319,9 @@ For workspace credentials:
 - Prefer short-lived, least-scoped credentials.
   A credential baked into the image is available to every session that the template serves.
 - Make sure credentials work without a prompt.
+- To give each session its owner's Git credentials, configure [external authentication](../../admin/external-auth.md) and pass `data.coder_external_auth.<id>.access_token` to the agent's environment.
+  Agent Relay builds the workspace as the developer's matched Coder user, so the token belongs to that developer.
+  If the provider isn't marked `optional`, Coder refuses to create a workspace for a developer who hasn't linked the provider, and Agent Relay can't serve their session.
 
 Each pool maps to one template.
 Use one repository-scoped pool per repository when repositories need different templates or credentials.
@@ -355,7 +362,7 @@ They're deleted with the workspace.
 | One pool is degraded and the others are fine         | The service account lacks `read` or `use` on the template, the template lacks `allow_user_cancel_workspace_jobs`, or the template doesn't include the module's parameters.                                                                                |
 | Cursor shows an `agent-relay:` account error         | Identity resolution failed. The message names the cause: no email on the request, no matching member of the organization, or a suspended or dormant account.                                                                                              |
 | Cursor shows an `agent-relay:` build or worker error | The build failed, exceeded `dispatch_deadline`, or waited too long for a provisioner, or the worker exited before serving. Read the Agent Relay logs and `agent_relay_cursor_claim_fails_total`.                                                          |
-| A workspace is created and then deleted              | The build failed. Quota exhaustion is the most common cause. Read the workspace's build log in Coder.                                                                                                                                                     |
+| A workspace is created and then deleted              | The build failed. Quota exhaustion is the most common cause. Find the `workspace build failed` line in the Agent Relay logs and read its `job_error` field. The workspace's build log in Coder has the full output.                                       |
 | A Cursor chat hangs with no error                    | The worker stopped after it started serving, for example because of autostop, or Agent Relay's call to fail the claim errored, or no relay claimed the request.                                                                                           |
 | Builds time out                                      | The build exceeded `dispatch_deadline` or waited for a provisioner. Speed up the template, raise the deadline up to `15m`, use prebuilds, or add provisioners.                                                                                            |
 | Builds stay `pending`                                | No online provisioner matches the template's tags. Compare `coder provisioner list` with the template's tags.                                                                                                                                             |
@@ -369,7 +376,7 @@ For logs and metrics, refer to [Monitor Agent Relay](./monitoring.md).
 ## Learn more
 
 - [Set up Agent Relay](./setup.md)
-- [Use Agent Relay from Slack](./slack.md#cursor-in-slack)
+- [Configure Slack for Agent Relay](./slack.md#cursor-in-slack)
 - [Monitor Agent Relay](./monitoring.md)
 - [Agent Relay configuration reference](./configuration.md)
 - [Cursor self-hosted machines](https://cursor.com/docs/cloud-agent/self-hosted)

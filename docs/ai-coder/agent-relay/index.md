@@ -113,7 +113,7 @@ The daemon is distributed as a public container image and Helm chart:
 - [Set up Agent Relay](./setup.md)
 - [Agent Relay for Claude Code](./claude-code.md)
 - [Agent Relay for Cursor](./cursor.md)
-- [Use Agent Relay from Slack](./slack.md)
+- [Configure Slack for Agent Relay](./slack.md)
 - [Monitor Agent Relay](./monitoring.md)
 - [Agent Relay configuration reference](./configuration.md)
 - [Coder Agents](../agents/index.md)

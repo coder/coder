@@ -74,6 +74,9 @@ kubectl create secret generic agent-relay-pools \
 
 For Docker, set the key in the container's environment.
 
+Agent Relay reads pool secrets only at startup.
+When you rotate a key, update the secret, then restart Agent Relay.
+
 The environment key never leaves Agent Relay.
 When Agent Relay dispatches a session, it hands the workspace the session's Anthropic-signed work order instead.
 The work order:
@@ -165,13 +168,14 @@ claudeCodeRunnerPools:
     # claude_tag_channel_user: <user-uuid>
 ```
 
-Set `CLAUDE_ENVIRONMENT_SECRET` in the container's environment.
+Pass `CLAUDE_ENVIRONMENT_SECRET` to the container alongside `CODER_AGENT_RELAY_CODERD_SESSION_TOKEN`, as shown in [Install with Docker](./setup.md#docker).
+Agent Relay doesn't start without the session token.
 
 </div>
 
 Agent Relay rejects a `template_parameters` entry that uses a name it sets on every build: `agent_relay_session_id`, `agent_relay_delivery_id`, `agent_relay_pool`, `agent_relay_client_platform`, `work_order`, `lock_to_account`, or `agent_relay_attempt`.
 
-To serve Claude Tag channel sessions, refer to [Use Agent Relay from Slack](./slack.md#claude-tag-channel-sessions).
+To serve Claude Tag channel sessions, refer to [Configure Slack for Agent Relay](./slack.md#claude-tag-channel-sessions).
 
 When the pool is configured, return to [Install Agent Relay](./setup.md#step-5-install-agent-relay).
 
@@ -266,6 +270,11 @@ Refer to Anthropic's [Configure Git](https://code.claude.com/docs/en/self-hosted
 | Runner-managed Git config (`SELF_HOSTED_RUNNER_CONFIGURE_GIT=1`) | Claude's Git identity, Anthropic-signed commits, and a `Co-authored-by:` trailer for the session creator | No push credentials, so combine it with another approach. Requires Git 2.34 or later.             |
 | Anthropic Git proxy (`CLAUDE_RUNNER_USE_GIT_PROXY=1`)            | No Git credentials in the workspace. Anthropic serves Git with the session creator's GitHub token.       | `github.com` only, session repositories only, and branch pushes only. Requires Git 2.32 or later. |
 
+To supply credentials in the template, you can use [external authentication](../../admin/external-auth.md) and pass `data.coder_external_auth.<id>.access_token` to the agent's environment.
+Agent Relay builds the workspace as the developer's matched Coder user, so the token belongs to that developer.
+If the provider isn't marked `optional`, Coder refuses to create a workspace for a developer who hasn't linked the provider, and Agent Relay can't serve their session.
+Claude Tag channel sessions run as a service account, so give them credentials from the template instead, as described in [Configure Slack for Agent Relay](./slack.md#set-up-claude-tag-channel-sessions).
+
 Set runner options as environment variables on the `coder_agent` resource:
 
 ```tf
@@ -317,12 +326,12 @@ They're deleted with the workspace.
 | One pool is degraded and the others are fine       | The service account lacks `read` or `use` on the template, the template lacks `allow_user_cancel_workspace_jobs`, or the template doesn't include the module's parameters.                                                                                                                 |
 | Sessions fail and no workspace is created          | Identity resolution failed. Find the attested email in the logs and confirm an active member of the pool's organization has it.                                                                                                                                                            |
 | A session sits queued in Claude Code               | Dispatch failed and Agent Relay returned the session for redelivery. Read the Agent Relay logs for the session's nack reason.                                                                                                                                                              |
-| A workspace is created and then deleted            | The build failed. Quota exhaustion is the most common cause. Read the workspace's build log in Coder.                                                                                                                                                                                      |
+| A workspace is created and then deleted            | The build failed. Quota exhaustion is the most common cause. Find the `workspace build failed` line in the Agent Relay logs and read its `job_error` field. The workspace's build log in Coder has the full output.                                                                        |
 | Builds time out                                    | The build plus provisioner queue time exceeded the 300-second budget. Speed up the template or add provisioners.                                                                                                                                                                           |
 | Builds stay `pending`                              | No online provisioner matches the template's tags. Compare `coder provisioner list` with the template's tags.                                                                                                                                                                              |
 | The agent fails to start with an unclear CLI error | The Claude Code CLI in the image is out of date. Rebuild the image, or set `install_cli = true`.                                                                                                                                                                                           |
 | A workspace is never deleted                       | The template renamed or omitted `agent_relay_status`, or the runner reports `orphaned`.                                                                                                                                                                                                    |
-| A pool stops claiming sessions                     | The environment key expired or was rotated. Look for poll errors on that pool, then update the secret.                                                                                                                                                                                     |
+| A pool stops claiming sessions                     | The environment key expired or was rotated. Look for poll errors on that pool, update the secret, then restart Agent Relay with `kubectl rollout restart deploy/coder-agent-relay`, or restart the container.                                                                              |
 | Anthropic authentication fails                     | The Agent Relay or workspace clock is more than 5&nbsp;minutes off. Synchronize clocks.                                                                                                                                                                                                    |
 | A session stalls while preparing the repository    | The Claude GitHub app can't access the selected repository.                                                                                                                                                                                                                                |
 | `Please tell me who you are`                       | The image has no Git identity, and runner-managed Git config is off.                                                                                                                                                                                                                       |
@@ -332,7 +341,7 @@ For logs and metrics, refer to [Monitor Agent Relay](./monitoring.md).
 ## Learn more
 
 - [Set up Agent Relay](./setup.md)
-- [Use Agent Relay from Slack](./slack.md)
+- [Configure Slack for Agent Relay](./slack.md)
 - [Monitor Agent Relay](./monitoring.md)
 - [Agent Relay configuration reference](./configuration.md)
 - [Anthropic self-hosted environments](https://code.claude.com/docs/en/self-hosted-environments)

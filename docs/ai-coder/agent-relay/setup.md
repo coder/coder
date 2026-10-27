@@ -254,8 +254,8 @@ It needs no writable path and no baked-in configuration.
      ghcr.io/coder/agent-relay:<version>
    ```
 
-The session token has no config file key.
-Set it with `CODER_AGENT_RELAY_CODERD_SESSION_TOKEN`.
+Set the session token with `CODER_AGENT_RELAY_CODERD_SESSION_TOKEN`.
+Do not put it in `config.yaml`.
 Pass each pool's secret through the environment variable that its `secret_env` names, not inline in `config.yaml`.
 
 In a container, the metrics listener binds to loopback by default.
@@ -314,7 +314,7 @@ Workspace names start with a provider prefix: `cc-` for Claude Code and `cur-` f
 
 - [Agent Relay for Claude Code](./claude-code.md)
 - [Agent Relay for Cursor](./cursor.md)
-- [Use Agent Relay from Slack](./slack.md)
+- [Configure Slack for Agent Relay](./slack.md)
 - [Monitor Agent Relay](./monitoring.md)
 - [Agent Relay configuration reference](./configuration.md)
 - [External provisioners](../../install/operate/provisioners/index.md)

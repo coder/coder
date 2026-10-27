@@ -25,8 +25,8 @@ Refer to [Helm values](#helm-values) for chart settings that aren't Agent Relay 
 
 Keep credentials out of the configuration file:
 
-- The session token has no YAML key.
-  Set it with the `CODER_AGENT_RELAY_CODERD_SESSION_TOKEN` environment variable.
+- Set the session token with the `CODER_AGENT_RELAY_CODERD_SESSION_TOKEN` environment variable.
+  Do not put it in the configuration file.
 - Set each pool's `secret_env` to the name of an environment variable that holds the pool's secret.
 
 Agent Relay validates its options and pool fields at startup.
@@ -56,8 +56,7 @@ Required.
 
 The session token of the Agent Relay service account.
 Required.
-This option has no YAML key.
-Set it with the environment variable instead of the flag.
+Set it with the environment variable, not the flag or the configuration file.
 The Helm chart reads it from a Kubernetes secret and doesn't accept it as a plain value.
 Refer to [Step 1: Create a service account](./setup.md#step-1-create-a-service-account).
 
@@ -127,9 +126,9 @@ Use `secret_env` to keep the secret out of configuration files and Helm values.
 
 ### Claude Code pool fields
 
-| Field                     | Required | Description                                                                                                                                                                                                                                                                   |
-|---------------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `claude_tag_channel_user` | No       | The Coder user who owns workspaces for Claude Tag channel sessions. Set `me` for the Agent Relay service account, or the UUID of a user in the pool's organization. When it's unset, Agent Relay rejects channel sessions. Refer to [Use Agent Relay from Slack](./slack.md). |
+| Field                     | Required | Description                                                                                                                                                                                                                                                                        |
+|---------------------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `claude_tag_channel_user` | No       | The Coder user who owns workspaces for Claude Tag channel sessions. Set `me` for the Agent Relay service account, or the UUID of a user in the pool's organization. When it's unset, Agent Relay rejects channel sessions. Refer to [Configure Slack for Agent Relay](./slack.md). |
 
 ### Cursor pool fields
 

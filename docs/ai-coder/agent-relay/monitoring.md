@@ -31,8 +31,12 @@ For Docker, set `logFormat: json` in `config.yaml`.
 For a short diagnostic window, set `logLevel: debug`.
 
 A startup failure that occurs before the logger is ready prints as a plain `agent-relay: ...` line, not JSON.
+When you parse logs, skip lines that aren't JSON instead of failing on them, as the `jq` example below does.
 
 ### Correlation fields
+
+Each JSON log line has `ts`, `level`, `msg`, and a `fields` object.
+The correlation fields are inside `fields`, so a log query reads them as `fields.session_id`, for example.
 
 These fields mean the same thing for both providers, so one query works across Claude Code and Cursor:
 
@@ -47,6 +51,9 @@ These fields mean the same thing for both providers, so one query works across C
 | `workspace_id`   | The Coder workspace UUID                   | After Agent Relay creates or finds the workspace |
 | `workspace_name` | The Coder workspace name                   | After Agent Relay creates or finds the workspace |
 
+For Claude Code, some log lines carry the session ID only as `session_uuid`, such as the lines that the reaper writes when it fails a session.
+To trace a Claude Code session, match both `session_id` and `session_uuid`.
+
 For Claude Code, `client_platform` records where the session started: `web_claude_ai`, `desktop_app`, `ios`, `android`, `claude_code_cli`, `claude_in_slack`, or `unknown`.
 Cursor doesn't report a client platform.
 
@@ -57,8 +64,12 @@ For example, to follow one session with `jq`:
 
 ```shell
 kubectl logs -n coder deploy/coder-agent-relay --since=1h \
-  | jq -c 'select(.session_id == "<session-id>")'
+  | jq -Rc --arg id '<session-id>' '
+      fromjson?
+      | select(.fields.session_id == $id or .fields.session_uuid == $id)'
 ```
+
+The `-R` flag and `fromjson?` skip lines that aren't JSON, such as startup failures.
 
 ### What Agent Relay logs don't include
 
@@ -68,6 +79,8 @@ At the default log level, it doesn't log secrets or work order credentials.
 
 For a failed session, also check:
 
+1. **The `job_error` field** on the log line that starts with `workspace build failed`, for the build's error message.
+   Agent Relay deletes a workspace whose build fails, so start here.
 1. **Coder workspace build logs** for Terraform, provisioner, image, parameter, and startup failures.
 1. **Workspace agent and module logs** for provider runner or worker failures after the workspace starts.
    Agent Relay deletes the workspace, and these logs with it, when the session ends.
@@ -126,7 +139,7 @@ Use `agent_relay_cursor_pending_requests` and `agent_relay_cursor_stream_reconne
 | Symptom                                         | Where to look                                                                                                                                                                 |
 |-------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | A pool isn't serving                            | Startup logs for the pool. A pool logs that its template is verified when it's ready, and logs a contract check failure when the template is missing the module's parameters. |
-| A session never creates a workspace             | Logs for the `session_id`. Look for identity resolution failures, a degraded pool, or a dispatch error.                                                                       |
+| A session never creates a workspace             | Logs for the `session_id`, or the `session_uuid` for Claude Code. Look for identity resolution failures, a degraded pool, a dispatch error, or `job_error` on a failed build. |
 | The workspace exists but the agent never starts | The workspace's build log, then the module logs in the workspace, then the `agent_relay_status` metadata on the workspace page in Coder.                                      |
 | A session ended but its workspace remains       | Reaper decisions in the logs for the `workspace_id`. Agent Relay deletes on a sweep interval, and doesn't delete stopped workspaces.                                          |
 
