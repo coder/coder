@@ -516,8 +516,12 @@ func TestConfigSecrets(t *testing.T) {
 	secrets := configSecrets(ServerConfig{
 		URL:     rawURL,
 		Headers: map[string]string{"Authorization": "Bearer headersecret1", "X-Short": "abc"},
-		Env:     map[string]string{"API": "session=envsecret1; mode=fast"},
-		Args:    []string{"--key=argsecret12"},
+		Env: map[string]string{
+			"API":          "session=envsecret1; mode=fast",
+			"DATABASE_URL": "postgres://dbuser01:envpassword1@db/app?sslmode=require&apikey=env%2Bquery1",
+			"WORKDIR":      "/home/coder/workspace",
+		},
+		Args: []string{"--key=argsecret12", "--db=mysql://root:argpassword1@db/app"},
 	})
 	for _, want := range []string{
 		rawURL, "pathsecret1",
@@ -525,12 +529,15 @@ func TestConfigSecrets(t *testing.T) {
 		"query%2Bsecret1", "query+secret1",
 		"Bearer headersecret1", "headersecret1",
 		"session=envsecret1", "envsecret1",
+		"dbuser01", "envpassword1", "env%2Bquery1", "env+query1",
 		"--key=argsecret12", "argsecret12",
+		"root:argpassword1", "argpassword1",
 	} {
 		require.Contains(t, secrets, want)
 	}
-	for _, short := range []string{"abc", "u", "mcp", "Bearer", "fast", "token"} {
-		require.NotContains(t, secrets, short)
+	// A plain path is not split: its segments are ordinary words.
+	for _, notSecret := range []string{"abc", "u", "mcp", "Bearer", "fast", "token", "workspace"} {
+		require.NotContains(t, secrets, notSecret)
 	}
 }
 
