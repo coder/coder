@@ -39,6 +39,8 @@
 //                             the scrolltype scenario); uses the first n
 //                             chats in state.json
 //   --stream=0                skip the streaming phases
+//   --viewport=<W>x<H>        browser viewport (default 1800x1000); for
+//                             example 390x844 for a phone width
 //   --history=page            measure only the first page of each transcript;
 //                             by default a run loads the full history and
 //                             fails if it cannot
@@ -81,6 +83,8 @@ const browserName = args.browser ?? "chromium";
 const scenario = args.scenario ?? "compare";
 const label = args.label ?? "run";
 const streamSeconds = Number(args.stream ?? 240);
+const [vw, vh] = (args.viewport ?? "1800x1000").split("x").map(Number);
+const viewport = { width: vw, height: vh };
 const ROOT =
 	process.env.CHATBENCH_ROOT ??
 	path.join(
@@ -497,7 +501,7 @@ async function main() {
 		},
 	});
 	const context = await browser.newContext({
-		viewport: { width: 1800, height: 1000 },
+		viewport,
 	});
 	await context.addCookies([
 		{ name: "coder_session_token", value: state.token, url: WEB },
