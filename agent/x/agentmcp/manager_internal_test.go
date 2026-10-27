@@ -480,6 +480,17 @@ func TestToolInputSchemaMap(t *testing.T) {
 		"$defs":                map[string]any{"Filter": map[string]any{"type": "string"}},
 	}
 	require.Equal(t, schema, toolInputSchemaMap(schema, nil))
+
+	// A schema too large to send whole keeps only the reduced shape.
+	large := map[string]any{
+		"type":       "object",
+		"properties": map[string]any{"filter": map[string]any{"$ref": "#/$defs/Filter"}},
+		"$defs":      map[string]any{"Filter": map[string]any{"type": "string", "description": strings.Repeat("x", maxToolInputSchemaBytes)}},
+	}
+	require.Equal(t, map[string]any{
+		"type":       "object",
+		"properties": map[string]any{"filter": map[string]any{"$ref": "#/$defs/Filter"}},
+	}, toolInputSchemaMap(large, nil))
 }
 
 // TestToolInputSchemaMapSecrets verifies that a schema echoing a

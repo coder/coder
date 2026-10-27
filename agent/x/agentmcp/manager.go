@@ -1103,27 +1103,45 @@ type ToolInfo struct {
 	InputSchema map[string]any
 }
 
+// maxToolInputSchemaBytes is the largest encoded schema with keys beyond
+// the reduced shape that a catalog keeps whole. It matches agentcontext's
+// maxMCPToolInputSchemaBytes, past which the agent sends a schema reduced
+// anyway, so a larger one would only hold memory.
+const maxToolInputSchemaBytes = 64 << 10
+
 // The schema map is passed through whole so coderd sees every key the
 // server reported ($defs, additionalProperties, combinators, ...);
 // non-object and empty schemas leave InputSchema unset. A server may
 // echo a credential from its configuration in its schema, so when a key
 // beyond the reduced shape (see reducedInputSchema) holds one of
-// secrets, only the reduced shape is passed.
+// secrets, only the reduced shape is passed, as it is when the schema
+// encodes to more than maxToolInputSchemaBytes.
 func toolInputSchemaMap(schema any, secrets []string) map[string]any {
 	m, ok := schema.(map[string]any)
 	if !ok || len(m) == 0 {
 		return nil
 	}
 	reduced := reducedInputSchema(m)
+	fallback := func() map[string]any {
+		if len(reduced) == 0 {
+			return nil
+		}
+		return reduced
+	}
+	beyond := false
 	for key, value := range m {
 		if _, kept := reduced[key]; kept {
 			continue
 		}
+		beyond = true
 		if containsSecret(key, secrets) || containsSecret(value, secrets) {
-			if len(reduced) == 0 {
-				return nil
-			}
-			return reduced
+			return fallback()
+		}
+	}
+	if beyond {
+		encoded, err := json.Marshal(m)
+		if err != nil || len(encoded) > maxToolInputSchemaBytes {
+			return fallback()
 		}
 	}
 	return m
