@@ -4,14 +4,12 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
-	"sync"
 
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentcontext"
 	"github.com/coder/coder/v2/agent/agentsocket/proto"
-	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/unit"
 )
 
@@ -19,7 +17,6 @@ var _ proto.DRPCAgentSocketServer = (*DRPCAgentSocketService)(nil)
 
 var (
 	ErrUnitManagerNotAvailable    = xerrors.New("unit manager not available")
-	ErrAgentAPINotConnected       = xerrors.New("agent not connected to coderd")
 	ErrContextManagerNotAvailable = xerrors.New("context manager not available")
 	ErrContextSourceNotFound      = xerrors.New("context source not found")
 )
@@ -41,25 +38,6 @@ type DRPCAgentSocketService struct {
 	unitManager    *unit.Manager
 	contextManager ContextManager
 	logger         slog.Logger
-
-	mu       sync.Mutex
-	agentAPI agentproto.DRPCAgentClient28
-}
-
-// SetAgentAPI sets the agent API client used to forward requests
-// to coderd. This is called when the agent connects to coderd.
-func (s *DRPCAgentSocketService) SetAgentAPI(api agentproto.DRPCAgentClient28) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.agentAPI = api
-}
-
-// ClearAgentAPI clears the agent API client. This is called when
-// the agent disconnects from coderd.
-func (s *DRPCAgentSocketService) ClearAgentAPI() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.agentAPI = nil
 }
 
 // Ping responds to a ping request to check if the service is alive.
@@ -213,19 +191,6 @@ func (s *DRPCAgentSocketService) SyncList(_ context.Context, _ *proto.SyncListRe
 	}
 
 	return &proto.SyncListResponse{Units: unitInfos}, nil
-}
-
-// UpdateAppStatus forwards an app status update to coderd via the
-// agent API. Returns an error if the agent is not connected.
-func (s *DRPCAgentSocketService) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateAppStatusRequest) (*agentproto.UpdateAppStatusResponse, error) {
-	s.mu.Lock()
-	api := s.agentAPI
-	s.mu.Unlock()
-
-	if api == nil {
-		return nil, ErrAgentAPINotConnected
-	}
-	return api.UpdateAppStatus(ctx, req)
 }
 
 // ContextSources lists the workspace-context sources registered on the agent.

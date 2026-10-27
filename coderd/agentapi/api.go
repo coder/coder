@@ -214,13 +214,9 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 
 	api.AppsAPI = &AppsAPI{
 		AgentID:                  agent.ID,
-		AgentFn:                  api.agent,
 		Database:                 opts.Database,
 		Log:                      opts.Log,
-		Workspace:                api.cachedWorkspaceFields,
 		PublishWorkspaceUpdateFn: api.publishWorkspaceUpdate,
-		Clock:                    opts.Clock,
-		NotificationsEnqueuer:    opts.NotificationsEnqueuer,
 	}
 
 	api.MetadataAPI = &MetadataAPI{
