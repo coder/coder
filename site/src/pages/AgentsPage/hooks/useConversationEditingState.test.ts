@@ -521,7 +521,7 @@ describe("useConversationEditingState", () => {
 	});
 
 	describe("a send that succeeds after the user left", () => {
-		// Sends "hello", types typed during the send, and unmounts. The returned
+		// Sends "hello", types `typed` during the send, and unmounts. The returned
 		// function lets the send succeed.
 		const sendAndLeave = (typed: string) => {
 			const { result, onSend, unmount } = renderEditing();

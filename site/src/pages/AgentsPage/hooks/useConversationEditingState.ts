@@ -40,7 +40,7 @@ const joinEditorStates = (
 	}
 };
 
-type SendInFlight = {
+type RequestInFlight = {
 	message: string;
 	editorState: string | undefined;
 	fileBlocks: readonly ChatMessagePart[];
@@ -59,7 +59,7 @@ const hasContent = (content: ComposerContent) =>
 
 // The composer content a failed send restores: the sent message, followed by
 // what was typed during the request.
-const restoredDraft = (send: SendInFlight, typed: ComposerContent) => {
+const restoredDraft = (send: RequestInFlight, typed: ComposerContent) => {
 	if (!hasContent(typed)) {
 		return { text: send.message, editorState: send.editorState };
 	}
@@ -96,18 +96,17 @@ export function useConversationEditingState(deps: {
 		editorState: serializedEditorStateRef.current,
 		hasFileReferences: hasFileReferencesRef.current,
 	});
-	// The send in flight, from submit until it settles or the page unmounts.
+	// The request in flight, from submit until it settles or the page unmounts.
 	// While a new message is in flight, content changes save what a failure
 	// would restore as the draft, so a reload or unmount mid-send keeps the
 	// sent message and what was typed since.
-	const sendInFlightRef = useRef<SendInFlight | null>(null);
-	// The draft this hook last stored, or null after it removed the draft.
+	const requestInFlightRef = useRef<RequestInFlight | null>(null);
+	// The draft this hook last stored, or null if it stored none or last
+	// removed it.
 	const storedDraftRef = useRef<string | null>(null);
-	// After unmount, a successful request writes the draft only if storage still
-	// holds what this hook stored, so a change that a later visit made stays.
 	useEffect(
 		() => () => {
-			sendInFlightRef.current = null;
+			requestInFlightRef.current = null;
 		},
 		[],
 	);
@@ -137,15 +136,26 @@ export function useConversationEditingState(deps: {
 		readonly ChatMessagePart[]
 	>([]);
 
-	const handleBeginEdit = (
-		target: EditingTarget,
+	// Seeds a remounted composer with text, or with editorState when set.
+	const showInComposer = (text: string, editorState: string | undefined) => {
+		setDraftState({
+			editorInitialValue: text,
+			initialEditorState: editorState,
+		});
+		serializedEditorStateRef.current = editorState;
+		setRemountKey((k) => k + 1);
+		inputValueRef.current = text;
+	};
+
+	const handleEditUserMessage = (
+		messageId: number,
 		text: string,
 		fileBlocks?: readonly ChatMessagePart[],
 		editorState?: string,
 	) => {
-		// The rollback and draft write of a send in flight would overwrite the
-		// edit, so Edit does nothing until the send settles.
-		if (sendInFlightRef.current) {
+		// The rollback and draft write of a request in flight would overwrite
+		// the edit, so Edit does nothing until the request settles.
+		if (requestInFlightRef.current) {
 			return;
 		}
 		if (editingMessageId === null) {
@@ -160,28 +170,16 @@ export function useConversationEditingState(deps: {
 				editorState: currentEditorState,
 			});
 		}
-		setEditingTarget(target);
-		setDraftState({
-			editorInitialValue: text,
-			initialEditorState: editorState,
-		});
-		serializedEditorStateRef.current = editorState;
-		setRemountKey((k) => k + 1);
-		inputValueRef.current = text;
+		setEditingMessageId(messageId);
+		showInComposer(text, editorState);
 		setEditingFileBlocks(fileBlocks ?? []);
 	};
 
-	const showComposeDraft = () => {
-		const savedText = draftBeforeHistoryEdit?.text ?? "";
-		const savedState = draftBeforeHistoryEdit?.editorState;
-		setDraftState({
-			editorInitialValue: savedText,
-			initialEditorState: savedState,
-		});
-		serializedEditorStateRef.current = savedState;
-		setRemountKey((k) => k + 1);
-		inputValueRef.current = savedText;
-	};
+	const showComposeDraft = () =>
+		showInComposer(
+			draftBeforeHistoryEdit?.text ?? "",
+			draftBeforeHistoryEdit?.editorState,
+		);
 
 	const handleCancelHistoryEdit = () => {
 		showComposeDraft();
@@ -190,23 +188,22 @@ export function useConversationEditingState(deps: {
 		setEditingFileBlocks([]);
 	};
 
-	// Returns a rollback for a failed request. A send comes back followed by
-	// what was typed since. An edit comes back alone, and what the composer
-	// showed during it becomes the compose draft that Cancel restores.
-	const clearInputForSend = (message: string) => {
-		const snapshot: SendInFlight = {
+	// Returns a rollback for a failed request. An edit comes back alone, and
+	// what the composer showed during it becomes the compose draft that Cancel
+	// restores.
+	const removeSubmittedContent = (message: string) => {
+		const snapshot: RequestInFlight = {
 			message,
 			editorState: serializedEditorStateRef.current,
 			fileBlocks: editingFileBlocks,
 			editedMessageId: editingMessageId,
 		};
 
-		sendInFlightRef.current = snapshot;
+		requestInFlightRef.current = snapshot;
 		if (snapshot.editedMessageId === null) {
 			chatInputRef.current?.clear();
 			inputValueRef.current = "";
 		} else {
-			// The edit leaves edit mode, so the composer shows the compose draft.
 			showComposeDraft();
 		}
 		hasFileReferencesRef.current = false;
@@ -224,19 +221,14 @@ export function useConversationEditingState(deps: {
 					editorState: shown.editorState,
 				});
 			}
-			setDraftState({
-				editorInitialValue: text,
-				initialEditorState: editorState,
-			});
-			serializedEditorStateRef.current = editorState;
-			setRemountKey((k) => k + 1);
-			inputValueRef.current = text;
+			showInComposer(text, editorState);
 			setEditingMessageId(snapshot.editedMessageId);
 			setEditingFileBlocks(snapshot.fileBlocks);
 		};
 	};
 
-	// Saves draft as the chat's draft, or removes the saved draft if it is empty.
+	// Also records the stored draft in storedDraftRef for the check after
+	// unmount in handleSendFromInput.
 	const saveDraft = (draft: string | undefined) => {
 		if (!draft) {
 			localStorage.removeItem(draftStorageKey);
@@ -279,20 +271,23 @@ export function useConversationEditingState(deps: {
 			editingTarget: target,
 		});
 
-		const rollback = clearInputForSend(message);
+		const rollback = removeSubmittedContent(message);
 
 		try {
 			await sendPromise;
 		} catch (error) {
 			rollback();
-			sendInFlightRef.current = null;
+			requestInFlightRef.current = null;
 			if (error instanceof BuiltInCommandPendingError) {
 				return;
 			}
 			throw error;
 		}
-		const visitEnded = sendInFlightRef.current === null;
-		sendInFlightRef.current = null;
+		// The unmount cleanup sets the ref to null. Then a success writes the
+		// draft only if storage still holds what this hook stored, not a later
+		// visit's draft.
+		const visitEnded = requestInFlightRef.current === null;
+		requestInFlightRef.current = null;
 		if (
 			visitEnded &&
 			localStorage.getItem(draftStorageKey) !== storedDraftRef.current
@@ -317,9 +312,9 @@ export function useConversationEditingState(deps: {
 		if (editingTarget !== null) {
 			return;
 		}
-		const sendInFlight = sendInFlightRef.current;
-		if (sendInFlight && sendInFlight.editedMessageId === null) {
-			const draft = restoredDraft(sendInFlight, composerContent());
+		const requestInFlight = requestInFlightRef.current;
+		if (requestInFlight && requestInFlight.editedMessageId === null) {
+			const draft = restoredDraft(requestInFlight, composerContent());
 			saveDraft(draft.editorState ?? draft.text);
 			return;
 		}
