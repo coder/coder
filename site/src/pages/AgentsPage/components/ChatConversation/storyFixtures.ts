@@ -14,30 +14,26 @@ import type {
 	RetryState,
 	StreamState,
 } from "./types";
-import { chatStoreKey } from "./useChatStore";
 import type { WorkingBlock } from "./workingBlockGrouping";
 
 const loadedStores = new Map<string, ChatStore>();
 
 /**
- * A `parameters.queries` entry that gives the chat a store already loaded
- * with page. The data is a function, so each render gets a new store.
+ * A chat store loaded with page. A story's chatStoreKey query data calls it,
+ * so each render gets a new store.
  */
-export const loadedChatStoreQuery = (
+export const buildLoadedChatStore = (
 	chatID: string,
 	page: TypesGen.ChatMessagesResponse,
-) => ({
-	key: chatStoreKey(chatID),
-	data: () => {
-		const store = createChatStore();
-		store.seed(page);
-		loadedStores.set(chatID, store);
-		return store;
-	},
-});
+) => {
+	const store = createChatStore();
+	store.seed(page);
+	loadedStores.set(chatID, store);
+	return store;
+};
 
 /**
- * The store that loadedChatStoreQuery last created for the chat, for a play
+ * The store that buildLoadedChatStore last built for the chat, for a play
  * function that delivers what the stream would.
  */
 export const loadedChatStore = (chatID: string) => loadedStores.get(chatID);

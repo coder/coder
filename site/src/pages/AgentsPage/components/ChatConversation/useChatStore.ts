@@ -2,6 +2,7 @@ import { useEffect, useEffectEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { watchChat } from "#/api/api";
 import {
+	chatStoreKey,
 	fetchNewestChatMessages,
 	fetchOlderChatMessages,
 	invalidateChatPrompts,
@@ -38,9 +39,6 @@ const shouldSurfaceReconnectState = (state: ChatStoreState): boolean =>
 	(selectStreamState(state) !== null ||
 		state.retryState !== null ||
 		isActiveChatStatus(state.chatStatus));
-
-/** Exported so story fixtures can put a loaded store in the query cache. */
-export const chatStoreKey = (chatID: string) => ["chatStore", chatID] as const;
 
 /** Progress of loading a chat's newest messages page. */
 type ChatLoadState =
