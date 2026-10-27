@@ -264,7 +264,7 @@ func foldRootComposition(inputSchema map[string]any, banned []string) map[string
 	}
 	hoistKeywords(inputSchema, shape.merged)
 	folder.closeHoistedPatterns(inputSchema, restricting)
-	hoistConditionals(inputSchema, shape.merged, removed)
+	nestedConditional := hoistConditionals(inputSchema, shape.merged, removed)
 	// Some providers reject a required name missing from "properties".
 	var undeclared []string
 	for _, name := range shape.required {
@@ -282,6 +282,9 @@ func foldRootComposition(inputSchema map[string]any, banned []string) map[string
 		inputSchema["required"] = required
 	} else {
 		delete(inputSchema, "required")
+	}
+	if nestedConditional {
+		inputSchema = followRootConditional(inputSchema, removed)
 	}
 	inputSchema = keepReferencedRootSchemas(inputSchema, source, removed)
 	return relocateReferencedRootKeywords(inputSchema, removed)
@@ -722,9 +725,11 @@ var conditionalKeywords = [...]string{"if", "then", "else"}
 // the root hold at the root. The root has room for one, and providers
 // reject a root "allOf" that would hold several, so several, the root's
 // own among them, become the "allOf" of a "then" whose "if" always holds.
-// The root's own conditional keywords then move to removed, which keeps
-// the references into them resolving.
-func hoistConditionals(root map[string]any, merged []map[string]any, removed map[string]any) {
+// It reports whether the root's own conditional moved there, first, where
+// the references into it must follow (see followRootConditional). Root
+// conditional keywords that constrain nothing move to removed instead,
+// which keeps the references into them resolving.
+func hoistConditionals(root map[string]any, merged []map[string]any, removed map[string]any) bool {
 	var conditionals []map[string]any
 	for _, node := range merged {
 		if conditional := conditionalOf(node); conditional != nil {
@@ -732,20 +737,23 @@ func hoistConditionals(root map[string]any, merged []map[string]any, removed map
 		}
 	}
 	if len(conditionals) == 0 {
-		return
+		return false
 	}
-	if own := conditionalOf(root); own != nil {
+	own := conditionalOf(root)
+	if own != nil {
 		conditionals = append([]map[string]any{own}, conditionals...)
 	}
 	for _, key := range conditionalKeywords {
 		if value, ok := root[key]; ok {
-			removed[key] = value
+			if own == nil {
+				removed[key] = value
+			}
 			delete(root, key)
 		}
 	}
 	if len(conditionals) == 1 {
 		maps.Copy(root, conditionals[0])
-		return
+		return false
 	}
 	all := make([]any, len(conditionals))
 	for i, conditional := range conditionals {
@@ -753,6 +761,23 @@ func hoistConditionals(root map[string]any, merged []map[string]any, removed map
 	}
 	root["if"] = map[string]any{}
 	root["then"] = map[string]any{"allOf": all}
+	return own != nil
+}
+
+// followRootConditional makes the references into the root's own
+// conditional keywords point where hoistConditionals moved them, so that
+// they are not moved a second time with the identifiers they declare.
+func followRootConditional(inputSchema, removed map[string]any) map[string]any {
+	rewrite := func(tokens []string) ([]string, bool) {
+		if len(tokens) == 0 || !slices.Contains(conditionalKeywords[:], tokens[0]) {
+			return nil, false
+		}
+		return append([]string{"then", "allOf", "0"}, tokens...), true
+	}
+	for key, value := range removed {
+		removed[key] = toolschema.RewriteRefs(placedAtRoot(inputSchema, key, value), rewrite)[key]
+	}
+	return toolschema.RewriteRefs(inputSchema, rewrite)
 }
 
 // conditionalOf returns the conditional keywords of node, or nil when
