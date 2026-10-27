@@ -74,7 +74,7 @@ start() {
 		ss -ltnp | grep ":$API_PORT " >&2 || true
 		exit 1
 	fi
-	start_one fakellm "$REPO/build/fakellm" --addr "127.0.0.1:$LLM_PORT" --rate "${CHATBENCH_RATE:-40}"
+	start_one fakellm "$REPO/build/fakellm" --addr "127.0.0.1:$LLM_PORT" --rate "${CHATBENCH_RATE:-40}" --chunk "${CHATBENCH_CHUNK:-1}"
 	# CODER_SESSION_TOKEN and CODER_URL from the outer workspace must not
 	# leak into the benchmark server.
 	start_one coderd env -u CODER_SESSION_TOKEN -u CODER_URL "$BINARY" \

@@ -33,6 +33,8 @@
 //                             (for example WEBKIT_DISABLE_COMPOSITING_MODE=1)
 //   --only=idle-focus         focus switching without streaming
 //   --idle=<seconds>          length of the stream-idle phase (default 10)
+//   --warmup=<seconds>        streaming time before the streaming phases
+//                             (default 8); sets the reply length measured
 //   --panes=<n>               chats mounted side by side (default 2; 3 for
 //                             the scrolltype scenario); uses the first n
 //                             chats in state.json
@@ -854,6 +856,18 @@ async function main() {
 				max: Math.max(0, ...raw.longFrames.map((f) => f.dur)),
 			},
 			eventTiming: summarize(raw.eventTiming.map((e) => e.duration)),
+			// Rendered text length of the last row of each pane, which is the
+			// streaming reply during the streaming phases.
+			lastRowChars: await page.evaluate((selector) => {
+				const panes = document.querySelectorAll(
+					'[data-testid^="compare-pane-"]',
+				);
+				return [...(panes.length ? panes : [document.body])].map(
+					(pane) =>
+						[...pane.querySelectorAll(selector)].at(-1)?.textContent?.length ??
+						0,
+				);
+			}, ROW_SELECTOR),
 		};
 		results.phases[name] = { summary, raw };
 		const bigFrames = raw.longFrames
@@ -870,7 +884,7 @@ async function main() {
 				log(`    dom @${e.t}ms ${e.kind} ${JSON.stringify(e.value)}`);
 		}
 		log(
-			`  ${name}: key p50=${summary.keyLatency.p50}ms p90=${summary.keyLatency.p90}ms max=${summary.keyLatency.max}ms | pointer p50=${summary.pointerLatency.p50}ms max=${summary.pointerLatency.max}ms | long frames ${summary.longFrames.count} (${summary.longFrames.totalMs}ms busy, max ${summary.longFrames.max}ms) in ${wall}ms | ${raw.memory.map((p) => `${p.name}=${p.rssMb}MB`).join(" ")}`,
+			`  ${name}: key p50=${summary.keyLatency.p50}ms p90=${summary.keyLatency.p90}ms max=${summary.keyLatency.max}ms | pointer p50=${summary.pointerLatency.p50}ms max=${summary.pointerLatency.max}ms | long frames ${summary.longFrames.count} (${summary.longFrames.totalMs}ms busy, max ${summary.longFrames.max}ms) in ${wall}ms | last row ${summary.lastRowChars.join("/")} chars | ${raw.memory.map((p) => `${p.name}=${p.rssMb}MB`).join(" ")}`,
 		);
 	};
 
@@ -1045,8 +1059,9 @@ async function main() {
 	await startStreams(streamSeconds);
 	const running = await waitForStreams();
 	// Let the first tokens land and the streaming rows mount before
-	// measuring, so stream-idle reflects steady-state streaming.
-	await page.waitForTimeout(8000);
+	// measuring, so stream-idle reflects steady-state streaming. A longer
+	// warmup measures a longer streaming reply.
+	await page.waitForTimeout(Number(args.warmup ?? 8) * 1000);
 	log("chat statuses during stream:", running.join(","));
 
 	// 3. Streaming, no interaction: cost of the streams alone.
