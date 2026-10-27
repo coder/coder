@@ -66,7 +66,7 @@ func IsKeyword(value string) bool {
 }
 
 // Normalize returns a copy of a schema in the shapes provider drivers
-// accept: a draft 4 schema is rewritten in draft 7 (see UpgradeDraft4),
+// accept: draft 4 schemas are rewritten in draft 7 (see UpgradeDraft4),
 // recursive references are replaced (see ReplaceRecursiveRefs), a
 // "$schema" that names a published dialect is spelled as published, one
 // that does not is removed, or names draft 7 when it is a draft before
@@ -257,22 +257,34 @@ var draft4UnknownKeywords = [...]string{
 	"prefixItems", "unevaluatedItems", "unevaluatedProperties", "$dynamicRef",
 }
 
-// UpgradeDraft4 returns a copy of a schema that declares draft 4,
-// rewritten in draft 7, which names resources with "$id" and has
-// "const", as the rest of the rewriting and the providers expect. "id"
-// becomes "$id", and a boolean "exclusiveMinimum" or "exclusiveMaximum"
-// becomes the number that draft 7 expects. The keywords draft 4 ignores
-// but later drafts apply are removed, except where a reference's JSON
-// Pointer passes through one: that occurrence keeps its value under a
-// key no draft defines, which validators also ignore, and the references
-// follow it. Normalize may then add some back where they hold as in the
-// source, such as "const" for an "enum". Other schemas are returned as
-// is.
+// UpgradeDraft4 returns a copy of a schema in which every schema read in
+// draft 4 is rewritten in draft 7, which names resources with "$id" and
+// has "const", as the rest of the rewriting and the providers expect. A
+// schema is read in the dialect that its "$schema" names or, without
+// one, that of the nearest schema around it that has one, so the root
+// and the resources it embeds may differ, and every draft 4 URI, such as
+// that of its hyper-schema, names draft 4. In those schemas "id" becomes
+// "$id", a boolean "exclusiveMinimum" or "exclusiveMaximum" becomes the
+// number that draft 7 expects, and "$schema" names draft 7. The keywords
+// draft 4 ignores but later drafts apply are removed, except where a
+// reference's JSON Pointer passes through one: that occurrence keeps its
+// value under a key no draft defines, which validators also ignore, and
+// the references follow it. Normalize may then add some back where they
+// hold as in the source, such as "const" for an "enum". Schemas read in
+// other dialects keep their keywords, and a schema without any read in
+// draft 4 is returned as is.
 func UpgradeDraft4(schema map[string]any) map[string]any {
-	if !strings.Contains(Dialect(schema), "json-schema.org/draft-04/schema") {
+	draft4 := false
+	walkNode(schema, rootScope(schema), func(_ map[string]any, scope refScope) {
+		draft4 = draft4 || isDraft4(scope.dialect)
+	})
+	if !draft4 {
 		return schema
 	}
-	upgraded := copyNode(schema, refScope{}, func(node map[string]any, _ refScope) {
+	upgraded := copyNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
+		if !isDraft4(scope.dialect) {
+			return
+		}
 		if id, ok := node["id"].(string); ok {
 			node["$id"] = id
 			delete(node, "id")
@@ -289,13 +301,19 @@ func UpgradeDraft4(schema map[string]any) map[string]any {
 			}
 		}
 	})
-	upgraded["$schema"] = "http://json-schema.org/draft-07/schema#"
 	return removeDraft4UnknownKeywords(upgraded)
 }
 
-// removeDraft4UnknownKeywords removes draft4UnknownKeywords from a schema
-// that UpgradeDraft4 rewrote in draft 7, keeping the occurrences that
-// references pass through as UpgradeDraft4 describes.
+// isDraft4 reports whether a dialect that Dialect returned is a draft 4
+// dialect.
+func isDraft4(dialect string) bool {
+	return strings.Contains(dialect, "json-schema.org/draft-04/")
+}
+
+// removeDraft4UnknownKeywords removes draft4UnknownKeywords from the
+// schemas read in draft 4 that UpgradeDraft4 rewrote, keeping the
+// occurrences that references pass through as UpgradeDraft4 describes,
+// and makes their "$schema" name draft 7.
 func removeDraft4UnknownKeywords(schema map[string]any) map[string]any {
 	// kept maps the encoded path of each occurrence a reference passes
 	// through to the key that keeps its value.
@@ -319,8 +337,10 @@ func removeDraft4UnknownKeywords(schema map[string]any) map[string]any {
 				continue
 			}
 			path := append(slices.Clone(resource), tokens[:i+1]...)
-			parent, _ := lookupPointer(schema, path[:len(path)-1])
-			holder, _ := parent.(map[string]any)
+			holder, dialect, ok := schemaAt(schema, path[:len(path)-1])
+			if !ok || !isDraft4(dialect) {
+				continue
+			}
 			if _, ok := holder[token]; !ok {
 				continue
 			}
@@ -335,22 +355,27 @@ func removeDraft4UnknownKeywords(schema map[string]any) map[string]any {
 		}
 	})
 	return copyNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
-		var path []string
-		for _, key := range draft4UnknownKeywords {
-			value, ok := node[key]
-			if !ok {
-				continue
+		if isDraft4(scope.dialect) {
+			if _, ok := node["$schema"].(string); ok {
+				node["$schema"] = "http://json-schema.org/draft-07/schema#"
 			}
-			delete(node, key)
-			if len(kept) == 0 {
-				continue
-			}
-			if path == nil {
-				path = append(scope.path.tokens(), "")
-			}
-			path[len(path)-1] = key
-			if name, ok := kept[EncodePointer(path)]; ok {
-				node[name] = value
+			var path []string
+			for _, key := range draft4UnknownKeywords {
+				value, ok := node[key]
+				if !ok {
+					continue
+				}
+				delete(node, key)
+				if len(kept) == 0 {
+					continue
+				}
+				if path == nil {
+					path = append(scope.path.tokens(), "")
+				}
+				path[len(path)-1] = key
+				if name, ok := kept[EncodePointer(path)]; ok {
+					node[name] = value
+				}
 			}
 		}
 		ref, _ := node["$ref"].(string)
@@ -369,6 +394,40 @@ func removeDraft4UnknownKeywords(schema map[string]any) map[string]any {
 			node["$ref"] = prefix + "#" + EncodePointer(renamed)
 		}
 	})
+}
+
+// schemaAt returns the schema object that JSON Pointer tokens locate in
+// root, passing only through the positions that hold schemas, and the
+// dialect it is read in (see UpgradeDraft4). It reports false when the
+// tokens locate no such schema.
+func schemaAt(root map[string]any, tokens []string) (map[string]any, string, bool) {
+	node, dialect := root, Dialect(root)
+	for i := 0; i < len(tokens); i++ {
+		value, ok := node[tokens[i]]
+		if !ok {
+			return nil, "", false
+		}
+		switch KeywordSubschemas(tokens[i], value) {
+		case SingleSubschema:
+		case SubschemaList, SubschemaMap:
+			i++
+			if i == len(tokens) {
+				return nil, "", false
+			}
+			if value, ok = lookupPointer(value, tokens[i:i+1]); !ok {
+				return nil, "", false
+			}
+		default:
+			return nil, "", false
+		}
+		if node, ok = value.(map[string]any); !ok {
+			return nil, "", false
+		}
+		if _, ok := node["$schema"].(string); ok {
+			dialect = Dialect(node)
+		}
+	}
+	return node, dialect, true
 }
 
 // lookupPointer returns the value that JSON Pointer tokens locate in
@@ -576,9 +635,10 @@ func normalizeNode(node map[string]any, scope refScope) {
 }
 
 // publishedDialects are the "$schema" URIs of the published JSON Schema
-// dialects.
+// dialects that Normalize keeps. Draft 3 is not among them: the
+// rewriting gives its schemas keywords that draft 3 does not define,
+// such as "anyOf", so a draft 3 schema names draft 7 instead.
 var publishedDialects = [...]string{
-	"http://json-schema.org/draft-03/schema#",
 	"http://json-schema.org/draft-04/schema#",
 	"http://json-schema.org/draft-06/schema#",
 	"http://json-schema.org/draft-07/schema#",
@@ -633,12 +693,13 @@ func anchorFragment(fragment string) (string, bool) {
 
 // declaredAnchors returns the plain-name anchors node declares, with
 // "$anchor" or "$dynamicAnchor" or, as drafts before 2019-09 did, with a
-// "$id" fragment.
+// "$id" fragment, which may be percent-encoded.
 func declaredAnchors(node map[string]any) []string {
 	anchors := plainAnchors(node)
 	if id, ok := node["$id"].(string); ok {
-		if _, fragment, _ := strings.Cut(id, "#"); legacyAnchorName.MatchString(fragment) && !slices.Contains(anchors, fragment) {
-			anchors = append(anchors, fragment)
+		_, fragment, _ := strings.Cut(id, "#")
+		if name, ok := anchorFragment(fragment); ok && !slices.Contains(anchors, name) {
+			anchors = append(anchors, name)
 		}
 	}
 	return anchors
@@ -1120,6 +1181,9 @@ type refScope struct {
 	// resourcePath its path, which is nil for the root resource.
 	resource     map[string]any
 	resourcePath *pathToken
+	// dialect is the dialect the subschema is read in (see
+	// UpgradeDraft4), as Dialect returns it.
+	dialect string
 }
 
 // pathToken is a JSON Pointer token linked to the tokens before it, so a
@@ -1172,7 +1236,7 @@ func (p *pathToken) encodedLen(lengths map[*pathToken]int) int {
 // is unknown, so a relative root "$id" resolves against an empty base,
 // the same way as the references compared with it.
 func rootScope(root map[string]any) refScope {
-	scope := refScope{base: &url.URL{}, resource: root}
+	scope := refScope{base: &url.URL{}, resource: root, dialect: Dialect(root)}
 	if id, ok := resourceID(root); ok {
 		if id == nil {
 			scope.base = nil
@@ -1185,6 +1249,9 @@ func rootScope(root map[string]any) refScope {
 }
 
 func (s refScope) enter(node map[string]any) refScope {
+	if _, ok := node["$schema"].(string); ok {
+		s.dialect = Dialect(node)
+	}
 	id, ok := resourceID(node)
 	if !ok {
 		return s

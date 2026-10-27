@@ -429,13 +429,23 @@ func TestNormalize(t *testing.T) {
 			name: "legacy anchors with colons become pointers",
 			schema: `{
 				"$schema": "http://json-schema.org/draft-07/schema#",
-				"properties": {"filter": {"$ref": "#filter:string"}, "encoded": {"$ref": "#filter%3Astring"}},
-				"definitions": {"F": {"$id": "#filter:string", "type": "string"}}
+				"properties": {
+					"filter": {"$ref": "#filter:string"},
+					"encoded": {"$ref": "#filter%3Astring"},
+					"plain": {"$ref": "#filter:number"},
+					"escaped": {"$ref": "#filter%3Anumber"}
+				},
+				"definitions": {"F": {"$id": "#filter:string", "type": "string"}, "N": {"$id": "#filter%3Anumber", "type": "number"}}
 			}`,
 			want: `{
 				"$schema": "http://json-schema.org/draft-07/schema#",
-				"properties": {"filter": {"$ref": "#/definitions/F"}, "encoded": {"$ref": "#/definitions/F"}},
-				"definitions": {"F": {"type": "string"}}
+				"properties": {
+					"filter": {"$ref": "#/definitions/F"},
+					"encoded": {"$ref": "#/definitions/F"},
+					"plain": {"$ref": "#/definitions/N"},
+					"escaped": {"$ref": "#/definitions/N"}
+				},
+				"definitions": {"F": {"type": "string"}, "N": {"type": "number"}}
 			}`,
 		},
 		{
@@ -531,6 +541,8 @@ func TestNormalize(t *testing.T) {
 			// Providers reject a "$schema" that is not spelled as
 			// published. One under a legacy draft is read as that draft,
 			// and one for another dialect goes, which reads as 2020-12.
+			// Draft 3 does not define keywords the rewriting adds, such
+			// as "anyOf", so it names draft 7.
 			name: "published dialects are spelled as published",
 			schema: `{
 				"$schema": "HTTP://JSON-SCHEMA.ORG/draft-07/schema#",
@@ -539,7 +551,8 @@ func TestNormalize(t *testing.T) {
 					"insecure": {"$id": "b.json", "$schema": "http://Json-Schema.org/draft/2020-12/schema#"},
 					"path case": {"$id": "c.json", "$schema": "https://json-schema.org/DRAFT/2020-12/schema"},
 					"other": {"$id": "d.json", "$schema": "https://example.com/meta"},
-					"legacy": {"$id": "e.json", "$schema": "http://json-schema.org/draft-06/hyper-schema#"}
+					"legacy": {"$id": "e.json", "$schema": "http://json-schema.org/draft-06/hyper-schema#"},
+					"draft 3": {"$id": "f.json", "$schema": "http://json-schema.org/draft-03/schema#"}
 				}
 			}`,
 			want: `{
@@ -549,7 +562,8 @@ func TestNormalize(t *testing.T) {
 					"insecure": {"$id": "b.json", "$schema": "https://json-schema.org/draft/2020-12/schema"},
 					"path case": {"$id": "c.json"},
 					"other": {"$id": "d.json"},
-					"legacy": {"$id": "e.json", "$schema": "http://json-schema.org/draft-07/schema#"}
+					"legacy": {"$id": "e.json", "$schema": "http://json-schema.org/draft-07/schema#"},
+					"draft 3": {"$id": "f.json", "$schema": "http://json-schema.org/draft-07/schema#"}
 				}
 			}`,
 		},
@@ -607,6 +621,63 @@ func TestNormalize(t *testing.T) {
 				"properties": {
 					"tree": {"$id": "tree.json", "properties": {"a": {"$ref": "#/definitions/T/x-draft4-if"}}, "definitions": {"T": {"x-draft4-if": {"type": "integer"}}}},
 					"b": {"$ref": "tree.json#/definitions/T/x-draft4-if"}
+				}
+			}`,
+		},
+		{
+			// A resource read in another dialect keeps the keywords that
+			// dialect applies, and so does a pointer into it, while a
+			// draft 4 resource inside it is rewritten.
+			name: "draft 4 rewriting skips resources in other dialects",
+			schema: `{
+				"$schema": "http://json-schema.org/draft-04/schema#",
+				"properties": {
+					"mode": {"type": "string", "const": "x"},
+					"child": {
+						"$id": "child.json",
+						"$schema": "https://json-schema.org/draft/2020-12/schema",
+						"unevaluatedProperties": false,
+						"properties": {
+							"k": {"const": 1},
+							"legacy": {"$schema": "http://json-schema.org/draft-04/schema#", "id": "legacy.json", "type": "integer", "const": 2}
+						}
+					},
+					"pin": {"$ref": "child.json#/properties/k/const"}
+				}
+			}`,
+			want: `{
+				"$schema": "http://json-schema.org/draft-07/schema#",
+				"properties": {
+					"mode": {"type": "string"},
+					"child": {
+						"$id": "child.json",
+						"$schema": "https://json-schema.org/draft/2020-12/schema",
+						"unevaluatedProperties": false,
+						"properties": {
+							"k": {"const": 1},
+							"legacy": {"$schema": "http://json-schema.org/draft-07/schema#", "$id": "legacy.json", "type": "integer"}
+						}
+					},
+					"pin": {"$ref": "child.json#/properties/k/const"}
+				}
+			}`,
+		},
+		{
+			// A draft 4 resource is rewritten in a root of another
+			// dialect, and so is a schema under any draft 4 URI.
+			name: "draft 4 resources and hyper-schemas are rewritten",
+			schema: `{
+				"properties": {
+					"k": {"const": 1},
+					"legacy": {"$schema": "http://json-schema.org/draft-04/schema#", "id": "legacy.json", "minimum": 0, "exclusiveMinimum": true, "const": 2},
+					"hyper": {"$schema": "http://json-schema.org/draft-04/hyper-schema#", "id": "hyper.json", "maximum": 9, "exclusiveMaximum": true}
+				}
+			}`,
+			want: `{
+				"properties": {
+					"k": {"const": 1},
+					"legacy": {"$schema": "http://json-schema.org/draft-07/schema#", "$id": "legacy.json", "exclusiveMinimum": 0},
+					"hyper": {"$schema": "http://json-schema.org/draft-07/schema#", "$id": "hyper.json", "exclusiveMaximum": 9}
 				}
 			}`,
 		},

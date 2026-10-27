@@ -671,7 +671,10 @@ func TestConnectInline_RedactsReferencesLikeNames(t *testing.T) {
 					"whole":    map[string]any{"$ref": "#/$defs/Zk3/q9Lx+Wm2/Rt7Vb8Y="},
 					"prefixed": map[string]any{"$ref": "#/$defs/xZk3/q9Lx+Wm2/Rt7Vb8Y="},
 				},
-				"$defs": map[string]any{"Zk3": map[string]any{"type": "string"}},
+				"$defs": map[string]any{"Zk3": map[string]any{
+					"type":     "string",
+					"q9Lx+Wm2": map[string]any{"Rt7Vb8Y=": map[string]any{"type": "integer"}},
+				}},
 			},
 		},
 		handler: handler,
@@ -719,15 +722,85 @@ func TestConnectInline_RedactsReferencesLikeNames(t *testing.T) {
 		},
 		"required": []any{"k_REDACTED", "k_REDACT_2"},
 	}, schemas["data-bot__lookup"])
-	// The tokens the value spans are renamed wherever they are names.
+	// The tokens the value spans are renamed wherever they are names,
+	// also as keys in the value of a key that is not a keyword.
 	require.Equal(t, map[string]any{
 		"type": "object",
 		"properties": map[string]any{
 			"whole":    map[string]any{"$ref": "#/$defs/REDACT_2/REDACT_3/REDACTED"},
 			"prefixed": map[string]any{"$ref": "#/$defs/REDACT_4/REDACT_3/REDACTED"},
 		},
-		"$defs": map[string]any{"REDACT_2": map[string]any{"type": "string"}},
+		"$defs": map[string]any{"REDACT_2": map[string]any{
+			"type":     "string",
+			"REDACT_3": map[string]any{"REDACTED": map[string]any{"type": "integer"}},
+		}},
 	}, schemas["data-bot__span"])
+}
+
+// TestConnectInline_RedactsResourceURIsApart verifies that resource URIs
+// that differ only in a sensitive value, or in one that is spelled like a
+// placeholder, still differ once redacted, and that references, relative
+// or percent-encoded, still name the same resources.
+func TestConnectInline_RedactsResourceURIsApart(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	lookup := testTool{
+		tool: &mcp.Tool{
+			Name: "lookup",
+			InputSchema: map[string]any{
+				"$id":  "https://example.com/root.json",
+				"type": "object",
+				"properties": map[string]any{
+					"a":       map[string]any{"$ref": "alpha-secret.json"},
+					"b":       map[string]any{"$ref": "https://example.com/bravo-secret.json"},
+					"c":       map[string]any{"$ref": "REDACTED.json"},
+					"encoded": map[string]any{"$ref": "alpha%2Dsecret.json"},
+				},
+				"$defs": map[string]any{
+					"A": map[string]any{"$id": "https://example.com/alpha-secret.json", "type": "string"},
+					"B": map[string]any{"$id": "bravo-secret.json", "type": "integer"},
+					"C": map[string]any{"$id": "https://example.com/REDACTED.json", "type": "boolean"},
+				},
+			},
+		},
+		handler: func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return textToolResult("ok"), nil
+		},
+	}
+	ts := newTestMCPServer(t, lookup)
+	cfg := makeInlineConfig("data-bot", ts.URL+"/mcp", map[string]string{
+		"X-Alpha": "alpha-secret",
+		"X-Bravo": "bravo-secret",
+	})
+
+	tools, summaries, cleanup := mcpclient.ConnectInlineForTest(
+		ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
+	)
+	t.Cleanup(cleanup)
+	require.Len(t, summaries, 1)
+	require.Equal(t, mcpclient.ConnectOutcomeConnected, summaries[0].Outcome)
+	require.Len(t, tools, 1)
+	fullSchema, ok := tools[0].(fullSchemaTool)
+	require.True(t, ok)
+	// The server URL, the longest sensitive value, would get REDACTED,
+	// which the schema already holds, so it gets REDACT_2.
+	require.Equal(t, map[string]any{
+		"$id":  "https://example.com/root.json",
+		"type": "object",
+		"properties": map[string]any{
+			"a":       map[string]any{"$ref": "REDACT_3.json"},
+			"b":       map[string]any{"$ref": "https://example.com/REDACT_4.json"},
+			"c":       map[string]any{"$ref": "REDACTED.json"},
+			"encoded": map[string]any{"$ref": "REDACT_3.json"},
+		},
+		"$defs": map[string]any{
+			"A": map[string]any{"$id": "https://example.com/REDACT_3.json", "type": "string"},
+			"B": map[string]any{"$id": "REDACT_4.json", "type": "integer"},
+			"C": map[string]any{"$id": "https://example.com/REDACTED.json", "type": "boolean"},
+		},
+	}, fullSchema.FullInputSchema())
 }
 
 // TestConnectInline_RedactsEncodedAndKeywordReferences verifies that a
@@ -790,7 +863,7 @@ func TestConnectInline_RedactsEncodedAndKeywordReferences(t *testing.T) {
 			"REDACTED": map[string]any{"type": "string"},
 			"doc":      map[string]any{"$ref": "#/properties/REDACTED"},
 			"nested":   map[string]any{"$ref": "#/definitions/REDACT_2/properties/x"},
-			"remote":   map[string]any{"$ref": "REDACTED"},
+			"remote":   map[string]any{"$ref": "https://example.com/REDACT_4.json"},
 		},
 		"definitions": map[string]any{
 			"REDACT_3": map[string]any{"type": "string"},
