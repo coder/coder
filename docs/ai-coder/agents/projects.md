@@ -3,14 +3,17 @@ title: Projects
 ---
 
 > [!NOTE]
-> Projects are experimental.
+> Projects are an [early access](../../reference/feature-stages.md#early-access-features) feature behind the `chat-projects` experiment.
 > Behavior and APIs might change between releases.
-> Pin a release before broad rollout and review the release notes before upgrading.
+> Try projects on a staging deployment, and review the release notes before upgrading.
 
 Projects group related Coder Agents chats.
 Every chat in a project gets the project's instructions, skills, and memory, so you don't repeat the same context in each chat.
 
-## Enable the experiment
+## Enable projects
+
+`chat-projects` is a safe experiment, so it's ready for users to try but is off by default.
+Enable it by name:
 
 ```sh
 coder server --experiments=chat-projects
@@ -21,6 +24,9 @@ Or set the environment variable:
 ```sh
 CODER_EXPERIMENTS=chat-projects
 ```
+
+`--experiments='*'` also enables projects, along with every other safe experiment.
+Restart every Coder server replica with the same value.
 
 When the experiment is on, the **Agents** page sidebar shows a **Projects** section.
 
