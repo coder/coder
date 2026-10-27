@@ -267,10 +267,14 @@ export class WebKitInspector {
 			this.trackingDone = resolve;
 			setTimeout(resolve, 15_000);
 		});
-		if (this.hasCPU) await this.send("CPU.stopTracking");
-		if (this.hasMemory) await this.send("Memory.stopTracking").catch(() => {});
-		await this.send("ScriptProfiler.stopTracking");
-		await this.send("Timeline.stop");
+		// On large pages and long phases the page can take more than the
+		// default 10 s to answer stop requests.
+		const stopTimeout = 180_000;
+		if (this.hasCPU) await this.send("CPU.stopTracking", {}, stopTimeout);
+		if (this.hasMemory)
+			await this.send("Memory.stopTracking", {}, stopTimeout).catch(() => {});
+		await this.send("ScriptProfiler.stopTracking", {}, stopTimeout);
+		await this.send("Timeline.stop", {}, stopTimeout);
 		await done;
 		return {
 			records: this.records,
