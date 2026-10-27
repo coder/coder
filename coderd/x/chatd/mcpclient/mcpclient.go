@@ -1057,11 +1057,13 @@ const MinSensitiveValueBytes = 8
 // secretRedactor replaces a fixed set of sensitive strings with
 // redactedPlaceholder. The zero value redacts nothing. Longer values
 // are replaced first so a value that contains another value is
-// redacted whole. Empty values, substrings of the placeholder, and
-// values shorter than MinSensitiveValueBytes are dropped: the first
-// would insert the placeholder between every byte, the second would
-// mangle placeholders and cannot hide anything, and the third would
-// rewrite ordinary text without hiding a plausible secret.
+// redacted whole. Empty values, substrings of the placeholder, values
+// shorter than MinSensitiveValueBytes, and parts of JSON Schema keywords
+// are dropped: the first would insert the placeholder between every
+// byte, the second would mangle placeholders and cannot hide anything,
+// the third would rewrite ordinary text without hiding a plausible
+// secret, and the last would rename keywords in input schemas, such as
+// a URL path segment named "properties".
 // Redaction can lengthen its input, so size caps are checked after it.
 type secretRedactor struct {
 	values []string
@@ -1072,7 +1074,8 @@ func newSecretRedactor(values []string) secretRedactor {
 	values = slices.DeleteFunc(values, func(value string) bool {
 		return value == "" ||
 			strings.Contains(redactedPlaceholder, value) ||
-			len(value) < MinSensitiveValueBytes
+			len(value) < MinSensitiveValueBytes ||
+			toolschema.InKeyword(value)
 	})
 	slices.SortFunc(values, func(a, b string) int {
 		return cmp.Or(cmp.Compare(len(b), len(a)), cmp.Compare(a, b))
