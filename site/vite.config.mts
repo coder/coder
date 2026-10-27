@@ -73,9 +73,9 @@ export default defineConfig({
 						: "assets/[name]-[hash].js";
 				},
 				codeSplitting: {
-					// No groups for lazily loaded libraries (monaco, xterm, emoji-mart): a
-					// group also takes every module they import, so a monaco group would
-					// take React and make every page load monaco.
+					// A group also takes every module its matches import, such as React and
+					// Vite's preload helper, so only libraries every page loads (radix-ui)
+					// get one; a monaco, xterm or emoji-mart group would load on every page.
 					groups: [{ name: "radix-ui", test: /radix-ui/ }],
 				},
 			},
