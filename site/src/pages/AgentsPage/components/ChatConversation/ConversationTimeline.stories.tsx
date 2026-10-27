@@ -12,10 +12,7 @@ import {
 import { defaultUrlTransform } from "streamdown";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
-import {
-	MockChatFileMetadata,
-	MockChatQueuedMessage,
-} from "#/testHelpers/chatEntities";
+import { MockChatFileMetadata } from "#/testHelpers/chatEntities";
 import { MockUserPreferenceSettings } from "#/testHelpers/entities";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { getChatFileURL } from "../../utils/chatAttachments";
@@ -26,7 +23,9 @@ import { parseMessagesWithMergedTools } from "./messageParsing";
 import {
 	buildLiveStatus,
 	buildQuestionTimelineArgs,
+	MockAsyncQuestionThenUnrelatedMessages,
 	MockEmptyQuestionState,
+	MockQueuedQuestionAnswer,
 } from "./storyFixtures";
 import type { ParsedMessageEntry } from "./types";
 
@@ -1852,82 +1851,13 @@ export const AskUserQuestionSubmittedAnswer: Story = {
 	},
 };
 
-const MockAsyncQuestionThenUnrelatedMessages: TypesGen.ChatMessage[] = [
-	{
-		...baseMessage,
-		id: 1,
-		role: "user",
-		content: [{ type: "text", text: "Help me pick a rollout plan." }],
-	},
-	{
-		...baseMessage,
-		id: 2,
-		role: "assistant",
-		content: [
-			{
-				type: "tool-call",
-				tool_call_id: "ask-tool-async",
-				tool_name: "ask_user_question",
-			},
-		],
-	},
-	{
-		...baseMessage,
-		id: 3,
-		role: "tool",
-		content: [
-			{
-				type: "tool-result",
-				tool_call_id: "ask-tool-async",
-				result: {
-					output: JSON.stringify({
-						...askUserQuestionPayload,
-						async: true,
-					}),
-				},
-			},
-		],
-	},
-	{
-		...baseMessage,
-		id: 4,
-		role: "user",
-		content: [{ type: "text", text: "Also update the docs." }],
-	},
-	{
-		...baseMessage,
-		id: 5,
-		role: "assistant",
-		content: [{ type: "text", text: "Updated the docs." }],
-	},
-];
-
-export const AsyncAskUserQuestionOpenAfterUnrelatedMessage: Story = {
-	args: {
-		...defaultArgs,
-		isChatCompleted: false,
-		onSendAskUserQuestionResponse: fn(),
-		...buildQuestionTimelineArgs(MockAsyncQuestionThenUnrelatedMessages),
-	},
-};
-
 export const AsyncAskUserQuestionAnswerQueued: Story = {
 	args: {
 		...defaultArgs,
 		isChatCompleted: false,
 		onSendAskUserQuestionResponse: fn(),
 		...buildQuestionTimelineArgs(MockAsyncQuestionThenUnrelatedMessages, {
-			queuedMessages: [
-				{
-					...MockChatQueuedMessage,
-					content: [
-						{
-							type: "text",
-							text: `${getAsyncAnswerPrefix("ask-tool-async")}${askUserQuestionSubmittedResponse}`,
-						},
-					],
-				},
-			],
+			queuedMessages: [MockQueuedQuestionAnswer],
 		}),
 	},
 };
@@ -1940,13 +1870,10 @@ export const AsyncAskUserQuestionAnsweredAfterUnrelatedMessage: Story = {
 			...MockAsyncQuestionThenUnrelatedMessages,
 			{
 				...baseMessage,
-				id: 6,
+				id: 8,
 				role: "user",
 				content: [
-					{
-						type: "text",
-						text: `${getAsyncAnswerPrefix("ask-tool-async")}${askUserQuestionSubmittedResponse}`,
-					},
+					{ type: "text", text: `${getAsyncAnswerPrefix("question")}Backend` },
 				],
 			},
 		]),

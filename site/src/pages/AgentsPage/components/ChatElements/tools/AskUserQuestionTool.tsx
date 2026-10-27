@@ -4,7 +4,7 @@ import {
 	MessageCircleQuestionIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useMutation } from "react-query";
 import { Button } from "#/components/Button/Button";
@@ -428,6 +428,14 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	) {
 		setSubmittedResponseText(null);
 	}
+	// The transcript or queue can confirm an answer whose send reported an
+	// error, or one that another tab sent.
+	const { reset: resetSubmitAnswer } = submitAnswerMutation;
+	useEffect(() => {
+		if (answeredResponseText !== undefined) {
+			resetSubmitAnswer();
+		}
+	}, [answeredResponseText, resetSubmitAnswer]);
 	const displayedSubmittedResponseText =
 		answeredResponseText ?? submittedResponseText;
 	const hasSubmittedResponse = displayedSubmittedResponseText != null;
@@ -450,6 +458,18 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 		status === "completed" &&
 		!isLatestAskUserQuestion &&
 		!hasSubmittedResponse;
+	// The agent keeps working, so the question needs its own announcement.
+	const isOpenAsyncQuestion =
+		isAsync &&
+		status === "completed" &&
+		isLatestAskUserQuestion &&
+		!hasSubmittedResponse;
+	const announcement = (
+		<span role="status" className="sr-only">
+			{isOpenAsyncQuestion &&
+				"The agent asked a question. It keeps working while you answer."}
+		</span>
+	);
 	const isSubmitting = submitAnswerMutation.isPending;
 	const submitError = getSubmissionErrorMessage(submitAnswerMutation.error);
 	const canAdvanceToNextQuestion = isAnswerValid(currentAnswer);
@@ -597,6 +617,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	if (questions.length === 0) {
 		return (
 			<div className="w-full">
+				{announcement}
 				{isRunning ? (
 					<ToolCall.Root
 						status={status}
@@ -734,6 +755,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 
 	return (
 		<div className="w-full">
+			{announcement}
 			{isRunning && (
 				<ToolCall.Root
 					status={status}

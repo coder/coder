@@ -412,6 +412,45 @@ describe("useConversationEditingState", () => {
 		unmount();
 	});
 
+	it("keeps a newer async answer edit's prefix line when an earlier edit finishes sending", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		let resolveSend: () => void = () => {};
+		onSend.mockReturnValueOnce(
+			new Promise<void>((resolve) => {
+				resolveSend = resolve;
+			}),
+		);
+
+		act(() => {
+			result.current.handleEditUserMessage(7, "plain message");
+		});
+		let firstSend: Promise<void> = Promise.resolve();
+		act(() => {
+			firstSend = result.current.handleSendFromInput({ message: "edited" });
+		});
+		act(() => {
+			result.current.handleEditUserMessage(
+				8,
+				"Answer to ask_user_question call question:\nBackend",
+			);
+		});
+		await act(async () => {
+			resolveSend();
+			await firstSend;
+		});
+		await act(async () => {
+			await result.current.handleSendFromInput({ message: "Frontend" });
+		});
+
+		expect(onSend).toHaveBeenLastCalledWith({
+			message: "Answer to ask_user_question call question:\nFrontend",
+			attachments: undefined,
+			workspaceUploads: undefined,
+			editedMessageID: 8,
+		});
+		unmount();
+	});
+
 	it("forwards pending attachments through history-edit send", async () => {
 		const { result, onSend, unmount } = renderEditing();
 		const attachments: PendingAttachment[] = [

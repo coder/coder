@@ -267,7 +267,7 @@ const MockLiveQuestionStream = buildStreamRenderState([
 ]);
 
 // A question still streaming supersedes the persisted one. It is not closed,
-// and it becomes answerable once its step persists.
+// but its options stay disabled until its step persists.
 export const AsyncQuestionBeforeStepPersists: Story = {
 	args: {
 		onSendAskUserQuestionResponse: fn(),

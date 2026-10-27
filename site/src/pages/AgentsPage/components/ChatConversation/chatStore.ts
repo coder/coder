@@ -555,7 +555,6 @@ export const createChatStore = (): ChatStore => {
 			setState((current) => ({
 				...current,
 				promotingQueuedMessages: [
-					// Messages whose promote settled are not read again.
 					...current.promotingQueuedMessages.filter(
 						(held) =>
 							held.id !== message.id &&

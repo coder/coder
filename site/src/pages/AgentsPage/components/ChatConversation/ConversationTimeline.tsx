@@ -44,10 +44,7 @@ import {
 	deriveMessageDisplayState,
 	getVisibleContent,
 } from "./messageHelpers";
-import {
-	getEditableUserMessagePayload,
-	parseAsyncAnswerContent,
-} from "./messageParsing";
+import { getEditableUserMessagePayload } from "./messageParsing";
 import { assignTimelineRows } from "./timelineRows";
 import type {
 	MergedTool,
@@ -131,7 +128,7 @@ const ChatMessageItem = memo<{
 	showDesktopPreviews?: boolean;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
-	latestAskUserQuestionToolId?: string;
+	latestAskUserQuestion?: MergedTool;
 	dockedAskUserQuestionToolId?: string;
 	askUserQuestionResponseTextByToolId?: ReadonlyMap<string, string>;
 	isLatestAskUserQuestionAnswered?: boolean;
@@ -160,7 +157,7 @@ const ChatMessageItem = memo<{
 		onImplementPlan,
 		onSendAskUserQuestionResponse,
 		isChatCompleted,
-		latestAskUserQuestionToolId,
+		latestAskUserQuestion,
 		dockedAskUserQuestionToolId,
 		askUserQuestionResponseTextByToolId,
 		isLatestAskUserQuestionAnswered = false,
@@ -284,7 +281,7 @@ const ChatMessageItem = memo<{
 									onImplementPlan={onImplementPlan}
 									onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 									isChatCompleted={isChatCompleted}
-									latestAskUserQuestionToolId={latestAskUserQuestionToolId}
+									latestAskUserQuestion={latestAskUserQuestion}
 									dockedAskUserQuestionToolId={dockedAskUserQuestionToolId}
 									askUserQuestionResponseTextByToolId={
 										askUserQuestionResponseTextByToolId
@@ -323,12 +320,7 @@ const ChatMessageItem = memo<{
 						>
 							{displayState.hasCopyableContent && parsed && (
 								<CopyButton
-									text={
-										isUser
-											? (parseAsyncAnswerContent(message.content)?.body ??
-												parsed.markdown)
-											: parsed.markdown
-									}
+									text={displayState.copyText}
 									label="Copy message"
 									className="size-6"
 									tooltipSide="bottom"
@@ -599,7 +591,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				nextKey: i < userRowKeys.length - 1 ? userRowKeys[i + 1] : undefined,
 			});
 		}
-		const latestAskUserQuestionToolId = askUserQuestionState.latestToolId;
+		const latestAskUserQuestion = askUserQuestionState.latestTool;
 		const askUserQuestionResponseTextByToolId =
 			askUserQuestionState.responseTextByToolId.size > 0
 				? askUserQuestionState.responseTextByToolId
@@ -621,7 +613,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						liveStatus={liveStatus}
 						liveBlocks={liveBlocks}
 						liveTools={liveTools}
-						latestAskUserQuestionToolId={latestAskUserQuestionToolId}
+						latestAskUserQuestion={latestAskUserQuestion}
 						dockedAskUserQuestionToolId={dockedAskUserQuestionToolId}
 						askUserQuestionResponseTextByToolId={
 							askUserQuestionResponseTextByToolId
@@ -663,7 +655,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					onImplementPlan={onImplementPlan}
 					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 					isChatCompleted={isChatCompleted}
-					latestAskUserQuestionToolId={latestAskUserQuestionToolId}
+					latestAskUserQuestion={latestAskUserQuestion}
 					dockedAskUserQuestionToolId={dockedAskUserQuestionToolId}
 					askUserQuestionResponseTextByToolId={
 						askUserQuestionResponseTextByToolId

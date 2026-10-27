@@ -1,11 +1,13 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import { isAfter } from "#/utils/time";
 import { isAsyncAskUserQuestionResult } from "../ChatElements/tools/utils";
 import { getMessageText, parseAsyncAnswerContent } from "./messageParsing";
 import type { MergedTool, ParsedMessageEntry } from "./types";
 
 /** Question progress derived from the transcript, the live stream and the queue. */
 export type AskUserQuestionState = {
-	latestToolId: string | undefined;
+	/** Compare by identity: a provider can reuse an older call's ID. */
+	latestTool: MergedTool | undefined;
 	/** Set only by delivered messages, never by queued ones. */
 	isLatestAnswered: boolean;
 	/** Whole answer messages, prefix line included, from delivered and queued messages. */
@@ -18,15 +20,7 @@ export type AskUserQuestionState = {
 	openAsyncQuestion: MergedTool | undefined;
 };
 
-const getTextContent = (
-	content: readonly TypesGen.ChatMessagePart[] | undefined,
-): string | undefined => {
-	const text = getMessageText(content);
-	return text.length > 0 ? text : undefined;
-};
-
-// A call asks nothing until its result shows it passed validation, so until
-// then it supersedes nothing.
+// A call that is still running or failed validation supersedes nothing.
 const isValidAskUserQuestion = (tool: MergedTool): boolean =>
 	tool.name === "ask_user_question" && tool.status === "completed";
 
@@ -37,7 +31,7 @@ const isQueuedBeforeCall = (
 	callStartedAt: string | undefined,
 ): boolean =>
 	callStartedAt !== undefined &&
-	Date.parse(queuedMessage.created_at) < Date.parse(callStartedAt);
+	isAfter(callStartedAt, queuedMessage.created_at);
 
 /**
  * A blocking question is answered by the next user message that does not
@@ -56,8 +50,7 @@ export const deriveAskUserQuestionState = (
 	const startedAtByToolId = new Map<string, string | undefined>();
 
 	for (const { message, parsed } of parsedMessages) {
-		// The parser merges the results in a tool message into the calls
-		// before it, and only the calls know when they started.
+		// The calls before a tool message already carry its results.
 		if (message.role === "tool") {
 			continue;
 		}
@@ -88,8 +81,8 @@ export const deriveAskUserQuestionState = (
 			}
 		} else if (pendingBlockingToolId !== undefined) {
 			isLatestAnswered = true;
-			const responseText = getTextContent(message.content);
-			if (responseText !== undefined) {
+			const responseText = getMessageText(message.content);
+			if (responseText.length > 0) {
 				responseTextByToolId.set(pendingBlockingToolId, responseText);
 			}
 			pendingBlockingToolId = undefined;
@@ -130,7 +123,7 @@ export const deriveAskUserQuestionState = (
 	}
 
 	return {
-		latestToolId: latestTool?.id,
+		latestTool,
 		isLatestAnswered,
 		responseTextByToolId,
 		openAsyncQuestion,

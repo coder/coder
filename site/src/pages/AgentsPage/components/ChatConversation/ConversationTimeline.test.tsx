@@ -10,6 +10,7 @@ import {
 	renderComponent,
 } from "#/testHelpers/renderHelpers";
 import { MessageScroller } from "#/vendor/message-scroller";
+import { getAsyncAnswerPrefix } from "../ChatElements/tools/asyncAnswer";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { getPendingToolCallIDs } from "./messageParsing";
 import {
@@ -17,12 +18,15 @@ import {
 	buildQuestionTimelineArgs,
 	buildStreamRenderState,
 	MockAsyncQuestionMessages,
+	MockAsyncQuestionResult,
+	MockAsyncQuestionThenUnrelatedMessages,
 	MockCollapsedStepsPreferences,
 	MockLongTurnPageLoads,
 	MockWebSearchAnswerMessages,
 	MockWorkingMessages,
 	pinFixtureClock,
 	workingFixtureTime,
+	workingStepMessages,
 } from "./storyFixtures";
 import { createEmptyStreamState } from "./streamState";
 
@@ -446,30 +450,12 @@ describe("ConversationTimeline live working blocks", () => {
 	});
 });
 
-const mockAsyncQuestionThenUnrelatedMessages: ChatMessage[] = [
-	...MockAsyncQuestionMessages,
-	{
-		...MockChatMessage,
-		id: 6,
-		role: "user",
-		created_at: workingFixtureTime(7),
-		content: [{ type: "text", text: "Also update the docs." }],
-	},
-	{
-		...MockChatMessage,
-		id: 7,
-		role: "assistant",
-		created_at: workingFixtureTime(8),
-		content: [{ type: "text", text: "Updating the docs." }],
-	},
-];
-
 describe("ConversationTimeline async questions", () => {
 	it("answers an async question after an unrelated message while the chat runs", async () => {
 		const user = userEvent.setup();
 		const onSendAskUserQuestionResponse = vi.fn();
 		renderTimeline({
-			messages: mockAsyncQuestionThenUnrelatedMessages,
+			messages: MockAsyncQuestionThenUnrelatedMessages,
 			isChatCompleted: false,
 			onSendAskUserQuestionResponse,
 		});
@@ -478,6 +464,49 @@ describe("ConversationTimeline async questions", () => {
 
 		expect(onSendAskUserQuestionResponse).toHaveBeenCalledWith(
 			"Answer to ask_user_question call question:\nBackend",
+		);
+	});
+
+	it("answers only the newest question when a provider reuses its call ID", async () => {
+		const user = userEvent.setup();
+		const onSendAskUserQuestionResponse = vi.fn();
+		const [question] = MockAsyncQuestionResult.questions;
+		renderTimeline({
+			messages: [
+				...MockAsyncQuestionMessages,
+				{
+					...MockChatMessage,
+					id: 6,
+					role: "user",
+					created_at: workingFixtureTime(7),
+					content: [
+						{
+							type: "text",
+							text: `${getAsyncAnswerPrefix("question")}Backend`,
+						},
+					],
+				},
+				...workingStepMessages(7, "question", 8, 9, {
+					toolName: "ask_user_question",
+					args: {},
+					result: {
+						output: JSON.stringify({
+							...MockAsyncQuestionResult,
+							questions: [
+								{ ...question, options: question.options.toReversed() },
+							],
+						}),
+					},
+				}),
+			],
+			isChatCompleted: false,
+			onSendAskUserQuestionResponse,
+		});
+
+		await user.click(screen.getByRole("button", { name: "Submit" }));
+
+		expect(onSendAskUserQuestionResponse).toHaveBeenCalledWith(
+			"Answer to ask_user_question call question:\nFrontend",
 		);
 	});
 

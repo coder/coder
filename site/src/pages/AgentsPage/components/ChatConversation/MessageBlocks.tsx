@@ -67,7 +67,7 @@ export type BlockListProps = {
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
-	latestAskUserQuestionToolId?: string;
+	latestAskUserQuestion?: MergedTool;
 	dockedAskUserQuestionToolId?: string;
 	askUserQuestionResponseTextByToolId?: ReadonlyMap<string, string>;
 	isLatestAskUserQuestionAnswered: boolean;
@@ -94,7 +94,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 	onImplementPlan,
 	onSendAskUserQuestionResponse,
 	isChatCompleted,
-	latestAskUserQuestionToolId,
+	latestAskUserQuestion,
 	dockedAskUserQuestionToolId,
 	askUserQuestionResponseTextByToolId,
 	isLatestAskUserQuestionAnswered,
@@ -244,7 +244,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 								onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 								isChatCompleted={isChatCompleted}
 								isLatestAskUserQuestion={
-									tool.id === latestAskUserQuestionToolId &&
+									tool === latestAskUserQuestion &&
 									!isLatestAskUserQuestionAnswered
 								}
 								isDockedAskUserQuestion={
@@ -316,8 +316,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 					isChatCompleted={isChatCompleted}
 					isLatestAskUserQuestion={
-						tool.id === latestAskUserQuestionToolId &&
-						!isLatestAskUserQuestionAnswered
+						tool === latestAskUserQuestion && !isLatestAskUserQuestionAnswered
 					}
 					isDockedAskUserQuestion={tool.id === dockedAskUserQuestionToolId}
 					previousResponseText={

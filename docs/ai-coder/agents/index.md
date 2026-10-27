@@ -285,7 +285,8 @@ Once you select **Implement plan**, the next turn runs in normal mode again.
 In chats created from the Coder dashboard, the agent can also call `ask_user_question` outside plan mode.
 The question doesn't stop the agent, which keeps working on anything that doesn't depend on the answer.
 You can answer while the agent runs.
-Your answer waits in the queue until the current turn ends, and then it starts the next turn.
+Your answer joins the end of the message queue.
+The agent reads it in a later turn, after the current turn and any messages queued before it.
 If the agent can't continue without the answer, it ends its turn with a note of what is blocked.
 
 While the question is open, its answer form appears in an **Open question** panel above the chat input.
