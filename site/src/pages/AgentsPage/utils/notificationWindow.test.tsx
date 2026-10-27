@@ -8,7 +8,6 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	openChatListFirst,
-	requestNotificationChat,
 	useOpenNotificationChat,
 } from "./notificationWindow";
 
@@ -83,49 +82,6 @@ describe("notification window", () => {
 		router.dispose();
 	});
 
-	it("opens the chat named in the query of a chat list launch", async () => {
-		vi.useFakeTimers({
-			toFake: ["requestAnimationFrame", "cancelAnimationFrame"],
-		});
-		const chatId = chatPath.split("/").pop();
-		openWindow(`/agents?chat=${chatId}&archived=false`, {
-			standalone: false,
-			historyLength: 3,
-		});
-
-		openChatListFirst();
-		const router = createAgentsRouter();
-		render(<RouterProvider router={router} />);
-
-		expect(router.state.location).toMatchObject({
-			pathname: "/agents",
-			search: "?archived=false",
-		});
-		await vi.advanceTimersByTimeAsync(50);
-		expect(router.state.location.pathname).toBe(chatPath);
-		expect(router.state.historyAction).toBe(NavigationType.Push);
-		router.dispose();
-	});
-
-	it("opens a chat requested after the list has rendered", async () => {
-		vi.useFakeTimers({
-			toFake: ["requestAnimationFrame", "cancelAnimationFrame"],
-		});
-		openWindow("/agents", { standalone: false });
-
-		openChatListFirst();
-		const router = createAgentsRouter();
-		render(<RouterProvider router={router} />);
-		await vi.advanceTimersByTimeAsync(50);
-		expect(router.state.location.pathname).toBe("/agents");
-
-		requestNotificationChat(chatPath);
-		await vi.advanceTimersByTimeAsync(50);
-		expect(router.state.location.pathname).toBe(chatPath);
-		expect(router.state.historyAction).toBe(NavigationType.Push);
-		router.dispose();
-	});
-
 	it("opens the chat after 1.5 s while the list is still loading", async () => {
 		vi.useFakeTimers({
 			toFake: [
@@ -177,11 +133,6 @@ describe("notification window", () => {
 		{ name: "an agent settings page", path: "/agents/settings/general" },
 		{ name: "an embedded chat", path: `${chatPath}/embed` },
 		{ name: "another page", path: "/workspaces" },
-		{ name: "a chat list launch naming no chat", path: "/agents?chat=" },
-		{
-			name: "a chat list launch naming agent settings",
-			path: "/agents?chat=settings",
-		},
 	])("leaves the history of $name alone", ({ path, ...options }) => {
 		openWindow(path, options);
 		const before = currentEntry();
