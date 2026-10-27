@@ -61,5 +61,5 @@ To turn the Responses API back on for a model whose AI provider type is OpenAI:
 1. Set **Use Responses API** to **Default** or **On**.
 1. Select **Update model**.
 
-The same setting is available through the API at `PUT /api/v2/organizations/{organization}/chats/model-overrides/computer_use`.
+You can also choose the computer use model through the API at `PUT /api/v2/organizations/{organization}/chats/model-overrides/computer_use`.
 The request fails with `404 Not Found` while the experiment is disabled, and with `400 Bad Request` when the model's AI provider type is not Anthropic or OpenAI.
