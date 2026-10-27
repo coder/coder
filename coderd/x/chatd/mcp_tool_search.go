@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
@@ -165,29 +166,18 @@ func configureDeferredMCPToolSearch(
 	return ordered, activeToolNames, candidateNames
 }
 
-// fullSchemaTool mirrors chatloop's structural interface for tools
-// that report their complete input schema, so deferral budgeting
-// reflects the real wire payload size.
-type fullSchemaTool interface {
-	FullInputSchema() map[string]any
-}
-
+// estimateDeferredMCPToolTokens weighs each tool's input schema as the
+// model receives it on reactivation.
 func estimateDeferredMCPToolTokens(candidates []deferredMCPTool) float64 {
 	chars := 0
 	for _, candidate := range candidates {
 		info := candidate.tool.Info()
-		var schema map[string]any
-		if provider, ok := candidate.tool.(fullSchemaTool); ok {
-			schema = provider.FullInputSchema()
+		chars += len(info.Name) + len(info.Description)
+		// A schema that cannot be encoded cannot be sent either, so it
+		// adds nothing to the payload.
+		if serialized, err := json.Marshal(chatloop.ToolInputSchema(candidate.tool)); err == nil {
+			chars += len(serialized)
 		}
-		if schema == nil {
-			schema = map[string]any{"type": "object", "properties": info.Parameters}
-			if len(info.Required) > 0 {
-				schema["required"] = info.Required
-			}
-		}
-		serialized, _ := json.Marshal(schema)
-		chars += len(info.Name) + len(info.Description) + len(serialized)
 	}
 	return float64(chars) / 2.5
 }
