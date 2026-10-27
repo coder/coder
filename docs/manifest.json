@@ -1211,8 +1211,8 @@
 							"state": ["premium", "beta"]
 						},
 						{
-							"title": "Use Agent Relay from Slack",
-							"description": "Start Claude Code and Cursor agent sessions from Slack and choose who owns their workspaces.",
+							"title": "Configure Slack for Agent Relay",
+							"description": "Configure Claude Code and Cursor Slack integrations to run sessions on Agent Relay pools, and choose who owns their workspaces.",
 							"path": "./ai-coder/agent-relay/slack.md",
 							"state": ["premium", "beta"]
 						},

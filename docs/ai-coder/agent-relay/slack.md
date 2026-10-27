@@ -1,11 +1,12 @@
 ---
-title: Use Agent Relay from Slack
+title: Configure Slack for Agent Relay
 ---
 
 > [!NOTE]
 > Agent Relay is in [beta](../../reference/feature-stages.md#beta).
 
-This page is for Coder administrators who let developers start agent sessions from Slack with Agent Relay.
+This page is for Coder administrators who configure the Claude Code and Cursor Slack integrations to run agent sessions on Agent Relay pools.
+Developers don't need to know that Agent Relay serves their Slack sessions.
 Claude Code and Cursor handle Slack differently, and the difference decides who owns the workspace.
 
 | Provider    | Slack surface                                       | Workspace owner                                      |
@@ -81,6 +82,11 @@ How channel sessions behave:
 
    The Tag environment appears in every Claude environment picker, so people can select it for their own sessions.
    This check keeps their workspaces from receiving the channel credentials.
+
+1. Plan [workspace quota](../../admin/users/quotas.md) for the `claude_tag_channel_user`.
+   Every channel session's workspace belongs to this one user, so all channel sessions draw on a single quota budget.
+   When the budget runs out, builds fail and Agent Relay deletes the workspaces.
+   Leave `daily_cost` off the Tag template's resources so its workspaces cost nothing, or add the `claude_tag_channel_user` to a group whose quota allowance covers your expected concurrent sessions.
 
 1. Add a pool for the Tag environment, with the service account's UUID as its `claude_tag_channel_user`:
 
