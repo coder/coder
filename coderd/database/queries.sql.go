@@ -42683,6 +42683,7 @@ func (q *sqlQuerier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspace
 
 const getWorkspaceLastUsedForMetrics = `-- name: GetWorkspaceLastUsedForMetrics :many
 SELECT
+    w.id AS workspace_id,
     o.name AS organization_name,
     t.name AS template_name,
     u.username AS owner_username,
@@ -42693,9 +42694,11 @@ JOIN users u ON w.owner_id = u.id
 JOIN templates t ON w.template_id = t.id
 JOIN organizations o ON w.organization_id = o.id
 WHERE w.deleted = false
+AND u.deleted = false
 `
 
 type GetWorkspaceLastUsedForMetricsRow struct {
+	WorkspaceID      uuid.UUID `db:"workspace_id" json:"workspace_id"`
 	OrganizationName string    `db:"organization_name" json:"organization_name"`
 	TemplateName     string    `db:"template_name" json:"template_name"`
 	OwnerUsername    string    `db:"owner_username" json:"owner_username"`
@@ -42713,6 +42716,7 @@ func (q *sqlQuerier) GetWorkspaceLastUsedForMetrics(ctx context.Context) ([]GetW
 	for rows.Next() {
 		var i GetWorkspaceLastUsedForMetricsRow
 		if err := rows.Scan(
+			&i.WorkspaceID,
 			&i.OrganizationName,
 			&i.TemplateName,
 			&i.OwnerUsername,
