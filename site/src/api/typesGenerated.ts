@@ -3831,6 +3831,7 @@ export const ChatSkillSources: ChatSkillSource[] = [
 export interface ChatSourcePart {
 	readonly type: "source";
 	readonly url: string;
+	readonly tool_call_id?: string;
 	readonly source_id?: string;
 	readonly title?: string;
 }
