@@ -41,7 +41,6 @@ type AskUserQuestionToolProps = {
 	previousResponseText?: string;
 	/** Set for async questions; their answer names this call. */
 	asyncToolCallId?: string;
-	/** The question is answered in the dock above the chat input instead of in this card. */
 	isDocked?: boolean;
 	/**
 	 * False on the dock's copy, so screen readers hear the question once. The

@@ -223,10 +223,6 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 	const queuedAnswerText =
 		dockedQuestion &&
 		askUserQuestionState.responseTextByTool.get(dockedQuestion);
-	// Saving a history edit clears the queue and deletes every message after
-	// the edited one, so an answer sent meanwhile would be lost.
-	const onSubmitDockedAnswer =
-		editingMessageId == null ? onSendAskUserQuestionResponse : undefined;
 
 	return (
 		<ACPContext value={acpSessions}>
@@ -292,7 +288,14 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 						key={`${dockedQuestion.id}:${dockedQuestion.startedAt ?? ""}`}
 						question={dockedQuestion}
 						queuedAnswerText={queuedAnswerText}
-						onSubmitAnswer={onSubmitDockedAnswer}
+						// Saving a history edit clears the queue and deletes every
+						// message after the edited one, so an answer sent meanwhile
+						// would be lost.
+						onSubmitAnswer={
+							editingMessageId == null
+								? onSendAskUserQuestionResponse
+								: undefined
+						}
 					/>
 				)}
 			</Profiler>

@@ -102,11 +102,7 @@ export const buildStreamRenderState = (
 	};
 };
 
-/**
- * Props for a ConversationTimeline story: the parsed messages and the
- * question state derived from them. Pass liveTools only when the story shows
- * stream output, as the page does.
- */
+/** Pass liveTools only when the story shows stream output, as the page does. */
 export const buildQuestionTimelineArgs = (
 	messages: readonly TypesGen.ChatMessage[],
 	{
@@ -532,7 +528,7 @@ export const buildQuestionResultMessage = (
 	],
 });
 
-/** MockAsyncQuestionMessages with a second question, so the form has two steps. */
+/** Asks two questions in MockQuestionCallMessage's call, so stories can step through the form. */
 export const MockTwoAsyncQuestionsMessages: TypesGen.ChatMessage[] = [
 	...MockAsyncQuestionMessages.slice(0, 2),
 	buildQuestionResultMessage({
@@ -557,7 +553,7 @@ export const MockTwoAsyncQuestionsMessages: TypesGen.ChatMessage[] = [
 	}),
 ];
 
-/** A queued answer to the question in MockAsyncQuestionMessages. */
+/** Its prefix names MockQuestionCallMessage's call ID, so it answers that call's question. */
 export const MockQueuedQuestionAnswer: TypesGen.ChatQueuedMessage = {
 	...MockChatQueuedMessage,
 	content: [
