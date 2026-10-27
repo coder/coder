@@ -17403,6 +17403,16 @@ func TestChatWorkspaceTTL(t *testing.T) {
 		WorkspaceTTLMillis: 2_595_600_000,
 	})
 	requireSDKError(t, err, http.StatusBadRequest)
+
+	// Validation: a value whose nanosecond count overflows int64 and
+	// wraps to about 1 minute must be rejected and leave the setting alone.
+	err = adminClient.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{
+		WorkspaceTTLMillis: 18_446_744_133_710,
+	})
+	requireSDKError(t, err, http.StatusBadRequest)
+	resp, err = adminClient.GetChatWorkspaceTTL(ctx)
+	require.NoError(t, err, "get after overflow")
+	require.Equal(t, int64(2_592_000_000), resp.WorkspaceTTLMillis, "overflowing value must not be stored")
 }
 
 func TestChatCreateWorkspace_BindFailureCreatesNoWorkspace(t *testing.T) {

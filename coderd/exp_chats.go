@@ -6444,19 +6444,19 @@ func (api *API) getChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 func (api *API) putChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	putChatOperationalSetting(api, rw, r, chatOperationalSettingWorkspaceTTL, "Internal error updating workspace TTL setting.",
 		func(ctx context.Context, req codersdk.UpdateChatWorkspaceTTLRequest) (string, func(database.Store) error, *codersdk.Response) {
-			// Reject negative input before conversion can wrap it into
-			// a valid TTL.
+			// Reject out-of-range input before conversion can wrap it
+			// into a valid TTL.
 			if req.WorkspaceTTLMillis < 0 {
 				return "", nil, &codersdk.Response{Message: "Workspace TTL must be non-negative."}
+			}
+			if req.WorkspaceTTLMillis > ttlMaximum.Milliseconds() {
+				return "", nil, &codersdk.Response{Message: "Workspace TTL must not exceed 30 days."}
 			}
 			d := time.Duration(req.WorkspaceTTLMillis) * time.Millisecond
 			// Keep zero as "disabled"; validWorkspaceTTLMillis substitutes
 			// a template default.
 			if d > 0 && d < ttlMinimum {
 				return "", nil, &codersdk.Response{Message: "Workspace TTL must not be less than 1 minute."}
-			}
-			if d > ttlMaximum {
-				return "", nil, &codersdk.Response{Message: "Workspace TTL must not exceed 30 days."}
 			}
 			value := d.String()
 			return value, func(tx database.Store) error { return tx.UpsertChatWorkspaceTTL(ctx, value) }, nil
