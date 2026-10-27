@@ -9,7 +9,7 @@ type AskUserQuestionState = {
 	latestTool: MergedTool | undefined;
 	/** Set only by delivered messages, never by queued ones. */
 	isLatestAnswered: boolean;
-	/** Queued async answers are included; async answers keep their prefix line. */
+	/** Values keep the prefix line of answers that name their call. */
 	responseTextByTool: ReadonlyMap<MergedTool, string>;
 };
 
