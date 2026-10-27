@@ -69,3 +69,12 @@ func TestIsExternalScope(t *testing.T) {
 	require.False(t, IsExternalScope("debug_info:read"))           // internal-only
 	require.False(t, IsExternalScope("unknown:read"))
 }
+
+func TestRetiredScopesAreNotExternal(t *testing.T) {
+	t.Parallel()
+	for name := range retiredScopes {
+		require.False(t, IsExternalScope(name), "%q is both retired and external", name)
+		require.True(t, IsRetiredScope(name))
+	}
+	require.False(t, IsRetiredScope("workspace:read"))
+}

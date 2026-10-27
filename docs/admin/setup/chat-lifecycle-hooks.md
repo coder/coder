@@ -198,7 +198,7 @@ Use event-specific identifiers for logical duplicates:
 | `pre_tool_use`, `post_tool_use`       | Key by `chat_id`, event type, and `tool_use_id`.                                                                                           |
 | `session_start`                       | Response effects can repeat after runner or process replacement. Make them safe to apply more than once.                                   |
 | `user_prompt_submit`                  | Dispatch occurs before a message ID exists. Avoid non-idempotent external effects because identical prompt content can be submitted twice. |
-| `pre_compact`, `post_compact`, `stop` | Don't rely on `turn_id` surviving recovery. Make external effects safe to repeat.                                                          |
+| `pre_compact`, `post_compact`, `stop` | Do not rely on `turn_id` surviving recovery. Make external effects safe to repeat.                                                         |
 
 Rejecting duplicates breaks Coder's retries.
 Return the same decision whenever the payload identifies the same logical event.
@@ -211,7 +211,7 @@ If the consumer continues blocking chat activity, set `CODER_CHAT_HOOK_ENABLED=f
 
 Use the following rollout sequence:
 
-1. Deploy a consumer that verifies every request, logs the event and identifiers, and always returns a `2xx` status with an empty response.
+1. Deploy a consumer that verifies every request, logs the event and identifiers, and always returns an empty `2xx` response.
 2. Configure the hook URL, secret, and timeout on a test deployment.
 3. Exercise normal chats, tool calls, compaction, consumer timeouts, and consumer restarts.
 4. Review the consumer's own logs for event coverage and unexpected failures.

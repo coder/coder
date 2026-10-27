@@ -196,8 +196,7 @@ The batch runs in order on the first startup of the new version.
 Most migrations create new tables or make fast schema changes, but the following pre-existing tables receive the heaviest operations.
 Size your maintenance window for whichever are largest in your deployment:
 
-- **Tailnet coordination tables** (`tailnet_peers`, `tailnet_tunnels`, `tailnet_coordinators`) are converted to `UNLOGGED` and rewritten under an exclusive lock.
-  **`UNLOGGED` tables are not replicated to standby servers and are truncated on crash recovery.**
+- **Tailnet coordination tables** (`tailnet_peers`, `tailnet_tunnels`, `tailnet_coordinators`) are converted to `UNLOGGED` and rewritten under an exclusive lock. **`UNLOGGED` tables are not replicated to standby servers and are truncated on crash recovery.**
   This is intentional, since coordinators re-register and peers reconnect on startup, but confirm your high availability strategy does not rely on replicating tailnet state to read replicas.
 - **`users`** gains a service account column plus check constraints and unique index rebuilds, held under an exclusive lock.
   This briefly blocks logins and API key validation, so the duration matters most on deployments with many users.
@@ -212,18 +211,28 @@ Take a database backup before upgrading.
 
 The Coder team recommends taking the following steps when performing the upgrade:
 
-- **Perform the upgrade in a staging environment first:** The cumulative changes between 2.29 and 2.34 affect AI workflows, templates, prebuilds, authentication, RBAC, and dashboard behavior.
+- **Perform the upgrade in a staging environment first:**
+  The cumulative changes between 2.29 and 2.34 affect AI workflows, templates, prebuilds, authentication, RBAC, and dashboard behavior.
   Validate representative workspaces before production rollout.
-- **Retest templates and prebuilds:** Focus on Terraform module caching, prebuild preset validation, `coder_env` merging, user secrets, and workspace starts with changed parameters.
-- **Audit AI Gateway integrations:** Update experimental API routes, check permissions for interception/session data, migrate provider configuration from env vars to the database via `/ai/settings/providers`, verify proxy mode behavior, and review any injected MCP usage.
-- **Plan the Tasks to Agents migration:** Tasks remains available during the support window, but new automation should use Coder Agents and the Chats API.
+- **Retest templates and prebuilds:**
+  Focus on Terraform module caching, prebuild preset validation, `coder_env` merging, user secrets, and workspace starts with changed parameters.
+- **Audit AI Gateway integrations:**
+  Update experimental API routes, check permissions for interception/session data, migrate provider configuration from env vars to the database via `/ai/settings/providers`, verify proxy mode behavior, and review any injected MCP usage.
+- **Plan the Tasks to Agents migration:**
+  Tasks remains available during the support window, but new automation should use Coder Agents and the Chats API.
   Update internal docs, templates, and API clients accordingly.
-- **Validate external authentication:** Test GitHub, GitLab, OIDC, and custom external auth providers.
+- **Validate external authentication:**
+  Test GitHub, GitLab, OIDC, and custom external auth providers.
   Add the `read_api` scope to GitLab OAuth applications and have users re-authenticate.
   Disable PKCE for providers that do not support it.
-- **Migrate headless automation to service accounts:** Replace users created with `--login-type none` where possible, and verify CI/CD tokens, template publish jobs, and workspace automation.
-- **Update CLI parsers, API clients, and scripts:** Check `coder groups list -o json`, `coder tokens rm`, `coder login` with `CODER_SESSION_TOKEN`, SFTP/SCP destination paths, template metadata update clients, provisionerd protocol consumers, and any script that depends on terminal command URL execution.
-- **Review networking controls before enabling them:** Test AI Gateway Proxy, private IP restrictions, port forwarding blocks, DERP TLS configuration, Kubernetes `HTTPRoute`, and Helm probe settings in environments that use custom networking.
-- **Tune operational settings after rollout:** Review PostgreSQL connection pool settings, retention policies, dbpurge behavior, Prometheus metrics, secure cookie behavior, support bundle output, and log ingestion pipelines.
-- **Communicate user-facing changes:** Service accounts, Coder Agents, AI Governance, Tasks deprecation, dashboard confirmations, and workspace parameter restarts can change user workflows.
+- **Migrate headless automation to service accounts:**
+  Replace users created with `--login-type none` where possible, and verify CI/CD tokens, template publish jobs, and workspace automation.
+- **Update CLI parsers, API clients, and scripts:**
+  Check `coder groups list -o json`, `coder tokens rm`, `coder login` with `CODER_SESSION_TOKEN`, SFTP/SCP destination paths, template metadata update clients, provisionerd protocol consumers, and any script that depends on terminal command URL execution.
+- **Review networking controls before enabling them:**
+  Test AI Gateway Proxy, private IP restrictions, port forwarding blocks, DERP TLS configuration, Kubernetes `HTTPRoute`, and Helm probe settings in environments that use custom networking.
+- **Tune operational settings after rollout:**
+  Review PostgreSQL connection pool settings, retention policies, dbpurge behavior, Prometheus metrics, secure cookie behavior, support bundle output, and log ingestion pipelines.
+- **Communicate user-facing changes:**
+  Service accounts, Coder Agents, AI Governance, Tasks deprecation, dashboard confirmations, and workspace parameter restarts can change user workflows.
   Share the expected behavior before the production upgrade.

@@ -4,24 +4,25 @@ Read the [style guide](.style/style-guide/README.md) before you write docs prose
 It is the canonical source; this page is the short list of rules that get missed most often.
 
 The surrounding page is not a reliable guide to house style.
-Most of the corpus predates these rules, so match the rules, not the neighbouring lines.
+Most of the corpus predates these rules, so match the rules, not the neighboring lines.
 
 When the style guide and the [content guidelines](.style/content-guidelines.md) conflict, the content guidelines govern scope and routing.
 
 ## Docs contract
 
 - **DOC1:** One sentence per source line.
-  Don't split a sentence across lines, and don't wrap to a fixed column width.
+  Do not split a sentence across lines, and do not wrap to a fixed column width.
   `MD013` is disabled on purpose.
 - **DOC2:** Headings are sentence case, don't lead with an `-ing` word, and carry no trailing punctuation.
 - **DOC3:** No em-dashes, en-dashes, or ` -- ` as punctuation, in prose, code, comments, or strings.
-  Use commas, semicolons, periods, or a restructured sentence.
+  Use commas, parentheses, periods, or a restructured sentence, not semicolons.
 - **DOC4:** Address the reader as "you".
   No first-person singular.
   Reserve "we" for Coder Technologies as a company.
 - **DOC5:** Active voice, present tense, contractions by default.
-  Keep sentences short.
-- **DOC6:** Use the canonical term: `select` not `click`, `stop` not `kill`, `turn off` not `disable`, `refer to` or `visit` not `see`, `Learn more` not `Next steps`, `tutorial` not `walkthrough`.
+  Spell out negative instructions: `do not`, not `don't`.
+  Keep sentences short, and keep each step to 20 words or fewer.
+- **DOC6:** Use the canonical term: `select` not `click`, `stop` not `kill`, `turn off` not `disable`, `refer to` or `visit` not `see` or `check out`, `Learn more` not `Next steps`, `tutorial` not `walkthrough`.
 - **DOC7:** Use canonical product and brand casing, and one term per concept.
 - **DOC8:** One instruction per step.
   Put the condition before the instruction.
@@ -41,7 +42,7 @@ When the style guide and the [content guidelines](.style/content-guidelines.md) 
 | Table format      | `pnpm run format-docs` |
 
 Prettier does not own Markdown in this repository.
-Don't run it over `docs/`.
+Do not run it over `docs/`.
 
 ## Where the rules live
 

@@ -2,7 +2,7 @@
 title: Generate a support bundle
 ---
 
-To troubleshoot a deployment or workspace issue with Coder support, you can collect a support bundle from the CLI or VS Code.
+To troubleshoot a deployment or workspace issue with Coder support, you can collect a support bundle from the CLI, VS Code, or JetBrains Toolbox.
 A support bundle is a ZIP archive of deployment, workspace, agent, and connection diagnostics.
 
 > [!WARNING]
@@ -28,6 +28,7 @@ Choose a collection method:
 
 - [CLI](#generate-with-the-cli)
 - [VS Code](#vs-code)
+- [JetBrains Toolbox](#jetbrains-toolbox)
 
 <details>
 <summary>Detailed archive contents</summary>
@@ -149,7 +150,7 @@ For all options, refer to the [`coder support bundle` reference](../reference/cl
 
 ## Generate from your IDE
 
-Use your IDE's collection action to include its local diagnostics alongside the Coder bundle.
+Use the VS Code or JetBrains Toolbox collection action to include local diagnostics alongside the Coder bundle.
 Running the CLI separately doesn't collect those local IDE files.
 
 ### VS Code
@@ -162,7 +163,7 @@ Sign in to your Coder deployment in the extension before collecting a bundle.
   The workspace agent must be reachable.
 
 The extension normally manages the CLI for you.
-If you configure a custom CLI, ensure it meets these requirements.
+If you configure a custom CLI, make sure it meets these requirements.
 
 > [!WARNING]
 > Remote workspace logs are not redacted and can contain credentials or source code.
@@ -201,6 +202,54 @@ Remote editor server logs appear under `agent/workspace_files/`, separately from
 
 For telemetry controls and retention, refer to [VS Code local telemetry](../user-guides/workspace-access/vscode.md#local-telemetry).
 For extension installation and settings, refer to the [Coder Remote README](https://github.com/coder/vscode-coder/blob/main/README.md#getting-started).
+
+### JetBrains Toolbox
+
+Workspace support-bundle collection requires all of the following:
+
+| Component                          | Minimum version |
+|------------------------------------|-----------------|
+| Coder plugin for JetBrains Toolbox | 0.9.5           |
+| JetBrains Toolbox                  | 3.9.0           |
+
+Coder plugin version 0.9.4 and earlier collect Toolbox logs without generating a Coder support bundle.
+Upgrading Toolbox alone doesn't add bundle collection to those plugin versions.
+For installation, refer to the [JetBrains Toolbox guide](../user-guides/workspace-access/jetbrains/toolbox.md#install-the-coder-provider-for-toolbox).
+
+Sign in to your Coder deployment in the plugin before collecting a bundle.
+After sign-in, Coder's main page lists your environments.
+Each environment represents a workspace and agent pair.
+The plugin uses the deployment's CLI and existing login.
+A running, reachable workspace provides the most complete agent diagnostics, but collection doesn't start a stopped workspace.
+
+1. On Coder's main page, find the environment you want to troubleshoot.
+1. Open the environment's action menu.
+   The same action menu is available in the individual environment view.
+1. Select **Collect logs** to generate the Toolbox diagnostic ZIP archive.
+1. [Review the archive before sharing it](#review-and-share-the-bundle), including the nested Coder bundle and local SSH logs.
+
+> [!NOTE]
+> The general **Settings** > **About** > **Collect logs and diagnostic data** action does not generate a Coder support bundle.
+
+The Toolbox archive contains `coder-support.zip` inside the selected workspace's diagnostic directory.
+This nested archive contains the [Coder bundle contents](#bundle-contents) for the selected workspace and its agent, when available.
+Available data depends on your permissions and connectivity.
+
+The plugin also adds local CLI SSH logs under `toolbox-logs/ssh/` in `coder-support.zip`:
+
+- Files modified within the last 3&nbsp;days, plus the identified active session's log regardless of age.
+- At most the last 50&nbsp;MiB of each file.
+- Logs from the configured SSH log directory, `CODER_SSH_LOG_DIR`, or `ssh-logs/` inside the deployment's plugin data directory, in that order.
+  Logs in a directory shared by multiple workspaces can include other workspaces' sessions.
+
+The plugin collects matching `coder-ssh*-<pid>.log` files directly in that directory, where `<pid>` contains only digits.
+It skips subdirectories, symbolic links, and rotated `.log.<number>` files.
+The size limit applies to archived copies and leaves the original logs unchanged.
+
+Collection runs until the CLI finishes or you cancel it.
+If bundle generation fails, the plugin removes the partial bundle and tries to write `coder-support-error.txt` in the workspace's diagnostic directory.
+Local SSH logs go into a separate `coder-ssh.zip` when no usable Coder bundle is available.
+Toolbox's other diagnostics remain available.
 
 ## Review and share the bundle
 

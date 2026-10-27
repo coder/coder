@@ -382,7 +382,7 @@ jobs:
         run: helm version --short
 
       - name: Download Go modules
-        run: ./.github/scripts/retry.sh -- go mod download
+        run: ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
       - name: make lint
         # Bound concurrent lint targets to keep peak memory below the runner limit.
@@ -474,7 +474,7 @@ jobs:
         run: ./.github/scripts/retry.sh -- mise install --locked go:storj.io/drpc/cmd/protoc-gen-go-drpc go:github.com/coder/sqlc/cmd/sqlc
 
       - name: Download Go modules
-        run: ./.github/scripts/retry.sh -- go mod download
+        run: ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
       - name: Start PostgreSQL container
         run: make test-postgres-docker
@@ -539,7 +539,7 @@ jobs:
         run: ./.github/scripts/retry.sh -- mise install --locked go:mvdan.cc/sh/v3/cmd/shfmt
 
       - name: Download Go modules
-        run: ./.github/scripts/retry.sh -- go mod download
+        run: ./.github/scripts/retry.sh --timeout 120 -- go mod tidy
 
       - name: make fmt
         timeout-minutes: 7
@@ -803,13 +803,30 @@ jobs:
           install-args: "go terraform"
 
       - name: Install Go mise tools
-        run: ./.github/scripts/retry.sh -- mise install --locked go:gotest.tools/gotestsum
+        run: ./.github/scripts/retry.sh -- mise install --locked go:gotest.tools/gotestsum go:github.com/slsyy/mtimehash/cmd/mtimehash
 
       - name: Download Test Cache
         id: download-cache
         uses: ./.github/actions/test-cache/download
         with:
           key-prefix: test-go-pg-17-${{ runner.os }}-${{ runner.arch }}
+
+      - name: Normalize File and Directory Timestamps
+        shell: bash
+        # Normalize file modification timestamps so that go test can use the
+        # cache from the previous CI run. See https://github.com/golang/go/issues/58571
+        # for more details. Without this, packages that read files (testdata,
+        # golden files, etc.) never hit the test cache in this job.
+        #
+        # mtimehash only optimizes cache hits, so a missing binary must not
+        # fail the job before any tests run (coder/internal#1630).
+        run: |
+          if command -v mtimehash >/dev/null 2>&1; then
+            find . -type f ! -path ./.git/\*\* | mtimehash
+          else
+            echo "::warning::mtimehash not found; skipping file timestamp normalization (Go test cache may be cold)"
+          fi
+          find . -type d ! -path ./.git/\*\* -exec touch -t 200601010000 {} +
 
       - name: Normalize Terraform Path for Caching
         shell: bash
@@ -878,13 +895,30 @@ jobs:
           install-args: "go terraform"
 
       - name: Install Go mise tools
-        run: ./.github/scripts/retry.sh -- mise install --locked go:gotest.tools/gotestsum
+        run: ./.github/scripts/retry.sh -- mise install --locked go:gotest.tools/gotestsum go:github.com/slsyy/mtimehash/cmd/mtimehash
 
       - name: Download Test Cache
         id: download-cache
         uses: ./.github/actions/test-cache/download
         with:
           key-prefix: test-go-race-pg-${{ runner.os }}-${{ runner.arch }}
+
+      - name: Normalize File and Directory Timestamps
+        shell: bash
+        # Normalize file modification timestamps so that go test can use the
+        # cache from the previous CI run. See https://github.com/golang/go/issues/58571
+        # for more details. Without this, packages that read files (testdata,
+        # golden files, etc.) never hit the test cache in this job.
+        #
+        # mtimehash only optimizes cache hits, so a missing binary must not
+        # fail the job before any tests run (coder/internal#1630).
+        run: |
+          if command -v mtimehash >/dev/null 2>&1; then
+            find . -type f ! -path ./.git/\*\* | mtimehash
+          else
+            echo "::warning::mtimehash not found; skipping file timestamp normalization (Go test cache may be cold)"
+          fi
+          find . -type d ! -path ./.git/\*\* -exec touch -t 200601010000 {} +
 
       - name: Normalize Terraform Path for Caching
         shell: bash
@@ -963,7 +997,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y nginx
 
       - name: Download Go modules
-        run: ./.github/scripts/retry.sh -- go mod download
+        run: ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
       - name: Run Tests
         run: make test-tailnet-integration
@@ -1041,7 +1075,7 @@ jobs:
         working-directory: site
 
       - name: Download Go modules
-        run: ./.github/scripts/retry.sh -- go mod download
+        run: ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
       - run: make site/e2e/bin/coder
         name: make coder
@@ -1123,6 +1157,11 @@ jobs:
 
   storybook:
     name: Storybook
+    needs: changes
+    # Pull requests only snapshot Storybook when the frontend or CI changes.
+    # Every push to main and release branches still snapshots, which keeps
+    # the Pixel baseline current.
+    if: needs.changes.outputs.site == 'true' || needs.changes.outputs.ci == 'true' || github.event_name != 'pull_request'
 
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-24.04-16' || 'ubuntu-latest' }}
 
@@ -1193,7 +1232,7 @@ jobs:
         run: ./.github/scripts/retry.sh -- mise install --locked go:storj.io/drpc/cmd/protoc-gen-go-drpc go:github.com/coder/sqlc/cmd/sqlc
 
       - name: Download Go modules
-        run: ./.github/scripts/retry.sh -- go mod download
+        run: ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
       - name: Format
         run: |
@@ -1302,7 +1341,7 @@ jobs:
       - name: Build
         run: |
           set -euxo pipefail
-          ./.github/scripts/retry.sh -- go mod download
+          ./.github/scripts/retry.sh --timeout 120 -- go mod download
           make gen/mark-fresh
           make -j build
 
@@ -1412,7 +1451,7 @@ jobs:
       - name: Build
         run: |
           set -euxo pipefail
-          ./.github/scripts/retry.sh -- go mod download
+          ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
           version="$(./scripts/version.sh)"
           tag="main-${version//+/-}"
@@ -1713,7 +1752,7 @@ jobs:
         run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/coder/sqlc/cmd/sqlc
 
       - name: Download Go modules
-        run: ./.github/scripts/retry.sh -- go mod download
+        run: ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
       - name: Setup and run sqlc vet
         run: |

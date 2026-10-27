@@ -19,7 +19,7 @@ import {
 	mockGPT5,
 } from "./testFixtures";
 
-const renderModelsPageView = () => {
+const renderModelsPageView = (initialEntry = "/ai/settings/models") => {
 	const element = (
 		<OrganizationModelsContext.Provider
 			value={{
@@ -57,12 +57,23 @@ const renderModelsPageView = () => {
 				{ path: "/ai/settings/models", element },
 				{ path: "/ai/settings/models/:modelId", element },
 			],
-			{ initialEntries: ["/ai/settings/models"] },
+			{ initialEntries: [initialEntry] },
 		),
 	);
 };
 
 describe("ModelsPageView", () => {
+	it("filters models by the provider in the URL", async () => {
+		renderModelsPageView("/ai/settings/models?provider=prov-anthropic");
+
+		expect(
+			await screen.findByRole("button", { name: /Claude Sonnet 4.5/i }),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: /GPT-5/i }),
+		).not.toBeInTheDocument();
+	});
+
 	it("keeps the provider filter in the URL when opening a model", async () => {
 		const user = userEvent.setup();
 		const { router } = renderModelsPageView();
