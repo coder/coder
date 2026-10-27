@@ -11,6 +11,8 @@ import {
 } from "./messageParsing";
 import {
 	buildStreamRenderState,
+	MockAsyncQuestionMessages,
+	MockAsyncQuestionResult,
 	MockCollapsedStepsPreferences,
 	MockQuestionCallMessage,
 	MockWorkingMessages,
@@ -234,58 +236,22 @@ export const PromptlessLiveBlock: Story = {
 	play: expandBlock("Working for at least 12s"),
 };
 
-const MockEarlierAsyncQuestionResult = {
-	questions: [
-		{
-			header: "Scope",
-			question: "Which part should change first?",
-			options: [
-				{ label: "Backend", description: "Change the API first." },
-				{ label: "Frontend", description: "Change the UI first." },
-			],
-		},
-	],
-	async: true,
-};
-
 const MockLiveAsyncQuestionResult = {
-	...MockEarlierAsyncQuestionResult,
+	...MockAsyncQuestionResult,
 	questions: [
 		{
-			...MockEarlierAsyncQuestionResult.questions[0],
+			...MockAsyncQuestionResult.questions[0],
 			question: "Should the change ship behind a flag?",
 		},
 	],
 };
-
-const MockEarlierAsyncQuestionMessages: ChatMessage[] = [
-	...MockWorkingMessages.slice(0, 1),
-	MockQuestionCallMessage,
-	{
-		...MockChatMessage,
-		id: 5,
-		role: "tool",
-		created_at: workingFixtureTime(6),
-		content: [
-			{
-				type: "tool-result",
-				tool_call_id: "question",
-				tool_name: "ask_user_question",
-				result: MockEarlierAsyncQuestionResult,
-				created_at: workingFixtureTime(6),
-			},
-		],
-	},
-];
 
 // A question still streaming supersedes the persisted one. It is not closed,
 // and it becomes answerable once its step persists.
 export const AsyncQuestionBeforeStepPersists: Story = {
 	args: {
 		onSendAskUserQuestionResponse: fn(),
-		parsedMessages: parseMessagesWithMergedTools(
-			MockEarlierAsyncQuestionMessages,
-		),
+		parsedMessages: parseMessagesWithMergedTools(MockAsyncQuestionMessages),
 		...buildStreamRenderState([
 			{
 				type: "tool-call",

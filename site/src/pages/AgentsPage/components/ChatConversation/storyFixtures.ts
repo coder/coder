@@ -435,7 +435,7 @@ export const MockQuestionCallMessage: TypesGen.ChatMessage = {
 };
 
 /** An async ask_user_question result; the agent keeps working while it is open. */
-const MockAsyncQuestionResult = {
+export const MockAsyncQuestionResult = {
 	questions: [
 		{
 			header: "Scope",
