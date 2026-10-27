@@ -1,5 +1,6 @@
 import { useQuery } from "react-query";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import { CodeExample } from "#/components/CodeExample/CodeExample";
@@ -27,10 +28,10 @@ export const AgentSSHButton: React.FC<AgentSSHButtonProps> = ({
 	agentName,
 	workspaceOwnerUsername,
 }) => {
-	const { data, isLoading } = useQuery(deploymentSSHConfig());
+	const { data, isLoading, error } = useQuery(deploymentSSHConfig());
 	const sshSuffix = data?.hostname_suffix;
-	// Without a hostname suffix there is no SSH host to suggest, so fall back
-	// to the CLI, which needs no SSH config.
+	// The CLI needs no SSH config, so it remains usable when the suffix is
+	// empty or the deployment SSH config could not be loaded.
 	const connectCommand = sshSuffix
 		? `ssh ${agentName}.${workspaceName}.${workspaceOwnerUsername}.${sshSuffix}`
 		: `coder ssh ${workspaceOwnerUsername}/${workspaceName}.${agentName}`;
@@ -52,6 +53,10 @@ export const AgentSSHButton: React.FC<AgentSSHButtonProps> = ({
 				<HelpPopoverText>
 					Run the following commands to connect with SSH:
 				</HelpPopoverText>
+
+				{error && (
+					<ErrorAlert error={error} showDebugDetail={false} className="mt-3" />
+				)}
 
 				<Spinner loading={isLoading} className="mt-3">
 					<ol style={{ margin: 0, padding: 0 }}>

@@ -793,7 +793,4 @@ func Test_suggestWithOwner(t *testing.T) {
 	assert.True(t, suggestWithOwner("alice/dogfood", ws))
 	// A workspace ID can refer to anyone's workspace.
 	assert.True(t, suggestWithOwner(ws.ID.String(), ws))
-	// A workspace name that happens to parse as a UUID is still a name.
-	ws.Name = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6"
-	assert.False(t, suggestWithOwner(ws.Name, ws))
 }

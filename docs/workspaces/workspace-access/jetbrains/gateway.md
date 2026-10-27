@@ -146,7 +146,8 @@ This is in lieu of using Coder's Gateway plugin which automatically performs the
 
    ![Gateway Add Connection](../../../images/gateway/gateway-add-ssh-configuration.png)
 
-1. For the Host, enter `<workspace name>.coder`. For a workspace with more than one agent, enter `<agent name>.<workspace name>.<owner>.coder` instead.
+1. For the Host, enter `<workspace name>.coder`.
+   For a workspace with more than one agent, enter `<agent name>.<workspace name>.<owner>.coder` instead.
 
 1. For the Port, enter `22` (this is ignored by Coder)
 
