@@ -1,15 +1,22 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
 import { QueryClientProvider } from "react-query";
 import { defaultUrlTransform } from "streamdown";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type { ChatMessage } from "#/api/typesGenerated";
-import { MockChatMessage } from "#/testHelpers/chatEntities";
+import {
+	MockChatAttachment,
+	MockChatMessage,
+} from "#/testHelpers/chatEntities";
+import { createDeferred } from "#/testHelpers/deferred";
+import { MockPngBase64 } from "#/testHelpers/files";
 import {
 	createTestQueryClient,
 	renderComponent,
 } from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { ConversationTimeline } from "./ConversationTimeline";
 import {
@@ -452,5 +459,63 @@ describe("ConversationTimeline live working blocks", () => {
 			liveStatus: idleLive,
 		});
 		expect(copyCommand).toHaveFocus();
+	});
+});
+
+const mockImageMessage: ChatMessage = {
+	...MockChatMessage,
+	content: [{ type: "file", media_type: "image/png", data: MockPngBase64 }],
+};
+
+const mockInlineTextMessage: ChatMessage = {
+	...MockChatMessage,
+	content: [{ type: "file", media_type: "text/plain", data: btoa("hello") }],
+};
+
+const mockStoredTextMessage: ChatMessage = {
+	...MockChatMessage,
+	content: [MockChatAttachment.file],
+};
+
+describe("ConversationTimeline attachment previews", () => {
+	it.each([
+		["an image", mockImageMessage, "View Attached image"],
+		["a text file", mockInlineTextMessage, "View text attachment"],
+	])(
+		"returns keyboard focus to %s attachment once its preview closes",
+		async (_, message, name) => {
+			const user = userEvent.setup();
+			renderTimeline({ messages: [message] });
+
+			const attachment = screen.getByRole("button", { name });
+			attachment.focus();
+			await user.keyboard("{Enter}");
+			await screen.findByRole("dialog");
+			await user.keyboard("{Escape}");
+
+			await waitFor(() => expect(attachment).toHaveFocus());
+		},
+	);
+
+	it("returns keyboard focus to a text file that loads after focus moves on", async () => {
+		const user = userEvent.setup();
+		const download = createDeferred<string>();
+		server.use(
+			http.get("/api/v2/chats/files/:fileId", async () =>
+				HttpResponse.text(await download.promise),
+			),
+		);
+		renderTimeline({ messages: [mockStoredTextMessage] });
+
+		const attachment = screen.getByRole("button", { name: "View notes.txt" });
+		attachment.focus();
+		await user.keyboard("{Enter}");
+		await user.tab();
+		expect(attachment).not.toHaveFocus();
+		download.resolve("hello");
+		await screen.findByRole("dialog");
+		await user.keyboard("{Escape}");
+
+		await waitFor(() => expect(attachment).toHaveFocus());
 	});
 });

@@ -3712,7 +3712,7 @@ func TestWaitAgentDoesNotRelayRegularSubagentAttachments(t *testing.T) {
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
 	parent, child := createParentChildChats(ctx, t, server, user, org, model)
-	WaitUntilIdleForTest(server)
+	require.NoError(t, WaitUntilIdleForTest(ctx, server))
 
 	insertedFile := insertLinkedChatFile(
 		ctx,
@@ -3899,7 +3899,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 
 		// signalWake from CreateChat may trigger immediate processing.
 		// Wait for it to settle, then reset chats to the state we need.
-		WaitUntilIdleForTest(server)
+		require.NoError(t, WaitUntilIdleForTest(ctx, server))
 		setChatStatus(ctx, t, db, parent.ID, database.ChatStatusRunning, "")
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
 
@@ -3978,7 +3978,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 
 		// This case should return immediately, so use the shared
 		// real-clock server instead of a mock clock.
-		WaitUntilIdleForTest(server)
+		require.NoError(t, WaitUntilIdleForTest(ctx, server))
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
 
 		gotChat, report, err := server.awaitSubagentCompletion(
@@ -4164,7 +4164,7 @@ func TestWaitAgentTimeoutReturnsInformationalPayload(t *testing.T) {
 	user, org, model := seedInternalChatDeps(t, db)
 	parent, child := createParentChildChats(ctx, t, server, user, org, model)
 
-	WaitUntilIdleForTest(server)
+	require.NoError(t, WaitUntilIdleForTest(ctx, server))
 	setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
 
 	timerTrap := mClock.Trap().NewTimer("chatd", "subagent_await")
@@ -4213,7 +4213,7 @@ func TestWaitAgentErrorStatusReturnsStructuredPayload(t *testing.T) {
 	// An errored, non-archived agent is often recoverable. wait_agent
 	// must surface a structured payload (status, last_error, report)
 	// rather than a bare tool error.
-	WaitUntilIdleForTest(server)
+	require.NoError(t, WaitUntilIdleForTest(ctx, server))
 	setChatStatus(ctx, t, db, child.ID, database.ChatStatusError, "provider overloaded")
 	insertAssistantMessage(t, db, child.ID, model.ID, "partial progress")
 
@@ -4324,7 +4324,7 @@ func TestWaitAgentErrorStatusSurfacesLastErrorDetail(t *testing.T) {
 	// A generic fallback message hides the actionable provider detail
 	// (e.g. an unsupported reasoning effort); wait_agent must surface
 	// the detail so the parent model can self-correct.
-	WaitUntilIdleForTest(server)
+	require.NoError(t, WaitUntilIdleForTest(ctx, server))
 	setChatStatusWithError(ctx, t, db, child.ID, database.ChatStatusError, codersdk.ChatError{
 		Message:   "The chat request failed unexpectedly.",
 		Detail:    "reasoning model `max` not supported",
@@ -4363,7 +4363,7 @@ func TestWaitAgentTimeoutGapCompletesWithError(t *testing.T) {
 	user, org, model := seedInternalChatDeps(t, db)
 	parent, child := createParentChildChats(ctx, t, server, user, org, model)
 
-	WaitUntilIdleForTest(server)
+	require.NoError(t, WaitUntilIdleForTest(ctx, server))
 	setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
 
 	timerTrap := mClock.Trap().NewTimer("chatd", "subagent_await")
@@ -4422,7 +4422,7 @@ func TestWaitAgentTimeoutGapSurfacesLastErrorDetail(t *testing.T) {
 	user, org, model := seedInternalChatDeps(t, db)
 	parent, child := createParentChildChats(ctx, t, server, user, org, model)
 
-	WaitUntilIdleForTest(server)
+	require.NoError(t, WaitUntilIdleForTest(ctx, server))
 	setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
 
 	timerTrap := mClock.Trap().NewTimer("chatd", "subagent_await")
@@ -4483,7 +4483,7 @@ func TestWaitAgentErrorStatusUnrecognizedLastError(t *testing.T) {
 	user, org, model := seedInternalChatDeps(t, db)
 	parent, child := createParentChildChats(ctx, t, server, user, org, model)
 
-	WaitUntilIdleForTest(server)
+	require.NoError(t, WaitUntilIdleForTest(ctx, server))
 	_, err := db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:        child.ID,
 		Status:    database.ChatStatusError,
@@ -4673,7 +4673,7 @@ func TestListAgents(t *testing.T) {
 		parent := newParent(t, ctx, "list-agents-archived")
 		archivedChild := newChild(t, ctx, parent, "archived-child", database.NullChatMode{})
 
-		WaitUntilIdleForTest(server)
+		require.NoError(t, WaitUntilIdleForTest(ctx, server))
 		// SetArchived is only allowed from a waiting/error state, so
 		// settle the family into waiting first. Archiving then marks
 		// the children archived; they must be excluded from

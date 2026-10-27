@@ -14,7 +14,16 @@ type discoveryClient struct{ client }
 
 func (*discoveryClient) SessionUpdate(context.Context, acp.SessionNotification) error { return nil }
 
-func (*client) RequestPermission(context.Context, acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error) {
+func (*client) RequestPermission(ctx context.Context, req acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error) {
+	if ctx.Err() == nil {
+		for _, kind := range []acp.PermissionOptionKind{acp.PermissionOptionKindAllowAlways, acp.PermissionOptionKindAllowOnce} {
+			for _, option := range req.Options {
+				if option.Kind == kind {
+					return acp.RequestPermissionResponse{Outcome: acp.RequestPermissionOutcome{Selected: &acp.RequestPermissionOutcomeSelected{OptionId: option.OptionId}}}, nil
+				}
+			}
+		}
+	}
 	//nolint:misspell // ACP names this protocol variant Cancelled.
 	return acp.RequestPermissionResponse{Outcome: acp.RequestPermissionOutcome{Cancelled: &acp.RequestPermissionOutcomeCancelled{}}}, nil
 }

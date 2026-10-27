@@ -409,6 +409,12 @@ function useMessageScrollerController({
       return
     }
 
+    // LOCAL CHANGE: Content's layout effect calls this before the viewport ref
+    // attaches. Record no items until syncAfterViewportAttach calls it again.
+    if (!viewportRef.current) {
+      return
+    }
+
     const items = getMessageScrollerItems(content, spacerRef.current)
     const previousItemCount = itemCountRef.current
     const previousFirstItem = firstItemRef.current
@@ -767,7 +773,16 @@ function useMessageScrollerController({
   )
 
   const setRootElement = useElementRef(rootRef, mirrorStateAttributes)
-  const setViewportElement = useElementRef(viewportRef, mirrorStateAttributes)
+  // LOCAL CHANGE: rerun handleContentChange, which returned without recording
+  // items while the viewport was missing.
+  const syncAfterViewportAttach = React.useCallback(() => {
+    mirrorStateAttributes()
+    handleContentChange()
+  }, [handleContentChange, mirrorStateAttributes])
+  const setViewportElement = useElementRef(
+    viewportRef,
+    syncAfterViewportAttach
+  )
 
   const setContentElement = React.useCallback(
     (element: HTMLDivElement | null) => {
