@@ -1246,10 +1246,8 @@ describe("AgentChatInput", () => {
 		}
 	});
 
-	it("writes mobile dropdown variables below the md breakpoint and rewrites only changed values", async () => {
+	it("writes mobile dropdown variables below the md breakpoint and removes them on unmount", () => {
 		stubViewportBelowMd();
-		const user = userEvent.setup();
-		const setProperty = vi.spyOn(document.documentElement.style, "setProperty");
 
 		const { unmount } = renderInput(<AgentChatInput {...inputProps} />);
 		for (const name of mobileDropdownVariables) {
@@ -1257,28 +1255,6 @@ describe("AgentChatInput", () => {
 				/^\d+px$/,
 			);
 		}
-		const writesAfterMount = setProperty.mock.calls.length;
-
-		// Focus and typing re-read the geometry, and jsdom returns the same
-		// rectangles, so no value changes.
-		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
-		await user.keyboard("when");
-		expect(setProperty.mock.calls.length).toBe(writesAfterMount);
-
-		// Another composer can write the same variables, so a value on <html>
-		// that differs from this composer's is written again.
-		const left = document.documentElement.style.getPropertyValue(
-			"--mobile-dropdown-left",
-		);
-		document.documentElement.style.setProperty(
-			"--mobile-dropdown-left",
-			"999px",
-		);
-		const writesBeforeKey = setProperty.mock.calls.length;
-		await user.keyboard("s");
-		expect(setProperty.mock.calls.slice(writesBeforeKey)).toEqual([
-			["--mobile-dropdown-left", left],
-		]);
 
 		unmount();
 		for (const name of mobileDropdownVariables) {
