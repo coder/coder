@@ -456,7 +456,7 @@ describe("ConversationTimeline live working blocks", () => {
 	});
 });
 
-const mockAsyncQuestionThenUnrelatedMessages: ChatMessage[] = [
+const mockAsyncQuestionMessages: ChatMessage[] = [
 	...MockWorkingMessages.slice(0, 1),
 	MockQuestionCallMessage,
 	{
@@ -488,6 +488,10 @@ const mockAsyncQuestionThenUnrelatedMessages: ChatMessage[] = [
 			},
 		],
 	},
+];
+
+const mockAsyncQuestionThenUnrelatedMessages: ChatMessage[] = [
+	...mockAsyncQuestionMessages,
 	{
 		...MockChatMessage,
 		id: 6,
@@ -528,7 +532,7 @@ describe("ConversationTimeline async questions", () => {
 			.mockResolvedValue();
 		renderTimeline({
 			messages: [
-				...mockAsyncQuestionThenUnrelatedMessages.slice(0, 3),
+				...mockAsyncQuestionMessages,
 				{
 					...MockChatMessage,
 					id: 6,
