@@ -14,8 +14,9 @@ A/B Coder Agents between a branch and `main` using
 
 Comment `/coder-agents-eval` on a PR to run `.github/workflows/eval-coder-agents.yaml`:
 each arm builds its own coderd (main vs the PR), runs `terminal-bench@2.0`
-(77 of 89 tasks: 3 are broken upstream and 9 are 20 to 60 minute ML and
-emulation tasks the prompt cannot affect) with Coder Agents on
+(74 of 89 tasks: 3 are broken upstream, 9 are 20 to 60 minute ML and
+emulation tasks the prompt cannot affect, and 3 security tasks are always
+refused by Anthropic's content policy) with Coder Agents on
 `claude-sonnet-5-5`, and the comparison is posted on the PR. The baseline is
 the commit the PR branched from, not the `main` tip, so later `main` changes
 are not attributed to the PR. The system prompt is Go code, so a prompt
@@ -23,7 +24,8 @@ change is a branch and the unit of comparison is a build. The verdict calls
 a change better or worse only when a paired bootstrap 95% interval over
 tasks excludes zero.
 
-Measured on the 77-task set at concurrency 5 (chatd's unlicensed cap on
+Measured on the 77-task set (before the 3 refused tasks were dropped) at
+concurrency 5 (chatd's unlicensed cap on
 concurrent chats): about $23 and 90 minutes per arm
 ([run](https://github.com/coder/coder/actions/runs/40423882171)). One
 `/coder-agents-eval` runs two arms in parallel, so about $47 of gateway

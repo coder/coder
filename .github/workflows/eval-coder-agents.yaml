@@ -36,11 +36,15 @@ env:
   # and a git clone in the verifier). The rest are ML training, emulation,
   # and long compiles that each take 20 to 60 minutes and are not decided by
   # the system prompt; dropping them cuts an arm from ~3h to ~80 minutes.
+  # crack-7z-hash, break-filter-js-from-html, and vulnerable-secret are
+  # always refused by Anthropic's content policy (cyber), so they score 0 in
+  # every arm and cannot move the comparison.
   HARBOR_EXCLUDE: >-
     -x qemu-* -x build-cython-ext
     -x train-fasttext -x compile-compcert -x install-windows-3.11
     -x winning-avg-corewars -x extract-moves-from-video -x mcmc-sampling-stan
     -x regex-chess -x mteb-leaderboard -x caffe-cifar-10
+    -x crack-7z-hash -x break-filter-js-from-html -x vulnerable-secret
   # Sonnet sits mid-range on Terminal-Bench, leaving headroom in both
   # directions for a prompt change to move; Opus is near the ceiling.
   HARBOR_CODER_MODEL: claude-sonnet-5-5
