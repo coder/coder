@@ -71,6 +71,18 @@ export const ThumbnailFocused: Story = {
 	},
 };
 
+// Keyboard focus on the card itself, the preceding sibling of the buttons'
+// wrapper, shows both buttons.
+export const CardFocused: Story = {
+	args: ThumbnailFocused.args,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("button", { name: "View clipboard.txt" });
+		await userEvent.tab();
+		await Promise.all(document.getAnimations().map((a) => a.finished));
+	},
+};
+
 export const MultipleImages: Story = {
 	args: (() => {
 		const files = [
