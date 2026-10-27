@@ -237,6 +237,32 @@ func TestNormalize(t *testing.T) {
 				"$defs": {"A": {"type": "string"}}
 			}`,
 		},
+		{
+			// Providers validate tool schemas against draft 2020-12,
+			// which forbids a non-empty fragment in "$id". Earlier
+			// drafts used one to name an anchor.
+			name: "fragments are removed from $id",
+			schema: `{
+				"$id": "https://example.com/tool.json#root",
+				"properties": {
+					"a": {"$ref": "https://example.com/tool.json#/$defs/A"},
+					"anchor": {"$id": "#anchor", "type": "string"},
+					"nested": {"$id": "nested.json#n", "type": "string"},
+					"empty fragment": {"$id": "empty.json#", "type": "string"}
+				},
+				"$defs": {"A": {"$id": "#A", "type": "string"}}
+			}`,
+			want: `{
+				"$id": "https://example.com/tool.json",
+				"properties": {
+					"a": {"$ref": "#/$defs/A"},
+					"anchor": {"type": "string"},
+					"nested": {"$id": "nested.json", "type": "string"},
+					"empty fragment": {"$id": "empty.json#", "type": "string"}
+				},
+				"$defs": {"A": {"type": "string"}}
+			}`,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
