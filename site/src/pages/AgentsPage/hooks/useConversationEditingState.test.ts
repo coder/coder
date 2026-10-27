@@ -373,7 +373,35 @@ describe("useConversationEditingState", () => {
 		unmount();
 	});
 
-	it("keeps an async answer's prefix line when its edit fails after another edit starts", async () => {
+	it("keeps an async answer's prefix line for the retry when its edit fails", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		onSend.mockRejectedValueOnce(new Error("boom"));
+
+		act(() => {
+			result.current.handleEditUserMessage(
+				7,
+				"Answer to ask_user_question call question:\nBackend",
+			);
+		});
+		await act(async () => {
+			await expect(
+				result.current.handleSendFromInput({ message: "Frontend" }),
+			).rejects.toThrow("boom");
+		});
+		await act(async () => {
+			await result.current.handleSendFromInput({ message: "Frontend" });
+		});
+
+		expect(onSend).toHaveBeenLastCalledWith({
+			message: "Answer to ask_user_question call question:\nFrontend",
+			attachments: undefined,
+			workspaceUploads: undefined,
+			editedMessageID: 7,
+		});
+		unmount();
+	});
+
+	it("keeps a newer edit when an earlier edit fails to send", async () => {
 		const { result, onSend, unmount } = renderEditing();
 		let rejectSend: (error: Error) => void = () => {};
 		onSend.mockReturnValueOnce(
@@ -399,15 +427,16 @@ describe("useConversationEditingState", () => {
 			rejectSend(new Error("boom"));
 			await expect(firstSend).rejects.toThrow("boom");
 		});
-		await act(async () => {
-			await result.current.handleSendFromInput({ message: "Frontend" });
-		});
 
+		expect(result.current.editorInitialValue).toBe("plain message");
+		await act(async () => {
+			await result.current.handleSendFromInput({ message: "edited" });
+		});
 		expect(onSend).toHaveBeenLastCalledWith({
-			message: "Answer to ask_user_question call question:\nFrontend",
+			message: "edited",
 			attachments: undefined,
 			workspaceUploads: undefined,
-			editedMessageID: 7,
+			editedMessageID: 8,
 		});
 		unmount();
 	});
