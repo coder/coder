@@ -602,7 +602,6 @@ const openMoveToProjectSubmenu = async (canvasElement: HTMLElement) => {
 export const MoveToProjectSubmenu: Story = {
 	args: { chat: mockLaunchChat },
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [
 			{ key: chatProjectsKey, data: [MockChatProject, mockBillingProject] },
 		],
@@ -615,7 +614,6 @@ export const MoveToProjectSubmenuUnfiled: Story = {
 		chat: { ...MockChat, organization_id: MockChatProject.organization_id },
 	},
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [
 			{ key: chatProjectsKey, data: [MockChatProject, mockBillingProject] },
 		],
@@ -626,7 +624,6 @@ export const MoveToProjectSubmenuUnfiled: Story = {
 export const MoveToProjectBlocked: Story = {
 	args: { chat: mockLaunchChat, liveChatStatus: "running" },
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [
 			{ key: chatProjectsKey, data: [MockChatProject, mockBillingProject] },
 		],
@@ -640,14 +637,12 @@ export const MoveToProjectBlocked: Story = {
 
 export const MoveToProjectSubmenuNoProjects: Story = {
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [{ key: chatProjectsKey, data: [] }],
 	},
 	play: ({ canvasElement }) => openMoveToProjectSubmenu(canvasElement),
 };
 
 export const MoveToProjectSubmenuLoading: Story = {
-	parameters: { experiments: ["chat-projects"] },
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatProjects").mockReturnValue(
 			new Promise(() => {}),
@@ -657,7 +652,6 @@ export const MoveToProjectSubmenuLoading: Story = {
 };
 
 export const MoveToProjectSubmenuLoadError: Story = {
-	parameters: { experiments: ["chat-projects"] },
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatProjects").mockRejectedValue(
 			mockApiError({ message: "Failed to load projects." }),

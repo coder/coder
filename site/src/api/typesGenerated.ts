@@ -5737,7 +5737,7 @@ export type Experiment =
 	| "chat-acp-subagents"
 	| "chat-advisor"
 	| "chat-inline-mcp-servers"
-	| "chat-projects"
+	| "chat-project-sharing"
 	| "chat-stage-metrics"
 	| "chat-virtual-desktop"
 	| "enable-ai-workspace-debug"
@@ -5818,7 +5818,7 @@ export const Experiments: Experiment[] = [
 	"chat-acp-subagents",
 	"chat-advisor",
 	"chat-inline-mcp-servers",
-	"chat-projects",
+	"chat-project-sharing",
 	"chat-stage-metrics",
 	"chat-virtual-desktop",
 	"enable-ai-workspace-debug",
