@@ -119,8 +119,11 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    the search action in the tool call input, and tag web search
 //    sources with the search that found them. Upstream as
 //    charmbracelet/fantasy#435.
-// See: https://github.com/coder/fantasy/commits/90a0be329a07
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261027100932-90a0be329a07
+// 16) coder/fantasy#67, separate OpenAI Responses reasoning summary
+//    parts with a blank line, also before the first part, so each
+//    part's bold title renders on its own line.
+// See: https://github.com/coder/fantasy/commits/2e8e2cbf4aea
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261027133624-2e8e2cbf4aea
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
