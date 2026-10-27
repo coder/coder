@@ -891,11 +891,13 @@ async function main() {
 	const A = composers.nth(0);
 	const B = composers.nth(wantComposers - 1);
 
+	// With one composer, blur it between clicks so every click moves focus.
 	const focusSwitch = async () => {
 		for (let i = 0; i < 4; i++) {
 			await A.click();
 			await page.waitForTimeout(400);
-			await B.click();
+			if (wantComposers > 1) await B.click();
+			else await page.evaluate(() => document.activeElement?.blur());
 			await page.waitForTimeout(400);
 		}
 	};
