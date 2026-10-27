@@ -15,15 +15,13 @@ export const useDialogFocusReturn = () => {
 	const triggerRef = useRef<HTMLButtonElement | null>(null);
 	const primaryFallbackRef = useRef<HTMLButtonElement | null>(null);
 	const secondaryFallbackRef = useRef<HTMLButtonElement | null>(null);
-	const rememberTrigger = (event: React.SyntheticEvent<HTMLButtonElement>) => {
-		triggerRef.current = event.currentTarget;
-	};
-	/**
-	 * Takes the button itself, for openers that run after the click handler
-	 * returns, when the event's currentTarget is null.
-	 */
+	/** For openers that run after the click handler returns, when the
+	 * event's currentTarget is null. */
 	const rememberTriggerButton = (button: HTMLButtonElement) => {
 		triggerRef.current = button;
+	};
+	const rememberTrigger = (event: React.SyntheticEvent<HTMLButtonElement>) => {
+		rememberTriggerButton(event.currentTarget);
 	};
 	const restoreFocus = (event: Event) => {
 		// An array find here would stop the React Compiler memoizing this closure.

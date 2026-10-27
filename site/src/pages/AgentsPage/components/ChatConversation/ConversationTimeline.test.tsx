@@ -5,8 +5,12 @@ import { QueryClientProvider } from "react-query";
 import { defaultUrlTransform } from "streamdown";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { preferenceSettingsKey } from "#/api/queries/users";
-import type { ChatFilePart, ChatMessage } from "#/api/typesGenerated";
-import { MockChatMessage } from "#/testHelpers/chatEntities";
+import type { ChatMessage } from "#/api/typesGenerated";
+import {
+	MockChatAttachment,
+	MockChatMessage,
+} from "#/testHelpers/chatEntities";
+import { createDeferred } from "#/testHelpers/deferred";
 import { MockPngBase64 } from "#/testHelpers/files";
 import {
 	createTestQueryClient,
@@ -458,27 +462,30 @@ describe("ConversationTimeline live working blocks", () => {
 	});
 });
 
-const buildUserFileMessage = (file: ChatFilePart): ChatMessage => ({
+const mockImageMessage: ChatMessage = {
 	...MockChatMessage,
-	id: 1,
-	role: "user",
-	created_at: workingFixtureTime(0),
-	content: [file],
-});
+	content: [{ type: "file", media_type: "image/png", data: MockPngBase64 }],
+};
+
+const mockInlineTextMessage: ChatMessage = {
+	...MockChatMessage,
+	content: [{ type: "file", media_type: "text/plain", data: btoa("hello") }],
+};
+
+const mockStoredTextMessage: ChatMessage = {
+	...MockChatMessage,
+	content: [MockChatAttachment.file],
+};
 
 describe("ConversationTimeline attachment previews", () => {
 	it.each([
-		["an image", "image/png", MockPngBase64, "View Attached image"],
-		["a text file", "text/plain", btoa("hello"), "View text attachment"],
+		["an image", mockImageMessage, "View Attached image"],
+		["a text file", mockInlineTextMessage, "View text attachment"],
 	])(
 		"returns keyboard focus to %s attachment once its preview closes",
-		async (_, mediaType, data, name) => {
+		async (_, message, name) => {
 			const user = userEvent.setup();
-			renderTimeline({
-				messages: [
-					buildUserFileMessage({ type: "file", media_type: mediaType, data }),
-				],
-			});
+			renderTimeline({ messages: [message] });
 
 			const attachment = screen.getByRole("button", { name });
 			attachment.focus();
@@ -492,22 +499,13 @@ describe("ConversationTimeline attachment previews", () => {
 
 	it("returns keyboard focus to a text file that loads after focus moves on", async () => {
 		const user = userEvent.setup();
-		const download = Promise.withResolvers<string>();
+		const download = createDeferred<string>();
 		server.use(
 			http.get("/api/v2/chats/files/:fileId", async () =>
 				HttpResponse.text(await download.promise),
 			),
 		);
-		renderTimeline({
-			messages: [
-				buildUserFileMessage({
-					type: "file",
-					media_type: "text/plain",
-					name: "notes.txt",
-					file_id: "notes-file",
-				}),
-			],
-		});
+		renderTimeline({ messages: [mockStoredTextMessage] });
 
 		const attachment = screen.getByRole("button", { name: "View notes.txt" });
 		attachment.focus();
