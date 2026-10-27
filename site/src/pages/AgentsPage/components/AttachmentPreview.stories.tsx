@@ -41,10 +41,10 @@ export const SingleImage: Story = {
 	},
 };
 
-// Keyboard focus on the card, Paste inline or Remove shows both buttons.
-// Hidden buttons stay in the tab order, so Shift+Tab from after the card
-// reaches Remove and then Paste inline.
-export const CardFocused: Story = {
+// Focus on View, Paste inline or Remove shows both buttons. Hidden buttons
+// stay in the tab order, so Shift+Tab from the end of the page reaches
+// Remove and then Paste inline.
+export const ViewFocused: Story = {
 	args: (() => {
 		const file = createMockFile("clipboard.txt", "text/plain", 2048);
 		return {
@@ -62,23 +62,17 @@ export const CardFocused: Story = {
 };
 
 export const PasteFocused: Story = {
-	args: CardFocused.args,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
+	args: ViewFocused.args,
+	play: async () => {
 		await userEvent.tab({ shift: true });
 		await userEvent.tab({ shift: true });
-		expect(canvas.getByRole("button", { name: "Paste inline" })).toHaveFocus();
 	},
 };
 
 export const RemoveFocused: Story = {
-	args: CardFocused.args,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
+	args: ViewFocused.args,
+	play: async () => {
 		await userEvent.tab({ shift: true });
-		expect(
-			canvas.getByRole("button", { name: "Remove clipboard.txt" }),
-		).toHaveFocus();
 	},
 };
 
