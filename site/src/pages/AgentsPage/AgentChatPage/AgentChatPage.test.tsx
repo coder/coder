@@ -38,7 +38,6 @@ afterEach(() => {
 const renderChatPage = (
 	queuedMessages: readonly TypesGen.ChatQueuedMessage[] = [],
 ) => {
-	vi.spyOn(API, "getExperiments").mockResolvedValue(["chat-projects"]);
 	vi.spyOn(apiModule, "watchChat").mockImplementation(
 		() =>
 			new OneWayWebSocket({

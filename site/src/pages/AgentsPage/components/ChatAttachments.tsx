@@ -24,7 +24,8 @@ import { RetryButton } from "./RetryButton";
 import { SectionHeader } from "./SectionHeader";
 
 type ChatAttachmentsProps = {
-	attachments: readonly AgentAttachment[];
+	/** Newest first. */
+	attachments: readonly MessageAttachment[];
 	evictedFileIds: ReadonlySet<string>;
 	isLoadingEarlierAttachments: boolean;
 	earlierAttachmentsError: unknown;
@@ -44,13 +45,11 @@ export const ChatAttachments: React.FC<ChatAttachmentsProps> = ({
 	isRetrying,
 	onRetry,
 }) => {
-	const isLoading = attachments === undefined || isLoadingEarlierAttachments;
-	const isComplete = !isLoading && !earlierAttachmentsError;
-	const listed = attachments ?? [];
+	const isComplete = !isLoadingEarlierAttachments && !earlierAttachmentsError;
 	const isEvicted = ({ file }: MessageAttachment) =>
 		file.file_id !== undefined && evictedFileIds.has(file.file_id);
-	const kept = listed.filter((attachment) => !isEvicted(attachment));
-	const evicted = listed.filter(isEvicted);
+	const kept = attachments.filter((attachment) => !isEvicted(attachment));
+	const evicted = attachments.filter(isEvicted);
 	const deletedTextFileCount = useQueries({
 		queries: kept.flatMap(({ file }) => {
 			const fileId = getStoredTextFileId(file);
@@ -66,7 +65,9 @@ export const ChatAttachments: React.FC<ChatAttachmentsProps> = ({
 				level="section"
 				label={
 					<CollapsibleTrigger className="group inline-flex appearance-none items-center gap-1 rounded-md focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link">
-						{`Attachments (${attachments.length.toLocaleString("en-US")})`}
+						{isComplete
+							? `Attachments (${unexpiredCount.toLocaleString("en-US")})`
+							: "Attachments"}
 						<ChevronDownIcon
 							aria-hidden
 							className="size-3.5 text-content-secondary"
@@ -74,43 +75,38 @@ export const ChatAttachments: React.FC<ChatAttachmentsProps> = ({
 					</CollapsibleTrigger>
 				}
 			/>
+			{/* Stays mounted while loading so the open trigger's aria-controls resolves. */}
 			<CollapsibleContent className="flex flex-col gap-3">
-				{attachments.length > 0 && (
-					<ul className="flex flex-col gap-2">
-						{attachments.map(({ key, file, href }) => (
-							<li key={key}>
-								<FileCard
-									block={file}
-									href={href}
-									expired={
-										file.file_id !== undefined &&
-										evictedFileIds.has(file.file_id)
-									}
-									fullWidth
-								/>
-							</li>
-						))}
-					</ul>
+				<AttachmentGroup
+					label="From the agent"
+					attachments={kept.filter(({ role }) => role !== "user")}
+				/>
+				<AttachmentGroup
+					label="From you"
+					attachments={kept.filter(({ role }) => role === "user")}
+				/>
+				{evicted.length > 0 && <ExpiredAttachments attachments={evicted} />}
+				{isLoadingEarlierAttachments && (
+					<Spinner loading size="sm" label="Loading attachments" />
 				)}
-				{attachments.length === 0 && (
+				{isComplete && attachments.length === 0 && (
 					<p className="m-0 text-sm text-content-secondary">
 						No attachments yet.
 					</p>
 				)}
-				{hasMoreMessages && (
-					<Button
-						variant="outline"
-						size="sm"
-						className="self-start"
-						disabled={isFetchingMoreMessages}
-						onClick={() => void onFetchMoreMessages()}
-					>
-						<Spinner loading={isFetchingMoreMessages} />
-						{hasFetchMoreError
-							? "Retry loading earlier messages"
-							: "Load earlier messages"}
-					</Button>
-				)}
+				{earlierAttachmentsError ? (
+					<ErrorAlert
+						error={earlierAttachmentsError}
+						actions={
+							<RetryButton
+								variant="outline"
+								size="sm"
+								isRetrying={isRetrying}
+								onRetry={onRetry}
+							/>
+						}
+					/>
+				) : null}
 			</CollapsibleContent>
 		</Collapsible>
 	);
