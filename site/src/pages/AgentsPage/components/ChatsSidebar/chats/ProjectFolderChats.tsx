@@ -75,8 +75,7 @@ export const ProjectFolderChats: React.FC<ProjectFolderChatsProps> = ({
 				<p className="m-0 flex items-center gap-1.5 px-2 py-1 text-xs text-content-secondary">
 					<PinIcon aria-hidden="true" className="size-3 shrink-0" />
 					<span className="truncate">
-						{pinnedCount} pinned {pinnedCount === 1 ? "chat" : "chats"}, shown
-						in Pinned
+						{pinnedCount} pinned {pinnedCount === 1 ? "chat" : "chats"}
 					</span>
 				</p>
 			)}
