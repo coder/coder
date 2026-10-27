@@ -19,7 +19,9 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 	const sectionRef = useRef<HTMLElement>(null);
 
 	return (
-		<div className="flex min-h-0 flex-col px-4">
+		// The stable scrollbar gutter matches the chat input's wrapper, so the
+		// panel lines up with the input where scrollbars take up space.
+		<div className="flex min-h-0 flex-col overflow-y-auto px-4 scrollbar-gutter-stable scrollbar-thin">
 			{/* Capped at half the screen, and shrinks before the chat input does, so a
 			    long question set never pushes the input off a short screen. */}
 			<section
