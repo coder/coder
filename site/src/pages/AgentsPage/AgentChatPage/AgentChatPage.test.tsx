@@ -117,17 +117,24 @@ describe("AgentChatPage", () => {
 		);
 	});
 
-	it("shows the error of a failed promote and keeps the row queued", async () => {
+	it("reports a failed promote and keeps the row queued", async () => {
 		vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([]);
-		vi.spyOn(API.experimental, "promoteChatQueuedMessage").mockRejectedValue(
-			mockApiError({ message: "promote failed" }),
-		);
+		const promote = vi
+			.spyOn(API.experimental, "promoteChatQueuedMessage")
+			.mockRejectedValue(mockApiError({ message: "promote failed" }));
 		const user = userEvent.setup();
 
 		renderChatPage([MockChatQueuedMessage]);
 
 		await user.click(await screen.findByRole("button", { name: "Send now" }));
-		expect(await screen.findByText("promote failed")).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Send now" })).toBeEnabled();
+		await waitFor(() =>
+			expect(outletContext.setChatErrorReason).toHaveBeenCalledWith(
+				mockProjectChat.id,
+				expect.objectContaining({ message: "promote failed" }),
+			),
+		);
+		// The row is listed again, so it can be promoted again.
+		await user.click(screen.getByRole("button", { name: "Send now" }));
+		await waitFor(() => expect(promote).toHaveBeenCalledTimes(2));
 	});
 });
