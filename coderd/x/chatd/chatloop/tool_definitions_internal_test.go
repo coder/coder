@@ -932,6 +932,95 @@ func TestBuildToolDefinitionsFullSchemaRootFoldBoundsWork(t *testing.T) {
 	require.Equal(t, want, inputSchema["properties"])
 }
 
+// TestBuildToolDefinitionsFullSchemaRootFoldBoundsPatternWork verifies
+// that root folding stays cheap when many required names the root does
+// not declare meet many "patternProperties" patterns, and that names it
+// leaves unchecked stay required with any value allowed.
+func TestBuildToolDefinitionsFullSchemaRootFoldBoundsPatternWork(t *testing.T) {
+	t.Parallel()
+
+	const names, patterns = 2000, 2000
+	required := make([]any, names)
+	want := map[string]any{}
+	for i := range required {
+		name := fmt.Sprintf("n%d", i)
+		required[i] = name
+		want[name] = map[string]any{}
+	}
+	patternProperties := map[string]any{}
+	for i := range patterns {
+		patternProperties[fmt.Sprintf("^p%d$", i)] = map[string]any{"type": "string"}
+	}
+	source := map[string]any{
+		"type":                 "object",
+		"required":             required,
+		"patternProperties":    patternProperties,
+		"additionalProperties": false,
+		"allOf":                []any{map[string]any{}},
+	}
+
+	inputSchema := ToolInputSchema(fullSchemaTestTool{schema: source})
+	require.Equal(t, want, inputSchema["properties"])
+	require.Len(t, inputSchema["required"], names)
+}
+
+// TestBuildToolDefinitionsFullSchemaRootFoldLegacyRef verifies that root
+// folding ignores the keywords beside "$ref" in a schema declaring draft
+// 7, as that draft does, so the folded root accepts what the source
+// accepts. Without a declared draft they hold beside the reference.
+func TestBuildToolDefinitionsFullSchemaRootFoldLegacyRef(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		source   string
+		want     string
+		accepted []string
+		rejected []string
+	}{
+		{
+			name:     "Branch",
+			source:   `{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "definitions": {"N": {"properties": {"q": {"type": "number"}}}}, "allOf": [{"$ref": "#/definitions/N", "properties": {"q": {"type": "string"}}, "required": ["q"]}]}`,
+			want:     `{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "definitions": {"N": {"properties": {"q": {"type": "number"}}}}, "properties": {"q": {"type": "number"}}}`,
+			accepted: []string{`{"q": 1}`, `{}`},
+			rejected: []string{`{"q": "a"}`},
+		},
+		{
+			// A reference into an ignored keyword still resolves.
+			name:     "Root",
+			source:   `{"$schema": "http://json-schema.org/draft-07/schema#", "$ref": "#/definitions/A", "type": "object", "properties": {"x": {"type": "string"}}, "required": ["x"], "additionalProperties": false, "definitions": {"A": {"properties": {"y": {"type": "integer"}, "z": {"$ref": "#/properties/x"}}, "required": ["y"]}}}`,
+			want:     `{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "properties": {"y": {"type": "integer"}, "z": {"$ref": "#/definitions/coder_root_properties_x"}}, "required": ["y"], "definitions": {"A": {"properties": {"y": {"type": "integer"}, "z": {"$ref": "#/definitions/coder_root_properties_x"}}, "required": ["y"]}, "coder_root_properties_x": {"type": "string"}}}`,
+			accepted: []string{`{"y": 1}`, `{"y": 1, "x": 1}`, `{"y": 1, "z": "a"}`},
+			rejected: []string{`{"x": "a"}`, `{"y": "a"}`, `{"y": 1, "z": 1}`},
+		},
+		{
+			name:     "LaterDraft",
+			source:   `{"type": "object", "$defs": {"N": {"properties": {"q": {"type": "number"}}}}, "allOf": [{"$ref": "#/$defs/N", "properties": {"q": {"type": "string"}}, "required": ["q"]}]}`,
+			want:     `{"type": "object", "$defs": {"N": {"properties": {"q": {"type": "number"}}}}, "properties": {"q": {"allOf": [{"type": "number"}, {"type": "string"}]}}, "required": ["q"]}`,
+			rejected: []string{`{"q": 1}`, `{"q": "a"}`, `{}`},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var source map[string]any
+			require.NoError(t, json.Unmarshal([]byte(tc.source), &source))
+			inputSchema := ToolInputSchema(fullSchemaTestTool{schema: source})
+			raw, err := json.Marshal(inputSchema)
+			require.NoError(t, err)
+			require.JSONEq(t, tc.want, string(raw))
+			for _, instance := range tc.accepted {
+				require.NoError(t, validateSchemaInstance(t, source, instance), "the source schema must accept %s", instance)
+				require.NoError(t, validateSchemaInstance(t, inputSchema, instance))
+			}
+			for _, instance := range tc.rejected {
+				require.Error(t, validateSchemaInstance(t, source, instance), "the source schema must reject %s", instance)
+				require.Error(t, validateSchemaInstance(t, inputSchema, instance))
+			}
+		})
+	}
+}
+
 // TestBuildToolDefinitionsFullSchemaRootFoldSharedRefs verifies that
 // root folding keeps every parameter when branches share references
 // many times over or chain them deeply, which a bound on the work done
