@@ -291,7 +291,7 @@ func TestBuildToolDefinitionsFullSchemaRootComposition(t *testing.T) {
 			"id": {"type": "integer"},
 			"name": {"type": "string"},
 			"email": {"anyOf": [{"type": "string"}, {"type": "string", "format": "email"}]},
-			"phone": {"type": "string"}
+			"phone": {"anyOf": [{}, {"type": "string"}]}
 		},
 		"required": ["id", "name", "phone"],
 		"$defs": {
@@ -567,6 +567,150 @@ func TestBuildToolDefinitionsFullSchemaRootTypeArray(t *testing.T) {
 		"properties": {"name": {"type": "string"}},
 		"required": ["name"]
 	}`, string(raw))
+}
+
+// TestBuildToolDefinitionsFullSchemaRootAlternativesMissingProperty
+// verifies that a root alternative leaving a property unconstrained
+// keeps it unconstrained in the fold, while an alternative that forbids
+// additional properties contributes nothing for it.
+func TestBuildToolDefinitionsFullSchemaRootAlternativesMissingProperty(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		source   map[string]any
+		want     string
+		accepted []string
+	}{
+		{
+			name: "OpenAlternative",
+			source: map[string]any{
+				"anyOf": []any{
+					map[string]any{
+						"properties": map[string]any{"a": map[string]any{"type": "string"}},
+					},
+					map[string]any{
+						"properties": map[string]any{"b": map[string]any{"type": "number"}},
+						"required":   []any{"b"},
+					},
+				},
+			},
+			want: `{
+				"type": "object",
+				"properties": {
+					"a": {"anyOf": [{"type": "string"}, {}]},
+					"b": {"anyOf": [{}, {"type": "number"}]}
+				}
+			}`,
+			accepted: []string{`{"a": 1, "b": 2}`, `{"a": "x", "b": "y"}`},
+		},
+		{
+			name: "PatternAlternative",
+			source: map[string]any{
+				"anyOf": []any{
+					map[string]any{
+						"properties": map[string]any{"a": map[string]any{"type": "string"}},
+					},
+					map[string]any{
+						"patternProperties":    map[string]any{"^a$": map[string]any{"type": "number"}},
+						"additionalProperties": false,
+					},
+				},
+			},
+			want: `{
+				"type": "object",
+				"properties": {"a": {"anyOf": [{"type": "string"}, {}]}}
+			}`,
+			accepted: []string{`{"a": 1}`},
+		},
+		{
+			name: "ClosedAlternatives",
+			source: map[string]any{
+				"oneOf": []any{
+					map[string]any{
+						"properties": map[string]any{
+							"kind": map[string]any{"const": "x"},
+							"x":    map[string]any{"type": "string"},
+						},
+						"required":             []any{"kind"},
+						"additionalProperties": false,
+					},
+					map[string]any{
+						"$ref": "#/$defs/Y",
+					},
+				},
+				"$defs": map[string]any{
+					"Y": map[string]any{
+						"properties": map[string]any{
+							"kind": map[string]any{"const": "y"},
+							"y":    map[string]any{"type": "integer"},
+						},
+						"required":             []any{"kind"},
+						"additionalProperties": false,
+					},
+				},
+			},
+			want: `{
+				"type": "object",
+				"properties": {
+					"kind": {"anyOf": [{"const": "x"}, {"const": "y"}]},
+					"x": {"type": "string"},
+					"y": {"type": "integer"}
+				},
+				"required": ["kind"],
+				"$defs": {
+					"Y": {
+						"properties": {
+							"kind": {"const": "y"},
+							"y": {"type": "integer"}
+						},
+						"required": ["kind"],
+						"additionalProperties": false
+					}
+				}
+			}`,
+			accepted: []string{`{"kind": "x", "x": "a"}`, `{"kind": "y", "y": 1}`},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			defs := BuildToolDefinitions([]fantasy.AgentTool{fullSchemaTestTool{schema: tc.source}}, nil, nil)
+			require.Len(t, defs, 1)
+			ft, ok := defs[0].(fantasy.FunctionTool)
+			require.True(t, ok)
+			raw, err := json.Marshal(ft.InputSchema)
+			require.NoError(t, err)
+			require.JSONEq(t, tc.want, string(raw))
+			for _, instance := range tc.accepted {
+				require.NoError(t, validateSchemaInstance(t, tc.source, instance), "the source schema must accept %s", instance)
+				require.NoError(t, validateSchemaInstance(t, ft.InputSchema, instance))
+			}
+		})
+	}
+}
+
+// TestBuildToolDefinitionsFullSchemaDraft7Anchors verifies that a
+// draft 7 anchor, written as a fragment-only "$id", still resolves on
+// the wire, so the constraints it names keep holding.
+func TestBuildToolDefinitionsFullSchemaDraft7Anchors(t *testing.T) {
+	t.Parallel()
+
+	source := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"code": map[string]any{"$ref": "#code"},
+		},
+		"definitions": map[string]any{
+			"Code": map[string]any{"$id": "#code", "type": "string", "minLength": 3},
+		},
+	}
+	defs := BuildToolDefinitions([]fantasy.AgentTool{fullSchemaTestTool{schema: source}}, nil, nil)
+	require.Len(t, defs, 1)
+	ft, ok := defs[0].(fantasy.FunctionTool)
+	require.True(t, ok)
+	require.NoError(t, validateSchemaInstance(t, ft.InputSchema, `{"code": "abc"}`))
+	require.Error(t, validateSchemaInstance(t, ft.InputSchema, `{"code": "ab"}`))
 }
 
 // validateSchemaInstance resolves schema with a JSON Schema validator,

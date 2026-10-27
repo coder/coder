@@ -2,6 +2,7 @@ package toolschema
 
 import (
 	"net/url"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -43,8 +44,9 @@ var (
 // accept: every type list is rewritten into an equivalent "anyOf", every
 // array schema without "items" gets an empty one, an "enum" with an
 // array or object member becomes an "anyOf" of "const" values, "$id"
-// loses its fragment, and a reference that names the root resource by
-// URI becomes a fragment reference. Instance data such as "const" and "enum" values keeps its
+// loses its fragment, which becomes an "$anchor" when it names one, and
+// a reference that names the root resource by URI becomes a fragment
+// reference. Instance data such as "const" and "enum" values keeps its
 // exact shape. The source is not modified.
 func Normalize(schema map[string]any) map[string]any {
 	return copyNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
@@ -82,10 +84,15 @@ func normalizeNode(node map[string]any, scope refScope) {
 	}
 
 	// Providers validate tool schemas against draft 2020-12, which
-	// forbids a fragment in "$id". The resource is the URI without it,
-	// and an "$id" that is only a fragment starts no resource.
+	// forbids a fragment in "$id". Earlier drafts used one to name an
+	// anchor, which 2020-12 spells "$anchor". The resource is the URI
+	// without the fragment, and an "$id" that is only a fragment starts
+	// no resource.
 	if id, ok := node["$id"].(string); ok {
 		if base, fragment, _ := strings.Cut(id, "#"); fragment != "" {
+			if _, ok := node["$anchor"]; !ok && anchorName.MatchString(fragment) {
+				node["$anchor"] = fragment
+			}
 			if base == "" {
 				delete(node, "$id")
 			} else {
@@ -96,11 +103,19 @@ func normalizeNode(node map[string]any, scope refScope) {
 
 	// Some providers resolve only fragment references.
 	if ref, ok := node["$ref"].(string); ok && !scope.nested && !strings.HasPrefix(ref, "#") {
-		if tokens, ok := scope.rootPointer(ref); ok {
-			node["$ref"] = "#" + encodePointer(tokens)
+		if fragment, ok := scope.rootFragment(ref); ok {
+			if tokens, ok := decodePointer(fragment); ok {
+				node["$ref"] = "#" + encodePointer(tokens)
+			} else if anchorName.MatchString(fragment) {
+				node["$ref"] = "#" + fragment
+			}
 		}
 	}
 }
+
+// anchorName matches the plain-name fragments that draft 2020-12 allows
+// as "$anchor" values.
+var anchorName = regexp.MustCompile(`^[A-Za-z_][-A-Za-z0-9._]*$`)
 
 // requireAnyOf requires one of variants to hold. An existing "anyOf"
 // keeps its place, so references into it still resolve, and the
@@ -369,21 +384,28 @@ func (s refScope) resolve(prefix string) (*url.URL, bool) {
 // rootPointer returns the decoded JSON Pointer tokens of ref when its
 // target lies in the root resource.
 func (s refScope) rootPointer(ref string) ([]string, bool) {
-	prefix, fragment, _ := strings.Cut(ref, "#")
-	if prefix == "" {
-		if s.nested {
-			return nil, false
-		}
-		return decodePointer(fragment)
-	}
-	if s.rootBase == nil {
-		return nil, false
-	}
-	target, ok := s.resolve(prefix)
-	if !ok || canonicalURI(target) != canonicalURI(s.rootBase) {
+	fragment, ok := s.rootFragment(ref)
+	if !ok {
 		return nil, false
 	}
 	return decodePointer(fragment)
+}
+
+// rootFragment returns the fragment of ref when its target lies in the
+// root resource.
+func (s refScope) rootFragment(ref string) (string, bool) {
+	prefix, fragment, _ := strings.Cut(ref, "#")
+	if prefix == "" {
+		return fragment, !s.nested
+	}
+	if s.rootBase == nil {
+		return "", false
+	}
+	target, ok := s.resolve(prefix)
+	if !ok || canonicalURI(target) != canonicalURI(s.rootBase) {
+		return "", false
+	}
+	return fragment, true
 }
 
 // resourceID reports whether node declares a schema resource with "$id"

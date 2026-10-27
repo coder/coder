@@ -167,6 +167,43 @@ func TestConnectInline_RejectsOversizedToolDefinition(t *testing.T) {
 	require.Contains(t, summaries[0].Error, "tool definition exceeds maximum size")
 }
 
+// TestConnectInline_RejectsOversizedFullInputSchema verifies that the
+// size cap measures the full input schema the model receives, including
+// keys such as "$defs" that Info() does not carry.
+func TestConnectInline_RejectsOversizedFullInputSchema(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	big := testTool{
+		tool: &mcp.Tool{
+			Name:        "big",
+			Description: "small description",
+			InputSchema: map[string]any{
+				"type": "object",
+				"$defs": map[string]any{
+					"padding": map[string]any{"description": strings.Repeat("a", 64<<10+1)},
+				},
+			},
+		},
+		handler: func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return textToolResult("ok"), nil
+		},
+	}
+	ts := newTestMCPServer(t, big)
+	cfg := makeInlineConfig("bot", ts.URL, nil)
+
+	tools, summaries, cleanup := mcpclient.ConnectInlineForTest(
+		ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
+	)
+	t.Cleanup(cleanup)
+
+	require.Empty(t, tools)
+	require.Len(t, summaries, 1)
+	require.Equal(t, mcpclient.ConnectOutcomeError, summaries[0].Outcome)
+	require.Contains(t, summaries[0].Error, "tool definition exceeds maximum size")
+}
+
 func TestConnectInline_RejectsOversizedAggregateToolDefinitions(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)

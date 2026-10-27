@@ -23,6 +23,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
+	"github.com/coder/coder/v2/coderd/x/chatd/toolschema"
 )
 
 type testTool struct {
@@ -950,6 +951,48 @@ func TestConnectAll_FullInputSchema_ModelIntentResources(t *testing.T) {
 		require.Error(t, validateSchemaInstance(t, inputSchema, arguments), name)
 		require.Error(t, validateSchemaInstance(t, schema, wrap(arguments)), name)
 	}
+}
+
+// TestConnectAll_FullInputSchema_ModelIntentAnchors verifies that a
+// draft 7 anchor in the root "$id" keeps naming the tool's schema, not
+// the model_intent wrapper that takes over the resource URI.
+func TestConnectAll_FullInputSchema_ModelIntentAnchors(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	inputSchema := map[string]any{
+		"$id":  "https://example.com/tool.json#root",
+		"type": "object",
+		"properties": map[string]any{
+			"code":  map[string]any{"$id": "#code", "type": "string", "minLength": 3},
+			"alias": map[string]any{"$ref": "#code"},
+			"child": map[string]any{"$ref": "#root"},
+		},
+	}
+	anchorTool := testTool{
+		tool: &mcp.Tool{Name: "anchors", InputSchema: inputSchema},
+		handler: func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return textToolResult("ok"), nil
+		},
+	}
+
+	ts := newTestMCPServer(t, anchorTool)
+	cfg := makeConfig("srv", ts.URL)
+	cfg.ModelIntent = true
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []mcpclient.Server{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
+	t.Cleanup(cleanup)
+	require.Len(t, tools, 1)
+	full, ok := tools[0].(fullSchemaTool)
+	require.True(t, ok)
+	schema := toolschema.Normalize(full.FullInputSchema())
+
+	wrap := func(arguments string) string {
+		return `{"model_intent": "Testing", "properties": ` + arguments + `}`
+	}
+	require.NoError(t, validateSchemaInstance(t, schema, wrap(`{"alias": "abc", "child": {"alias": "abc"}}`)))
+	require.Error(t, validateSchemaInstance(t, schema, wrap(`{"alias": "ab"}`)))
+	require.Error(t, validateSchemaInstance(t, schema, wrap(`{"child": {"alias": "ab"}}`)))
 }
 
 // validateSchemaInstance resolves schema with a JSON Schema validator,
