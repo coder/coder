@@ -255,7 +255,7 @@ func WorkspaceStats(ctx context.Context, logger slog.Logger, clk quartz.Clock, r
 		Namespace: "coderd",
 		Name:      "workspace_last_used_timestamp_seconds",
 		Help:      "The last time each workspace was used, as a Unix timestamp in seconds. Every replica reports the same database-derived value; aggregate with max, not sum.",
-	}, []string{"organization_name", "template_name", "workspace_owner", "workspace_name"}))
+	}, []string{"organization_name", "template_name", "workspace_owner", "workspace_name", "workspace_id"}))
 	if err := registerer.Register(lastUsed); err != nil {
 		return nil, err
 	}
@@ -269,7 +269,7 @@ func WorkspaceStats(ctx context.Context, logger slog.Logger, clk quartz.Clock, r
 		}
 		for _, w := range workspaces {
 			lastUsed.WithLabelValues(VectorOperationSet, float64(w.LastUsedAt.Unix()),
-				w.OrganizationName, w.TemplateName, w.OwnerUsername, w.WorkspaceName)
+				w.OrganizationName, w.TemplateName, w.OwnerUsername, w.WorkspaceName, w.WorkspaceID.String())
 		}
 		lastUsed.Commit()
 	}

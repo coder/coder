@@ -553,6 +553,9 @@ func TestWorkspaceStats(t *testing.T) {
 	stopped := createWorkspace(user, database.WorkspaceTransitionStop, now.Add(-30*24*time.Hour), false)
 	prebuild := createWorkspace(prebuildsUser, database.WorkspaceTransitionStart, now.Add(-time.Hour), false)
 	createWorkspace(user, database.WorkspaceTransitionStart, now, true)
+	deletedUser := dbgen.User(t, db, database.User{})
+	createWorkspace(deletedUser, database.WorkspaceTransitionStart, now, false)
+	require.NoError(t, db.UpdateUserDeletedByID(ctx, deletedUser.ID))
 	owners := map[uuid.UUID]string{user.ID: user.Username, prebuildsUser.ID: prebuildsUser.Username}
 
 	reg := prometheus.NewRegistry()
@@ -568,6 +571,7 @@ func TestWorkspaceStats(t *testing.T) {
 				"template_name":     tpl.Name,
 				"workspace_owner":   owners[ws.OwnerID],
 				"workspace_name":    ws.Name,
+				"workspace_id":      ws.ID.String(),
 			})
 			require.NotNil(t, metric, "workspace %q", ws.Name)
 			require.Equal(t, float64(ws.LastUsedAt.Unix()), metric.GetGauge().GetValue())
@@ -589,8 +593,15 @@ func TestWorkspaceStats(t *testing.T) {
 		ID:      running.ID,
 		Deleted: true,
 	}))
+	recreated := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OwnerID:        user.ID,
+		OrganizationID: org.ID,
+		TemplateID:     tpl.ID,
+		Name:           running.Name,
+		LastUsedAt:     now.Add(-2 * time.Minute),
+	}).Do().Workspace
 	clock.Advance(time.Minute).MustWait(ctx)
-	requireLastUsed(stopped, prebuild)
+	requireLastUsed(stopped, prebuild, recreated)
 }
 
 func TestAgents(t *testing.T) {
