@@ -86,7 +86,7 @@ Best practices for installing Coder can be found on our [install](../install/ind
 <!-- RELEASE_CALENDAR_START -->
 | Release name                                                                                    | Release Date       | Status                   | Latest Release                                                   |
 |-------------------------------------------------------------------------------------------------|--------------------|--------------------------|------------------------------------------------------------------|
-| [2.29](https://coder.com/changelog/coder-2-29)                                                  | December 02, 2025  | Extended Support Release | [v2.29.22](https://github.com/coder/coder/releases/tag/v2.29.22) |
+| [2.29](https://coder.com/changelog/coder-2-29)                                                  | December 02, 2025  | Extended Support Release | [v2.29.23](https://github.com/coder/coder/releases/tag/v2.29.23) |
 | [2.33](https://coder.com/changelog/coder-2-33)                                                  | May 05, 2026       | Not Supported            | [v2.33.11](https://github.com/coder/coder/releases/tag/v2.33.11) |
 | [2.34](https://coder.com/changelog/coder-2-34)                                                  | June 02, 2026      | Extended Support Release | [v2.34.14](https://github.com/coder/coder/releases/tag/v2.34.14) |
 | [2.35](https://coder.com/changelog/coder-2-35-1)                                                | July 07, 2026      | Not Supported            | [v2.35.10](https://github.com/coder/coder/releases/tag/v2.35.10) |
