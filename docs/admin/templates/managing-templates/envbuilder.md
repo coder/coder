@@ -17,4 +17,5 @@ For setup instructions, see [Envbuilder documentation](../../integrations/devcon
 
 > [!TIP]
 > Nix flakes are an alternate way to handle dependency management which lets developers and/or template administrators define environments and manage dependencies at a much deeper level, without requiring a container runtime.
+>
 > To use them in Coder with or without NixOS, see [Nix(OS)](../../integrations/nix.md).
