@@ -204,6 +204,8 @@ type Server struct {
 	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
 	experiments              codersdk.Experiments
 	experimentEvaluator      *experiments.Evaluator
+	// workflows holds the workflow runs that this replica runs.
+	workflows workflowRegistry
 
 	// thinkingDropBlock holds the thinkingDropBlockKey of each provider and
 	// model that accepted Anthropic's thinking drop_block control.
@@ -2215,6 +2217,10 @@ func parseDynamicToolNames(raw pqtype.NullRawMessage) (map[string]bool, error) {
 	}
 	names := make(map[string]bool, len(tools))
 	for _, t := range tools {
+		// chatd runs workflow_report itself. It is not a client tool.
+		if t.Name == workflowReportToolName {
+			continue
+		}
 		names[t.Name] = true
 	}
 	return names, nil

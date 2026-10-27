@@ -716,7 +716,8 @@ func dynamicToolNamesFromChat(chat database.Chat) map[string]bool {
 	names := make(map[string]bool, len(tools))
 	for _, tool := range tools {
 		name := strings.TrimSpace(tool.Name)
-		if name != "" {
+		// chatd runs workflow_report itself. It is not a client tool.
+		if name != "" && name != workflowReportToolName {
 			names[name] = true
 		}
 	}

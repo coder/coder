@@ -11331,7 +11331,10 @@ func TestMCPToolSearchExperimentRules(t *testing.T) {
 		require.NoError(t, err)
 		require.NotContains(t, h.turnTools(t, 1), chattool.FindToolsName)
 		waitForChatStatus(ctx, t, h.db, chat.ID, database.ChatStatusWaiting)
-		require.Zero(t, store.rules.Load())
+		// The chat-workflows prototype decides its user-scoped experiment on
+		// each build of a root turn environment. This turn builds it twice.
+		// MCP tool search adds no read.
+		require.Equal(t, int64(2), store.rules.Load())
 	})
 
 	t.Run("rule changes apply on the next turn", func(t *testing.T) {

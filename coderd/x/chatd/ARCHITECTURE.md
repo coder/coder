@@ -1154,6 +1154,8 @@ The goroutine does the following in order:
 
 The dynamic tools timeout goroutine is responsible for waiting for the dynamic tool timeout to pass, which is determined by the `requires_action_deadline_at` field on the chat. It is spawned when the event indicates the core state machine is in `A0` or `A1` (status is `requires_action`). The goroutine fetches the deadline value from the database. When the timeout passes, it applies the `CancelRequiresAction` transition on the core state machine.
 
+TODO (chat-workflows prototype): a workflow step child stores its step schema as a dynamic tool named `workflow_report`. The dynamic tool parsers skip that name, and chatd runs the tool on the server, so a step never enters `requires_action`. Describe this here.
+
 #### Abandon chat goroutine
 
 The abandon chat goroutine is responsible for abandoning the chat. It is spawned whenever the event processing logic determines that the chat no longer needs to be owned by the runner. It applies the `Abandon` transition on the core state machine after checking that the chat is still owned by the runner.
@@ -1169,6 +1171,8 @@ By default, chatd runs up to five top-level chats and ten subagent chats at once
 When the limits apply, admission runs inside the acquisition transaction, before `Acquire`, under a Postgres advisory lock held until the transaction commits. A chat holds a slot in its pool while a worker owns it with a fresh heartbeat, whatever its execution state. Admission therefore applies to every runnable state, and an owned chat keeps its slot until it releases ownership, so later transitions back to `running`, such as finishing an interruption or resolving a pending action, stay within the limit. A refused chat stays unowned until a later acquisition pass admits it. A takeover of a chat whose lease expired rechecks the lease under the lock, because a heartbeat renewal may have extended it since. Admission waits at most 5 seconds for the lock.
 
 Interrupting a running chat that no worker owns finishes the interruption without a slot (see `POST /api/v2/chats/{chat}/interrupt`). A chat that is `interrupting` or `requires_action` without a fresh lease, for example after its replica died, waits for a slot before a runner resumes it, which also delays its action deadline.
+
+TODO (chat-workflows prototype): `run_workflow` starts a Starlark run in a goroutine on the replica that ran the tool call. Each step is a child subagent chat with a deterministic ID, so the steps use the subagent limit. When the run ends and no `await_workflow` call waits, chatd sends the parent a user message. Describe this here.
 
 ## Auto-archive loop
 
