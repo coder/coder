@@ -101,6 +101,14 @@ func (t *WorkspaceMCPTool) FullInputSchema() map[string]any {
 	return t.inputSchema
 }
 
+// WithoutFullInputSchema returns a copy of t that offers the model only
+// the flattened properties and required names from Info().
+func (t *WorkspaceMCPTool) WithoutFullInputSchema() *WorkspaceMCPTool {
+	reduced := *t
+	reduced.inputSchema = nil
+	return &reduced
+}
+
 // ServerName returns the originating MCP server name from the unsanitized
 // routing name. The model-facing info.Name can lose the "__" separator to
 // sanitization or length capping, so it cannot be parsed for the server.

@@ -376,7 +376,50 @@ func (p *Server) pinnedWorkspaceMCPTools(
 		return nil, xerrors.Errorf("list chat context resources: %w", err)
 	}
 	infos := workspaceMCPToolInfosFromResources(resources)
-	return chattool.NewWorkspaceMCPTools(infos, getConn), nil
+	return p.boundWorkspaceMCPToolSchemas(ctx, chattool.NewWorkspaceMCPTools(infos, getConn)), nil
+}
+
+// Caps on one server's full workspace MCP tool input schemas as the model
+// receives them, matching the definition caps for inline MCP servers. The
+// agent caps the schemas it pushes, but before normalization, which can
+// make them larger.
+const (
+	maxWorkspaceMCPToolSchemaBytes  = 64 << 10
+	maxWorkspaceMCPToolSchemasBytes = 256 << 10
+)
+
+// boundWorkspaceMCPToolSchemas sends a tool with only its properties and
+// required names when its schema is over maxWorkspaceMCPToolSchemaBytes
+// or would take its server's full schemas past
+// maxWorkspaceMCPToolSchemasBytes.
+func (p *Server) boundWorkspaceMCPToolSchemas(ctx context.Context, tools []fantasy.AgentTool) []fantasy.AgentTool {
+	serverBytes := map[string]int{}
+	var reduced []string
+	for i, tool := range tools {
+		workspaceTool, ok := tool.(*chattool.WorkspaceMCPTool)
+		if !ok || workspaceTool.FullInputSchema() == nil {
+			continue
+		}
+		server := workspaceTool.ServerName()
+		encoded, err := json.Marshal(chatloop.ToolInputSchema(workspaceTool))
+		if err != nil {
+			p.logger.Warn(ctx, "failed to encode workspace MCP tool input schema",
+				slog.F("tool_name", workspaceTool.Info().Name),
+				slog.Error(err))
+		} else if len(encoded) <= min(maxWorkspaceMCPToolSchemaBytes, maxWorkspaceMCPToolSchemasBytes-serverBytes[server]) {
+			serverBytes[server] += len(encoded)
+			continue
+		}
+		reduced = append(reduced, workspaceTool.Info().Name)
+		tools[i] = workspaceTool.WithoutFullInputSchema()
+	}
+	if len(reduced) > 0 {
+		p.logger.Warn(ctx, "workspace MCP tool input schemas exceed size limits, sending only properties and required",
+			slog.F("tool_names", reduced),
+			slog.F("max_schema_bytes", maxWorkspaceMCPToolSchemaBytes),
+			slog.F("max_server_schema_bytes", maxWorkspaceMCPToolSchemasBytes))
+	}
+	return tools
 }
 
 // AgentConnFunc provides access to workspace agent connections.
