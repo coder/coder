@@ -672,13 +672,13 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		version?: number,
 	) => {
 		setArtifactVersions((current) => ({ ...current, [artifactId]: version }));
-		const next = withArtifactTab(
-			userRightPanelTabs,
-			{ artifactId, title },
-			createUserRightPanelTabId("artifact"),
+		const artifact = { artifactId, title };
+		const newTabId = createUserRightPanelTabId("artifact");
+		const { tabId } = withArtifactTab(userRightPanelTabs, artifact, newTabId);
+		setUserRightPanelTabsState(
+			(currentTabs) => withArtifactTab(currentTabs, artifact, newTabId).tabs,
 		);
-		setUserRightPanelTabsState(next.tabs);
-		activateRightPanelTab(next.tabId);
+		activateRightPanelTab(tabId);
 	};
 
 	const artifactTabsCtx = { onOpenArtifact: handleOpenArtifactTab };
