@@ -10760,12 +10760,13 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 		wantError  bool
 		wantFound  []string
 		// wantReplay is the web_search_call input item the next turn
-		// sends, or empty when it sends none.
+		// sends, or empty when it sends none. Stored searches replay
+		// only as item references paired with reasoning, which this
+		// model does not produce, so cases that leave store unset send
+		// none.
 		wantReplay string
 	}{
 		{
-			// Stored searches replay only as item references paired with
-			// reasoning, which this model does not produce.
 			name: "QueriesAndSources",
 			webSearch: chattest.OpenAIWebSearchCall{
 				Queries: []string{"tokyo population", "tokyo census 2025"},
@@ -11016,11 +11017,20 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 				}},
 			})
 			require.NoError(t, err)
+			// The fake server rejects an invalid request before the
+			// handler sees it, so the chat's error is the only signal.
 			var rawFollowUp []byte
-			select {
-			case <-ctx.Done():
-				require.FailNow(t, "timed out waiting for the follow-up request")
-			case rawFollowUp = <-followUpBody:
+			for rawFollowUp == nil {
+				select {
+				case <-ctx.Done():
+					require.FailNow(t, "timed out waiting for the follow-up request")
+				case rawFollowUp = <-followUpBody:
+				case event, ok := <-events:
+					require.True(t, ok, "stream closed before the follow-up request")
+					if event.Type == codersdk.ChatStreamEventTypeError {
+						require.FailNowf(t, "follow-up turn failed", "%+v", event.Error)
+					}
+				}
 			}
 			settled = coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
 			require.Equal(t, database.ChatStatusWaiting, settled.Status)
@@ -11032,7 +11042,6 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 			require.NoError(t, json.Unmarshal(rawFollowUp, &followUp))
 			require.NotNil(t, followUp.Store)
 			require.Equal(t, tt.store == nil || *tt.store, *followUp.Store)
-			// Items are named by type, or by role for messages.
 			var inputItems []string
 			var replayed json.RawMessage
 			for _, raw := range followUp.Input {
