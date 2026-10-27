@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildChatSearchQuery, extractTypedFilters } from "./searchQuery";
+import {
+	buildChatSearchQuery,
+	createChatSearchTextMatcher,
+	extractTypedFilters,
+} from "./searchQuery";
 
 describe("buildChatSearchQuery", () => {
 	it("returns no query for empty input", () => {
@@ -321,5 +325,40 @@ describe("extractTypedFilters", () => {
 			remainingText: "",
 			consumed: true,
 		});
+	});
+});
+
+describe("createChatSearchTextMatcher", () => {
+	// Each expectation matches PostgreSQL's
+	// to_tsvector('simple', text) @@ websearch_to_tsquery('simple', query).
+	it.each([
+		["Fire dashboard", "fire", true],
+		["Fire dashboard", "FIRE", true],
+		["Fire dashboard", "fir", false],
+		["Fire dashboard", "dashboard fire", true],
+		["Fire dashboard", "fire zzz", false],
+		["Fire dashboard", "zzz or fire", true],
+		["Fire dashboard", "fire or", false],
+		["Fire dashboard", "or fire", false],
+		["Fire dashboard", "zzz or or", false],
+		["Fire dashboard", "-zzz", true],
+		["Fire dashboard", "dashboard -fire", false],
+		["Fire dashboard", "--fire", true],
+		["Fire dashboard", "dashboard - fire", false],
+		["Fire dashboard", "dashboard -!!! fire", false],
+		["Fire dashboard", "zzz or -dashboard fire", false],
+		["Fire dashboard", 'fire "dashboard"', true],
+		["Fire dashboard", "fire,dashboard", true],
+		["Fire dashboard", "dashboard,fire", false],
+		["Fire dashboard", "fire !!!", true],
+		["Fire dashboard", "!!!", false],
+		["Fire dashboard", "", false],
+		["Fire dashboard", "-", false],
+		["foo_bar", "foo", true],
+		["fast-builds", "fast builds", true],
+		["Über evals", "über", true],
+		["PR #412", "412", true],
+	])("%s matches %j: %s", (text, query, expected) => {
+		expect(createChatSearchTextMatcher(query)(text)).toBe(expected);
 	});
 });

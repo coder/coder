@@ -311,6 +311,11 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				onOpenChange={onSearchDialogOpenChange}
 				location={location}
 				recentChats={chats}
+				projects={chatProjectsEnabled ? projectsQuery.data : undefined}
+				projectOrganizationLabels={getOrganizationLabels(
+					projectsQuery.data ?? [],
+					organizations,
+				)}
 			/>
 			<ChatProjectDialog
 				organizations={organizations}
