@@ -1,16 +1,14 @@
 import { render } from "@testing-library/react";
 import {
 	createBrowserRouter,
-	type DataRouter,
 	NavigationType,
 	Outlet,
 	RouterProvider,
-	type RouterState,
 } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-	keepNotificationWindowBackEntry,
 	openChatListFirst,
+	requestNotificationChat,
 	useOpenNotificationChat,
 } from "./notificationWindow";
 
@@ -44,19 +42,6 @@ const createAgentsRouter = (isListLoading = false) =>
 		},
 	]);
 
-const waitForState = (
-	router: DataRouter,
-	predicate: (state: RouterState) => boolean,
-) =>
-	new Promise<void>((resolve) => {
-		const unsubscribe = router.subscribe((state) => {
-			if (predicate(state)) {
-				unsubscribe();
-				resolve();
-			}
-		});
-	});
-
 const currentEntry = () => ({
 	url: `${window.location.pathname}${window.location.search}${window.location.hash}`,
 	state: window.history.state,
@@ -66,7 +51,6 @@ afterEach(() => {
 	vi.useRealTimers();
 	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
-	sessionStorage.clear();
 });
 
 describe("notification window", () => {
@@ -95,6 +79,49 @@ describe("notification window", () => {
 			search: "?archived=false",
 			hash: "#latest",
 		});
+		expect(router.state.historyAction).toBe(NavigationType.Push);
+		router.dispose();
+	});
+
+	it("opens the chat named in the query of a chat list launch", async () => {
+		vi.useFakeTimers({
+			toFake: ["requestAnimationFrame", "cancelAnimationFrame"],
+		});
+		const chatId = chatPath.split("/").pop();
+		openWindow(`/agents?chat=${chatId}&archived=false`, {
+			standalone: false,
+			historyLength: 3,
+		});
+
+		openChatListFirst();
+		const router = createAgentsRouter();
+		render(<RouterProvider router={router} />);
+
+		expect(router.state.location).toMatchObject({
+			pathname: "/agents",
+			search: "?archived=false",
+		});
+		await vi.advanceTimersByTimeAsync(50);
+		expect(router.state.location.pathname).toBe(chatPath);
+		expect(router.state.historyAction).toBe(NavigationType.Push);
+		router.dispose();
+	});
+
+	it("opens a chat requested after the list has rendered", async () => {
+		vi.useFakeTimers({
+			toFake: ["requestAnimationFrame", "cancelAnimationFrame"],
+		});
+		openWindow("/agents", { standalone: false });
+
+		openChatListFirst();
+		const router = createAgentsRouter();
+		render(<RouterProvider router={router} />);
+		await vi.advanceTimersByTimeAsync(50);
+		expect(router.state.location.pathname).toBe("/agents");
+
+		requestNotificationChat(chatPath);
+		await vi.advanceTimersByTimeAsync(50);
+		expect(router.state.location.pathname).toBe(chatPath);
 		expect(router.state.historyAction).toBe(NavigationType.Push);
 		router.dispose();
 	});
@@ -142,48 +169,6 @@ describe("notification window", () => {
 		router.dispose();
 	});
 
-	it("pushes the chat list again when a back step lands on the first entry", async () => {
-		openWindow(`${chatPath}?archived=false`);
-
-		openChatListFirst();
-		const router = createAgentsRouter();
-		keepNotificationWindowBackEntry(router);
-		await router.navigate(`${chatPath}?archived=false`);
-
-		const pushedAgain = waitForState(
-			router,
-			(state) =>
-				state.historyAction === NavigationType.Push &&
-				state.location.pathname === "/agents",
-		);
-		await router.navigate(-1);
-		await pushedAgain;
-
-		expect(router.state.location.search).toBe("?archived=false");
-		expect(window.history.state.idx).toBe(1);
-		router.dispose();
-	});
-
-	it("leaves back steps alone outside a notification window", async () => {
-		openWindow(chatPath, { standalone: false });
-
-		openChatListFirst();
-		const router = createAgentsRouter();
-		keepNotificationWindowBackEntry(router);
-		await router.navigate("/agents");
-
-		const backOnFirstEntry = waitForState(
-			router,
-			(state) => state.location.pathname === chatPath,
-		);
-		await router.navigate(-1);
-		await backOnFirstEntry;
-
-		expect(router.state.historyAction).toBe(NavigationType.Pop);
-		expect(window.history.state.idx).toBe(0);
-		router.dispose();
-	});
-
 	it.each([
 		{ name: "a browser tab", path: chatPath, standalone: false },
 		{ name: "a window with a back entry", path: chatPath, historyLength: 2 },
@@ -192,6 +177,11 @@ describe("notification window", () => {
 		{ name: "an agent settings page", path: "/agents/settings/general" },
 		{ name: "an embedded chat", path: `${chatPath}/embed` },
 		{ name: "another page", path: "/workspaces" },
+		{ name: "a chat list launch naming no chat", path: "/agents?chat=" },
+		{
+			name: "a chat list launch naming agent settings",
+			path: "/agents?chat=settings",
+		},
 	])("leaves the history of $name alone", ({ path, ...options }) => {
 		openWindow(path, options);
 		const before = currentEntry();
@@ -199,6 +189,5 @@ describe("notification window", () => {
 		openChatListFirst();
 
 		expect(currentEntry()).toEqual(before);
-		expect(sessionStorage.length).toBe(0);
 	});
 });

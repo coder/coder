@@ -12,10 +12,7 @@ import { GlobalErrorBoundary } from "./components/ErrorBoundary/GlobalErrorBound
 import { Loader } from "./components/Loader/Loader";
 import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
-import {
-	keepNotificationWindowBackEntry,
-	openChatListFirst,
-} from "./pages/AgentsPage/utils/notificationWindow";
+import { openChatListFirst } from "./pages/AgentsPage/utils/notificationWindow";
 import { AISettingsIndexRedirect } from "./pages/AISettingsPage/AISettingsIndexRedirect";
 import { ModelDefaultsRedirect } from "./pages/AISettingsPage/ModelsPage/ModelDefaultsRedirect";
 import AuditPage from "./pages/AuditPage/AuditPage";
@@ -967,5 +964,3 @@ export const router = createBrowserRouter(
 		</Route>,
 	),
 );
-
-keepNotificationWindowBackEntry(router);
