@@ -7,7 +7,8 @@ title: Nix(OS)
 > Expect breaking changes, and report issues on [GitHub](https://github.com/coder/registry/issues).
 
 [Nix](https://nixos.org) defines development environments as code via [flakes](https://nix.dev/concepts/flakes) committed to Git.
-Flakes declares the tools a project needs and their configuration, its `flake.lock` pins every dependency, and can even set OS-level settings on NixOS so every workspace builds the same environment.
+Flakes declare the tools a project needs and their configuration, and a flake's `flake.lock` pins every dependency.
+On NixOS, flakes can even set OS-level settings, so every workspace builds the same environment.
 
 Nix and NixOS solve different problems, and you can use either or both, in containers or VMs:
 
@@ -43,21 +44,22 @@ module "nix" {
 ```
 
 > [!WARNING]
-> The module does not install Nix and assumes it is available in the PATH; include it in your image in case you are not running NixOS,.
-> 
+> The module does not install Nix and assumes it is available in the `PATH`; if you aren't running NixOS, include it in your image.
+>
 > To install the `nix` CLI, you can use the official [Nix](https://nixos.org/download/) installer, or the installer for the [Lix](https://lix.systems/install/) Nix fork, for a more modern experience.
 
 ## NixOS (template level, for administrators)
 
 A NixOS template boots each workspace from a NixOS VM image and applies the provided flake (`nixos.flake_ref`) via `nixos-rebuild switch` before the Coder agent starts.
-It works on any infrastructure that can boot NixOS and run a script as root at boot, for example through cloud-init or instance user data. Specifics depend on your cloud provider.
+It works on any infrastructure that can boot NixOS and run a script as root at boot, for example through cloud-init or instance user data.
+Specifics depend on your cloud provider.
 
 To build a NixOS template:
 
 1. Write or modify your existing flake with a specific `nixosConfigurations` entry for your Coder workspaces.
    The [example flake](https://github.com/coder/nixos-example-flake) is a good starting point.
 
-   If you are building your own flake, import [`github:coder/nixos-modules`](https://github.com/coder/nixos-modules), which runs the Coder agent as a SystemD unit and creates the workspace user, then add your platform's hardware configuration.
+   If you are building your own flake, import [`github:coder/nixos-modules`](https://github.com/coder/nixos-modules), which runs the Coder agent as a systemd unit and creates the workspace user, then add your platform's hardware configuration.
 
 1. Add the [Nix(OS) module](https://registry.coder.com/modules/coder-labs/nix) to your template and point it at your flake:
 
@@ -75,7 +77,7 @@ To build a NixOS template:
    }
    ```
 
-1. Pass the module's `boot_script` output (e.g `module.nix.boot_script`) to your platform's boot hook (for example, cloud-init) so it runs as root before the agent starts.
+1. Pass the module's `boot_script` output (for example, `module.nix.boot_script`) to your platform's boot hook (for example, cloud-init) so it runs as root before the agent starts.
    The boot hook must also hand the agent token to the agent unit, as described in [the agent handoff](https://github.com/coder/nixos-modules#the-agent-handoff).
 
 Rebuild logs are written to `/var/log/coder-nixos/rebuild-latest.log` in the workspace.
@@ -121,8 +123,8 @@ Its [Alternatives](https://nix.dev/tutorials/nixos/binary-cache-setup.html#alter
 
 ### Other
 
-Other caching methods are available such as prebuilding your Nix image in CI (if you use containers) or using a base disk that you refresh frequently.
+Other caching methods are available, such as prebuilding your Nix image in CI (if you use containers) or using a base disk that you refresh frequently.
 
 If you are looking for the most time-efficient way to improve startup times, set up a local binary cache server first, then combine it with other improvements later.
 
-In most cases, having a binary cache server is preferable either way, because users will still be fetching their own packages (via `nix develop` or other).
+In most cases, having a binary cache server is preferable either way, because users will still be fetching their own packages (through `nix develop` or otherwise).
