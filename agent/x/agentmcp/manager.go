@@ -1149,7 +1149,9 @@ const minSecretBytes = 8
 // a URL authority, such as postgres://user:password@db/app, with the
 // URL's path segments, its user information with the user name and
 // password, and its query with each parameter value, as spelled and
-// decoded.
+// decoded. A value or part without a URL authority is also split at its
+// first colon, like user information, since a value such as
+// user:password holds a credential without a URL.
 func configSecrets(cfg ServerConfig) []string {
 	var values []string
 	addURL := func(u *url.URL) {
@@ -1183,6 +1185,10 @@ func configSecrets(cfg ServerConfig) []string {
 		values = append(values, value)
 		if u, err := url.Parse(value); err == nil && (u.Host != "" || u.User != nil) {
 			addURL(u)
+			return
+		}
+		if user, password, ok := strings.Cut(value, ":"); ok {
+			values = append(values, user, password)
 		}
 	}
 	add := func(value string) {

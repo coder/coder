@@ -147,6 +147,15 @@ const (
 	maxPushWireBytes = drpcsdk.MaxMessageSize - maxSnapshotErrorBytes - 1<<10
 	// maxSnapshotErrorBytes is coderd's maxContextErrorBytes.
 	maxSnapshotErrorBytes = 4 << 10
+	// maxExclusionErrorBytes bounds the errors applyProviderCaps sets on
+	// the resources it excludes, countCapExclusionFormat and
+	// byteCapExclusionFormat with any cap.
+	maxExclusionErrorBytes = 64
+	// exclusionWireBytes bounds how much applyProviderCaps lengthens a
+	// resource it excludes in the serialized push: the error with its
+	// tag and length, and the resource's length prefix, a varint one to
+	// four bytes long.
+	exclusionWireBytes = maxExclusionErrorBytes + 2 + 3
 	// wirePrefixGrowthBytes bounds how much a longer tool lengthens the
 	// three length prefixes around it in the request: its own, its
 	// server body's, and its resource's. Each is a varint of a length
@@ -159,11 +168,12 @@ const (
 // per-tool cap and the remaining catalog budget, its MCP server body
 // stays under coderd's body cap, all bodies of the push, others
 // included, stay under coderd's aggregate cap, and the serialized push
-// stays under dRPC's message limit. Full schemas only get the headroom
-// the reduced push leaves, so they never make coderd or dRPC reject a
-// push that would pass with reduced schemas. A schema
-// with no keys beyond the reduced shape takes no catalog budget, since
-// coderd cannot tell it from a reduced one.
+// stays under dRPC's message limit, with room for the error
+// applyProviderCaps adds to each MCP server and ACP harness it may still
+// exclude. Full schemas only get the headroom the reduced push leaves,
+// so they never make coderd or dRPC reject a push that would pass with
+// reduced schemas. A schema with no keys beyond the reduced shape takes
+// no catalog budget, since coderd cannot tell it from a reduced one.
 func fitMCPToolInputSchemas(logger slog.Logger, resources []Resource, fullTools [][]MCPTool, others []Resource) {
 	ctx := context.Background()
 	pushBodyBytes := 0
@@ -188,6 +198,13 @@ func fitMCPToolInputSchemas(logger slog.Logger, resources []Resource, fullTools 
 		pushBodyBytes += bodyBytes
 	}
 	pushWireBytes := proto.Size(pushRequestToProto(&PushRequest{Resources: slices.Concat(others, resources)}))
+	excludable := len(resources)
+	for _, r := range others {
+		if r.Kind == KindACPHarness {
+			excludable++
+		}
+	}
+	pushWireBytes += excludable * exclusionWireBytes
 
 	budget := maxMCPCatalogInputSchemasBytes
 	for i, res := range resources {

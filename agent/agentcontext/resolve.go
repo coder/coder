@@ -702,7 +702,7 @@ func (r *Resolver) applyCaps(resources []Resource) ([]Resource, uint64) {
 	for i := range resources {
 		if i >= r.MaxResources {
 			resources[i] = excluded(resources[i],
-				fmt.Sprintf("dropped to fit %d-resource snapshot count cap", r.MaxResources))
+				fmt.Sprintf(countCapExclusionFormat, r.MaxResources))
 			continue
 		}
 		if resources[i].Status != StatusOK {
@@ -711,7 +711,7 @@ func (r *Resolver) applyCaps(resources []Resource) ([]Resource, uint64) {
 		size := uint64(len(resources[i].Payload))
 		if total+size > r.MaxSnapshotBytes {
 			resources[i] = excluded(resources[i],
-				fmt.Sprintf("dropped to fit %d-byte aggregate cap", r.MaxSnapshotBytes))
+				fmt.Sprintf(byteCapExclusionFormat, r.MaxSnapshotBytes))
 			continue
 		}
 		total += size
@@ -729,7 +729,7 @@ func (r *Resolver) applyProviderCaps(resources []Resource, startIdx int, priorBy
 	for i := startIdx; i < len(resources); i++ {
 		if i >= r.MaxResources {
 			resources[i] = excluded(resources[i],
-				fmt.Sprintf("dropped to fit %d-resource snapshot count cap", r.MaxResources))
+				fmt.Sprintf(countCapExclusionFormat, r.MaxResources))
 			countCapHit = true
 			continue
 		}
@@ -737,7 +737,7 @@ func (r *Resolver) applyProviderCaps(resources []Resource, startIdx int, priorBy
 		size := uint64(len(resources[i].Payload))
 		if total+size > r.MaxSnapshotBytes {
 			resources[i] = excluded(resources[i],
-				fmt.Sprintf("dropped to fit %d-byte aggregate cap", r.MaxSnapshotBytes))
+				fmt.Sprintf(byteCapExclusionFormat, r.MaxSnapshotBytes))
 			byteCapHit = true
 			continue
 		}
@@ -751,6 +751,13 @@ func (r *Resolver) applyProviderCaps(resources []Resource, startIdx int, priorBy
 	}
 	return resources, snapErrs
 }
+
+// Formats of the errors that applyCaps and applyProviderCaps set on the
+// resources they exclude, given the cap.
+const (
+	countCapExclusionFormat = "dropped to fit %d-resource snapshot count cap"
+	byteCapExclusionFormat  = "dropped to fit %d-byte aggregate cap"
+)
 
 // excluded mutates and returns the supplied resource with the
 // StatusExcluded outcome.
