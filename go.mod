@@ -121,7 +121,8 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    charmbracelet/fantasy#435.
 // 16) coder/fantasy#67, separate OpenAI Responses reasoning summary
 //    parts with a blank line, also before the first part, so each
-//    part's bold title renders on its own line.
+//    part's bold title renders on its own line. Upstream as
+//    charmbracelet/fantasy#436.
 // See: https://github.com/coder/fantasy/commits/2e8e2cbf4aea
 replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261027133624-2e8e2cbf4aea
 
