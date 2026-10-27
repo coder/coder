@@ -41,6 +41,12 @@
 //   --stream=0                skip the streaming phases
 //   --viewport=<W>x<H>        browser viewport (default 1800x1000); for
 //                             example 390x844 for a phone width
+//   --type-prefill=<n>        idle-type: insert n characters of filler text
+//                             into the first composer before typing
+//   --type-chars=<n>          idle-type: type n characters of filler text, one
+//                             key at a time, instead of one word; enough
+//                             text wraps and grows the composer line by line
+//                             (see prep/wrap-probe.js)
 //   --history=page            measure only the first page of each transcript;
 //                             by default a run loads the full history and
 //                             fails if it cannot
@@ -1133,7 +1139,26 @@ async function main() {
 	await phase(
 		"idle-type",
 		async () => {
-			await typeWord(A, "when");
+			const filler = (n) => "when ".repeat(Math.ceil(n / 5)).slice(0, n);
+			const prefill = Number(args["type-prefill"] ?? 0);
+			const typeChars = Number(args["type-chars"] ?? 0);
+			if (prefill) {
+				await A.click();
+				await page.keyboard.insertText(filler(prefill));
+				await page.waitForTimeout(1000);
+			}
+			if (typeChars) {
+				if (!prefill) await A.click();
+				await page.keyboard.press("Control+End");
+				await page.evaluate(() => window.__bench.mark("type-start"));
+				for (const ch of filler(typeChars)) {
+					await page.keyboard.type(ch, { delay: 0 });
+					await page.waitForTimeout(120);
+				}
+				await page.evaluate(() => window.__bench.mark("type-end"));
+			} else {
+				await typeWord(A, "when");
+			}
 			if (wantComposers > 1) await typeWord(B, "when");
 			await clearComposer(A);
 			if (wantComposers > 1) await clearComposer(B);
