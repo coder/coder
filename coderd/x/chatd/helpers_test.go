@@ -44,8 +44,9 @@ type recordingPubsub struct {
 	// Embed the full pubsub so a recordingPubsub can also stand in for a
 	// Server's pubsub, recording every published event.
 	dbpubsub.Pubsub
-	mu     sync.Mutex
-	events []publishedEvent
+	mu        sync.Mutex
+	events    []publishedEvent
+	onPublish func(channel string)
 }
 
 func newRecordingPubsub(inner dbpubsub.Pubsub) *recordingPubsub {
@@ -58,8 +59,24 @@ func (p *recordingPubsub) Publish(channel string, payload []byte) error {
 		channel: channel,
 		payload: append([]byte(nil), payload...),
 	})
+	onPublish := p.onPublish
 	p.mu.Unlock()
+	if onPublish != nil {
+		onPublish(channel)
+	}
 	return p.Pubsub.Publish(channel, payload)
+}
+
+func (p *recordingPubsub) clear() {
+	p.mu.Lock()
+	p.events = nil
+	p.mu.Unlock()
+}
+
+func (p *recordingPubsub) published() []publishedEvent {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]publishedEvent(nil), p.events...)
 }
 
 func (p *recordingPubsub) ownershipMessages(t *testing.T) []coderdpubsub.ChatStateOwnershipMessage {
