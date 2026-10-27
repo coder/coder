@@ -14,11 +14,26 @@ import {
 const chatPath = "/agents/8f3a6131-1ce8-46f5-9ba8-4a36beb2a1c4";
 
 // jsdom keeps one session history per test file, so each test fakes the
-// window it opens: its first entry, its history length and its display mode.
+// window it opens: its first entry, its history length, its display mode and
+// the user metadata the server rendered.
 const openWindow = (
 	path: string,
-	{ standalone = true, historyLength = 1 } = {},
+	{
+		standalone = true,
+		historyLength = 1,
+		userMetadata,
+	}: {
+		standalone?: boolean;
+		historyLength?: number;
+		userMetadata?: string;
+	} = {},
 ) => {
+	if (userMetadata !== undefined) {
+		const meta = document.createElement("meta");
+		meta.setAttribute("property", "user");
+		meta.setAttribute("content", userMetadata);
+		document.head.appendChild(meta);
+	}
 	window.history.replaceState(null, "", path);
 	vi.spyOn(window.history, "length", "get").mockReturnValue(historyLength);
 	vi.stubGlobal("matchMedia", (query: string) => ({
@@ -47,6 +62,9 @@ const currentEntry = () => ({
 });
 
 afterEach(() => {
+	for (const meta of document.head.querySelectorAll('meta[property="user"]')) {
+		meta.remove();
+	}
 	vi.useRealTimers();
 	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
@@ -128,6 +146,7 @@ describe("notification window", () => {
 	it.each([
 		{ name: "a browser tab", path: chatPath, standalone: false },
 		{ name: "a window with a back entry", path: chatPath, historyLength: 2 },
+		{ name: "a signed-out visitor", path: chatPath, userMetadata: "" },
 		{ name: "the chat list", path: "/agents" },
 		{ name: "agent settings", path: "/agents/settings" },
 		{ name: "an agent settings page", path: "/agents/settings/general" },
