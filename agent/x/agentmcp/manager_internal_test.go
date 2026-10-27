@@ -259,7 +259,7 @@ func TestConnectServer_StdioProcessSurvivesConnect(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	m := &Manager{execer: agentexec.DefaultExecer, fs: afero.NewOsFs(), envInfo: &usershell.SystemEnvInfo{}}
-	client, err := m.connectServer(ctx, cfg)
+	client, _, err := m.connectServer(ctx, cfg)
 	require.NoError(t, err, "connectServer should succeed")
 	t.Cleanup(func() { _ = client.Close() })
 
@@ -272,6 +272,43 @@ func TestConnectServer_StdioProcessSurvivesConnect(t *testing.T) {
 	require.NoError(t, err, "ListTools should succeed, server must be alive after connect")
 	require.Len(t, result.Tools, 1)
 	assert.Equal(t, "echo", result.Tools[0].Name)
+}
+
+// TestConnectServer_StdioSecretsIncludeSubprocessEnv verifies that the
+// secrets of a stdio server include the values its subprocess inherits,
+// not only the explicit overrides of its configuration.
+func TestConnectServer_StdioSecretsIncludeSubprocessEnv(t *testing.T) {
+	t.Parallel()
+
+	if os.Getenv("TEST_MCP_FAKE_SERVER") == "1" {
+		runFakeMCPServer()
+		return
+	}
+
+	testBin, err := os.Executable()
+	require.NoError(t, err)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	m := &Manager{
+		execer:  agentexec.DefaultExecer,
+		fs:      afero.NewOsFs(),
+		envInfo: &usershell.SystemEnvInfo{},
+		logger:  slogtest.Make(t, nil),
+		updateEnv: func(env []string) ([]string, error) {
+			return append(env, "INHERITED_TOKEN=inheritedsecret1"), nil
+		},
+	}
+	client, secrets, err := m.connectServer(ctx, ServerConfig{
+		Name:      "fake",
+		Transport: "stdio",
+		Command:   testBin,
+		Args:      []string{"-test.run=^TestConnectServer_StdioSecretsIncludeSubprocessEnv$"},
+		Env:       map[string]string{"TEST_MCP_FAKE_SERVER": "1", "EXPLICIT_TOKEN": "explicitsecret1"},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+	require.Contains(t, secrets, "inheritedsecret1")
+	require.Contains(t, secrets, "explicitsecret1")
 }
 
 // TestConnectServer_HTTPConnectsWhenStandaloneSSEHangs guards against the
@@ -315,7 +352,7 @@ func TestConnectServer_HTTPConnectsWhenStandaloneSSEHangs(t *testing.T) {
 	}
 	done := make(chan connectResult, 1)
 	go func() {
-		client, err := m.connectServer(ctx, ServerConfig{
+		client, _, err := m.connectServer(ctx, ServerConfig{
 			Name:      "fake",
 			Transport: "http",
 			URL:       srv.URL,
@@ -456,9 +493,9 @@ func TestToolInputSchemaMapSecrets(t *testing.T) {
 	secrets := configSecrets(ServerConfig{
 		URL:     "https://mcp.example.com/u/" + token + "/mcp",
 		Headers: map[string]string{"Authorization": "Bearer " + token},
-		Env:     map[string]string{"API_KEY": "key=" + token + "; region=us"},
+		Env:     map[string]string{"API_KEY": "key=" + token + "; region=us", "PIN": "12345678"},
 		Args:    []string{"--token=" + token},
-	})
+	}, nil)
 	properties := map[string]any{"q": map[string]any{"description": "uses " + token}}
 	reduced := map[string]any{"type": "object", "properties": properties}
 	// A secret in the reduced keys was passed before full schemas.
@@ -476,6 +513,11 @@ func TestToolInputSchemaMapSecrets(t *testing.T) {
 		{
 			name:   "key beyond the reduced keys",
 			schema: map[string]any{"type": "object", "properties": properties, "$defs": map[string]any{token: map[string]any{}}},
+			want:   reduced,
+		},
+		{
+			name:   "number beyond the reduced keys",
+			schema: map[string]any{"type": "object", "properties": properties, "$defs": map[string]any{"D": map[string]any{"const": float64(12345678)}}},
 			want:   reduced,
 		},
 		{
@@ -521,9 +563,11 @@ func TestConfigSecrets(t *testing.T) {
 			"DATABASE_URL": "postgres://dbuser01:envpassword1@db/app?sslmode=require&apikey=env%2Bquery1",
 			"WORKDIR":      "/home/coder/workspace",
 			"BASIC_AUTH":   "basicuser1:basicpassword1",
+			"JDBC_URL":     "jdbc:postgresql://db/app?user=jdbcuser1&password=jdbcpassword1",
+			"DSN":          "dsnuser01:dsnpassword1@db/app",
 		},
 		Args: []string{"--key=argsecret12", "--db=mysql://root:argpassword1@db/app"},
-	})
+	}, []string{"INHERITED_TOKEN=inheritedsecret1"})
 	for _, want := range []string{
 		rawURL, "pathsecret1",
 		"svc-account", "pass%2Fword1", "pass/word1",
@@ -534,6 +578,8 @@ func TestConfigSecrets(t *testing.T) {
 		"--key=argsecret12", "argsecret12",
 		"root:argpassword1", "argpassword1",
 		"basicuser1", "basicpassword1",
+		"jdbcpassword1", "dsnpassword1",
+		"inheritedsecret1",
 	} {
 		require.Contains(t, secrets, want)
 	}

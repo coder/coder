@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -137,6 +138,9 @@ type Manager struct {
 type serverEntry struct {
 	config ServerConfig
 	client *mcp.ClientSession
+	// secrets are the configSecrets of the server, found when it
+	// connected.
+	secrets []string
 }
 
 // NewManager creates a new MCP client manager. The ctx bounds
@@ -453,9 +457,10 @@ type serverDiff struct {
 }
 
 type connectedServer struct {
-	name   string
-	config ServerConfig
-	client *mcp.ClientSession
+	name    string
+	config  ServerConfig
+	client  *mcp.ClientSession
+	secrets []string
 }
 
 // doReload reads MCP config files and performs a differential
@@ -601,7 +606,7 @@ func (m *Manager) connectAll(ctx context.Context, toConnect []ServerConfig) []co
 	var eg errgroup.Group
 	for _, cfg := range toConnect {
 		eg.Go(func() error {
-			c, err := m.connectServer(ctx, cfg)
+			c, secrets, err := m.connectServer(ctx, cfg)
 			if err != nil {
 				logger.Warn(ctx, "skipping MCP server",
 					slog.F("server", cfg.Name),
@@ -612,7 +617,7 @@ func (m *Manager) connectAll(ctx context.Context, toConnect []ServerConfig) []co
 			}
 			mu.Lock()
 			connected = append(connected, connectedServer{
-				name: cfg.Name, config: cfg, client: c,
+				name: cfg.Name, config: cfg, client: c, secrets: secrets,
 			})
 			mu.Unlock()
 			return nil
@@ -659,8 +664,9 @@ func (m *Manager) installServers(
 		}
 		if cs, ok := newConnected[wantCfg.Name]; ok {
 			newServers[wantCfg.Name] = &serverEntry{
-				config: cs.config,
-				client: cs.client,
+				config:  cs.config,
+				client:  cs.client,
+				secrets: cs.secrets,
 			}
 			if prev, existed := diff.prev[wantCfg.Name]; existed {
 				replaced = append(replaced, prev)
@@ -790,13 +796,12 @@ func (m *Manager) refreshCatalog(ctx context.Context, wanted map[string]ServerCo
 				mu.Unlock()
 				return nil
 			}
-			secrets := configSecrets(entry.config)
 			tools := make([]ToolInfo, 0, len(result.Tools))
 			for _, tool := range result.Tools {
 				tools = append(tools, ToolInfo{
 					Name:        tool.Name,
 					Description: tool.Description,
-					InputSchema: toolInputSchemaMap(tool.InputSchema, secrets),
+					InputSchema: toolInputSchemaMap(tool.InputSchema, entry.secrets),
 				})
 			}
 			mu.Lock()
@@ -894,14 +899,20 @@ func (m *Manager) Close() error {
 	return errors.Join(errs...)
 }
 
-// connectServer does not modify Manager state.
-func (m *Manager) connectServer(ctx context.Context, cfg ServerConfig) (*mcp.ClientSession, error) {
+// connectServer does not modify Manager state. It also returns the
+// configSecrets of cfg and, for a stdio server, of the environment the
+// subprocess runs with, which holds inherited credentials too.
+func (m *Manager) connectServer(ctx context.Context, cfg ServerConfig) (*mcp.ClientSession, []string, error) {
 	// Use ctx for the transport so a stdio subprocess outlives the
 	// connect handshake. connectCtx bounds only Connect; closing the
 	// session or canceling ctx stops the subprocess.
 	tr, err := m.createTransport(ctx, cfg)
 	if err != nil {
-		return nil, xerrors.Errorf("create transport for %q: %w", cfg.Name, err)
+		return nil, nil, xerrors.Errorf("create transport for %q: %w", cfg.Name, err)
+	}
+	var env []string
+	if ct, ok := tr.(*mcp.CommandTransport); ok {
+		env = ct.Command.Env
 	}
 
 	c := mcp.NewClient(&mcp.Implementation{
@@ -914,10 +925,10 @@ func (m *Manager) connectServer(ctx context.Context, cfg ServerConfig) (*mcp.Cli
 
 	session, err := c.Connect(connectCtx, tr, nil)
 	if err != nil {
-		return nil, xerrors.Errorf("connect %q: %w", cfg.Name, err)
+		return nil, nil, xerrors.Errorf("connect %q: %w", cfg.Name, err)
 	}
 
-	return session, nil
+	return session, configSecrets(cfg, env), nil
 }
 
 func (m *Manager) createTransport(ctx context.Context, cfg ServerConfig) (mcp.Transport, error) {
@@ -1141,18 +1152,21 @@ func reducedInputSchema(m map[string]any) map[string]any {
 // Shorter values cannot be secrets and would match ordinary text.
 const minSecretBytes = 8
 
-// configSecrets returns the values of a server's configuration that may
-// be credentials, whole and as each part a server may echo on its own:
-// the header, environment, and argument values with their space,
-// semicolon, or comma separated parts and the value of each name=value
-// part, and the server URL and each of those values or parts that holds
-// a URL authority, such as postgres://user:password@db/app, with the
-// URL's path segments, its user information with the user name and
-// password, and its query with each parameter value, as spelled and
-// decoded. A value or part without a URL authority is also split at its
-// first colon, like user information, since a value such as
-// user:password holds a credential without a URL.
-func configSecrets(cfg ServerConfig) []string {
+// configSecrets returns the values of a server's configuration and of
+// the name=value entries of env that may be credentials, whole and as
+// each part a server may echo on its own: the header, environment, and
+// argument values with their space, semicolon, or comma separated parts
+// and the value of each name=value part, and the server URL and each of
+// those values or parts that holds a URL authority, such as
+// postgres://user:password@db/app, with the URL's path segments, its
+// user information with the user name and password, and its query with
+// each parameter value, as spelled and decoded. A value or part without
+// a URL authority is also split at its first colon, like user
+// information, since a value such as user:password or
+// user:password@host holds a credential without a URL. The rest after
+// that colon is parsed as a URL too, as in
+// jdbc:postgresql://db/app?password=secret.
+func configSecrets(cfg ServerConfig, env []string) []string {
 	var values []string
 	addURL := func(u *url.URL) {
 		for _, path := range []string{u.EscapedPath(), u.Path} {
@@ -1179,16 +1193,30 @@ func configSecrets(cfg ServerConfig) []string {
 			}
 		}
 	}
-	// addValue parses only values with a URL authority, because the path
-	// segments of a plain file path or word are not secrets.
+	// addAuthorityURL adds the parts of value only if it is a URL with an
+	// authority, because the path segments of a plain file path or word
+	// are not secrets, and reports whether it is.
+	addAuthorityURL := func(value string) bool {
+		u, err := url.Parse(value)
+		if err != nil || (u.Host == "" && u.User == nil) {
+			return false
+		}
+		addURL(u)
+		return true
+	}
 	addValue := func(value string) {
 		values = append(values, value)
-		if u, err := url.Parse(value); err == nil && (u.Host != "" || u.User != nil) {
-			addURL(u)
+		if addAuthorityURL(value) {
 			return
 		}
-		if user, password, ok := strings.Cut(value, ":"); ok {
-			values = append(values, user, password)
+		user, rest, ok := strings.Cut(value, ":")
+		if !ok {
+			return
+		}
+		values = append(values, user, rest)
+		addAuthorityURL(rest)
+		if i := strings.LastIndex(rest, "@"); i >= 0 {
+			values = append(values, rest[:i])
 		}
 	}
 	add := func(value string) {
@@ -1216,15 +1244,23 @@ func configSecrets(cfg ServerConfig) []string {
 	for _, value := range cfg.Args {
 		add(value)
 	}
+	for _, entry := range env {
+		if _, value, ok := strings.Cut(entry, "="); ok {
+			add(value)
+		}
+	}
 	return slices.DeleteFunc(values, func(value string) bool {
 		return len(value) < minSecretBytes
 	})
 }
 
 // containsSecret reports whether a JSON value holds one of secrets in a
-// string or an object key.
+// string, a number, or an object key.
 func containsSecret(value any, secrets []string) bool {
 	switch v := value.(type) {
+	case float64:
+		// A credential of digits, such as a PIN, decodes as a number.
+		return containsSecret(strconv.FormatFloat(v, 'f', -1, 64), secrets)
 	case string:
 		for _, secret := range secrets {
 			if strings.Contains(v, secret) {
