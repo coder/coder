@@ -1,10 +1,24 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import {
+	expect,
+	fn,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { CHAT_SEARCH_LIMIT } from "#/api/queries/chats";
-import type { Chat } from "#/api/typesGenerated";
+import type { Chat, ChatProject } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
+import {
+	MockChatProject,
+	MockDefaultOrganization,
+	MockOrganization2,
+} from "#/testHelpers/entities";
+import { getOrganizationLabels } from "../chats/projectGrouping";
 import { ChatSearchDialog } from "./ChatSearchDialog";
 
 const mockDiffStatus: NonNullable<Chat["diff_status"]> = {
@@ -92,6 +106,19 @@ const cappedMockChats: Chat[] = Array.from(
 );
 const longDiffURL =
 	"github.com/coder/coder/pull/26016/files/1234567890abcdef1234567890abcdef1234567890abcdef";
+
+const mockProjects: ChatProject[] = [
+	{ ...MockChatProject, id: "project-1", name: "Agent evals" },
+	{ ...MockChatProject, id: "project-2", name: "Fast builds" },
+	{
+		...MockChatProject,
+		id: "project-3",
+		name: "Fire dashboard",
+		icon: "/emojis/1f525.png",
+	},
+	{ ...MockChatProject, id: "project-4", name: "Launch" },
+	{ ...MockChatProject, id: "project-5", name: "Release dashboard" },
+];
 
 const meta: Meta<typeof ChatSearchDialog> = {
 	title: "pages/AgentsPage/ChatSearchDialog",
@@ -829,6 +856,120 @@ export const CombinedFilterAndText: Story = {
 				{ limit: CHAT_SEARCH_LIMIT, q: 'has_unread:true search:"Fix"' },
 				expect.any(AbortSignal),
 			);
+		});
+	},
+};
+
+// ---------------------------------------------------------------------------
+// Projects: listed by name with no query, matched by name in search results.
+// ---------------------------------------------------------------------------
+
+const searchProjects = async (text: string) => {
+	await userEvent.type(
+		screen.getByRole("combobox", { name: "Search chats and projects" }),
+		text,
+	);
+	await screen.findByRole("listbox", { name: "Search results" });
+};
+
+const mockDuplicateNameProjects: ChatProject[] = [
+	{ ...MockChatProject, id: "project-launch-1", name: "Launch" },
+	{
+		...MockChatProject,
+		id: "project-launch-2",
+		name: "Launch",
+		organization_id: MockOrganization2.id,
+	},
+];
+
+export const ProjectsDefaultView: Story = {
+	args: { projects: mockProjects },
+};
+
+export const ProjectsShowAll: Story = {
+	args: { projects: mockProjects },
+	play: async () => {
+		await userEvent.click(
+			screen.getByRole("option", { name: "Show all 5 projects" }),
+		);
+	},
+};
+
+export const ProjectsWithOrganizationLabels: Story = {
+	args: {
+		projects: mockDuplicateNameProjects,
+		projectOrganizationLabels: getOrganizationLabels(
+			mockDuplicateNameProjects,
+			[MockDefaultOrganization, MockOrganization2],
+		),
+	},
+};
+
+export const ProjectResults: Story = {
+	args: { projects: mockProjects },
+	play: () => searchProjects("dashboard"),
+};
+
+export const ProjectResultsCappedChats: Story = {
+	args: { projects: mockProjects },
+	beforeEach: () => {
+		spyOn(API.experimental, "getChats").mockResolvedValue(cappedMockChats);
+	},
+	play: async () => {
+		await searchProjects("dashboard");
+		await screen.findByText("Fix capped search result 1");
+	},
+};
+
+export const ProjectResultsLoadingChats: Story = {
+	args: { projects: mockProjects },
+	beforeEach: () => {
+		spyOn(API.experimental, "getChats").mockImplementation(
+			() =>
+				new Promise<Chat[]>((_resolve) => {
+					// Keep request pending to hold the chat skeleton under the projects.
+				}),
+		);
+	},
+	play: () => searchProjects("dashboard"),
+};
+
+export const ProjectResultsChatSearchError: Story = {
+	args: { projects: mockProjects },
+	beforeEach: () => {
+		spyOn(API.experimental, "getChats").mockRejectedValue(
+			new Error("Bad filter"),
+		);
+	},
+	play: async () => {
+		await searchProjects("dashboard");
+		await screen.findByRole("alert");
+	},
+};
+
+export const ProjectResultsHiddenByFilter: Story = {
+	args: { projects: mockProjects },
+	play: async () => {
+		await userEvent.type(
+			screen.getByRole("combobox", { name: "Search chats and projects" }),
+			"has_unread:true dashboard",
+		);
+		await screen.findByRole("listbox", { name: "Chat search results" });
+	},
+};
+
+export const NoMatchingChatsOrProjects: Story = {
+	args: { projects: mockProjects },
+	beforeEach: () => {
+		spyOn(API.experimental, "getChats").mockResolvedValue([]);
+	},
+	play: async () => {
+		await userEvent.type(
+			screen.getByRole("combobox", { name: "Search chats and projects" }),
+			"zzz",
+		);
+		await screen.findByText("No matching chats or projects.", {
+			exact: false,
 		});
 	},
 };
