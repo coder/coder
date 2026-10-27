@@ -128,8 +128,8 @@ describe("AgentChatPage", () => {
 		renderChatPage();
 		const dock = await screen.findByRole("region", { name: "Open question" });
 		const composer = screen.getByRole("textbox", { name: "Chat message" });
-		// jsdom focuses the editor only while the DOM selection is already in
-		// it. A click moves that selection, so the answer uses the keyboard.
+		// jsdom focuses the editor only while the DOM selection is in it, and a
+		// click on the form would move the selection out, so answer by keyboard.
 		await user.click(composer);
 		act(() =>
 			within(dock)
