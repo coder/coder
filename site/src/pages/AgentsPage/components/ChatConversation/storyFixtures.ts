@@ -19,8 +19,9 @@ import type { WorkingBlock } from "./workingBlockGrouping";
 const loadedStores = new Map<string, ChatStore>();
 
 /**
- * A chat store loaded with page. A story's chatStoreKey query data calls it,
- * so each render gets a new store.
+ * A chat store loaded with page, which loadedChatStore returns until the
+ * next call for the chat. A story's chatStoreKey query data calls it, so
+ * each render gets a new store.
  */
 export const buildLoadedChatStore = (
 	chatID: string,
