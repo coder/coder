@@ -252,8 +252,6 @@ Ask an organization admin to change an organization skill.
 Project skills let the people who work in a chat project share skills with every chat in that project.
 Chats outside the project never receive them.
 Chat projects are in [early access](../../reference/feature-stages.md#early-access-features).
-To share a chat project with other users or groups, an administrator must start the server with the `chat-project-sharing` experiment, for example `CODER_EXPERIMENTS=chat-project-sharing`.
-Sharing is available only through the API, at `/api/experimental/organizations/{organization}/chats/projects/{project}/acl`.
 
 Project skills use the same single-file `SKILL.md` format and the same 64&nbsp;KB limit as personal skills, so they cannot include supporting files.
 Each project can have up to 100 skills, and skills that are turned off count toward that limit.
