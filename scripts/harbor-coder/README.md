@@ -23,11 +23,12 @@ change is a branch and the unit of comparison is a build. The verdict calls
 a change better or worse only when a paired bootstrap 95% interval over
 tasks excludes zero.
 
-Measured on `main`: 73% on the full 86 tasks at two attempts, $31.54 and
-3.4h for one arm. Estimated for the 77-task set: about $30 and 80 to 100
-minutes per arm at concurrency 5 (chatd's unlicensed cap on concurrent
-chats). One `/coder-agents-eval` runs two arms, so about $60 of gateway
-spend and two 8-core runners.
+Measured on the 77-task set at concurrency 5 (chatd's unlicensed cap on
+concurrent chats): about $23 and 90 minutes per arm
+([run](https://github.com/coder/coder/actions/runs/40423882171)). One
+`/coder-agents-eval` runs two arms in parallel, so about $47 of gateway
+spend and two 8-core runners for roughly 1.5h. The full 86 tasks on `main`
+scored 73% at two attempts, $31.54 and 3.4h for one arm.
 Dataset, model, attempts, concurrency, and the Harbor version are the `env`
 block at the top of the workflow.
 
