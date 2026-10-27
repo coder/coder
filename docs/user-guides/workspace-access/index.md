@@ -105,14 +105,15 @@ Coder generates [SSH key pairs](../../admin/security/secrets.md#ssh-keys) for ea
    You should now be able to ssh into your workspace.
    For example, try running:
 
-   $ ssh <workspaceName>.coder
+   $ ssh <workspace_name>.coder
    ```
 
 Your workspace is now accessible via `ssh <workspace_name>.coder` (for example, `ssh myEnv.coder` if your workspace is named `myEnv`).
 If your workspace has more than one agent, include the agent and owner: `ssh <agent>.<workspace_name>.<owner>.coder`.
 The **Connect via SSH** button on the workspace page shows the exact command for each agent.
 
-`coder` is the default hostname suffix. Your administrator can change it with [`CODER_WORKSPACE_HOSTNAME_SUFFIX`](../../reference/cli/server/index.md#--workspace-hostname-suffix).
+`coder` is the default hostname suffix.
+Your administrator can change it with [`CODER_WORKSPACE_HOSTNAME_SUFFIX`](../../reference/cli/server/index.md#--workspace-hostname-suffix).
 
 > [!TIP]
 > If you use a third-party SSH client that discovers hosts by parsing `~/.ssh/config` (such as the VS Code Remote-SSH sidebar or scripts that enumerate known hosts), run `coder config-ssh --no-wildcard` instead.

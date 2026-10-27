@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -171,6 +173,70 @@ func TestConfigSSH(t *testing.T) {
 
 	_ = listener.Close()
 	<-copyDone
+}
+
+func TestConfigSSH_Example(t *testing.T) {
+	t.Parallel()
+
+	var resourceRequests sync.Map
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		APIMiddleware: func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/v2/templateversions/") && strings.HasSuffix(r.URL.Path, "/resources") {
+					counter, _ := resourceRequests.LoadOrStore(r.URL.Path, new(atomic.Int32))
+					counter.(*atomic.Int32).Add(1)
+				}
+				next.ServeHTTP(w, r)
+			})
+		},
+	})
+	admin := coderdtest.CreateFirstUser(t, client)
+
+	for _, noWildcard := range []bool{false, true} {
+		for _, stopped := range []bool{false, true} {
+			t.Run(fmt.Sprintf("NoWildcard=%t/Stopped=%t", noWildcard, stopped), func(t *testing.T) {
+				t.Parallel()
+
+				member, user := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+				build := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+					OrganizationID: admin.OrganizationID,
+					OwnerID:        user.ID,
+				}).WithAgent(func(agents []*sdkproto.Agent) []*sdkproto.Agent {
+					agents[0].Name = "alpha"
+					return append(agents, &sdkproto.Agent{
+						Id:   uuid.NewString(),
+						Name: "beta",
+						Auth: &sdkproto.Agent_Token{Token: uuid.NewString()},
+						Env:  map[string]string{},
+					})
+				})
+				if stopped {
+					build = build.Seed(database.WorkspaceBuild{Transition: database.WorkspaceTransitionStop})
+				}
+				workspace := build.Do().Workspace
+				args := []string{"config-ssh", "--ssh-config-file", sshConfigFileName(t), "--hostname-suffix", "coder", "--yes"}
+				if noWildcard {
+					args = append(args, "--no-wildcard")
+				}
+				inv, root := clitest.New(t, args...)
+				clitest.SetupConfig(t, member, root)
+				stdout := expecter.NewAttachedToInvocation(t, inv)
+				ctx := testutil.Context(t, testutil.WaitLong)
+				waiter := clitest.StartWithWaiter(t, inv.WithContext(ctx))
+				stdout.ExpectMatch(ctx, "$ ssh alpha."+workspace.Name+"."+user.Username+".coder")
+				waiter.RequireSuccess()
+
+				if stopped {
+					workspace, err := member.Workspace(ctx, workspace.ID)
+					require.NoError(t, err)
+					path := "/api/v2/templateversions/" + workspace.LatestBuild.TemplateVersionID.String() + "/resources"
+					counter, ok := resourceRequests.Load(path)
+					require.True(t, ok, "stopped workspace hint fetches template resources")
+					require.EqualValues(t, 1, counter.(*atomic.Int32).Load(), "reuse the resources fetched for host entries")
+				}
+			})
+		}
+	}
 }
 
 func TestConfigSSH_RejectsUnsafeServerConfig(t *testing.T) {

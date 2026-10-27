@@ -466,6 +466,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 				return err
 			}
 
+			var versionResources map[uuid.UUID][]codersdk.WorkspaceResource
 			if configOptions.noWildcard {
 				// Fetch all workspaces to generate individual host entries.
 				var workspaces []codersdk.Workspace
@@ -486,7 +487,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 					}
 					offset += pageSize
 				}
-				versionResources := templateVersionResources(ctx, inv.Stderr, client, workspaces)
+				versionResources = templateVersionResources(ctx, inv.Stderr, client, workspaces)
 				configOptions.hostNames = noWildcardHostNames(workspaces, versionResources)
 			}
 
@@ -568,8 +569,11 @@ func (r *RootCmd) configSSH() *serpent.Command {
 					host := ws.Name
 					agents := startAgentNames(ws.LatestBuild.Resources)
 					if len(agents) == 0 {
-						// A stopped workspace has no agents on its latest build.
-						if resources, err := client.TemplateVersionResources(ctx, ws.LatestBuild.TemplateVersionID); err == nil {
+						// Reuse the resources fetched for --no-wildcard, including
+						// failed fetches, so the hint does not retry them.
+						if configOptions.noWildcard {
+							agents = startAgentNames(versionResources[ws.LatestBuild.TemplateVersionID])
+						} else if resources, err := client.TemplateVersionResources(ctx, ws.LatestBuild.TemplateVersionID); err == nil {
 							agents = startAgentNames(resources)
 						}
 					}
