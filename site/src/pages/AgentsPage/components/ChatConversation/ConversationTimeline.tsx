@@ -26,7 +26,7 @@ import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ImageLightbox } from "../ImageLightbox";
 import { LightboxHost, useLightbox } from "../LightboxHost";
 import { TextPreviewDialog } from "../TextPreviewDialog";
-import { useDialogFocusReturn } from "../useDialogFocusReturn";
+import { returnFocusTo } from "../useDialogFocusReturn";
 import { AssistantOutput } from "./AssistantOutput";
 import type { PreviewTextAttachment } from "./AttachmentBlocks";
 import { FileProbeProvider } from "./FileProbeContext";
@@ -199,14 +199,13 @@ const ChatMessageItem = memo<{
 		const isUser = message?.role === "user";
 		const messageId = message?.id;
 		const { openLightbox } = useLightbox();
-		const { rememberTriggerButton, restoreFocus } = useDialogFocusReturn();
 		const openImagePreview = (src: string, trigger: HTMLButtonElement) => {
-			rememberTriggerButton(trigger);
+			const onCloseAutoFocus = returnFocusTo(trigger);
 			openLightbox((close) => (
 				<ImageLightbox
 					src={src}
 					onClose={close}
-					onCloseAutoFocus={restoreFocus}
+					onCloseAutoFocus={onCloseAutoFocus}
 				/>
 			));
 		};
@@ -214,14 +213,14 @@ const ChatMessageItem = memo<{
 			{ content, fileName, mediaType }: PreviewTextAttachment,
 			trigger: HTMLButtonElement,
 		) => {
-			rememberTriggerButton(trigger);
+			const onCloseAutoFocus = returnFocusTo(trigger);
 			openLightbox((close) => (
 				<TextPreviewDialog
 					content={content}
 					fileName={fileName}
 					mediaType={mediaType}
 					onClose={close}
-					onCloseAutoFocus={restoreFocus}
+					onCloseAutoFocus={onCloseAutoFocus}
 				/>
 			));
 		};

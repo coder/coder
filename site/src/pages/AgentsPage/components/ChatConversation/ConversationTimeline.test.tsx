@@ -707,7 +707,7 @@ describe("ConversationTimeline live working blocks", () => {
 });
 
 describe("ConversationTimeline lightboxes", () => {
-	it("keeps the open lightbox when a text attachment preview loads after it opened", async () => {
+	it("keeps the open lightbox and its focus return when a text attachment preview loads after it opened", async () => {
 		const user = userEvent.setup();
 		const notesResponse = createDeferred<undefined>();
 		server.use(
@@ -732,14 +732,15 @@ describe("ConversationTimeline lightboxes", () => {
 
 		await user.click(screen.getByRole("button", { name: "View notes.txt" }));
 		const loading = screen.getByText("Loading attachment preview…");
-		await user.click(
-			screen.getByRole("button", { name: "View Attached image" }),
-		);
+		const image = screen.getByRole("button", { name: "View Attached image" });
+		await user.click(image);
 		const lightbox = screen.getByRole("dialog", { name: "Image preview" });
 
 		notesResponse.resolve(undefined);
 		await waitForElementToBeRemoved(loading);
 		expect(screen.getByRole("dialog")).toBe(lightbox);
+		await user.keyboard("{Escape}");
+		await waitFor(() => expect(image).toHaveFocus());
 	});
 
 	it("opens a diagram in a Markdown attachment's preview over that preview", async () => {

@@ -606,8 +606,8 @@ export const groupWorkingBlocks = (
 						getDraftAtBlock(rowIndex, entry.parsed.partBlockIndices[partIndex]);
 		} else {
 			// A hidden entry, like a tool result, counts toward the block open
-			// after the previous row. With none open, a hidden provider call
-			// counts toward the block the next row starts.
+			// after the previous row. A hidden provider call counts toward the
+			// block the next row starts or continues, when there is one.
 			let draft =
 				previousRowIndex === undefined
 					? undefined
