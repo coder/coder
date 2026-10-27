@@ -149,14 +149,14 @@ Sub-agents spawned by `spawn_agent` do not have access to them and cannot create
 | `propose_plan`      | Presents a Markdown plan file from the workspace for user review before implementation.           |
 | `ask_user_question` | Asks the user structured clarification questions.                                                 |
 
-`propose_plan` and `ask_user_question` are exposed while plan mode is active.
+`propose_plan` is exposed only while plan mode is active, and `ask_user_question` is exposed while plan mode is active.
 In that mode, `write_file` and `edit_files` are restricted to the chat-specific plan file, while `execute` and `process_output` remain available for exploration such as cloning repositories, searching code, and running inspection commands.
 Root plan-mode chats may also receive administrator-approved external MCP tools.
 Workspace MCP tools remain unavailable in plan mode, and plan-mode sub-agents still do not receive any MCP tools.
 Dynamic, provider-native, and computer-use tools are not available.
 
 In plan mode, `ask_user_question` ends the turn so the user can answer before planning continues.
-In chats created from the web UI, `ask_user_question` is also exposed outside plan mode.
+In chats created from the Coder dashboard, `ask_user_question` is also exposed outside plan mode.
 There it returns at once, the agent keeps working, and the answer arrives later as a user message that names the tool call.
 Coder also sends the chat owner a web push notification when such a question opens.
 Chats created through the API expose `ask_user_question` only in plan mode.
