@@ -1,4 +1,4 @@
-import { ListChecksIcon } from "lucide-react";
+import { ListIcon } from "lucide-react";
 import { Component } from "react";
 import { useTime } from "#/hooks/useTime";
 import { humanDurationShort } from "#/utils/time";
@@ -178,7 +178,7 @@ export const WorkingBlockDisclosure: React.FC<WorkingBlockDisclosureProps> = ({
 		>
 			<ToolCall.HeaderButton>
 				<ToolCall.LeadingIcon>
-					<ListChecksIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
+					<ListIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
 				</ToolCall.LeadingIcon>
 				{block.isLive ? (
 					<LiveLabel block={block} />
