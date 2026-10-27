@@ -609,8 +609,8 @@ export const AsyncQuestionDockedAboveInput: Story = {
 	},
 };
 
-// When a newer question replaces the form that had focus, the dock's region
-// takes focus and shows its ring.
+// The dock's region takes focus when a newer question replaces the form that
+// had it, and shows this ring.
 export const AsyncQuestionDockFocused: Story = {
 	render: () => (
 		<AsyncQuestionChatPage

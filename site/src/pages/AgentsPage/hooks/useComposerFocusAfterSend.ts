@@ -1,16 +1,13 @@
 import { useEffect, useState } from "react";
-import type { CreateChatMessageRequestWithClearablePlanMode } from "#/api/api";
-import type { CreateChatMessageResponse } from "#/api/typesGenerated";
 import type { ChatMessageInputRef } from "../components/AgentChatInput";
+import type { SubmitChatTurnParams } from "../components/ChatConversation/submitChatTurn";
 
-type SendChatMessage = (
-	request: CreateChatMessageRequestWithClearablePlanMode,
-) => Promise<CreateChatMessageResponse>;
+type SendChatMessage = SubmitChatTurnParams["sendMessage"];
 
 /**
- * Wraps a send so that the chat input takes focus when the send settles, on
- * every screen size. The chat input itself skips that refocus on narrow
- * screens, so the on-screen keyboard stays closed after a composer send.
+ * Wraps a send so that the chat input takes focus when the send settles. The
+ * chat input itself skips that refocus on narrow screens, so the on-screen
+ * keyboard stays closed after a composer send.
  */
 export const useComposerFocusAfterSend = (
 	chatInputRef: React.RefObject<ChatMessageInputRef | null>,

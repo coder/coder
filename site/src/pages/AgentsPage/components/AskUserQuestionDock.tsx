@@ -28,21 +28,16 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 	const questionKey = `${question.id}:${question.startedAt ?? ""}`;
 	const shownQuestionKeyRef = useRef(questionKey);
 	useEffect(() => {
+		// The effect also runs on mount, and a first question replaces nothing.
 		if (shownQuestionKeyRef.current === questionKey) {
 			return;
 		}
 		shownQuestionKeyRef.current = questionKey;
-		const section = sectionRef.current;
-		if (!section) {
-			return;
-		}
-		// The section outlives the form, so a new question starts at its top.
-		section.scrollTop = 0;
 		// A newer question replaced the form, and focus inside it fell to the
 		// page body. Focus elsewhere, such as in the chat input, stays put. The
-		// region takes focus, so no radio or text input opens the keyboard.
+		// labelled region takes focus, so the new question is announced whole.
 		if (document.activeElement === document.body) {
-			section.focus({ preventScroll: true });
+			sectionRef.current?.focus({ preventScroll: true });
 		}
 	}, [questionKey]);
 
@@ -58,6 +53,7 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 			{/* Shrinks before the chat input does, so a long question set never
 			    pushes the input off a short screen. */}
 			<section
+				key={questionKey}
 				ref={sectionRef}
 				aria-labelledby={labelId}
 				tabIndex={-1}
@@ -73,7 +69,6 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 					Open question
 				</p>
 				<AskUserQuestionRenderer
-					key={questionKey}
 					toolCallId={question.id}
 					args={question.args}
 					result={question.result}
