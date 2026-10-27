@@ -676,7 +676,8 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, req *OpenAI
 			if resp.WebSearch.Query != "" {
 				action["query"] = resp.WebSearch.Query
 			}
-			if includeSources && len(sourceURLs) > 0 {
+			// OpenAI returns sources only on search actions.
+			if actionType == "search" && includeSources && len(sourceURLs) > 0 {
 				sources := make([]interface{}, 0, len(sourceURLs))
 				for _, source := range sourceURLs {
 					sources = append(sources, map[string]interface{}{"type": "url", "url": source})
