@@ -3404,6 +3404,12 @@ export interface ChatModelProviderDescriptor {
 	readonly allow_user_api_key: boolean;
 	readonly available: boolean;
 	readonly unavailable_reason?: ChatModelProviderUnavailableReason;
+	/**
+	 * BedrockInvokeModel reports whether the provider uses the AWS Bedrock
+	 * InvokeModel protocol. That protocol ignores the model a client requests
+	 * and sends the provider's configured models upstream instead.
+	 */
+	readonly bedrock_invoke_model?: boolean;
 }
 
 // From codersdk/chats.go
