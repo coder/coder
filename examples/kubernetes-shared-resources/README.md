@@ -78,8 +78,8 @@ start another instance on these ports or reset an existing demo database.
 The fixed `workspaces` namespace must have only one template owner. If an earlier
 shared namespace exists, first delete its workspaces and policies through their
 native Coder lifecycles. Inspect anything remaining before separately authorizing
-namespace deletion. Do not import/adopt unrelated resources or apply the old
-namespace YAML over this configuration. Never bypass UNKNOWN quarantine.
+namespace deletion. Do not import/adopt unrelated resources or manage this
+namespace outside its Terraform root. Never bypass UNKNOWN quarantine.
 
 1. Retain the existing `serpent-dev` template. On a fresh installation, create a
    template using a minimal bootstrap workspace root to obtain its UUID, but do
@@ -130,10 +130,31 @@ version is active.
 
 The public Go 1.21.13 image digest, Serpent revision
 `40b60bf4c1495caddc0292f862de275da292e6aa`, Makefile, and linter v1.53.3 are unchanged.
-Run `go build ./...`, `make lint`, and the network/persistence checks in the
-[Serpent verification guide](legacy/README.md#verify-and-demonstrate).
+
+## Verify the workspace
+
+Wait for startup, then connect through Coder SSH or the web terminal. Startup can
+take several minutes on the first cold build. From `/workspace/serpent`, run:
+
+```bash
+make lint
+go build ./...
+curl --fail https://github.com
+curl --connect-timeout 4 --max-time 6 https://example.com
+curl --connect-timeout 4 --max-time 6 http://github.com
+curl --connect-timeout 4 --max-time 6 https://1.1.1.1
+```
+
 The unchanged `make lint` exits 2 with nine findings: five errcheck, three
-loopclosure, and one SA1019. This is not a clean-lint claim.
+loopclosure, and one SA1019. This is not a clean-lint claim. `go build ./...` and
+GitHub HTTPS should succeed; the other network probes should fail. Correlate
+failures with Hubble policy-denied or DNS-rejection evidence rather than assuming
+every timeout proves enforcement. Node image pulls are outside pod policy.
+
+To verify persistence, create a marker under `/workspace`, stop and start through
+Coder, and confirm the marker, checkout, linter, and caches survive while the pod
+UID changes. Delete the temporary workspace through Coder when done; retain the
+shared resources unless intentionally testing their separate cleanup lifecycle.
 
 ## Independent policy updates and cleanup
 

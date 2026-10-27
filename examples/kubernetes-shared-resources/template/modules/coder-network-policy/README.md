@@ -69,30 +69,6 @@ protection, so detach is not a quarantine operation. Coder must retain and reuse
 the same state to destroy it, including during policy deletion. Do not discard
 state or use `terraform state rm` as deletion.
 
-### Earlier policy-specific command
-
-The policy author supplies exactly one `module "coder_network_policy"` block with
-literal `source = "./module"` and only the static inputs listed above. Values
-must be static strings, numbers, booleans, lists, maps, and objects; reject
-references, functions, interpolation, unknown/computed values, `count`,
-`for_each`, `depends_on`, `providers`, injected input names, and other blocks.
-No user-authored root `terraform`, `provider`, `resource`, `data`, `variable`,
-`locals`, `output`, import, backend, provisioner, or external module source is
-accepted. The native parser must validate against an explicit allowlist before
-Terraform sees author content. Terraform variable validation is not an HCL
-sandbox, and rejecting unknown object fields requires the parser (Terraform
-object conversion can discard them).
-
-The bundled runner supplies the trusted module bytes and provider pin, injects
-identity/namespace/attachments, configures the provider from trusted target
-credentials, and keeps state per organization/policy/target. The native validator
-and immutable archive builder are implemented in `coderd/networkpolicy/`.
-See [the earlier policy HCL](../../../legacy/serpent-dev-policy.hcl)
-and [its setup guide](../../../legacy/README.md) for the
-policy-specific workflow.
-Organization authorization and target ownership belong to Coder; they cannot
-be delegated to arbitrary HCL.
-
 ## Network semantics
 
 - Default-deny **both ingress and egress**, with established reply traffic

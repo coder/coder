@@ -47,8 +47,8 @@ Passed local checks:
 - All 13 canonical module mocked tests pass.
 - The packaged archive initializes and validates independently of the source
   checkout's module symlink.
-- Terraform formatting and startup-script ShellCheck pass. The startup script is
-  byte-identical to `serpent-dev-template/startup.sh`.
+- Terraform formatting and startup-script ShellCheck pass. The startup script was
+  byte-identical to the earlier Serpent startup script at the time of validation.
 
 Passed live checks with the module-backed root:
 
@@ -151,7 +151,8 @@ The example and canonical module now live in `examples/kubernetes-shared-resourc
 Both Terraform roots, module source, tests, and startup script are tracked there;
 the shared root no longer depends on a module symlink into `scratch/`. The minimal
 example and provider patch are in `examples/shared-resources/`. The earlier
-policy-specific source is preserved under `legacy/`. Development uses
+policy-specific example has been removed and is available only in Git history.
+Workspace verification instructions live in the current README. Development uses
 `./scripts/develop.sh` directly; the Python launcher and its tests were removed.
 No tracked files remain under `scratch/`. Local credentials, Terraform runtime
 files, and private evidence remain excluded and were not moved.
