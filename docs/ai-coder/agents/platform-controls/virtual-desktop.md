@@ -39,11 +39,15 @@ To change it, you need permission to edit that organization's models.
 
 The **Computer use** row appears only while the `chat-virtual-desktop` experiment is enabled.
 The list shows the organization's enabled models whose AI provider type is Anthropic or OpenAI, because computer use supports only those provider types.
-To add a model to the list, enable an Anthropic or OpenAI model on the **Models** page, with an API key for its AI provider set on the **Providers** page.
+To add a model to the list, enable an Anthropic or OpenAI model on the **Models** page.
 
 When no model is selected, the row shows **Use default model** and computer use runs on the organization's default model.
 To return to the default model, select **Clear**, then select **Save**.
-If the selected model is later disabled or deleted, computer use falls back to the organization's default model until you select another model.
+If the selected model is later disabled, deleted, or unusable for the chat owner, computer use falls back to the organization's default model.
+
+Computer use is unavailable in a chat when the chat owner has no usable [credentials](../models.md#credential-selection) for the AI provider of the model it runs on.
+It's also unavailable when it runs on the organization's default model and that model isn't an Anthropic or OpenAI model.
+OpenAI computer use requires the Responses API, so it fails on an OpenAI model whose **Use Responses API** override is set to Off.
 
 A warning icon next to the model selector means that Coder hasn't verified the model for computer use.
 The icon follows the model that computer use runs on: the selected model, or the organization's default model when no model is selected.
