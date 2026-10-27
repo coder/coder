@@ -287,6 +287,10 @@ The question doesn't stop the agent, which keeps working on anything that doesn'
 You can answer while the agent runs.
 Your answer waits in the queue until the current turn ends, and then it starts the next turn.
 If the agent can't continue without the answer, it ends its turn with a note of what is blocked.
+
+While the question is open, its answer form appears in an **Open question** panel above the chat input.
+Sending an answer removes the panel, even while the answer waits in the queue.
+Removing the queued answer brings the panel back.
 A newer question replaces an earlier unanswered one, and the earlier question shows as closed.
 
 When the agent asks a question, Coder sends you a [push notification](./getting-started.md#use-https-for-push-notifications) if push notifications are enabled.
