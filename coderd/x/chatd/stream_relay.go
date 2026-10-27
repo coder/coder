@@ -146,7 +146,7 @@ func (f *streamRelayForwarder) loop() {
 		}
 		if session != nil && connected.workerID.Valid && sameNullUUID(connected.workerID, target.workerID) {
 			// runStreamSync configures after every newer snapshot; a selection resends
-			// from seq 1. Skipping relies on the buffer keeping open-episode subscribers.
+			// from seq 1. Skipping relies on messagepartbuffer keeping open-episode subscribers.
 			if connected.sameEpisode(target) {
 				return
 			}
