@@ -21,8 +21,8 @@ The two combine: a NixOS template can also open each repository's dev shell.
 ## Why Nix instead of Dev Containers
 
 - **Reproducible**: `flake.lock` pins every package, so workspaces resolve identical versions.
-- **Flexible**: environments come from the flake, can be used in VMs, containers or even locally, unlike Dev Containers which has a hard requirement for container-based workflows.
-- **Configureability**: package configuration options/settings can be defined in your flake, allowing to declaratively manage more than just dependencies (i.e kernel version/modules, partition schemes, VSCode settings+extensions, desktop environment configurations, etc.)
+- **Flexible**: environments come from the flake and work in VMs, containers, or even locally, unlike Dev Containers, which require container-based workflows.
+- **Configurability**: package options and settings live in your flake, so you can declaratively manage more than dependencies (for example, kernel versions and modules, partition schemes, VS Code settings and extensions, and desktop environment configuration).
 - **Fast updates**: packages come from centralized binary caches (such as `cache.nixos.org`), and the Nix store can persist across workspace restarts.
 - **Safe changes (NixOS)**: a configuration that fails to build leaves the running system unchanged, and you can roll back to a previous generation.
 
@@ -44,7 +44,7 @@ module "nix" {
 
 > [!WARNING]
 > The module does not install Nix; include it in your image.
-> For example with the official [Nix](https://nixos.org/download/) installer, or with the [Lix](https://lix.systems/install/) distribution/fork's installer for a more modern experience.
+> For example, use the official [Nix](https://nixos.org/download/) installer, or the installer for [Lix](https://lix.systems/install/), a Nix fork, for a more modern experience.
 
 ## NixOS (template level, for administrators)
 
@@ -69,18 +69,19 @@ To build a NixOS template:
      # This is the important NixOS-specific part
      nixos = {
        flake_ref  = "https://github.com/example-org/workspace-flake"
-       flake_attr = "my-workspace" # a $ARCH argument is supported if you want to filter this way.
+       flake_attr = "my-workspace"
      }
    }
    ```
 
-1. Pass the module's `boot_script` output to your platform's boot hook (e.g via `cloud-init`) so it runs as root before the agent starts.
+1. Pass the module's `boot_script` output to your platform's boot hook (for example, cloud-init) so it runs as root before the agent starts.
    The boot hook must also hand the agent token to the agent unit, as described in [the agent handoff](https://github.com/coder/nixos-modules#the-agent-handoff).
 
 Rebuild logs are written to `/var/log/coder-nixos/rebuild-latest.log` in the workspace.
 
 > [!TIP]
-> This can be tricky for new Coder administrators. You can join our [community](https://coder.com/community) to get assistance with this if you are stuck and/or want to provide feedback.
+> This can be tricky for new Coder administrators.
+> If you're stuck or want to share feedback, join our [community](https://coder.com/community) for help.
 
 ### Ready-made templates
 
@@ -93,6 +94,7 @@ The Coder team is actively working on adding new templates to the registry, but 
 
 The [AWS EC2 (NixOS)](https://registry.coder.com/templates/coder-labs/aws-nixos) template runs each workspace as a NixOS virtual machine on EC2.
 Rebuild progress streams to the **NixOS** log in the workspace dashboard.
+Its `flake_attr` supports `$ARCH`, which the template replaces with `x86_64` or `aarch64` to match the instance type.
 
 1. Fork the [example flake](https://github.com/coder/nixos-example-flake), edit `configuration.nix`, and commit your changes with `flake.lock`.
 1. Create a template from [AWS EC2 (NixOS)](https://registry.coder.com/templates/coder-labs/aws-nixos) and set `flake_ref` to your fork's Git URL.
@@ -102,7 +104,8 @@ See the template README for prerequisites and limitations.
 
 ## Caching
 
-Nix downloads prebuilt packages from binary caches (`cache.nixos.org` by default) instead of building them in the workspace, but they are shared infrastructure and don't necessarily have every package available, which will result in having to build some packages.
+Nix downloads prebuilt packages from binary caches (`cache.nixos.org` by default) instead of building them in the workspace.
+Public caches are shared infrastructure and don't have every package, so some packages still build locally.
 We recommend setting up your own cache server in each region where you are deploying workspaces to ensure the fastest download speeds possible.
 
 To add your own cache, set `extra-substituters` and `extra-trusted-public-keys` in the module's [Nix settings](https://registry.coder.com/modules/coder-labs/nix#nix-settings).
@@ -115,4 +118,6 @@ Its [Alternatives](https://nix.dev/tutorials/nixos/binary-cache-setup.html#alter
 
 ---
 
-Other methods to cache could be to prebuild your Nix image in CI (if using containers) or using a base disk that gets refreshed frequently, but having a cache server available is always preferable so users can fetch their own packages as fast as possible, a local cache server is a good starting point and can always be combined with other improvements.
+Other caching methods include prebuilding your Nix image in CI (if you use containers) or using a base disk that you refresh frequently.
+A cache server is still preferable, because users can fetch their own packages as fast as possible.
+Start with a local cache server, and combine it with other improvements later.
