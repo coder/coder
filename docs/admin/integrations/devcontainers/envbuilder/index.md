@@ -5,7 +5,7 @@ title: Envbuilder
 > [!WARNING]
 > Envbuilder is in **maintenance mode** with no new features planned.
 > The recommended way to use dev containers in Coder is the built-in [Dev Containers Integration](../integration.md).
-> To find the best approach for your deployment, ask in the [Coder Discord server](https://discord.gg/coder).
+> To find the best approach for your deployment, join our [community](https://coder.com/community) to be guided towards the best approach.
 
 Envbuilder is an open-source tool that builds development environments from [dev container](https://containers.dev/implementors/spec/) configuration files.
 Unlike the [Dev Containers integration](../integration.md), Envbuilder transforms the workspace image itself rather than running containers inside the workspace.

@@ -149,12 +149,11 @@ coder templates delete <template-name>
 ## Next steps
 
 - [Image management](./image-management.md)
-- [Dev Containers integration](../../integrations/devcontainers/integration.md) (recommended)
-- [Envbuilder](../../integrations/devcontainers/envbuilder/index.md) (alternative for environments without Docker)
-- [Nix(OS)](../../integrations/nix.md) (alternative using Nix flakes)
+- Dev Containers
+    - [Dev Containers CLI integration](../../integrations/devcontainers/integration.md) (recommended)
+    - [Envbuilder](../../integrations/devcontainers/envbuilder/index.md) (maintenance mode ⚠️) (alternative for environments without Docker)
+- [Nix(OS)](../../integrations/nix.md) (more flexible alternative to Dev Containers using Nix flakes)
 - [Change management](./change-management.md)
 
-> [!WARNING]
-> Envbuilder is in **maintenance mode** with no new features planned.
-> The recommended way to use dev containers in Coder is the built-in [Dev Containers Integration](../../integrations/devcontainers/integration.md).
-> To find the best approach for your deployment, ask in the [Coder Discord server](https://discord.gg/coder).
+> [!TIP]
+> If you're unsure about which dependency management technology to use, join our [community](https://coder.com/community) to be guided towards the best approach.

@@ -2,13 +2,12 @@
 title: Configure a template for Dev Containers
 ---
 
-This guide covers the Dev Containers Integration, which uses Docker.
-For environments without Docker, see [Envbuilder](./envbuilder/index.md) as an alternative.
+> [!TIP]
+> Nix flakes are an alternate way to handle dependency management which lets developers and/or template administrators define environments and manage dependencies at a much deeper level, without requiring a container runtime.
+> To use them in Coder with or without NixOS, see [Nix(OS)](../nix.md).
 
-> [!WARNING]
-> Envbuilder is in **maintenance mode** with no new features planned.
-> The recommended way to use dev containers in Coder is the built-in Dev Containers Integration, covered on this page.
-> To find the best approach for your deployment, ask in the [Coder Discord server](https://discord.gg/coder).
+This guide covers the Dev Containers Integration, which uses Docker.
+For environments without Docker, see [Envbuilder](./envbuilder/index.md) (maintenance mode ⚠️) as an alternative.
 
 To enable Dev Containers in workspaces, configure your template with the Dev Containers modules and configurations outlined in this doc.
 
