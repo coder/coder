@@ -74,8 +74,11 @@ export const UserMessageContent: React.FC<{
 	displayState: MessageDisplayState;
 	markdown: string;
 	isEditing: boolean;
-	onImageClick: (src: string) => void;
-	onTextFileClick: (attachment: PreviewTextAttachment) => void;
+	onImageClick: (src: string, trigger: HTMLButtonElement) => void;
+	onTextFileClick: (
+		attachment: PreviewTextAttachment,
+		trigger: HTMLButtonElement,
+	) => void;
 }> = ({ displayState, markdown, isEditing, onImageClick, onTextFileClick }) => {
 	return (
 		<Message className="w-fit max-w-[min(80vw,80%)]">

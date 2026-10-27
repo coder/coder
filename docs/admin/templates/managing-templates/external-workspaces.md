@@ -131,7 +131,9 @@ You can create and manage external workspaces using either the **CLI** or the **
 
 1. Import the external workspace template (see prerequisites).
 2. In the Coder UI, go to **Workspaces → New workspace** and select the imported template.
-3. Once the workspace is created, Coder will display **connection details** with the command users need to run on the external machine to start the agent.
+3. Once the workspace is created, Coder displays **connection details**.
+
+   They include the command users need to run on the external machine to start the agent.
 4. The workspace will appear in the dashboard, but with the following differences:
    - **Start**, **Stop**, and **Restart** actions are disabled.
    - Users are provided with instructions for launching the agent manually on the external machine.

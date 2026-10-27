@@ -20,6 +20,7 @@ For each template:
 1. Select **Settings** > **Parameters** on the template, then clear the **Use parameter compatibility mode for workspace builds** checkbox.
 
 1. Publish a new template version so Coder can resolve the parameter metadata.
+
    If you don't need to change the Terraform, [refresh the template data](../../managing-templates/index.md#refresh-template-data) to publish a new version from the existing source files.
 
 1. Open the workspace creation form and confirm the parameters render as expected.
