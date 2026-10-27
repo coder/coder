@@ -249,6 +249,19 @@ SELECT
 INSERT INTO site_configs (key, value) VALUES ('agents_advisor_config', $1)
 ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_advisor_config';
 
+-- GetChatContextWindowConfig returns the deployment-wide context window
+-- configuration as a JSON blob. Callers unmarshal the result into
+-- codersdk.ChatContextWindowConfig. Returns '{}' when unset.
+-- name: GetChatContextWindowConfig :one
+SELECT
+    COALESCE((SELECT value FROM site_configs WHERE key = 'agents_context_window_config'), '{}') :: text AS context_window_config;
+
+-- UpsertChatContextWindowConfig stores the deployment-wide context window
+-- configuration. Callers marshal codersdk.ChatContextWindowConfig to JSON.
+-- name: UpsertChatContextWindowConfig :exec
+INSERT INTO site_configs (key, value) VALUES ('agents_context_window_config', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_context_window_config';
+
 -- name: GetChatComputerUseProvider :one
 SELECT
 	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_computer_use_provider'), '') :: text AS provider;

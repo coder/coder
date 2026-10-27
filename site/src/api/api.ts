@@ -3878,6 +3878,20 @@ class ExperimentalApiMethods {
 		await this.axios.put("/api/experimental/chats/config/advisor", req);
 	};
 
+	getChatContextWindowConfig =
+		async (): Promise<TypesGen.ChatContextWindowConfig> => {
+			const response = await this.axios.get<TypesGen.ChatContextWindowConfig>(
+				"/api/experimental/chats/config/context-windows",
+			);
+			return response.data;
+		};
+
+	updateChatContextWindowConfig = async (
+		req: TypesGen.UpdateChatContextWindowConfigRequest,
+	): Promise<void> => {
+		await this.axios.put("/api/experimental/chats/config/context-windows", req);
+	};
+
 	getChatComputerUseProvider =
 		async (): Promise<TypesGen.ChatComputerUseProviderResponse> => {
 			const response =

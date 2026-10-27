@@ -1283,6 +1283,39 @@ export const ChatSummarizedManualRunning: Story = {
 	},
 };
 
+// A token-budget window boundary that the agent started with new_context.
+// The card body is the agent's checkpoint note.
+export const ChatSummarizedNewContextWindow: Story = {
+	args: {
+		name: "chat_summarized",
+		args: JSON.stringify({ source: "new_context", threshold_percent: 90 }),
+		result: {
+			summary:
+				"Goal [id: 4211]: migrate the billing worker.\nNext: run the tests.",
+			source: "new_context",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = canvas.getByRole("button", { name: "New context window" });
+		await userEvent.click(toggle);
+	},
+};
+
+// A window boundary that the server started at the forced point with the
+// new_window fallback.
+export const ChatSummarizedContextLimitWindow: Story = {
+	args: {
+		name: "chat_summarized",
+		args: JSON.stringify({ source: "context_limit", threshold_percent: 90 }),
+		result: { summary: "No notes were saved.", source: "context_limit" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("button", { name: "New context window (limit)" });
+	},
+};
+
 export const ChatCleared: Story = {
 	args: {
 		name: "chat_cleared",

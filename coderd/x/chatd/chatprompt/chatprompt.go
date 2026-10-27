@@ -9,6 +9,7 @@ import (
 	"html"
 	"mime"
 	"regexp"
+	"slices"
 	"strings"
 
 	"charm.land/fantasy"
@@ -110,6 +111,37 @@ func FileIDs(parts []codersdk.ChatMessagePart) []uuid.UUID {
 	return ids
 }
 
+// ConvertOption changes how ConvertMessagesWithFiles builds the prompt.
+type ConvertOption func(*convertConfig)
+
+type convertConfig struct {
+	itemIDSuffix bool
+}
+
+// WithItemIDSuffix ends the last text part of every user message with
+// visibility both with "\n[id: <message id>]", so the model can name
+// earlier requests. Model-only user rows get no suffix.
+func WithItemIDSuffix() ConvertOption {
+	return func(c *convertConfig) { c.itemIDSuffix = true }
+}
+
+// ItemIDSuffix returns the suffix WithItemIDSuffix appends for id.
+func ItemIDSuffix(id int64) string {
+	return fmt.Sprintf("[id: %d]", id)
+}
+
+func appendItemIDSuffix(parts []fantasy.MessagePart, id int64) []fantasy.MessagePart {
+	out := slices.Clone(parts)
+	for i := len(out) - 1; i >= 0; i-- {
+		if text, ok := out[i].(fantasy.TextPart); ok {
+			text.Text += "\n" + ItemIDSuffix(id)
+			out[i] = text
+			return out
+		}
+	}
+	return append(out, fantasy.TextPart{Text: ItemIDSuffix(id)})
+}
+
 // ConvertMessagesWithFiles converts persisted chat messages into LLM
 // prompt messages, resolving user file references via the provided
 // resolver. Missing-data placeholders are emitted only for replayed
@@ -124,7 +156,12 @@ func ConvertMessagesWithFiles(
 	logger slog.Logger,
 	acceptsFilePart func(mediaType string) bool,
 	chatWorkspaceID uuid.NullUUID,
+	opts ...ConvertOption,
 ) ([]fantasy.Message, error) {
+	var config convertConfig
+	for _, opt := range opts {
+		opt(&config)
+	}
 	// Phase 1: Parse all messages via ParseContent (→ SDK parts)
 	// and collect file_id references from user messages for batch
 	// resolution. Assistant-side file attachments remain persisted
@@ -132,6 +169,8 @@ func ConvertMessagesWithFiles(
 	type parsedMessage struct {
 		role  codersdk.ChatMessageRole
 		parts []codersdk.ChatMessagePart
+		// itemID is the message ID to append as "[id: N]", or 0.
+		itemID int64
 	}
 	parsed := make([]parsedMessage, len(messages))
 	var allFileIDs []uuid.UUID
@@ -152,6 +191,9 @@ func ConvertMessagesWithFiles(
 			return nil, err
 		}
 		parsed[i] = parsedMessage{role: codersdk.ChatMessageRole(msg.Role), parts: parts}
+		if config.itemIDSuffix && msg.Role == database.ChatMessageRoleUser && visibility == database.ChatMessageVisibilityBoth {
+			parsed[i].itemID = msg.ID
+		}
 
 		// Collect file IDs from user messages for resolution.
 		if resolver != nil && msg.Role == database.ChatMessageRoleUser {
@@ -210,6 +252,9 @@ func ConvertMessagesWithFiles(
 			)
 			if len(userParts) == 0 {
 				continue
+			}
+			if pm.itemID != 0 {
+				userParts = appendItemIDSuffix(userParts, pm.itemID)
 			}
 			prompt = append(prompt, fantasy.Message{
 				Role:    fantasy.MessageRoleUser,

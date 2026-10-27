@@ -147,7 +147,7 @@ func withInternalTestServerLimits(limits Limits) internalTestServerOpt {
 
 func experimentsOrDefault(experiments codersdk.Experiments) codersdk.Experiments {
 	if experiments == nil {
-		return codersdk.ExperimentsKnown
+		return internalTestDefaultExperiments
 	}
 	return experiments
 }
@@ -2865,7 +2865,7 @@ func TestSpawnAgent_ComputerUseRejectsDesktopDisabled(t *testing.T) {
 
 	db, ps := dbtestutil.NewDB(t)
 	experiments := slices.DeleteFunc(
-		slices.Clone(codersdk.ExperimentsKnown),
+		slices.Clone(internalTestDefaultExperiments),
 		func(e codersdk.Experiment) bool { return e == codersdk.ExperimentChatVirtualDesktop },
 	)
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{
@@ -4803,3 +4803,9 @@ func TestListSubagentModels_NonDefaultOrgExcludesDefaultOrgConfigs(t *testing.T)
 	require.Contains(t, ids, localModel.ID.String())
 	require.NotContains(t, ids, defaultOrgModel.ID.String())
 }
+
+// internalTestDefaultExperiments is every known experiment except
+// chat-token-budget, which changes compaction and the tool list.
+var internalTestDefaultExperiments = slices.DeleteFunc(slices.Clone(codersdk.ExperimentsKnown), func(e codersdk.Experiment) bool {
+	return e == codersdk.ExperimentChatTokenBudget
+})

@@ -3630,3 +3630,66 @@ func TestPartFromContent_ExecuteToolParsedCommands(t *testing.T) {
 		})
 	}
 }
+
+func TestConvertMessages_ItemIDSuffix(t *testing.T) {
+	t.Parallel()
+
+	textRow := func(t *testing.T, id int64, role database.ChatMessageRole, visibility database.ChatMessageVisibility, parts ...codersdk.ChatMessagePart) database.ChatMessage {
+		t.Helper()
+		content, err := chatprompt.MarshalParts(parts)
+		require.NoError(t, err)
+		return database.ChatMessage{
+			ID:             id,
+			Role:           role,
+			Visibility:     visibility,
+			Content:        content,
+			ContentVersion: chatprompt.CurrentContentVersion,
+		}
+	}
+	rows := func(t *testing.T) []database.ChatMessage {
+		return []database.ChatMessage{
+			// The boundary anchor, a nudge or a copied user row: model-only.
+			textRow(t, 10, database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, codersdk.ChatMessageText("anchor")),
+			// A visible user row with two text parts.
+			textRow(t, 11, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, codersdk.ChatMessageText("first"), codersdk.ChatMessageText("second")),
+			textRow(t, 12, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, codersdk.ChatMessageText("answer")),
+			textRow(t, 13, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, codersdk.ChatMessageText("follow up")),
+		}
+	}
+	userTexts := func(prompt []fantasy.Message) [][]string {
+		var out [][]string
+		for _, msg := range prompt {
+			if msg.Role != fantasy.MessageRoleUser {
+				continue
+			}
+			var texts []string
+			for _, part := range msg.Content {
+				if text, ok := part.(fantasy.TextPart); ok {
+					texts = append(texts, text.Text)
+				}
+			}
+			out = append(out, texts)
+		}
+		return out
+	}
+
+	t.Run("On", func(t *testing.T) {
+		t.Parallel()
+		prompt, err := chatprompt.ConvertMessagesWithFiles(context.Background(), rows(t), nil, slogtest.Make(t, nil), nil, uuid.NullUUID{}, chatprompt.WithItemIDSuffix())
+		require.NoError(t, err)
+		require.Equal(t, [][]string{
+			{"anchor"},
+			{"first", "second\n[id: 11]"},
+			{"follow up\n[id: 13]"},
+		}, userTexts(prompt))
+		// Assistant rows keep their text.
+		require.Equal(t, fantasy.MessageRoleAssistant, prompt[2].Role)
+		require.Equal(t, "answer", prompt[2].Content[0].(fantasy.TextPart).Text)
+	})
+
+	t.Run("Off", func(t *testing.T) {
+		t.Parallel()
+		prompt := convertMessagesWithoutFiles(t, rows(t))
+		require.Equal(t, [][]string{{"anchor"}, {"first", "second"}, {"follow up"}}, userTexts(prompt))
+	})
+}

@@ -6444,6 +6444,68 @@ func (api *API) putChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getChatContextWindowConfig(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	raw, err := api.Database.GetChatContextWindowConfig(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching context window configuration.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	var resp codersdk.ChatContextWindowConfig
+	if err := json.Unmarshal([]byte(raw), &resp); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Stored context window configuration is invalid.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if !resp.Fallback.Valid() {
+		resp.Fallback = codersdk.ChatContextWindowFallbackSummary
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+func (api *API) putChatContextWindowConfig(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+	var req codersdk.UpdateChatContextWindowConfigRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	if !req.Fallback.Valid() {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("fallback %q must be %q or %q.", req.Fallback, codersdk.ChatContextWindowFallbackSummary, codersdk.ChatContextWindowFallbackNewWindow),
+		})
+		return
+	}
+	raw, err := json.Marshal(codersdk.ChatContextWindowConfig(req))
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error encoding context window configuration.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if err := api.Database.UpsertChatContextWindowConfig(ctx, string(raw)); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating context window configuration.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	rw.WriteHeader(http.StatusNoContent)
+}
+
 // @Summary Get chat workspace time to live
 // @ID get-chat-workspace-time-to-live
 // @Security CoderSessionToken

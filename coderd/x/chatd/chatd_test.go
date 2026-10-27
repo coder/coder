@@ -4514,7 +4514,7 @@ func newTestServer(
 		Database:                   db,
 		ReplicaID:                  replicaID,
 		PendingChatAcquireInterval: testutil.WaitLong,
-		Experiments:                codersdk.ExperimentsKnown,
+		Experiments:                testDefaultExperiments,
 		MCPHTTPClient:              testMCPHTTPClient(),
 	}
 	for _, o := range overrides {
@@ -8717,7 +8717,7 @@ func newActiveTestServer(
 		ReplicaID:                  uuid.New(),
 		PendingChatAcquireInterval: 10 * time.Millisecond,
 		InFlightChatStaleAfter:     testutil.WaitSuperLong,
-		Experiments:                codersdk.ExperimentsKnown,
+		Experiments:                testDefaultExperiments,
 		MCPHTTPClient:              testMCPHTTPClient(),
 	}
 	for _, o := range overrides {
@@ -10257,7 +10257,7 @@ func TestInterruptChatPersistsPartialResponse(t *testing.T) {
 		ReplicaID:                  uuid.New(),
 		PendingChatAcquireInterval: 10 * time.Millisecond,
 		InFlightChatStaleAfter:     testutil.WaitSuperLong,
-		Experiments:                codersdk.ExperimentsKnown,
+		Experiments:                testDefaultExperiments,
 		AIBridgeTransportFactory:   chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL)),
 	})
 	server.Start()
@@ -11256,7 +11256,7 @@ func TestMCPToolSearchExperimentRules(t *testing.T) {
 			},
 		}
 	}
-	withoutToolSearch := slices.DeleteFunc(slices.Clone(codersdk.ExperimentsKnown), func(ex codersdk.Experiment) bool {
+	withoutToolSearch := slices.DeleteFunc(slices.Clone(testDefaultExperiments), func(ex codersdk.Experiment) bool {
 		return ex == codersdk.ExperimentMCPToolSearch
 	})
 	// requireDeferred asserts whether the turn deferred MCP schemas behind
@@ -11317,7 +11317,7 @@ func TestMCPToolSearchExperimentRules(t *testing.T) {
 				codersdk.ExperimentMCPToolSearch: experimentstest.StoredRule(t, experimentrules.Rule{Mode: experimentrules.ModeOn}),
 			},
 		}}
-		h := newHarness(t, codersdk.ExperimentsKnown, func(database.Store) experimentrules.Store { return store })
+		h := newHarness(t, testDefaultExperiments, func(database.Store) experimentrules.Store { return store })
 		ctx := testutil.Context(t, testutil.WaitLong)
 		chat, err := h.server.CreateChat(ctx, chatd.CreateOptions{
 			OrganizationID: h.org.ID,
@@ -11456,7 +11456,7 @@ func TestMCPToolSearchExperimentRules(t *testing.T) {
 		t.Parallel()
 		// The experiment is enabled at startup, but an unreadable rule set
 		// must turn it off rather than fall back to the startup list.
-		h := newHarness(t, codersdk.ExperimentsKnown, func(database.Store) experimentrules.Store {
+		h := newHarness(t, testDefaultExperiments, func(database.Store) experimentrules.Store {
 			return experimentstest.Store{RulesErr: xerrors.New("rules unavailable")}
 		})
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -15164,3 +15164,10 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		require.Zero(t, chatd.StageAnomalyCount(t, h.registry, chatloop.StageAnomalyStaleAnchor))
 	})
 }
+
+// testDefaultExperiments is every known experiment except chat-token-budget,
+// which moves the compaction trigger and adds tools. Token-budget tests
+// enable it explicitly.
+var testDefaultExperiments = slices.DeleteFunc(slices.Clone(codersdk.ExperimentsKnown), func(e codersdk.Experiment) bool {
+	return e == codersdk.ExperimentChatTokenBudget
+})

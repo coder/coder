@@ -19,6 +19,10 @@ export const ChatSummarizedTool: React.FC<{
 	const hasSummary = summary.trim().length > 0;
 	const isRunning = status === "running";
 	const isManual = source === "manual";
+	// The token-budget prototype reuses this card for context window
+	// boundaries, which have no summary model call.
+	const isNewWindow = source === "new_context";
+	const isLimitWindow = source === "context_limit";
 
 	return (
 		<ToolCall.Root
@@ -33,9 +37,13 @@ export const ChatSummarizedTool: React.FC<{
 				label={
 					isRunning
 						? "Summarizing…"
-						: isManual
-							? "Summarized (manual)"
-							: "Summarized"
+						: isNewWindow
+							? "New context window"
+							: isLimitWindow
+								? "New context window (limit)"
+								: isManual
+									? "Summarized (manual)"
+									: "Summarized"
 				}
 			/>
 			<ToolCall.Content>
