@@ -338,8 +338,6 @@ describe("useConversationEditingState", () => {
 			{ type: "text", text: " Frontend" },
 		]);
 		result.current.chatInputRef.current = mockInput.handle;
-		// The server trims each text part, so an answer stored with a leading
-		// chip has a prefix line without its line break.
 		const { text, editorState } = getEditableUserMessagePayload({
 			...MockChatMessage,
 			content: [

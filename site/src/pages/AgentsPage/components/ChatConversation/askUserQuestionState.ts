@@ -1,5 +1,4 @@
 import type * as TypesGen from "#/api/typesGenerated";
-import { getAsyncAnswerPrefix } from "../ChatElements/tools/asyncAnswer";
 import { isAsyncAskUserQuestionResult } from "../ChatElements/tools/utils";
 import { getMessageText, parseAsyncAnswerContent } from "./messageParsing";
 import type { MergedTool, ParsedMessageEntry } from "./types";
@@ -24,18 +23,6 @@ const getTextContent = (
 ): string | undefined => {
 	const text = getMessageText(content);
 	return text.length > 0 ? text : undefined;
-};
-
-const readAsyncAnswer = (
-	content: readonly TypesGen.ChatMessagePart[] | undefined,
-): { toolCallId: string; messageText: string } | undefined => {
-	const answer = parseAsyncAnswerContent(content);
-	return (
-		answer && {
-			toolCallId: answer.toolCallId,
-			messageText: getAsyncAnswerPrefix(answer.toolCallId) + answer.body,
-		}
-	);
 };
 
 // A call that failed validation asked nothing, so it supersedes nothing.
@@ -64,6 +51,9 @@ export const deriveAskUserQuestionState = (
 			}
 			latestTool = tool;
 			isLatestAnswered = false;
+			// Providers can reuse a call ID in a later turn, so only the answers
+			// that follow this call count for it.
+			responseTextByToolId.delete(tool.id);
 			pendingBlockingToolId = isAsyncAskUserQuestionResult(tool.result)
 				? undefined
 				: tool.id;
@@ -72,9 +62,9 @@ export const deriveAskUserQuestionState = (
 			continue;
 		}
 
-		const asyncAnswer = readAsyncAnswer(message.content);
+		const asyncAnswer = parseAsyncAnswerContent(message.content);
 		if (asyncAnswer) {
-			responseTextByToolId.set(asyncAnswer.toolCallId, asyncAnswer.messageText);
+			responseTextByToolId.set(asyncAnswer.toolCallId, asyncAnswer.text);
 			if (asyncAnswer.toolCallId === latestTool?.id) {
 				isLatestAnswered = true;
 				pendingBlockingToolId = undefined;
@@ -97,6 +87,7 @@ export const deriveAskUserQuestionState = (
 	if (liveQuestion) {
 		latestTool = liveQuestion;
 		isLatestAnswered = false;
+		responseTextByToolId.delete(liveQuestion.id);
 	}
 
 	const openAsyncQuestion =
@@ -110,9 +101,9 @@ export const deriveAskUserQuestionState = (
 	// page hides the dock. openAsyncQuestion is set before this loop, so the
 	// dock comes back if the queue drops the answer.
 	for (const queuedMessage of queuedMessages) {
-		const asyncAnswer = readAsyncAnswer(queuedMessage.content);
+		const asyncAnswer = parseAsyncAnswerContent(queuedMessage.content);
 		if (asyncAnswer && !responseTextByToolId.has(asyncAnswer.toolCallId)) {
-			responseTextByToolId.set(asyncAnswer.toolCallId, asyncAnswer.messageText);
+			responseTextByToolId.set(asyncAnswer.toolCallId, asyncAnswer.text);
 		}
 	}
 

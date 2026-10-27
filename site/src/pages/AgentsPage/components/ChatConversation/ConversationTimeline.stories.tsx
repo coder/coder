@@ -809,10 +809,7 @@ export const UserMessageBubbleAlignment: Story = {
 	},
 };
 
-/**
- * An async question answer shows an Answer label in place of its call line,
- * also when the answer starts with a skill chip.
- */
+/** An async question answer shows an Answer label in place of its call line. */
 export const UserMessageAsyncQuestionAnswer: Story = {
 	args: buildStoryArgs(
 		buildUserMessage({
@@ -822,8 +819,6 @@ export const UserMessageAsyncQuestionAnswer: Story = {
 			...baseMessage,
 			id: 2,
 			role: "user",
-			// The server trims each text part, so the call line before a chip
-			// loses its line break.
 			content: [
 				{ type: "text", text: "Answer to ask_user_question call ask-tool-2:" },
 				{

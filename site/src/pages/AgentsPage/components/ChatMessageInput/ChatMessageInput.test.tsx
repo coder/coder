@@ -859,8 +859,6 @@ describe("ChatMessageInput", () => {
 				],
 			],
 			[
-				// The server trims each text part, so the prefix line loses its
-				// line break when a chip follows it.
 				"a skill chip",
 				[
 					{ type: "text", text: "Answer to ask_user_question call call-1:" },
@@ -873,7 +871,7 @@ describe("ChatMessageInput", () => {
 				],
 			],
 		])(
-			"reopens an edited async answer that starts with %s without its prefix line",
+			"drops the prefix line when it reopens an edited async answer that starts with %s",
 			async (_, content, expected) => {
 				const { editorState } = getEditableUserMessagePayload({
 					...MockChatMessage,

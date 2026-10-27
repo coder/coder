@@ -492,8 +492,6 @@ describe("ConversationTimeline async questions", () => {
 			],
 		],
 		[
-			// The server trims each text part, so the prefix line loses its
-			// line break when a chip follows it.
 			"a leading skill chip",
 			[
 				{ type: "text", text: "Answer to ask_user_question call question:" },

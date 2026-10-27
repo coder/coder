@@ -13,7 +13,11 @@ import {
 	settlePromotedQueueHead,
 	submitEdit,
 } from "./chatQueueReconciliation";
-import { createChatStore, useUndeliveredQueuedMessages } from "./chatStore";
+import {
+	type ChatStore,
+	createChatStore,
+	useUndeliveredQueuedMessages,
+} from "./chatStore";
 
 describe("restoreOptimisticRequestSnapshot", () => {
 	it("restores queued messages, stream output, status, and stream error", () => {
@@ -118,6 +122,54 @@ describe("runPromoteQueuedMessage", () => {
 		act(() => store.applyAuthoritativeQueuedMessages([a]));
 		expect(result.current).toEqual([a]);
 	});
+
+	it.each([
+		[
+			"a message event",
+			(store: ChatStore, message: ChatMessage) =>
+				store.upsertDurableMessages([message]),
+		],
+		[
+			"a history refetch",
+			(store: ChatStore, message: ChatMessage) =>
+				store.replaceMessages([message]),
+		],
+	])(
+		"stops counting the promoted message once %s delivers it",
+		async (_, deliver) => {
+			const store = createChatStore();
+			const a = buildQueuedMessage(1, "A");
+			const b = buildQueuedMessage(2, "B");
+			store.setQueuedMessages([a, b]);
+			store.setChatStatus("running");
+			const { result } = renderHook(() => useUndeliveredQueuedMessages(store));
+			await act(() =>
+				runPromoteQueuedMessage({
+					id: b.id,
+					store,
+					promoteQueuedMessage: async () => undefined,
+					agentId: "chat-1",
+					clearChatErrorReason: vi.fn(),
+					onError: vi.fn(),
+				}),
+			);
+
+			act(() =>
+				deliver(store, {
+					...MockChatMessage,
+					id: 10,
+					role: "user",
+					queued_message_id: b.id,
+				}),
+			);
+			expect(result.current).toEqual([a]);
+
+			// An edit can delete the delivered message before a queue update lifts
+			// the suppression.
+			act(() => store.replaceMessages([]));
+			expect(result.current).toEqual([a]);
+		},
+	);
 
 	it("rolls back queue and status, clears suppression, and rethrows on API error", async () => {
 		const store = createChatStore();
