@@ -506,8 +506,11 @@ export const useChatStore = (
 	return {
 		store,
 		loadState,
+		// A refetch replaces a loaded store, so only a failed load retries.
 		retryLoad: () => {
-			void storeQuery.refetch();
+			if (storeQuery.isError) {
+				void storeQuery.refetch();
+			}
 		},
 		clearClientError: () => {
 			store.clearClientError();
