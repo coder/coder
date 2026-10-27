@@ -170,7 +170,9 @@ export const getAttachmentDownload = (
 const DownloadOverlay: React.FC<AttachmentDownload> = (download) => (
 	<AttachmentDownloadLink
 		{...download}
-		className="absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-(--download-opacity) shadow-xs backdrop-blur-xs transition-opacity [pointer-events:var(--download-pointer-events)] hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+		// The frame sets the blur only while the link shows, so a hidden link adds
+		// no compositing layer.
+		className="absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-(--download-opacity) shadow-xs [backdrop-filter:var(--download-backdrop-filter)] transition-opacity [pointer-events:var(--download-pointer-events)] hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 	>
 		<DownloadIcon aria-hidden="true" className="size-3.5" />
 	</AttachmentDownloadLink>
@@ -184,10 +186,10 @@ const AttachmentPreviewFrame: React.FC<{
 	children: React.ReactNode;
 }> = ({ href, displayName, downloadName, mediaType, children }) => {
 	return (
-		// Variables instead of `group-focus-within`: WebKit restyles every
-		// ancestor's subtree for a descendant `:focus-within` rule. The hidden
-		// link stays in the tab order and takes no pointer input.
-		<div className="relative inline-flex flex-col items-start [--download-opacity:0] [--download-pointer-events:none] hover:[--download-opacity:1] hover:[--download-pointer-events:auto] focus-within:[--download-opacity:1] focus-within:[--download-pointer-events:auto] [@media(hover:none)]:[--download-opacity:1] [@media(hover:none)]:[--download-pointer-events:auto]">
+		// Not `group-focus-within`: WebKit restyles every ancestor's subtree for a
+		// descendant `:focus-within` rule. The hidden link takes no pointer input but
+		// stays tabbable, since focus shows it; `visibility` would make Shift+Tab skip it.
+		<div className="relative inline-flex flex-col items-start [--download-opacity:0] [--download-pointer-events:none] [--download-backdrop-filter:none] hover:[--download-opacity:1] hover:[--download-pointer-events:auto] hover:[--download-backdrop-filter:blur(var(--blur-xs))] focus-within:[--download-opacity:1] focus-within:[--download-pointer-events:auto] focus-within:[--download-backdrop-filter:blur(var(--blur-xs))] [@media(hover:none)]:[--download-opacity:1] [@media(hover:none)]:[--download-pointer-events:auto] [@media(hover:none)]:[--download-backdrop-filter:blur(var(--blur-xs))]">
 			{children}
 			<DownloadOverlay
 				href={href}
