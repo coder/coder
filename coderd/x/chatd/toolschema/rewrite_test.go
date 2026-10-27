@@ -41,6 +41,11 @@ func TestRewriteRefs(t *testing.T) {
 			want:   `{"properties": {"a": {"$id": "sub.json", "properties": {"b": {"$ref": "#/c"}}}}}`,
 		},
 		{
+			name:   "a dynamic reference by pointer resolves like a reference",
+			schema: `{"properties": {"a": {"$dynamicRef": "#/b"}, "c": {"$dynamicRef": "#c"}}}`,
+			want:   `{"properties": {"a": {"$dynamicRef": "#/moved/b"}, "c": {"$dynamicRef": "#c"}}}`,
+		},
+		{
 			name:   "tokens are unescaped and escaped again",
 			schema: `{"properties": {"a": {"$ref": "#/a~1b/c~0d/%25"}}}`,
 			want:   `{"properties": {"a": {"$ref": "#/moved/a~1b/c~0d/%25"}}}`,
@@ -354,15 +359,16 @@ func TestNormalize(t *testing.T) {
 			}`,
 		},
 		{
-			// A dynamic reference resolves like a reference when no other
-			// schema declares its dynamic anchor, and root folding follows
-			// only references.
-			name: "dynamic references to anchors declared once become pointers",
+			// A dynamic reference resolves like a reference when it is a
+			// JSON Pointer or no other schema declares its dynamic anchor,
+			// and root folding follows only references.
+			name: "dynamic references to anchors declared once or by pointer become pointers",
 			schema: `{
 				"properties": {
 					"tree": {"$dynamicRef": "#node"},
 					"plain": {"$dynamicRef": "#leaf"},
 					"extended": {"$dynamicRef": "#meta"},
+					"pointer": {"$dynamicRef": "#/$defs/Meta"},
 					"nested": {"$id": "nested.json", "$defs": {"M": {"$dynamicAnchor": "meta"}}}
 				},
 				"$defs": {
@@ -376,6 +382,7 @@ func TestNormalize(t *testing.T) {
 					"tree": {"$ref": "#/$defs/Node"},
 					"plain": {"$ref": "#/$defs/Leaf"},
 					"extended": {"$dynamicRef": "#meta"},
+					"pointer": {"$ref": "#/$defs/Meta"},
 					"nested": {"$id": "nested.json", "$defs": {"M": {"$dynamicAnchor": "meta"}}}
 				},
 				"$defs": {

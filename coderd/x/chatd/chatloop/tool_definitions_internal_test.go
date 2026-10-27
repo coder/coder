@@ -201,7 +201,7 @@ func TestBuildToolDefinitionsFullSchemaBannedRootKeywords(t *testing.T) {
 		"$ref":  "#/$defs/Missing",
 		"oneOf": []any{map[string]any{"required": []any{"kept"}}},
 		"anyOf": []any{map[string]any{"required": []any{"dangling"}}},
-		"allOf": []any{map[string]any{"properties": map[string]any{"merged": map[string]any{"type": "string"}}}},
+		"allOf": []any{map[string]any{"required": []any{"merged"}}},
 		"enum":  []any{"a", "b"},
 		"const": "a",
 		"not":   map[string]any{"type": "string"},
@@ -212,8 +212,9 @@ func TestBuildToolDefinitionsFullSchemaBannedRootKeywords(t *testing.T) {
 					map[string]any{"type": "integer"},
 				},
 			},
+			"merged": map[string]any{"type": "string"},
 		},
-		"required":             []any{"kept", "merged"},
+		"required":             []any{"kept"},
 		"$defs":                map[string]any{"Kept": map[string]any{"type": "string"}},
 		"additionalProperties": false,
 		"description":          "root description",
@@ -238,7 +239,7 @@ func TestBuildToolDefinitionsFullSchemaBannedRootKeywords(t *testing.T) {
 	// The tool's own schema map keeps its top-level keys.
 	require.Contains(t, source, "oneOf")
 	require.Contains(t, source, "$ref")
-	require.Equal(t, []any{"kept", "merged"}, source["required"])
+	require.Equal(t, []any{"kept"}, source["required"])
 }
 
 // TestBuildToolDefinitionsFullSchemaRootComposition verifies that an
@@ -1007,6 +1008,45 @@ func TestBuildToolDefinitionsFullSchemaRootFoldObjectKeywords(t *testing.T) {
 			rejected: []string{`{"q": "x", "extra": 1}`},
 		},
 		{
+			// Each closed branch forbids the name the other declares.
+			name:     "ClosedBranchesForbidEachOther",
+			source:   `{"type": "object", "allOf": [{"properties": {"a": {"type": "string"}}, "additionalProperties": false}, {"properties": {"b": {"type": "string"}}, "additionalProperties": false}]}`,
+			want:     `{"type": "object", "properties": {}, "additionalProperties": false}`,
+			accepted: []string{`{}`},
+			rejected: []string{`{"a": "x"}`, `{"b": "x"}`},
+		},
+		{
+			name:     "ClosedRootWithBranch",
+			source:   `{"type": "object", "properties": {"a": {"type": "string"}}, "additionalProperties": false, "allOf": [{"properties": {"b": {"type": "string"}}}]}`,
+			want:     `{"type": "object", "properties": {"a": {"type": "string"}}, "additionalProperties": false}`,
+			accepted: []string{`{"a": "x"}`},
+			rejected: []string{`{"b": "x"}`},
+		},
+		{
+			name:     "BranchAdditionalSchema",
+			source:   `{"type": "object", "allOf": [{"properties": {"a": {"type": "string"}}}, {"properties": {"b": {"type": "string"}}, "additionalProperties": {"minLength": 2}}]}`,
+			want:     `{"type": "object", "properties": {"a": {"allOf": [{"type": "string"}, {"minLength": 2}]}, "b": {"type": "string"}}, "additionalProperties": {"minLength": 2}}`,
+			accepted: []string{`{"a": "xy", "b": "x"}`},
+			rejected: []string{`{"a": "x"}`, `{"a": 1}`},
+		},
+		{
+			// The first alternative's closed branch forbids the name its
+			// other branch requires, so no value satisfies it.
+			name:     "ClosedBranchInAlternative",
+			source:   `{"type": "object", "anyOf": [{"allOf": [{"properties": {"a": {"type": "string"}}, "additionalProperties": false}, {"properties": {"b": {"type": "integer"}}, "required": ["b"]}]}, {"properties": {"c": {"type": "string"}}, "required": ["c"]}]}`,
+			want:     `{"type": "object", "properties": {"c": {"type": "string"}}, "required": ["c"]}`,
+			accepted: []string{`{"c": "x"}`},
+			rejected: []string{`{"b": 1}`, `{"a": "x", "b": 1}`},
+		},
+		{
+			// The object root admits no value of the scalar alternatives.
+			name:     "ScalarAlternatives",
+			source:   `{"anyOf": [{"type": "null"}, {"const": "x"}, {"enum": [1, [2]]}, {"type": ["string", "integer"]}, {"type": "object", "properties": {"q": {"type": "string"}}, "required": ["q"]}]}`,
+			want:     `{"type": "object", "properties": {"q": {"type": "string"}}, "required": ["q"]}`,
+			accepted: []string{`{"q": "x"}`},
+			rejected: []string{`{}`, `{"q": 1}`},
+		},
+		{
 			name:     "MapRefTarget",
 			source:   `{"$ref": "#/$defs/Tags", "$defs": {"Tags": {"type": "object", "additionalProperties": {"type": "string"}}}}`,
 			want:     `{"type": "object", "properties": {}, "additionalProperties": {"type": "string"}, "$defs": {"Tags": {"type": "object", "additionalProperties": {"type": "string"}}}}`,
@@ -1166,6 +1206,35 @@ func TestBuildToolDefinitionsFullSchemaRootFoldBoundsPatternWork(t *testing.T) {
 	inputSchema := ToolInputSchema(fullSchemaTestTool{schema: source})
 	require.Equal(t, want, inputSchema["properties"])
 	require.Len(t, inputSchema["required"], names)
+}
+
+// TestBuildToolDefinitionsFullSchemaRootFoldPatternWorkIsStable verifies
+// that the bound on pattern work spends the same budget on every run, so
+// a tool keeps one folded schema. Go cannot compile the lookahead
+// pattern, and matching the long patterns first would leave too little
+// budget for the pattern that gives "b" its schema.
+func TestBuildToolDefinitionsFullSchemaRootFoldPatternWorkIsStable(t *testing.T) {
+	t.Parallel()
+
+	source := fmt.Sprintf(`{
+		"type": "object",
+		"properties": {"q": {"type": "string", "minLength": 3}},
+		"required": ["q"],
+		"anyOf": [
+			{"properties": {"b": {"type": "integer"}}, "patternProperties": {"(?=z)z": {}, "^g_%s": {}}},
+			{"properties": {"a": {"type": "integer"}}, "patternProperties": {"^b$|^%s": {"type": "string", "minLength": 2}}}
+		]
+	}`, strings.Repeat("k", 58), strings.Repeat("w", 185))
+	for range 50 {
+		var schema map[string]any
+		require.NoError(t, json.Unmarshal([]byte(source), &schema))
+		properties, ok := ToolInputSchema(fullSchemaTestTool{schema: schema})["properties"].(map[string]any)
+		require.True(t, ok)
+		require.Equal(t, map[string]any{"anyOf": []any{
+			map[string]any{"type": "integer"},
+			map[string]any{"type": "string", "minLength": float64(2)},
+		}}, properties["b"])
+	}
 }
 
 // TestBuildToolDefinitionsFullSchemaRootFoldLegacyRef verifies that root

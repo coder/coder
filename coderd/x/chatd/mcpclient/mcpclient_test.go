@@ -852,6 +852,9 @@ func TestConnectAll_FullInputSchema_ModelIntentRebasesRefs(t *testing.T) {
 					"other_kind": map[string]any{"$ref": "#/properties/kind"},
 					"child":      map[string]any{"$ref": "#"},
 					"filter":     map[string]any{"$ref": "#/definitions/Filter"},
+					// A dynamic reference by pointer resolves like a
+					// reference.
+					"template": map[string]any{"$dynamicRef": "#/properties/kind"},
 					// A property named like a keyword is still a schema.
 					"enum": map[string]any{"$ref": "#/properties/kind"},
 				},
@@ -903,6 +906,7 @@ func TestConnectAll_FullInputSchema_ModelIntentRebasesRefs(t *testing.T) {
 			"other_kind": {"$ref": "#/properties/properties/properties/kind"},
 			"child": {"$ref": "#/properties/properties"},
 			"filter": {"$ref": "#/definitions/Filter"},
+			"template": {"$dynamicRef": "#/properties/properties/properties/kind"},
 			"enum": {"$ref": "#/properties/properties/properties/kind"}
 		},
 		"default": {"$ref": "#/properties/kind"}
