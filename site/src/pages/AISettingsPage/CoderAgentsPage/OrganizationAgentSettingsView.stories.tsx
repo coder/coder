@@ -309,7 +309,7 @@ export const ComputerUseUnverifiedDefaultModel: Story = {
 };
 
 const mockResponsesAPIDisabledModel: TypesGen.ChatModel = {
-	...model,
+	...MockChatModel,
 	id: "model-gpt-5-4",
 	model: "gpt-5.4",
 	display_name: "GPT-5.4",
