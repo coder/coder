@@ -6,7 +6,7 @@ title: Envbuilder
 > Envbuilder is in **maintenance mode** with no new features planned.
 >
 > The recommended way to use dev containers in Coder is the built-in [Dev Containers Integration](../../integrations/devcontainers/integration.md).
-> To find the best approach for your deployment, join our [community](https://coder.com/community) to be guided towards the best approach.
+> To find the best approach for your deployment, join the [Coder community](https://coder.com/community) to be guided towards the best approach.
 
 Envbuilder shifts environment definition from template administrators to developers.
 Instead of baking tools into template images, developers define their environments via `devcontainer.json` files in their repositories.
