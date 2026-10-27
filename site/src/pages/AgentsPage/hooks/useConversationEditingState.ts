@@ -28,10 +28,10 @@ const prependAnswerPrefix = (
 	prefix: string,
 	parts: readonly ChatComposerContentPart[],
 ): readonly ChatComposerContentPart[] | undefined => {
-	const [firstPart, ...restParts] = parts;
-	if (!firstPart) {
+	if (parts.length === 0) {
 		return undefined;
 	}
+	const [firstPart, ...restParts] = parts;
 	if (firstPart.type === "text") {
 		return [{ type: "text", text: prefix + firstPart.text }, ...restParts];
 	}

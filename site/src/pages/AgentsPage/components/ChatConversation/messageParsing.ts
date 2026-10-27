@@ -1,6 +1,7 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatAttachmentMediaTypes } from "#/api/typesGenerated";
 import { asRecord, asString } from "../ChatElements/runtimeTypeUtils";
+import { parseAsyncAnswer } from "../ChatElements/tools/asyncAnswer";
 import {
 	getProvidedSubagentTitle,
 	getSubagentChatId,
@@ -391,6 +392,21 @@ export const getMessageText = (
 		.map((part) => part.text)
 		.join("");
 
+// The composer edits an async answer without its prefix line, and the send
+// adds the line back.
+const withoutAsyncAnswerPrefix = (
+	content: readonly TypesGen.ChatMessagePart[],
+): readonly TypesGen.ChatMessagePart[] => {
+	const firstPart = content.at(0);
+	if (firstPart?.type !== "text") {
+		return content;
+	}
+	const answer = parseAsyncAnswer(firstPart.text);
+	return answer
+		? [{ ...firstPart, text: answer.body }, ...content.slice(1)]
+		: content;
+};
+
 export const getEditableUserMessagePayload = (
 	message: TypesGen.ChatMessage,
 ): {
@@ -408,7 +424,7 @@ export const getEditableUserMessagePayload = (
 		editorState: parsed.blocks.some(
 			(block) => block.type === "skill-invocation",
 		)
-			? serializeMessageDraft(message.content ?? [])
+			? serializeMessageDraft(withoutAsyncAnswerPrefix(message.content ?? []))
 			: undefined,
 	};
 };
