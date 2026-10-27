@@ -994,6 +994,7 @@ func TestReadRecordingParts(t *testing.T) {
 	largeVideo := validRecordingMP4(1<<20, 0x44)
 	largeThumb := validRecordingJPEG(1<<20, 0x55)
 	midVideo := validRecordingMP4(int(workspacesdk.MaxThumbnailSize), 0x66)
+	limitThumb := bytes.Repeat([]byte{0x77}, workspacesdk.MaxThumbnailSize)
 	unknown := make([]byte, 256)
 	zeros := func(n int) io.Reader { return io.LimitReader(zeroReader{}, int64(n)) }
 
@@ -1027,6 +1028,15 @@ func TestReadRecordingParts(t *testing.T) {
 			name:      "VideoAboveThumbnailLimit",
 			parts:     []streamedPart{{"video/mp4", bytes.NewReader(midVideo)}},
 			wantVideo: midVideo,
+		},
+		{
+			name: "ThumbnailAtLimit",
+			parts: []streamedPart{
+				{"video/mp4", bytes.NewReader(video)},
+				{"image/jpeg", bytes.NewReader(limitThumb)},
+			},
+			wantVideo:     video,
+			wantThumbnail: limitThumb,
 		},
 		{
 			name:  "OversizedVideo",
