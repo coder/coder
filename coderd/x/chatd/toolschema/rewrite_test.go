@@ -2,6 +2,8 @@ package toolschema_test
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -50,6 +52,13 @@ func TestRewriteRefs(t *testing.T) {
 			schema: `{"properties": {"a": {"$ref": "#/a~1b/c~0d/%25"}}}`,
 			want:   `{"properties": {"a": {"$ref": "#/moved/a~1b/c~0d/%25"}}}`,
 		},
+		{
+			// A recursive reference names the root of its resource, which
+			// moves, and joins "allOf" beside an existing "$ref".
+			name:   "a recursive reference to the root becomes a reference",
+			schema: `{"$recursiveAnchor": true, "properties": {"a": {"$recursiveRef": "#"}, "b": {"$ref": "#/b", "$recursiveRef": "#"}, "c": {"$id": "sub.json", "$recursiveRef": "#"}}}`,
+			want:   `{"$recursiveAnchor": true, "properties": {"a": {"$ref": "#/moved"}, "b": {"$ref": "#/moved/b", "allOf": [{"$ref": "#/moved"}]}, "c": {"$id": "sub.json", "$recursiveRef": "#"}}}`,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -75,6 +84,8 @@ func TestResolveLocalRef(t *testing.T) {
 			"Named": {"$anchor": "named", "type": "boolean"},
 			"D1": {"$anchor": "dup", "type": "string"},
 			"D2": {"$anchor": "dup", "type": "number"},
+			"R1": {"$id": "dup.json", "type": "string"},
+			"R2": {"$id": "dup.json", "type": "number"},
 			"N": {"$id": "n.json", "properties": {"x": {"type": "integer"}}, "$defs": {"M": {"$anchor": "inner", "type": "number"}}}
 		}
 	}`
@@ -92,11 +103,13 @@ func TestResolveLocalRef(t *testing.T) {
 		{name: "embedded resource $id", ref: "https://example.com/n.json", want: `{"$id": "n.json", "properties": {"x": {"type": "integer"}}, "$defs": {"M": {"$anchor": "inner", "type": "number"}}}`},
 		{name: "pointer in an embedded resource", ref: "n.json#/properties/x", want: `{"type": "integer"}`},
 		{name: "anchor", ref: "#named", want: `{"$anchor": "named", "type": "boolean"}`, sameResource: true},
+		{name: "percent-encoded anchor", ref: "#%6Eamed", want: `{"$anchor": "named", "type": "boolean"}`, sameResource: true},
 		{name: "root $id with an anchor", ref: "root.json#named", want: `{"$anchor": "named", "type": "boolean"}`, sameResource: true},
 		{name: "anchor in an embedded resource", ref: "n.json#inner", want: `{"$anchor": "inner", "type": "number"}`},
 		{name: "anchor of another resource", ref: "#inner"},
 		{name: "unknown anchor", ref: "#missing"},
 		{name: "duplicated anchor", ref: "#dup"},
+		{name: "duplicated resource", ref: "dup.json"},
 		{name: "unknown resource", ref: "https://example.com/other.json#/$defs/A"},
 		{name: "missing pointer target", ref: "#/$defs/B"},
 	} {
@@ -317,6 +330,7 @@ func TestNormalize(t *testing.T) {
 				"$anchor": "root",
 				"properties": {
 					"def": {"$ref": "#A"},
+					"percent-encoded": {"$ref": "#%41"},
 					"draft 7 beside $anchor": {"$ref": "#old"},
 					"list item": {"$ref": "#item"},
 					"escaped": {"$ref": "#slash"},
@@ -339,6 +353,7 @@ func TestNormalize(t *testing.T) {
 				"$anchor": "root",
 				"properties": {
 					"def": {"$ref": "#/$defs/A"},
+					"percent-encoded": {"$ref": "#/$defs/A"},
 					"draft 7 beside $anchor": {"$ref": "#/$defs/Old"},
 					"list item": {"$ref": "#/$defs/List/allOf/1"},
 					"escaped": {"$ref": "#/$defs/S~1T"},
@@ -422,6 +437,12 @@ func TestNormalize(t *testing.T) {
 				"definitions": {"Args": {"$anchor": "args", "type": "object"}}
 			}`,
 		},
+		{
+			// URIs compare their scheme and host without case.
+			name:   "an uppercase draft 4 URI is draft 4",
+			schema: `{"$schema": "HTTP://JSON-SCHEMA.ORG/draft-04/schema#", "properties": {"low": {"type": "number", "minimum": 1, "exclusiveMinimum": true}}}`,
+			want:   `{"$schema": "http://json-schema.org/draft-07/schema#", "properties": {"low": {"type": "number", "exclusiveMinimum": 1}}}`,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -435,4 +456,56 @@ func TestNormalize(t *testing.T) {
 			require.JSONEq(t, tc.schema, string(source), "the source must not be modified")
 		})
 	}
+}
+
+// TestNormalizeBoundsAnchorPointers verifies that references to deeply
+// nested anchors become JSON Pointers only while the pointers fit a
+// budget, since a pointer for every reference would grow the schema
+// quadratically, and that every other reference keeps naming its anchor.
+func TestNormalizeBoundsAnchorPointers(t *testing.T) {
+	t.Parallel()
+
+	const depth = 1000
+	var b strings.Builder
+	for level := range depth {
+		_, _ = fmt.Fprintf(&b, `{"$anchor": "a%d", "properties": {"r": {"$ref": "#a%d"}, "a": `, level, max(level-1, 0))
+	}
+	_, _ = b.WriteString(`{}`)
+	_, _ = b.WriteString(strings.Repeat(`}}`, depth))
+	var schema map[string]any
+	require.NoError(t, json.Unmarshal([]byte(b.String()), &schema))
+
+	normalized := toolschema.Normalize(schema)
+	pointers, anchors, pointerBytes := 0, 0, 0
+	node := normalized
+	for level := range depth {
+		properties, ok := node["properties"].(map[string]any)
+		require.True(t, ok)
+		r, ok := properties["r"].(map[string]any)
+		require.True(t, ok)
+		ref, ok := r["$ref"].(string)
+		require.True(t, ok)
+		target := max(level-1, 0)
+		switch ref {
+		case fmt.Sprintf("#a%d", target):
+			anchors++
+		case "#" + strings.Repeat("/properties/a", target):
+			pointers++
+			pointerBytes += len(ref)
+		default:
+			require.Failf(t, "unexpected reference", "level %d: %s", level, ref)
+		}
+		node, ok = properties["a"].(map[string]any)
+		require.True(t, ok)
+	}
+	// Pointers for every reference would take 6.5 MB.
+	require.NotZero(t, pointers)
+	require.NotZero(t, anchors)
+	require.LessOrEqual(t, pointerBytes, 64<<10)
+
+	first, err := json.Marshal(normalized)
+	require.NoError(t, err)
+	again, err := json.Marshal(toolschema.Normalize(schema))
+	require.NoError(t, err)
+	require.Equal(t, string(first), string(again), "the same references must become pointers on every run")
 }

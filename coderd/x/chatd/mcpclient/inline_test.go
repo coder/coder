@@ -546,6 +546,52 @@ func TestConnectInline_IgnoresShortSensitiveValues(t *testing.T) {
 	require.Equal(t, "account alice via [REDACTED]", resp.Content)
 }
 
+// TestConnectInline_KeepsSchemaKeywords verifies that a sensitive value
+// that is part of a JSON Schema keyword, such as a URL path segment named
+// "properties", is not redacted, since replacing it would rename the
+// keywords of every input schema, while other values still are.
+func TestConnectInline_KeepsSchemaKeywords(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	const secret = "long-enough-secret"
+	lookup := testTool{
+		tool: &mcp.Tool{
+			Name:        "lookup",
+			Description: "Looks up required properties using " + secret + ".",
+			InputSchema: map[string]any{
+				"type":                 "object",
+				"properties":           map[string]any{"name": map[string]any{"type": "string"}},
+				"required":             []string{"name"},
+				"additionalProperties": false,
+			},
+		},
+		handler: func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return textToolResult("ok"), nil
+		},
+	}
+	ts := newTestMCPServer(t, lookup)
+	cfg := makeInlineConfig("data-bot", ts.URL+"/properties", map[string]string{"X-Mode": "required", "X-Key": secret})
+
+	tools, summaries, cleanup := mcpclient.ConnectInlineForTest(
+		ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
+	)
+	t.Cleanup(cleanup)
+	require.Len(t, summaries, 1)
+	require.Equal(t, mcpclient.ConnectOutcomeConnected, summaries[0].Outcome)
+	require.Len(t, tools, 1)
+	require.Equal(t, "Looks up required properties using [REDACTED].", tools[0].Info().Description)
+	fullSchema, ok := tools[0].(fullSchemaTool)
+	require.True(t, ok)
+	require.Equal(t, map[string]any{
+		"type":                 "object",
+		"properties":           map[string]any{"name": map[string]any{"type": "string"}},
+		"required":             []any{"name"},
+		"additionalProperties": false,
+	}, fullSchema.FullInputSchema())
+}
+
 func TestConnectInline_BodyCap(t *testing.T) {
 	t.Parallel()
 
