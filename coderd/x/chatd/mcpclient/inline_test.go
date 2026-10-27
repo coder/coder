@@ -3,6 +3,7 @@ package mcpclient_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -185,6 +186,50 @@ func TestConnectInline_RejectsOversizedFullInputSchema(t *testing.T) {
 					"padding": map[string]any{"description": strings.Repeat("a", 64<<10+1)},
 				},
 			},
+		},
+		handler: func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return textToolResult("ok"), nil
+		},
+	}
+	ts := newTestMCPServer(t, big)
+	cfg := makeInlineConfig("bot", ts.URL, nil)
+
+	tools, summaries, cleanup := mcpclient.ConnectInlineForTest(
+		ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
+	)
+	t.Cleanup(cleanup)
+
+	require.Empty(t, tools)
+	require.Len(t, summaries, 1)
+	require.Equal(t, mcpclient.ConnectOutcomeError, summaries[0].Outcome)
+	require.Contains(t, summaries[0].Error, "tool definition exceeds maximum size")
+}
+
+// TestConnectInline_RejectsToolDefinitionOversizedOnceNormalized verifies
+// that the size cap measures the schema after normalization, which
+// spells each composite "enum" member as its own "const" schema.
+func TestConnectInline_RejectsToolDefinitionOversizedOnceNormalized(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	members := make([]any, 5000)
+	for i := range members {
+		members[i] = []any{i}
+	}
+	schema := map[string]any{
+		"type":       "object",
+		"properties": map[string]any{"pair": map[string]any{"enum": members}},
+	}
+	raw, err := json.Marshal(schema)
+	require.NoError(t, err)
+	require.Less(t, len(raw), 64<<10, "the source schema must fit the cap")
+
+	big := testTool{
+		tool: &mcp.Tool{
+			Name:        "big",
+			Description: "small description",
+			InputSchema: schema,
 		},
 		handler: func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return textToolResult("ok"), nil

@@ -2,6 +2,7 @@ package chatloop
 
 import (
 	"fmt"
+	"maps"
 	"reflect"
 	"slices"
 	"strings"
@@ -31,31 +32,10 @@ func BuildToolDefinitions(tools []fantasy.AgentTool, activeTools []string, provi
 		if !isToolActive(info.Name, activeTools) {
 			continue
 		}
-
-		inputSchema := fullInputSchema(tool)
-		if inputSchema == nil {
-			// Substitute an empty object for nil properties so that a tool
-			// with no parameters never serializes "properties" to null,
-			// which OpenAI rejects.
-			properties := info.Parameters
-			if properties == nil {
-				properties = map[string]any{}
-			}
-			inputSchema = map[string]any{
-				"type":       "object",
-				"properties": properties,
-			}
-			// Only include "required" when non-empty so that a nil slice
-			// never serializes to null, which OpenAI rejects.
-			if len(info.Required) > 0 {
-				inputSchema["required"] = info.Required
-			}
-		}
-		inputSchema = enforceObjectRoot(toolschema.Normalize(inputSchema))
 		prepared = append(prepared, fantasy.FunctionTool{
 			Name:            info.Name,
 			Description:     info.Description,
-			InputSchema:     inputSchema,
+			InputSchema:     ToolInputSchema(tool),
 			ProviderOptions: tool.ProviderOptions(),
 		})
 	}
@@ -63,6 +43,32 @@ func BuildToolDefinitions(tools []fantasy.AgentTool, activeTools []string, provi
 		prepared = append(prepared, pt.Definition)
 	}
 	return prepared
+}
+
+// ToolInputSchema returns the input schema BuildToolDefinitions sends
+// to the model for tool, so callers can bound its size.
+func ToolInputSchema(tool fantasy.AgentTool) map[string]any {
+	inputSchema := fullInputSchema(tool)
+	if inputSchema == nil {
+		info := tool.Info()
+		// Substitute an empty object for nil properties so that a tool
+		// with no parameters never serializes "properties" to null,
+		// which OpenAI rejects.
+		properties := info.Parameters
+		if properties == nil {
+			properties = map[string]any{}
+		}
+		inputSchema = map[string]any{
+			"type":       "object",
+			"properties": properties,
+		}
+		// Only include "required" when non-empty so that a nil slice
+		// never serializes to null, which OpenAI rejects.
+		if len(info.Required) > 0 {
+			inputSchema["required"] = info.Required
+		}
+	}
+	return enforceObjectRoot(toolschema.Normalize(inputSchema))
 }
 
 // fullInputSchema returns a shallow copy of the tool's full input schema, or
@@ -204,17 +210,31 @@ func foldRootComposition(inputSchema map[string]any, banned []string) map[string
 // keywords resolvable. A removed keyword that something still points
 // into, such as "#/allOf/0/properties/a", moves into the root
 // definitions as a schema holding just that keyword, and the
-// references are rewritten to point there.
+// references are rewritten to point there. Relocated content can point
+// into further removed keywords, which then move as well.
 func relocateReferencedRootKeywords(inputSchema map[string]any, removed map[string]any) map[string]any {
 	referenced := map[string]bool{}
-	toolschema.RewriteRefs(inputSchema, func(tokens []string) ([]string, bool) {
-		if len(tokens) > 0 {
-			if _, ok := removed[tokens[0]]; ok {
-				referenced[tokens[0]] = true
-			}
+	for {
+		// Scan the kept schema with the keywords referenced so far back
+		// in place, so their references resolve as they did at the root.
+		probe := maps.Clone(inputSchema)
+		for key := range referenced {
+			probe[key] = removed[key]
 		}
-		return nil, false
-	})
+		found := false
+		toolschema.RewriteRefs(probe, func(tokens []string) ([]string, bool) {
+			if len(tokens) > 0 && !referenced[tokens[0]] {
+				if _, ok := removed[tokens[0]]; ok {
+					referenced[tokens[0]] = true
+					found = true
+				}
+			}
+			return nil, false
+		})
+		if !found {
+			break
+		}
+	}
 	if len(referenced) == 0 {
 		return inputSchema
 	}
