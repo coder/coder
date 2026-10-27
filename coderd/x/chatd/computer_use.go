@@ -85,24 +85,12 @@ func (p *Server) resolveComputerUseModel(
 			return computerUseModel{}, "", xerrors.Errorf("get default chat model config: %w", err)
 		}
 	}
-	label := computerUseModelLabel(model.config)
-	unavailable := fmt.Sprintf(
-		`type "computer_use" is unavailable because model %s or its AI provider is disabled`,
-		label,
-	)
-	if !model.config.Enabled || !model.config.AIProviderID.Valid {
-		return computerUseModel{}, unavailable, nil
-	}
+	// Both lookups above return only enabled models of enabled AI providers.
 	aiProvider, err := p.db.GetAIProviderByID(chatdCtx, model.config.AIProviderID.UUID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return computerUseModel{}, unavailable, nil
-	}
 	if err != nil {
 		return computerUseModel{}, "", xerrors.Errorf("get AI provider for model %s: %w", model.config.ID, err)
 	}
-	if !aiProvider.Enabled {
-		return computerUseModel{}, unavailable, nil
-	}
+	label := computerUseModelLabel(model.config)
 	provider, ok := computerUseProviderForAIProviderType(string(aiProvider.Type))
 	if !ok {
 		return computerUseModel{}, fmt.Sprintf(
