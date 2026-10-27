@@ -2,7 +2,7 @@
  * Utilities for persisting and restoring chat input drafts.
  *
  * Drafts are stored in localStorage. The current format stores the
- * serialized Lexical editor state JSON so that file-reference chips
+ * serialized Lexical editor state JSON so that file-reference and skill chips
  * survive navigation. Legacy drafts (plain-text strings) are detected
  * and handled transparently on read.
  */

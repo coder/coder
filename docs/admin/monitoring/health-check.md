@@ -243,7 +243,7 @@ Coder was able to establish a WebSocket connection, but was unable to write a me
 There are multiple possible causes of this problem:
 
 1. Validate that any reverse proxy servers in front of Coder's configured access URL are not prematurely closing the connection.
-2. Validate that the network link between Coder and the workspace proxy is stable, e.g. by using `ping`.
+2. Validate that the network link between Coder and the workspace proxy is stable, for example, by using `ping`.
 3. Validate that any internal network infrastructure (for example, firewalls, proxies, VPNs) do not interfere with WebSocket connections.
 
 ## Workspace Proxy

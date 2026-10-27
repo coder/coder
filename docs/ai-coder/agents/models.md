@@ -41,7 +41,7 @@ Configuring such a provider does not unlock Agents; add one of the supported pro
 ### Add a provider
 
 LLM providers are managed from the deployment AI settings, not from the Agents settings page.
-A provider is deployment-wide, whilst the models that reference it are organization-scoped.
+A provider is deployment-wide, while the models that reference it are organization-scoped.
 
 1. Navigate to **Admin settings** > **AI**.
 1. Select **Providers**.
@@ -102,9 +102,9 @@ This applies to every model family Bedrock serves, including Anthropic and OpenA
 
 For each provider request, Coder selects credentials in this order:
 
-1. If BYOK is enabled and the user has saved a personal key for the selected provider, Coder uses the user's key.
+1. If BYOK is enabled and the user saved a personal key for the provider, Coder uses it.
 1. Otherwise, Coder uses centralized provider credentials when they are configured.
-1. If neither a usable user key nor centralized credentials are available, the provider is unavailable for that user.
+1. If neither a usable user key nor centralized credentials exist, the provider is unavailable for that user.
 
 ## Models
 
@@ -171,9 +171,9 @@ The collection response also includes provider descriptors and unsupported provi
 
 1. Navigate to **Admin settings** > **AI** > **Models**.
 1. Select **Add model** and select the provider for the new model.
-1. Enter the **Model Identifier**, the exact model string your provider expects (e.g., `claude-opus-4-6`, `gpt-5.3-codex`).
+1. Enter the **Model Identifier**, the exact model string your provider expects (for example, `claude-opus-4-6`, `gpt-5.3-codex`).
 1. Set a **Display Name** so developers see a human-readable label in the model selector.
-1. Set the **Context Limit**, the maximum number of tokens in the model's context window (e.g., `200000` for Claude Sonnet).
+1. Set the **Context Limit**, the maximum number of tokens in the model's context window (for example, `200000` for Claude Sonnet).
 1. Configure any provider-specific options (see below).
 1. Select **Save**.
 

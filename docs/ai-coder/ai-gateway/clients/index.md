@@ -110,7 +110,7 @@ For headless scenarios, first [create a service account](../../../admin/users/he
 
 <details>
 <summary>Example</summary>
-For clients supporting [base URL](#base-urls), eg. [Claude Code](./claude-code.md):
+For clients supporting [base URL](#base-urls), for example, [Claude Code](./claude-code.md):
 
 ```sh
 export ANTHROPIC_BASE_URL="https://coder.example.com/api/v2/ai-gateway/anthropic"

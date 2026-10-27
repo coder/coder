@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+	act,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { StrictMode } from "react";
@@ -15,13 +21,17 @@ import {
 } from "vitest";
 import { AppProviders } from "#/App";
 import { API } from "#/api/api";
+import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
 import { chatProjectsKey } from "#/api/queries/chatProjects";
 import {
 	mcpServerConfigsKey,
 	organizationChatModelsKey,
 	userChatPersonalModelOverrides,
+	userChatPersonalModelOverridesKey,
 } from "#/api/queries/chats";
+import { organizationSkillsKey } from "#/api/queries/organizationSkills";
 import { permittedOrganizationsKey } from "#/api/queries/organizations";
+import { userSkillsKey } from "#/api/queries/userSkills";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
@@ -43,6 +53,7 @@ import {
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
+import { MockSkill } from "#/testHelpers/skills";
 import { persistedAttachmentsStorageKey } from "../hooks/useFileAttachments";
 import { readAgentAttachmentText } from "../utils/fileAttachmentLimits";
 import { mcpSelectionStorageKey } from "../utils/mcpSelection";
@@ -54,6 +65,7 @@ import {
 	selectedOrganizationIdStorageKey,
 	selectedWorkspaceIdStorageKey,
 } from "./AgentCreateForm";
+import { serializeMessageDraft } from "./ChatMessageInput/SkillInvocationNode";
 
 const dashboard = vi.hoisted(
 	(): { showOrganizations: boolean; experiments: string[] } => ({
@@ -296,6 +308,27 @@ describe("AgentCreateForm workspace file uploads", () => {
 
 		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
 		expect(submittedOptions(onCreateChat).uploadWorkspaceFiles).toBeUndefined();
+	});
+
+	it("submits a skill chosen from the slash menu as a composer part", async () => {
+		const queryClient = createQueryClient();
+		queryClient.setQueryData(userSkillsKey(), [MockSkill]);
+		queryClient.setQueryData(
+			organizationSkillsKey(MockDefaultOrganization.id),
+			[],
+		);
+		const { onCreateChat } = renderForm({}, { queryClient });
+
+		await typeMessage("/");
+		await user().click(await screen.findByRole("option", { name: /skill/ }));
+		await clickSend();
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).composerParts).toContainEqual({
+			type: "skill-invocation",
+			source: "personal",
+			name: MockSkill.name,
+		});
 	});
 
 	it("rejects workspace files when no workspace is selected", async () => {
@@ -915,6 +948,110 @@ describe("AgentCreateForm project picker", () => {
 		expect(submittedOptions(onCreateChat).projectId).toBe(MockChatProject.id);
 	});
 
+	it("drops organization skill chips when the organization is revoked", async () => {
+		dashboard.showOrganizations = true;
+		localStorage.setItem(
+			selectedOrganizationIdStorageKey,
+			MockOrganization2.id,
+		);
+		const queryClient = createQueryClient();
+		queryClient.setQueryData(
+			organizationChatModelsKey(MockOrganization2.id),
+			mockModelCatalog,
+		);
+		queryClient.setQueryData(
+			userChatPersonalModelOverridesKey(MockOrganization2.id, "me"),
+			mockPersonalModelOverrides,
+		);
+		queryClient.setQueryData(mcpServerConfigsKey(MockOrganization2.id), []);
+		queryClient.setQueryData(userSkillsKey(), [
+			{ ...MockSkill, name: "notes" },
+		]);
+		queryClient.setQueryData(organizationSkillsKey(MockOrganization2.id), [
+			{ ...MockSkill, name: "review" },
+		]);
+		const { onCreateChat } = renderForm({}, { queryClient });
+
+		await user().click(screen.getByRole("textbox", { name: "Chat message" }));
+		for (const name of ["review", "notes"]) {
+			await user().paste("/");
+			await user().click(
+				await screen.findByRole("option", { name: new RegExp(name) }),
+			);
+		}
+		act(() =>
+			queryClient.setQueryData(
+				permittedOrganizationsKey({
+					object: { resource_type: "chat", owner_id: "me" },
+					action: "create",
+				}),
+				[MockDefaultOrganization],
+			),
+		);
+		await submitMessage("organization revoked");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		const options = submittedOptions(onCreateChat);
+		expect(options.organizationId).toBe(MockDefaultOrganization.id);
+		expect(
+			options.composerParts?.filter((part) => part.type === "skill-invocation"),
+		).toEqual([
+			{ type: "skill-invocation", source: "personal", name: "notes" },
+		]);
+	});
+
+	it("drops project skill chips from a restored draft without a project", async () => {
+		localStorage.setItem(
+			draftStorageKeys(undefined).text,
+			serializeMessageDraft([
+				{
+					type: "skill-invocation",
+					skill_source: "project",
+					skill_name: "triage",
+				},
+				{ type: "text", text: " carry on" },
+			]),
+		);
+		const { onCreateChat } = renderForm(
+			{},
+			{ queryClient: createProjectQueryClient() },
+		);
+
+		await clickSend();
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).composerParts).toEqual([
+			{ type: "text", text: " carry on" },
+		]);
+	});
+
+	it("drops project skill chips when a refetch removes the picked project", async () => {
+		const queryClient = createProjectQueryClient();
+		queryClient.setQueryData(userSkillsKey(), []);
+		queryClient.setQueryData(
+			organizationSkillsKey(MockDefaultOrganization.id),
+			[],
+		);
+		queryClient.setQueryData(chatProjectSkillsKey(MockChatProject.id), [
+			{ ...MockSkill, name: "triage" },
+		]);
+		const { onCreateChat } = renderForm({}, { queryClient });
+
+		await pickProject(MockChatProject.name);
+		await typeMessage("/");
+		await user().click(await screen.findByRole("option", { name: /triage/ }));
+		act(() =>
+			queryClient.setQueryData(chatProjectsKey, [otherOrganizationProject]),
+		);
+		await screen.findByRole("button", { name: "Project: No project" });
+		await submitMessage("the project is gone");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).composerParts).not.toContainEqual(
+			expect.objectContaining({ type: "skill-invocation" }),
+		);
+	});
+
 	it("clears the picked project when the organization changes", async () => {
 		dashboard.showOrganizations = true;
 		const queryClient = createProjectQueryClient();
@@ -1005,4 +1142,35 @@ describe("AgentCreateForm project picker", () => {
 			expect(submittedOptions(onCreateChat).projectId).toBe(createdProject.id);
 		},
 	);
+});
+
+describe("AgentCreateForm project actions", () => {
+	beforeEach(() => {
+		dashboard.experiments = ["chat-projects"];
+	});
+
+	afterEach(() => {
+		dashboard.experiments = [];
+	});
+
+	it("inserts a project action's skill into the new chat", async () => {
+		const queryClient = createQueryClient();
+		queryClient.setQueryData(chatProjectSkillsKey(MockChatProject.id), [
+			{ ...MockSkill, name: "triage", action: true },
+		]);
+		const { onCreateChat } = renderForm(
+			{ project: MockChatProject },
+			{ queryClient },
+		);
+
+		await user().click(await screen.findByRole("button", { name: "triage" }));
+		await clickSend();
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).composerParts).toContainEqual({
+			type: "skill-invocation",
+			source: "project",
+			name: "triage",
+		});
+	});
 });

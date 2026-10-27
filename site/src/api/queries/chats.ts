@@ -5,6 +5,7 @@ import {
 	type QueryClient,
 	type QueryKey,
 	queryOptions,
+	skipToken,
 } from "react-query";
 import {
 	API,
@@ -724,6 +725,7 @@ export const mergeWatchedChatSummary = (
 	const isChatSummaryEvent = eventKind === "chat_summary_change";
 	const isDiffStatusEvent = eventKind === "diff_status_change";
 	const isContextDirtyEvent = eventKind === "context_dirty";
+	const isProjectEvent = eventKind === "project_change";
 	const updatedAtComparison = compareUpdatedAtInstants(
 		cachedChat.updated_at,
 		watchedChat.updated_at,
@@ -832,6 +834,10 @@ export const mergeWatchedChatSummary = (
 	const nextUpdatedAt = adoptsRowFields
 		? watchedChat.updated_at
 		: cachedChat.updated_at;
+	// A move does not change updated_at, so only its own event can order it.
+	const nextProjectId = isProjectEvent
+		? watchedChat.project_id
+		: cachedChat.project_id;
 
 	// Keep updated_at in the no-op guard. This gives up the old streaming
 	// rerender shortcut so later stale events cannot pass isFreshEnough
@@ -849,6 +855,7 @@ export const mergeWatchedChatSummary = (
 		nextHasUnread === cachedChat.has_unread &&
 		nextUpdatedAt === cachedChat.updated_at &&
 		nextContext === cachedChat.context &&
+		nextProjectId === cachedChat.project_id &&
 		nextQueuedForCapacity === (cachedChat.queued_for_capacity ?? false)
 	) {
 		return cachedChat;
@@ -868,6 +875,7 @@ export const mergeWatchedChatSummary = (
 		has_unread: nextHasUnread,
 		updated_at: nextUpdatedAt,
 		context: nextContext,
+		project_id: nextProjectId,
 		queued_for_capacity: nextQueuedForCapacity,
 	};
 };
@@ -1129,6 +1137,17 @@ export const resetUnloadedChatEntity = (
 	});
 };
 
+/** As resetUnloadedChatEntity, for every chat list that has not loaded. */
+export const resetUnloadedChatLists = (queryClient: QueryClient) =>
+	Promise.all(
+		[chatListFamilyKey, chatProjectListFamilyKey].map((queryKey) =>
+			queryClient.resetQueries({
+				queryKey,
+				predicate: (query) => query.state.data === undefined,
+			}),
+		),
+	);
+
 export const cancelChatMessages = (queryClient: QueryClient, chatId: string) =>
 	queryClient.cancelQueries({
 		queryKey: chatMessagesKey(chatId),
@@ -1301,6 +1320,11 @@ export const CHAT_SEARCH_LIMIT = 50;
 type UpdateChatWorkspaceVariables = {
 	chatId: string;
 	workspaceId: string | null;
+};
+
+type MoveChatToProjectVariables = {
+	readonly chatId: string;
+	readonly projectId: string | null;
 };
 
 type UpdateChatPlanModeVariables = {
@@ -1603,6 +1627,64 @@ export const chatPromptsQuery = (chatId: string) => ({
 	staleTime: PROMPTS_STALE_MS,
 	enabled: chatId !== "",
 });
+
+const chatAttachmentsFamilyKey = (chatId: string) =>
+	[...chatEntityKey(chatId), "attachments"] as const;
+
+export const chatAttachmentsKey = (
+	chatId: string,
+	beforeId: number | undefined,
+) => [...chatAttachmentsFamilyKey(chatId), beforeId] as const;
+
+/**
+ * Attachments in a chat's messages before `beforeId`, newest first. A cached
+ * list for a later boundary holds every entry of an earlier one, so it seeds
+ * that boundary without a request.
+ */
+export const chatAttachments = (
+	queryClient: QueryClient,
+	chatId: string,
+	beforeId: number | undefined,
+) =>
+	queryOptions({
+		queryKey: chatAttachmentsKey(chatId, beforeId),
+		queryFn:
+			beforeId === undefined
+				? skipToken
+				: ({ signal }) =>
+						API.experimental.getChatAttachments(
+							chatId,
+							{ before_id: beforeId },
+							signal,
+						),
+		// An edit deletes the edited message and every later one, so the
+		// history before a message that still exists never changes.
+		staleTime: Number.POSITIVE_INFINITY,
+		initialData: () => {
+			if (beforeId === undefined) {
+				return undefined;
+			}
+			const covering = queryClient
+				.getQueriesData<TypesGen.ChatAttachmentsResponse>({
+					queryKey: chatAttachmentsFamilyKey(chatId),
+				})
+				.find(([queryKey, data]) => {
+					const coveredBeforeId = queryKey.at(-1);
+					return (
+						data !== undefined &&
+						typeof coveredBeforeId === "number" &&
+						coveredBeforeId > beforeId
+					);
+				})?.[1];
+			return covering
+				? {
+						attachments: covering.attachments.filter(
+							(attachment) => attachment.message_id < beforeId,
+						),
+					}
+				: undefined;
+		},
+	});
 
 export const chatArchiveMutationKey = (chatId: string) =>
 	["chats", "archive", chatId] as const;
@@ -1914,6 +1996,65 @@ export const updateChatWorkspace = (queryClient: QueryClient) => ({
 		await invalidateChatEntity(queryClient, chatId);
 		await invalidateChatsByWorkspace(queryClient);
 	},
+});
+
+const setCachedChatProjectId = (
+	queryClient: QueryClient,
+	chatId: string,
+	projectId: string | undefined,
+) => {
+	updateInfiniteChatsCache(queryClient, (chats) =>
+		chats.map((chat) =>
+			chat.id === chatId ? { ...chat, project_id: projectId } : chat,
+		),
+	);
+	patchChatEntity(
+		queryClient,
+		chatId,
+		(chat) => chat && { ...chat, project_id: projectId },
+	);
+};
+
+/**
+ * Moves a root chat into a project, or out of its project when projectId is
+ * null. The rollback restores only project_id, so it keeps the fields that
+ * watch events wrote while the request ran.
+ */
+export const moveChatToProject = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, projectId }: MoveChatToProjectVariables) =>
+		API.experimental.updateChat(chatId, {
+			project_id:
+				projectId ??
+				// The API uses the nil UUID to remove the chat from its project.
+				"00000000-0000-0000-0000-000000000000",
+		}),
+	onMutate: async ({ chatId, projectId }: MoveChatToProjectVariables) => {
+		await cancelChatListQueries(queryClient);
+		await cancelChatEntity(queryClient, chatId);
+		const previousChat =
+			findChatInListCaches(queryClient, chatId) ??
+			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId));
+		setCachedChatProjectId(queryClient, chatId, projectId ?? undefined);
+		return { previousProjectId: previousChat?.project_id };
+	},
+	onError: (
+		_error: unknown,
+		{ chatId }: MoveChatToProjectVariables,
+		context: { previousProjectId?: string } | undefined,
+	) => {
+		if (context) {
+			setCachedChatProjectId(queryClient, chatId, context.previousProjectId);
+		}
+	},
+	onSettled: (
+		_data: unknown,
+		_error: unknown,
+		{ chatId }: MoveChatToProjectVariables,
+	) =>
+		Promise.all([
+			invalidateChatListQueries(queryClient),
+			invalidateChatEntity(queryClient, chatId),
+		]),
 });
 
 type ChatListSnapshot = ReadonlyArray<
@@ -2786,7 +2927,7 @@ export const updateUserChatCustomPrompt = (queryClient: QueryClient) => ({
 	},
 });
 
-const userChatPersonalModelOverridesKey = (
+export const userChatPersonalModelOverridesKey = (
 	organizationId: string,
 	user: string,
 ) => [...userChatPersonalModelOverridesKeyRoot, organizationId, user] as const;
@@ -3123,6 +3264,17 @@ export const deleteChatModel = (queryClient: QueryClient) => ({
 
 export const chatFileTextKey = (fileId: string) =>
 	[...chatFilesKey, fileId, "text"] as const;
+
+/**
+ * Disabled, so nothing built from these options fetches on mount. The text
+ * can be megabytes, so the default `gcTime` frees it after it goes unobserved.
+ */
+export const chatFileText = (fileId: string) =>
+	queryOptions({
+		queryKey: chatFileTextKey(fileId),
+		queryFn: () => API.experimental.getChatFileText(fileId),
+		enabled: false,
+	});
 
 const GATEWAY_REQUEST_STALE_MS = 30_000;
 

@@ -5,7 +5,11 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"net/url"
+	"slices"
+	"strings"
 	"time"
+	"unicode"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -167,6 +171,15 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 	// Treat the message as untrusted input.
 	cleaned := strutil.UISanitize(req.Message)
 
+	// Drop disallowed URIs but still save the status.
+	uri := req.Uri
+	if uri != "" && !isAllowedAppStatusURI(uri) {
+		a.Log.Warn(ctx, "dropping disallowed app status uri",
+			slog.F("agent_id", a.AgentID),
+			slog.F("app_slug", req.Slug))
+		uri = ""
+	}
+
 	// Get the latest status for the workspace app to detect no-op updates
 	// nolint:gocritic // This is a system restricted operation.
 	latestAppStatus, err := a.Database.GetLatestWorkspaceAppStatusByAppID(dbauthz.AsSystemRestricted(ctx), app.ID)
@@ -188,8 +201,8 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 		State:       dbState,
 		Message:     cleaned,
 		Uri: sql.NullString{
-			String: req.Uri,
-			Valid:  req.Uri != "",
+			String: uri,
+			Valid:  uri != "",
 		},
 	})
 	if err != nil {
@@ -237,4 +250,17 @@ func shouldBump(dbState database.WorkspaceAppStatusState, latestAppStatus databa
 		}
 	}
 	return false
+}
+
+// allowedAppStatusURISchemes are the only schemes kept on app status URIs.
+var allowedAppStatusURISchemes = []string{"http", "https", "file"}
+
+// isAllowedAppStatusURI reports whether uri uses an allowed scheme and has no
+// control characters.
+func isAllowedAppStatusURI(uri string) bool {
+	if strings.IndexFunc(uri, unicode.IsControl) >= 0 {
+		return false
+	}
+	u, err := url.Parse(uri)
+	return err == nil && slices.Contains(allowedAppStatusURISchemes, u.Scheme)
 }

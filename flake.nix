@@ -176,17 +176,17 @@
 
         paralleltestctx = unstablePkgs.buildGo126Module {
           pname = "paralleltestctx";
-          version = "0.0.2";
+          version = "0.0.2-unstable-2026-10-20";
 
           src = pkgs.fetchFromGitHub {
             owner = "coder";
             repo = "paralleltestctx";
-            rev = "v0.0.2";
-            sha256 = "sha256-qFQ4LZR2IwqscypD0URSZKXTlhUcz/axDb8NTH5CxLw=";
+            rev = "95009df793fb85bcbe71628e6dded30e5cfdb3c3";
+            sha256 = "sha256-8uvRRSDPgXGtSL5YFdd5gxPAt0d9jXZ+kPivrkkgI7c=";
           };
 
           subPackages = [ "cmd/paralleltestctx" ];
-          vendorHash = "sha256-OuQWmZmofdJKq1hvk43RPkILQwAuFzqhmB22Xf6Z3lA=";
+          vendorHash = "sha256-gWFc1Cm+UMNcvBxUgyVrreFXbwR8rwac4L2QBUDKo6M=";
         };
 
         # Keep this pin aligned with mise.toml when updating Terraform.
@@ -195,28 +195,28 @@
             releases = {
               x86_64-linux = {
                 platform = "linux_amd64";
-                hash = "sha256-OANLONAwljmaehJkoUVhqAKbK0lv0fFpRSZW5Tlo8bc=";
+                hash = "sha256-VFTvz3/IfwwhExEbmlxxgvDKHG8PI6HhEKUHcKj+Rzs=";
               };
               aarch64-linux = {
                 platform = "linux_arm64";
-                hash = "sha256-p1C1oRA48WWEayZYxAyIzXBwqmemG6tDGhS6J5KOqeo=";
+                hash = "sha256-LWo/EJjelPFnKqpOaHPvka3p6sOIUdOkA+IAkZMgjeQ=";
               };
               aarch64-darwin = {
                 platform = "darwin_arm64";
-                hash = "sha256-heG8eKtFvcX4KnusOSnjfQcoNKWE0iWDokmNxnu2JM0=";
+                hash = "sha256-gemNkYbgzRvIjK6yQDRT/dS97t1XTKTb6PtqKIDJxRo=";
               };
               x86_64-darwin = {
                 platform = "darwin_amd64";
-                hash = "sha256-eUo2w/fr9sWPIInCJgaKU50XBbo1ilZ5tRZxyNx+vHs=";
+                hash = "sha256-0X0QU7y95lCoqRm3IY7yiG6sdsR0MG6ezYvWRCdAh0E=";
               };
             };
             target = releases.${system} or null;
           in
           if target != null then
-            pkgs.runCommand "terraform-1.16.6" {
+            pkgs.runCommand "terraform-1.16.7" {
               nativeBuildInputs = [ pkgs.unzip ];
               src = pkgs.fetchurl {
-                url = "https://releases.hashicorp.com/terraform/1.16.6/terraform_1.16.6_${target.platform}.zip";
+                url = "https://releases.hashicorp.com/terraform/1.16.7/terraform_1.16.7_${target.platform}.zip";
                 hash = target.hash;
               };
             } ''

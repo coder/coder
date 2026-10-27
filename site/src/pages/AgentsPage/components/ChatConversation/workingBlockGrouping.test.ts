@@ -10,8 +10,9 @@ import {
 import { assignTimelineRows, type TimelineRow } from "./timelineRows";
 import {
 	type GroupWorkingBlocksOptions,
+	getRowBlocks,
 	groupWorkingBlocks,
-	splitRowBlocks,
+	isAgentAttachmentOnlyRow,
 	type WorkingBlock,
 } from "./workingBlockGrouping";
 
@@ -74,6 +75,27 @@ const searchResult = (
 	provider_executed: true,
 	created_at: createdAt,
 });
+// A provider-executed call that, unlike web_search, renders no row.
+const hiddenCall = (
+	id: string,
+	createdAt?: string,
+): TypesGen.ChatMessagePart => ({
+	type: "tool-call",
+	tool_call_id: id,
+	tool_name: "code_execution",
+	provider_executed: true,
+	created_at: createdAt,
+});
+const hiddenResult = (
+	id: string,
+	createdAt?: string,
+): TypesGen.ChatMessagePart => ({
+	type: "tool-result",
+	tool_call_id: id,
+	tool_name: "code_execution",
+	provider_executed: true,
+	created_at: createdAt,
+});
 const call = (
 	id: string,
 	createdAt?: string,
@@ -97,6 +119,13 @@ const result = (
 	is_error: options.isError,
 	created_at: createdAt,
 });
+
+const mockAttachment: TypesGen.ChatMessagePart = {
+	type: "file",
+	media_type: "text/csv",
+	name: "report.csv",
+	file_id: "report-file",
+};
 
 /** One persisted step: an assistant tool call followed by its hidden result. */
 const step = (
@@ -231,6 +260,29 @@ describe("groupWorkingBlocks", () => {
 		});
 	});
 
+	it("keeps a step's attachment inside the block instead of ending it there", () => {
+		const prompt = user("Go");
+		// chatd persists a tool's attachments as their own assistant message.
+		const steps = [
+			...step("a", 1, 2),
+			message("assistant", [call("b", at(3), "attach_file")], at(3)),
+			message("assistant", [mockAttachment], at(3)),
+			message("tool", [result("b", at(4), { name: "attach_file" })], at(4)),
+			...step("c", 5, 6),
+		];
+		const answer = message("assistant", [text("Done.")], at(7));
+		const { rows, blocks } = group([prompt, ...steps, answer]);
+
+		expect(blocks).toHaveLength(1);
+		expect(rowIds(rows, blocks[0].rowIndices)).toEqual([
+			steps[0].id,
+			steps[2].id,
+			steps[3].id,
+			steps[5].id,
+		]);
+		expect(blocks[0].endsWithAnswer).toBe(false);
+	});
+
 	it("treats an answer whose citations trail its text as the block's answer", () => {
 		const prompt = user("Go");
 		const steps = step("a", 1, 2);
@@ -257,13 +309,13 @@ describe("groupWorkingBlocks", () => {
 		expect(blocks[0]).toMatchObject({ stepCount: 1, endsWithAnswer: true });
 	});
 
-	it("counts a reissued search once, ignoring its unanswered first call", () => {
+	it("counts a reissued hidden call once, ignoring its unanswered first call", () => {
 		const prompt = user("Go");
-		const steps = step("a", 1, 2, { leading: [searchCall("unanswered")] });
+		const steps = step("a", 1, 2, { leading: [hiddenCall("unanswered")] });
 		const answer = message("assistant", [
-			searchCall("search"),
+			hiddenCall("search"),
 			citation,
-			searchResult("search"),
+			hiddenResult("search"),
 			text("Go 1.27 is out."),
 		]);
 		const { blocks } = group([prompt, ...steps, answer]);
@@ -296,17 +348,17 @@ describe("groupWorkingBlocks", () => {
 		},
 	);
 
-	it("counts a search that rendered no row before the block's first step", () => {
+	it("counts a hidden call that rendered no row before the block's first step", () => {
 		const prompt = user("Go");
-		// The answer's own search stays out of the block that follows it.
+		// The answer's own call stays out of the block that follows it.
 		const answer = message("assistant", [
-			searchCall("first", at(1)),
-			searchResult("first", at(2)),
+			hiddenCall("first", at(1)),
+			hiddenResult("first", at(2)),
 			text("Nothing found."),
 		]);
 		const search = message("assistant", [
-			searchCall("second", at(3)),
-			searchResult("second", at(4)),
+			hiddenCall("second", at(3)),
+			hiddenResult("second", at(4)),
 		]);
 		const steps = step("a", 5, 6);
 
@@ -675,9 +727,9 @@ describe("groupWorkingBlocks", () => {
 			]);
 		});
 
-		it("starts no block from a search without citations alone", () => {
+		it("starts no block from a hidden call without citations alone", () => {
 			const prompt = user("Go");
-			const parts = [searchCall("s", at(1)), searchResult("s"), text("Hi.")];
+			const parts = [hiddenCall("s", at(1)), hiddenResult("s"), text("Hi.")];
 
 			for (const index of parts.keys()) {
 				expect(groupLive([prompt], parts.slice(0, index + 1)).blocks).toEqual(
@@ -1054,12 +1106,15 @@ describe("groupWorkingBlocks", () => {
 	});
 });
 
-describe("splitRowBlocks", () => {
+describe("getRowBlocks", () => {
 	const answerOf = (content: TypesGen.ChatMessagePart[]) => {
 		const [{ parsed }] = parseMessagesWithMergedTools([
 			message("assistant", content),
 		]);
-		return splitRowBlocks(parsed.blocks, parsed.tools).answer;
+		return getRowBlocks(parsed.blocks, parsed.tools, {
+			section: "answer",
+			hideAttachments: false,
+		});
 	};
 
 	it("folds narration that precedes the answer's last reasoning", () => {
@@ -1157,9 +1212,12 @@ describe("splitRowBlocks", () => {
 			const expected = [{ type: "response", text: answer }];
 
 			expect(answerOf(persisted)).toEqual(expected);
-			expect(splitRowBlocks(streamState.blocks, streamTools).answer).toEqual(
-				expected,
-			);
+			expect(
+				getRowBlocks(streamState.blocks, streamTools, {
+					section: "answer",
+					hideAttachments: false,
+				}),
+			).toEqual(expected);
 		},
 	);
 
@@ -1192,6 +1250,48 @@ describe("splitRowBlocks", () => {
 		).toEqual([
 			{ type: "response", text: "Checked the logs." },
 			{ type: "response", text: "The fix is in." },
+		]);
+	});
+
+	it("drops a row's files only when attachments are hidden", () => {
+		const [{ parsed }] = parseMessagesWithMergedTools([
+			message("assistant", [text("Report:"), mockAttachment]),
+		]);
+		const blockTypes = (hideAttachments: boolean) =>
+			getRowBlocks(parsed.blocks, parsed.tools, {
+				section: undefined,
+				hideAttachments,
+			}).map((block) => block.type);
+
+		expect(blockTypes(false)).toEqual(["response", "file"]);
+		expect(blockTypes(true)).toEqual(["response"]);
+	});
+});
+
+describe("isAgentAttachmentOnlyRow", () => {
+	it("flags only assistant rows that show nothing but attachments", () => {
+		const upload = message("user", [mockAttachment]);
+		const attachmentOnly = message("assistant", [mockAttachment]);
+		const answerWithFile = message("assistant", [
+			text("Report:"),
+			mockAttachment,
+		]);
+		const withHookNotice = message("assistant", [
+			mockAttachment,
+			{ type: "hook-notice", text: "Scanned by policy." },
+		]);
+		const { rows } = group([
+			upload,
+			attachmentOnly,
+			answerWithFile,
+			withHookNotice,
+		]);
+
+		expect(rows.map((row) => isAgentAttachmentOnlyRow(row))).toEqual([
+			false,
+			true,
+			false,
+			false,
 		]);
 	});
 });

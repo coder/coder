@@ -139,6 +139,7 @@ Running provisioner daemons within the same cluster/cloud as the workspaces they
 ### Authentication
 
 1. Use a [scoped key](../../install/operate/provisioners/index.md#scoped-key-recommended) to authenticate the provisioner daemons with Coder.
+
    These keys can only be used to authenticate provisioner daemons (not other APIs on the control plane).
 
 1. Store the keys securely and use environment variables to pass them to the provisioner daemon.
@@ -264,12 +265,14 @@ While your most privileged secrets should never be included in template files, t
 
 GitOps is the practice of using a Git repository as the source of truth for operational config and reconciling the config in Git with operational systems each time the `main` (or, archaically, `master`) branch of the repository is updated.
 
-1. Store Coder templates in a single Git repository, or a single repository per Coder organization, and use the [Coderd Terraform provider](https://registry.terraform.io/providers/coder/coderd/latest/docs/resources/template) to push changes from the main branch to Coder using a CI/CD tool.
+1. Store Coder templates in a single Git repository, or a single repository per Coder organization.
 
    This gives you an easily browsable, auditable history of template changes and who made them.
    Coder audit logs establish who and when changes happen, but git repositories are particularly handy for analyzing exactly what changes to templates are made.
 
-1. Use a Coder user account exclusively for the purpose of pushing template changes and do not give any human users the credentials.
+1. Use the [Coderd Terraform provider](https://registry.terraform.io/providers/coder/coderd/latest/docs/resources/template) to push changes from the main branch to Coder using a CI/CD tool.
+
+1. Use a Coder user account exclusively for pushing template changes, and give no human users the credentials.
 
    This ensures any actions taken by the account correspond exactly to CI/CD actions from the repository and allows you to avoid granting the template admin role widely in your organization.
 
@@ -291,7 +294,7 @@ It is important to limit Coder users to trusted insiders and/or take steps to co
 Example constraints include:
 
 - Network policy or segmentation
-- Runtime protections on the workspace host (e.g. SELinux)
+- Runtime protections on the workspace host (for example, SELinux)
 - Limiting privileges of the account or role assigned to the workspace such as a service account on Kubernetes, or IAM role on public clouds
 - Monitoring and/or auditing for suspicious activity such as cryptomining or exfiltration
 
@@ -318,7 +321,7 @@ A non-exclusive list of network assets to consider:
 - Access to internal corporate networks
   - If end users will access the workspace over the corporate network, you must allow outbound access to establish the encrypted tunnels.
 - Access to staging or production systems
-- Access to confidential data (e.g. payment processing data, health records, personally identifiable information)
+- Access to confidential data (for example, payment processing data, health records, personally identifiable information)
 - Access to other clusters/clouds
 
 ### Inbound network access

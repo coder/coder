@@ -1,4 +1,4 @@
-import { CheckIcon, EllipsisVerticalIcon, PlusIcon, XIcon } from "lucide-react";
+import { EllipsisVerticalIcon, PlusIcon } from "lucide-react";
 import type { SkillMetadata } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -45,7 +45,7 @@ import {
 } from "../utils/skills";
 import { RetryButton } from "./RetryButton";
 import { SectionHeader, type SectionHeaderLevel } from "./SectionHeader";
-import type { SkillErrorDisplay } from "./SkillEditor";
+import type { SkillErrorDisplay, SkillSubmitHandler } from "./SkillEditor";
 import { SkillEditor } from "./SkillEditor";
 import { SkillEnabledSwitch } from "./SkillEnabledSwitch";
 import { useDialogFocusReturn } from "./useDialogFocusReturn";
@@ -57,7 +57,7 @@ export type SkillEditorState =
 			existingNames: readonly string[];
 			submitError?: SkillErrorDisplay;
 			isSubmitting: boolean;
-			onSubmit: (values: SkillFormValues, content: string) => void;
+			onSubmit: SkillSubmitHandler;
 			onClose: () => void;
 	  }
 	| {
@@ -71,7 +71,7 @@ export type SkillEditorState =
 			submitError?: SkillErrorDisplay;
 			isSubmitting: boolean;
 			onRetry: () => void;
-			onSubmit: (values: SkillFormValues, content: string) => void;
+			onSubmit: SkillSubmitHandler;
 			onClose: () => void;
 	  };
 
@@ -211,7 +211,8 @@ const EditSkillDialog: React.FC<
 	);
 };
 
-const DeleteSkillDialog: React.FC<DialogProps<SkillDeleteState>> = ({
+/** Confirms deleting a skill and shows the last failure; onCloseAutoFocus restores focus. */
+export const DeleteSkillDialog: React.FC<DialogProps<SkillDeleteState>> = ({
 	state,
 	onCloseAutoFocus,
 }) => {
@@ -395,21 +396,11 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 									)}
 								</TableCell>
 								<TableCell>
-									{access.update ? (
-										<SkillEnabledSwitch scope={scope} skill={skill} />
-									) : skill.enabled ? (
-										<CheckIcon
-											role="img"
-											aria-label="Enabled"
-											className="size-icon-sm text-content-success"
-										/>
-									) : (
-										<XIcon
-											role="img"
-											aria-label="Disabled"
-											className="size-icon-sm text-content-secondary"
-										/>
-									)}
+									<SkillEnabledSwitch
+										scope={scope}
+										skill={skill}
+										readOnly={!access.update}
+									/>
 								</TableCell>
 								<TableCell className="hidden whitespace-nowrap sm:table-cell">
 									{formatUpdatedAt(skill.updated_at)}

@@ -518,6 +518,7 @@
 		--avatar-lg: 2.5rem;
 		--avatar-default: 2rem;
 		--avatar-sm: 1.5rem;
+		--avatar-xs: 1.125rem;
 	}
 	.dark {
 		--content-primary: 0 0% 100%;
@@ -776,6 +777,34 @@
 	html[data-agents-layout] body,
 	html[data-agents-layout] body[data-scroll-locked] {
 		overflow: hidden !important;
+	}
+
+	/* iOS 26+ standalone colors the status bar from the fixed box 4px below the
+	top edge's midpoint when it spans at least 90% of the viewport and is over
+	10px tall (WebKit fixedContainerEdges). Without one, iPadOS blurs about 40pt
+	of the page below the status bar. The element lives in index.html so it
+	exists from the first frame: iPadOS can keep the blur after a frame without
+	it. */
+	.ios-status-bar-band {
+		display: none;
+	}
+
+	@media (display-mode: standalone) {
+		@supports (-webkit-touch-callout: none) {
+			.ios-status-bar-band {
+				display: block;
+				position: fixed;
+				inset: 0 0 auto;
+				height: 12px;
+				background-color: hsl(var(--surface-primary));
+				/* WebKit reads the color from the style, and with no text this clip
+				paints nothing. */
+				background-clip: text;
+				/* Topmost, so no menu or overlay covers the sampled point. */
+				z-index: 2147483647;
+				pointer-events: none;
+			}
+		}
 	}
 
 	h1 {
