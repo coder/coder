@@ -2934,6 +2934,11 @@ describe("useChatStore", () => {
 			expect(watchChat).toHaveBeenCalledWith(chatID, 3);
 		});
 		expect(result.current.loadState).toEqual({ status: "loaded" });
+
+		act(() => {
+			result.current.retryLoad();
+		});
+		expect(API.experimental.getChatMessages).toHaveBeenCalledTimes(2);
 	});
 
 	it("does not use one chat's snapshot version for another chat", async () => {
