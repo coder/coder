@@ -28,6 +28,8 @@ func TestCredentialKey(t *testing.T) {
 		{name: "HTTP", url: &url.URL{Scheme: "http", Host: "coder.example.com"}, wantKey: "http://coder.example.com", wantOrigin: "http://coder.example.com"},
 		{name: "HTTPDefaultPort", url: &url.URL{Scheme: "http", Host: "coder.example.com:80"}, wantKey: "http://coder.example.com", wantOrigin: "http://coder.example.com"},
 		{name: "HTTPOtherPort", url: &url.URL{Scheme: "http", Host: "coder.example.com:8080"}, wantKey: "http://coder.example.com:8080", wantOrigin: "http://coder.example.com:8080"},
+		{name: "HTTPSKeepsPort80", url: &url.URL{Scheme: "https", Host: "coder.example.com:80"}, wantKey: "coder.example.com:80", wantOrigin: "https://coder.example.com:80"},
+		{name: "HTTPKeepsPort443", url: &url.URL{Scheme: "http", Host: "coder.example.com:443"}, wantKey: "http://coder.example.com:443", wantOrigin: "http://coder.example.com:443"},
 		{name: "UnsupportedScheme", url: &url.URL{Scheme: "ftp", Host: "coder.example.com"}, wantErr: true},
 		{name: "NilURL", url: nil, wantErr: true},
 		{name: "EmptyHost", url: &url.URL{Scheme: "https"}, wantErr: true},
@@ -159,6 +161,7 @@ func TestKeyringSchemeScoping(t *testing.T) {
 	}{
 		{name: "ReadHTTPS", storedKey: testHost, url: httpsURL},
 		{name: "ReadHTTP", storedKey: httpURL, url: httpURL},
+		{name: "ReadHTTPSDefaultPortAndPath", storedKey: testHost, url: httpsURL + ":443/"},
 		{name: "ReadHTTPSEntryOverHTTP", storedKey: testHost, url: httpURL, wantMiss: true},
 		{name: "ReadHTTPEntryOverHTTPS", storedKey: httpURL, url: httpsURL, wantMiss: true},
 		{name: "DeleteSameScheme", storedKey: testHost, url: httpsURL, delete: true},
