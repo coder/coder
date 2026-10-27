@@ -76,7 +76,7 @@ Project skills are single-file `SKILL.md` skills that only chats in the project 
 Manage them by selecting the **Skills** row in the project's **Details** panel.
 
 A project skill can show as a one-click action above the project's chat composers, or be limited to manual use from the `/` menu.
-For the format, limits, and how skills from different sources resolve, see [Project skills](./extending-agents.md#project-skills).
+For details on the format, limits, and how skills from different sources resolve, visit [Project skills](./extending-agents.md#project-skills).
 
 ## Memory
 
