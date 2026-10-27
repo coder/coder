@@ -1218,8 +1218,7 @@ describe("AgentChatInput", () => {
 	});
 
 	it("does not write mobile dropdown variables on the root element at desktop widths", async () => {
-		// jsdom's matchMedia polyfill matches no query, so this renders at a
-		// desktop width.
+		stubViewport(false, belowMdViewportMediaQuery);
 		const user = userEvent.setup();
 		const setProperty = vi.spyOn(document.documentElement.style, "setProperty");
 
