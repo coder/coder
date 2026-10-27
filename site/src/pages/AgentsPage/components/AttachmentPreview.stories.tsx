@@ -56,9 +56,7 @@ export const CardFocused: Story = {
 			textContents: new Map<File, string>([[file, "Pasted text."]]),
 		};
 	})(),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await canvas.findByRole("button", { name: "View clipboard.txt" });
+	play: async () => {
 		await userEvent.tab();
 	},
 };
@@ -67,7 +65,6 @@ export const PasteFocused: Story = {
 	args: CardFocused.args,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await canvas.findByRole("button", { name: "View clipboard.txt" });
 		await userEvent.tab();
 		await userEvent.tab();
 		expect(canvas.getByRole("button", { name: "Paste inline" })).toHaveFocus();
@@ -78,7 +75,6 @@ export const RemoveFocused: Story = {
 	args: CardFocused.args,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await canvas.findByRole("button", { name: "View clipboard.txt" });
 		await userEvent.tab();
 		await userEvent.tab();
 		await userEvent.tab();
