@@ -1431,7 +1431,14 @@ func (s *taskStarter) beginGenerationAttempt(
 			_ = s.opts.MessagePartBuffer.AddPart(key, role, part)
 		},
 		publishProjectedToolResult: func(part codersdk.ChatMessagePart, modelResult json.RawMessage) {
-			_ = s.opts.MessagePartBuffer.AddProjectedToolResult(key, part, modelResult)
+			// Like publish, a closed or full episode drops the part.
+			if err := s.opts.MessagePartBuffer.AddProjectedToolResult(key, part, modelResult); err != nil {
+				s.opts.Logger.Debug(ctx, "buffer projected tool result",
+					slog.F("chat_id", input.ChatID),
+					slog.F("tool_call_id", part.ToolCallID),
+					slog.Error(err),
+				)
+			}
 		},
 		startModelInvocation: func() {
 			_ = s.opts.MessagePartBuffer.StartModelInvocation(key)
