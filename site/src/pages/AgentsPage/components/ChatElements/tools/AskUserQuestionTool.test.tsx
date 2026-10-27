@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { describe, expect, it, vi } from "vitest";
+import { createDeferred } from "#/testHelpers/deferred";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { AskUserQuestionTool } from "./AskUserQuestionTool";
 import { getAsyncAnswerPrefix } from "./asyncAnswer";
@@ -85,36 +86,46 @@ describe("AskUserQuestionTool", () => {
 		).toHaveFocus();
 	});
 
-	it("reopens an async question when its sent answer leaves the queue undelivered", async () => {
-		const user = userEvent.setup();
-		const onSubmitAnswer = vi.fn();
-		const answer = `${getAsyncAnswerPrefix("call-123")}Single migration`;
-		const queryClient = createTestQueryClient();
-		const AsyncQuestion: React.FC<{ previousResponseText?: string }> = ({
-			previousResponseText,
-		}) => (
-			<QueryClientProvider client={queryClient}>
-				<AskUserQuestionTool
-					questions={questions}
-					status="completed"
-					isError={false}
-					isLatestAskUserQuestion
-					asyncToolCallId="call-123"
-					previousResponseText={previousResponseText}
-					onSubmitAnswer={onSubmitAnswer}
-				/>
-			</QueryClientProvider>
-		);
-		const { rerender } = render(<AsyncQuestion />);
+	it.each([
+		{ removal: "after its send resolves", isSendPending: false },
+		{ removal: "while its send is pending", isSendPending: true },
+	])(
+		"reopens an async question when its queued answer is removed $removal",
+		async ({ isSendPending }) => {
+			const user = userEvent.setup();
+			const pendingSend = createDeferred<undefined>();
+			const onSubmitAnswer = vi
+				.fn()
+				.mockReturnValueOnce(isSendPending ? pendingSend.promise : undefined);
+			const answer = `${getAsyncAnswerPrefix("call-123")}Single migration`;
+			const queryClient = createTestQueryClient();
+			const AsyncQuestion: React.FC<{ previousResponseText?: string }> = ({
+				previousResponseText,
+			}) => (
+				<QueryClientProvider client={queryClient}>
+					<AskUserQuestionTool
+						questions={questions}
+						status="completed"
+						isError={false}
+						isLatestAskUserQuestion
+						asyncToolCallId="call-123"
+						previousResponseText={previousResponseText}
+						onSubmitAnswer={onSubmitAnswer}
+					/>
+				</QueryClientProvider>
+			);
+			const { rerender } = render(<AsyncQuestion />);
 
-		await user.click(screen.getByRole("button", { name: "Submit" }));
-		rerender(<AsyncQuestion previousResponseText={answer} />);
-		rerender(<AsyncQuestion />);
-		await user.click(screen.getByRole("button", { name: "Submit" }));
+			await user.click(screen.getByRole("button", { name: "Submit" }));
+			rerender(<AsyncQuestion previousResponseText={answer} />);
+			rerender(<AsyncQuestion />);
+			pendingSend.resolve(undefined);
+			await user.click(await screen.findByRole("button", { name: "Submit" }));
 
-		expect(onSubmitAnswer).toHaveBeenCalledTimes(2);
-		expect(onSubmitAnswer).toHaveBeenNthCalledWith(2, answer);
-	});
+			expect(onSubmitAnswer).toHaveBeenCalledTimes(2);
+			expect(onSubmitAnswer).toHaveBeenNthCalledWith(2, answer);
+		},
+	);
 
 	it.each([
 		["announces an answerable async question", vi.fn(), "The agent asked"],
