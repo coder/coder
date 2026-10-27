@@ -137,24 +137,17 @@ export const AttachmentPreview: React.FC<{
 					const hasTextAttachment =
 						file.type === "text/plain" &&
 						(textContent !== undefined || textFileId !== undefined);
-					const hasImagePreview =
-						isRasterImageMediaType(file.type) && previewUrl !== "";
 					return (
 						<div
 							// Key combines file metadata with index as a fallback for
 							// duplicate names. Acceptable for a small, append-only list.
 							key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
 							// A descendant `:focus-within` rule makes WebKit restyle every
-							// ancestor's subtree on focus. Hidden buttons leave the tab
-							// order, so a card with no focusable preview shows them.
-							className={cn(
-								"relative",
-								hasImagePreview || hasTextAttachment
-									? "[--actions-opacity:0] [--actions-visibility:hidden] hover:[--actions-opacity:1] hover:[--actions-visibility:visible] focus-within:[--actions-opacity:1] focus-within:[--actions-visibility:visible] [@media(hover:none)]:[--actions-opacity:1] [@media(hover:none)]:[--actions-visibility:visible]"
-									: "[--actions-opacity:1] [--actions-visibility:visible]",
-							)}
+							// ancestor's subtree on focus. Hidden buttons stay in the tab
+							// order, since focus shows them, and take no taps.
+							className="relative [--actions-opacity:0] [--actions-pointer-events:none] hover:[--actions-opacity:1] hover:[--actions-pointer-events:auto] focus-within:[--actions-opacity:1] focus-within:[--actions-pointer-events:auto] [@media(hover:none)]:[--actions-opacity:1] [@media(hover:none)]:[--actions-pointer-events:auto]"
 						>
-							{hasImagePreview ? (
+							{isRasterImageMediaType(file.type) && previewUrl ? (
 								<button
 									type="button"
 									className="border-0 bg-transparent p-0 cursor-pointer transition-opacity hover:opacity-80"
@@ -196,7 +189,7 @@ export const AttachmentPreview: React.FC<{
 										);
 										onInlineText(file, nextContent);
 									}}
-									className="absolute -bottom-2 -right-2 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary opacity-(--actions-opacity) shadow-xs transition-opacity [visibility:var(--actions-visibility)] hover:bg-surface-secondary hover:text-content-primary"
+									className="absolute -bottom-2 -right-2 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary opacity-(--actions-opacity) shadow-xs transition-opacity [pointer-events:var(--actions-pointer-events)] hover:bg-surface-secondary hover:text-content-primary"
 									aria-label="Paste inline"
 								>
 									<ClipboardPasteIcon aria-hidden="true" className="size-3.5" />
@@ -230,7 +223,7 @@ export const AttachmentPreview: React.FC<{
 							<button
 								type="button"
 								onClick={() => onRemove(file)}
-								className="absolute -right-2 -top-2 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary opacity-(--actions-opacity) shadow-xs transition-opacity [visibility:var(--actions-visibility)] hover:bg-surface-secondary hover:text-content-primary"
+								className="absolute -right-2 -top-2 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary opacity-(--actions-opacity) shadow-xs transition-opacity [pointer-events:var(--actions-pointer-events)] hover:bg-surface-secondary hover:text-content-primary"
 								aria-label={`Remove ${file.name}`}
 							>
 								<XIcon aria-hidden="true" className="size-3.5" />
