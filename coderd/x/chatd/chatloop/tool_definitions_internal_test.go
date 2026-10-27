@@ -755,27 +755,68 @@ func TestBuildToolDefinitionsFullSchemaRootAlternativesMissingProperty(t *testin
 	}
 }
 
-// TestBuildToolDefinitionsFullSchemaDraft7Anchors verifies that a
-// draft 7 anchor, written as a fragment-only "$id", still resolves on
-// the wire, so the constraints it names keep holding.
-func TestBuildToolDefinitionsFullSchemaDraft7Anchors(t *testing.T) {
+// TestBuildToolDefinitionsFullSchemaAnchorRefs verifies that a
+// reference to an anchor reaches the provider as a JSON Pointer to the
+// anchored schema, which providers and draft 7 validators follow even
+// where they ignore anchors, so the constraints it names keep holding.
+func TestBuildToolDefinitionsFullSchemaAnchorRefs(t *testing.T) {
 	t.Parallel()
 
-	source := map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"code": map[string]any{"$ref": "#code"},
+	for _, tc := range []struct {
+		name    string
+		source  map[string]any
+		wantRef string
+	}{
+		{
+			name: "Draft7Anchor",
+			source: map[string]any{
+				"$schema": "http://json-schema.org/draft-07/schema#",
+				"type":    "object",
+				"properties": map[string]any{
+					"code": map[string]any{"$ref": "#code"},
+				},
+				"definitions": map[string]any{
+					"Code": map[string]any{"$id": "#code", "type": "string", "minLength": 3},
+				},
+			},
+			wantRef: "#/definitions/Code",
 		},
-		"definitions": map[string]any{
-			"Code": map[string]any{"$id": "#code", "type": "string", "minLength": 3},
+		{
+			// The anchored schema leaves the root with the root "anyOf"
+			// that holds it, and the reference follows it.
+			name: "AnchorInRemovedRootKeyword",
+			source: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"code": map[string]any{"$ref": "#code"},
+				},
+				"anyOf": []any{
+					map[string]any{
+						"$defs": map[string]any{
+							"Code": map[string]any{"$anchor": "code", "type": "string", "minLength": 3},
+						},
+					},
+				},
+			},
+			wantRef: "#/$defs/coder_root_anyOf/anyOf/0/$defs/Code",
 		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			defs := BuildToolDefinitions([]fantasy.AgentTool{fullSchemaTestTool{schema: tc.source}}, nil, nil)
+			require.Len(t, defs, 1)
+			ft, ok := defs[0].(fantasy.FunctionTool)
+			require.True(t, ok)
+			properties, ok := ft.InputSchema["properties"].(map[string]any)
+			require.True(t, ok)
+			code, ok := properties["code"].(map[string]any)
+			require.True(t, ok)
+			require.Equal(t, tc.wantRef, code["$ref"])
+			require.NoError(t, validateSchemaInstance(t, ft.InputSchema, `{"code": "abc"}`))
+			require.Error(t, validateSchemaInstance(t, ft.InputSchema, `{"code": "ab"}`))
+		})
 	}
-	defs := BuildToolDefinitions([]fantasy.AgentTool{fullSchemaTestTool{schema: source}}, nil, nil)
-	require.Len(t, defs, 1)
-	ft, ok := defs[0].(fantasy.FunctionTool)
-	require.True(t, ok)
-	require.NoError(t, validateSchemaInstance(t, ft.InputSchema, `{"code": "abc"}`))
-	require.Error(t, validateSchemaInstance(t, ft.InputSchema, `{"code": "ab"}`))
 }
 
 // validateSchemaInstance resolves schema with a JSON Schema validator,
