@@ -723,6 +723,51 @@ func TestNormalize(t *testing.T) {
 			}`,
 		},
 		{
+			// A pointer to a schema that draft 3 holds under "extends",
+			// "type" or "disallow" follows it to its draft 7 keyword.
+			name: "draft 3 references follow the schemas it moves",
+			schema: `{
+				"$schema": "http://json-schema.org/draft-03/schema#",
+				"properties": {
+					"a": {"$ref": "#/definitions/X/extends"},
+					"b": {"$ref": "#/definitions/X/extends/properties/n/type/0"},
+					"c": {"$ref": "#/definitions/Y/type/1"},
+					"d": {"$ref": "#/definitions/Z/disallow/1"},
+					"e": {"$ref": "#/definitions/V/disallow/0"},
+					"f": {"$ref": "#/definitions/W/disallow"},
+					"g": {"$ref": "#/definitions/L/extends/1"}
+				},
+				"definitions": {
+					"X": {"extends": {"properties": {"n": {"type": [{"type": "string"}, "null"]}}}},
+					"Y": {"type": ["null", {"minLength": 2}]},
+					"Z": {"disallow": ["null", {"maxLength": 1}]},
+					"V": {"disallow": [{"maxLength": 1}]},
+					"W": {"disallow": {"enum": ["off"]}},
+					"L": {"extends": [{"minLength": 1}, {"maxLength": 5}]}
+				}
+			}`,
+			want: `{
+				"$schema": "http://json-schema.org/draft-07/schema#",
+				"properties": {
+					"a": {"$ref": "#/definitions/X/allOf/0"},
+					"b": {"$ref": "#/definitions/X/allOf/0/properties/n/anyOf/0"},
+					"c": {"$ref": "#/definitions/Y/anyOf/1"},
+					"d": {"$ref": "#/definitions/Z/not/anyOf/1"},
+					"e": {"$ref": "#/definitions/V/not"},
+					"f": {"$ref": "#/definitions/W/not"},
+					"g": {"$ref": "#/definitions/L/allOf/1"}
+				},
+				"definitions": {
+					"X": {"allOf": [{"properties": {"n": {"anyOf": [{"type": "string"}, {"type": "null"}]}}}]},
+					"Y": {"anyOf": [{"type": "null"}, {"minLength": 2}]},
+					"Z": {"not": {"anyOf": [{"type": "null"}, {"maxLength": 1}]}},
+					"V": {"not": {"maxLength": 1}},
+					"W": {"not": {"enum": ["off"]}},
+					"L": {"allOf": [{"minLength": 1}, {"maxLength": 5}]}
+				}
+			}`,
+		},
+		{
 			// A pointer that passes through a keyword draft 4 added keeps
 			// it under a key no draft defines, as in draft 4, and a draft 3
 			// hyper-schema is draft 3.

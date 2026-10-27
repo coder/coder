@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/fs"
 	"maps"
+	"net/url"
 	"os"
 	"os/exec"
 	"reflect"
@@ -14,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/afero"
@@ -788,12 +790,13 @@ func (m *Manager) refreshCatalog(ctx context.Context, wanted map[string]ServerCo
 				mu.Unlock()
 				return nil
 			}
+			secrets := configSecrets(entry.config)
 			tools := make([]ToolInfo, 0, len(result.Tools))
 			for _, tool := range result.Tools {
 				tools = append(tools, ToolInfo{
 					Name:        tool.Name,
 					Description: tool.Description,
-					InputSchema: toolInputSchemaMap(tool.InputSchema),
+					InputSchema: toolInputSchemaMap(tool.InputSchema, secrets),
 				})
 			}
 			mu.Lock()
@@ -1090,13 +1093,118 @@ type ToolInfo struct {
 
 // The schema map is passed through whole so coderd sees every key the
 // server reported ($defs, additionalProperties, combinators, ...);
-// non-object and empty schemas leave InputSchema unset.
-func toolInputSchemaMap(schema any) map[string]any {
+// non-object and empty schemas leave InputSchema unset. A server may
+// echo a credential from its configuration in its schema, so when a key
+// beyond the reduced shape (see reducedInputSchema) holds one of
+// secrets, only the reduced shape is passed.
+func toolInputSchemaMap(schema any, secrets []string) map[string]any {
 	m, ok := schema.(map[string]any)
 	if !ok || len(m) == 0 {
 		return nil
 	}
+	reduced := reducedInputSchema(m)
+	for key, value := range m {
+		if _, kept := reduced[key]; kept {
+			continue
+		}
+		if containsSecret(key, secrets) || containsSecret(value, secrets) {
+			if len(reduced) == 0 {
+				return nil
+			}
+			return reduced
+		}
+	}
 	return m
+}
+
+// reducedInputSchema keeps only the type, properties, and required
+// names of a schema, the keys passed before full schemas were.
+func reducedInputSchema(m map[string]any) map[string]any {
+	out := map[string]any{}
+	if typ, ok := m["type"].(string); ok && typ != "" {
+		out["type"] = typ
+	}
+	// Preserve an empty "properties" object: dropping it collapses the
+	// schema to nil by the time the tool definition is rebuilt, and a
+	// nil properties serializes to JSON null, which OpenAI rejects.
+	if properties, ok := m["properties"].(map[string]any); ok {
+		out["properties"] = properties
+	}
+	if required, ok := m["required"].([]any); ok && len(required) > 0 {
+		out["required"] = required
+	}
+	return out
+}
+
+// minSecretBytes is the shortest configured value configSecrets
+// returns, matching the redaction of coderd's inline MCP servers.
+// Shorter values cannot be secrets and would match ordinary text.
+const minSecretBytes = 8
+
+// configSecrets returns the values of a server's configuration that may
+// be credentials, whole and as each part a server may echo on its own:
+// the URL and its path segments, and the header, environment, and
+// argument values with their space, semicolon, or comma separated parts
+// and the value of each name=value part.
+func configSecrets(cfg ServerConfig) []string {
+	var values []string
+	add := func(value string) {
+		values = append(values, value)
+		parts := strings.FieldsFunc(value, func(r rune) bool {
+			return unicode.IsSpace(r) || r == ';' || r == ','
+		})
+		for _, part := range parts {
+			values = append(values, part)
+			if _, v, ok := strings.Cut(part, "="); ok {
+				values = append(values, strings.Trim(v, `"`))
+			}
+		}
+	}
+	values = append(values, cfg.URL)
+	if u, err := url.Parse(cfg.URL); err == nil {
+		for _, path := range []string{u.EscapedPath(), u.Path} {
+			values = append(values, path)
+			values = append(values, strings.Split(path, "/")...)
+		}
+	}
+	for _, value := range cfg.Headers {
+		add(value)
+	}
+	for _, value := range cfg.Env {
+		add(value)
+	}
+	for _, value := range cfg.Args {
+		add(value)
+	}
+	return slices.DeleteFunc(values, func(value string) bool {
+		return len(value) < minSecretBytes
+	})
+}
+
+// containsSecret reports whether a JSON value holds one of secrets in a
+// string or an object key.
+func containsSecret(value any, secrets []string) bool {
+	switch v := value.(type) {
+	case string:
+		for _, secret := range secrets {
+			if strings.Contains(v, secret) {
+				return true
+			}
+		}
+	case map[string]any:
+		for key, item := range v {
+			if containsSecret(key, secrets) || containsSecret(item, secrets) {
+				return true
+			}
+		}
+	case []any:
+		for _, item := range v {
+			if containsSecret(item, secrets) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // cloneServerStatuses deep-copies a catalog so callers cannot mutate the

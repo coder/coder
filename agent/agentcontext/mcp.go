@@ -13,6 +13,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 )
 
 // MCPServerStatus is a non-blocking, point-in-time view of a single MCP
@@ -138,15 +139,26 @@ const (
 	// maxPushBodyBytes is coderd's maxContextAggregateBodyBytes: the
 	// bodies of one push past it make coderd reject the whole push.
 	maxPushBodyBytes = 4 << 20
+	// maxPushWireBytes bounds the serialized PushContextStateRequest,
+	// which dRPC refuses past drpcsdk.MaxMessageSize. The headroom
+	// covers the request fields outside its resources: its version,
+	// hash, and snapshot error, a short message.
+	maxPushWireBytes = drpcsdk.MaxMessageSize - 1<<10
+	// wirePrefixGrowthBytes bounds how much a longer tool lengthens the
+	// three length prefixes around it in the request: its own, its
+	// server body's, and its resource's. Each is a varint of a length
+	// under drpcsdk.MaxMessageSize, one to four bytes long.
+	wirePrefixGrowthBytes = 3 * 3
 )
 
 // fitMCPToolInputSchemas replaces reduced tools of resources with their
 // full forms from fullTools, in order, while each full schema fits the
 // per-tool cap and the remaining catalog budget, its MCP server body
-// stays under coderd's body cap, and all bodies of the push, others
-// included, stay under coderd's aggregate cap. Full schemas only get
-// the aggregate headroom the reduced push leaves, so they never make
-// coderd reject a push that would pass with reduced schemas. A schema
+// stays under coderd's body cap, all bodies of the push, others
+// included, stay under coderd's aggregate cap, and the serialized push
+// stays under dRPC's message limit. Full schemas only get the headroom
+// the reduced push leaves, so they never make coderd or dRPC reject a
+// push that would pass with reduced schemas. A schema
 // with no keys beyond the reduced shape takes no catalog budget, since
 // coderd cannot tell it from a reduced one.
 func fitMCPToolInputSchemas(logger slog.Logger, resources []Resource, fullTools [][]MCPTool, others []Resource) {
@@ -172,6 +184,7 @@ func fitMCPToolInputSchemas(logger slog.Logger, resources []Resource, fullTools 
 		serverBodyBytes[i] = bodyBytes
 		pushBodyBytes += bodyBytes
 	}
+	pushWireBytes := proto.Size(pushRequestToProto(&PushRequest{Resources: slices.Concat(others, resources)}))
 
 	budget := maxMCPCatalogInputSchemasBytes
 	for i, res := range resources {
@@ -192,17 +205,19 @@ func fitMCPToolInputSchemas(logger slog.Logger, resources []Resource, fullTools 
 				}
 				schemaBytes = len(encoded)
 			}
-			extraBytes, err := fullSchemaExtraBodyBytes(tool, res.Tools[j])
+			extraBytes, extraWireBytes, err := fullSchemaExtraBytes(tool, res.Tools[j])
 			if err != nil {
 				logger.Warn(ctx, "failed to measure MCP tool, sending its input schema reduced",
 					slog.F("server", res.Name), slog.F("tool", tool.Name), slog.Error(err))
 				continue
 			}
-			if serverBodyBytes[i]+extraBytes > maxMCPServerBodyBytes || pushBodyBytes+extraBytes > maxPushBodyBytes {
+			if serverBodyBytes[i]+extraBytes > maxMCPServerBodyBytes || pushBodyBytes+extraBytes > maxPushBodyBytes ||
+				pushWireBytes+extraWireBytes > maxPushWireBytes {
 				continue
 			}
 			serverBodyBytes[i] += extraBytes
 			pushBodyBytes += extraBytes
+			pushWireBytes += extraWireBytes
 			budget -= schemaBytes
 			res.Tools[j] = tool
 		}
@@ -222,18 +237,20 @@ func resourceBodyBytesBound(r Resource) (int, error) {
 	return coderdBodyBytesBound(msg.Get(field).Message().Interface())
 }
 
-// fullSchemaExtraBodyBytes returns how much sending full instead of
-// reduced grows the bound on its MCP server body.
-func fullSchemaExtraBodyBytes(full, reduced MCPTool) (int, error) {
-	fullBytes, err := coderdBodyBytesBound(mcpToolToProto(full))
+// fullSchemaExtraBytes returns how much sending full instead of reduced
+// grows the bound on its MCP server body and on the serialized push.
+func fullSchemaExtraBytes(full, reduced MCPTool) (bodyBytes, wireBytes int, err error) {
+	fullTool, reducedTool := mcpToolToProto(full), mcpToolToProto(reduced)
+	fullBytes, err := coderdBodyBytesBound(fullTool)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	reducedBytes, err := coderdBodyBytesBound(mcpToolToProto(reduced))
+	reducedBytes, err := coderdBodyBytesBound(reducedTool)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	return fullBytes - reducedBytes, nil
+	wireBytes = proto.Size(fullTool) - proto.Size(reducedTool) + wirePrefixGrowthBytes
+	return fullBytes - reducedBytes, wireBytes, nil
 }
 
 // coderdBodyBytesBound returns an upper bound on the size of msg as
