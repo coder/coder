@@ -308,6 +308,34 @@ export const ComputerUseUnverifiedDefaultModel: Story = {
 	play: ComputerUseUnverifiedModel.play,
 };
 
+const responsesAPIDisabledModel: TypesGen.ChatModel = {
+	...model,
+	id: "model-gpt-5-4",
+	model: "gpt-5.4",
+	display_name: "GPT-5.4",
+	model_config: { openai_config: { use_responses_api: false } },
+};
+
+// gpt-5.4 is on the curated list, but OpenAI computer use needs the Responses
+// API.
+export const ComputerUseResponsesAPIDisabled: Story = {
+	args: {
+		...computerUseArgs,
+		enabledModels: [
+			...computerUseArgs.enabledModels,
+			responsesAPIDisabledModel,
+		],
+		overrides: [
+			...overrides,
+			{
+				context: "computer_use",
+				model_config_id: responsesAPIDisabledModel.id,
+			},
+		],
+	},
+	play: ComputerUseUnverifiedModel.play,
+};
+
 export const ComputerUseNoDefaultModel: Story = {
 	args: { ...computerUseArgs, defaultModelID: undefined },
 };
