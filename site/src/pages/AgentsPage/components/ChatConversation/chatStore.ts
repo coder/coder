@@ -263,9 +263,8 @@ export const createChatStore = (): ChatStore => {
 	// re-render.
 	let historyResets = 0;
 	let syncedSnapshotVersion = 0;
-	// The version of the newest reset the store holds. The newest page holds
-	// every reset up to its snapshot version.
-	let resetVersion = 0;
+	// Every reset at or below this version is in the store.
+	let historyResetVersion = 0;
 	let nextPendingActionID = 1;
 	const listeners = new Set<() => void>();
 
@@ -358,7 +357,7 @@ export const createChatStore = (): ChatStore => {
 
 	const seed = (page: TypesGen.ChatMessagesResponse): void => {
 		syncedSnapshotVersion = page.snapshot_version ?? 0;
-		resetVersion = syncedSnapshotVersion;
+		historyResetVersion = syncedSnapshotVersion;
 		setState((current) => ({
 			...current,
 			messagesByID: buildMessageMap(page.messages),
@@ -492,14 +491,15 @@ export const createChatStore = (): ChatStore => {
 		seed,
 		resetHistoryFrom: (fromID, snapshotVersion) => {
 			// A commit has at most one reset, so a reset at or below
-			// resetVersion is a resend. On the first open, a reset above the
-			// page's snapshot_version can be one the page already holds: it
-			// applies again and drops an older page in flight, which the next
-			// scroll loads again.
-			if (snapshotVersion <= resetVersion) {
+			// historyResetVersion is a resend. On the first open, a reset above
+			// the page's snapshot_version can be one the page already holds: it
+			// applies again and drops an older page in flight, which
+			// ChatMessageScroller requests again while the transcript start is
+			// in view.
+			if (snapshotVersion <= historyResetVersion) {
 				return;
 			}
-			resetVersion = snapshotVersion;
+			historyResetVersion = snapshotVersion;
 			historyResets++;
 			batch(() => {
 				replaceMessages(

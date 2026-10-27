@@ -1351,6 +1351,26 @@ describe("prependOlderMessages", () => {
 	});
 });
 
+describe("resetHistoryFrom", () => {
+	it("ignores a reset that a reconnect resends after the store applied it", () => {
+		const store = createChatStore();
+		store.seed({
+			messages: [makeMessage(3, "user", "c"), makeMessage(10, "user", "old")],
+			queued_messages: [],
+			has_more: true,
+			snapshot_version: 5,
+		});
+		store.resetHistoryFrom(10, 6);
+		store.upsertDurableMessages([makeMessage(11, "user", "edited")], 6);
+		const resetCount = store.getHistoryResetCount();
+
+		store.resetHistoryFrom(10, 6);
+
+		expect(store.getHistoryResetCount()).toBe(resetCount);
+		expect(store.getSnapshot().orderedMessageIDs).toEqual([3, 11]);
+	});
+});
+
 describe("seed", () => {
 	it("stores the newest page and its snapshot version", () => {
 		const store = createChatStore();
