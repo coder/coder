@@ -21,8 +21,6 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
-	"github.com/coder/safedial"
-
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -38,6 +36,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/safedial"
 )
 
 func mustMarshalText(t *testing.T, parts ...string) pqtype.NullRawMessage {
