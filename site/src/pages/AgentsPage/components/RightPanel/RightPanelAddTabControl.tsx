@@ -37,6 +37,7 @@ import type {
 	PortSelection,
 	SingletonRightPanelTabId,
 } from "../../utils/rightPanelTabs";
+import { preloadTerminalPanel } from "../LazyTerminalPanel";
 import { PortsMenuItem } from "../WorkspacePillPorts";
 
 const singletonTabMenuEntries: readonly {
@@ -114,9 +115,14 @@ export const RightPanelAddTabControl: React.FC<{
 	const singletonEntries = singletonTabMenuEntries.filter((entry) =>
 		supportedSingletonTabs.includes(entry.id),
 	);
+	const preloadTerminal = canCreateTerminal ? preloadTerminalPanel : undefined;
 
 	return (
-		<div className="flex h-6 shrink-0 items-center overflow-hidden rounded-md border border-solid border-border bg-surface-primary text-content-secondary">
+		<div
+			onPointerEnter={preloadTerminal}
+			onFocus={preloadTerminal}
+			className="flex h-6 shrink-0 items-center overflow-hidden rounded-md border border-solid border-border bg-surface-primary text-content-secondary"
+		>
 			<Button
 				variant="subtle"
 				size="icon"

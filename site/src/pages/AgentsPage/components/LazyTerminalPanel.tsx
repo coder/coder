@@ -1,7 +1,17 @@
 import { lazy, Suspense, useState } from "react";
 import { Loader } from "#/components/Loader/Loader";
 
-const TerminalPanel = lazy(() => import("./TerminalPanel"));
+const loadTerminalPanel = () => import("./TerminalPanel");
+const TerminalPanel = lazy(loadTerminalPanel);
+
+/**
+ * Starts loading `TerminalPanel` before a terminal tab opens. A new tab stays
+ * hidden until its terminal is ready, so its first open would otherwise also
+ * wait for the chunk.
+ */
+export const preloadTerminalPanel = (): void => {
+	void loadTerminalPanel();
+};
 
 type LazyTerminalPanelProps = React.ComponentProps<typeof TerminalPanel>;
 
