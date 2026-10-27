@@ -466,7 +466,7 @@ type ConversationTimelineProps = {
 	hasActiveStream: boolean;
 	isAwaitingFirstStreamChunk: boolean;
 	queuedMessages?: readonly TypesGen.ChatQueuedMessage[];
-	/** The async question pinned above the chat input; its transcript card points there instead of holding a form. */
+	/** Tool-call ID of the async question pinned above the chat input. */
 	dockedAskUserQuestionToolId?: string;
 };
 

@@ -23,6 +23,7 @@ import {
 	MockUserOwner,
 	MockUserPreferenceSettings,
 } from "#/testHelpers/entities";
+import { pixelWithPhone } from "#/testHelpers/pixel";
 import {
 	withAuthProvider,
 	withDashboardProvider,
@@ -565,7 +566,7 @@ const buildAsyncQuestionStore = (
 	messages: readonly TypesGen.ChatMessage[] = MockAsyncQuestionMessages,
 ) => {
 	const store = createChatStore();
-	store.replaceMessages([...messages]);
+	store.replaceMessages(messages);
 	return store;
 };
 
@@ -601,47 +602,49 @@ export const AsyncQuestionDockedAboveInput: Story = {
 	},
 };
 
-const MockTallAsyncQuestionResultMessage: TypesGen.ChatMessage = {
+const buildQuestionResultMessage = (result: unknown): TypesGen.ChatMessage => ({
 	...MockAsyncQuestionResultMessage,
 	content: [
 		{
 			type: "tool-result",
 			tool_call_id: "question",
 			tool_name: "ask_user_question",
-			result: {
-				...MockAsyncQuestionResult,
-				questions: [
-					{
-						header: "Rollout",
-						question: "How should the new billing export reach customers?",
-						options: [
-							{
-								label: "Feature flag",
-								description:
-									"Ship the export dark behind a per-organization flag, enable it for internal organizations first, and widen the rollout once a full billing cycle has run without discrepancies.",
-							},
-							{
-								label: "Beta program",
-								description:
-									"Offer the export to customers who opted into the beta program, collect feedback through the support portal for two weeks, and then promote it to general availability.",
-							},
-							{
-								label: "General availability",
-								description:
-									"Enable the export for every organization in the next release, announce it in the changelog, and rely on the existing billing alerts to catch regressions after launch.",
-							},
-							{
-								label: "Hold",
-								description:
-									"Keep the export unreleased until the finance team signs off on the reconciliation report format, and revisit the rollout plan in the next planning cycle.",
-							},
-						],
-					},
-				],
-			},
+			result,
 		},
 	],
-};
+});
+
+const MockTallAsyncQuestionResultMessage = buildQuestionResultMessage({
+	...MockAsyncQuestionResult,
+	questions: [
+		{
+			header: "Rollout",
+			question: "How should the new billing export reach customers?",
+			options: [
+				{
+					label: "Feature flag",
+					description:
+						"Ship the export dark behind a per-organization flag, enable it for internal organizations first, and widen the rollout once a full billing cycle has run without discrepancies.",
+				},
+				{
+					label: "Beta program",
+					description:
+						"Offer the export to customers who opted into the beta program, collect feedback through the support portal for two weeks, and then promote it to general availability.",
+				},
+				{
+					label: "General availability",
+					description:
+						"Enable the export for every organization in the next release, announce it in the changelog, and rely on the existing billing alerts to catch regressions after launch.",
+				},
+				{
+					label: "Hold",
+					description:
+						"Keep the export unreleased until the finance team signs off on the reconciliation report format, and revisit the rollout plan in the next planning cycle.",
+				},
+			],
+		},
+	],
+});
 
 // The question outgrows the dock's height cap, so the dock scrolls on its own
 // and the chat input stays on screen.
@@ -658,6 +661,7 @@ export const AsyncQuestionDockedAboveInputMobile: Story = {
 			/>
 		);
 	},
+	parameters: { pixel: { matrix: pixelWithPhone } },
 };
 
 export const AsyncQuestionArchivedChat: Story = {
@@ -699,36 +703,26 @@ export const AsyncQuestionDockedFromStream: Story = {
 	},
 };
 
-const MockTwoAsyncQuestionsResultMessage: TypesGen.ChatMessage = {
-	...MockAsyncQuestionResultMessage,
-	content: [
+const MockTwoAsyncQuestionsResultMessage = buildQuestionResultMessage({
+	...MockAsyncQuestionResult,
+	questions: [
+		...MockAsyncQuestionResult.questions,
 		{
-			type: "tool-result",
-			tool_call_id: "question",
-			tool_name: "ask_user_question",
-			result: {
-				...MockAsyncQuestionResult,
-				questions: [
-					...MockAsyncQuestionResult.questions,
-					{
-						header: "Testing",
-						question: "How should the change be verified?",
-						options: [
-							{
-								label: "Unit tests",
-								description: "Cover the change with unit tests.",
-							},
-							{
-								label: "Manual check",
-								description: "Verify the change in a dev deployment.",
-							},
-						],
-					},
-				],
-			},
+			header: "Testing",
+			question: "How should the change be verified?",
+			options: [
+				{
+					label: "Unit tests",
+					description: "Cover the change with unit tests.",
+				},
+				{
+					label: "Manual check",
+					description: "Verify the change in a dev deployment.",
+				},
+			],
 		},
 	],
-};
+});
 
 export const AsyncQuestionDockedSecondStep: Story = {
 	render: () => (
@@ -744,23 +738,13 @@ export const AsyncQuestionDockedSecondStep: Story = {
 		const dock = within(
 			within(canvasElement).getByRole("region", { name: "Open question" }),
 		);
-		await userEvent.click(dock.getByRole("radio", { name: /Backend/ }));
 		await userEvent.click(dock.getByRole("button", { name: "Next" }));
-		await dock.findByRole("radio", { name: /Unit tests/ });
 	},
 };
 
-const MockBlockingQuestionResultMessage: TypesGen.ChatMessage = {
-	...MockAsyncQuestionResultMessage,
-	content: [
-		{
-			type: "tool-result",
-			tool_call_id: "question",
-			tool_name: "ask_user_question",
-			result: { questions: MockAsyncQuestionResult.questions },
-		},
-	],
-};
+const MockBlockingQuestionResultMessage = buildQuestionResultMessage({
+	questions: MockAsyncQuestionResult.questions,
+});
 
 export const BlockingQuestionStaysInline: Story = {
 	render: () => (

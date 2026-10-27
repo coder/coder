@@ -201,7 +201,7 @@ type AnswerCallback = (message: string) => Promise<void> | void;
 type TimelineStageProps = {
 	store: ReturnType<typeof createChatStore>;
 	queryClient: QueryClient;
-	onSendAskUserQuestionResponse?: AnswerCallback;
+	onSendAskUserQuestionResponse: AnswerCallback | undefined;
 };
 
 const TimelineStage: React.FC<TimelineStageProps> = ({
@@ -244,12 +244,14 @@ const renderChatPageTimeline = (
 	);
 	return {
 		store,
-		rerenderWith: (onSendAskUserQuestionResponse?: AnswerCallback) =>
+		rerenderWith: (
+			nextOnSendAskUserQuestionResponse: AnswerCallback | undefined,
+		) =>
 			rerender(
 				<TimelineStage
 					store={store}
 					queryClient={queryClient}
-					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+					onSendAskUserQuestionResponse={nextOnSendAskUserQuestionResponse}
 				/>,
 			),
 	};

@@ -52,7 +52,7 @@ export const shouldRenderLiveAssistant = (
 	liveStatus.phase === "reconnecting" ||
 	liveStatus.hasAccumulatedOutput;
 
-/** Before streaming, the callout and thinking indicator stand in for the turn. */
+/** Until the turn streams or has output, the callout and thinking indicator stand in for its stream blocks. */
 export const showsStreamOutput = (liveStatus: LiveStatusModel): boolean =>
 	liveStatus.phase === "streaming" || liveStatus.hasAccumulatedOutput;
 

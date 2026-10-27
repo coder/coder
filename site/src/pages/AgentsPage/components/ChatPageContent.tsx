@@ -135,10 +135,7 @@ type ChatPageTimelineProps = {
 	editingMessageId?: number | null;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
-	/**
-	 * The viewer cannot act on this chat: it is archived, or another user's.
-	 * Read-only chats get no question dock.
-	 */
+	/** The viewer cannot act on this chat: it is archived, or another user's. */
 	isReadOnly: boolean;
 	urlTransform: UrlTransform;
 	mcpServers: readonly TypesGen.MCPServerConfig[];
