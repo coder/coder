@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import type { ChatMessageInputRef } from "../components/AgentChatInput";
 import type { EditingTarget } from "../components/ChatConversation/types";
@@ -96,11 +96,19 @@ export function useConversationEditingState(deps: {
 		editorState: serializedEditorStateRef.current,
 		hasFileReferences: hasFileReferencesRef.current,
 	});
-	// The send in flight, from submit until it settles.
+	// The send in flight, from submit until it settles or the page unmounts.
 	// While a new message is in flight, content changes save what a failure
 	// would restore as the draft, so a reload or unmount mid-send keeps the
 	// sent message and what was typed since.
 	const sendInFlightRef = useRef<SendInFlight | null>(null);
+	// A request that settles after unmount belongs to an earlier visit, so it
+	// must not overwrite the draft that a later visit saved.
+	useEffect(
+		() => () => {
+			sendInFlightRef.current = null;
+		},
+		[],
+	);
 
 	// Monotonic counter to force LexicalComposer remount.
 	const [remountKey, setRemountKey] = useState(0);
@@ -272,12 +280,17 @@ export function useConversationEditingState(deps: {
 		try {
 			await sendPromise;
 		} catch (error) {
-			rollback();
+			if (sendInFlightRef.current) {
+				rollback();
+			}
 			sendInFlightRef.current = null;
 			if (error instanceof BuiltInCommandPendingError) {
 				return;
 			}
 			throw error;
+		}
+		if (!sendInFlightRef.current) {
+			return;
 		}
 		sendInFlightRef.current = null;
 
