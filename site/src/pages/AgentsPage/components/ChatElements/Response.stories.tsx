@@ -109,9 +109,9 @@ export const LongLineFencedBlock: Story = {
 		// exists, then scroll it so the capture shows the scrolled state.
 		const scroller = await waitFor(() => {
 			const found = [...canvasElement.querySelectorAll<HTMLElement>("*")].find(
-				(v) =>
-					getComputedStyle(v).overflowX === "auto" &&
-					v.scrollWidth > v.clientWidth,
+				(el) =>
+					getComputedStyle(el).overflowX === "auto" &&
+					el.scrollWidth > el.clientWidth,
 			);
 			if (!found) {
 				throw new Error("Expected a horizontally scrollable code block.");
