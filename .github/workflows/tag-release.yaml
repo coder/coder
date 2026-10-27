@@ -1,6 +1,10 @@
-# Runs the release wizard (scripts/releaser) unattended. It accepts the
-# default answer to every prompt, tags the release, pushes the tag, triggers
-# release.yaml, and opens the release docs PR for non-RC releases.
+# Runs the release wizard (scripts/releaser) unattended on the release/X.Y
+# branch selected in "Use workflow from". It accepts the default answer to
+# every prompt, tags the release, pushes the tag, triggers release.yaml, and
+# opens the release docs PR.
+#
+# Release candidates are tagged on main, which this workflow does not run on.
+# Use ./scripts/release.sh locally for those.
 #
 # Safety checks that default to "no" (open PRs, downgrades, breaking changes
 # in a patch release, and so on) fail the run. To release anyway with open
@@ -12,16 +16,6 @@ name: Tag release
 on:
   workflow_dispatch:
     inputs:
-      branch:
-        description: Branch to release from. Use main for release candidates and release/X.Y for releases and patches.
-        type: string
-        required: true
-        default: main
-      commit:
-        description: Commit on main to tag as a release candidate. Defaults to the head of main. Leave empty for release branches.
-        type: string
-        required: false
-        default: ""
       dry_run:
         description: Print the tag, push, and workflow trigger instead of running them.
         type: boolean
@@ -87,51 +81,28 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Validate inputs
+      - name: Require a release branch
         env:
-          BRANCH: ${{ inputs.branch }}
-          COMMIT: ${{ inputs.commit }}
+          REF: ${{ github.ref }}
         run: |
           set -euo pipefail
-          if [[ ! "$BRANCH" =~ ^(main|release/[0-9]+\.[0-9]+)$ ]]; then
-            echo "::error::branch must be main or release/X.Y, got: $BRANCH"
+          if [[ ! "$REF" =~ ^refs/heads/release/[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Select a release/X.Y branch in \"Use workflow from\", got: $REF"
             exit 1
           fi
-          if [[ -n "$COMMIT" ]]; then
-            if [[ "$BRANCH" != "main" ]]; then
-              echo "::error::commit is only supported on main. Release branches are tagged at their head."
-              exit 1
-            fi
-            if [[ ! "$COMMIT" =~ ^[0-9a-f]{7,40}$ ]]; then
-              echo "::error::commit must be a hex commit SHA, got: $COMMIT"
-              exit 1
-            fi
-          fi
 
-      # The releaser is built from the workflow ref so that release branches
-      # cut before a releaser change still get the current tool.
-      - name: Checkout releaser
+      - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # The releaser needs every tag to pick the next version and the full
+          # history to generate release notes.
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
           install-args: "go"
-
-      - name: Build releaser
-        run: go build -o "${RUNNER_TEMP}/releaser" ./scripts/releaser
-
-      - name: Checkout release branch
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.branch }}
-          path: release-checkout
-          # The releaser needs every tag to pick the next version and the full
-          # history to generate release notes.
-          fetch-depth: 0
-          persist-credentials: false
 
       # The release App bypasses the tag create protection ruleset, which
       # GITHUB_TOKEN cannot. It needs contents: write to push the tag and the
@@ -145,11 +116,9 @@ jobs:
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
 
       - name: Run releaser
-        working-directory: release-checkout
         env:
           GH_TOKEN: ${{ steps.release_app_token.outputs.token }}
           APP_SLUG: ${{ steps.release_app_token.outputs.app-slug }}
-          COMMIT: ${{ inputs.commit }}
           DRY_RUN: ${{ inputs.dry_run }}
           ALLOW_OPEN_PRS: ${{ inputs.allow_open_prs }}
           ALLOW_BREAKING_CHANGES: ${{ inputs.allow_breaking_changes }}
@@ -162,10 +131,6 @@ jobs:
           git config user.name "$bot_login"
           git config user.email "${bot_id}+${bot_login}@users.noreply.github.com"
 
-          if [[ -n "$COMMIT" ]]; then
-            git checkout --quiet --detach "$COMMIT"
-          fi
-
           args=(--non-interactive)
           if [[ "$DRY_RUN" == "true" ]]; then
             args+=(--dry-run)
@@ -176,13 +141,13 @@ jobs:
           if [[ "$ALLOW_BREAKING_CHANGES" == "true" ]]; then
             args+=(--allow-breaking-changes)
           fi
-          "${RUNNER_TEMP}/releaser" "${args[@]}"
+          go run ./scripts/releaser "${args[@]}"
 
       - name: Upload release notes
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-notes
-          path: release-checkout/build/RELEASE-*.md
+          path: build/RELEASE-*.md
           if-no-files-found: ignore
           retention-days: 7
