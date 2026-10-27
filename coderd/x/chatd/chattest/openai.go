@@ -709,7 +709,7 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, req *OpenAI
 			if actionType == "" {
 				actionType = "search"
 			}
-			action := map[string]interface{}{"type": actionType}
+			action := map[string]any{"type": actionType}
 			if resp.WebSearch.URL != "" {
 				action["url"] = resp.WebSearch.URL
 			}
