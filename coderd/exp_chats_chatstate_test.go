@@ -285,104 +285,12 @@ func TestChatQueueEndpointErrors(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-	res, err := client.Request(
-		ctx,
-		http.MethodDelete,
-		fmt.Sprintf("/api/v2/chats/%s/queue/99999999", chat.ID),
-		nil,
-	)
-	require.NoError(t, err)
-	defer res.Body.Close()
-	require.Equal(t, http.StatusNotFound, res.StatusCode)
-}
-
-// TestDeleteChatQueuedMessageEmptyQueueReturnsConflict covers the
-// state-conflict 409 path when the chat has no queued messages.
-func TestDeleteChatQueuedMessageEmptyQueueReturnsConflict(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	client := newChatClient(t, withChatWorkerDisabled)
-	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	_ = createChatModel(t, client)
-
-	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-		OrganizationID: firstUser.OrganizationID,
-		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
-	})
-	require.NoError(t, err)
-
-	res, err := client.Request(
-		ctx,
-		http.MethodDelete,
-		fmt.Sprintf("/api/v2/chats/%s/queue/99999999", chat.ID),
-		nil,
-	)
-	require.NoError(t, err)
-	defer res.Body.Close()
-	require.Equal(t, http.StatusConflict, res.StatusCode)
-}
-
-// TestPromoteChatQueuedMessageMissingReturns404 mirrors the delete
-// test for the promote endpoint: with a non-empty queue, an unknown
-// queued-message ID returns 404 rather than a 409.
-func TestPromoteChatQueuedMessageMissingReturns404(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	client := newChatClient(t, withChatWorkerDisabled)
-	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	_ = createChatModel(t, client)
-
-	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-		OrganizationID: firstUser.OrganizationID,
-		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
-	})
-	require.NoError(t, err)
-
-	// Seed one queued message so the promote transition is allowed.
-	_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
-		Content:      []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "queued"}},
-		BusyBehavior: codersdk.ChatBusyBehaviorQueue,
-	})
-	require.NoError(t, err)
-
-	res, err := client.Request(
-		ctx,
-		http.MethodPost,
-		fmt.Sprintf("/api/v2/chats/%s/queue/99999999/promote", chat.ID),
-		nil,
-	)
-	require.NoError(t, err)
-	defer res.Body.Close()
-	require.Equal(t, http.StatusNotFound, res.StatusCode)
-}
-
-// TestPromoteChatQueuedMessageEmptyQueueReturnsConflict verifies
-// the state-conflict 409 path when the chat has no queued messages.
-func TestPromoteChatQueuedMessageEmptyQueueReturnsConflict(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	client := newChatClient(t, withChatWorkerDisabled)
-	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	_ = createChatModel(t, client)
-
-	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-		OrganizationID: firstUser.OrganizationID,
-		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
-	})
-	require.NoError(t, err)
-
-	res, err := client.Request(
-		ctx,
-		http.MethodPost,
-		fmt.Sprintf("/api/v2/chats/%s/queue/99999999/promote", chat.ID),
-		nil,
-	)
-	require.NoError(t, err)
-	defer res.Body.Close()
-	require.Equal(t, http.StatusConflict, res.StatusCode)
+			res, err := client.Request(ctx, tc.method, fmt.Sprintf("/api/v2/chats/%s/queue/99999999%s", chat.ID, tc.pathSuffix), nil)
+			require.NoError(t, err)
+			defer res.Body.Close()
+			require.Equal(t, tc.wantStatus, res.StatusCode)
+		})
+	}
 }
 
 // TestInterruptChatIdleReturnsConflict verifies that interrupting an
