@@ -4963,6 +4963,89 @@ describe("chat stream contract", () => {
 		},
 	);
 
+	it("ends a pending send at a newer queue update equal to the stored queue", async () => {
+		const sockets = mockWatchChatWithFreshSockets();
+		const { result } = renderChat(
+			page([buildMessage(chatID, 1, "user", "prompt")]),
+		);
+		await waitFor(() => expect(sockets).toHaveLength(1));
+		act(() => {
+			void result.current.store.runPendingAction(
+				{ kind: "send", message: buildMessage(chatID, 0, "user", "second") },
+				"running",
+				() => new Promise(() => {}),
+			);
+		});
+		expect(result.current.queuedIDs).toHaveLength(1);
+
+		// The send queued its row at version 5, and another tab deleted it at
+		// version 6 before this tab read the queue.
+		act(() => {
+			sockets[0].emitOpen();
+			sockets[0].emitData({
+				type: "queue_update",
+				chat_id: chatID,
+				queued_messages: [],
+				snapshot_version: 6,
+			});
+		});
+		expect(result.current.queuedIDs).toEqual([]);
+		expect(result.current.pendingCount).toBe(0);
+	});
+
+	it("ends a pending part at a resent event that the dropped connection never delivered", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		const sockets = mockWatchChatWithFreshSockets();
+		const { result } = renderChat({
+			...page([buildMessage(chatID, 1, "user", "prompt")]),
+			queued_messages: [buildQueuedMessage(chatID, 10, "queued")],
+		});
+		await waitFor(() => expect(sockets).toHaveLength(1));
+		act(() => {
+			void result.current.store.runPendingAction(
+				{ kind: "send", message: buildMessage(chatID, 0, "user", "second") },
+				"error",
+				() => new Promise(() => {}),
+			);
+		});
+
+		// The send's commit sends the queue head and queues the send. The
+		// connection drops after the head's message.
+		const sentHead: TypesGen.ChatStreamEvent = {
+			type: "message",
+			chat_id: chatID,
+			message: {
+				...buildMessage(chatID, 2, "user", "queued"),
+				queued_message_id: 10,
+			},
+			snapshot_version: 5,
+		};
+		act(() => {
+			sockets[0].emitOpen();
+			sockets[0].emitData(sentHead);
+			sockets[0].emitError();
+		});
+		await act(async () => {
+			vi.advanceTimersByTime(1_500);
+		});
+		expect(watchChat).toHaveBeenLastCalledWith(chatID, 5);
+
+		act(() => {
+			sockets[1].emitOpen();
+			sockets[1].emitDataBatch([
+				sentHead,
+				{
+					type: "queue_update",
+					chat_id: chatID,
+					queued_messages: [buildQueuedMessage(chatID, 11, "second")],
+					snapshot_version: 5,
+				},
+			]);
+		});
+		expect(result.current.queuedIDs).toEqual([11]);
+		expect(result.current.pendingCount).toBe(0);
+	});
+
 	it("shows a chat's pending send in no other chat", async () => {
 		mockWatchChatWithFreshSockets();
 		const otherChatID = "chat-contract-other";
