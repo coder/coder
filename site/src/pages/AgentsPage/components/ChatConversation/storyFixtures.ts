@@ -536,6 +536,7 @@ export const MockAsyncQuestionResult = {
 	async: true,
 };
 
+/** Completes MockQuestionCallMessage's call, so a transcript with both messages has an open async question. */
 export const MockAsyncQuestionResultMessage: TypesGen.ChatMessage = {
 	...MockChatMessage,
 	id: 5,
