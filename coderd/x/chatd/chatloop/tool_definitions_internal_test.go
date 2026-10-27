@@ -3,6 +3,7 @@ package chatloop
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	"charm.land/fantasy"
@@ -706,6 +707,7 @@ func TestBuildToolDefinitionsFullSchemaRootAlternativesMissingProperty(t *testin
 		source   map[string]any
 		want     string
 		accepted []string
+		rejected []string
 	}{
 		{
 			name: "OpenAlternative",
@@ -744,9 +746,35 @@ func TestBuildToolDefinitionsFullSchemaRootAlternativesMissingProperty(t *testin
 			},
 			want: `{
 				"type": "object",
-				"properties": {"a": {"anyOf": [{"type": "string"}, {}]}}
+				"properties": {"a": {"anyOf": [{"type": "string"}, {"type": "number"}]}}
 			}`,
 			accepted: []string{`{"a": 1}`},
+			rejected: []string{`{"a": true}`},
+		},
+		{
+			name: "AdditionalPropertiesAlternatives",
+			source: map[string]any{
+				"anyOf": []any{
+					map[string]any{
+						"properties":           map[string]any{"a": map[string]any{"type": "string"}},
+						"additionalProperties": map[string]any{"type": "integer"},
+					},
+					map[string]any{
+						"properties":           map[string]any{"b": map[string]any{"type": "string"}},
+						"additionalProperties": false,
+					},
+				},
+			},
+			want: `{
+				"type": "object",
+				"properties": {
+					"a": {"type": "string"},
+					"b": {"anyOf": [{"type": "integer"}, {"type": "string"}]}
+				},
+				"additionalProperties": {"type": "integer"}
+			}`,
+			accepted: []string{`{"a": "x", "b": 1, "c": 2}`, `{"b": "y"}`},
+			rejected: []string{`{"c": "z"}`, `{"a": 1}`},
 		},
 		{
 			// A false alternative never holds, so the other one decides.
@@ -766,6 +794,28 @@ func TestBuildToolDefinitionsFullSchemaRootAlternativesMissingProperty(t *testin
 				"required": ["q"]
 			}`,
 			accepted: []string{`{"q": "x"}`},
+		},
+		{
+			// Alternatives that hold a false schema never hold either.
+			name: "ImpossibleAlternatives",
+			source: map[string]any{
+				"anyOf": []any{
+					map[string]any{"allOf": []any{false}},
+					map[string]any{"$ref": "#/$defs/Never"},
+					map[string]any{"anyOf": []any{false, false}},
+					map[string]any{
+						"properties": map[string]any{"q": map[string]any{"type": "string"}},
+					},
+				},
+				"$defs": map[string]any{"Never": false},
+			},
+			want: `{
+				"type": "object",
+				"properties": {"q": {"type": "string"}},
+				"$defs": {"Never": false}
+			}`,
+			accepted: []string{`{"q": "x"}`},
+			rejected: []string{`{"q": 1}`},
 		},
 		{
 			name: "ClosedAlternatives",
@@ -802,6 +852,7 @@ func TestBuildToolDefinitionsFullSchemaRootAlternativesMissingProperty(t *testin
 					"y": {"type": "integer"}
 				},
 				"required": ["kind"],
+				"additionalProperties": false,
 				"$defs": {
 					"Y": {
 						"properties": {
@@ -814,6 +865,7 @@ func TestBuildToolDefinitionsFullSchemaRootAlternativesMissingProperty(t *testin
 				}
 			}`,
 			accepted: []string{`{"kind": "x", "x": "a"}`, `{"kind": "y", "y": 1}`},
+			rejected: []string{`{"kind": "x", "z": 1}`},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -829,6 +881,10 @@ func TestBuildToolDefinitionsFullSchemaRootAlternativesMissingProperty(t *testin
 			for _, instance := range tc.accepted {
 				require.NoError(t, validateSchemaInstance(t, tc.source, instance), "the source schema must accept %s", instance)
 				require.NoError(t, validateSchemaInstance(t, ft.InputSchema, instance))
+			}
+			for _, instance := range tc.rejected {
+				require.Error(t, validateSchemaInstance(t, tc.source, instance), "the source schema must reject %s", instance)
+				require.Error(t, validateSchemaInstance(t, ft.InputSchema, instance))
 			}
 		})
 	}
@@ -899,6 +955,154 @@ func TestBuildToolDefinitionsFullSchemaRootFoldUndeclaredRequired(t *testing.T) 
 			}
 		})
 	}
+}
+
+// TestBuildToolDefinitionsFullSchemaRootFoldObjectKeywords verifies that
+// root folding keeps the keywords of the schemas it folds into the root
+// that constrain the object as a whole, so a root reference to a closed
+// object or a map stays one.
+func TestBuildToolDefinitionsFullSchemaRootFoldObjectKeywords(t *testing.T) {
+	t.Parallel()
+
+	const objectKeywords = `{
+		"type": "object",
+		"minProperties": 1,
+		"maxProperties": 3,
+		"allOf": [
+			{"minProperties": 2, "maxProperties": 4, "propertyNames": {"maxLength": 3}, "dependentRequired": {"a": ["b"]}},
+			{"dependentRequired": {"a": ["c"]}, "dependentSchemas": {"c": {"required": ["a"]}}}
+		]
+	}`
+	const objectKeywordsWant = `{
+		"type": "object",
+		"properties": {},
+		"minProperties": 2,
+		"maxProperties": 3,
+		"propertyNames": {"maxLength": 3},
+		"dependentRequired": {"a": ["b", "c"]},
+		"dependentSchemas": {"c": {"required": ["a"]}}
+	}`
+	for _, tc := range []struct {
+		name   string
+		source string
+		// rawNumbers decodes numbers as json.RawMessage, as dynamic
+		// tool schemas carry them.
+		rawNumbers bool
+		want       string
+		accepted   []string
+		rejected   []string
+	}{
+		{
+			name:     "ClosedRefTarget",
+			source:   `{"$ref": "#/$defs/Args", "$defs": {"Args": {"properties": {"q": {"type": "string"}}, "additionalProperties": false}}}`,
+			want:     `{"type": "object", "properties": {"q": {"type": "string"}}, "additionalProperties": false, "$defs": {"Args": {"properties": {"q": {"type": "string"}}, "additionalProperties": false}}}`,
+			accepted: []string{`{"q": "x"}`},
+			rejected: []string{`{"q": "x", "extra": 1}`},
+		},
+		{
+			name:     "ClosedBranch",
+			source:   `{"type": "object", "required": ["q"], "allOf": [{"properties": {"q": {"type": "string"}}, "additionalProperties": false}]}`,
+			want:     `{"type": "object", "properties": {"q": {"type": "string"}}, "required": ["q"], "additionalProperties": false}`,
+			accepted: []string{`{"q": "x"}`},
+			rejected: []string{`{"q": "x", "extra": 1}`},
+		},
+		{
+			name:     "MapRefTarget",
+			source:   `{"$ref": "#/$defs/Tags", "$defs": {"Tags": {"type": "object", "additionalProperties": {"type": "string"}}}}`,
+			want:     `{"type": "object", "properties": {}, "additionalProperties": {"type": "string"}, "$defs": {"Tags": {"type": "object", "additionalProperties": {"type": "string"}}}}`,
+			accepted: []string{`{"env": "prod"}`},
+			rejected: []string{`{"env": 1}`},
+		},
+		{
+			name:     "PatternBranches",
+			source:   `{"type": "object", "patternProperties": {"^x-": {"minLength": 1}}, "allOf": [{"patternProperties": {"^x-": {"type": "string"}, "^n-": {"type": "integer"}}}]}`,
+			want:     `{"type": "object", "properties": {}, "patternProperties": {"^x-": {"allOf": [{"minLength": 1}, {"type": "string"}]}, "^n-": {"type": "integer"}}}`,
+			accepted: []string{`{"x-a": "s", "n-b": 1, "other": true}`},
+			rejected: []string{`{"x-a": 1}`, `{"x-a": ""}`, `{"n-b": "s"}`},
+		},
+		{
+			name:     "ObjectKeywords",
+			source:   objectKeywords,
+			want:     objectKeywordsWant,
+			accepted: []string{`{"a": 1, "b": 2, "c": 3}`, `{"b": 1, "d": 2}`},
+			rejected: []string{`{"b": 1}`, `{"b": 1, "c": 2, "d": 3, "e": 4}`, `{"abcd": 1, "b": 2}`, `{"a": 1, "b": 2}`, `{"b": 1, "c": 2}`},
+		},
+		{
+			// The root evaluates every name the reference target does.
+			name:     "UnevaluatedPropertiesKept",
+			source:   `{"$ref": "#/$defs/Base", "properties": {"extra": {"type": "string"}}, "unevaluatedProperties": false, "$defs": {"Base": {"properties": {"q": {"type": "string"}}}}}`,
+			want:     `{"type": "object", "properties": {"q": {"type": "string"}, "extra": {"type": "string"}}, "unevaluatedProperties": false, "$defs": {"Base": {"properties": {"q": {"type": "string"}}}}}`,
+			accepted: []string{`{"q": "x", "extra": "y"}`},
+			rejected: []string{`{"q": "x", "z": 1}`},
+		},
+		{
+			// The root does not evaluate the names an alternative's
+			// pattern does, so "unevaluatedProperties" would reject
+			// them.
+			name:     "UnevaluatedPropertiesDropped",
+			source:   `{"unevaluatedProperties": false, "anyOf": [{"properties": {"a": {"type": "string"}}, "required": ["a"]}, {"patternProperties": {"^x": {"type": "integer"}}}]}`,
+			want:     `{"type": "object", "properties": {"a": {"anyOf": [{"type": "string"}, {}]}}}`,
+			accepted: []string{`{"a": "s"}`, `{"x1": 1}`},
+		},
+		{
+			name:       "ObjectKeywordsRawNumbers",
+			source:     objectKeywords,
+			rawNumbers: true,
+			want:       objectKeywordsWant,
+			accepted:   []string{`{"a": 1, "b": 2, "c": 3}`},
+			rejected:   []string{`{"b": 1}`, `{"b": 1, "c": 2, "d": 3, "e": 4}`},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var source map[string]any
+			if tc.rawNumbers {
+				decoder := json.NewDecoder(strings.NewReader(tc.source))
+				decoder.UseNumber()
+				require.NoError(t, decoder.Decode(&source))
+				rawNumbers(source)
+			} else {
+				require.NoError(t, json.Unmarshal([]byte(tc.source), &source))
+			}
+			defs := BuildToolDefinitions([]fantasy.AgentTool{fullSchemaTestTool{schema: source}}, nil, nil)
+			require.Len(t, defs, 1)
+			ft, ok := defs[0].(fantasy.FunctionTool)
+			require.True(t, ok)
+			raw, err := json.Marshal(ft.InputSchema)
+			require.NoError(t, err)
+			require.JSONEq(t, tc.want, string(raw))
+			for _, instance := range tc.accepted {
+				require.NoError(t, validateSchemaInstance(t, source, instance), "the source schema must accept %s", instance)
+				require.NoError(t, validateSchemaInstance(t, ft.InputSchema, instance))
+			}
+			for _, instance := range tc.rejected {
+				require.Error(t, validateSchemaInstance(t, source, instance), "the source schema must reject %s", instance)
+				require.Error(t, validateSchemaInstance(t, ft.InputSchema, instance))
+			}
+		})
+	}
+}
+
+// TestBuildToolDefinitionsFullSchemaRootFoldKeepsLongCompositions
+// verifies that the bound on root folding work leaves a long root
+// "allOf" whole, so a constraint in its last branch survives.
+func TestBuildToolDefinitionsFullSchemaRootFoldKeepsLongCompositions(t *testing.T) {
+	t.Parallel()
+
+	branches := make([]any, 0, 2*maxRootMergeSchemas+1)
+	for range 2 * maxRootMergeSchemas {
+		branches = append(branches, map[string]any{})
+	}
+	branches = append(branches, map[string]any{
+		"properties": map[string]any{"q": map[string]any{"type": "string"}},
+		"required":   []any{"q"},
+	})
+	source := map[string]any{"type": "object", "allOf": branches}
+
+	inputSchema := ToolInputSchema(fullSchemaTestTool{schema: source})
+	require.Equal(t, map[string]any{"q": map[string]any{"type": "string"}}, inputSchema["properties"])
+	require.Equal(t, []string{"q"}, inputSchema["required"])
 }
 
 // TestBuildToolDefinitionsFullSchemaRootFoldBoundsWork verifies that
@@ -1191,4 +1395,27 @@ func validateSchemaInstance(t *testing.T, schema map[string]any, instance string
 	var value any
 	require.NoError(t, json.Unmarshal([]byte(instance), &value))
 	return resolved.Validate(value)
+}
+
+// rawNumbers replaces every json.Number below value with a
+// json.RawMessage of the same digits, in place, as chatd does for
+// dynamic tool schemas.
+func rawNumbers(value any) {
+	convert := func(item any) any {
+		if number, ok := item.(json.Number); ok {
+			return json.RawMessage(number)
+		}
+		rawNumbers(item)
+		return item
+	}
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, item := range typed {
+			typed[key] = convert(item)
+		}
+	case []any:
+		for i, item := range typed {
+			typed[i] = convert(item)
+		}
+	}
 }
