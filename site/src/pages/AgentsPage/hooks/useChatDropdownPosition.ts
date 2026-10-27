@@ -29,10 +29,6 @@ export function useChatDropdownPosition(composerElement: HTMLElement | null) {
 		const composerGap = 8;
 		const viewportPadding = 16;
 		const minimumMenuHeight = 96;
-		const setRootVariable = (name: string, value: string) => {
-			if (root.style.getPropertyValue(name) === value) return;
-			root.style.setProperty(name, value);
-		};
 		const update = () => {
 			const rect = composerElement.getBoundingClientRect();
 			const fixedViewportBottom = fixedProbe.getBoundingClientRect().bottom;
@@ -61,14 +57,14 @@ export function useChatDropdownPosition(composerElement: HTMLElement | null) {
 				minimumMenuHeight,
 				maxHeightCandidates.length > 0 ? Math.min(...maxHeightCandidates) : 0,
 			);
-			setRootVariable("--mobile-dropdown-bottom", `${bottom}px`);
-			setRootVariable("--mobile-dropdown-left", `${rect.left}px`);
-			setRootVariable("--mobile-dropdown-width", `${rect.width}px`);
-			setRootVariable(
+			root.style.setProperty("--mobile-dropdown-bottom", `${bottom}px`);
+			root.style.setProperty("--mobile-dropdown-left", `${rect.left}px`);
+			root.style.setProperty("--mobile-dropdown-width", `${rect.width}px`);
+			root.style.setProperty(
 				"--mobile-dropdown-above-composer-bottom",
 				`${aboveComposerBottom}px`,
 			);
-			setRootVariable(
+			root.style.setProperty(
 				"--mobile-dropdown-above-composer-max-height",
 				`${aboveComposerMaxHeight}px`,
 			);
