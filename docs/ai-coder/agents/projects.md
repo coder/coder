@@ -2,6 +2,10 @@
 title: Projects
 ---
 
+> [!NOTE]
+> Projects are in [early access](../../reference/feature-stages.md#early-access-features).
+> Behavior and APIs might change between releases.
+
 Projects group related Coder Agents chats.
 Every chat in a project gets the project's instructions, skills, and memory, so you don't repeat the same context in each chat.
 Your projects appear in the **Projects** section of the **Agents** page sidebar.

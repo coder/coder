@@ -24,6 +24,7 @@ children:
   - title: Projects
     description: Group Coder Agents chats into projects with shared instructions, skills, and memory.
     path: ./ai-coder/agents/projects.md
+    state: [early access]
   - title: Conversation search syntax
     description: Filter Coder Agents conversations by title, status, and linked pull requests with search syntax.
     path: ./ai-coder/agents/chat-search-syntax.md
