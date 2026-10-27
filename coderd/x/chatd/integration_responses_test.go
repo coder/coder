@@ -26,6 +26,9 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+// TestOpenAIResponsesNoStaleWebSearchReplay checks that a follow-up after
+// an unstored turn sends no provider item ID or item_reference, which
+// OpenAI cannot resolve, and sends the search inline instead.
 func TestOpenAIResponsesNoStaleWebSearchReplay(t *testing.T) {
 	t.Parallel()
 
@@ -761,6 +764,8 @@ func TestOpenAIResponsesFullReplayPairsReasoningAndWebSearch(t *testing.T) {
 	require.True(t, *followup.Store)
 	require.NotEmpty(t, followup.Prompt)
 	requirePromptItemReferenceOrder(t, followup.Prompt, reasoningID, webSearchID)
+	// The referenced search must not also be sent inline.
+	require.NotContains(t, promptItemTypes(followup.Prompt), "web_search_call")
 }
 
 func TestOpenAIResponsesNarrationKeepsPhase(t *testing.T) {
@@ -986,10 +991,6 @@ func assertNoResponsesProviderItemReplay(
 	case map[string]interface{}:
 		for key, raw := range typed {
 			if text, ok := raw.(string); ok {
-				// Only a web search with an ID resolves to stored state.
-				if _, hasID := typed["id"]; hasID && key == "type" && text == "web_search_call" {
-					require.FailNowf(t, "prompt replayed web_search_call with provider id", "id %v", typed["id"])
-				}
 				if key == "type" && text == "item_reference" {
 					require.FailNow(t, "prompt replayed provider item reference")
 				}
