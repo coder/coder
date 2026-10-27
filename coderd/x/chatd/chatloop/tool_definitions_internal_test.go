@@ -288,7 +288,7 @@ func TestBuildToolDefinitionsFullSchemaRootComposition(t *testing.T) {
 	require.JSONEq(t, `{
 		"type": "object",
 		"properties": {
-			"alias": {"$ref": "#/$defs/coder_root_allOf/allOf/0/properties/name"},
+			"alias": {"$ref": "#/$defs/coder_root_allOf_0_properties_name"},
 			"id": {"type": "integer"},
 			"name": {"type": "string"},
 			"email": {"anyOf": [{"type": "string"}, {"type": "string", "format": "email"}]},
@@ -300,12 +300,7 @@ func TestBuildToolDefinitionsFullSchemaRootComposition(t *testing.T) {
 				"properties": {"id": {"type": "integer"}},
 				"required": ["id"]
 			},
-			"coder_root_allOf": {
-				"allOf": [{
-					"properties": {"name": {"type": "string"}},
-					"required": ["name"]
-				}]
-			}
+			"coder_root_allOf_0_properties_name": {"type": "string"}
 		}
 	}`, string(raw))
 
@@ -374,8 +369,10 @@ func TestBuildToolDefinitionsFullSchemaRootCompositionAbsoluteRefs(t *testing.T)
 }
 
 // TestBuildToolDefinitionsFullSchemaRootCompositionTransitiveRefs
-// verifies that a removed root keyword stays resolvable when only other
-// relocated root content points into it.
+// verifies that removed root content stays resolvable when only other
+// relocated content points into it, and that each relocated schema gets
+// a definition of its own, since Anthropic models send a JSON string for
+// an object parameter behind a reference nested deeper.
 func TestBuildToolDefinitionsFullSchemaRootCompositionTransitiveRefs(t *testing.T) {
 	t.Parallel()
 
@@ -408,19 +405,81 @@ func TestBuildToolDefinitionsFullSchemaRootCompositionTransitiveRefs(t *testing.
 	require.JSONEq(t, `{
 		"type": "object",
 		"properties": {
-			"filter": {"$ref": "#/$defs/coder_root_allOf/allOf/0/$defs/Filter"}
+			"filter": {"$ref": "#/$defs/coder_root_allOf_0_defs_Filter"}
 		},
 		"$defs": {
-			"coder_root_allOf": {
-				"allOf": [{"$defs": {"Filter": {"$ref": "#/$defs/coder_root_anyOf/anyOf/0/$defs/Term"}}}]
-			},
-			"coder_root_anyOf": {
-				"anyOf": [{"$defs": {"Term": {"type": "string", "minLength": 3}}}]
-			}
+			"coder_root_allOf_0_defs_Filter": {"$ref": "#/$defs/coder_root_anyOf_0_defs_Term"},
+			"coder_root_anyOf_0_defs_Term": {"type": "string", "minLength": 3}
 		}
 	}`, string(raw))
 	require.NoError(t, validateSchemaInstance(t, ft.InputSchema, `{"filter": "abc"}`))
 	require.Error(t, validateSchemaInstance(t, ft.InputSchema, `{"filter": "ab"}`))
+}
+
+// TestBuildToolDefinitionsFullSchemaRootCompositionNestedTargets
+// verifies that a referenced schema inside another one stays inside it,
+// so that the content is not sent twice, and that a removed keyword
+// whose referenced content belongs to an embedded resource moves as a
+// whole, so that references in that resource keep resolving against it.
+func TestBuildToolDefinitionsFullSchemaRootCompositionNestedTargets(t *testing.T) {
+	t.Parallel()
+
+	source := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"outer":  map[string]any{"$ref": "#/allOf/0/$defs/Outer"},
+			"inner":  map[string]any{"$ref": "#/allOf/0/$defs/Outer/properties/v"},
+			"remote": map[string]any{"$ref": "#/anyOf/0/$defs/R/$defs/S"},
+		},
+		"allOf": []any{
+			map[string]any{"$defs": map[string]any{
+				"Outer": map[string]any{
+					"type":       "object",
+					"properties": map[string]any{"v": map[string]any{"type": "string", "minLength": 2}},
+				},
+			}},
+		},
+		"anyOf": []any{
+			map[string]any{"$defs": map[string]any{
+				"R": map[string]any{
+					"$id": "https://example.com/r.json",
+					"$defs": map[string]any{
+						"S": map[string]any{"$ref": "#/$defs/T"},
+						"T": map[string]any{"type": "integer"},
+					},
+				},
+			}},
+		},
+	}
+	defs := BuildToolDefinitions([]fantasy.AgentTool{fullSchemaTestTool{schema: source}}, nil, nil)
+	require.Len(t, defs, 1)
+	ft, ok := defs[0].(fantasy.FunctionTool)
+	require.True(t, ok)
+	raw, err := json.Marshal(ft.InputSchema)
+	require.NoError(t, err)
+	require.JSONEq(t, `{
+		"type": "object",
+		"properties": {
+			"outer": {"$ref": "#/$defs/coder_root_allOf_0_defs_Outer"},
+			"inner": {"$ref": "#/$defs/coder_root_allOf_0_defs_Outer/properties/v"},
+			"remote": {"$ref": "#/$defs/coder_root_anyOf/anyOf/0/$defs/R/$defs/S"}
+		},
+		"$defs": {
+			"coder_root_allOf_0_defs_Outer": {
+				"type": "object",
+				"properties": {"v": {"type": "string", "minLength": 2}}
+			},
+			"coder_root_anyOf": {
+				"anyOf": [{"$defs": {"R": {
+					"$id": "https://example.com/r.json",
+					"$defs": {"S": {"$ref": "#/$defs/T"}, "T": {"type": "integer"}}
+				}}}]
+			}
+		}
+	}`, string(raw))
+	require.NoError(t, validateSchemaInstance(t, ft.InputSchema, `{"outer": {"v": "ab"}, "inner": "ab", "remote": 1}`))
+	require.Error(t, validateSchemaInstance(t, ft.InputSchema, `{"inner": "a"}`))
+	require.Error(t, validateSchemaInstance(t, ft.InputSchema, `{"remote": "x"}`))
 }
 
 // TestBuildToolDefinitionsFullSchemaRootCompositionResourceBranches
@@ -873,6 +932,58 @@ func TestBuildToolDefinitionsFullSchemaRootFoldBoundsWork(t *testing.T) {
 	require.Equal(t, want, inputSchema["properties"])
 }
 
+// TestBuildToolDefinitionsFullSchemaRootFoldSharedRefs verifies that
+// root folding keeps every parameter when branches share references
+// many times over or chain them deeply, which a bound on the work done
+// would otherwise cut short.
+func TestBuildToolDefinitionsFullSchemaRootFoldSharedRefs(t *testing.T) {
+	t.Parallel()
+
+	leaf := map[string]any{
+		"properties": map[string]any{"q": map[string]any{"type": "string"}},
+		"required":   []any{"q"},
+	}
+	sibling := map[string]any{
+		"properties": map[string]any{"r": map[string]any{"type": "string", "minLength": 3}},
+		"required":   []any{"r"},
+	}
+	for _, tc := range []struct {
+		name   string
+		levels int
+		fanOut int
+	}{
+		// Every level references the next twice, which expands to about
+		// a thousand merges when each path is followed again.
+		{name: "SharedReferences", levels: 9, fanOut: 2},
+		{name: "LongChain", levels: 40, fanOut: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			defs := map[string]any{fmt.Sprintf("D%d", tc.levels): leaf}
+			for level := range tc.levels {
+				branches := make([]any, tc.fanOut)
+				for i := range branches {
+					branches[i] = map[string]any{"$ref": fmt.Sprintf("#/$defs/D%d", level+1)}
+				}
+				defs[fmt.Sprintf("D%d", level)] = map[string]any{"allOf": branches}
+			}
+			source := map[string]any{
+				"type":  "object",
+				"allOf": []any{map[string]any{"$ref": "#/$defs/D0"}, sibling},
+				"$defs": defs,
+			}
+
+			inputSchema := ToolInputSchema(fullSchemaTestTool{schema: source})
+			require.Equal(t, map[string]any{
+				"q": map[string]any{"type": "string"},
+				"r": map[string]any{"type": "string", "minLength": 3},
+			}, inputSchema["properties"])
+			require.Equal(t, []string{"q", "r"}, inputSchema["required"])
+		})
+	}
+}
+
 // TestBuildToolDefinitionsFullSchemaAnchorRefs verifies that a
 // reference to an anchor reaches the provider as a JSON Pointer to the
 // anchored schema, which providers and draft 7 validators follow even
@@ -900,8 +1011,8 @@ func TestBuildToolDefinitionsFullSchemaAnchorRefs(t *testing.T) {
 			wantRef: "#/definitions/Code",
 		},
 		{
-			// The anchored schema leaves the root with the root "anyOf"
-			// that holds it, and the reference follows it.
+			// The anchored schema moves out of the removed root "anyOf"
+			// into a definition of its own, and the reference follows it.
 			name: "AnchorInRemovedRootKeyword",
 			source: map[string]any{
 				"type": "object",
@@ -916,7 +1027,7 @@ func TestBuildToolDefinitionsFullSchemaAnchorRefs(t *testing.T) {
 					},
 				},
 			},
-			wantRef: "#/$defs/coder_root_anyOf/anyOf/0/$defs/Code",
+			wantRef: "#/$defs/coder_root_anyOf_0_defs_Code",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

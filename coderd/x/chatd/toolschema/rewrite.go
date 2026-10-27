@@ -64,7 +64,7 @@ func Normalize(schema map[string]any) map[string]any {
 			if _, seen := pointers[anchor]; seen {
 				duplicated[anchor] = true
 			}
-			pointers[anchor] = encodePointer(scope.path)
+			pointers[anchor] = EncodePointer(scope.path)
 		}
 	})
 	if len(pointers) == 0 {
@@ -140,7 +140,7 @@ func normalizeNode(node map[string]any, scope refScope) {
 	if ref, ok := node["$ref"].(string); ok && !scope.nested && !strings.HasPrefix(ref, "#") {
 		if fragment, ok := scope.rootFragment(ref); ok {
 			if tokens, ok := decodePointer(fragment); ok {
-				node["$ref"] = "#" + encodePointer(tokens)
+				node["$ref"] = "#" + EncodePointer(tokens)
 			} else if anchorName.MatchString(fragment) {
 				node["$ref"] = "#" + fragment
 			}
@@ -209,7 +209,7 @@ func RewriteRefs(schema map[string]any, rewrite func(tokens []string) ([]string,
 			return
 		}
 		prefix, _, _ := strings.Cut(ref, "#")
-		node["$ref"] = prefix + "#" + encodePointer(tokens)
+		node["$ref"] = prefix + "#" + EncodePointer(tokens)
 	})
 }
 
@@ -584,7 +584,9 @@ func decodePointer(fragment string) ([]string, bool) {
 	return tokens, true
 }
 
-func encodePointer(tokens []string) string {
+// EncodePointer returns the URI fragment, without the leading "#", that
+// holds the JSON Pointer with the given unescaped tokens.
+func EncodePointer(tokens []string) string {
 	pointer := ""
 	for _, token := range tokens {
 		pointer += "/" + strings.ReplaceAll(strings.ReplaceAll(token, "~", "~0"), "/", "~1")
