@@ -10745,6 +10745,7 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 	t.Parallel()
 
 	const answer = "Tokyo has about 14 million residents."
+	const followUpPrompt = "And Osaka?"
 	const followUpAnswer = "Osaka has about 2.7 million residents."
 	found := []string{"https://www.metro.tokyo.lg.jp/", "https://example.com/tokyo"}
 	// Live OpenAI streams add pages the answer cited to the search's
@@ -10846,13 +10847,12 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 			// stream so the streamed parts cannot be missed.
 			streamReady := make(chan struct{})
 			var requestIncludes atomic.Pointer[[]string]
-			var streamRequests atomic.Int32
 			followUpBody := make(chan []byte, 1)
 			baseURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 				if !req.Stream {
 					return chattest.OpenAINonStreamingResponse(`{"title": "Tokyo population"}`)
 				}
-				if streamRequests.Add(1) > 1 {
+				if bytes.Contains(req.RawBody, []byte(followUpPrompt)) {
 					select {
 					case followUpBody <- req.RawBody:
 					default:
@@ -11013,7 +11013,7 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 			_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 				Content: []codersdk.ChatInputPart{{
 					Type: codersdk.ChatInputPartTypeText,
-					Text: "And Osaka?",
+					Text: followUpPrompt,
 				}},
 			})
 			require.NoError(t, err)
