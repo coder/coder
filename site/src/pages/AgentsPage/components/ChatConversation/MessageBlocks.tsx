@@ -68,7 +68,7 @@ export type BlockListProps = {
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
 	latestAskUserQuestion?: MergedTool;
-	dockedAskUserQuestionToolId?: string;
+	dockedAskUserQuestion?: MergedTool;
 	askUserQuestionResponseTextByToolId?: ReadonlyMap<string, string>;
 	isLatestAskUserQuestionAnswered: boolean;
 	urlTransform: UrlTransform;
@@ -95,7 +95,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 	onSendAskUserQuestionResponse,
 	isChatCompleted,
 	latestAskUserQuestion,
-	dockedAskUserQuestionToolId,
+	dockedAskUserQuestion,
 	askUserQuestionResponseTextByToolId,
 	isLatestAskUserQuestionAnswered,
 	urlTransform,
@@ -247,9 +247,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 									tool === latestAskUserQuestion &&
 									!isLatestAskUserQuestionAnswered
 								}
-								isDockedAskUserQuestion={
-									tool.id === dockedAskUserQuestionToolId
-								}
+								isDockedAskUserQuestion={tool === dockedAskUserQuestion}
 								previousResponseText={
 									tool.name === "ask_user_question"
 										? askUserQuestionResponseTextByToolId?.get(tool.id)
@@ -318,7 +316,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 					isLatestAskUserQuestion={
 						tool === latestAskUserQuestion && !isLatestAskUserQuestionAnswered
 					}
-					isDockedAskUserQuestion={tool.id === dockedAskUserQuestionToolId}
+					isDockedAskUserQuestion={tool === dockedAskUserQuestion}
 					previousResponseText={
 						tool.name === "ask_user_question"
 							? askUserQuestionResponseTextByToolId?.get(tool.id)

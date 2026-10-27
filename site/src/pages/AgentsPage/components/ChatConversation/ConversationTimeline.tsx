@@ -129,7 +129,7 @@ const ChatMessageItem = memo<{
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
 	latestAskUserQuestion?: MergedTool;
-	dockedAskUserQuestionToolId?: string;
+	dockedAskUserQuestion?: MergedTool;
 	askUserQuestionResponseTextByToolId?: ReadonlyMap<string, string>;
 	isLatestAskUserQuestionAnswered?: boolean;
 	prevUserMessageKey?: string;
@@ -158,7 +158,7 @@ const ChatMessageItem = memo<{
 		onSendAskUserQuestionResponse,
 		isChatCompleted,
 		latestAskUserQuestion,
-		dockedAskUserQuestionToolId,
+		dockedAskUserQuestion,
 		askUserQuestionResponseTextByToolId,
 		isLatestAskUserQuestionAnswered = false,
 		prevUserMessageKey,
@@ -282,7 +282,7 @@ const ChatMessageItem = memo<{
 									onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 									isChatCompleted={isChatCompleted}
 									latestAskUserQuestion={latestAskUserQuestion}
-									dockedAskUserQuestionToolId={dockedAskUserQuestionToolId}
+									dockedAskUserQuestion={dockedAskUserQuestion}
 									askUserQuestionResponseTextByToolId={
 										askUserQuestionResponseTextByToolId
 									}
@@ -460,7 +460,7 @@ type ConversationTimelineProps = {
 	hasActiveStream: boolean;
 	isAwaitingFirstStreamChunk: boolean;
 	askUserQuestionState: AskUserQuestionState;
-	dockedAskUserQuestionToolId?: string;
+	dockedAskUserQuestion?: MergedTool;
 };
 
 export const ConversationTimeline = memo<ConversationTimelineProps>(
@@ -488,7 +488,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		hasActiveStream,
 		isAwaitingFirstStreamChunk,
 		askUserQuestionState,
-		dockedAskUserQuestionToolId,
+		dockedAskUserQuestion,
 	}) => {
 		const { scrollToMessage } = useMessageScroller();
 		const preferences = useQuery(preferenceSettings());
@@ -614,7 +614,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						liveBlocks={liveBlocks}
 						liveTools={liveTools}
 						latestAskUserQuestion={latestAskUserQuestion}
-						dockedAskUserQuestionToolId={dockedAskUserQuestionToolId}
+						dockedAskUserQuestion={dockedAskUserQuestion}
 						askUserQuestionResponseTextByToolId={
 							askUserQuestionResponseTextByToolId
 						}
@@ -656,7 +656,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 					isChatCompleted={isChatCompleted}
 					latestAskUserQuestion={latestAskUserQuestion}
-					dockedAskUserQuestionToolId={dockedAskUserQuestionToolId}
+					dockedAskUserQuestion={dockedAskUserQuestion}
 					askUserQuestionResponseTextByToolId={
 						askUserQuestionResponseTextByToolId
 					}

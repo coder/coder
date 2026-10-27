@@ -312,7 +312,6 @@ describe("ChatPageTimeline question dock", () => {
 		const user = userEvent.setup();
 		const onSendAskUserQuestionResponse = vi.fn();
 		const { store } = renderChatPageTimeline(onSendAskUserQuestionResponse);
-		const answer = "Answer to ask_user_question call question:\nFrontend";
 
 		await user.click(
 			within(getQuestionDock()).getByRole("radio", { name: /^Frontend/ }),
@@ -331,7 +330,10 @@ describe("ChatPageTimeline question dock", () => {
 		);
 
 		expect(onSendAskUserQuestionResponse).toHaveBeenCalledTimes(2);
-		expect(onSendAskUserQuestionResponse).toHaveBeenNthCalledWith(2, answer);
+		expect(onSendAskUserQuestionResponse).toHaveBeenNthCalledWith(
+			2,
+			"Answer to ask_user_question call question:\nFrontend",
+		);
 	});
 
 	it.each([

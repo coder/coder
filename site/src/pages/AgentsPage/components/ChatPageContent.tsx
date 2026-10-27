@@ -263,8 +263,8 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 						urlTransform={urlTransform}
 						mcpServers={mcpServers}
 						showDesktopPreviews={false}
-						dockedAskUserQuestionToolId={
-							queuedAnswerText === undefined ? dockedQuestion?.id : undefined
+						dockedAskUserQuestion={
+							queuedAnswerText === undefined ? dockedQuestion : undefined
 						}
 					/>
 					<TerminalStatusRow liveStatus={liveStatus} />

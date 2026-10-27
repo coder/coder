@@ -463,7 +463,8 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 		isAsync &&
 		status === "completed" &&
 		isLatestAskUserQuestion &&
-		!hasSubmittedResponse;
+		!hasSubmittedResponse &&
+		!isDocked;
 	const announcement = (
 		<span role="status" className="sr-only">
 			{isOpenAsyncQuestion &&
