@@ -96,10 +96,10 @@ export function useConversationEditingState(deps: {
 		editorState: serializedEditorStateRef.current,
 		hasFileReferences: hasFileReferencesRef.current,
 	});
-	// The send in flight, from a submit's clear until it settles. While it is
-	// set, content changes save what a failure would restore as the draft, so
-	// a reload or unmount mid-send keeps the sent message and what was typed
-	// since. A history edit leaves the draft from before the edit started.
+	// The send in flight, from submit until it settles.
+	// While a new message is in flight, content changes save what a failure
+	// would restore as the draft, so a reload or unmount mid-send keeps the
+	// sent message and what was typed since.
 	const sendInFlightRef = useRef<SendInFlight | null>(null);
 
 	// Monotonic counter to force LexicalComposer remount.
@@ -161,9 +161,9 @@ export function useConversationEditingState(deps: {
 		setEditingFileBlocks(fileBlocks ?? []);
 	};
 
-	const restoreDraftBeforeEdit = () => {
-		const savedText = draftBeforeEdit?.text ?? "";
-		const savedState = draftBeforeEdit?.editorState;
+	const showComposeDraft = () => {
+		const savedText = draftBeforeHistoryEdit?.text ?? "";
+		const savedState = draftBeforeHistoryEdit?.editorState;
 		setDraftState({
 			editorInitialValue: savedText,
 			initialEditorState: savedState,
@@ -171,14 +171,18 @@ export function useConversationEditingState(deps: {
 		serializedEditorStateRef.current = savedState;
 		setRemountKey((k) => k + 1);
 		inputValueRef.current = savedText;
-		setEditingTarget(null);
-		setDraftBeforeEdit(null);
+	};
+
+	const handleCancelHistoryEdit = () => {
+		showComposeDraft();
+		setEditingMessageId(null);
+		setDraftBeforeHistoryEdit(null);
 		setEditingFileBlocks([]);
 	};
 
-	// Returns a rollback for a failed send: the message, then anything typed
-	// during the request. An edit comes back alone, because the composer was in
-	// compose mode during it, so the typed text becomes the compose draft.
+	// Returns a rollback for a failed request. A send comes back followed by
+	// what was typed since. An edit comes back alone, and what the composer
+	// showed during it becomes the compose draft that Cancel restores.
 	const clearInputForSend = (message: string) => {
 		const snapshot: SendInFlight = {
 			message,
@@ -188,23 +192,27 @@ export function useConversationEditingState(deps: {
 		};
 
 		sendInFlightRef.current = snapshot;
-		chatInputRef.current?.clear();
-		inputValueRef.current = "";
+		if (snapshot.editedMessageId === null) {
+			chatInputRef.current?.clear();
+			inputValueRef.current = "";
+		} else {
+			// The edit leaves edit mode, so the composer shows the compose draft.
+			showComposeDraft();
+		}
 		hasFileReferencesRef.current = false;
 		setEditingMessageId(null);
 
 		return () => {
-			const typed = composerContent();
+			const shown = composerContent();
 			const isEdit = snapshot.editedMessageId !== null;
 			const { text, editorState } = isEdit
 				? { text: snapshot.message, editorState: snapshot.editorState }
-				: restoredDraft(snapshot, typed);
-			if (isEdit && hasContent(typed)) {
+				: restoredDraft(snapshot, shown);
+			if (isEdit) {
 				setDraftBeforeHistoryEdit({
-					text: typed.text,
-					editorState: typed.editorState,
+					text: shown.text,
+					editorState: shown.editorState,
 				});
-				saveDraft(typed.editorState ?? typed.text);
 			}
 			setDraftState({
 				editorInitialValue: text,
@@ -231,8 +239,8 @@ export function useConversationEditingState(deps: {
 		}
 	};
 
-	// The composer was cleared at submit, so after a successful send it holds
-	// only what was typed during the request, which is the chat's draft now.
+	// After a successful request the composer shows the chat's draft: for a
+	// send what was typed since, for an edit the compose draft as edited since.
 	const finalizeSuccessfulSend = (editedMessageID: number | undefined) => {
 		saveDraft(
 			hasContent(composerContent())
@@ -291,10 +299,7 @@ export function useConversationEditingState(deps: {
 			return;
 		}
 		const sendInFlight = sendInFlightRef.current;
-		if (sendInFlight) {
-			if (sendInFlight.editedMessageId !== null) {
-				return;
-			}
+		if (sendInFlight && sendInFlight.editedMessageId === null) {
 			const draft = restoredDraft(sendInFlight, composerContent());
 			saveDraft(draft.editorState ?? draft.text);
 			return;
