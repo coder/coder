@@ -44,10 +44,8 @@ type AskUserQuestionToolProps = {
 	/** The question is answered in the dock above the chat input instead of in this card. */
 	isDocked?: boolean;
 	/**
-	 * False on a second copy of a question, such as the dock's, so screen
-	 * readers hear it once. The transcript card keeps it: its live region is
-	 * on the page before a streamed result fills it, and screen readers can
-	 * miss a live region that arrives with its text.
+	 * False on the dock's copy, so screen readers hear the question once. The
+	 * card keeps it: its live region must exist before the result streams in.
 	 */
 	announcesQuestion?: boolean;
 	onSubmitAnswer?: (message: string) => Promise<void> | void;

@@ -732,7 +732,7 @@ export const AsyncQuestionDockedSubmitError: Story = {
 		<AsyncQuestionChatPage
 			store={buildAsyncQuestionStore()}
 			onSendAskUserQuestionResponse={fn(async () => {
-				throw new Error("Failed to send your answer. Try again.");
+				throw new Error("Request failed with status code 500");
 			})}
 		/>
 	),
