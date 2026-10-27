@@ -795,7 +795,7 @@ func (s *taskStarter) cancelUnresolvedToolCalls(ctx context.Context, chat databa
 					errs[i] = xerrors.Errorf("cancel panicked: %v", r)
 				}
 			}()
-			responses[i], errs[i] = chattool.CancelToolCall(ctx, conn, ids[call.ToolCallID], call.ToolName)
+			responses[i], errs[i] = chattool.CancelToolCall(ctx, conn, ids[call.ToolCallID], call.ToolName, call.Input)
 		})
 	}
 	wg.Wait()

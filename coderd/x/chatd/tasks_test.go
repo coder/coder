@@ -881,7 +881,7 @@ func TestInterruptTask_CancelsUnresolvedToolCallsOnAgent(t *testing.T) {
 		{name: "ExecuteStartError", toolName: "execute", cancel: saved(http.StatusInternalServerError, `{"message":"no shell"}`), want: `"error":"start process: unexpected status code 500: no shell"`},
 		{name: "EditError", toolName: "edit_files", cancel: saved(http.StatusBadRequest, `{"message":"old_text not found"}`), wantError: true, want: "old_text not found"},
 		{name: "ExecuteExited", toolName: "execute", cancel: saved(http.StatusOK, `{}`), output: &workspacesdk.ProcessOutputResponse{Output: "done", ExitCode: &exitCode}, want: `{"exit_code":0,"output":"done","success":true}`},
-		{name: "EditApplied", toolName: "edit_files", cancel: saved(http.StatusOK, `{"files":[{"path":"/a","diff":"d"}]}`), want: `{"files":[{"diff":"d","path":"/a"}],"ok":true}`},
+		{name: "EditApplied", toolName: "edit_files", cancel: saved(http.StatusOK, `{"files":[{"path":"/a","diff":"d"}]}`), want: `{"files":[{"diff":"d","path":"/a","status":"applied"}],"message":"Applied 1 of 1 edit.","status":"applied"}`},
 		// A result over the 64 KB default budget is capped and stays JSON.
 		{name: "EditAppliedTruncated", toolName: "edit_files", cancel: saved(http.StatusOK, `{"files":[{"path":"/a","diff":"`+strings.Repeat("d", 64<<10)+`"}]}`), want: "Coder truncated"},
 		{name: "CancelError", toolName: "write_file", cancelErr: xerrors.New("unexpected status code 404"), wantError: true, want: interruptedToolResultErrorMessage},
@@ -892,7 +892,11 @@ func TestInterruptTask_CancelsUnresolvedToolCallsOnAgent(t *testing.T) {
 	f := newTaskTestFixture(t)
 	calls := make([]codersdk.ChatMessagePart, 0, len(tests))
 	for _, tc := range tests {
-		calls = append(calls, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: "call_" + tc.name, ToolName: tc.toolName, Args: json.RawMessage(`{}`)})
+		args := json.RawMessage(`{}`)
+		if tc.toolName == "edit_files" {
+			args = json.RawMessage(`{"edits":[{"path":"/a","old_text":"x","new_text":"y"}]}`)
+		}
+		calls = append(calls, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: "call_" + tc.name, ToolName: tc.toolName, Args: args})
 	}
 	batch := interruptedBatchFixture(t, f, calls)
 	ctx := testutil.Context(t, testutil.WaitLong)

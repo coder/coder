@@ -2,6 +2,7 @@ package chattool
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -46,9 +47,10 @@ func ToolCallIDs(chatID uuid.UUID, messageID int64, calls []fantasy.ToolCallCont
 }
 
 // CancelToolCall sends the agent a cancel request for tool call id and
-// returns the call's result. It returns an error if there is no result,
-// such as when an old agent responds with 404.
-func CancelToolCall(ctx context.Context, conn workspacesdk.AgentConn, id uuid.UUID, toolName string) (fantasy.ToolResponse, error) {
+// returns the call's result. input is the call's tool input, which
+// edit_files needs to render its result. It returns an error if there is
+// no result, such as when an old agent responds with 404.
+func CancelToolCall(ctx context.Context, conn workspacesdk.AgentConn, id uuid.UUID, toolName, input string) (fantasy.ToolResponse, error) {
 	if !CanCancelToolCall(toolName) {
 		return fantasy.ToolResponse{}, xerrors.Errorf("tool %q cannot be canceled on the agent", toolName)
 	}
@@ -61,7 +63,12 @@ func CancelToolCall(ctx context.Context, conn workspacesdk.AgentConn, id uuid.UU
 		if !canceled.Received {
 			return fantasy.NewTextErrorResponse(canceledBeforeRunMessage), nil
 		}
-		return editFilesResponse(canceled.EditFilesResult()), nil
+		var args EditFilesArgs
+		if err := json.Unmarshal([]byte(input), &args); err != nil {
+			return fantasy.ToolResponse{}, xerrors.Errorf("decode edit_files input: %w", err)
+		}
+		resp, err := canceled.EditFilesResult()
+		return editFilesResponse(args, resp, err), nil
 	case WriteFileToolName:
 		if !canceled.Received {
 			return fantasy.NewTextErrorResponse(canceledBeforeRunMessage), nil
