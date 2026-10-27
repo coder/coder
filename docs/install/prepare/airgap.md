@@ -50,7 +50,7 @@ RUN mkdir -p /opt/terraform
 # The below step is optional if you wish to keep the existing version.
 # See ../../provisioner/terraform/install.go#L27-L28
 # for supported Terraform versions.
-ARG TERRAFORM_VERSION=1.16.6
+ARG TERRAFORM_VERSION=1.16.7
 RUN apk update && \
     curl -LOs https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip \
     && unzip -o terraform_${TERRAFORM_VERSION}_linux_amd64.zip \
@@ -212,6 +212,7 @@ The docs are exported as static files that you can host on any web server, as de
 3. Extract the file and move its contents to your server folder.
 4. If you are using NodeJS, you can execute the following command: `cd docs && npx http-server .`
 5. Set the [CODER_DOCS_URL](../../reference/cli/server/index.md#--docs-url) environment variable to use the URL of your hosted docs.
+
    This way, the Coder UI will reference the documentation from your specified URL.
 
 With these steps, you'll have the Coder documentation hosted on your server and accessible for your team to use.

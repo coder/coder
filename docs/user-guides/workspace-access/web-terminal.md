@@ -150,8 +150,8 @@ The Web Terminal supports standard terminal keybindings:
 The terminal automatically detects URLs and makes them clickable.
 When you select a URL:
 
-- **External URLs** (e.g., `https://example.com`) open in a new tab
-- **Localhost URLs** (e.g., `http://localhost:3000`) are automatically port-forwarded through Coder's [port forwarding](./port-forwarding.md) system
+- **External URLs** (for example, `https://example.com`) open in a new tab
+- **Localhost URLs** (for example, `http://localhost:3000`) are automatically port-forwarded through Coder's [port forwarding](./port-forwarding.md) system
 - **Port-forwarded URLs** use your configured workspace proxy
 
 This makes it seamless to open development servers running in your workspace.

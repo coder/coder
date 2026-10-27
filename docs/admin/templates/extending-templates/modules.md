@@ -42,7 +42,7 @@ Some of the modules we publish are,
 5. [`jfrog-oauth`](https://registry.coder.com/modules/coder/jfrog-oauth) and [`jfrog-token`](https://registry.coder.com/modules/coder/jfrog-token)
 6. [`vault-github`](https://registry.coder.com/modules/coder/vault-github)
 
-For a full list of available modules please check [Coder module registry](https://registry.coder.com/modules).
+For a full list of available modules, check [Coder module registry](https://registry.coder.com/modules).
 
 ## Module caching
 
@@ -52,8 +52,8 @@ On every subsequent workspace build, Coder provisioners reuse this cached archiv
 This avoids redundant network and disk I/O on each build and prevents build failures caused by a module source being slow or temporarily unavailable.
 
 Coder limits cached module archives to 20&nbsp;MB per template version.
-If your modules exceed this limit, some are skipped and unavailable for [Dynamic Parameters](./dynamic-parameters.md#module-not-loaded-errors-when-using-dynamic-parameters) evaluation, though builds still fetch the skipped modules directly.
-Template versions published before Coder started archiving modules have no cache at all, which produces the same ["Module not loaded"](./dynamic-parameters.md#module-not-loaded-errors-when-using-dynamic-parameters) warnings for every module in the workspace creation form; publishing a new template version fixes this.
+If your modules exceed this limit, some are skipped and unavailable for [parameter](./parameters/troubleshooting.md#module-not-loaded-errors) evaluation, though builds still fetch the skipped modules directly.
+Template versions published before Coder started archiving modules have no cache at all, which produces the same ["Module not loaded"](./parameters/troubleshooting.md#module-not-loaded-errors) warnings for every module in the workspace creation form; publishing a new template version fixes this.
 
 To force Coder to re-download modules on every workspace build instead of using the cached archive, select **Disable Terraform module caching** in a template's **Settings** > **General** page, or set `disable_module_cache` to `true` with the [templates API](../../../reference/api/templates.md#update-template-settings-by-id).
 

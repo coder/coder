@@ -16,7 +16,7 @@ There are four ways to forward ports in Coder:
 
 Coder Desktop and `coder port-forward` are generally more performant than:
 
-1. The Dashboard which proxies traffic through the Coder control plane versus peer-to-peer which is possible with the Coder CLI and Coder Desktop
+1. The Dashboard, which proxies traffic through the Coder control plane instead of peer-to-peer like the Coder CLI and Coder Desktop
 1. `sshd` which does double encryption of traffic with both Wireguard and SSH
 
 ## Coder Desktop
@@ -206,7 +206,7 @@ In other words, CORS behavior through the dashboard is not currently configurabl
 
 <table class="tg">
 <caption>
-Requests between forwarded apps that the dashboard allows by default.
+Which requests between forwarded apps the dashboard allows by default.
 Columns are the origin: the user, workspace, and app that sends the request.
 Rows are the destination: the user, workspace, and app that receives it.
 </caption>

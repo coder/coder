@@ -241,12 +241,13 @@ const WorkspaceParametersPage: React.FC = () => {
 		}
 	};
 
+	const { parameters } = latestResponse ?? {};
 	const sortedParams = useMemo(() => {
-		if (!latestResponse?.parameters) {
+		if (!parameters) {
 			return [];
 		}
-		return [...latestResponse.parameters].sort((a, b) => a.order - b.order);
-	}, [latestResponse?.parameters]);
+		return [...parameters].sort((a, b) => a.order - b.order);
+	}, [parameters]);
 
 	const error =
 		wsError || startWithParameters.error || restartWithParameters.error;
@@ -283,9 +284,7 @@ const WorkspaceParametersPage: React.FC = () => {
 								<br />
 								<Link
 									size="sm"
-									href={docs(
-										"/admin/templates/extending-templates/dynamic-parameters",
-									)}
+									href={docs("/admin/templates/extending-templates/parameters")}
 								>
 									View docs
 								</Link>
@@ -328,9 +327,7 @@ const WorkspaceParametersPage: React.FC = () => {
 					message="This workspace has no parameters"
 					cta={
 						<Link
-							href={docs(
-								"/admin/templates/extending-templates/dynamic-parameters",
-							)}
+							href={docs("/admin/templates/extending-templates/parameters")}
 						>
 							Learn more about parameters
 						</Link>

@@ -1,3 +1,7 @@
+---
+review-personas: [language, structure]
+---
+
 # Capitalization and punctuation
 
 Coder documentation uses sentence-case headings, the Oxford comma, US-style quotation, no semicolons in prose, and no em-dashes or en-dashes in prose.
@@ -251,7 +255,7 @@ Lowercase Latin abbreviations such as `e.g.` keep their periods (refer to [Latin
 
 > The A.P.I. returns the user's region, such as U.S. or E.U.
 
-*Enforced by `Coder.AcronymPeriods` (planned).*
+*Enforced by `Coder.AcronymPeriods` (`warning`).*
 
 ## Exclamation points rare in prose
 
