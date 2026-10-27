@@ -154,4 +154,4 @@ coder templates delete <template-name>
 - [Change management](./change-management.md)
 
 > [!TIP]
-> If you're unsure about which dependency management technology to use, join our [community](https://coder.com/community) to be guided towards the best approach.
+> If you're unsure about which dependency management technology to use, join the [Coder community](https://coder.com/community) to be guided towards the best approach.
