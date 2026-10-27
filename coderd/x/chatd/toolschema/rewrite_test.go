@@ -52,13 +52,6 @@ func TestRewriteRefs(t *testing.T) {
 			schema: `{"properties": {"a": {"$ref": "#/a~1b/c~0d/%25"}}}`,
 			want:   `{"properties": {"a": {"$ref": "#/moved/a~1b/c~0d/%25"}}}`,
 		},
-		{
-			// A recursive reference names the root of its resource, which
-			// moves, and joins "allOf" beside an existing "$ref".
-			name:   "a recursive reference to the root becomes a reference",
-			schema: `{"$recursiveAnchor": true, "properties": {"a": {"$recursiveRef": "#"}, "b": {"$ref": "#/b", "$recursiveRef": "#"}, "c": {"$id": "sub.json", "$recursiveRef": "#"}}}`,
-			want:   `{"$recursiveAnchor": true, "properties": {"a": {"$ref": "#/moved"}, "b": {"$ref": "#/moved/b", "allOf": [{"$ref": "#/moved"}]}, "c": {"$id": "sub.json", "$recursiveRef": "#"}}}`,
-		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -86,7 +79,7 @@ func TestResolveLocalRef(t *testing.T) {
 			"D2": {"$anchor": "dup", "type": "number"},
 			"R1": {"$id": "dup.json", "type": "string"},
 			"R2": {"$id": "dup.json", "type": "number"},
-			"N": {"$id": "n.json", "properties": {"x": {"type": "integer"}}, "$defs": {"M": {"$anchor": "inner", "type": "number"}}}
+			"N": {"$id": "n.json", "properties": {"x": {"type": "integer"}}, "$defs": {"M": {"$anchor": "inner", "type": "number"}, "D": {"$dynamicAnchor": "dynamic", "type": "null"}}}
 		}
 	}`
 	var root map[string]any
@@ -100,12 +93,13 @@ func TestResolveLocalRef(t *testing.T) {
 		{name: "fragment", ref: "#/$defs/A", want: `{"type": "string"}`, sameResource: true},
 		{name: "root $id", ref: "root.json#/$defs/A", want: `{"type": "string"}`, sameResource: true},
 		{name: "fragment into an embedded resource", ref: "#/$defs/N/properties/x", want: `{"type": "integer"}`},
-		{name: "embedded resource $id", ref: "https://example.com/n.json", want: `{"$id": "n.json", "properties": {"x": {"type": "integer"}}, "$defs": {"M": {"$anchor": "inner", "type": "number"}}}`},
+		{name: "embedded resource $id", ref: "https://example.com/n.json", want: `{"$id": "n.json", "properties": {"x": {"type": "integer"}}, "$defs": {"M": {"$anchor": "inner", "type": "number"}, "D": {"$dynamicAnchor": "dynamic", "type": "null"}}}`},
 		{name: "pointer in an embedded resource", ref: "n.json#/properties/x", want: `{"type": "integer"}`},
 		{name: "anchor", ref: "#named", want: `{"$anchor": "named", "type": "boolean"}`, sameResource: true},
 		{name: "percent-encoded anchor", ref: "#%6Eamed", want: `{"$anchor": "named", "type": "boolean"}`, sameResource: true},
 		{name: "root $id with an anchor", ref: "root.json#named", want: `{"$anchor": "named", "type": "boolean"}`, sameResource: true},
 		{name: "anchor in an embedded resource", ref: "n.json#inner", want: `{"$anchor": "inner", "type": "number"}`},
+		{name: "dynamic anchor in an embedded resource", ref: "n.json#dynamic", want: `{"$dynamicAnchor": "dynamic", "type": "null"}`},
 		{name: "anchor of another resource", ref: "#inner"},
 		{name: "unknown anchor", ref: "#missing"},
 		{name: "duplicated anchor", ref: "#dup"},
@@ -322,10 +316,10 @@ func TestNormalize(t *testing.T) {
 		{
 			// Some providers do not resolve anchors, and a draft 7
 			// validator does not read "$anchor", so a reference to an
-			// anchor of the root resource becomes a JSON Pointer. A
-			// reference in another resource, to an anchor of another
-			// resource, or to a duplicated anchor stays.
-			name: "references to root anchors become pointers",
+			// anchor of its resource becomes a JSON Pointer into that
+			// resource. A reference to an anchor its resource does not
+			// declare, or declares twice, stays.
+			name: "references to anchors become pointers",
 			schema: `{
 				"$anchor": "root",
 				"properties": {
@@ -361,7 +355,7 @@ func TestNormalize(t *testing.T) {
 					"duplicate": {"$ref": "#dup"},
 					"missing": {"$ref": "#missing"},
 					"other resource": {"$ref": "#N"},
-					"nested": {"$id": "nested.json", "$anchor": "N", "properties": {"self": {"$ref": "#N"}, "up": {"$ref": "#A"}}}
+					"nested": {"$id": "nested.json", "$anchor": "N", "properties": {"self": {"$ref": "#"}, "up": {"$ref": "#A"}}}
 				},
 				"$defs": {
 					"A": {"$anchor": "A", "type": "string"},
@@ -438,6 +432,93 @@ func TestNormalize(t *testing.T) {
 			}`,
 		},
 		{
+			// A draft 4 "id" fragment in an embedded resource becomes an
+			// "$anchor", which draft 7 does not read, so references to
+			// it, from inside the resource or by its URI, become pointers
+			// into that resource. A "$dynamicAnchor" names a fragment
+			// as well.
+			name: "references to anchors of embedded resources become pointers",
+			schema: `{
+				"$schema": "http://json-schema.org/draft-04/schema#",
+				"id": "https://example.com/tool.json",
+				"properties": {
+					"args": {"$ref": "child.json#args"},
+					"meta": {"$ref": "https://example.com/child.json#meta"},
+					"child": {
+						"id": "child.json",
+						"properties": {"self": {"$ref": "#args"}, "up": {"$ref": "tool.json#/properties/args"}},
+						"definitions": {"Args": {"id": "#args", "type": "object"}, "Meta": {"$dynamicAnchor": "meta", "type": "string"}}
+					}
+				}
+			}`,
+			want: `{
+				"$schema": "http://json-schema.org/draft-07/schema#",
+				"$id": "https://example.com/tool.json",
+				"properties": {
+					"args": {"$ref": "child.json#/definitions/Args"},
+					"meta": {"$ref": "https://example.com/child.json#/definitions/Meta"},
+					"child": {
+						"$id": "child.json",
+						"properties": {"self": {"$ref": "#/definitions/Args"}, "up": {"$ref": "tool.json#/properties/args"}},
+						"definitions": {"Args": {"$anchor": "args", "type": "object"}, "Meta": {"$dynamicAnchor": "meta", "type": "string"}}
+					}
+				}
+			}`,
+		},
+		{
+			// A dynamic reference resolves against the base URI first, so
+			// it names the root resource with a fragment as a reference
+			// does.
+			name: "dynamic references to the root resource become fragments",
+			schema: `{
+				"$id": "https://example.com/tool.json",
+				"properties": {
+					"pointer": {"$dynamicRef": "https://example.com/tool.json#/$defs/Q"},
+					"anchor": {"$dynamicRef": "tool.json#node"}
+				},
+				"$defs": {"Q": {"type": "string"}, "A": {"$dynamicAnchor": "node"}, "B": {"$id": "b.json", "$dynamicAnchor": "node"}}
+			}`,
+			want: `{
+				"$id": "https://example.com/tool.json",
+				"properties": {
+					"pointer": {"$ref": "#/$defs/Q"},
+					"anchor": {"$dynamicRef": "#node"}
+				},
+				"$defs": {"Q": {"type": "string"}, "A": {"$dynamicAnchor": "node"}, "B": {"$id": "b.json", "$dynamicAnchor": "node"}}
+			}`,
+		},
+		{
+			// Some providers check a schema against the dialect only when
+			// "$schema" spells it as published. URIs compare their scheme
+			// and host without case, and an empty fragment is no fragment.
+			name: "published dialects are spelled as published",
+			schema: `{
+				"$schema": "HTTP://JSON-SCHEMA.ORG/draft-07/schema#",
+				"properties": {
+					"secure": {"$id": "a.json", "$schema": "https://json-schema.org/draft-07/schema"},
+					"insecure": {"$id": "b.json", "$schema": "http://Json-Schema.org/draft/2020-12/schema#"},
+					"path case": {"$id": "c.json", "$schema": "https://json-schema.org/DRAFT/2020-12/schema"},
+					"other": {"$id": "d.json", "$schema": "https://example.com/meta"}
+				}
+			}`,
+			want: `{
+				"$schema": "http://json-schema.org/draft-07/schema#",
+				"properties": {
+					"secure": {"$id": "a.json", "$schema": "http://json-schema.org/draft-07/schema#"},
+					"insecure": {"$id": "b.json", "$schema": "https://json-schema.org/draft/2020-12/schema"},
+					"path case": {"$id": "c.json", "$schema": "https://json-schema.org/DRAFT/2020-12/schema"},
+					"other": {"$id": "d.json", "$schema": "https://example.com/meta"}
+				}
+			}`,
+		},
+		{
+			// A draft 2019-09 recursive reference becomes a reference,
+			// and "$recursiveAnchor", which providers reject, goes.
+			name:   "recursive references are replaced",
+			schema: `{"$schema": "https://json-schema.org/draft/2019-09/schema", "$recursiveAnchor": true, "properties": {"child": {"$recursiveRef": "#"}}}`,
+			want:   `{"$schema": "https://json-schema.org/draft/2019-09/schema", "properties": {"child": {"$ref": "#"}}}`,
+		},
+		{
 			// URIs compare their scheme and host without case.
 			name:   "an uppercase draft 4 URI is draft 4",
 			schema: `{"$schema": "HTTP://JSON-SCHEMA.ORG/draft-04/schema#", "properties": {"low": {"type": "number", "minimum": 1, "exclusiveMinimum": true}}}`,
@@ -508,4 +589,89 @@ func TestNormalizeBoundsAnchorPointers(t *testing.T) {
 	again, err := json.Marshal(toolschema.Normalize(schema))
 	require.NoError(t, err)
 	require.Equal(t, string(first), string(again), "the same references must become pointers on every run")
+}
+
+func TestReplaceRecursiveRefs(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		schema string
+		want   string
+	}{
+		{
+			// The root is the outermost resource of every dynamic scope,
+			// so a recursive reference in it names it, and one beside a
+			// "$ref" joins "allOf".
+			name:   "references in the root resource name the root",
+			schema: `{"$schema": "https://json-schema.org/draft/2019-09/schema", "$recursiveAnchor": true, "properties": {"a": {"$recursiveRef": "#"}, "b": {"$ref": "#/$defs/K", "$recursiveRef": "#"}}, "$defs": {"K": {"required": ["q"]}}}`,
+			want:   `{"$schema": "https://json-schema.org/draft/2019-09/schema", "properties": {"a": {"$ref": "#"}, "b": {"$ref": "#/$defs/K", "allOf": [{"$ref": "#"}]}}, "$defs": {"K": {"required": ["q"]}}}`,
+		},
+		{
+			// Without "$recursiveAnchor" at its root, a resource is the
+			// target of its own recursive references.
+			name:   "references in an unanchored resource name it",
+			schema: `{"$recursiveAnchor": true, "properties": {"tree": {"$id": "tree.json", "$recursiveAnchor": false, "items": {"$recursiveRef": "tree.json"}}}}`,
+			want:   `{"properties": {"tree": {"$id": "tree.json", "items": {"$ref": "#"}}}}`,
+		},
+		{
+			// In a resource whose root declares "$recursiveAnchor", the
+			// outermost such resource of the dynamic scope is the target,
+			// as for a "$dynamicRef" to a "$dynamicAnchor" each of them
+			// declares. The name is one no anchor uses.
+			name: "references in an anchored resource become dynamic",
+			schema: `{
+				"$recursiveAnchor": true,
+				"properties": {
+					"a": {"$ref": "#recursive"},
+					"tree": {"$id": "tree.json", "$recursiveAnchor": true, "items": {"$recursiveRef": "#", "$dynamicRef": "#/items"}}
+				},
+				"$defs": {"R": {"$anchor": "recursive"}, "S": {"$id": "#recursive2"}}
+			}`,
+			want: `{
+				"$dynamicAnchor": "recursive3",
+				"properties": {
+					"a": {"$ref": "#recursive"},
+					"tree": {"$id": "tree.json", "$dynamicAnchor": "recursive3", "items": {"$dynamicRef": "#/items", "allOf": [{"$dynamicRef": "#recursive3"}]}}
+				},
+				"$defs": {"R": {"$anchor": "recursive"}, "S": {"$id": "#recursive2"}}
+			}`,
+		},
+		{
+			// An anchored resource root that declares a dynamic anchor
+			// has no room for another, so the reference is left out,
+			// which only drops a constraint.
+			name:   "a dynamic anchor already declared leaves the reference out",
+			schema: `{"properties": {"tree": {"$id": "tree.json", "$recursiveAnchor": true, "$dynamicAnchor": "node", "items": {"$recursiveRef": "#"}}, "leaf": {"$recursiveRef": "#"}}}`,
+			want:   `{"properties": {"tree": {"$id": "tree.json", "$dynamicAnchor": "node", "items": {}}, "leaf": {"$ref": "#"}}}`,
+		},
+		{
+			name:   "references to other targets stay",
+			schema: `{"properties": {"a": {"$recursiveRef": "#/$defs/A"}, "b": {"$recursiveRef": "other.json"}}}`,
+			want:   `{"properties": {"a": {"$recursiveRef": "#/$defs/A"}, "b": {"$recursiveRef": "other.json"}}}`,
+		},
+		{
+			// Draft 7 and draft 2020-12 ignore both keywords.
+			name:   "other dialects drop the keywords",
+			schema: `{"$schema": "https://json-schema.org/draft/2020-12/schema", "$recursiveAnchor": true, "properties": {"a": {"$recursiveRef": "#"}}}`,
+			want:   `{"$schema": "https://json-schema.org/draft/2020-12/schema", "properties": {"a": {}}}`,
+		},
+		{
+			name:   "draft 7 drops the keywords",
+			schema: `{"$schema": "http://json-schema.org/draft-07/schema#", "properties": {"a": {"$recursiveRef": "#"}}}`,
+			want:   `{"$schema": "http://json-schema.org/draft-07/schema#", "properties": {"a": {}}}`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var schema map[string]any
+			require.NoError(t, json.Unmarshal([]byte(tc.schema), &schema))
+			got, err := json.Marshal(toolschema.ReplaceRecursiveRefs(schema))
+			require.NoError(t, err)
+			require.JSONEq(t, tc.want, string(got))
+			source, err := json.Marshal(schema)
+			require.NoError(t, err)
+			require.JSONEq(t, tc.schema, string(source), "the source must not be modified")
+		})
+	}
 }

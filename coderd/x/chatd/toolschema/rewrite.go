@@ -67,56 +67,80 @@ func IsKeyword(value string) bool {
 
 // Normalize returns a copy of a schema in the shapes provider drivers
 // accept: a draft 4 schema is rewritten in draft 7 (see UpgradeDraft4),
-// every type list is rewritten into an equivalent "anyOf", every
-// array schema without "items" gets an empty one, an "enum" with an
-// array or object member becomes an "anyOf" of "const" values, "$id"
-// loses its fragment, which becomes an "$anchor" when it names one, a
-// reference that names the root resource by URI becomes a fragment
-// reference, and a reference to an anchor that the root resource declares
-// once becomes a JSON Pointer reference. So does a "$dynamicRef" to such
-// an anchor that no other schema declares as a dynamic anchor, since it
-// then resolves like "$ref", and a "$dynamicRef" to the root resource by
-// JSON Pointer becomes a "$ref". Instance data such as "const" and "enum"
+// recursive references are replaced (see ReplaceRecursiveRefs), a
+// "$schema" that names a published dialect is spelled as published,
+// every type list is rewritten into an equivalent "anyOf", every array
+// schema without "items" gets an empty one, an "enum" with an array or
+// object member becomes an "anyOf" of "const" values, "$id" loses its
+// fragment, which becomes an "$anchor" when it names one, a reference
+// that names the root resource by URI becomes a fragment reference, and
+// a reference to an anchor that its resource declares once becomes a
+// JSON Pointer reference into that resource. So does a "$dynamicRef" to
+// such an anchor that no other schema declares as a dynamic anchor,
+// since it then resolves like "$ref", and a "$dynamicRef" with a JSON
+// Pointer becomes a "$ref". Instance data such as "const" and "enum"
 // values keeps its exact shape. The source is not modified.
 func Normalize(schema map[string]any) map[string]any {
-	schema = UpgradeDraft4(schema)
+	schema = ReplaceRecursiveRefs(UpgradeDraft4(schema))
 	// Pointers are encoded only for the anchors references name.
-	pointers := map[string]*pathToken{}
-	duplicated := map[string]bool{}
+	anchors := map[resourceAnchor]anchorPath{}
+	duplicated := map[resourceAnchor]bool{}
 	dynamicAnchors := map[string]int{}
+	// resources maps the canonical URI of each embedded resource to the
+	// keys of the subschemas that declare it.
+	resources := map[string][]string{}
+	keys := resourceKeys{}
 	normalized := copyNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
 		// Read before normalizing, which drops a "$id" anchor when the
 		// node also declares "$anchor".
-		var anchors []string
-		if !scope.nested {
-			anchors = declaredAnchors(node)
-		}
+		declared := declaredAnchors(node)
 		if name, ok := node["$dynamicAnchor"].(string); ok {
 			dynamicAnchors[name]++
 		}
+		resource := keys.of(scope.resourcePath)
+		if _, ok := resourceID(node); ok && scope.nested && scope.base != nil {
+			uri := canonicalURI(scope.base)
+			resources[uri] = append(resources[uri], resource)
+		}
 		normalizeNode(node, scope)
-		for _, anchor := range anchors {
-			if _, seen := pointers[anchor]; seen {
-				duplicated[anchor] = true
+		for _, name := range declared {
+			key := resourceAnchor{resource: resource, name: name}
+			if _, seen := anchors[key]; seen {
+				duplicated[key] = true
 			}
-			pointers[anchor] = scope.path
+			anchors[key] = anchorPath{path: scope.path, resource: scope.resourcePath}
 		}
 	})
 	// Some providers ignore anchors, and validators of drafts before
 	// 2019-09 do not read "$anchor", but all of them follow a JSON
 	// Pointer. Normalizing kept every subschema at its source path.
-	refs := map[string][]anchorRef{}
+	refs := map[resourceAnchor][]anchorRef{}
+	keys = resourceKeys{}
 	addRef := func(node map[string]any, key string, scope refScope) {
 		ref, _ := node[key].(string)
-		fragment, ok := scope.rootFragment(ref)
+		prefix, fragment, _ := strings.Cut(ref, "#")
+		name, ok := anchorFragment(fragment)
 		if !ok {
 			return
 		}
-		anchor, ok := anchorFragment(fragment)
-		if _, declared := pointers[anchor]; !ok || !declared || duplicated[anchor] {
+		resource := keys.of(scope.resourcePath)
+		if prefix != "" {
+			uri, ok := scope.resolve(prefix)
+			if !ok {
+				return
+			}
+			if scope.rootBase != nil && canonicalURI(uri) == canonicalURI(scope.rootBase) {
+				resource = ""
+			} else if found := resources[canonicalURI(uri)]; len(found) == 1 {
+				resource = found[0]
+			} else {
+				return
+			}
+		}
+		anchor := resourceAnchor{resource: resource, name: name}
+		if _, declared := anchors[anchor]; !declared || duplicated[anchor] {
 			return
 		}
-		prefix, _, _ := strings.Cut(ref, "#")
 		refs[anchor] = append(refs[anchor], anchorRef{node: node, key: key, prefix: prefix})
 	}
 	normalized = copyNode(normalized, rootScope(normalized), func(node map[string]any, scope refScope) {
@@ -129,12 +153,12 @@ func Normalize(schema map[string]any) map[string]any {
 		if !ok {
 			return
 		}
-		if _, ok := scope.rootPointer(ref); ok {
+		_, fragment, _ := strings.Cut(ref, "#")
+		if _, ok := decodePointer(fragment); ok {
 			node["$ref"] = ref
 			delete(node, "$dynamicRef")
 			return
 		}
-		_, fragment, _ := strings.Cut(ref, "#")
 		if anchor, ok := anchorFragment(fragment); ok && dynamicAnchors[anchor] > 1 {
 			return
 		}
@@ -143,19 +167,19 @@ func Normalize(schema map[string]any) map[string]any {
 	// A pointer can be as long as the schema is deep, and as many
 	// references as there are subschemas can name such anchors, so
 	// pointers for all of them could make the schema quadratically
-	// larger. Anchors are converted in name order while their pointers
-	// fit a budget, which a schema reaches only when the pointers alone
-	// would take more than callers allow a tool schema.
+	// larger. Anchors are converted in order while their pointers fit a
+	// budget, which a schema reaches only when the pointers alone would
+	// take more than callers allow a tool schema.
 	budget := maxAnchorPointerBytes
 	lengths := map[*pathToken]int{nil: 0}
-	for _, anchor := range slices.Sorted(maps.Keys(refs)) {
-		path := pointers[anchor]
-		length := path.encodedLen(lengths) + len("#")
+	for _, anchor := range slices.SortedFunc(maps.Keys(refs), compareResourceAnchors) {
+		path := anchors[anchor]
+		length := path.path.encodedLen(lengths) - path.resource.encodedLen(lengths) + len("#")
 		if len(refs[anchor]) > budget/length {
 			continue
 		}
 		budget -= length * len(refs[anchor])
-		pointer := "#" + EncodePointer(path.tokens())
+		pointer := "#" + EncodePointer(path.path.tokens()[len(path.resource.tokens()):])
 		for _, ref := range refs[anchor] {
 			ref.node["$ref"] = ref.prefix + pointer
 			if ref.key != "$ref" {
@@ -164,6 +188,44 @@ func Normalize(schema map[string]any) map[string]any {
 		}
 	}
 	return normalized
+}
+
+// resourceAnchor is an anchor name in the schema resource with the given
+// resourceKeys key.
+type resourceAnchor struct {
+	resource string
+	name     string
+}
+
+func compareResourceAnchors(a, b resourceAnchor) int {
+	if c := strings.Compare(a.resource, b.resource); c != 0 {
+		return c
+	}
+	return strings.Compare(a.name, b.name)
+}
+
+// anchorPath is where an anchor is declared: its path in the root and
+// the path of its resource's root.
+type anchorPath struct {
+	path     *pathToken
+	resource *pathToken
+}
+
+// resourceKeys names schema resources by the JSON Pointer of their root,
+// which normalizing keeps, so walks of the source and of the normalized
+// schema agree on them. It encodes each path once.
+type resourceKeys map[*pathToken]string
+
+func (k resourceKeys) of(path *pathToken) string {
+	if path == nil {
+		return ""
+	}
+	key, ok := k[path]
+	if !ok {
+		key = EncodePointer(path.tokens())
+		k[path] = key
+	}
+	return key
 }
 
 // maxAnchorPointerBytes caps the JSON Pointer text that Normalize writes
@@ -210,6 +272,92 @@ func UpgradeDraft4(schema map[string]any) map[string]any {
 	})
 	upgraded["$schema"] = "http://json-schema.org/draft-07/schema#"
 	return upgraded
+}
+
+// ReplaceRecursiveRefs returns a copy of a schema without the draft
+// 2019-09 keywords "$recursiveAnchor" and "$recursiveRef", which draft
+// 2020-12 replaced and providers reject or ignore. A "$recursiveRef"
+// names the root of its resource, so it becomes a "$ref" to it, except
+// in a resource other than the root whose root declares
+// "$recursiveAnchor": there the dynamic scope picks the target, so it
+// becomes a "$dynamicRef" to a "$dynamicAnchor" that each such resource
+// root declares, which resolves the same way. It is left out when a name
+// for that anchor cannot be added, which only drops a constraint. Other
+// values are kept. A schema that declares a dialect without these
+// keywords ignores them, so they are only removed. Other schemas are
+// returned as is.
+func ReplaceRecursiveRefs(schema map[string]any) map[string]any {
+	dialect := Dialect(schema)
+	recursive := !strings.Contains(dialect, "json-schema.org/draft-0") && !strings.Contains(dialect, "json-schema.org/draft/2020-12/")
+	found, dynamic, clash := false, false, false
+	used := map[string]bool{}
+	walkNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
+		_, hasRef := node["$recursiveRef"]
+		_, hasAnchor := node["$recursiveAnchor"]
+		found = found || hasRef || hasAnchor
+		for _, name := range declaredAnchors(node) {
+			used[name] = true
+		}
+		for _, key := range []string{"$ref", "$dynamicRef"} {
+			ref, _ := node[key].(string)
+			_, fragment, _ := strings.Cut(ref, "#")
+			if name, ok := anchorFragment(fragment); ok {
+				used[name] = true
+			}
+		}
+		if _, ok := node["$dynamicAnchor"]; ok && recursiveAnchor(node) && scope.resourcePath == scope.path {
+			clash = true
+		}
+		if ref, ok := node["$recursiveRef"].(string); ok && scope.nested && recursiveAnchor(scope.resource) && scope.namesResource(ref) {
+			dynamic = true
+		}
+	})
+	if !found {
+		return schema
+	}
+	name := "recursive"
+	for i := 2; used[name]; i++ {
+		name = "recursive" + strconv.Itoa(i)
+	}
+	return copyNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
+		anchored := recursiveAnchor(node)
+		delete(node, "$recursiveAnchor")
+		if !recursive {
+			delete(node, "$recursiveRef")
+			return
+		}
+		if anchored && dynamic && !clash && scope.resourcePath == scope.path {
+			node["$dynamicAnchor"] = name
+		}
+		ref, ok := node["$recursiveRef"].(string)
+		if !ok || !scope.namesResource(ref) {
+			return
+		}
+		delete(node, "$recursiveRef")
+		switch {
+		case !scope.nested || !recursiveAnchor(scope.resource):
+			addReference(node, "$ref", "#")
+		case !clash:
+			addReference(node, "$dynamicRef", "#"+name)
+		}
+	})
+}
+
+// recursiveAnchor reports whether node declares "$recursiveAnchor": true.
+func recursiveAnchor(node map[string]any) bool {
+	anchored, _ := node["$recursiveAnchor"].(bool)
+	return anchored
+}
+
+// addReference adds a reference keyword to node, in its "allOf" when
+// node already has that keyword.
+func addReference(node map[string]any, key, ref string) {
+	if _, ok := node[key]; !ok {
+		node[key] = ref
+		return
+	}
+	allOf, _ := node["allOf"].([]any)
+	node["allOf"] = append(slices.Clone(allOf), map[string]any{key: ref})
 }
 
 // Dialect returns the "$schema" URI that schema declares, with the
@@ -271,16 +419,66 @@ func normalizeNode(node map[string]any, scope refScope) {
 		}
 	}
 
-	// Some providers resolve only fragment references.
-	if ref, ok := node["$ref"].(string); ok && !scope.nested && !strings.HasPrefix(ref, "#") {
+	// Some providers resolve only fragment references. A "$dynamicRef"
+	// resolves against the same base before the dynamic scope applies.
+	for _, key := range []string{"$ref", "$dynamicRef"} {
+		ref, ok := node[key].(string)
+		if !ok || scope.nested || strings.HasPrefix(ref, "#") {
+			continue
+		}
 		if fragment, ok := scope.rootFragment(ref); ok {
 			if tokens, ok := decodePointer(fragment); ok {
-				node["$ref"] = "#" + EncodePointer(tokens)
+				node[key] = "#" + EncodePointer(tokens)
 			} else if anchor, ok := anchorFragment(fragment); ok {
-				node["$ref"] = "#" + anchor
+				node[key] = "#" + anchor
 			}
 		}
 	}
+
+	// Some providers check a schema against the dialect "$schema" names
+	// only when it is spelled exactly as published.
+	if dialect, ok := node["$schema"].(string); ok {
+		if published, ok := publishedDialect(dialect); ok {
+			node["$schema"] = published
+		}
+	}
+}
+
+// publishedDialects are the "$schema" URIs of the published JSON Schema
+// dialects.
+var publishedDialects = [...]string{
+	"http://json-schema.org/draft-03/schema#",
+	"http://json-schema.org/draft-04/schema#",
+	"http://json-schema.org/draft-06/schema#",
+	"http://json-schema.org/draft-07/schema#",
+	"https://json-schema.org/draft/2019-09/schema",
+	"https://json-schema.org/draft/2020-12/schema",
+}
+
+// publishedDialect returns the published spelling of a "$schema" URI that
+// differs from a published dialect's only in case where URIs ignore it,
+// in http against https, or in an empty fragment.
+func publishedDialect(dialect string) (string, bool) {
+	key, ok := dialectKey(dialect)
+	if !ok {
+		return "", false
+	}
+	for _, published := range publishedDialects {
+		if publishedKey, _ := dialectKey(published); publishedKey == key {
+			return published, true
+		}
+	}
+	return "", false
+}
+
+// dialectKey returns an http or https URI in canonical form without its
+// scheme or empty fragment.
+func dialectKey(dialect string) (string, bool) {
+	uri, err := parseURI(dialect)
+	if err != nil || (uri.Scheme != "http" && uri.Scheme != "https") || uri.Fragment != "" {
+		return "", false
+	}
+	return strings.TrimPrefix(canonicalURI(uri), uri.Scheme+":"), true
 }
 
 // anchorName matches the plain-name fragments that draft 2020-12 allows
@@ -301,15 +499,22 @@ func anchorFragment(fragment string) (string, bool) {
 // "$anchor" or "$dynamicAnchor" or, as drafts before 2019-09 did, with a
 // "$id" fragment.
 func declaredAnchors(node map[string]any) []string {
+	anchors := plainAnchors(node)
+	if id, ok := node["$id"].(string); ok {
+		if _, fragment, _ := strings.Cut(id, "#"); anchorName.MatchString(fragment) && !slices.Contains(anchors, fragment) {
+			anchors = append(anchors, fragment)
+		}
+	}
+	return anchors
+}
+
+// plainAnchors returns the plain-name anchors node declares with
+// "$anchor" or "$dynamicAnchor", which both name it in a fragment.
+func plainAnchors(node map[string]any) []string {
 	var anchors []string
 	for _, key := range []string{"$anchor", "$dynamicAnchor"} {
 		if anchor, ok := node[key].(string); ok && anchorName.MatchString(anchor) && !slices.Contains(anchors, anchor) {
 			anchors = append(anchors, anchor)
-		}
-	}
-	if id, ok := node["$id"].(string); ok {
-		if _, fragment, _ := strings.Cut(id, "#"); anchorName.MatchString(fragment) && !slices.Contains(anchors, fragment) {
-			anchors = append(anchors, fragment)
 		}
 	}
 	return anchors
@@ -341,11 +546,9 @@ func isComposite(value any) bool {
 // JSON Pointer is passed to rewrite as the decoded pointer tokens. A
 // "$dynamicRef" with a JSON Pointer resolves like "$ref". When rewrite
 // reports a change, the reference is re-encoded with the returned
-// tokens. A "$recursiveRef" in the root resource, which names the root,
-// is passed as no tokens and becomes a "$ref" when rewrite reports a
-// change, since it cannot hold a pointer. Anchor references and
-// references into other resources, including subschemas that declare
-// their own "$id", are kept. The source is not modified.
+// tokens. Anchor references and references into other resources,
+// including subschemas that declare their own "$id", are kept. The
+// source is not modified.
 func RewriteRefs(schema map[string]any, rewrite func(tokens []string) ([]string, bool)) map[string]any {
 	return copyNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
 		for _, key := range []string{"$ref", "$dynamicRef"} {
@@ -363,26 +566,6 @@ func RewriteRefs(schema map[string]any, rewrite func(tokens []string) ([]string,
 			}
 			prefix, _, _ := strings.Cut(ref, "#")
 			node[key] = prefix + "#" + EncodePointer(tokens)
-		}
-		ref, ok := node["$recursiveRef"].(string)
-		if !ok {
-			return
-		}
-		tokens, ok := scope.rootPointer(ref)
-		if !ok || len(tokens) > 0 {
-			return
-		}
-		tokens, changed := rewrite(tokens)
-		if !changed {
-			return
-		}
-		pointer := "#" + EncodePointer(tokens)
-		delete(node, "$recursiveRef")
-		if _, ok := node["$ref"]; ok {
-			allOf, _ := node["allOf"].([]any)
-			node["allOf"] = append(slices.Clone(allOf), map[string]any{"$ref": pointer})
-		} else {
-			node["$ref"] = pointer
 		}
 	})
 }
@@ -441,8 +624,8 @@ type Resolver struct {
 	// subschemas that declare it, or is nil before indexing.
 	resources map[string][]embeddedResource
 	// anchors maps each resource, by its canonical URI or "" for the
-	// root resource, and each "$anchor" in it to the subschemas declaring
-	// that anchor.
+	// root resource, and each "$anchor" or "$dynamicAnchor" name in it to
+	// the subschemas declaring that anchor.
 	anchors map[string]map[string][]map[string]any
 }
 
@@ -477,7 +660,7 @@ func (r *Resolver) index() {
 				r.resources[resource] = append(r.resources[resource], embeddedResource{node: node, outer: scope.outer})
 			}
 		}
-		if anchor, ok := node["$anchor"].(string); ok {
+		for _, anchor := range plainAnchors(node) {
 			if r.anchors[resource] == nil {
 				r.anchors[resource] = map[string][]map[string]any{}
 			}
@@ -503,12 +686,12 @@ func (r *Resolver) embedded(uri *url.URL) (embeddedResource, bool) {
 }
 
 // Resolve returns the value in the root that ref points at. The reference
-// may be a fragment such as "#/$defs/Filter" or an "$anchor" name such as
-// "#filter", and may name the root's "$id" or the "$id" of a resource
-// that the root embeds. sameResource reports whether the value belongs to
-// the root's resource, so that references inside it resolve as they
-// would at the root. An anchor declared more than once in a resource
-// names no subschema.
+// may be a fragment such as "#/$defs/Filter" or an "$anchor" or
+// "$dynamicAnchor" name such as "#filter", and may name the root's "$id"
+// or the "$id" of a resource that the root embeds. sameResource reports
+// whether the value belongs to the root's resource, so that references
+// inside it resolve as they would at the root. An anchor declared more
+// than once in a resource names no subschema.
 func (r *Resolver) Resolve(ref string) (target any, sameResource bool, ok bool) {
 	prefix, fragment, _ := strings.Cut(ref, "#")
 	tokens, isPointer := decodePointer(fragment)
@@ -621,28 +804,58 @@ func copySchema(value any, scope refScope, visit visitFunc) any {
 }
 
 func copyKeyword(key string, value any, scope refScope, visit visitFunc) any {
-	if _, ok := subschemaKeywords[key]; ok {
+	switch KeywordSubschemas(key, value) {
+	case SingleSubschema:
 		return copySchema(value, scope.at(key), visit)
+	case SubschemaList:
+		return copySchemaList(value, scope.at(key), visit)
+	case SubschemaMap:
+		return copySchemaMap(value, scope.at(key), visit)
+	default:
+		return value
+	}
+}
+
+// SubschemaKind is how the value of a keyword in a schema object holds
+// subschemas.
+type SubschemaKind int
+
+const (
+	// NoSubschema is the kind of a value that is not a schema, such as
+	// instance data, an annotation, or a list of property names.
+	NoSubschema SubschemaKind = iota
+	// SingleSubschema is the kind of a value that is a schema.
+	SingleSubschema
+	// SubschemaList is the kind of a list of schemas.
+	SubschemaList
+	// SubschemaMap is the kind of a map from names to schemas. Draft 7
+	// "dependencies" may map a name to a list of names instead.
+	SubschemaMap
+)
+
+// KeywordSubschemas returns how the value of key, a keyword in a schema
+// object, holds subschemas.
+func KeywordSubschemas(key string, value any) SubschemaKind {
+	if _, ok := subschemaKeywords[key]; ok {
+		return SingleSubschema
 	}
 	if _, ok := subschemaListKeywords[key]; ok {
-		return copySchemaList(value, scope.at(key), visit)
+		return SubschemaList
 	}
 	if _, ok := subschemaMapKeywords[key]; ok {
-		return copySchemaMap(value, scope.at(key), visit)
+		return SubschemaMap
 	}
 	switch key {
 	case "items":
 		// A schema, or a list of schemas before draft 2020-12.
 		if _, ok := value.([]any); ok {
-			return copySchemaList(value, scope.at(key), visit)
+			return SubschemaList
 		}
-		return copySchema(value, scope.at(key), visit)
+		return SingleSubschema
 	case "dependencies":
-		// Draft 7 maps each name to a schema or to a list of names, and
-		// copySchema keeps the lists as is.
-		return copySchemaMap(value, scope.at(key), visit)
+		return SubschemaMap
 	default:
-		return value
+		return NoSubschema
 	}
 }
 
@@ -655,17 +868,15 @@ func forEachSubschema(key string, value any, scope refScope, visit visitFunc) {
 			visit(node, scope.enter(node))
 		}
 	}
-	_, isSchema := subschemaKeywords[key]
-	_, isList := subschemaListKeywords[key]
-	_, isMap := subschemaMapKeywords[key]
-	switch list, listed := value.([]any); {
-	case isSchema || (key == "items" && !listed):
+	switch KeywordSubschemas(key, value) {
+	case SingleSubschema:
 		visitAt(value, scope.at(key))
-	case isList || (key == "items" && listed):
+	case SubschemaList:
+		list, _ := value.([]any)
 		for i, item := range list {
 			visitAt(item, scope.at(key).at(strconv.Itoa(i)))
 		}
-	case isMap || key == "dependencies":
+	case SubschemaMap:
 		named, _ := value.(map[string]any)
 		for name, item := range named {
 			visitAt(item, scope.at(key).at(name))
@@ -726,6 +937,10 @@ type refScope struct {
 	// outer is the path of the outermost resource other than the root
 	// that was entered.
 	outer *pathToken
+	// resource is the source schema of the current resource's root, and
+	// resourcePath its path, which is nil for the root resource.
+	resource     map[string]any
+	resourcePath *pathToken
 }
 
 // pathToken is a JSON Pointer token linked to the tokens before it, so a
@@ -778,7 +993,7 @@ func (p *pathToken) encodedLen(lengths map[*pathToken]int) int {
 // is unknown, so a relative root "$id" resolves against an empty base,
 // the same way as the references compared with it.
 func rootScope(root map[string]any) refScope {
-	scope := refScope{base: &url.URL{}}
+	scope := refScope{base: &url.URL{}, resource: root}
 	if id, ok := resourceID(root); ok {
 		if id == nil {
 			scope.base = nil
@@ -799,6 +1014,7 @@ func (s refScope) enter(node map[string]any) refScope {
 		s.outer = s.path
 	}
 	s.nested = true
+	s.resource, s.resourcePath = node, s.path
 	switch {
 	case id == nil:
 		s.base = nil
@@ -852,6 +1068,23 @@ func (s refScope) rootFragment(ref string) (string, bool) {
 		return "", false
 	}
 	return fragment, true
+}
+
+// namesResource reports whether ref names the root of the resource s
+// belongs to.
+func (s refScope) namesResource(ref string) bool {
+	prefix, fragment, _ := strings.Cut(ref, "#")
+	if fragment != "" {
+		return false
+	}
+	if prefix == "" {
+		return true
+	}
+	if s.base == nil {
+		return false
+	}
+	target, ok := s.resolve(prefix)
+	return ok && canonicalURI(target) == canonicalURI(s.base)
 }
 
 // resourceID reports whether node declares a schema resource with "$id"
