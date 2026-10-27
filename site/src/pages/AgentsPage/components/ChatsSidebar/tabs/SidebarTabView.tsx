@@ -71,14 +71,13 @@ function useTabScroll(activeTabElementId: string | undefined) {
 	});
 
 	// Opening an artifact adds a tab at the end of the strip, where it can be
-	// out of view. Keep the active tab and its close button in view when the
-	// active tab changes and when the strip resizes, for example when a panel
-	// that was hidden opens.
+	// out of view. Keep the active tab and its close button in view.
 	const scrollActiveTabIntoView = useEffectEvent(() => {
 		const strip = ref.current;
 		const tab = activeTabElementId
 			? document.getElementById(activeTabElementId)?.parentElement
 			: undefined;
+		// A hidden panel has no layout to scroll.
 		if (!strip || !tab || strip.clientWidth === 0) {
 			return;
 		}
@@ -102,10 +101,7 @@ function useTabScroll(activeTabElementId: string | undefined) {
 		updateScrollState();
 		element.addEventListener("scroll", updateScrollState, { passive: true });
 
-		const resizeObserver = new ResizeObserver(() => {
-			scrollActiveTabIntoView();
-			updateScrollState();
-		});
+		const resizeObserver = new ResizeObserver(updateScrollState);
 		resizeObserver.observe(element);
 
 		return () => {
@@ -119,9 +115,19 @@ function useTabScroll(activeTabElementId: string | undefined) {
 	});
 
 	useEffect(() => {
-		if (activeTabElementId) {
-			scrollActiveTabIntoView();
+		const strip = ref.current;
+		const tab = activeTabElementId
+			? document.getElementById(activeTabElementId)?.parentElement
+			: undefined;
+		if (!strip || !tab) {
+			return;
 		}
+		// A ResizeObserver reports each element once when it starts, and again
+		// when the tab widens as the web font loads or the strip resizes.
+		const resizeObserver = new ResizeObserver(scrollActiveTabIntoView);
+		resizeObserver.observe(strip);
+		resizeObserver.observe(tab);
+		return () => resizeObserver.disconnect();
 	}, [activeTabElementId]);
 
 	const scrollLeft = () => {
