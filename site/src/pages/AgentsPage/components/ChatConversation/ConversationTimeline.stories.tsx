@@ -855,8 +855,11 @@ export const UserMessageAsyncQuestionChipAnswer: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const userRow = canvas.getByText("Answer").closest('[data-role="user"]');
+		if (!userRow?.parentElement) {
+			throw new Error("Missing the answer's message row.");
+		}
 
-		await userEvent.hover(userRow?.parentElement as HTMLElement);
+		await userEvent.hover(userRow.parentElement);
 	},
 };
 

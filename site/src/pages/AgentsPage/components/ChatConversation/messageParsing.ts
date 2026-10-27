@@ -130,8 +130,8 @@ export const getPendingToolCallIDs = (
 		return undefined;
 	}
 
-	// Only results from the newest assistant message on settle its calls, so
-	// an older result for a reused call ID does not.
+	// Only results in or after the newest assistant message settle its calls,
+	// so an older result for a reused call ID does not.
 	const resultIDs = new Set<string>();
 	for (const message of messages.toReversed()) {
 		if (message.role === "user") {
