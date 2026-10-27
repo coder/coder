@@ -142,6 +142,15 @@ var bannedRootKeys = [...]string{"$ref", "anyOf", "oneOf", "allOf", "enum", "con
 // constraints.
 const maxRootMergeSchemas = 1000
 
+// maxRootFoldWork bounds the work root composition spends on the schemas
+// it merges: copying their properties and required names, giving each
+// property name the schema of every alternative, and applying
+// "additionalProperties" and "patternProperties" to the names. Many
+// alternatives that share a large schema through references would
+// otherwise take work quadratic in the schema size. Work past the bound
+// is skipped where that only drops constraints.
+const maxRootFoldWork = 1 << 20
+
 // enforceObjectRoot returns the tool input schema with the plain object
 // root MCP mandates and every provider accepts: "type" is "object" and
 // "properties" is never null. It runs after toolschema.Normalize, which
@@ -185,7 +194,7 @@ var keptBesideLegacyRootRef = [...]string{"$schema", "$id", "$defs", "definition
 
 func foldRootComposition(inputSchema map[string]any, banned []string) map[string]any {
 	folder := rootFolder{
-		root:              inputSchema,
+		resolver:          toolschema.NewResolver(inputSchema),
 		visiting:          map[string]struct{}{},
 		maxMerged:         compositionEntries(inputSchema) + maxRootMergeSchemas,
 		ignoreRefSiblings: ignoresRefSiblings(inputSchema),
@@ -260,8 +269,7 @@ func foldRootComposition(inputSchema map[string]any, banned []string) map[string
 // ignoresRefSiblings reports whether a schema declares a draft before
 // 2019-09, in which every keyword beside "$ref" is ignored.
 func ignoresRefSiblings(schema map[string]any) bool {
-	dialect, _ := schema["$schema"].(string)
-	return strings.Contains(dialect, "json-schema.org/draft-0")
+	return strings.Contains(toolschema.Dialect(schema), "json-schema.org/draft-0")
 }
 
 // maxPatternMatchCost bounds the regular expression work of matching the
@@ -532,14 +540,17 @@ func compositionEntries(value any) int {
 // reference points below a top-level definition, so the moved schemas
 // become top-level definitions instead of staying under the keyword they
 // came from.
+// An embedded resource that a reference names by URI moves the same way
+// and keeps its "$id", so such references need no rewrite.
 // Moved content can point into further removed content, which then
 // moves as well. A schema inside another moved schema stays inside it,
 // so that no anchor is declared twice. A keyword whose referenced
-// content cannot stand alone, because it belongs to an embedded
-// resource or is not a schema, moves as a whole instead.
+// content cannot stand alone, because a pointer reaches it through an
+// embedded resource or it is not a schema, moves as a whole instead.
 func relocateReferencedRootKeywords(inputSchema map[string]any, removed map[string]any) map[string]any {
 	original := maps.Clone(inputSchema)
 	maps.Copy(original, removed)
+	resolver := toolschema.NewResolver(original)
 	// probe places content found under the removed keywords where its
 	// references resolve as they did at the root.
 	probe := func(key string, value any) map[string]any {
@@ -554,14 +565,15 @@ func relocateReferencedRootKeywords(inputSchema map[string]any, removed map[stri
 		schema any
 	}
 	targets := map[string]target{}
+	var tree pointerTree
+	addTarget := func(pointer string, moved target) {
+		targets[pointer] = moved
+		tree.at(moved.tokens).target = true
+	}
 	// enclosed reports whether a target already holds the one at tokens.
 	enclosed := func(tokens []string) bool {
-		for end := 1; end < len(tokens); end++ {
-			if _, ok := targets[toolschema.EncodePointer(tokens[:end])]; ok {
-				return true
-			}
-		}
-		return false
+		node, _ := tree.enclosing(tokens[:len(tokens)-1])
+		return node != nil
 	}
 	whole := map[string]bool{}
 	queue := []map[string]any{inputSchema}
@@ -577,7 +589,7 @@ func relocateReferencedRootKeywords(inputSchema map[string]any, removed map[stri
 			if _, seen := targets[pointer]; seen {
 				return nil, false
 			}
-			schema, sameResource, ok := toolschema.ResolveLocalRef(original, "#"+pointer)
+			schema, sameResource, ok := resolver.Resolve("#" + pointer)
 			if !ok {
 				return nil, false
 			}
@@ -589,16 +601,38 @@ func relocateReferencedRootKeywords(inputSchema map[string]any, removed map[stri
 				if !enclosed(tokens) {
 					queue = append(queue, probe("$defs", map[string]any{"target": typed}))
 				}
-				targets[pointer] = target{tokens: tokens, schema: typed}
+				addTarget(pointer, target{tokens: tokens, schema: typed})
 				return nil, false
 			case bool:
-				targets[pointer] = target{tokens: tokens, schema: typed}
+				addTarget(pointer, target{tokens: tokens, schema: typed})
 				return nil, false
 			}
 			whole[tokens[0]] = true
 			queue = append(queue, probe(tokens[0], removed[tokens[0]]))
 			return nil, false
 		})
+		// An embedded resource keeps its "$id" when it moves, so the
+		// references that name it by URI keep resolving without a
+		// rewrite. One nested in another resource moves with the
+		// outermost one, against which its "$id" may resolve.
+		for _, tokens := range resolver.ResourceRefs(queue[0]) {
+			if _, ok := removed[tokens[0]]; !ok || whole[tokens[0]] {
+				continue
+			}
+			pointer := toolschema.EncodePointer(tokens)
+			if _, seen := targets[pointer]; seen {
+				continue
+			}
+			schema, _, _ := resolver.Resolve("#" + pointer)
+			node, ok := schema.(map[string]any)
+			if !ok {
+				continue
+			}
+			if !enclosed(tokens) {
+				queue = append(queue, probe("$defs", map[string]any{"target": node}))
+			}
+			addTarget(pointer, target{tokens: tokens, schema: node})
+		}
 		queue = queue[1:]
 	}
 	if len(targets) == 0 && len(whole) == 0 {
@@ -643,13 +677,12 @@ func relocateReferencedRootKeywords(inputSchema map[string]any, removed map[stri
 	for _, key := range slices.Sorted(maps.Keys(whole)) {
 		wholeNames[key] = define([]string{key}, map[string]any{key: removed[key]})
 	}
-	names := map[string]string{}
 	for _, pointer := range slices.Sorted(maps.Keys(targets)) {
 		moved := targets[pointer]
 		if whole[moved.tokens[0]] || enclosed(moved.tokens) {
 			continue
 		}
-		names[pointer] = define(moved.tokens, moved.schema)
+		tree.at(moved.tokens).name = define(moved.tokens, moved.schema)
 	}
 	inputSchema[container] = definitions
 	return toolschema.RewriteRefs(inputSchema, func(tokens []string) ([]string, bool) {
@@ -659,13 +692,55 @@ func relocateReferencedRootKeywords(inputSchema map[string]any, removed map[stri
 		if name, ok := wholeNames[tokens[0]]; ok {
 			return append([]string{container, name}, tokens...), true
 		}
-		for end := 1; end <= len(tokens); end++ {
-			if name, ok := names[toolschema.EncodePointer(tokens[:end])]; ok {
-				return append([]string{container, name}, tokens[end:]...), true
-			}
+		// The shortest target holding the one at tokens is never enclosed,
+		// so it was defined.
+		if node, end := tree.enclosing(tokens); node != nil {
+			return append([]string{container, node.name}, tokens[end:]...), true
 		}
 		return nil, false
 	})
+}
+
+// pointerTree holds JSON Pointers by their tokens, so that the pointers
+// that are prefixes of another are found in time linear in its length.
+type pointerTree struct {
+	children map[string]*pointerTree
+	// target reports that a moved target ends here, and name is the
+	// definition it moved to, once defined.
+	target bool
+	name   string
+}
+
+// at returns the node for tokens, adding the nodes missing on the way.
+func (t *pointerTree) at(tokens []string) *pointerTree {
+	for _, token := range tokens {
+		next, ok := t.children[token]
+		if !ok {
+			if t.children == nil {
+				t.children = map[string]*pointerTree{}
+			}
+			next = &pointerTree{}
+			t.children[token] = next
+		}
+		t = next
+	}
+	return t
+}
+
+// enclosing returns the node of the shortest target that is a prefix of
+// tokens, or tokens itself, and the number of tokens it holds.
+func (t *pointerTree) enclosing(tokens []string) (*pointerTree, int) {
+	for i, token := range tokens {
+		next, ok := t.children[token]
+		if !ok {
+			return nil, 0
+		}
+		if next.target {
+			return next, i + 1
+		}
+		t = next
+	}
+	return nil, 0
 }
 
 // objectShape collects the properties and required names that root
@@ -711,19 +786,50 @@ func (s *objectShape) addProperty(name string, property any) {
 }
 
 type rootFolder struct {
-	root map[string]any
+	resolver *toolschema.Resolver
 	// visiting holds the references being followed on the current path.
 	visiting map[string]struct{}
 	// merged counts the schemas merged so far, and maxMerged bounds it.
 	merged    int
 	maxMerged int
+	// work counts the work spent so far against maxRootFoldWork.
+	work int
 	// ignoreRefSiblings reports that the schema declares a draft before
 	// 2019-09, which ignores every keyword beside "$ref".
 	ignoreRefSiblings bool
 	// opaque reports that the fold left out how a schema evaluates
 	// property names, which "unevaluatedProperties" depends on.
-	opaque   bool
-	patterns patternMatcher
+	opaque     bool
+	patterns   patternMatcher
+	refScanner toolschema.RefScanner
+}
+
+// spend charges cost against maxRootFoldWork and reports whether the
+// work may go ahead. Work it refuses leaves constraints out of the fold.
+func (f *rootFolder) spend(cost int) bool {
+	f.work += cost
+	if f.work > maxRootFoldWork {
+		f.opaque = true
+		return false
+	}
+	return true
+}
+
+// keywordEntries counts node's keywords and the entries of those whose
+// values are maps or lists, which merging node copies or scans.
+func keywordEntries(node map[string]any) int {
+	count := len(node)
+	for _, value := range node {
+		switch typed := value.(type) {
+		case map[string]any:
+			count += len(typed)
+		case []any:
+			count += len(typed)
+		case []string:
+			count += len(typed)
+		}
+	}
+	return count
 }
 
 // mergeAll merges a schema that must hold in addition to the root.
@@ -736,7 +842,7 @@ func (f *rootFolder) mergeAll(shape *objectShape, branch any) {
 	if !ok {
 		return
 	}
-	if f.merged >= f.maxMerged {
+	if f.merged >= f.maxMerged || !f.spend(keywordEntries(node)) {
 		f.opaque = true
 		return
 	}
@@ -745,7 +851,7 @@ func (f *rootFolder) mergeAll(shape *objectShape, branch any) {
 		f.mergeRef(shape, ref)
 		return
 	}
-	if _, ok := node["$id"]; ok && toolschema.HasRefs(node) {
+	if _, ok := node["$id"]; ok && f.refScanner.HasRefs(node) {
 		// References in a separate resource resolve against its own
 		// "$id", so its content cannot move into the root resource.
 		f.opaque = true
@@ -785,12 +891,12 @@ func (f *rootFolder) mergeRef(shape *objectShape, ref string) {
 	if _, ok := shape.refs[ref]; ok {
 		return
 	}
-	target, sameResource, ok := toolschema.ResolveLocalRef(f.root, ref)
+	target, sameResource, ok := f.resolver.Resolve(ref)
 	if !ok {
 		f.opaque = true
 		return
 	}
-	if node, ok := target.(map[string]any); ok && !sameResource && toolschema.HasRefs(node) {
+	if node, ok := target.(map[string]any); ok && !sameResource && f.refScanner.HasRefs(node) {
 		// As in mergeAll, references inside another resource resolve
 		// against its own "$id".
 		f.opaque = true
@@ -810,13 +916,16 @@ func (f *rootFolder) mergeRef(shape *objectShape, ref string) {
 // name is required only when every alternative requires it. An
 // alternative that does not define a property gives it the schema its
 // "patternProperties" or "additionalProperties" does, and an alternative
-// that allows no value is left out.
+// that allows no value is left out. When the work budget runs out, the
+// names left are not merged, and neither is the restriction of names no
+// alternative lists, which could otherwise forbid them.
 func (f *rootFolder) mergeAlternatives(shape *objectShape, branches []any) {
 	alternatives := make([]objectShape, 0, len(branches))
 	for _, branch := range branches {
 		alternative := objectShape{properties: map[string]any{}}
 		f.mergeAll(&alternative, branch)
 		f.applyAdditionalProperties(&alternative, alternative.merged)
+		f.applyPatternProperties(&alternative)
 		if alternative.impossible {
 			continue
 		}
@@ -835,21 +944,9 @@ func (f *rootFolder) mergeAlternatives(shape *objectShape, branches []any) {
 		}
 	}
 	for _, name := range slices.Sorted(maps.Keys(names)) {
-		var options []any
-		for i := range alternatives {
-			property, ok := alternatives[i].properties[name]
-			if !ok {
-				property, ok = f.undeclaredSchema(&alternatives[i], name)
-				if !ok {
-					continue
-				}
-			}
-			if slices.ContainsFunc(options, func(option any) bool {
-				return reflect.DeepEqual(option, property)
-			}) {
-				continue
-			}
-			options = append(options, property)
+		options, ok := f.alternativeOptions(alternatives, name)
+		if !ok {
+			return
 		}
 		if len(options) == 1 {
 			shape.addProperty(name, options[0])
@@ -857,7 +954,7 @@ func (f *rootFolder) mergeAlternatives(shape *objectShape, branches []any) {
 			shape.addProperty(name, map[string]any{"anyOf": options})
 		}
 	}
-	if restriction := alternativesRestriction(alternatives); restriction != nil {
+	if restriction := f.alternativesRestriction(alternatives); restriction != nil {
 		listed := make(map[string]any, len(names))
 		for name := range names {
 			listed[name] = map[string]any{}
@@ -867,6 +964,9 @@ func (f *rootFolder) mergeAlternatives(shape *objectShape, branches []any) {
 	}
 
 	for _, name := range alternatives[0].required {
+		if !f.spend(len(alternatives)) {
+			return
+		}
 		requiredByAll := true
 		for _, alternative := range alternatives[1:] {
 			if _, ok := alternative.requiredSet[name]; !ok {
@@ -878,6 +978,31 @@ func (f *rootFolder) mergeAlternatives(shape *objectShape, branches []any) {
 			shape.addRequired([]string{name})
 		}
 	}
+}
+
+// alternativeOptions returns the distinct schemas that alternatives give
+// name, or false when the work budget runs out.
+func (f *rootFolder) alternativeOptions(alternatives []objectShape, name string) ([]any, bool) {
+	var options []any
+	for i := range alternatives {
+		if !f.spend(1 + len(options) + len(alternatives[i].merged)) {
+			return nil, false
+		}
+		property, ok := alternatives[i].properties[name]
+		if !ok {
+			property, ok = f.undeclaredSchema(&alternatives[i], name)
+			if !ok {
+				continue
+			}
+		}
+		if slices.ContainsFunc(options, func(option any) bool {
+			return reflect.DeepEqual(option, property)
+		}) {
+			continue
+		}
+		options = append(options, property)
+	}
+	return options, true
 }
 
 // applyAdditionalProperties makes the "additionalProperties" of each of
@@ -892,6 +1017,9 @@ func (f *rootFolder) applyAdditionalProperties(shape *objectShape, nodes []map[s
 		if schema, ok := additional.(map[string]any); !forbids && (!ok || len(schema) == 0) {
 			continue
 		}
+		if !f.spend(len(shape.properties)) {
+			return
+		}
 		listed, _ := node["properties"].(map[string]any)
 		patterns, _ := node["patternProperties"].(map[string]any)
 		for _, name := range slices.Sorted(maps.Keys(shape.properties)) {
@@ -903,6 +1031,41 @@ func (f *rootFolder) applyAdditionalProperties(shape *objectShape, nodes []map[s
 			}
 			if !forbids {
 				shape.properties[name] = conjoinSchemas(shape.properties[name], additional)
+				continue
+			}
+			delete(shape.properties, name)
+			if _, required := shape.requiredSet[name]; required {
+				shape.impossible = true
+			}
+		}
+	}
+}
+
+// applyPatternProperties makes the "patternProperties" of the schemas
+// merged into shape, an alternative, hold for the properties it lists
+// whose names they match, as they do in the source, since only the
+// properties of an alternative reach the root. A name a pattern forbids
+// leaves the shape, which becomes impossible when the name is required.
+func (f *rootFolder) applyPatternProperties(shape *objectShape) {
+	for _, node := range shape.merged {
+		patterns, _ := node["patternProperties"].(map[string]any)
+		if len(patterns) == 0 {
+			continue
+		}
+		if !f.spend(len(shape.properties)) {
+			return
+		}
+		for _, name := range slices.Sorted(maps.Keys(shape.properties)) {
+			matched, known := f.patterns.match(patterns, name)
+			if !known {
+				continue
+			}
+			property := shape.properties[name]
+			for _, pattern := range matched {
+				property = conjoinSchemas(property, patterns[pattern])
+			}
+			if !isBooleanSchema(property, false) {
+				shape.properties[name] = property
 				continue
 			}
 			delete(shape.properties, name)
@@ -977,11 +1140,14 @@ func (f *rootFolder) undeclaredSchema(shape *objectShape, name string) (any, boo
 
 // alternativesRestriction returns a schema whose "additionalProperties"
 // holds for every name that no alternative lists in "properties", or nil
-// when such names are unconstrained or the constraint depends on the name
-// through "patternProperties".
-func alternativesRestriction(alternatives []objectShape) map[string]any {
+// when such names are unconstrained, the constraint depends on the name
+// through "patternProperties", or the work budget runs out.
+func (f *rootFolder) alternativesRestriction(alternatives []objectShape) map[string]any {
 	var options []any
 	for _, alternative := range alternatives {
+		if !f.spend(1 + len(alternative.merged) + len(options)) {
+			return nil
+		}
 		forbidden := false
 		var schemas []any
 		for _, node := range alternative.merged {

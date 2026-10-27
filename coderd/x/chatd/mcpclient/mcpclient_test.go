@@ -851,7 +851,9 @@ func TestConnectAll_FullInputSchema_ModelIntentRebasesRefs(t *testing.T) {
 					"kind":       map[string]any{"type": "string", "enum": []any{"a", "b"}},
 					"other_kind": map[string]any{"$ref": "#/properties/kind"},
 					"child":      map[string]any{"$ref": "#"},
-					"filter":     map[string]any{"$ref": "#/definitions/Filter"},
+					// A recursive reference names the root, which moves.
+					"recursive": map[string]any{"$recursiveRef": "#"},
+					"filter":    map[string]any{"$ref": "#/definitions/Filter"},
 					// A dynamic reference by pointer resolves like a
 					// reference.
 					"template": map[string]any{"$dynamicRef": "#/properties/kind"},
@@ -905,6 +907,7 @@ func TestConnectAll_FullInputSchema_ModelIntentRebasesRefs(t *testing.T) {
 			"kind": {"type": "string", "enum": ["a", "b"]},
 			"other_kind": {"$ref": "#/properties/properties/properties/kind"},
 			"child": {"$ref": "#/properties/properties"},
+			"recursive": {"$ref": "#/properties/properties"},
 			"filter": {"$ref": "#/definitions/Filter"},
 			"template": {"$dynamicRef": "#/properties/properties/properties/kind"},
 			"enum": {"$ref": "#/properties/properties/properties/kind"}

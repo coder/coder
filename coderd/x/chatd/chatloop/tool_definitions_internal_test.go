@@ -10,6 +10,8 @@ import (
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/coderd/x/chatd/toolschema"
 )
 
 // staticParametersTool returns a fixed ToolInfo, letting a test control
@@ -527,6 +529,54 @@ func TestBuildToolDefinitionsFullSchemaRootCompositionResourceBranches(t *testin
 	}`, string(raw))
 }
 
+// TestBuildToolDefinitionsFullSchemaRootCompositionResourceRefs verifies
+// that the resources a root composition embeds stay in the schema when
+// parameters name them by URI, the way a JSON Pointer target would, and
+// that a resource inside another one keeps the outer one, against which
+// its "$id" resolves.
+func TestBuildToolDefinitionsFullSchemaRootCompositionResourceRefs(t *testing.T) {
+	t.Parallel()
+
+	const source = `{
+		"$id": "https://example.com/root.json",
+		"type": "object",
+		"properties": {
+			"abs": {"$ref": "https://example.com/abs.json#/$defs/T"},
+			"nested": {"$ref": "https://example.com/outer/inner.json"}
+		},
+		"anyOf": [
+			{"$defs": {"A": {"$id": "abs.json", "$defs": {"T": {"type": "boolean"}}}}},
+			{"$defs": {"O": {"$id": "https://example.com/outer/", "$defs": {"I": {"$id": "inner.json", "type": "integer"}}}}},
+			{"$defs": {"U": {"$id": "unused.json"}}}
+		]
+	}`
+	var schema map[string]any
+	require.NoError(t, json.Unmarshal([]byte(source), &schema))
+	inputSchema := ToolInputSchema(fullSchemaTestTool{schema: schema})
+	raw, err := json.Marshal(inputSchema)
+	require.NoError(t, err)
+	require.JSONEq(t, `{
+		"$id": "https://example.com/root.json",
+		"type": "object",
+		"properties": {
+			"abs": {"$ref": "https://example.com/abs.json#/$defs/T"},
+			"nested": {"$ref": "https://example.com/outer/inner.json"}
+		},
+		"$defs": {
+			"coder_root_anyOf_0_defs_A": {"$id": "abs.json", "$defs": {"T": {"type": "boolean"}}},
+			"coder_root_anyOf_1_defs_O": {"$id": "https://example.com/outer/", "$defs": {"I": {"$id": "inner.json", "type": "integer"}}}
+		}
+	}`, string(raw))
+	for _, instance := range []string{`{"abs": true, "nested": 1}`} {
+		require.NoError(t, validateSchemaInstance(t, schema, instance), "the source schema must accept %s", instance)
+		require.NoError(t, validateSchemaInstance(t, inputSchema, instance))
+	}
+	for _, instance := range []string{`{"abs": 1}`, `{"nested": "x"}`} {
+		require.Error(t, validateSchemaInstance(t, schema, instance), "the source schema must reject %s", instance)
+		require.Error(t, validateSchemaInstance(t, inputSchema, instance))
+	}
+}
+
 // TestBuildToolDefinitionsFullSchemaRootRefTargets verifies that a root
 // "$ref" contributes its parameters however it names its target: through
 // a relative or differently spelled root "$id", or through the "$id" of a
@@ -584,6 +634,11 @@ func TestBuildToolDefinitionsFullSchemaRootRefTargets(t *testing.T) {
 		{
 			name:   "anchor",
 			schema: `{"$ref": "#args", "$defs": {"Args": {"$anchor": "args", "properties": {"p": {"type": "string"}}, "required": ["p"]}}}`,
+			want:   params,
+		},
+		{
+			name:   "percent-encoded anchor",
+			schema: `{"$ref": "#%61rgs", "$defs": {"Args": {"$anchor": "args", "properties": {"p": {"type": "string"}}, "required": ["p"]}}}`,
 			want:   params,
 		},
 		{
@@ -1061,6 +1116,15 @@ func TestBuildToolDefinitionsFullSchemaRootFoldObjectKeywords(t *testing.T) {
 			rejected: []string{`{"x-a": 1}`, `{"x-a": ""}`, `{"n-b": "s"}`},
 		},
 		{
+			// A pattern in an alternative also applies to the names
+			// that alternative declares.
+			name:     "AlternativePatternOnDeclaredName",
+			source:   `{"type": "object", "anyOf": [{"properties": {"a": {"type": "string"}}, "patternProperties": {"^a$": {"minLength": 5}}, "required": ["a"]}, {"properties": {"a": {"type": "integer"}}, "required": ["a"]}]}`,
+			want:     `{"type": "object", "properties": {"a": {"anyOf": [{"allOf": [{"type": "string"}, {"minLength": 5}]}, {"type": "integer"}]}}, "required": ["a"]}`,
+			accepted: []string{`{"a": "xxxxx"}`, `{"a": 1}`},
+			rejected: []string{`{"a": "x"}`},
+		},
+		{
 			name:     "ObjectKeywords",
 			source:   objectKeywords,
 			want:     objectKeywordsWant,
@@ -1176,6 +1240,106 @@ func TestBuildToolDefinitionsFullSchemaRootFoldBoundsWork(t *testing.T) {
 	require.Equal(t, want, inputSchema["properties"])
 }
 
+// TestBuildToolDefinitionsFullSchemaRootFoldBoundsReferenceWork verifies
+// that root folding stays cheap, and keeps the source's meaning, when
+// references reach deep or large parts of a schema many times over: each
+// case would take seconds to minutes if every reference were resolved,
+// scanned, or relocated from scratch.
+func TestBuildToolDefinitionsFullSchemaRootFoldBoundsReferenceWork(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		source func(b *strings.Builder)
+		check  func(t *testing.T, inputSchema map[string]any)
+	}{
+		{
+			name: "NestedResources",
+			source: func(b *strings.Builder) {
+				_, _ = b.WriteString(`{"type": "object", "allOf": [`)
+				for i := range 2000 {
+					_, _ = fmt.Fprintf(b, `{"$id": "https://example.com/%d", "properties": {"p%d": {"type": "string"}}, "allOf": [`, i, i)
+				}
+				_, _ = b.WriteString(`{}`)
+				_, _ = b.WriteString(strings.Repeat(`]}`, 2000))
+				_, _ = b.WriteString(`]}`)
+			},
+			check: func(t *testing.T, inputSchema map[string]any) {
+				require.Len(t, inputSchema["properties"], 2000)
+			},
+		},
+		{
+			name: "SharedLargeAlternative",
+			source: func(b *strings.Builder) {
+				_, _ = b.WriteString(`{"type": "object", "anyOf": [`)
+				_, _ = b.WriteString(strings.TrimSuffix(strings.Repeat(`{"$ref": "#/$defs/B"},`, 1000), ","))
+				_, _ = b.WriteString(`], "$defs": {"B": {"properties": {`)
+				for i := range 3000 {
+					_, _ = fmt.Fprintf(b, `"p%d": {"type": "string"}, `, i)
+				}
+				_, _ = b.WriteString(`"last": {}}}}}`)
+			},
+			check: func(t *testing.T, inputSchema map[string]any) {
+				require.NotContains(t, inputSchema, "anyOf")
+				require.NoError(t, validateSchemaInstance(t, inputSchema, `{"p0": "x"}`))
+			},
+		},
+		{
+			name: "ResourceRefs",
+			source: func(b *strings.Builder) {
+				_, _ = b.WriteString(`{"type": "object", "anyOf": [`)
+				_, _ = b.WriteString(strings.TrimSuffix(strings.Repeat(`{"$ref": "https://example.com/x.json"},`, 5000), ","))
+				_, _ = b.WriteString(`], "$defs": {"X": {"$id": "https://example.com/x.json", "properties": {"a": {"type": "string"}}}, "Pad": {"properties": {`)
+				for i := range 5000 {
+					_, _ = fmt.Fprintf(b, `"p%d": {}, `, i)
+				}
+				_, _ = b.WriteString(`"last": {}}}}}`)
+			},
+			check: func(t *testing.T, inputSchema map[string]any) {
+				require.Equal(t, map[string]any{"a": map[string]any{"type": "string"}}, inputSchema["properties"])
+			},
+		},
+		{
+			name: "DeepRelocatedRefs",
+			source: func(b *strings.Builder) {
+				const depth, refs = 1000, 100
+				_, _ = b.WriteString(`{"type": "object", "properties": {`)
+				for i := range refs {
+					_, _ = fmt.Fprintf(b, `"r%d": {"$ref": "#/anyOf/0%s"}, `, i, strings.Repeat("/properties/a", depth-i))
+				}
+				_, _ = b.WriteString(`"last": {}}, "anyOf": [`)
+				_, _ = b.WriteString(strings.Repeat(`{"properties": {"a": `, depth))
+				_, _ = b.WriteString(`{"type": "string"}`)
+				_, _ = b.WriteString(strings.Repeat(`}}`, depth))
+				_, _ = b.WriteString(`]}`)
+			},
+			check: func(t *testing.T, inputSchema map[string]any) {
+				require.Len(t, inputSchema["$defs"], 1)
+				properties, ok := inputSchema["properties"].(map[string]any)
+				require.True(t, ok)
+				for i := range 100 {
+					property, ok := properties[fmt.Sprintf("r%d", i)].(map[string]any)
+					require.True(t, ok)
+					ref, ok := property["$ref"].(string)
+					require.True(t, ok)
+					_, _, ok = toolschema.ResolveLocalRef(inputSchema, ref)
+					require.True(t, ok, "reference %d must resolve", i)
+				}
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var b strings.Builder
+			tc.source(&b)
+			var source map[string]any
+			require.NoError(t, json.Unmarshal([]byte(b.String()), &source))
+			tc.check(t, ToolInputSchema(fullSchemaTestTool{schema: source}))
+		})
+	}
+}
+
 // TestBuildToolDefinitionsFullSchemaRootFoldBoundsPatternWork verifies
 // that root folding stays cheap when many required names the root does
 // not declare meet many "patternProperties" patterns, and that names it
@@ -1257,6 +1421,12 @@ func TestBuildToolDefinitionsFullSchemaRootFoldLegacyRef(t *testing.T) {
 			want:     `{"$schema": "http://json-schema.org/draft-07/schema#", "type": "object", "definitions": {"N": {"properties": {"q": {"type": "number"}}}}, "properties": {"q": {"type": "number"}}}`,
 			accepted: []string{`{"q": 1}`, `{}`},
 			rejected: []string{`{"q": "a"}`},
+		},
+		{
+			// URIs compare their scheme and host without case.
+			name:   "UppercaseDialect",
+			source: `{"$schema": "HTTP://JSON-SCHEMA.ORG/draft-07/schema#", "type": "object", "definitions": {"N": {"properties": {"q": {"type": "number"}}}}, "allOf": [{"$ref": "#/definitions/N", "properties": {"q": {"type": "string"}}, "required": ["q"]}]}`,
+			want:   `{"$schema": "HTTP://JSON-SCHEMA.ORG/draft-07/schema#", "type": "object", "definitions": {"N": {"properties": {"q": {"type": "number"}}}}, "properties": {"q": {"type": "number"}}}`,
 		},
 		{
 			// A reference into an ignored keyword still resolves.
