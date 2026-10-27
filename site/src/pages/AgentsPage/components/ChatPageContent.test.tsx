@@ -1,11 +1,12 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createRef } from "react";
+import { createRef, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { createDeferred } from "#/testHelpers/deferred";
+import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
 import type { ChatMessageInputRef } from "./AgentChatInput";
@@ -103,12 +104,15 @@ describe("workspaceSkillsFromChat", () => {
 	});
 });
 
+type ChatPageInputProps = React.ComponentProps<typeof ChatPageInput>;
+
 const renderChatPageInput = (
 	store: ReturnType<typeof createChatStore>,
-	overrides: Partial<React.ComponentProps<typeof ChatPageInput>> = {},
+	overrides: Partial<ChatPageInputProps> = {},
+	Input: React.FC<ChatPageInputProps> = ChatPageInput,
 ) =>
 	renderWithAuth(
-		<ChatPageInput
+		<Input
 			chat={{ ...MockChat, id: "", organization_id: "" }}
 			store={store}
 			modelCatalog={undefined}
@@ -348,6 +352,69 @@ describe("ChatPageInput", () => {
 				attachments: [{ fileId: "file-2", mediaType: "image/png" }],
 			}),
 		);
+	});
+
+	it("shows the compose draft's workspace uploads while an edit runs", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "uploadChatWorkspaceFile").mockResolvedValue({
+			path: "/home/coder/archive.zip",
+			name: "archive.zip",
+			size: 3,
+			media_type: "application/zip",
+			workspace_id: MockWorkspace.id,
+		});
+		const edit = createDeferred<undefined>();
+		// Switches modes as useConversationEditingState does: Edit enters edit
+		// mode, and an edit submit leaves it while the request runs.
+		const EditingChatPageInput: React.FC<ChatPageInputProps> = (props) => {
+			const [isEditing, setIsEditing] = useState(false);
+			return (
+				<>
+					<button type="button" onClick={() => setIsEditing(true)}>
+						Start edit
+					</button>
+					<ChatPageInput
+						{...props}
+						isEditing={isEditing}
+						initialValue={isEditing ? "edited" : ""}
+						remountKey={isEditing ? 1 : 0}
+						onSend={() => {
+							setIsEditing(false);
+							return edit.promise;
+						}}
+					/>
+				</>
+			);
+		};
+
+		renderChatPageInput(
+			createChatStore(),
+			{
+				chat: {
+					...MockChat,
+					id: "chat-1",
+					organization_id: "",
+					workspace_id: MockWorkspace.id,
+				},
+				workspace: MockWorkspace,
+				workspaceAgent: MockWorkspaceAgent,
+			},
+			EditingChatPageInput,
+		);
+		await user.upload(
+			await screen.findByTestId("chat-attachment-file-input"),
+			new File(["zip"], "archive.zip", { type: "application/zip" }),
+		);
+		await screen.findByRole("button", { name: "Remove archive.zip" });
+
+		await user.click(screen.getByRole("button", { name: "Start edit" }));
+		expect(
+			screen.queryByRole("button", { name: "Remove archive.zip" }),
+		).toBeNull();
+		await user.click(await screen.findByRole("button", { name: "Save Edit" }));
+
+		await screen.findByRole("button", { name: "Remove archive.zip" });
+		edit.resolve(undefined);
 	});
 
 	it("offers no queue actions on a row a pending send shows", async () => {

@@ -674,9 +674,9 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	const modeWorkspaceUploads = isEditing
 		? editWorkspaceUploads
 		: composeWorkspaceUploads;
-	// The attachments of the submit in flight. The composer hides them until
-	// the request settles and shows them again if it fails. Files added
-	// during the request stay in the composer.
+	// The attachments of a send in flight. Until the send settles, the composer
+	// hides them and all workspace uploads, and shows attachments added since.
+	// An edit sets none, because the composer shows the compose draft during it.
 	const [submittedAttachments, setSubmittedAttachments] = useState<
 		readonly File[] | null
 	>(null);
@@ -759,7 +759,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 						pendingWorkspaceUploads.length > 0
 							? pendingWorkspaceUploads
 							: undefined;
-					setSubmittedAttachments(attachments);
+					setSubmittedAttachments(isEditing ? null : attachments);
 					try {
 						await onSend({
 							message,
