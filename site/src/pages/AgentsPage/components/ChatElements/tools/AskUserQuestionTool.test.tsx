@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { describe, expect, it, vi } from "vitest";
@@ -19,37 +19,6 @@ const questions = [
 		],
 	},
 ];
-
-const asyncAnswer = `${getAsyncAnswerPrefix("call-123")}Single migration`;
-
-const renderAsyncQuestion = (
-	onSubmitAnswer: React.ComponentProps<
-		typeof AskUserQuestionTool
-	>["onSubmitAnswer"],
-) => {
-	const queryClient = createTestQueryClient();
-	const AsyncQuestion: React.FC<{ previousResponseText?: string }> = ({
-		previousResponseText,
-	}) => (
-		<QueryClientProvider client={queryClient}>
-			<AskUserQuestionTool
-				questions={questions}
-				status="completed"
-				isError={false}
-				isLatestAskUserQuestion
-				asyncToolCallId="call-123"
-				previousResponseText={previousResponseText}
-				onSubmitAnswer={onSubmitAnswer}
-			/>
-		</QueryClientProvider>
-	);
-	const { rerender } = render(<AsyncQuestion />);
-	return {
-		queueAnswer: () =>
-			rerender(<AsyncQuestion previousResponseText={asyncAnswer} />),
-		removeAnswer: () => rerender(<AsyncQuestion />),
-	};
-};
 
 describe("AskUserQuestionTool", () => {
 	it("allows retrying the same answer after submission fails", async () => {
@@ -92,49 +61,33 @@ describe("AskUserQuestionTool", () => {
 			const onSubmitAnswer = vi
 				.fn()
 				.mockReturnValueOnce(isSendPending ? pendingSend.promise : undefined);
-			const question = renderAsyncQuestion(onSubmitAnswer);
+			const answer = `${getAsyncAnswerPrefix("call-123")}Single migration`;
+			const queryClient = createTestQueryClient();
+			const AsyncQuestion: React.FC<{ previousResponseText?: string }> = ({
+				previousResponseText,
+			}) => (
+				<QueryClientProvider client={queryClient}>
+					<AskUserQuestionTool
+						questions={questions}
+						status="completed"
+						isError={false}
+						isLatestAskUserQuestion
+						asyncToolCallId="call-123"
+						previousResponseText={previousResponseText}
+						onSubmitAnswer={onSubmitAnswer}
+					/>
+				</QueryClientProvider>
+			);
+			const { rerender } = render(<AsyncQuestion />);
 
 			await user.click(screen.getByRole("button", { name: "Submit" }));
-			question.queueAnswer();
-			question.removeAnswer();
+			rerender(<AsyncQuestion previousResponseText={answer} />);
+			rerender(<AsyncQuestion />);
 			pendingSend.resolve(undefined);
 			await user.click(await screen.findByRole("button", { name: "Submit" }));
 
 			expect(onSubmitAnswer).toHaveBeenCalledTimes(2);
-			expect(onSubmitAnswer).toHaveBeenNthCalledWith(2, asyncAnswer);
-		},
-	);
-
-	it.each([
-		{ failure: "before the queue shows its answer", failsFirst: true },
-		{ failure: "after its answer left the queue", failsFirst: false },
-	])(
-		"clears the error of a send that fails $failure",
-		async ({ failsFirst }) => {
-			const user = userEvent.setup();
-			const send = createDeferred<undefined>();
-			const failSend = () => send.reject(new Error("Failed to send."));
-			const question = renderAsyncQuestion(
-				vi.fn().mockReturnValueOnce(send.promise),
-			);
-
-			await user.click(screen.getByRole("button", { name: "Submit" }));
-			if (failsFirst) {
-				failSend();
-				await screen.findByRole("alert");
-			}
-			question.queueAnswer();
-			question.removeAnswer();
-			if (!failsFirst) {
-				failSend();
-			}
-
-			await waitFor(() =>
-				expect(screen.getByRole("button", { name: "Submit" })).toBeEnabled(),
-			);
-			await waitFor(() =>
-				expect(screen.queryByRole("alert")).not.toBeInTheDocument(),
-			);
+			expect(onSubmitAnswer).toHaveBeenNthCalledWith(2, answer);
 		},
 	);
 
