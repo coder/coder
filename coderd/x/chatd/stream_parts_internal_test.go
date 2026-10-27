@@ -227,8 +227,9 @@ func TestStreamPartsEndpointLatestSelectionWinsWhileBlocked(t *testing.T) {
 		if got[0].MessagePart.HistoryVersion == latestKey.HistoryVersion {
 			require.Equal(t, "latest", got[0].MessagePart.Part.Text)
 			subscriber.mu.Lock()
-			defer subscriber.mu.Unlock()
-			require.Equal(t, []int64{blockingKey.HistoryVersion, latestKey.HistoryVersion}, subscriber.keys, "the endpoint subscribed to a replaced selection")
+			keys := subscriber.keys
+			subscriber.mu.Unlock()
+			require.Equal(t, []int64{blockingKey.HistoryVersion, latestKey.HistoryVersion}, keys, "the endpoint subscribed to a replaced selection")
 			return
 		}
 	}
