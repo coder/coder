@@ -602,7 +602,7 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 		// Reject unknown / empty BusyBehavior up front so an invalid
 		// value cannot fall through to the queue path on busy states
 		// or be silently ignored on idle states. The callers in chatd
-		// default empty to queue; chatstate is the lower-level API
+		// default empty to steer; chatstate is the lower-level API
 		// and refuses to guess.
 		return SendMessageResult{}, newTransitionError(
 			TransitionSendMessage, from,
