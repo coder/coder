@@ -1003,7 +1003,7 @@
 						},
 						{
 							"title": "Trace workspace connections",
-							"description": "Correlate client, coderd, and agent logs to find why an SSH, IDE, or web terminal connection failed.",
+							"description": "Correlate client, coderd, and agent logs by session ID for SSH, IDE, and web terminal connections.",
 							"path": "./admin/monitoring/trace-connections.md"
 						},
 						{
