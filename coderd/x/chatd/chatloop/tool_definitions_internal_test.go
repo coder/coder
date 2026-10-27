@@ -788,6 +788,30 @@ func TestBuildToolDefinitionsFullSchemaRootAlternativesMissingProperty(t *testin
 			accepted: []string{`{"a": 1, "b": 2}`, `{"a": "x", "b": "y"}`},
 		},
 		{
+			// Each alternative governs a name it requires but does not
+			// list through its pattern or additional properties.
+			name: "RequiredOnlyAlternatives",
+			source: map[string]any{
+				"anyOf": []any{
+					map[string]any{
+						"required":          []any{"q"},
+						"patternProperties": map[string]any{"^q$": map[string]any{"type": "string"}},
+					},
+					map[string]any{
+						"required":             []any{"q"},
+						"additionalProperties": map[string]any{"type": "number"},
+					},
+				},
+			},
+			want: `{
+				"type": "object",
+				"properties": {"q": {"anyOf": [{"type": "string"}, {"type": "number"}]}},
+				"required": ["q"]
+			}`,
+			accepted: []string{`{"q": "x"}`, `{"q": 1}`},
+			rejected: []string{`{}`, `{"q": true}`},
+		},
+		{
 			name: "PatternAlternative",
 			source: map[string]any{
 				"anyOf": []any{
@@ -985,7 +1009,7 @@ func TestBuildToolDefinitionsFullSchemaRootFoldUndeclaredRequired(t *testing.T) 
 		{
 			name:     "RequiredByEveryAlternative",
 			source:   `{"type": "object", "oneOf": [{"required": ["id"]}, {"required": ["id", "name"]}]}`,
-			want:     `{"type": "object", "properties": {"id": {}}, "required": ["id"]}`,
+			want:     `{"type": "object", "properties": {"id": {}, "name": {}}, "required": ["id"]}`,
 			accepted: []string{`{"id": 1}`},
 			rejected: []string{`{"name": "x"}`},
 		},
@@ -1016,7 +1040,8 @@ func TestBuildToolDefinitionsFullSchemaRootFoldUndeclaredRequired(t *testing.T) 
 // TestBuildToolDefinitionsFullSchemaRootFoldObjectKeywords verifies that
 // root folding keeps the keywords of the schemas it folds into the root
 // that constrain the object as a whole, so a root reference to a closed
-// object or a map stays one.
+// object or a map stays one, an object constant keeps its fields, and
+// conditionals keep holding.
 func TestBuildToolDefinitionsFullSchemaRootFoldObjectKeywords(t *testing.T) {
 	t.Parallel()
 
@@ -1155,6 +1180,62 @@ func TestBuildToolDefinitionsFullSchemaRootFoldObjectKeywords(t *testing.T) {
 			want:       objectKeywordsWant,
 			accepted:   []string{`{"a": 1, "b": 2, "c": 3}`},
 			rejected:   []string{`{"b": 1}`, `{"b": 1, "c": 2, "d": 3, "e": 4}`},
+		},
+		{
+			name:     "ObjectConst",
+			source:   `{"const": {"q": "fixed"}}`,
+			want:     `{"type": "object", "properties": {"q": {"const": "fixed"}}, "required": ["q"], "additionalProperties": false}`,
+			accepted: []string{`{"q": "fixed"}`},
+			rejected: []string{`{}`, `{"q": "other"}`, `{"q": "fixed", "r": 1}`},
+		},
+		{
+			name:     "ObjectConstRefTarget",
+			source:   `{"$ref": "#/$defs/Fixed", "$defs": {"Fixed": {"const": {"q": "fixed"}}}}`,
+			want:     `{"type": "object", "properties": {"q": {"const": "fixed"}}, "required": ["q"], "additionalProperties": false, "$defs": {"Fixed": {"const": {"q": "fixed"}}}}`,
+			accepted: []string{`{"q": "fixed"}`},
+			rejected: []string{`{}`, `{"q": "other"}`},
+		},
+		{
+			name:     "ObjectEnum",
+			source:   `{"enum": [{"q": "a"}, {"r": 1}]}`,
+			want:     `{"type": "object", "properties": {"q": {"const": "a"}, "r": {"const": 1}}, "additionalProperties": false}`,
+			accepted: []string{`{"q": "a"}`, `{"r": 1}`},
+			rejected: []string{`{"q": "b"}`, `{"s": 1}`},
+		},
+		{
+			name:     "BranchConditional",
+			source:   `{"type": "object", "properties": {"a": {}, "b": {}}, "allOf": [{"if": {"required": ["a"]}, "then": {"required": ["b"]}}]}`,
+			want:     `{"type": "object", "properties": {"a": {}, "b": {}}, "if": {"required": ["a"]}, "then": {"required": ["b"]}}`,
+			accepted: []string{`{"a": 1, "b": 2}`, `{"b": 1}`},
+			rejected: []string{`{"a": 1}`},
+		},
+		{
+			// The root's own conditional joins the one its reference
+			// target has, and a reference into it follows it.
+			name: "SeveralConditionals",
+			source: `{
+				"type": "object",
+				"properties": {"nested": {"$ref": "#/then"}},
+				"if": {"required": ["a"]},
+				"then": {"required": ["b"]},
+				"$ref": "#/$defs/C",
+				"$defs": {"C": {"if": {"required": ["c"]}, "then": {"required": ["d"]}, "else": {"required": ["e"]}}}
+			}`,
+			want: `{
+				"type": "object",
+				"properties": {"nested": {"$ref": "#/$defs/coder_root_then"}},
+				"if": {},
+				"then": {"allOf": [
+					{"if": {"required": ["a"]}, "then": {"required": ["b"]}},
+					{"if": {"required": ["c"]}, "then": {"required": ["d"]}, "else": {"required": ["e"]}}
+				]},
+				"$defs": {
+					"C": {"if": {"required": ["c"]}, "then": {"required": ["d"]}, "else": {"required": ["e"]}},
+					"coder_root_then": {"required": ["b"]}
+				}
+			}`,
+			accepted: []string{`{"a": 1, "b": 1, "e": 1}`, `{"c": 1, "d": 1, "nested": {"b": 1}}`},
+			rejected: []string{`{}`, `{"a": 1, "e": 1}`, `{"c": 1}`, `{"c": 1, "d": 1, "nested": {}}`},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
