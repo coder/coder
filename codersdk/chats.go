@@ -63,14 +63,16 @@ const ChatStreamKeepaliveIntervalSeconds = 15
 
 // ChatStreamChunkBytes is the largest encoded batch the chat stream sends
 // as one message. A larger batch is sent as consecutive [ChatStreamChunk]
-// messages that each hold at most this many bytes of it, so no message
-// takes long to download.
+// messages that each hold at most this many bytes of it. JSON string
+// escaping can double those bytes, so a chunk message can be up to twice
+// this size plus its wrapper.
 const ChatStreamChunkBytes = 256 * 1024
 
-// ChatStreamChunk is one piece of a chat stream batch that encodes to
-// more than [ChatStreamChunkBytes]. The pieces of a batch arrive in order
-// with no other message between them; concatenating Chunk up to and
-// including the piece with Last set gives the JSON array of the batch.
+// ChatStreamChunk is one chunk message of a chat stream batch that
+// encodes to more than [ChatStreamChunkBytes]. The chunk messages of a
+// batch arrive in order with no other message between them; concatenating
+// Chunk up to and including the chunk message with Last set gives the
+// JSON array of the batch.
 type ChatStreamChunk struct {
 	Chunk string `json:"chunk"`
 	Last  bool   `json:"last"`
@@ -3366,7 +3368,7 @@ func (c *Client) StreamChat(ctx context.Context, chatID uuid.UUID, opts *StreamC
 			_ = conn.Close(websocket.StatusNormalClosure, "")
 		}()
 
-		var chunks []byte
+		var joined []byte
 		for {
 			_, data, err := conn.Read(streamCtx)
 			if err != nil {
@@ -3395,11 +3397,11 @@ func (c *Client) StreamChat(ctx context.Context, chatID uuid.UUID, opts *StreamC
 					})
 					return
 				}
-				chunks = append(chunks, chunk.Chunk...)
+				joined = append(joined, chunk.Chunk...)
 				if !chunk.Last {
 					continue
 				}
-				data, chunks = chunks, nil
+				data, joined = joined, nil
 			}
 
 			var batch []ChatStreamEvent
