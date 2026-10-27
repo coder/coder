@@ -171,8 +171,8 @@ export type ChatStore = {
 	seed: (page: TypesGen.ChatMessagesResponse) => void;
 	// Applies a history_reset: drops the messages with IDs at or above fromID.
 	// The version arguments of the stream writers are the event's snapshot
-	// version; without one, the write ends every pending part of its kind.
-	resetHistoryFrom: (fromID: number, version?: number) => void;
+	// version.
+	resetHistoryFrom: (fromID: number, version: number) => void;
 	getHistoryResetCount: () => number;
 	// Drops the page if a history reset was applied since resetCount.
 	prependOlderMessages: (
@@ -183,13 +183,13 @@ export type ChatStore = {
 	// userMessageVersion is the highest snapshot version of the user messages.
 	upsertDurableMessages: (
 		messages: readonly TypesGen.ChatMessage[],
-		userMessageVersion?: number,
+		userMessageVersion: number,
 	) => void;
 	applyMessagePart: (part: TypesGen.ChatMessagePart) => void;
 	applyMessageParts: (parts: readonly TypesGen.ChatMessagePart[]) => void;
 	setQueuedMessages: (
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[],
-		version?: number,
+		version: number,
 	) => void;
 	// Applies a status event, and clears the turn error unless the status is
 	// error.
@@ -292,10 +292,7 @@ export const createChatStore = (): ChatStore => {
 		}
 	};
 
-	const endPending = (
-		parts: readonly PendingPart[],
-		version: number,
-	): void => {
+	const endPending = (parts: readonly PendingPart[], version: number): void => {
 		setState((current) => {
 			const pendingEntries = endPendingParts(
 				current.pendingEntries,
@@ -447,10 +444,7 @@ export const createChatStore = (): ChatStore => {
 			};
 		},
 		batch,
-		upsertDurableMessages: (
-			messages,
-			userMessageVersion = Number.POSITIVE_INFINITY,
-		) => {
+		upsertDurableMessages: (messages, userMessageVersion) => {
 			batch(() => {
 				upsertDurableMessages(messages);
 				if (messages.some((message) => message.role === "user")) {
@@ -460,7 +454,7 @@ export const createChatStore = (): ChatStore => {
 		},
 		applyMessagePart: (part) => applyMessageParts([part]),
 		applyMessageParts,
-		setQueuedMessages: (queuedMessages, version = Number.POSITIVE_INFINITY) => {
+		setQueuedMessages: (queuedMessages, version) => {
 			batch(() => {
 				setState((current) => {
 					if (
@@ -474,7 +468,7 @@ export const createChatStore = (): ChatStore => {
 			});
 		},
 		seed,
-		resetHistoryFrom: (fromID, version = Number.POSITIVE_INFINITY) => {
+		resetHistoryFrom: (fromID, version) => {
 			historyResets++;
 			batch(() => {
 				replaceMessages(

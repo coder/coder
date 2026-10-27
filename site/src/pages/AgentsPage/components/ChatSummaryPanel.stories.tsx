@@ -139,7 +139,7 @@ const mockAttachmentMessages: TypesGen.ChatMessage[] = [
 
 const createAttachmentStore = (messages = mockAttachmentMessages) => {
 	const store = createChatStore();
-	store.upsertDurableMessages(mockAttachmentMessages);
+	store.upsertDurableMessages(mockAttachmentMessages, 1);
 	return store;
 };
 
