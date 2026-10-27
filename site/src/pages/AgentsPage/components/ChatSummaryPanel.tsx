@@ -8,7 +8,9 @@ import { getChatCostTreeID } from "./ChatConversation/chatHelpers";
 import { type ChatStore, useChatMessages } from "./ChatConversation/chatStore";
 import {
 	deriveEvictedFileIds,
-	getAgentAttachments,
+	getEarlierMessageAttachments,
+	getMessageAttachments,
+	partFileIds,
 } from "./ChatConversation/messageHelpers";
 import type { EarlierMessagesProps } from "./ChatMessageScroller";
 import { ChatSummary } from "./ChatSummary";
@@ -17,18 +19,12 @@ import { useTabPanelState } from "./ChatsSidebar/tabs/SidebarTabView";
 type ChatSummaryPanelProps = {
 	chatId: string;
 	store: ChatStore;
-} & Pick<
-	EarlierMessagesProps,
-	| "hasMoreMessages"
-	| "isFetchingMoreMessages"
-	| "hasFetchMoreError"
-	| "onFetchMoreMessages"
->;
+} & Pick<EarlierMessagesProps, "hasMoreMessages">;
 
 export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 	chatId,
 	store,
-	...earlierMessages
+	hasMoreMessages,
 }) => {
 	const queryClient = useQueryClient();
 	const showCost = Boolean(useFeatureVisibility().aibridge);
@@ -52,10 +48,8 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 		...chatAttachments(queryClient, chatId, oldestLoadedMessageId),
 		enabled: isVisible && hasMoreMessages,
 	});
-	// The final transcript page clears hasMoreMessages before the store holds
-	// its messages, so the cached list covers them until hydration catches up.
 	const earlierAttachments =
-		(hasMoreMessages || isHydratingMessages) && earlierAttachmentsQuery.data
+		hasMoreMessages && earlierAttachmentsQuery.data
 			? getEarlierMessageAttachments(earlierAttachmentsQuery.data.attachments)
 			: [];
 	// A retry clears the error of a query with no data, so keep the retried
@@ -78,12 +72,10 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 		!earlierAttachmentsQuery.data &&
 		!earlierAttachmentsError;
 
-	// Gating on isHydratingMessages alone would blank the list on every live
-	// message.
-	const attachments =
-		isHydratingMessages && messages.length === 0
-			? undefined
-			: [...getMessageAttachments(messages), ...earlierAttachments];
+	const attachments = [
+		...getMessageAttachments(messages),
+		...earlierAttachments,
+	];
 
 	const evictedFileIds = deriveEvictedFileIds(
 		messages.map((message) => ({ message })),
@@ -114,7 +106,7 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 		<div className="flex h-full min-h-0 flex-col gap-6 overflow-y-auto p-4">
 			{content}
 			<ChatAttachments
-				attachments={getAgentAttachments(messages)}
+				attachments={attachments}
 				evictedFileIds={evictedFileIds}
 				isLoadingEarlierAttachments={isLoadingEarlierAttachments}
 				earlierAttachmentsError={earlierAttachmentsError}

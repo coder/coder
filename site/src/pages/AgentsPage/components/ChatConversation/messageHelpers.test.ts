@@ -9,7 +9,8 @@ import {
 	buildDisplayMessages,
 	deriveEvictedFileIds,
 	deriveMessageDisplayState,
-	getAgentAttachments,
+	getEarlierMessageAttachments,
+	getMessageAttachments,
 } from "./messageHelpers";
 import {
 	parseMessageContent,
@@ -803,6 +804,43 @@ describe("getMessageAttachments", () => {
 				role: "assistant",
 				file: mockPlanFile,
 				href: "/api/v2/chats/files/plan",
+			},
+		]);
+	});
+});
+
+describe("getEarlierMessageAttachments", () => {
+	it("keys the server's file parts like loaded ones, skipping empty parts", () => {
+		const mockEarlierAttachment: TypesGen.ChatAttachment = {
+			...MockChatAttachment,
+			message_id: 9,
+			part_index: 2,
+			role: "assistant",
+		};
+		const mockEmptyAttachment: TypesGen.ChatAttachment = {
+			...MockChatAttachment,
+			message_id: 8,
+			file: { type: "file", media_type: "text/plain" },
+		};
+
+		expect(
+			getEarlierMessageAttachments([
+				mockEarlierAttachment,
+				mockEmptyAttachment,
+				MockChatAttachment,
+			]),
+		).toEqual([
+			{
+				key: "9:2",
+				role: "assistant",
+				file: MockChatAttachment.file,
+				href: `/api/v2/chats/files/${MockChatFileMetadata.id}`,
+			},
+			{
+				key: `${MockChatAttachment.message_id}:0`,
+				role: "user",
+				file: MockChatAttachment.file,
+				href: `/api/v2/chats/files/${MockChatFileMetadata.id}`,
 			},
 		]);
 	});
