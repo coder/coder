@@ -51,19 +51,25 @@ type PendingSend = {
 	editedMessageId: number | null;
 };
 
+type ComposerContent = {
+	text: string;
+	editorState: string | undefined;
+	// File-reference and skill chips have no plain text.
+	hasFileReferences: boolean;
+};
+
+const hasContent = (content: ComposerContent) =>
+	Boolean(content.text.trim()) || content.hasFileReferences;
+
 // The composer content a failed send restores: the sent message, followed by
 // what was typed during the request.
-const restoredDraft = (
-	send: PendingSend,
-	typedText: string,
-	typedEditorState: string | undefined,
-) => {
-	if (!typedText.trim()) {
+const restoredDraft = (send: PendingSend, typed: ComposerContent) => {
+	if (!hasContent(typed)) {
 		return { text: send.message, editorState: send.editorState };
 	}
 	return {
-		text: `${send.message}\n\n${typedText}`,
-		editorState: joinEditorStates(send.editorState, typedEditorState),
+		text: `${send.message}\n\n${typed.text}`,
+		editorState: joinEditorStates(send.editorState, typed.editorState),
 	};
 };
 
@@ -119,6 +125,12 @@ export function useConversationEditingState(deps: {
 	const serializedEditorStateRef = useRef<string | undefined>(
 		initialEditorState,
 	);
+	const hasFileReferencesRef = useRef(false);
+	const composerContent = (): ComposerContent => ({
+		text: inputValueRef.current,
+		editorState: serializedEditorStateRef.current,
+		hasFileReferences: hasFileReferencesRef.current,
+	});
 	// The send in flight, from a submit's clear until it settles. While it is
 	// set, content changes save what a failure would restore as the draft, so
 	// a reload or unmount mid-send keeps the sent message and what was typed
@@ -336,16 +348,11 @@ export function useConversationEditingState(deps: {
 		pendingSendRef.current = snapshot;
 		chatInputRef.current?.clear();
 		inputValueRef.current = "";
-		chatInputRef.current?.clear();
-		setLoadedTarget(null);
-		setComposerMode("draft");
+		hasFileReferencesRef.current = false;
+		setEditingMessageId(null);
 
 		return () => {
-			const { text, editorState } = restoredDraft(
-				snapshot,
-				inputValueRef.current,
-				serializedEditorStateRef.current,
-			);
+			const { text, editorState } = restoredDraft(snapshot, composerContent());
 			setDraftState({
 				editorInitialValue: text,
 				initialEditorState: editorState,
@@ -362,7 +369,7 @@ export function useConversationEditingState(deps: {
 	// only what was typed during the request, which is the chat's draft now.
 	const finalizeSuccessfulSend = (editedMessageID: number | undefined) => {
 		const draft = serializedEditorStateRef.current;
-		if (inputValueRef.current.trim() && draft) {
+		if (hasContent(composerContent()) && draft) {
 			try {
 				localStorage.setItem(draftStorageKey, draft);
 			} catch {
@@ -432,26 +439,6 @@ export function useConversationEditingState(deps: {
 		serializedEditorStateRef.current = serializedEditorState;
 		hasFileReferencesRef.current = hasFileReferences;
 
-		if (loadedTarget?.target.kind === "queued") {
-			const loaded = loadedTarget.target;
-			if (isEditorChanged() && (content.trim() || hasFileReferences)) {
-				const savedEdit: SavedQueuedEdit = {
-					base: loadedTarget.base,
-					state: serializedEditorState,
-				};
-				try {
-					localStorage.setItem(
-						queuedEditStorageKey(loaded.id),
-						JSON.stringify(savedEdit),
-					);
-				} catch {
-					// QuotaExceededError, silently discard the saved edit.
-				}
-			} else {
-				removeQueuedEdit(loaded);
-			}
-		}
-
 		// Don't overwrite the persisted draft while editing a message.
 		// The original draft is saved in React state and should survive a cancel.
 		if (target !== null) {
@@ -462,7 +449,7 @@ export function useConversationEditingState(deps: {
 			if (pendingSend.editedMessageId !== null) {
 				return;
 			}
-			const draft = restoredDraft(pendingSend, content, serializedEditorState);
+			const draft = restoredDraft(pendingSend, composerContent());
 			const saved = draft.editorState ?? draft.text;
 			if (!saved) {
 				localStorage.removeItem(draftStorageKey);
@@ -476,7 +463,15 @@ export function useConversationEditingState(deps: {
 			return;
 		}
 
-		writeDraft(content, serializedEditorState, hasFileReferences);
+		if (hasContent(composerContent())) {
+			try {
+				localStorage.setItem(draftStorageKey, serializedEditorState);
+			} catch {
+				// QuotaExceededError, silently discard the draft.
+			}
+		} else {
+			localStorage.removeItem(draftStorageKey);
+		}
 	};
 
 	// Separate from handleContentChange, which avoids setState to prevent
