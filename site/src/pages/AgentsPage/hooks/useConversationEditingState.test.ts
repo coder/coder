@@ -478,6 +478,39 @@ describe("useConversationEditingState", () => {
 		unmount();
 	});
 
+	it("keeps text typed during a failed edit as the compose draft", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		result.current.chatInputRef.current = createMockChatInputHandle().handle;
+		const edit = createDeferred<undefined>();
+		onSend.mockReturnValueOnce(edit.promise);
+
+		act(() => {
+			result.current.handleContentChange("draft", "draft", false);
+		});
+		act(() => {
+			result.current.handleEditUserMessage(7, "old");
+		});
+		let sent: Promise<void> = Promise.resolve();
+		act(() => {
+			sent = result.current.handleSendFromInput({ message: "edited" });
+		});
+		act(() => {
+			result.current.handleContentChange("typed", "typed", false);
+		});
+		await act(async () => {
+			edit.reject(new Error("boom"));
+			await expect(sent).rejects.toThrow("boom");
+		});
+
+		expect(result.current.editingMessageId).toBe(7);
+		expect(result.current.editorInitialValue).toBe("edited");
+		act(() => {
+			result.current.handleCancelHistoryEdit();
+		});
+		expect(result.current.editorInitialValue).toBe("typed");
+		unmount();
+	});
+
 	it("ignores Edit while a send is pending", () => {
 		const { result, onSend, unmount } = renderEditing();
 		result.current.chatInputRef.current = createMockChatInputHandle().handle;
