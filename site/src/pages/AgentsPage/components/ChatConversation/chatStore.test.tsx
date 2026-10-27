@@ -2741,7 +2741,7 @@ describe("useChatStore", () => {
 		expect(watchChat).toHaveBeenNthCalledWith(3, chatID, 7);
 	});
 
-	it("renders a reopened chat without the previous visit's stream state", async () => {
+	it("renders a reopened chat without the previous visit's transient state", async () => {
 		const sockets = mockWatchChatWithFreshSockets();
 		const chatID = "chat-reopen-transient";
 		const wrapper = createWrapper(
