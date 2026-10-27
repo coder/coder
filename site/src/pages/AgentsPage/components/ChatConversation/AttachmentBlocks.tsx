@@ -170,7 +170,7 @@ export const getAttachmentDownload = (
 const DownloadOverlay: React.FC<AttachmentDownload> = (download) => (
 	<AttachmentDownloadLink
 		{...download}
-		className="absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-(--download-opacity) shadow-xs backdrop-blur-xs transition-opacity [visibility:var(--download-visibility)] hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+		className="absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-(--download-opacity) shadow-xs backdrop-blur-xs transition-opacity [pointer-events:var(--download-pointer-events)] hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 	>
 		<DownloadIcon aria-hidden="true" className="size-3.5" />
 	</AttachmentDownloadLink>
@@ -185,9 +185,9 @@ const AttachmentPreviewFrame: React.FC<{
 }> = ({ href, displayName, downloadName, mediaType, children }) => {
 	return (
 		// Variables instead of `group-focus-within`: WebKit restyles every
-		// ancestor's subtree for a descendant `:focus-within` rule. Hidden, the
-		// link is out of the tab order; focus on View shows it before the next Tab.
-		<div className="relative inline-flex flex-col items-start [--download-opacity:0] [--download-visibility:hidden] hover:[--download-opacity:1] hover:[--download-visibility:visible] focus-within:[--download-opacity:1] focus-within:[--download-visibility:visible] [@media(hover:none)]:[--download-opacity:1] [@media(hover:none)]:[--download-visibility:visible]">
+		// ancestor's subtree for a descendant `:focus-within` rule. The hidden
+		// link stays in the tab order and takes no pointer input.
+		<div className="relative inline-flex flex-col items-start [--download-opacity:0] [--download-pointer-events:none] hover:[--download-opacity:1] hover:[--download-pointer-events:auto] focus-within:[--download-opacity:1] focus-within:[--download-pointer-events:auto] [@media(hover:none)]:[--download-opacity:1] [@media(hover:none)]:[--download-pointer-events:auto]">
 			{children}
 			<DownloadOverlay
 				href={href}
