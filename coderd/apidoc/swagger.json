@@ -20417,7 +20417,7 @@
 					}
 				},
 				"snapshot_version": {
-					"description": "SnapshotVersion is the chat's snapshot_version, read before the rest\nof this page. The page can hold changes made after it; a stream opened\nwith it sends them again. Pass it as the stream's snapshot_version\nparameter. It is set only on pages requested without before_id or\nafter_id.",
+					"description": "SnapshotVersion is the chat's snapshot_version, read before the rest\nof this page. The page can hold changes made after it, and a stream\nopened with it sends them again. Pass it as the stream's\nsnapshot_version parameter. It is set only on pages requested without\nbefore_id or after_id.",
 					"type": "integer"
 				},
 				"turn_start_id": {

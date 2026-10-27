@@ -1106,10 +1106,10 @@ type ChatMessagesResponse struct {
 	// and when no prompt is at or before that message.
 	TurnStartID *int64 `json:"turn_start_id,omitempty"`
 	// SnapshotVersion is the chat's snapshot_version, read before the rest
-	// of this page. The page can hold changes made after it; a stream opened
-	// with it sends them again. Pass it as the stream's snapshot_version
-	// parameter. It is set only on pages requested without before_id or
-	// after_id.
+	// of this page. The page can hold changes made after it, and a stream
+	// opened with it sends them again. Pass it as the stream's
+	// snapshot_version parameter. It is set only on pages requested without
+	// before_id or after_id.
 	SnapshotVersion int64 `json:"snapshot_version,omitempty"`
 }
 
