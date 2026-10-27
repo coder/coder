@@ -1331,14 +1331,6 @@ export const AssistantMessageWithImage: Story = {
 		expect(
 			canvas.queryByRole("button", { name: "Copy message" }),
 		).not.toBeInTheDocument();
-		const viewButton = canvas.getByRole("button", {
-			name: "View generated-image.png",
-		});
-		viewButton.focus();
-		expect(viewButton).toHaveFocus();
-		// Tab from View reaches Download only once the frame's focus-within
-		// shows it.
-		await userEvent.tab();
 	},
 };
 
@@ -1348,6 +1340,17 @@ export const AssistantMessageWithImageViewFocused: Story = {
 	play: ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		canvas.getByRole("button", { name: "View generated-image.png" }).focus();
+	},
+};
+
+export const AssistantMessageWithImageDownloadFocused: Story = {
+	args: AssistantMessageWithImage.args,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		canvas.getByRole("button", { name: "View generated-image.png" }).focus();
+		// Focus on View sets the frame's :focus-within, which makes Download
+		// visible, so this Tab reaches it.
+		await userEvent.tab();
 	},
 };
 
