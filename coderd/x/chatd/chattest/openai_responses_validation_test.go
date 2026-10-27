@@ -33,7 +33,7 @@ func TestValidateResponsesAPIInput(t *testing.T) {
 		require.Contains(t, errResp.Message, "reasoning")
 	})
 
-	t.Run("rejects inline web search with id without reasoning", func(t *testing.T) {
+	t.Run("rejects web_search_call with id without reasoning", func(t *testing.T) {
 		t.Parallel()
 
 		errResp := chattest.ValidateResponsesAPIInput([]interface{}{

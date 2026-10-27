@@ -56,11 +56,12 @@ type OpenAIWebSearchCall struct {
 	Query string `json:"query,omitempty"`
 	// Sources are the pages the search found, reported in action.sources
 	// on the item's output_item.done. Like OpenAI, the server returns them
-	// only when the request includes web_search_call.action.sources.
+	// only for search actions and when the request includes
+	// web_search_call.action.sources.
 	Sources []string `json:"sources,omitempty"`
-	// SummaryOnlySources are added to the search's action.sources only in
-	// the response.completed output, as OpenAI does for pages the answer
-	// cited.
+	// SummaryOnlySources are added to a search action's action.sources
+	// only in the response.completed output, as OpenAI does for pages the
+	// answer cited.
 	SummaryOnlySources []string `json:"summary_only_sources,omitempty"`
 	// Status is the finished item's status. It defaults to "completed".
 	Status string `json:"status,omitempty"`
