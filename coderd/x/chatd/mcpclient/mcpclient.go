@@ -1333,8 +1333,9 @@ func (t *mcpToolWrapper) FullInputSchema() map[string]any {
 	// the root resource, so the resource identity ("$id", "$schema") and
 	// the definitions move up to the wrapper, where "#/$defs/..." keeps
 	// resolving, and every other pointer into the tool's schema is
-	// rebased onto its new location.
-	inner := toolschema.RewriteRefs(t.inputSchema, rebaseOntoModelIntentSchema)
+	// rebased onto its new location. A draft 4 schema names resources
+	// with "id", so it is first rewritten in draft 7, which uses "$id".
+	inner := toolschema.RewriteRefs(toolschema.UpgradeDraft4(t.inputSchema), rebaseOntoModelIntentSchema)
 	// The arguments get the object shape an unwrapped root is given.
 	// Without a type, models send them as a JSON string, and a null
 	// "properties" or "required" fails the provider request.
@@ -1398,9 +1399,7 @@ func (t *mcpToolWrapper) Run(
 
 	var args map[string]any
 	if input != "" {
-		if err := json.Unmarshal(
-			[]byte(input), &args,
-		); err != nil {
+		if err := unmarshalExact([]byte(input), &args); err != nil {
 			return fantasy.NewTextErrorResponse(
 				t.redactor.redactString("invalid JSON input: " + err.Error()),
 			), nil
@@ -1457,7 +1456,7 @@ func (t *mcpToolWrapper) SetProviderOptions(
 //  3. Anything else — returned as-is
 func unwrapModelIntent(input string) string {
 	var parsed map[string]any
-	if err := json.Unmarshal([]byte(input), &parsed); err != nil {
+	if err := unmarshalExact([]byte(input), &parsed); err != nil {
 		return input
 	}
 
@@ -1476,6 +1475,21 @@ func unwrapModelIntent(input string) string {
 	}
 
 	return input
+}
+
+// unmarshalExact decodes data like json.Unmarshal but keeps numbers as
+// json.Number, so arguments forwarded to the server keep the digits the
+// model wrote instead of rounding through float64.
+func unmarshalExact(data []byte, v any) error {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	if err := decoder.Decode(v); err != nil {
+		return err
+	}
+	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
+		return xerrors.New("invalid character after top-level value")
+	}
+	return nil
 }
 
 // fantasy permits one media payload per response, so only the first eligible

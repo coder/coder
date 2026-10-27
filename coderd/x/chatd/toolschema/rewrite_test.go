@@ -353,6 +353,68 @@ func TestNormalize(t *testing.T) {
 				}
 			}`,
 		},
+		{
+			// A dynamic reference resolves like a reference when no other
+			// schema declares its dynamic anchor, and root folding follows
+			// only references.
+			name: "dynamic references to anchors declared once become pointers",
+			schema: `{
+				"properties": {
+					"tree": {"$dynamicRef": "#node"},
+					"plain": {"$dynamicRef": "#leaf"},
+					"extended": {"$dynamicRef": "#meta"},
+					"nested": {"$id": "nested.json", "$defs": {"M": {"$dynamicAnchor": "meta"}}}
+				},
+				"$defs": {
+					"Node": {"$dynamicAnchor": "node", "items": {"$dynamicRef": "#node"}},
+					"Leaf": {"$anchor": "leaf", "type": "string"},
+					"Meta": {"$dynamicAnchor": "meta", "type": "object"}
+				}
+			}`,
+			want: `{
+				"properties": {
+					"tree": {"$ref": "#/$defs/Node"},
+					"plain": {"$ref": "#/$defs/Leaf"},
+					"extended": {"$dynamicRef": "#meta"},
+					"nested": {"$id": "nested.json", "$defs": {"M": {"$dynamicAnchor": "meta"}}}
+				},
+				"$defs": {
+					"Node": {"$dynamicAnchor": "node", "items": {"$ref": "#/$defs/Node"}},
+					"Leaf": {"$anchor": "leaf", "type": "string"},
+					"Meta": {"$dynamicAnchor": "meta", "type": "object"}
+				}
+			}`,
+		},
+		{
+			// Draft 4 names resources and anchors with "id" and spells
+			// exclusive bounds as booleans. "id" as a property name or in
+			// instance data stays.
+			name: "draft 4 is rewritten in draft 7",
+			schema: `{
+				"$schema": "http://json-schema.org/draft-04/schema#",
+				"id": "https://example.com/tool.json",
+				"properties": {
+					"id": {"type": "string", "default": {"id": "kept"}},
+					"low": {"type": "number", "minimum": 1, "exclusiveMinimum": true},
+					"high": {"type": "number", "maximum": 9, "exclusiveMaximum": false},
+					"args": {"$ref": "#args"},
+					"kind": {"enum": [{"kind": "x"}]}
+				},
+				"definitions": {"Args": {"id": "#args", "type": "object"}}
+			}`,
+			want: `{
+				"$schema": "http://json-schema.org/draft-07/schema#",
+				"$id": "https://example.com/tool.json",
+				"properties": {
+					"id": {"type": "string", "default": {"id": "kept"}},
+					"low": {"type": "number", "exclusiveMinimum": 1},
+					"high": {"type": "number", "maximum": 9},
+					"args": {"$ref": "#/definitions/Args"},
+					"kind": {"anyOf": [{"const": {"kind": "x"}}]}
+				},
+				"definitions": {"Args": {"$anchor": "args", "type": "object"}}
+			}`,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

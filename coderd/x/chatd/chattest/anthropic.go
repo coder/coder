@@ -44,7 +44,8 @@ type AnthropicRequestMessage struct {
 
 // AnthropicRequestTool represents a tool in an Anthropic request.
 type AnthropicRequestTool struct {
-	Name string `json:"name"`
+	Name        string          `json:"name"`
+	InputSchema json.RawMessage `json:"input_schema,omitempty"`
 }
 
 // AnthropicMessage represents a message in an Anthropic response.

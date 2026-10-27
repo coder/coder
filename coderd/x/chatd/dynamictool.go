@@ -74,6 +74,7 @@ func dynamicToolsFromSDK(logger slog.Logger, tools []codersdk.DynamicTool) []fan
 						slog.F("tool_name", t.Name),
 						slog.Error(err))
 				} else {
+					rawNumbers(full)
 					dt.inputSchema = full
 				}
 			}
@@ -104,6 +105,31 @@ func dynamicToolsFromSDK(logger slog.Logger, tools []codersdk.DynamicTool) []fan
 			slog.F("max_total_schema_bytes", maxDynamicToolSchemasBytes))
 	}
 	return result
+}
+
+// rawNumbers replaces every json.Number below value with the same digits
+// as a json.RawMessage, in place. The provider SDK encoders write a
+// json.Number as a JSON string, which turns "minLength": 3 into an
+// invalid schema, but they write a json.Marshaler's output as is.
+func rawNumbers(value any) {
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, item := range typed {
+			typed[key] = rawNumber(item)
+		}
+	case []any:
+		for i, item := range typed {
+			typed[i] = rawNumber(item)
+		}
+	}
+}
+
+func rawNumber(value any) any {
+	if number, ok := value.(json.Number); ok {
+		return json.RawMessage(number)
+	}
+	rawNumbers(value)
+	return value
 }
 
 // Caps on full dynamic tool input schemas, matching the definition caps

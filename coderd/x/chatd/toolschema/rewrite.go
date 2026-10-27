@@ -41,23 +41,31 @@ var (
 )
 
 // Normalize returns a copy of a schema in the shapes provider drivers
-// accept: every type list is rewritten into an equivalent "anyOf", every
+// accept: a draft 4 schema is rewritten in draft 7 (see UpgradeDraft4),
+// every type list is rewritten into an equivalent "anyOf", every
 // array schema without "items" gets an empty one, an "enum" with an
 // array or object member becomes an "anyOf" of "const" values, "$id"
 // loses its fragment, which becomes an "$anchor" when it names one, a
 // reference that names the root resource by URI becomes a fragment
 // reference, and a reference to an anchor that the root resource declares
-// once becomes a JSON Pointer reference. Instance data such as "const"
-// and "enum" values keeps its exact shape. The source is not modified.
+// once becomes a JSON Pointer reference. So does a "$dynamicRef" to such
+// an anchor that no other schema declares as a dynamic anchor, since it
+// then resolves like "$ref". Instance data such as "const" and "enum"
+// values keeps its exact shape. The source is not modified.
 func Normalize(schema map[string]any) map[string]any {
+	schema = UpgradeDraft4(schema)
 	pointers := map[string]string{}
 	duplicated := map[string]bool{}
+	dynamicAnchors := map[string]int{}
 	normalized := copyNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
 		// Read before normalizing, which drops a "$id" anchor when the
 		// node also declares "$anchor".
 		var anchors []string
 		if !scope.nested {
 			anchors = declaredAnchors(node)
+		}
+		if name, ok := node["$dynamicAnchor"].(string); ok {
+			dynamicAnchors[name]++
 		}
 		normalizeNode(node, scope)
 		for _, anchor := range anchors {
@@ -73,20 +81,70 @@ func Normalize(schema map[string]any) map[string]any {
 	// Some providers ignore anchors, and validators of drafts before
 	// 2019-09 do not read "$anchor", but all of them follow a JSON
 	// Pointer. Normalizing kept every subschema at its source path.
+	pointerRef := func(ref string, scope refScope) (string, bool) {
+		fragment, ok := scope.rootFragment(ref)
+		if !ok || duplicated[fragment] {
+			return "", false
+		}
+		pointer, ok := pointers[fragment]
+		if !ok {
+			return "", false
+		}
+		prefix, _, _ := strings.Cut(ref, "#")
+		return prefix + "#" + pointer, true
+	}
 	return copyNode(normalized, rootScope(normalized), func(node map[string]any, scope refScope) {
-		ref, ok := node["$ref"].(string)
+		if ref, ok := node["$ref"].(string); ok {
+			if pointer, ok := pointerRef(ref, scope); ok {
+				node["$ref"] = pointer
+			}
+			return
+		}
+		// Root folding follows only "$ref" into the keywords it removes.
+		ref, ok := node["$dynamicRef"].(string)
 		if !ok {
 			return
 		}
-		fragment, ok := scope.rootFragment(ref)
-		if !ok || duplicated[fragment] {
+		if _, fragment, _ := strings.Cut(ref, "#"); dynamicAnchors[fragment] > 1 {
 			return
 		}
-		if pointer, ok := pointers[fragment]; ok {
-			prefix, _, _ := strings.Cut(ref, "#")
-			node["$ref"] = prefix + "#" + pointer
+		if pointer, ok := pointerRef(ref, scope); ok {
+			node["$ref"] = pointer
+			delete(node, "$dynamicRef")
 		}
 	})
+}
+
+// UpgradeDraft4 returns a copy of a schema that declares draft 4,
+// rewritten in draft 7, which names resources with "$id" and has
+// "const", as the rest of the rewriting and the providers expect. "id"
+// becomes "$id", and a boolean "exclusiveMinimum" or "exclusiveMaximum"
+// becomes the number that draft 7 expects. Other schemas are returned
+// as is.
+func UpgradeDraft4(schema map[string]any) map[string]any {
+	dialect, _ := schema["$schema"].(string)
+	if !strings.Contains(dialect, "json-schema.org/draft-04/schema") {
+		return schema
+	}
+	upgraded := copyNode(schema, refScope{}, func(node map[string]any, _ refScope) {
+		if id, ok := node["id"].(string); ok {
+			node["$id"] = id
+			delete(node, "id")
+		}
+		for exclusive, inclusive := range map[string]string{"exclusiveMinimum": "minimum", "exclusiveMaximum": "maximum"} {
+			isExclusive, ok := node[exclusive].(bool)
+			if !ok {
+				continue
+			}
+			delete(node, exclusive)
+			if bound, ok := node[inclusive]; ok && isExclusive {
+				node[exclusive] = bound
+				delete(node, inclusive)
+			}
+		}
+	})
+	upgraded["$schema"] = "http://json-schema.org/draft-07/schema#"
+	return upgraded
 }
 
 func normalizeNode(node map[string]any, scope refScope) {
@@ -153,11 +211,14 @@ func normalizeNode(node map[string]any, scope refScope) {
 var anchorName = regexp.MustCompile(`^[A-Za-z_][-A-Za-z0-9._]*$`)
 
 // declaredAnchors returns the plain-name anchors node declares, with
-// "$anchor" or, as drafts before 2019-09 did, with a "$id" fragment.
+// "$anchor" or "$dynamicAnchor" or, as drafts before 2019-09 did, with a
+// "$id" fragment.
 func declaredAnchors(node map[string]any) []string {
 	var anchors []string
-	if anchor, ok := node["$anchor"].(string); ok && anchorName.MatchString(anchor) {
-		anchors = append(anchors, anchor)
+	for _, key := range []string{"$anchor", "$dynamicAnchor"} {
+		if anchor, ok := node[key].(string); ok && anchorName.MatchString(anchor) && !slices.Contains(anchors, anchor) {
+			anchors = append(anchors, anchor)
+		}
 	}
 	if id, ok := node["$id"].(string); ok {
 		if _, fragment, _ := strings.Cut(id, "#"); anchorName.MatchString(fragment) && !slices.Contains(anchors, fragment) {
