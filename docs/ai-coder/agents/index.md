@@ -123,6 +123,8 @@ The agent can resume work by creating a new workspace with the same template and
 
 Users can send follow-up messages while the agent is actively working.
 Messages are queued and delivered when the agent completes its current step, so there is no need to wait for a response before providing additional context or changing direction.
+Users can edit a queued message before it is delivered.
+While it is being edited, it and the messages behind it wait.
 
 ### File attachments
 
