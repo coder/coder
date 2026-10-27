@@ -42,8 +42,8 @@ export const SingleImage: Story = {
 };
 
 // Keyboard focus on the card, Paste inline or Remove shows both buttons.
-// Hidden buttons leave the tab order, so Tab reaches Paste and Remove only
-// once focus on the card shows them.
+// Hidden buttons stay in the tab order, so Shift+Tab from after the card
+// reaches Remove and then Paste inline.
 export const CardFocused: Story = {
 	args: (() => {
 		const file = createMockFile("clipboard.txt", "text/plain", 2048);
@@ -65,8 +65,8 @@ export const PasteFocused: Story = {
 	args: CardFocused.args,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.tab();
-		await userEvent.tab();
+		await userEvent.tab({ shift: true });
+		await userEvent.tab({ shift: true });
 		expect(canvas.getByRole("button", { name: "Paste inline" })).toHaveFocus();
 	},
 };
@@ -75,9 +75,7 @@ export const RemoveFocused: Story = {
 	args: CardFocused.args,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.tab();
-		await userEvent.tab();
-		await userEvent.tab();
+		await userEvent.tab({ shift: true });
 		expect(
 			canvas.getByRole("button", { name: "Remove clipboard.txt" }),
 		).toHaveFocus();
