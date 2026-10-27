@@ -481,35 +481,60 @@ describe("ConversationTimeline async questions", () => {
 		);
 	});
 
-	it("copies a delivered answer without its prefix line", async () => {
-		const user = userEvent.setup();
-		const writeText = vi
-			.spyOn(navigator.clipboard, "writeText")
-			.mockResolvedValue();
-		renderTimeline({
-			messages: [
-				...MockAsyncQuestionMessages,
+	it.each<[string, ChatMessage["content"]]>([
+		[
+			"text",
+			[
 				{
-					...MockChatMessage,
-					id: 6,
-					role: "user",
-					created_at: workingFixtureTime(7),
-					content: [
-						{
-							type: "text",
-							text: "Answer to ask_user_question call question:\nBackend",
-						},
-					],
+					type: "text",
+					text: "Answer to ask_user_question call question:\nBackend",
 				},
 			],
-		});
+		],
+		[
+			// The server trims each text part, so the prefix line loses its
+			// line break when a chip follows it.
+			"a leading skill chip",
+			[
+				{ type: "text", text: "Answer to ask_user_question call question:" },
+				{
+					type: "skill-invocation",
+					skill_source: "project",
+					skill_name: "triage",
+				},
+				{ type: "text", text: "Backend" },
+			],
+		],
+	])(
+		"copies a delivered answer with %s without its prefix line",
+		async (_, content) => {
+			const user = userEvent.setup();
+			const writeText = vi
+				.spyOn(navigator.clipboard, "writeText")
+				.mockResolvedValue();
+			renderTimeline({
+				messages: [
+					...MockAsyncQuestionMessages,
+					{
+						...MockChatMessage,
+						id: 6,
+						role: "user",
+						created_at: workingFixtureTime(7),
+						content,
+					},
+				],
+			});
 
-		await user.click(
-			within(screen.getByTestId("chat-message-message:6")).getByRole("button", {
-				name: "Copy message",
-			}),
-		);
+			await user.click(
+				within(screen.getByTestId("chat-message-message:6")).getByRole(
+					"button",
+					{
+						name: "Copy message",
+					},
+				),
+			);
 
-		expect(writeText).toHaveBeenCalledWith("Backend");
-	});
+			expect(writeText).toHaveBeenCalledWith("Backend");
+		},
+	);
 });

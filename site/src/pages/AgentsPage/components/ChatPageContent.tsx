@@ -59,6 +59,7 @@ import {
 	useChatMessages,
 	useChatSelector,
 	type useChatStore,
+	useUndeliveredQueuedMessages,
 } from "./ChatConversation/chatStore";
 import {
 	LiveStreamTailContent,
@@ -178,7 +179,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 		store,
 		selectSubagentStatusOverrides,
 	);
-	const queuedMessages = useChatSelector(store, selectQueuedMessages);
+	const queuedMessages = useUndeliveredQueuedMessages(store);
 	const isChatCompleted = !hasStream;
 
 	const liveStreamState =

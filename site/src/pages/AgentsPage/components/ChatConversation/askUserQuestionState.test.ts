@@ -119,6 +119,37 @@ describe("deriveAskUserQuestionState", () => {
 		expect(state.openAsyncQuestion).toBeUndefined();
 	});
 
+	it("answers an async question when a chip follows the prefix line", () => {
+		// The server trims each text part, so the prefix line loses its line
+		// break when a chip follows it.
+		const content: ChatMessage["content"] = [
+			{ type: "text", text: "Answer to ask_user_question call async-call:" },
+			{
+				type: "skill-invocation",
+				skill_source: "project",
+				skill_name: "triage",
+			},
+			{ type: "text", text: "Single migration" },
+		];
+		const messages = questionStep("async-call", { async: true });
+
+		const delivered = derive([
+			...messages,
+			{ ...MockChatMessage, id: nextMessageId++, role: "user", content },
+		]);
+		const queuedAnswer = derive(messages, {
+			queuedMessages: [{ ...MockChatQueuedMessage, content }],
+		});
+
+		expect(delivered.isLatestAnswered).toBe(true);
+		expect(delivered.responseTextByToolId.get("async-call")).toBe(
+			answerMessage("async-call"),
+		);
+		expect(queuedAnswer.responseTextByToolId.get("async-call")).toBe(
+			answerMessage("async-call"),
+		);
+	});
+
 	it("answers a blocking question with the next user message", () => {
 		const state = derive([
 			...questionStep("blocking-call"),

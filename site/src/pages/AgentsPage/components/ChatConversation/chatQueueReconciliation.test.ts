@@ -1,3 +1,4 @@
+import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { ChatMessage, ChatQueuedMessage } from "#/api/typesGenerated";
 import {
@@ -12,7 +13,7 @@ import {
 	settlePromotedQueueHead,
 	submitEdit,
 } from "./chatQueueReconciliation";
-import { createChatStore } from "./chatStore";
+import { createChatStore, useUndeliveredQueuedMessages } from "./chatStore";
 
 describe("restoreOptimisticRequestSnapshot", () => {
 	it("restores queued messages, stream output, status, and stream error", () => {
@@ -88,6 +89,34 @@ describe("runPromoteQueuedMessage", () => {
 		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([a.id, c.id]);
 		expect(snapshot.suppressedQueuedMessageIDs.has(b.id)).toBe(true);
 		expect(snapshot.chatStatus).toBe("running");
+	});
+
+	it("keeps the promoted message undelivered until the server's queue drops it", async () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		store.setQueuedMessages([a, b]);
+		store.setChatStatus("running");
+		const { result } = renderHook(() => useUndeliveredQueuedMessages(store));
+
+		await act(() =>
+			runPromoteQueuedMessage({
+				id: b.id,
+				store,
+				promoteQueuedMessage: async () => undefined,
+				agentId: "chat-1",
+				clearChatErrorReason: vi.fn(),
+				onError: vi.fn(),
+			}),
+		);
+		expect(result.current).toEqual([a, b]);
+
+		// A running chat first moves the promoted message to the queue's head.
+		act(() => store.applyAuthoritativeQueuedMessages([b, a]));
+		expect(result.current).toEqual([a, b]);
+
+		act(() => store.applyAuthoritativeQueuedMessages([a]));
+		expect(result.current).toEqual([a]);
 	});
 
 	it("rolls back queue and status, clears suppression, and rethrows on API error", async () => {
