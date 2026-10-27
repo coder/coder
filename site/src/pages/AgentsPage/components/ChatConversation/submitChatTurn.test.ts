@@ -264,7 +264,7 @@ describe("submitChatTurn", () => {
 		expect(toast.error).toHaveBeenCalled();
 	});
 
-	it("edits with a recovered model and scrolls to the end", async () => {
+	it("edits with a recovered model without scrolling", async () => {
 		const originalMessage: ChatMessage = {
 			...MockChatMessage,
 			id: 5,
