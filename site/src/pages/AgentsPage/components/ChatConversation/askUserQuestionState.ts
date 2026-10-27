@@ -18,9 +18,19 @@ const getTextContent = (
 	return text.length > 0 ? text : undefined;
 };
 
-// A call that failed validation asked nothing, so it supersedes nothing.
+// A call asks nothing until its result shows it passed validation, so until
+// then it supersedes nothing.
 const isValidAskUserQuestion = (tool: MergedTool): boolean =>
-	tool.name === "ask_user_question" && !tool.isError;
+	tool.name === "ask_user_question" && tool.status === "completed";
+
+// Providers can reuse a call ID, so an answer queued before the newest call
+// with its ID answers an older call.
+const isQueuedBeforeCall = (
+	queuedMessage: TypesGen.ChatQueuedMessage,
+	callStartedAt: string | undefined,
+): boolean =>
+	callStartedAt !== undefined &&
+	Date.parse(queuedMessage.created_at) < Date.parse(callStartedAt);
 
 /**
  * A blocking question is answered by the next user message that does not
@@ -36,8 +46,14 @@ export const deriveAskUserQuestionState = (
 	let isLatestAnswered = false;
 	let pendingBlockingToolId: string | undefined;
 	const responseTextByToolId = new Map<string, string>();
+	const startedAtByToolId = new Map<string, string | undefined>();
 
 	for (const { message, parsed } of parsedMessages) {
+		// The parser merges the results in a tool message into the calls
+		// before it, and only the calls know when they started.
+		if (message.role === "tool") {
+			continue;
+		}
 		for (const tool of parsed.tools) {
 			if (!isValidAskUserQuestion(tool)) {
 				continue;
@@ -47,6 +63,7 @@ export const deriveAskUserQuestionState = (
 			// Providers can reuse a call ID in a later turn, so only the answers
 			// that follow this call count for it.
 			responseTextByToolId.delete(tool.id);
+			startedAtByToolId.set(tool.id, tool.startedAt);
 			pendingBlockingToolId = isAsyncAskUserQuestionResult(tool.result)
 				? undefined
 				: tool.id;
@@ -72,22 +89,27 @@ export const deriveAskUserQuestionState = (
 		}
 	}
 
-	// A question still in the stream is newer than every persisted one once
-	// its result shows it is valid.
-	const liveQuestion = liveTools.findLast(
-		(tool) => isValidAskUserQuestion(tool) && tool.status === "completed",
-	);
+	// A question still in the stream is newer than every persisted one.
+	const liveQuestion = liveTools.findLast(isValidAskUserQuestion);
 	if (liveQuestion) {
 		latestToolId = liveQuestion.id;
 		isLatestAnswered = false;
 		responseTextByToolId.delete(liveQuestion.id);
+		startedAtByToolId.set(liveQuestion.id, liveQuestion.startedAt);
 	}
 
 	// A queued answer is not delivered yet, but it already answers its call,
 	// so another tab or a reload does not offer the question again.
 	for (const queuedMessage of queuedMessages) {
 		const asyncAnswer = parseAsyncAnswerContent(queuedMessage.content);
-		if (asyncAnswer && !responseTextByToolId.has(asyncAnswer.toolCallId)) {
+		if (
+			asyncAnswer &&
+			!responseTextByToolId.has(asyncAnswer.toolCallId) &&
+			!isQueuedBeforeCall(
+				queuedMessage,
+				startedAtByToolId.get(asyncAnswer.toolCallId),
+			)
+		) {
 			responseTextByToolId.set(asyncAnswer.toolCallId, asyncAnswer.text);
 		}
 	}

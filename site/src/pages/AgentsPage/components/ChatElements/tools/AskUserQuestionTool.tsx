@@ -603,7 +603,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 			<div className="space-y-5">
 				{visibleQuestions.map(({ question, questionIndex }) => {
 					const questionKey = `${question.header}-${question.question}-${questionIndex}`;
-					if (showAnsweredState) {
+					if (showAnsweredState || isClosed) {
 						return (
 							<AnsweredQuestionText
 								key={questionKey}
