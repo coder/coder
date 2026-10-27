@@ -16,6 +16,7 @@ import { MockChatFileMetadata } from "#/testHelpers/chatEntities";
 import { MockUserPreferenceSettings } from "#/testHelpers/entities";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { getChatFileURL } from "../../utils/chatAttachments";
+import { getAsyncAnswerPrefix } from "../ChatElements/tools/asyncAnswer";
 import { ChatMessageScroller } from "../ChatMessageScroller";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
@@ -798,6 +799,15 @@ export const UserMessageBubbleAlignment: Story = {
 
 		await userEvent.hover(userRow?.parentElement as HTMLElement);
 	},
+};
+
+/** An async question answer shows an Answer label in place of its call line. */
+export const UserMessageAsyncQuestionAnswer: Story = {
+	args: buildStoryArgs(
+		buildUserMessage({
+			text: `${getAsyncAnswerPrefix("ask-tool-async")}${askUserQuestionSubmittedResponse}`,
+		}),
+	),
 };
 
 /** Regression guard: a single image attachment must not be duplicated. */

@@ -290,6 +290,11 @@ describe("useConversationEditingState", () => {
 
 	it("edits an async answer without its prefix line and sends it back with the line", async () => {
 		const { result, onSend, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle();
+		vi.mocked(mockInput.handle.getContentParts).mockReturnValue([
+			{ type: "text", text: "Frontend" },
+		]);
+		result.current.chatInputRef.current = mockInput.handle;
 
 		act(() => {
 			result.current.handleEditUserMessage(
@@ -308,7 +313,56 @@ describe("useConversationEditingState", () => {
 			attachments: undefined,
 			workspaceUploads: undefined,
 			editedMessageID: 7,
+			composerParts: [
+				{
+					type: "text",
+					text: "Answer to ask_user_question call question:\nFrontend",
+				},
+			],
 		});
+		unmount();
+	});
+
+	it("puts an edited async answer's prefix line before a leading chip", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle();
+		const fileReference = {
+			type: "file-reference",
+			reference: {
+				fileName: "main.go",
+				startLine: 1,
+				endLine: 2,
+				content: "package main",
+			},
+		} as const;
+		vi.mocked(mockInput.handle.getContentParts).mockReturnValue([
+			fileReference,
+			{ type: "text", text: " Frontend" },
+		]);
+		result.current.chatInputRef.current = mockInput.handle;
+
+		act(() => {
+			result.current.handleEditUserMessage(
+				7,
+				"Answer to ask_user_question call question:\nBackend",
+			);
+		});
+		await act(async () => {
+			await result.current.handleSendFromInput({ message: " Frontend" });
+		});
+
+		expect(onSend).toHaveBeenCalledWith(
+			expect.objectContaining({
+				composerParts: [
+					{
+						type: "text",
+						text: "Answer to ask_user_question call question:\n",
+					},
+					fileReference,
+					{ type: "text", text: " Frontend" },
+				],
+			}),
+		);
 		unmount();
 	});
 
