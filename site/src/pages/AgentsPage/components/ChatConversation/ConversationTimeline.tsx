@@ -22,7 +22,6 @@ import { MessageScroller, useMessageScroller } from "#/vendor/message-scroller";
 import { ConversationItem } from "../ChatElements/Conversation";
 import { Message, MessageContent } from "../ChatElements/Message";
 import { Response } from "../ChatElements/Response";
-import { parseAsyncAnswer } from "../ChatElements/tools/asyncAnswer";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
@@ -43,7 +42,10 @@ import {
 	deriveMessageDisplayState,
 	getVisibleContent,
 } from "./messageHelpers";
-import { getEditableUserMessagePayload } from "./messageParsing";
+import {
+	getEditableUserMessagePayload,
+	parseAsyncAnswerContent,
+} from "./messageParsing";
 import { assignTimelineRows } from "./timelineRows";
 import type {
 	MergedTool,
@@ -335,7 +337,7 @@ const ChatMessageItem = memo<{
 								<CopyButton
 									text={
 										isUser
-											? (parseAsyncAnswer(parsed.markdown)?.body ??
+											? (parseAsyncAnswerContent(message.content)?.body ??
 												parsed.markdown)
 											: parsed.markdown
 									}

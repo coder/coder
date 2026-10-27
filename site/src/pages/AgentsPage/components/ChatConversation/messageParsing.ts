@@ -1,7 +1,10 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatAttachmentMediaTypes } from "#/api/typesGenerated";
 import { asRecord, asString } from "../ChatElements/runtimeTypeUtils";
-import { parseAsyncAnswer } from "../ChatElements/tools/asyncAnswer";
+import {
+	getAsyncAnswerPrefix,
+	parseAsyncAnswer,
+} from "../ChatElements/tools/asyncAnswer";
 import {
 	getProvidedSubagentTitle,
 	getSubagentChatId,
@@ -379,6 +382,19 @@ const isEditableUserMessageFileBlock = (
 	// preserves the reference (or drops it when the chip is removed).
 	block.type === "workspace-file-reference";
 
+/**
+ * Concatenates text parts verbatim to match the server-side string_agg in
+ * GetChatUserPromptsByChatID; parseMessageContent/appendText drops leading
+ * whitespace-only chunks.
+ */
+const getMessageText = (
+	content: readonly TypesGen.ChatMessagePart[] | undefined,
+): string =>
+	(content ?? [])
+		.filter((part): part is TypesGen.ChatTextPart => part.type === "text")
+		.map((part) => part.text)
+		.join("");
+
 // The composer edits an async answer without its prefix line, and the send
 // adds the line back.
 const withoutAsyncAnswerPrefix = (
@@ -394,6 +410,25 @@ const withoutAsyncAnswerPrefix = (
 		: content;
 };
 
+/**
+ * Reads an async answer from its message parts. The joined message text
+ * cannot show where the call ID ends when a chip follows the prefix line,
+ * so only the first part is parsed.
+ */
+export const parseAsyncAnswerContent = (
+	content: readonly TypesGen.ChatMessagePart[] | undefined,
+): { toolCallId: string; body: string } | undefined => {
+	const [firstPart, ...restParts] = content ?? [];
+	const answer =
+		firstPart?.type === "text" ? parseAsyncAnswer(firstPart.text) : undefined;
+	return (
+		answer && {
+			toolCallId: answer.toolCallId,
+			body: answer.body + getMessageText(restParts),
+		}
+	);
+};
+
 export const getEditableUserMessagePayload = (
 	message: TypesGen.ChatMessage,
 ): {
@@ -402,13 +437,13 @@ export const getEditableUserMessagePayload = (
 	/** Restores skill chips in place; undefined when there are none. */
 	editorState: string | undefined;
 } => {
-	// Concatenate text parts verbatim to match the server-side string_agg in
-	// GetChatUserPromptsByChatID; parseMessageContent/appendText drops leading
-	// whitespace-only chunks.
-	const text = (message.content ?? [])
-		.filter((part): part is TypesGen.ChatTextPart => part.type === "text")
-		.map((part) => part.text)
-		.join("");
+	const answer = parseAsyncAnswerContent(message.content);
+	// The editing state reads the answered call from the text's prefix line,
+	// so the line gets back the line break that the server trims when a chip
+	// follows it.
+	const text = answer
+		? getAsyncAnswerPrefix(answer.toolCallId) + answer.body
+		: getMessageText(message.content);
 	const parsed = parseMessageContent(message.content);
 	const fileBlocks = parsed.blocks.filter(isEditableUserMessageFileBlock);
 	return {
