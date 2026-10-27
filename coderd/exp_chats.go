@@ -5213,11 +5213,7 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sanitizedPrompt := codersdk.SanitizePromptText(req.SystemPrompt)
-	if len(sanitizedPrompt) > api.chatLimits.MaxPromptBytes {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "System prompt exceeds maximum length.",
-			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", api.chatLimits.MaxPromptBytes, len(sanitizedPrompt)),
-		})
+	if api.writePromptTooLongError(ctx, rw, sanitizedPrompt, "System prompt exceeds maximum length.") {
 		return
 	}
 
@@ -5363,11 +5359,7 @@ func (api *API) putOrganizationChatSystemPrompt(rw http.ResponseWriter, r *http.
 		return
 	}
 	sanitizedPrompt := codersdk.SanitizePromptText(req.SystemPrompt)
-	if len(sanitizedPrompt) > api.chatLimits.MaxPromptBytes {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "System prompt exceeds maximum length.",
-			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", api.chatLimits.MaxPromptBytes, len(sanitizedPrompt)),
-		})
+	if api.writePromptTooLongError(ctx, rw, sanitizedPrompt, "System prompt exceeds maximum length.") {
 		return
 	}
 
@@ -5486,11 +5478,7 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 	}
 
 	sanitizedInstructions := codersdk.SanitizePromptText(req.PlanModeInstructions)
-	if len(sanitizedInstructions) > api.chatLimits.MaxPromptBytes {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Plan mode instructions exceed maximum length.",
-			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", api.chatLimits.MaxPromptBytes, len(sanitizedInstructions)),
-		})
+	if api.writePromptTooLongError(ctx, rw, sanitizedInstructions, "Plan mode instructions exceed maximum length.") {
 		return
 	}
 
@@ -6698,12 +6686,7 @@ func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 	}
 
 	sanitizedPrompt := codersdk.SanitizePromptText(params.CustomPrompt)
-	// The same limit applies as for the deployment system prompt.
-	if len(sanitizedPrompt) > api.chatLimits.MaxPromptBytes {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Custom prompt exceeds maximum length.",
-			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", api.chatLimits.MaxPromptBytes, len(sanitizedPrompt)),
-		})
+	if api.writePromptTooLongError(ctx, rw, sanitizedPrompt, "Custom prompt exceeds maximum length.") {
 		return
 	}
 
@@ -7905,6 +7888,17 @@ func createChatInputFromParts(
 // maxChatRequestBodyBytes, so small limits still return the 400 length error.
 func (api *API) maxPromptRequestBodyBytes() int64 {
 	return max(maxChatRequestBodyBytes, 2*int64(api.chatLimits.MaxPromptBytes))
+}
+
+func (api *API) writePromptTooLongError(ctx context.Context, rw http.ResponseWriter, sanitized, message string) bool {
+	if len(sanitized) <= api.chatLimits.MaxPromptBytes {
+		return false
+	}
+	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		Message: message,
+		Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", api.chatLimits.MaxPromptBytes, len(sanitized)),
+	})
+	return true
 }
 
 func (api *API) chatFileError(err error) error {
