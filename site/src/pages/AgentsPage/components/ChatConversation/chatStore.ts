@@ -124,17 +124,17 @@ type QueueEdit = (
  * The expected result of a pending action, computed at the click from the
  * shown state. The store shows each part until a stream update of that
  * part's kind ends it, unless the update is at or below syncedVersion or
- * isRowDone rejects it.
+ * isRowGone returns false.
  */
 type PendingEntry = {
 	id: number;
 	// The snapshot version synced at the click. The request's result has a
 	// higher version, so an event at or below it ends no part.
 	syncedVersion: number;
-	// Set for a delete. A deleted row's ID never returns, so the first queue
-	// update without the row is the delete's own, and another row's update
-	// does not end it.
-	isRowDone?: (rows: readonly TypesGen.ChatQueuedMessage[]) => boolean;
+	// Set for a delete. A row's ID never returns to the queue, so the part
+	// ends at the first queue update without the row, whichever commit
+	// removed it.
+	isRowGone?: (rows: readonly TypesGen.ChatQueuedMessage[]) => boolean;
 	// The message the request adds. The next user message or queue update
 	// ends it, because the server queues the message when the chat is busy.
 	message?: { shown?: TypesGen.ChatMessage; queue?: QueueEdit };
@@ -174,12 +174,10 @@ export type ChatStore = {
 	subscribe: (listener: () => void) => () => void;
 	batch: (fn: () => void) => void;
 	// Fills a new store with the newest messages page. After that, only
-	// stream events and older pages change the stored state.
+	// stream events and older pages change its messages and queue.
 	seed: (page: TypesGen.ChatMessagesResponse) => void;
 	// Applies a history_reset: drops the messages with IDs at or above fromID.
-	// The version arguments of the stream writers are the event's snapshot
-	// version.
-	resetHistoryFrom: (fromID: number, version: number) => void;
+	resetHistoryFrom: (fromID: number, snapshotVersion: number) => void;
 	getHistoryResetCount: () => number;
 	// Drops the page if a history reset was applied since resetCount.
 	prependOlderMessages: (
@@ -196,7 +194,7 @@ export type ChatStore = {
 	applyMessageParts: (parts: readonly TypesGen.ChatMessagePart[]) => void;
 	setQueuedMessages: (
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[],
-		version: number,
+		snapshotVersion: number,
 	) => void;
 	// Applies a status event, and clears the turn error unless the status is
 	// error.
@@ -467,20 +465,20 @@ export const createChatStore = (): ChatStore => {
 		},
 		applyMessagePart: (part) => applyMessageParts([part]),
 		applyMessageParts,
-		setQueuedMessages: (queuedMessages, version) => {
+		setQueuedMessages: (queuedMessages, snapshotVersion) => {
 			if (chatQueuedMessagesEqualByID(state.queuedMessages, queuedMessages)) {
 				return;
 			}
 			batch(() => {
 				setState((current) => ({ ...current, queuedMessages }));
-				endPending(["message", "queue"], version, queuedMessages);
+				endPending(["message", "queue"], snapshotVersion, queuedMessages);
 			});
 		},
 		seed,
-		resetHistoryFrom: (fromID, version) => {
+		resetHistoryFrom: (fromID, snapshotVersion) => {
 			// A reconnect resends the reset of the synced commit, which the
 			// store already applied.
-			if (version <= syncedSnapshotVersion) {
+			if (snapshotVersion <= syncedSnapshotVersion) {
 				return;
 			}
 			historyResets++;
@@ -490,7 +488,7 @@ export const createChatStore = (): ChatStore => {
 						(message) => message.id < fromID,
 					),
 				);
-				endPending(["history"], version);
+				endPending(["history"], snapshotVersion);
 			});
 		},
 		getHistoryResetCount: () => historyResets,
@@ -724,7 +722,7 @@ const pendingEntry = (
 			const sent = { ...action.message, id: pendingRowID };
 			const row = queuedRow(sent);
 			// A busy chat queues the message.
-			if (running || status === "requires_action") {
+			if (isActiveChatStatus(status)) {
 				return { id, message: { queue: (rows) => [...rows, row] } };
 			}
 			// An errored chat with a queue sends its head and queues this one.
@@ -775,7 +773,7 @@ const pendingEntry = (
 		case "deleteQueued":
 			return {
 				id,
-				isRowDone: (rows) =>
+				isRowGone: (rows) =>
 					!rows.some((row) => row.id === action.queuedMessageID),
 				queue: withoutRow(action.queuedMessageID),
 			};
@@ -791,7 +789,7 @@ const endPendingParts = (
 	entries.flatMap((entry) => {
 		if (
 			version <= entry.syncedVersion ||
-			(rows && entry.isRowDone && !entry.isRowDone(rows))
+			(rows && entry.isRowGone && !entry.isRowGone(rows))
 		) {
 			return [entry];
 		}
@@ -866,12 +864,12 @@ export const selectReconnectState = (state: ChatStoreState) =>
 export const selectHasMoreMessages = (state: ChatStoreState) =>
 	state.hasMoreMessages;
 
-const latestMessage = (state: ChatView): TypesGen.ChatMessage | undefined => {
+const latestMessage = (view: ChatView): TypesGen.ChatMessage | undefined => {
 	const latestMessageID =
-		state.orderedMessageIDs[state.orderedMessageIDs.length - 1];
+		view.orderedMessageIDs[view.orderedMessageIDs.length - 1];
 	return latestMessageID === undefined
 		? undefined
-		: state.messagesByID.get(latestMessageID);
+		: view.messagesByID.get(latestMessageID);
 };
 
 export const selectIsAwaitingFirstStreamChunk = (
@@ -879,9 +877,7 @@ export const selectIsAwaitingFirstStreamChunk = (
 ): boolean => {
 	const latestMessageNeedsAssistantResponse =
 		latestMessage(state.view)?.role !== "assistant";
-	// Show the Thinking indicator when the shown stream state is empty, the
-	// chat is running, and the latest shown message is not an assistant's. A
-	// pending edit clears the shown stream state, so an edit to a running
+	// A pending edit clears the shown stream state, so an edit to a running
 	// chat shows Thinking.
 	if (state.view.streamState !== null || !latestMessageNeedsAssistantResponse) {
 		return false;
