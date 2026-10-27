@@ -4111,14 +4111,15 @@ describe("useChatStore", () => {
 			socket.emitOpen();
 		});
 
-		// Chunks 30 s apart take longer in total than the silence timeout.
+		// Three gaps of 3/4 of the silence timeout take longer in total than
+		// the timeout.
 		const chunks = splitIntoChunks(
 			[messageEvent(chatID, 5, "chunked reply")],
 			3,
 		);
 		for (const chunk of chunks) {
 			await act(async () => {
-				vi.advanceTimersByTime(30_000);
+				vi.advanceTimersByTime(CHAT_STREAM_SILENCE_TIMEOUT_MS * 0.75);
 				socket.emitChunk(chunk);
 			});
 		}
@@ -4128,6 +4129,32 @@ describe("useChatStore", () => {
 		expect(result.current.messagesByID.get(5)?.content).toEqual([
 			{ type: "text", text: "chunked reply" },
 		]);
+	});
+
+	it("reports a parse error when joined chunks are not valid JSON", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-chunked-invalid";
+		const watchMock = vi.mocked(watchChat);
+		const sockets = mockWatchChatWithFreshSockets(watchMock);
+		const { result } = renderChunkedStream(chatID);
+		await waitFor(() => {
+			expect(watchMock).toHaveBeenCalledWith(chatID, undefined);
+		});
+		const socket = sockets[0];
+		if (socket === undefined) {
+			throw new Error("watchChat did not return a socket");
+		}
+		act(() => {
+			socket.emitOpen();
+			socket.emitChunk({ chunk: "[{", last: false });
+			socket.emitChunk({ chunk: "oops", last: true });
+		});
+
+		expect(result.current.streamError).toEqual({
+			kind: "generic",
+			message: "Failed to parse chat stream update.",
+		});
 	});
 
 	it("discards a partial chunked batch when the socket reconnects", async () => {
