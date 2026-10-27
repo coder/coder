@@ -3338,6 +3338,18 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			ttlMillis:     ptr.Ref((24*30*time.Hour + time.Minute).Milliseconds()),
 			expectedError: "time until shutdown must be less than 30 days",
 		},
+		{
+			// Converted to a time.Duration, this wraps to about one minute.
+			name:          "overflowing ttl",
+			ttlMillis:     ptr.Ref(int64(18_446_744_133_710)),
+			expectedError: "time until shutdown must be less than 30 days",
+		},
+		{
+			// Converted to a time.Duration, this wraps to about one minute.
+			name:          "negative overflowing ttl",
+			ttlMillis:     ptr.Ref(int64(-18_446_744_013_709)),
+			expectedError: "time until shutdown must be at least one minute",
+		},
 	}
 
 	for _, testCase := range testCases {

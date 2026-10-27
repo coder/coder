@@ -31,7 +31,8 @@ Refer to [Agent Firewall](../ai-coder/agent-firewall/index.md).
 ### Agent Relay
 
 A feature that connects a supported cloud-hosted AI agent provider's hosted sessions to self-hosted [workspaces](#workspace).
-The provider's orchestration and AI inference stay cloud-hosted; a worker process inside the workspace executes the agent's tool calls.
+The provider's orchestration and AI inference stay cloud-hosted.
+A worker process inside the workspace executes the agent's tool calls.
 In [early access](./feature-stages.md#early-access-features).
 Refer to [Agent Relay](../ai-coder/agent-relay/index.md).
 
@@ -271,6 +272,12 @@ Refer to [Parameters](#parameters).
 ## E
 
 ### Envbuilder
+
+> [!WARNING]
+> Envbuilder is in **maintenance mode** with no new features planned.
+>
+> The recommended way to use dev containers in Coder is the built-in [Dev Containers Integration](../admin/integrations/devcontainers/integration.md).
+> To find the best approach for your deployment, ask in the [Coder Discord server](https://discord.gg/coder).
 
 The Coder-built tool that constructs a workspace image from a `devcontainer.json` file without requiring Docker inside the workspace.
 Refer to [Envbuilder](../admin/integrations/devcontainers/envbuilder/index.md) and the [`envbuilder` repository](https://github.com/coder/envbuilder).

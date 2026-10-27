@@ -87,7 +87,8 @@ The remote MCP server is an HTTP endpoint exposed by your Coder deployment at `/
 This enables MCP clients to connect to Coder without running the CLI locally.
 
 The endpoint implements the [Streamable HTTP transport](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports) in stateless mode: it supports MCP specification versions from `2024-11-05` through `2026-07-28`, does not issue `Mcp-Session-Id` headers, and answers `GET` and `DELETE` with `405 Method Not Allowed` (there is no standalone server-event stream or explicit session termination, both permitted by the specification).
-The server exposes tools only; MCP resources, prompts, structured tool output, elicitation, and the MCP Tasks extension are not implemented.
+The server exposes tools only.
+MCP resources, prompts, structured tool output, elicitation, and the MCP Tasks extension are not implemented.
 
 ### Prerequisites
 
@@ -105,7 +106,8 @@ CODER_EXPERIMENTS=mcp-server-http
 ```
 
 For the YAML and Helm forms of the provider setting, refer to [Enable OAuth2 Provider](../admin/integrations/oauth2-provider/index.md#enable-oauth2-provider).
-That page does not cover the experiment; set it with the top-level [`experiments`](../reference/cli/server/index.md#--experiments) YAML key.
+That page does not cover the experiment.
+Set it with the top-level [`experiments`](../reference/cli/server/index.md#--experiments) YAML key.
 
 ### MCP Registry
 

@@ -130,7 +130,7 @@ func TestHydrateAndMarkChatsDirtyPublishesForHydratedAndDirtied(t *testing.T) {
 		DirtySince:    sql.NullTime{Time: now, Valid: true},
 	}).Return([]database.MarkChatsContextDirtyByAgentRow{{ID: dirtiedChat.ID, OwnerID: ownerID}}, nil)
 	// Return the dirtied chat from the sync to verify event deduplication.
-	db.EXPECT().SyncAgentChatsContextMCPResources(gomock.Any(), agentID).
+	db.EXPECT().SyncAgentChatsContextLiveResources(gomock.Any(), agentID).
 		Return([]uuid.UUID{syncedChat.ID, dirtiedChat.ID}, nil)
 	db.EXPECT().GetChatByID(gomock.Any(), hydratedChat.ID).Return(hydratedChat, nil)
 	db.EXPECT().GetChatByID(gomock.Any(), dirtiedChat.ID).Return(dirtiedChat, nil)

@@ -28,7 +28,8 @@ Substitute the usernames, group names, and template to match your use case.
 ## Prerequisites
 
 - A running Coder deployment (v2.32+) with workspace sharing enabled.
-  Sharing is on by default for OSS; Premium deployments may require [admin configuration](../user-guides/shared-workspaces.md#policies).
+  Sharing is on by default for OSS.
+  Premium deployments may require [admin configuration](../user-guides/shared-workspaces.md#policies).
 - The [Coder CLI](../install/index.md) installed and authenticated.
 - An account with the `Owner` or `User Admin` role.
 - [OIDC authentication](../admin/users/oidc-auth/index.md) configured so shared users log in with their corporate SSO identity.
@@ -184,7 +185,8 @@ If your identity provider manages group membership (for example, an `sre-oncall`
 
 1. When your IdP rotates group membership, Coder group membership updates on next login.
 
-   All current members have access; removed members lose access after a workspace restart.
+   All current members have access.
+   Removed members lose access after a workspace restart.
 
 <a id="finding-shared-workspaces"></a>
 

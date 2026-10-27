@@ -220,7 +220,8 @@ Available query filters:
 <summary>Possible <code>client</code> values</summary>
 
 > [!NOTE]
-> Client classification is done on best effort basis using the `User-Agent` header; not all clients send these headers in an easily-identifiable manner.
+> Client classification is done on best effort basis using the `User-Agent` header.
+> Not all clients send these headers in an easily-identifiable manner.
 
 - `Claude Code`
 - `Codex`

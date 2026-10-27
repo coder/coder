@@ -3879,6 +3879,24 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		})
 		require.ErrorContains(t, err, `app slug "Dev" does not match regex`)
 	})
+	t.Run("ExternalAppURLInvalid", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
+		err := insert(db, job.ID, &sdkproto.Resource{
+			Name: "something",
+			Type: "aws_instance",
+			Agents: []*sdkproto.Agent{{
+				Name: "dev",
+				Apps: []*sdkproto.App{{
+					Slug:     "evil",
+					External: true,
+					Url:      "javascript://x/%0aalert(1)",
+				}},
+			}},
+		})
+		require.ErrorContains(t, err, `invalid external url "javascript://x/%0aalert(1)" for app "evil"`)
+	})
 	t.Run("DuplicateAgentNames", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
