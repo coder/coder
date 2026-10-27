@@ -5,12 +5,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import * as apiModule from "#/api/api";
 import { API } from "#/api/api";
 import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
-import type { ChatMessage } from "#/api/typesGenerated";
+import type {
+	ChatMessage,
+	CreateChatMessageResponse,
+} from "#/api/typesGenerated";
 import { MockChat, MockChatMessage } from "#/testHelpers/chatEntities";
 import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
 } from "#/testHelpers/chatModels";
+import { createDeferred } from "#/testHelpers/deferred";
 import {
 	MockUserPreferenceSettings,
 	mockApiError,
@@ -113,18 +117,13 @@ describe("AgentChatPage", () => {
 		);
 	});
 
-	it("focuses the chat input after an answer sends on a narrow screen", async () => {
+	const answerFromDockOnNarrowScreen = async () => {
 		const originalMatchMedia = window.matchMedia;
 		vi.stubGlobal("matchMedia", (query: string) => ({
 			...originalMatchMedia(query),
 			matches: query === mobileViewportMediaQuery,
 		}));
-		mockChatPageAPI(MockAsyncQuestionMessages);
-		const createChatMessage = vi
-			.spyOn(API.experimental, "createChatMessage")
-			.mockResolvedValue({ queued: true });
 		const user = userEvent.setup();
-
 		renderChatPage();
 		const dock = await screen.findByRole("region", { name: "Open question" });
 		const composer = screen.getByRole("textbox", { name: "Chat message" });
@@ -139,9 +138,46 @@ describe("AgentChatPage", () => {
 		await user.keyboard(" ");
 		act(() => within(dock).getByRole("button", { name: "Submit" }).focus());
 		await user.keyboard("{Enter}");
+		return { dock, composer };
+	};
 
-		await waitFor(() => expect(createChatMessage).toHaveBeenCalledTimes(1));
+	it("focuses the chat input after an answer sends on a narrow screen", async () => {
+		mockChatPageAPI(MockAsyncQuestionMessages);
+		vi.spyOn(API.experimental, "createChatMessage").mockResolvedValue({
+			queued: true,
+		});
+
+		const { composer } = await answerFromDockOnNarrowScreen();
+
 		await waitFor(() => expect(composer).toHaveFocus());
+	});
+
+	it("leaves focus out of the chat input when an answer fails to send", async () => {
+		mockChatPageAPI(MockAsyncQuestionMessages);
+		vi.spyOn(API.experimental, "createChatMessage").mockRejectedValue(
+			new Error("The answer failed."),
+		);
+
+		const { dock, composer } = await answerFromDockOnNarrowScreen();
+
+		await within(dock).findByText("The answer failed.");
+		expect(composer).not.toHaveFocus();
+	});
+
+	it("leaves focus where the user moved it while an answer was sending", async () => {
+		mockChatPageAPI(MockAsyncQuestionMessages);
+		const pendingSend = createDeferred<CreateChatMessageResponse>();
+		vi.spyOn(API.experimental, "createChatMessage").mockReturnValue(
+			pendingSend.promise,
+		);
+
+		const { composer } = await answerFromDockOnNarrowScreen();
+		const editButton = screen.getByRole("button", { name: "Edit message" });
+		act(() => editButton.focus());
+		await act(async () => pendingSend.resolve({ queued: true }));
+
+		expect(editButton).toHaveFocus();
+		expect(composer).not.toHaveFocus();
 	});
 
 	it("keeps the call line when an async answer that starts with a skill chip is edited", async () => {

@@ -5,9 +5,9 @@ import type { SubmitChatTurnParams } from "../components/ChatConversation/submit
 type SendChatMessage = SubmitChatTurnParams["sendMessage"];
 
 /**
- * Focuses the chat input once the wrapped send settles, also on narrow
+ * Focuses the chat input once the wrapped send succeeds, also on narrow
  * screens, where the chat input skips its own refocus to keep the on-screen
- * keyboard closed.
+ * keyboard closed. A failed send leaves its form open, so focus stays put.
  */
 export const useComposerFocusAfterSend = (
 	chatInputRef: React.RefObject<ChatMessageInputRef | null>,
@@ -22,10 +22,16 @@ export const useComposerFocusAfterSend = (
 		}
 	}, [focusRequest, chatInputRef]);
 
-	// Promise.finally, because the React Compiler cannot compile a try statement
-	// that has no catch clause.
-	return (request) =>
-		send(request).finally(() => {
+	return async (request) => {
+		const focusedAtSend = document.activeElement;
+		const response = await send(request);
+		// Focus the user moved elsewhere during the send stays there.
+		if (
+			document.activeElement === focusedAtSend ||
+			document.activeElement === document.body
+		) {
 			setFocusRequest((count) => count + 1);
-		});
+		}
+		return response;
+	};
 };
