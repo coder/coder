@@ -18,11 +18,12 @@ Nix and NixOS solve different problems, and you can use either or both, in conta
 
 The two combine: a NixOS template can also open each repository's dev shell.
 
-## Why Nix instead of dev containers
+## Why Nix instead of Dev Containers
 
 - **Reproducible**: `flake.lock` pins every package, so workspaces resolve identical versions.
 - **Flexible**: environments come from the flake, can be used in VMs, containers or even locally, unlike Dev Containers which has a hard requirement for container-based workflows.
-- **Fast updates**: packages come from binary caches such as `cache.nixos.org`, and the Nix store can persist across workspace restarts.
+- **Configureability**: package configuration options/settings can be defined in your flake, allowing to declaratively manage more than just dependencies (i.e kernel version/modules, partition schemes, VSCode settings+extensions, desktop environment configurations, etc.)
+- **Fast updates**: packages come from centralized binary caches (such as `cache.nixos.org`), and the Nix store can persist across workspace restarts.
 - **Safe changes (NixOS)**: a configuration that fails to build leaves the running system unchanged, and you can roll back to a previous generation.
 
 ## Nix develop shells (repository/project level, for developers)
@@ -35,6 +36,8 @@ module "nix" {
   source   = "registry.coder.com/coder-labs/nix/coder"
   version  = "1.0.0"
   agent_id = coder_agent.main.id
+
+  # This is the important Nix Develop-specific part
   develop  = { enabled = true, path = "~/project" }
 }
 ```
@@ -50,9 +53,11 @@ It works on any infrastructure that can boot NixOS and run a script as root at b
 
 To build a NixOS template:
 
-1. Write a flake with a `nixosConfigurations` entry for each workspace host.
-   Import [`github:coder/nixos-modules`](https://github.com/coder/nixos-modules), which runs the Coder agent as a systemd unit and creates the workspace user, then add your platform's hardware configuration.
+1. Write or modify your existing flake with a specific `nixosConfigurations` entry for your Coder workspaces.
    The [example flake](https://github.com/coder/nixos-example-flake) is a good starting point.
+
+   If you are building your own flake, import [`github:coder/nixos-modules`](https://github.com/coder/nixos-modules), which runs the Coder agent as a systemd unit and creates the workspace user, then add your platform's hardware configuration.
+
 1. Add the [Nix(OS) module](https://registry.coder.com/modules/coder-labs/nix) to your template and point it at your flake:
 
    ```tf
@@ -60,24 +65,31 @@ To build a NixOS template:
      source   = "registry.coder.com/coder-labs/nix/coder"
      version  = "1.0.0"
      agent_id = coder_agent.main.id
+
+     # This is the important NixOS-specific part
      nixos = {
        flake_ref  = "https://github.com/example-org/workspace-flake"
-       flake_attr = "my-workspace"
+       flake_attr = "my-workspace" # a $ARCH argument is supported if you want to filter this way.
      }
    }
    ```
 
-1. Pass the module's `boot_script` output to your platform's boot hook so it runs as root before the agent starts.
+1. Pass the module's `boot_script` output to your platform's boot hook (e.g via `cloud-init`) so it runs as root before the agent starts.
    The boot hook must also hand the agent token to the agent unit, as described in [the agent handoff](https://github.com/coder/nixos-modules#the-agent-handoff).
 
 Rebuild logs are written to `/var/log/coder-nixos/rebuild-latest.log` in the workspace.
 
-## Ready-made templates
+> [!TIP]
+> This can be tricky for new Coder administrators. You can join our [community](https://coder.com/community) to get assistance with this if you are stuck and/or want to provide feedback.
+
+### Ready-made templates
 
 These registry templates wire up NixOS for a specific platform.
 Use them directly, or as a reference for your own template.
 
-### AWS EC2
+The Coder team is actively working on adding new templates to the registry, but feel free to [contribute](https://github.com/coder/registry).
+
+#### AWS EC2
 
 The [AWS EC2 (NixOS)](https://registry.coder.com/templates/coder-labs/aws-nixos) template runs each workspace as a NixOS virtual machine on EC2.
 Rebuild progress streams to the **NixOS** log in the workspace dashboard.
@@ -90,10 +102,17 @@ See the template README for prerequisites and limitations.
 
 ## Caching
 
-Nix downloads prebuilt packages from binary caches, `cache.nixos.org` by default, instead of building them in the workspace.
+Nix downloads prebuilt packages from binary caches (`cache.nixos.org` by default) instead of building them in the workspace, but they are shared infrastructure and don't necessarily have every package available, which will result in having to build some packages.
+We recommend setting up your own cache server in each region where you are deploying workspaces to ensure the fastest download speeds possible.
+
 To add your own cache, set `extra-substituters` and `extra-trusted-public-keys` in the module's [Nix settings](https://registry.coder.com/modules/coder-labs/nix#nix-settings).
 To replace the default caches instead, set `substituters` and `trusted-public-keys`.
-On NixOS, also set them in your flake's `nix.settings` so they apply beyond the boot rebuild.
 
-To host your own cache, follow the nix.dev [binary cache tutorial](https://nix.dev/tutorials/nixos/binary-cache-setup.html).
+On NixOS, also set these options in your flake's `nix.settings` so they apply beyond the boot rebuild.
+
+To host your own cache for faster download speeds and full coverage of packages, follow the nix.dev [binary cache tutorial](https://nix.dev/tutorials/nixos/binary-cache-setup.html).
 Its [Alternatives](https://nix.dev/tutorials/nixos/binary-cache-setup.html#alternatives) section lists ready-made options, such as hosted and S3-backed caches.
+
+---
+
+Other methods to cache could be to prebuild your Nix image in CI (if using containers) or using a base disk that gets refreshed frequently, but having a cache server available is always preferable so users can fetch their own packages as fast as possible, a local cache server is a good starting point and can always be combined with other improvements.
