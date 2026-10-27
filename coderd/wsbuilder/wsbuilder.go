@@ -577,7 +577,7 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			ID: workspaceBuildID, TemplateResourceRevisionID: resourceRevisionID, TemplateResourceOutputs: resourceOutputs,
 		})
 		if err != nil {
-			return BuildError{http.StatusInternalServerError, "pin template resource outputs", err}
+			return BuildError{http.StatusInternalServerError, "pin shared resource outputs", err}
 		}
 
 		err = store.InsertWorkspaceBuildParameters(b.ctx, database.InsertWorkspaceBuildParametersParams{

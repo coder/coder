@@ -10,15 +10,15 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { TemplateResourceRunLogs } from "./TemplateResourceRunLogs";
+import { SharedResourceRunLogs } from "./SharedResourceRunLogs";
 
-type TemplateResourceRunHistoryProps = {
+type SharedResourceRunHistoryProps = {
 	resources: TemplateResources;
 };
 
 /** Preserves an explicitly selected historical run while newer jobs arrive. */
-export const TemplateResourceRunHistory: React.FC<
-	TemplateResourceRunHistoryProps
+export const SharedResourceRunHistory: React.FC<
+	SharedResourceRunHistoryProps
 > = ({ resources }) => {
 	const [selectedRunId, setSelectedRunId] = useState<string>();
 	const runs = resources.runs.toSorted((a, b) =>
@@ -76,7 +76,7 @@ export const TemplateResourceRunHistory: React.FC<
 							{selectedRun.job.error && (
 								<ErrorAlert error={{ message: selectedRun.job.error }} />
 							)}
-							<TemplateResourceRunLogs
+							<SharedResourceRunLogs
 								templateId={resources.template_id}
 								runId={selectedRun.id}
 							/>

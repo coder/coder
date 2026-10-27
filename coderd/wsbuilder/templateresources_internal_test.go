@@ -49,6 +49,7 @@ func TestTemplateResourceSnapshot(t *testing.T) {
 				var buildErr BuildError
 				require.ErrorAs(t, err, &buildErr)
 				require.Equal(t, http.StatusConflict, buildErr.Status)
+				require.Equal(t, "Workspace startup requires a successful shared resource apply with no active run.", buildErr.Message)
 				return
 			}
 			require.NoError(t, err)

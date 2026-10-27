@@ -15,14 +15,14 @@ import (
 func reapTemplateResourceRun(ctx context.Context, db database.Store, job database.ProvisionerJob) (sql.NullString, error) {
 	run, err := db.GetTemplateResourceRunByJobID(ctx, job.ID)
 	if err != nil {
-		return sql.NullString{}, xerrors.Errorf("get template resource run: %w", err)
+		return sql.NullString{}, xerrors.Errorf("get shared resource run: %w", err)
 	}
 	state, err := db.GetTemplateResourceStateForUpdate(ctx, run.TemplateID)
 	if err != nil {
-		return sql.NullString{}, xerrors.Errorf("lock template resource state: %w", err)
+		return sql.NullString{}, xerrors.Errorf("lock shared resource state: %w", err)
 	}
 	if !state.ActiveRunID.Valid || state.ActiveRunID.UUID != run.ID {
-		return sql.NullString{}, xerrors.New("template resource run reservation is stale")
+		return sql.NullString{}, xerrors.New("shared resource run reservation is stale")
 	}
 	code := "TEMPLATE_RESOURCE_STATE_UNCHANGED"
 	if run.Action != "plan" && (job.StartedAt.Valid || job.WorkerID.Valid) {
@@ -36,7 +36,7 @@ func reapTemplateResourceRun(ctx context.Context, db database.Store, job databas
 		State: state.State, Outputs: state.Outputs, AppliedRevisionID: state.AppliedRevisionID, UpdatedAt: dbtime.Now(),
 	})
 	if err != nil {
-		return sql.NullString{}, xerrors.Errorf("release template resource run: %w", err)
+		return sql.NullString{}, xerrors.Errorf("release shared resource run: %w", err)
 	}
 	return sql.NullString{String: code, Valid: true}, nil
 }

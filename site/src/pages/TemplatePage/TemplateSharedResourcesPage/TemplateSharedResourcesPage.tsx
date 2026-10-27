@@ -9,26 +9,26 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
 import { getTemplatePageTitle } from "../utils";
-import { TemplateTerraformResourcesPageView } from "./TemplateTerraformResourcesPageView";
+import { TemplateSharedResourcesPageView } from "./TemplateSharedResourcesPageView";
 
-const TemplateTerraformResourcesPage: React.FC = () => {
+const TemplateSharedResourcesPage: React.FC = () => {
 	const { template, permissions } = useTemplateLayoutContext();
 	return (
-		<TemplateResourceManagement
+		<SharedResourceManagement
 			template={template}
 			canUpdateTemplate={permissions.canUpdateTemplate}
 		/>
 	);
 };
 
-type TemplateResourceManagementProps = {
+type SharedResourceManagementProps = {
 	template: Template;
 	canUpdateTemplate: boolean;
 };
 
-/** Manages template revisions and runs independently of workspace versions. */
-export const TemplateResourceManagement: React.FC<
-	TemplateResourceManagementProps
+/** Manages shared resource revisions and runs independently of workspace versions. */
+export const SharedResourceManagement: React.FC<
+	SharedResourceManagementProps
 > = ({ template, canUpdateTemplate }) => {
 	const queryClient = useQueryClient();
 	const getLink = useLinks();
@@ -45,8 +45,8 @@ export const TemplateResourceManagement: React.FC<
 			<ErrorAlert
 				error={
 					!enabled
-						? "Enable the template-resources experiment to manage template resources."
-						: "Template update permission is required to view template resources."
+						? "Enable the template-resources experiment to manage shared resources."
+						: "Template update permission is required to view shared resources."
 				}
 			/>
 		);
@@ -54,8 +54,8 @@ export const TemplateResourceManagement: React.FC<
 
 	return (
 		<>
-			<title>{getTemplatePageTitle("Template resources", template)}</title>
-			<TemplateTerraformResourcesPageView
+			<title>{getTemplatePageTitle("Shared resources", template)}</title>
+			<TemplateSharedResourcesPageView
 				key={template.id}
 				resources={query.data}
 				error={query.error}
@@ -70,4 +70,4 @@ export const TemplateResourceManagement: React.FC<
 	);
 };
 
-export default TemplateTerraformResourcesPage;
+export default TemplateSharedResourcesPage;

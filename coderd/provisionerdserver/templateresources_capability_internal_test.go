@@ -38,7 +38,7 @@ func TestTemplateOutputsWorkerCapability(t *testing.T) {
 			for _, snapshot := range [][2]string{{`{"id":"frozen"}`, ""}, {"{}", uuid.NewString()}} {
 				err := s.validateTemplateOutputsWorker(snapshot[0], snapshot[1])
 				if tc.wantErr {
-					require.ErrorContains(t, err, "API v1.23")
+					require.ErrorContains(t, err, "shared resource outputs require a provisioner with API v1.23 or later and coder.template_resources=1 capability")
 				} else {
 					require.NoError(t, err)
 				}
@@ -100,7 +100,7 @@ func TestTemplateOutputsAcquisitionRejectsOldWorker(t *testing.T) {
 			require.NoError(t, err)
 			payload, err := f.server.acquireProtoJob(dbauthz.AsProvisionerd(ctx), job)
 			require.Nil(t, payload)
-			require.ErrorContains(t, err, "API v1.23")
+			require.ErrorContains(t, err, "shared resource outputs require a provisioner with API v1.23 or later and coder.template_resources=1 capability")
 			stored, err := db.GetProvisionerJobByID(ctx, job.ID)
 			require.NoError(t, err)
 			require.True(t, stored.CompletedAt.Valid)

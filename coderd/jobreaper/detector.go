@@ -316,7 +316,7 @@ func reapJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub
 				return err
 			}
 			if errorCode.String == "TEMPLATE_RESOURCE_STATE_UNKNOWN" {
-				errorMessage += " Template resource outcome is unknown; manual reconciliation is required."
+				errorMessage += " Shared resource outcome is unknown; manual reconciliation is required."
 			}
 		}
 		if job.Type == database.ProvisionerJobTypeNetworkPolicy {

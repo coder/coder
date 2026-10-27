@@ -213,6 +213,9 @@ func TestProvisionerJobs(t *testing.T) {
 				assert.Equal(t, tt.wantCancelled, job.CanceledAt.Valid, "job.CanceledAt.Valid")
 				assert.Equal(t, tt.wantCancelled, job.CanceledAt.Time.After(job.StartedAt.Time), "job.CanceledAt.Time")
 				if tt.wantCancelled {
+					if tt.name == "TemplateResources" {
+						assert.Contains(t, buf.String(), "Canceling shared resource job "+job.ID.String())
+					}
 					assert.Contains(t, buf.String(), "Job canceled")
 				} else {
 					assert.NotContains(t, buf.String(), "Job canceled")

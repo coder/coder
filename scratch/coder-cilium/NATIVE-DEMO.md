@@ -1,12 +1,12 @@
 # Native workspace network-policy demo
 
 For the current Serpent demo, see
-[Kubernetes template resources](template-resources-demo/kubernetes/README.md).
-That configuration owns the namespace and policy in template Terraform, while
-workspace Terraform consumes the namespace output. This guide preserves the
+[Kubernetes provisioning scopes](template-resources-demo/kubernetes/README.md).
+The shared configuration owns the namespace and policy, while the per-workspace
+configuration consumes the namespace output. This guide preserves the
 earlier policy-specific setup; use `--network-policies` to enable its legacy API
 explicitly. Do not apply this guide's shared-namespace setup or upload its legacy
-workspace configuration over the current template-resource demo.
+workspace configuration over the current provisioning-scopes demo.
 
 This directory contains the trusted Cilium Terraform module and the persistent
 `serpent dev` workspace template for the native implementation in this branch.

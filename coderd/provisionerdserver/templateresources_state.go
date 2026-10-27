@@ -23,25 +23,25 @@ func templateResourceOutputs(data []byte, action string) (json.RawMessage, error
 		Resources json.RawMessage `json:"resources"`
 	}
 	if err := json.Unmarshal(data, &state); err != nil {
-		return nil, xerrors.Errorf("decode template resource state: %w", err)
+		return nil, xerrors.Errorf("decode shared resource state: %w", err)
 	}
 	if state.Version != 4 || state.TerraformVersion == "" || state.Serial == nil || *state.Serial < 0 || state.Lineage == "" || len(state.Resources) == 0 || string(state.Resources) == "null" {
-		return nil, xerrors.New("template resources require a complete Terraform v4 state snapshot")
+		return nil, xerrors.New("shared resources require a complete Terraform v4 state snapshot")
 	}
 	var resources []struct {
 		Mode      string          `json:"mode"`
 		Instances json.RawMessage `json:"instances"`
 	}
 	if err := json.Unmarshal(state.Resources, &resources); err != nil {
-		return nil, xerrors.Errorf("decode template resource instances: %w", err)
+		return nil, xerrors.Errorf("decode shared resource instances: %w", err)
 	}
 	for _, resource := range resources {
 		var instances []json.RawMessage
 		if len(resource.Instances) == 0 || string(resource.Instances) == "null" {
-			return nil, xerrors.New("template resource state is missing its instance list")
+			return nil, xerrors.New("shared resource state is missing its instance list")
 		}
 		if err := json.Unmarshal(resource.Instances, &instances); err != nil {
-			return nil, xerrors.Errorf("decode template resource instance list: %w", err)
+			return nil, xerrors.Errorf("decode shared resource instance list: %w", err)
 		}
 		switch resource.Mode {
 		case "managed":
@@ -50,7 +50,7 @@ func templateResourceOutputs(data []byte, action string) (json.RawMessage, error
 			}
 		case "data":
 		default:
-			return nil, xerrors.New("template resource state contains an invalid resource mode")
+			return nil, xerrors.New("shared resource state contains an invalid resource mode")
 		}
 	}
 	outputs := map[string]json.RawMessage{}
@@ -60,7 +60,7 @@ func templateResourceOutputs(data []byte, action string) (json.RawMessage, error
 			continue
 		}
 		if len(output.Value) == 0 {
-			return nil, xerrors.New("template resource output is missing its value")
+			return nil, xerrors.New("shared resource output is missing its value")
 		}
 		outputs[name] = output.Value
 	}
@@ -76,10 +76,10 @@ func marshalTemplateResourceOutputs(outputs map[string]json.RawMessage) (json.Ra
 	}
 	encoded, err := json.Marshal(outputs)
 	if err != nil {
-		return nil, xerrors.Errorf("encode template resource outputs: %w", err)
+		return nil, xerrors.Errorf("encode shared resource outputs: %w", err)
 	}
 	if len(encoded) > maxTemplateResourceOutputsSize {
-		return nil, xerrors.New("template resource outputs exceed the 64 KiB limit")
+		return nil, xerrors.New("shared resource outputs exceed the 64 KiB limit")
 	}
 	return encoded, nil
 }
@@ -90,7 +90,7 @@ func templateResourceOutputsMetadata(data json.RawMessage) (string, error) {
 	var outputs map[string]json.RawMessage
 	if len(data) != 0 {
 		if err := json.Unmarshal(data, &outputs); err != nil {
-			return "", xerrors.Errorf("decode template resource output snapshot: %w", err)
+			return "", xerrors.Errorf("decode shared resource output snapshot: %w", err)
 		}
 	}
 	encoded, err := marshalTemplateResourceOutputs(outputs)

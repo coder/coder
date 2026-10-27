@@ -20,7 +20,7 @@ import (
 
 const templateResourcesStateUnknown = "TEMPLATE_RESOURCES_STATE_UNKNOWN"
 
-// TemplateResourcesJob identifies the immutable run for a template resource job.
+// TemplateResourcesJob identifies the immutable run for a shared resource job.
 // The database job ID is authoritative for looking up the run.
 type TemplateResourcesJob struct {
 	TemplateResourceRunID uuid.UUID `json:"template_resource_run_id"`
@@ -28,10 +28,10 @@ type TemplateResourcesJob struct {
 
 func validateTemplateResourceReservation(job database.ProvisionerJob, run database.TemplateResourceRun, state database.TemplateResourceState) error {
 	if run.JobID != job.ID || run.OrganizationID != job.OrganizationID || state.OrganizationID != job.OrganizationID || run.TemplateID != state.TemplateID {
-		return xerrors.New("template resource run does not match job and template")
+		return xerrors.New("shared resource run does not match job and template")
 	}
 	if !state.ActiveRunID.Valid || state.ActiveRunID.UUID != run.ID || state.Status == "unknown" {
-		return xerrors.New("template resource reservation is stale or quarantined")
+		return xerrors.New("shared resource reservation is stale or quarantined")
 	}
 	return nil
 }
@@ -42,45 +42,45 @@ func (s *server) acquireTemplateResourcesJob(ctx context.Context, acquired datab
 		// Workers and the reaper lock the job before template-owned state.
 		job, err := db.GetProvisionerJobByIDWithLock(ctx, acquired.ID)
 		if err != nil {
-			return xerrors.Errorf("lock template resources job: %w", err)
+			return xerrors.Errorf("lock shared resources job: %w", err)
 		}
 		if !job.WorkerID.Valid || job.WorkerID.UUID != s.ID {
 			return xerrors.New("you don't own this job")
 		}
 		if job.Type != database.ProvisionerJobTypeTemplateResources || job.CompletedAt.Valid || job.CanceledAt.Valid {
-			return xerrors.New("template resources job is no longer runnable")
+			return xerrors.New("shared resources job is no longer runnable")
 		}
 		run, err := db.GetTemplateResourceRunByJobID(ctx, job.ID)
 		if err != nil {
-			return xerrors.Errorf("get template resource run: %w", err)
+			return xerrors.Errorf("get shared resource run: %w", err)
 		}
 		var input TemplateResourcesJob
 		if err := json.Unmarshal(job.Input, &input); err != nil {
-			return xerrors.Errorf("decode template resources job input: %w", err)
+			return xerrors.Errorf("decode shared resources job input: %w", err)
 		}
 		if input.TemplateResourceRunID != run.ID {
-			return xerrors.New("template resources job input does not match its run")
+			return xerrors.New("shared resources job input does not match its run")
 		}
 		state, err := db.GetTemplateResourceStateForUpdate(ctx, run.TemplateID)
 		if err != nil {
-			return xerrors.Errorf("lock template resource state: %w", err)
+			return xerrors.Errorf("lock shared resource state: %w", err)
 		}
 		if err := validateTemplateResourceReservation(job, run, state); err != nil {
 			return err
 		}
 		revision, err := db.GetTemplateResourceRevisionByID(ctx, run.RevisionID)
 		if err != nil {
-			return xerrors.Errorf("get frozen template resource revision: %w", err)
+			return xerrors.Errorf("get frozen shared resource revision: %w", err)
 		}
 		if revision.TemplateID != run.TemplateID || revision.OrganizationID != job.OrganizationID || revision.FileID != job.FileID || acquired.FileID != job.FileID {
-			return xerrors.New("template resource revision does not match job archive")
+			return xerrors.New("shared resource revision does not match job archive")
 		}
 		template, err := db.GetTemplateByID(ctx, run.TemplateID)
 		if err != nil {
 			return xerrors.Errorf("get template: %w", err)
 		}
 		if template.OrganizationID != job.OrganizationID || template.Deleted {
-			return xerrors.New("template resources job does not match an active template")
+			return xerrors.New("shared resources job does not match an active template")
 		}
 		operation := proto.TemplateResourceOperation_TEMPLATE_RESOURCE_PLAN
 		transition := sdkproto.WorkspaceTransition_START
@@ -95,7 +95,7 @@ func (s *server) acquireTemplateResourcesJob(ctx context.Context, acquired datab
 				return xerrors.New("destroy does not match state-producing revision")
 			}
 		default:
-			return xerrors.New("invalid template resource action")
+			return xerrors.New("invalid shared resource action")
 		}
 		metadata := &sdkproto.Metadata{TemplateId: template.ID.String(), TemplateName: template.Name, WorkspaceTransition: transition, TemplateOutputs: "{}"}
 		if s.AccessURL != nil {
@@ -123,10 +123,10 @@ type templateResourcesJobResult struct {
 func (s *server) completeTemplateResourcesJob(ctx context.Context, jobID uuid.UUID, completed *proto.CompletedJob) (*proto.Empty, error) {
 	payload := completed.GetTemplateResources()
 	if payload == nil {
-		return nil, xerrors.New("template resources completion payload must be provided")
+		return nil, xerrors.New("shared resources completion payload must be provided")
 	}
 	if protobuf.Size(completed) > drpcsdk.MaxMessageSize {
-		return nil, xerrors.New("template resources completion exceeds maximum message size")
+		return nil, xerrors.New("shared resources completion exceeds maximum message size")
 	}
 	if err := s.finalizeTemplateResourcesJob(ctx, jobID, templateResourcesJobResult{
 		success: true, state: payload.State, disposition: payload.StateDisposition, plan: payload.Plan, timings: payload.Timings,
@@ -138,16 +138,16 @@ func (s *server) completeTemplateResourcesJob(ctx context.Context, jobID uuid.UU
 
 func (s *server) failTemplateResourcesJob(ctx context.Context, jobID uuid.UUID, failed *proto.FailedJob) (*proto.Empty, error) {
 	if protobuf.Size(failed) > drpcsdk.MaxMessageSize {
-		return nil, xerrors.New("template resources failure exceeds maximum message size")
+		return nil, xerrors.New("shared resources failure exceeds maximum message size")
 	}
 	result := templateResourcesJobResult{error: failed.Error, errorCode: failed.ErrorCode}
 	if result.error == "" {
-		result.error = "template resources job failed"
+		result.error = "shared resources job failed"
 	}
 	if payload := failed.GetTemplateResources(); payload != nil {
 		result.state, result.disposition, result.timings = payload.State, payload.StateDisposition, payload.Timings
 	} else if failed.Type != nil {
-		return nil, xerrors.New("failure payload does not match stored template resources job type")
+		return nil, xerrors.New("failure payload does not match stored shared resources job type")
 	}
 	if err := s.finalizeTemplateResourcesJob(ctx, jobID, result); err != nil {
 		return nil, err
@@ -160,10 +160,10 @@ func (s *server) finalizeTemplateResourcesJob(ctx context.Context, jobID uuid.UU
 	err := s.Database.InTx(func(db database.Store) error {
 		job, err := db.GetProvisionerJobByIDWithLock(ctx, jobID)
 		if err != nil {
-			return xerrors.Errorf("lock template resources job: %w", err)
+			return xerrors.Errorf("lock shared resources job: %w", err)
 		}
 		if job.Type != database.ProvisionerJobTypeTemplateResources {
-			return xerrors.New("stored job is not a template resources job")
+			return xerrors.New("stored job is not a shared resources job")
 		}
 		if !job.WorkerID.Valid || job.WorkerID.UUID != s.ID {
 			return xerrors.New("you don't own this job")
@@ -171,37 +171,37 @@ func (s *server) finalizeTemplateResourcesJob(ctx context.Context, jobID uuid.UU
 		// No result may revise a terminal outcome, especially a reaped job
 		// whose infrastructure mutation may still be running remotely.
 		if job.CompletedAt.Valid {
-			return xerrors.New("template resources job is complete; late results are rejected")
+			return xerrors.New("shared resources job is complete; late results are rejected")
 		}
 		run, err := db.GetTemplateResourceRunByJobID(ctx, jobID)
 		if err != nil {
-			return xerrors.Errorf("get template resource run: %w", err)
+			return xerrors.Errorf("get shared resource run: %w", err)
 		}
 		state, err := db.GetTemplateResourceStateForUpdate(ctx, run.TemplateID)
 		if err != nil {
-			return xerrors.Errorf("lock template resource state: %w", err)
+			return xerrors.Errorf("lock shared resource state: %w", err)
 		}
 		if err := validateTemplateResourceReservation(job, run, state); err != nil {
 			return err
 		}
 		if run.Action != "plan" && run.Action != "apply" && run.Action != "destroy" {
-			return xerrors.New("invalid template resource action")
+			return xerrors.New("invalid shared resource action")
 		}
 		var outputs json.RawMessage
 		if run.Action == "plan" {
 			if result.disposition != proto.StateDisposition_UNCHANGED && (result.success || result.disposition != proto.StateDisposition_UNKNOWN) {
-				return xerrors.New("template resource plan state must be unchanged")
+				return xerrors.New("shared resource plan state must be unchanged")
 			}
 			if len(result.state) != 0 || result.disposition == proto.StateDisposition_RETURNED {
-				return xerrors.New("template resource plan must not return state")
+				return xerrors.New("shared resource plan must not return state")
 			}
 			if len(result.plan) > 0 && !json.Valid(result.plan) {
-				return xerrors.New("template resource plan preview must be JSON")
+				return xerrors.New("shared resource plan preview must be JSON")
 			}
 		} else if result.success {
 			switch {
 			case result.disposition != proto.StateDisposition_RETURNED:
-				err = xerrors.New("successful template resource mutation must return authoritative state")
+				err = xerrors.New("successful shared resource mutation must return authoritative state")
 			case run.Action == "destroy" && (!state.AppliedRevisionID.Valid || state.AppliedRevisionID.UUID != run.RevisionID):
 				err = xerrors.New("destroy does not match state-producing revision")
 			default:
@@ -210,7 +210,7 @@ func (s *server) finalizeTemplateResourcesJob(ctx context.Context, jobID uuid.UU
 			if err != nil || job.CanceledAt.Valid {
 				result.success = false
 				result.disposition = proto.StateDisposition_UNKNOWN
-				result.error = "template resource mutation was canceled"
+				result.error = "shared resource mutation was canceled"
 				if err != nil {
 					result.error = err.Error()
 				}
@@ -228,9 +228,9 @@ func (s *server) finalizeTemplateResourcesJob(ctx context.Context, jobID uuid.UU
 				TemplateID: state.TemplateID, RunID: state.ActiveRunID, State: checkpoint, Status: "unknown", UpdatedAt: now,
 			})
 			if err != nil {
-				return xerrors.Errorf("quarantine template resource state: %w", err)
+				return xerrors.Errorf("quarantine shared resource state: %w", err)
 			}
-			result.error += "; template resource infrastructure outcome is unknown; reconciliation required"
+			result.error += "; shared resource infrastructure outcome is unknown; reconciliation required"
 			result.errorCode = templateResourcesStateUnknown
 		} else {
 			if result.success && run.Action == "apply" {
@@ -247,7 +247,7 @@ func (s *server) finalizeTemplateResourcesJob(ctx context.Context, jobID uuid.UU
 				Outputs: state.Outputs, AppliedRevisionID: state.AppliedRevisionID, UpdatedAt: now,
 			})
 			if err != nil {
-				return xerrors.Errorf("complete template resource run: %w", err)
+				return xerrors.Errorf("complete shared resource run: %w", err)
 			}
 		}
 		if err := insertNativeJobTimings(ctx, db, jobID, result.timings); err != nil {
@@ -260,7 +260,7 @@ func (s *server) finalizeTemplateResourcesJob(ctx context.Context, jobID uuid.UU
 		if err := db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID: jobID, CompletedAt: job.CompletedAt, UpdatedAt: now, Error: job.Error, ErrorCode: job.ErrorCode,
 		}); err != nil {
-			return xerrors.Errorf("complete template resources job: %w", err)
+			return xerrors.Errorf("complete shared resources job: %w", err)
 		}
 		finalized = job
 		return nil
@@ -274,11 +274,11 @@ func (s *server) finalizeTemplateResourcesJob(ctx context.Context, jobID uuid.UU
 	}
 	data, err := json.Marshal(provisionersdk.ProvisionerJobLogsNotifyMessage{EndOfLogs: true})
 	if err != nil {
-		return xerrors.Errorf("marshal template resources end of logs: %w", err)
+		return xerrors.Errorf("marshal shared resources end of logs: %w", err)
 	}
 	if err := s.Pubsub.Publish(provisionersdk.ProvisionerJobLogsNotifyChannel(jobID), data); err != nil {
-		s.Logger.Warn(ctx, "publish template resources end of logs", slog.Error(err))
-		return xerrors.Errorf("publish template resources end of logs: %w", err)
+		s.Logger.Warn(ctx, "publish shared resources end of logs", slog.Error(err))
+		return xerrors.Errorf("publish shared resources end of logs: %w", err)
 	}
 	return nil
 }
@@ -298,7 +298,7 @@ func (s *server) validateTemplateOutputsWorker(outputs, revisionID string) error
 	}
 	tags := provisionersdk.TemplateResourcesProvisionerTags(s.Tags, s.apiVersion)
 	if tags[provisionersdk.TagTemplateResources] != provisionersdk.TemplateResourcesCapabilityVersion {
-		return xerrors.New("template resource outputs require a provisioner with API v1.23 or later and coder.template_resources=1 capability")
+		return xerrors.New("shared resource outputs require a provisioner with API v1.23 or later and coder.template_resources=1 capability")
 	}
 	return nil
 }
@@ -320,7 +320,7 @@ func (s *server) templateValidationMetadata(ctx context.Context, templateID uuid
 		return nil
 	}
 	if err != nil {
-		return xerrors.Errorf("get template resource validation outputs: %w", err)
+		return xerrors.Errorf("get shared resource validation outputs: %w", err)
 	}
 	if state.AppliedRevisionID.Valid {
 		metadata.TemplateOutputs, err = templateResourceOutputsMetadata(state.Outputs)

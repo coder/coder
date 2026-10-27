@@ -40,7 +40,7 @@ func (r *Runner) runTemplateResources(ctx context.Context) (completed *proto.Com
 	}()
 
 	if job.Operation != proto.TemplateResourceOperation_TEMPLATE_RESOURCE_PLAN && job.Operation != proto.TemplateResourceOperation_TEMPLATE_RESOURCE_APPLY && job.Operation != proto.TemplateResourceOperation_TEMPLATE_RESOURCE_DESTROY {
-		return nil, r.failedJobf("unknown template resource operation %d", job.Operation)
+		return nil, r.failedJobf("unknown shared resource operation %d", job.Operation)
 	}
 
 	// Terraform requires a transition, but this root has no workspace.
@@ -52,12 +52,12 @@ func (r *Runner) runTemplateResources(ctx context.Context) (completed *proto.Com
 	if job.Operation == proto.TemplateResourceOperation_TEMPLATE_RESOURCE_DESTROY {
 		metadata.WorkspaceTransition = sdkproto.WorkspaceTransition_DESTROY
 		if len(job.State) == 0 {
-			return nil, r.failedJobf("template resource destroy requires prior state")
+			return nil, r.failedJobf("shared resource destroy requires prior state")
 		}
 	}
 	if len(job.State) != 0 {
 		if err := tfstate.ValidateState(job.State); err != nil {
-			return nil, r.failedJobf("template resource prior state: %s", err)
+			return nil, r.failedJobf("shared resource prior state: %s", err)
 		}
 	}
 	if failed := r.configure(&sdkproto.Config{}); failed != nil {
@@ -68,25 +68,25 @@ func (r *Runner) runTemplateResources(ctx context.Context) (completed *proto.Com
 		return nil, failed
 	}
 	if initComplete == nil {
-		return nil, r.failedJobf("template resource init returned nil response")
+		return nil, r.failedJobf("shared resource init returned nil response")
 	}
 	timings = append(timings, initComplete.Timings...)
 	if initComplete.Error != "" {
-		return nil, r.failedJobf("template resource init: %s", initComplete.Error)
+		return nil, r.failedJobf("shared resource init: %s", initComplete.Error)
 	}
 
-	planComplete, failed := r.plan(ctx, "Planning template resources", &sdkproto.PlanRequest{
+	planComplete, failed := r.plan(ctx, "Planning shared resources", &sdkproto.PlanRequest{
 		Metadata: metadata, VariableValues: job.VariableValues, State: job.State,
 	})
 	if failed != nil {
 		return nil, failed
 	}
 	if planComplete == nil {
-		return nil, r.failedJobf("template resource plan returned nil response")
+		return nil, r.failedJobf("shared resource plan returned nil response")
 	}
 	timings = append(timings, planComplete.Timings...)
 	if planComplete.Error != "" {
-		return nil, r.failedJobf("template resource plan: %s", planComplete.Error)
+		return nil, r.failedJobf("shared resource plan: %s", planComplete.Error)
 	}
 
 	if job.Operation != proto.TemplateResourceOperation_TEMPLATE_RESOURCE_PLAN {
@@ -99,32 +99,32 @@ func (r *Runner) runTemplateResources(ctx context.Context) (completed *proto.Com
 		}
 		r.mutex.Unlock()
 		if err != nil {
-			return nil, r.failedJobf("template resources canceled before apply: %s", err)
+			return nil, r.failedJobf("shared resources canceled before apply: %s", err)
 		}
 		disposition = proto.StateDisposition_UNKNOWN
-		applyComplete, failed := r.apply(ctx, "Applying template resources", &sdkproto.ApplyRequest{Metadata: metadata})
+		applyComplete, failed := r.apply(ctx, "Applying shared resources", &sdkproto.ApplyRequest{Metadata: metadata})
 		if failed != nil {
 			return nil, failed
 		}
 		if applyComplete == nil {
-			return nil, r.failedJobf("template resource apply returned nil response")
+			return nil, r.failedJobf("shared resource apply returned nil response")
 		}
 		timings = append(timings, applyComplete.Timings...)
 		state = applyComplete.State
 		if applyComplete.Error != "" {
 			// Interrupted apply can return old state even after changing remote
 			// infrastructure. Keep it only as a checkpoint with UNKNOWN status.
-			return nil, r.failedJobf("template resource apply: %s", applyComplete.Error)
+			return nil, r.failedJobf("shared resource apply: %s", applyComplete.Error)
 		}
 		if len(state) == 0 {
-			return nil, r.failedJobf("template resource apply returned no state")
+			return nil, r.failedJobf("shared resource apply returned no state")
 		}
 		if err := tfstate.ValidateState(state); err != nil {
-			return nil, r.failedJobf("template resource apply: %s", err)
+			return nil, r.failedJobf("shared resource apply: %s", err)
 		}
 		if job.Operation == proto.TemplateResourceOperation_TEMPLATE_RESOURCE_DESTROY {
 			if err := tfstate.ValidateDestroyState(state); err != nil {
-				return nil, r.failedJobf("template resource destroy: %s", err)
+				return nil, r.failedJobf("shared resource destroy: %s", err)
 			}
 		}
 		disposition = proto.StateDisposition_RETURNED

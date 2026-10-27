@@ -1,4 +1,4 @@
-# Template-scoped root: managed once, independently of workspace builds.
+# Shared root: managed once per template, independently of workspace builds.
 # This example needs no cluster or cloud credentials.
 terraform {
   required_version = ">= 1.9.0, < 2.0.0"
@@ -7,7 +7,7 @@ terraform {
 resource "terraform_data" "settings" {
   input = {
     namespace = "workspaces"
-    greeting  = "Hello from template resources"
+    greeting  = "Hello from shared resources"
   }
 }
 
@@ -26,7 +26,7 @@ output "structured" {
   }
 }
 
-# Sensitive outputs remain in template state, not workspace snapshots.
+# Sensitive outputs remain in shared state, not workspace snapshots.
 output "private_setting" {
   value     = "demo-only-not-a-real-secret"
   sensitive = true

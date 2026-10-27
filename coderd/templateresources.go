@@ -41,15 +41,15 @@ func templateResourceConflict(message string) error {
 }
 
 func (api *API) templateResourceError(rw http.ResponseWriter, r *http.Request, err error) {
-	status, message := http.StatusInternalServerError, "Internal error processing template resources."
+	status, message := http.StatusInternalServerError, "Internal error processing shared resources."
 	var requestErr *templateResourceHTTPError
 	switch {
 	case errors.As(err, &requestErr):
 		status, message = requestErr.status, requestErr.message
 	case errors.Is(err, sql.ErrNoRows), dbauthz.IsNotAuthorizedError(err):
-		status, message = http.StatusNotFound, "Template resource not found."
+		status, message = http.StatusNotFound, "Shared resource not found."
 	default:
-		api.Logger.Error(r.Context(), "template resources request", slog.Error(err))
+		api.Logger.Error(r.Context(), "shared resources request", slog.Error(err))
 	}
 	httpapi.Write(r.Context(), rw, status, codersdk.Response{Message: message})
 }
@@ -62,7 +62,7 @@ func (api *API) templateResourceAuthorized(rw http.ResponseWriter, r *http.Reque
 	return true
 }
 
-// @Summary Get template resources
+// @Summary Get shared resources
 // @ID get-template-resources
 // @Security CoderSessionToken
 // @Tags Templates
@@ -143,7 +143,7 @@ func templateResourceArchive(source string) ([]byte, error) {
 	return archive.Bytes(), nil
 }
 
-// @Summary Create template resource revision
+// @Summary Create shared resource revision
 // @ID create-template-resource-revision
 // @Security CoderSessionToken
 // @Tags Templates
@@ -225,7 +225,7 @@ func (api *API) postTemplateResourceRevision(rw http.ResponseWriter, r *http.Req
 	httpapi.Write(ctx, rw, http.StatusCreated, convertTemplateResourceRevision(revision))
 }
 
-// @Summary Run template resources
+// @Summary Run shared resources
 // @ID create-template-resource-run
 // @Security CoderSessionToken
 // @Tags Templates
@@ -270,7 +270,7 @@ func (api *API) postTemplateResourceRun(rw http.ResponseWriter, r *http.Request)
 			return templateResourceConflict("The previous mutation has an unknown outcome. Manual reconciliation is required; automatic recovery is not supported.")
 		}
 		if state.ActiveRunID.Valid {
-			return templateResourceConflict("A template resource run is already active.")
+			return templateResourceConflict("A shared resource run is already active.")
 		}
 		revision, err := tx.GetTemplateResourceRevisionByID(ctx, req.RevisionID)
 		if err != nil {
@@ -291,7 +291,7 @@ func (api *API) postTemplateResourceRun(rw http.ResponseWriter, r *http.Request)
 				return err
 			}
 			if len(workspaces) != 0 {
-				return templateResourceConflict("Delete all workspaces before destroying template resources.")
+				return templateResourceConflict("Delete all workspaces before destroying shared resources.")
 			}
 		}
 		runID, now := uuid.New(), dbtime.Now()
@@ -319,12 +319,12 @@ func (api *API) postTemplateResourceRun(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 	if err := provisionerjobs.PostJob(api.Pubsub, job); err != nil {
-		api.Logger.Warn(ctx, "publish template resource job", slog.Error(err))
+		api.Logger.Warn(ctx, "publish shared resource job", slog.Error(err))
 	}
 	httpapi.Write(ctx, rw, http.StatusCreated, convertTemplateResourceRun(run, job))
 }
 
-// @Summary Cancel template resource run
+// @Summary Cancel shared resource run
 // @ID cancel-template-resource-run
 // @Security CoderSessionToken
 // @Tags Templates
@@ -359,7 +359,7 @@ func (api *API) patchCancelTemplateResourceRun(rw http.ResponseWriter, r *http.R
 			return err
 		}
 		if job.CompletedAt.Valid {
-			return templateResourceConflict("The template resource run is already complete.")
+			return templateResourceConflict("The shared resource run is already complete.")
 		}
 		if job.CanceledAt.Valid {
 			return nil
@@ -369,7 +369,7 @@ func (api *API) patchCancelTemplateResourceRun(rw http.ResponseWriter, r *http.R
 			return err
 		}
 		if !state.ActiveRunID.Valid || state.ActiveRunID.UUID != run.ID {
-			return templateResourceConflict("The template resource run reservation is stale.")
+			return templateResourceConflict("The shared resource run reservation is stale.")
 		}
 		now := sql.NullTime{Time: dbtime.Now(), Valid: true}
 		var completedAt sql.NullTime
@@ -398,13 +398,13 @@ func (api *API) patchCancelTemplateResourceRun(rw http.ResponseWriter, r *http.R
 	if completedJobID != uuid.Nil {
 		data, _ := json.Marshal(provisionersdk.ProvisionerJobLogsNotifyMessage{EndOfLogs: true})
 		if err := api.Pubsub.Publish(provisionersdk.ProvisionerJobLogsNotifyChannel(completedJobID), data); err != nil {
-			api.Logger.Warn(ctx, "publish canceled template resource job", slog.Error(err))
+			api.Logger.Warn(ctx, "publish canceled shared resource job", slog.Error(err))
 		}
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{Message: "Template resource run cancellation requested."})
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{Message: "Shared resource run cancellation requested."})
 }
 
-// @Summary Get template resource run logs
+// @Summary Get shared resource run logs
 // @ID get-template-resource-run-logs
 // @Security CoderSessionToken
 // @Tags Templates
@@ -465,10 +465,10 @@ func guardTemplateResourceDeletionInTx(ctx context.Context, tx database.Store, t
 		return nil
 	}
 	if err != nil {
-		return xerrors.Errorf("get template resources: %w", err)
+		return xerrors.Errorf("get shared resources: %w", err)
 	}
 	if state.ActiveRunID.Valid || (state.Status != "unconfigured" && state.Status != "destroyed") || state.AppliedRevisionID.Valid {
-		return templateResourceConflict("Destroy template resources before deleting the template. Unknown outcomes require manual reconciliation.")
+		return templateResourceConflict("Destroy shared resources before deleting the template. Unknown outcomes require manual reconciliation.")
 	}
 	return nil
 }

@@ -588,7 +588,7 @@ func (s *server) failAcquiredJob(logger slog.Logger, jobID uuid.UUID, message st
 	if job.Type == database.ProvisionerJobTypeTemplateResources {
 		err := s.finalizeTemplateResourcesJob(ctx, jobID, templateResourcesJobResult{disposition: disposition, error: message})
 		if err != nil {
-			logger.Error(ctx, "finalize failed acquired template resources job", slog.Error(err))
+			logger.Error(ctx, "finalize failed acquired shared resources job", slog.Error(err))
 		}
 		return
 	}
@@ -637,7 +637,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			if err := s.finalizeTemplateResourcesJob(ctx, job.ID, templateResourcesJobResult{
 				disposition: proto.StateDisposition_UNCHANGED, error: errorMessage,
 			}); err != nil {
-				return xerrors.Errorf("finalize invalid template resources job: %w", err)
+				return xerrors.Errorf("finalize invalid shared resources job: %w", err)
 			}
 			return xerrors.Errorf("request job was invalidated: %s", errorMessage)
 		}
@@ -713,7 +713,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		}
 		templateOutputs, err := templateResourceOutputsMetadata(workspaceBuild.TemplateResourceOutputs)
 		if err != nil {
-			return nil, failJob(fmt.Sprintf("read pinned template resource outputs: %s", err))
+			return nil, failJob(fmt.Sprintf("read pinned shared resource outputs: %s", err))
 		}
 		if err := s.validateTemplateOutputsWorker(templateOutputs, templateResourceRevisionString(workspaceBuild.TemplateResourceRevisionID)); err != nil {
 			return nil, failJob(err.Error())
@@ -1453,7 +1453,7 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 		return s.failTemplateResourcesJob(ctx, jobID, failJob)
 	}
 	if failJob.GetTemplateResources() != nil {
-		return nil, xerrors.New("template resources payload does not match stored job type")
+		return nil, xerrors.New("shared resources payload does not match stored job type")
 	}
 	if job.Type == database.ProvisionerJobTypeNetworkPolicy {
 		return s.failNetworkPolicyJob(ctx, jobID, failJob)
@@ -1933,7 +1933,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 		return s.completeTemplateResourcesJob(ctx, jobID, completed)
 	}
 	if completed.GetTemplateResources() != nil {
-		return nil, xerrors.New("template resources payload does not match stored job type")
+		return nil, xerrors.New("shared resources payload does not match stored job type")
 	}
 	if job.Type == database.ProvisionerJobTypeNetworkPolicy {
 		return s.completeNetworkPolicyJob(ctx, jobID, completed)

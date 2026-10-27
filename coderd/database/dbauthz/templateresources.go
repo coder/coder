@@ -10,7 +10,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
 
-// Template resource source, logs and state require the existing template update ACL.
+// Shared resource source, logs and state require the existing template update ACL.
 func (q *querier) authorizeTemplateResources(ctx context.Context, templateID uuid.UUID) error {
 	if actor, ok := ActorFromContext(ctx); ok && (actor.Type == rbac.SubjectTypeSystemRestricted || actor.Type == rbac.SubjectTypeProvisionerd) {
 		return q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem)

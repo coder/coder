@@ -1,6 +1,6 @@
-# Kubernetes template-resource validation
+# Kubernetes provisioning-scopes validation
 
-Local POC validation on 2026-10-22. The template-resource implementation follows
+Local POC validation on 2026-10-22. The provisioning-scopes implementation follows
 checkpoint `36f37e344a` on `feat/workspace-network-policies`; the companion provider
 uses `feat/template-resources`. Credentials, runtime state, and detailed logs stay
 outside the reproducible source files.
@@ -10,10 +10,10 @@ outside the reproducible source files.
 The first generic Kubernetes revision used an embedded Cilium manifest. These
 checks passed before switching that implementation to `coder_network_policy`:
 
-- Native template plan/apply created `workspaces` and its network policy.
-- Workspace creation before initial template apply was rejected. A linked
+- Native shared-resource plan/apply created `workspaces` and its network policy.
+- Workspace creation before initial shared-resource apply was rejected. A linked
   workspace version then consumed the namespace output for both pod and PVC and
-  pinned the applied template revision.
+  pinned the applied shared-resource revision.
 - Protected cold startup and `go build ./...` succeeded. Serpent stayed at
   `40b60bf4c1495caddc0292f862de275da292e6aa` with its original source and Makefile.
   Unchanged `make lint` exited 2 with five errcheck, three loopclosure, and one
@@ -25,8 +25,8 @@ checks passed before switching that implementation to `coder_network_policy`:
   Workspace build ID/state, pod UID, and restart count did not change.
 - Stop/start preserved a marker, unchanged checkout, linter checksum, populated
   caches, PVC, and policy; the workspace pod UID changed as expected.
-- Template destroy was rejected while a workspace existed. Native workspace
-  deletion succeeded, then native template-resource destroy removed the policy
+- Shared-resource destroy was rejected while a workspace existed. Native workspace
+  deletion succeeded, then native shared-resource destroy removed the policy
   and namespace. The unrelated `coder/coder-restricted-egress` UID and complete
   policy spec were preserved.
 
@@ -87,7 +87,7 @@ ran sequentially because the child agent lacked subagent tools.
 ## Same-name editor switching follow-up
 
 A real-browser regression reproduced workspace `main.tf` content appearing in
-the template-resource editor after leaving an inactive model behind. Monaco's
+the shared-resource editor after leaving an inactive model behind. Monaco's
 global raw-path model lookup reused the previous editor session's content.
 
 The shared wrapper now uses session-scoped full-path URIs, disposes its owned
@@ -113,12 +113,37 @@ namespaces read `data.coder_template_outputs.current.outputs.namespace` directly
   `serpent-typed-check` succeeded. Its Terraform state contained typed outputs
   from revision `e62346e3-cad6-4000-a0b1-68cfb041a217`; both pod and PVC used
   `workspaces`. The temporary workspace was deleted through Coder.
-- The restrictive template resources were not republished. This check verifies
+- The restrictive shared resources were not republished. This check verifies
   output consumption, not a repeat of the earlier Serpent/network smoke tests.
 
 Local evidence: `/tmp/opencode/serpent-typed-state-proof.json` and
 `/tmp/opencode/serpent-typed-outputs-*.log`. The reproducible provider patch applies
 cleanly to its documented base using `git apply --unidiff-zero`.
+
+## Provisioning scope terminology follow-up
+
+On 2026-10-26, the customer-facing names became **Shared resources** and
+**Per-workspace resources**, with **Shared** and **Per-workspace** editor tabs.
+Both are provisioning scopes within one template. API, database, experiment, and
+Terraform data-source identifiers are unchanged; no state migration is needed.
+
+- Updated UI labels, editor component names, diagnostics, provider descriptions,
+  and reproducible demo documentation.
+- Passed 42 frontend unit tests, 49 stories, full frontend lint/type checks,
+  formatting, and both frontend reviews. All eight deep-review roles reported
+  no findings.
+- Visually inspected both editor scopes, shared resource management, and destroy
+  confirmation, including mobile layouts. Screenshots are local under
+  `/tmp/opencode/shared-*.png` and `/tmp/opencode/per-workspace-*.png`.
+- Focused backend and CLI tests passed; Swagger was regenerated without changing
+  API contracts.
+- Provider focused/race tests, the full provider suite with the inherited
+  `CODER_WORKSPACE_BUILD_ID` unset, vet, formatting, and generated docs passed.
+  The regenerated provider patch reconstructs the source from its documented base.
+- Generic and Kubernetes per-workspace mock tests passed with the updated provider;
+  generic shared-root validation, Terraform formatting, launcher tests, and
+  Markdown checks passed. No live Build/Publish or infrastructure changes were
+  made for this terminology update.
 
 ## Limits
 

@@ -5542,7 +5542,7 @@ type Experiment string
 
 const (
 	// Add new experiments here!
-	ExperimentTemplateResources         Experiment = "template-resources"          // Enables independently provisioned template resources.
+	ExperimentTemplateResources         Experiment = "template-resources"          // Enables independently provisioned shared resources.
 	ExperimentNetworkPolicies           Experiment = "network-policies"            // Enables independently provisioned organization network policies.
 	ExperimentExample                   Experiment = "example"                     // This isn't used for anything.
 	ExperimentNotifications             Experiment = "notifications"               // Sends notifications via SMTP and webhooks following certain events.
@@ -5566,7 +5566,7 @@ const (
 func (e Experiment) DisplayName() string {
 	switch e {
 	case ExperimentTemplateResources:
-		return "Template Resources"
+		return "Shared resources"
 	case ExperimentNetworkPolicies:
 		return "Network Policies"
 	case ExperimentExample:

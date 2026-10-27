@@ -3,11 +3,11 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
-import { TemplateResourceEditor } from "./TemplateResourceEditor";
-import { TemplateResourceRunHistory } from "./TemplateResourceRunHistory";
+import { SharedResourceEditor } from "./SharedResourceEditor";
+import { SharedResourceRunHistory } from "./SharedResourceRunHistory";
 
-type TemplateTerraformResourcesPageViewProps = Omit<
-	React.ComponentProps<typeof TemplateResourceEditor>,
+type TemplateSharedResourcesPageViewProps = Omit<
+	React.ComponentProps<typeof SharedResourceEditor>,
 	"resources"
 > & {
 	resources: TemplateResources | undefined;
@@ -17,17 +17,19 @@ type TemplateTerraformResourcesPageViewProps = Omit<
 };
 
 /** Keeps the editor and persisted state visible during background refreshes. */
-export const TemplateTerraformResourcesPageView: React.FC<
-	TemplateTerraformResourcesPageViewProps
+export const TemplateSharedResourcesPageView: React.FC<
+	TemplateSharedResourcesPageViewProps
 > = ({ resources, error, isLoading, onRetry, ...editorProps }) => {
 	return (
 		<div className="space-y-8">
 			<header className="space-y-2">
-				<h1 className="text-2xl font-semibold">Template resources</h1>
+				<h1 className="text-2xl font-semibold">Shared resources</h1>
 				<p className="text-content-secondary">
-					Manage any Terraform resources once per template in an independent
-					root with its own state. Save and apply revisions separately from
-					workspace version publishing and workspace builds.
+					Provision resources once for all workspaces using this template.
+					Shared and per-workspace provisioning scopes each have an independent
+					Terraform root, state, and lifecycle. Save and apply shared resource
+					revisions separately from workspace version publishing and workspace
+					builds.
 				</p>
 			</header>
 			{Boolean(error) && (
@@ -83,19 +85,19 @@ export const TemplateTerraformResourcesPageView: React.FC<
 						{resources.status === "unconfigured" && (
 							<p className="text-sm text-content-secondary">
 								{resources.revisions.length === 0
-									? "No template resources configured. Open Edit files and build your first revision to get started."
+									? "No shared resources configured. Open Edit files and build your first revision to get started."
 									: "Your saved revision is ready to plan or apply."}
 							</p>
 						)}
 						{resources.status === "unknown" && (
 							<p className="text-sm text-content-secondary">
-								The resource state is unknown. Review the latest job logs.
-								Manual reconciliation is required before Terraform can run
+								The shared resource state is unknown. Review the latest job
+								logs. Manual reconciliation is required before Terraform can run
 								again.
 							</p>
 						)}
 					</section>
-					<TemplateResourceEditor
+					<SharedResourceEditor
 						key={resources.template_id}
 						resources={resources}
 						{...editorProps}
@@ -112,7 +114,7 @@ export const TemplateTerraformResourcesPageView: React.FC<
 							</pre>
 						)}
 					</section>
-					<TemplateResourceRunHistory
+					<SharedResourceRunHistory
 						key={`runs-${resources.template_id}`}
 						resources={resources}
 					/>

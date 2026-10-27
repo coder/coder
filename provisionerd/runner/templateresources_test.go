@@ -64,7 +64,7 @@ func TestTemplateResources(t *testing.T) {
 		{name: "DestroyManagedInstances", operation: proto.TemplateResourceOperation_TEMPLATE_RESOURCE_DESTROY, state: managedState, wantError: "still contains managed instances", disposition: proto.StateDisposition_UNKNOWN, timings: 3},
 		{name: "DestroyInterrupted", operation: proto.TemplateResourceOperation_TEMPLATE_RESOURCE_DESTROY, applyError: "canceled", state: "checkpoint", wantError: "canceled", disposition: proto.StateDisposition_UNKNOWN, timings: 3},
 		{name: "DestroyTransportLoss", operation: proto.TemplateResourceOperation_TEMPLATE_RESOURCE_DESTROY, interrupt: "disconnect", wantError: "recv provision", disposition: proto.StateDisposition_UNKNOWN, timings: 2},
-		{name: "UnknownOperation", operation: proto.TemplateResourceOperation(42), wantError: "unknown template resource operation", disposition: proto.StateDisposition_UNCHANGED},
+		{name: "UnknownOperation", operation: proto.TemplateResourceOperation(42), wantError: "unknown shared resource operation", disposition: proto.StateDisposition_UNCHANGED},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()

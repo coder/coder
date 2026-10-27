@@ -1239,7 +1239,7 @@ func expectDB(t *testing.T, opts ...txExpect) *dbmock.MockStore {
 	for _, o := range opts {
 		o(mTx)
 	}
-	// Unrelated tests have no template resource root. Specific snapshot tests
+	// Unrelated tests have no shared resource root. Specific snapshot tests
 	// register their expectations above these fallbacks.
 	mTx.EXPECT().LockTemplateResourceTemplate(gomock.Any(), templateID).Return(nil).AnyTimes()
 	mTx.EXPECT().GetTemplateResourceStateForUpdate(gomock.Any(), templateID).Return(database.TemplateResourceState{}, sql.ErrNoRows).AnyTimes()

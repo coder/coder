@@ -17,7 +17,7 @@ import {
 	MockWorkspaceVolumeResource,
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
-import { TemplateEditorScopeNavigation } from "./TemplateEditorScopeNavigation";
+import { ProvisioningScopeNavigation } from "./ProvisioningScopeNavigation";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
 
 const meta: Meta<typeof TemplateVersionEditor> = {
@@ -60,9 +60,9 @@ export const Example: Story = {
 	},
 };
 
-export const WorkspaceResourceScope: Story = {
+export const PerWorkspaceScope: Story = {
 	args: {
-		scopeNavigation: <TemplateEditorScopeNavigation scope="workspace" />,
+		scopeNavigation: <ProvisioningScopeNavigation scope="per-workspace" />,
 	},
 };
 

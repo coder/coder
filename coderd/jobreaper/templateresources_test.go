@@ -77,6 +77,7 @@ func TestDetectorTemplateResourceReservation(t *testing.T) {
 				require.Equal(t, "unknown", updated.Status)
 				require.Equal(t, run.ID, updated.ActiveRunID.UUID)
 				require.Equal(t, "TEMPLATE_RESOURCE_STATE_UNKNOWN", reaped.ErrorCode.String)
+				require.Contains(t, reaped.Error.String, "Shared resource outcome is unknown; manual reconciliation is required.")
 			} else {
 				require.Equal(t, "applied", updated.Status)
 				require.False(t, updated.ActiveRunID.Valid)

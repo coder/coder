@@ -1,4 +1,4 @@
-# Template-scoped root: namespace and policy are managed once per template.
+# Shared root: namespace and policy are managed once per template.
 terraform {
   required_version = ">= 1.9.0, < 2.0.0"
   required_providers {

@@ -21,7 +21,7 @@ run "typed_snapshot" {
 
   assert {
     condition     = terraform_data.workspace_settings.input.namespace == "snapshot-namespace" && terraform_data.workspace_settings.input.greeting == "Hello from a typed snapshot"
-    error_message = "Workspace resources must consume template outputs directly."
+    error_message = "Per-workspace resources must consume shared outputs directly."
   }
   assert {
     condition     = terraform_data.workspace_settings.input.structured.enabled == true && terraform_data.workspace_settings.input.structured.ports == [443, 3100] && terraform_data.workspace_settings.input.structured.mixed == ["https", 443, true, null] && terraform_data.workspace_settings.input.structured.nested.optional == null

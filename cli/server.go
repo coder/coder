@@ -1316,7 +1316,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					name, provisionerTypes, map[string]string{provisionersdk.TagTemplateResources: provisionersdk.TemplateResourcesCapabilityVersion},
 				)
 				if err != nil {
-					return xerrors.Errorf("create template resource provisioner daemon: %w", err)
+					return xerrors.Errorf("create shared resource provisioner daemon: %w", err)
 				}
 				provisionerDaemons = append(provisionerDaemons, daemon)
 			}

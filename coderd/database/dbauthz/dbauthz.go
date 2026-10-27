@@ -1745,7 +1745,7 @@ func (q *querier) authorizeProvisionerJob(ctx context.Context, job database.Prov
 	switch job.Type {
 	case database.ProvisionerJobTypeTemplateResources:
 		if _, err := q.GetTemplateResourceRunByJobID(ctx, job.ID); err != nil {
-			return xerrors.Errorf("authorize template resource job: %w", err)
+			return xerrors.Errorf("authorize shared resource job: %w", err)
 		}
 	case database.ProvisionerJobTypeNetworkPolicy:
 		if _, err := q.GetNetworkPolicyRunByJobID(ctx, job.ID); err != nil {
@@ -8414,7 +8414,7 @@ func (q *querier) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg da
 	switch job.Type {
 	case database.ProvisionerJobTypeTemplateResources:
 		if _, err := q.GetTemplateResourceRunByJobID(ctx, job.ID); err != nil {
-			return xerrors.Errorf("authorize template resource job: %w", err)
+			return xerrors.Errorf("authorize shared resource job: %w", err)
 		}
 	case database.ProvisionerJobTypeNetworkPolicy:
 		if _, err := q.GetNetworkPolicyRunByJobID(ctx, job.ID); err != nil {

@@ -2,15 +2,16 @@ import { useQuery } from "react-query";
 import { templateResourceRunLogs } from "#/api/queries/templateResources";
 import { ProvisionerJobLogs } from "#/components/Logs/ProvisionerJobLogs";
 
-type TemplateResourceRunLogsProps = {
+type SharedResourceRunLogsProps = {
 	templateId: string;
 	runId: string;
 };
 
 /** Shows persisted Terraform output, including logs retained after a failed run. */
-export const TemplateResourceRunLogs: React.FC<
-	TemplateResourceRunLogsProps
-> = ({ templateId, runId }) => {
+export const SharedResourceRunLogs: React.FC<SharedResourceRunLogsProps> = ({
+	templateId,
+	runId,
+}) => {
 	const query = useQuery(templateResourceRunLogs(templateId, runId));
 	return (
 		<section aria-label="Job logs" className="space-y-3">

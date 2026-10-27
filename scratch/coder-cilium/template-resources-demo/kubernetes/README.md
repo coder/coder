@@ -1,12 +1,13 @@
-# Kubernetes template resources: Serpent
+# Kubernetes provisioning scopes: Serpent
 
 See [validation results and limitations](RESULTS.md) for completed checks.
 
-A template has two independent Terraform roots:
+A template has two provisioning scopes with independent Terraform roots:
 
-- **Template resources:** `template/main.tf` creates `workspaces` and calls our
-  `coder_network_policy` module with the template UUID and owned namespace.
-- **Workspace resources:** `workspace/main.tf` creates each pod and 10 GiB PVC.
+- **Shared resources:** `template/main.tf` creates `workspaces` once for the
+  template and calls our `coder_network_policy` module with the template UUID and
+  owned namespace.
+- **Per-workspace resources:** `workspace/main.tf` creates each pod and 10 GiB PVC.
   Both read `data.coder_template_outputs.current.outputs.namespace`
   without a fallback. `startup.sh` is unchanged from the earlier Serpent demo.
 
@@ -36,7 +37,7 @@ There is no policy-specific API, target, attachment, or module injection.
 Use only the existing local cluster. Do not bootstrap networking, use AWS
 credentials, or recreate `coder-policy-poc-a` or `coder-policy-poc-b`.
 
-## Create the template resources
+## Create the shared resources
 
 The fixed `workspaces` namespace must have only one template owner. If an earlier
 shared namespace exists, first delete its workspaces and policies through their
@@ -47,7 +48,7 @@ namespace YAML over this configuration. Never bypass UNKNOWN quarantine.
 1. Retain the existing `serpent-dev` template. On a fresh installation, create a
    template using a minimal bootstrap workspace root to obtain its UUID, but do
    not create a workspace yet.
-2. From the repository root, package the template root and canonical module:
+2. From the repository root, package the shared root and canonical module:
 
    ```bash
    tar --format=ustar --dereference --no-recursion \
@@ -60,11 +61,11 @@ namespace YAML over this configuration. Never bypass UNKNOWN quarantine.
      modules/coder-network-policy/versions.tf
    ```
 
-3. Upload through `POST /api/v2/files`, then save a template-resource revision
+3. Upload through `POST /api/v2/files`, then save a shared-resource revision
    through `POST /api/v2/templates/{template_id}/resources/versions` with
    `{"file_id":"<uploaded hash>"}`. These are authenticated Coder APIs; retain
    credentials outside the repository. Alternatively, create the same file tree
-   directly in **Edit files > Template resources**.
+   directly in **Edit files > Shared**.
 4. In that editor, **Build** saves an immutable archive and runs Terraform plan.
    **Publish** applies the successfully built revision independently of workspace
    versions. Wait for success before importing the consuming workspace root.
@@ -75,7 +76,7 @@ The module allows exact DNS queries for `github.com`, `proxy.golang.org`, and
 matching TLS SNI; and the local Coder `/32` on TCP 3100. Both policy directions
 are default deny. Direct P2P is explicitly disabled.
 
-## Publish the workspace configuration
+## Publish the per-workspace configuration
 
 Use your Coder CLI login against the local development server:
 
@@ -87,7 +88,7 @@ tar --format=ustar \
 ```
 
 This creates a version linked to the existing template. An unlinked import has
-no template outputs and intentionally fails on the missing namespace. Do not add
+no shared outputs and intentionally fails on the missing namespace. Do not add
 a fallback to hide that dependency. Create a workspace through Coder after the
 version is active.
 
@@ -101,14 +102,14 @@ loopclosure, and one SA1019. This is not a clean-lint claim.
 ## Independent policy updates and cleanup
 
 Edit the module's `allowed_https_hosts` argument, for example adding `example.com`.
-Build and publish from **Template resources**. Verify the changed network behavior
+Build and publish from **Shared**. Verify the changed network behavior
 separately: Terraform success is not proof of enforcement. Workspace builds, pods,
 and PVCs must remain unchanged. Build/publish the earlier restricted source to
 roll back independently; workspace-version rollback never rolls back this root.
 
-Delete all consuming workspaces through Coder before explicitly destroying template
+Delete all consuming workspaces through Coder before explicitly destroying shared
 resources. Workspace deletion removes its pod/PVC but leaves the namespace and
-policy. Template-resource destroy removes the policy before its namespace because
+policy. Shared-resource destroy removes the policy before its namespace because
 of the Terraform reference. Do not delete a namespace to bypass a failed destroy.
 
 ## Local checks

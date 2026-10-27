@@ -22,7 +22,7 @@ func (b *Builder) templateResourceSnapshot() (uuid.NullUUID, json.RawMessage, er
 			return uuid.NullUUID{}, empty, nil
 		}
 		if err != nil {
-			return uuid.NullUUID{}, nil, BuildError{http.StatusInternalServerError, "get previous template resource snapshot", err}
+			return uuid.NullUUID{}, nil, BuildError{http.StatusInternalServerError, "get previous shared resource snapshot", err}
 		}
 		outputs := previous.TemplateResourceOutputs
 		if len(outputs) == 0 {
@@ -35,20 +35,20 @@ func (b *Builder) templateResourceSnapshot() (uuid.NullUUID, json.RawMessage, er
 	//nolint:gocritic
 	ctx := dbauthz.AsSystemRestricted(b.ctx)
 	if err := b.store.LockTemplateResourceTemplate(ctx, b.workspace.TemplateID); err != nil {
-		return uuid.NullUUID{}, nil, BuildError{http.StatusInternalServerError, "lock template resources", err}
+		return uuid.NullUUID{}, nil, BuildError{http.StatusInternalServerError, "lock shared resources", err}
 	}
 	state, err := b.store.GetTemplateResourceStateForUpdate(ctx, b.workspace.TemplateID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return uuid.NullUUID{}, empty, nil
 	}
 	if err != nil {
-		return uuid.NullUUID{}, nil, BuildError{http.StatusInternalServerError, "get template resource snapshot", err}
+		return uuid.NullUUID{}, nil, BuildError{http.StatusInternalServerError, "get shared resource snapshot", err}
 	}
 	if !state.CurrentRevisionID.Valid && !state.AppliedRevisionID.Valid && !state.ActiveRunID.Valid && state.Status == "unconfigured" {
 		return uuid.NullUUID{}, empty, nil
 	}
 	if state.Status != "applied" || !state.AppliedRevisionID.Valid || state.ActiveRunID.Valid {
-		return uuid.NullUUID{}, nil, BuildError{http.StatusConflict, "Workspace startup requires a successful template resource apply with no active run.", nil}
+		return uuid.NullUUID{}, nil, BuildError{http.StatusConflict, "Workspace startup requires a successful shared resource apply with no active run.", nil}
 	}
 	return state.AppliedRevisionID, state.Outputs, nil
 }

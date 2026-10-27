@@ -54,7 +54,7 @@ type CreateTemplateResourceRunRequest struct {
 	Action     string    `json:"action" enums:"plan,apply,destroy"`
 }
 
-// TemplateResources fetches template resources and their history.
+// TemplateResources fetches shared resources and their history.
 func (c *Client) TemplateResources(ctx context.Context, templateID uuid.UUID) (TemplateResources, error) {
 	var result TemplateResources
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/resources", templateID), nil)

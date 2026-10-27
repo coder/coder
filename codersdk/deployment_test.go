@@ -37,7 +37,7 @@ func TestExperimentDisplayNames(t *testing.T) {
 	t.Parallel()
 
 	expected := map[codersdk.Experiment]string{
-		codersdk.ExperimentTemplateResources:         "Template Resources",
+		codersdk.ExperimentTemplateResources:         "Shared resources",
 		codersdk.ExperimentNetworkPolicies:           "Network Policies",
 		codersdk.ExperimentExample:                   "Example Experiment",
 		codersdk.ExperimentNotifications:             "SMTP and Webhook Notifications",

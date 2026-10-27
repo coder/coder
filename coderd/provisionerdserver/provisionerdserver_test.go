@@ -655,7 +655,7 @@ func TestAcquireJob(t *testing.T) {
 				}
 
 				// Acquisition must use this build's frozen outputs even when no
-				// latest template resource snapshot is available.
+				// latest shared resource snapshot is available.
 				resourceRevision, err := db.InsertTemplateResourceRevision(ctx, database.InsertTemplateResourceRevisionParams{
 					ID: uuid.New(), TemplateID: template.ID, OrganizationID: pd.OrganizationID, FileID: file.ID,
 					Source: "output pinned {}", CreatedBy: user.ID, CreatedAt: dbtime.Now(),

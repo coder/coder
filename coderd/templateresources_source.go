@@ -38,7 +38,7 @@ func validateTemplateResourceFile(source []byte, name string) error {
 			return &templateResourceHTTPError{http.StatusBadRequest, "Invalid Terraform configuration: " + diagnostics.Error()}
 		}
 		if len(settings.Blocks) != 0 {
-			return &templateResourceHTTPError{http.StatusBadRequest, "Template resource state is managed by Coder. Terraform backend and cloud blocks are not supported."}
+			return &templateResourceHTTPError{http.StatusBadRequest, "Shared resource state is managed by Coder. Terraform backend and cloud blocks are not supported."}
 		}
 	}
 	return nil

@@ -146,11 +146,11 @@ export const TemplateLayout: React.FC<React.PropsWithChildren> = ({
 						{experiments.includes("template-resources") &&
 							data.permissions.canUpdateTemplate && (
 								<TabLink to="resources" value="resources">
-									Template resources
+									Shared resources
 								</TabLink>
 							)}
 						<TabLink to="workspace-resources" value="workspace-resources">
-							Workspace resources
+							Per-workspace resources
 						</TabLink>
 						<TabLink to="versions" value="versions">
 							Versions

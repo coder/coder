@@ -16,7 +16,7 @@ import {
 	SelectValue,
 } from "#/components/Select/Select";
 
-type TemplateResourceEditorProps = {
+type SharedResourceEditorProps = {
 	resources: TemplateResources;
 	editFilesHref: string;
 	isRunning: boolean;
@@ -28,7 +28,7 @@ type TemplateResourceEditorProps = {
 };
 
 /** Runs immutable revisions; source changes belong in the full archive editor. */
-export const TemplateResourceEditor: React.FC<TemplateResourceEditorProps> = ({
+export const SharedResourceEditor: React.FC<SharedResourceEditorProps> = ({
 	resources,
 	editFilesHref,
 	isRunning,
@@ -61,9 +61,9 @@ export const TemplateResourceEditor: React.FC<TemplateResourceEditorProps> = ({
 		>
 			<h2 className="text-xl font-semibold">Terraform configuration</h2>
 			<p className="text-sm text-content-secondary">
-				Edit the complete Terraform root, including local modules, in Edit
-				files. Build saves an immutable archive and plans it; Publish applies
-				that successful build.
+				Edit the complete shared Terraform root, including local modules, in
+				Edit files. Build saves an immutable archive and plans it; Publish
+				applies that successful build to shared resources only.
 			</p>
 			<Button asChild>
 				<Link to={editFilesHref}>Edit files</Link>
@@ -129,8 +129,8 @@ export const TemplateResourceEditor: React.FC<TemplateResourceEditorProps> = ({
 			</div>
 			<ConfirmDialog
 				type="delete"
-				title="Destroy template resources?"
-				confirmText="Destroy resources"
+				title="Destroy shared resources?"
+				confirmText="Destroy shared resources"
 				open={destroyRevisionId !== undefined}
 				confirmLoading={isRunning}
 				disabled={runBlocked || destroyRevisionId !== cleanupRevisionId}
@@ -155,10 +155,11 @@ export const TemplateResourceEditor: React.FC<TemplateResourceEditorProps> = ({
 				description={
 					<div className="space-y-4">
 						<p>
-							Terraform will destroy the resources in this template's resource
-							state using revision {destroyRevisionId?.slice(0, 8)}. Delete all
-							workspaces using this template before destroying its resources.
-							Saved revisions and job logs are retained.
+							Terraform will destroy the shared resources in this template's
+							shared resource state using revision{" "}
+							{destroyRevisionId?.slice(0, 8)}. Delete all workspaces using this
+							template before destroying its shared resources. Saved revisions
+							and job logs are retained.
 						</p>
 						{destroyRevisionId !== cleanupRevisionId && (
 							<p>

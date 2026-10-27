@@ -107,10 +107,10 @@ const TemplatePermissionsPage = lazy(
 			"./pages/TemplateSettingsPage/TemplatePermissionsPage/TemplatePermissionsPage"
 		),
 );
-const TemplateTerraformResourcesPage = lazy(
+const TemplateSharedResourcesPage = lazy(
 	() =>
 		import(
-			"./pages/TemplatePage/TemplateTerraformResourcesPage/TemplateTerraformResourcesPage"
+			"./pages/TemplatePage/TemplateSharedResourcesPage/TemplateSharedResourcesPage"
 		),
 );
 const TemplateResourcesPage = lazy(
@@ -505,10 +505,7 @@ const templateRouter = () => {
 					<Route index element={<Navigate to="docs" replace />} />
 					<Route path="docs" element={<TemplateDocsPage />} />
 					<Route path="files" element={<TemplateFilesPage />} />
-					<Route
-						path="resources"
-						element={<TemplateTerraformResourcesPage />}
-					/>
+					<Route path="resources" element={<TemplateSharedResourcesPage />} />
 					<Route
 						path="workspace-resources"
 						element={<TemplateResourcesPage />}

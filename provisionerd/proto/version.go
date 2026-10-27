@@ -119,8 +119,8 @@ import "github.com/coder/coder/v2/apiversion"
 //     coder.network_policy_destroy capability for opted-in workers.
 //
 // API v1.23:
-//   - Added native template resource jobs and pinned template output metadata,
-//     routed using the coder.template_resources capability.
+//   - Added native shared resource jobs and pinned output metadata, routed
+//     using the coder.template_resources capability.
 const (
 	CurrentMajor = 1
 	CurrentMinor = 23

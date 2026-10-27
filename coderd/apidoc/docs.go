@@ -12272,7 +12272,7 @@ const docTemplate = `{
                 "tags": [
                     "Templates"
                 ],
-                "summary": "Get template resources",
+                "summary": "Get shared resources",
                 "operationId": "get-template-resources",
                 "parameters": [
                     {
@@ -12313,7 +12313,7 @@ const docTemplate = `{
                 "tags": [
                     "Templates"
                 ],
-                "summary": "Run template resources",
+                "summary": "Run shared resources",
                 "operationId": "create-template-resource-run",
                 "parameters": [
                     {
@@ -12360,7 +12360,7 @@ const docTemplate = `{
                 "tags": [
                     "Templates"
                 ],
-                "summary": "Cancel template resource run",
+                "summary": "Cancel shared resource run",
                 "operationId": "cancel-template-resource-run",
                 "parameters": [
                     {
@@ -12406,7 +12406,7 @@ const docTemplate = `{
                 "tags": [
                     "Templates"
                 ],
-                "summary": "Get template resource run logs",
+                "summary": "Get shared resource run logs",
                 "operationId": "get-template-resource-run-logs",
                 "parameters": [
                     {
@@ -12464,7 +12464,7 @@ const docTemplate = `{
                 "tags": [
                     "Templates"
                 ],
-                "summary": "Create template resource revision",
+                "summary": "Create shared resource revision",
                 "operationId": "create-template-resource-revision",
                 "parameters": [
                     {
@@ -26258,13 +26258,13 @@ const docTemplate = `{
                 "ExperimentNetworkPolicies": "Enables independently provisioned organization network policies.",
                 "ExperimentNoNATSPubsub": "Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
-                "ExperimentTemplateResources": "Enables independently provisioned template resources.",
+                "ExperimentTemplateResources": "Enables independently provisioned shared resources.",
                 "ExperimentWorkspaceBuildUpdates": "Enables publishing workspace build updates to the all builds pubsub channel.",
                 "ExperimentWorkspaceCapableLicensing": "Counts only users holding the workspace-create permission toward the license seat limit.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
             },
             "x-enum-descriptions": [
-                "Enables independently provisioned template resources.",
+                "Enables independently provisioned shared resources.",
                 "Enables independently provisioned organization network policies.",
                 "This isn't used for anything.",
                 "Sends notifications via SMTP and webhooks following certain events.",

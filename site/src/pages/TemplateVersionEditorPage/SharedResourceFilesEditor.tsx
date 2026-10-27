@@ -29,11 +29,11 @@ import {
 } from "#/components/FullPageLayout/Topbar";
 import { Loader } from "#/components/Loader/Loader";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
-import { TemplateResourceRunLogs } from "#/pages/TemplatePage/TemplateTerraformResourcesPage/TemplateResourceRunLogs";
+import { SharedResourceRunLogs } from "#/pages/TemplatePage/TemplateSharedResourcesPage/SharedResourceRunLogs";
 import { existsFile, type FileTree, isFolder } from "#/utils/filetree";
 import { TarReader } from "#/utils/tar";
 import { writeTemplateArchive } from "#/utils/templateArchive";
-import { TemplateEditorScopeNavigation } from "./TemplateEditorScopeNavigation";
+import { ProvisioningScopeNavigation } from "./ProvisioningScopeNavigation";
 import { TemplateFileEditor } from "./TemplateFileEditor";
 import { findEntrypointFile } from "./TemplateVersionEditorPage";
 
@@ -43,11 +43,11 @@ const runActionLabels: Record<string, string | undefined> = {
 	destroy: "Destroy",
 };
 
-type TemplateResourceFilesEditorProps = { template: Template };
+type SharedResourceFilesEditorProps = { template: Template };
 
-/** Loads the independent root without depending on a workspace version. */
-export const TemplateResourceFilesEditor: React.FC<
-	TemplateResourceFilesEditorProps
+/** Loads the shared provisioning scope independently of workspace versions. */
+export const SharedResourceFilesEditor: React.FC<
+	SharedResourceFilesEditorProps
 > = ({ template }) => {
 	const query = useQuery(templateResources(template.id));
 	return (
@@ -154,7 +154,7 @@ const ResourceEditorHeader: React.FC<ResourceEditorHeaderProps> = ({
 				<TopbarData>{template.display_name || template.name}</TopbarData>
 				<div className="ml-auto flex gap-2">{children}</div>
 			</Topbar>
-			<TemplateEditorScopeNavigation scope="template" />
+			<ProvisioningScopeNavigation scope="shared" />
 		</>
 	);
 };
@@ -245,7 +245,7 @@ const ResourceEditorSession: React.FC<ResourceEditorSessionProps> = ({
 			"Waiting for the current operation. Logs refresh automatically.";
 	} else if (resources.status === "unknown") {
 		buildMessage =
-			"Resource state is unknown. Reconcile state before building or publishing.";
+			"Shared resource state is unknown. Reconcile state before building or publishing.";
 	} else if (dirty) {
 		buildMessage =
 			"Unbuilt edits. Build saves all files and plans this Terraform root.";
@@ -258,7 +258,7 @@ const ResourceEditorSession: React.FC<ResourceEditorSessionProps> = ({
 			"This revision is published. Build changes to publish another revision.";
 	} else if (canPublish) {
 		buildMessage =
-			"Build succeeded. Publish applies this immutable revision to template resources only.";
+			"Build succeeded. Publish applies this immutable revision to shared resources only.";
 	}
 	const requestedPath = params.get("path");
 	const activePath =
@@ -307,7 +307,7 @@ const ResourceEditorSession: React.FC<ResourceEditorSessionProps> = ({
 	}, [build]);
 	usePrompt({
 		message:
-			"You have unsaved template resource changes. Are you sure you want to leave?",
+			"You have unsaved shared resource changes. Are you sure you want to leave?",
 		when: ({ currentLocation, nextLocation }) =>
 			(dirty || building) &&
 			(currentLocation.pathname !== nextLocation.pathname ||
@@ -327,7 +327,7 @@ const ResourceEditorSession: React.FC<ResourceEditorSessionProps> = ({
 			<ResourceEditorHeader template={template}>
 				<TopbarButton
 					disabled={blocked}
-					title="Build template resources (Ctrl + Enter)"
+					title="Build shared resources (Ctrl + Enter)"
 					onClick={() => void build()}
 				>
 					<PlayIcon />
@@ -382,7 +382,7 @@ const ResourceEditorSession: React.FC<ResourceEditorSessionProps> = ({
 										" (older revision, not this build)"}
 								</p>
 								{liveRun.job.error && <ErrorAlert error={liveRun.job.error} />}
-								<TemplateResourceRunLogs
+								<SharedResourceRunLogs
 									templateId={template.id}
 									runId={liveRun.id}
 								/>

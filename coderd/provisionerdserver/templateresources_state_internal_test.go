@@ -44,7 +44,7 @@ func TestTemplateResourceOutputsTerraformV4Fixture(t *testing.T) {
   "serial": 1,
   "lineage": "28d4ef44-f605-49ab-a2f4-61f705094090",
   "outputs": {
-    "greeting": {"value": "Hello from template resources", "type": "string"},
+    "greeting": {"value": "Hello from shared resources", "type": "string"},
     "namespace": {"value": "workspaces", "type": "string"},
     "structured": {
       "value": {"enabled": true, "ports": [443, 3100]},
@@ -62,11 +62,11 @@ func TestTemplateResourceOutputsTerraformV4Fixture(t *testing.T) {
       "attributes": {
         "id": "6d58c7b1-9e22-4b9c-ae3e-64ca52c9a945",
         "input": {
-          "value": {"greeting": "Hello from template resources", "namespace": "workspaces"},
+          "value": {"greeting": "Hello from shared resources", "namespace": "workspaces"},
           "type": ["object", {"greeting": "string", "namespace": "string"}]
         },
         "output": {
-          "value": {"greeting": "Hello from template resources", "namespace": "workspaces"},
+          "value": {"greeting": "Hello from shared resources", "namespace": "workspaces"},
           "type": ["object", {"greeting": "string", "namespace": "string"}]
         },
         "triggers_replace": null
@@ -78,7 +78,7 @@ func TestTemplateResourceOutputsTerraformV4Fixture(t *testing.T) {
 }`)
 	outputs, err := templateResourceOutputs(state, "apply")
 	require.NoError(t, err)
-	require.JSONEq(t, `{"greeting":"Hello from template resources","namespace":"workspaces","structured":{"enabled":true,"ports":[443,3100]}}`, string(outputs))
+	require.JSONEq(t, `{"greeting":"Hello from shared resources","namespace":"workspaces","structured":{"enabled":true,"ports":[443,3100]}}`, string(outputs))
 }
 
 func TestTemplateResourceOutputsSize(t *testing.T) {
@@ -88,7 +88,7 @@ func TestTemplateResourceOutputsSize(t *testing.T) {
 		require.NoError(t, err)
 		outputs, err := templateResourceOutputs(templateResourceTestState(`{"x":{"sensitive":false,"value":`+string(value)+`}}`, `[]`), "apply")
 		if size+len(`{"x":""}`) > maxTemplateResourceOutputsSize {
-			require.ErrorContains(t, err, "64 KiB")
+			require.EqualError(t, err, "shared resource outputs exceed the 64 KiB limit")
 		} else {
 			require.NoError(t, err)
 			require.Len(t, outputs, maxTemplateResourceOutputsSize)
@@ -115,7 +115,7 @@ func TestTemplateResourceOutputsMetadata(t *testing.T) {
 	encoded, err := json.Marshal(map[string]string{"x": strings.Repeat("x", maxTemplateResourceOutputsSize)})
 	require.NoError(t, err)
 	_, err = templateResourceOutputsMetadata(encoded)
-	require.ErrorContains(t, err, "64 KiB")
+	require.EqualError(t, err, "shared resource outputs exceed the 64 KiB limit")
 }
 
 func TestTemplateResourceStateValidation(t *testing.T) {

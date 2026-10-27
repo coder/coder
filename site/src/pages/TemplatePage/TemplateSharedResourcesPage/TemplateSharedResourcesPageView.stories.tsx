@@ -12,9 +12,9 @@ import {
 	MockTemplateResourceRun,
 	MockTemplateResources,
 } from "#/testHelpers/templateResources";
-import { TemplateTerraformResourcesPageView } from "./TemplateTerraformResourcesPageView";
+import { TemplateSharedResourcesPageView } from "./TemplateSharedResourcesPageView";
 
-const mockFailedTemplateResourceLog: typeof MockTemplateResourceLog = {
+const mockFailedSharedResourceLog: typeof MockTemplateResourceLog = {
 	...MockTemplateResourceLog,
 	log_level: "error",
 	output: "Error: provider credentials are invalid.",
@@ -118,13 +118,13 @@ const mockRunHistoryResources: TemplateResources = {
 };
 
 const meta = {
-	title: "pages/TemplatePage/TemplateTerraformResourcesPage",
-	component: TemplateTerraformResourcesPageView,
+	title: "pages/TemplatePage/TemplateSharedResourcesPage",
+	component: TemplateSharedResourcesPageView,
 	beforeEach: () => {
 		// Polling overrides the Storybook QueryClient's interval default.
 		const logs = spyOn(API, "getTemplateResourceRunLogs").mockImplementation(
 			async (_templateId, runId) => {
-				if (runId === mockFailedRun.id) return [mockFailedTemplateResourceLog];
+				if (runId === mockFailedRun.id) return [mockFailedSharedResourceLog];
 				if (runId === mockDestroyRun.id) return [mockDestroyLog];
 				if (runId === mockHistoricalRun.id) return [mockHistoricalLog];
 				if (runId === mockRunningRun.id) return [];
@@ -154,7 +154,7 @@ const meta = {
 		onRetry: fn(),
 		onRun: fn(),
 	},
-} satisfies Meta<typeof TemplateTerraformResourcesPageView>;
+} satisfies Meta<typeof TemplateSharedResourcesPageView>;
 export default meta;
 type Story = StoryObj<typeof meta>;
 
@@ -184,7 +184,7 @@ export const Loading: Story = {
 export const LoadError: Story = {
 	args: {
 		resources: undefined,
-		error: mockApiError({ message: "Unable to load template resources." }),
+		error: mockApiError({ message: "Unable to load shared resources." }),
 	},
 };
 export const RefetchError: Story = {
@@ -205,7 +205,7 @@ export const ApplyError: Story = {
 export const FailedRun: Story = {
 	beforeEach: () => {
 		const logs = spyOn(API, "getTemplateResourceRunLogs").mockResolvedValue([
-			mockFailedTemplateResourceLog,
+			mockFailedSharedResourceLog,
 		]);
 		return () => logs.mockRestore();
 	},
@@ -217,7 +217,7 @@ export const FailedRun: Story = {
 					MockTemplateResources.template_id,
 					mockFailedRun.id,
 				),
-				data: [mockFailedTemplateResourceLog],
+				data: [mockFailedSharedResourceLog],
 			},
 		],
 	},
@@ -249,7 +249,7 @@ export const UnknownState: Story = {
 					MockTemplateResources.template_id,
 					mockFailedRun.id,
 				),
-				data: [mockFailedTemplateResourceLog],
+				data: [mockFailedSharedResourceLog],
 			},
 		],
 	},
@@ -279,7 +279,7 @@ export const DestroyPending: Story = {
 	render: function Render(args) {
 		const [isRunning, setIsRunning] = useState(false);
 		return (
-			<TemplateTerraformResourcesPageView
+			<TemplateSharedResourcesPageView
 				{...args}
 				isRunning={isRunning}
 				onRun={() => setIsRunning(true)}
@@ -291,7 +291,7 @@ export const DestroyPending: Story = {
 			within(canvasElement).getByRole("button", { name: "Destroy" }),
 		);
 		await userEvent.click(
-			screen.getByRole("button", { name: "Destroy resources" }),
+			screen.getByRole("button", { name: "Destroy shared resources" }),
 		);
 	},
 };
@@ -299,14 +299,14 @@ export const DestroyError: Story = {
 	render: function Render(args) {
 		const [runError, setRunError] = useState<unknown>();
 		return (
-			<TemplateTerraformResourcesPageView
+			<TemplateSharedResourcesPageView
 				{...args}
 				runError={runError}
 				onRun={() =>
 					setRunError(
 						mockApiError({
 							message:
-								"Delete all workspaces before destroying template resources.",
+								"Delete all workspaces before destroying shared resources.",
 						}),
 					)
 				}
@@ -318,7 +318,7 @@ export const DestroyError: Story = {
 			within(canvasElement).getByRole("button", { name: "Destroy" }),
 		);
 		await userEvent.click(
-			screen.getByRole("button", { name: "Destroy resources" }),
+			screen.getByRole("button", { name: "Destroy shared resources" }),
 		);
 	},
 };
@@ -326,7 +326,7 @@ export const AppliedRevisionChanged: Story = {
 	render: function Render(args) {
 		const [resources, setResources] = useState(MockTemplateResources);
 		return (
-			<TemplateTerraformResourcesPageView
+			<TemplateSharedResourcesPageView
 				{...args}
 				resources={resources}
 				onRun={() => setResources(mockRevisionHistoryResources)}
@@ -338,7 +338,7 @@ export const AppliedRevisionChanged: Story = {
 			within(canvasElement).getByRole("button", { name: "Destroy" }),
 		);
 		await userEvent.click(
-			screen.getByRole("button", { name: "Destroy resources" }),
+			screen.getByRole("button", { name: "Destroy shared resources" }),
 		);
 	},
 };

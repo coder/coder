@@ -1,15 +1,17 @@
-# Template-scoped Terraform resources
+# Shared and per-workspace resources
 
-A template has two Terraform configurations:
+A template defines the resources shared by its workspaces and the resources each
+workspace gets. It has two provisioning scopes, each with its own Terraform
+configuration, state, and publishing lifecycle:
 
-- **Template resources:** managed once per template, with their own state and
-  explicit plan, apply, and destroy runs.
-- **Workspace resources:** managed separately for each workspace through normal
-  workspace builds.
+- **Shared resources:** provisioned once for all workspaces using the template,
+  with independent plan, apply, and destroy runs.
+- **Per-workspace resources:** provisioned separately for each workspace through
+  normal workspace builds.
 
 The minimal example below uses only `terraform_data`, so it creates no cluster or
 cloud resources. For the real Serpent demo with a template-owned Kubernetes
-namespace and network policy, see [Kubernetes template resources](kubernetes/README.md).
+namespace and network policy, see [Kubernetes provisioning scopes](kubernetes/README.md).
 Both examples have two separate Terraform roots. Do not combine or apply them in
 the same directory/state.
 
@@ -17,14 +19,16 @@ the same directory/state.
 
 Run the development server with the `template-resources` experiment (the default
 in `../start-native-dev.py`) and the companion provider override described below.
+The experiment, API, and data-source identifiers retain their existing names;
+**Shared** and **Per-workspace** name the customer-facing provisioning scopes.
 Create a normal template with a bootstrap workspace configuration first. For this
 example, `resource "terraform_data" "bootstrap" { input = "bootstrap" }` is enough.
-Open **Edit files > Template resources**, add `template/main.tf` as `main.tf`,
+Open **Edit files > Shared**, add `template/main.tf` as `main.tf`,
 then **Build** to save and plan a revision and **Publish** to apply it.
 Then upload `workspace/main.tf` as a new workspace configuration version
 associated with that template and create a workspace.
 
-The workspace reads the template's latest successful outputs through
+The workspace reads the shared scope's latest successful outputs through
 `coder_template_outputs`. Each build receives a fixed snapshot rather than
 fetching changing values while Terraform runs. `outputs` exposes a typed object,
 preserving nested objects, collections, booleans, numbers, and nulls without
@@ -34,7 +38,7 @@ requiring `jsondecode`:
 data "coder_template_outputs" "current" {}
 
 locals {
-  template = data.coder_template_outputs.current.outputs
+  shared = data.coder_template_outputs.current.outputs
 }
 ```
 
@@ -42,11 +46,10 @@ The `private_setting` output is sensitive and is deliberately excluded from
 workspace snapshots. Terraform state and logs still require trusted operator
 access; `sensitive` is not encryption.
 
-Change the greeting in the template configuration and apply again. Existing
+Change the greeting in the shared configuration and apply again. Existing
 workspace builds are not changed. The next workspace start reads the new
-snapshot. Rolling back the workspace configuration does not roll back template
-resources. Delete the test workspace before explicitly destroying template
-resources.
+snapshot. Rolling back the per-workspace configuration does not roll back shared
+resources. Delete the test workspace before explicitly destroying shared resources.
 
 ## Companion Terraform provider
 
@@ -77,7 +80,7 @@ local development arrangement, not a published provider release.
 
 The native end-to-end check passed using these two roots: initial startup gating,
 plan/apply/logs, sensitive-output exclusion, nested output types, independent
-second template apply and rollback without workspace changes, updated outputs
+second shared-resource apply and rollback without workspace changes, updated outputs
 on the next workspace start, guarded destroy using the applied revision, and
 native workspace/template cleanup.
 The test created no cluster or cloud resources. Backend/race tests, frontend
@@ -85,27 +88,27 @@ checks, and generation also passed.
 
 ## Scope and limitations
 
-Both editor scopes use a file tree, file operations, a full-screen code editor,
-and build output. Template-resource Build saves an immutable multi-file archive
-and plans it; Publish applies that built revision without publishing a workspace
-version. Publish runs a fresh plan before applying, not a previously approved plan
-artifact. Local modules can be bundled in the archive, preserving their bytes.
-Pin provider and remote-module versions: the source revision is immutable, but an
-unpinned external dependency is not. Coder owns the template resource state, so
-external Terraform backends are not supported.
+Both provisioning scopes use a file tree, file operations, a full-screen code
+editor, and build output. In **Shared**, Build saves an immutable multi-file
+archive and plans it; Publish applies that built revision without publishing a
+per-workspace version. Publish runs a fresh plan before applying, not a previously
+approved plan artifact. Local modules can be bundled in the archive, preserving
+their bytes. Pin provider and remote-module versions: the source revision is
+immutable, but an unpinned external dependency is not. Coder owns the shared
+resource state, so external Terraform backends are not supported.
 
-Template Terraform can use arbitrary providers and modules with the existing
-provisioner's credentials. Coder does not interpret networking, namespaces, or
-relationships between the resources. For example, the Serpent workspace can
-replace its namespace variable with the `namespace` output, while a
-Cilium module in template configuration selects the template UUID from
+The shared configuration can use arbitrary providers and modules with the
+existing provisioner's credentials. Coder does not interpret networking,
+namespaces, or relationships between the resources. For example, the Serpent
+workspace can replace its namespace variable with the `namespace` output, while
+a Cilium module in the shared configuration selects the template UUID from
 `data.coder_template.current.id`.
 
 A module reference shares code, not Terraform state ownership. Resources shared
 across templates must have one owner and be referenced by the other
 configurations. There is no cross-template resource-association database model.
 
-Use template outputs for workspace resources, not dynamic parameter definitions,
+Use shared outputs for per-workspace resources, not dynamic parameter definitions,
 presets, or provisioner routing tags in this POC. Those use a separate preview
 evaluator and are not part of the new output-snapshot integration.
 

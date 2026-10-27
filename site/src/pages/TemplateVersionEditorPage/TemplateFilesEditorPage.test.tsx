@@ -1,6 +1,6 @@
 import "#/testHelpers/monaco";
 import { File as NodeFile } from "node:buffer";
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API } from "#/api/api";
 import { templateResourcesKey } from "#/api/queries/templateResources";
@@ -77,7 +77,7 @@ const renderEditor = (search = "?path=main.tf") =>
 		],
 	});
 
-it("builds and publishes the complete template archive independently of workspace versions", async () => {
+it("builds and publishes the shared resource archive independently of per-workspace versions", async () => {
 	const user = userEvent.setup();
 	const publishWorkspace = vi.spyOn(API, "updateActiveTemplateVersion");
 	const buildWorkspace = vi.spyOn(API, "createTemplateVersion");
@@ -123,8 +123,14 @@ it("builds and publishes the complete template archive independently of workspac
 		});
 	const { router, queryClient } = renderEditor();
 	await screen.findByRole("textbox", { name: "main.tf" });
-	await user.click(screen.getByRole("link", { name: "Template resources" }));
+	await user.click(
+		within(
+			screen.getByRole("navigation", { name: "Provisioning scopes" }),
+		).getByRole("link", { name: "Shared" }),
+	);
 	await screen.findByRole("region", { name: "Build output" });
+	expect(router.state.location.pathname).toBe(editorPath);
+	expect(router.state.location.search).toBe("?path=main.tf&scope=template");
 	await user.type(
 		await screen.findByRole("textbox", { name: "main.tf" }),
 		"\n# edited",
@@ -170,12 +176,12 @@ it("builds and publishes the complete template archive independently of workspac
 	expect(run).toHaveBeenCalledTimes(2);
 	expect(publishWorkspace).not.toHaveBeenCalled();
 	expect(buildWorkspace).not.toHaveBeenCalled();
-	await user.click(screen.getByRole("link", { name: "Workspace resources" }));
+	await user.click(screen.getByRole("link", { name: "Per-workspace" }));
 	expect(router.state.location.pathname).toBe(editorPath);
 	expect(router.state.location.search).toBe("?path=main.tf");
 });
 
-it("opens template scope directly without fetching a workspace version and returns to the template", async () => {
+it("opens shared scope directly without fetching a workspace version and returns to the template", async () => {
 	const user = userEvent.setup();
 	const version = vi.spyOn(API, "getTemplateVersionByName");
 	const { router } = renderEditor("?scope=template");
@@ -187,21 +193,19 @@ it("opens template scope directly without fetching a workspace version and retur
 	);
 });
 
-it("can switch to template resources while the workspace version is unavailable", async () => {
+it("can switch to shared resources while the workspace version is unavailable", async () => {
 	vi.spyOn(API, "getTemplateVersionByName").mockRejectedValue(
 		mockApiError({ message: "Version unavailable." }),
 	);
 	const user = userEvent.setup();
 	const { router } = renderEditor();
-	await user.click(
-		await screen.findByRole("link", { name: "Template resources" }),
-	);
+	await user.click(await screen.findByRole("link", { name: "Shared" }));
 	await screen.findByRole("textbox", { name: "main.tf" });
 	expect(router.state.location.search).toBe("?path=main.tf&scope=template");
 	expect(API.getTemplateResources).toHaveBeenCalledWith(MockTemplate.id);
 });
 
-it("retries a failed template lookup in template scope", async () => {
+it("retries a failed template lookup in shared scope", async () => {
 	const get = vi
 		.spyOn(API, "getTemplateByName")
 		.mockRejectedValueOnce(mockApiError({ message: "Template unavailable." }))
@@ -214,14 +218,16 @@ it("retries a failed template lookup in template scope", async () => {
 	expect(API.getTemplateResources).toHaveBeenCalledWith(MockTemplate.id);
 });
 
-it("does not fetch template resources when the experiment is disabled", async () => {
+it("preserves the file selection in per-workspace scope when the experiment is disabled", async () => {
 	dashboard.experiments = [];
-	renderEditor("?scope=template");
+	const { router } = renderEditor("?path=main.tf&scope=template");
 	await screen.findByRole("button", { name: "Build" });
+	expect(router.state.location.pathname).toBe(editorPath);
+	expect(router.state.location.search).toBe("?path=main.tf");
 	expect(API.getTemplateResources).not.toHaveBeenCalled();
 });
 
-it("does not fetch template resources without update permission", async () => {
+it("does not fetch shared resources without update permission", async () => {
 	vi.spyOn(API, "checkAuthorization").mockResolvedValue({
 		canUpdateTemplate: false,
 	});
@@ -420,25 +426,23 @@ it("retries downloading the full archive rather than falling back to source", as
 	);
 });
 
-it.each(["workspace", "template"])(
-	"protects unsaved %s changes when switching scope",
+it.each(["per-workspace", "shared"])(
+	"protects unsaved %s changes when switching provisioning scopes",
 	async (scope) => {
 		const user = userEvent.setup();
 		const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
-		const templateScope = scope === "template";
-		const search = templateScope
+		const sharedScope = scope === "shared";
+		const search = sharedScope
 			? "?path=main.tf&scope=template"
 			: "?path=main.tf";
 		const { router } = renderEditor(search);
 		await user.type(
-			await screen.findByRole("textbox", {
-				name: templateScope ? "main.tf" : "main.tf",
-			}),
+			await screen.findByRole("textbox", { name: "main.tf" }),
 			"draft",
 		);
 		await user.click(
 			screen.getByRole("link", {
-				name: templateScope ? "Workspace resources" : "Template resources",
+				name: sharedScope ? "Per-workspace" : "Shared",
 			}),
 		);
 		await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));

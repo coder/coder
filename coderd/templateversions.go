@@ -507,7 +507,7 @@ func templateValidationJobTags(ctx context.Context, db database.Store, templateI
 		return tags, nil
 	}
 	if err != nil {
-		return nil, xerrors.Errorf("get template resource routing requirement: %w", err)
+		return nil, xerrors.Errorf("get shared resource routing requirement: %w", err)
 	}
 	tags = maps.Clone(tags)
 	if tags == nil {
@@ -599,7 +599,7 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 	tags, err := templateValidationJobTags(ctx, api.Database, templateVersion.TemplateID.UUID, job.Tags)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error checking template resource requirements.",
+			Message: "Internal error checking shared resource requirements.",
 			Detail:  err.Error(),
 		})
 		return
@@ -1677,7 +1677,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 	tags, err = templateValidationJobTags(ctx, api.Database, req.TemplateID, tags)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error checking template resource requirements.",
+			Message: "Internal error checking shared resource requirements.",
 			Detail:  err.Error(),
 		})
 		return

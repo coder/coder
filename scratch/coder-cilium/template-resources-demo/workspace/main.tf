@@ -1,4 +1,4 @@
-# Workspace-scoped root: each workspace has independent Terraform state.
+# Per-workspace root: each workspace has independent Terraform state.
 terraform {
   required_version = ">= 1.9.0, < 2.0.0"
   required_providers {
@@ -15,15 +15,15 @@ provider "coder" {}
 data "coder_template_outputs" "current" {}
 
 locals {
-  template = data.coder_template_outputs.current.outputs
+  shared = data.coder_template_outputs.current.outputs
 }
 
 resource "terraform_data" "workspace_settings" {
   input = {
-    namespace        = local.template.namespace
-    greeting         = local.template.greeting
+    namespace        = local.shared.namespace
+    greeting         = local.shared.greeting
     template_version = data.coder_template_outputs.current.revision_id
-    structured       = local.template.structured
+    structured       = local.shared.structured
   }
 }
 

@@ -79,8 +79,10 @@ output "value" { value = terraform_data.example.output }
 	require.Nil(t, detail.AppliedRevisionID)
 	_, err = client.CreateTemplateResourceRun(ctx, template.ID, codersdk.CreateTemplateResourceRunRequest{RevisionID: newer.ID, Action: "plan"})
 	require.Equal(t, http.StatusConflict, coderdtest.SDKError(t, err).StatusCode())
+	require.Equal(t, "A shared resource run is already active.", coderdtest.SDKError(t, err).Message)
 	err = client.DeleteTemplate(ctx, template.ID)
 	require.Equal(t, http.StatusConflict, coderdtest.SDKError(t, err).StatusCode())
+	require.Equal(t, "Destroy shared resources before deleting the template. Unknown outcomes require manual reconciliation.", coderdtest.SDKError(t, err).Message)
 
 	state, err := db.CompleteTemplateResourceRun(systemCtx, database.CompleteTemplateResourceRunParams{TemplateID: template.ID, RunID: uuid.NullUUID{UUID: run.ID, Valid: true}, Status: "applied", State: []byte("private terraform state"), Outputs: json.RawMessage(`{"value":"hello","nested":{"list":[1,true]}}`), AppliedRevisionID: uuid.NullUUID{UUID: revision.ID, Valid: true}, UpdatedAt: dbtime.Now()})
 	require.NoError(t, err)

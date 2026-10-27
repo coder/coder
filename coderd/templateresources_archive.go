@@ -23,7 +23,7 @@ const templateResourceFileMaxBytes = 10 << 20
 // are retained, but backend configuration is forbidden in every Terraform file.
 func normalizeTemplateResourceArchive(data []byte, maxBytes int) ([]byte, string, error) {
 	invalid := func(message string) ([]byte, string, error) {
-		return nil, "", &templateResourceHTTPError{http.StatusBadRequest, "Invalid template resource archive: " + message}
+		return nil, "", &templateResourceHTTPError{http.StatusBadRequest, "Invalid shared resource archive: " + message}
 	}
 	if len(data) > maxBytes {
 		return invalid("archive exceeds maximum size")

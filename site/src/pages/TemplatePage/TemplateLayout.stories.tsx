@@ -27,7 +27,7 @@ import {
 	MockTemplateResources,
 } from "#/testHelpers/templateResources";
 import { TemplateLayout } from "./TemplateLayout";
-import TemplateTerraformResourcesPage from "./TemplateTerraformResourcesPage/TemplateTerraformResourcesPage";
+import TemplateSharedResourcesPage from "./TemplateSharedResourcesPage/TemplateSharedResourcesPage";
 
 const mockLayoutData = {
 	template: MockTemplate,
@@ -39,7 +39,7 @@ const meta = {
 	title: "pages/TemplatePage/TemplateLayout",
 	component: TemplateLayout,
 	decorators: [withAuthProvider, withDashboardProvider],
-	args: { children: <TemplateTerraformResourcesPage /> },
+	args: { children: <TemplateSharedResourcesPage /> },
 	beforeEach: () => {
 		// Resource polling overrides the Storybook QueryClient's interval default.
 		const resources = spyOn(API, "getTemplateResources").mockResolvedValue(
@@ -64,14 +64,14 @@ const meta = {
 	play: async ({ canvasElement }) => {
 		// Wait for auth before capturing the tabs and nested resource page.
 		await within(canvasElement).findByRole("link", {
-			name: "Workspace resources",
+			name: "Per-workspace resources",
 		});
 	},
 } satisfies Meta<typeof TemplateLayout>;
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const TemplateResourcesEnabled: Story = {
+export const SharedResourcesEnabled: Story = {
 	parameters: {
 		layout: "fullscreen",
 		pixel: { matrix: pixelWithPhone },

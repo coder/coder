@@ -53,15 +53,15 @@ func TestNormalizeTemplateResourceArchive(t *testing.T) {
 		{"workspace_state_directory_empty", []templateResourceTestEntry{root, {"terraform.tfstate.d/", "", tar.TypeDir}}, "reserved Terraform runtime path"},
 		{"workspace_state_directory_implicit", []templateResourceTestEntry{root, {"./terraform.tfstate.d/foreign/terraform.tfstate", "{}", tar.TypeReg}}, "reserved Terraform runtime path"},
 		{"runtime_path_file", []templateResourceTestEntry{root, {".terraform", "", tar.TypeReg}}, "reserved Terraform runtime path"},
-		{"second_file_backend", []templateResourceTestEntry{root, {"backend.tf", "terraform {\n backend \"s3\" {}\n}", tar.TypeReg}}, "state is managed by Coder"},
-		{"json_backend", []templateResourceTestEntry{root, {"backend.tf.json", `{"terraform":{"backend":{"s3":{"bucket":"example"}}}}`, tar.TypeReg}}, "state is managed by Coder"},
-		{"json_cloud", []templateResourceTestEntry{{"root.tf.json", `{"terraform":{"cloud":{"organization":"example"}}}`, tar.TypeReg}}, "state is managed by Coder"},
-		{"nested_backend", []templateResourceTestEntry{root, {"modules/local/backend.tf", "terraform {\n backend \"local\" {}\n}", tar.TypeReg}}, "state is managed by Coder"},
+		{"second_file_backend", []templateResourceTestEntry{root, {"backend.tf", "terraform {\n backend \"s3\" {}\n}", tar.TypeReg}}, "Shared resource state is managed by Coder"},
+		{"json_backend", []templateResourceTestEntry{root, {"backend.tf.json", `{"terraform":{"backend":{"s3":{"bucket":"example"}}}}`, tar.TypeReg}}, "Shared resource state is managed by Coder"},
+		{"json_cloud", []templateResourceTestEntry{{"root.tf.json", `{"terraform":{"cloud":{"organization":"example"}}}`, tar.TypeReg}}, "Shared resource state is managed by Coder"},
+		{"nested_backend", []templateResourceTestEntry{root, {"modules/local/backend.tf", "terraform {\n backend \"local\" {}\n}", tar.TypeReg}}, "Shared resource state is managed by Coder"},
 		{"malformed_hcl", []templateResourceTestEntry{{"root.tf", "resource {", tar.TypeReg}}, "Invalid Terraform configuration"},
 		{"malformed_json", []templateResourceTestEntry{{"root.tf.json", "{", tar.TypeReg}}, "Invalid Terraform configuration"},
 		{"no_root", []templateResourceTestEntry{{"modules/local/main.tf", "# module", tar.TypeReg}}, "root .tf"},
 		{"ignored_root", []templateResourceTestEntry{{".hidden.tf", "# ignored by Terraform", tar.TypeReg}}, "root .tf"},
-		{"json_backend_array", []templateResourceTestEntry{{"root.tf.json", `{"terraform":[{"backend":{"s3":{}}}]}`, tar.TypeReg}}, "state is managed by Coder"},
+		{"json_backend_array", []templateResourceTestEntry{{"root.tf.json", `{"terraform":[{"backend":{"s3":{}}}]}`, tar.TypeReg}}, "Shared resource state is managed by Coder"},
 		{"traversal", []templateResourceTestEntry{root, {"modules/../escape", "", tar.TypeReg}}, "unsafe path"},
 		{"absolute", []templateResourceTestEntry{root, {"/escape", "", tar.TypeReg}}, "unsafe path"},
 		{"windows", []templateResourceTestEntry{root, {`C:\escape`, "", tar.TypeReg}}, "unsafe path"},
@@ -112,7 +112,7 @@ func TestTemplateResourceArchiveLimits(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "# preview", preview)
 	_, _, err = normalizeTemplateResourceArchive(data, len(data)-1)
-	require.ErrorContains(t, err, "exceeds maximum size")
+	require.ErrorContains(t, err, "Invalid shared resource archive: archive exceeds maximum size")
 	// The frontend TAR writer can omit footer blocks at buffer boundaries.
 	// Match Go's reader tolerance, then emit a complete normalized archive.
 	withoutFooter, _, err := normalizeTemplateResourceArchive(data[:len(data)-1024], HTTPFileMaxBytes)

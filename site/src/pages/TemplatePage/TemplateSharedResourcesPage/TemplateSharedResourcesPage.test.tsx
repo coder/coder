@@ -15,7 +15,7 @@ import {
 	MockTemplateResourceRun,
 	MockTemplateResources,
 } from "#/testHelpers/templateResources";
-import TemplateTerraformResourcesPage from "./TemplateTerraformResourcesPage";
+import TemplateSharedResourcesPage from "./TemplateSharedResourcesPage";
 
 vi.mock(
 	import("#/pages/TemplatePage/TemplateLayout"),
@@ -47,7 +47,7 @@ it("opens the full archive editor instead of saving a main.tf-only revision", as
 	const save = vi.spyOn(API, "createTemplateResourceRevision");
 	const { router } = renderWithRouter(
 		createMemoryRouter([
-			{ path: "/", element: <TemplateTerraformResourcesPage /> },
+			{ path: "/", element: <TemplateSharedResourcesPage /> },
 			{ path: "/templates/:template/edit", element: <div /> },
 		]),
 	);
@@ -71,7 +71,7 @@ it("retries a failed apply without creating another revision", async () => {
 			mockApiError({ message: "No provisioner available." }),
 		)
 		.mockResolvedValue(MockTemplateResourceRun);
-	const { queryClient } = render(<TemplateTerraformResourcesPage />);
+	const { queryClient } = render(<TemplateSharedResourcesPage />);
 	await user.click(await screen.findByRole("button", { name: "Apply" }));
 	await waitFor(() => expect(run).toHaveBeenCalledTimes(1));
 	await waitFor(() => expect(queryClient.isMutating()).toBe(0));
@@ -98,7 +98,7 @@ it("plans the selected historical revision and destroys the applied revision onl
 	const run = vi
 		.spyOn(API, "createTemplateResourceRun")
 		.mockResolvedValue(MockTemplateResourceRun);
-	const { queryClient } = render(<TemplateTerraformResourcesPage />);
+	const { queryClient } = render(<TemplateSharedResourcesPage />);
 	await user.click(
 		await screen.findByRole("combobox", { name: "Revision history" }),
 	);
@@ -114,9 +114,9 @@ it("plans the selected historical revision and destroys the applied revision onl
 	await user.click(screen.getByRole("button", { name: "Destroy" }));
 	expect(run).toHaveBeenCalledTimes(1);
 	await user.click(
-		within(screen.getByRole("dialog")).getByRole("button", {
-			name: "Destroy resources",
-		}),
+		within(
+			screen.getByRole("dialog", { name: "Destroy shared resources?" }),
+		).getByRole("button", { name: "Destroy shared resources" }),
 	);
 	await waitFor(() =>
 		expect(run).toHaveBeenCalledWith(MockTemplate.id, {
@@ -140,7 +140,7 @@ it("fetches logs for the selected historical run", async () => {
 	vi.mocked(API.getTemplateResourceRunLogs).mockRejectedValueOnce(
 		mockApiError({ message: "Unable to load job logs." }),
 	);
-	render(<TemplateTerraformResourcesPage />);
+	render(<TemplateSharedResourcesPage />);
 	await user.click(await screen.findByRole("button", { name: "Retry logs" }));
 	await waitFor(() =>
 		expect(API.getTemplateResourceRunLogs).toHaveBeenCalledTimes(2),
@@ -166,7 +166,7 @@ it("retries an initial resource load failure", async () => {
 			mockApiError({ message: "Resource state unavailable." }),
 		)
 		.mockResolvedValue(MockTemplateResources);
-	render(<TemplateTerraformResourcesPage />);
+	render(<TemplateSharedResourcesPage />);
 	await user.click(
 		await screen.findByRole("button", { name: "Retry resources" }),
 	);

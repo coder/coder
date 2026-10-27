@@ -13,8 +13,9 @@ import {
 import { Loader } from "#/components/Loader/Loader";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
-import { TemplateEditorScopeNavigation } from "./TemplateEditorScopeNavigation";
-import { TemplateResourceFilesEditor } from "./TemplateResourceFilesEditor";
+import { pageTitle } from "#/utils/page";
+import { ProvisioningScopeNavigation } from "./ProvisioningScopeNavigation";
+import { SharedResourceFilesEditor } from "./SharedResourceFilesEditor";
 import TemplateVersionEditorPage from "./TemplateVersionEditorPage";
 
 const TemplateFilesEditorPage: React.FC = () => {
@@ -23,22 +24,24 @@ const TemplateFilesEditorPage: React.FC = () => {
 	const enabled = experiments.includes("template-resources");
 	if (params.get("scope") === "template") {
 		if (!enabled) {
-			const workspaceParams = new URLSearchParams(params);
-			workspaceParams.delete("scope");
-			return <Navigate to={{ search: workspaceParams.toString() }} replace />;
+			const perWorkspaceParams = new URLSearchParams(params);
+			perWorkspaceParams.delete("scope");
+			return (
+				<Navigate to={{ search: perWorkspaceParams.toString() }} replace />
+			);
 		}
-		return <TemplateResourcesFilesEditor />;
+		return <SharedResourcesEditorPage />;
 	}
 	return (
 		<TemplateVersionEditorPage
 			scopeNavigation={
-				enabled && <TemplateEditorScopeNavigation scope="workspace" />
+				enabled && <ProvisioningScopeNavigation scope="per-workspace" />
 			}
 		/>
 	);
 };
 
-const TemplateResourcesFilesEditor: React.FC = () => {
+const SharedResourcesEditorPage: React.FC = () => {
 	const { organization = "default", template: templateName = "" } = useParams();
 	const getLink = useLinks();
 	const templateQuery = useQuery(templateByName(organization, templateName));
@@ -59,6 +62,7 @@ const TemplateResourcesFilesEditor: React.FC = () => {
 	});
 	return (
 		<div className="h-full flex flex-col">
+			<title>{pageTitle(templateName, "Shared resources editor")}</title>
 			{!(template && permissions.data?.canUpdateTemplate) && (
 				<>
 					<Topbar className="flex items-center gap-4 pr-4">
@@ -74,7 +78,7 @@ const TemplateResourcesFilesEditor: React.FC = () => {
 							{template?.display_name || template?.name || templateName}
 						</TopbarData>
 					</Topbar>
-					<TemplateEditorScopeNavigation scope="template" />
+					<ProvisioningScopeNavigation scope="shared" />
 				</>
 			)}
 			{Boolean(templateQuery.error || permissions.error) && (
@@ -95,9 +99,9 @@ const TemplateResourcesFilesEditor: React.FC = () => {
 			{template &&
 				permissions.data &&
 				(permissions.data.canUpdateTemplate ? (
-					<TemplateResourceFilesEditor template={template} />
+					<SharedResourceFilesEditor template={template} />
 				) : (
-					<ErrorAlert error="Template update permission is required to view template resources." />
+					<ErrorAlert error="Template update permission is required to view shared resources." />
 				))}
 		</div>
 	);

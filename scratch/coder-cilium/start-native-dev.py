@@ -1,4 +1,4 @@
-"""Start the template-resources demo against an existing local cluster."""
+"""Start the provisioning-scopes demo against an existing local cluster."""
 import argparse
 import ipaddress
 import json
