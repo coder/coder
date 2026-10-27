@@ -1873,7 +1873,7 @@ func (t *mcpToolWrapper) FullInputSchema() map[string]any {
 	// with "id", so it is first rewritten in draft 7, which uses "$id",
 	// and recursive references, which cannot hold a pointer, are first
 	// replaced with references that can.
-	inner := toolschema.RewriteRefs(toolschema.ReplaceRecursiveRefs(toolschema.UpgradeDraft4(t.inputSchema)), rebaseOntoModelIntentSchema)
+	inner := toolschema.RewriteRefs(toolschema.ReplaceRecursiveRefs(toolschema.UpgradeLegacyDrafts(t.inputSchema)), rebaseOntoModelIntentSchema)
 	// The arguments get the object shape an unwrapped root is given.
 	// Without a type, models send them as a JSON string, and a null
 	// "properties" or "required" fails the provider request.
