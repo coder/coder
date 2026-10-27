@@ -37,13 +37,13 @@ import { getEffectiveTabId } from "../components/ChatsSidebar/tabs/getEffectiveT
 import { SidebarTabView } from "../components/ChatsSidebar/tabs/SidebarTabView";
 import { ChatTopBar } from "../components/ChatTopBar";
 import { GitPanel } from "../components/GitPanel/GitPanel";
+import { LazyTerminalPanel } from "../components/LazyTerminalPanel";
 import { DebugPanel } from "../components/RightPanel/DebugPanel/DebugPanel";
 import { DesktopPanel } from "../components/RightPanel/DesktopPanel";
 import { PortPreviewPanel } from "../components/RightPanel/PortPreviewPanel";
 import { RightPanel } from "../components/RightPanel/RightPanel";
 import { RightPanelAddTabControl } from "../components/RightPanel/RightPanelAddTabControl";
 import { getWorkspaceStatus, StatusIcon } from "../components/StatusIcon";
-import { TerminalPanel } from "../components/TerminalPanel";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { TerminalClientSessionContext } from "../context/TerminalClientSessionContext";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
@@ -198,7 +198,7 @@ const UserTabContent: React.FC<UserTabContentProps> = ({
 	switch (tab.kind) {
 		case "terminal":
 			return workspace && workspaceAgent ? (
-				<TerminalPanel
+				<LazyTerminalPanel
 					chatId={chatId}
 					reconnectionToken={tab.reconnectionToken}
 					initialCommand={tab.initialCommand}
@@ -675,7 +675,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 				) : null;
 			case "terminal":
 				return workspace && workspaceAgent ? (
-					<TerminalPanel
+					<LazyTerminalPanel
 						chatId={agentId}
 						isHot={
 							showSidebarPanel &&

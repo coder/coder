@@ -1,0 +1,47 @@
+import { render, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
+import { LazyTerminalPanel } from "./LazyTerminalPanel";
+
+const panel = vi.hoisted(() => ({ loads: 0, mounts: 0, unmounts: 0 }));
+
+vi.mock("./TerminalPanel", async () => {
+	panel.loads++;
+	const { useEffect } = await import("react");
+	return {
+		default: () => {
+			useEffect(() => {
+				panel.mounts++;
+				return () => {
+					panel.unmounts++;
+				};
+			}, []);
+			return null;
+		},
+	};
+});
+
+const props = {
+	chatId: "chat-1",
+	autoFocus: false,
+	onReady: () => {},
+	workspace: MockWorkspace,
+	workspaceAgent: MockWorkspaceAgent,
+};
+
+describe("LazyTerminalPanel", () => {
+	it("loads the panel when its tab is first hot and keeps it mounted after", async () => {
+		const { rerender } = render(
+			<LazyTerminalPanel {...props} isHot={false} />,
+		);
+		await vi.dynamicImportSettled();
+		expect(panel.loads).toBe(0);
+
+		rerender(<LazyTerminalPanel {...props} isHot />);
+		await waitFor(() => expect(panel.mounts).toBe(1));
+		expect(panel.loads).toBe(1);
+
+		rerender(<LazyTerminalPanel {...props} isHot={false} />);
+		expect(panel.unmounts).toBe(0);
+	});
+});

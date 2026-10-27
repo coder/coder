@@ -177,3 +177,5 @@ export const TerminalPanel: React.FC<TerminalPanelProps> = ({
 		</div>
 	);
 };
+
+export default TerminalPanel;
