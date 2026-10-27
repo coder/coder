@@ -1,10 +1,4 @@
-import {
-	useCallback,
-	useEffect,
-	useEffectEvent,
-	useLayoutEffect,
-	useState,
-} from "react";
+import { useCallback, useEffect, useEffectEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { watchChat } from "#/api/api";
 import {
@@ -143,12 +137,6 @@ export const useChatStore = (
 		},
 	});
 
-	// A reopened chat's store holds the previous visit's stream state. A layout
-	// effect clears it before the first render paints.
-	useLayoutEffect(() => {
-		store.resetTransientState();
-	}, [store, aiGatewayDisabled]);
-
 	useEffect(() => {
 		const updateSidebarChat = (
 			updater: (chat: TypesGen.Chat) => TypesGen.Chat,
@@ -169,8 +157,13 @@ export const useChatStore = (
 			});
 		};
 
+		// The cleanups clear the transient state when the visit ends, so a
+		// reopened store renders without it. This reset covers clientError,
+		// which a request that fails after the visit ended still sets.
+		store.resetTransientState();
+
 		if (!initialDataLoaded || aiGatewayDisabled) {
-			return;
+			return () => store.resetTransientState();
 		}
 
 		// Local disposed flag so the message handler (which lives
@@ -495,6 +488,7 @@ export const useChatStore = (
 			if (partsFlushTimer !== null) {
 				clearTimeout(partsFlushTimer);
 			}
+			store.resetTransientState();
 		};
 	}, [
 		aiGatewayDisabled,
