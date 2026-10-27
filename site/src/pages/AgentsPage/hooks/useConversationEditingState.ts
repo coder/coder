@@ -290,7 +290,6 @@ export function useConversationEditingState(deps: {
 		}
 	};
 
-	// Wraps the parent onSend to clear local input/editing state.
 	const handleSendFromInput = async ({
 		message,
 		attachments,
