@@ -19,9 +19,9 @@ import {
 import {
 	buildLiveStatus,
 	buildStreamRenderState,
+	MockAsyncQuestionMessages,
 	MockCollapsedStepsPreferences,
 	MockLongTurnPageLoads,
-	MockQuestionCallMessage,
 	MockWebSearchAnswerMessages,
 	MockWorkingMessages,
 	pinFixtureClock,
@@ -456,40 +456,6 @@ describe("ConversationTimeline live working blocks", () => {
 	});
 });
 
-const mockAsyncQuestionMessages: ChatMessage[] = [
-	...MockWorkingMessages.slice(0, 1),
-	MockQuestionCallMessage,
-	{
-		...MockChatMessage,
-		id: 5,
-		role: "tool",
-		created_at: workingFixtureTime(6),
-		content: [
-			{
-				type: "tool-result",
-				tool_call_id: "question",
-				tool_name: "ask_user_question",
-				result: {
-					output: JSON.stringify({
-						questions: [
-							{
-								header: "Scope",
-								question: "Which part should change first?",
-								options: [
-									{ label: "Backend", description: "Change the API first." },
-									{ label: "Frontend", description: "Change the UI first." },
-								],
-							},
-						],
-						async: true,
-					}),
-				},
-				created_at: workingFixtureTime(6),
-			},
-		],
-	},
-];
-
 describe("ConversationTimeline async questions", () => {
 	it.each<[string, ChatMessage["content"]]>([
 		[
@@ -522,7 +488,7 @@ describe("ConversationTimeline async questions", () => {
 				.mockResolvedValue();
 			renderTimeline({
 				messages: [
-					...mockAsyncQuestionMessages,
+					...MockAsyncQuestionMessages,
 					{
 						...MockChatMessage,
 						id: 6,
