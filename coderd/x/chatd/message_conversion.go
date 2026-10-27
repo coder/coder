@@ -1052,13 +1052,17 @@ func (s *partialMessageConversionState) consumeToolPart(buffered messagepartbuff
 		s.logSkippedPart(buffered, "duplicate durable tool result part")
 		return nil
 	}
+	if len(buffered.ModelResult) > 0 && !json.Valid(buffered.ModelResult) {
+		s.logSkippedPart(buffered, "tool result part has invalid model result")
+		return nil
+	}
 	part.ResultDelta = ""
 	part.ReasoningDelta = ""
 	part.ResultReset = false
 	if err := s.flushAssistant(); err != nil {
 		return err
 	}
-	if err := s.appendToolResult(part); err != nil {
+	if err := s.appendToolResult(part, buffered.ModelResult); err != nil {
 		return err
 	}
 	s.answered[part.ToolCallID] = true
@@ -1154,12 +1158,25 @@ func (s *partialMessageConversionState) flushAccumulatedToolResults() error {
 	return nil
 }
 
-func (s *partialMessageConversionState) appendToolResult(part codersdk.ChatMessagePart) error {
+// appendToolResult persists a completed tool result. With a model result,
+// part.Result is the user projection, so it mirrors buildCommitStepMessages:
+// a user-only row with the projection and a model-only row with the result.
+func (s *partialMessageConversionState) appendToolResult(part codersdk.ChatMessagePart, modelResult json.RawMessage) error {
+	visibility := database.ChatMessageVisibilityBoth
+	if len(modelResult) > 0 {
+		userContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{part})
+		if err != nil {
+			return xerrors.Errorf("marshal partial user tool result: %w", err)
+		}
+		s.messages = append(s.messages, baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityUser, s.input.modelConfigID, s.contentVersion, userContent))
+		visibility = database.ChatMessageVisibilityModel
+		part.Result = modelResult
+	}
 	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{part})
 	if err != nil {
 		return xerrors.Errorf("marshal partial tool result: %w", err)
 	}
-	s.messages = append(s.messages, baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, s.input.modelConfigID, s.contentVersion, content))
+	s.messages = append(s.messages, baseMessage(database.ChatMessageRoleTool, visibility, s.input.modelConfigID, s.contentVersion, content))
 	return nil
 }
 
@@ -1181,7 +1198,7 @@ func (s *partialMessageConversionState) appendSyntheticInterruptionResults() err
 		if !s.input.interruptedAt.IsZero() {
 			part.CreatedAt = &s.input.interruptedAt
 		}
-		if err := s.appendToolResult(part); err != nil {
+		if err := s.appendToolResult(part, nil); err != nil {
 			return xerrors.Errorf("marshal synthetic interruption message: %w", err)
 		}
 		s.answered[id] = true

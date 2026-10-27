@@ -12,10 +12,13 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestBuildAssistantParts_PromotesToolAttachments(t *testing.T) {
@@ -265,6 +268,67 @@ func TestACPResultProjectionsCommit(t *testing.T) {
 		rows = append(rows, database.ChatMessage{Role: message.Role, Content: message.Content, Visibility: message.Visibility, ContentVersion: message.ContentVersion})
 	}
 	prompt, err := chatprompt.ConvertMessagesWithFiles(context.Background(), rows, nil, slog.Make(), nil, uuid.NullUUID{})
+	require.NoError(t, err)
+	encoded, err := json.Marshal(prompt)
+	require.NoError(t, err)
+	require.NotContains(t, string(encoded), "private reasoning")
+	require.Contains(t, string(encoded), "answer")
+}
+
+// TestACPResultProjectionsInterrupt covers an interrupt that wins the race
+// with the step commit after a projected tool result was published. The
+// persisted rows must keep the same model and user split as the commit.
+func TestACPResultProjectionsInterrupt(t *testing.T) {
+	t.Parallel()
+	model := `{"response":"answer"}`
+	user := json.RawMessage(`{"messages":[{"role":"assistant","content":[{"type":"reasoning","text":"private reasoning"}]}]}`)
+	tool := fantasy.NewAgentTool("acp_wait_agent", "test tool", func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+		return chattool.WithUserResult(fantasy.NewTextResponse(model), user), nil
+	})
+	clock := quartz.NewMock(t)
+	buffer := messagepartbuffer.New(messagepartbuffer.Options{Clock: clock})
+	defer buffer.Close()
+	key := messagepartbuffer.Key{ChatID: uuid.New(), HistoryVersion: 1, GenerationAttempt: 1}
+	require.NoError(t, buffer.CreateEpisode(key))
+	args := json.RawMessage(`{"harness_id":"test","session_id":"x","working_directory":"/work"}`)
+	require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageToolCall("wait", "acp_wait_agent", args)))
+	// Wire the buffer the way beginGenerationAttempt does.
+	_, err := chatloop.ExecuteLocalTools(context.Background(), chatloop.ExecuteLocalToolsOptions{
+		Clock:       clock,
+		Tools:       []fantasy.AgentTool{tool},
+		ActiveTools: []string{"acp_wait_agent"},
+		ToolCalls:   []fantasy.ToolCallContent{{ToolCallID: "wait", ToolName: "acp_wait_agent", Input: string(args)}},
+		PublishMessagePart: func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
+			require.NoError(t, buffer.AddPart(key, role, part))
+		},
+		PublishProjectedToolResult: func(part codersdk.ChatMessagePart, modelResult json.RawMessage) {
+			require.NoError(t, buffer.AddProjectedToolResult(key, part, modelResult))
+		},
+		Logger: testutil.Logger(t),
+	})
+	require.NoError(t, err)
+
+	// The interrupt closes the episode before the step commits.
+	require.NoError(t, buffer.CloseEpisode(key))
+	parts, err := buffer.GetParts(key)
+	require.NoError(t, err)
+	partial, err := bufferedPartsToPartialMessages(bufferedPartsToPartialMessagesInput{
+		parts:          parts,
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         testutil.Logger(t),
+		interruptedAt:  clock.Now(),
+	})
+	require.NoError(t, err)
+	require.Len(t, partial, 3)
+	require.Equal(t, database.ChatMessageVisibilityUser, partial[1].Visibility)
+	require.JSONEq(t, string(user), string(parseMessageParts(t, partial[1].Role, partial[1].Content)[0].Result))
+	require.Equal(t, database.ChatMessageVisibilityModel, partial[2].Visibility)
+	require.JSONEq(t, model, string(parseMessageParts(t, partial[2].Role, partial[2].Content)[0].Result))
+	rows := make([]database.ChatMessage, 0, len(partial))
+	for _, message := range partial {
+		rows = append(rows, database.ChatMessage{Role: message.Role, Content: message.Content, Visibility: message.Visibility, ContentVersion: message.ContentVersion})
+	}
+	prompt, err := chatprompt.ConvertMessagesWithFiles(context.Background(), rows, nil, testutil.Logger(t), nil, uuid.NullUUID{})
 	require.NoError(t, err)
 	encoded, err := json.Marshal(prompt)
 	require.NoError(t, err)

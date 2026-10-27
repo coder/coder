@@ -1134,12 +1134,13 @@ func (s *taskStarter) executeLocalTools(
 				}
 				return ctx
 			},
-			Stages:             s.server.stages,
-			StageModel:         prepared.StageModel,
-			PublishMessagePart: attempt.publish,
-			Logger:             s.opts.Logger,
-			Metrics:            s.server.metrics,
-			Clock:              s.opts.Clock,
+			Stages:                     s.server.stages,
+			StageModel:                 prepared.StageModel,
+			PublishMessagePart:         attempt.publish,
+			PublishProjectedToolResult: attempt.publishProjectedToolResult,
+			Logger:                     s.opts.Logger,
+			Metrics:                    s.server.metrics,
+			Clock:                      s.opts.Clock,
 		})
 		if err != nil {
 			return xerrors.Errorf("execute local tools: %w", err)
@@ -1372,6 +1373,9 @@ type generationAttempt struct {
 	number int64
 	// publish streams a message part into the attempt's buffer episode.
 	publish func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
+	// publishProjectedToolResult streams a tool result's user projection
+	// and keeps its model result in the buffer episode for interrupts.
+	publishProjectedToolResult func(codersdk.ChatMessagePart, json.RawMessage)
 	// startModelInvocation marks the start of the attempt's billable
 	// model invocation window on the buffer episode, so an interrupt
 	// can bill the window the step would have reported. It is always
@@ -1425,6 +1429,9 @@ func (s *taskStarter) beginGenerationAttempt(
 		number: attempt,
 		publish: func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
 			_ = s.opts.MessagePartBuffer.AddPart(key, role, part)
+		},
+		publishProjectedToolResult: func(part codersdk.ChatMessagePart, modelResult json.RawMessage) {
+			_ = s.opts.MessagePartBuffer.AddProjectedToolResult(key, part, modelResult)
 		},
 		startModelInvocation: func() {
 			_ = s.opts.MessagePartBuffer.StartModelInvocation(key)

@@ -62,6 +62,10 @@ type Part struct {
 	Seq         int64
 	Role        codersdk.ChatMessageRole
 	MessagePart codersdk.ChatMessagePart
+	// ModelResult is the model-visible result of a tool result whose
+	// MessagePart.Result holds the user projection. Streams forward only
+	// MessagePart; interrupts persist ModelResult for the model.
+	ModelResult json.RawMessage
 }
 
 type partJSON struct {
@@ -285,6 +289,16 @@ func (b *Buffer) RecordToolCompletion(key Key, callIndex int, completedAt time.T
 // Parts receive contiguous sequence numbers so stream endpoints can detect
 // stale or broken episode subscriptions before forwarding data to clients.
 func (b *Buffer) AddPart(key Key, role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) error {
+	return b.appendPart(key, Part{Role: role, MessagePart: part})
+}
+
+// AddProjectedToolResult appends a tool result part whose Result is the
+// user projection and keeps modelResult for interrupt persistence.
+func (b *Buffer) AddProjectedToolResult(key Key, part codersdk.ChatMessagePart, modelResult json.RawMessage) error {
+	return b.appendPart(key, Part{Role: codersdk.ChatMessageRoleTool, MessagePart: part, ModelResult: modelResult})
+}
+
+func (b *Buffer) appendPart(key Key, buffered Part) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.closed {
@@ -297,15 +311,12 @@ func (b *Buffer) AddPart(key Key, role codersdk.ChatMessageRole, part codersdk.C
 	if episode.closed {
 		return ErrEpisodeClosed
 	}
-	buffered := Part{
-		Seq:         int64(len(episode.parts) + 1),
-		Role:        role,
-		MessagePart: part,
-	}
+	buffered.Seq = int64(len(episode.parts) + 1)
 	sizeBytes, err := serializedPartBytes(buffered)
 	if err != nil {
 		return err
 	}
+	sizeBytes += int64(len(buffered.ModelResult))
 	if episode.bytes+sizeBytes > b.opts.MaxEpisodeBytes {
 		return ErrEpisodeFull
 	}

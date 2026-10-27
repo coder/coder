@@ -189,9 +189,14 @@ type ExecuteLocalToolsOptions struct {
 	StageModel StageModel
 
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
-	Logger             slog.Logger
-	Metrics            *Metrics
-	Clock              quartz.Clock
+	// PublishProjectedToolResult publishes a tool result whose Result is
+	// the user projection, with the model result alongside, so an
+	// interrupt can persist the same split as a step commit. Optional:
+	// without it, PublishMessagePart receives the projected part.
+	PublishProjectedToolResult func(part codersdk.ChatMessagePart, modelResult json.RawMessage)
+	Logger                     slog.Logger
+	Metrics                    *Metrics
+	Clock                      quartz.Clock
 }
 
 // ToolBillingRecorder records live start and completion timestamps for
@@ -595,6 +600,13 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Pers
 			opts.PublishMessagePart(role, part)
 		}
 	}
+	publishProjectedToolResult := func(part codersdk.ChatMessagePart, modelResult json.RawMessage) {
+		if opts.PublishProjectedToolResult != nil {
+			opts.PublishProjectedToolResult(part, modelResult)
+			return
+		}
+		publishMessagePart(codersdk.ChatMessageRoleTool, part)
+	}
 	// Expose the publisher on the execution context so tools that stream
 	// intermediate output (e.g. the advisor tool) can publish parts
 	// without capturing the publisher at construction time.
@@ -654,9 +666,12 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Pers
 			return PersistedStep{}, projectionErr
 		}
 		if len(userResult) > 0 {
+			modelResult := ssePart.Result
 			ssePart.Result = userResult
+			publishProjectedToolResult(ssePart, modelResult)
+		} else {
+			publishMessagePart(codersdk.ChatMessageRoleTool, ssePart)
 		}
-		publishMessagePart(codersdk.ChatMessageRoleTool, ssePart)
 		result.content = append(result.content, tr)
 	}
 	if ctx.Err() != nil {
