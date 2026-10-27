@@ -52,7 +52,7 @@ site/src/modules/aiModels/knownModels/knownModelsGenerated.json @ssncferreira @j
 # are served on coder.com, so a docs/ change gets the same code-owner review
 # as code. The workflow files stay co-owned with .github/'s owner, since a
 # later rule replaces an earlier one here.
-docs/ @nickvigilante
+# docs/ @nickvigilante
 .vale.ini @nickvigilante
 .markdownlint.jsonc @nickvigilante
 .markdownlint-cli2.jsonc @nickvigilante
