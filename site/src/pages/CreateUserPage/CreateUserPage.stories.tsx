@@ -5,17 +5,25 @@ import { rolesQueryKey } from "#/api/queries/roles";
 import { authMethodsQueryKey } from "#/api/queries/users";
 import {
 	MockAuthMethodsPasswordOnly,
+	MockPermissions,
 	MockUserMember,
+	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
-import { withDashboardProvider, withToaster } from "#/testHelpers/storybook";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+	withToaster,
+} from "#/testHelpers/storybook";
 import CreateUserPage from "./CreateUserPage";
 
 const meta = {
 	title: "pages/CreateUserPage/CreateUserPage",
 	component: CreateUserPage,
-	decorators: [withToaster, withDashboardProvider],
+	decorators: [withToaster, withDashboardProvider, withAuthProvider],
 	parameters: {
+		user: MockUserOwner,
+		permissions: MockPermissions,
 		queries: [
 			{ key: authMethodsQueryKey, data: MockAuthMethodsPasswordOnly },
 			{ key: rolesQueryKey, data: [] },

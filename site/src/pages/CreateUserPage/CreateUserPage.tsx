@@ -6,6 +6,7 @@ import { authMethods, createUser } from "#/api/queries/users";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { toast } from "#/components/Toaster/toast";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { pageTitle } from "#/utils/page";
@@ -18,6 +19,7 @@ const CreateUserPage: React.FC = () => {
 	const authMethodsQuery = useQuery(authMethods());
 	const rolesQuery = useQuery(roles());
 	const { showOrganizations } = useDashboard();
+	const { permissions } = useAuthenticated();
 	const { service_accounts: serviceAccountsEnabled } = useFeatureVisibility();
 
 	return (
@@ -75,6 +77,7 @@ const CreateUserPage: React.FC = () => {
 					authMethods={authMethodsQuery.data}
 					showOrganizations={showOrganizations}
 					serviceAccountsEnabled={serviceAccountsEnabled}
+					canViewPremium={permissions.viewAllLicenses}
 					availableRoles={rolesQuery.data}
 					rolesLoading={rolesQuery.isLoading}
 					rolesError={rolesQuery.error}
