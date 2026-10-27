@@ -1300,6 +1300,9 @@ func (r secretRedactor) redactKeywordValue(key string, value any) any {
 			return r.redactNamedMap(named, r.redactSchemaNames)
 		}
 	}
+	if toolschema.HoldsDraft3Schemas(key) {
+		return r.redactDraft3Schemas(value)
+	}
 	switch toolschema.KeywordSubschemas(key, value) {
 	case toolschema.SingleSubschema:
 		return r.redactSubschema(value)
@@ -1317,6 +1320,28 @@ func (r secretRedactor) redactKeywordValue(key string, value any) any {
 		}
 	}
 	return r.redactSchemaData(value)
+}
+
+// redactDraft3Schemas redacts the value of a keyword that
+// toolschema.HoldsDraft3Schemas reports: a schema, or a list whose
+// objects are schemas and whose other members name types.
+func (r secretRedactor) redactDraft3Schemas(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		return r.redactSchemaMap(typed)
+	case []any:
+		redacted := make([]any, len(typed))
+		for i, item := range typed {
+			if schema, ok := item.(map[string]any); ok {
+				redacted[i] = r.redactSchemaMap(schema)
+			} else {
+				redacted[i] = r.redactSchemaData(item)
+			}
+		}
+		return redacted
+	default:
+		return r.redactSchemaData(value)
+	}
 }
 
 // redactSchemaData redacts a value in a schema that holds no subschemas,

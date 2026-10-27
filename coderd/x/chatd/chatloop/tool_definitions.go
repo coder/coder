@@ -347,13 +347,14 @@ func (m *patternMatcher) match(patterns map[string]any, name string) ([]string, 
 
 // portableName reports whether Go and ECMAScript match name alike
 // against a portable pattern: an ASCII name without a carriage return,
-// which ECMAScript's "." does not match, or a vertical tab, which its
-// "\s" does. ECMAScript's "\s" also matches Unicode spaces, and without
-// the "u" flag it counts the characters outside the Basic Multilingual
-// Plane twice.
+// which ECMAScript's "." does not match, a vertical tab, which its "\s"
+// does, or a line feed, before which "$" also matches at the end of a
+// name in the Python and PCRE engines that many validators use.
+// ECMAScript's "\s" also matches Unicode spaces, and without the "u" flag
+// it counts the characters outside the Basic Multilingual Plane twice.
 func portableName(name string) bool {
 	for i := range len(name) {
-		if name[i] >= utf8.RuneSelf || name[i] == '\r' || name[i] == '\v' {
+		if name[i] >= utf8.RuneSelf || name[i] == '\r' || name[i] == '\v' || name[i] == '\n' {
 			return false
 		}
 	}

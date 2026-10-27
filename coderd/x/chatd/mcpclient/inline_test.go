@@ -983,6 +983,55 @@ func TestConnectInline_KeepsIndexesAndDraft3DependencyNames(t *testing.T) {
 	}, schemas["data-bot__legacy"])
 }
 
+// TestConnectInline_RedactsDraft3SchemaHolders verifies that the schemas
+// draft 3 holds under "extends" and in "type" and "disallow" lists keep
+// their keywords when a sensitive value spells one, as other subschemas
+// do, and that references into them keep those keywords too.
+func TestConnectInline_RedactsDraft3SchemaHolders(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	schema := func(secretName string) map[string]any {
+		return map[string]any{
+			"$schema": "http://json-schema.org/draft-03/schema#",
+			"type":    "object",
+			"extends": map[string]any{"properties": map[string]any{
+				"x": map[string]any{"type": "string", "required": true},
+			}},
+			"properties": map[string]any{
+				"y": map[string]any{"type": []any{"null", map[string]any{"properties": map[string]any{
+					secretName: map[string]any{"type": "string"},
+				}}}},
+				"z": map[string]any{"disallow": []any{map[string]any{"properties": map[string]any{
+					"n": map[string]any{"type": "integer"},
+				}}}},
+				"w": map[string]any{"$ref": "#/extends/properties/x"},
+				"v": map[string]any{"$ref": "#/properties/y/type/1/properties/" + secretName},
+			},
+		}
+	}
+	legacy := testTool{
+		tool: &mcp.Tool{Name: "legacy", InputSchema: schema("k_properties")},
+		handler: func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return textToolResult("ok"), nil
+		},
+	}
+	ts := newTestMCPServer(t, legacy)
+	cfg := makeInlineConfig("data-bot", ts.URL+"/mcp", map[string]string{"X-Key": "properties"})
+
+	tools, summaries, cleanup := mcpclient.ConnectInlineForTest(
+		ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
+	)
+	t.Cleanup(cleanup)
+	require.Len(t, summaries, 1)
+	require.Equal(t, mcpclient.ConnectOutcomeConnected, summaries[0].Outcome)
+	require.Len(t, tools, 1)
+	fullSchema, ok := tools[0].(fullSchemaTool)
+	require.True(t, ok)
+	require.Equal(t, schema("k_REDACTED"), fullSchema.FullInputSchema())
+}
+
 func TestConnectInline_BodyCap(t *testing.T) {
 	t.Parallel()
 
