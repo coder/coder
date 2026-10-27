@@ -30,7 +30,8 @@ func WriteFile(options WriteFileOptions) fantasy.AgentTool {
 		"Create a file in the workspace or overwrite an existing one with the given content. "+
 			"Use edit_files for targeted changes to an existing file. "+
 			"During plan turns, only the chat-specific plan file path is writable.",
-		func(ctx context.Context, args WriteFileArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+		func(ctx context.Context, args WriteFileArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			ctx = workspacesdk.WithModelToolCallID(ctx, call.ID)
 			var planPath string
 			if options.IsPlanTurn {
 				args.Path = strings.TrimSpace(args.Path)
@@ -85,12 +86,12 @@ func executeWriteFileTool(
 		}
 	}
 
-	return writeFileResponse(conn.WriteFile(ctx, requestedPath, strings.NewReader(args.Content))), nil
+	return writeFileResponse(workspacetools.WriteFile(ctx, conn, requestedPath, args.Content)), nil
 }
 
-func writeFileResponse(err error) fantasy.ToolResponse {
+func writeFileResponse(result workspacetools.OKResult, err error) fantasy.ToolResponse {
 	if err != nil {
-		return fantasy.NewTextErrorResponse(err.Error())
+		return workspaceToolErrorResponse(err.Error(), err, result.Hooks)
 	}
-	return marshalToolResponse(workspacetools.OKResult{OK: true})
+	return withWorkspaceHooks(marshalToolResponse(result), result.Hooks)
 }

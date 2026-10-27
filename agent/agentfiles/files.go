@@ -1,7 +1,9 @@
 package agentfiles
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -19,6 +21,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentchat"
+	"github.com/coder/coder/v2/agent/agenthooks"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -38,6 +41,8 @@ type ReadFileLinesResponse struct {
 	Content string `json:"content,omitempty"`
 	// Error is the error message when success is false.
 	Error string `json:"error,omitempty"`
+	// Hooks lists the workspace hooks that ran before the read.
+	Hooks []workspacesdk.HookDecision `json:"hooks,omitempty"`
 }
 
 type HTTPResponseCode = int
@@ -160,13 +165,54 @@ func (api *API) HandleReadFileLines(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	hooks, ok := agenthooks.Gate(rw, r, api.preToolHook, "read_file", readFileHookInput{
+		Path:   path,
+		Offset: offset,
+		Limit:  limit,
+	})
+	if !ok {
+		return
+	}
+	if hooks.Rewritten() {
+		var rewritten readFileHookInput
+		if err := json.Unmarshal(hooks.Input, &rewritten); err != nil || rewritten.Path == "" {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Workspace hook returned an unusable input_override for read_file.",
+				Detail:  fmt.Sprintf("override %s: %v", hooks.Input, err),
+			})
+			return
+		}
+		path, offset, limit = rewritten.Path, rewritten.Offset, rewritten.Limit
+	}
+
 	resp := api.readFileLines(ctx, path, offset, limit, workspacesdk.ReadFileLinesLimits{
 		MaxFileSize:      maxFileSize,
 		MaxLineBytes:     int(maxLineBytes),
 		MaxResponseLines: int(maxResponseLines),
 		MaxResponseBytes: int(maxResponseBytes),
 	})
+	resp.Hooks = hooks.Decisions
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// readFileHookInput is the read_file input as hooks see it and as an
+// input_override must be shaped. Offset and limit keep the chattool
+// meaning: 1-based line offset, 0 limit means the server default.
+type readFileHookInput struct {
+	Path   string `json:"path"`
+	Offset int64  `json:"offset,omitempty"`
+	Limit  int64  `json:"limit,omitempty"`
+}
+
+// writeFileHookInput is the write_file input as hooks see it.
+type writeFileHookInput struct {
+	Path    string `json:"path"`
+	Content string `json:"content"`
+}
+
+// editFilesHookInput is the edit_files input as hooks see it.
+type editFilesHookInput struct {
+	Files []workspacesdk.FileEdits `json:"files"`
 }
 
 func (api *API) readFileLines(_ context.Context, path string, offset, limit int64, limits workspacesdk.ReadFileLinesLimits) ReadFileLinesResponse {
@@ -314,6 +360,41 @@ func (api *API) HandleWriteFile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Hooks need the content in memory to inspect or rewrite it, so
+	// the body is buffered only when a hook is installed.
+	var hooks agenthooks.Outcome
+	if api.preToolHook != nil {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "read request body",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		var ok bool
+		hooks, ok = agenthooks.Gate(rw, r, api.preToolHook, "write_file", writeFileHookInput{
+			Path:    path,
+			Content: string(body),
+		})
+		if !ok {
+			return
+		}
+		if hooks.Rewritten() {
+			var rewritten writeFileHookInput
+			if err := json.Unmarshal(hooks.Input, &rewritten); err != nil || rewritten.Path == "" {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Workspace hook returned an unusable input_override for write_file.",
+					Detail:  fmt.Sprintf("override: %v", err),
+				})
+				return
+			}
+			path = rewritten.Path
+			body = []byte(rewritten.Content)
+		}
+		r.Body = io.NopCloser(bytes.NewReader(body))
+	}
+
 	status, err := api.writeFile(ctx, r, path)
 	if err != nil {
 		httpapi.Write(ctx, rw, status, codersdk.Response{
@@ -329,8 +410,9 @@ func (api *API) HandleWriteFile(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
+	httpapi.Write(ctx, rw, http.StatusOK, workspacesdk.WriteFileResponse{
 		Message: fmt.Sprintf("Successfully wrote to %q", path),
+		Hooks:   hooks.Decisions,
 	})
 }
 
@@ -385,6 +467,22 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 			Message: "must specify at least one file",
 		})
 		return
+	}
+
+	hooks, ok := agenthooks.Gate(rw, r, api.preToolHook, "edit_files", editFilesHookInput{Files: req.Files})
+	if !ok {
+		return
+	}
+	if hooks.Rewritten() {
+		var rewritten editFilesHookInput
+		if err := json.Unmarshal(hooks.Input, &rewritten); err != nil || len(rewritten.Files) == 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Workspace hook returned an unusable input_override for edit_files.",
+				Detail:  fmt.Sprintf("override %s: %v", hooks.Input, err),
+			})
+			return
+		}
+		req.Files = rewritten.Files
 	}
 
 	// Merge duplicate entries that refer to the same literal path
@@ -474,7 +572,7 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	resp := workspacesdk.FileEditResponse{}
+	resp := workspacesdk.FileEditResponse{Hooks: hooks.Decisions}
 	if req.IncludeDiff {
 		resp.Files = make([]workspacesdk.FileEditResult, 0, len(pending))
 		for _, p := range pending {
