@@ -115,13 +115,12 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    (item ID, encrypted content, summary) and replay it in full
 //    regardless of store. Skip hosted search references from unstored
 //    source responses.
-// 15) coder/fantasy#62 (unmerged), request OpenAI web_search_call
-//    sources, report the search action in the tool call input, and tag
-//    web search sources with the search that found them. Pinned as the
-//    PR branch mafredri/responses-web-search-queries, rebased on
-//    coder_2_33.
-// See: https://github.com/coder/fantasy/commits/f9b82dd31326
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261026152554-f9b82dd31326
+// 15) coder/fantasy#62, request OpenAI web_search_call sources, report
+//    the search action in the tool call input, and tag web search
+//    sources with the search that found them. Upstream as
+//    charmbracelet/fantasy#435.
+// See: https://github.com/coder/fantasy/commits/90a0be329a07
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261027100932-90a0be329a07
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
