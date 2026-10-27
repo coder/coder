@@ -103,8 +103,8 @@ export function useConversationEditingState(deps: {
 	const sendInFlightRef = useRef<SendInFlight | null>(null);
 	// The draft this hook last stored, or null after it removed the draft.
 	const storedDraftRef = useRef<string | null>(null);
-	// Unmount ends the visit. A request that settles after it replaces the
-	// stored draft only if no later visit has changed it.
+	// After unmount, a successful request writes the draft only if storage still
+	// holds what this hook stored, so a change that a later visit made stays.
 	useEffect(
 		() => () => {
 			sendInFlightRef.current = null;
