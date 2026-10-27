@@ -1,5 +1,4 @@
 import type * as TypesGen from "#/api/typesGenerated";
-import { getAsyncAnswerPrefix } from "../ChatElements/tools/asyncAnswer";
 import { isAsyncAskUserQuestionResult } from "../ChatElements/tools/utils";
 import { getMessageText, parseAsyncAnswerContent } from "./messageParsing";
 import type { MergedTool, ParsedMessageEntry } from "./types";
@@ -17,18 +16,6 @@ const getTextContent = (
 ): string | undefined => {
 	const text = getMessageText(content);
 	return text.length > 0 ? text : undefined;
-};
-
-const readAsyncAnswer = (
-	content: readonly TypesGen.ChatMessagePart[] | undefined,
-): { toolCallId: string; messageText: string } | undefined => {
-	const answer = parseAsyncAnswerContent(content);
-	return (
-		answer && {
-			toolCallId: answer.toolCallId,
-			messageText: getAsyncAnswerPrefix(answer.toolCallId) + answer.body,
-		}
-	);
 };
 
 // A call that failed validation asked nothing, so it supersedes nothing.
@@ -57,6 +44,9 @@ export const deriveAskUserQuestionState = (
 			}
 			latestToolId = tool.id;
 			isLatestAnswered = false;
+			// Providers can reuse a call ID in a later turn, so only the answers
+			// that follow this call count for it.
+			responseTextByToolId.delete(tool.id);
 			pendingBlockingToolId = isAsyncAskUserQuestionResult(tool.result)
 				? undefined
 				: tool.id;
@@ -65,9 +55,9 @@ export const deriveAskUserQuestionState = (
 			continue;
 		}
 
-		const asyncAnswer = readAsyncAnswer(message.content);
+		const asyncAnswer = parseAsyncAnswerContent(message.content);
 		if (asyncAnswer) {
-			responseTextByToolId.set(asyncAnswer.toolCallId, asyncAnswer.messageText);
+			responseTextByToolId.set(asyncAnswer.toolCallId, asyncAnswer.text);
 			if (asyncAnswer.toolCallId === latestToolId) {
 				isLatestAnswered = true;
 				pendingBlockingToolId = undefined;
@@ -90,14 +80,15 @@ export const deriveAskUserQuestionState = (
 	if (liveQuestion) {
 		latestToolId = liveQuestion.id;
 		isLatestAnswered = false;
+		responseTextByToolId.delete(liveQuestion.id);
 	}
 
 	// A queued answer is not delivered yet, but it already answers its call,
 	// so another tab or a reload does not offer the question again.
 	for (const queuedMessage of queuedMessages) {
-		const asyncAnswer = readAsyncAnswer(queuedMessage.content);
+		const asyncAnswer = parseAsyncAnswerContent(queuedMessage.content);
 		if (asyncAnswer && !responseTextByToolId.has(asyncAnswer.toolCallId)) {
-			responseTextByToolId.set(asyncAnswer.toolCallId, asyncAnswer.messageText);
+			responseTextByToolId.set(asyncAnswer.toolCallId, asyncAnswer.text);
 		}
 	}
 

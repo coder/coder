@@ -123,9 +123,9 @@ export type ChatStoreState = {
 	// the running-case promote, where the backend reorders the
 	// queued message to the front before auto-promoting it.
 	suppressedQueuedMessageIDs: ReadonlySet<number>;
-	// Messages that a promote took out of the visible queue. One is still
-	// undelivered while its ID stays suppressed: the server sends the promoted
-	// user row before the queue update that lifts the suppression.
+	// Messages that a promote took out of the visible queue. One counts as
+	// undelivered until the transcript has its row or a queue update lifts
+	// its suppression.
 	promotingQueuedMessages: readonly TypesGen.ChatQueuedMessage[];
 	// IDs confirmed deleted from the queue because the send response
 	// contained their promoted user rows.
@@ -212,6 +212,21 @@ const createInitialState = (): ChatStoreState => ({
 	subagentStatusOverrides: new Map(),
 });
 
+// The server links the user row that it creates from a promoted message
+// through queued_message_id.
+const withoutDeliveredMessages = (
+	promotingQueuedMessages: readonly TypesGen.ChatQueuedMessage[],
+	messages: readonly TypesGen.ChatMessage[],
+): readonly TypesGen.ChatQueuedMessage[] => {
+	const undelivered = promotingQueuedMessages.filter(
+		(held) =>
+			!messages.some((message) => message.queued_message_id === held.id),
+	);
+	return undelivered.length === promotingQueuedMessages.length
+		? promotingQueuedMessages
+		: undelivered;
+};
+
 export const createChatStore = (): ChatStore => {
 	let state = createInitialState();
 	// Bookkeeping, deliberately outside the rendered state so observing a
@@ -287,6 +302,10 @@ export const createChatStore = (): ChatStore => {
 				...current,
 				messagesByID: nextMessagesByID,
 				orderedMessageIDs: nextOrderedMessageIDs,
+				promotingQueuedMessages: withoutDeliveredMessages(
+					current.promotingQueuedMessages,
+					messages,
+				),
 			};
 		});
 	};
@@ -327,6 +346,10 @@ export const createChatStore = (): ChatStore => {
 				...current,
 				messagesByID: nextMessagesByID,
 				orderedMessageIDs: nextOrderedMessageIDs,
+				promotingQueuedMessages: withoutDeliveredMessages(
+					current.promotingQueuedMessages,
+					[message],
+				),
 			};
 		});
 		return { isDuplicate, changed: actuallyChanged };
@@ -365,6 +388,10 @@ export const createChatStore = (): ChatStore => {
 				...current,
 				messagesByID: nextMessagesByID,
 				orderedMessageIDs: nextOrderedMessageIDs,
+				promotingQueuedMessages: withoutDeliveredMessages(
+					current.promotingQueuedMessages,
+					messages,
+				),
 			};
 		});
 	};
@@ -767,6 +794,10 @@ export const selectChatStatus = (state: ChatStoreState) => state.chatStatus;
 export const selectStreamError = (state: ChatStoreState) => state.streamError;
 export const selectQueuedMessages = (state: ChatStoreState) =>
 	state.queuedMessages;
+const selectPromotingQueuedMessages = (state: ChatStoreState) =>
+	state.promotingQueuedMessages;
+const selectSuppressedQueuedMessageIDs = (state: ChatStoreState) =>
+	state.suppressedQueuedMessageIDs;
 export const selectSubagentStatusOverrides = (state: ChatStoreState) =>
 	state.subagentStatusOverrides;
 export const selectRetryState = (state: ChatStoreState) => state.retryState;
@@ -834,11 +865,11 @@ export const useUndeliveredQueuedMessages = (
 	const queuedMessages = useChatSelector(store, selectQueuedMessages);
 	const promotingQueuedMessages = useChatSelector(
 		store,
-		(state) => state.promotingQueuedMessages,
+		selectPromotingQueuedMessages,
 	);
 	const suppressedQueuedMessageIDs = useChatSelector(
 		store,
-		(state) => state.suppressedQueuedMessageIDs,
+		selectSuppressedQueuedMessageIDs,
 	);
 	return [
 		...queuedMessages,

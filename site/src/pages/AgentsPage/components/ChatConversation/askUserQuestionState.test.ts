@@ -118,8 +118,6 @@ describe("deriveAskUserQuestionState", () => {
 	});
 
 	it("answers an async question when a chip follows the prefix line", () => {
-		// The server trims each text part, so the prefix line loses its line
-		// break when a chip follows it.
 		const content: ChatMessage["content"] = [
 			{ type: "text", text: "Answer to ask_user_question call async-call:" },
 			{
@@ -201,6 +199,40 @@ describe("deriveAskUserQuestionState", () => {
 			answerMessage("async-call"),
 		);
 	});
+
+	it.each([
+		[
+			"a persisted call",
+			(messages: ChatMessage[]) =>
+				derive([...messages, ...questionStep("reused-call", { async: true })]),
+		],
+		[
+			"a live call",
+			(messages: ChatMessage[]) =>
+				derive(messages, {
+					liveTools: [
+						{
+							id: "reused-call",
+							name: "ask_user_question",
+							status: "completed",
+							isError: false,
+						},
+					],
+				}),
+		],
+	])(
+		"ignores an earlier answer when %s reuses its call ID",
+		(_, deriveAfter) => {
+			const state = deriveAfter([
+				...questionStep("reused-call", { async: true }),
+				userMessage(answerMessage("reused-call")),
+			]);
+
+			expect(state.latestToolId).toBe("reused-call");
+			expect(state.isLatestAnswered).toBe(false);
+			expect(state.responseTextByToolId.has("reused-call")).toBe(false);
+		},
+	);
 
 	it("lets only a valid finished live question supersede the persisted one", () => {
 		const liveQuestion = (
