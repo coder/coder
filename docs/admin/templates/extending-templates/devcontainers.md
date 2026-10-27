@@ -11,4 +11,5 @@ For setup instructions, see [Dev Containers Integration](../../integrations/devc
 For an alternative approach that doesn't require Docker, see [Envbuilder](../../integrations/devcontainers/envbuilder/index.md).
 
 > [!TIP]
-> To define environments with Nix flakes instead, see [Nix(OS)](../../integrations/nix.md).
+> Nix flakes let developers and template administrators define environments and manage dependencies at a much deeper level, without requiring a container runtime.
+> To use them in Coder with or without NixOS, see [Nix(OS)](../../integrations/nix.md).

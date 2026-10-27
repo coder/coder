@@ -3,7 +3,9 @@ title: Envbuilder
 ---
 
 > [!WARNING]
-> `envbuilder` is in maintenance mode and no new features are planned, please explore alternative options.
+> Envbuilder is in **maintenance mode** with no new features planned.
+> The recommended way to use dev containers in Coder is the built-in [Dev Containers Integration](../../integrations/devcontainers/integration.md).
+> To find the best approach for your deployment, ask in the [Coder Discord server](https://discord.gg/coder).
 
 Envbuilder shifts environment definition from template administrators to developers.
 Instead of baking tools into template images, developers define their environments via `devcontainer.json` files in their repositories.
@@ -15,5 +17,5 @@ For setup instructions, see [Envbuilder documentation](../../integrations/devcon
 For an alternative that uses Docker inside workspaces, see [Dev Containers Integration](../../integrations/devcontainers/integration.md).
 
 > [!TIP]
-> Nix flakes also let developers define their environments in their repositories, without building images.
-> See [Nix(OS)](../../integrations/nix.md).
+> Nix flakes let developers and template administrators define environments and manage dependencies at a much deeper level, without requiring a container runtime.
+> To use them in Coder with or without NixOS, see [Nix(OS)](../../integrations/nix.md).
