@@ -8,6 +8,19 @@ Coder's Dev Containers integration uses the [`@devcontainers/cli`](https://githu
 This guide covers the Dev Containers integration.
 For workspaces without Docker, administrators can configure [Envbuilder](../../admin/integrations/devcontainers/envbuilder/index.md) instead, which builds the workspace image itself from your dev container configuration.
 
+> [!WARNING]
+> Envbuilder is in **maintenance mode** with no new features planned.
+>
+> The recommended way to use dev containers in Coder is the built-in [Dev Containers Integration](../../admin/integrations/devcontainers/integration.md).
+> To find the best approach for your deployment, ask in the [Coder Discord server](https://discord.gg/coder).
+
+<!-- Separate the alerts so they render as two blocks. -->
+
+> [!TIP]
+> Nix flakes let developers and/or template administrators define environments and manage dependencies at a much deeper level, without requiring a container runtime.
+>
+> To use them in Coder with or without NixOS, consult the [Nix(OS)](../../admin/integrations/nix.md) page.
+
 ![Two dev containers running as sub-agents in a Coder workspace](../../images/user-guides/devcontainers/devcontainer-running.png)_Dev containers appear as sub-agents with their own apps, SSH access, and port forwarding_
 
 ## Prerequisites
