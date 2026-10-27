@@ -44,7 +44,8 @@ type CreateSkillRequest struct {
 	Content string `json:"content"`
 	// Action is only accepted for project skills and defaults to false.
 	Action *bool `json:"action,omitempty"`
-	// ModelInvocable defaults to true.
+	// ModelInvocable defaults to false when the content's frontmatter sets
+	// disable-model-invocation: true, and to true otherwise.
 	ModelInvocable *bool `json:"model_invocable,omitempty"`
 }
 
