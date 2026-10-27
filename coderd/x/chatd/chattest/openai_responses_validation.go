@@ -142,6 +142,16 @@ func classifyResponsesInputItem(raw interface{}) responsesInputItem {
 	id := StringResponseField(itemMap, "id")
 	callID := StringResponseField(itemMap, "call_id")
 
+	// An item reference takes the kind of the item its id names.
+	if refID := ResponsesItemReferenceID(itemMap); refID != "" {
+		switch {
+		case strings.HasPrefix(refID, "rs_"):
+			return responsesInputItem{kind: responsesInputReasoning, id: refID}
+		case strings.HasPrefix(refID, "ws_"):
+			return responsesInputItem{kind: responsesInputWebSearch, id: refID}
+		}
+	}
+
 	switch itemType {
 	case "reasoning":
 		return responsesInputItem{kind: responsesInputReasoning, id: id}
@@ -151,25 +161,6 @@ func classifyResponsesInputItem(raw interface{}) responsesInputItem {
 		return responsesInputItem{kind: responsesInputFunctionCall, callID: callID}
 	case "function_call_output":
 		return responsesInputItem{kind: responsesInputFunctionCallOutput, callID: callID}
-	case "item_reference":
-		switch {
-		case strings.HasPrefix(id, "rs_"):
-			return responsesInputItem{kind: responsesInputReasoning, id: id}
-		case strings.HasPrefix(id, "ws_"):
-			return responsesInputItem{kind: responsesInputWebSearch, id: id}
-		default:
-			return responsesInputItem{kind: responsesInputOther, id: id}
-		}
-	}
-
-	// Some SDK encoders omit the type field for item references. Fall
-	// back to stable OpenAI item ID prefixes so tests still catch an
-	// invalid prompt shape.
-	switch {
-	case strings.HasPrefix(id, "rs_"):
-		return responsesInputItem{kind: responsesInputReasoning, id: id}
-	case strings.HasPrefix(id, "ws_"):
-		return responsesInputItem{kind: responsesInputWebSearch, id: id}
 	default:
 		return responsesInputItem{kind: responsesInputOther, id: id, callID: callID}
 	}
