@@ -10,7 +10,7 @@ import { useMutation } from "react-query";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
-import { getAsyncAnswerPrefix, getAsyncAnswerText } from "./asyncAnswer";
+import { getAsyncAnswerPrefix, parseAsyncAnswer } from "./asyncAnswer";
 import { ToolCall } from "./ToolCall";
 import type { ToolStatus } from "./utils";
 
@@ -431,8 +431,14 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	const { isError: hasSubmitError, reset: resetSubmitAnswer } =
 		submitAnswerMutation;
 	const isRunning = status === "running";
+	const asyncAnswer =
+		previousResponseText === undefined
+			? undefined
+			: parseAsyncAnswer(previousResponseText);
 	const answeredResponseText = isAsync
-		? getAsyncAnswerText(previousResponseText, asyncToolCallId)
+		? asyncAnswer?.toolCallId === asyncToolCallId
+			? asyncAnswer.body
+			: undefined
 		: previousResponseText;
 	useEffect(() => {
 		if (answeredResponseText !== undefined) {
