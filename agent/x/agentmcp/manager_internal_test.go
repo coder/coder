@@ -556,8 +556,12 @@ func TestConfigSecrets(t *testing.T) {
 
 	const rawURL = "https://svc-account:pass%2Fword1@mcp.example.com/u/pathsecret1/mcp?token=query%2Bsecret1&mode=fast"
 	secrets := configSecrets(ServerConfig{
-		URL:     rawURL,
-		Headers: map[string]string{"Authorization": "Bearer headersecret1", "X-Short": "abc"},
+		URL: rawURL,
+		Headers: map[string]string{
+			"Authorization":       "Bearer headersecret1",
+			"Proxy-Authorization": "Basic " + base64.StdEncoding.EncodeToString([]byte("proxyuser1:proxypassword1")),
+			"X-Short":             "abc",
+		},
 		Env: map[string]string{
 			"API":          "session=envsecret1; mode=fast",
 			"DATABASE_URL": "postgres://dbuser01:envpassword1@db/app?sslmode=require&apikey=env%2Bquery1",
@@ -565,9 +569,11 @@ func TestConfigSecrets(t *testing.T) {
 			"BASIC_AUTH":   "basicuser1:basicpassword1",
 			"JDBC_URL":     "jdbc:postgresql://db/app?user=jdbcuser1&password=jdbcpassword1",
 			"DSN":          "dsnuser01:dsnpassword1@db/app",
+			"PIN":          "0012345678",
+			"LONG_PIN":     "12345678901234567890",
 		},
 		Args: []string{"--key=argsecret12", "--db=mysql://root:argpassword1@db/app"},
-	}, []string{"INHERITED_TOKEN=inheritedsecret1"})
+	}, []string{"INHERITED_TOKEN=inheritedsecret1", "HOME=/home/coder", "PATH=/usr/local/bin:/usr/bin", "LC_ALL=en_US.UTF-8"})
 	for _, want := range []string{
 		rawURL, "pathsecret1",
 		"svc-account", "pass%2Fword1", "pass/word1",
@@ -580,13 +586,18 @@ func TestConfigSecrets(t *testing.T) {
 		"basicuser1", "basicpassword1",
 		"jdbcpassword1", "dsnpassword1",
 		"inheritedsecret1",
+		"proxyuser1", "proxypassword1",
 	} {
 		require.Contains(t, secrets, want)
 	}
-	// A plain path is not split: its segments are ordinary words.
-	for _, notSecret := range []string{"abc", "u", "mcp", "Bearer", "fast", "token", "workspace"} {
+	// A plain path is not split: its segments are ordinary words. The
+	// variables that describe the process hold no credentials.
+	for _, notSecret := range []string{"abc", "u", "mcp", "Bearer", "fast", "token", "workspace", "/home/coder", "/usr/local/bin", "en_US.UTF-8"} {
 		require.NotContains(t, secrets, notSecret)
 	}
+	// Numeric credentials match the numbers a schema decodes them to.
+	require.True(t, containsSecret(float64(12345678), secrets))
+	require.True(t, containsSecret(float64(12345678901234567890), secrets))
 }
 
 // runFakeMCPServer implements a minimal JSON-RPC / MCP server over
