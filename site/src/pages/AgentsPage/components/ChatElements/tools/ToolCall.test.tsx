@@ -24,6 +24,8 @@ import { ToolCall } from "./ToolCall";
 const VIEWPORT_HEIGHT = 400;
 const VIEWPORT_WIDTH = 800;
 const SCROLLBAR_WIDTH = 10;
+const LAYOUT_VIEWPORT_HEIGHT = 800;
+const KEYBOARD_HEIGHT = 300;
 
 const isViewport = (element: Element | null) =>
 	element?.getAttribute("role") === "region";
@@ -87,6 +89,25 @@ const VisibleRows: React.FC = () => {
 	visibleRows = useMessageScrollerVisibility().visibleMessageIds;
 	return null;
 };
+
+// An on-screen keyboard shrinks only the visual viewport.
+class FakeVisualViewport
+	extends EventTarget
+	implements Pick<VisualViewport, "height" | "scale">
+{
+	height = LAYOUT_VIEWPORT_HEIGHT;
+	scale = 1;
+
+	set(height: number, scale = 1) {
+		this.height = height;
+		this.scale = scale;
+		this.dispatchEvent(new Event("resize"));
+	}
+
+	setKeyboardOpen(open: boolean) {
+		this.set(LAYOUT_VIEWPORT_HEIGHT - (open ? KEYBOARD_HEIGHT : 0));
+	}
+}
 
 // Same Provider props as AgentChatPage.
 const Transcript: React.FC<{
@@ -156,6 +177,9 @@ describe("ToolCall in a MessageScroller", () => {
 		vi.stubGlobal("ResizeObserver", MockResizeObserver);
 		vi.spyOn(Element.prototype, "clientHeight", "get").mockImplementation(
 			function (this: Element) {
+				if (this === document.documentElement) {
+					return LAYOUT_VIEWPORT_HEIGHT;
+				}
 				return isViewport(this) ? VIEWPORT_HEIGHT : 0;
 			},
 		);
@@ -299,6 +323,56 @@ describe("ToolCall in a MessageScroller", () => {
 		]);
 
 		expect(await visibleRowsAfterLayout()).toEqual(before);
+	});
+
+	it("shows the end when a prompt arrives with the on-screen keyboard open", async () => {
+		const visualViewport = new FakeVisualViewport();
+		vi.stubGlobal("visualViewport", visualViewport);
+		visualViewport.setKeyboardOpen(true);
+		const update = renderTranscript([history]);
+
+		await update([history, prompt, <ToolRow key="reply" />]);
+
+		expect(await visibleRowsAfterLayout()).toContain("history-9");
+	});
+
+	it("shows the end when the on-screen keyboard opens while the prompt is held", async () => {
+		const visualViewport = new FakeVisualViewport();
+		vi.stubGlobal("visualViewport", visualViewport);
+		const update = renderTranscript([history]);
+		await update([history, prompt, <ToolRow key="reply" />]);
+		expect(await visibleRowsAfterLayout()).not.toContain("history-9");
+
+		// Only the visual viewport resizes, so no ResizeObserver reports it.
+		act(() => visualViewport.setKeyboardOpen(true));
+		await act(() => new Promise(requestAnimationFrame));
+		await act(() => new Promise(requestAnimationFrame));
+
+		expect(visibleRows).toContain("history-9");
+	});
+
+	it.each([
+		{
+			name: "a browser toolbar collapses",
+			height: LAYOUT_VIEWPORT_HEIGHT - 60,
+			scale: 1,
+		},
+		{
+			name: "the page is pinch zoomed",
+			height: LAYOUT_VIEWPORT_HEIGHT / 2,
+			scale: 2,
+		},
+	])("holds the prompt when $name", async ({ height, scale }) => {
+		const visualViewport = new FakeVisualViewport();
+		vi.stubGlobal("visualViewport", visualViewport);
+		const update = renderTranscript([history]);
+		await update([history, prompt, <ToolRow key="reply" />]);
+
+		act(() => visualViewport.set(height, scale));
+		await act(() => new Promise(requestAnimationFrame));
+		await act(() => new Promise(requestAnimationFrame));
+
+		expect(visibleRows).not.toContain("history-9");
 	});
 
 	it("keeps a tool above the anchored prompt in view when it expands", async () => {
