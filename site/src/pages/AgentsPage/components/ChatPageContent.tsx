@@ -675,7 +675,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		? editWorkspaceUploads
 		: composeWorkspaceUploads;
 	// The attachments of the submit in flight. The composer hides them until
-	// the request settles and shows them again if it fails. Attachments added
+	// the request settles and shows them again if it fails. Files added
 	// during the request stay in the composer.
 	const [submittedAttachments, setSubmittedAttachments] = useState<
 		readonly File[] | null
