@@ -1336,16 +1336,13 @@ export const AssistantMessageWithImage: Story = {
 		});
 		viewButton.focus();
 		expect(viewButton).toHaveFocus();
-		// Tab order is behavior that needs a browser; the screenshot captures
-		// the focused Download link.
-		await userEvent.keyboard("{Tab}");
-		expect(
-			canvas.getByRole("link", { name: "Download generated-image.png" }),
-		).toHaveFocus();
+		// Tab from View reaches Download only once the frame's focus-within
+		// shows it.
+		await userEvent.tab();
 	},
 };
 
-// Keyboard focus on View shows the Download link.
+// Focus on View shows the Download link.
 export const AssistantMessageWithImageViewFocused: Story = {
 	args: AssistantMessageWithImage.args,
 	play: ({ canvasElement }) => {
