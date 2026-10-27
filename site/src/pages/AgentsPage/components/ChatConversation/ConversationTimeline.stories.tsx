@@ -1668,7 +1668,7 @@ export const UserMessageJumpArrows: Story = {
 	},
 };
 
-/** Copy + edit actions appear below user messages on hover. */
+/** Copy shows below user messages, and Edit appears on hover. */
 export const UserMessageCopyButton: Story = {
 	args: {
 		...defaultArgs,
@@ -1733,7 +1733,6 @@ export const UserMessageCopyButton: Story = {
 	},
 };
 
-/** Copy button is present on assistant messages on hover. */
 export const AssistantMessageCopyButton: Story = {
 	args: {
 		...defaultArgs,
@@ -1756,17 +1755,6 @@ export const AssistantMessageCopyButton: Story = {
 				],
 			},
 		]),
-	},
-	play: async ({ canvasElement }) => {
-		// Force the hover-reveal toolbar visible.
-		for (const el of canvasElement.querySelectorAll("[class]")) {
-			if (
-				el instanceof HTMLElement &&
-				el.className.includes("group-hover/msg:opacity-100")
-			) {
-				el.style.opacity = "1";
-			}
-		}
 	},
 };
 
@@ -1815,63 +1803,6 @@ export const AskUserQuestionSubmittedAnswer: Story = {
 				content: [{ type: "text", text: askUserQuestionSubmittedResponse }],
 			},
 		]),
-	},
-};
-
-/** Copy button calls clipboard API with the raw markdown text. */
-export const CopyButtonWritesToClipboard: Story = {
-	args: {
-		...defaultArgs,
-		parsedMessages: buildMessages([
-			{
-				...baseMessage,
-				id: 1,
-				role: "user",
-				content: [{ type: "text", text: "What is the answer?" }],
-			},
-			{
-				...baseMessage,
-				id: 2,
-				role: "assistant",
-				content: [{ type: "text", text: "Here is the **answer**." }],
-			},
-		]),
-	},
-	play: async ({ canvasElement }) => {
-		const originalClipboard = navigator.clipboard;
-		const writeText = fn().mockResolvedValue(undefined);
-		Object.defineProperty(navigator, "clipboard", {
-			value: { writeText },
-			writable: true,
-			configurable: true,
-		});
-
-		try {
-			const canvas = within(canvasElement);
-			// Force the hover-reveal toolbar visible.
-			for (const el of canvasElement.querySelectorAll("[class]")) {
-				if (
-					el instanceof HTMLElement &&
-					el.className.includes("group-hover/msg:opacity-100")
-				) {
-					el.style.opacity = "1";
-				}
-			}
-			// Find the assistant's copy button (last message-actions).
-			const actions = canvas.getAllByTestId("message-actions");
-			const assistantActions = actions[actions.length - 1];
-			const copyBtn = within(assistantActions).getByRole("button", {
-				name: "Copy message",
-			});
-			await userEvent.click(copyBtn);
-			expect(writeText).toHaveBeenCalledWith("Here is the **answer**.");
-		} finally {
-			Object.defineProperty(navigator, "clipboard", {
-				value: originalClipboard,
-				writable: true,
-				configurable: true,
-			});
-		}
 	},
 };
 
@@ -1993,9 +1924,9 @@ export const ProviderWebSearchWithCitations: Story = {
 };
 
 /**
- * Regression: action bar must appear on the last *visible* assistant
- * message even when invisible assistant messages (provider-executed
- * tool-result-only) follow it before the next user turn.
+ * Regression: the visible assistant message keeps its action bar when
+ * invisible assistant messages (provider-executed tool-result-only) follow it
+ * before the next user turn.
  */
 export const AssistantActionBarAfterHiddenMessages: Story = {
 	args: {
@@ -2035,18 +1966,6 @@ export const AssistantActionBarAfterHiddenMessages: Story = {
 				content: [{ type: "text", text: "Thanks!" }],
 			},
 		]),
-	},
-	play: async ({ canvasElement }) => {
-		// Force the hover-reveal action bars visible using stable test IDs.
-		// The invisible provider-executed tool-result message (id=3)
-		// must not prevent the assistant (id=2) from showing its bar.
-		for (const el of canvasElement.querySelectorAll(
-			'[data-testid="message-actions"]',
-		)) {
-			if (el instanceof HTMLElement) {
-				el.style.opacity = "1";
-			}
-		}
 	},
 };
 

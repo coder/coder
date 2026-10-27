@@ -11,13 +11,7 @@ import type { UrlTransform } from "streamdown";
 import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { AlertTitle } from "#/components/Alert/Alert";
-import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
 import { MessageScroller, useMessageScroller } from "#/vendor/message-scroller";
 import { ConversationItem } from "../ChatElements/Conversation";
 import { Message, MessageContent } from "../ChatElements/Message";
@@ -29,6 +23,7 @@ import { TextPreviewDialog } from "../TextPreviewDialog";
 import { returnFocusTo } from "../useDialogFocusReturn";
 import { AssistantOutput } from "./AssistantOutput";
 import type { PreviewTextAttachment } from "./AttachmentBlocks";
+import { isActiveChatStatus } from "./chatStore";
 import { FileProbeProvider } from "./FileProbeContext";
 import { FoldFocusRestorer, foldFocusItems } from "./FoldFocusRestorer";
 import {
@@ -39,12 +34,15 @@ import {
 	type LiveStatusModel,
 	shouldRenderLiveAssistant,
 } from "./liveStatusModel";
+import { MessageActionBar, MessageActionButton } from "./MessageActionBar";
 import {
 	buildDisplayMessages,
 	deriveEvictedFileIds,
 	deriveMessageDisplayState,
+	type MessageAttachment,
 } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
+import { TurnAttachments } from "./TurnAttachments";
 import { assignTimelineRows } from "./timelineRows";
 import type {
 	MergedTool,
@@ -56,8 +54,10 @@ import type {
 import { UserMessageContent } from "./UserMessageContent";
 import { WorkingBlockDisclosure } from "./WorkingBlockDisclosure";
 import {
+	getBlockTurnAttachments,
 	getExpansionKeys,
 	getSliceContent,
+	getTurnAttachmentsByRow,
 	groupWorkingBlocks,
 	isAgentAttachmentOnlyRow,
 	type RowSlice,
@@ -136,14 +136,9 @@ const ChatMessageItem = memo<{
 	) => void;
 	editingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
-	hideActions?: boolean;
+	turnAttachments?: readonly MessageAttachment[];
 	hasActiveStream?: boolean;
 	isAwaitingFirstStreamChunk?: boolean;
-
-	// The bottom spacer fakes the height of the hidden action bar so
-	// chain-end messages keep even spacing before the next bubble.
-	// The last transcript message has nothing after it, so the spacer
-	// would render as a dangling blank at the end of the chat.
 	isLastMessage?: boolean;
 	onImplementPlan?: () => Promise<void> | void;
 	urlTransform: UrlTransform;
@@ -176,7 +171,7 @@ const ChatMessageItem = memo<{
 		onEditUserMessage,
 		editingMessageId,
 		isAfterEditingMessage = false,
-		hideActions = false,
+		turnAttachments,
 		hasActiveStream = false,
 		isAwaitingFirstStreamChunk = false,
 		isLastMessage = false,
@@ -237,8 +232,9 @@ const ChatMessageItem = memo<{
 		);
 		// The actions act on the whole message and live status trails the
 		// stream, so only the slice that ends the row shows them.
-		const hideSliceActions = hideActions || !endsRow;
+		const hideSliceActions = inWorkingBlock || !endsRow;
 		const outputLiveStatus = endsRow ? liveStatus : undefined;
+		const sliceTurnAttachments = endsRow ? turnAttachments : undefined;
 		const displayState =
 			message && parsed
 				? deriveMessageDisplayState({
@@ -255,6 +251,11 @@ const ChatMessageItem = memo<{
 			isUser &&
 			Boolean(onJumpToUserMessage) &&
 			(prevUserMessageKey !== undefined || nextUserMessageKey !== undefined);
+		const copyText =
+			displayState?.hasCopyableContent && parsed && !hideSliceActions
+				? parsed.markdown
+				: undefined;
+		const showsHoverActions = canEditUserMessage || canJumpBetweenUserMessages;
 		if (displayState?.shouldHide) {
 			return null;
 		}
@@ -351,112 +352,77 @@ const ChatMessageItem = memo<{
 						{notice}
 					</LifecycleHookNotice>
 				))}
-				{displayState &&
-					!hideSliceActions &&
-					(displayState.hasCopyableContent ||
-						canEditUserMessage ||
-						canJumpBetweenUserMessages) && (
-						<div
-							className={cn(
-								"mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100",
-								isUser && "w-full justify-end",
-							)}
-							data-testid="message-actions"
-						>
-							{displayState.hasCopyableContent && parsed && (
-								<CopyButton
-									text={parsed.markdown}
-									label="Copy message"
-									className="size-6"
-									tooltipSide="bottom"
-								/>
-							)}
-							{canEditUserMessage && messageId !== undefined && (
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Button
-											size="icon"
-											variant="subtle"
-											className="size-6"
-											aria-label="Edit message"
-											onClick={() => {
-												const { text, fileBlocks, editorState } =
-													getEditableUserMessagePayload(message);
-												onEditUserMessage?.(
-													messageId,
-													text,
-													fileBlocks,
-													editorState,
-												);
-											}}
-										>
-											<PencilIcon />
-											<span className="sr-only">Edit message</span>
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent side="bottom">Edit message</TooltipContent>
-								</Tooltip>
-							)}
-							{isUser &&
-								onJumpToUserMessage &&
-								(prevUserMessageKey !== undefined ||
-									nextUserMessageKey !== undefined) && (
-									<>
-										<Tooltip>
-											<TooltipTrigger asChild>
-												<Button
-													size="icon"
-													variant="subtle"
-													className="size-6"
-													aria-label="Jump to previous user message"
-													disabled={prevUserMessageKey === undefined}
-													onClick={() => {
-														if (prevUserMessageKey !== undefined) {
-															onJumpToUserMessage(prevUserMessageKey);
-														}
-													}}
-												>
-													<ChevronLeftIcon />
-													<span className="sr-only">
-														Jump to previous user message
-													</span>
-												</Button>
-											</TooltipTrigger>
-											<TooltipContent side="bottom">
-												Jump to previous user message
-											</TooltipContent>
-										</Tooltip>
-										<Tooltip>
-											<TooltipTrigger asChild>
-												<Button
-													size="icon"
-													variant="subtle"
-													className="size-6"
-													aria-label="Jump to next user message"
-													disabled={nextUserMessageKey === undefined}
-													onClick={() => {
-														if (nextUserMessageKey !== undefined) {
-															onJumpToUserMessage(nextUserMessageKey);
-														}
-													}}
-												>
-													<ChevronRightIcon />
-													<span className="sr-only">
-														Jump to next user message
-													</span>
-												</Button>
-											</TooltipTrigger>
-											<TooltipContent side="bottom">
-												Jump to next user message
-											</TooltipContent>
-										</Tooltip>
-									</>
+				{(copyText !== undefined ||
+					showsHoverActions ||
+					sliceTurnAttachments) && (
+					<MessageActionBar className={cn(isUser && "w-full justify-end")}>
+						{showsHoverActions && (
+							<div className="flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100">
+								{canEditUserMessage && messageId !== undefined && (
+									<MessageActionButton
+										label="Edit message"
+										icon={<PencilIcon />}
+										onClick={() => {
+											const { text, fileBlocks, editorState } =
+												getEditableUserMessagePayload(message);
+											onEditUserMessage?.(
+												messageId,
+												text,
+												fileBlocks,
+												editorState,
+											);
+										}}
+									/>
 								)}
-						</div>
-					)}
-				{displayState?.needsAssistantBottomSpacer && !isLastMessage && (
-					<div className="min-h-6" data-testid="assistant-bottom-spacer" />
+								{isUser &&
+									onJumpToUserMessage &&
+									(prevUserMessageKey !== undefined ||
+										nextUserMessageKey !== undefined) && (
+										<>
+											<MessageActionButton
+												label="Jump to previous user message"
+												icon={<ChevronLeftIcon />}
+												disabled={prevUserMessageKey === undefined}
+												onClick={() => {
+													if (prevUserMessageKey !== undefined) {
+														onJumpToUserMessage(prevUserMessageKey);
+													}
+												}}
+											/>
+											<MessageActionButton
+												label="Jump to next user message"
+												icon={<ChevronRightIcon />}
+												disabled={nextUserMessageKey === undefined}
+												onClick={() => {
+													if (nextUserMessageKey !== undefined) {
+														onJumpToUserMessage(nextUserMessageKey);
+													}
+												}}
+											/>
+										</>
+									)}
+							</div>
+						)}
+						{copyText !== undefined && (
+							<CopyButton
+								text={copyText}
+								label="Copy message"
+								className="size-6"
+								tooltipSide="bottom"
+							/>
+						)}
+						{sliceTurnAttachments && (
+							<TurnAttachments attachments={sliceTurnAttachments} />
+						)}
+					</MessageActionBar>
 				)}
+				{/* The bottom spacer fakes the action bar's height so messages without
+				    one keep even spacing; the last message has nothing after it. */}
+				{displayState?.needsAssistantBottomSpacer &&
+					!isLastMessage &&
+					!sliceTurnAttachments && (
+						<div className="min-h-6" data-testid="assistant-bottom-spacer" />
+					)}
 			</div>
 		);
 	},
@@ -537,10 +503,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 
 		const displayMessages = buildDisplayMessages(parsedMessages);
 		const evictedFileIds = deriveEvictedFileIds(parsedMessages, chatFiles);
-		const renderRows = assignTimelineRows(
-			displayMessages,
-			shouldRenderLiveAssistant(liveStatus),
-		);
+		const hasLiveAssistant = shouldRenderLiveAssistant(liveStatus);
+		const renderRows = assignTimelineRows(displayMessages, hasLiveAssistant);
 
 		// A live turn only reveals its stream blocks once output has accumulated.
 		// Before that the callout and thinking indicator stand in for the turn.
@@ -550,6 +514,14 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		const liveTools = showsStreamOutput ? streamTools : [];
 
 		const collapseSteps = Boolean(preferences.data?.collapse_assistant_steps);
+		const turnAttachmentsByRow = getTurnAttachmentsByRow(renderRows, {
+			hidesAttachmentRows: collapseSteps,
+			// requires_action counts, since the submitted tool result resumes the
+			// turn. The status can also settle before the streamed answer
+			// persists, so the live row keeps the turn open.
+			isChatActive: isActiveChatStatus(chatStatus) || hasLiveAssistant,
+			isCompacting: liveTools.some((tool) => tool.name === "chat_summarized"),
+		});
 		const layout = collapseSteps
 			? groupWorkingBlocks(renderRows, parsedMessages, {
 					hasMoreMessages,
@@ -611,7 +583,6 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		// handled, and its fallback for mutations that are neither clean appends
 		// nor clean prepends jumps to the oldest unhandled anchor, so historical
 		// rows must not be anchors at all.
-		const hasLiveAssistant = shouldRenderLiveAssistant(liveStatus);
 		const anchorUserRowKey =
 			hasLiveAssistant || isAwaitingFirstStreamChunk
 				? userRowKeys[userRowKeys.length - 1]
@@ -720,8 +691,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					isAfterEditingMessage={
 						!inWorkingBlock && afterEditingMessageIds.has(message.id)
 					}
-					hideActions={
-						inWorkingBlock || (!isUser && !row.isLastInAssistantChain)
+					turnAttachments={
+						inWorkingBlock ? undefined : turnAttachmentsByRow.get(row.key)
 					}
 					hasActiveStream={hasActiveStream}
 					isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
@@ -755,6 +726,11 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 							const isAfterEditingMessage =
 								firstRow.type === "message" &&
 								afterEditingMessageIds.has(firstRow.entry.message.id);
+							const blockAttachments = getBlockTurnAttachments(
+								block,
+								renderRows,
+								turnAttachmentsByRow,
+							);
 
 							return (
 								<MessageScroller.Item
@@ -786,6 +762,11 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 												renderSlice(slice, { inWorkingBlock: true }),
 											)}
 									</WorkingBlockDisclosure>
+									{blockAttachments && (
+										<MessageActionBar>
+											<TurnAttachments attachments={blockAttachments} />
+										</MessageActionBar>
+									)}
 								</MessageScroller.Item>
 							);
 						}

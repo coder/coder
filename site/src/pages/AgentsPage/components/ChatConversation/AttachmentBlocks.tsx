@@ -448,7 +448,7 @@ const RemoteImageBlock: React.FC<{
 		getProbeResult,
 		setProbeResult,
 	} = useFileProbes();
-	const isKnownExpired = fileId !== undefined && hasExpired(fileId);
+	const isKnownExpired = hasExpired(fileId);
 	const [failureState, setFailureState] = useState<AttachmentFailureState>(
 		() => (isKnownExpired ? { kind: "expired" } : { kind: "idle" }),
 	);
@@ -710,10 +710,6 @@ export const AttachmentBlock: React.FC<{
 	}
 
 	return (
-		<FileCard
-			block={block}
-			href={href}
-			expired={block.file_id !== undefined && hasExpired(block.file_id)}
-		/>
+		<FileCard block={block} href={href} expired={hasExpired(block.file_id)} />
 	);
 };
