@@ -231,6 +231,9 @@ The two can differ after a workspace stop or delete: the agent logs `server_shut
 `coderd` records `workspace_stopped` only when a stop or delete build that was requested before the connection closed is running or has succeeded.
 Otherwise, the connection log keeps `server_shutdown`.
 
+While a stop or delete build is pending or running, `coderd` keeps the workspace agent connected so the agent can report why its connections closed and `coderd` can look up the build.
+As a result, the agent still shows as connected while the workspace is stopping.
+
 | `disconnect_reason` | Meaning                                                                                                                                              |
 |---------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `graceful`          | The connection ended cleanly, for example when the SSH command exited with status `0`.                                                               |
