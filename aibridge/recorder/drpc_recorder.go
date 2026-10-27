@@ -134,6 +134,8 @@ func (t *DRPCRecorder) RecordTokenUsage(ctx context.Context, req *TokenUsageReco
 		PromptTokens:          req.PromptTokens,
 		Metadata:              marshalForProto(merged),
 		CreatedAt:             timestamppb.New(req.CreatedAt),
+
+		CacheWriteOneHourInputTokens: req.CacheWrite1hInputTokens,
 	})
 	return err
 }

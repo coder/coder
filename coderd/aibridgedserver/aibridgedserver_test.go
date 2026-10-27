@@ -3115,9 +3115,9 @@ func TestRecordTokenUsageModelPriceResolution(t *testing.T) {
 	}
 }
 
-// TestRecordTokenUsageLongContextTiers verifies that stored prices and costs
-// match the selected tier.
-func TestRecordTokenUsageLongContextTiers(t *testing.T) {
+// TestRecordTokenUsageCacheTTLAndTiers verifies persisted prices and costs for
+// tiered requests and mixed cache TTLs.
+func TestRecordTokenUsageCacheTTLAndTiers(t *testing.T) {
 	t.Parallel()
 
 	const model = "claude-tiered"
@@ -3125,40 +3125,43 @@ func TestRecordTokenUsageLongContextTiers(t *testing.T) {
 	seed := json.RawMessage(`[{
 		"provider": "anthropic", "model": "claude-tiered",
 		"input_price": 1000000, "output_price": 2000000,
-		"cache_read_price": 100000, "cache_write_price": 1250000,
+		"cache_read_price": 100000, "cache_write_price": 1250000, "cache_write_1h_price": 2000000,
 		"tiers": [{"threshold_tokens": 1000, "input_price": 2000000, "output_price": 4000000,
-			"cache_read_price": 200000, "cache_write_price": 2500000}]
+			"cache_read_price": 200000, "cache_write_price": 2500000, "cache_write_1h_price": 4000000}]
 	}]`)
 
 	tests := []struct {
 		name          string
 		req           *proto.RecordTokenUsageRequest
+		want1hTokens  int64
 		wantPrompt    int64
 		wantThreshold sql.NullInt64
-		wantPrices    [4]int64 // input, output, cache read, cache write
+		wantPrices    [5]int64 // input, output, cache read, cache write, cache write 1h
 		wantCost      int64
 	}{
 		{
-			name:       "BasePricesAtThreshold",
-			req:        &proto.RecordTokenUsageRequest{InputTokens: 900, CacheWriteInputTokens: 100},
-			wantPrompt: 1000,
-			wantPrices: [4]int64{1_000_000, 2_000_000, 100_000, 1_250_000},
-			wantCost:   1025, // 900 + 100*1.25
+			name:         "BasePricesAtThreshold",
+			req:          &proto.RecordTokenUsageRequest{InputTokens: 900, CacheWriteInputTokens: 100, CacheWriteOneHourInputTokens: 40},
+			want1hTokens: 40,
+			wantPrompt:   1000,
+			wantPrices:   [5]int64{1_000_000, 2_000_000, 100_000, 1_250_000, 2_000_000},
+			wantCost:     1055, // 900 + 60*1.25 + 40*2
 		},
 		{
 			name:          "TierPricesOverThreshold",
-			req:           &proto.RecordTokenUsageRequest{InputTokens: 901, CacheWriteInputTokens: 100},
+			req:           &proto.RecordTokenUsageRequest{InputTokens: 901, CacheWriteInputTokens: 100, CacheWriteOneHourInputTokens: 40},
+			want1hTokens:  40,
 			wantPrompt:    1001,
 			wantThreshold: sql.NullInt64{Int64: 1000, Valid: true},
-			wantPrices:    [4]int64{2_000_000, 4_000_000, 200_000, 2_500_000},
-			wantCost:      2052, // 901*2 + 100*2.5
+			wantPrices:    [5]int64{2_000_000, 4_000_000, 200_000, 2_500_000, 4_000_000},
+			wantCost:      2112, // 901*2 + 60*2.5 + 40*4
 		},
 		{
 			name:          "CacheReadCountsTowardPrompt",
 			req:           &proto.RecordTokenUsageRequest{InputTokens: 1, CacheReadInputTokens: 1000},
 			wantPrompt:    1001,
 			wantThreshold: sql.NullInt64{Int64: 1000, Valid: true},
-			wantPrices:    [4]int64{2_000_000, 4_000_000, 200_000, 2_500_000},
+			wantPrices:    [5]int64{2_000_000, 4_000_000, 200_000, 2_500_000, 4_000_000},
 			wantCost:      202, // 1*2 + 1000*0.2
 		},
 		{
@@ -3167,8 +3170,17 @@ func TestRecordTokenUsageLongContextTiers(t *testing.T) {
 			req:           &proto.RecordTokenUsageRequest{OutputTokens: 10, PromptTokens: 1001},
 			wantPrompt:    1001,
 			wantThreshold: sql.NullInt64{Int64: 1000, Valid: true},
-			wantPrices:    [4]int64{2_000_000, 4_000_000, 200_000, 2_500_000},
+			wantPrices:    [5]int64{2_000_000, 4_000_000, 200_000, 2_500_000, 4_000_000},
 			wantCost:      40,
+		},
+		{
+			// An oversized 1h count must not discard the usage row.
+			name:         "OneHourCountClamped",
+			req:          &proto.RecordTokenUsageRequest{CacheWriteInputTokens: 10, CacheWriteOneHourInputTokens: 50},
+			want1hTokens: 10,
+			wantPrompt:   10,
+			wantPrices:   [5]int64{1_000_000, 2_000_000, 100_000, 1_250_000, 2_000_000},
+			wantCost:     20,
 		},
 	}
 
@@ -3220,13 +3232,15 @@ func TestRecordTokenUsageLongContextTiers(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, tokenUsages, 1)
 			got := tokenUsages[0]
+			require.Equal(t, tt.want1hTokens, got.CacheWrite1hInputTokens, "1h cache write tokens")
 			require.Equal(t, sql.NullInt64{Int64: tt.wantPrompt, Valid: true}, got.PromptTokens, "prompt tokens")
 			require.Equal(t, tt.wantThreshold, got.PriceTierThresholdTokens, "tier threshold")
-			require.Equal(t, tt.wantPrices, [4]int64{
+			require.Equal(t, tt.wantPrices, [5]int64{
 				got.InputPriceMicros.Int64,
 				got.OutputPriceMicros.Int64,
 				got.CacheReadPriceMicros.Int64,
 				got.CacheWritePriceMicros.Int64,
+				got.CacheWrite1hPriceMicros.Int64,
 			}, "snapshotted prices")
 			require.Equal(t, sql.NullInt64{Int64: tt.wantCost, Valid: true}, got.CostMicros, "cost")
 		})
@@ -4531,26 +4545,28 @@ func TestStructuredLogging(t *testing.T) {
 			},
 			recordFn: func(srv *aibridgedserver.Server, ctx context.Context, intcID uuid.UUID) error {
 				_, err := srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
-					InterceptionId:        intcID.String(),
-					MsgId:                 "msg_123",
-					InputTokens:           100,
-					OutputTokens:          200,
-					CacheReadInputTokens:  50,
-					CacheWriteInputTokens: 10,
-					PromptTokens:          400,
-					Metadata:              metadataProto,
-					CreatedAt:             timestamppb.Now(),
+					InterceptionId:               intcID.String(),
+					MsgId:                        "msg_123",
+					InputTokens:                  100,
+					OutputTokens:                 200,
+					CacheReadInputTokens:         50,
+					CacheWriteInputTokens:        10,
+					CacheWriteOneHourInputTokens: 4,
+					PromptTokens:                 400,
+					Metadata:                     metadataProto,
+					CreatedAt:                    timestamppb.Now(),
 				})
 				return err
 			},
 			expectedFields: map[string]any{
-				"record_type":              "token_usage",
-				"interception_id":          interceptionID.String(),
-				"input_tokens":             float64(100), // JSON numbers are float64.
-				"output_tokens":            float64(200),
-				"cache_read_input_tokens":  float64(50),
-				"cache_write_input_tokens": float64(10),
-				"prompt_tokens":            float64(400),
+				"record_type":                       "token_usage",
+				"interception_id":                   interceptionID.String(),
+				"input_tokens":                      float64(100), // JSON numbers are float64.
+				"output_tokens":                     float64(200),
+				"cache_read_input_tokens":           float64(50),
+				"cache_write_input_tokens":          float64(10),
+				"cache_write_one_hour_input_tokens": float64(4),
+				"prompt_tokens":                     float64(400),
 			},
 		},
 		{

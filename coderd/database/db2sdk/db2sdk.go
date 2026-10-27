@@ -1850,16 +1850,17 @@ func AIModelPrice(dbPrice database.AIModelPrice) (codersdk.AIModelPrice, error) 
 		}
 	}
 	return codersdk.AIModelPrice{
-		Provider:        dbPrice.Provider,
-		Model:           dbPrice.Model,
-		InputPrice:      nullInt64Ptr(dbPrice.InputPrice),
-		OutputPrice:     nullInt64Ptr(dbPrice.OutputPrice),
-		CacheReadPrice:  nullInt64Ptr(dbPrice.CacheReadPrice),
-		CacheWritePrice: nullInt64Ptr(dbPrice.CacheWritePrice),
-		Tiers:           tiers,
-		Source:          codersdk.AIModelPriceSource(dbPrice.Source),
-		CreatedAt:       dbPrice.CreatedAt,
-		UpdatedAt:       dbPrice.UpdatedAt,
+		Provider:          dbPrice.Provider,
+		Model:             dbPrice.Model,
+		InputPrice:        nullInt64Ptr(dbPrice.InputPrice),
+		OutputPrice:       nullInt64Ptr(dbPrice.OutputPrice),
+		CacheReadPrice:    nullInt64Ptr(dbPrice.CacheReadPrice),
+		CacheWritePrice:   nullInt64Ptr(dbPrice.CacheWritePrice),
+		CacheWrite1hPrice: nullInt64Ptr(dbPrice.CacheWrite1hPrice),
+		Tiers:             tiers,
+		Source:            codersdk.AIModelPriceSource(dbPrice.Source),
+		CreatedAt:         dbPrice.CreatedAt,
+		UpdatedAt:         dbPrice.UpdatedAt,
 	}, nil
 }
 

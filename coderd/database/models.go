@@ -5038,6 +5038,10 @@ type AIBridgeTokenUsage struct {
 	PromptTokens sql.NullInt64 `db:"prompt_tokens" json:"prompt_tokens"`
 	// The threshold_tokens of the long-context price tier that applied. NULL when the base prices applied.
 	PriceTierThresholdTokens sql.NullInt64 `db:"price_tier_threshold_tokens" json:"price_tier_threshold_tokens"`
+	// The part of cache_write_input_tokens written with a 1-hour TTL.
+	CacheWrite1hInputTokens int64 `db:"cache_write_1h_input_tokens" json:"cache_write_1h_input_tokens"`
+	// The price per million tokens applied to 1-hour cache writes.
+	CacheWrite1hPriceMicros sql.NullInt64 `db:"cache_write_1h_price_micros" json:"cache_write_1h_price_micros"`
 }
 
 // Audit log of tool calls in intercepted requests in AI Bridge
@@ -5111,8 +5115,10 @@ type AIModelPrice struct {
 	UpdatedAt       time.Time     `db:"updated_at" json:"updated_at"`
 	// Where the price came from: default for the embedded price book, custom for a price set through the API. Both can exist for the same model.
 	Source AIModelPriceSource `db:"source" json:"source"`
-	// Long-context prices as a JSON array sorted by threshold_tokens. A tier applies when the prompt of a request is over its threshold_tokens; a missing tier price uses the base price.
+	// Long-context prices as a JSON array sorted by threshold_tokens. A tier applies when the prompt of a request is over its threshold_tokens; a missing tier price uses the base price, except a missing cache_write_1h_price, which uses the cache write price that applies to the tier.
 	Tiers json.RawMessage `db:"tiers" json:"tiers"`
+	// Price per million tokens of a cache write with a 1-hour TTL. NULL when a 1-hour write costs the cache write price.
+	CacheWrite1hPrice sql.NullInt64 `db:"cache_write_1h_price" json:"cache_write_1h_price"`
 }
 
 // Runtime configuration for AI providers. Authoritative source for the provider set served by aibridged. Replaces deployment-time CODER_AIBRIDGE_* environment variables.

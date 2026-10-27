@@ -409,7 +409,8 @@ export const AIGatewayKeyHeader = "X-Coder-AI-Governance-Gateway-Key";
  * Prices are integer micro-units per million tokens, so 1000000 is $1.00 per
  * million tokens. A nil price means the price is not known, which the cost
  * calculation treats the same as zero. Distinguish that from an explicit 0,
- * which declares the model free of charge.
+ * which declares the model free of charge. A nil CacheWrite1hPrice instead
+ * uses CacheWritePrice.
  */
 export interface AIModelPrice {
 	readonly provider: string;
@@ -418,6 +419,7 @@ export interface AIModelPrice {
 	readonly output_price: number | null;
 	readonly cache_read_price: number | null;
 	readonly cache_write_price: number | null;
+	readonly cache_write_1h_price: number | null;
 	/**
 	 * Tiers are long-context prices, sorted by ThresholdTokens.
 	 */
@@ -444,12 +446,18 @@ export interface AIModelPriceTier {
 	readonly output_price: number | null;
 	readonly cache_read_price: number | null;
 	readonly cache_write_price: number | null;
+	/**
+	 * CacheWrite1hPrice falls back to the cache write price that applies to
+	 * the tier when nil, not to the base CacheWrite1hPrice.
+	 */
+	readonly cache_write_1h_price: number | null;
 }
 
 // From codersdk/aimodelprices.go
 /**
  * AIModelPriceUpsert is one model's prices in an upsert request. It carries
- * only the writable fields of AIModelPrice. Omitting Tiers clears them.
+ * only the writable fields of AIModelPrice. Omitting CacheWrite1hPrice or
+ * Tiers clears them.
  */
 export interface AIModelPriceUpsert {
 	readonly provider: string;
@@ -458,6 +466,7 @@ export interface AIModelPriceUpsert {
 	readonly output_price: number | null;
 	readonly cache_read_price: number | null;
 	readonly cache_write_price: number | null;
+	readonly cache_write_1h_price?: number;
 	readonly tiers?: readonly AIModelPriceTier[];
 }
 

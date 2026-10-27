@@ -359,7 +359,7 @@ type sqlcQuerier interface {
 	// prices apply. Soft-deleted organization configs, and those that set no
 	// price, are ignored. A matched price is used as a whole: its NULL prices are
 	// not filled in from a less specific price. Organization prices have no
-	// long-context tiers. Each branch is a unique index
+	// long-context tiers or 1h cache write price. Each branch is a unique index
 	// lookup.
 	GetAIModelPriceForProvider(ctx context.Context, arg GetAIModelPriceForProviderParams) (GetAIModelPriceForProviderRow, error)
 	// Returns the price in effect for each model, preferring a custom price over
@@ -1782,8 +1782,8 @@ type sqlcQuerier interface {
 	UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg UpdateWorkspacesTTLByTemplateIDParams) error
 	// Upsert a batch of model prices from a JSON array, all recorded under the
 	// given source. Each element must have provider, model, and the four price
-	// fields, and null prices are written as SQL NULL. tiers is optional; an
-	// absent or null tiers key means no tiers.
+	// fields, and null prices are written as SQL NULL. cache_write_1h_price and
+	// tiers are optional; an absent or null tiers key means no tiers.
 	// Each source keeps its own row, so the price book and a custom price never
 	// overwrite each other. A conflicting row is only rewritten when a price
 	// differs, so updated_at records when a price last changed. Prices are
