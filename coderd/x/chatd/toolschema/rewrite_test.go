@@ -60,6 +60,48 @@ func TestRewriteRefs(t *testing.T) {
 	}
 }
 
+func TestResolveLocalRef(t *testing.T) {
+	t.Parallel()
+
+	const schema = `{
+		"$id": "https://example.com/root.json",
+		"$defs": {
+			"A": {"type": "string"},
+			"N": {"$id": "n.json", "properties": {"x": {"type": "integer"}}}
+		}
+	}`
+	var root map[string]any
+	require.NoError(t, json.Unmarshal([]byte(schema), &root))
+	for _, tc := range []struct {
+		name         string
+		ref          string
+		want         string
+		sameResource bool
+	}{
+		{name: "fragment", ref: "#/$defs/A", want: `{"type": "string"}`, sameResource: true},
+		{name: "root $id", ref: "root.json#/$defs/A", want: `{"type": "string"}`, sameResource: true},
+		{name: "fragment into an embedded resource", ref: "#/$defs/N/properties/x", want: `{"type": "integer"}`},
+		{name: "embedded resource $id", ref: "https://example.com/n.json", want: `{"$id": "n.json", "properties": {"x": {"type": "integer"}}}`},
+		{name: "pointer in an embedded resource", ref: "n.json#/properties/x", want: `{"type": "integer"}`},
+		{name: "unknown resource", ref: "https://example.com/other.json#/$defs/A"},
+		{name: "missing pointer target", ref: "#/$defs/B"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			target, sameResource, ok := toolschema.ResolveLocalRef(root, tc.ref)
+			if tc.want == "" {
+				require.False(t, ok)
+				return
+			}
+			require.True(t, ok)
+			got, err := json.Marshal(target)
+			require.NoError(t, err)
+			require.JSONEq(t, tc.want, string(got))
+			require.Equal(t, tc.sameResource, sameResource)
+		})
+	}
+}
+
 func TestNormalize(t *testing.T) {
 	t.Parallel()
 
@@ -132,6 +174,65 @@ func TestNormalize(t *testing.T) {
 						"$id": "nested.json",
 						"properties": {"back": {"$ref": "https://example.com/tool.json#/$defs/A"}}
 					}
+				},
+				"$defs": {"A": {"type": "string"}}
+			}`,
+		},
+		{
+			name: "equivalent spellings of the root URI become fragments",
+			schema: `{
+				"$id": "HTTPS://Example.COM:443/a/%7etool.json",
+				"properties": {
+					"case": {"$ref": "https://example.com/a/~tool.json#/$defs/A"},
+					"dots": {"$ref": "https://example.com/a/b/%2E%2E/%7Etool.json#/$defs/A"},
+					"relative": {"$ref": "./~tool.json#/$defs/A"},
+					"path case": {"$ref": "https://example.com/A/~tool.json#/$defs/A"},
+					"other port": {"$ref": "https://example.com:8443/a/~tool.json#/$defs/A"}
+				},
+				"$defs": {"A": {"type": "string"}}
+			}`,
+			want: `{
+				"$id": "HTTPS://Example.COM:443/a/%7etool.json",
+				"properties": {
+					"case": {"$ref": "#/$defs/A"},
+					"dots": {"$ref": "#/$defs/A"},
+					"relative": {"$ref": "#/$defs/A"},
+					"path case": {"$ref": "https://example.com/A/~tool.json#/$defs/A"},
+					"other port": {"$ref": "https://example.com:8443/a/~tool.json#/$defs/A"}
+				},
+				"$defs": {"A": {"type": "string"}}
+			}`,
+		},
+		{
+			name: "an empty http path is the root path",
+			schema: `{
+				"$id": "https://example.com",
+				"properties": {"a": {"$ref": "https://example.com/#/$defs/A"}},
+				"$defs": {"A": {"type": "string"}}
+			}`,
+			want: `{
+				"$id": "https://example.com",
+				"properties": {"a": {"$ref": "#/$defs/A"}},
+				"$defs": {"A": {"type": "string"}}
+			}`,
+		},
+		{
+			name: "a relative root $id names the root resource",
+			schema: `{
+				"$id": "tool.json",
+				"properties": {
+					"a": {"$ref": "tool.json#/$defs/A"},
+					"b": {"$ref": "./tool.json#/$defs/A"},
+					"other": {"$ref": "other.json#/$defs/A"}
+				},
+				"$defs": {"A": {"type": "string"}}
+			}`,
+			want: `{
+				"$id": "tool.json",
+				"properties": {
+					"a": {"$ref": "#/$defs/A"},
+					"b": {"$ref": "#/$defs/A"},
+					"other": {"$ref": "other.json#/$defs/A"}
 				},
 				"$defs": {"A": {"type": "string"}}
 			}`,

@@ -328,8 +328,13 @@ func (f *rootFolder) mergeRef(shape *objectShape, ref string, depth int) {
 	if _, ok := f.visiting[ref]; ok {
 		return
 	}
-	target, ok := toolschema.ResolveLocalRef(f.root, ref)
+	target, sameResource, ok := toolschema.ResolveLocalRef(f.root, ref)
 	if !ok {
+		return
+	}
+	if node, ok := target.(map[string]any); ok && !sameResource && toolschema.HasRefs(node) {
+		// As in mergeAll, references inside another resource resolve
+		// against its own "$id".
 		return
 	}
 	f.visiting[ref] = struct{}{}

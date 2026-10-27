@@ -415,6 +415,80 @@ func TestBuildToolDefinitionsFullSchemaRootCompositionResourceBranches(t *testin
 	}`, string(raw))
 }
 
+// TestBuildToolDefinitionsFullSchemaRootRefTargets verifies that a root
+// "$ref" contributes its parameters however it names its target: through
+// a relative or differently spelled root "$id", or through the "$id" of a
+// resource the schema embeds, which merges only when it holds no
+// references of its own.
+func TestBuildToolDefinitionsFullSchemaRootRefTargets(t *testing.T) {
+	t.Parallel()
+
+	params := `{"properties": {"p": {"type": "string"}}, "required": ["p"]}`
+	for _, tc := range []struct {
+		name   string
+		schema string
+		want   string
+	}{
+		{
+			name:   "relative root $id",
+			schema: `{"$id": "tool.json", "$ref": "tool.json#/$defs/X", "$defs": {"X": ` + params + `}}`,
+			want:   params,
+		},
+		{
+			name:   "root $id with a different host case",
+			schema: `{"$id": "https://Example.COM/t.json", "$ref": "https://example.com/t.json#/$defs/X", "$defs": {"X": ` + params + `}}`,
+			want:   params,
+		},
+		{
+			name: "embedded resource named by its $id",
+			schema: `{
+				"$id": "https://example.com/root.json",
+				"$ref": "https://example.com/other.json",
+				"$defs": {"O": {"$id": "other.json", "properties": {"p": {"type": "string"}}, "required": ["p"]}}
+			}`,
+			want: params,
+		},
+		{
+			name: "embedded resource without a root $id",
+			schema: `{
+				"$ref": "https://example.com/other.json#/$defs/X",
+				"$defs": {"O": {"$id": "https://example.com/other.json", "$defs": {"X": ` + params + `}}}
+			}`,
+			want: params,
+		},
+		{
+			// The reference inside resolves against "linked.json", so
+			// its content cannot move into the root resource.
+			name: "embedded resource with references",
+			schema: `{
+				"$ref": "https://example.com/linked.json#/$defs/X",
+				"$defs": {"L": {
+					"$id": "https://example.com/linked.json",
+					"$defs": {"X": {"properties": {"p": {"$ref": "#/$defs/S"}}}, "S": {"type": "string"}}
+				}}
+			}`,
+			want: `{"properties": {}}`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var source map[string]any
+			require.NoError(t, json.Unmarshal([]byte(tc.schema), &source))
+			defs := BuildToolDefinitions([]fantasy.AgentTool{fullSchemaTestTool{schema: source}}, nil, nil)
+			require.Len(t, defs, 1)
+			ft, ok := defs[0].(fantasy.FunctionTool)
+			require.True(t, ok)
+			got := map[string]any{"properties": ft.InputSchema["properties"]}
+			if required, ok := ft.InputSchema["required"]; ok {
+				got["required"] = required
+			}
+			raw, err := json.Marshal(got)
+			require.NoError(t, err)
+			require.JSONEq(t, tc.want, string(raw))
+		})
+	}
+}
+
 // TestBuildToolDefinitionsFullSchemaKeepsInstanceValues verifies that
 // normalization rewrites type lists only where they are schemas, so
 // "const", "enum", and "default" values that look like schemas reach
