@@ -274,7 +274,8 @@ const messageEvent = (
 	message: buildMessage(chatID, id, "assistant", text),
 });
 
-// Cuts the encoded batch into count chunk messages of equal UTF-16 length.
+// Cuts the encoded batch into count chunk messages of equal UTF-16 length,
+// except that the last one can be shorter.
 const splitIntoChunks = (
 	events: readonly TypesGen.ChatStreamEvent[],
 	count: number,
