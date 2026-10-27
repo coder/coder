@@ -179,7 +179,7 @@ Each event has a `type` field:
 |-------------------|-------------------------------------------------------------------------------------------------------------------------|
 | `message_part`    | A chunk of the agent's response (text, tool call, etc.)                                                                 |
 | `preview_reset`   | Remove the `message_part` content that you received before this event                                                   |
-| `message`         | A message was created or changed, so replace your message with the same ID                                              |
+| `message`         | A message was created or changed, so add the message, or replace your message with the same ID                          |
 | `history_reset`   | An edit removed messages, so remove your messages with an ID of `history_reset.from_message_id` or higher               |
 | `status`          | The chat status changed (e.g., `running` → `waiting`)                                                                   |
 | `error`           | An error occurred during processing                                                                                     |
