@@ -372,6 +372,56 @@ func TestBuildToolDefinitionsFullSchemaRootCompositionAbsoluteRefs(t *testing.T)
 	}`, string(raw))
 }
 
+// TestBuildToolDefinitionsFullSchemaRootCompositionTransitiveRefs
+// verifies that a removed root keyword stays resolvable when only other
+// relocated root content points into it.
+func TestBuildToolDefinitionsFullSchemaRootCompositionTransitiveRefs(t *testing.T) {
+	t.Parallel()
+
+	source := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"filter": map[string]any{"$ref": "#/allOf/0/$defs/Filter"},
+		},
+		"allOf": []any{
+			map[string]any{
+				"$defs": map[string]any{
+					"Filter": map[string]any{"$ref": "#/anyOf/0/$defs/Term"},
+				},
+			},
+		},
+		"anyOf": []any{
+			map[string]any{
+				"$defs": map[string]any{
+					"Term": map[string]any{"type": "string", "minLength": 3},
+				},
+			},
+		},
+	}
+	defs := BuildToolDefinitions([]fantasy.AgentTool{fullSchemaTestTool{schema: source}}, nil, nil)
+	require.Len(t, defs, 1)
+	ft, ok := defs[0].(fantasy.FunctionTool)
+	require.True(t, ok)
+	raw, err := json.Marshal(ft.InputSchema)
+	require.NoError(t, err)
+	require.JSONEq(t, `{
+		"type": "object",
+		"properties": {
+			"filter": {"$ref": "#/$defs/coder_root_allOf/allOf/0/$defs/Filter"}
+		},
+		"$defs": {
+			"coder_root_allOf": {
+				"allOf": [{"$defs": {"Filter": {"$ref": "#/$defs/coder_root_anyOf/anyOf/0/$defs/Term"}}}]
+			},
+			"coder_root_anyOf": {
+				"anyOf": [{"$defs": {"Term": {"type": "string", "minLength": 3}}}]
+			}
+		}
+	}`, string(raw))
+	require.NoError(t, validateSchemaInstance(t, ft.InputSchema, `{"filter": "abc"}`))
+	require.Error(t, validateSchemaInstance(t, ft.InputSchema, `{"filter": "ab"}`))
+}
+
 // TestBuildToolDefinitionsFullSchemaRootCompositionResourceBranches
 // verifies that a root "allOf" branch declaring its own "$id" still
 // contributes its parameters when it holds no references, which would
@@ -468,6 +518,21 @@ func TestBuildToolDefinitionsFullSchemaRootRefTargets(t *testing.T) {
 				}}
 			}`,
 			want: `{"properties": {}}`,
+		},
+		{
+			name:   "anchor",
+			schema: `{"$ref": "#args", "$defs": {"Args": {"$anchor": "args", "properties": {"p": {"type": "string"}}, "required": ["p"]}}}`,
+			want:   params,
+		},
+		{
+			name:   "root $id with an anchor",
+			schema: `{"$id": "https://example.com/t.json", "$ref": "https://example.com/t.json#args", "$defs": {"Args": {"$anchor": "args", "properties": {"p": {"type": "string"}}, "required": ["p"]}}}`,
+			want:   params,
+		},
+		{
+			name:   "draft 7 anchor",
+			schema: `{"$ref": "#args", "definitions": {"Args": {"$id": "#args", "properties": {"p": {"type": "string"}}, "required": ["p"]}}}`,
+			want:   params,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

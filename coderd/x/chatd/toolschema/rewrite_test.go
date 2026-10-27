@@ -67,7 +67,8 @@ func TestResolveLocalRef(t *testing.T) {
 		"$id": "https://example.com/root.json",
 		"$defs": {
 			"A": {"type": "string"},
-			"N": {"$id": "n.json", "properties": {"x": {"type": "integer"}}}
+			"Named": {"$anchor": "named", "type": "boolean"},
+			"N": {"$id": "n.json", "properties": {"x": {"type": "integer"}}, "$defs": {"M": {"$anchor": "inner", "type": "number"}}}
 		}
 	}`
 	var root map[string]any
@@ -81,8 +82,13 @@ func TestResolveLocalRef(t *testing.T) {
 		{name: "fragment", ref: "#/$defs/A", want: `{"type": "string"}`, sameResource: true},
 		{name: "root $id", ref: "root.json#/$defs/A", want: `{"type": "string"}`, sameResource: true},
 		{name: "fragment into an embedded resource", ref: "#/$defs/N/properties/x", want: `{"type": "integer"}`},
-		{name: "embedded resource $id", ref: "https://example.com/n.json", want: `{"$id": "n.json", "properties": {"x": {"type": "integer"}}}`},
+		{name: "embedded resource $id", ref: "https://example.com/n.json", want: `{"$id": "n.json", "properties": {"x": {"type": "integer"}}, "$defs": {"M": {"$anchor": "inner", "type": "number"}}}`},
 		{name: "pointer in an embedded resource", ref: "n.json#/properties/x", want: `{"type": "integer"}`},
+		{name: "anchor", ref: "#named", want: `{"$anchor": "named", "type": "boolean"}`, sameResource: true},
+		{name: "root $id with an anchor", ref: "root.json#named", want: `{"$anchor": "named", "type": "boolean"}`, sameResource: true},
+		{name: "anchor in an embedded resource", ref: "n.json#inner", want: `{"$anchor": "inner", "type": "number"}`},
+		{name: "anchor of another resource", ref: "#inner"},
+		{name: "unknown anchor", ref: "#missing"},
 		{name: "unknown resource", ref: "https://example.com/other.json#/$defs/A"},
 		{name: "missing pointer target", ref: "#/$defs/B"},
 	} {

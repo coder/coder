@@ -32,6 +32,7 @@ import (
 	aidmcp "github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/toolschema"
 	"github.com/coder/safedial"
 )
@@ -738,22 +739,15 @@ func validateToolDefinitions(tools []fantasy.AgentTool, limits toolLimits) error
 }
 
 // modelToolDefinition returns the definition the model receives for a
-// tool: its full input schema when it has one, which can carry keys
-// such as "$defs" that Info() does not.
+// tool, with the input schema as normalized for the wire, which can be
+// larger than the source and carry keys such as "$defs" that Info()
+// does not.
 func modelToolDefinition(tool fantasy.AgentTool) any {
 	info := tool.Info()
-	full, ok := tool.(interface{ FullInputSchema() map[string]any })
-	if !ok {
-		return info
-	}
-	schema := full.FullInputSchema()
-	if schema == nil {
-		return info
-	}
 	return map[string]any{
 		"name":         info.Name,
 		"description":  info.Description,
-		"input_schema": schema,
+		"input_schema": chatloop.ToolInputSchema(tool),
 	}
 }
 
