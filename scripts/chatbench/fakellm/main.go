@@ -6,7 +6,7 @@
 // The behavior of a turn is chosen by a directive in the last user message:
 //
 //	BENCH:seed <n>          reply promptly with a medium markdown message (n varies content)
-//	BENCH:stream <seconds>  stream markdown for <seconds> at --rate tokens/second
+//	BENCH:stream <seconds>  stream markdown for <seconds> at --rate deltas/second of --chunk tokens
 //	(anything else)         reply promptly with a short message
 package main
 
@@ -56,7 +56,8 @@ func (m message) text() string {
 
 func main() {
 	addr := flag.String("addr", "127.0.0.1:18081", "listen address")
-	rate := flag.Float64("rate", 40, "streamed tokens per second in BENCH:stream mode")
+	rate := flag.Float64("rate", 40, "streamed deltas per second in BENCH:stream mode")
+	chunk := flag.Int("chunk", 1, "tokens per streamed delta in BENCH:stream mode")
 	flag.Parse()
 
 	mux := http.NewServeMux()
@@ -78,13 +79,13 @@ func main() {
 				break
 			}
 		}
-		text, delay := plan(lastUser, *rate)
+		text, delay := plan(lastUser, *rate, max(1, *chunk))
 		log.Printf("turn model=%s stream=%v msgs=%d directive=%q chars=%d delay=%s", req.Model, req.Stream, len(req.Messages), directive(lastUser), len(text), delay)
 		if !req.Stream {
 			writeJSON(w, completion(req.Model, text))
 			return
 		}
-		streamText(w, r, req.Model, text, delay)
+		streamText(w, r, req.Model, text, delay, max(1, *chunk))
 	})
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		if _, err := w.Write([]byte("ok")); err != nil {
@@ -114,7 +115,7 @@ func directive(s string) string {
 
 // plan returns the reply text and the per-token delay for the given
 // user message.
-func plan(user string, rate float64) (string, time.Duration) {
+func plan(user string, rate float64, chunk int) (string, time.Duration) {
 	f := strings.Fields(directive(user))
 	if len(f) < 2 {
 		return "Acknowledged.", 0
@@ -132,7 +133,7 @@ func plan(user string, rate float64) (string, time.Duration) {
 			return "Acknowledged.", 0
 		}
 		perTok := time.Duration(float64(time.Second) / rate)
-		tokens := int(float64(secs) * rate)
+		tokens := int(float64(secs)*rate) * chunk
 		var b strings.Builder
 		seed := int64(7)
 		for countTokens(b.String()) < tokens {
@@ -169,7 +170,7 @@ func writeJSON(w http.ResponseWriter, v any) {
 
 // streamText emits SSE chunks, one token per chunk, pausing delay
 // between tokens.
-func streamText(w http.ResponseWriter, r *http.Request, model, text string, delay time.Duration) {
+func streamText(w http.ResponseWriter, r *http.Request, model, text string, delay time.Duration, chunk int) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.WriteHeader(http.StatusOK)
@@ -201,7 +202,9 @@ func streamText(w http.ResponseWriter, r *http.Request, model, text string, dela
 		defer ticker.Stop()
 	}
 	sent := 0
-	for _, tok := range tokenize(text) {
+	toks := tokenize(text)
+	for len(toks) > 0 {
+		n := min(chunk, len(toks))
 		if ticker != nil {
 			select {
 			case <-r.Context().Done():
@@ -210,10 +213,11 @@ func streamText(w http.ResponseWriter, r *http.Request, model, text string, dela
 			case <-ticker.C:
 			}
 		}
-		if !write(map[string]any{"content": tok}, nil) {
+		if !write(map[string]any{"content": strings.Join(toks[:n], "")}, nil) {
 			return
 		}
-		sent++
+		sent += n
+		toks = toks[n:]
 	}
 	write(map[string]any{}, "stop")
 	_, _ = fmt.Fprint(w, "data: [DONE]\n\n")
