@@ -23,6 +23,7 @@ import {
 	MockAsyncQuestionResultMessage,
 	MockQuestionCallMessage,
 	MockQueuedQuestionAnswer,
+	workingFixtureTime,
 } from "./ChatConversation/storyFixtures";
 import { ChatPageInput, ChatPageTimeline } from "./ChatPageContent";
 
@@ -333,48 +334,55 @@ describe("ChatPageTimeline question dock", () => {
 		expect(onSendAskUserQuestionResponse).toHaveBeenNthCalledWith(2, answer);
 	});
 
-	it("gives a newer async question a fresh form in the dock", async () => {
-		const user = userEvent.setup();
-		const onSendAskUserQuestionResponse = vi.fn();
-		const { store } = renderChatPageTimeline(onSendAskUserQuestionResponse);
+	it.each([
+		{ callId: "newer-question", callIdKind: "a new call ID" },
+		{ callId: "question", callIdKind: "a reused call ID" },
+	])(
+		"gives a newer async question with $callIdKind a fresh form in the dock",
+		async ({ callId }) => {
+			const user = userEvent.setup();
+			const onSendAskUserQuestionResponse = vi.fn();
+			const { store } = renderChatPageTimeline(onSendAskUserQuestionResponse);
 
-		await user.click(
-			within(getQuestionDock()).getByRole("radio", { name: /^Frontend/ }),
-		);
-		act(() => {
-			store.upsertDurableMessages([
-				{
-					...MockQuestionCallMessage,
-					id: 6,
-					content: [
-						{
-							type: "tool-call",
-							tool_call_id: "newer-question",
-							tool_name: "ask_user_question",
-							args: {},
-						},
-					],
-				},
-				{
-					...MockAsyncQuestionResultMessage,
-					id: 7,
-					content: [
-						{
-							type: "tool-result",
-							tool_call_id: "newer-question",
-							tool_name: "ask_user_question",
-							result: MockAsyncQuestionResult,
-						},
-					],
-				},
-			]);
-		});
-		await user.click(
-			within(getQuestionDock()).getByRole("button", { name: "Submit" }),
-		);
+			await user.click(
+				within(getQuestionDock()).getByRole("radio", { name: /^Frontend/ }),
+			);
+			act(() => {
+				store.upsertDurableMessages([
+					{
+						...MockQuestionCallMessage,
+						id: 6,
+						content: [
+							{
+								type: "tool-call",
+								tool_call_id: callId,
+								tool_name: "ask_user_question",
+								args: {},
+								created_at: workingFixtureTime(7),
+							},
+						],
+					},
+					{
+						...MockAsyncQuestionResultMessage,
+						id: 7,
+						content: [
+							{
+								type: "tool-result",
+								tool_call_id: callId,
+								tool_name: "ask_user_question",
+								result: MockAsyncQuestionResult,
+							},
+						],
+					},
+				]);
+			});
+			await user.click(
+				within(getQuestionDock()).getByRole("button", { name: "Submit" }),
+			);
 
-		expect(onSendAskUserQuestionResponse).toHaveBeenCalledWith(
-			"Answer to ask_user_question call newer-question:\nBackend",
-		);
-	});
+			expect(onSendAskUserQuestionResponse).toHaveBeenCalledWith(
+				`Answer to ask_user_question call ${callId}:\nBackend`,
+			);
+		},
+	);
 });

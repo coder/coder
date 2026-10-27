@@ -281,8 +281,10 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 					{footer}
 				</div>
 				{dockedQuestion && (
+					// Providers can reuse a call ID, so the start time tells the
+					// calls apart and a reused ID still gets a fresh form.
 					<AskUserQuestionDock
-						key={dockedQuestion.id}
+						key={`${dockedQuestion.id}:${dockedQuestion.startedAt ?? ""}`}
 						question={dockedQuestion}
 						queuedAnswerText={queuedAnswerText}
 						onSubmitAnswer={onSendAskUserQuestionResponse}
