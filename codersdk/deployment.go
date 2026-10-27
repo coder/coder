@@ -1674,7 +1674,7 @@ communicating directly.`,
 			Name: "Telemetry",
 			YAML: "telemetry",
 			Description: `Telemetry is critical to our ability to improve Coder. We strip all personal
- information before sending data to our servers. Please only disable telemetry
+ information before sending data to our servers. Only disable telemetry
  when required by your organization's security policy.`,
 		}
 		deploymentGroupProvisioning = serpent.Group{
@@ -3875,7 +3875,7 @@ communicating directly.`,
 		},
 		{
 			Name:        "Disable Chat Sharing",
-			Description: "Disable chat sharing. Chat ACL checking is disabled and only owners can access their chats.",
+			Description: "Disable chat and chat project sharing. Existing shares stop granting access and new shares are rejected. Owners keep access to their own chats and projects, and administrators keep only the access their roles grant.",
 			Flag:        "disable-chat-sharing",
 			Env:         "CODER_DISABLE_CHAT_SHARING",
 
@@ -5561,6 +5561,7 @@ const (
 	ExperimentChatInlineMCPServers      Experiment = "chat-inline-mcp-servers"     // Enables inline MCP servers declared on POST /chats.
 	ExperimentEnableAIWorkspaceDebug    Experiment = "enable-ai-workspace-debug"   // Enables debugging failed workspace builds with Coder Agents.
 	ExperimentChatStageMetrics          Experiment = "chat-stage-metrics"          // Exposes chat lifecycle stage durations as Prometheus metrics.
+	ExperimentChatACPSubagents          Experiment = "chat-acp-subagents"          // Enables workspace-local ACP subagent tools in root chats.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5601,6 +5602,8 @@ func (e Experiment) DisplayName() string {
 		return "Chat Inline MCP Servers"
 	case ExperimentEnableAIWorkspaceDebug:
 		return "AI Workspace Debugging"
+	case ExperimentChatACPSubagents:
+		return "Chat ACP Subagents"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5630,6 +5633,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentChatInlineMCPServers,
 	ExperimentEnableAIWorkspaceDebug,
 	ExperimentChatStageMetrics,
+	ExperimentChatACPSubagents,
 }
 
 // ExperimentsSafe should include all experiments that are safe for

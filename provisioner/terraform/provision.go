@@ -16,10 +16,12 @@ import (
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
+	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisioner/terraform/scriptorder"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -353,7 +355,7 @@ func (s *server) Graph(
 		}
 	}
 
-	return &proto.GraphComplete{
+	response := &proto.GraphComplete{
 		Error:                 "",
 		Timings:               e.timings.aggregate(),
 		Resources:             state.Resources,
@@ -362,6 +364,35 @@ func (s *server) Graph(
 		Presets:               state.Presets,
 		HasExternalAgents:     state.HasExternalAgents,
 	}
+	if err := checkGraphCompleteSize(response); err != nil {
+		if convertScriptOrder {
+			return provisionersdk.GraphError(
+				"%s; reduce the number of coder_script_order dependencies", err,
+			)
+		}
+		return provisionersdk.GraphError("%s", err)
+	}
+	return response
+}
+
+// checkGraphCompleteSize rejects a Graph response that cannot cross the
+// DRPC transport in one message, so the import fails with a readable error
+// instead of a dropped connection. The session wraps the result in a
+// proto.Response before sending, so the check measures that envelope rather
+// than the bare GraphComplete. The caller adds the script order hint when
+// that conversion ran, since it is the only unbounded addition to the
+// response and the hint would mislead templates without it.
+func checkGraphCompleteSize(response *proto.GraphComplete) error {
+	size := protobuf.Size(&proto.Response{
+		Type: &proto.Response_Graph{Graph: response},
+	})
+	if size <= drpcsdk.MaxMessageSize {
+		return nil
+	}
+	return xerrors.Errorf(
+		"graph result is %d bytes, above the %d byte message limit",
+		size, drpcsdk.MaxMessageSize,
+	)
 }
 
 func logScriptOrderWarnings(

@@ -2,15 +2,20 @@
 title: External workspaces
 ---
 
-External workspaces allow you to seamlessly connect externally managed infrastructure as Coder workspaces. This enables you to integrate existing servers, on-premises systems, or any capable machine with the Coder environment, ensuring a smooth and efficient development workflow without requiring Coder to provision additional compute resources.
+External workspaces allow you to seamlessly connect externally managed infrastructure as Coder workspaces.
+This enables you to integrate existing servers, on-premises systems, or any capable machine with the Coder environment, ensuring a smooth and efficient development workflow without requiring Coder to provision additional compute resources.
 
 ## Prerequisites
 
 - Access to external compute resources that can run the Coder agent:
-  - **Windows**: amd64 or arm64 architecture
-  - **Linux**: amd64, arm64, or armv7 architecture
-  - **macOS**: amd64 or arm64 architecture
-  - **Examples**: VMs, bare-metal servers, Kubernetes nodes, or any machine meeting the above requirements.
+  - **Windows**:
+    amd64 or arm64 architecture
+  - **Linux**:
+    amd64, arm64, or armv7 architecture
+  - **macOS**:
+    amd64 or arm64 architecture
+  - **Examples**:
+    VMs, bare-metal servers, Kubernetes nodes, or any machine meeting the above requirements.
 - Networking access to your Coder deployment.
 - A workspace template that includes a [`coder_external_agent`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/external_agent) resource.
 
@@ -22,15 +27,18 @@ External workspaces offer flexibility and control in complex environments:
 
 - **Incremental adoption of Coder**
 
-  Integrate with existing infrastructure gradually without needing to migrate everything at once. This is particularly useful when gradually migrating workloads to Coder without refactoring current infrastructure.
+  Integrate with existing infrastructure gradually without needing to migrate everything at once.
+  This is particularly useful when gradually migrating workloads to Coder without refactoring current infrastructure.
 
 - **Flexibility**
 
-  Attach cloud, hybrid, or on-premises machines as developer workspaces. This enables connecting existing on-premises GPU servers for ML development or bringing manually provisioned VMs in restricted networks under Coder's workspace management.
+  Attach cloud, hybrid, or on-premises machines as developer workspaces.
+  This enables connecting existing on-premises GPU servers for ML development or bringing manually provisioned VMs in restricted networks under Coder's workspace management.
 
 - **Separation of concerns**
 
-  Provision compute resources externally (using your existing IaC or manual processes) while managing workspace configuration (apps, scripts) with Terraform. This approach is ideal for running agents in CI pipelines to provision short-lived, externally managed workspaces for testing or build automation.
+  Provision compute resources externally (using your existing IaC or manual processes) while managing workspace configuration (apps, scripts) with Terraform.
+  This approach is ideal for running agents in CI pipelines to provision short-lived, externally managed workspaces for testing or build automation.
 
 ## Known limitations
 
@@ -123,7 +131,9 @@ You can create and manage external workspaces using either the **CLI** or the **
 
 1. Import the external workspace template (see prerequisites).
 2. In the Coder UI, go to **Workspaces → New workspace** and select the imported template.
-3. Once the workspace is created, Coder will display **connection details** with the command users need to run on the external machine to start the agent.
+3. Once the workspace is created, Coder displays **connection details**.
+
+   They include the command users need to run on the external machine to start the agent.
 4. The workspace will appear in the dashboard, but with the following differences:
    - **Start**, **Stop**, and **Restart** actions are disabled.
    - Users are provided with instructions for launching the agent manually on the external machine.

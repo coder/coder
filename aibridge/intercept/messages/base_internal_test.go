@@ -971,6 +971,62 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 			expectKeptFields:   []string{"output_config"},
 		},
 		{
+			name:               "opus_5_model_with_enabled_thinking_is_converted_to_adaptive_and_drops_budget",
+			bedrockModel:       "anthropic.claude-opus-5",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":5000}}`,
+			expectThinkingType: "adaptive",
+		},
+		{
+			name:               "global_opus_5_model_keeps_adaptive_thinking_and_output_config_effort",
+			bedrockModel:       "global.anthropic.claude-opus-5",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"adaptive"},"output_config":{"effort":"medium"}}`,
+			expectThinkingType: "adaptive",
+			expectEffort:       "medium",
+			expectKeptFields:   []string{"output_config"},
+		},
+		{
+			name:               "haiku_5_5_model_with_enabled_thinking_is_converted_to_adaptive_and_drops_budget",
+			bedrockModel:       "anthropic.claude-haiku-5-5",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":5000}}`,
+			expectThinkingType: "adaptive",
+		},
+		{
+			name:               "regional_haiku_5_5_model_keeps_adaptive_thinking_and_output_config_effort",
+			bedrockModel:       "us.anthropic.claude-haiku-5-5",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"adaptive"},"output_config":{"effort":"low"}}`,
+			expectThinkingType: "adaptive",
+			expectEffort:       "low",
+			expectKeptFields:   []string{"output_config"},
+		},
+		{
+			name:               "fable_5_model_with_enabled_thinking_is_converted_to_adaptive_and_drops_budget",
+			bedrockModel:       "anthropic.claude-fable-5",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":5000}}`,
+			expectThinkingType: "adaptive",
+		},
+		{
+			name:               "global_fable_5_1_model_keeps_adaptive_thinking_and_output_config_effort",
+			bedrockModel:       "global.anthropic.claude-fable-5-1",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"adaptive"},"output_config":{"effort":"high"}}`,
+			expectThinkingType: "adaptive",
+			expectEffort:       "high",
+			expectKeptFields:   []string{"output_config"},
+		},
+		{
+			name:               "mythos_5_model_with_enabled_thinking_is_converted_to_adaptive_and_drops_budget",
+			bedrockModel:       "anthropic.claude-mythos-5",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":5000}}`,
+			expectThinkingType: "adaptive",
+		},
+		{
+			name:               "global_mythos_5_1_model_keeps_adaptive_thinking_and_output_config_effort",
+			bedrockModel:       "global.anthropic.claude-mythos-5-1",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"adaptive"},"output_config":{"effort":"high"}}`,
+			expectThinkingType: "adaptive",
+			expectEffort:       "high",
+			expectKeptFields:   []string{"output_config"},
+		},
+		{
 			// Opus 4.7 on Bedrock rejects output_config.format (structured
 			// outputs) with a 400 even though it accepts output_config.effort.
 			name:                "opus_4_7_model_strips_output_config_format_but_keeps_effort",

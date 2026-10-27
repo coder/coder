@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/coderd/workspacesecrets"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 )
@@ -32,6 +33,9 @@ type ManifestAPI struct {
 	DerpForceWebSockets       bool
 	DisableUserSecretFilePath bool
 	WorkspaceID               uuid.UUID
+	// WorkspaceBuildID is the build that created the agent. Its live secrets
+	// are delivered in the manifest.
+	WorkspaceBuildID uuid.UUID
 
 	AgentFn   func(ctx context.Context) (database.WorkspaceAgent, error)
 	Database  database.Store
@@ -98,6 +102,11 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 	if err != nil {
 		return nil, xerrors.Errorf("getting user secrets: %w", err)
 	}
+	//nolint:gocritic // Only the workspace secret manager reads values.
+	workspaceSecrets, err := a.Database.ListActiveWorkspaceSecrets(dbauthz.AsWorkspaceSecretManager(ctx), a.WorkspaceBuildID)
+	if err != nil {
+		return nil, xerrors.Errorf("getting workspace secrets: %w", err)
+	}
 
 	appSlug := appurl.ApplicationURL{
 		AppSlugOrPort: "{{port}}",
@@ -125,14 +134,19 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		return nil, xerrors.Errorf("converting workspace apps: %w", err)
 	}
 
+	protoScripts, err := dbAgentScriptsToProto(scripts)
+	if err != nil {
+		return nil, xerrors.Errorf("converting workspace agent scripts: %w", err)
+	}
+
 	var parentID []byte
 	if workspaceAgent.ParentID.Valid {
 		parentID = workspaceAgent.ParentID.UUID[:]
 	}
 
-	secretFilePathPolicy := userSecretFilePathAllowed
+	secretFilePathPolicy := workspacesecrets.FilePathAllowed
 	if a.DisableUserSecretFilePath {
-		secretFilePathPolicy = userSecretFilePathBlocked
+		secretFilePathPolicy = workspacesecrets.FilePathBlocked
 	}
 
 	return &agentproto.Manifest{
@@ -140,6 +154,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		AgentName:                workspaceAgent.Name,
 		OwnerUsername:            workspace.OwnerUsername,
 		WorkspaceId:              workspace.ID[:],
+		WorkspaceBuildId:         a.WorkspaceBuildID[:],
 		WorkspaceName:            workspace.Name,
 		GitAuthConfigs:           gitAuthConfigs,
 		EnvironmentVariables:     envs,
@@ -151,11 +166,11 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		ParentId:                 parentID,
 
 		DerpMap:       tailnet.DERPMapToProto(a.DerpMapFn()),
-		Scripts:       dbAgentScriptsToProto(scripts),
+		Scripts:       protoScripts,
 		Apps:          apps,
 		Metadata:      dbAgentMetadataToProtoDescription(metadata),
 		Devcontainers: dbAgentDevcontainersToProto(devcontainers),
-		Secrets:       dbUserSecretsToProto(userSecrets, secretFilePathPolicy),
+		Secrets:       dbSecretsToProto(userSecrets, workspaceSecrets, secretFilePathPolicy),
 	}, nil
 }
 
@@ -190,15 +205,40 @@ func dbAgentMetadatumToProtoDescription(metadatum database.WorkspaceAgentMetadat
 	}
 }
 
-func dbAgentScriptsToProto(scripts []database.GetWorkspaceAgentScriptsByAgentIDsRow) []*agentproto.WorkspaceAgentScript {
+func dbAgentScriptsToProto(scripts []database.GetWorkspaceAgentScriptsByAgentIDsRow) ([]*agentproto.WorkspaceAgentScript, error) {
 	ret := make([]*agentproto.WorkspaceAgentScript, len(scripts))
 	for i, script := range scripts {
-		ret[i] = dbAgentScriptToProto(script)
+		converted, err := dbAgentScriptToProto(script)
+		if err != nil {
+			return nil, xerrors.Errorf("script %s: %w", script.ID, err)
+		}
+		ret[i] = converted
 	}
-	return ret
+	return ret, nil
 }
 
-func dbAgentScriptToProto(script database.GetWorkspaceAgentScriptsByAgentIDsRow) *agentproto.WorkspaceAgentScript {
+// dbAgentScriptToProto goes through db2sdk.WorkspaceAgentScript so the
+// manifest and the REST API agree on what a valid dependency list is.
+func dbAgentScriptToProto(script database.GetWorkspaceAgentScriptsByAgentIDsRow) (*agentproto.WorkspaceAgentScript, error) {
+	sdkScript, err := db2sdk.WorkspaceAgentScript(script)
+	if err != nil {
+		return nil, err
+	}
+	var dependencies []*agentproto.WorkspaceAgentScriptDependency
+	if len(sdkScript.Dependencies) > 0 {
+		dependencies = make([]*agentproto.WorkspaceAgentScriptDependency, len(sdkScript.Dependencies))
+	}
+	for i, dependency := range sdkScript.Dependencies {
+		requirement, err := workspaceAgentScriptDependencyRequirementToProto(dependency.Requirement)
+		if err != nil {
+			return nil, xerrors.Errorf("dependency %d: %w", i, err)
+		}
+		dependencies[i] = &agentproto.WorkspaceAgentScriptDependency{
+			PrerequisiteResourceAddress: dependency.PrerequisiteResourceAddress,
+			Requirement:                 requirement,
+		}
+	}
+
 	return &agentproto.WorkspaceAgentScript{
 		Id:               script.ID[:],
 		LogSourceId:      script.LogSourceID[:],
@@ -209,6 +249,22 @@ func dbAgentScriptToProto(script database.GetWorkspaceAgentScriptsByAgentIDsRow)
 		RunOnStop:        script.RunOnStop,
 		StartBlocksLogin: script.StartBlocksLogin,
 		Timeout:          durationpb.New(time.Duration(script.TimeoutSeconds) * time.Second),
+		DisplayName:      script.DisplayName,
+		ResourceAddress:  sdkScript.ResourceAddress,
+		Dependencies:     dependencies,
+	}, nil
+}
+
+func workspaceAgentScriptDependencyRequirementToProto(requirement codersdk.WorkspaceAgentScriptDependencyRequirement) (agentproto.WorkspaceAgentScriptDependency_Requirement, error) {
+	switch requirement {
+	case codersdk.WorkspaceAgentScriptDependencyRequirementSuccess:
+		return agentproto.WorkspaceAgentScriptDependency_REQUIREMENT_SUCCESS, nil
+	case codersdk.WorkspaceAgentScriptDependencyRequirementCompletion:
+		return agentproto.WorkspaceAgentScriptDependency_REQUIREMENT_COMPLETION, nil
+	default:
+		// db2sdk already rejected anything else. The error stays so a new
+		// requirement can never fall through to UNSPECIFIED unnoticed.
+		return agentproto.WorkspaceAgentScriptDependency_REQUIREMENT_UNSPECIFIED, xerrors.Errorf("unsupported requirement %q", requirement)
 	}
 }
 
@@ -281,36 +337,44 @@ func dbAgentDevcontainersToProto(devcontainers []database.WorkspaceAgentDevconta
 	return ret
 }
 
-// userSecretFilePathPolicy is a named type rather than a bool parameter to
-// satisfy revive's flag-parameter rule.
-type userSecretFilePathPolicy int
-
-const (
-	userSecretFilePathAllowed userSecretFilePathPolicy = iota
-	userSecretFilePathBlocked
-)
-
-func dbUserSecretsToProto(secrets []database.UserSecret, policy userSecretFilePathPolicy) []*agentproto.WorkspaceSecret {
-	ret := make([]*agentproto.WorkspaceSecret, 0, len(secrets))
-	for _, s := range secrets {
-		// Skip disabled secrets so they are not injected as env vars or
-		// written to secret files. The API guarantees every enabled
-		// secret has at least one of env_name or file_path set, so we
-		// don't need to filter both-empty rows separately here.
-		if !s.Enabled {
+// dbSecretsToProto builds the manifest secrets from the user's and the
+// agent build's secrets, delivering each on the targets Resolve assigns.
+func dbSecretsToProto(userSecrets []database.UserSecret, workspaceSecrets []database.WorkspaceSecret, policy workspacesecrets.FilePathPolicy) []*agentproto.WorkspaceSecret {
+	user := make([]workspacesecrets.Secret, 0, len(userSecrets))
+	for _, s := range userSecrets {
+		user = append(user, workspacesecrets.Secret{
+			ID:       s.ID,
+			EnvName:  s.EnvName,
+			FilePath: s.FilePath,
+			Enabled:  s.Enabled,
+			Value:    s.Value,
+		})
+	}
+	build := make([]workspacesecrets.Secret, 0, len(workspaceSecrets))
+	for _, s := range workspaceSecrets {
+		// ListActiveWorkspaceSecrets only returns rows that still hold a
+		// value; the check guards against a cleared row slipping through.
+		if !s.Value.Valid {
 			continue
 		}
-		filePath := s.FilePath
-		if policy == userSecretFilePathBlocked {
-			if s.EnvName == "" {
-				continue
-			}
-			filePath = ""
+		build = append(build, workspacesecrets.Secret{
+			ID:       s.ID,
+			EnvName:  s.EnvName,
+			FilePath: s.FilePath,
+			Value:    s.Value.String,
+		})
+	}
+
+	resolvedUser, resolvedBuild := workspacesecrets.Resolve(user, build, policy)
+	ret := make([]*agentproto.WorkspaceSecret, 0, len(user)+len(build))
+	for _, r := range append(resolvedUser, resolvedBuild...) {
+		if !r.Delivered() {
+			continue
 		}
 		ret = append(ret, &agentproto.WorkspaceSecret{
-			EnvName:  s.EnvName,
-			FilePath: filePath,
-			Value:    []byte(s.Value),
+			EnvName:  r.DeliveredEnvName,
+			FilePath: r.DeliveredFilePath,
+			Value:    []byte(r.Value),
 		})
 	}
 	return ret

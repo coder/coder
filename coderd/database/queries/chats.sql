@@ -401,6 +401,16 @@ WHERE
     id = @id::bigint
     AND deleted = false;
 
+-- name: GetChatMessageByIDForStream :one
+-- Includes deleted rows so the stream can resolve which chat a deleted cursor
+-- belongs to.
+SELECT
+    *
+FROM
+    chat_messages
+WHERE
+    id = @id::bigint;
+
 -- name: GetChatMessagesByChatID :many
 -- Ordered by id to match the @after_id cursor. created_at is the transaction
 -- start time, so it can disagree with append order when a transaction takes the
@@ -525,6 +535,20 @@ ORDER BY
     cm.id DESC
 LIMIT
     COALESCE(NULLIF(@limit_val::int, 0), 500);
+
+-- name: GetChatMessagesWithFilePartsByChatID :many
+-- Returns the user-visible user and assistant messages in a chat that hold
+-- at least one file part, newest first, optionally only those before
+-- @before_id. Backs the attachments endpoint so a client can list every
+-- attachment without paging through the transcript.
+SELECT * FROM chat_messages
+WHERE chat_id = @chat_id::uuid
+    AND CASE WHEN @before_id::bigint > 0 THEN id < @before_id::bigint ELSE true END
+    AND deleted = false
+    AND visibility IN ('user', 'both')
+    AND role IN ('user', 'assistant')
+    AND content @> '[{"type": "file"}]'::jsonb
+ORDER BY id DESC;
 
 -- name: GetChatTurnStartID :one
 SELECT
@@ -1216,6 +1240,17 @@ chats_expanded AS (
 )
 SELECT *
 FROM chats_expanded;
+
+-- name: UpdateChatProjectIDByID :exec
+-- Sets the project of one chat. A NULL project_id removes the chat from
+-- its project.
+UPDATE
+    chats
+SET
+    -- NOTE: updated_at is intentionally NOT touched here to avoid changing list ordering.
+    project_id = sqlc.narg('project_id')::uuid
+WHERE
+    id = @id::uuid;
 
 -- name: UpdateChatLastModelConfigByID :one
 WITH updated_chat AS (

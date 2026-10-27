@@ -211,12 +211,24 @@ coder_pubsub_send_latency_seconds{backend=""} 0
 # HELP coder_pubsub_subscribes_total Total number of calls to Subscribe/SubscribeWithErr
 # TYPE coder_pubsub_subscribes_total counter
 coder_pubsub_subscribes_total{backend="",success=""} 0
+# HELP coder_servertailnet_agent_unreachable_total Number of connection attempts where the workspace agent did not answer in time, by reason: no_node (this server has no node for the agent), peer_lost (the agent's or this server's coordinator connection ended), no_handshake (no WireGuard handshake yet), handshake_stale (last handshake over 180s ago), handshake_ok (last handshake under 180s ago), diagnostics_timeout (peer state not readable within 1s), client_canceled (client left within 5s).
+# TYPE coder_servertailnet_agent_unreachable_total counter
+coder_servertailnet_agent_unreachable_total{reason=""} 0
+# HELP coder_servertailnet_await_reachable_seconds Time until a workspace agent answered the first ping when a new connection was opened.
+# TYPE coder_servertailnet_await_reachable_seconds histogram
+coder_servertailnet_await_reachable_seconds 0
 # HELP coder_servertailnet_connections_total Total number of TCP connections made to workspace agents.
 # TYPE coder_servertailnet_connections_total counter
 coder_servertailnet_connections_total{network=""} 0
+# HELP coder_servertailnet_derp_connects_total Number of times the server tailnet connected to the embedded DERP relay. Stays 0 when the embedded relay is disabled.
+# TYPE coder_servertailnet_derp_connects_total counter
+coder_servertailnet_derp_connects_total 0
 # HELP coder_servertailnet_open_connections Total number of TCP connections currently open to workspace agents.
 # TYPE coder_servertailnet_open_connections gauge
 coder_servertailnet_open_connections{network=""} 0
+# HELP coder_workspaceapps_agent_offline_total Number of workspace app requests that got the offline page because the agent was not connected.
+# TYPE coder_workspaceapps_agent_offline_total counter
+coder_workspaceapps_agent_offline_total{status="",access_method=""} 0
 # HELP coderd_agentapi_metadata_batch_size Total number of metadata entries in each batch, updated before flushes.
 # TYPE coderd_agentapi_metadata_batch_size histogram
 coderd_agentapi_metadata_batch_size 0
@@ -406,13 +418,13 @@ coderd_chatd_tool_result_size_bytes{provider="",model="",tool_name=""} 0
 # HELP coderd_chatd_tool_result_truncated_total Total tool results truncated to fit the model context window.
 # TYPE coderd_chatd_tool_result_truncated_total counter
 coderd_chatd_tool_result_truncated_total{provider="",model="",tool_name=""} 0
-# HELP coderd_chatd_ttft_seconds Time-to-first-token: wall time from LLM request to the first streamed output part: any part other than warnings, finish, or error, including start markers such as text_start. Attempts that end before an output part, by failing or by finishing empty, are not observed. The time_to_first_token stage of stage_duration_seconds measures the same window without a model label and is registered only with the chat-stage-metrics experiment.
+# HELP coderd_chatd_ttft_seconds Time-to-first-token: wall time from LLM request to the first streamed output part: any part other than warnings, keepalives, finish, or error, including start markers such as text_start. Attempts that end before an output part, by failing or by finishing empty, are not observed. The time_to_first_token stage of stage_duration_seconds measures the same window without a model label and is registered only with the chat-stage-metrics experiment.
 # TYPE coderd_chatd_ttft_seconds histogram
 coderd_chatd_ttft_seconds{provider="",model=""} 0
 # HELP coderd_chatd_turn_outcomes_total Total closed chat turns by outcome: completed (the turn finished, including a turn that ends when the chat enters requires_action; the submitted tool result opens a new turn), interrupted (an interrupt request from a user, an API client, or a parent agent stopped it), error (a failure stopped it), abandoned (a newer prompt, such as a message edit, or runner exit closed it before it finished; an edit sent while the chat is interrupting can close the stopped turn as abandoned rather than interrupted). Every closed turn is counted exactly once. Registered only with the chat-stage-metrics experiment.
 # TYPE coderd_chatd_turn_outcomes_total counter
 coderd_chatd_turn_outcomes_total{outcome="",chat_kind=""} 0
-# HELP coderd_db_query_counts_total Total number of queries labelled by HTTP route, method, and query name.
+# HELP coderd_db_query_counts_total Total number of queries labeled by HTTP route, method, and query name.
 # TYPE coderd_db_query_counts_total counter
 coderd_db_query_counts_total{route="",method="",query=""} 0
 # HELP coderd_db_query_latencies_seconds Latency distribution of queries in seconds.
@@ -436,9 +448,9 @@ coderd_dbpurge_records_purged_total{record_type=""} 0
 # HELP coderd_experiments Indicates whether each experiment is enabled (1) or not (0)
 # TYPE coderd_experiments gauge
 coderd_experiments{experiment=""} 0
-# HELP coderd_insights_applications_usage_seconds The application usage per template. Built-in apps are grouped by app family, such as Visual Studio Code, JetBrains, Web Terminal, or SSH, with an empty slug. A user-minute counts once per family.
+# HELP coderd_insights_applications_usage_seconds The app usage per template. connection_method is workspace_app for template apps, or ssh, reconnecting_pty, or port_forwarding for built-in apps, which have one series per app name in slug. Overlapping apps each count their own minutes.
 # TYPE coderd_insights_applications_usage_seconds gauge
-coderd_insights_applications_usage_seconds{template_name="",application_name="",slug="",organization_name=""} 0
+coderd_insights_applications_usage_seconds{template_name="",display_name="",slug="",connection_method="",organization_name=""} 0
 # HELP coderd_insights_parameters The parameter usage per template.
 # TYPE coderd_insights_parameters gauge
 coderd_insights_parameters{template_name="",parameter_name="",parameter_type="",parameter_value="",organization_name=""} 0

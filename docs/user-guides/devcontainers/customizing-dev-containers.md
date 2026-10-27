@@ -2,16 +2,13 @@
 title: Customizing dev containers
 ---
 
-Coder supports custom configuration in your `devcontainer.json` file through the
-`customizations.coder` block. These options let you control how Coder interacts
-with your dev container without requiring template changes.
+Coder supports custom configuration in your `devcontainer.json` file through the `customizations.coder` block.
+These options let you control how Coder interacts with your dev container without requiring template changes.
 
 > [!TIP]
 >
-> Alternatively, template administrators can also define apps, scripts, and
-> environment variables for dev containers directly in Terraform. See
-> [Attach resources to dev containers](../../admin/integrations/devcontainers/integration.md#attach-resources-to-dev-containers)
-> for details.
+> Alternatively, template administrators can also define apps, scripts, and environment variables for dev containers directly in Terraform.
+> See [Attach resources to dev containers](../../admin/integrations/devcontainers/integration.md#attach-resources-to-dev-containers) for details.
 
 ## Ignore a dev container
 
@@ -34,13 +31,11 @@ When `ignore` is set to `true`:
 - The dev container won't appear in the Coder UI
 - Coder won't manage or monitor the container
 
-This is useful for dev containers in your repository that you don't want Coder
-to manage.
+This is useful for dev containers in your repository that you don't want Coder to manage.
 
 ## Auto-start
 
-Control whether your dev container should auto-start using the `autoStart`
-option:
+Control whether your dev container should auto-start using the `autoStart` option:
 
 ```json
 {
@@ -54,23 +49,19 @@ option:
 }
 ```
 
-When `autoStart` is set to `true`, the dev container automatically builds and
-starts during workspace initialization.
+When `autoStart` is set to `true`, the dev container automatically builds and starts during workspace initialization.
 
-When `autoStart` is set to `false` or omitted, the dev container is discovered
-and shown in the UI, but users must manually start it.
+When `autoStart` is set to `false` or omitted, the dev container is discovered and shown in the UI, but users must manually start it.
 
 > [!NOTE]
 >
-> The `autoStart` option only takes effect when your template administrator has
-> enabled [`CODER_AGENT_DEVCONTAINERS_DISCOVERY_AUTOSTART_ENABLE`](../../admin/integrations/devcontainers/integration.md#coder_agent_devcontainers_discovery_autostart_enable).
-> If this setting is disabled at the template level, containers won't auto-start
-> regardless of this option.
+> The `autoStart` option only takes effect when your template administrator has enabled [`CODER_AGENT_DEVCONTAINERS_DISCOVERY_AUTOSTART_ENABLE`](../../admin/integrations/devcontainers/integration.md#coder_agent_devcontainers_discovery_autostart_enable).
+> If this setting is disabled at the template level, containers won't auto-start regardless of this option.
 
 ## Custom agent name
 
-Each dev container gets an agent name derived from the workspace folder path by
-default. You can set a custom name using the `name` option:
+Each dev container gets an agent name derived from the workspace folder path by default.
+You can set a custom name using the `name` option:
 
 ```json
 {
@@ -84,14 +75,12 @@ default. You can set a custom name using the `name` option:
 }
 ```
 
-The name must contain only lowercase letters, numbers, and hyphens. This name
-appears in `coder ssh` commands and the dashboard (e.g.,
-`coder ssh my-workspace.my-custom-agent`).
+The name must contain only lowercase letters, numbers, and hyphens.
+This name appears in `coder ssh` commands and the dashboard (for example, `coder ssh my-workspace.my-custom-agent`).
 
 ## Display apps
 
-Control which built-in Coder apps appear for your dev container using
-`displayApps`:
+Control which built-in Coder apps appear for your dev container using `displayApps`:
 
 ![Dev container with all display apps disabled](../../images/user-guides/devcontainers/devcontainer-apps-bar.png)_Disable built-in apps to reduce clutter or guide developers toward preferred tools_
 
@@ -148,8 +137,7 @@ Define custom applications for your dev container using the `apps` array:
 }
 ```
 
-This example adds a Zed Editor button that opens the dev container directly in
-the Zed desktop app via its SSH remote feature.
+This example adds a Zed Editor button that opens the dev container directly in the Zed desktop app via its SSH remote feature.
 
 Each app supports the following properties:
 
@@ -204,13 +192,11 @@ Health check properties:
 
 ## Variable interpolation
 
-App URLs and other string values support variable interpolation for dynamic
-configuration.
+App URLs and other string values support variable interpolation for dynamic configuration.
 
 ### Environment variables
 
-Use `${localEnv:VAR_NAME}` to reference environment variables, with optional
-default values:
+Use `${localEnv:VAR_NAME}` to reference environment variables, with optional default values:
 
 ```json
 {
@@ -251,8 +237,8 @@ Standard dev container variables are also available:
 
 ## Feature options as environment variables
 
-When your dev container uses features, Coder exposes feature options as
-environment variables. The format is `FEATURE_<FEATURE_NAME>_OPTION_<OPTION_NAME>`.
+When your dev container uses features, Coder exposes feature options as environment variables.
+The format is `FEATURE_<FEATURE_NAME>_OPTION_<OPTION_NAME>`.
 
 For example, with this feature configuration:
 
@@ -266,8 +252,7 @@ For example, with this feature configuration:
 }
 ```
 
-Coder creates `FEATURE_CODE_SERVER_OPTION_PORT=9090`, which you can reference in
-your apps:
+Coder creates `FEATURE_CODE_SERVER_OPTION_PORT=9090`, which you can reference in your apps:
 
 ```json
 {
@@ -293,7 +278,5 @@ your apps:
 
 ## Next steps
 
-- [Working with dev containers](./working-with-dev-containers.md) — SSH, IDE
-  integration, and port forwarding
-- [Troubleshooting dev containers](./troubleshooting-dev-containers.md) —
-  Diagnose common issues
+- [Working with dev containers](./working-with-dev-containers.md): SSH, IDE integration, and port forwarding
+- [Troubleshooting dev containers](./troubleshooting-dev-containers.md): Diagnose common issues

@@ -221,7 +221,10 @@ it("keeps full paths, draft models, and undo history while rejecting stale chang
 	changed.mockClear();
 	act(() => staleChange("wrong file contents"));
 	expect(changed).not.toHaveBeenCalled();
-	await user.click(screen.getByRole("button", { name: "Open root" }));
+	// Flush the model switch and its content subscription before imperative undo.
+	await act(async () => {
+		await user.click(screen.getByRole("button", { name: "Open root" }));
+	});
 	await act(async () => {
 		await root.undo();
 	});

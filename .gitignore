@@ -136,4 +136,6 @@ docs/plans/
 docs/.audit/
 
 /release-action
+# Output of `go build ./scripts/releaser/` from the repo root.
+/releaser
 test-timings.tsv

@@ -145,7 +145,8 @@ func invokeWaitAgentTool(
 	parentChat, err := db.GetChatByID(ctx, parentID)
 	require.NoError(t, err)
 
-	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
+	tools, err := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
+	require.NoError(t, err)
 	tool := findToolByName(tools, "wait_agent")
 	require.NotNil(t, tool, "wait_agent tool must be present")
 
@@ -189,7 +190,7 @@ func TestWaitAgentComputerUseRecording(t *testing.T) {
 
 	// Wait for background processing triggered by CreateChat to
 	// settle before setting up the mock agent connection.
-	WaitUntilIdleForTest(server)
+	require.NoError(t, WaitUntilIdleForTest(ctx, server))
 
 	// Now wire up the mock agent connection.
 	server.agentConnFn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
@@ -275,7 +276,7 @@ func TestWaitAgentComputerUseRecordingWithThumbnail(t *testing.T) {
 		"parent-recording-thumb", "computer-use-child-thumb",
 	)
 
-	WaitUntilIdleForTest(server)
+	require.NoError(t, WaitUntilIdleForTest(ctx, server))
 
 	server.agentConnFn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 		require.Equal(t, agent.ID, agentID)
@@ -369,7 +370,7 @@ func TestWaitAgentNonComputerUseNoRecording(t *testing.T) {
 
 	// Wait for background processing triggered by CreateChat to
 	// settle before setting up the mock agent connection.
-	WaitUntilIdleForTest(server)
+	require.NoError(t, WaitUntilIdleForTest(ctx, server))
 
 	// Wire up the mock agent connection. The mock has zero
 	// expectations — gomock will fail if StartDesktopRecording
@@ -563,7 +564,8 @@ func TestWaitAgentTimeoutLeavesRecordingRunning(t *testing.T) {
 	parentChat, err := db.GetChatByID(ctx, child.ParentChatID.UUID)
 	require.NoError(t, err)
 
-	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
+	tools, err := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
+	require.NoError(t, err)
 	tool := findToolByName(tools, "wait_agent")
 	require.NotNil(t, tool, "wait_agent tool must be present")
 

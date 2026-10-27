@@ -5,14 +5,9 @@ children:
   - title: Agent metadata
     description: Display real-time metrics from the workspace agent, such as CPU, memory, and disk usage.
     path: ./admin/templates/extending-templates/agent-metadata.md
-  - title: Parameters
-    description: Use build parameters to prompt users and customize each workspace when it is created.
-    path: ./admin/templates/extending-templates/parameters.md
-  - title: Dynamic parameters
-    description: Build conditional, identity-aware template forms with Coder's dynamic parameters.
-    path: ./admin/templates/extending-templates/dynamic-parameters.md
+  - include: admin/templates/extending-templates/parameters.yml
   - title: Prebuilt workspaces
-    description: Pre-provision a ready-to-deploy workspace with a defined set of parameters
+    description: Pre-provision a ready-to-deploy workspace with a defined set of parameters.
     path: ./admin/templates/extending-templates/prebuilt-workspaces.md
     state: [premium]
   - title: Icons
@@ -67,4 +62,8 @@ children:
     description: Log all system-level process activity inside workspaces for security and auditing.
     path: ./admin/templates/extending-templates/process-logging.md
     state: [premium]
+  - title: Script ordering
+    description: Declare startup and shutdown script dependencies in Terraform, including ordering across modules and required outcomes.
+    path: ./admin/templates/extending-templates/script-ordering.md
+    state: [beta]
   - include: admin/templates/extending-templates/startup-coordination.yml

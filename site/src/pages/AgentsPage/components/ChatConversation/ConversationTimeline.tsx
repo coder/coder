@@ -25,6 +25,7 @@ import { Response } from "../ChatElements/Response";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
+import { useDialogFocusReturn } from "../useDialogFocusReturn";
 import { AssistantOutput } from "./AssistantOutput";
 import type { PreviewTextAttachment } from "./AttachmentBlocks";
 import { FileProbeProvider } from "./FileProbeContext";
@@ -54,9 +55,10 @@ import type {
 import { UserMessageContent } from "./UserMessageContent";
 import { WorkingBlockDisclosure } from "./WorkingBlockDisclosure";
 import {
+	getRowBlocks,
 	groupWorkingBlocks,
+	isAgentAttachmentOnlyRow,
 	type RowSection,
-	splitRowBlocks,
 } from "./workingBlockGrouping";
 
 const getChatMessageTextContent = (
@@ -109,6 +111,7 @@ const ChatMessageItem = memo<{
 	// Durable messages and live assistant output share one rendering path.
 	message?: TypesGen.ChatMessage;
 	section?: RowSection;
+	hideAttachments: boolean;
 	parsed?: ParsedMessageContent;
 	liveStatus?: LiveStatusModel;
 	// Live blocks and tools are normalized at the live row callsite, so this
@@ -120,6 +123,7 @@ const ChatMessageItem = memo<{
 		messageId: number,
 		text: string,
 		fileBlocks?: readonly TypesGen.ChatMessagePart[],
+		editorState?: string,
 	) => void;
 	editingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
@@ -152,6 +156,7 @@ const ChatMessageItem = memo<{
 		renderKey,
 		message,
 		section,
+		hideAttachments,
 		parsed,
 		liveStatus,
 		liveBlocks = [],
@@ -185,6 +190,18 @@ const ChatMessageItem = memo<{
 		const [previewImage, setPreviewImage] = useState<string | null>(null);
 		const [previewText, setPreviewText] =
 			useState<PreviewTextAttachment | null>(null);
+		const { rememberTriggerButton, restoreFocus } = useDialogFocusReturn();
+		const openImagePreview = (src: string, trigger: HTMLButtonElement) => {
+			rememberTriggerButton(trigger);
+			setPreviewImage(src);
+		};
+		const openTextPreview = (
+			attachment: PreviewTextAttachment,
+			trigger: HTMLButtonElement,
+		) => {
+			rememberTriggerButton(trigger);
+			setPreviewText(attachment);
+		};
 		const displayState =
 			message && parsed
 				? deriveMessageDisplayState({
@@ -238,10 +255,10 @@ const ChatMessageItem = memo<{
 		const isWorkSection = section === "work";
 		const rowBlocks = parsed?.blocks ?? liveBlocks;
 		const rowTools = parsed?.tools ?? liveTools;
-		const blocks =
-			section === undefined
-				? rowBlocks
-				: splitRowBlocks(rowBlocks, rowTools)[section];
+		const blocks = getRowBlocks(rowBlocks, rowTools, {
+			section,
+			hideAttachments,
+		});
 		// An answer whose only work was a search without citations folds
 		// nothing, and an empty row would still add a gap inside the block.
 		if (
@@ -269,8 +286,8 @@ const ChatMessageItem = memo<{
 							isEditing={
 								messageId !== undefined && editingMessageId === messageId
 							}
-							onImageClick={setPreviewImage}
-							onTextFileClick={setPreviewText}
+							onImageClick={openImagePreview}
+							onTextFileClick={openTextPreview}
 						/>
 					) : (
 						<Message className="w-full">
@@ -297,8 +314,8 @@ const ChatMessageItem = memo<{
 									hasUserResponseAfterAskQuestion={
 										hasUserResponseAfterAskQuestion
 									}
-									onImageClick={setPreviewImage}
-									onTextFileClick={setPreviewText}
+									onImageClick={openImagePreview}
+									onTextFileClick={openTextPreview}
 									urlTransform={urlTransform}
 									mcpServers={mcpServers}
 								/>
@@ -343,9 +360,14 @@ const ChatMessageItem = memo<{
 											className="size-6"
 											aria-label="Edit message"
 											onClick={() => {
-												const { text, fileBlocks } =
+												const { text, fileBlocks, editorState } =
 													getEditableUserMessagePayload(message);
-												onEditUserMessage?.(messageId, text, fileBlocks);
+												onEditUserMessage?.(
+													messageId,
+													text,
+													fileBlocks,
+													editorState,
+												);
 											}}
 										>
 											<PencilIcon />
@@ -419,6 +441,7 @@ const ChatMessageItem = memo<{
 					<ImageLightbox
 						src={previewImage}
 						onClose={() => setPreviewImage(null)}
+						onCloseAutoFocus={restoreFocus}
 					/>
 				)}
 				{previewText !== null && (
@@ -427,6 +450,7 @@ const ChatMessageItem = memo<{
 						fileName={previewText.fileName}
 						mediaType={previewText.mediaType}
 						onClose={() => setPreviewText(null)}
+						onCloseAutoFocus={restoreFocus}
 					/>
 				)}
 			</div>
@@ -451,6 +475,7 @@ type ConversationTimelineProps = {
 		messageId: number,
 		text: string,
 		fileBlocks?: readonly TypesGen.ChatMessagePart[],
+		editorState?: string,
 	) => void;
 	editingMessageId?: number | null;
 	onImplementPlan?: () => Promise<void> | void;
@@ -513,7 +538,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		const liveBlocks = showsStreamOutput ? (streamState?.blocks ?? []) : [];
 		const liveTools = showsStreamOutput ? streamTools : [];
 
-		const workingBlocks = preferences.data?.collapse_assistant_steps
+		const collapseSteps = Boolean(preferences.data?.collapse_assistant_steps);
+		const workingBlocks = collapseSteps
 			? groupWorkingBlocks(renderRows, parsedMessages, {
 					hasMoreMessages,
 					// requires_action is the agent waiting on the user, not working.
@@ -631,6 +657,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		// row inside an expanded block does not remount its reasoning.
 		const renderRowContent = (index: number, section?: RowSection) => {
 			const row = renderRows[index];
+			const hideAttachments = collapseSteps && !groupedRows.has(index);
 			if (row.type === "live") {
 				return (
 					<ChatMessageItem
@@ -638,6 +665,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						organizationId={organizationId}
 						renderKey={row.key}
 						section={section}
+						hideAttachments={hideAttachments}
 						liveStatus={liveStatus}
 						liveBlocks={liveBlocks}
 						liveTools={liveTools}
@@ -668,6 +696,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					renderKey={row.key}
 					message={message}
 					section={section}
+					hideAttachments={hideAttachments}
 					parsed={parsed}
 					onEditUserMessage={isUser ? onEditUserMessage : undefined}
 					editingMessageId={editingMessageId}
@@ -769,7 +798,10 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						];
 					}
 
-					if (groupedRows.has(index)) {
+					if (
+						groupedRows.has(index) ||
+						(collapseSteps && isAgentAttachmentOnlyRow(row))
+					) {
 						return [];
 					}
 
