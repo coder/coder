@@ -16,7 +16,9 @@ By adopting dev containers, organizations can:
 
 Coder supports two approaches for running dev containers.
 Choose based on your infrastructure and workflow requirements.
-To define environments with Nix flakes instead, with or without NixOS, see [Nix(OS)](../nixos.md).
+
+> [!TIP]
+> To define environments with Nix flakes instead, with or without NixOS, see [Nix(OS)](../nixos.md).
 
 ## Dev Containers Integration
 
