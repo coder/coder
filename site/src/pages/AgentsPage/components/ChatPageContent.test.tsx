@@ -274,7 +274,7 @@ describe("ChatPageInput", () => {
 		]);
 	});
 
-	it("holds the attachments of a pending send and restores them when it fails", async () => {
+	it("holds the attachments of a send in flight and restores them when it fails", async () => {
 		const user = userEvent.setup();
 		vi.spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
 			id: "file-1",

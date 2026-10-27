@@ -1147,7 +1147,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	};
 
 	// A locked editor loses focus during the request, so re-focus it after
-	// a send completes (isLoading goes from true to false).
+	// a send completes.
 	const prevIsLoadingRef = useRef(isLoading);
 	useEffect(() => {
 		const wasLoading = prevIsLoadingRef.current;
@@ -1186,8 +1186,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		hasModelOptions &&
 		hasSendableContent &&
 		!hasActiveUploads;
-	// The action in flight for each queued row. Enter, Send now and Remove
-	// check it, so each row has at most one request in flight.
+	// Enter, Send now and Remove check it, so each queued row has at most
+	// one request in flight.
 	const [busyRows, setBusyRows] = useState<
 		ReadonlyMap<number, QueuedRowAction>
 	>(new Map());

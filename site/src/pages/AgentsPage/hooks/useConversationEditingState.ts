@@ -40,7 +40,7 @@ const joinEditorStates = (
 	}
 };
 
-type PendingSend = {
+type SendInFlight = {
 	message: string;
 	editorState: string | undefined;
 	fileBlocks: readonly ChatMessagePart[];
@@ -59,7 +59,7 @@ const hasContent = (content: ComposerContent) =>
 
 // The composer content a failed send restores: the sent message, followed by
 // what was typed during the request.
-const restoredDraft = (send: PendingSend, typed: ComposerContent) => {
+const restoredDraft = (send: SendInFlight, typed: ComposerContent) => {
 	if (!hasContent(typed)) {
 		return { text: send.message, editorState: send.editorState };
 	}
@@ -100,7 +100,7 @@ export function useConversationEditingState(deps: {
 	// set, content changes save what a failure would restore as the draft, so
 	// a reload or unmount mid-send keeps the sent message and what was typed
 	// since. A history edit leaves the draft from before the edit started.
-	const pendingSendRef = useRef<PendingSend | null>(null);
+	const sendInFlightRef = useRef<SendInFlight | null>(null);
 
 	// Monotonic counter to force LexicalComposer remount.
 	const [remountKey, setRemountKey] = useState(0);
@@ -133,9 +133,9 @@ export function useConversationEditingState(deps: {
 		fileBlocks?: readonly ChatMessagePart[],
 		editorState?: string,
 	) => {
-		// The rollback and draft write of a pending send would overwrite the
+		// The rollback and draft write of a send in flight would overwrite the
 		// edit, so Edit does nothing until the send settles.
-		if (pendingSendRef.current) {
+		if (sendInFlightRef.current) {
 			return;
 		}
 		if (editingMessageId === null) {
@@ -179,14 +179,14 @@ export function useConversationEditingState(deps: {
 	// Returns a rollback for a failed send. The composer stays editable during
 	// the request, so the rollback puts the message before anything typed since.
 	const clearInputForSend = (message: string) => {
-		const snapshot: PendingSend = {
+		const snapshot: SendInFlight = {
 			message,
 			editorState: serializedEditorStateRef.current,
 			fileBlocks: editingFileBlocks,
 			editedMessageId: editingMessageId,
 		};
 
-		pendingSendRef.current = snapshot;
+		sendInFlightRef.current = snapshot;
 		chatInputRef.current?.clear();
 		inputValueRef.current = "";
 		hasFileReferencesRef.current = false;
@@ -245,13 +245,13 @@ export function useConversationEditingState(deps: {
 			await sendPromise;
 		} catch (error) {
 			rollback();
-			pendingSendRef.current = null;
+			sendInFlightRef.current = null;
 			if (error instanceof BuiltInCommandPendingError) {
 				return;
 			}
 			throw error;
 		}
-		pendingSendRef.current = null;
+		sendInFlightRef.current = null;
 
 		finalizeSuccessfulSend(target);
 	};
@@ -270,12 +270,12 @@ export function useConversationEditingState(deps: {
 		if (editingTarget !== null) {
 			return;
 		}
-		const pendingSend = pendingSendRef.current;
-		if (pendingSend) {
-			if (pendingSend.editedMessageId !== null) {
+		const sendInFlight = sendInFlightRef.current;
+		if (sendInFlight) {
+			if (sendInFlight.editedMessageId !== null) {
 				return;
 			}
-			const draft = restoredDraft(pendingSend, composerContent());
+			const draft = restoredDraft(sendInFlight, composerContent());
 			const saved = draft.editorState ?? draft.text;
 			if (!saved) {
 				localStorage.removeItem(draftStorageKey);

@@ -187,8 +187,8 @@ export const ActionsExcludeEdit: Story = {
 	},
 };
 
-// A pending delete disables only that row's actions.
-export const DeletePendingDisablesRow: Story = {
+// A delete in flight disables only that row's actions.
+export const DeleteInFlightDisablesRow: Story = {
 	args: {
 		messages: [
 			buildMessage(1, textContent("First queued")),
