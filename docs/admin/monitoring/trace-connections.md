@@ -83,17 +83,16 @@ You can get the session ID from VS Code in three ways:
 
 - **Support bundle**: Ask the user to run **Coder: Create Support Bundle** from the Command Palette.
   If the workspace agent is reachable, the bundle contains the agent log in `agent/logs.txt`.
-  Under `vscode-logs/`, it contains the `coder ssh` logs, the extension logs with the **Coder** output channel, and the Remote - SSH logs.
+  Under `vscode-logs/`, it contains the `coder ssh` logs, the extension logs, and the Remote - SSH logs.
   For more details, refer to [Generate a support bundle](../../support/support-bundle.md#vs-code).
 - **`coder ssh` log directory**: The extension writes the `coder ssh` logs to the directory in the `coder.proxyLogDirectory` setting.
   If the setting is empty, it uses `CODER_SSH_LOG_DIR`, and if neither is set, a `log` directory in the extension's global storage.
   For the file names and contents, refer to [`coder ssh`](#coder-ssh).
 - **Coder output channel**: Each line starts with `[client_session_id=<session-id>]`, with the full 32-character session ID.
-  The extension keeps the 1,000 most recent entries below the channel's log level and writes them to the channel when a connection fails or the user collects a support bundle.
+  The extension keeps the 1,000 most recent entries below the channel's log level and writes them to the channel when a connection fails.
   To change the number of entries, set `coder.connectionLogBuffer.size`.
   If the window reloaded or closed after the failure, the channel no longer shows the earlier output.
-  The editor also saves the channel as `Coder.log` in its logs folder, and the location of that folder depends on the editor, such as VS Code or Cursor.
-  In VS Code, run **Developer: Open Logs Folder** from the Command Palette.
+  To read the saved output, run **Developer: Open Extension Logs Folder** from the Command Palette, then open `Coder.log` in the `coder.coder-remote` folder.
 
 ### JetBrains Toolbox
 
