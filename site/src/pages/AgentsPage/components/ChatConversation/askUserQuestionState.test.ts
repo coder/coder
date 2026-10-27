@@ -126,6 +126,7 @@ const reusingCalls = [
 						name: "ask_user_question",
 						status: "completed",
 						isError: false,
+						result: MockAsyncQuestionResult,
 						startedAt: reusedCallStartedAt,
 					},
 				],
@@ -222,6 +223,11 @@ describe("deriveAskUserQuestionState", () => {
 			laterCall: [questionCall("later-call")],
 			pendingToolCallIDs: new Set(["later-call"]),
 		},
+		{
+			outcome: "never got a result",
+			laterCall: [questionCall("later-call")],
+			pendingToolCallIDs: undefined,
+		},
 	])(
 		"keeps the question open when a later call $outcome",
 		({ laterCall, pendingToolCallIDs }) => {
@@ -288,6 +294,7 @@ describe("deriveAskUserQuestionState", () => {
 			name: "ask_user_question",
 			status,
 			isError,
+			result: MockAsyncQuestionResult,
 		});
 		const messages = questionStep("async-call", { async: true });
 

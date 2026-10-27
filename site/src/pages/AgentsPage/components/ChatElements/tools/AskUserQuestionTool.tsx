@@ -4,7 +4,7 @@ import {
 	MessageCircleQuestionIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useMutation } from "react-query";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
@@ -392,8 +392,13 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	const [submittedResponseText, setSubmittedResponseText] = useState<
 		string | null
 	>(null);
+	// Records that the queue or transcript showed the answer while it was
+	// being sent. The send then keeps no local copy, which would bring back
+	// an answer that the user removed from the queue before the send resolved.
+	const hasShownAnswerRef = useRef(false);
 	const submitAnswerMutation = useMutation({
 		mutationFn: async (answerText: string) => {
+			hasShownAnswerRef.current = false;
 			await onSubmitAnswer?.(
 				isAsync
 					? getAsyncAnswerPrefix(asyncToolCallId) + answerText
@@ -401,13 +406,20 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 			);
 		},
 		onSuccess: (_data, answerText) => {
-			setSubmittedResponseText(answerText);
+			if (!hasShownAnswerRef.current) {
+				setSubmittedResponseText(answerText);
+			}
 		},
 	});
 	const isRunning = status === "running";
 	const answeredResponseText = isAsync
 		? getAsyncAnswerText(previousResponseText, asyncToolCallId)
 		: previousResponseText;
+	useEffect(() => {
+		if (answeredResponseText !== undefined) {
+			hasShownAnswerRef.current = true;
+		}
+	}, [answeredResponseText]);
 	// An async answer can leave the queue without being delivered, so the
 	// local copy only bridges the send until the queue or transcript has it.
 	if (
@@ -441,9 +453,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	// The agent keeps working, so the question needs its own announcement.
 	const announcement = (
 		<span role="status" className="sr-only">
-			{isAsync &&
-				isInteractive &&
-				"The agent asked a question. It keeps working while you answer."}
+			{isAsync && isInteractive && "The agent asked a question."}
 		</span>
 	);
 	const isSubmitting = submitAnswerMutation.isPending;

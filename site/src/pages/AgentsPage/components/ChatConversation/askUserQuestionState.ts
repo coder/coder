@@ -13,9 +13,13 @@ type AskUserQuestionState = {
 	responseTextByTool: ReadonlyMap<MergedTool, string>;
 };
 
-// A call that is still running or failed validation supersedes nothing.
+// A call supersedes nothing until its result arrives without an error. A
+// persisted call from a failed step has no result, though mergeTools still
+// marks it completed once the chat stops.
 const isValidAskUserQuestion = (tool: MergedTool): boolean =>
-	tool.name === "ask_user_question" && tool.status === "completed";
+	tool.name === "ask_user_question" &&
+	tool.status === "completed" &&
+	tool.result !== undefined;
 
 // Providers can reuse a call ID, so an answer queued before the newest call
 // with its ID answers an older call.
