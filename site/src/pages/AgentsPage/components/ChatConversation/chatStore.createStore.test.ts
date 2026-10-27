@@ -1172,6 +1172,33 @@ describe("pending part ends", () => {
 		},
 	);
 
+	it("keeps an edit's message through a queue update", () => {
+		const store = seededStore(
+			[makeMessage(1, "user", "first"), makeMessage(2, "assistant", "a")],
+			[makeQueuedMessage(10, "q10")],
+			"running",
+		);
+		addPending(store, {
+			kind: "edit",
+			editedMessageID: 1,
+			message: makeMessage(1, "user", "new"),
+		});
+
+		// Another tab queues a message before the edit commits.
+		store.setQueuedMessages(
+			[makeQueuedMessage(10, "q10"), makeQueuedMessage(11, "q11")],
+			2,
+		);
+		expect(visible(store)).toMatchObject({
+			transcript: ["user:new"],
+			queue: ["q10", "q11"],
+		});
+
+		store.resetHistoryFrom(1, 3);
+		store.upsertDurableMessages([makeMessage(3, "user", "new")], 3);
+		expect(store.getSnapshot().pendingEntries).toEqual([]);
+	});
+
 	it("keeps a delete's row hidden through another delete's queue update", () => {
 		const store = seededStore(
 			[makeMessage(1, "user", "first")],
