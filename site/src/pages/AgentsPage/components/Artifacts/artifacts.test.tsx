@@ -3,21 +3,14 @@ import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
-import type {
-	ChatArtifact,
-	ChatMessage,
-	ChatMessagePart,
-} from "#/api/typesGenerated";
+import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import {
 	MockChatArtifact,
 	MockChatArtifactVersion,
 } from "#/testHelpers/chatEntities";
-import { MockUserOwner } from "#/testHelpers/entities";
 import { renderWithRouter } from "#/testHelpers/renderHelpers";
-import { createChatStore } from "../ChatConversation/chatStore";
 import { ArtifactToolCard } from "../ChatElements/tools/ArtifactToolCard";
-import { ArtifactsPanel } from "./ArtifactsPanel";
 import { ArtifactsPanelContext } from "./ArtifactsPanelContext";
 import {
 	ARTIFACT_PROMPT_TYPE,
@@ -32,6 +25,7 @@ import {
 	getVersionChatPath,
 	kindOf,
 } from "./artifactUtils";
+import { ChatArtifacts } from "./ChatArtifacts";
 
 const toolResult = (
 	toolName: string,
@@ -322,87 +316,46 @@ describe("ArtifactToolCard", () => {
 			</TooltipProvider>,
 		);
 		await user.click(screen.getByRole("button", { name: "Open" }));
-		expect(onOpenArtifact).toHaveBeenCalledWith("artifact-1", 2);
+		expect(onOpenArtifact).toHaveBeenCalledWith(
+			"artifact-1",
+			"Signup funnel",
+			2,
+		);
 	});
 });
 
-describe("ArtifactsPanel", () => {
+describe("ChatArtifacts", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 	});
 
-	// The switcher must stay reachable when the shown artifact fails, or the
-	// chat's other artifacts could not be opened.
-	it.each([
-		{ shown: "loads", trigger: "Repo layout" },
-		{ shown: "fails to load", trigger: "Unavailable artifact" },
-	])(
-		"switches to another artifact of the chat from the title menu when the shown artifact $shown",
-		async ({ shown, trigger }) => {
-			const user = userEvent.setup();
-			const mockOtherArtifact: ChatArtifact = {
-				...MockChatArtifact,
-				id: "artifact-2",
-				title: "Cache options",
-			};
-			vi.spyOn(API.experimental, "getChatArtifact").mockImplementation(
-				async (artifactId) => {
-					if (artifactId === mockOtherArtifact.id) {
-						return mockOtherArtifact;
-					}
-					if (shown === "fails to load") {
-						throw new Error("artifact not found");
-					}
-					return MockChatArtifact;
+	it("opens an artifact of the chat in its own tab from the Summary tab", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "getChatArtifact").mockResolvedValue(
+			MockChatArtifact,
+		);
+		const onOpenArtifact = vi.fn();
+		renderWithRouter(
+			createMemoryRouter([
+				{
+					path: "/",
+					element: (
+						<ArtifactsPanelContext value={{ onOpenArtifact }}>
+							<ChatArtifacts artifactIds={[MockChatArtifact.id]} isVisible />
+						</ArtifactsPanelContext>
+					),
 				},
-			);
-			vi.spyOn(
-				API.experimental,
-				"getChatArtifactVersionText",
-			).mockResolvedValue("# Repo layout");
-			const store = createChatStore();
-			store.replaceMessages([
-				message(1, [
-					toolResult("publish_artifact", {
-						artifact_id: mockOtherArtifact.id,
-						version: 2,
-					}),
-				]),
-				message(2, [
-					toolResult("publish_artifact", {
-						artifact_id: MockChatArtifact.id,
-						version: 2,
-					}),
-				]),
-			]);
-			const onSelect = vi.fn();
-			renderWithRouter(
-				createMemoryRouter([
-					{
-						path: "/",
-						element: (
-							<ArtifactsPanel
-								chatId="chat-1"
-								store={store}
-								selection={null}
-								onSelect={onSelect}
-								currentUserId={MockUserOwner.id}
-							/>
-						),
-					},
-				]),
-			);
+			]),
+		);
 
-			// The tab selects the newest artifact, and its title opens the
-			// switcher.
-			await user.click(await screen.findByRole("button", { name: trigger }));
-			await user.click(
-				await screen.findByRole("menuitemradio", { name: /Cache options/ }),
-			);
+		await user.click(
+			await screen.findByRole("button", { name: /Repo layout/ }),
+		);
 
-			expect(onSelect).toHaveBeenCalledWith({
-				artifactId: mockOtherArtifact.id,
-			});
-		},
-	);
+		// The latest version opens, so the call names no version.
+		expect(onOpenArtifact).toHaveBeenCalledWith(
+			MockChatArtifact.id,
+			"Repo layout",
+		);
+	});
 });

@@ -1,14 +1,5 @@
 import { cn } from "cn";
-import {
-	CodeXmlIcon,
-	FileCodeIcon,
-	FileIcon,
-	FileTextIcon,
-	ImageIcon,
-	LayoutGridIcon,
-	ListIcon,
-	WorkflowIcon,
-} from "lucide-react";
+import { LayoutGridIcon, ListIcon } from "lucide-react";
 import { useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router";
 import type { ChatArtifact } from "#/api/typesGenerated";
@@ -19,9 +10,8 @@ import { Loader } from "#/components/Loader/Loader";
 import { SearchField } from "#/components/SearchField/SearchField";
 import { timeFrom } from "#/utils/time";
 import {
-	type ArtifactKind,
+	artifactIcon,
 	getArtifactPagePath,
-	kindOf,
 } from "../components/Artifacts/artifactUtils";
 import { getTimeGroup, TIME_GROUPS } from "../utils/timeGroups";
 
@@ -40,18 +30,6 @@ const searchParam = "search";
 
 /** The localStorage key that keeps the list or grid choice. */
 export const galleryLayoutStorageKey = "agents.artifacts-gallery-layout";
-
-const kindIcons: Record<ArtifactKind, React.FC<{ className?: string }>> = {
-	html: CodeXmlIcon,
-	mermaid: WorkflowIcon,
-	markdown: FileTextIcon,
-	image: ImageIcon,
-	text: FileCodeIcon,
-	download: FileIcon,
-};
-
-const artifactIcon = (artifact: ChatArtifact) =>
-	kindIcons[kindOf(artifact.latest_name, artifact.latest_media_type)];
 
 const ownerLabel = (artifact: ChatArtifact, currentUserId: string) =>
 	artifact.owner_id === currentUserId ? "" : `by ${artifact.owner_username}`;

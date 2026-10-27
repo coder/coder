@@ -84,7 +84,7 @@ export const ArtifactToolCard: React.FC<ArtifactToolCardProps> = ({
 								size="sm"
 								variant="subtle"
 								onClick={() =>
-									onOpenArtifact(artifact.artifactId, artifact.version)
+									onOpenArtifact(artifact.artifactId, title, artifact.version)
 								}
 							>
 								<PanelRightOpenIcon />

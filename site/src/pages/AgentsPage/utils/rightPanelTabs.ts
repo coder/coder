@@ -64,6 +64,13 @@ export type UserRightPanelTab =
 			agentId: string;
 			port: number;
 			protocol: WorkspaceAgentPortShareProtocol;
+	  }
+	| {
+			id: string;
+			kind: "artifact";
+			/** The artifact title when the tab opened. */
+			label: string;
+			artifactId: string;
 	  };
 
 type ValidateUserRightPanelTabsOptions = {
@@ -102,6 +109,12 @@ export function isUserRightPanelTab(
 		);
 	}
 
+	if (record.kind === "artifact") {
+		return (
+			typeof record.label === "string" && typeof record.artifactId === "string"
+		);
+	}
+
 	if (record.kind === "port") {
 		return (
 			typeof record.label === "string" &&
@@ -126,6 +139,11 @@ export function validateUserRightPanelTabs(
 	}: ValidateUserRightPanelTabsOptions,
 ): UserRightPanelTab[] {
 	return tabs.filter((tab) => {
+		// Artifacts live in coderd, so their tabs need no workspace.
+		if (tab.kind === "artifact") {
+			return true;
+		}
+
 		if (tab.kind === "terminal") {
 			return workspace !== undefined && workspaceAgent !== undefined;
 		}

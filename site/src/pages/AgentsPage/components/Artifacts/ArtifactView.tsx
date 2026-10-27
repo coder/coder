@@ -47,8 +47,8 @@ type ArtifactViewProps = {
 	currentUserId: string;
 	/** Shown before the title, such as a back link. */
 	leading?: React.ReactNode;
-	/** Replaces the plain title, such as with a menu that switches artifacts. */
-	title?: React.ReactNode;
+	/** Hides the title, such as in a right panel tab whose label shows it. */
+	showTitle?: boolean;
 	/** Adds a link that opens the artifact page in a new tab. */
 	showPageLink?: boolean;
 	/**
@@ -69,7 +69,7 @@ export const ArtifactView: React.FC<ArtifactViewProps> = ({
 	onPrompt,
 	currentUserId,
 	leading,
-	title,
+	showTitle = true,
 	showPageLink = false,
 	showChatLink = false,
 }) => {
@@ -88,13 +88,11 @@ export const ArtifactView: React.FC<ArtifactViewProps> = ({
 				{leading}
 				{/* In a narrow header, such as a phone or the chat panel, the title
 				    takes its own row, so it is not cut off. */}
-				<h3 className="m-0 flex min-w-0 basis-full text-sm font-medium text-content-primary @xl:flex-1">
-					{title ?? (
-						<span className="min-w-0 truncate">
-							{artifact.title || "Untitled artifact"}
-						</span>
-					)}
-				</h3>
+				{showTitle && (
+					<h3 className="m-0 min-w-0 basis-full truncate text-sm font-medium text-content-primary @xl:flex-1">
+						{artifact.title || "Untitled artifact"}
+					</h3>
+				)}
 				{chatPath && latestVersion && (
 					<Tooltip>
 						<TooltipTrigger asChild>

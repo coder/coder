@@ -270,7 +270,8 @@ export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
 									)}
 								>
 									{tab.icon}
-									{tab.label}
+									{/* Artifact titles can be long, so a label stops at 10rem. */}
+									<span className="max-w-40 truncate">{tab.label}</span>
 									{tab.badge && (
 										<span
 											className={cn(

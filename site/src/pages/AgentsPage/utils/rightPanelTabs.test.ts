@@ -77,6 +77,23 @@ describe("right-panel tab validation", () => {
 		expect(validated).toEqual(tabs.filter((tab) => tab.kind !== "terminal"));
 	});
 
+	it("keeps artifact tabs without a workspace", () => {
+		const artifactTab: UserRightPanelTab = {
+			id: "artifact-repo-layout",
+			kind: "artifact",
+			label: "Repo layout",
+			artifactId: "artifact-1",
+		};
+
+		expect(
+			validateUserRightPanelTabs([...tabs, artifactTab], {
+				workspace: undefined,
+				workspaceAgent: undefined,
+				wildcardHostname: "",
+			}),
+		).toEqual([artifactTab]);
+	});
+
 	it("drops port tabs when wildcard access is unavailable", () => {
 		const validated = validateUserRightPanelTabs(tabs, {
 			workspace: MockWorkspace,
@@ -272,6 +289,21 @@ describe("right-panel tab storage", () => {
 				agentId: MockWorkspaceAgent.id,
 				port: 3000,
 				protocol: "http",
+			},
+		];
+
+		savePersistedRightPanelTabs("chat-1", tabs);
+
+		expect(getPersistedRightPanelTabs("chat-1")).toEqual(tabs);
+	});
+
+	it("persists artifact tabs", () => {
+		const tabs: UserRightPanelTab[] = [
+			{
+				id: "artifact-repo-layout",
+				kind: "artifact",
+				label: "Repo layout",
+				artifactId: "artifact-1",
 			},
 		];
 

@@ -1,3 +1,11 @@
+import {
+	CodeXmlIcon,
+	FileCodeIcon,
+	FileIcon,
+	FileTextIcon,
+	ImageIcon,
+	WorkflowIcon,
+} from "lucide-react";
 import type {
 	AuthorizationRequest,
 	ChatArtifact,
@@ -63,7 +71,7 @@ export const deriveSeenArtifactVersions = (
 };
 
 /** The renderer that kindOf picks for a version. */
-export type ArtifactKind =
+type ArtifactKind =
 	| "html"
 	| "mermaid"
 	| "markdown"
@@ -85,6 +93,19 @@ export const kindOf = (name: string, mediaType: string): ArtifactKind => {
 	}
 	return "download";
 };
+
+const kindIcons: Record<ArtifactKind, React.FC<{ className?: string }>> = {
+	html: CodeXmlIcon,
+	mermaid: WorkflowIcon,
+	markdown: FileTextIcon,
+	image: ImageIcon,
+	text: FileCodeIcon,
+	download: FileIcon,
+};
+
+/** The icon of the latest version's kind. */
+export const artifactIcon = (artifact: ChatArtifact) =>
+	kindIcons[kindOf(artifact.latest_name, artifact.latest_media_type)];
 
 /** The route of the artifact gallery. Artifact pages live below it. */
 export const artifactsGalleryPath = "/agents/artifacts";

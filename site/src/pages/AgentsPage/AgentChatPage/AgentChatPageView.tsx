@@ -25,10 +25,7 @@ import {
 	ChatConversationSkeleton,
 	RightPanelSkeleton,
 } from "../components/AgentsSkeletons";
-import {
-	type ArtifactSelection,
-	ArtifactsPanel,
-} from "../components/Artifacts/ArtifactsPanel";
+import { ArtifactPanel } from "../components/Artifacts/ArtifactPanel";
 import { ArtifactsPanelContext } from "../components/Artifacts/ArtifactsPanelContext";
 import { useArtifactPromptHandler } from "../components/Artifacts/artifactBridge";
 import type { ChatDetailError } from "../components/ChatConversation/chatError";
@@ -192,7 +189,8 @@ const UnavailableTabMessage: React.FC<{ message: string }> = ({ message }) => (
 );
 
 type UserTabContentProps = {
-	tab: UserRightPanelTab;
+	/** Artifact tabs render ArtifactPanel, which needs the chat store. */
+	tab: Exclude<UserRightPanelTab, { kind: "artifact" }>;
 	chatId: string;
 	workspace: TypesGen.Workspace | undefined;
 	workspaceAgent: TypesGen.WorkspaceAgent | undefined;
@@ -371,8 +369,11 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	// chat. It regenerates when this view remounts (switching chats or
 	// reloading), independent of any terminal's reconnection token.
 	const [clientSessionId] = useState(generateConnectionSessionId);
-	const [artifactSelection, setArtifactSelection] =
-		useState<ArtifactSelection | null>(null);
+	// The version that each artifact tab shows, by artifact ID. A missing
+	// entry shows the latest version.
+	const [artifactVersions, setArtifactVersions] = useState<
+		Record<string, number | undefined>
+	>({});
 	// An HTML artifact prompt sends as a user message, as a tool card answer
 	// does. A prompt that cannot send waits in the chat input instead.
 	const handleArtifactPrompt = useArtifactPromptHandler({
@@ -482,7 +483,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	const builtInSidebarTabConfigs = [
 		{ id: "summary", label: "Summary" },
 		{ id: "git", label: "Git" },
-		{ id: "artifacts", label: "Artifacts" },
 		...(isSingletonTabShown("debug") ? [{ id: "debug", label: "Debug" }] : []),
 		...(isSingletonTabShown("browser")
 			? [{ id: "browser", label: "Browser" }]
@@ -532,13 +532,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 			currentTabIds.includes(tabId) ? currentTabIds : [...currentTabIds, tabId],
 		);
 		activateRightPanelTab(tabId);
-	};
-
-	const artifactsPanelCtx = {
-		onOpenArtifact: (artifactId: string, version: number) => {
-			setArtifactSelection({ artifactId, version });
-			activateRightPanelTab("artifacts");
-		},
 	};
 
 	const desktopPanelCtx = {
@@ -672,6 +665,31 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		activateRightPanelTab(tab.id);
 	};
 
+	const handleOpenArtifactTab = (
+		artifactId: string,
+		title: string,
+		version?: number,
+	) => {
+		setArtifactVersions((current) => ({ ...current, [artifactId]: version }));
+		const existingTab = validatedUserRightPanelTabs.find(
+			(tab) => tab.kind === "artifact" && tab.artifactId === artifactId,
+		);
+		if (existingTab) {
+			activateRightPanelTab(existingTab.id);
+			return;
+		}
+		const tab: UserRightPanelTab = {
+			id: createUserRightPanelTabId("artifact"),
+			kind: "artifact",
+			label: title,
+			artifactId,
+		};
+		setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]);
+		activateRightPanelTab(tab.id);
+	};
+
+	const artifactsPanelCtx = { onOpenArtifact: handleOpenArtifactTab };
+
 	const renderTabContent = (tabId: string): React.ReactNode => {
 		switch (tabId) {
 			case "summary":
@@ -702,17 +720,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 						remoteDiffStats={chat.diff_statuses}
 						primaryDiffStatus={chat.diff_status}
 						chatInputRef={editing.chatInputRef}
-					/>
-				);
-			case "artifacts":
-				return (
-					<ArtifactsPanel
-						chatId={agentId}
-						store={store}
-						selection={artifactSelection}
-						onSelect={setArtifactSelection}
-						onPrompt={handleArtifactPrompt}
-						currentUserId={currentUser.id}
 					/>
 				);
 			case "browser":
@@ -760,6 +767,24 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 				const userTab = validatedUserRightPanelTabs.find(
 					(tab) => tab.id === tabId,
 				);
+				if (userTab?.kind === "artifact") {
+					return (
+						<ArtifactPanel
+							artifactId={userTab.artifactId}
+							version={artifactVersions[userTab.artifactId]}
+							onSelectVersion={(version) =>
+								setArtifactVersions((current) => ({
+									...current,
+									[userTab.artifactId]: version,
+								}))
+							}
+							chatId={agentId}
+							store={store}
+							onPrompt={handleArtifactPrompt}
+							currentUserId={currentUser.id}
+						/>
+					);
+				}
 				return userTab ? (
 					<UserTabContent
 						tab={userTab}

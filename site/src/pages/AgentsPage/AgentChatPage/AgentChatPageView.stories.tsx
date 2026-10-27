@@ -23,7 +23,11 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
-import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
+import {
+	MockChat,
+	MockChatArtifact,
+	MockChatDiffStatus,
+} from "#/testHelpers/chatEntities";
 import {
 	MockDefaultOrganization,
 	MockGroup,
@@ -47,7 +51,10 @@ import { MessageScroller } from "#/vendor/message-scroller";
 import type { ChatDetailError } from "../components/ChatConversation/chatError";
 import { createChatStore } from "../components/ChatConversation/chatStore";
 import { buildLongConversation } from "../components/ChatConversation/storyFixtures";
-import { visibleSingletonTabsStorageKeyPrefix } from "../utils/rightPanelTabStorage";
+import {
+	rightPanelTabStorageKeyPrefix,
+	visibleSingletonTabsStorageKeyPrefix,
+} from "../utils/rightPanelTabStorage";
 import type { SingletonRightPanelTabId } from "../utils/rightPanelTabs";
 import { lastActiveSidebarTabStorageKeyPrefix } from "../utils/sidebarTabStorage";
 import {
@@ -1542,6 +1549,108 @@ export const PersistsSidebarTabClick: Story = {
 	},
 };
 
+const mockCacheArtifact: TypesGen.ChatArtifact = {
+	...MockChatArtifact,
+	id: "artifact-cache",
+	title: "Cache options",
+};
+
+const publishMessage = (
+	id: number,
+	artifact: TypesGen.ChatArtifact,
+): TypesGen.ChatMessage =>
+	buildMessageWithContent(id, "assistant", [
+		{
+			type: "tool-call",
+			tool_call_id: `publish-${artifact.id}`,
+			tool_name: "publish_artifact",
+			args: { path: `/tmp/${artifact.latest_name}` },
+		},
+		{
+			type: "tool-result",
+			tool_call_id: `publish-${artifact.id}`,
+			tool_name: "publish_artifact",
+			result: {
+				ok: true,
+				artifact_id: artifact.id,
+				version: artifact.latest_version,
+				title: artifact.title,
+				name: artifact.latest_name,
+			},
+		},
+	]);
+
+const rightPanelTabsStorageKey = `${rightPanelTabStorageKeyPrefix}${AGENT_ID}`;
+
+/**
+ * Each artifact opens in its own right panel tab, from a chat card or from
+ * the Summary tab, and opening an artifact again selects its open tab.
+ */
+export const OpensEachArtifactInItsOwnTab: Story = {
+	beforeEach: () => {
+		localStorage.removeItem(rightPanelTabsStorageKey);
+		localStorage.removeItem(sidebarTabStorageKey);
+		spyOn(API.experimental, "getChatArtifact").mockImplementation(
+			async (artifactId) =>
+				artifactId === mockCacheArtifact.id
+					? mockCacheArtifact
+					: MockChatArtifact,
+		);
+		spyOn(API.experimental, "getChatArtifactVersionText").mockResolvedValue(
+			"# Notes",
+		);
+		return () => {
+			localStorage.removeItem(rightPanelTabsStorageKey);
+			localStorage.removeItem(sidebarTabStorageKey);
+		};
+	},
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			store={buildStoreWithMessages([
+				buildMessage(1, "user", "Publish the repo layout and cache options."),
+				publishMessage(2, MockChatArtifact),
+				publishMessage(3, mockCacheArtifact),
+			])}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const openButtons = await canvas.findAllByRole("button", { name: "Open" });
+		expect(openButtons).toHaveLength(2);
+
+		await userEvent.click(openButtons[0]);
+		await waitFor(() => {
+			expect(canvas.getByRole("tab", { name: "Repo layout" })).toHaveAttribute(
+				"aria-selected",
+				"true",
+			);
+		});
+
+		// The Summary tab lists both artifacts and opens the second one.
+		await userEvent.click(canvas.getByRole("tab", { name: "Summary" }));
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /Cache options/ }),
+		);
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("tab", { name: "Cache options" }),
+			).toHaveAttribute("aria-selected", "true");
+		});
+
+		// Opening the first artifact again selects its tab, not a new one.
+		await userEvent.click(openButtons[0]);
+		await waitFor(() => {
+			expect(canvas.getByRole("tab", { name: "Repo layout" })).toHaveAttribute(
+				"aria-selected",
+				"true",
+			);
+		});
+		expect(canvas.getAllByRole("tab", { name: "Repo layout" })).toHaveLength(1);
+		expect(canvas.queryByRole("tab", { name: "Artifacts" })).toBeNull();
+	},
+};
+
 /**
  * When localStorage holds an unavailable tab ID (e.g. `"terminal"` while the
  * workspace is stopped), the sidebar falls back to the first available tab
@@ -1816,7 +1925,6 @@ export const ClosesActiveSingletonPanel: Story = {
 		expect(tabLabels).toEqual([
 			"Summary",
 			"Git",
-			"Artifacts",
 			"Debug",
 			"Browser",
 			"Terminal",
@@ -1929,7 +2037,7 @@ export const HidesUnsupportedSingletonPanels: Story = {
 
 		await canvas.findByRole("tab", { name: "Summary" });
 		const tabLabels = canvas.getAllByRole("tab").map((tab) => tab.textContent);
-		expect(tabLabels).toEqual(["Summary", "Git", "Artifacts", "Terminal"]);
+		expect(tabLabels).toEqual(["Summary", "Git", "Terminal"]);
 
 		await openAddPanelMenu(canvas);
 		await body.findByText("New Terminal");
