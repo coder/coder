@@ -1,5 +1,10 @@
 import { useEffect, useEffectEvent, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
+import {
+	type QueryStatus,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "react-query";
 import { watchChat } from "#/api/api";
 import {
 	chatStoreKey,
@@ -40,12 +45,6 @@ const shouldSurfaceReconnectState = (state: ChatStoreState): boolean =>
 		state.retryState !== null ||
 		isActiveChatStatus(state.chatStatus));
 
-/** Progress of loading a chat's newest messages page. */
-type ChatLoadState =
-	| { status: "loading" }
-	| { status: "loaded" }
-	| { status: "failed"; error: unknown };
-
 type UseChatStoreOptions = {
 	chatID: string;
 	setChatErrorReason: (chatID: string, reason: ChatDetailError) => void;
@@ -57,7 +56,9 @@ export const useChatStore = (
 	options: UseChatStoreOptions,
 ): {
 	store: ChatStore;
-	loadState: ChatLoadState;
+	/** Status of loading the chat's newest messages page. */
+	loadStatus: QueryStatus;
+	loadError: unknown;
 	retryLoad: () => void;
 	fetchMoreMessages: () => Promise<unknown>;
 	isFetchingMoreMessages: boolean;
@@ -92,11 +93,6 @@ export const useChatStore = (
 	const [emptyStore] = useState(createChatStore);
 	const store = storeQuery.data ?? emptyStore;
 	const initialDataLoaded = storeQuery.isSuccess;
-	const loadState: ChatLoadState = initialDataLoaded
-		? { status: "loaded" }
-		: storeQuery.isError
-			? { status: "failed", error: storeQuery.error }
-			: { status: "loading" };
 
 	// Wrap error-reason callbacks so the WebSocket effect can call
 	// them without including them in its dependency array.
@@ -490,7 +486,8 @@ export const useChatStore = (
 	}, [aiGatewayDisabled, chatID, initialDataLoaded, queryClient, store]);
 	return {
 		store,
-		loadState,
+		loadStatus: storeQuery.status,
+		loadError: storeQuery.error,
 		// A refetch replaces a loaded store, so only a failed load retries.
 		retryLoad: () => {
 			if (storeQuery.isError) {

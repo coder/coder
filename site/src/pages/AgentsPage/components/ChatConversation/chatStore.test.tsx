@@ -2831,21 +2831,21 @@ describe("useChatStore", () => {
 		const renderChat = () =>
 			renderHook(
 				() => {
-					const { store, loadState } = useChatStore({
+					const { store, loadStatus } = useChatStore({
 						chatID,
 						aiGatewayDisabled: true,
 						setChatErrorReason: vi.fn(),
 						clearChatErrorReason: vi.fn(),
 					});
 					shownErrors.push(useChatSelector(store, selectShownError));
-					return { store, loadState };
+					return { store, loadStatus };
 				},
 				{ wrapper },
 			);
 
 		const first = renderChat();
 		await waitFor(() =>
-			expect(first.result.current.loadState.status).toBe("loaded"),
+			expect(first.result.current.loadStatus).toBe("success"),
 		);
 		act(() => {
 			first.result.current.store.setClientError({
@@ -2921,17 +2921,17 @@ describe("useChatStore", () => {
 
 		const { result } = renderHook(
 			() => {
-				const { loadState } = useChatStore({
+				const { loadStatus } = useChatStore({
 					chatID,
 					setChatErrorReason: vi.fn(),
 					clearChatErrorReason: vi.fn(),
 				});
-				return loadState;
+				return loadStatus;
 			},
 			{ wrapper },
 		);
 
-		expect(result.current.status).toBe("loading");
+		expect(result.current).toBe("pending");
 		expect(watchChat).not.toHaveBeenCalled();
 
 		act(() => {
@@ -2946,7 +2946,7 @@ describe("useChatStore", () => {
 		await waitFor(() => {
 			expect(watchChat).toHaveBeenCalledWith(chatID, 5);
 		});
-		expect(result.current.status).toBe("loaded");
+		expect(result.current).toBe("success");
 	});
 
 	it("reports a failed load and loads again on retry", async () => {
@@ -2973,11 +2973,9 @@ describe("useChatStore", () => {
 		);
 
 		await waitFor(() => {
-			expect(result.current.loadState).toEqual({
-				status: "failed",
-				error: failure,
-			});
+			expect(result.current.loadStatus).toBe("error");
 		});
+		expect(result.current.loadError).toBe(failure);
 		expect(watchChat).not.toHaveBeenCalled();
 
 		act(() => {
@@ -2987,7 +2985,7 @@ describe("useChatStore", () => {
 		await waitFor(() => {
 			expect(watchChat).toHaveBeenCalledWith(chatID, 3);
 		});
-		expect(result.current.loadState).toEqual({ status: "loaded" });
+		expect(result.current.loadStatus).toBe("success");
 
 		act(() => {
 			result.current.retryLoad();
@@ -5063,14 +5061,14 @@ describe("chat stream contract", () => {
 		);
 		const { result, rerender } = renderHook(
 			({ id }) => {
-				const { store, loadState } = useChatStore({
+				const { store, loadStatus } = useChatStore({
 					chatID: id,
 					setChatErrorReason: vi.fn(),
 					clearChatErrorReason: vi.fn(),
 				});
 				return {
 					store,
-					loadState,
+					loadStatus,
 					messageIDs: useChatSelector(store, selectOrderedMessageIDs),
 				};
 			},
@@ -5079,7 +5077,7 @@ describe("chat stream contract", () => {
 				wrapper: createWrapper(createTestQueryClient()),
 			},
 		);
-		await waitFor(() => expect(result.current.loadState.status).toBe("loaded"));
+		await waitFor(() => expect(result.current.loadStatus).toBe("success"));
 		const sentFrom = result.current.store;
 		act(() => {
 			void sentFrom.runPendingAction(
