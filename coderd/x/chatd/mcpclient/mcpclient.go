@@ -1203,9 +1203,21 @@ func (r secretRedactor) redactSchemaMap(schema map[string]any) map[string]any {
 	if len(schema) == 0 || len(r.values) == 0 {
 		return schema
 	}
-	redacted := make(map[string]any, len(schema))
-	for key, item := range schema {
-		redacted[r.redactSchemaName(key)] = r.redactKeywordValue(key, item)
+	return r.redactNamedMap(schema, r.redactKeywordValue)
+}
+
+// redactNamedMap returns named with each name redacted like
+// redactSchemaName and each value by redactItem. Of the names that
+// redact to the same text, the first in sorted order keeps its value, so
+// the result does not depend on map iteration order.
+func (r secretRedactor) redactNamedMap(named map[string]any, redactItem func(name string, item any) any) map[string]any {
+	redacted := make(map[string]any, len(named))
+	for _, name := range slices.Sorted(maps.Keys(named)) {
+		key := r.redactSchemaName(name)
+		if _, ok := redacted[key]; ok {
+			continue
+		}
+		redacted[key] = redactItem(name, named[name])
 	}
 	return redacted
 }
@@ -1221,11 +1233,9 @@ func (r secretRedactor) redactKeywordValue(key string, value any) any {
 		return r.redactSchemaNames(value)
 	case "dependentRequired":
 		if named, ok := value.(map[string]any); ok {
-			redacted := make(map[string]any, len(named))
-			for name, names := range named {
-				redacted[r.redactSchemaName(name)] = r.redactSchemaNames(names)
-			}
-			return redacted
+			return r.redactNamedMap(named, func(_ string, names any) any {
+				return r.redactSchemaNames(names)
+			})
 		}
 	}
 	switch toolschema.KeywordSubschemas(key, value) {
@@ -1253,16 +1263,14 @@ func (r secretRedactor) redactSchemaProperties(named map[string]any) map[string]
 	if len(named) == 0 || len(r.values) == 0 {
 		return named
 	}
-	redacted := make(map[string]any, len(named))
-	for name, item := range named {
+	return r.redactNamedMap(named, func(_ string, item any) any {
 		switch item.(type) {
 		case []any, []string:
-			redacted[r.redactSchemaName(name)] = r.redactSchemaNames(item)
+			return r.redactSchemaNames(item)
 		default:
-			redacted[r.redactSchemaName(name)] = r.redactSubschema(item)
+			return r.redactSubschema(item)
 		}
-	}
-	return redacted
+	})
 }
 
 func (r secretRedactor) redactSubschema(value any) any {
@@ -1276,7 +1284,9 @@ func (r secretRedactor) redactSubschema(value any) any {
 	}
 }
 
-// redactSchemaNames redacts a name or a list of names in a schema.
+// redactSchemaNames redacts a name or a list of names in a schema. A
+// list keeps the first of the names that redact to the same text, since
+// schemas require the names in a list to be unique.
 func (r secretRedactor) redactSchemaNames(value any) any {
 	switch typed := value.(type) {
 	case string:
@@ -1284,12 +1294,18 @@ func (r secretRedactor) redactSchemaNames(value any) any {
 	case []string:
 		return r.redactSchemaStrings(typed)
 	case []any:
-		redacted := make([]any, len(typed))
-		for i, item := range typed {
-			if name, ok := item.(string); ok {
-				redacted[i] = r.redactSchemaName(name)
-			} else {
-				redacted[i] = r.redactValue(item)
+		redacted := make([]any, 0, len(typed))
+		seen := make(map[string]bool, len(typed))
+		for _, item := range typed {
+			name, ok := item.(string)
+			if !ok {
+				redacted = append(redacted, r.redactValue(item))
+				continue
+			}
+			name = r.redactSchemaName(name)
+			if !seen[name] {
+				seen[name] = true
+				redacted = append(redacted, name)
 			}
 		}
 		return redacted
@@ -1302,9 +1318,11 @@ func (r secretRedactor) redactSchemaStrings(values []string) []string {
 	if len(values) == 0 || len(r.values) == 0 {
 		return values
 	}
-	redacted := make([]string, len(values))
-	for i, item := range values {
-		redacted[i] = r.redactSchemaName(item)
+	redacted := make([]string, 0, len(values))
+	for _, item := range values {
+		if name := r.redactSchemaName(item); !slices.Contains(redacted, name) {
+			redacted = append(redacted, name)
+		}
 	}
 	return redacted
 }
@@ -1318,20 +1336,44 @@ func (r secretRedactor) redactSchemaName(value string) string {
 	return r.replace(value, redactedNamePlaceholder)
 }
 
-// redactReference redacts a reference like redactSchemaName, but keeps
-// each occurrence of a sensitive value made only of pointer delimiters
-// and pointer segments that are JSON Schema keywords.
+// redactReference redacts a reference so that it still names its target
+// in the redacted schema. A JSON Pointer fragment is redacted token by
+// token like the names its tokens are, and an anchor fragment like an
+// anchor. The URI before the fragment is redacted like redactSchemaName,
+// except that each occurrence of a sensitive value made only of path
+// delimiters and segments that are JSON Schema keywords is kept.
 func (r secretRedactor) redactReference(ref string) string {
-	kept := make([]bool, len(ref))
+	uri, fragment, hasFragment := strings.Cut(ref, "#")
+	uri = r.redactReferenceURI(uri)
+	switch {
+	case !hasFragment:
+		return uri
+	case !strings.HasPrefix(fragment, "/"):
+		return uri + "#" + r.redactSchemaName(fragment)
+	}
+	tokens := strings.Split(fragment[1:], "/")
+	for i, token := range tokens {
+		tokens[i] = pointerEscaper.Replace(r.redactSchemaName(pointerUnescaper.Replace(token)))
+	}
+	return uri + "#/" + strings.Join(tokens, "/")
+}
+
+var (
+	pointerUnescaper = strings.NewReplacer("~1", "/", "~0", "~")
+	pointerEscaper   = strings.NewReplacer("~", "~0", "/", "~1")
+)
+
+func (r secretRedactor) redactReferenceURI(uri string) string {
+	kept := make([]bool, len(uri))
 	start := 0
-	for i := 0; i <= len(ref); i++ {
-		if i < len(ref) && ref[i] != '/' && ref[i] != '#' {
+	for i := 0; i <= len(uri); i++ {
+		if i < len(uri) && uri[i] != '/' {
 			continue
 		}
-		if i < len(ref) {
+		if i < len(uri) {
 			kept[i] = true
 		}
-		if toolschema.IsKeyword(ref[start:i]) {
+		if toolschema.IsKeyword(uri[start:i]) {
 			for j := start; j < i; j++ {
 				kept[j] = true
 			}
@@ -1341,20 +1383,20 @@ func (r secretRedactor) redactReference(ref string) string {
 	for _, secret := range r.values {
 		var b strings.Builder
 		next := make([]bool, 0, len(kept))
-		for i := 0; i < len(ref); {
-			if strings.HasPrefix(ref[i:], secret) && slices.Contains(kept[i:i+len(secret)], false) {
+		for i := 0; i < len(uri); {
+			if strings.HasPrefix(uri[i:], secret) && slices.Contains(kept[i:i+len(secret)], false) {
 				_, _ = b.WriteString(redactedNamePlaceholder)
 				next = append(next, make([]bool, len(redactedNamePlaceholder))...)
 				i += len(secret)
 				continue
 			}
-			_ = b.WriteByte(ref[i])
+			_ = b.WriteByte(uri[i])
 			next = append(next, kept[i])
 			i++
 		}
-		ref, kept = b.String(), next
+		uri, kept = b.String(), next
 	}
-	return ref
+	return uri
 }
 
 func (r secretRedactor) redactResponse(response fantasy.ToolResponse) fantasy.ToolResponse {

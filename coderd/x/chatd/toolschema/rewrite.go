@@ -243,17 +243,44 @@ type anchorRef struct {
 	prefix string
 }
 
+// draft4UnknownKeywords are keywords that later drafts apply to
+// instances but draft 4 does not define, so that a draft 4 validator
+// ignores them.
+var draft4UnknownKeywords = [...]string{
+	"const", "contains", "minContains", "maxContains", "propertyNames",
+	"if", "then", "else", "dependentRequired", "dependentSchemas",
+	"prefixItems", "unevaluatedItems", "unevaluatedProperties", "$dynamicRef",
+}
+
 // UpgradeDraft4 returns a copy of a schema that declares draft 4,
 // rewritten in draft 7, which names resources with "$id" and has
 // "const", as the rest of the rewriting and the providers expect. "id"
 // becomes "$id", and a boolean "exclusiveMinimum" or "exclusiveMaximum"
-// becomes the number that draft 7 expects. Other schemas are returned
-// as is.
+// becomes the number that draft 7 expects. The keywords draft 4 ignores
+// but later drafts apply are removed, unless a reference's JSON Pointer
+// names one, which keeps the reference resolving. Normalize may then add
+// some back where they hold as in the source, such as "const" for an
+// "enum". Other schemas are returned as is.
 func UpgradeDraft4(schema map[string]any) map[string]any {
 	if !strings.Contains(Dialect(schema), "json-schema.org/draft-04/schema") {
 		return schema
 	}
+	referenced := map[string]bool{}
+	walkNode(schema, rootScope(schema), func(node map[string]any, _ refScope) {
+		ref, _ := node["$ref"].(string)
+		if _, fragment, ok := strings.Cut(ref, "#"); ok {
+			tokens, _ := decodePointer(fragment)
+			for _, token := range tokens {
+				referenced[token] = true
+			}
+		}
+	})
 	upgraded := copyNode(schema, refScope{}, func(node map[string]any, _ refScope) {
+		for _, key := range draft4UnknownKeywords {
+			if !referenced[key] {
+				delete(node, key)
+			}
+		}
 		if id, ok := node["id"].(string); ok {
 			node["$id"] = id
 			delete(node, "id")
