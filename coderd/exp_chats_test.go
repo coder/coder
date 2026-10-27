@@ -10705,10 +10705,10 @@ func TestStreamChat(t *testing.T) {
 			Status:            database.ChatStatusWaiting,
 		})
 		// The chunk size is 1 mod 3, so consecutive split points in the run
-		// of three-byte runes fall inside a rune. The escaped characters
-		// make a chunk message larger than the bytes it holds.
+		// of three-byte runes fall inside a rune. The backslashes fill at
+		// least one chunk that escaping doubles.
 		large := strings.Repeat("日", 2*codersdk.ChatStreamChunkBytes) +
-			strings.Repeat("\"<", codersdk.ChatStreamChunkBytes/4)
+			strings.Repeat(`\`, codersdk.ChatStreamChunkBytes)
 		content, err := json.Marshal([]codersdk.ChatMessagePart{codersdk.ChatMessageText(large)})
 		require.NoError(t, err)
 		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
@@ -10723,11 +10723,13 @@ func TestStreamChat(t *testing.T) {
 		defer conn.Close(websocket.StatusNormalClosure, "")
 		conn.SetReadLimit(1 << 22)
 		var joined []byte
+		largest := 0
 		for chunks := 0; ; chunks++ {
 			_, data, err := conn.Read(ctx)
 			require.NoError(t, err)
 			// Escaping at most doubles a chunk.
 			require.LessOrEqual(t, len(data), 2*codersdk.ChatStreamChunkBytes+64)
+			largest = max(largest, len(data))
 			var chunk codersdk.ChatStreamChunk
 			require.NoError(t, json.Unmarshal(data, &chunk), "snapshot frame is not a chunk")
 			joined = append(joined, chunk.Chunk...)
@@ -10736,6 +10738,7 @@ func TestStreamChat(t *testing.T) {
 				break
 			}
 		}
+		require.Greater(t, largest, 2*codersdk.ChatStreamChunkBytes)
 		var batch []codersdk.ChatStreamEvent
 		require.NoError(t, json.Unmarshal(joined, &batch))
 		require.True(t, streamChatSnapshotHasText(batch, large))
