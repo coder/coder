@@ -39,6 +39,9 @@
 //                             the scrolltype scenario); uses the first n
 //                             chats in state.json
 //   --stream=0                skip the streaming phases
+//   --history=page            measure only the first page of each transcript;
+//                             by default a run loads the full history and
+//                             fails if it cannot
 //   --heap=1                  after mount, write a JS heap snapshot
 //                             (Chromium: mounted.heapsnapshot, V8 format;
 //                             WebKit: mounted.wkheap.json); summarize with
@@ -181,6 +184,22 @@ async function api(method, p, body) {
 	});
 	if (!r.ok) throw new Error(`${method} ${p} -> ${r.status} ${await r.text()}`);
 	return r.status === 204 ? null : r.json();
+}
+
+// Number of user and assistant messages in a chat; the transcript renders
+// one row for each.
+async function messageCount(id) {
+	let n = 0;
+	let before;
+	for (;;) {
+		const q = before ? `?limit=200&before_id=${before}` : "?limit=200";
+		const page = await api("GET", `/api/v2/chats/${id}/messages${q}`);
+		n += page.messages.filter(
+			(m) => m.role === "user" || m.role === "assistant",
+		).length;
+		if (!page.has_more || page.messages.length === 0) return n;
+		before = Math.min(...page.messages.map((m) => m.id));
+	}
 }
 
 async function chatStatus(id) {
@@ -649,22 +668,20 @@ async function main() {
 	log("open", url);
 	await interruptAll();
 	await page.goto(url, { waitUntil: "domcontentloaded" });
-	if (browserName === "webkit" && wantProfile) {
-		wk = new WebKitInspector(WK_INSPECTOR_PORT);
-		await wk.connect("/agents/");
-		log("attached WebKit remote inspector");
-	}
 	const composers = page.getByRole("textbox", { name: "Chat message" });
 	const wantComposers = panes;
-	await composers
-		.nth(wantComposers - 1)
-		.waitFor({ state: "visible", timeout: 60_000 });
-	// All initially loaded rows for both chats.
-	await page.waitForFunction(
-		([selector, n]) => document.querySelectorAll(selector).length >= n,
-		[ROW_SELECTOR, wantComposers * 20],
-		{ timeout: 60_000 },
-	);
+	const waitForFirstPage = async () => {
+		await composers
+			.nth(wantComposers - 1)
+			.waitFor({ state: "visible", timeout: 60_000 });
+		// All initially loaded rows for both chats.
+		await page.waitForFunction(
+			([selector, n]) => document.querySelectorAll(selector).length >= n,
+			[ROW_SELECTOR, wantComposers * 20],
+			{ timeout: 60_000 },
+		);
+	};
+	await waitForFirstPage();
 	const rowCountNow = () => page.locator(ROW_SELECTOR).count();
 	// Runs in the page: scroll every transcript container that holds rows
 	// to the given edge.
@@ -679,11 +696,15 @@ async function main() {
 			s.scrollTop = edge === "top" ? 0 : s.scrollHeight;
 	};
 	// Load the whole history of every pane: scroll each transcript to the
-	// top until no more rows arrive. Every bench run adds a turn, so the
-	// seeded turn count in state.json understates the history; stop on
-	// no progress instead, with a generous page cap as a safety net.
+	// top until it renders one row per stored message. In WebKit a scroll to
+	// the top sometimes does not load the next page, which left runs at the
+	// first page (50 rows per pane). Returns whether every row rendered.
 	const loadFullHistory = async () => {
-		for (let i = 0; i < 200; i++) {
+		const expected = (
+			await Promise.all(chats.map(messageCount))
+		).reduce((a, b) => a + b, 0);
+		let stalls = 0;
+		while ((await rowCountNow()) < expected && stalls < 5) {
 			const before = await rowCountNow();
 			await page.evaluate(scrollTranscripts, [ROW_SELECTOR, "top"]);
 			try {
@@ -692,13 +713,38 @@ async function main() {
 					[ROW_SELECTOR, before],
 					{ timeout: 20000 },
 				);
+				stalls = 0;
 			} catch {
-				break;
+				stalls++;
+				log(`history stalled at ${before}/${expected} rows, retrying`);
+				await page.evaluate(scrollTranscripts, [ROW_SELECTOR, "bottom"]);
+				await page.waitForTimeout(500);
 			}
 		}
 		await page.evaluate(scrollTranscripts, [ROW_SELECTOR, "bottom"]);
+		const rows = await rowCountNow();
+		if (rows < expected) log(`history incomplete: ${rows} of ${expected} rows`);
+		return rows >= expected;
 	};
-	if (args.history !== "page") await loadFullHistory();
+	// A failed page fetch is not retried by later scrolls, so reload the
+	// page and load again. A partial transcript fails the run, because its
+	// numbers are not comparable with a full one.
+	if (args.history !== "page") {
+		for (let attempt = 1; !(await loadFullHistory()); attempt++) {
+			if (attempt === 3)
+				throw new Error(
+					"history incomplete after 3 loads; rerun, or pass --history=page to measure only the first page",
+				);
+			log(`reloading to load the full history (attempt ${attempt + 1})`);
+			await page.reload({ waitUntil: "domcontentloaded" });
+			await waitForFirstPage();
+		}
+	}
+	if (browserName === "webkit" && wantProfile) {
+		wk = new WebKitInspector(WK_INSPECTOR_PORT);
+		await wk.connect("/agents/");
+		log("attached WebKit remote inspector");
+	}
 	const rowCount = await rowCountNow();
 	const nodeCount = await page.evaluate(
 		() => document.getElementsByTagName("*").length,
