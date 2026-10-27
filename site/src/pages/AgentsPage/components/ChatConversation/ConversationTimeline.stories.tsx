@@ -1335,17 +1335,22 @@ export const AssistantMessageWithImage: Story = {
 		});
 		viewButton.focus();
 		expect(viewButton).toHaveFocus();
-		await waitFor(() => {
-			expect(
-				canvas.getByRole("link", { name: "Download generated-image.png" }),
-			).toBeVisible();
-		});
 		// Tab order is behavior that needs a browser; the screenshot captures
 		// the focused Download link.
 		await userEvent.keyboard("{Tab}");
 		expect(
 			canvas.getByRole("link", { name: "Download generated-image.png" }),
 		).toHaveFocus();
+		await Promise.all(document.getAnimations().map((a) => a.finished));
+	},
+};
+
+// Keyboard focus on View shows the Download link.
+export const AssistantMessageWithImageViewFocused: Story = {
+	args: AssistantMessageWithImage.args,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		canvas.getByRole("button", { name: "View generated-image.png" }).focus();
 		await Promise.all(document.getAnimations().map((a) => a.finished));
 	},
 };
