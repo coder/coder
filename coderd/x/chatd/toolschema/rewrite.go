@@ -44,13 +44,42 @@ var (
 // accept: every type list is rewritten into an equivalent "anyOf", every
 // array schema without "items" gets an empty one, an "enum" with an
 // array or object member becomes an "anyOf" of "const" values, "$id"
-// loses its fragment, which becomes an "$anchor" when it names one, and
-// a reference that names the root resource by URI becomes a fragment
-// reference. Instance data such as "const" and "enum" values keeps its
-// exact shape. The source is not modified.
+// loses its fragment, which becomes an "$anchor" when it names one, a
+// reference that names the root resource by URI becomes a fragment
+// reference, and a reference to an anchor that the root resource declares
+// once becomes a JSON Pointer reference. Instance data such as "const"
+// and "enum" values keeps its exact shape. The source is not modified.
 func Normalize(schema map[string]any) map[string]any {
-	return copyNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
+	pointers := map[string]string{}
+	duplicated := map[string]bool{}
+	normalized := copyNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
 		normalizeNode(node, scope)
+		if anchor, ok := node["$anchor"].(string); ok && !scope.nested && anchorName.MatchString(anchor) {
+			if _, seen := pointers[anchor]; seen {
+				duplicated[anchor] = true
+			}
+			pointers[anchor] = encodePointer(scope.path)
+		}
+	})
+	if len(pointers) == 0 {
+		return normalized
+	}
+	// Some providers ignore anchors, and validators of drafts before
+	// 2019-09 do not read "$anchor", but all of them follow a JSON
+	// Pointer. Normalizing kept every subschema at its source path.
+	return copyNode(normalized, rootScope(normalized), func(node map[string]any, scope refScope) {
+		ref, ok := node["$ref"].(string)
+		if !ok {
+			return
+		}
+		fragment, ok := scope.rootFragment(ref)
+		if !ok || duplicated[fragment] {
+			return
+		}
+		if pointer, ok := pointers[fragment]; ok {
+			prefix, _, _ := strings.Cut(ref, "#")
+			node["$ref"] = prefix + "#" + pointer
+		}
 	})
 }
 
@@ -251,15 +280,19 @@ func embeddedResource(root map[string]any, scope refScope, uri *url.URL) (map[st
 
 // findAnchor returns the subschema of resource that declares anchor with
 // "$anchor". Subschemas that start another resource are skipped, since
-// their anchors belong to that resource.
+// their anchors belong to that resource. An anchor declared more than
+// once names no subschema.
 func findAnchor(resource map[string]any, anchor string) (map[string]any, bool) {
-	var found map[string]any
+	var found []map[string]any
 	copyNode(resource, refScope{}, func(node map[string]any, scope refScope) {
-		if !scope.nested && found == nil && node["$anchor"] == anchor {
-			found = node
+		if !scope.nested && node["$anchor"] == anchor {
+			found = append(found, node)
 		}
 	})
-	return found, found != nil
+	if len(found) != 1 {
+		return nil, false
+	}
+	return found[0], true
 }
 
 // visitFunc is called on every copied schema object after its subschemas
@@ -288,25 +321,25 @@ func copySchema(value any, scope refScope, visit visitFunc) any {
 
 func copyKeyword(key string, value any, scope refScope, visit visitFunc) any {
 	if _, ok := subschemaKeywords[key]; ok {
-		return copySchema(value, scope, visit)
+		return copySchema(value, scope.at(key), visit)
 	}
 	if _, ok := subschemaListKeywords[key]; ok {
-		return copySchemaList(value, scope, visit)
+		return copySchemaList(value, scope.at(key), visit)
 	}
 	if _, ok := subschemaMapKeywords[key]; ok {
-		return copySchemaMap(value, scope, visit)
+		return copySchemaMap(value, scope.at(key), visit)
 	}
 	switch key {
 	case "items":
 		// A schema, or a list of schemas before draft 2020-12.
 		if _, ok := value.([]any); ok {
-			return copySchemaList(value, scope, visit)
+			return copySchemaList(value, scope.at(key), visit)
 		}
-		return copySchema(value, scope, visit)
+		return copySchema(value, scope.at(key), visit)
 	case "dependencies":
 		// Draft 7 maps each name to a schema or to a list of names, and
 		// copySchema keeps the lists as is.
-		return copySchemaMap(value, scope, visit)
+		return copySchemaMap(value, scope.at(key), visit)
 	default:
 		return value
 	}
@@ -319,7 +352,7 @@ func copySchemaList(value any, scope refScope, visit visitFunc) any {
 	}
 	out := make([]any, len(list))
 	for i, item := range list {
-		out[i] = copySchema(item, scope, visit)
+		out[i] = copySchema(item, scope.at(strconv.Itoa(i)), visit)
 	}
 	return out
 }
@@ -331,14 +364,15 @@ func copySchemaMap(value any, scope refScope, visit visitFunc) any {
 	}
 	out := make(map[string]any, len(named))
 	for name, item := range named {
-		out[name] = copySchema(item, scope, visit)
+		out[name] = copySchema(item, scope.at(name), visit)
 	}
 	return out
 }
 
-// refScope tracks the schema resource a subschema belongs to. A "$id"
-// starts a new resource, and JSON Schema resolves fragment-only
-// references against the resource that contains them.
+// refScope tracks where a subschema lies: its location in the root and
+// the schema resource it belongs to. A "$id" starts a new resource, and
+// JSON Schema resolves fragment-only references against the resource
+// that contains them.
 type refScope struct {
 	// rootBase is the root resource's base URI, or nil when the root
 	// declares no usable "$id".
@@ -347,6 +381,14 @@ type refScope struct {
 	base *url.URL
 	// nested reports that a resource other than the root was entered.
 	nested bool
+	// path holds the JSON Pointer tokens from the root to the subschema.
+	path []string
+}
+
+// at returns the scope of the value found under token.
+func (s refScope) at(token string) refScope {
+	s.path = append(slices.Clip(s.path), token)
+	return s
 }
 
 // rootScope returns the scope of root. The URI root was retrieved from

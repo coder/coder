@@ -68,6 +68,8 @@ func TestResolveLocalRef(t *testing.T) {
 		"$defs": {
 			"A": {"type": "string"},
 			"Named": {"$anchor": "named", "type": "boolean"},
+			"D1": {"$anchor": "dup", "type": "string"},
+			"D2": {"$anchor": "dup", "type": "number"},
 			"N": {"$id": "n.json", "properties": {"x": {"type": "integer"}}, "$defs": {"M": {"$anchor": "inner", "type": "number"}}}
 		}
 	}`
@@ -89,6 +91,7 @@ func TestResolveLocalRef(t *testing.T) {
 		{name: "anchor in an embedded resource", ref: "n.json#inner", want: `{"$anchor": "inner", "type": "number"}`},
 		{name: "anchor of another resource", ref: "#inner"},
 		{name: "unknown anchor", ref: "#missing"},
+		{name: "duplicated anchor", ref: "#dup"},
 		{name: "unknown resource", ref: "https://example.com/other.json#/$defs/A"},
 		{name: "missing pointer target", ref: "#/$defs/B"},
 	} {
@@ -268,13 +271,61 @@ func TestNormalize(t *testing.T) {
 				"properties": {
 					"a": {"$ref": "#/$defs/A"},
 					"anchor": {"$anchor": "anchor", "type": "string"},
-					"to anchor": {"$ref": "#anchor"},
+					"to anchor": {"$ref": "#/properties/anchor"},
 					"nested": {"$id": "nested.json", "$anchor": "n", "type": "string"},
 					"empty fragment": {"$id": "empty.json#", "type": "string"},
 					"pointer": {"type": "string"},
 					"kept anchor": {"$anchor": "new", "type": "string"}
 				},
 				"$defs": {"A": {"$anchor": "A", "type": "string"}}
+			}`,
+		},
+		{
+			// Some providers do not resolve anchors, and a draft 7
+			// validator does not read "$anchor", so a reference to an
+			// anchor of the root resource becomes a JSON Pointer. A
+			// reference in another resource, to an anchor of another
+			// resource, or to a duplicated anchor stays.
+			name: "references to root anchors become pointers",
+			schema: `{
+				"$anchor": "root",
+				"properties": {
+					"def": {"$ref": "#A"},
+					"list item": {"$ref": "#item"},
+					"escaped": {"$ref": "#slash"},
+					"root": {"$ref": "#root"},
+					"duplicate": {"$ref": "#dup"},
+					"missing": {"$ref": "#missing"},
+					"other resource": {"$ref": "#N"},
+					"nested": {"$id": "nested.json", "$anchor": "N", "properties": {"self": {"$ref": "#N"}, "up": {"$ref": "#A"}}}
+				},
+				"$defs": {
+					"A": {"$anchor": "A", "type": "string"},
+					"List": {"allOf": [{"type": "integer"}, {"$anchor": "item", "minimum": 1}]},
+					"S/T": {"$anchor": "slash", "type": "boolean"},
+					"D1": {"$anchor": "dup", "type": "string"},
+					"D2": {"$anchor": "dup", "type": "number"}
+				}
+			}`,
+			want: `{
+				"$anchor": "root",
+				"properties": {
+					"def": {"$ref": "#/$defs/A"},
+					"list item": {"$ref": "#/$defs/List/allOf/1"},
+					"escaped": {"$ref": "#/$defs/S~1T"},
+					"root": {"$ref": "#"},
+					"duplicate": {"$ref": "#dup"},
+					"missing": {"$ref": "#missing"},
+					"other resource": {"$ref": "#N"},
+					"nested": {"$id": "nested.json", "$anchor": "N", "properties": {"self": {"$ref": "#N"}, "up": {"$ref": "#A"}}}
+				},
+				"$defs": {
+					"A": {"$anchor": "A", "type": "string"},
+					"List": {"allOf": [{"type": "integer"}, {"$anchor": "item", "minimum": 1}]},
+					"S/T": {"$anchor": "slash", "type": "boolean"},
+					"D1": {"$anchor": "dup", "type": "string"},
+					"D2": {"$anchor": "dup", "type": "number"}
+				}
 			}`,
 		},
 	} {
