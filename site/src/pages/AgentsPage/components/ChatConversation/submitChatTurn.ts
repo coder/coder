@@ -193,8 +193,8 @@ export async function submitChatTurn(
 		setCachedChatPlanMode,
 	} = params;
 
-	// A failed send or edit removes the prompt shown at the click, so the
-	// transcript scrolls to the end, where the latest state is.
+	// A failed send or edit removes what its pending action showed at the
+	// click, so the transcript scrolls to the end, where the latest state is.
 	const runTurnRequest = async (
 		action: PendingAction,
 		request: () => Promise<unknown>,
