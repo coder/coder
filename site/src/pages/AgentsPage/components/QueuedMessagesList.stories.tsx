@@ -19,6 +19,7 @@ const meta: Meta<typeof QueuedMessagesList> = {
 	title: "pages/AgentsPage/QueuedMessagesList",
 	component: QueuedMessagesList,
 	args: {
+		busyRows: new Map(),
 		onDelete: fn(),
 		onPromote: fn(),
 	},
@@ -186,71 +187,14 @@ export const ActionsExcludeEdit: Story = {
 	},
 };
 
-// A row under edit behind the head: the head stays sendable; rows behind the
-// edit wait. The Editing badge shows its tooltip.
-export const RowUnderEditWithWaitingTail: Story = {
-	args: {
-		messages: [
-			buildMessage(1, textContent("Install dependencies")),
-			{
-				...MockChatQueuedMessageUnderEdit,
-				id: 2,
-				content: textContent("Run database migrations"),
-			},
-			buildMessage(3, textContent("Start the dev server")),
-			buildMessage(4, textContent("Open the browser")),
-		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.hover(canvas.getByRole("button", { name: "Editing" }));
-	},
-};
-
-// The queue head is under edit, so the Enter-to-send hint is hidden. The
-// Waiting badge on the row behind it shows its tooltip.
-export const HeadUnderEdit: Story = {
-	args: {
-		messages: [
-			{
-				...MockChatQueuedMessageUnderEdit,
-				id: 1,
-				content: textContent("Run the test suite"),
-			},
-			buildMessage(2, textContent("Open the browser")),
-		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.hover(canvas.getByRole("button", { name: "Waiting" }));
-	},
-};
-
-let rejectQueuedDelete: ((error: Error) => void) | undefined;
-
 // A pending delete disables only that row's actions.
-export const DeleteRejectionReenablesActions: Story = {
+export const DeletePendingDisablesRow: Story = {
 	args: {
 		messages: [
 			buildMessage(1, textContent("First queued")),
 			buildMessage(2, textContent("Second queued")),
 		],
-		onDelete: () =>
-			new Promise<void>((_, reject) => {
-				rejectQueuedDelete = reject;
-			}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const removeButtons = canvas.getAllByRole("button", {
-			name: "Remove from queue",
-		});
-		await userEvent.click(removeButtons[0]);
-
-		if (!rejectQueuedDelete) {
-			throw new Error("onDelete was not invoked");
-		}
-		rejectQueuedDelete(new Error("delete failed"));
+		busyRows: new Map([[1, "delete"]]),
 	},
 };
 

@@ -22,10 +22,14 @@ import {
 import { isPendingRowID } from "./ChatConversation/chatStore";
 import { SkillChip } from "./ChatMessageInput/SkillChip";
 
+export type QueuedRowAction = "delete" | "promote";
+
 type QueuedMessagesListProps = {
 	messages: readonly ChatQueuedMessage[];
-	onDelete: (id: number) => Promise<void> | void;
-	onPromote: (id: number) => Promise<void> | void;
+	// The action in flight for each row. A busy row's buttons are disabled.
+	busyRows: ReadonlyMap<number, QueuedRowAction>;
+	onDelete: (id: number) => void;
+	onPromote: (id: number) => void;
 	className?: string;
 };
 
@@ -160,6 +164,7 @@ const QueuedMessageActionButton: React.FC<QueuedMessageActionButtonProps> = ({
 
 export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 	messages,
+	busyRows,
 	onDelete,
 	onPromote,
 	className,
@@ -170,43 +175,6 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 	}));
 
 	const [hoveredID, setHoveredID] = useState<number | null>(null);
-	// The action in flight for each row. Only that row's buttons are disabled
-	// while it runs.
-	const [busyItems, setBusyItems] = useState<
-		ReadonlyMap<number, "delete" | "promote">
-	>(new Map());
-	const setBusy = (id: number, action: "delete" | "promote" | null) => {
-		setBusyItems((current) => {
-			const next = new Map(current);
-			if (action) {
-				next.set(id, action);
-			} else {
-				next.delete(id);
-			}
-			return next;
-		});
-	};
-	const handleDelete = async (id: number) => {
-		setBusy(id, "delete");
-		try {
-			await onDelete(id);
-			setBusy(id, null);
-		} catch {
-			setBusy(id, null);
-		}
-	};
-
-	const handlePromote = async (id: number) => {
-		setBusy(id, "promote");
-		try {
-			await onPromote(id);
-			setBusy(id, null);
-		} catch {
-			setBusy(id, null);
-		}
-		setPendingAction((current) => (current?.id === id ? null : current));
-	};
-
 	if (items.length === 0) {
 		return null;
 	}
@@ -220,7 +188,7 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 		>
 			{items.map((item, index) => {
 				const isFirst = index === 0;
-				const busyAction = busyItems.get(item.id);
+				const busyAction = busyRows.get(item.id);
 				const isPendingRow = isPendingRowID(item.id);
 				const isHovered = hoveredID === item.id;
 				const showActions = isHovered || (isFirst && hoveredID === null);
@@ -310,7 +278,7 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 											size="icon"
 											aria-label="Send now"
 											disabled={busyAction !== undefined || isPendingRow}
-											onClick={() => void handlePromote(item.id)}
+											onClick={() => onPromote(item.id)}
 											className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-primary"
 										>
 											{busyAction === "promote" ? (
@@ -329,7 +297,7 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 											size="icon"
 											aria-label="Remove from queue"
 											disabled={busyAction !== undefined || isPendingRow}
-											onClick={() => void handleDelete(item.id)}
+											onClick={() => onDelete(item.id)}
 											className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-destructive"
 										>
 											{busyAction === "delete" ? (

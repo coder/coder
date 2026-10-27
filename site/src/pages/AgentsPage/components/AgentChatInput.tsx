@@ -96,7 +96,7 @@ import { ImageLightbox } from "./ImageLightbox";
 import { MCPServerIconStack } from "./MCPServerIconStack";
 import { MCPServersMenuContent } from "./MCPServersMenuContent";
 import { ProjectSkillActions } from "./ProjectSkillActions";
-import { QueuedMessagesList } from "./QueuedMessagesList";
+import { QueuedMessagesList, type QueuedRowAction } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 import { WorkspacePill } from "./WorkspacePill";
 import { WorkspaceUploadPreview } from "./WorkspaceUploadPreview";
@@ -1186,16 +1186,29 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		hasModelOptions &&
 		hasSendableContent &&
 		!hasActiveUploads;
-	// A promoted row stays at the head of a running chat's queue, so Enter
-	// and Send now share this lock to send one promote per row.
-	const promotingIDsRef = useRef(new Set<number>());
-	const promoteQueuedMessage = async (id: number) => {
-		if (!onPromoteQueuedMessage || promotingIDsRef.current.has(id)) {
+	// The action in flight for each queued row. Enter, Send now and Remove
+	// check it, so each row has at most one request in flight.
+	const [busyRows, setBusyRows] = useState<
+		ReadonlyMap<number, QueuedRowAction>
+	>(new Map());
+	const runRowAction = async (
+		id: number,
+		action: QueuedRowAction,
+		request: ((id: number) => Promise<void> | void) | undefined,
+	) => {
+		if (!request || busyRows.has(id)) {
 			return;
 		}
-		promotingIDsRef.current.add(id);
-		await Promise.resolve(onPromoteQueuedMessage(id)).finally(() => {
-			promotingIDsRef.current.delete(id);
+		setBusyRows((current) => new Map(current).set(id, action));
+		try {
+			await request(id);
+		} catch {
+			// The page reports a failed request.
+		}
+		setBusyRows((current) => {
+			const next = new Map(current);
+			next.delete(id);
+			return next;
 		});
 	};
 
@@ -1215,7 +1228,11 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			!isPendingRowID(queuedMessages[0].id) &&
 			onPromoteQueuedMessage
 		) {
-			void promoteQueuedMessage(queuedMessages[0].id);
+			void runRowAction(
+				queuedMessages[0].id,
+				"promote",
+				onPromoteQueuedMessage,
+			);
 			return;
 		}
 
@@ -1424,8 +1441,13 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			{queuedMessages.length > 0 && (
 				<QueuedMessagesList
 					messages={queuedMessages}
-					onDelete={(id) => onDeleteQueuedMessage?.(id)}
-					onPromote={promoteQueuedMessage}
+					busyRows={busyRows}
+					onDelete={(id) =>
+						void runRowAction(id, "delete", onDeleteQueuedMessage)
+					}
+					onPromote={(id) =>
+						void runRowAction(id, "promote", onPromoteQueuedMessage)
+					}
 					className="mb-2"
 				/>
 			)}

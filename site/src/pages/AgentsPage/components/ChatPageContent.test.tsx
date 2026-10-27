@@ -390,13 +390,14 @@ describe("ChatPageInput", () => {
 		expect(onDeleteQueuedMessage).not.toHaveBeenCalled();
 	});
 
-	it("sends one promote for a running chat's head row until it settles", async () => {
+	it("keeps an Enter-started promote the row's only request until it settles", async () => {
 		const user = userEvent.setup();
 		const promote = createDeferred<undefined>();
 		const onPromoteQueuedMessage = vi
 			.fn()
 			.mockReturnValueOnce(promote.promise)
 			.mockResolvedValue(undefined);
+		const onDeleteQueuedMessage = vi.fn();
 		const store = createChatStore();
 		store.seed({
 			messages: [],
@@ -413,19 +414,25 @@ describe("ChatPageInput", () => {
 		});
 		store.applyServerChatStatus("running");
 
-		renderChatPageInput(store, { onPromoteQueuedMessage });
+		renderChatPageInput(store, {
+			onPromoteQueuedMessage,
+			onDeleteQueuedMessage,
+		});
 		await screen.findByText("queued");
 		await user.click(screen.getByTestId("chat-message-input"));
 		await user.keyboard("{Enter}");
 		await user.keyboard("{Enter}");
-		await user.click(screen.getByRole("button", { name: "Send now" }));
+		const remove = screen.getByRole("button", { name: "Remove from queue" });
+		expect(remove).toBeDisabled();
+		expect(screen.getByRole("button", { name: "Send now" })).toBeDisabled();
 		expect(onPromoteQueuedMessage.mock.calls).toEqual([[1]]);
 
 		await act(async () => {
 			promote.resolve(undefined);
 		});
-		await user.keyboard("{Enter}");
-		expect(onPromoteQueuedMessage.mock.calls).toEqual([[1], [1]]);
+		expect(remove).toBeEnabled();
+		await user.click(remove);
+		expect(onDeleteQueuedMessage.mock.calls).toEqual([[1]]);
 	});
 
 	it("lets another queued row act while one row's request is in flight", async () => {
