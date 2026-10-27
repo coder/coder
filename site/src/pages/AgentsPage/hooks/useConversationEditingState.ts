@@ -162,8 +162,6 @@ export function useConversationEditingState(deps: {
 			editingTarget: target,
 		});
 
-		// For edits, clear input immediately and prepare a rollback in
-		// case the send fails.
 		const rollback =
 			target !== undefined ? clearInputForEdit(message) : undefined;
 
