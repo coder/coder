@@ -94,6 +94,7 @@ The Coder team is actively working on adding new templates to the registry, but 
 
 The [AWS EC2 (NixOS)](https://registry.coder.com/templates/coder-labs/aws-nixos) template runs each workspace as a NixOS virtual machine on EC2.
 Rebuild progress streams to the **NixOS** log in the workspace dashboard.
+Its `flake_attr` supports `$ARCH`, which the template replaces with `x86_64` or `aarch64` to match the instance type.
 
 1. Fork the [example flake](https://github.com/coder/nixos-example-flake), edit `configuration.nix`, and commit your changes with `flake.lock`.
 1. Create a template from [AWS EC2 (NixOS)](https://registry.coder.com/templates/coder-labs/aws-nixos) and set `flake_ref` to your fork's Git URL.
