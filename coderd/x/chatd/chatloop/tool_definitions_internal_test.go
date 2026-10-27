@@ -317,7 +317,8 @@ func TestBuildToolDefinitionsFullSchemaRootComposition(t *testing.T) {
 
 // TestBuildToolDefinitionsFullSchemaRootCompositionAbsoluteRefs verifies
 // that root composition follows references written as the root "$id"
-// URI, not only fragment references.
+// URI, not only fragment references, and that other such references
+// reach the wire as fragment references.
 func TestBuildToolDefinitionsFullSchemaRootCompositionAbsoluteRefs(t *testing.T) {
 	t.Parallel()
 
@@ -326,6 +327,9 @@ func TestBuildToolDefinitionsFullSchemaRootCompositionAbsoluteRefs(t *testing.T)
 		"$ref": "https://example.com/tool.json#/$defs/Base",
 		"allOf": []any{
 			map[string]any{"$ref": "tool.json#/$defs/Named"},
+		},
+		"properties": map[string]any{
+			"alias": map[string]any{"$ref": "https://example.com/tool.json#/$defs/Named/properties/name"},
 		},
 		"$defs": map[string]any{
 			"Base": map[string]any{
@@ -349,6 +353,7 @@ func TestBuildToolDefinitionsFullSchemaRootCompositionAbsoluteRefs(t *testing.T)
 		"$id": "https://example.com/tool.json",
 		"type": "object",
 		"properties": {
+			"alias": {"$ref": "#/$defs/Named/properties/name"},
 			"id": {"type": "integer"},
 			"name": {"type": "string"}
 		},
@@ -364,6 +369,49 @@ func TestBuildToolDefinitionsFullSchemaRootCompositionAbsoluteRefs(t *testing.T)
 				"required": ["name"]
 			}
 		}
+	}`, string(raw))
+}
+
+// TestBuildToolDefinitionsFullSchemaRootCompositionResourceBranches
+// verifies that a root "allOf" branch declaring its own "$id" still
+// contributes its parameters when it holds no references, which would
+// resolve differently once its content leaves that resource.
+func TestBuildToolDefinitionsFullSchemaRootCompositionResourceBranches(t *testing.T) {
+	t.Parallel()
+
+	source := map[string]any{
+		"type": "object",
+		"allOf": []any{
+			map[string]any{
+				"$id":        "https://example.com/plain.json",
+				"properties": map[string]any{"a": map[string]any{"type": "string"}},
+				"required":   []any{"a"},
+			},
+			map[string]any{
+				"$id":        "https://example.com/linked.json",
+				"properties": map[string]any{"c": map[string]any{"$ref": "#/$defs/C"}},
+				"required":   []any{"c"},
+				"$defs":      map[string]any{"C": map[string]any{"type": "integer"}},
+			},
+			map[string]any{
+				"properties": map[string]any{"b": map[string]any{"type": "integer"}},
+				"required":   []any{"b"},
+			},
+		},
+	}
+	defs := BuildToolDefinitions([]fantasy.AgentTool{fullSchemaTestTool{schema: source}}, nil, nil)
+	require.Len(t, defs, 1)
+	ft, ok := defs[0].(fantasy.FunctionTool)
+	require.True(t, ok)
+	raw, err := json.Marshal(ft.InputSchema)
+	require.NoError(t, err)
+	require.JSONEq(t, `{
+		"type": "object",
+		"properties": {
+			"a": {"type": "string"},
+			"b": {"type": "integer"}
+		},
+		"required": ["a", "b"]
 	}`, string(raw))
 }
 
@@ -409,7 +457,7 @@ func TestBuildToolDefinitionsFullSchemaKeepsInstanceValues(t *testing.T) {
 			"Payload": {
 				"type": "object",
 				"const": {"type": ["string", "number"]},
-				"enum": [{"type": ["boolean"]}],
+				"anyOf": [{"const": {"type": ["boolean"]}}],
 				"default": {"type": "array"}
 			}
 		}

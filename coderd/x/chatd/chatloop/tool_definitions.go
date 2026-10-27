@@ -298,8 +298,9 @@ func (f *rootFolder) mergeAll(shape *objectShape, branch any, depth int) {
 	if !ok || depth > maxRootMergeDepth {
 		return
 	}
-	if _, ok := node["$id"]; ok {
-		// A separate resource resolves its references differently.
+	if _, ok := node["$id"]; ok && toolschema.HasRefs(node) {
+		// References in a separate resource resolve against its own
+		// "$id", so its content cannot move into the root resource.
 		return
 	}
 	if ref, ok := node["$ref"].(string); ok {

@@ -39,42 +39,75 @@ var (
 	}
 )
 
-// Normalize returns a copy of a schema in which every type list is
-// rewritten into an equivalent "anyOf" and every array schema without
-// "items" gets an empty one, the shapes provider drivers accept. Only
-// schema positions are rewritten, so instance data such as "const" and
-// "enum" values keeps its exact shape. The source is not modified.
+// Normalize returns a copy of a schema in the shapes provider drivers
+// accept: every type list is rewritten into an equivalent "anyOf", every
+// array schema without "items" gets an empty one, an "enum" with an
+// array or object member becomes an "anyOf" of "const" values, and a
+// reference that names the root resource by URI becomes a fragment
+// reference. Instance data such as "const" and "enum" values keeps its
+// exact shape. The source is not modified.
 func Normalize(schema map[string]any) map[string]any {
-	return copyNode(schema, refScope{}, func(node map[string]any, _ refScope) {
-		normalizeNode(node)
+	return copyNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
+		normalizeNode(node, scope)
 	})
 }
 
-func normalizeNode(node map[string]any) {
-	types, ok := node["type"].([]any)
-	if !ok {
-		if node["type"] == "array" {
-			if _, ok := node["items"]; !ok {
-				node["items"] = map[string]any{}
+func normalizeNode(node map[string]any, scope refScope) {
+	if types, ok := node["type"].([]any); ok {
+		variants := make([]any, 0, len(types))
+		for _, typ := range types {
+			variant := map[string]any{"type": typ}
+			if typ == "array" {
+				variant["items"] = map[string]any{}
 			}
+			variants = append(variants, variant)
 		}
+		delete(node, "type")
+		requireAnyOf(node, variants)
+	} else if node["type"] == "array" {
+		if _, ok := node["items"]; !ok {
+			node["items"] = map[string]any{}
+		}
+	}
+
+	// OpenAI rejects a tool schema whose "enum" has an array or object
+	// member, but accepts the same values as "const".
+	if values, ok := node["enum"].([]any); ok && slices.ContainsFunc(values, isComposite) {
+		variants := make([]any, 0, len(values))
+		for _, value := range values {
+			variants = append(variants, map[string]any{"const": value})
+		}
+		delete(node, "enum")
+		requireAnyOf(node, variants)
+	}
+
+	// Some providers resolve only fragment references.
+	if ref, ok := node["$ref"].(string); ok && !scope.nested && !strings.HasPrefix(ref, "#") {
+		if tokens, ok := scope.rootPointer(ref); ok {
+			node["$ref"] = "#" + encodePointer(tokens)
+		}
+	}
+}
+
+// requireAnyOf requires one of variants to hold. An existing "anyOf"
+// keeps its place, so references into it still resolve, and the
+// variants join "allOf" instead.
+func requireAnyOf(node map[string]any, variants []any) {
+	if _, ok := node["anyOf"]; !ok {
+		node["anyOf"] = variants
 		return
 	}
-	variants := make([]any, 0, len(types))
-	for _, typ := range types {
-		variant := map[string]any{"type": typ}
-		if typ == "array" {
-			variant["items"] = map[string]any{}
-		}
-		variants = append(variants, variant)
+	allOf, _ := node["allOf"].([]any)
+	node["allOf"] = append(slices.Clone(allOf), map[string]any{"anyOf": variants})
+}
+
+func isComposite(value any) bool {
+	switch value.(type) {
+	case map[string]any, []any:
+		return true
+	default:
+		return false
 	}
-	if existing, ok := node["anyOf"]; ok {
-		// Both constraints apply, so keep the original alternatives.
-		allOf, _ := node["allOf"].([]any)
-		node["allOf"] = append(slices.Clone(allOf), map[string]any{"anyOf": existing})
-	}
-	delete(node, "type")
-	node["anyOf"] = variants
 }
 
 // RewriteRefs returns a copy of a schema in which every "$ref" that
@@ -100,6 +133,20 @@ func RewriteRefs(schema map[string]any, rewrite func(tokens []string) ([]string,
 		prefix, _, _ := strings.Cut(ref, "#")
 		node["$ref"] = prefix + "#" + encodePointer(tokens)
 	})
+}
+
+// HasRefs reports whether schema or one of its subschemas holds a
+// reference keyword.
+func HasRefs(schema map[string]any) bool {
+	found := false
+	copyNode(schema, refScope{}, func(node map[string]any, _ refScope) {
+		for _, key := range []string{"$ref", "$dynamicRef", "$recursiveRef"} {
+			if _, ok := node[key]; ok {
+				found = true
+			}
+		}
+	})
+	return found
 }
 
 // ResolveLocalRef returns the value that a reference made from root's
