@@ -7,47 +7,63 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// resolveProjectInstructions returns the system prompt block holding the
-// instructions of the chat's project, or "" when there are none. Subagent
-// chats do not carry a project, so they inherit the root chat's project at
-// the cost of one extra lookup. Instructions are read on every turn so edits
-// reach existing chats on their next turn.
-//
-// Lookups fail open: a chat keeps working without project instructions when
-// they cannot be loaded.
-func (p *Server) resolveProjectInstructions(ctx context.Context, logger slog.Logger, chat database.Chat) string {
+// resolveChatProjectID returns the project the chat belongs to, or an
+// invalid ID when it has none or chat projects are disabled. Subagent chats
+// do not carry a project, so they inherit the root chat's project at the cost
+// of one extra lookup. A failed lookup is logged and treated as no project.
+func (p *Server) resolveChatProjectID(ctx context.Context, logger slog.Logger, chat database.Chat) uuid.NullUUID {
 	if !p.experiments.Enabled(codersdk.ExperimentChatProjects) {
-		return ""
+		return uuid.NullUUID{}
 	}
-	projectID := chat.ProjectID
-	if !projectID.Valid && chat.RootChatID.Valid && chat.RootChatID.UUID != chat.ID {
-		root, err := p.db.GetChatByID(ctx, chat.RootChatID.UUID)
-		if err != nil {
-			if !errors.Is(err, sql.ErrNoRows) {
-				logger.Warn(ctx, "failed to load root chat for project instructions",
-					slog.F("root_chat_id", chat.RootChatID.UUID),
-					slog.Error(err),
-				)
-			}
-			return ""
+	if chat.ProjectID.Valid || !chat.RootChatID.Valid || chat.RootChatID.UUID == chat.ID {
+		return chat.ProjectID
+	}
+	root, err := p.db.GetChatByID(ctx, chat.RootChatID.UUID)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			logger.Warn(ctx, "failed to load root chat for chat project",
+				slog.F("root_chat_id", chat.RootChatID.UUID),
+				slog.Error(err),
+			)
 		}
-		projectID = root.ProjectID
+		return uuid.NullUUID{}
 	}
-	if !projectID.Valid {
-		return ""
-	}
+	return root.ProjectID
+}
 
-	row, err := p.db.GetChatProjectInstructionsByProjectID(ctx, projectID.UUID)
+// resolveUsableChatProjectID returns the chat's project, as resolved by
+// resolveChatProjectID, when the chat owner can use it. Otherwise it returns
+// an invalid ID, and the chat runs without the project's instructions,
+// skills, and memory.
+func (p *Server) resolveUsableChatProjectID(ctx context.Context, logger slog.Logger, chat database.Chat) uuid.NullUUID {
+	projectID := p.resolveChatProjectID(ctx, logger, chat)
+	if !projectID.Valid {
+		return uuid.NullUUID{}
+	}
+	if _, ok := p.usableChatProject(ctx, logger, projectID.UUID, chat); !ok {
+		return uuid.NullUUID{}
+	}
+	return projectID
+}
+
+// loadProjectInstructions returns the instructions block of a project the
+// chat owner can use, as checked by resolveUsableChatProjectID, or "" when it
+// has none or they cannot be loaded. Instructions are read on every turn so
+// edits reach existing chats on their next turn.
+func (p *Server) loadProjectInstructions(ctx context.Context, logger slog.Logger, projectID uuid.UUID) string {
+	row, err := p.db.GetChatProjectInstructionsByProjectID(ctx, projectID)
 	if err != nil {
 		// A project without a row has no instructions.
 		if !errors.Is(err, sql.ErrNoRows) {
 			logger.Warn(ctx, "failed to load chat project instructions",
-				slog.F("project_id", projectID.UUID),
+				slog.F("project_id", projectID),
 				slog.Error(err),
 			)
 		}

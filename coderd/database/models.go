@@ -3793,6 +3793,7 @@ const (
 	ResourceTypeChatOrganizationSystemPrompt ResourceType = "chat_organization_system_prompt"
 	ResourceTypeChatProjectInstructions      ResourceType = "chat_project_instructions"
 	ResourceTypeOrganizationSkill            ResourceType = "organization_skill"
+	ResourceTypeChatProjectSkill             ResourceType = "chat_project_skill"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3878,7 +3879,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeChatProjectMemory,
 		ResourceTypeChatOrganizationSystemPrompt,
 		ResourceTypeChatProjectInstructions,
-		ResourceTypeOrganizationSkill:
+		ResourceTypeOrganizationSkill,
+		ResourceTypeChatProjectSkill:
 		return true
 	}
 	return false
@@ -3933,6 +3935,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeChatOrganizationSystemPrompt,
 		ResourceTypeChatProjectInstructions,
 		ResourceTypeOrganizationSkill,
+		ResourceTypeChatProjectSkill,
 	}
 }
 
@@ -4186,6 +4189,7 @@ const (
 	WorkspaceAgentContextBodyKindHook            WorkspaceAgentContextBodyKind = "hook"
 	WorkspaceAgentContextBodyKindSubagent        WorkspaceAgentContextBodyKind = "subagent"
 	WorkspaceAgentContextBodyKindCommand         WorkspaceAgentContextBodyKind = "command"
+	WorkspaceAgentContextBodyKindAcpHarness      WorkspaceAgentContextBodyKind = "acp_harness"
 )
 
 func (e *WorkspaceAgentContextBodyKind) Scan(src interface{}) error {
@@ -4232,7 +4236,8 @@ func (e WorkspaceAgentContextBodyKind) Valid() bool {
 		WorkspaceAgentContextBodyKindPlugin,
 		WorkspaceAgentContextBodyKindHook,
 		WorkspaceAgentContextBodyKindSubagent,
-		WorkspaceAgentContextBodyKindCommand:
+		WorkspaceAgentContextBodyKindCommand,
+		WorkspaceAgentContextBodyKindAcpHarness:
 		return true
 	}
 	return false
@@ -4248,6 +4253,7 @@ func AllWorkspaceAgentContextBodyKindValues() []WorkspaceAgentContextBodyKind {
 		WorkspaceAgentContextBodyKindHook,
 		WorkspaceAgentContextBodyKindSubagent,
 		WorkspaceAgentContextBodyKindCommand,
+		WorkspaceAgentContextBodyKindAcpHarness,
 	}
 }
 
@@ -4517,7 +4523,7 @@ func AllWorkspaceAgentScriptTimingStageValues() []WorkspaceAgentScriptTimingStag
 	}
 }
 
-// What the exit status of the script is.
+// The terminal outcome of a script execution.
 type WorkspaceAgentScriptTimingStatus string
 
 const (
@@ -4525,6 +4531,8 @@ const (
 	WorkspaceAgentScriptTimingStatusExitFailure   WorkspaceAgentScriptTimingStatus = "exit_failure"
 	WorkspaceAgentScriptTimingStatusTimedOut      WorkspaceAgentScriptTimingStatus = "timed_out"
 	WorkspaceAgentScriptTimingStatusPipesLeftOpen WorkspaceAgentScriptTimingStatus = "pipes_left_open"
+	WorkspaceAgentScriptTimingStatusSkipped       WorkspaceAgentScriptTimingStatus = "skipped"
+	WorkspaceAgentScriptTimingStatusCanceled      WorkspaceAgentScriptTimingStatus = "canceled"
 )
 
 func (e *WorkspaceAgentScriptTimingStatus) Scan(src interface{}) error {
@@ -4567,7 +4575,9 @@ func (e WorkspaceAgentScriptTimingStatus) Valid() bool {
 	case WorkspaceAgentScriptTimingStatusOk,
 		WorkspaceAgentScriptTimingStatusExitFailure,
 		WorkspaceAgentScriptTimingStatusTimedOut,
-		WorkspaceAgentScriptTimingStatusPipesLeftOpen:
+		WorkspaceAgentScriptTimingStatusPipesLeftOpen,
+		WorkspaceAgentScriptTimingStatusSkipped,
+		WorkspaceAgentScriptTimingStatusCanceled:
 		return true
 	}
 	return false
@@ -4579,6 +4589,8 @@ func AllWorkspaceAgentScriptTimingStatusValues() []WorkspaceAgentScriptTimingSta
 		WorkspaceAgentScriptTimingStatusExitFailure,
 		WorkspaceAgentScriptTimingStatusTimedOut,
 		WorkspaceAgentScriptTimingStatusPipesLeftOpen,
+		WorkspaceAgentScriptTimingStatusSkipped,
+		WorkspaceAgentScriptTimingStatusCanceled,
 	}
 }
 
@@ -5065,6 +5077,22 @@ type AIGatewayKey struct {
 	SecretPrefix    string       `db:"secret_prefix" json:"secret_prefix"`
 	HashedSecret    []byte       `db:"hashed_secret" json:"hashed_secret"`
 	LastHeartbeatAt sql.NullTime `db:"last_heartbeat_at" json:"last_heartbeat_at"`
+}
+
+// AI Governance configuration for one model on one configured AI provider within one organization. The token prices override site-wide prices in ai_model_prices.
+type AIModelConfig struct {
+	ID              uuid.UUID     `db:"id" json:"id"`
+	OrganizationID  uuid.UUID     `db:"organization_id" json:"organization_id"`
+	ProviderID      uuid.UUID     `db:"provider_id" json:"provider_id"`
+	Model           string        `db:"model" json:"model"`
+	InputPrice      sql.NullInt64 `db:"input_price" json:"input_price"`
+	OutputPrice     sql.NullInt64 `db:"output_price" json:"output_price"`
+	CacheReadPrice  sql.NullInt64 `db:"cache_read_price" json:"cache_read_price"`
+	CacheWritePrice sql.NullInt64 `db:"cache_write_price" json:"cache_write_price"`
+	CreatedAt       time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time     `db:"updated_at" json:"updated_at"`
+	// Soft delete flag. Soft-deleted rows are kept for history and do not block a new live row for the same model.
+	Deleted bool `db:"deleted" json:"deleted"`
 }
 
 // Per-model token prices used by AI Bridge to compute interception cost.
@@ -5637,6 +5665,10 @@ type ConnectionLog struct {
 	DisconnectReason sql.NullString `db:"disconnect_reason" json:"disconnect_reason"`
 	// Tracks all connections over the lifetime of a single client (IDE or ssh) session. As it originates from the client, it is not guaranteed to be unique.
 	ClientSessionID sql.NullString `db:"client_session_id" json:"client_session_id"`
+	// Total bytes received by the agent on this connection. Null for web events and non-disconnect events.
+	RxBytes sql.NullInt64 `db:"rx_bytes" json:"rx_bytes"`
+	// Total bytes sent by the agent on this connection. Null for web events and non-disconnect events.
+	TxBytes sql.NullInt64 `db:"tx_bytes" json:"tx_bytes"`
 }
 
 type CryptoKey struct {
@@ -6189,6 +6221,8 @@ type Skill struct {
 	Enabled        bool          `db:"enabled" json:"enabled"`
 	GroupACL       ChatACL       `db:"group_acl" json:"group_acl"`
 	UserACL        ChatACL       `db:"user_acl" json:"user_acl"`
+	Action         bool          `db:"action" json:"action"`
+	ModelInvocable bool          `db:"model_invocable" json:"model_invocable"`
 }
 
 // We keep this separate from replicas in case we need to break the coordinator out into its own service
@@ -6352,23 +6386,25 @@ type TemplateUsageStatsSessionApp struct {
 
 // Joins in the username + avatar url of the created by user.
 type TemplateVersion struct {
-	ID                    uuid.UUID       `db:"id" json:"id"`
-	TemplateID            uuid.NullUUID   `db:"template_id" json:"template_id"`
-	OrganizationID        uuid.UUID       `db:"organization_id" json:"organization_id"`
-	CreatedAt             time.Time       `db:"created_at" json:"created_at"`
-	UpdatedAt             time.Time       `db:"updated_at" json:"updated_at"`
-	Name                  string          `db:"name" json:"name"`
-	Readme                string          `db:"readme" json:"readme"`
-	JobID                 uuid.UUID       `db:"job_id" json:"job_id"`
-	CreatedBy             uuid.UUID       `db:"created_by" json:"created_by"`
-	ExternalAuthProviders json.RawMessage `db:"external_auth_providers" json:"external_auth_providers"`
-	Message               string          `db:"message" json:"message"`
-	Archived              bool            `db:"archived" json:"archived"`
-	SourceExampleID       sql.NullString  `db:"source_example_id" json:"source_example_id"`
-	HasExternalAgent      sql.NullBool    `db:"has_external_agent" json:"has_external_agent"`
-	CreatedByAvatarURL    string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
-	CreatedByUsername     string          `db:"created_by_username" json:"created_by_username"`
-	CreatedByName         string          `db:"created_by_name" json:"created_by_name"`
+	ID                         uuid.UUID       `db:"id" json:"id"`
+	TemplateID                 uuid.NullUUID   `db:"template_id" json:"template_id"`
+	OrganizationID             uuid.UUID       `db:"organization_id" json:"organization_id"`
+	CreatedAt                  time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt                  time.Time       `db:"updated_at" json:"updated_at"`
+	Name                       string          `db:"name" json:"name"`
+	Readme                     string          `db:"readme" json:"readme"`
+	JobID                      uuid.UUID       `db:"job_id" json:"job_id"`
+	CreatedBy                  uuid.UUID       `db:"created_by" json:"created_by"`
+	ExternalAuthProviders      json.RawMessage `db:"external_auth_providers" json:"external_auth_providers"`
+	Message                    string          `db:"message" json:"message"`
+	Archived                   bool            `db:"archived" json:"archived"`
+	SourceExampleID            sql.NullString  `db:"source_example_id" json:"source_example_id"`
+	HasExternalAgent           sql.NullBool    `db:"has_external_agent" json:"has_external_agent"`
+	ScriptOrderDataSourceCount int32           `db:"script_order_data_source_count" json:"script_order_data_source_count"`
+	ScriptOrderRuleCount       int32           `db:"script_order_rule_count" json:"script_order_rule_count"`
+	CreatedByAvatarURL         string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
+	CreatedByUsername          string          `db:"created_by_username" json:"created_by_username"`
+	CreatedByName              string          `db:"created_by_name" json:"created_by_name"`
 }
 
 type TemplateVersionParameter struct {
@@ -6457,6 +6493,10 @@ type TemplateVersionTable struct {
 	Archived         bool           `db:"archived" json:"archived"`
 	SourceExampleID  sql.NullString `db:"source_example_id" json:"source_example_id"`
 	HasExternalAgent sql.NullBool   `db:"has_external_agent" json:"has_external_agent"`
+	// Number of coder_script_order data source declarations in the template configuration.
+	ScriptOrderDataSourceCount int32 `db:"script_order_data_source_count" json:"script_order_data_source_count"`
+	// Number of rule blocks across coder_script_order declarations in the template configuration.
+	ScriptOrderRuleCount int32 `db:"script_order_rule_count" json:"script_order_rule_count"`
 }
 
 type TemplateVersionTerraformValue struct {

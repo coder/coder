@@ -13,7 +13,9 @@ Each turn of a conversation follows the same loop:
 1. You send a message.
 2. The model decides whether it needs a tool and calls it with structured arguments.
    For example, `list_templates` with `{"query": "docker"}`.
-3. Coder executes the tool in the control plane using your identity and permissions, and returns a JSON result to the model.
+3. Coder executes the tool in the control plane and returns a JSON result to the model.
+
+   The tool runs with your identity and permissions.
 4. The model uses the result to decide what to do next: call another tool or reply to you.
 
 Tool calls and their results are visible in the chat timeline, so you can always inspect what the agent did and why.
@@ -91,7 +93,8 @@ affinity = 10 x (active + 0.5 x deleted) x 0.5^(days_since_last_use / 14)
 - `active_developers`: developers in the organization with an active workspace on the template, excluding unclaimed prebuilt workspaces.
 
 Personal usage carries ten times the weight of organization popularity, and popularity grows logarithmically so heavily used templates do not drown out your own history.
-Each template is scored independently from its own signals; one template's usage never affects another's score.
+Each template is scored independently from its own signals.
+One template's usage never affects another's score.
 The score is internal and only determines ordering and the recommendation.
 The response carries the raw evidence instead: `active_developers`, `your_workspace_count`, and `last_used_by_you` appear on each template when they are non-zero.
 

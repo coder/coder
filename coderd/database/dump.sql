@@ -650,7 +650,8 @@ CREATE TYPE resource_type AS ENUM (
     'chat_project_memory',
     'chat_organization_system_prompt',
     'chat_project_instructions',
-    'organization_skill'
+    'organization_skill',
+    'chat_project_skill'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -689,7 +690,8 @@ CREATE TYPE workspace_agent_context_body_kind AS ENUM (
     'plugin',
     'hook',
     'subagent',
-    'command'
+    'command',
+    'acp_harness'
 );
 
 CREATE TYPE workspace_agent_context_resource_status AS ENUM (
@@ -729,10 +731,12 @@ CREATE TYPE workspace_agent_script_timing_status AS ENUM (
     'ok',
     'exit_failure',
     'timed_out',
-    'pipes_left_open'
+    'pipes_left_open',
+    'skipped',
+    'canceled'
 );
 
-COMMENT ON TYPE workspace_agent_script_timing_status IS 'What the exit status of the script is.';
+COMMENT ON TYPE workspace_agent_script_timing_status IS 'The terminal outcome of a script execution.';
 
 CREATE TYPE workspace_agent_subsystem AS ENUM (
     'envbuilder',
@@ -962,6 +966,21 @@ END;
 $$;
 
 COMMENT ON FUNCTION compute_notification_message_dedupe_hash() IS 'Computes a unique hash which will be used to prevent duplicate messages from being enqueued on the same day';
+
+CREATE FUNCTION delete_chat_project_user_acl_on_org_member_delete() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    -- Drop the departing member's direct grants so adding them back to the
+    -- organization does not silently restore access.
+    UPDATE chat_projects
+    SET
+        user_acl = user_acl - OLD.user_id::text,
+        updated_at = now()
+    WHERE organization_id = OLD.organization_id AND user_acl ? OLD.user_id::text;
+    RETURN OLD;
+END;
+$$;
 
 CREATE FUNCTION delete_deleted_oauth2_provider_app_token_api_key() RETURNS trigger
     LANGUAGE plpgsql
@@ -1691,6 +1710,29 @@ CREATE TABLE ai_gateway_keys (
 COMMENT ON TABLE ai_gateway_keys IS 'Hashed bearer secrets used by AI Gateway standalone replicas to authenticate into coderd.';
 
 COMMENT ON COLUMN ai_gateway_keys.secret_prefix IS 'Public token prefix for display and audit correlation. Auth uses hashed_secret.';
+
+CREATE TABLE ai_model_configs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    organization_id uuid NOT NULL,
+    provider_id uuid NOT NULL,
+    model text NOT NULL,
+    input_price bigint,
+    output_price bigint,
+    cache_read_price bigint,
+    cache_write_price bigint,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
+    CONSTRAINT ai_model_configs_cache_read_price_check CHECK ((cache_read_price >= 0)),
+    CONSTRAINT ai_model_configs_cache_write_price_check CHECK ((cache_write_price >= 0)),
+    CONSTRAINT ai_model_configs_input_price_check CHECK ((input_price >= 0)),
+    CONSTRAINT ai_model_configs_model_check CHECK ((model <> ''::text)),
+    CONSTRAINT ai_model_configs_output_price_check CHECK ((output_price >= 0))
+);
+
+COMMENT ON TABLE ai_model_configs IS 'AI Governance configuration for one model on one configured AI provider within one organization. The token prices override site-wide prices in ai_model_prices.';
+
+COMMENT ON COLUMN ai_model_configs.deleted IS 'Soft delete flag. Soft-deleted rows are kept for history and do not block a new live row for the same model.';
 
 CREATE TABLE ai_model_prices (
     provider text NOT NULL,
@@ -2587,6 +2629,8 @@ CREATE TABLE connection_logs (
     disconnect_time timestamp with time zone,
     disconnect_reason text,
     client_session_id text,
+    rx_bytes bigint,
+    tx_bytes bigint,
     CONSTRAINT connection_logs_client_session_id_check CHECK (((client_session_id IS NULL) OR (client_session_id ~ '^[0-9a-f]{32}$'::text)))
 );
 
@@ -2607,6 +2651,10 @@ COMMENT ON COLUMN connection_logs.disconnect_time IS 'The time the connection wa
 COMMENT ON COLUMN connection_logs.disconnect_reason IS 'The reason the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.';
 
 COMMENT ON COLUMN connection_logs.client_session_id IS 'Tracks all connections over the lifetime of a single client (IDE or ssh) session. As it originates from the client, it is not guaranteed to be unique.';
+
+COMMENT ON COLUMN connection_logs.rx_bytes IS 'Total bytes received by the agent on this connection. Null for web events and non-disconnect events.';
+
+COMMENT ON COLUMN connection_logs.tx_bytes IS 'Total bytes sent by the agent on this connection. Null for web events and non-disconnect events.';
 
 CREATE TABLE crypto_keys (
     feature crypto_key_feature NOT NULL,
@@ -3262,7 +3310,10 @@ CREATE TABLE skills (
     enabled boolean DEFAULT true NOT NULL,
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    action boolean DEFAULT false NOT NULL,
+    model_invocable boolean DEFAULT true NOT NULL,
     CONSTRAINT skills_acl_only_on_organization_skills CHECK (((organization_id IS NOT NULL) OR ((group_acl = '{}'::jsonb) AND (user_acl = '{}'::jsonb)))),
+    CONSTRAINT skills_action_project_only CHECK (((NOT action) OR (project_id IS NOT NULL))),
     CONSTRAINT skills_content_size CHECK ((octet_length(content) <= 65536)),
     CONSTRAINT skills_description_size CHECK ((octet_length(description) <= 4096)),
     CONSTRAINT skills_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
@@ -3304,7 +3355,7 @@ CREATE TABLE telemetry_items (
 CREATE TABLE telemetry_locks (
     event_type text NOT NULL,
     period_ending_at timestamp with time zone NOT NULL,
-    CONSTRAINT telemetry_lock_event_type_constraint CHECK ((event_type = ANY (ARRAY['aibridge_interceptions_summary'::text, 'boundary_usage_summary'::text, 'user_secrets_summary'::text])))
+    CONSTRAINT telemetry_lock_event_type_constraint CHECK ((event_type = ANY (ARRAY['aibridge_interceptions_summary'::text, 'boundary_usage_summary'::text, 'user_secrets_summary'::text, 'script_order_summary'::text])))
 );
 
 COMMENT ON TABLE telemetry_locks IS 'Telemetry lock tracking table for deduplication of heartbeat events across replicas.';
@@ -3491,12 +3542,20 @@ CREATE TABLE template_versions (
     message character varying(1048576) DEFAULT ''::character varying NOT NULL,
     archived boolean DEFAULT false NOT NULL,
     source_example_id text,
-    has_external_agent boolean
+    has_external_agent boolean,
+    script_order_data_source_count integer DEFAULT 0 NOT NULL,
+    script_order_rule_count integer DEFAULT 0 NOT NULL,
+    CONSTRAINT template_versions_script_order_data_source_count_check CHECK ((script_order_data_source_count >= 0)),
+    CONSTRAINT template_versions_script_order_rule_count_check CHECK ((script_order_rule_count >= 0))
 );
 
 COMMENT ON COLUMN template_versions.external_auth_providers IS 'IDs of External auth providers for a specific template version';
 
 COMMENT ON COLUMN template_versions.message IS 'Message describing the changes in this version of the template, similar to a Git commit message. Like a commit message, this should be a short, high-level description of the changes in this version of the template. This message is immutable and should not be updated after the fact.';
+
+COMMENT ON COLUMN template_versions.script_order_data_source_count IS 'Number of coder_script_order data source declarations in the template configuration.';
+
+COMMENT ON COLUMN template_versions.script_order_rule_count IS 'Number of rule blocks across coder_script_order declarations in the template configuration.';
 
 CREATE VIEW template_version_with_user AS
  SELECT template_versions.id,
@@ -3513,6 +3572,8 @@ CREATE VIEW template_version_with_user AS
     template_versions.archived,
     template_versions.source_example_id,
     template_versions.has_external_agent,
+    template_versions.script_order_data_source_count,
+    template_versions.script_order_rule_count,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
     COALESCE(visible_users.name, ''::text) AS created_by_name
@@ -4503,6 +4564,9 @@ ALTER TABLE ONLY workspace_agent_stats
 ALTER TABLE ONLY ai_gateway_keys
     ADD CONSTRAINT ai_gateway_keys_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY ai_model_configs
+    ADD CONSTRAINT ai_model_configs_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY ai_model_prices
     ADD CONSTRAINT ai_model_prices_pkey PRIMARY KEY (provider, model, source);
 
@@ -4956,6 +5020,8 @@ CREATE UNIQUE INDEX ai_gateway_keys_name_idx ON ai_gateway_keys USING btree (low
 
 CREATE UNIQUE INDEX ai_gateway_keys_secret_prefix_idx ON ai_gateway_keys USING btree (secret_prefix);
 
+CREATE UNIQUE INDEX ai_model_configs_organization_provider_model_unique ON ai_model_configs USING btree (organization_id, provider_id, model) WHERE (deleted = false);
+
 CREATE UNIQUE INDEX ai_providers_name_unique ON ai_providers USING btree (name) WHERE (deleted = false);
 
 CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
@@ -4967,6 +5033,8 @@ CREATE INDEX chat_heartbeats_heartbeat_at_idx ON chat_heartbeats USING btree (he
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
+
+CREATE INDEX idx_ai_model_configs_provider_id ON ai_model_configs USING btree (provider_id);
 
 CREATE INDEX idx_ai_provider_keys_provider_id ON ai_provider_keys USING btree (provider_id);
 
@@ -5036,8 +5104,6 @@ CREATE INDEX idx_chat_debug_runs_chat_started ON chat_debug_runs USING btree (ch
 
 CREATE UNIQUE INDEX idx_chat_debug_runs_id_chat ON chat_debug_runs USING btree (id, chat_id);
 
-CREATE INDEX idx_chat_debug_runs_stale ON chat_debug_runs USING btree (updated_at) WHERE (finished_at IS NULL);
-
 CREATE INDEX idx_chat_debug_runs_updated_at ON chat_debug_runs USING btree (updated_at);
 
 CREATE INDEX idx_chat_debug_steps_chat_assistant_msg ON chat_debug_steps USING btree (chat_id, assistant_message_id) WHERE (assistant_message_id IS NOT NULL);
@@ -5045,8 +5111,6 @@ CREATE INDEX idx_chat_debug_steps_chat_assistant_msg ON chat_debug_steps USING b
 CREATE INDEX idx_chat_debug_steps_chat_tip ON chat_debug_steps USING btree (chat_id, history_tip_message_id);
 
 CREATE UNIQUE INDEX idx_chat_debug_steps_run_step ON chat_debug_steps USING btree (run_id, step_number);
-
-CREATE INDEX idx_chat_debug_steps_stale ON chat_debug_steps USING btree (updated_at) WHERE (finished_at IS NULL);
 
 CREATE INDEX idx_chat_diff_statuses_pr_title_fts ON chat_diff_statuses USING gin (to_tsvector('simple'::regconfig, pull_request_title));
 
@@ -5370,6 +5434,8 @@ CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_insert AFTER IN
 
 CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_update AFTER UPDATE OF content, model_config_id, "position", created_by ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
 
+CREATE TRIGGER trigger_delete_chat_project_user_acl_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_chat_project_user_acl_on_org_member_delete();
+
 CREATE TRIGGER trigger_delete_group_members_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_group_members_on_org_member_delete();
 
 CREATE TRIGGER trigger_delete_oauth2_provider_app_token AFTER DELETE ON oauth2_provider_app_tokens FOR EACH ROW EXECUTE FUNCTION delete_deleted_oauth2_provider_app_token_api_key();
@@ -5421,6 +5487,12 @@ CREATE TRIGGER workspace_agent_name_unique_trigger BEFORE INSERT OR UPDATE OF na
 COMMENT ON TRIGGER workspace_agent_name_unique_trigger ON workspace_agents IS 'Use a trigger instead of a unique constraint because existing data may violate
 the uniqueness requirement. A trigger allows us to enforce uniqueness going
 forward without requiring a migration to clean up historical data.';
+
+ALTER TABLE ONLY ai_model_configs
+    ADD CONSTRAINT ai_model_configs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY ai_model_configs
+    ADD CONSTRAINT ai_model_configs_provider_id_fkey FOREIGN KEY (provider_id) REFERENCES ai_providers(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY ai_provider_keys
     ADD CONSTRAINT ai_provider_keys_api_key_key_id_fkey FOREIGN KEY (api_key_key_id) REFERENCES dbcrypt_keys(active_key_digest);

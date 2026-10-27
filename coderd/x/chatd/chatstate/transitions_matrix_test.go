@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
@@ -105,6 +106,19 @@ func applySetArchived(t *testing.T, _ *testFixture, tx *chatstate.Tx, _ seededCh
 		archived = false
 	}
 	_, err := tx.SetArchived(chatstate.SetArchivedInput{Archived: archived})
+	return err
+}
+
+func applySetProject(t *testing.T, f *testFixture, tx *chatstate.Tx, _ seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
+	t.Helper()
+	project := dbgen.ChatProject(t, f.DB, database.ChatProject{
+		OrganizationID: f.Org.ID,
+		OwnerID:        f.User.ID,
+	})
+	var err error
+	result.setProject, err = tx.SetProject(chatstate.SetProjectInput{
+		ProjectID: uuid.NullUUID{UUID: project.ID, Valid: true},
+	})
 	return err
 }
 
@@ -334,6 +348,8 @@ func defaultApplier(tr chatstate.Transition) applierFn {
 	switch tr {
 	case chatstate.TransitionSetArchived:
 		return applySetArchived
+	case chatstate.TransitionSetProject:
+		return applySetProject
 	case chatstate.TransitionSendMessage:
 		return applySendMessageQueue
 	case chatstate.TransitionEditMessage:
@@ -391,6 +407,7 @@ func mustMarshalParts(t *testing.T, parts []codersdk.ChatMessagePart) pqtype.Nul
 // AllowedExecutionTransitionsFrom and AllowedExecutionTransitionOutputs.
 
 type transitionCaseResult struct {
+	setProject              chatstate.SetProjectResult
 	sendMessage             chatstate.SendMessageResult
 	editMessage             chatstate.EditMessageResult
 	requestCompaction       chatstate.RequestCompactionResult
@@ -797,6 +814,12 @@ func matrixCases() []transitionCaseSpec {
 		setArchivedCase(chatstate.StateXE0, chatstate.StateE0, database.ChatStatusError),
 		setArchivedCase(chatstate.StateXE1, chatstate.StateE1, database.ChatStatusError),
 
+		// SetProject cases: only idle states move, the state and the
+		// queue stay as they were, and only project_id changes.
+		setProjectCase(chatstate.StateW, database.ChatStatusWaiting),
+		setProjectCase(chatstate.StateE0, database.ChatStatusError),
+		setProjectCase(chatstate.StateE1, database.ChatStatusError),
+
 		// SendMessage(queue) cases: idle states insert directly,
 		// busy states append to the queue tail.
 		sendMessageQueueCase(chatstate.StateW, chatstate.StateR0, true, 0),
@@ -967,6 +990,32 @@ func setArchivedCase(from, want chatstate.ExecutionState, wantStatus database.Ch
 				"SetArchived does not mutate queued messages")
 			require.Equal(t, base.queueIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID),
 				"SetArchived leaves queued messages unchanged")
+		},
+	}
+}
+
+func setProjectCase(from chatstate.ExecutionState, wantStatus database.ChatStatus) transitionCaseSpec {
+	return transitionCaseSpec{
+		transition: chatstate.TransitionSetProject,
+		from:       from,
+		want:       from,
+		apply:      applySetProject,
+		assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
+			after, err := f.DB.GetChatByID(ctx, seeded.chatID)
+			require.NoError(t, err)
+			require.True(t, after.ProjectID.Valid, "SetProject must set project_id")
+			require.Equal(t, result.setProject.Chat.ProjectID, after.ProjectID,
+				"SetProject returns the stored project_id")
+			require.Equal(t, wantStatus, after.Status,
+				"SetProject preserves chat status")
+			require.Equal(t, base.chat.LastError, after.LastError,
+				"SetProject preserves last_error")
+			require.Equal(t, base.historyVersion, after.HistoryVersion,
+				"SetProject does not insert history")
+			require.Equal(t, base.queueVersion, after.QueueVersion,
+				"SetProject does not mutate queued messages")
+			require.Equal(t, base.queueIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID),
+				"SetProject leaves queued messages unchanged")
 		},
 	}
 }
@@ -1629,7 +1678,7 @@ func completeRequiresActionCase(from, want chatstate.ExecutionState) transitionC
 }
 
 func cancelRequiresActionCase(from, want chatstate.ExecutionState) transitionCaseSpec {
-	return transitionCaseSpec{
+	spec := transitionCaseSpec{
 		transition: chatstate.TransitionCancelRequiresAction,
 		from:       from,
 		want:       want,
@@ -1644,14 +1693,20 @@ func cancelRequiresActionCase(from, want chatstate.ExecutionState) transitionCas
 			require.Equal(t, base.queueIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID),
 				"CancelRequiresAction preserves queued messages")
 
-			// One synthetic tool-result cancellation per pending call.
+			// One synthetic tool-result cancellation per pending dynamic call.
 			require.Len(t, result.cancelRequiresAction.CancellationMessages, 1,
-				"CancelRequiresAction synthesizes one tool-result per pending call")
+				"CancelRequiresAction synthesizes one tool-result per pending dynamic call")
 			cancel := requireChatMessageByID(ctx, t, f,
 				result.cancelRequiresAction.CancellationMessages[0].ID)
 			assertToolResultForCall(t, cancel, seeded.pendingToolCallID)
 		},
 	}
+	if from == chatstate.StateA1 {
+		spec.seed = func(t *testing.T, f *testFixture, _ chatstate.ExecutionState) seededChat {
+			return seedA1WithMixedOutstandingToolCalls(t, f, 1, "seed_tool_a1_cancel")
+		}
+	}
+	return spec
 }
 
 func recordGenerationAttemptCase(from chatstate.ExecutionState) transitionCaseSpec {

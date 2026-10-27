@@ -18,7 +18,7 @@ Our install script is the fastest way to install Coder on Linux/macOS:
 curl -fsSL https://coder.com/install.sh | sh
 ```
 
-Refer to [GitHub releases](https://github.com/coder/coder/releases) for alternate installation methods (e.g. standalone binaries, system packages).
+Refer to [GitHub releases](https://github.com/coder/coder/releases) for alternate installation methods (for example, standalone binaries, system packages).
 
 To run the Coder control plane on a Red Hat Enterprise Linux host or another RHEL-family distribution, refer to [Install Coder on RHEL-family Linux](./server/rpm.md).
 

@@ -70,11 +70,11 @@ runs:
           echo "GOTMPDIR=${GOTMPDIR}" >> "${GITHUB_ENV}"
         fi
         mkdir -p "${GOTMPDIR}"
-        sudo mount -t tmpfs -o size=8g tmpfs "${GOTMPDIR}"
+        sudo mount -t tmpfs -o size=16g tmpfs "${GOTMPDIR}"
 
     - name: Download Go modules
       shell: bash
-      run: ./.github/scripts/retry.sh -- go mod download
+      run: ./.github/scripts/retry.sh --timeout 120 -- go mod download
 
     - name: Start PostgreSQL Docker container (Linux)
       if: runner.os == 'Linux'

@@ -21,16 +21,44 @@ import (
 func TestResolveProjectMemory(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Project", func(t *testing.T) {
+	t.Run("ProjectOwner", func(t *testing.T) {
 		t.Parallel()
 		db := dbmock.NewMockStore(gomock.NewController(t))
 		projectID := uuid.New()
-		db.EXPECT().GetChatProjectByID(gomock.Any(), projectID).Return(database.ChatProject{Name: "platform"}, nil)
+		ownerID := uuid.New()
+		db.EXPECT().GetChatProjectByID(gomock.Any(), projectID).Return(database.ChatProject{ID: projectID, OwnerID: ownerID, Name: "platform"}, nil)
 		server := &Server{db: db, logger: slogtest.Make(t, nil), experiments: codersdk.ExperimentsKnown}
-		store, projectName, ok := server.resolveProjectMemory(t.Context(), database.Chat{ID: uuid.New(), ProjectID: uuid.NullUUID{UUID: projectID, Valid: true}})
+		store, projectName, ok := server.resolveProjectMemory(t.Context(), database.Chat{ID: uuid.New(), OwnerID: ownerID, ProjectID: uuid.NullUUID{UUID: projectID, Valid: true}})
 		require.True(t, ok)
 		require.NotNil(t, store)
 		require.Equal(t, "platform", projectName)
+	})
+
+	t.Run("SharedWithChatOwner", func(t *testing.T) {
+		t.Parallel()
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		project := database.ChatProject{ID: uuid.New(), OwnerID: uuid.New(), Name: "platform"}
+		chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New(), ProjectID: uuid.NullUUID{UUID: project.ID, Valid: true}}
+		db.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil)
+		db.EXPECT().IsChatProjectUsableByUserID(gomock.Any(), database.IsChatProjectUsableByUserIDParams{
+			ProjectID: project.ID,
+			UserID:    chat.OwnerID,
+		}).Return(true, nil)
+		server := &Server{db: db, logger: slogtest.Make(t, nil), experiments: codersdk.ExperimentsKnown}
+		_, _, ok := server.resolveProjectMemory(t.Context(), chat)
+		require.True(t, ok)
+	})
+
+	t.Run("RevokedFromChatOwner", func(t *testing.T) {
+		t.Parallel()
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		project := database.ChatProject{ID: uuid.New(), OwnerID: uuid.New(), Name: "platform"}
+		chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New(), ProjectID: uuid.NullUUID{UUID: project.ID, Valid: true}}
+		db.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil)
+		db.EXPECT().IsChatProjectUsableByUserID(gomock.Any(), gomock.Any()).Return(false, nil)
+		server := &Server{db: db, logger: slogtest.Make(t, nil), experiments: codersdk.ExperimentsKnown}
+		_, _, ok := server.resolveProjectMemory(t.Context(), chat)
+		require.False(t, ok)
 	})
 
 	t.Run("OutsideProject", func(t *testing.T) {
@@ -68,6 +96,17 @@ func TestResolveProjectMemory(t *testing.T) {
 		db.EXPECT().GetChatProjectByID(gomock.Any(), projectID).Return(database.ChatProject{}, xerrors.New("connection reset"))
 		server := &Server{db: db, logger: slogtest.Make(t, nil), experiments: codersdk.ExperimentsKnown}
 		_, _, ok := server.resolveProjectMemory(t.Context(), database.Chat{ID: uuid.New(), ProjectID: uuid.NullUUID{UUID: projectID, Valid: true}})
+		require.False(t, ok)
+	})
+
+	t.Run("AccessCheckFailure", func(t *testing.T) {
+		t.Parallel()
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		project := database.ChatProject{ID: uuid.New(), OwnerID: uuid.New(), Name: "platform"}
+		db.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil)
+		db.EXPECT().IsChatProjectUsableByUserID(gomock.Any(), gomock.Any()).Return(false, xerrors.New("connection reset"))
+		server := &Server{db: db, logger: slogtest.Make(t, nil), experiments: codersdk.ExperimentsKnown}
+		_, _, ok := server.resolveProjectMemory(t.Context(), database.Chat{ID: uuid.New(), OwnerID: uuid.New(), ProjectID: uuid.NullUUID{UUID: project.ID, Valid: true}})
 		require.False(t, ok)
 	})
 }
@@ -140,7 +179,7 @@ func TestMemoryIndexMessage(t *testing.T) {
 		db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chat.ID).Return(append([]database.ChatMessage{prompt}, history...), nil)
 		db.EXPECT().GetChatProjectMemoriesByProjectID(gomock.Any(), projectID).Return(memories, nil).AnyTimes()
 		server := &Server{db: db, logger: slogtest.Make(t, nil), experiments: codersdk.ExperimentsKnown}
-		message, ok, err := server.memoryIndexMessage(t.Context(), chat)
+		message, ok, err := server.memoryIndexMessage(t.Context(), chat, nil)
 		require.NoError(t, err)
 		if !ok {
 			return "", false

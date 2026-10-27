@@ -34,6 +34,8 @@ const (
 	SourcePersonal Source = "personal"
 	// SourceOrganization identifies an organization-owned, DB-backed skill.
 	SourceOrganization Source = "org"
+	// SourceProject identifies a chat-project-owned, DB-backed skill.
+	SourceProject Source = "project"
 	// SourceWorkspace identifies a filesystem-discovered workspace skill.
 	SourceWorkspace Source = "workspace"
 )
@@ -142,19 +144,24 @@ func ParsePersonalSkillMarkdown(raw []byte) (ParsedSkill, error) {
 	}, nil
 }
 
-// MergeSkills combines personal, organization, and workspace skills into a
-// deterministic list with aliases for chat tool display and lookup. Skills are
-// sorted by name, then by source in that order. A name found in more than one
-// source gets a qualified alias in every source that has it, so no source
-// overrides another; a name found in one source keeps its bare alias. Skill
-// names must already be valid kebab-case names because qualified aliases use /
-// as a separator. If a source contains duplicate names, the first skill for
-// that source wins.
-func MergeSkills(personalSkills, organizationSkills, workspaceSkills []Skill) []ResolvedSkill {
-	sources := []map[string]Skill{
-		skillsByName(personalSkills, SourcePersonal),
-		skillsByName(organizationSkills, SourceOrganization),
-		skillsByName(workspaceSkills, SourceWorkspace),
+// SourceSkills holds the skills found in one source.
+type SourceSkills struct {
+	Source Source
+	Skills []Skill
+}
+
+// MergeSkills combines skills from several sources into a deterministic list
+// with aliases for chat tool display and lookup. Skills are sorted by name,
+// then by the order of sources as passed. A name found in more than one source
+// gets a qualified alias in every source that has it, so no source overrides
+// another; a name found in one source keeps its bare alias. Skill names must
+// already be valid kebab-case names because qualified aliases use / as a
+// separator. If a source contains duplicate names, the first skill for that
+// source wins.
+func MergeSkills(sourceSkills ...SourceSkills) []ResolvedSkill {
+	sources := make([]map[string]Skill, 0, len(sourceSkills))
+	for _, source := range sourceSkills {
+		sources = append(sources, skillsByName(source.Skills, source.Source))
 	}
 
 	names := make(map[string]struct{})

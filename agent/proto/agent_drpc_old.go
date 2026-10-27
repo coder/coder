@@ -123,3 +123,9 @@ type DRPCAgentClient213 interface {
 type DRPCAgentClient214 interface {
 	DRPCAgentClient213
 }
+
+// DRPCAgentClient215 is the Agent API at v2.15. It adds SKIPPED and CANCELED
+// to Timing.Status. No new RPCs.
+type DRPCAgentClient215 interface {
+	DRPCAgentClient214
+}

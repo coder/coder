@@ -28,6 +28,7 @@ import {
 	useWorkspaceFileUploads,
 	type WorkspaceFileUpload,
 } from "../hooks/useWorkspaceFileUploads";
+import type { ChatComposerContentPart } from "../utils/chatInputContent";
 import { parseStoredDraft } from "../utils/draftStorage";
 import {
 	getDefaultMCPSelection,
@@ -48,7 +49,7 @@ import {
 	pickReasoningEffort,
 	saveReasoningEffortForModel,
 } from "../utils/reasoningEffort";
-import { AgentChatInput } from "./AgentChatInput";
+import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
 import { ChatAccessDeniedAlert } from "./ChatAccessDeniedAlert";
 import {
 	isChatHookDeniedResponse,
@@ -77,6 +78,8 @@ const attachDuringSubmitMessage =
 
 export type CreateChatOptions = {
 	message: string;
+	/** Composer text and chips in document order. */
+	composerParts?: readonly ChatComposerContentPart[];
 	fileIDs?: string[];
 	workspaceId?: string;
 	model?: string;
@@ -438,8 +441,8 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 		setSelectedOrg(effectiveOrg);
 	}
 	// The project picker only exists on the general composer; a `project` prop
-	// already fixes the project. The selection is not saved: a chat cannot move
-	// into another project later, so a remembered choice could misfile chats.
+	// already fixes the project. The selection is not saved, so a remembered
+	// choice cannot silently file later chats into a project.
 	const isProjectPickerEnabled =
 		!project && experiments.includes("chat-projects");
 	const projectsQuery = useQuery({
@@ -465,6 +468,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 						(chatProject) => chatProject.id === pickedProject.id,
 					) ?? null)
 			: null;
+	const chatProjectId = project?.id ?? selectedProject?.id;
 	const createProjectMutation = useMutation(createChatProject(queryClient));
 	const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
 	const openCreateProjectDialog = () => {
@@ -749,6 +753,18 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 			(agent) => !agent.parent_id && agent.status === "connected",
 		);
 
+	const chatInputRef = useRef<ChatMessageInputRef>(null);
+	// The editor lives outside React state, so drop chips whose scope changed.
+	const lastChipScopeRef = useRef({ organizationId, chatProjectId });
+	useEffect(() => {
+		const last = lastChipScopeRef.current;
+		lastChipScopeRef.current = { organizationId, chatProjectId };
+		if (last.organizationId && last.organizationId !== organizationId) {
+			chatInputRef.current?.removeSkills(["org", "project"]);
+		} else if (!chatProjectId || last.chatProjectId !== chatProjectId) {
+			chatInputRef.current?.removeSkills(["project"]);
+		}
+	}, [organizationId, chatProjectId]);
 	const handleSend = async (
 		message: string,
 		fileIDs?: string[],
@@ -757,12 +773,13 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 		submitDraft();
 		await onCreateChat({
 			message,
+			composerParts: chatInputRef.current?.getContentParts(),
 			fileIDs,
 			workspaceId: effectiveWorkspaceId ?? undefined,
 			model: submittedModel,
 			reasoningEffort: effectiveReasoningEffort,
 			organizationId,
-			projectId: project?.id ?? selectedProject?.id,
+			projectId: chatProjectId,
 			mcpServerIds:
 				effectiveMCPServerIds.length > 0
 					? [...effectiveMCPServerIds]
@@ -1023,6 +1040,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 				<AgentChatInput
 					fillWidth={fillWidth}
 					onSend={handleSendWithAttachments}
+					inputRef={chatInputRef}
 					placeholder="Ask Coder to build, fix bugs, or explore your project..."
 					isDisabled={
 						isSubmitPending ||
@@ -1076,6 +1094,8 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 					}}
 					mcpServers={mcpServers}
 					chatOrganizationId={organizationId}
+					chatProjectId={chatProjectId}
+					showProjectActions={project !== undefined}
 					selectedMCPServerIds={effectiveMCPServerIds}
 					onMCPSelectionChange={(ids) => {
 						setUserMCPServerIds(ids);
