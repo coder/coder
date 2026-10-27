@@ -145,8 +145,8 @@ func (f *streamRelayForwarder) loop() {
 			return
 		}
 		if session != nil && connected.workerID.Valid && sameNullUUID(connected.workerID, target.workerID) {
-			// Configure repeats the target after every snapshot, and each
-			// selection makes the endpoint resend the episode from seq 1.
+			// Sync repeats the target after every snapshot; a selection resends from seq 1.
+			// The skip relies on the part buffer keeping open-episode subscribers.
 			if connected.sameEpisode(target) {
 				return
 			}
