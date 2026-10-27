@@ -11,8 +11,10 @@ import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
 import {
 	buildLiveStatus,
+	buildQuestionTimelineArgs,
 	MockAttachmentWorkingMessages,
 	MockCollapsedStepsPreferences,
+	MockEmptyQuestionState,
 	MockLeadInSearchMessages,
 	MockLongTurnPageLoads,
 	MockPageFromAttachedFileMessages,
@@ -51,6 +53,7 @@ const meta: Meta<typeof ConversationTimeline> = {
 		chatStatus: null,
 		hasMoreMessages: false,
 		parsedMessages: parseMessagesWithMergedTools(MockWorkingMessages),
+		askUserQuestionState: MockEmptyQuestionState,
 	},
 	decorators: [
 		(Story) => (
@@ -308,7 +311,7 @@ export const QuestionStaysVisible: Story = {
 	args: {
 		isChatCompleted: true,
 		onSendAskUserQuestionResponse: fn(),
-		parsedMessages: parseMessagesWithMergedTools([
+		...buildQuestionTimelineArgs([
 			...MockWorkingMessages.slice(0, 3),
 			MockQuestionCallMessage,
 			{

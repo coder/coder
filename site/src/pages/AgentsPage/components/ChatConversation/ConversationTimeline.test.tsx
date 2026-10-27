@@ -10,7 +10,6 @@ import { HttpResponse, http } from "msw";
 import { QueryClientProvider } from "react-query";
 import { defaultUrlTransform } from "streamdown";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { preferenceSettingsKey } from "#/api/queries/users";
 import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
 import {
 	MockChatAttachment,
@@ -19,20 +18,18 @@ import {
 import { createDeferred } from "#/testHelpers/deferred";
 import { MockPngBase64 } from "#/testHelpers/files";
 import {
-	createTestQueryClient,
+	createPreferenceSeededQueryClient,
 	renderComponent,
 } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { getAsyncAnswerPrefix } from "../ChatElements/tools/asyncAnswer";
 import { ConversationTimeline } from "./ConversationTimeline";
-import {
-	getPendingToolCallIDs,
-	parseMessagesWithMergedTools,
-} from "./messageParsing";
+import { getPendingToolCallIDs } from "./messageParsing";
 import {
 	attachmentStepMessages,
 	buildLiveStatus,
+	buildQuestionTimelineArgs,
 	buildStreamRenderState,
 	MockAsyncQuestionMessages,
 	MockAsyncQuestionResult,
@@ -62,12 +59,7 @@ type TimelineStage = {
 } & Partial<React.ComponentProps<typeof ConversationTimeline>>;
 
 function renderTimeline(initial: TimelineStage = {}) {
-	const queryClient = createTestQueryClient();
-	queryClient.setQueryDefaults(preferenceSettingsKey, {
-		staleTime: Number.POSITIVE_INFINITY,
-	});
-	queryClient.setQueryData(
-		preferenceSettingsKey,
+	const queryClient = createPreferenceSeededQueryClient(
 		MockCollapsedStepsPreferences,
 	);
 
@@ -90,9 +82,7 @@ function renderTimeline(initial: TimelineStage = {}) {
 								subagentStatusOverrides={new Map()}
 								subagentTitles={new Map()}
 								subagentVariants={new Map()}
-								parsedMessages={parseMessagesWithMergedTools(messages, {
-									pendingToolCallIDs,
-								})}
+								{...buildQuestionTimelineArgs(messages, { pendingToolCallIDs })}
 								chatStatus={null}
 								hasMoreMessages={false}
 								isChatCompleted

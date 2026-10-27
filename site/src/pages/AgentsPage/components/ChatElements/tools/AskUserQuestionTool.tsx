@@ -4,7 +4,8 @@ import {
 	MessageCircleQuestionIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { useMutation } from "react-query";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
@@ -40,7 +41,14 @@ type AskUserQuestionToolProps = {
 	previousResponseText?: string;
 	/** Set for async questions; their answer names this call. */
 	asyncToolCallId?: string;
+	isDocked?: boolean;
+	/**
+	 * False on the dock's copy, so screen readers hear the question once. The
+	 * card keeps it: its live region must exist before the result streams in.
+	 */
+	announcesQuestion?: boolean;
 	onSubmitAnswer?: (message: string) => Promise<void> | void;
+	onStepChange?: () => void;
 };
 
 const OTHER_OPTION_VALUE = "other";
@@ -263,6 +271,7 @@ type QuestionStepProps = {
 	answer: QuestionAnswer | undefined;
 	isInteractive: boolean;
 	isSubmitting: boolean;
+	questionTextRef: React.Ref<HTMLParagraphElement>;
 	onOptionChange: (value: string) => void;
 	onOtherTextChange: (text: string) => void;
 };
@@ -275,6 +284,7 @@ const QuestionStep: React.FC<QuestionStepProps> = ({
 	answer,
 	isInteractive,
 	isSubmitting,
+	questionTextRef,
 	onOptionChange,
 	onOtherTextChange,
 }) => {
@@ -298,7 +308,9 @@ const QuestionStep: React.FC<QuestionStepProps> = ({
 					className="mt-0.5 size-4 shrink-0"
 				/>
 				<p
+					ref={questionTextRef}
 					id={questionTextId}
+					tabIndex={-1}
 					className="m-0 min-w-0 flex-1 whitespace-pre-wrap text-[13px]"
 				>
 					<span className="sr-only" id={questionHeaderId}>
@@ -380,9 +392,13 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	isLatestAskUserQuestion = false,
 	previousResponseText,
 	asyncToolCallId,
+	isDocked = false,
+	announcesQuestion = true,
 	onSubmitAnswer,
+	onStepChange,
 }) => {
 	const idPrefix = useId();
+	const questionTextRef = useRef<HTMLParagraphElement>(null);
 	const isAsync = asyncToolCallId !== undefined;
 	const filteredQuestions = questions.map(filterQuestionOptions);
 	const [answers, setAnswers] = useState<Array<QuestionAnswer | undefined>>(
@@ -427,12 +443,13 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 		Math.max(filteredQuestions.length - 1, 0),
 	);
 	const currentAnswer = answers[activeQuestionIndex];
-	const isInteractive =
+	const isAnswerable =
 		(isAsync || isChatCompleted) &&
 		status === "completed" &&
 		isLatestAskUserQuestion &&
 		!hasSubmittedResponse &&
 		Boolean(onSubmitAnswer);
+	const isInteractive = isAnswerable && !isDocked;
 	const isClosed =
 		isAsync &&
 		status === "completed" &&
@@ -442,7 +459,8 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	const announcement = (
 		<span role="status" className="sr-only">
 			{isAsync &&
-				isInteractive &&
+				isAnswerable &&
+				announcesQuestion &&
 				"The agent asked a question. It keeps working while you answer."}
 		</span>
 	);
@@ -517,11 +535,20 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 		});
 	};
 
-	const handleBack = () => {
-		setCurrentQuestionIndex((currentIndex) => {
-			return Math.max(currentIndex - 1, 0);
+	// Focus moves to the new question, since Back or Next can end up out of
+	// view or disabled. flushSync renders that step first, and onStepChange
+	// runs last so that the focus cannot undo the scroll position it sets.
+	const changeQuestion = (getIndex: (currentIndex: number) => number) => {
+		flushSync(() => {
+			setCurrentQuestionIndex(getIndex);
 		});
 		resetSubmitState();
+		questionTextRef.current?.focus();
+		onStepChange?.();
+	};
+
+	const handleBack = () => {
+		changeQuestion((currentIndex) => Math.max(currentIndex - 1, 0));
 	};
 
 	const handleNext = () => {
@@ -529,10 +556,9 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 			return;
 		}
 
-		setCurrentQuestionIndex((currentIndex) => {
-			return Math.min(currentIndex + 1, filteredQuestions.length - 1);
-		});
-		resetSubmitState();
+		changeQuestion((currentIndex) =>
+			Math.min(currentIndex + 1, filteredQuestions.length - 1),
+		);
 	};
 
 	const handleSubmit = () => {
@@ -617,7 +643,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 			<div className="space-y-5">
 				{visibleQuestions.map(({ question, questionIndex }) => {
 					const questionKey = `${question.header}-${question.question}-${questionIndex}`;
-					if (showAnsweredState || isClosed) {
+					if (showAnsweredState || isClosed || isDocked) {
 						return (
 							<AnsweredQuestionText
 								key={questionKey}
@@ -638,6 +664,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 							answer={answers[questionIndex]}
 							isInteractive={isInteractive}
 							isSubmitting={isSubmitting}
+							questionTextRef={questionTextRef}
 							onOptionChange={(value) => {
 								handleOptionChange(questionIndex, question, value);
 							}}
@@ -666,6 +693,12 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 			{isClosed && (
 				<p className="mt-3 text-[13px] text-content-secondary">
 					This question is closed.
+				</p>
+			)}
+
+			{isDocked && (
+				<p className="mt-3 text-[13px] text-content-secondary">
+					Answer in the Open question panel above the chat input.
 				</p>
 			)}
 

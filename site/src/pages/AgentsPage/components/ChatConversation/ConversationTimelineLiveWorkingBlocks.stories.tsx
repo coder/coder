@@ -11,11 +11,13 @@ import {
 } from "./messageParsing";
 import {
 	buildLiveStatus,
+	buildQuestionTimelineArgs,
 	buildStreamRenderState,
 	MockAsyncQuestionMessages,
 	MockAsyncQuestionResult,
 	MockAttachedFileMessages,
 	MockCollapsedStepsPreferences,
+	MockEmptyQuestionState,
 	MockQuestionCallMessage,
 	MockTextBeforeSecondStepMessage,
 	MockWorkingMessages,
@@ -38,6 +40,7 @@ const meta: Meta<typeof ConversationTimeline> = {
 		subagentTitles: new Map(),
 		chatStatus: "running",
 		parsedMessages: parseMessagesWithMergedTools(MockWorkingMessages),
+		askUserQuestionState: MockEmptyQuestionState,
 	},
 	decorators: [
 		(Story) => (
@@ -217,7 +220,7 @@ export const RequiresActionCompletesBlock: Story = {
 	args: {
 		chatStatus: "requires_action",
 		onSendAskUserQuestionResponse: fn(),
-		parsedMessages: parseMessagesWithMergedTools(
+		...buildQuestionTimelineArgs(
 			[...MockWorkingMessages.slice(0, 3), MockQuestionCallMessage],
 			{ pendingToolCallIDs: new Set(["question"]) },
 		),
@@ -296,27 +299,31 @@ const MockLiveAsyncQuestionResult = {
 	],
 };
 
+const MockLiveQuestionStream = buildStreamRenderState([
+	{
+		type: "tool-call",
+		tool_call_id: "live-question",
+		tool_name: "ask_user_question",
+		args: {},
+		created_at: workingFixtureTime(7),
+	},
+	{
+		type: "tool-result",
+		tool_call_id: "live-question",
+		tool_name: "ask_user_question",
+		result: MockLiveAsyncQuestionResult,
+		created_at: workingFixtureTime(8),
+	},
+]);
+
 // A question still streaming supersedes the persisted one. It is not closed,
 // but its options stay disabled until its step persists.
 export const AsyncQuestionBeforeStepPersists: Story = {
 	args: {
 		onSendAskUserQuestionResponse: fn(),
-		parsedMessages: parseMessagesWithMergedTools(MockAsyncQuestionMessages),
-		...buildStreamRenderState([
-			{
-				type: "tool-call",
-				tool_call_id: "live-question",
-				tool_name: "ask_user_question",
-				args: {},
-				created_at: workingFixtureTime(7),
-			},
-			{
-				type: "tool-result",
-				tool_call_id: "live-question",
-				tool_name: "ask_user_question",
-				result: MockLiveAsyncQuestionResult,
-				created_at: workingFixtureTime(8),
-			},
-		]),
+		...MockLiveQuestionStream,
+		...buildQuestionTimelineArgs(MockAsyncQuestionMessages, {
+			liveTools: MockLiveQuestionStream.streamTools,
+		}),
 	},
 };

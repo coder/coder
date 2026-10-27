@@ -143,6 +143,7 @@ describe("deriveAskUserQuestionState", () => {
 		expect(state.latestTool?.id).toBe("async-call");
 		expect(state.isLatestAnswered).toBe(false);
 		expect(responseTo(state, "async-call")).toBeUndefined();
+		expect(state.openAsyncQuestion?.id).toBe("async-call");
 	});
 
 	it("answers an async question with the message that names its call", () => {
@@ -154,6 +155,7 @@ describe("deriveAskUserQuestionState", () => {
 
 		expect(state.isLatestAnswered).toBe(true);
 		expect(responseTo(state, "async-call")).toBe(answerMessage("async-call"));
+		expect(state.openAsyncQuestion).toBeUndefined();
 	});
 
 	it("answers an async question when a chip follows the prefix line", () => {
@@ -245,6 +247,16 @@ describe("deriveAskUserQuestionState", () => {
 
 		expect(state.isLatestAnswered).toBe(false);
 		expect(responseTo(state, "async-call")).toBe(answerMessage("async-call"));
+		expect(state.openAsyncQuestion?.id).toBe("async-call");
+	});
+
+	it("leaves no async question open once a newer blocking one asks", () => {
+		const state = derive([
+			...questionStep("async-call", { async: true }),
+			...questionStep("blocking-call"),
+		]);
+
+		expect(state.openAsyncQuestion).toBeUndefined();
 	});
 
 	it.each(reusingCalls)(

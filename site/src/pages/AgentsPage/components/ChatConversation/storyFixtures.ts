@@ -1,11 +1,17 @@
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChatMessage } from "#/testHelpers/chatEntities";
+import {
+	MockChatMessage,
+	MockChatQueuedMessage,
+} from "#/testHelpers/chatEntities";
 import { MockUserPreferenceSettings } from "#/testHelpers/entities";
+import { getAsyncAnswerPrefix } from "../ChatElements/tools/asyncAnswer";
+import { deriveAskUserQuestionState } from "./askUserQuestionState";
 import {
 	type DeriveLiveStatusParams,
 	deriveLiveStatus,
 	type LiveStatusModel,
 } from "./liveStatusModel";
+import { parseMessagesWithMergedTools } from "./messageParsing";
 import { applyMessagePartToStreamState, buildStreamTools } from "./streamState";
 import type {
 	MergedTool,
@@ -95,6 +101,39 @@ export const buildStreamRenderState = (
 		liveStatus: buildLiveStatus({ streamState }),
 	};
 };
+
+/** Pass liveTools only when the story shows stream output, as the page does. */
+export const buildQuestionTimelineArgs = (
+	messages: readonly TypesGen.ChatMessage[],
+	{
+		pendingToolCallIDs,
+		liveTools = [],
+		queuedMessages = [],
+	}: {
+		pendingToolCallIDs?: ReadonlySet<string>;
+		liveTools?: readonly MergedTool[];
+		queuedMessages?: readonly TypesGen.ChatQueuedMessage[];
+	} = {},
+) => {
+	const parsedMessages = parseMessagesWithMergedTools(messages, {
+		pendingToolCallIDs,
+	});
+	return {
+		parsedMessages,
+		askUserQuestionState: deriveAskUserQuestionState(
+			parsedMessages,
+			liveTools,
+			queuedMessages,
+		),
+	};
+};
+
+/**
+ * The question state of a transcript without questions: no latest or open
+ * question and no answers. It is derived, not written out, so stories get
+ * the shape that the page derives.
+ */
+export const MockEmptyQuestionState = deriveAskUserQuestionState([], [], []);
 
 /**
  * Pinned clock for stories that render countdown timers. Stories
@@ -498,7 +537,7 @@ export const MockAsyncQuestionResult = {
 };
 
 /** The tool message that returns MockAsyncQuestionResult to MockQuestionCallMessage. */
-const MockAsyncQuestionResultMessage: TypesGen.ChatMessage = {
+export const MockAsyncQuestionResultMessage: TypesGen.ChatMessage = {
 	...MockChatMessage,
 	id: 5,
 	role: "tool",
@@ -520,6 +559,55 @@ export const MockAsyncQuestionMessages: TypesGen.ChatMessage[] = [
 	MockQuestionCallMessage,
 	MockAsyncQuestionResultMessage,
 ];
+
+/** Keeps MockAsyncQuestionResultMessage's IDs, so it answers MockQuestionCallMessage. */
+export const buildQuestionResultMessage = (
+	result: unknown,
+): TypesGen.ChatMessage => ({
+	...MockAsyncQuestionResultMessage,
+	content: [
+		{
+			type: "tool-result",
+			tool_call_id: "question",
+			tool_name: "ask_user_question",
+			result,
+		},
+	],
+});
+
+/** Asks two questions in MockQuestionCallMessage's call, so stories can step through the form. */
+export const MockTwoAsyncQuestionsMessages: TypesGen.ChatMessage[] = [
+	...MockAsyncQuestionMessages.slice(0, 2),
+	buildQuestionResultMessage({
+		...MockAsyncQuestionResult,
+		questions: [
+			...MockAsyncQuestionResult.questions,
+			{
+				header: "Testing",
+				question: "How should the change be verified?",
+				options: [
+					{
+						label: "Unit tests",
+						description: "Cover the change with unit tests.",
+					},
+					{
+						label: "Manual check",
+						description: "Verify the change in a dev deployment.",
+					},
+				],
+			},
+		],
+	}),
+];
+
+/** Its prefix names MockQuestionCallMessage's call ID, so it answers that call's question. */
+export const MockQueuedQuestionAnswer: TypesGen.ChatQueuedMessage = {
+	...MockChatQueuedMessage,
+	content: [
+		{ type: "text", text: `${getAsyncAnswerPrefix("question")}Frontend` },
+	],
+	created_at: workingFixtureTime(7),
+};
 
 /** MockAsyncQuestionMessages followed by an exchange that leaves the question open. */
 export const MockAsyncQuestionThenUnrelatedMessages: TypesGen.ChatMessage[] = [

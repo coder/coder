@@ -23,6 +23,7 @@ import {
 	MockUserOwner,
 	MockUserPreferenceSettings,
 } from "#/testHelpers/entities";
+import { pixelWithPhone } from "#/testHelpers/pixel";
 import {
 	withAuthProvider,
 	withDashboardProvider,
@@ -30,13 +31,23 @@ import {
 import { MessageScroller } from "#/vendor/message-scroller";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { createChatStore } from "./ChatConversation/chatStore";
-import { FIXTURE_NOW } from "./ChatConversation/storyFixtures";
+import {
+	buildQuestionResultMessage,
+	FIXTURE_NOW,
+	MockAsyncQuestionMessages,
+	MockAsyncQuestionResult,
+	MockQueuedQuestionAnswer,
+	MockTwoAsyncQuestionsMessages,
+	MockWorkingMessages,
+} from "./ChatConversation/storyFixtures";
 import { ChatPageInput, ChatPageTimeline } from "./ChatPageContent";
 
 // These stories cover transcript rendering, so history paging stays idle.
 const StoryChatPageTimeline: React.FC<{
 	store: ReturnType<typeof createChatStore>;
-}> = ({ store }) => (
+	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
+	isReadOnly?: boolean;
+}> = ({ store, onSendAskUserQuestionResponse, isReadOnly = false }) => (
 	<MessageScroller.Provider autoScroll defaultScrollPosition="end">
 		<ChatPageTimeline
 			organizationId="organization-id"
@@ -49,6 +60,8 @@ const StoryChatPageTimeline: React.FC<{
 			onFetchMoreMessages={async () => {}}
 			urlTransform={(url) => url}
 			mcpServers={[]}
+			onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+			isReadOnly={isReadOnly}
 		/>
 	</MessageScroller.Provider>
 );
@@ -106,7 +119,8 @@ const StoryChatPageInput: React.FC<{
 	store: ReturnType<typeof createChatStore>;
 	onInterrupt?: () => void;
 	contextLimit?: number;
-}> = ({ store, onInterrupt, contextLimit }) => (
+	isInputDisabled?: boolean;
+}> = ({ store, onInterrupt, contextLimit, isInputDisabled = false }) => (
 	<div className="mx-auto w-full max-w-3xl p-4">
 		<ChatPageInput
 			chat={{ ...MockChat, id: "", organization_id: "" }}
@@ -116,7 +130,7 @@ const StoryChatPageInput: React.FC<{
 			onDeleteQueuedMessage={fn()}
 			onPromoteQueuedMessage={fn()}
 			onInterrupt={onInterrupt ?? fn()}
-			isInputDisabled={false}
+			isInputDisabled={isInputDisabled}
 			isSendPending={false}
 			isInterruptPending={false}
 			hasModelOptions
@@ -394,26 +408,13 @@ export const InterruptingShowsBusyComposer: Story = {
 	render: () => {
 		const store = buildInterruptingStore();
 		return (
-			<MessageScroller.Provider autoScroll defaultScrollPosition="end">
-				<div className="flex h-full flex-col">
-					<ChatPageTimeline
-						organizationId="organization-id"
-						store={store}
-						persistedError={undefined}
-						hasMoreMessages={false}
-						isFetchingMoreMessages={false}
-						isHydratingMessages={false}
-						hasFetchMoreError={false}
-						onFetchMoreMessages={async () => {}}
-						urlTransform={(url) => url}
-						mcpServers={[]}
-					/>
-					<StoryChatPageInput
-						store={store}
-						onInterrupt={interruptingOnInterrupt}
-					/>
-				</div>
-			</MessageScroller.Provider>
+			<div className="flex h-full flex-col">
+				<StoryChatPageTimeline store={store} />
+				<StoryChatPageInput
+					store={store}
+					onInterrupt={interruptingOnInterrupt}
+				/>
+			</div>
 		);
 	},
 	play: async ({ canvasElement }) => {
@@ -562,4 +563,275 @@ export const CompactsAtHistoricalModelDefault: Story = {
 		],
 	},
 	render: () => <CompactionChatPageInput />,
+};
+
+const buildAsyncQuestionStore = (
+	messages: readonly TypesGen.ChatMessage[] = MockAsyncQuestionMessages,
+) => {
+	const store = createChatStore();
+	store.replaceMessages(messages);
+	return store;
+};
+
+const AsyncQuestionChatPage: React.FC<{
+	store: ReturnType<typeof createChatStore>;
+	className?: string;
+	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
+	isReadOnly?: boolean;
+	isInputDisabled?: boolean;
+}> = ({
+	store,
+	className = "flex h-160 flex-col",
+	onSendAskUserQuestionResponse,
+	isReadOnly,
+	isInputDisabled,
+}) => (
+	<div className={className}>
+		<StoryChatPageTimeline
+			store={store}
+			onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+			isReadOnly={isReadOnly}
+		/>
+		{!isReadOnly && (
+			<StoryChatPageInput store={store} isInputDisabled={isInputDisabled} />
+		)}
+	</div>
+);
+
+export const AsyncQuestionDockedAboveInput: Story = {
+	render: () => {
+		return (
+			<AsyncQuestionChatPage
+				store={buildAsyncQuestionStore()}
+				onSendAskUserQuestionResponse={fn()}
+			/>
+		);
+	},
+};
+
+const mockTallQuestion = {
+	header: "Rollout",
+	question: "How should the new billing export reach customers?",
+	options: [
+		{
+			label: "Feature flag",
+			description:
+				"Ship the export dark behind a per-organization flag, enable it for internal organizations first, and widen the rollout once a full billing cycle has run without discrepancies.",
+		},
+		{
+			label: "Beta program",
+			description:
+				"Offer the export to customers who opted into the beta program, collect feedback through the support portal for two weeks, and then promote it to general availability.",
+		},
+		{
+			label: "General availability",
+			description:
+				"Enable the export for every organization in the next release, announce it in the changelog, and rely on the existing billing alerts to catch regressions after launch.",
+		},
+		{
+			label: "Hold",
+			description:
+				"Keep the export unreleased until the finance team signs off on the reconciliation report format, and revisit the rollout plan in the next planning cycle.",
+		},
+	],
+};
+
+const MockTallAsyncQuestionResultMessage = buildQuestionResultMessage({
+	...MockAsyncQuestionResult,
+	questions: [mockTallQuestion],
+});
+
+// The question outgrows the dock's height cap, so the dock scrolls on its own
+// and the chat input stays on screen.
+export const AsyncQuestionDockedAboveInputMobile: Story = {
+	render: () => {
+		return (
+			<AsyncQuestionChatPage
+				store={buildAsyncQuestionStore([
+					...MockAsyncQuestionMessages.slice(0, 2),
+					MockTallAsyncQuestionResultMessage,
+				])}
+				className="flex h-175 w-[390px] flex-col"
+				onSendAskUserQuestionResponse={fn()}
+			/>
+		);
+	},
+	parameters: { pixel: { matrix: pixelWithPhone } },
+};
+
+const shortScreenClassName =
+	"flex h-[390px] w-[844px] flex-col overflow-hidden";
+
+// On a short landscape screen the dock gives up height before the chat input
+// does, so Send stays on screen.
+export const AsyncQuestionDockedShortScreen: Story = {
+	render: () => (
+		<AsyncQuestionChatPage
+			store={buildAsyncQuestionStore([
+				...MockAsyncQuestionMessages.slice(0, 2),
+				MockTallAsyncQuestionResultMessage,
+			])}
+			className={shortScreenClassName}
+			onSendAskUserQuestionResponse={fn()}
+		/>
+	),
+};
+
+const MockTwoTallAsyncQuestionsResultMessage = buildQuestionResultMessage({
+	...MockAsyncQuestionResult,
+	questions: [
+		mockTallQuestion,
+		{
+			...mockTallQuestion,
+			header: "Self-hosted",
+			question: "How should the export reach self-hosted deployments?",
+		},
+	],
+});
+
+export const AsyncQuestionDockedNextStepStartsAtTop: Story = {
+	render: () => (
+		<AsyncQuestionChatPage
+			store={buildAsyncQuestionStore([
+				...MockAsyncQuestionMessages.slice(0, 2),
+				MockTwoTallAsyncQuestionsResultMessage,
+			])}
+			className={shortScreenClassName}
+			onSendAskUserQuestionResponse={fn()}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const dock = within(canvasElement).getByRole("region", {
+			name: "Open question",
+		});
+		dock.scrollTop = dock.scrollHeight;
+		await userEvent.click(within(dock).getByRole("button", { name: "Next" }));
+	},
+};
+
+export const AsyncQuestionArchivedChat: Story = {
+	render: () => (
+		<AsyncQuestionChatPage store={buildAsyncQuestionStore()} isReadOnly />
+	),
+};
+
+// The page withholds the answer callback while the chat input is disabled.
+export const AsyncQuestionDockedDisabled: Story = {
+	render: () => {
+		return (
+			<AsyncQuestionChatPage
+				store={buildAsyncQuestionStore()}
+				isInputDisabled
+			/>
+		);
+	},
+};
+
+export const AsyncQuestionDockedSubmitError: Story = {
+	render: () => (
+		<AsyncQuestionChatPage
+			store={buildAsyncQuestionStore()}
+			onSendAskUserQuestionResponse={fn(async () => {
+				throw new Error("Request failed with status code 500");
+			})}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const dock = within(
+			within(canvasElement).getByRole("region", { name: "Open question" }),
+		);
+		await userEvent.click(dock.getByRole("button", { name: "Submit" }));
+		await dock.findByRole("alert");
+	},
+};
+
+const buildLiveAsyncQuestionStore = () => {
+	const store = buildAsyncQuestionStore(MockWorkingMessages.slice(0, 1));
+	store.setChatStatus("running");
+	store.applyMessagePart({
+		type: "tool-call",
+		tool_call_id: "question",
+		tool_name: "ask_user_question",
+		args: {},
+	});
+	store.applyMessagePart({
+		type: "tool-result",
+		tool_call_id: "question",
+		tool_name: "ask_user_question",
+		result: MockAsyncQuestionResult,
+	});
+	return store;
+};
+
+// The question arrives on the live stream before its step persists.
+export const AsyncQuestionDockedFromStream: Story = {
+	render: () => (
+		<AsyncQuestionChatPage
+			store={buildLiveAsyncQuestionStore()}
+			onSendAskUserQuestionResponse={fn()}
+		/>
+	),
+};
+
+// While the answer waits in the queue, the dock hides and the card shows the
+// answer, also before the question's step persists.
+export const AsyncQuestionFromStreamAnswerQueued: Story = {
+	render: () => {
+		const store = buildLiveAsyncQuestionStore();
+		store.setQueuedMessages([MockQueuedQuestionAnswer]);
+		return (
+			<AsyncQuestionChatPage
+				store={store}
+				onSendAskUserQuestionResponse={fn()}
+			/>
+		);
+	},
+};
+
+// Send now takes the answer out of the queue before the transcript has it,
+// and the dock stays hidden until then.
+export const AsyncQuestionAnswerPromoting: Story = {
+	render: () => {
+		const store = buildAsyncQuestionStore();
+		store.setChatStatus("running");
+		store.suppressQueuedMessageID(MockQueuedQuestionAnswer.id);
+		store.holdPromotingQueuedMessage(MockQueuedQuestionAnswer);
+		return (
+			<AsyncQuestionChatPage
+				store={store}
+				onSendAskUserQuestionResponse={fn()}
+			/>
+		);
+	},
+};
+
+export const AsyncQuestionDockedSecondStep: Story = {
+	render: () => (
+		<AsyncQuestionChatPage
+			store={buildAsyncQuestionStore(MockTwoAsyncQuestionsMessages)}
+			onSendAskUserQuestionResponse={fn()}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const dock = within(
+			within(canvasElement).getByRole("region", { name: "Open question" }),
+		);
+		await userEvent.click(dock.getByRole("button", { name: "Next" }));
+	},
+};
+
+const MockBlockingQuestionResultMessage = buildQuestionResultMessage({
+	questions: MockAsyncQuestionResult.questions,
+});
+
+export const BlockingQuestionStaysInline: Story = {
+	render: () => (
+		<AsyncQuestionChatPage
+			store={buildAsyncQuestionStore([
+				...MockAsyncQuestionMessages.slice(0, 2),
+				MockBlockingQuestionResultMessage,
+			])}
+			onSendAskUserQuestionResponse={fn()}
+		/>
+	),
 };

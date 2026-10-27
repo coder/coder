@@ -12,10 +12,7 @@ import {
 import { defaultUrlTransform } from "streamdown";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
-import {
-	MockChatFileMetadata,
-	MockChatQueuedMessage,
-} from "#/testHelpers/chatEntities";
+import { MockChatFileMetadata } from "#/testHelpers/chatEntities";
 import { MockUserPreferenceSettings } from "#/testHelpers/entities";
 import { MockPngBase64 } from "#/testHelpers/files";
 import { MessageScroller } from "#/vendor/message-scroller";
@@ -26,8 +23,10 @@ import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
 import {
 	buildLiveStatus,
+	buildQuestionTimelineArgs,
 	MockAsyncQuestionThenUnrelatedMessages,
-	workingFixtureTime,
+	MockEmptyQuestionState,
+	MockQueuedQuestionAnswer,
 } from "./storyFixtures";
 import type { ParsedMessageEntry } from "./types";
 
@@ -454,6 +453,7 @@ const defaultArgs: Omit<
 	isAwaitingFirstStreamChunk: false,
 	chatStatus: null,
 	hasMoreMessages: false,
+	askUserQuestionState: MockEmptyQuestionState,
 };
 
 const meta: Meta<typeof ConversationTimeline> = {
@@ -1838,7 +1838,7 @@ export const AskUserQuestionSubmittedAnswer: Story = {
 	args: {
 		...defaultArgs,
 		isChatCompleted: true,
-		parsedMessages: buildMessages([
+		...buildQuestionTimelineArgs([
 			{
 				...baseMessage,
 				id: 1,
@@ -1886,16 +1886,9 @@ export const AsyncAskUserQuestionAnswerQueued: Story = {
 		...defaultArgs,
 		isChatCompleted: false,
 		onSendAskUserQuestionResponse: fn(),
-		parsedMessages: buildMessages(MockAsyncQuestionThenUnrelatedMessages),
-		queuedMessages: [
-			{
-				...MockChatQueuedMessage,
-				created_at: workingFixtureTime(9),
-				content: [
-					{ type: "text", text: `${getAsyncAnswerPrefix("question")}Backend` },
-				],
-			},
-		],
+		...buildQuestionTimelineArgs(MockAsyncQuestionThenUnrelatedMessages, {
+			queuedMessages: [MockQueuedQuestionAnswer],
+		}),
 	},
 };
 
@@ -1903,7 +1896,7 @@ export const AsyncAskUserQuestionAnsweredAfterUnrelatedMessage: Story = {
 	args: {
 		...defaultArgs,
 		isChatCompleted: true,
-		parsedMessages: buildMessages([
+		...buildQuestionTimelineArgs([
 			...MockAsyncQuestionThenUnrelatedMessages,
 			{
 				...baseMessage,

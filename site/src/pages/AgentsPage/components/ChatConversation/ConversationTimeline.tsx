@@ -29,7 +29,7 @@ import { TextPreviewDialog } from "../TextPreviewDialog";
 import { returnFocusTo } from "../useDialogFocusReturn";
 import { AssistantOutput } from "./AssistantOutput";
 import type { PreviewTextAttachment } from "./AttachmentBlocks";
-import { deriveAskUserQuestionState } from "./askUserQuestionState";
+import type { AskUserQuestionState } from "./askUserQuestionState";
 import { FileProbeProvider } from "./FileProbeContext";
 import { FoldFocusRestorer, foldFocusItems } from "./FoldFocusRestorer";
 import {
@@ -39,6 +39,7 @@ import {
 import {
 	type LiveStatusModel,
 	shouldRenderLiveAssistant,
+	showsStreamOutput,
 } from "./liveStatusModel";
 import {
 	buildDisplayMessages,
@@ -138,6 +139,7 @@ const ChatMessageItem = memo<{
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
 	latestAskUserQuestion?: MergedTool;
+	dockedAskUserQuestion?: MergedTool;
 	askUserQuestionResponseTextByTool?: ReadonlyMap<MergedTool, string>;
 	isLatestAskUserQuestionAnswered?: boolean;
 	prevUserMessageKey?: string;
@@ -168,6 +170,7 @@ const ChatMessageItem = memo<{
 		onSendAskUserQuestionResponse,
 		isChatCompleted,
 		latestAskUserQuestion,
+		dockedAskUserQuestion,
 		askUserQuestionResponseTextByTool,
 		isLatestAskUserQuestionAnswered = false,
 		prevUserMessageKey,
@@ -312,6 +315,7 @@ const ChatMessageItem = memo<{
 									onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 									isChatCompleted={isChatCompleted}
 									latestAskUserQuestion={latestAskUserQuestion}
+									dockedAskUserQuestion={dockedAskUserQuestion}
 									askUserQuestionResponseTextByTool={
 										askUserQuestionResponseTextByTool
 									}
@@ -474,7 +478,8 @@ type ConversationTimelineProps = {
 	showDesktopPreviews: boolean;
 	hasActiveStream: boolean;
 	isAwaitingFirstStreamChunk: boolean;
-	queuedMessages?: readonly TypesGen.ChatQueuedMessage[];
+	askUserQuestionState: AskUserQuestionState;
+	dockedAskUserQuestion?: MergedTool;
 };
 
 export const ConversationTimeline = memo<ConversationTimelineProps>(
@@ -501,7 +506,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		showDesktopPreviews,
 		hasActiveStream,
 		isAwaitingFirstStreamChunk,
-		queuedMessages = [],
+		askUserQuestionState,
+		dockedAskUserQuestion,
 	}) => {
 		const { scrollToMessage } = useMessageScroller();
 		const preferences = useQuery(preferenceSettings());
@@ -528,12 +534,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			shouldRenderLiveAssistant(liveStatus),
 		);
 
-		// A live turn only reveals its stream blocks once output has accumulated.
-		// Before that the callout and thinking indicator stand in for the turn.
-		const showsStreamOutput =
-			liveStatus.phase === "streaming" || liveStatus.hasAccumulatedOutput;
-		const liveBlocks = showsStreamOutput ? (streamState?.blocks ?? []) : [];
-		const liveTools = showsStreamOutput ? streamTools : [];
+		const isStreamOutputShown = showsStreamOutput(liveStatus);
+		const liveBlocks = isStreamOutputShown ? (streamState?.blocks ?? []) : [];
+		const liveTools = isStreamOutputShown ? streamTools : [];
 
 		const collapseSteps = Boolean(preferences.data?.collapse_assistant_steps);
 		const layout = collapseSteps
@@ -612,11 +615,6 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				nextKey: i < userRowKeys.length - 1 ? userRowKeys[i + 1] : undefined,
 			});
 		}
-		const askUserQuestionState = deriveAskUserQuestionState(
-			parsedMessages,
-			liveTools,
-			queuedMessages,
-		);
 		const latestAskUserQuestion = askUserQuestionState.latestTool;
 		const askUserQuestionResponseTextByTool =
 			askUserQuestionState.responseTextByTool.size > 0
@@ -645,8 +643,15 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						liveBlocks={liveBlocks}
 						liveTools={liveTools}
 						latestAskUserQuestion={latestAskUserQuestion}
+						dockedAskUserQuestion={dockedAskUserQuestion}
+						askUserQuestionResponseTextByTool={
+							askUserQuestionResponseTextByTool
+						}
+						isLatestAskUserQuestionAnswered={
+							askUserQuestionState.isLatestAnswered
+						}
 						subagentStatusOverrides={
-							showsStreamOutput ? subagentStatusOverrides : undefined
+							isStreamOutputShown ? subagentStatusOverrides : undefined
 						}
 						subagentTitles={subagentTitles}
 						subagentVariants={subagentVariants}
@@ -673,6 +678,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 					isChatCompleted={isChatCompleted}
 					latestAskUserQuestion={latestAskUserQuestion}
+					dockedAskUserQuestion={dockedAskUserQuestion}
 					askUserQuestionResponseTextByTool={askUserQuestionResponseTextByTool}
 					isLatestAskUserQuestionAnswered={
 						askUserQuestionState.isLatestAnswered
