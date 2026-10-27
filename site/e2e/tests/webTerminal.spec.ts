@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import {
 	createTemplate,
 	createWorkspace,
@@ -38,6 +38,20 @@ test("web terminal", async ({ context, page }) => {
 	});
 	const workspaceName = await createWorkspace(page, template);
 	const agent = await startAgent(page, token);
+
+	// The terminal renders to a canvas, so read its output from the PTY
+	// WebSocket instead of the DOM.
+	let output = "";
+	context.on("page", (newPage) => {
+		newPage.on("websocket", (websocket) => {
+			if (!websocket.url().includes("/pty")) {
+				return;
+			}
+			websocket.on("framereceived", ({ payload }) => {
+				output += payload.toString();
+			});
+		});
+	});
 	const terminal = await openTerminalWindow(page, context, workspaceName);
 
 	await terminal.waitForSelector('[data-status="connected"]', {
@@ -45,31 +59,21 @@ test("web terminal", async ({ context, page }) => {
 		timeout: 30_000,
 	});
 
-	// Wait for xterm to render its row container and click to ensure
-	// the terminal has keyboard focus after the confirmation dialog.
-	const xtermRows = terminal.locator("div.xterm-rows");
-	await xtermRows.waitFor({ state: "visible" });
-	await xtermRows.click();
+	// Click the terminal to ensure it has keyboard focus after the
+	// confirmation dialog.
+	const terminalCanvas = terminal.getByTestId("terminal").locator("canvas");
+	await terminalCanvas.waitFor({ state: "visible" });
+	await terminalCanvas.click();
 
 	// Ensure that we can type in it
 	await terminal.keyboard.type("echo he${justabreak}llo123456");
 	await terminal.keyboard.press("Enter");
 
-	// Check if "echo" command was executed
-	// try-catch is used temporarily to find the root cause: https://github.com/coder/coder/actions/runs/6176958762/job/16767089943
-	try {
-		await terminal.waitForSelector(
-			'div.xterm-rows span:text-matches("hello123456")',
-			{
-				state: "visible",
-				timeout: 10 * 1000,
-			},
-		);
-	} catch (error) {
-		const pageContent = await terminal.content();
-		console.error("Unable to find echoed text:", pageContent);
-		throw error;
-	}
+	// Check if "echo" command was executed. The typed command contains
+	// "${justabreak}", so only the command's output matches.
+	await expect
+		.poll(() => output, { timeout: 10 * 1000 })
+		.toContain("hello123456");
 
 	await stopAgent(agent);
 });

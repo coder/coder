@@ -69,10 +69,14 @@ func CSPHeaders(telemetry bool, proxyHosts func() []*proxyhealth.ProxyHost, stat
 			cspSrcs := cspDirectives{
 				// All omitted fetch csp srcs default to this.
 				CSPDirectiveDefaultSrc: {"'self'"},
-				CSPDirectiveConnectSrc: {"'self'"},
+				// data: is used by the web terminal to fetch its inlined WebAssembly
+				// module.
+				CSPDirectiveConnectSrc: {"'self' data:"},
 				CSPDirectiveChildSrc:   {"'self'"},
 				// https://github.com/suren-atoyan/monaco-react/issues/168
-				CSPDirectiveScriptSrc: {"'self'"},
+				// 'wasm-unsafe-eval' lets the web terminal compile its WebAssembly
+				// module. It does not allow eval() of JavaScript.
+				CSPDirectiveScriptSrc: {"'self' 'wasm-unsafe-eval'"},
 				CSPDirectiveStyleSrc:  {"'self' 'unsafe-inline'"},
 				// data: is used by monaco editor on FE for Syntax Highlight
 				CSPDirectiveFontSrc:   {"'self' data:"},

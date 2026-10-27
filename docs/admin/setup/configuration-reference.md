@@ -721,17 +721,6 @@ Option values must not contain newline, carriage return, or NUL characters.
 - CLI flag: [`--ssh-config-options`](../../reference/cli/server/index.md#--ssh-config-options)
 - YAML key: `client.sshConfigOptions`
 
-### Web terminal renderer
-
-The renderer to use when opening a web terminal.
-Valid values are 'canvas', 'webgl', or 'dom'.
-
-- Type: `string`
-- Environment variable: `CODER_WEB_TERMINAL_RENDERER`
-- CLI flag: [`--web-terminal-renderer`](../../reference/cli/server/index.md#--web-terminal-renderer)
-- YAML key: `client.webTerminalRenderer`
-- Default value: `canvas`
-
 ### Workspace hostname suffix
 
 Workspace hostnames use this suffix in SSH config and Coder Connect on Coder Desktop.
@@ -743,6 +732,17 @@ The suffix must not start with a dot, and must not contain spaces, newlines, or 
 - CLI flag: [`--workspace-hostname-suffix`](../../reference/cli/server/index.md#--workspace-hostname-suffix)
 - YAML key: `client.workspaceHostnameSuffix`
 - Default value: `coder`
+
+### Web terminal renderer
+
+**Deprecated**: this setting has no effect.
+The web terminal always renders to a canvas.
+
+- Type: `string`
+- Environment variable: `CODER_WEB_TERMINAL_RENDERER`
+- CLI flag: [`--web-terminal-renderer`](../../reference/cli/server/index.md#--web-terminal-renderer)
+- YAML key: `client.webTerminalRenderer`
+- Default value: `canvas`
 
 ## Config
 

@@ -1420,7 +1420,7 @@ Allow users to set their own quiet hours schedule for workspaces to stop in (dep
 | YAML        | <code>client.webTerminalRenderer</code>   |
 | Default     | <code>canvas</code>                       |
 
-The renderer to use when opening a web terminal. Valid values are 'canvas', 'webgl', or 'dom'.
+Deprecated: this setting has no effect. The web terminal always renders to a canvas.
 
 ### --health-check-refresh
 

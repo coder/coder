@@ -2,7 +2,6 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 import type { WorkspaceAgentLifecycle } from "#/api/typesGenerated";
 import {
-	MockDeploymentConfig,
 	MockUserAppearanceSettings,
 	MockWorkspace,
 	MockWorkspaceAgent,
@@ -12,16 +11,6 @@ import { TerminalClientSessionContext } from "../context/TerminalClientSessionCo
 import { TerminalPanel } from "./TerminalPanel";
 
 const terminalQueries = [
-	{
-		key: ["deployment", "config"],
-		data: {
-			...MockDeploymentConfig,
-			config: {
-				...MockDeploymentConfig.config,
-				web_terminal_renderer: "canvas",
-			},
-		},
-	},
 	{ key: ["me", "appearance"], data: MockUserAppearanceSettings },
 ];
 

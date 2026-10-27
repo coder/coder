@@ -330,8 +330,8 @@ Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
           newline, carriage return, or NUL characters.
 
       --web-terminal-renderer string, $CODER_WEB_TERMINAL_RENDERER (default: canvas)
-          The renderer to use when opening a web terminal. Valid values are
-          'canvas', 'webgl', or 'dom'.
+          Deprecated: this setting has no effect. The web terminal always
+          renders to a canvas.
 
       --workspace-hostname-suffix string, $CODER_WORKSPACE_HOSTNAME_SUFFIX (default: coder)
           Workspace hostnames use this suffix in SSH config and Coder Connect on
