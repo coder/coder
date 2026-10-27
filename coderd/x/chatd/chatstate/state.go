@@ -85,17 +85,15 @@ func (s ExecutionState) IsRunnable() bool {
 type QueueState struct {
 	// HasRows is the "1" queue sub-state.
 	HasRows bool
-	// Paused is [queuePaused] of the head: the "P" suffix of the "1"
-	// sub-state.
+	// Paused is [queuePaused] for the head: the "P" suffix.
 	Paused bool
 }
 
-// queuePaused reports whether a pause condition holds for the queue
-// head, so it must not be promoted. Each pause mechanism adds its
-// condition here. A condition may change only inside a state machine
-// transition: P is classified from the head, so a condition that
-// changes outside a transition leaves a paused chat that classifies
-// invalid.
+// queuePaused reports whether the queue head must not be promoted.
+// Each pause mechanism adds its condition here. A condition may change
+// only inside a state machine transition: P is classified from the
+// head, so a change outside a transition can leave a paused chat that
+// classifies invalid.
 func queuePaused(head database.ChatQueuedMessage) bool {
 	return head.EditingSince.Valid
 }
@@ -124,14 +122,12 @@ func LoadQueueState(ctx context.Context, store database.Store, chatID uuid.UUID)
 //
 // The classifier is a single flat switch over the valid (status,
 // archived, queue) tuples in the chat execution state model. A
-// non-empty queue classifies by its head: ready ("1") or blocked by a
-// pause condition ("1P", see [queuePaused]). Status paused classifies
-// P only with a blocked head: P is not runnable, so a paused chat with
-// a ready head or an empty queue would not advance on its own. It is
-// invalid, like waiting with rows, and reconciles to error. Anything
-// outside the valid set (archived busy states, waiting with a
-// non-empty queue, future enum values) falls through to
-// [StateInvalid].
+// non-empty queue classifies by its head: ready ("1") or blocked ("1P",
+// see [queuePaused]). Status paused is valid only with a blocked head:
+// with a ready head or an empty queue nothing would advance the chat.
+// Anything outside the valid set (archived busy states, waiting with a
+// non-empty queue, paused without a blocked head, future enum values)
+// falls through to [StateInvalid].
 //
 //nolint:revive // exists is a simple classifier input.
 func ClassifyExecutionState(chat database.Chat, queue QueueState, exists bool) ExecutionState {

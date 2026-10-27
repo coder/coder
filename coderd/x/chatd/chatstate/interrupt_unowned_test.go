@@ -366,7 +366,7 @@ func TestSendMessageInterruptUnownedInterruptingChat(t *testing.T) {
 // Finishing an unowned interruption inline must not promote a queue
 // head under edit: the chat pauses with its queue intact. An interrupt
 // send runs ahead of the edited head instead; see
-// TestEditing_InterruptRunsAheadOfEditedHead.
+// TestEditing_UnownedInterruptRunsAheadOfEditedHead.
 func TestUnownedInterruptBehindEditedHead(t *testing.T) {
 	t.Parallel()
 

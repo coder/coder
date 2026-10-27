@@ -1,9 +1,7 @@
--- Take the lock this migration needs before changing anything. Coder runs
--- pending migrations while chatd may still use the chat tables, and an
--- ALTER waiting for ACCESS EXCLUSIVE on chat_queued_messages behind an open
--- application transaction would make every new reader of the queue wait
--- behind it. Each attempt waits briefly; if the wait times out, the attempt
--- releases what it took and tries again. No statement below locks chats.
+-- Coder runs migrations while chatd may use the chat tables. An ALTER
+-- waiting for ACCESS EXCLUSIVE behind an open application transaction would
+-- block every new reader of the queue, so take the lock first with short,
+-- retried waits. No statement below locks chats.
 DO $$
 DECLARE
 	previous_lock_timeout text := current_setting('lock_timeout');

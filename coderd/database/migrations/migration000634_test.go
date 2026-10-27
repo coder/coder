@@ -23,10 +23,9 @@ import (
 func TestMigration000634QueuedMessagesConcurrentTraffic(t *testing.T) {
 	t.Parallel()
 
-	// Every chatstate transition reads the queue. While the migration waits
-	// behind an open application transaction, new readers of
-	// chat_queued_messages must not queue behind it until that transaction
-	// ends.
+	// Every chatstate transition reads the queue. New readers must not
+	// wait behind the migration while it waits for an open application
+	// transaction.
 	t.Run("UpReadQueueWhileMigrationWaits", func(t *testing.T) {
 		t.Parallel()
 		sqlDB := testSQLDB(t)
@@ -53,9 +52,8 @@ func TestMigration000634QueuedMessagesConcurrentTraffic(t *testing.T) {
 		pid, migrated := startRolledBackMigration(ctx, t, sqlDB, migrationSQL)
 		requireWaitsFor(ctx, t, sqlDB, pid, appPID)
 
-		// Each lock attempt waits at most 100ms, so the reader gets through
-		// well within IntervalSlow. The bound is below the 5s lock_timeout
-		// startRolledBackMigration sets, which would otherwise end a stall.
+		// IntervalSlow is below the 5s lock_timeout startRolledBackMigration
+		// sets, so a stalled reader fails here before the timeout frees it.
 		reader, _ := dedicatedConn(ctx, t, sqlDB)
 		read := async(func() error {
 			var n int
@@ -86,9 +84,8 @@ func TestMigration000634QueuedMessagesConcurrentTraffic(t *testing.T) {
 		requireNoDeadlockVictim(ctx, t, "migration", migrated)
 	})
 
-	// chatd locks a chat row before touching its queued rows. The down
-	// migration changes chat_queued_messages and then updates paused chats,
-	// so it must not hold the queue while it waits for the chat row.
+	// chatd locks a chat row before its queued rows, so the down migration
+	// must not hold the queue while it waits for the chat row.
 	t.Run("DownLockChatThenTouchQueue", func(t *testing.T) {
 		t.Parallel()
 		ctx, sqlDB, migrationSQL, chatID, _ := setupEditingSinceDown(t)

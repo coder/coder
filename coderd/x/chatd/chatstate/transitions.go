@@ -432,8 +432,7 @@ type SetProjectResult struct {
 }
 
 // SetProject sets or clears the chat's project. It runs only from W, E0,
-// E1, E1P and P, where no step of the chat runs, so no step runs during
-// a move.
+// E1, E1P and P, so no step of the chat runs during a move.
 func (tx *Tx) SetProject(input SetProjectInput) (SetProjectResult, error) {
 	chat, _, err := tx.requireFromAllowed(TransitionSetProject)
 	if err != nil {
@@ -526,9 +525,9 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 	case StateE1:
 		return tx.sendMessageE1(chat, input)
 
-	// Running or interrupting, with or without a queue. Interrupt
-	// lands in I1 (I1P when it joins the tail behind a blocked head);
-	// queue keeps the input state.
+	// Running or interrupting, with or without a queue. An interrupt
+	// reaches I1, or I1P when it joins the tail behind a blocked head;
+	// a queued send keeps the input state.
 	case StateR0, StateR1, StateR1P, StateI0, StateI1, StateI1P:
 		if input.BusyBehavior == BusyBehaviorInterrupt {
 			return tx.sendMessageInterrupt(chat, from, input)
@@ -994,9 +993,9 @@ type EditQueuedMessageResult struct {
 	PromotedQueuedAt time.Time
 }
 
-// EditQueuedMessage rewrites a queued row's content and/or edit marker.
-// Beginning an edit on a row ends any other row's edit. From P, ending
-// the head's edit leaves paused once the head is ready (see
+// EditQueuedMessage changes a queued row's content, edit marker, or
+// both. Beginning an edit on a row ends any other row's edit. From P,
+// ending the head's edit leaves paused once the head is ready (see
 // leavePaused); beginning an edit on a different row is refused with
 // [ErrPausedQueuedHeadUnderEdit].
 func (tx *Tx) EditQueuedMessage(input EditQueuedMessageInput) (EditQueuedMessageResult, error) {
@@ -1091,11 +1090,10 @@ func (tx *Tx) endOtherEdit(exceptID int64) error {
 	return nil
 }
 
-// leavePaused advances the queue of a chat in P (see advanceQueue). It
-// returns the updated chat when the chat left P, else nil, and the
-// promoted head's queued time, or zero when nothing was promoted. A
-// promoted head runs with last_error cleared, as PromoteQueuedMessage
-// from P does.
+// leavePaused runs advanceQueue for a chat in P. A promoted head runs
+// with last_error cleared, as PromoteQueuedMessage from P does. It
+// returns the updated chat, or nil when the chat stays in P, and the
+// promoted head's queued time, or zero when nothing was promoted.
 func (tx *Tx) leavePaused(chat database.Chat) (*database.Chat, time.Time, error) {
 	updated, promoted, err := tx.advanceQueue(chat, pqtype.NullRawMessage{})
 	if err != nil || updated.Status == chat.Status {
@@ -1107,9 +1105,8 @@ func (tx *Tx) leavePaused(chat database.Chat) (*database.Chat, time.Time, error)
 // advanceQueue moves the chat on by its queue head when a turn or an
 // interruption ends, or when P may resume: an empty queue sets W, a
 // blocked head sets P, and a ready head is promoted and the chat runs
-// with promotedLastError. The W and P writes keep last_error, because
-// none of the input states is error. A chat already in the resulting
-// status is not written.
+// with promotedLastError. W and P keep last_error; no input state is
+// error. A chat already in the resulting status is not written.
 func (tx *Tx) advanceQueue(chat database.Chat, promotedLastError pqtype.NullRawMessage) (database.Chat, promotedQueuedRow, error) {
 	head, err := tx.store.GetChatQueuedMessageHead(tx.ctx, tx.chatID)
 	status := database.ChatStatusWaiting
@@ -1139,9 +1136,9 @@ func (tx *Tx) advanceQueue(chat database.Chat, promotedLastError pqtype.NullRawM
 	return updated, promotedQueuedRow{}, nil
 }
 
-// promotedQueuedRow is returned by promoteQueuedRow: the inserted user
-// message, the cancellation messages inserted before it, and when the
-// row was queued. It is zero when nothing was promoted.
+// promotedQueuedRow is a promoted queue row: the inserted user message,
+// the cancellation messages inserted before it, and when the row was
+// queued. The zero value means nothing was promoted.
 type promotedQueuedRow struct {
 	Message       *database.ChatMessage
 	Cancellations []database.ChatMessage

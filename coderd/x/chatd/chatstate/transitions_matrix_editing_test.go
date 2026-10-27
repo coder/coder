@@ -24,7 +24,7 @@ import (
 // post-state and the snapshot bump; the cases below add only the fact
 // that distinguishes each cell.
 
-// beginQueuedMessageEdit sets editing_since directly, bypassing the state machine,
+// beginQueuedMessageEdit sets editing_since without the state machine,
 // so the transition under test is the only one exercised.
 func beginQueuedMessageEdit(ctx context.Context, t *testing.T, f *testFixture, chatID uuid.UUID, id int64) {
 	t.Helper()
@@ -286,8 +286,8 @@ func editingQueueMatrixCases() []transitionCaseSpec {
 	return cases
 }
 
-// sendBehindEditingCase: a queued send is appended behind the blocked head; the
-// state, history, and stored error do not change.
+// sendBehindEditingCase: a queued send is appended behind the blocked
+// head; the state, history, and stored error do not change.
 func sendBehindEditingCase(from chatstate.ExecutionState, seed func(*testing.T, *testFixture) seededChat, sc scenario, apply applierFn) transitionCaseSpec {
 	return transitionCaseSpec{
 		transition: chatstate.TransitionSendMessage,

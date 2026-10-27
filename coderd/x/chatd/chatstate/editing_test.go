@@ -143,12 +143,9 @@ func TestEditing_SendCapacityInPausedStates(t *testing.T) {
 	}
 }
 
-// TestEditing_LeavingPaused covers the DeleteQueuedMessage and
-// end-of-edit paths from P. A path that stays in P does not rewrite the
-// chat row and returns no chat, so chatd publishes no status change. A
-// path that leaves P returns the updated chat: an emptied queue waits
-// with last_error kept, and a promoted head runs with last_error
-// cleared, as PromoteQueuedMessage from P does.
+// TestEditing_LeavingPaused covers DeleteQueuedMessage and ending an
+// edit from P. Staying in P does not rewrite the chat row and returns no
+// chat; leaving P returns the updated chat.
 func TestEditing_LeavingPaused(t *testing.T) {
 	t.Parallel()
 	lastError := pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"message":"paused"}`), Valid: true}

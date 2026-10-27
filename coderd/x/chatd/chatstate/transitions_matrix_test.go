@@ -42,11 +42,10 @@ const (
 	// messages so the post-mutation queue stays non-empty.
 	scenarioMulti scenario = "multi"
 	// scenarioHeadTarget marks multi-queued PromoteQueuedMessage
-	// cases that target the queue head. For R1, R1P, I1, and I1P
-	// head-target is reorder-only: no rows are reordered, so queue
-	// order is unchanged, and queue_version advances only from R1P
-	// and I1P, where the head's edit ends. For E1, E1P, A1, and A1P
-	// head-target still pops the head into history.
+	// cases that target the queue head. From R1, R1P, I1, and I1P the
+	// queue order is unchanged, and queue_version advances only when
+	// the head's edit ends. From E1, E1P, A1, and A1P the head is
+	// popped into history.
 	scenarioHeadTarget scenario = "head_target"
 	// scenarioNonHead marks multi-queued PromoteQueuedMessage cases
 	// that target a non-head queued message so the target moves to
@@ -928,10 +927,7 @@ func matrixCases() []transitionCaseSpec {
 
 		// DeleteQueuedMessage cases. Empty-tail want collapses the
 		// classified state (E1->E0, R1->R0, I1->I0, A1->A0). The
-		// non-empty-tail cases need a multi-queued seed. Deleting a
-		// ready head exposes an edit on the row behind it; deleting
-		// a blocked head exposes a ready successor; deleting behind
-		// a blocked head keeps it blocked.
+		// non-empty-tail cases need a multi-queued seed.
 		deleteQueuedCase(chatstate.StateE1, chatstate.StateE0, queueShapeDefault),
 		deleteQueuedCase(chatstate.StateE1, chatstate.StateE1, queueShapeMulti),
 		deleteQueuedCase(chatstate.StateR1, chatstate.StateR0, queueShapeDefault),
@@ -1652,9 +1648,7 @@ func promoteQueuedCase(from, want chatstate.ExecutionState, shape queueShape, ta
 				require.NotEmpty(t, seeded.queuedMessageBodies,
 					"R1/I1 seed must record queued message bodies")
 				if targetIdx == 0 {
-					// Head-target: zero rows reordered, so the
-					// queue order is unchanged. queue_version only
-					// advances when the head's edit had to end.
+					// See scenarioHeadTarget.
 					require.Equal(t, base.queueIDs, afterQueueIDs,
 						"head-target promote preserves queue order")
 					if seeded.editingQueuedID == targetID {

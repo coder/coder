@@ -1,8 +1,6 @@
--- Take the locks this migration needs before changing anything, retrying
--- short waits as the up migration does. chatd locks a chat row before its
--- queued rows, while the statements below lock chat_queued_messages before
--- updating chats, so both tables are locked in one attempt. chats_expanded
--- can stay: nothing below locks it.
+-- Lock both tables up front, as the up migration does. chatd locks a chat
+-- row before its queued rows, and the statements below lock them in the
+-- opposite order. Nothing below uses chats_expanded, so it is not locked.
 DO $$
 DECLARE
 	previous_lock_timeout text := current_setting('lock_timeout');
@@ -10,9 +8,6 @@ DECLARE
 BEGIN
 	LOOP
 		BEGIN
-			-- Well below the default deadlock_timeout of 1s, so this
-			-- transaction gives up before PostgreSQL can choose an
-			-- application transaction as the deadlock victim.
 			PERFORM set_config('lock_timeout', '100ms', true);
 			LOCK TABLE chats, chat_queued_messages IN ACCESS EXCLUSIVE MODE;
 			EXIT;
@@ -39,10 +34,10 @@ DROP INDEX chat_queued_messages_one_editing_per_chat;
 
 ALTER TABLE chat_queued_messages DROP COLUMN editing_since;
 
--- `paused` stays in the enum. Dropping a value requires recreating the type.
--- A paused chat has queued rows. Waiting with queued rows is not a valid
--- state for the older code, error with queued rows is, and a send
--- continues from it.
+-- `paused` stays in the enum because dropping a value requires recreating
+-- the type. Paused chats have queued rows, so they move to error: older
+-- code accepts error with queued rows and continues on the next send, but
+-- not waiting with queued rows.
 UPDATE chats
 SET status = 'error',
     last_error = jsonb_build_object(

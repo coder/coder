@@ -569,8 +569,8 @@ func (p *Server) DeleteQueued(
 	return nil
 }
 
-// EditQueuedMessageOptions controls [Server.EditQueuedMessage]. Zero
-// values leave the corresponding attribute untouched.
+// EditQueuedMessageOptions configures [Server.EditQueuedMessage]. Zero
+// values leave the corresponding attribute unchanged.
 type EditQueuedMessageOptions struct {
 	ChatID          uuid.UUID
 	QueuedMessageID int64
@@ -580,10 +580,10 @@ type EditQueuedMessageOptions struct {
 	Editing         *bool
 }
 
-// EditQueuedMessage rewrites a queued row's content and/or edit marker
+// EditQueuedMessage changes a queued row's content, edit marker, or both
 // through the chatstate state machine. Stream side effects are handled
-// by chat:update consumers; a status change publishes the sidebar
-// watch event.
+// by chat:update consumers; a status change publishes the sidebar watch
+// event.
 func (p *Server) EditQueuedMessage(
 	ctx context.Context,
 	opts EditQueuedMessageOptions,
