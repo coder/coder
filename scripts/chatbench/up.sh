@@ -58,6 +58,26 @@ stop_one() {
 	fi
 }
 
+# Stops the built-in PostgreSQL that coderd started under $ROOT/config. It
+# can outlive coderd, and a leftover one keeps the next coderd from starting.
+stop_postgres() {
+	local pidfile=$ROOT/config/postgres/data/postmaster.pid pid
+	[ -f "$pidfile" ] || return 0
+	pid=$(head -1 "$pidfile")
+	if kill -0 "$pid" 2>/dev/null && tr '\0' ' ' <"/proc/$pid/cmdline" | grep -qF "$ROOT/config/postgres"; then
+		kill -INT "$pid"
+		for _ in $(seq 150); do
+			kill -0 "$pid" 2>/dev/null || break
+			sleep 0.2
+		done
+		if kill -0 "$pid" 2>/dev/null; then
+			echo "postgres (pid $pid) did not exit within 30s" >&2
+			exit 1
+		fi
+		echo "postgres stopped"
+	fi
+}
+
 wait_http() {
 	local url=$1 tries=${2:-120}
 	for _ in $(seq "$tries"); do
@@ -93,6 +113,7 @@ start) start ;;
 stop)
 	stop_one coderd
 	stop_one fakellm
+	stop_postgres
 	;;
 status)
 	for n in fakellm coderd; do
@@ -112,6 +133,7 @@ build)
 	(cd "$REPO" && go build -o build/fakellm ./scripts/chatbench/fakellm)
 	stop_one coderd
 	stop_one fakellm
+	stop_postgres
 	start
 	;;
 *)
