@@ -10706,9 +10706,11 @@ func TestStreamChat(t *testing.T) {
 		})
 		// The chunk size is 1 mod 3, so consecutive split points in the run
 		// of three-byte runes fall inside a rune. The backslashes fill at
-		// least one chunk that escaping doubles.
+		// least one chunk that escaping doubles, and the < run fails the
+		// size check if the encoder stops escaping HTML.
 		large := strings.Repeat("日", 2*codersdk.ChatStreamChunkBytes) +
-			strings.Repeat(`\`, codersdk.ChatStreamChunkBytes)
+			strings.Repeat(`\`, codersdk.ChatStreamChunkBytes) +
+			strings.Repeat("<", codersdk.ChatStreamChunkBytes)
 		content, err := json.Marshal([]codersdk.ChatMessagePart{codersdk.ChatMessageText(large)})
 		require.NoError(t, err)
 		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
