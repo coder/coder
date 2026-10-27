@@ -1040,6 +1040,30 @@ func TestReplaceRecursiveRefs(t *testing.T) {
 		want   string
 	}{
 		{
+			// The upgrade to draft 2020-12 that an anchored resource needs
+			// keeps a reference to an unanchored target, but one to an
+			// anchored target may resolve elsewhere, so it is left out.
+			name: "a reference to an unanchored target survives the upgrade",
+			schema: `{
+				"$schema": "https://json-schema.org/draft/2019-09/schema",
+				"properties": {
+					"leaf": {"$recursiveRef": "#/$defs/Leaf"},
+					"anchored": {"$recursiveRef": "#/properties/tree"},
+					"tree": {"$id": "tree.json", "$recursiveAnchor": true, "items": {"$recursiveRef": "#"}}
+				},
+				"$defs": {"Leaf": {"type": "string"}}
+			}`,
+			want: `{
+				"$schema": "https://json-schema.org/draft/2020-12/schema",
+				"properties": {
+					"leaf": {"$ref": "#/$defs/Leaf"},
+					"anchored": {},
+					"tree": {"$id": "tree.json", "$dynamicAnchor": "recursive", "items": {"$dynamicRef": "#recursive"}}
+				},
+				"$defs": {"Leaf": {"type": "string"}}
+			}`,
+		},
+		{
 			// The root is the outermost resource of every dynamic scope,
 			// so a recursive reference in it names it, and one beside a
 			// "$ref" joins "allOf".
@@ -1152,9 +1176,12 @@ func TestReplaceRecursiveRefs(t *testing.T) {
 			}`,
 		},
 		{
-			name:   "references to other targets stay",
+			// Draft 2019-09 leaves a "$recursiveRef" to another target
+			// than "#" undefined, but where no "$recursiveAnchor" can
+			// replace that target it resolves like a "$ref".
+			name:   "references to other targets become references",
 			schema: `{"$schema": "https://json-schema.org/draft/2019-09/schema", "properties": {"a": {"$recursiveRef": "#/$defs/A"}, "b": {"$recursiveRef": "other.json"}}}`,
-			want:   `{"$schema": "https://json-schema.org/draft/2019-09/schema", "properties": {"a": {"$recursiveRef": "#/$defs/A"}, "b": {"$recursiveRef": "other.json"}}}`,
+			want:   `{"$schema": "https://json-schema.org/draft/2019-09/schema", "properties": {"a": {"$ref": "#/$defs/A"}, "b": {"$ref": "other.json"}}}`,
 		},
 		{
 			// Draft 7 and draft 2020-12 ignore both keywords.
