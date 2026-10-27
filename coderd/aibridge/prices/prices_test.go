@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -223,6 +224,13 @@ func TestSeedFromBytes(t *testing.T) {
 			OutputPrice:     ptr.Ref(int64(22)),
 			CacheReadPrice:  ptr.Ref(int64(33)),
 			CacheWritePrice: ptr.Ref(int64(44)),
+			Tiers: []pricebook.Tier{{
+				ThresholdTokens: 66,
+				InputPrice:      ptr.Ref(int64(77)),
+				OutputPrice:     ptr.Ref(int64(88)),
+				CacheReadPrice:  ptr.Ref(int64(99)),
+				CacheWritePrice: ptr.Ref(int64(111)),
+			}},
 		}}))
 		require.NoError(t, prices.SeedFromBytes(ctx, db, seed.Bytes()))
 
@@ -234,6 +242,53 @@ func TestSeedFromBytes(t *testing.T) {
 		require.Equal(t, int64(22), got.OutputPrice.Int64)
 		require.Equal(t, int64(33), got.CacheReadPrice.Int64)
 		require.Equal(t, int64(44), got.CacheWritePrice.Int64)
+		var tiers []pricebook.Tier
+		require.NoError(t, json.Unmarshal(got.Tiers, &tiers))
+		require.Equal(t, []pricebook.Tier{{
+			ThresholdTokens: 66,
+			InputPrice:      ptr.Ref(int64(77)),
+			OutputPrice:     ptr.Ref(int64(88)),
+			CacheReadPrice:  ptr.Ref(int64(99)),
+			CacheWritePrice: ptr.Ref(int64(111)),
+		}}, tiers)
+	})
+
+	t.Run("UpdatesWhenOnlyTiersChange", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db, _ := dbtestutil.NewDB(t)
+
+		row := pricebook.Row{
+			Provider:        "anthropic",
+			Model:           "claude-haiku",
+			InputPrice:      ptr.Ref(int64(100_000)),
+			OutputPrice:     ptr.Ref(int64(500_000)),
+			CacheReadPrice:  ptr.Ref(int64(10_000)),
+			CacheWritePrice: ptr.Ref(int64(125_000)),
+		}
+		seedAndGet := func(row pricebook.Row) database.AIModelPrice {
+			var seed bytes.Buffer
+			require.NoError(t, pricebook.Write(&seed, []pricebook.Row{row}))
+			require.NoError(t, prices.SeedFromBytes(ctx, db, seed.Bytes()))
+			got, err := getAIModelPrice(ctx, db, database.GetAIModelPricesParams{
+				Provider: row.Provider, Model: row.Model,
+			})
+			require.NoError(t, err)
+			return got
+		}
+
+		base := seedAndGet(row)
+		require.JSONEq(t, `[]`, string(base.Tiers))
+
+		row.Tiers = []pricebook.Tier{{ThresholdTokens: 100_000, InputPrice: ptr.Ref(int64(500_000))}}
+		withTiers := seedAndGet(row)
+		var tiers []pricebook.Tier
+		require.NoError(t, json.Unmarshal(withTiers.Tiers, &tiers))
+		require.Equal(t, row.Tiers, tiers)
+		require.True(t, withTiers.UpdatedAt.After(base.UpdatedAt))
+
+		again := seedAndGet(row)
+		require.Equal(t, withTiers.UpdatedAt, again.UpdatedAt)
 	})
 
 	t.Run("LeavesCustomPricesUntouched", func(t *testing.T) {

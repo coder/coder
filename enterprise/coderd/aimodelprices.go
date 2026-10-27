@@ -84,7 +84,13 @@ func (api *API) listAIModelPrices(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.AIModelPrices(dbPrices))
+	prices, err := db2sdk.AIModelPrices(dbPrices)
+	if err != nil {
+		api.Logger.Error(ctx, "convert ai model prices", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, prices)
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -209,7 +215,8 @@ type modelKey struct {
 
 // validateAIModelPrices reports every problem with the requested prices: a
 // supported provider, a model, all four price keys, non-negative prices with
-// at least one set, and no repeated model.
+// at least one set, positive and strictly ascending tier thresholds, and no
+// repeated model. The tiers are optional.
 func validateAIModelPrices(requested []codersdk.AIModelPriceUpsert, keys []aiModelPriceKeys) []codersdk.ValidationError {
 	if len(requested) == 0 {
 		return []codersdk.ValidationError{{
@@ -250,6 +257,7 @@ func validateAIModelPrices(requested []codersdk.AIModelPriceUpsert, keys []aiMod
 			CacheRead:  price.CacheReadPrice,
 			CacheWrite: price.CacheWritePrice,
 		})...)
+		validations = append(validations, validateOptionalAIModelPrices(field, price)...)
 
 		key := modelKey{provider: price.Provider, model: price.Model}
 		if _, duplicate := seen[key]; duplicate {
@@ -340,5 +348,39 @@ func validateAIModelPriceValues(field string, keys aiModelPriceKeys, prices aiMo
 		})
 	}
 
+	return validations
+}
+
+// The cost calculation reads tiers in threshold order, so the request must
+// list them that way.
+func validateOptionalAIModelPrices(field string, price codersdk.AIModelPriceUpsert) []codersdk.ValidationError {
+	var validations []codersdk.ValidationError
+	negative := func(name string, value *int64) {
+		if value != nil && *value < 0 {
+			validations = append(validations, codersdk.ValidationError{
+				Field:  name,
+				Detail: "Price must not be negative.",
+			})
+		}
+	}
+	for j, tier := range price.Tiers {
+		tierField := fmt.Sprintf("%s.tiers[%d]", field, j)
+		switch {
+		case tier.ThresholdTokens <= 0:
+			validations = append(validations, codersdk.ValidationError{
+				Field:  tierField + ".threshold_tokens",
+				Detail: "Threshold must be positive.",
+			})
+		case j > 0 && tier.ThresholdTokens <= price.Tiers[j-1].ThresholdTokens:
+			validations = append(validations, codersdk.ValidationError{
+				Field:  tierField + ".threshold_tokens",
+				Detail: "Tier thresholds must be strictly ascending.",
+			})
+		}
+		negative(tierField+".input_price", tier.InputPrice)
+		negative(tierField+".output_price", tier.OutputPrice)
+		negative(tierField+".cache_read_price", tier.CacheReadPrice)
+		negative(tierField+".cache_write_price", tier.CacheWritePrice)
+	}
 	return validations
 }

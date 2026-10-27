@@ -162,7 +162,7 @@ func (i *interceptionBase) Setup(logger slog.Logger, rec recorder.Recorder, mcpP
 	i.mcpProxy = mcpProxy
 }
 
-func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, providerModel anthropic.Model, usage anthropic.Usage) {
+func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, providerModel anthropic.Model, usage anthropic.Usage, promptTokens int64) {
 	var metadata recorder.Metadata
 	if usage.ServiceTier != "" {
 		metadata = recorder.Metadata{
@@ -190,6 +190,7 @@ func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, p
 		Output:                usage.OutputTokens,
 		CacheReadInputTokens:  usage.CacheReadInputTokens,
 		CacheWriteInputTokens: usage.CacheCreationInputTokens,
+		PromptTokens:          promptTokens,
 		Metadata:              metadata,
 	}
 	if len(extraTokenTypes) > 0 {
@@ -197,6 +198,10 @@ func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, p
 	}
 
 	_ = i.recorder.RecordTokenUsage(ctx, &usageRecord)
+}
+
+func promptSize(usage anthropic.Usage) int64 {
+	return usage.InputTokens + usage.CacheReadInputTokens + usage.CacheCreationInputTokens
 }
 
 func (i *interceptionBase) CorrelatingToolCallID() *string {

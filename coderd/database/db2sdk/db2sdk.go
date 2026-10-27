@@ -1830,15 +1830,25 @@ func chatMessageParts(m database.ChatMessage) ([]codersdk.ChatMessagePart, error
 	return filtered, nil
 }
 
-func AIModelPrices(dbPrices []database.AIModelPrice) []codersdk.AIModelPrice {
+func AIModelPrices(dbPrices []database.AIModelPrice) ([]codersdk.AIModelPrice, error) {
 	out := make([]codersdk.AIModelPrice, 0, len(dbPrices))
 	for _, dbPrice := range dbPrices {
-		out = append(out, AIModelPrice(dbPrice))
+		price, err := AIModelPrice(dbPrice)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, price)
 	}
-	return out
+	return out, nil
 }
 
-func AIModelPrice(dbPrice database.AIModelPrice) codersdk.AIModelPrice {
+func AIModelPrice(dbPrice database.AIModelPrice) (codersdk.AIModelPrice, error) {
+	tiers := []codersdk.AIModelPriceTier{}
+	if len(dbPrice.Tiers) > 0 {
+		if err := json.Unmarshal(dbPrice.Tiers, &tiers); err != nil {
+			return codersdk.AIModelPrice{}, xerrors.Errorf("decode price tiers of %s/%s: %w", dbPrice.Provider, dbPrice.Model, err)
+		}
+	}
 	return codersdk.AIModelPrice{
 		Provider:        dbPrice.Provider,
 		Model:           dbPrice.Model,
@@ -1846,10 +1856,11 @@ func AIModelPrice(dbPrice database.AIModelPrice) codersdk.AIModelPrice {
 		OutputPrice:     nullInt64Ptr(dbPrice.OutputPrice),
 		CacheReadPrice:  nullInt64Ptr(dbPrice.CacheReadPrice),
 		CacheWritePrice: nullInt64Ptr(dbPrice.CacheWritePrice),
+		Tiers:           tiers,
 		Source:          codersdk.AIModelPriceSource(dbPrice.Source),
 		CreatedAt:       dbPrice.CreatedAt,
 		UpdatedAt:       dbPrice.UpdatedAt,
-	}
+	}, nil
 }
 
 func nullUUIDPtr(v uuid.NullUUID) *uuid.UUID {

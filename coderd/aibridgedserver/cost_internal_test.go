@@ -10,28 +10,28 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 )
 
+func nullInt64(v int64) sql.NullInt64 { return sql.NullInt64{Int64: v, Valid: true} }
+
 func TestComputeCost(t *testing.T) {
 	t.Parallel()
-
-	nullInt64 := func(v int64) sql.NullInt64 { return sql.NullInt64{Int64: v, Valid: true} }
 
 	const oneMicroPerToken = 1_000_000
 	bound := maxCostMicros.IntPart()
 
 	tests := []struct {
 		name                                                         string
-		price                                                        database.GetAIModelPriceForProviderRow
+		price                                                        priceSet
 		inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens int64
 		want                                                         int64
 		wantOutOfRange                                               bool
 	}{
 		{
 			name: "all priced",
-			price: database.GetAIModelPriceForProviderRow{
-				InputPrice:      nullInt64(3_000_000),
-				OutputPrice:     nullInt64(6_000_000),
-				CacheReadPrice:  nullInt64(300_000),
-				CacheWritePrice: nullInt64(3_750_000),
+			price: priceSet{
+				input:      nullInt64(3_000_000),
+				output:     nullInt64(6_000_000),
+				cacheRead:  nullInt64(300_000),
+				cacheWrite: nullInt64(3_750_000),
 			},
 			inputTokens:      100,
 			outputTokens:     200,
@@ -42,11 +42,11 @@ func TestComputeCost(t *testing.T) {
 		},
 		{
 			name: "null cache write price treated as zero",
-			price: database.GetAIModelPriceForProviderRow{
-				InputPrice:      nullInt64(3_000_000),
-				OutputPrice:     nullInt64(6_000_000),
-				CacheReadPrice:  nullInt64(300_000),
-				CacheWritePrice: sql.NullInt64{Valid: false},
+			price: priceSet{
+				input:      nullInt64(3_000_000),
+				output:     nullInt64(6_000_000),
+				cacheRead:  nullInt64(300_000),
+				cacheWrite: sql.NullInt64{Valid: false},
 			},
 			inputTokens:      100,
 			outputTokens:     200,
@@ -57,7 +57,7 @@ func TestComputeCost(t *testing.T) {
 		},
 		{
 			name:             "all prices null is zero cost",
-			price:            database.GetAIModelPriceForProviderRow{},
+			price:            priceSet{},
 			inputTokens:      100,
 			outputTokens:     200,
 			cacheReadTokens:  50,
@@ -66,41 +66,41 @@ func TestComputeCost(t *testing.T) {
 		},
 		{
 			name: "zero tokens is zero cost",
-			price: database.GetAIModelPriceForProviderRow{
-				InputPrice:  nullInt64(3_000_000),
-				OutputPrice: nullInt64(6_000_000),
+			price: priceSet{
+				input:  nullInt64(3_000_000),
+				output: nullInt64(6_000_000),
 			},
 			want: 0,
 		},
 		{
 			name: "integer division truncates",
-			price: database.GetAIModelPriceForProviderRow{
+			price: priceSet{
 				// 1 token at 1 micro-unit per million tokens rounds down to 0.
-				InputPrice: nullInt64(1),
+				input: nullInt64(1),
 			},
 			inputTokens: 1,
 			want:        0,
 		},
 		{
 			name: "price just below one micro-unit per token floors to zero",
-			price: database.GetAIModelPriceForProviderRow{
-				InputPrice: nullInt64(999_999),
+			price: priceSet{
+				input: nullInt64(999_999),
 			},
 			inputTokens: 1, // 1 * 999_999 = 999_999, below 1_000_000
 			want:        0,
 		},
 		{
 			name: "sub-unit price summed across tokens still floors to zero",
-			price: database.GetAIModelPriceForProviderRow{
-				InputPrice: nullInt64(999),
+			price: priceSet{
+				input: nullInt64(999),
 			},
 			inputTokens: 1000, // 1000 * 999 = 999_000, below 1_000_000
 			want:        0,
 		},
 		{
 			name: "sub-unit price crosses one micro-unit once the product reaches 1e6",
-			price: database.GetAIModelPriceForProviderRow{
-				InputPrice: nullInt64(999),
+			price: priceSet{
+				input: nullInt64(999),
 			},
 			inputTokens: 1002, // 1002 times 999 is 1_000_998.
 			want:        1,
@@ -110,8 +110,8 @@ func TestComputeCost(t *testing.T) {
 			// model the overflow point is ~123e9 tokens (123e9 * 75e6 = 9.225e18,
 			// just over int64 max 9.223e18); 122e9 stays just under.
 			name: "large token count at a high price does not overflow",
-			price: database.GetAIModelPriceForProviderRow{
-				InputPrice: nullInt64(75_000_000), // $75 per 1M tokens
+			price: priceSet{
+				input: nullInt64(75_000_000), // $75 per 1M tokens
 			},
 			inputTokens: 122_000_000_000, // 122e9 * 75e6 = 9.15e18 < int64 max
 			want:        9_150_000_000_000,
@@ -120,9 +120,9 @@ func TestComputeCost(t *testing.T) {
 			// Each category costs 37.5 micro-units, so truncating per category
 			// gives 37 + 37 = 74.
 			name: "each category truncates before the sum",
-			price: database.GetAIModelPriceForProviderRow{
-				InputPrice:  nullInt64(37_500_000),
-				OutputPrice: nullInt64(37_500_000),
+			price: priceSet{
+				input:  nullInt64(37_500_000),
+				output: nullInt64(37_500_000),
 			},
 			inputTokens:  1,
 			outputTokens: 1,
@@ -130,19 +130,19 @@ func TestComputeCost(t *testing.T) {
 		},
 		{
 			name:        "cost exactly at the bound is in range",
-			price:       database.GetAIModelPriceForProviderRow{InputPrice: nullInt64(oneMicroPerToken)},
+			price:       priceSet{input: nullInt64(oneMicroPerToken)},
 			inputTokens: bound,
 			want:        bound,
 		},
 		{
 			name:           "cost one micro-unit above the bound is out of range",
-			price:          database.GetAIModelPriceForProviderRow{InputPrice: nullInt64(oneMicroPerToken)},
+			price:          priceSet{input: nullInt64(oneMicroPerToken)},
 			inputTokens:    bound + 1,
 			wantOutOfRange: true,
 		},
 		{
 			name:           "cost of int64 max is out of range",
-			price:          database.GetAIModelPriceForProviderRow{InputPrice: nullInt64(oneMicroPerToken)},
+			price:          priceSet{input: nullInt64(oneMicroPerToken)},
 			inputTokens:    math.MaxInt64,
 			wantOutOfRange: true,
 		},
@@ -150,9 +150,9 @@ func TestComputeCost(t *testing.T) {
 			// Each category fits on its own; only their sum exceeds the bound,
 			// so the range check has to run on the total.
 			name: "sum of in-range categories above the bound is out of range",
-			price: database.GetAIModelPriceForProviderRow{
-				InputPrice:  nullInt64(oneMicroPerToken),
-				OutputPrice: nullInt64(oneMicroPerToken),
+			price: priceSet{
+				input:  nullInt64(oneMicroPerToken),
+				output: nullInt64(oneMicroPerToken),
 			},
 			inputTokens:    bound/2 + 1,
 			outputTokens:   bound/2 + 1,
@@ -162,8 +162,8 @@ func TestComputeCost(t *testing.T) {
 			// The cost column forbids negatives, so an implausible token count
 			// is rejected here rather than failing the insert.
 			name: "negative cost is out of range",
-			price: database.GetAIModelPriceForProviderRow{
-				InputPrice: nullInt64(3_000_000),
+			price: priceSet{
+				input: nullInt64(3_000_000),
 			},
 			inputTokens:    -1_000_000,
 			wantOutOfRange: true,
@@ -174,7 +174,12 @@ func TestComputeCost(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := computeCost(tt.price, tt.inputTokens, tt.outputTokens, tt.cacheReadTokens, tt.cacheWriteTokens)
+			got, err := computeCost(tt.price, usageTokens{
+				input:      tt.inputTokens,
+				output:     tt.outputTokens,
+				cacheRead:  tt.cacheReadTokens,
+				cacheWrite: tt.cacheWriteTokens,
+			})
 			if tt.wantOutOfRange {
 				if !errors.Is(err, errCostOutOfRange) {
 					t.Fatalf("computeCost error = %v, want errCostOutOfRange", err)
@@ -229,6 +234,11 @@ func TestValidateTokenUsage(t *testing.T) {
 			wantOutOfRange: true,
 		},
 		{
+			name:           "negative prompt tokens",
+			request:        &proto.RecordTokenUsageRequest{PromptTokens: -1},
+			wantOutOfRange: true,
+		},
+		{
 			// A negative offset by a larger positive still totals in range, so
 			// the check has to run per category rather than on the sum.
 			name: "negative input offset by positive output",
@@ -252,6 +262,88 @@ func TestValidateTokenUsage(t *testing.T) {
 			}
 			if err != nil {
 				t.Fatalf("validateTokenUsage error = %v, want nil", err)
+			}
+		})
+	}
+}
+
+func TestPricesForPrompt(t *testing.T) {
+	t.Parallel()
+
+	base := database.GetAIModelPriceForProviderRow{
+		Model:           "m",
+		InputPrice:      nullInt64(1_000),
+		OutputPrice:     nullInt64(2_000),
+		CacheReadPrice:  nullInt64(100),
+		CacheWritePrice: nullInt64(1_250),
+	}
+	withTiers := func(tiers string) database.GetAIModelPriceForProviderRow {
+		row := base
+		row.Tiers = []byte(tiers)
+		return row
+	}
+
+	tests := []struct {
+		name    string
+		row     database.GetAIModelPriceForProviderRow
+		prompt  int64
+		want    priceSet
+		wantErr bool
+	}{
+		{
+			name:   "no tiers uses base prices",
+			row:    withTiers(`[]`),
+			prompt: 1_000_000,
+			want: priceSet{
+				input: nullInt64(1_000), output: nullInt64(2_000), cacheRead: nullInt64(100),
+				cacheWrite: nullInt64(1_250),
+			},
+		},
+		{
+			name: "highest tier below the prompt applies",
+			row: withTiers(`[
+				{"threshold_tokens": 200, "input_price": 3000, "output_price": 3000, "cache_read_price": 300, "cache_write_price": 3000},
+				{"threshold_tokens": 500, "input_price": 5000, "output_price": 5000, "cache_read_price": 500, "cache_write_price": 5000}
+			]`),
+			prompt: 501,
+			want: priceSet{
+				input: nullInt64(5_000), output: nullInt64(5_000), cacheRead: nullInt64(500),
+				cacheWrite: nullInt64(5_000), tierThreshold: nullInt64(500),
+			},
+		},
+		{
+			// Gemini tiers carry no cache write price.
+			name:   "missing tier prices use the base prices",
+			row:    withTiers(`[{"threshold_tokens": 200, "input_price": 3000, "output_price": null, "cache_read_price": 300}]`),
+			prompt: 201,
+			want: priceSet{
+				input: nullInt64(3_000), output: nullInt64(2_000), cacheRead: nullInt64(300),
+				cacheWrite: nullInt64(1_250), tierThreshold: nullInt64(200),
+			},
+		},
+		{
+			name:    "undecodable tiers fail",
+			row:     withTiers(`{"threshold_tokens": 200}`),
+			prompt:  201,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := pricesForPrompt(tt.row, tt.prompt)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("pricesForPrompt = %+v, want an error", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("pricesForPrompt error = %v, want nil", err)
+			}
+			if got != tt.want {
+				t.Fatalf("pricesForPrompt = %+v, want %+v", got, tt.want)
 			}
 		})
 	}

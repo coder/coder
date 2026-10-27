@@ -14,6 +14,7 @@ import { API } from "#/api/api";
 import { aiModelPrices } from "#/api/queries/aiProviders";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
+	MockClaudeSonnetModelPrice,
 	MockGPT5BelowThresholdModelPrice,
 	MockGPT5ModelPrice,
 } from "#/testHelpers/chatModels";
@@ -878,6 +879,7 @@ export const CostEstimateRowWinsOverCatalog: Story = {
 						output_price: null,
 						cache_read_price: null,
 						cache_write_price: null,
+						tiers: [],
 						created_at: "2026-02-18T12:00:00.000Z",
 						updated_at: "2026-02-18T12:00:00.000Z",
 					},
@@ -897,6 +899,28 @@ export const CostEstimateRowWinsOverCatalog: Story = {
 		await expect(canvas.getByLabelText(/^output$/i)).toHaveValue("");
 		await expect(canvas.getByLabelText(/cache read/i)).toHaveValue("");
 		await expect(canvas.getByLabelText(/cache write/i)).toHaveValue("");
+	},
+};
+
+export const CostEstimateWithTiers: Story = {
+	args: {
+		editingModel: mockClaude,
+		selectedProviderState: MockAnthropicProviderState,
+		onDeleteModel: fn(async () => undefined),
+	},
+	parameters: {
+		queries: [
+			{
+				key: aiModelPrices("anthropic", "claude-sonnet-4-5").queryKey,
+				data: [MockClaudeSonnetModelPrice],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /cost estimate/i }),
+		);
 	},
 };
 

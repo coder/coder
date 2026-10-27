@@ -418,6 +418,10 @@ export interface AIModelPrice {
 	readonly output_price: number | null;
 	readonly cache_read_price: number | null;
 	readonly cache_write_price: number | null;
+	/**
+	 * Tiers are long-context prices, sorted by ThresholdTokens.
+	 */
+	readonly tiers: readonly AIModelPriceTier[];
 	readonly source: AIModelPriceSource;
 	readonly created_at: string;
 	readonly updated_at: string;
@@ -430,8 +434,22 @@ export const AIModelPriceSources: AIModelPriceSource[] = ["custom", "default"];
 
 // From codersdk/aimodelprices.go
 /**
+ * AIModelPriceTier holds the prices for a request whose prompt is over
+ * ThresholdTokens tokens. Every token of such a request uses the prices of the
+ * highest tier it is over. A nil price uses the base price of the model.
+ */
+export interface AIModelPriceTier {
+	readonly threshold_tokens: number;
+	readonly input_price: number | null;
+	readonly output_price: number | null;
+	readonly cache_read_price: number | null;
+	readonly cache_write_price: number | null;
+}
+
+// From codersdk/aimodelprices.go
+/**
  * AIModelPriceUpsert is one model's prices in an upsert request. It carries
- * only the writable fields of AIModelPrice.
+ * only the writable fields of AIModelPrice. Omitting Tiers clears them.
  */
 export interface AIModelPriceUpsert {
 	readonly provider: string;
@@ -440,6 +458,7 @@ export interface AIModelPriceUpsert {
 	readonly output_price: number | null;
 	readonly cache_read_price: number | null;
 	readonly cache_write_price: number | null;
+	readonly tiers?: readonly AIModelPriceTier[];
 }
 
 // From codersdk/aiproviders.go
