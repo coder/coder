@@ -134,12 +134,15 @@ const isUnverifiedComputerUseModel = (
 	const effectiveModel =
 		computerUseProviderModels.find((model) => model.id === selectedModelID) ??
 		enabledModels.find((model) => model.id === defaultModelID);
+	if (effectiveModel === undefined) {
+		return false;
+	}
+	const providerType = getProviderType(effectiveModel, providerInfoByID);
 	return (
-		effectiveModel !== undefined &&
-		!isKnownComputerUseModel(
-			getProviderType(effectiveModel, providerInfoByID),
-			effectiveModel.model,
-		)
+		!isKnownComputerUseModel(providerType, effectiveModel.model) ||
+		// The OpenAI computer tool exists only on the Responses API.
+		(normalizeProvider(providerType) === "openai" &&
+			effectiveModel.model_config?.openai_config?.use_responses_api === false)
 	);
 };
 

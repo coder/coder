@@ -49,7 +49,7 @@ Computer use is unavailable in a chat when the chat owner has no usable [credent
 It's also unavailable when it runs on the organization's default model and that model's AI provider type isn't Anthropic or OpenAI.
 OpenAI computer use requires the Responses API, so it fails on an OpenAI model whose **Use Responses API** override is set to Off.
 
-A warning icon next to the model selector means that Coder hasn't verified the model for computer use.
+A warning icon next to the model selector means that Coder hasn't verified the model for computer use, or that the model is an OpenAI model whose **Use Responses API** override is set to Off.
 The icon reflects the selected model, or the organization's default model when no model is selected or the selected model no longer appears in the list.
 The warning doesn't block saving.
 Before you save, confirm that the model supports the provider's computer use tool.

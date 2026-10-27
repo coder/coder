@@ -357,4 +357,45 @@ describe("OrganizationAgentSettings computer use model", () => {
 			);
 		});
 	});
+
+	it.each([
+		{ useResponsesAPI: false, warns: true },
+		{ useResponsesAPI: undefined, warns: false },
+	])(
+		"warns about a curated OpenAI model only when it disables the Responses API (use_responses_api: $useResponsesAPI)",
+		async ({ useResponsesAPI, warns }) => {
+			const curatedOpenAIModel: ChatModel = {
+				...mockAlternateModel,
+				id: "model-gpt-5-4",
+				model: "gpt-5.4",
+				display_name: "GPT-5.4",
+				model_config: { openai_config: { use_responses_api: useResponsesAPI } },
+			};
+			vi.spyOn(API.experimental, "getChatModels").mockResolvedValue({
+				...mockChatModelsResponse,
+				models: [...mockChatModelsResponse.models, curatedOpenAIModel],
+			});
+			vi.spyOn(
+				API.experimental,
+				"getOrganizationChatModelOverrides",
+			).mockResolvedValue({
+				overrides: [
+					{ context: "computer_use", model_config_id: curatedOpenAIModel.id },
+				],
+			});
+			renderSettings({ showComputerUse: true });
+
+			const section = await screen.findByRole("form", {
+				name: "Computer use",
+			});
+			await within(section).findByRole("combobox", {
+				name: `Computer use, ${curatedOpenAIModel.display_name}`,
+			});
+			expect(
+				within(section).queryAllByRole("button", {
+					name: "Computer use model warning",
+				}),
+			).toHaveLength(warns ? 1 : 0);
+		},
+	);
 });
