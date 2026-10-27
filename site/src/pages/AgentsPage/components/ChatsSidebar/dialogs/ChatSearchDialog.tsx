@@ -9,16 +9,24 @@ import { useId, useRef, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { type Location, useNavigate } from "react-router";
 import { chatSearch } from "#/api/queries/chats";
-import type { Chat } from "#/api/typesGenerated";
+import type { Chat, ChatProject } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Dialog, DialogContent, DialogTitle } from "#/components/Dialog/Dialog";
 import { useDebouncedValue } from "#/hooks/debounce";
+import { buildAgentProjectPath } from "../../../utils/navigation";
 import { ChatSearchInput, type SearchFilter } from "./ChatSearchInput";
-import { ChatSearchResults } from "./ChatSearchResults";
+import {
+	ChatSearchResults,
+	getChatSearchOptionId,
+	getFirstChatOptionIndex,
+	getVisibleProjects,
+	RECENT_CHATS_COUNT,
+} from "./ChatSearchResults";
 import {
 	buildChatSearchQuery,
 	CHAT_SEARCH_FILTER_KEYS,
 	type ChatSearchFilterKey,
+	createChatSearchTextMatcher,
 	extractTypedFilters,
 	isCommaSeparatedChatSearchFilter,
 	isValidChatSearchFilterValue,
@@ -83,6 +91,13 @@ type ChatSearchDialogProps = {
 	readonly focusInputOnOpen?: boolean;
 	readonly location: Location;
 	readonly recentChats?: readonly Chat[];
+	/**
+	 * Projects to search by name, in display order. Leave undefined when chat
+	 * projects are disabled.
+	 */
+	readonly projects?: readonly ChatProject[];
+	/** Organization names for projects whose name is used in several orgs. */
+	readonly projectOrganizationLabels?: ReadonlyMap<string, string>;
 };
 
 const SEARCH_DEBOUNCE_MS = 500;
@@ -93,6 +108,8 @@ export const ChatSearchDialog: React.FC<ChatSearchDialogProps> = ({
 	focusInputOnOpen = true,
 	location,
 	recentChats = [],
+	projects,
+	projectOrganizationLabels,
 }) => {
 	const contentRef = useRef<HTMLDivElement | null>(null);
 	const inputRef = useRef<HTMLInputElement | null>(null);
@@ -134,6 +151,8 @@ export const ChatSearchDialog: React.FC<ChatSearchDialogProps> = ({
 					location={location}
 					inputRef={inputRef}
 					recentChats={recentChats}
+					projects={projects}
+					projectOrganizationLabels={projectOrganizationLabels}
 				/>
 			</DialogContent>
 		</Dialog>
@@ -153,6 +172,8 @@ const ChatSearchDialogContent: React.FC<ChatSearchDialogContentProps> = ({
 	location,
 	inputRef,
 	recentChats = [],
+	projects,
+	projectOrganizationLabels,
 }) => {
 	const navigate = useNavigate();
 	const [filters, setFilters] = useState<SearchFilter[]>([]);
@@ -164,9 +185,14 @@ const ChatSearchDialogContent: React.FC<ChatSearchDialogContentProps> = ({
 		null,
 	);
 	const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-	const [selectedChatIndex, setSelectedChatIndex] = useState<
-		number | undefined
-	>(undefined);
+	const [selectedIndex, setSelectedIndex] = useState<number | undefined>(
+		undefined,
+	);
+	// The project search text whose "Show all" row was used. Keying it to the
+	// text collapses the list again for a new search.
+	const [expandedProjectSearchText, setExpandedProjectSearchText] = useState<
+		string | null
+	>(null);
 	const listboxId = useId();
 
 	// Debounce as one snapshot so a committed incomplete-filter value cannot
@@ -179,6 +205,13 @@ const ChatSearchDialogContent: React.FC<ChatSearchDialogContentProps> = ({
 	const currentQuery = buildChatSearchQuery(queryFilters, queryFreeText);
 	const hasActiveSearch =
 		queryFilters.length > 0 || queryFreeText.trim() !== "";
+	// Filters only apply to chats, so any filter hides the projects. This is
+	// debounced like the chat query so both sections show the same search,
+	// and declared first so its timer fires first and they switch together.
+	const debouncedProjectSearchText = useDebouncedValue(
+		queryFilters.length > 0 ? "" : queryFreeText,
+		SEARCH_DEBOUNCE_MS,
+	);
 	// Keep the debounced value primitive. An object would reset the debounce when
 	// its identity changes on each render.
 	const debouncedQuery = useDebouncedValue(currentQuery, SEARCH_DEBOUNCE_MS);
@@ -191,26 +224,40 @@ const ChatSearchDialogContent: React.FC<ChatSearchDialogContentProps> = ({
 		placeholderData: keepPreviousData,
 	});
 
-	// Use search results count when a query is active, otherwise count
-	// recent chats so keyboard navigation works in the default view too.
-	const recentChatsSlice = (recentChats ?? []).slice(0, 10);
-	const resultCount = hasQuery
-		? (searchQuery.data?.length ?? 0)
-		: recentChatsSlice.length;
-	const safeSelectedChatIndex =
-		selectedChatIndex !== undefined && selectedChatIndex < resultCount
-			? selectedChatIndex
-			: undefined;
-	const selectedChat =
-		safeSelectedChatIndex !== undefined
-			? hasQuery
-				? searchQuery.data?.[safeSelectedChatIndex]
-				: recentChatsSlice[safeSelectedChatIndex]
+	const searchError = hasQuery ? searchQuery.error : undefined;
+	const projectSearchText = hasQuery ? debouncedProjectSearchText : "";
+	const matchesProjectSearch = createChatSearchTextMatcher(projectSearchText);
+	const { visible: visibleProjects, hiddenCount: hiddenProjectCount } =
+		getVisibleProjects(
+			hasQuery
+				? (projects ?? []).filter((project) =>
+						matchesProjectSearch(project.name),
+					)
+				: (projects ?? []),
+			expandedProjectSearchText === projectSearchText,
+		);
+	const showAllProjectsIndex =
+		hiddenProjectCount > 0 ? visibleProjects.length : undefined;
+	const firstChatIndex = getFirstChatOptionIndex(
+		visibleProjects.length,
+		hiddenProjectCount,
+	);
+	const optionChats = !hasQuery
+		? recentChats.slice(0, RECENT_CHATS_COUNT)
+		: searchError
+			? []
+			: (searchQuery.data ?? []);
+	const resultCount = firstChatIndex + optionChats.length;
+	const safeSelectedIndex =
+		selectedIndex !== undefined && selectedIndex < resultCount
+			? selectedIndex
 			: undefined;
 	const activeResultId =
-		safeSelectedChatIndex !== undefined
-			? `${listboxId}-option-${safeSelectedChatIndex}`
+		safeSelectedIndex !== undefined
+			? getChatSearchOptionId(listboxId, safeSelectedIndex)
 			: undefined;
+	const showAllProjects = () => setExpandedProjectSearchText(projectSearchText);
+	const searchLabel = projects ? "Search chats and projects" : "Search chats";
 	const closeDialog = () => onOpenChange(false);
 
 	const showResultsLoading =
@@ -262,7 +309,7 @@ const ChatSearchDialogContent: React.FC<ChatSearchDialogContentProps> = ({
 			setFreeText("");
 		}
 		setIsDropdownOpen(false);
-		setSelectedChatIndex(undefined);
+		setSelectedIndex(undefined);
 		requestAnimationFrame(() => inputRef.current?.focus());
 	};
 
@@ -273,13 +320,13 @@ const ChatSearchDialogContent: React.FC<ChatSearchDialogContentProps> = ({
 		} else {
 			setFilters((prev) => prev.filter((f) => f.key !== key));
 		}
-		setSelectedChatIndex(undefined);
+		setSelectedIndex(undefined);
 		requestAnimationFrame(() => inputRef.current?.focus());
 	};
 
 	const handleInputChange = (value: string) => {
 		setFreeText(value);
-		setSelectedChatIndex(undefined);
+		setSelectedIndex(undefined);
 	};
 
 	// Build the display filters for ChatSearchInput: completed filters plus
@@ -363,7 +410,7 @@ const ChatSearchDialogContent: React.FC<ChatSearchDialogContentProps> = ({
 			}
 
 			event.preventDefault();
-			setSelectedChatIndex((previousIndex) => {
+			setSelectedIndex((previousIndex) => {
 				if (previousIndex === undefined || previousIndex >= resultCount) {
 					return event.key === "ArrowUp" ? resultCount - 1 : 0;
 				}
@@ -377,19 +424,24 @@ const ChatSearchDialogContent: React.FC<ChatSearchDialogContentProps> = ({
 			return;
 		}
 
-		if (event.key === "Enter" && selectedChat) {
+		if (event.key === "Enter" && safeSelectedIndex !== undefined) {
 			event.preventDefault();
-			navigate({
-				pathname: `/agents/${selectedChat.id}`,
-				search: location.search,
-			});
+			if (safeSelectedIndex === showAllProjectsIndex) {
+				showAllProjects();
+				return;
+			}
+			const selectedProject = visibleProjects.at(safeSelectedIndex);
+			const pathname = selectedProject
+				? buildAgentProjectPath({ projectId: selectedProject.id })
+				: `/agents/${optionChats[safeSelectedIndex - firstChatIndex].id}`;
+			navigate({ pathname, search: location.search });
 			closeDialog();
 		}
 	};
 
 	return (
 		<>
-			<DialogTitle className="sr-only">Search chats</DialogTitle>
+			<DialogTitle className="sr-only">{searchLabel}</DialogTitle>
 			{/* Wrap input + dropdown so onBlur on the container closes
 				   the dropdown, but clicks within the dropdown (which is
 				   inside the same container) don't trigger blur. */}
@@ -402,6 +454,7 @@ const ChatSearchDialogContent: React.FC<ChatSearchDialogContentProps> = ({
 				}}
 			>
 				<ChatSearchInput
+					label={searchLabel}
 					activeResultId={activeResultId}
 					hasResults={resultCount > 0}
 					inputRef={inputRef}
@@ -422,12 +475,19 @@ const ChatSearchDialogContent: React.FC<ChatSearchDialogContentProps> = ({
 			<ChatSearchResults
 				chats={searchQuery.data}
 				recentChats={recentChats}
-				error={hasQuery ? searchQuery.error : undefined}
+				projectResults={{
+					visible: visibleProjects,
+					hiddenCount: hiddenProjectCount,
+					organizationLabels: projectOrganizationLabels,
+					onShowAll: showAllProjects,
+				}}
+				searchesProjects={Boolean(projects) && projectSearchText.trim() !== ""}
+				error={searchError}
 				hasQuery={hasQuery}
 				hasSearchText={hasSearchText}
 				location={location}
 				listboxId={listboxId}
-				selectedChatIndex={safeSelectedChatIndex}
+				selectedIndex={safeSelectedIndex}
 				showLoading={showResultsLoading}
 				isRefreshing={isRefreshing}
 				onDismiss={closeDialog}

@@ -1,10 +1,13 @@
 import { cn } from "cn";
+import { ChevronDownIcon } from "lucide-react";
 import { Slot } from "radix-ui";
 import { useEffect, useRef } from "react";
 import { Link, type Location } from "react-router";
-import type { Chat } from "#/api/typesGenerated";
+import type { Chat, ChatProject } from "#/api/typesGenerated";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { shortRelativeTime } from "#/utils/time";
+import { buildAgentProjectPath } from "../../../utils/navigation";
+import { ChatProjectIcon } from "../../ChatProjectIcon";
 import { ChatNodePRIcon } from "../tree/ChatNodePRIcon";
 import { getChatDisplayConfig } from "../tree/statusConfig";
 
@@ -50,6 +53,76 @@ const SearchOption: React.FC<SearchOptionProps> = ({
 		</Slot.Root>
 	);
 };
+
+type ProjectSearchResultRowProps = {
+	readonly project: ChatProject;
+	readonly organizationLabel: string | undefined;
+	readonly id: string;
+	readonly isSelected: boolean;
+	readonly location: Location;
+	readonly onSelect: () => void;
+};
+
+/** A project result that opens the project page. */
+export const ProjectSearchResultRow: React.FC<ProjectSearchResultRowProps> = ({
+	project,
+	organizationLabel,
+	id,
+	isSelected,
+	location,
+	onSelect,
+}) => (
+	<SearchOption id={id} isSelected={isSelected} className="flex items-center">
+		<Link
+			to={{
+				pathname: buildAgentProjectPath({ projectId: project.id }),
+				search: location.search,
+			}}
+			onClick={onSelect}
+		>
+			<ChatProjectIcon project={project} className="size-3.5" />
+			<span className="min-w-0 flex-1 truncate text-sm text-content-primary">
+				{project.name}
+			</span>
+			{organizationLabel && (
+				<span className="max-w-2/5 shrink-0 truncate text-xs">
+					{organizationLabel}
+				</span>
+			)}
+		</Link>
+	</SearchOption>
+);
+
+type ShowAllProjectsRowProps = {
+	readonly projectCount: number;
+	readonly id: string;
+	readonly isSelected: boolean;
+	readonly onShowAll: () => void;
+};
+
+/** Expands a collapsed project list in place. */
+export const ShowAllProjectsRow: React.FC<ShowAllProjectsRowProps> = ({
+	projectCount,
+	id,
+	isSelected,
+	onShowAll,
+}) => (
+	<SearchOption
+		id={id}
+		isSelected={isSelected}
+		className="flex items-center text-left text-sm"
+	>
+		<button
+			type="button"
+			// Keeps focus in the search input so typing still works after a click.
+			onMouseDown={(event) => event.preventDefault()}
+			onClick={onShowAll}
+		>
+			<ChevronDownIcon aria-hidden="true" className="size-3.5 shrink-0" />
+			Show all {projectCount} projects
+		</button>
+	</SearchOption>
+);
 
 type ChatSearchResultRowProps = {
 	readonly chat: Chat;

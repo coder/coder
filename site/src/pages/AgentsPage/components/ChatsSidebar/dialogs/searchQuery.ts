@@ -263,3 +263,65 @@ export const extractTypedFilters = (
 		consumed,
 	};
 };
+
+type ChatSearchTextTerm = {
+	readonly words: readonly string[];
+	readonly negated: boolean;
+};
+
+const getChatSearchWords = (value: string): string[] =>
+	value.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+
+/**
+ * Builds a predicate that matches text the way the `search:` filter matches
+ * chat titles: `to_tsvector('simple', title) @@ websearch_to_tsquery('simple',
+ * query)` on the quote-stripped query. Postgres keeps hyphenated words, hosts,
+ * and versions as single words, so this is more lenient for those.
+ */
+export const createChatSearchTextMatcher = (
+	query: string,
+): ((text: string) => boolean) => {
+	const rawTerms = sanitizeChatSearchValue(query).split(/\s+/).filter(Boolean);
+	// Terms are AND-ed within a group and the groups are OR-ed, matching
+	// tsquery precedence.
+	const groups: ChatSearchTextTerm[][] = [[]];
+	let negated = false;
+	let previousWasTerm = false;
+	for (const [index, rawTerm] of rawTerms.entries()) {
+		// Postgres reads a leading or trailing `or` as a word.
+		if (
+			rawTerm.toLowerCase() === "or" &&
+			previousWasTerm &&
+			index < rawTerms.length - 1
+		) {
+			groups.push([]);
+			previousWasTerm = false;
+			continue;
+		}
+		const dashes = rawTerm.match(/^-*/)?.[0].length ?? 0;
+		if (dashes % 2 === 1) {
+			negated = !negated;
+		}
+		const words = getChatSearchWords(rawTerm.slice(dashes));
+		// A term without words is dropped, but its negation carries over to
+		// the next term.
+		if (words.length === 0) {
+			continue;
+		}
+		groups[groups.length - 1].push({ words, negated });
+		negated = false;
+		previousWasTerm = true;
+	}
+	const searchableGroups = groups.filter((group) => group.length > 0);
+
+	return (text) => {
+		const textWords = getChatSearchWords(text);
+		const containsPhrase = (phrase: readonly string[]) =>
+			textWords.some((_, start) =>
+				phrase.every((word, offset) => textWords[start + offset] === word),
+			);
+		return searchableGroups.some((group) =>
+			group.every((term) => containsPhrase(term.words) !== term.negated),
+		);
+	};
+};

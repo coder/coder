@@ -7,6 +7,8 @@ export type SearchFilter = {
 };
 
 type ChatSearchInputProps = {
+	/** Accessible name of the input, also used for its placeholder. */
+	readonly label: string;
 	readonly activeResultId: string | undefined;
 	readonly hasResults: boolean;
 	readonly inputRef: React.RefObject<HTMLInputElement | null>;
@@ -21,6 +23,7 @@ type ChatSearchInputProps = {
 };
 
 export const ChatSearchInput: React.FC<ChatSearchInputProps> = ({
+	label,
 	activeResultId,
 	hasResults,
 	inputRef,
@@ -81,9 +84,9 @@ export const ChatSearchInput: React.FC<ChatSearchInputProps> = ({
 					value={value}
 					onChange={onChange}
 					onKeyDown={onKeyDown}
-					placeholder={filters.length > 0 ? "" : "Search chats..."}
+					placeholder={filters.length > 0 ? "" : `${label}...`}
 					className="min-w-[60px] flex-1 basis-[60px] border-none bg-transparent py-0.5 text-sm text-content-primary outline-hidden placeholder:text-content-disabled"
-					aria-label="Search chats"
+					aria-label={label}
 					role="combobox"
 					aria-controls={hasResults ? listboxId : undefined}
 					aria-expanded={hasResults}
