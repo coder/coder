@@ -1,4 +1,5 @@
 import type { Chat, ChatProject, Organization } from "#/api/typesGenerated";
+import { canManageChat } from "../../ChatActionsMenuItems";
 
 type ChatsGroupedByProject = {
 	readonly chatsByProjectId: ReadonlyMap<string, readonly Chat[]>;
@@ -38,6 +39,47 @@ export const groupChatsByProject = (
 		unfiledChats,
 		folderProjectIds: loadedProjectIds,
 	};
+};
+
+type MergeProjectFolderChatsOptions = {
+	readonly projectId: string;
+	/** The loaded sidebar chats that `groupChatsByProject` filed here. */
+	readonly filedChats: readonly Chat[];
+	/** The folder's own fetch, which reaches chats the sidebar has not loaded. */
+	readonly fetchedChats: readonly Chat[];
+	readonly currentUserId: string;
+	readonly archived: boolean;
+};
+
+/**
+ * Lists a project folder's chats, newest first. The filed copy wins because
+ * the sidebar list sees creates and moves first, and fetched rows are checked
+ * again because cached rows change in place after the fetch.
+ */
+export const mergeProjectFolderChats = ({
+	projectId,
+	filedChats,
+	fetchedChats,
+	currentUserId,
+	archived,
+}: MergeProjectFolderChatsOptions): readonly Chat[] => {
+	const chatsById = new Map(filedChats.map((chat) => [chat.id, chat]));
+	for (const chat of fetchedChats) {
+		if (
+			!chatsById.has(chat.id) &&
+			chat.project_id === projectId &&
+			chat.pin_order === 0 &&
+			chat.archived === archived &&
+			canManageChat(chat, currentUserId)
+		) {
+			chatsById.set(chat.id, chat);
+		}
+	}
+	return [...chatsById.values()].sort(
+		(a, b) =>
+			Date.parse(b.updated_at) - Date.parse(a.updated_at) ||
+			b.id.localeCompare(a.id),
+	);
 };
 
 /**

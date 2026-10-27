@@ -2,6 +2,7 @@ import { cn } from "cn";
 import { ChevronRightIcon, EllipsisVerticalIcon, PlusIcon } from "lucide-react";
 import { useState } from "react";
 import { NavLink, type To, useLocation } from "react-router";
+import type { ChatListInput } from "#/api/queries/chats";
 import type { Chat, ChatProject, Organization } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -26,9 +27,9 @@ import {
 	savePersistedProjectsSectionExpanded,
 } from "../../../utils/projectsSectionStorage";
 import { ChatProjectIcon } from "../../ChatProjectIcon";
-import { DraggableChatTreeNode } from "../tree/DraggableChatTreeNode";
 import { ChatDropArea } from "./ChatDropArea";
 import { ProjectActionsMenuItems } from "./ProjectActionsMenuItems";
+import { ProjectFolderChats } from "./ProjectFolderChats";
 import { ProjectsSectionDropArea } from "./ProjectsSectionDropArea";
 import { getOrganizationLabels } from "./projectGrouping";
 import { SidebarSectionHeader } from "./SidebarSectionHeader";
@@ -45,6 +46,13 @@ type ProjectFoldersProps = {
 	readonly projects: readonly ChatProject[];
 	readonly organizations: readonly Organization[];
 	readonly chatsByProjectId: ReadonlyMap<string, readonly Chat[]>;
+	/**
+	 * Pinned chats per project. The Pinned section lists them, so folders
+	 * only count them.
+	 */
+	readonly pinnedChatsByProjectId: ReadonlyMap<string, readonly Chat[]>;
+	/** The sidebar's list filters, which open folders fetch with. */
+	readonly chatListInput: ChatListInput;
 	readonly expandedProjectIds: Readonly<Record<string, boolean>>;
 	readonly onToggle: (projectId: string) => void;
 	readonly onOpenProjectDialog: OpenProjectDialog;
@@ -65,6 +73,8 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 	projects,
 	organizations,
 	chatsByProjectId,
+	pinnedChatsByProjectId,
+	chatListInput,
 	expandedProjectIds,
 	onToggle,
 	onOpenProjectDialog,
@@ -153,6 +163,10 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 									project={project}
 									organizationLabel={organizationLabels.get(project.id)}
 									chats={chatsByProjectId.get(project.id) ?? []}
+									pinnedCount={
+										pinnedChatsByProjectId.get(project.id)?.length ?? 0
+									}
+									chatListInput={chatListInput}
 									expanded={Boolean(expandedProjectIds[project.id])}
 									locationSearch={location.search}
 									onToggle={() => onToggle(project.id)}
@@ -173,6 +187,8 @@ type ProjectFolderProps = {
 	readonly project: ChatProject;
 	readonly organizationLabel: string | undefined;
 	readonly chats: readonly Chat[];
+	readonly pinnedCount: number;
+	readonly chatListInput: ChatListInput;
 	readonly expanded: boolean;
 	readonly locationSearch: string;
 	readonly onToggle: () => void;
@@ -185,6 +201,8 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 	project,
 	organizationLabel,
 	chats,
+	pinnedCount,
+	chatListInput,
 	expanded,
 	locationSearch,
 	onToggle,
@@ -301,15 +319,14 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 				// pl-[7px] and pr-2 offset ChatTreeNode's -mx-2 bleed: rows span the
 				// folder row's width and an active row's border covers the guide line.
 				<div className="ml-3 flex flex-col gap-0.5 border-0 border-l border-solid border-border pl-[7px] pr-2">
-					{chats.length === 0 ? (
-						<p className="m-0 px-2 py-1 text-xs text-content-secondary">
-							{emptyMessage}
-						</p>
-					) : (
-						chats.map((chat) => (
-							<DraggableChatTreeNode key={chat.id} chat={chat} />
-						))
-					)}
+					<ProjectFolderChats
+						projectId={project.id}
+						projectLabel={projectLabel}
+						filedChats={chats}
+						pinnedCount={pinnedCount}
+						chatListInput={chatListInput}
+						emptyMessage={emptyMessage}
+					/>
 				</div>
 			)}
 		</ChatDropArea>

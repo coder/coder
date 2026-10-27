@@ -111,6 +111,7 @@ import {
 	prependToInfiniteChatsCache,
 	projectChats,
 	projectChatsKey,
+	projectFolderChatsKey,
 	promoteChatQueuedMessage,
 	proposeChatTitle,
 	removeChatEntity,
@@ -3015,6 +3016,46 @@ describe("project chat list caches", () => {
 		expect(
 			queryClient.getQueryState(projectChatsKey("project-2"))?.isInvalidated,
 		).toBe(false);
+	});
+
+	it("keeps an archived chat in an archived folder list and drops it from an active one", () => {
+		const queryClient = createTestQueryClient();
+		const activeKey = projectFolderChatsKey("project-1", toChatListParams());
+		const archivedKey = projectFolderChatsKey(
+			"project-1",
+			toChatListParams({ archived: true }),
+		);
+		for (const key of [activeKey, archivedKey]) {
+			queryClient.setQueryData(key, {
+				pages: [[makeChat("chat-1")]],
+				pageParams: [0],
+			});
+		}
+
+		applyChatArchiveStateToCaches(queryClient, "chat-1", true);
+
+		expect(
+			queryClient.getQueryData<InfiniteData>(activeKey)?.pages.flat(),
+		).toEqual([]);
+		expect(
+			queryClient
+				.getQueryData<InfiniteData>(archivedKey)
+				?.pages.flat()
+				.map((chat) => chat.archived),
+		).toEqual([true]);
+	});
+
+	it("marks a chat read in a project list", async () => {
+		const queryClient = createTestQueryClient();
+		seedProjectChats(queryClient, "project-1", [
+			makeChat("chat-1", { has_unread: true }),
+		]);
+
+		await markChatRead(queryClient).onMutate("chat-1");
+
+		expect(readProjectChats(queryClient, "project-1")?.[0].has_unread).toBe(
+			false,
+		);
 	});
 
 	it("finds a chat that is only cached in a project list", () => {

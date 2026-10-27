@@ -18,6 +18,7 @@ import { chatProjectsKey } from "#/api/queries/chatProjects";
 import {
 	chatListKey,
 	infiniteChats,
+	projectFolderChatsKey,
 	toChatListParams,
 	userChatProviderConfigsKey,
 } from "#/api/queries/chats";
@@ -36,7 +37,10 @@ import {
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
 import { useAgentsPageKeybindings } from "../../hooks/useAgentsPageKeybindings";
-import { DEFAULT_AGENT_SIDEBAR_FILTERS as defaultSidebarFilters } from "../../utils/agentSidebarFilters";
+import {
+	DEFAULT_AGENT_SIDEBAR_FILTERS as defaultSidebarFilters,
+	getSidebarChatListInput,
+} from "../../utils/agentSidebarFilters";
 import { projectsSectionCollapsedStorageKey } from "../../utils/projectsSectionStorage";
 import { ChatsSidebar } from "./ChatsSidebar";
 
@@ -118,6 +122,12 @@ const meta: Meta<typeof ChatsSidebar> = {
 		sidebarFilters: defaultSidebarFilters,
 		isPersonalModelOverridesEnabled: true,
 		onSidebarFiltersChange: fn(),
+	},
+	// Open project folders fetch their project's chats. Stories have no API
+	// server, so folders show only the sidebar's chats unless a story seeds
+	// the folder query.
+	beforeEach: () => {
+		spyOn(API.experimental, "getChats").mockResolvedValue([]);
 	},
 	parameters: {
 		layout: "fullscreen",
@@ -3061,6 +3071,139 @@ export const ProjectFolderExpanded: Story = {
 			},
 			routing: agentsRouting,
 		}),
+	},
+};
+
+const mockPinnedProjectChat = buildChat({
+	id: "pinned-project-chat",
+	title: "Pinned project chat",
+	organization_id: MockChatProject.organization_id,
+	project_id: MockChatProject.id,
+	pin_order: 1,
+});
+
+/** The pinned project chat is listed in Pinned and only counted in its folder. */
+export const ProjectFolderWithPinnedChat: Story = {
+	args: { chats: [...mockProjectChats, mockPinnedProjectChat] },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/agents/projects/${MockChatProject.id}`,
+				pathParams: { projectId: MockChatProject.id },
+			},
+			routing: agentsRouting,
+		}),
+	},
+};
+
+/** A folder whose chats are all pinned shows their count, not its empty state. */
+export const ProjectFolderWithOnlyPinnedChats: Story = {
+	args: {
+		chats: [
+			mockLooseChat,
+			mockPinnedProjectChat,
+			buildChat({
+				id: "second-pinned-project-chat",
+				title: "Second pinned project chat",
+				organization_id: MockChatProject.organization_id,
+				project_id: MockChatProject.id,
+				pin_order: 2,
+			}),
+		],
+	},
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/agents/projects/${MockChatProject.id}`,
+				pathParams: { projectId: MockChatProject.id },
+			},
+			routing: agentsRouting,
+		}),
+	},
+};
+
+const mockOlderProjectChat = buildChat({
+	id: "older-project-chat",
+	title: "Older project chat",
+	organization_id: MockChatProject.organization_id,
+	project_id: MockChatProject.id,
+});
+
+/**
+ * The sidebar has not loaded this project's chat yet, so the open folder
+ * fetches it.
+ */
+export const ProjectFolderWithUnloadedChat: Story = {
+	args: { chats: [mockLooseChat] },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
+			{
+				key: projectFolderChatsKey(
+					MockChatProject.id,
+					toChatListParams(getSidebarChatListInput(defaultSidebarFilters)),
+				),
+				data: { pages: [[mockOlderProjectChat]], pageParams: [0] },
+			},
+		],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/agents/projects/${MockChatProject.id}`,
+				pathParams: { projectId: MockChatProject.id },
+			},
+			routing: agentsRouting,
+		}),
+	},
+};
+
+export const ProjectFolderChatsLoading: Story = {
+	args: { chats: [mockLooseChat] },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/agents/projects/${MockChatProject.id}`,
+				pathParams: { projectId: MockChatProject.id },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChats").mockReturnValue(new Promise(() => {}));
+	},
+};
+
+export const ProjectFolderChatsLoadError: Story = {
+	args: { chats: mockProjectChats },
+	parameters: {
+		experiments: ["chat-projects"],
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/agents/projects/${MockChatProject.id}`,
+				pathParams: { projectId: MockChatProject.id },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChats").mockRejectedValue(
+			mockApiError({ message: "Failed to load chats." }),
+		);
+	},
+	play: async () => {
+		// The folder query retries before it reports the error.
+		await screen.findByRole(
+			"button",
+			{ name: `Retry loading chats in ${MockChatProject.name}` },
+			{ timeout: 10_000 },
+		);
 	},
 };
 

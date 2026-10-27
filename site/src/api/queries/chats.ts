@@ -401,7 +401,24 @@ const archivedFilterForChatListKey = (
 	if (queryKey.length !== chatListFamilyKey.length + 1) {
 		return undefined;
 	}
-	const params = queryKey[chatListFamilyKey.length];
+	return readArchivedParam(queryKey[chatListFamilyKey.length]);
+};
+
+// Inverse of projectFolderChatsKey, which builds keys as
+// [...chatProjectListFamilyKey, projectId, params]. Project page lists, keyed
+// without params, only hold unarchived chats.
+const archivedFilterForProjectListKey = (
+	queryKey: readonly unknown[],
+): boolean => {
+	if (queryKey.length !== chatProjectListFamilyKey.length + 2) {
+		return false;
+	}
+	return (
+		readArchivedParam(queryKey[chatProjectListFamilyKey.length + 1]) ?? false
+	);
+};
+
+const readArchivedParam = (params: unknown): boolean | undefined => {
 	if (!params || typeof params !== "object") {
 		return undefined;
 	}
@@ -461,7 +478,6 @@ export const applyChatArchiveStateToCaches = (
 		);
 	}
 
-	// Project lists only hold unarchived chats.
 	const queries = [
 		...queryClient
 			.getQueriesData<InfiniteChatsCacheData>({ queryKey: chatListFamilyKey })
@@ -473,7 +489,10 @@ export const applyChatArchiveStateToCaches = (
 			.getQueriesData<InfiniteChatsCacheData>({
 				queryKey: chatProjectListFamilyKey,
 			})
-			.map(([queryKey, data]) => [queryKey, data, false] as const),
+			.map(
+				([queryKey, data]) =>
+					[queryKey, data, archivedFilterForProjectListKey(queryKey)] as const,
+			),
 	];
 
 	for (const [queryKey, data, archivedFilter] of queries) {
@@ -1406,13 +1425,20 @@ export const getChatListQueryString = (
 export const chatListKey = (params: ChatListParams) =>
 	[...chatListFamilyKey, params] as const;
 
-export const infiniteChats = (input?: ChatListInput) => {
+/**
+ * Pages through the chats that match the sidebar's filters, optionally
+ * within one project.
+ */
+const sidebarChatListOptions = <TQueryKey extends QueryKey>(
+	queryKey: TQueryKey,
+	params: ChatListParams,
+	projectId?: string,
+) => {
 	const limit = DEFAULT_CHAT_PAGE_LIMIT;
-	const params = toChatListParams(input);
 	const q = getChatListQueryString(params);
 
 	return infiniteQueryOptions({
-		queryKey: chatListKey(params),
+		queryKey,
 		getNextPageParam: (lastPage: TypesGen.Chat[], pages: TypesGen.Chat[][]) => {
 			if (lastPage.length < limit) {
 				return undefined;
@@ -1426,6 +1452,7 @@ export const infiniteChats = (input?: ChatListInput) => {
 					limit,
 					offset: pageParam <= 0 ? 0 : (pageParam - 1) * limit,
 					q,
+					project_id: projectId,
 				},
 				signal,
 			),
@@ -1447,8 +1474,35 @@ export const infiniteChats = (input?: ChatListInput) => {
 	});
 };
 
+export const infiniteChats = (input?: ChatListInput) => {
+	const params = toChatListParams(input);
+	return sidebarChatListOptions(chatListKey(params), params);
+};
+
 export const projectChatsKey = (projectId: string) =>
 	[...chatProjectListFamilyKey, projectId] as const;
+
+/**
+ * Nests under projectChatsKey, so whatever refreshes a project's page
+ * refreshes its sidebar folder too.
+ */
+export const projectFolderChatsKey = (
+	projectId: string,
+	params: ChatListParams,
+) => [...projectChatsKey(projectId), params] as const;
+
+/** One project's chats for its sidebar folder, filtered like the sidebar. */
+export const infiniteProjectFolderChats = (
+	projectId: string,
+	input: ChatListInput,
+) => {
+	const params = toChatListParams(input);
+	return sidebarChatListOptions(
+		projectFolderChatsKey(projectId, params),
+		params,
+		projectId,
+	);
+};
 
 /** Unarchived chats in one project, newest first. */
 export const projectChats = (projectId: string) => {
@@ -2071,9 +2125,10 @@ const applyChatReadStateToLists = (
 	read: boolean,
 ): ChatListSnapshot => {
 	const snapshot: Array<readonly [QueryKey, InfiniteChatsCacheData]> = [];
-	const queries = queryClient.getQueriesData<InfiniteChatsCacheData>({
-		queryKey: chatListFamilyKey,
-	});
+	const queries = [chatListFamilyKey, chatProjectListFamilyKey].flatMap(
+		(queryKey) =>
+			queryClient.getQueriesData<InfiniteChatsCacheData>({ queryKey }),
+	);
 
 	for (const [queryKey, data] of queries) {
 		if (!data?.pages) {

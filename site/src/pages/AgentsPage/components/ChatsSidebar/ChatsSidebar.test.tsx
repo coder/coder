@@ -153,6 +153,46 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 };
 
 describe("ChatsSidebar projects", () => {
+	beforeEach(() => {
+		// Open project folders fetch their project's chats.
+		server.use(http.get("/api/v2/chats", () => HttpResponse.json([])));
+	});
+
+	it("fetches an open folder's chats that the sidebar has not loaded", async () => {
+		const requests: URLSearchParams[] = [];
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+			http.get("/api/v2/chats", ({ request }) => {
+				requests.push(new URL(request.url).searchParams);
+				return HttpResponse.json([
+					buildChat({
+						id: "older-project-chat",
+						title: "Older project chat",
+						organization_id: MockChatProject.organization_id,
+						project_id: MockChatProject.id,
+					}),
+				]);
+			}),
+		);
+
+		render(
+			<Wrapper
+				experiments={["chat-projects"]}
+				initialEntry={`/agents/projects/${MockChatProject.id}`}
+			>
+				<ChatsSidebar {...defaultProps} chats={[]} />
+			</Wrapper>,
+		);
+
+		await screen.findByRole("link", { name: /Older project chat/ });
+		expect(requests).toHaveLength(1);
+		expect(requests[0].get("project_id")).toBe(MockChatProject.id);
+		// The folder applies the sidebar's filters.
+		expect(requests[0].get("q")).toBe("archived:false source:created_by_me");
+	});
+
 	it("keeps a newer delete dialog open when an earlier delete finishes", async () => {
 		const user = userEvent.setup();
 		const mockOtherProject = {
