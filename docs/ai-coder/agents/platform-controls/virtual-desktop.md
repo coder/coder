@@ -50,7 +50,7 @@ It's also unavailable when it runs on the organization's default model and that 
 OpenAI computer use requires the Responses API, so it fails on an OpenAI model whose **Use Responses API** override is set to Off.
 
 A warning icon next to the model selector means that Coder hasn't verified the model for computer use.
-The icon follows the model that computer use runs on: the selected model, or the organization's default model when no model is selected.
+The icon checks the selected model, or the organization's default model when no model is selected or the selected model is unavailable.
 The warning doesn't block saving.
 Before you save, confirm that the model supports the provider's computer use tool.
 

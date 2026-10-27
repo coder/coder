@@ -95,6 +95,10 @@ const settings: readonly {
 		description:
 			"Used by the computer use subagent to operate the virtual desktop. Only Anthropic and OpenAI models are supported.",
 		unsetPlaceholder: "Use default model",
+		// This row lists only Anthropic and OpenAI models, so a saved model can
+		// be unavailable here while it stays enabled.
+		unavailableModelWarning:
+			"The saved model is no longer available for computer use and will be ignored until you choose a new override.",
 	},
 ];
 
@@ -118,7 +122,8 @@ const filterComputerUseProviderModels = (
 	});
 
 // Computer use falls back to the organization default model when the override
-// is unset or no longer enabled, so the warning follows that model instead.
+// is unset or missing from computerUseProviderModels, so the warning follows
+// that model instead.
 const isUnverifiedComputerUseModel = (
 	selectedModelID: string,
 	defaultModelID: string | undefined,
