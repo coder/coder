@@ -1,4 +1,5 @@
 import { ArrowUpRightIcon } from "lucide-react";
+import { useId } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -31,7 +32,7 @@ type AgentSettingsMCPConnectionsPageViewProps = {
 	organizations: readonly TypesGen.Organization[];
 	organization: TypesGen.Organization | undefined;
 	onOrganizationChange: (organization: TypesGen.Organization) => void;
-	/** Enabled servers of the selected organization, in API order. */
+	/** Servers of the selected organization in API order; disabled ones are skipped. */
 	servers: readonly TypesGen.MCPServerConfig[] | undefined;
 	error: unknown;
 	isLoading: boolean;
@@ -50,6 +51,92 @@ const listFormat = new Intl.ListFormat("en-US", {
 	style: "long",
 	type: "conjunction",
 });
+
+type MCPConnectionRowProps = {
+	server: TypesGen.MCPServerConfig;
+	connectingServerId: string | null;
+	onConnect: (server: TypesGen.MCPServerConfig) => void;
+	onDisconnect: (server: TypesGen.MCPServerConfig) => void;
+};
+
+const MCPConnectionRow: React.FC<MCPConnectionRowProps> = ({
+	server,
+	connectingServerId,
+	onConnect,
+	onDisconnect,
+}) => {
+	const isConnecting = connectingServerId === server.id;
+	return (
+		<TableRow>
+			<TableCell className="max-w-48">
+				<div className="flex items-center gap-2">
+					<MCPServerIcon iconUrl={server.icon_url} className="size-6" />
+					<span className="truncate" title={server.display_name}>
+						{server.display_name}
+					</span>
+				</div>
+			</TableCell>
+			<TableCell
+				className="w-full max-w-0 truncate"
+				title={server.description || undefined}
+			>
+				{server.description || (
+					<span className="text-content-disabled">No description</span>
+				)}
+			</TableCell>
+			<TableCell className="whitespace-nowrap">
+				{isConnecting ? (
+					<StatusIndicator variant="pending" size="sm">
+						<StatusIndicatorDot />
+						Waiting for sign-in
+					</StatusIndicator>
+				) : server.auth_connected ? (
+					<StatusIndicator variant="success" size="sm">
+						<StatusIndicatorDot />
+						Connected
+					</StatusIndicator>
+				) : (
+					<StatusIndicator variant="inactive" size="sm">
+						<StatusIndicatorDot />
+						Not connected
+					</StatusIndicator>
+				)}
+			</TableCell>
+			<TableCell className="text-right">
+				{server.auth_connected ? (
+					<Button
+						variant="outline"
+						size="sm"
+						aria-label={`Disconnect ${server.display_name}`}
+						onClick={() => onDisconnect(server)}
+					>
+						Disconnect
+					</Button>
+				) : (
+					<Button
+						variant="outline"
+						size="sm"
+						aria-label={`${isConnecting ? "Connecting" : "Connect"} ${server.display_name}`}
+						disabled={connectingServerId !== null}
+						onClick={() => onConnect(server)}
+					>
+						{isConnecting ? (
+							<>
+								<Spinner loading className="size-4" />
+								Connecting
+							</>
+						) : (
+							<>
+								Connect
+								<ArrowUpRightIcon />
+							</>
+						)}
+					</Button>
+				)}
+			</TableCell>
+		</TableRow>
+	);
+};
 
 export const AgentSettingsMCPConnectionsPageView: React.FC<
 	AgentSettingsMCPConnectionsPageViewProps
@@ -70,9 +157,10 @@ export const AgentSettingsMCPConnectionsPageView: React.FC<
 	onConfirmDisconnect,
 	onCancelDisconnect,
 }) => {
+	const organizationFieldId = useId();
 	const organizationName = organization
 		? organization.display_name || organization.name
-		: "";
+		: "your organization";
 	const enabledServers = servers?.filter((server) => server.enabled) ?? [];
 	const oauthServers = enabledServers.filter(
 		(server) => server.auth_type === "oauth2",
@@ -89,7 +177,7 @@ export const AgentSettingsMCPConnectionsPageView: React.FC<
 			/>
 			{organization && (
 				<OrganizationField
-					id="mcp-connections-organization"
+					id={organizationFieldId}
 					className="w-full sm:w-60"
 					organizations={organizations}
 					organization={organization}
@@ -150,84 +238,15 @@ export const AgentSettingsMCPConnectionsPageView: React.FC<
 								}
 							/>
 						) : (
-							oauthServers.map((server) => {
-								const isConnecting = connectingServerId === server.id;
-								return (
-									<TableRow key={server.id}>
-										<TableCell className="max-w-48">
-											<div className="flex min-w-0 items-center gap-2">
-												<MCPServerIcon
-													iconUrl={server.icon_url}
-													className="size-6"
-												/>
-												<span className="truncate" title={server.display_name}>
-													{server.display_name}
-												</span>
-											</div>
-										</TableCell>
-										<TableCell
-											className="w-full max-w-0 truncate"
-											title={server.description || undefined}
-										>
-											{server.description || (
-												<span className="text-content-disabled">
-													No description
-												</span>
-											)}
-										</TableCell>
-										<TableCell className="whitespace-nowrap">
-											{isConnecting ? (
-												<StatusIndicator variant="pending" size="sm">
-													<StatusIndicatorDot />
-													Waiting for sign-in
-												</StatusIndicator>
-											) : server.auth_connected ? (
-												<StatusIndicator variant="success" size="sm">
-													<StatusIndicatorDot />
-													Connected
-												</StatusIndicator>
-											) : (
-												<StatusIndicator variant="inactive" size="sm">
-													<StatusIndicatorDot />
-													Not connected
-												</StatusIndicator>
-											)}
-										</TableCell>
-										<TableCell className="text-right">
-											{server.auth_connected ? (
-												<Button
-													variant="outline"
-													size="sm"
-													aria-label={`Disconnect ${server.display_name}`}
-													onClick={() => onDisconnect(server)}
-												>
-													Disconnect
-												</Button>
-											) : (
-												<Button
-													variant="outline"
-													size="sm"
-													aria-label={`Connect ${server.display_name}`}
-													disabled={connectingServerId !== null}
-													onClick={() => onConnect(server)}
-												>
-													{isConnecting ? (
-														<>
-															<Spinner loading className="size-4" />
-															Connecting
-														</>
-													) : (
-														<>
-															Connect
-															<ArrowUpRightIcon />
-														</>
-													)}
-												</Button>
-											)}
-										</TableCell>
-									</TableRow>
-								);
-							})
+							oauthServers.map((server) => (
+								<MCPConnectionRow
+									key={server.id}
+									server={server}
+									connectingServerId={connectingServerId}
+									onConnect={onConnect}
+									onDisconnect={onDisconnect}
+								/>
+							))
 						)}
 					</TableBody>
 				</Table>

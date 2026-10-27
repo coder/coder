@@ -655,12 +655,14 @@ const mcpDefaults = {
 	onMCPSelectionChange: fn(),
 };
 
-const openMCPSubmenu = async (canvasElement: HTMLElement) => {
-	const canvas = within(canvasElement);
-	const body = within(canvasElement.ownerDocument.body);
-	await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+const mockNotionMCPSignedOut = { ...notionMCPConnected, auth_connected: false };
+
+const openMCPSubmenu: Story["play"] = async ({ canvasElement }) => {
 	await userEvent.click(
-		await body.findByRole("button", { name: /MCP servers/ }),
+		within(canvasElement).getByRole("button", { name: "More options" }),
+	);
+	await userEvent.click(
+		await screen.findByRole("button", { name: /MCP servers/ }),
 	);
 };
 
@@ -694,7 +696,6 @@ export const ReadOnlyNotice: Story = {
 	},
 };
 
-/** The "3 MCPs" pill opens the same server menu as the + menu. */
 export const MCPGroupPopoverOpen: Story = {
 	args: {
 		...WithMCPServers.args,
@@ -722,7 +723,6 @@ export const MCPGroupDisabled: Story = {
 	play: MCPGroupPopoverOpen.play,
 };
 
-/** A read-only chat shows the switches disabled and no Manage connections. */
 export const MCPGroupReadOnly: Story = {
 	args: {
 		...ReadOnlyNotice.args,
@@ -741,7 +741,6 @@ const mockLongNameMCP = buildMCPServer({
 	enabled: true,
 });
 
-/** A long server name truncates inside the menu instead of pushing its switch out of view. */
 export const MCPGroupPopoverLongName: Story = {
 	args: {
 		...mcpDefaults,
@@ -751,24 +750,16 @@ export const MCPGroupPopoverLongName: Story = {
 	play: MCPGroupPopoverOpen.play,
 };
 
-/**
- * The MCP servers submenu lists connected and no-sign-in servers. GitHub is
- * not connected and not selected, so it only counts in the footer.
- */
 export const MCPSubmenuOpen: Story = {
 	args: {
 		...mcpDefaults,
 		mcpServers: [sentryMCP, githubMCP, linearMCP, notionMCPConnected],
 		selectedMCPServerIds: [sentryMCP.id, linearMCP.id],
 	},
-	play: async ({ canvasElement }) => openMCPSubmenu(canvasElement),
+	play: openMCPSubmenu,
 };
 
-/**
- * Servers this chat had turned on, or that an admin forces on, stay listed
- * after their sign-in is gone and show that they are disconnected.
- */
-export const MCPSubmenuRecentlyUsedDisconnected: Story = {
+export const MCPSubmenuSelectedDisconnected: Story = {
 	args: {
 		...mcpDefaults,
 		mcpServers: [
@@ -779,17 +770,16 @@ export const MCPSubmenuRecentlyUsedDisconnected: Story = {
 		],
 		selectedMCPServerIds: [sentryMCP.id, githubMCP.id, linearMCP.id],
 	},
-	play: async ({ canvasElement }) => openMCPSubmenu(canvasElement),
+	play: openMCPSubmenu,
 };
 
-/** Every enabled server needs sign-in and none was used in this chat. */
 export const MCPSubmenuNoUsableServers: Story = {
 	args: {
 		...mcpDefaults,
-		mcpServers: [githubMCP, { ...notionMCPConnected, auth_connected: false }],
+		mcpServers: [githubMCP, mockNotionMCPSignedOut],
 		selectedMCPServerIds: [],
 	},
-	play: async ({ canvasElement }) => openMCPSubmenu(canvasElement),
+	play: openMCPSubmenu,
 };
 
 export const MCPSubmenuAllConnected: Story = {
@@ -798,17 +788,16 @@ export const MCPSubmenuAllConnected: Story = {
 		mcpServers: [sentryMCP, githubMCPConnected, linearMCP],
 		selectedMCPServerIds: [sentryMCP.id],
 	},
-	play: async ({ canvasElement }) => openMCPSubmenu(canvasElement),
+	play: openMCPSubmenu,
 };
 
-/** Below md the + menu drills into the server list with a Back row. */
 export const MCPSubmenuMobile: Story = {
 	args: MCPSubmenuOpen.args,
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
 		pixel: { matrix: { viewports: ["phone"] } },
 	},
-	play: async ({ canvasElement }) => openMCPSubmenu(canvasElement),
+	play: openMCPSubmenu,
 };
 
 /** No MCP servers active — shows only "MCP" label with chevron. */
@@ -1156,7 +1145,7 @@ export const MCPGroupInOverflow: Story = {
 		await userEvent.click(
 			within(overflow).getByRole("button", { name: "3 MCPs" }),
 		);
-		// The group popover is a second dialog, so wait for one of its pills.
+		// The group popover is a second dialog, so wait for one of its switches.
 		await screen.findByRole("switch", { name: "Disable Linear" });
 	},
 };

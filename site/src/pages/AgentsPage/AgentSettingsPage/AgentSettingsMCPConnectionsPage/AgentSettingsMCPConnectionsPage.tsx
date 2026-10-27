@@ -10,9 +10,21 @@ import {
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
+import {
+	getDefaultOrganizationId,
+	useDashboard,
+} from "#/modules/dashboard/useDashboard";
 import { useMCPOAuthFlow } from "../../hooks/useMCPOAuthFlow";
 import { AgentSettingsMCPConnectionsPageView } from "./AgentSettingsMCPConnectionsPageView";
+
+/** Reads the organization a link into this page asked to show first. */
+const getStateOrganizationId = (state: unknown): string | undefined =>
+	typeof state === "object" &&
+	state !== null &&
+	"organizationId" in state &&
+	typeof state.organizationId === "string"
+		? state.organizationId
+		: undefined;
 
 const AgentSettingsMCPConnectionsPage: React.FC = () => {
 	const { user } = useAuthenticated();
@@ -23,16 +35,13 @@ const AgentSettingsMCPConnectionsPage: React.FC = () => {
 	const memberOrganizations = useDashboard().organizations.filter(
 		(organization) => user.organization_ids.includes(organization.id),
 	);
-	// Manage connections in the chat menu passes the chat's organization.
-	const [selectedOrganizationId, setSelectedOrganizationId] = useState<
-		string | undefined
-	>(
-		() =>
-			(location.state as { organizationId?: string } | null)?.organizationId,
+	const [selectedOrganizationId, setSelectedOrganizationId] = useState(() =>
+		getStateOrganizationId(location.state),
 	);
+	const defaultOrganizationId = getDefaultOrganizationId(memberOrganizations);
 	const organization =
 		memberOrganizations.find(({ id }) => id === selectedOrganizationId) ??
-		memberOrganizations.find(({ is_default }) => is_default) ??
+		memberOrganizations.find(({ id }) => id === defaultOrganizationId) ??
 		memberOrganizations.at(0);
 	const organizationId = organization?.id ?? "";
 

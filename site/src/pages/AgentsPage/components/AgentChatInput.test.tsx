@@ -504,9 +504,10 @@ describe("AgentChatInput", () => {
 
 	it("opens MCP connections settings with a way back to the chat", async () => {
 		const user = userEvent.setup();
+		const onSettingsState = vi.fn();
 		const SettingsPage = () => {
-			const location = useLocation();
-			return <pre>{JSON.stringify(location.state)}</pre>;
+			onSettingsState(useLocation().state);
+			return null;
 		};
 		renderWithRouter(
 			createMemoryRouter(
@@ -539,9 +540,12 @@ describe("AgentChatInput", () => {
 		await user.click(
 			await screen.findByRole("button", { name: "Manage connections" }),
 		);
-		expect(
-			JSON.parse((await screen.findByText(/organizationId/)).textContent ?? ""),
-		).toEqual({ from: "/agents/chat-1?tab=git", organizationId: "org-1" });
+		await waitFor(() =>
+			expect(onSettingsState).toHaveBeenCalledWith({
+				from: "/agents/chat-1?tab=git",
+				organizationId: "org-1",
+			}),
+		);
 	});
 
 	it("swaps Stop for the Queue button once a draft is entered while streaming", async () => {

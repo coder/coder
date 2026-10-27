@@ -13,21 +13,82 @@ import {
 	getMCPMenuServers,
 } from "../utils/mcpSelection";
 
+type MCPServerMenuRowProps = {
+	server: TypesGen.MCPServerConfig;
+	isSelected: boolean;
+	isDisconnected: boolean;
+	isDisabled: boolean;
+	onToggle?: (serverId: string, checked: boolean) => void;
+};
+
+const MCPServerMenuRow: React.FC<MCPServerMenuRowProps> = ({
+	server,
+	isSelected,
+	isDisconnected,
+	isDisabled,
+	onToggle,
+}) => {
+	const isForceOn = server.availability === "force_on";
+	let switchLabel = `Enable ${server.display_name}`;
+	if (isForceOn) {
+		switchLabel = `${server.display_name} always on`;
+	} else if (isSelected) {
+		switchLabel = `Disable ${server.display_name}`;
+	}
+
+	return (
+		<div className="flex min-h-8 items-center gap-1.5 px-1 py-1.5">
+			{server.icon_url ? (
+				<ExternalImage
+					src={server.icon_url}
+					alt=""
+					className="size-3.5 shrink-0 rounded-sm"
+				/>
+			) : (
+				<ServerIcon className="size-3.5 shrink-0 text-content-secondary" />
+			)}
+			<span className="min-w-0 flex-1 truncate text-xs text-content-secondary">
+				{server.display_name}
+			</span>
+			{isForceOn && (
+				<LockIcon className="size-3 shrink-0 text-content-secondary" />
+			)}
+			{isDisconnected ? (
+				<StatusIndicator
+					variant="warning"
+					size="sm"
+					className="shrink-0 font-normal"
+				>
+					<StatusIndicatorDot />
+					Disconnected
+				</StatusIndicator>
+			) : (
+				<Switch
+					size="sm"
+					checked={isSelected}
+					onCheckedChange={(checked) => onToggle?.(server.id, checked)}
+					disabled={isDisabled || isForceOn || !onToggle}
+					aria-label={switchLabel}
+				/>
+			)}
+		</div>
+	);
+};
+
 type MCPServersMenuContentProps = {
 	/** Enabled servers of the chat's organization, in display order. */
 	servers: readonly TypesGen.MCPServerConfig[];
 	selectedServerIds: readonly string[] | undefined;
 	isDisabled: boolean;
-	/** Omitted in read-only views, which render the switches disabled. */
 	onToggle?: (serverId: string, checked: boolean) => void;
-	/** Omitted in read-only views, which hide Manage connections. */
 	onManageConnections?: () => void;
 };
 
 /**
- * Per-chat MCP server switches shared by the + menu and the composer's
- * MCP group pill. Sign-in and sign-out live on the MCP connections
- * settings page.
+ * Lists the chat's MCP servers with one switch each and links to the MCP
+ * connections settings page, where users sign in and out. Without
+ * `onToggle` the switches are read-only; without `onManageConnections`
+ * the link is hidden.
  */
 export const MCPServersMenuContent: React.FC<MCPServersMenuContentProps> = ({
 	servers,
@@ -46,62 +107,21 @@ export const MCPServersMenuContent: React.FC<MCPServersMenuContentProps> = ({
 					No servers connected yet
 				</p>
 			) : (
-				rows.map(({ server, isDisconnected }) => {
-					const isForceOn = server.availability === "force_on";
-					const selected =
-						isForceOn || (selectedServerIds?.includes(server.id) ?? false);
-					return (
-						<div
-							key={server.id}
-							className="flex min-h-8 items-center gap-1.5 px-1 py-1.5"
-						>
-							{server.icon_url ? (
-								<ExternalImage
-									src={server.icon_url}
-									alt=""
-									className="size-3.5 shrink-0 rounded-sm"
-								/>
-							) : (
-								<ServerIcon className="size-3.5 shrink-0 text-content-secondary" />
-							)}
-							<span className="min-w-0 flex-1 truncate text-xs text-content-secondary">
-								{server.display_name}
-							</span>
-							{isForceOn && (
-								<LockIcon className="size-3 shrink-0 text-content-secondary" />
-							)}
-							{isDisconnected ? (
-								<StatusIndicator
-									variant="warning"
-									size="sm"
-									className="shrink-0 font-normal"
-								>
-									<StatusIndicatorDot />
-									Disconnected
-								</StatusIndicator>
-							) : (
-								<Switch
-									size="sm"
-									checked={selected}
-									onCheckedChange={(checked) => onToggle?.(server.id, checked)}
-									disabled={isDisabled || isForceOn || !onToggle}
-									aria-label={
-										isForceOn
-											? `${server.display_name} always on`
-											: `${selected ? "Disable" : "Enable"} ${server.display_name}`
-									}
-								/>
-							)}
-						</div>
-					);
-				})
+				rows.map((row) => (
+					<MCPServerMenuRow
+						key={row.server.id}
+						{...row}
+						isDisabled={isDisabled}
+						onToggle={onToggle}
+					/>
+				))
 			)}
 			<Separator className="my-1" />
 			<div className="flex items-center justify-between gap-3 px-1 py-0.5">
 				<span className="whitespace-nowrap text-xs text-content-secondary">
 					{disconnectedCount === 0
 						? "All connected"
-						: `${disconnectedCount} not connected`}
+						: `${disconnectedCount} ${disconnectedCount === 1 ? "server" : "servers"} not connected`}
 				</span>
 				{onManageConnections && (
 					<Button variant="outline" size="sm" onClick={onManageConnections}>

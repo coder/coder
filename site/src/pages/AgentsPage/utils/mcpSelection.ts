@@ -111,16 +111,25 @@ const needsSignIn = (server: TypesGen.MCPServerConfig) =>
 export const getMCPMenuServers = (
 	servers: readonly TypesGen.MCPServerConfig[],
 	selectedIds: readonly string[] | undefined,
-): { server: TypesGen.MCPServerConfig; isDisconnected: boolean }[] =>
+): {
+	server: TypesGen.MCPServerConfig;
+	isSelected: boolean;
+	isDisconnected: boolean;
+}[] =>
 	servers.flatMap((server) => {
 		const isDisconnected = needsSignIn(server);
 		const isSelected =
 			server.availability === "force_on" ||
 			(selectedIds?.includes(server.id) ?? false);
-		return !isDisconnected || isSelected ? [{ server, isDisconnected }] : [];
+		return !isDisconnected || isSelected
+			? [{ server, isSelected, isDisconnected }]
+			: [];
 	});
 
-/** Number of servers that need the user to sign in before use. */
+/**
+ * Counts OAuth2 servers the user has no connected account for, whatever
+ * their availability; callers pass only enabled servers.
+ */
 export const countMCPServersNeedingSignIn = (
 	servers: readonly TypesGen.MCPServerConfig[],
 ): number => servers.filter(needsSignIn).length;

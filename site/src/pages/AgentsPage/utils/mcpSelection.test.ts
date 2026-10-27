@@ -234,46 +234,59 @@ describe("MCP selection persistence", () => {
 });
 
 describe("getMCPMenuServers", () => {
-	const usable = buildServer({ id: "linear", auth_type: "api_key" });
-	const connected = buildServer({
+	const mockAPIKeyServer = buildServer({ id: "linear", auth_type: "api_key" });
+	const mockConnectedServer = buildServer({
 		id: "github",
 		auth_type: "oauth2",
 		auth_connected: true,
 	});
-	const lapsedSelected = buildServer({
+	const mockSignedOutSelectedServer = buildServer({
 		id: "notion",
 		auth_type: "oauth2",
 		auth_connected: false,
 	});
-	const lapsedForced = buildServer({
+	const mockSignedOutForcedServer = buildServer({
 		id: "slack",
 		auth_type: "oauth2",
 		auth_connected: false,
 		availability: "force_on",
 	});
-	const neverConnected = buildServer({
+	const mockSignedOutUnselectedServer = buildServer({
 		id: "wiz",
 		auth_type: "oauth2",
 		auth_connected: false,
 	});
-	const servers = [
-		usable,
-		connected,
-		lapsedSelected,
-		lapsedForced,
-		neverConnected,
+	const mockServers = [
+		mockAPIKeyServer,
+		mockConnectedServer,
+		mockSignedOutSelectedServer,
+		mockSignedOutForcedServer,
+		mockSignedOutUnselectedServer,
 	];
 
-	it("lists usable servers and selected or forced servers whose sign-in lapsed", () => {
-		expect(getMCPMenuServers(servers, [lapsedSelected.id])).toEqual([
-			{ server: usable, isDisconnected: false },
-			{ server: connected, isDisconnected: false },
-			{ server: lapsedSelected, isDisconnected: true },
-			{ server: lapsedForced, isDisconnected: true },
+	it("lists usable servers and selected or forced servers that are signed out", () => {
+		expect(
+			getMCPMenuServers(mockServers, [
+				mockConnectedServer.id,
+				mockSignedOutSelectedServer.id,
+			]),
+		).toEqual([
+			{ server: mockAPIKeyServer, isSelected: false, isDisconnected: false },
+			{ server: mockConnectedServer, isSelected: true, isDisconnected: false },
+			{
+				server: mockSignedOutSelectedServer,
+				isSelected: true,
+				isDisconnected: true,
+			},
+			{
+				server: mockSignedOutForcedServer,
+				isSelected: true,
+				isDisconnected: true,
+			},
 		]);
 	});
 
 	it("counts every server that needs sign-in", () => {
-		expect(countMCPServersNeedingSignIn(servers)).toBe(3);
+		expect(countMCPServersNeedingSignIn(mockServers)).toBe(3);
 	});
 });

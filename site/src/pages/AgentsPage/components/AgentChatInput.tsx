@@ -355,13 +355,29 @@ const MCPGroupBadge: React.FC<MCPGroupBadgeProps> = ({
 	);
 };
 
+const MCPServersMenuRowContent: React.FC<{
+	activeCount: number;
+	isOpen?: boolean;
+}> = ({ activeCount, isOpen }) => (
+	<>
+		<PlugIcon className="size-3.5 shrink-0" />
+		<span>MCP servers</span>
+		<span className="ml-auto">{activeCount} on</span>
+		<ChevronRightIcon
+			className={cn(
+				"size-icon-sm transition-transform",
+				isOpen && "rotate-180",
+			)}
+		/>
+	</>
+);
+
 const ToolBadge: React.FC<{
 	badge: ToolBadgeData;
 	onRemoveWorkspace?: () => void;
 	onRemoveMcp?: (serverId: string) => void;
 	onRemovePlanning?: () => void;
-	/** Rendered by the MCP group pill's popover. */
-	mcpMenu?: React.ReactNode;
+	mcpMenu: React.ReactNode;
 	isDisabled: boolean;
 	className?: string;
 	// The overflow popover auto-focuses badges; suppress the tooltip there.
@@ -1659,58 +1675,45 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 													</PopoverContent>
 												</Popover>
 											))}
+										{enabledMcpServers.length > 0 && (
+											<Separator className="my-1" />
+										)}
 										{enabledMcpServers.length > 0 &&
 											(isBelowMdViewport() ? (
-												<>
-													<Separator className="my-1" />
-													<button
-														type="button"
-														onClick={() => setPlusMenuView("mcp")}
-														className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
-													>
-														<PlugIcon className="size-3.5 shrink-0" />
-														<span>MCP servers</span>
-														<span className="ml-auto">
-															{activeMcpServers.length} on
-														</span>
-														<ChevronRightIcon className="size-icon-sm" />
-													</button>
-												</>
+												<button
+													type="button"
+													onClick={() => setPlusMenuView("mcp")}
+													className="flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
+												>
+													<MCPServersMenuRowContent
+														activeCount={activeMcpServers.length}
+													/>
+												</button>
 											) : (
-												<>
-													<Separator className="my-1" />
-													<Popover
-														open={mcpMenuOpen}
-														onOpenChange={setMcpMenuOpen}
-													>
-														<PopoverTrigger asChild>
-															<button
-																type="button"
-																className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
-															>
-																<PlugIcon className="size-3.5 shrink-0" />
-																<span>MCP servers</span>
-																<span className="ml-auto">
-																	{activeMcpServers.length} on
-																</span>
-																<ChevronRightIcon
-																	className={cn(
-																		"size-icon-sm transition-transform",
-																		mcpMenuOpen && "rotate-180",
-																	)}
-																/>
-															</button>
-														</PopoverTrigger>
-														<PopoverContent
-															side="right"
-															align="end"
-															sideOffset={8}
-															className="w-72 p-1"
+												<Popover
+													open={mcpMenuOpen}
+													onOpenChange={setMcpMenuOpen}
+												>
+													<PopoverTrigger asChild>
+														<button
+															type="button"
+															className="flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
 														>
-															{mcpMenuContent}
-														</PopoverContent>
-													</Popover>
-												</>
+															<MCPServersMenuRowContent
+																activeCount={activeMcpServers.length}
+																isOpen={mcpMenuOpen}
+															/>
+														</button>
+													</PopoverTrigger>
+													<PopoverContent
+														side="right"
+														align="end"
+														sideOffset={8}
+														className="w-72 p-1"
+													>
+														{mcpMenuContent}
+													</PopoverContent>
+												</Popover>
 											))}
 									</>
 								)}

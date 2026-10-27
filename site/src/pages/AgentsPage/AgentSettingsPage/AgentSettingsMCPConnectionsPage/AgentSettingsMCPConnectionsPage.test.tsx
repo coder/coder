@@ -15,7 +15,7 @@ import {
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import AgentSettingsMCPConnectionsPage from "./AgentSettingsMCPConnectionsPage";
 
-const githubMCP: TypesGen.MCPServerConfig = {
+const mockGitHubMCP: TypesGen.MCPServerConfig = {
 	...MockMCPServerConfig,
 	id: "mcp-github",
 	display_name: "GitHub",
@@ -23,7 +23,7 @@ const githubMCP: TypesGen.MCPServerConfig = {
 	auth_connected: false,
 };
 
-const notionMCP: TypesGen.MCPServerConfig = {
+const mockNotionMCP: TypesGen.MCPServerConfig = {
 	...MockMCPServerConfig,
 	id: "mcp-notion",
 	display_name: "Notion",
@@ -73,7 +73,7 @@ describe("AgentSettingsMCPConnectionsPage", () => {
 
 	it("connects through the organization's popup and refreshes the list when sign-in completes", async () => {
 		const user = userEvent.setup();
-		const getServers = setup(() => [githubMCP]);
+		const getServers = setup(() => [mockGitHubMCP]);
 		const iframe = document.createElement("iframe");
 		document.body.appendChild(iframe);
 		const popup = iframe.contentWindow;
@@ -84,16 +84,16 @@ describe("AgentSettingsMCPConnectionsPage", () => {
 			await screen.findByRole("button", { name: "Connect GitHub" }),
 		);
 		expect(open).toHaveBeenCalledWith(
-			`/api/v2/organizations/${MockDefaultOrganization.id}/mcp-servers/${githubMCP.id}/oauth2/connect`,
+			`/api/v2/organizations/${MockDefaultOrganization.id}/mcp-servers/${mockGitHubMCP.id}/oauth2/connect`,
 			"_blank",
 			"width=900,height=600",
 		);
 
-		getServers.mockResolvedValue([{ ...githubMCP, auth_connected: true }]);
+		getServers.mockResolvedValue([{ ...mockGitHubMCP, auth_connected: true }]);
 		act(() => {
 			window.dispatchEvent(
 				new MessageEvent("message", {
-					data: { type: "mcp-oauth2-complete", serverID: githubMCP.id },
+					data: { type: "mcp-oauth2-complete", serverID: mockGitHubMCP.id },
 					origin: location.origin,
 					source: popup,
 				}),
@@ -105,7 +105,7 @@ describe("AgentSettingsMCPConnectionsPage", () => {
 
 	it("disconnects after confirmation", async () => {
 		const user = userEvent.setup();
-		setup(() => [notionMCP]);
+		setup(() => [mockNotionMCP]);
 		const disconnect = vi
 			.spyOn(API.experimental, "disconnectMCPServerOAuth2")
 			.mockResolvedValue({ token_revoked: true });
@@ -122,13 +122,80 @@ describe("AgentSettingsMCPConnectionsPage", () => {
 		await waitFor(() =>
 			expect(toastSuccess).toHaveBeenCalledWith("Disconnected Notion."),
 		);
-		expect(disconnect).toHaveBeenCalledWith(notionMCP.id);
+		expect(disconnect).toHaveBeenCalledWith(mockNotionMCP.id);
+	});
+
+	it("warns when the provider could not revoke the token", async () => {
+		const user = userEvent.setup();
+		setup(() => [mockNotionMCP]);
+		vi.spyOn(API.experimental, "disconnectMCPServerOAuth2").mockResolvedValue({
+			token_revoked: false,
+			token_revocation_error: "The provider rejected the revocation.",
+		});
+		const toastWarning = vi.spyOn(toast, "warning");
+		renderPage();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Disconnect Notion" }),
+		);
+		await user.click(
+			within(await screen.findByRole("dialog")).getByRole("button", {
+				name: "Disconnect",
+			}),
+		);
+		await waitFor(() =>
+			expect(toastWarning).toHaveBeenCalledWith("Disconnected Notion.", {
+				description: "The provider rejected the revocation.",
+			}),
+		);
+	});
+
+	it("reports a failed disconnect", async () => {
+		const user = userEvent.setup();
+		setup(() => [mockNotionMCP]);
+		vi.spyOn(API.experimental, "disconnectMCPServerOAuth2").mockRejectedValue(
+			new Error("disconnect failed"),
+		);
+		const toastError = vi.spyOn(toast, "error");
+		renderPage();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Disconnect Notion" }),
+		);
+		await user.click(
+			within(await screen.findByRole("dialog")).getByRole("button", {
+				name: "Disconnect",
+			}),
+		);
+		await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1));
+	});
+
+	it("does not disconnect when the confirmation is cancelled", async () => {
+		const user = userEvent.setup();
+		setup(() => [mockNotionMCP]);
+		const disconnect = vi.spyOn(API.experimental, "disconnectMCPServerOAuth2");
+		renderPage();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Disconnect Notion" }),
+		);
+		await user.click(
+			within(await screen.findByRole("dialog")).getByRole("button", {
+				name: "Cancel",
+			}),
+		);
+		await waitFor(() =>
+			expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+		);
+		expect(disconnect).not.toHaveBeenCalled();
 	});
 
 	it("starts with the chat's organization and lists another one on demand", async () => {
 		const user = userEvent.setup();
 		const getServers = setup((organizationId) =>
-			organizationId === MockOrganization2.id ? [githubMCP] : [notionMCP],
+			organizationId === MockOrganization2.id
+				? [mockGitHubMCP]
+				: [mockNotionMCP],
 		);
 		renderPage({ organizationId: MockOrganization2.id });
 

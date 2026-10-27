@@ -9,57 +9,48 @@ import {
 } from "#/testHelpers/entities";
 import { AgentSettingsMCPConnectionsPageView } from "./AgentSettingsMCPConnectionsPageView";
 
-const buildServer = (
-	overrides: Partial<TypesGen.MCPServerConfig> &
-		Pick<TypesGen.MCPServerConfig, "id" | "display_name">,
-): TypesGen.MCPServerConfig => ({
+const mockCoderMCP: TypesGen.MCPServerConfig = {
 	...MockMCPServerConfig,
+	id: "mcp-coder",
+	display_name: "Coder",
+	description: "Workspaces, templates and tasks",
 	auth_type: "oauth2",
-	...overrides,
-});
-
-const servers = [
-	buildServer({
-		id: "mcp-coder",
-		display_name: "Coder",
-		description: "Workspaces, templates and tasks",
-	}),
-	buildServer({
-		id: "mcp-github",
-		display_name: "GitHub",
-		description: "Repositories, pull requests and issues",
-		icon_url: "/icon/github.svg",
-		auth_connected: true,
-	}),
-	buildServer({
-		id: "mcp-granola",
-		display_name: "Granola",
-		availability: "force_on",
-	}),
-	buildServer({
-		id: "mcp-linear",
-		display_name: "Linear",
-		description: "Issues, projects and cycles",
-		auth_connected: true,
-	}),
-	buildServer({
-		id: "mcp-image",
-		display_name: "Image",
-		auth_type: "none",
-		auth_connected: true,
-	}),
-	buildServer({
-		id: "mcp-registry",
-		display_name: "Registry",
-		auth_type: "api_key",
-		auth_connected: true,
-	}),
-	buildServer({
-		id: "mcp-slackbot",
-		display_name: "Slackbot",
-		auth_type: "none",
-		auth_connected: true,
-	}),
+};
+const mockGitHubMCP: TypesGen.MCPServerConfig = {
+	...MockMCPServerConfig,
+	id: "mcp-github",
+	display_name: "GitHub",
+	description: "Repositories, pull requests and issues",
+	icon_url: "/icon/github.svg",
+	auth_type: "oauth2",
+	auth_connected: true,
+};
+const mockGranolaMCP: TypesGen.MCPServerConfig = {
+	...MockMCPServerConfig,
+	id: "mcp-granola",
+	display_name: "Granola",
+	availability: "force_on",
+	auth_type: "oauth2",
+};
+const mockImageMCP: TypesGen.MCPServerConfig = {
+	...MockMCPServerConfig,
+	id: "mcp-image",
+	display_name: "Image",
+	auth_connected: true,
+};
+const mockRegistryMCP: TypesGen.MCPServerConfig = {
+	...MockMCPServerConfig,
+	id: "mcp-registry",
+	display_name: "Registry",
+	auth_type: "api_key",
+	auth_connected: true,
+};
+const mockServers = [
+	mockCoderMCP,
+	mockGitHubMCP,
+	mockGranolaMCP,
+	mockImageMCP,
+	mockRegistryMCP,
 ];
 
 const meta = {
@@ -69,7 +60,7 @@ const meta = {
 		organizations: [MockDefaultOrganization],
 		organization: MockDefaultOrganization,
 		onOrganizationChange: fn(),
-		servers,
+		servers: mockServers,
 		error: undefined,
 		isLoading: false,
 		isRetrying: false,
@@ -117,12 +108,39 @@ export const LoadError: Story = {
 
 export const Empty: Story = {
 	args: {
-		servers: servers.filter((server) => server.auth_type !== "oauth2"),
+		servers: [mockImageMCP, mockRegistryMCP],
 	},
 };
 
 export const DisconnectDialogOpen: Story = {
 	args: {
-		disconnectTarget: servers[1],
+		disconnectTarget: mockGitHubMCP,
+	},
+};
+
+export const Disconnecting: Story = {
+	args: {
+		disconnectTarget: mockGitHubMCP,
+		isDisconnecting: true,
+	},
+};
+
+/** A failed refetch keeps the last list below the error. */
+export const RefetchError: Story = {
+	args: {
+		error: mockApiError({ message: "Failed to load MCP servers." }),
+	},
+};
+
+export const Retrying: Story = {
+	args: {
+		error: mockApiError({ message: "Failed to load MCP servers." }),
+		isRetrying: true,
+	},
+};
+
+export const OneServerWithoutSignIn: Story = {
+	args: {
+		servers: [mockCoderMCP, mockGitHubMCP, mockImageMCP],
 	},
 };
