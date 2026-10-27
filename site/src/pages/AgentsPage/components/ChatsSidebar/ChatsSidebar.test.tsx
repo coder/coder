@@ -9,10 +9,11 @@ import {
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { useState } from "react";
-import { QueryClientProvider } from "react-query";
+import { QueryClientProvider, useQuery } from "react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
+import { chat as chatQuery } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
@@ -181,6 +182,56 @@ describe("ChatsSidebar projects", () => {
 		await waitFor(() => expect(requests).toHaveLength(1));
 		expect(requests[0].get("project_id")).toBe(MockChatProject.id);
 		expect(requests[0].get("q")).toBe("archived:false source:created_by_me");
+	});
+
+	it("opens the folder of an active chat beyond the sidebar's loaded pages", async () => {
+		const mockOlderProjectChat = buildChat({
+			id: "older-project-chat",
+			title: "Older project chat",
+			organization_id: MockChatProject.organization_id,
+			project_id: MockChatProject.id,
+		});
+		const folderProjectIds: Array<string | null> = [];
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+			http.get("/api/v2/chats", ({ request }) => {
+				folderProjectIds.push(
+					new URL(request.url).searchParams.get("project_id"),
+				);
+				return HttpResponse.json([]);
+			}),
+			http.get(`/api/v2/chats/${mockOlderProjectChat.id}`, () =>
+				HttpResponse.json(mockOlderProjectChat),
+			),
+		);
+		// Stands in for the chat page, which loads the active chat.
+		const ActiveChatLoader: React.FC = () => {
+			useQuery(chatQuery(mockOlderProjectChat.id));
+			return null;
+		};
+
+		render(
+			<Wrapper
+				experiments={["chat-projects"]}
+				initialEntry={`/agents/${mockOlderProjectChat.id}`}
+			>
+				<Routes>
+					<Route
+						path="/agents/:agentId"
+						element={
+							<>
+								<ActiveChatLoader />
+								<ChatsSidebar {...defaultProps} chats={[]} />
+							</>
+						}
+					/>
+				</Routes>
+			</Wrapper>,
+		);
+
+		await waitFor(() => expect(folderProjectIds).toEqual([MockChatProject.id]));
 	});
 
 	it("keeps a newer delete dialog open when an earlier delete finishes", async () => {

@@ -44,6 +44,12 @@ type ProjectChatRowProps = {
 	/** Omit to hide the actions menu. */
 	readonly actions?: ProjectChatRowActions;
 	readonly showCost: boolean;
+	/**
+	 * Called before the chat changes sections: as the user pins or unpins it,
+	 * and with the reverted state when that request fails.
+	 */
+	readonly onPinChange: (pinned: boolean) => void;
+	readonly actionsTriggerRef: React.Ref<HTMLButtonElement>;
 };
 
 const ProjectChatCost: React.FC<{ readonly chat: Chat }> = ({ chat }) => {
@@ -70,6 +76,8 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 	currentUser,
 	actions,
 	showCost,
+	onPinChange,
+	actionsTriggerRef,
 }) => {
 	const location = useLocation();
 	const {
@@ -89,6 +97,7 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 	const pinMutation = useMutation({
 		...pinOptions,
 		onError: (error, chatId, context) => {
+			onPinChange(false);
 			pinOptions.onError(error, chatId, context);
 			toast.error(getErrorMessage(error, "Failed to pin agent."));
 		},
@@ -97,6 +106,7 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 	const unpinMutation = useMutation({
 		...unpinOptions,
 		onError: (error, chatId, context) => {
+			onPinChange(true);
 			unpinOptions.onError(error, chatId, context);
 			toast.error(getErrorMessage(error, "Failed to unpin agent."));
 		},
@@ -167,8 +177,14 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 						isArchiveBlocked={
 							!chatFamilyAllowsArchive(chat.status, chat.children)
 						}
-						onPinAgent={() => pinMutation.mutate(chat.id)}
-						onUnpinAgent={() => unpinMutation.mutate(chat.id)}
+						onPinAgent={() => {
+							onPinChange(true);
+							pinMutation.mutate(chat.id);
+						}}
+						onUnpinAgent={() => {
+							onPinChange(false);
+							unpinMutation.mutate(chat.id);
+						}}
 						onArchiveAgent={() => archiveMutation.mutate(chat.id)}
 						onUnarchiveAgent={() => unarchiveMutation.mutate(chat.id)}
 						onArchived={actions.navigateAfterArchive}
@@ -179,6 +195,7 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 						}
 					>
 						<Button
+							ref={actionsTriggerRef}
 							variant="subtle"
 							size="icon"
 							className="size-7 opacity-0 [@media(hover:hover)]:group-hover:opacity-100 group-has-focus-visible:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"

@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { useId } from "react";
+import { useId, useRef } from "react";
 import type { Chat, User } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -28,6 +28,11 @@ type ProjectChatRowsProps = Pick<
 	"currentUser" | "actions" | "showCost"
 > & {
 	readonly chats: readonly Chat[];
+	readonly onPinChange: (chat: Chat, pinned: boolean) => void;
+	readonly onActionsTriggerRef: (
+		chat: Chat,
+		trigger: HTMLButtonElement | null,
+	) => void;
 };
 
 const ProjectChatRows: React.FC<ProjectChatRowsProps> = ({
@@ -35,6 +40,8 @@ const ProjectChatRows: React.FC<ProjectChatRowsProps> = ({
 	currentUser,
 	actions,
 	showCost,
+	onPinChange,
+	onActionsTriggerRef,
 }) => (
 	<ul className="m-0 flex list-none flex-col p-0">
 		{chats.map((chat) => (
@@ -44,6 +51,8 @@ const ProjectChatRows: React.FC<ProjectChatRowsProps> = ({
 				currentUser={currentUser}
 				actions={actions}
 				showCost={showCost}
+				onPinChange={(pinned) => onPinChange(chat, pinned)}
+				actionsTriggerRef={(trigger) => onActionsTriggerRef(chat, trigger)}
 			/>
 		))}
 	</ul>
@@ -104,7 +113,37 @@ export const ProjectChatsListView: React.FC<ProjectChatsListViewProps> = ({
 		unpinnedChats.length > 0 ||
 		hasNextPage ||
 		Boolean(error);
-	const rowProps = { currentUser, actions, showCost };
+	// Pinning moves a row to the other section, which remounts it, so the
+	// trigger its menu returns focus to is gone. Once the row renders in the
+	// section it is moving to, its trigger takes back focus that the removed
+	// row dropped, leaving focus the user has since moved alone. The ref
+	// callback also runs while the row is still in its old section, which the
+	// section check skips.
+	const movingChatRef = useRef<{ id: string; pinned: boolean }>(undefined);
+	const rowProps = {
+		currentUser,
+		actions,
+		showCost,
+		onPinChange: (chat: Chat, pinned: boolean) => {
+			movingChatRef.current = { id: chat.id, pinned };
+		},
+		onActionsTriggerRef: (chat: Chat, trigger: HTMLButtonElement | null) => {
+			const moving = movingChatRef.current;
+			if (
+				trigger &&
+				moving?.id === chat.id &&
+				pinnedChatIds.has(chat.id) === moving.pinned
+			) {
+				movingChatRef.current = undefined;
+				if (
+					!document.activeElement ||
+					document.activeElement === document.body
+				) {
+					trigger.focus();
+				}
+			}
+		},
+	};
 	const errorAlert = Boolean(error) && (
 		<ErrorAlert
 			error={error}
