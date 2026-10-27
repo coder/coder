@@ -9,7 +9,7 @@ import {
 } from "#/testHelpers/entities";
 import { withProxyProvider, withWebSocket } from "#/testHelpers/storybook";
 import { TerminalClientSessionContext } from "../context/TerminalClientSessionContext";
-import { TerminalPanel } from "./TerminalPanel";
+import TerminalPanel from "./TerminalPanel";
 
 const terminalQueries = [
 	{

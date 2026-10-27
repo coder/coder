@@ -43,7 +43,7 @@ type TerminalPanelProps = {
 	workspaceAgent: TypesGen.WorkspaceAgent;
 };
 
-export const TerminalPanel: React.FC<TerminalPanelProps> = ({
+const TerminalPanel: React.FC<TerminalPanelProps> = ({
 	chatId,
 	reconnectionToken = chatId,
 	initialCommand,

@@ -8,17 +8,16 @@ const panel = vi.hoisted(() => ({ loads: 0, mounts: 0, unmounts: 0 }));
 vi.mock("./TerminalPanel", async () => {
 	panel.loads++;
 	const { useEffect } = await import("react");
-	return {
-		default: () => {
-			useEffect(() => {
-				panel.mounts++;
-				return () => {
-					panel.unmounts++;
-				};
-			}, []);
-			return null;
-		},
+	const MockTerminalPanel = () => {
+		useEffect(() => {
+			panel.mounts++;
+			return () => {
+				panel.unmounts++;
+			};
+		}, []);
+		return null;
 	};
+	return { default: MockTerminalPanel };
 });
 
 const props = {
@@ -31,9 +30,7 @@ const props = {
 
 describe("LazyTerminalPanel", () => {
 	it("loads the panel when its tab is first hot and keeps it mounted after", async () => {
-		const { rerender } = render(
-			<LazyTerminalPanel {...props} isHot={false} />,
-		);
+		const { rerender } = render(<LazyTerminalPanel {...props} isHot={false} />);
 		await vi.dynamicImportSettled();
 		expect(panel.loads).toBe(0);
 
