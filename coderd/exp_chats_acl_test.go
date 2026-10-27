@@ -478,12 +478,12 @@ func TestChatACLNoncanonicalIDs(t *testing.T) {
 	// Older servers stored request keys as sent. A request that names a
 	// principal by any spelling must leave at most its canonical key.
 	readEntry := database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}}
-	seedLegacyKeys := func() {
+	seedLegacyKeys := func(spell func(string) string) {
 		t.Helper()
 		err := store.UpdateChatACLByID(ctx, database.UpdateChatACLByIDParams{
 			ID:       chat.ID,
-			UserACL:  database.ChatACL{strings.ToUpper(user.ID.String()): readEntry},
-			GroupACL: database.ChatACL{strings.ToUpper(group.ID.String()): readEntry},
+			UserACL:  database.ChatACL{spell(user.ID.String()): readEntry},
+			GroupACL: database.ChatACL{spell(group.ID.String()): readEntry},
 		})
 		require.NoError(t, err)
 	}
@@ -493,29 +493,40 @@ func TestChatACLNoncanonicalIDs(t *testing.T) {
 		require.NoError(t, err)
 		return stored
 	}
-	for _, spell := range []func(string) string{canonical, strings.ToUpper} {
-		seedLegacyKeys()
-		require.NoError(t, client.UpdateChatACL(ctx, chat.ID, roles(spell, codersdk.ChatRoleDeleted)))
-		stored := storedChat()
-		require.Empty(t, stored.UserACL)
-		require.Empty(t, stored.GroupACL)
+	// uuid.Parse accepts each of these spellings.
+	legacySpellings := []func(string) string{
+		strings.ToUpper,
+		func(id string) string { return "{" + id + "}" },
+		func(id string) string { return "urn:uuid:" + id },
+		func(id string) string { return strings.ReplaceAll(id, "-", "") },
+	}
+	for _, legacy := range legacySpellings {
+		for _, spell := range []func(string) string{canonical, legacy} {
+			seedLegacyKeys(legacy)
+			require.NoError(t, client.UpdateChatACL(ctx, chat.ID, roles(spell, codersdk.ChatRoleDeleted)))
+			stored := storedChat()
+			require.Empty(t, stored.UserACL, legacy(user.ID.String()))
+			require.Empty(t, stored.GroupACL, legacy(group.ID.String()))
+		}
 	}
 
-	seedLegacyKeys()
-	require.NoError(t, client.UpdateChatACL(ctx, chat.ID, roles(strings.ToUpper, codersdk.ChatRoleRead)))
-	stored := storedChat()
-	require.Equal(t, database.ChatACL{user.ID.String(): readEntry}, stored.UserACL)
-	require.Equal(t, database.ChatACL{group.ID.String(): readEntry}, stored.GroupACL)
-	for _, reader := range readers {
-		_, err := reader.GetChat(ctx, chat.ID)
-		require.NoError(t, err)
+	for _, legacy := range legacySpellings {
+		seedLegacyKeys(legacy)
+		require.NoError(t, client.UpdateChatACL(ctx, chat.ID, roles(legacy, codersdk.ChatRoleRead)))
+		stored := storedChat()
+		require.Equal(t, database.ChatACL{user.ID.String(): readEntry}, stored.UserACL)
+		require.Equal(t, database.ChatACL{group.ID.String(): readEntry}, stored.GroupACL)
+		for _, reader := range readers {
+			_, err := reader.GetChat(ctx, chat.ID)
+			require.NoError(t, err)
+		}
 	}
-	// The first share above notified the user once. The legacy entry granted
-	// nothing, so its replacement notifies the user again.
+	// The first share above notified the user once. Each legacy entry granted
+	// nothing, so each replacement notifies the user again.
 	var sent []*notificationstest.FakeNotification
 	testutil.Eventually(ctx, t, func(context.Context) bool {
 		sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateChatShared))
-		return len(sent) == 2
+		return len(sent) == 1+len(legacySpellings)
 	}, testutil.IntervalFast)
 	for _, notification := range sent {
 		require.Equal(t, user.ID, notification.UserID)
