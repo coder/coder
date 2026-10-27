@@ -1,6 +1,10 @@
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChatMessage } from "#/testHelpers/chatEntities";
+import {
+	MockChatMessage,
+	MockChatQueuedMessage,
+} from "#/testHelpers/chatEntities";
 import { MockUserPreferenceSettings } from "#/testHelpers/entities";
+import { getAsyncAnswerPrefix } from "../ChatElements/tools/asyncAnswer";
 import { deriveAskUserQuestionState } from "./askUserQuestionState";
 import {
 	type DeriveLiveStatusParams,
@@ -551,6 +555,14 @@ export const MockTwoAsyncQuestionsMessages: TypesGen.ChatMessage[] = [
 		],
 	}),
 ];
+
+/** A queued answer to the question in MockAsyncQuestionMessages. */
+export const MockQueuedQuestionAnswer: TypesGen.ChatQueuedMessage = {
+	...MockChatQueuedMessage,
+	content: [
+		{ type: "text", text: `${getAsyncAnswerPrefix("question")}Frontend` },
+	],
+};
 
 export const buildReconnectState = (
 	overrides: Partial<ReconnectState> = {},

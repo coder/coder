@@ -127,9 +127,6 @@ const formatOutgoingMessage = (
 		.join("\n");
 };
 
-const getPreviousIndex = (currentIndex: number): number =>
-	Math.max(currentIndex - 1, 0);
-
 const getSubmissionErrorMessage = (error: unknown): string | undefined => {
 	if (!error) {
 		return undefined;
@@ -519,10 +516,9 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 		});
 	};
 
-	// Focus moves to the new question because the Back or Next button can
-	// end up out of view below a taller step, or disabled on the first one.
-	// flushSync renders that step first. onStepChange runs after the focus,
-	// so the scroll position it sets is not moved by the focus.
+	// Focus moves to the new question, since Back or Next can end up out of
+	// view or disabled. flushSync renders that step first, and onStepChange
+	// runs last so that the focus cannot undo the scroll position it sets.
 	const changeQuestion = (getIndex: (currentIndex: number) => number) => {
 		flushSync(() => {
 			setCurrentQuestionIndex(getIndex);
@@ -533,7 +529,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	};
 
 	const handleBack = () => {
-		changeQuestion(getPreviousIndex);
+		changeQuestion((currentIndex) => Math.max(currentIndex - 1, 0));
 	};
 
 	const handleNext = () => {

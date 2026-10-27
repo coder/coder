@@ -36,10 +36,10 @@ import {
 	FIXTURE_NOW,
 	MockAsyncQuestionMessages,
 	MockAsyncQuestionResult,
+	MockQueuedQuestionAnswer,
 	MockTwoAsyncQuestionsMessages,
 	MockWorkingMessages,
 } from "./ChatConversation/storyFixtures";
-import { getAsyncAnswerPrefix } from "./ChatElements/tools/asyncAnswer";
 import { ChatPageInput, ChatPageTimeline } from "./ChatPageContent";
 
 // These stories cover transcript rendering, so history paging stays idle.
@@ -727,7 +727,6 @@ export const AsyncQuestionDockedDisabled: Story = {
 	},
 };
 
-// The question arrives on the live stream before its step persists.
 const buildLiveAsyncQuestionStore = () => {
 	const store = buildAsyncQuestionStore(MockWorkingMessages.slice(0, 1));
 	store.setChatStatus("running");
@@ -746,6 +745,7 @@ const buildLiveAsyncQuestionStore = () => {
 	return store;
 };
 
+// The question arrives on the live stream before its step persists.
 export const AsyncQuestionDockedFromStream: Story = {
 	render: () => (
 		<AsyncQuestionChatPage
@@ -753,13 +753,6 @@ export const AsyncQuestionDockedFromStream: Story = {
 			onSendAskUserQuestionResponse={fn()}
 		/>
 	),
-};
-
-const MockQueuedQuestionAnswer: TypesGen.ChatQueuedMessage = {
-	...MockChatQueuedMessage,
-	content: [
-		{ type: "text", text: `${getAsyncAnswerPrefix("question")}Frontend` },
-	],
 };
 
 // While the answer waits in the queue, the dock hides and the card shows the
