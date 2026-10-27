@@ -1670,7 +1670,7 @@ communicating directly.`,
 			Name: "Telemetry",
 			YAML: "telemetry",
 			Description: `Telemetry is critical to our ability to improve Coder. We strip all personal
- information before sending data to our servers. Please only disable telemetry
+ information before sending data to our servers. Only disable telemetry
  when required by your organization's security policy.`,
 		}
 		deploymentGroupProvisioning = serpent.Group{
@@ -5590,6 +5590,7 @@ var ExperimentsKnown = Experiments{
 // not be included here and will be essentially hidden.
 var ExperimentsSafe = Experiments{
 	ExperimentChatStageMetrics,
+	ExperimentChatProjects,
 }
 
 // ExperimentsUserScoped lists the experiments that accept runtime rules

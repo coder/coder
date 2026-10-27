@@ -188,7 +188,10 @@ export const MermaidDiagram = ({ source, fallback }: MermaidDiagramProps) => {
 				<Lightbox
 					title="Diagram preview"
 					onClose={() => setExpanded(false)}
-					onCloseAutoFocus={() => triggerRef.current?.focus()}
+					onCloseAutoFocus={(event) => {
+						event.preventDefault();
+						triggerRef.current?.focus();
+					}}
 				>
 					<div
 						style={{ width: fittedWidth(state.svg) }}

@@ -1,4 +1,5 @@
 import {
+	act,
 	fireEvent,
 	render,
 	screen,
@@ -221,7 +222,25 @@ describe("AgentChatInput", () => {
 		await user.click(
 			await screen.findByRole("option", { name: /release-notes/ }),
 		);
-		expect(inputRef.current?.getValue()).toBe("/release-notes");
+		expect(inputRef.current?.getContentParts()).toContainEqual({
+			type: "skill-invocation",
+			source: "org",
+			name: "release-notes",
+		});
+	});
+
+	it("sends a message that holds only a skill chip", async () => {
+		const user = userEvent.setup();
+		const inputRef = createRef<ChatMessageInputRef>();
+		const onSend = vi.fn();
+		renderInput(
+			<AgentChatInput {...inputProps} onSend={onSend} inputRef={inputRef} />,
+		);
+		await waitFor(() => expect(inputRef.current).not.toBeNull());
+
+		act(() => inputRef.current?.insertSkill("project", "triage"));
+		await user.click(screen.getByRole("button", { name: "Send" }));
+		expect(onSend).toHaveBeenCalledTimes(1);
 	});
 
 	it("offers the chat project's skills in the slash menu", async () => {
@@ -252,7 +271,11 @@ describe("AgentChatInput", () => {
 		await user.click(
 			await screen.findByRole("option", { name: /project-conventions/ }),
 		);
-		expect(inputRef.current?.getValue()).toBe("/project-conventions");
+		expect(inputRef.current?.getContentParts()).toContainEqual({
+			type: "skill-invocation",
+			source: "project",
+			name: "project-conventions",
+		});
 		expect(getChatProjectSkills).toHaveBeenCalledWith("org-1", "project-1");
 	});
 
@@ -288,6 +311,36 @@ describe("AgentChatInput", () => {
 			expect(getOrganizationSkills).toHaveBeenCalledWith("org-1");
 		});
 		expect(getChatProjectSkills).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		["a pending send settles", { isLoading: true }],
+		["the composer is enabled", { isDisabled: true }],
+	])("loads project actions only once %s", async (_, blocked) => {
+		const getChatProjectSkills = vi
+			.spyOn(API.experimental, "getChatProjectSkills")
+			.mockResolvedValue([]);
+		const queryClient = createTestQueryClient();
+		const renderInput = (isBlocked: boolean) => (
+			<AppProviders queryClient={queryClient}>
+				<AgentChatInput
+					{...inputProps}
+					{...(isBlocked ? blocked : {})}
+					chatOrganizationId="org-1"
+					chatProjectId="project-1"
+					showProjectActions
+				/>
+			</AppProviders>
+		);
+
+		const { rerender } = render(renderInput(true));
+		await screen.findByRole("textbox", { name: "Chat message" });
+		expect(getChatProjectSkills).not.toHaveBeenCalled();
+
+		rerender(renderInput(false));
+		await waitFor(() =>
+			expect(getChatProjectSkills).toHaveBeenCalledWith("org-1", "project-1"),
+		);
 	});
 
 	it("attaches supported dropped files and reports unsupported ones", () => {
@@ -603,6 +656,78 @@ describe("AgentChatInput", () => {
 			screen.getByRole("button", { name: "Cancel voice input" }),
 		);
 		expect(cancel).toHaveBeenCalledTimes(1);
+	});
+
+	it("lets Escape on a chip's remove button cancel a history edit", async () => {
+		const user = userEvent.setup();
+		const inputRef = createRef<ChatMessageInputRef>();
+		const onCancelHistoryEdit = vi.fn();
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				inputRef={inputRef}
+				isEditingHistoryMessage
+				onCancelHistoryEdit={onCancelHistoryEdit}
+			/>,
+		);
+		await waitFor(() => expect(inputRef.current).not.toBeNull());
+		act(() => inputRef.current?.insertSkill("project", "triage"));
+		const remove = await screen.findByRole("button", {
+			name: "Remove skill /project/triage",
+		});
+		act(() => remove.focus());
+
+		await user.keyboard("{Escape}");
+		expect(onCancelHistoryEdit).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps skill chips through a voice recording and its cancellation", async () => {
+		const user = userEvent.setup();
+		const inputRef = createRef<ChatMessageInputRef>();
+		const speech = { isRecording: false, transcript: "" };
+		mockedUseSpeechRecognition.mockImplementation(() => ({
+			isSupported: true,
+			error: null,
+			...speech,
+			start: vi.fn(),
+			stop: vi.fn(),
+			cancel: vi.fn(),
+		}));
+		const input = () => (
+			<AppProviders>
+				<AgentChatInput {...inputProps} inputRef={inputRef} />
+			</AppProviders>
+		);
+		const { rerender } = render(input());
+		await waitFor(() => expect(inputRef.current).not.toBeNull());
+		act(() => inputRef.current?.insertSkill("project", "triage"));
+		const chip = {
+			type: "skill-invocation",
+			source: "project",
+			name: "triage",
+		};
+
+		await user.click(screen.getByRole("button", { name: "Voice input" }));
+		Object.assign(speech, { isRecording: true, transcript: "check this" });
+		rerender(input());
+		await waitFor(() =>
+			expect(inputRef.current?.getContentParts()).toEqual([
+				chip,
+				{ type: "text", text: " check this" },
+			]),
+		);
+		await user.click(
+			screen.getByRole("button", { name: "Cancel voice input" }),
+		);
+		Object.assign(speech, { isRecording: false, transcript: "" });
+		rerender(input());
+
+		await waitFor(() =>
+			expect(inputRef.current?.getContentParts()).toEqual([
+				chip,
+				{ type: "text", text: " " },
+			]),
+		);
 	});
 
 	it("lets a recording start while a turn is streaming", async () => {

@@ -16,12 +16,20 @@ import { ProjectSkillsDialog } from "./ProjectSkillsDialog";
 const hoursAgo = (hours: number) =>
 	new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
 
-const mockSkills: SkillMetadata[] = [...MockSkills, MockDisabledSkill].map(
-	(skill, index) => ({
-		...skill,
-		updated_at: hoursAgo(index * 5 + 2),
-	}),
-);
+const mockActionSkill: SkillMetadata = {
+	...MockSkills[0],
+	action: true,
+	model_invocable: false,
+};
+
+const mockSkills: SkillMetadata[] = [
+	mockActionSkill,
+	...MockSkills.slice(1),
+	MockDisabledSkill,
+].map((skill, index) => ({
+	...skill,
+	updated_at: hoursAgo(index * 5 + 2),
+}));
 
 const mockSkillsAtCapacity: SkillMetadata[] = Array.from(
 	{ length: 100 },

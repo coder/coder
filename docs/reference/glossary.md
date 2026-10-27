@@ -166,6 +166,11 @@ Refer to the [`coder_metadata` resource](https://registry.terraform.io/providers
 The Terraform resource that runs a shell script inside the workspace on start or stop, or on demand.
 Refer to the [`coder_script` resource](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script).
 
+### `coder_script_order`
+
+The Terraform data source that declares dependencies between startup or shutdown scripts within one workspace agent or dev container sub-agent.
+Refer to [Order startup and shutdown scripts](../admin/templates/extending-templates/script-ordering.md).
+
 ### `coderd`
 
 The process that runs the [control plane](#control-plane), started with [`coder server`](#coder-server).

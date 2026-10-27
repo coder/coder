@@ -25,8 +25,10 @@ Upon adding a template variable, it's mandatory to provide a value during the fi
 At this stage, the template administrator faces two choices:
 
 1. _No `default` property_: opt not to define a default property.
+
    Instead, utilize the `--var name=value` command-line argument during the push to supply the variable's value.
 2. _Define `default` property_: set a default property for the template variable.
+
    If the administrator doesn't input a value via CLI, Coder automatically uses this default during the push.
 
 After the initial push, variables are stored in the database table, associated with the specific template version.
@@ -65,6 +67,7 @@ When working with Terraform configurations in Coder, you have several options fo
 1. _Web UI_: You can set or edit variable values under **Variables** in the template's settings.
 1. _Command-line argument_: Utilize the `--var name=value` command-line argument to specify variable values inline as key-value pairs.
 1. _Variables file selection_: Alternatively, you can use a variables file selected via the `--variables-file values.yml` command-line argument.
+
    This approach is particularly useful when dealing with multiple variables or to avoid manual input of numerous values.
    Variables files can be versioned for better traceability and management, and it enhances reproducibility.
 

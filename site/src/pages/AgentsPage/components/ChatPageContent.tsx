@@ -14,7 +14,6 @@ import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { getWorkspaceAgents } from "#/utils/workspace";
-import { resolveChatCompactionThreshold } from "../compactionTriggers";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
@@ -27,6 +26,7 @@ import {
 	getChatFileURL,
 	isWorkspaceFileReferencePart,
 } from "../utils/chatAttachments";
+import { resolveChatCompactionThreshold } from "../utils/compactionTriggers";
 import {
 	getProviderForModelOption,
 	providerInfoByIDFromDescriptors,
@@ -73,6 +73,10 @@ import {
 	excludeDurableCallResults,
 } from "./ChatConversation/streamState";
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
+import {
+	ACPContext,
+	buildACPSessionDescriptors,
+} from "./ChatElements/tools/ACPContext";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import { ChatMessageScroller } from "./ChatMessageScroller";
 import { getWorkspaceOptionsWithLinkedWorkspace } from "./workspaceOptions";
@@ -121,6 +125,7 @@ type ChatPageTimelineProps = {
 		messageId: number,
 		text: string,
 		fileBlocks?: readonly TypesGen.ChatMessagePart[],
+		editorState?: string,
 	) => void;
 	editingMessageId?: number | null;
 	onImplementPlan?: () => Promise<void> | void;
@@ -191,59 +196,67 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 	});
 	const { titles: subagentTitles, variants: subagentVariants } =
 		buildSubagentMaps(parsedMessages);
+	const acpSessions = buildACPSessionDescriptors([
+		...parsedMessages.flatMap(({ parsed }) => parsed.tools),
+		...streamTools,
+	]);
 	const onRenderProfiler = useOnRenderProfiler();
 
 	return (
-		<Profiler id="AgentChat" onRender={onRenderProfiler}>
-			<ChatMessageScroller
-				hasMoreMessages={hasMoreMessages}
-				isFetchingMoreMessages={isFetchingMoreMessages}
-				isHydratingMessages={isHydratingMessages}
-				hasFetchMoreError={hasFetchMoreError}
-				hasTranscriptRows={parsedMessages.length > 0}
-				onFetchMoreMessages={onFetchMoreMessages}
-			>
-				{/* VNC sessions for completed agents may already be
+		<ACPContext value={acpSessions}>
+			<Profiler id="AgentChat" onRender={onRenderProfiler}>
+				<ChatMessageScroller
+					hasMoreMessages={hasMoreMessages}
+					isFetchingMoreMessages={isFetchingMoreMessages}
+					isHydratingMessages={isHydratingMessages}
+					hasFetchMoreError={hasFetchMoreError}
+					hasTranscriptRows={parsedMessages.length > 0}
+					onFetchMoreMessages={onFetchMoreMessages}
+				>
+					{/* VNC sessions for completed agents may already be
 					   terminated, so inline desktop previews are disabled
 					   via showDesktopPreviews={false} to avoid a perpetual
 					   "disconnected" state. The MonitorIcon variant still
 					   renders correctly. */}
-				<ConversationTimeline
-					hasMoreMessages={hasMoreMessages}
-					chatStatus={chatStatus}
-					organizationId={organizationId}
-					parsedMessages={parsedMessages}
-					chatFiles={chatFiles}
-					initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
-					streamState={liveStreamState}
-					streamTools={streamTools}
-					liveStatus={liveStatus}
-					subagentStatusOverrides={subagentStatusOverrides}
-					subagentTitles={subagentTitles}
-					subagentVariants={subagentVariants}
-					onEditUserMessage={onEditUserMessage}
-					editingMessageId={editingMessageId}
-					onImplementPlan={onImplementPlan}
-					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
-					isChatCompleted={isChatCompleted}
-					hasActiveStream={hasStream}
-					isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
-					urlTransform={urlTransform}
-					mcpServers={mcpServers}
-					showDesktopPreviews={false}
-				/>
-				<TerminalStatusRow liveStatus={liveStatus} />
-			</ChatMessageScroller>
-			{/* The empty state sits outside the scroller content, which holds
+					<ConversationTimeline
+						hasMoreMessages={hasMoreMessages}
+						chatStatus={chatStatus}
+						organizationId={organizationId}
+						parsedMessages={parsedMessages}
+						chatFiles={chatFiles}
+						initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
+						streamState={liveStreamState}
+						streamTools={streamTools}
+						liveStatus={liveStatus}
+						subagentStatusOverrides={subagentStatusOverrides}
+						subagentTitles={subagentTitles}
+						subagentVariants={subagentVariants}
+						onEditUserMessage={onEditUserMessage}
+						editingMessageId={editingMessageId}
+						onImplementPlan={onImplementPlan}
+						onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+						isChatCompleted={isChatCompleted}
+						hasActiveStream={hasStream}
+						isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
+						urlTransform={urlTransform}
+						mcpServers={mcpServers}
+						showDesktopPreviews={false}
+					/>
+					<TerminalStatusRow liveStatus={liveStatus} />
+				</ChatMessageScroller>
+				{/* The empty state sits outside the scroller content, which holds
 			    transcript rows only. */}
-			<div className={cn("mx-auto w-full px-4", chatWidthClass(chatFullWidth))}>
-				<LiveStreamTailContent
-					isTranscriptEmpty={parsedMessages.length === 0}
-					liveStatus={liveStatus}
-				/>
-				{footer}
-			</div>
-		</Profiler>
+				<div
+					className={cn("mx-auto w-full px-4", chatWidthClass(chatFullWidth))}
+				>
+					<LiveStreamTailContent
+						isTranscriptEmpty={parsedMessages.length === 0}
+						liveStatus={liveStatus}
+					/>
+					{footer}
+				</div>
+			</Profiler>
+		</ACPContext>
 	);
 };
 
@@ -813,6 +826,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			workspaceOptions={workspaceOptions}
 			chatOrganizationId={organizationId}
 			chatProjectId={chat.project_id}
+			showProjectActions
 			selectedWorkspaceId={selectedWorkspaceId}
 			onWorkspaceChange={onWorkspaceChange}
 			isWorkspaceLoading={workspacesQuery.isLoading || isWorkspaceLoading}

@@ -41,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -50,6 +51,7 @@ import (
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
@@ -424,7 +426,8 @@ func TestAuthorization_WorkspaceAttribution(t *testing.T) {
 
 	// workspaceAttribution is lookup-free: it parses the workspace UUID from the
 	// strict server-minted token name and validates the embedded owner against
-	// key.UserID without touching the database.
+	// key.UserID without touching the database. Only an attributed workspace
+	// is looked up, to resolve its organization.
 	tests := []struct {
 		name      string
 		configure func(key *database.APIKey, user database.User, workspaceID uuid.UUID)
@@ -491,7 +494,12 @@ func TestAuthorization_WorkspaceAttribution(t *testing.T) {
 
 			db.EXPECT().GetAPIKeyByID(gomock.Any(), key.ID).Return(key, nil)
 			db.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil)
-			// No GetWorkspaceByID: attribution is lookup-free.
+			// Unattributed requests make no workspace or organization lookups.
+			orgID := uuid.New()
+			if tt.wantWsID {
+				db.EXPECT().GetWorkspaceByID(gomock.Any(), workspaceID).Return(database.Workspace{ID: workspaceID, OrganizationID: orgID}, nil)
+				db.EXPECT().GetOrganizationsByUserID(gomock.Any(), gomock.Any()).Return([]database.Organization{{ID: orgID}}, nil)
+			}
 
 			srv, err := aibridgedserver.NewServer(t.Context(), aibridgedserver.Options{
 				Store: db, AISeatTracker: agplaiseats.Noop{}, AccessURL: "/",
@@ -508,8 +516,137 @@ func TestAuthorization_WorkspaceAttribution(t *testing.T) {
 			require.NoError(t, err)
 			if tt.wantWsID {
 				require.Equal(t, workspaceID.String(), resp.GetWorkspaceId())
+				require.Equal(t, orgID.String(), resp.GetOrganizationId())
 			} else {
 				require.Empty(t, resp.GetWorkspaceId())
+				require.Empty(t, resp.GetOrganizationId())
+			}
+		})
+	}
+}
+
+// TestAuthorization_WorkspaceOrgResolution verifies that requests made with a
+// workspace session token resolve to the workspace's organization, and are
+// rejected when the workspace or the user's membership in its organization no
+// longer exists. It runs against a real database behind dbauthz so the AI
+// Gateway subject's permissions are exercised.
+func TestAuthorization_WorkspaceOrgResolution(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// configure mutates state after the workspace and its session token
+		// exist. It returns the token to authorize with.
+		configure func(t *testing.T, db database.Store, user database.User, org database.Organization, workspace database.WorkspaceTable) string
+		wantErr   error
+		wantOrg   bool
+	}{
+		{
+			name: "workspace session token resolves workspace org",
+			configure: func(t *testing.T, db database.Store, user database.User, _ database.Organization, workspace database.WorkspaceTable) string {
+				_, token := dbgen.APIKey(t, db, database.APIKey{
+					UserID:    user.ID,
+					TokenName: provisionerdserver.WorkspaceSessionTokenName(user.ID, workspace.ID),
+				})
+				return token
+			},
+			wantOrg: true,
+		},
+		{
+			// Tokens that are not workspace session tokens have no org source
+			// yet and must keep authorizing without one.
+			name: "non-workspace token resolves no org",
+			configure: func(t *testing.T, db database.Store, user database.User, _ database.Organization, _ database.WorkspaceTable) string {
+				_, token := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+				return token
+			},
+		},
+		{
+			name: "missing workspace",
+			configure: func(t *testing.T, db database.Store, user database.User, _ database.Organization, _ database.WorkspaceTable) string {
+				_, token := dbgen.APIKey(t, db, database.APIKey{
+					UserID:    user.ID,
+					TokenName: provisionerdserver.WorkspaceSessionTokenName(user.ID, uuid.New()),
+				})
+				return token
+			},
+			wantErr: aibridgedserver.ErrUnknownWorkspace,
+		},
+		{
+			name: "deleted workspace",
+			configure: func(t *testing.T, db database.Store, user database.User, _ database.Organization, workspace database.WorkspaceTable) string {
+				_, token := dbgen.APIKey(t, db, database.APIKey{
+					UserID:    user.ID,
+					TokenName: provisionerdserver.WorkspaceSessionTokenName(user.ID, workspace.ID),
+				})
+				require.NoError(t, db.UpdateWorkspaceDeletedByID(t.Context(), database.UpdateWorkspaceDeletedByIDParams{
+					ID:      workspace.ID,
+					Deleted: true,
+				}))
+				return token
+			},
+			wantErr: aibridgedserver.ErrUnknownWorkspace,
+		},
+		{
+			name: "user no longer a member of workspace org",
+			configure: func(t *testing.T, db database.Store, user database.User, org database.Organization, workspace database.WorkspaceTable) string {
+				_, token := dbgen.APIKey(t, db, database.APIKey{
+					UserID:    user.ID,
+					TokenName: provisionerdserver.WorkspaceSessionTokenName(user.ID, workspace.ID),
+				})
+				require.NoError(t, db.DeleteOrganizationMember(t.Context(), database.DeleteOrganizationMemberParams{
+					OrganizationID: org.ID,
+					UserID:         user.ID,
+				}))
+				return token
+			},
+			wantErr: aibridgedserver.ErrUnknownOrganizationMember,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			logger := testutil.Logger(t)
+
+			rawDB, _ := dbtestutil.NewDB(t)
+			authzDB := dbauthz.New(rawDB, rbac.NewStrictAuthorizer(prometheus.NewRegistry()), logger, coderdtest.AccessControlStorePointer())
+
+			org := dbgen.Organization(t, rawDB, database.Organization{})
+			user := dbgen.User(t, rawDB, database.User{})
+			dbgen.OrganizationMember(t, rawDB, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
+			workspace := dbfake.WorkspaceBuild(t, rawDB, database.WorkspaceTable{
+				OrganizationID: org.ID,
+				OwnerID:        user.ID,
+			}).Do().Workspace
+			token := tt.configure(t, rawDB, user, org, workspace)
+
+			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+				Store:         authzDB,
+				AISeatTracker: agplaiseats.Noop{},
+				AccessURL:     "/",
+				GatewayCfg:    codersdk.AIBridgeConfig{},
+				Experiments:   requiredExperiments,
+				Logger:        logger,
+				Clock:         quartz.NewReal(),
+			})
+			require.NoError(t, err)
+
+			resp, err := srv.IsAuthorized(ctx, &proto.IsAuthorizedRequest{Key: token})
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, user.ID.String(), resp.GetOwnerId())
+			if tt.wantOrg {
+				require.Equal(t, workspace.ID.String(), resp.GetWorkspaceId())
+				require.Equal(t, org.ID.String(), resp.GetOrganizationId())
+			} else {
+				require.Empty(t, resp.GetWorkspaceId())
+				require.Empty(t, resp.GetOrganizationId())
 			}
 		})
 	}
@@ -2333,13 +2470,14 @@ func TestRecordTokenUsage(t *testing.T) {
 					intc.Model = "gpt-5-mini"
 					expectBudgetLookups(db, intc)
 
+					providerID := uuid.New()
 					db.EXPECT().GetAIProviderByName(gomock.Any(), intc.ProviderName).
-						Return(database.AIProvider{Name: intc.ProviderName, Type: database.AIProviderTypeAzure}, nil)
-					db.EXPECT().GetAIModelPriceByProviderModel(gomock.Any(), database.GetAIModelPriceByProviderModelParams{
-						Provider: string(database.AIProviderTypeAzure),
-						Model:    intc.Model,
-					}).Return(database.AIModelPrice{
-						Provider:   string(database.AIProviderTypeAzure),
+						Return(database.AIProvider{ID: providerID, Name: intc.ProviderName, Type: database.AIProviderTypeAzure}, nil)
+					db.EXPECT().GetAIModelPriceForProvider(gomock.Any(), database.GetAIModelPriceForProviderParams{
+						ProviderType: string(database.AIProviderTypeAzure),
+						Model:        intc.Model,
+						ProviderID:   providerID,
+					}).Return(database.GetAIModelPriceForProviderRow{
 						Model:      intc.Model,
 						InputPrice: sql.NullInt64{Int64: 3_000_000, Valid: true},
 					}, nil)
@@ -2373,13 +2511,14 @@ func TestRecordTokenUsage(t *testing.T) {
 					intc.ProviderName = "bedrock-eu"
 					expectBudgetLookups(db, intc)
 
+					providerID := uuid.New()
 					db.EXPECT().GetAIProviderByName(gomock.Any(), intc.ProviderName).
-						Return(database.AIProvider{Name: intc.ProviderName, Type: database.AIProviderTypeBedrock}, nil)
-					db.EXPECT().GetAIModelPriceByProviderModel(gomock.Any(), database.GetAIModelPriceByProviderModelParams{
-						Provider: string(database.AIProviderTypeBedrock),
-						Model:    intc.Model,
-					}).Return(database.AIModelPrice{
-						Provider:   string(database.AIProviderTypeBedrock),
+						Return(database.AIProvider{ID: providerID, Name: intc.ProviderName, Type: database.AIProviderTypeBedrock}, nil)
+					db.EXPECT().GetAIModelPriceForProvider(gomock.Any(), database.GetAIModelPriceForProviderParams{
+						ProviderType: string(database.AIProviderTypeBedrock),
+						Model:        intc.Model,
+						ProviderID:   providerID,
+					}).Return(database.GetAIModelPriceForProviderRow{
 						Model:      intc.Model,
 						InputPrice: sql.NullInt64{Int64: 3_000_000, Valid: true},
 					}, nil)
@@ -2413,7 +2552,7 @@ func TestRecordTokenUsage(t *testing.T) {
 					db.EXPECT().GetAIProviderByName(gomock.Any(), intc.ProviderName).
 						Return(database.AIProvider{}, sql.ErrNoRows)
 					// Without a provider there is nothing to key the price on.
-					db.EXPECT().GetAIModelPriceByProviderModel(gomock.Any(), gomock.Any()).Times(0)
+					db.EXPECT().GetAIModelPriceForProvider(gomock.Any(), gomock.Any()).Times(0)
 
 					db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
 						func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
@@ -2507,8 +2646,8 @@ func TestRecordTokenUsage(t *testing.T) {
 						Return(uuid.New(), nil)
 					db.EXPECT().GetAIProviderByName(gomock.Any(), intc.ProviderName).
 						Return(database.AIProvider{Name: intc.ProviderName, Type: database.AIProviderTypeAnthropic}, nil)
-					db.EXPECT().GetAIModelPriceByProviderModel(gomock.Any(), gomock.Any()).
-						Return(database.AIModelPrice{}, sql.ErrConnDone)
+					db.EXPECT().GetAIModelPriceForProvider(gomock.Any(), gomock.Any()).
+						Return(database.GetAIModelPriceForProviderRow{}, sql.ErrConnDone)
 				},
 				expectedErr: "resolve token usage cost",
 			},
@@ -3734,19 +3873,28 @@ func expectTokenUsageCostLookups(
 		}
 	}
 
+	providerID := uuid.New()
 	db.EXPECT().GetAIProviderByName(gomock.Any(), intc.ProviderName).Return(database.AIProvider{
+		ID:   providerID,
 		Name: intc.ProviderName,
 		Type: database.AIProviderType(intc.Provider),
 	}, nil)
 
 	if price != nil {
-		db.EXPECT().GetAIModelPriceByProviderModel(gomock.Any(), database.GetAIModelPriceByProviderModelParams{
-			Provider: intc.Provider,
-			Model:    intc.Model,
-		}).Return(*price, nil)
+		db.EXPECT().GetAIModelPriceForProvider(gomock.Any(), database.GetAIModelPriceForProviderParams{
+			ProviderType: intc.Provider,
+			Model:        intc.Model,
+			ProviderID:   providerID,
+		}).Return(database.GetAIModelPriceForProviderRow{
+			Model:           intc.Model,
+			InputPrice:      price.InputPrice,
+			OutputPrice:     price.OutputPrice,
+			CacheReadPrice:  price.CacheReadPrice,
+			CacheWritePrice: price.CacheWritePrice,
+		}, nil)
 	} else {
-		db.EXPECT().GetAIModelPriceByProviderModel(gomock.Any(), gomock.Any()).
-			Return(database.AIModelPrice{}, sql.ErrNoRows)
+		db.EXPECT().GetAIModelPriceForProvider(gomock.Any(), gomock.Any()).
+			Return(database.GetAIModelPriceForProviderRow{}, sql.ErrNoRows)
 	}
 }
 

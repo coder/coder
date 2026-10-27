@@ -362,22 +362,32 @@ const ProvisionerJobsPage = lazy(
 const AgentsPageLayout = lazy(
 	() => import("./pages/AgentsPage/AgentsPageLayout"),
 );
-const AgentChatPage = lazy(() => import("./pages/AgentsPage/AgentChatPage"));
-const AgentEmbedPage = lazy(() => import("./pages/AgentsPage/AgentEmbedPage"));
+const AgentChatPage = lazy(
+	() => import("./pages/AgentsPage/AgentChatPage/AgentChatPage"),
+);
+const AgentEmbedPage = lazy(
+	() => import("./pages/AgentsPage/AgentEmbedPage/AgentEmbedPage"),
+);
 const DesktopPopoutPage = lazy(
-	() => import("./pages/AgentsPage/DesktopPopoutPage"),
+	() => import("./pages/AgentsPage/DesktopPopoutPage/DesktopPopoutPage"),
 );
 const AgentCreatePage = lazy(
-	() => import("./pages/AgentsPage/AgentCreatePage"),
+	() => import("./pages/AgentsPage/AgentCreatePage/AgentCreatePage"),
 );
 const AgentSettingsLayout = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsLayout"),
+	() => import("./pages/AgentsPage/AgentSettingsPage/AgentSettingsLayout"),
 );
 const AgentSettingsGeneralPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsGeneralPage"),
+	() =>
+		import(
+			"./pages/AgentsPage/AgentSettingsPage/AgentSettingsGeneralPage/AgentSettingsGeneralPage"
+		),
 );
 const AgentSettingsCompactionPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsCompactionPage"),
+	() =>
+		import(
+			"./pages/AgentsPage/AgentSettingsPage/AgentSettingsCompactionPage/AgentSettingsCompactionPage"
+		),
 );
 
 const AISettingsLifecyclePage = lazy(
@@ -387,13 +397,22 @@ const CoderAgentsPage = lazy(
 	() => import("./pages/AISettingsPage/CoderAgentsPage/CoderAgentsPage"),
 );
 const AgentSettingsUserAgentsPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsUserAgentsPage"),
+	() =>
+		import(
+			"./pages/AgentsPage/AgentSettingsPage/AgentSettingsUserAgentsPage/AgentSettingsUserAgentsPage"
+		),
 );
 const AgentSettingsSkillsPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsSkillsPage"),
+	() =>
+		import(
+			"./pages/AgentsPage/AgentSettingsPage/AgentSettingsSkillsPage/AgentSettingsSkillsPage"
+		),
 );
 const AgentSettingsAPIKeysPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsAPIKeysPage"),
+	() =>
+		import(
+			"./pages/AgentsPage/AgentSettingsPage/AgentSettingsAPIKeysPage/AgentSettingsAPIKeysPage"
+		),
 );
 
 import {
