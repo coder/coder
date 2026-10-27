@@ -44,9 +44,8 @@ type AskUserQuestionToolProps = {
 	/** The question is answered in the dock above the chat input instead of in this card. */
 	isDocked?: boolean;
 	/**
-	 * False for the dock's card. The dock mounts with its question in it, and
-	 * screen readers can miss a live region that arrives with its text, so
-	 * the timeline card, mounted while the call ran, announces the question.
+	 * False where the card mounts with its question, as in the dock, because
+	 * screen readers can miss a live region that arrives with its text.
 	 */
 	announcesQuestion?: boolean;
 	onSubmitAnswer?: (message: string) => Promise<void> | void;
