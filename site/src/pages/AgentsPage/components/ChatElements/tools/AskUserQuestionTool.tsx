@@ -127,6 +127,9 @@ const formatOutgoingMessage = (
 		.join("\n");
 };
 
+const getPreviousIndex = (currentIndex: number): number =>
+	Math.max(currentIndex - 1, 0);
+
 const getSubmissionErrorMessage = (error: unknown): string | undefined => {
 	if (!error) {
 		return undefined;
@@ -267,7 +270,7 @@ type QuestionStepProps = {
 	answer: QuestionAnswer | undefined;
 	isInteractive: boolean;
 	isSubmitting: boolean;
-	questionTextRef?: React.Ref<HTMLParagraphElement>;
+	questionTextRef: React.Ref<HTMLParagraphElement>;
 	onOptionChange: (value: string) => void;
 	onOtherTextChange: (text: string) => void;
 };
@@ -518,18 +521,19 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 
 	// Focus moves to the new question because the Back or Next button can
 	// end up out of view below a taller step, or disabled on the first one.
-	// flushSync renders that step first; only an interactive step holds the ref.
+	// flushSync renders that step first. onStepChange runs after the focus,
+	// so the scroll position it sets is not moved by the focus.
 	const changeQuestion = (getIndex: (currentIndex: number) => number) => {
 		flushSync(() => {
 			setCurrentQuestionIndex(getIndex);
 		});
 		resetSubmitState();
-		onStepChange?.();
 		questionTextRef.current?.focus();
+		onStepChange?.();
 	};
 
 	const handleBack = () => {
-		changeQuestion((currentIndex) => Math.max(currentIndex - 1, 0));
+		changeQuestion(getPreviousIndex);
 	};
 
 	const handleNext = () => {
@@ -644,7 +648,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 							answer={answers[questionIndex]}
 							isInteractive={isInteractive}
 							isSubmitting={isSubmitting}
-							questionTextRef={isInteractive ? questionTextRef : undefined}
+							questionTextRef={questionTextRef}
 							onOptionChange={(value) => {
 								handleOptionChange(questionIndex, question, value);
 							}}

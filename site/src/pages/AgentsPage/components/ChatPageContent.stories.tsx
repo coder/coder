@@ -39,6 +39,7 @@ import {
 	MockTwoAsyncQuestionsMessages,
 	MockWorkingMessages,
 } from "./ChatConversation/storyFixtures";
+import { getAsyncAnswerPrefix } from "./ChatElements/tools/asyncAnswer";
 import { ChatPageInput, ChatPageTimeline } from "./ChatPageContent";
 
 // These stories cover transcript rendering, so history paging stays idle.
@@ -658,6 +659,9 @@ export const AsyncQuestionDockedAboveInputMobile: Story = {
 	parameters: { pixel: { matrix: pixelWithPhone } },
 };
 
+const shortScreenClassName =
+	"flex h-[390px] w-[844px] flex-col overflow-hidden";
+
 // On a short landscape screen the dock gives up height before the chat input
 // does, so Send stays on screen.
 export const AsyncQuestionDockedShortScreen: Story = {
@@ -667,7 +671,7 @@ export const AsyncQuestionDockedShortScreen: Story = {
 				...MockAsyncQuestionMessages.slice(0, 2),
 				MockTallAsyncQuestionResultMessage,
 			])}
-			className="flex h-[390px] w-[844px] flex-col overflow-hidden"
+			className={shortScreenClassName}
 			onSendAskUserQuestionResponse={fn()}
 		/>
 	),
@@ -692,7 +696,7 @@ export const AsyncQuestionDockedNextStepStartsAtTop: Story = {
 				...MockAsyncQuestionMessages.slice(0, 2),
 				MockTwoTallAsyncQuestionsResultMessage,
 			])}
-			className="flex h-[390px] w-[844px] flex-col overflow-hidden"
+			className={shortScreenClassName}
 			onSendAskUserQuestionResponse={fn()}
 		/>
 	),
@@ -724,23 +728,63 @@ export const AsyncQuestionDockedDisabled: Story = {
 };
 
 // The question arrives on the live stream before its step persists.
-export const AsyncQuestionDockedFromStream: Story = {
-	render: () => {
-		const store = buildAsyncQuestionStore(MockWorkingMessages.slice(0, 1));
-		store.setChatStatus("running");
-		store.applyMessagePart({
-			type: "tool-call",
-			tool_call_id: "live-question",
-			tool_name: "ask_user_question",
-			args: {},
-		});
-		store.applyMessagePart({
-			type: "tool-result",
-			tool_call_id: "live-question",
-			tool_name: "ask_user_question",
-			result: MockAsyncQuestionResult,
-		});
+const buildLiveAsyncQuestionStore = () => {
+	const store = buildAsyncQuestionStore(MockWorkingMessages.slice(0, 1));
+	store.setChatStatus("running");
+	store.applyMessagePart({
+		type: "tool-call",
+		tool_call_id: "question",
+		tool_name: "ask_user_question",
+		args: {},
+	});
+	store.applyMessagePart({
+		type: "tool-result",
+		tool_call_id: "question",
+		tool_name: "ask_user_question",
+		result: MockAsyncQuestionResult,
+	});
+	return store;
+};
 
+export const AsyncQuestionDockedFromStream: Story = {
+	render: () => (
+		<AsyncQuestionChatPage
+			store={buildLiveAsyncQuestionStore()}
+			onSendAskUserQuestionResponse={fn()}
+		/>
+	),
+};
+
+const MockQueuedQuestionAnswer: TypesGen.ChatQueuedMessage = {
+	...MockChatQueuedMessage,
+	content: [
+		{ type: "text", text: `${getAsyncAnswerPrefix("question")}Frontend` },
+	],
+};
+
+// While the answer waits in the queue, the dock hides and the card shows the
+// answer, also before the question's step persists.
+export const AsyncQuestionFromStreamAnswerQueued: Story = {
+	render: () => {
+		const store = buildLiveAsyncQuestionStore();
+		store.setQueuedMessages([MockQueuedQuestionAnswer]);
+		return (
+			<AsyncQuestionChatPage
+				store={store}
+				onSendAskUserQuestionResponse={fn()}
+			/>
+		);
+	},
+};
+
+// Send now takes the answer out of the queue before the transcript has it,
+// and the dock stays hidden until then.
+export const AsyncQuestionAnswerPromoting: Story = {
+	render: () => {
+		const store = buildAsyncQuestionStore();
+		store.setChatStatus("running");
+		store.suppressQueuedMessageID(MockQueuedQuestionAnswer.id);
+		store.holdPromotingQueuedMessage(MockQueuedQuestionAnswer);
 		return (
 			<AsyncQuestionChatPage
 				store={store}

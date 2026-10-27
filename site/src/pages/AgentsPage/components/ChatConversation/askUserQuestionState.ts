@@ -4,11 +4,7 @@ import { isAsyncAskUserQuestionResult } from "../ChatElements/tools/utils";
 import { getMessageText, parseAsyncAnswerContent } from "./messageParsing";
 import type { MergedTool, ParsedMessageEntry } from "./types";
 
-/**
- * Question progress derived from the transcript, the live stream and the
- * queue. Only delivered messages answer a call; queued answers only record
- * their text.
- */
+/** Question progress derived from the transcript, the live stream and the queue. */
 export type AskUserQuestionState = {
 	latestToolId: string | undefined;
 	/** Set only by delivered messages, never by queued ones. */
@@ -110,8 +106,9 @@ export const deriveAskUserQuestionState = (
 			? latestTool
 			: undefined;
 
-	// A queued answer is not delivered yet, but it already answers its call,
-	// so another tab or a reload does not offer the question again.
+	// A queued answer only records its text, so the card shows it and the
+	// page hides the dock. openAsyncQuestion is set before this loop, so the
+	// dock comes back if the queue drops the answer.
 	for (const queuedMessage of queuedMessages) {
 		const asyncAnswer = readAsyncAnswer(queuedMessage.content);
 		if (asyncAnswer && !responseTextByToolId.has(asyncAnswer.toolCallId)) {

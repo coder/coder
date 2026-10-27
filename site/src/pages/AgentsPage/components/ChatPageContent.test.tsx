@@ -306,7 +306,7 @@ describe("ChatPageTimeline question dock", () => {
 		);
 	});
 
-	it("hides the dock while its answer is queued and keeps the draft if the queue drops it", async () => {
+	it("keeps the dock's draft when the queue drops its answer", async () => {
 		const user = userEvent.setup();
 		const onSendAskUserQuestionResponse = vi.fn();
 		const { store } = renderChatPageTimeline(onSendAskUserQuestionResponse);
@@ -323,9 +323,6 @@ describe("ChatPageTimeline question dock", () => {
 				{ ...MockChatQueuedMessage, content: [{ type: "text", text: answer }] },
 			]);
 		});
-		expect(
-			screen.queryByRole("region", { name: "Open question" }),
-		).not.toBeInTheDocument();
 		act(() => {
 			store.setQueuedMessages([]);
 		});

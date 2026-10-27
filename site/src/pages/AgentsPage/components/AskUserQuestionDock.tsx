@@ -10,7 +10,7 @@ type AskUserQuestionDockProps = {
 	 * Hides the dock while the answer waits in the queue. The dock stays
 	 * mounted so its draft is still there if the queue drops the answer.
 	 */
-	queuedAnswerText?: string;
+	queuedAnswerText: string | undefined;
 	onSubmitAnswer?: (message: string) => Promise<void> | void;
 };
 
@@ -27,6 +27,8 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 	return (
 		// The stable scrollbar gutter matches the chat input's wrapper, so the
 		// panel lines up with the input where scrollbars take up space.
+		// `hidden` wins over `flex` only through Tailwind preflight's
+		// `[hidden]` rule.
 		<div
 			hidden={queuedAnswerText !== undefined}
 			className="flex min-h-0 flex-col overflow-y-auto px-4 scrollbar-gutter-stable scrollbar-thin"

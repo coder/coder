@@ -98,7 +98,11 @@ export const buildStreamRenderState = (
 	};
 };
 
-/** Parses messages and derives their question state, taking live tools as given. */
+/**
+ * Props for a ConversationTimeline story: the parsed messages and the
+ * question state derived from them. Pass liveTools only when the story shows
+ * stream output, as the page does.
+ */
 export const buildQuestionTimelineArgs = (
 	messages: readonly TypesGen.ChatMessage[],
 	{
@@ -124,7 +128,11 @@ export const buildQuestionTimelineArgs = (
 	};
 };
 
-/** Question state for a transcript that asks no question. */
+/**
+ * The question state of a transcript without questions: no latest or open
+ * question and no answers. It is derived, not written out, so stories get
+ * the shape that the page derives.
+ */
 export const MockEmptyQuestionState = deriveAskUserQuestionState([], [], []);
 
 /**

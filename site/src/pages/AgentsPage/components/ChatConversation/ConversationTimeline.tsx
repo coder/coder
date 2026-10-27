@@ -623,6 +623,12 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						liveTools={liveTools}
 						latestAskUserQuestionToolId={latestAskUserQuestionToolId}
 						dockedAskUserQuestionToolId={dockedAskUserQuestionToolId}
+						askUserQuestionResponseTextByToolId={
+							askUserQuestionResponseTextByToolId
+						}
+						isLatestAskUserQuestionAnswered={
+							askUserQuestionState.isLatestAnswered
+						}
 						subagentStatusOverrides={
 							isStreamOutputShown ? subagentStatusOverrides : undefined
 						}
