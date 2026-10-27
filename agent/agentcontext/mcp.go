@@ -1,7 +1,6 @@
 package agentcontext
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -239,16 +238,34 @@ func fullSchemaExtraBodyBytes(full, reduced MCPTool) (int, error) {
 
 // coderdBodyBytesBound returns an upper bound on the size of msg as
 // coderd encodes a pushed body for its size check. protojson puts a
-// space after every comma or after none, chosen per binary, so this
-// binary's encoding can be shorter than coderd's. The bound is additive:
-// swapping one tool changes a body's bound by the difference of the two
-// tools' bounds.
+// space after every comma between values or after none, chosen per
+// binary, so this binary's encoding can be shorter than coderd's. The
+// bound is additive: swapping one tool changes a body's bound by the
+// difference of the two tools' bounds.
 func coderdBodyBytesBound(msg proto.Message) (int, error) {
 	encoded, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(msg)
 	if err != nil {
 		return 0, xerrors.Errorf("encode %T: %w", msg, err)
 	}
-	return len(encoded) + bytes.Count(encoded, []byte(",")), nil
+	return len(encoded) + valueCommas(encoded), nil
+}
+
+// valueCommas counts the commas between values in JSON text, which are
+// those outside its strings.
+func valueCommas(encoded []byte) int {
+	count := 0
+	inString := false
+	for i := 0; i < len(encoded); i++ {
+		switch c := encoded[i]; {
+		case inString && c == '\\':
+			i++
+		case c == '"':
+			inString = !inString
+		case !inString && c == ',':
+			count++
+		}
+	}
+	return count
 }
 
 // hasKeysBeyondReducedSchema reports whether schema has a key that
