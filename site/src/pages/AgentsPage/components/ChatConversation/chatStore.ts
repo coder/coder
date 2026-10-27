@@ -133,8 +133,13 @@ type QueueEdit = (
  * - history: a history reset.
  *
  * An edit has editedMessage, history and, if the queue is not empty, queue.
- * A stream open resends the commit at the version it opens with. For an entry
- * from before the open, those events already ended a part or never arrived.
+ * A stream open resends the commit at the version it opens with. An entry
+ * synced at that version ignores it, and for an entry synced below it, those
+ * events already ended a part or never arrived. The first open after a page
+ * load also resends the commits above the page's snapshot version that the
+ * page holds, because the server reads that version before the rest of the
+ * page. Such a commit ends the part of an action clicked before the first
+ * sync, so the action's result disappears until its own event arrives.
  */
 type PendingEntry = {
 	id: number;
