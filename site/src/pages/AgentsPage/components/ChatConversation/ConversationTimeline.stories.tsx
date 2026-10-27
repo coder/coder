@@ -824,6 +824,35 @@ export const UserMessageAsyncQuestionAnswer: Story = {
 	),
 };
 
+/** An answer that is only a skill chip has no text to copy. */
+export const UserMessageAsyncQuestionChipAnswer: Story = {
+	args: {
+		...buildStoryArgs({
+			...baseMessage,
+			id: 1,
+			role: "user",
+			content: [
+				{
+					type: "text",
+					text: "Answer to ask_user_question call ask-tool-async:",
+				},
+				{
+					type: "skill-invocation",
+					skill_source: "project",
+					skill_name: "triage",
+				},
+			],
+		}),
+		onEditUserMessage: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const userRow = canvas.getByText("Answer").closest('[data-role="user"]');
+
+		await userEvent.hover(userRow?.parentElement as HTMLElement);
+	},
+};
+
 /** Regression guard: a single image attachment must not be duplicated. */
 export const UserMessageWithSingleImage: Story = {
 	args: {

@@ -462,10 +462,8 @@ export const getEditableUserMessagePayload = (
 };
 
 /**
- * Parses each message and merges its tool calls with their results, which
- * usually arrive in later messages. Providers can reuse a call ID, so a call
- * takes the nearest result after it, and an older result never completes a
- * newer call.
+ * Providers can reuse a call ID, so a call takes the nearest result after it
+ * and an older result never completes a newer call.
  */
 export const parseMessagesWithMergedTools = (
 	messages: readonly TypesGen.ChatMessage[],
