@@ -846,7 +846,8 @@ func TestConnectAll_FullInputSchema_ModelIntentRebasesRefs(t *testing.T) {
 		tool: &mcp.Tool{
 			Name: "tree_search",
 			InputSchema: map[string]any{
-				"type": "object",
+				"$schema": "https://json-schema.org/draft/2019-09/schema",
+				"type":    "object",
 				// Providers reject "$recursiveAnchor", which the
 				// recursive reference no longer needs as a "$ref".
 				"$recursiveAnchor": true,

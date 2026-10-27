@@ -68,18 +68,22 @@ func IsKeyword(value string) bool {
 // Normalize returns a copy of a schema in the shapes provider drivers
 // accept: a draft 4 schema is rewritten in draft 7 (see UpgradeDraft4),
 // recursive references are replaced (see ReplaceRecursiveRefs), a
-// "$schema" that names a published dialect is spelled as published,
-// every type list is rewritten into an equivalent "anyOf", every array
-// schema without "items" gets an empty one, an "enum" with an array or
-// object member becomes an "anyOf" of "const" values, "$id" loses its
-// fragment, which becomes an "$anchor" when it names one, a reference
-// that names the root resource by URI becomes a fragment reference, and
-// a reference to an anchor that its resource declares once becomes a
-// JSON Pointer reference into that resource. So does a "$dynamicRef" to
-// such an anchor that no other schema declares as a dynamic anchor,
-// since it then resolves like "$ref", and a "$dynamicRef" with a JSON
-// Pointer becomes a "$ref". Instance data such as "const" and "enum"
-// values keeps its exact shape. The source is not modified.
+// "$schema" that names a published dialect is spelled as published, one
+// that does not is removed, or names draft 7 when it is a draft before
+// 2019-09 that the rest of the rewriting reads like draft 7, every type
+// list is rewritten into an equivalent "anyOf", every array schema
+// without "items" gets an empty one, an "enum" with an array or object
+// member becomes an "anyOf" of "const" values, "$id" loses its fragment,
+// which becomes an "$anchor" when draft 2020-12 allows its name, a
+// reference that names the root resource by URI becomes a fragment
+// reference, and a reference to an anchor that its resource declares
+// once becomes a JSON Pointer reference into that resource. So does a
+// "$dynamicRef" to such an anchor that no other schema declares as a
+// dynamic anchor, since it then resolves like "$ref", and a
+// "$dynamicRef" with a JSON Pointer becomes a "$ref". A reference that a
+// schema with a "$ref" gains this way joins its "allOf". Instance data
+// such as "const" and "enum" values keeps its exact shape. The source is
+// not modified.
 func Normalize(schema map[string]any) map[string]any {
 	schema = ReplaceRecursiveRefs(UpgradeDraft4(schema))
 	// Pointers are encoded only for the anchors references name.
@@ -146,7 +150,6 @@ func Normalize(schema map[string]any) map[string]any {
 	normalized = copyNode(normalized, rootScope(normalized), func(node map[string]any, scope refScope) {
 		if _, ok := node["$ref"].(string); ok {
 			addRef(node, "$ref", scope)
-			return
 		}
 		// Root folding follows only "$ref" into the keywords it removes.
 		ref, ok := node["$dynamicRef"].(string)
@@ -155,8 +158,8 @@ func Normalize(schema map[string]any) map[string]any {
 		}
 		_, fragment, _ := strings.Cut(ref, "#")
 		if _, ok := decodePointer(fragment); ok {
-			node["$ref"] = ref
 			delete(node, "$dynamicRef")
+			addReference(node, "$ref", ref)
 			return
 		}
 		if anchor, ok := anchorFragment(fragment); ok && dynamicAnchors[anchor] > 1 {
@@ -181,10 +184,12 @@ func Normalize(schema map[string]any) map[string]any {
 		budget -= length * len(refs[anchor])
 		pointer := "#" + EncodePointer(path.path.tokens()[len(path.resource.tokens()):])
 		for _, ref := range refs[anchor] {
-			ref.node["$ref"] = ref.prefix + pointer
-			if ref.key != "$ref" {
-				delete(ref.node, ref.key)
+			if ref.key == "$ref" {
+				ref.node["$ref"] = ref.prefix + pointer
+				continue
 			}
+			delete(ref.node, ref.key)
+			addReference(ref.node, "$ref", ref.prefix+pointer)
 		}
 	}
 	return normalized
@@ -257,30 +262,17 @@ var draft4UnknownKeywords = [...]string{
 // "const", as the rest of the rewriting and the providers expect. "id"
 // becomes "$id", and a boolean "exclusiveMinimum" or "exclusiveMaximum"
 // becomes the number that draft 7 expects. The keywords draft 4 ignores
-// but later drafts apply are removed, unless a reference's JSON Pointer
-// names one, which keeps the reference resolving. Normalize may then add
-// some back where they hold as in the source, such as "const" for an
-// "enum". Other schemas are returned as is.
+// but later drafts apply are removed, except where a reference's JSON
+// Pointer passes through one: that occurrence keeps its value under a
+// key no draft defines, which validators also ignore, and the references
+// follow it. Normalize may then add some back where they hold as in the
+// source, such as "const" for an "enum". Other schemas are returned as
+// is.
 func UpgradeDraft4(schema map[string]any) map[string]any {
 	if !strings.Contains(Dialect(schema), "json-schema.org/draft-04/schema") {
 		return schema
 	}
-	referenced := map[string]bool{}
-	walkNode(schema, rootScope(schema), func(node map[string]any, _ refScope) {
-		ref, _ := node["$ref"].(string)
-		if _, fragment, ok := strings.Cut(ref, "#"); ok {
-			tokens, _ := decodePointer(fragment)
-			for _, token := range tokens {
-				referenced[token] = true
-			}
-		}
-	})
 	upgraded := copyNode(schema, refScope{}, func(node map[string]any, _ refScope) {
-		for _, key := range draft4UnknownKeywords {
-			if !referenced[key] {
-				delete(node, key)
-			}
-		}
 		if id, ok := node["id"].(string); ok {
 			node["$id"] = id
 			delete(node, "id")
@@ -298,7 +290,110 @@ func UpgradeDraft4(schema map[string]any) map[string]any {
 		}
 	})
 	upgraded["$schema"] = "http://json-schema.org/draft-07/schema#"
-	return upgraded
+	return removeDraft4UnknownKeywords(upgraded)
+}
+
+// removeDraft4UnknownKeywords removes draft4UnknownKeywords from a schema
+// that UpgradeDraft4 rewrote in draft 7, keeping the occurrences that
+// references pass through as UpgradeDraft4 describes.
+func removeDraft4UnknownKeywords(schema map[string]any) map[string]any {
+	// kept maps the encoded path of each occurrence a reference passes
+	// through to the key that keeps its value.
+	kept := map[string]string{}
+	resources := map[string][]*pathToken{}
+	walkNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
+		if _, ok := resourceID(node); ok && scope.nested && scope.base != nil {
+			uri := canonicalURI(scope.base)
+			resources[uri] = append(resources[uri], scope.path)
+		}
+	})
+	walkNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
+		ref, _ := node["$ref"].(string)
+		resource, tokens, ok := scope.resourcePointer(ref, resources)
+		if !ok {
+			return
+		}
+		keywords := PointerKeywords(tokens)
+		for i, token := range tokens {
+			if !keywords[i] || !slices.Contains(draft4UnknownKeywords[:], token) {
+				continue
+			}
+			path := append(slices.Clone(resource), tokens[:i+1]...)
+			parent, _ := lookupPointer(schema, path[:len(path)-1])
+			holder, _ := parent.(map[string]any)
+			if _, ok := holder[token]; !ok {
+				continue
+			}
+			name := "x-draft4-" + token
+			for n := 2; ; n++ {
+				if _, taken := holder[name]; !taken {
+					break
+				}
+				name = "x-draft4-" + token + "-" + strconv.Itoa(n)
+			}
+			kept[EncodePointer(path)] = name
+		}
+	})
+	return copyNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
+		var path []string
+		for _, key := range draft4UnknownKeywords {
+			value, ok := node[key]
+			if !ok {
+				continue
+			}
+			delete(node, key)
+			if len(kept) == 0 {
+				continue
+			}
+			if path == nil {
+				path = append(scope.path.tokens(), "")
+			}
+			path[len(path)-1] = key
+			if name, ok := kept[EncodePointer(path)]; ok {
+				node[name] = value
+			}
+		}
+		ref, _ := node["$ref"].(string)
+		resource, tokens, ok := scope.resourcePointer(ref, resources)
+		if !ok || len(kept) == 0 {
+			return
+		}
+		renamed := slices.Clone(tokens)
+		for i := range tokens {
+			if name, ok := kept[EncodePointer(append(slices.Clone(resource), tokens[:i+1]...))]; ok {
+				renamed[i] = name
+			}
+		}
+		if !slices.Equal(renamed, tokens) {
+			prefix, _, _ := strings.Cut(ref, "#")
+			node["$ref"] = prefix + "#" + EncodePointer(renamed)
+		}
+	})
+}
+
+// lookupPointer returns the value that JSON Pointer tokens locate in
+// root.
+func lookupPointer(root any, tokens []string) (any, bool) {
+	current := root
+	for _, token := range tokens {
+		switch typed := current.(type) {
+		case map[string]any:
+			next, ok := typed[token]
+			if !ok {
+				return nil, false
+			}
+			current = next
+		case []any:
+			index, err := strconv.Atoi(token)
+			if err != nil || index < 0 || index >= len(typed) {
+				return nil, false
+			}
+			current = typed[index]
+		default:
+			return nil, false
+		}
+	}
+	return current, true
 }
 
 // ReplaceRecursiveRefs returns a copy of a schema without the draft
@@ -310,12 +405,12 @@ func UpgradeDraft4(schema map[string]any) map[string]any {
 // becomes a "$dynamicRef" to a "$dynamicAnchor" that each such resource
 // root declares, which resolves the same way. It is left out when a name
 // for that anchor cannot be added, which only drops a constraint. Other
-// values are kept. A schema that declares a dialect without these
-// keywords ignores them, so they are only removed. Other schemas are
-// returned as is.
+// values are kept. Only a schema that declares draft 2019-09 has these
+// keywords: other dialects ignore them, and so does a schema without
+// "$schema", which MCP reads as draft 2020-12, so they are only removed.
+// Other schemas are returned as is.
 func ReplaceRecursiveRefs(schema map[string]any) map[string]any {
-	dialect := Dialect(schema)
-	recursive := !strings.Contains(dialect, "json-schema.org/draft-0") && !strings.Contains(dialect, "json-schema.org/draft/2020-12/")
+	recursive := strings.Contains(Dialect(schema), "json-schema.org/draft/2019-09/")
 	found, dynamic, clash := false, false, false
 	used := map[string]bool{}
 	walkNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
@@ -463,10 +558,19 @@ func normalizeNode(node map[string]any, scope refScope) {
 	}
 
 	// Some providers check a schema against the dialect "$schema" names
-	// only when it is spelled exactly as published.
+	// only when it is spelled exactly as published, and reject a schema
+	// whose "$schema" names any other dialect. Without "$schema" they
+	// read draft 2020-12, which MCP specifies as the default. A URI under
+	// a draft before 2019-09 is read as that draft, so it names draft 7,
+	// whose "$ref" ignores its siblings in the same way.
 	if dialect, ok := node["$schema"].(string); ok {
-		if published, ok := publishedDialect(dialect); ok {
+		switch published, ok := PublishedDialect(dialect); {
+		case ok:
 			node["$schema"] = published
+		case strings.Contains(Dialect(node), "json-schema.org/draft-0"):
+			node["$schema"] = "http://json-schema.org/draft-07/schema#"
+		default:
+			delete(node, "$schema")
 		}
 	}
 }
@@ -482,10 +586,10 @@ var publishedDialects = [...]string{
 	"https://json-schema.org/draft/2020-12/schema",
 }
 
-// publishedDialect returns the published spelling of a "$schema" URI that
+// PublishedDialect returns the published spelling of a "$schema" URI that
 // differs from a published dialect's only in case where URIs ignore it,
 // in http against https, or in an empty fragment.
-func publishedDialect(dialect string) (string, bool) {
+func PublishedDialect(dialect string) (string, bool) {
 	key, ok := dialectKey(dialect)
 	if !ok {
 		return "", false
@@ -508,15 +612,20 @@ func dialectKey(dialect string) (string, bool) {
 	return strings.TrimPrefix(canonicalURI(uri), uri.Scheme+":"), true
 }
 
-// anchorName matches the plain-name fragments that draft 2020-12 allows
-// as "$anchor" values.
-var anchorName = regexp.MustCompile(`^[A-Za-z_][-A-Za-z0-9._]*$`)
+var (
+	// anchorName matches the plain-name fragments that draft 2020-12
+	// allows as "$anchor" values.
+	anchorName = regexp.MustCompile(`^[A-Za-z_][-A-Za-z0-9._]*$`)
+	// legacyAnchorName matches those and the plain-name fragments that
+	// drafts 6 and 7 allow in "$id", which may also hold colons.
+	legacyAnchorName = regexp.MustCompile(`^[A-Za-z_][-A-Za-z0-9._:]*$`)
+)
 
 // anchorFragment returns the anchor name that a URI fragment holds,
 // which may be percent-encoded like the rest of the fragment.
 func anchorFragment(fragment string) (string, bool) {
 	name, err := url.PathUnescape(fragment)
-	if err != nil || !anchorName.MatchString(name) {
+	if err != nil || !legacyAnchorName.MatchString(name) {
 		return "", false
 	}
 	return name, true
@@ -528,7 +637,7 @@ func anchorFragment(fragment string) (string, bool) {
 func declaredAnchors(node map[string]any) []string {
 	anchors := plainAnchors(node)
 	if id, ok := node["$id"].(string); ok {
-		if _, fragment, _ := strings.Cut(id, "#"); anchorName.MatchString(fragment) && !slices.Contains(anchors, fragment) {
+		if _, fragment, _ := strings.Cut(id, "#"); legacyAnchorName.MatchString(fragment) && !slices.Contains(anchors, fragment) {
 			anchors = append(anchors, fragment)
 		}
 	}
@@ -886,6 +995,49 @@ func KeywordSubschemas(key string, value any) SubschemaKind {
 	}
 }
 
+// PointerKeywords reports which tokens of a JSON Pointer that starts at
+// a schema are keys of the schema objects it passes through. The other
+// tokens are names in a map of schemas such as "properties", indexes in
+// a list of schemas, or locations in instance data, and a token spelled
+// like a keyword there is only a name.
+func PointerKeywords(tokens []string) []bool {
+	const (
+		schemaKey = iota
+		member
+		data
+	)
+	keywords := make([]bool, len(tokens))
+	role := schemaKey
+	for i, token := range tokens {
+		switch role {
+		case member:
+			role = schemaKey
+		case schemaKey:
+			if !IsKeyword(token) {
+				role = data
+				continue
+			}
+			keywords[i] = true
+			switch KeywordSubschemas(token, nil) {
+			case SingleSubschema:
+				// "items" holds a list of schemas before draft 2020-12.
+				if token == "items" && i+1 < len(tokens) && isIndex(tokens[i+1]) {
+					role = member
+				}
+			case SubschemaList, SubschemaMap:
+				role = member
+			default:
+				role = data
+			}
+		}
+	}
+	return keywords
+}
+
+func isIndex(token string) bool {
+	return token != "" && strings.Trim(token, "0123456789") == ""
+}
+
 // forEachSubschema calls visit with each schema object in the value of
 // key, the positions copyKeyword copies as schemas, and its scope, given
 // the scope of the schema holding key.
@@ -1078,6 +1230,35 @@ func (s refScope) rootPointer(ref string) ([]string, bool) {
 		return nil, false
 	}
 	return decodePointer(fragment)
+}
+
+// resourcePointer returns the decoded JSON Pointer tokens of ref and the
+// path in the root of the resource root the pointer starts at. resources
+// maps the canonical URI of each embedded resource to the paths of the
+// subschemas that declare it, and a reference that names a URI more than
+// one of them declares names none.
+func (s refScope) resourcePointer(ref string, resources map[string][]*pathToken) (resource, tokens []string, ok bool) {
+	prefix, fragment, hasFragment := strings.Cut(ref, "#")
+	switch {
+	case !hasFragment:
+		return nil, nil, false
+	case prefix == "":
+		resource = s.resourcePath.tokens()
+	default:
+		uri, ok := s.resolve(prefix)
+		if !ok {
+			return nil, nil, false
+		}
+		if s.rootBase == nil || canonicalURI(uri) != canonicalURI(s.rootBase) {
+			found := resources[canonicalURI(uri)]
+			if len(found) != 1 {
+				return nil, nil, false
+			}
+			resource = found[0].tokens()
+		}
+	}
+	tokens, ok = decodePointer(fragment)
+	return resource, tokens, ok
 }
 
 // rootFragment returns the fragment of ref when its target lies in the

@@ -551,10 +551,10 @@ func TestConnectInline_IgnoresShortSensitiveValues(t *testing.T) {
 // TestConnectInline_KeepsSchemaKeywords verifies that a sensitive value
 // that is a JSON Schema keyword, or part of one, such as a URL path
 // segment named "properties", is redacted from descriptions, schema text,
-// instance data, and results but does not rename the keywords of input
-// schemas, the names "required" lists, or the keyword segments of
-// references. Other names and references keep a placeholder that
-// providers accept in a property name.
+// instance data, results, and the names spelled like it, but does not
+// rename the keyword keys of input schemas or the keyword tokens of
+// references. Redacted names keep a placeholder that providers accept in
+// a property name.
 func TestConnectInline_KeepsSchemaKeywords(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -602,23 +602,25 @@ func TestConnectInline_KeepsSchemaKeywords(t *testing.T) {
 	require.Equal(t, "Looks up [REDACTED] [REDACTED] using [REDACTED].", tools[0].Info().Description)
 	fullSchema, ok := tools[0].(fullSchemaTool)
 	require.True(t, ok)
+	// A name spelled like a keyword is still redacted, while the keyword
+	// keys stay.
 	require.Equal(t, map[string]any{
 		"type": "object",
 		"properties": map[string]any{
 			"name":        map[string]any{"type": "string", "description": "Name in the [REDACTED] list"},
-			"description": map[string]any{"$ref": "#/properties/name"},
-			"token":       map[string]any{"$ref": "#/$defs/REDACTED"},
+			"REDACTED":    map[string]any{"$ref": "#/properties/name"},
+			"token":       map[string]any{"$ref": "#/$defs/REDACT_2"},
 			"mode":        map[string]any{"title": "[REDACTED]", "enum": []any{"[REDACTED]", "optional"}, "default": "[REDACTED]", "examples": []any{"[REDACTED]"}},
 			"is_REDACTED": map[string]any{"type": "boolean"},
 			"REDACTED_id": map[string]any{"type": "string"},
 		},
-		"$defs":                map[string]any{"REDACTED": map[string]any{"type": "string"}},
-		"required":             []any{"name", "description", "is_REDACTED"},
+		"$defs":                map[string]any{"REDACT_2": map[string]any{"type": "string"}},
+		"required":             []any{"name", "REDACTED", "is_REDACTED"},
 		"additionalProperties": false,
 	}, fullSchema.FullInputSchema())
 	// Providers reject property names outside ^[a-zA-Z0-9_.-]{1,64}$.
-	require.Equal(t, []string{"name", "description", "is_REDACTED"}, tools[0].Info().Required)
-	require.ElementsMatch(t, []string{"name", "description", "token", "mode", "is_REDACTED", "REDACTED_id"}, slices.Collect(maps.Keys(tools[0].Info().Parameters)))
+	require.Equal(t, []string{"name", "REDACTED", "is_REDACTED"}, tools[0].Info().Required)
+	require.ElementsMatch(t, []string{"name", "REDACTED", "token", "mode", "is_REDACTED", "REDACTED_id"}, slices.Collect(maps.Keys(tools[0].Info().Parameters)))
 
 	resp, err := tools[0].Run(ctx, fantasy.ToolCall{ID: "call-1", Input: `{"name":"alice","description":"alice"}`})
 	require.NoError(t, err)
@@ -628,8 +630,112 @@ func TestConnectInline_KeepsSchemaKeywords(t *testing.T) {
 
 // TestConnectInline_RedactsReferencesLikeNames verifies that a redacted
 // reference still names its target, whose names are redacted one by one,
-// and that names that redact to the same text stay unique.
+// that names that redact to the same text stay distinct, and that a
+// sensitive value spanning pointer tokens is not shown.
 func TestConnectInline_RedactsReferencesLikeNames(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	handler := func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return textToolResult("ok"), nil
+	}
+	lookup := testTool{
+		tool: &mcp.Tool{
+			Name: "lookup",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"path":           map[string]any{"$ref": "#/definitions/topsecret"},
+					"count":          map[string]any{"$ref": "#/definitions/bravo-secret"},
+					"slashed":        map[string]any{"$ref": "#/properties/x_slash~1secret"},
+					"x_slash/secret": map[string]any{"type": "string"},
+					"k_alpha-secret": map[string]any{"type": "string"},
+					"k_bravo-secret": map[string]any{"type": "integer"},
+				},
+				"definitions": map[string]any{
+					"topsecret":    map[string]any{"type": "string"},
+					"bravo-secret": map[string]any{"type": "integer"},
+				},
+				"required": []string{"k_alpha-secret", "k_bravo-secret"},
+			},
+		},
+		handler: handler,
+	}
+	span := testTool{
+		tool: &mcp.Tool{
+			Name: "span",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"whole":    map[string]any{"$ref": "#/$defs/Zk3/q9Lx+Wm2/Rt7Vb8Y="},
+					"prefixed": map[string]any{"$ref": "#/$defs/xZk3/q9Lx+Wm2/Rt7Vb8Y="},
+				},
+				"$defs": map[string]any{"Zk3": map[string]any{"type": "string"}},
+			},
+		},
+		handler: handler,
+	}
+	ts := newTestMCPServer(t, lookup, span)
+	cfg := makeInlineConfig("data-bot", ts.URL+"/definitions/topsecret", map[string]string{
+		"X-Slash": "slash/secret",
+		"X-Alpha": "alpha-secret",
+		"X-Bravo": "bravo-secret",
+		"X-Auth":  "Bearer Zk3/q9Lx+Wm2/Rt7Vb8Y=",
+	})
+
+	tools, summaries, cleanup := mcpclient.ConnectInlineForTest(
+		ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
+	)
+	t.Cleanup(cleanup)
+	require.Len(t, summaries, 1)
+	require.Equal(t, mcpclient.ConnectOutcomeConnected, summaries[0].Outcome)
+	require.Len(t, tools, 2)
+	schemas := make(map[string]map[string]any, len(tools))
+	for _, tool := range tools {
+		fullSchema, ok := tool.(fullSchemaTool)
+		require.True(t, ok)
+		schemas[tool.Info().Name] = fullSchema.FullInputSchema()
+		if tool.Info().Name == "data-bot__lookup" {
+			require.Equal(t, []string{"k_REDACTED", "k_REDACT_2"}, tool.Info().Required)
+		}
+	}
+	// Of the names that redact to the same text, the first in sorted
+	// order keeps it and the next ones are numbered. The sensitive URL
+	// segment "definitions" counts, since a name may be spelled like it.
+	require.Equal(t, map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"path":       map[string]any{"$ref": "#/definitions/REDACT_3"},
+			"count":      map[string]any{"$ref": "#/definitions/REDACTED"},
+			"slashed":    map[string]any{"$ref": "#/properties/x_REDACTED"},
+			"x_REDACTED": map[string]any{"type": "string"},
+			"k_REDACTED": map[string]any{"type": "string"},
+			"k_REDACT_2": map[string]any{"type": "integer"},
+		},
+		"definitions": map[string]any{
+			"REDACTED": map[string]any{"type": "integer"},
+			"REDACT_3": map[string]any{"type": "string"},
+		},
+		"required": []any{"k_REDACTED", "k_REDACT_2"},
+	}, schemas["data-bot__lookup"])
+	// The tokens the value spans are renamed wherever they are names.
+	require.Equal(t, map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"whole":    map[string]any{"$ref": "#/$defs/REDACT_2/REDACT_3/REDACTED"},
+			"prefixed": map[string]any{"$ref": "#/$defs/REDACT_4/REDACT_3/REDACTED"},
+		},
+		"$defs": map[string]any{"REDACT_2": map[string]any{"type": "string"}},
+	}, schemas["data-bot__span"])
+}
+
+// TestConnectInline_RedactsEncodedAndKeywordReferences verifies that a
+// reference does not show a sensitive value that it percent-encodes, in
+// its fragment or its URI, that is spelled like a keyword, or that spans a
+// keyword token, and that a published "$schema" holding a sensitive value
+// stays.
+func TestConnectInline_RedactsEncodedAndKeywordReferences(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -638,16 +744,19 @@ func TestConnectInline_RedactsReferencesLikeNames(t *testing.T) {
 		tool: &mcp.Tool{
 			Name: "lookup",
 			InputSchema: map[string]any{
-				"type": "object",
+				"$schema": "http://json-schema.org/draft-07/schema#",
+				"type":    "object",
 				"properties": map[string]any{
-					"path":           map[string]any{"$ref": "#/definitions/topsecret"},
-					"slashed":        map[string]any{"$ref": "#/properties/x_slash~1secret"},
-					"x_slash/secret": map[string]any{"type": "string"},
-					"k_alpha-secret": map[string]any{"type": "string"},
-					"k_bravo-secret": map[string]any{"type": "integer"},
+					"encoded":     map[string]any{"$ref": "#/definitions/top%73ecret"},
+					"description": map[string]any{"type": "string"},
+					"doc":         map[string]any{"$ref": "#/properties/description"},
+					"nested":      map[string]any{"$ref": "#/definitions/mcp/properties/x"},
+					"remote":      map[string]any{"$ref": "https://example.com/top%73ecret.json"},
 				},
-				"definitions": map[string]any{"topsecret": map[string]any{"type": "string"}},
-				"required":    []string{"k_alpha-secret", "k_bravo-secret"},
+				"definitions": map[string]any{
+					"topsecret": map[string]any{"type": "string"},
+					"mcp":       map[string]any{"properties": map[string]any{"x": map[string]any{"type": "integer"}}},
+				},
 			},
 		},
 		handler: func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -655,10 +764,11 @@ func TestConnectInline_RedactsReferencesLikeNames(t *testing.T) {
 		},
 	}
 	ts := newTestMCPServer(t, lookup)
-	cfg := makeInlineConfig("data-bot", ts.URL+"/definitions/topsecret", map[string]string{
-		"X-Slash": "slash/secret",
-		"X-Alpha": "alpha-secret",
-		"X-Bravo": "bravo-secret",
+	cfg := makeInlineConfig("data-bot", ts.URL+"/mcp", map[string]string{
+		"X-Key":     "topsecret",
+		"X-Path":    "/mcp/properties",
+		"X-Doc":     "description",
+		"X-Dialect": "draft-07",
 	})
 
 	tools, summaries, cleanup := mcpclient.ConnectInlineForTest(
@@ -670,20 +780,23 @@ func TestConnectInline_RedactsReferencesLikeNames(t *testing.T) {
 	require.Len(t, tools, 1)
 	fullSchema, ok := tools[0].(fullSchemaTool)
 	require.True(t, ok)
-	// Of the names that redact to the same text, the first in sorted
-	// order keeps its schema.
+	// "mcp" holds no sensitive value, but the one that spans it and the
+	// keyword after it renames it.
 	require.Equal(t, map[string]any{
-		"type": "object",
+		"$schema": "http://json-schema.org/draft-07/schema#",
+		"type":    "object",
 		"properties": map[string]any{
-			"path":       map[string]any{"$ref": "#/definitions/REDACTED"},
-			"slashed":    map[string]any{"$ref": "#/properties/x_REDACTED"},
-			"x_REDACTED": map[string]any{"type": "string"},
-			"k_REDACTED": map[string]any{"type": "string"},
+			"encoded":  map[string]any{"$ref": "#/definitions/REDACT_3"},
+			"REDACTED": map[string]any{"type": "string"},
+			"doc":      map[string]any{"$ref": "#/properties/REDACTED"},
+			"nested":   map[string]any{"$ref": "#/definitions/REDACT_2/properties/x"},
+			"remote":   map[string]any{"$ref": "REDACTED"},
 		},
-		"definitions": map[string]any{"REDACTED": map[string]any{"type": "string"}},
-		"required":    []any{"k_REDACTED"},
+		"definitions": map[string]any{
+			"REDACT_3": map[string]any{"type": "string"},
+			"REDACT_2": map[string]any{"properties": map[string]any{"x": map[string]any{"type": "integer"}}},
+		},
 	}, fullSchema.FullInputSchema())
-	require.Equal(t, []string{"k_REDACTED"}, tools[0].Info().Required)
 }
 
 func TestConnectInline_BodyCap(t *testing.T) {
