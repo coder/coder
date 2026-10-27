@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"bytes"
 	"cmp"
 	"context"
 	"crypto/sha256"
@@ -4003,8 +4002,6 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		defer api.markChatAsRead(context.WithoutCancel(ctx), chatID)
 	}
 
-	encoder := json.NewEncoder(wsNetConn)
-
 	sendChatStreamBatch := func(batch []codersdk.ChatStreamEvent) error {
 		if len(batch) == 0 {
 			return nil
@@ -4062,7 +4059,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		case <-ctx.Done():
 			return
 		case <-keepalive.C:
-			if err := encoder.Encode([]codersdk.ChatStreamEvent{}); err != nil {
+			if err := writeChatStreamBatch(wsNetConn, []codersdk.ChatStreamEvent{}); err != nil {
 				logger.Debug(ctx, "failed to send chat stream keepalive", slog.Error(err))
 				return
 			}
@@ -4088,12 +4085,16 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 
 // writeChatStreamBatch writes batch as one message, or as consecutive
 // codersdk.ChatStreamChunk messages when it encodes to more than
-// codersdk.ChatStreamChunkBytes. Browsers deliver a message only after its
-// last byte, so an unsplit large batch on a slow link would arrive after
-// the web client's silence timeout and be requested again forever.
+// codersdk.ChatStreamChunkBytes. Each w.Write must send one WebSocket
+// message. Browsers deliver a message only after its last byte, so an
+// unsplit large batch on a slow link would arrive after the web client's
+// silence timeout and be requested again forever.
 //
-// The encoder escapes <, > and &, so encoding a chunk as a JSON string at
-// most doubles it. The WSWatcher probe closes the stream when its Ping
+// json.Marshal writes <, > and & in the batch as \u003c-style text, so a
+// chunk holds only `"` and `\` among the characters that string encoding
+// expands, and each of those expands to two bytes: a chunk message is at
+// most twice its chunk plus the wrapper. Do not disable HTML escaping on
+// the batch. The WSWatcher probe closes the stream when its Ping
 // takes over 15 s, and the Ping's lock wait plus write may take only 5 s.
 // A message holds the write lock until the kernel accepts it, so the 5 s
 // cap needs a 512 KiB worst-case chunk message to drain at 0.84 Mbit/s or
@@ -4102,31 +4103,29 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 // message failed at 1 and 4 Mbit/s; chunks passed at 4 Mbit/s, and at
 // 1 Mbit/s only while under about 1.9 MB was queued.
 func writeChatStreamBatch(w io.Writer, batch []codersdk.ChatStreamEvent) error {
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(batch); err != nil {
+	data, err := json.Marshal(batch)
+	if err != nil {
 		return xerrors.Errorf("encode chat stream batch: %w", err)
 	}
-	data := buf.Bytes()
+	data = append(data, '\n')
 	if len(data) <= codersdk.ChatStreamChunkBytes {
 		_, err := w.Write(data)
 		return err
 	}
+	// Encode writes each chunk message with one w.Write.
+	enc := json.NewEncoder(w)
 	for len(data) > 0 {
 		n := min(len(data), codersdk.ChatStreamChunkBytes)
-		// Encoder output is valid UTF-8, so a rune start is at most three
-		// bytes back, and each chunk is a valid string.
+		// The batch encoding is valid UTF-8, so a rune start is at most
+		// three bytes back, and each chunk is a valid string.
 		for n < len(data) && !utf8.RuneStart(data[n]) {
 			n--
 		}
-		chunk, err := json.Marshal(codersdk.ChatStreamChunk{
+		if err := enc.Encode(codersdk.ChatStreamChunk{
 			Chunk: string(data[:n]),
 			Last:  n == len(data),
-		})
-		if err != nil {
-			return xerrors.Errorf("encode chat stream chunk: %w", err)
-		}
-		if _, err := w.Write(chunk); err != nil {
-			return err
+		}); err != nil {
+			return xerrors.Errorf("write chat stream chunk: %w", err)
 		}
 		data = data[n:]
 	}
