@@ -29,20 +29,16 @@ import (
 func TestOpenAIResponsesNoStaleWebSearchReplay(t *testing.T) {
 	t.Parallel()
 
+	// The follow-up sends the search inline right after the reasoning
+	// item in both cases: the source response was unstored, so OpenAI
+	// cannot resolve a reference to it.
+	const wantSearchReplay = `{"type":"web_search_call","status":"completed","action":{"type":"search","query":"coder changelog"}}`
 	for _, tc := range []struct {
 		name             string
 		destinationStore bool
 		summary          string
-		// wantSearchReplay is the inline web_search_call the follow-up
-		// sends right after the reasoning item, or empty when it sends
-		// none.
-		wantSearchReplay string
 	}{
-		{
-			name:             "stateless",
-			summary:          "checked provider-side search state",
-			wantSearchReplay: `{"type":"web_search_call","status":"completed","action":{"type":"search","query":"coder changelog"}}`,
-		},
+		{name: "stateless", summary: "checked provider-side search state"},
 		{name: "switch to stored", destinationStore: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -133,14 +129,10 @@ func TestOpenAIResponsesNoStaleWebSearchReplay(t *testing.T) {
 			requireNoResponsesProviderItemReplay(t, followup.Prompt, webSearchID)
 			reasoningIndex := requireInlineReasoningItem(t, followup.Prompt, reasoningID, "encrypted-no-stale",
 				tc.summary)
-			if tc.wantSearchReplay != "" {
-				require.Greater(t, len(followup.Prompt), reasoningIndex+1, "no item after the reasoning item")
-				replayed, err := json.Marshal(followup.Prompt[reasoningIndex+1])
-				require.NoError(t, err)
-				require.JSONEq(t, tc.wantSearchReplay, string(replayed))
-			} else {
-				require.NotContains(t, promptItemTypes(followup.Prompt), "web_search_call")
-			}
+			require.Greater(t, len(followup.Prompt), reasoningIndex+1, "no item after the reasoning item")
+			replayed, err := json.Marshal(followup.Prompt[reasoningIndex+1])
+			require.NoError(t, err)
+			require.JSONEq(t, wantSearchReplay, string(replayed))
 		})
 	}
 }

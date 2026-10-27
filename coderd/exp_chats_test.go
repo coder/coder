@@ -10760,10 +10760,8 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 		wantError  bool
 		wantFound  []string
 		// wantReplay is the web_search_call input item the next turn
-		// sends, or empty when it sends none. Stored searches replay
-		// only as item references paired with reasoning, which this
-		// model does not produce, so cases that leave store unset send
-		// none.
+		// sends. gpt-4o produces no reasoning, so stored searches cannot
+		// go back as item references and replay inline too.
 		wantReplay string
 	}{
 		{
@@ -10775,6 +10773,7 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 			wantArgs:   `{"type":"search","queries":["tokyo population","tokyo census 2025"]}`,
 			wantResult: `{}`,
 			wantFound:  found,
+			wantReplay: `{"type":"web_search_call","status":"completed","action":{"type":"search","queries":["tokyo population","tokyo census 2025"],"query":"tokyo population"}}`,
 		},
 		{
 			name: "Failed",
@@ -10785,6 +10784,7 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 			wantArgs:   `{"type":"search","queries":["tokyo population"]}`,
 			wantResult: `{"error":"web search failed"}`,
 			wantError:  true,
+			wantReplay: `{"type":"web_search_call","status":"failed","action":{"type":"search","queries":["tokyo population"]}}`,
 		},
 		{
 			name:  "UnstoredSearch",
@@ -11062,14 +11062,8 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 					inputItems = append(inputItems, item.Type)
 				}
 			}
-			wantInputItems := []string{"user", "assistant", "user"}
-			if tt.wantReplay != "" {
-				wantInputItems = []string{"user", "web_search_call", "assistant", "user"}
-			}
-			require.Equal(t, wantInputItems, inputItems)
-			if tt.wantReplay != "" {
-				require.JSONEq(t, tt.wantReplay, string(replayed))
-			}
+			require.Equal(t, []string{"user", "web_search_call", "assistant", "user"}, inputItems)
+			require.JSONEq(t, tt.wantReplay, string(replayed))
 		})
 	}
 }
