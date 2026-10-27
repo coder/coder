@@ -20,9 +20,13 @@ type streamPartsControl struct {
 	GenerationAttempt int64 `json:"generation_attempt"`
 }
 
+type episodeSubscriber interface {
+	SubscribeToEpisode(context.Context, messagepartbuffer.Key) (<-chan messagepartbuffer.Part, func(), error)
+}
+
 type streamPartsEndpoint struct {
 	chatID uuid.UUID
-	buffer *messagepartbuffer.Buffer
+	buffer episodeSubscriber
 	logger slog.Logger
 }
 
