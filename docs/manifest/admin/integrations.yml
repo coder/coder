@@ -31,5 +31,5 @@ children:
   - include: admin/integrations/devcontainers.yml
   - title: Nix(OS)
     description: Define reproducible environments with Nix flakes, with or without NixOS.
-    path: ./admin/integrations/nixos.md
+    path: ./admin/integrations/nix.md
     state: [early access]

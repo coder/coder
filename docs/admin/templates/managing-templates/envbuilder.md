@@ -16,4 +16,4 @@ For an alternative that uses Docker inside workspaces, see [Dev Containers Integ
 
 > [!TIP]
 > Nix flakes also let developers define their environments in their repositories, without building images.
-> See [Nix(OS)](../../integrations/nixos.md).
+> See [Nix(OS)](../../integrations/nix.md).
