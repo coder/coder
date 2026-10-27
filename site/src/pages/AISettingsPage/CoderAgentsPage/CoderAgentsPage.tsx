@@ -1,12 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
-import { aiProvidersList } from "#/api/queries/aiProviders";
 import {
 	chatAdvisorConfig,
-	chatComputerUseProvider,
 	chatPersonalModelOverridesAdminSettings,
 	updateChatAdvisorConfig,
-	updateChatComputerUseProvider,
 	updateChatPersonalModelOverridesAdminSettings,
 } from "#/api/queries/chats";
 import { organizationsPermissions } from "#/api/queries/organizations";
@@ -46,9 +43,6 @@ const CoderAgentsPage: React.FC = () => {
 		? organizationPermissionsQuery.data?.[activeOrganization.id]
 		: undefined;
 	const showAdvisorSettings = experiments.includes("chat-advisor");
-	const showVirtualDesktopSettings = experiments.includes(
-		"chat-virtual-desktop",
-	);
 	const personalOverridesQuery = useQuery({
 		...chatPersonalModelOverridesAdminSettings(),
 		enabled: canEditDeploymentConfig,
@@ -57,22 +51,11 @@ const CoderAgentsPage: React.FC = () => {
 		...chatAdvisorConfig(),
 		enabled: canEditDeploymentConfig && showAdvisorSettings,
 	});
-	const computerUseProviderQuery = useQuery({
-		...chatComputerUseProvider(),
-		enabled: canEditDeploymentConfig && showVirtualDesktopSettings,
-	});
-	const aiProvidersQuery = useQuery({
-		...aiProvidersList(),
-		enabled: canEditDeploymentConfig && showVirtualDesktopSettings,
-	});
 	const savePersonalOverridesMutation = useMutation(
 		updateChatPersonalModelOverridesAdminSettings(queryClient),
 	);
 	const saveAdvisorConfigMutation = useMutation(
 		updateChatAdvisorConfig(queryClient),
-	);
-	const saveComputerUseProviderMutation = useMutation(
-		updateChatComputerUseProvider(queryClient),
 	);
 	const canAccessOrganizationSettings =
 		accessibleOrganizationsQuery.organizations.length > 0;
@@ -136,15 +119,6 @@ const CoderAgentsPage: React.FC = () => {
 				isSavingAdvisorConfig={saveAdvisorConfigMutation.isPending}
 				isSaveAdvisorConfigError={saveAdvisorConfigMutation.isError}
 				saveAdvisorConfigError={saveAdvisorConfigMutation.error}
-				showVirtualDesktopSettings={showVirtualDesktopSettings}
-				computerUseProviderData={computerUseProviderQuery.data}
-				isLoadingComputerUseProvider={computerUseProviderQuery.isLoading}
-				aiProviders={aiProvidersQuery.data}
-				isLoadingAIProviders={aiProvidersQuery.isLoading}
-				aiProvidersError={aiProvidersQuery.error}
-				onSaveComputerUseProvider={saveComputerUseProviderMutation.mutate}
-				isSavingComputerUseProvider={saveComputerUseProviderMutation.isPending}
-				computerUseProviderSaveError={saveComputerUseProviderMutation.error}
 			/>
 		</RequirePermission>
 	);

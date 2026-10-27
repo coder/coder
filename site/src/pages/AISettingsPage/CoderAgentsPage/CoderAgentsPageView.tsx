@@ -1,4 +1,3 @@
-import type { UseMutateFunction } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
@@ -8,7 +7,6 @@ import {
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { AdvisorSettings } from "#/pages/AgentsPage/components/AdvisorSettings";
-import { VirtualDesktopSettings } from "#/pages/AgentsPage/components/VirtualDesktopSettings";
 import { OrganizationSettingsSection } from "#/pages/AISettingsPage/components/OrganizationSettingsSection";
 import { SettingsSection } from "#/pages/AISettingsPage/components/SettingsSection";
 import {
@@ -46,20 +44,6 @@ export type CoderAgentsPageViewProps = {
 	isSavingAdvisorConfig: boolean;
 	isSaveAdvisorConfigError: boolean;
 	saveAdvisorConfigError: unknown;
-	showVirtualDesktopSettings: boolean;
-	computerUseProviderData: TypesGen.ChatComputerUseProviderResponse | undefined;
-	isLoadingComputerUseProvider: boolean;
-	aiProviders: readonly TypesGen.AIProvider[] | undefined;
-	isLoadingAIProviders: boolean;
-	aiProvidersError: unknown;
-	onSaveComputerUseProvider: UseMutateFunction<
-		void,
-		Error,
-		TypesGen.UpdateChatComputerUseProviderRequest,
-		unknown
-	>;
-	isSavingComputerUseProvider: boolean;
-	computerUseProviderSaveError: Error | null;
 };
 
 export const CoderAgentsPageView: React.FC<CoderAgentsPageViewProps> = ({
@@ -88,15 +72,6 @@ export const CoderAgentsPageView: React.FC<CoderAgentsPageViewProps> = ({
 	isSavingAdvisorConfig,
 	isSaveAdvisorConfigError,
 	saveAdvisorConfigError,
-	showVirtualDesktopSettings,
-	computerUseProviderData,
-	isLoadingComputerUseProvider,
-	aiProviders,
-	isLoadingAIProviders,
-	aiProvidersError,
-	onSaveComputerUseProvider,
-	isSavingComputerUseProvider,
-	computerUseProviderSaveError,
 }) => {
 	return (
 		<div className="flex max-w-4xl flex-col gap-10">
@@ -146,18 +121,6 @@ export const CoderAgentsPageView: React.FC<CoderAgentsPageViewProps> = ({
 							isSavingAdminSetting={isSavingAdminOverrides}
 							isSaveAdminSettingError={isSaveAdminOverridesError}
 						/>
-						{showVirtualDesktopSettings && (
-							<VirtualDesktopSettings
-								computerUseProviderData={computerUseProviderData}
-								isLoadingComputerUseProvider={isLoadingComputerUseProvider}
-								aiProviders={aiProviders}
-								isLoadingAIProviders={isLoadingAIProviders}
-								aiProvidersError={aiProvidersError}
-								onSaveComputerUseProvider={onSaveComputerUseProvider}
-								isSavingComputerUseProvider={isSavingComputerUseProvider}
-								computerUseProviderSaveError={computerUseProviderSaveError}
-							/>
-						)}
 						{showAdvisorSettings && (
 							<AdvisorSettings
 								advisorConfigData={advisorConfigData}
