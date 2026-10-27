@@ -32,9 +32,8 @@ import (
 func TestOpenAIResponsesNoStaleWebSearchReplay(t *testing.T) {
 	t.Parallel()
 
-	// The follow-up sends the search inline right after the reasoning
-	// item in both cases: the source response was unstored, so OpenAI
-	// cannot resolve a reference to it.
+	// Both cases, including the stored destination, send the search
+	// inline right after the reasoning item.
 	const wantSearchReplay = `{"type":"web_search_call","status":"completed","action":{"type":"search","query":"coder changelog"}}`
 	for _, tc := range []struct {
 		name             string
