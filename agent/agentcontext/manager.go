@@ -167,7 +167,7 @@ func NewManager(opts ManagerOptions) *Manager {
 	// the first resolve.
 	if resolver.MCPResources == nil && opts.MCPCatalog != nil {
 		resolver.MCPResources = func() []Resource {
-			return buildMCPServerResources(opts.MCPCatalog())
+			return buildMCPServerResources(m.logger, opts.MCPCatalog())
 		}
 	}
 

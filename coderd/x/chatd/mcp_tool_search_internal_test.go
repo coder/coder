@@ -45,7 +45,7 @@ func (t deferredTestFullSchemaTool) FullInputSchema() map[string]any { return t.
 
 // TestEstimateDeferredMCPToolTokensPrefersFullSchema verifies that
 // deferral budgeting weighs the complete input schema when a tool
-// reports one, since that is what reactivation puts on the wire.
+// reports one, as normalization puts it on the wire on reactivation.
 func TestEstimateDeferredMCPToolTokensPrefersFullSchema(t *testing.T) {
 	t.Parallel()
 
@@ -60,12 +60,23 @@ func TestEstimateDeferredMCPToolTokensPrefersFullSchema(t *testing.T) {
 			"properties": parameters,
 			"$defs": map[string]any{
 				"Filter": map[string]any{"type": "string", "description": strings.Repeat("x", 100)},
+				// Normalization turns each type list into a longer "anyOf".
+				"Lists": map[string]any{"properties": map[string]any{
+					"a": map[string]any{"type": []any{"string", "null"}},
+					"b": map[string]any{"type": []any{"integer", "null"}},
+				}},
 			},
 		},
 	}}
 	require.Greater(t,
 		estimateDeferredMCPToolTokens([]deferredMCPTool{full}),
 		estimateDeferredMCPToolTokens([]deferredMCPTool{flattened}))
+
+	sent, err := json.Marshal(chatloop.ToolInputSchema(full.tool))
+	require.NoError(t, err)
+	require.Equal(t,
+		float64(len("server__tool")+len("desc")+len(sent))/2.5,
+		estimateDeferredMCPToolTokens([]deferredMCPTool{full}))
 }
 
 func TestDecideMCPToolSearch(t *testing.T) {
