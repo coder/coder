@@ -192,6 +192,8 @@ func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, p
 		CacheWriteInputTokens: usage.CacheCreationInputTokens,
 		PromptTokens:          promptTokens,
 		Metadata:              metadata,
+
+		CacheWrite1hInputTokens: usage.CacheCreation.Ephemeral1hInputTokens,
 	}
 	if len(extraTokenTypes) > 0 {
 		usageRecord.ExtraTokenTypes = extraTokenTypes

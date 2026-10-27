@@ -54,6 +54,7 @@ func validateTokenUsage(in *proto.RecordTokenUsageRequest) error {
 		{"output_tokens", in.GetOutputTokens()},
 		{"cache_read_input_tokens", in.GetCacheReadInputTokens()},
 		{"cache_write_input_tokens", in.GetCacheWriteInputTokens()},
+		{"cache_write_one_hour_input_tokens", in.GetCacheWriteOneHourInputTokens()},
 		{"prompt_tokens", in.GetPromptTokens()},
 	} {
 		if category.count < 0 || category.count > maxAllowedTokenUsage {
@@ -68,13 +69,14 @@ func validateTokenUsage(in *proto.RecordTokenUsageRequest) error {
 // usage record. A field left unset (Valid == false) is recorded as SQL NULL; a
 // price or cost of 0 is recorded as 0, which is distinct from NULL.
 type tokenUsageCost struct {
-	effectiveGroupID      uuid.NullUUID
-	spendLimitMicros      sql.NullInt64
-	limitSource           codersdk.AIBudgetLimitSource
-	inputPriceMicros      sql.NullInt64
-	outputPriceMicros     sql.NullInt64
-	cacheReadPriceMicros  sql.NullInt64
-	cacheWritePriceMicros sql.NullInt64
+	effectiveGroupID        uuid.NullUUID
+	spendLimitMicros        sql.NullInt64
+	limitSource             codersdk.AIBudgetLimitSource
+	inputPriceMicros        sql.NullInt64
+	outputPriceMicros       sql.NullInt64
+	cacheReadPriceMicros    sql.NullInt64
+	cacheWritePriceMicros   sql.NullInt64
+	cacheWrite1hPriceMicros sql.NullInt64
 	// priceTierThresholdTokens is the threshold of the long-context tier
 	// whose prices applied, or NULL for the base prices.
 	priceTierThresholdTokens sql.NullInt64
@@ -82,8 +84,9 @@ type tokenUsageCost struct {
 	pricedModel              sql.NullString
 }
 
+// cacheWrite1h is part of cacheWrite, not an additional count.
 type usageTokens struct {
-	input, output, cacheRead, cacheWrite, prompt int64
+	input, output, cacheRead, cacheWrite, cacheWrite1h, prompt int64
 }
 
 // The inserted row and its cost both read the counts through
@@ -95,6 +98,8 @@ func usageFromRequest(in *proto.RecordTokenUsageRequest) usageTokens {
 		cacheRead:  in.GetCacheReadInputTokens(),
 		cacheWrite: in.GetCacheWriteInputTokens(),
 	}
+	// A bad 1h count must not fail the check constraint and drop the row.
+	u.cacheWrite1h = min(in.GetCacheWriteOneHourInputTokens(), u.cacheWrite)
 	// A record carries at least its own input. An output-only record of a
 	// stream carries the prompt size of its message in PromptTokens.
 	u.prompt = max(in.GetPromptTokens(), u.input+u.cacheRead+u.cacheWrite)
@@ -104,21 +109,22 @@ func usageFromRequest(in *proto.RecordTokenUsageRequest) usageTokens {
 // priceSet holds the per-million-token prices that apply to one usage
 // record. A NULL price is treated as zero.
 type priceSet struct {
-	input, output, cacheRead, cacheWrite sql.NullInt64
+	input, output, cacheRead, cacheWrite, cacheWrite1h sql.NullInt64
 	// tierThreshold is the threshold of the applied tier, NULL for the base
 	// prices.
 	tierThreshold sql.NullInt64
 }
 
-// pricesForPrompt returns the prices for one upstream request. The tiers are
-// stored in threshold order; the highest one below the prompt size applies,
-// and a tier price that is absent uses the base price.
+// pricesForPrompt applies the highest tier below the prompt size, reading the
+// tiers in their stored threshold order. An absent tier price uses the base
+// price, and an absent 1h price uses the cache write price that applies.
 func pricesForPrompt(row database.GetAIModelPriceForProviderRow, prompt int64) (priceSet, error) {
 	set := priceSet{
-		input:      row.InputPrice,
-		output:     row.OutputPrice,
-		cacheRead:  row.CacheReadPrice,
-		cacheWrite: row.CacheWritePrice,
+		input:        row.InputPrice,
+		output:       row.OutputPrice,
+		cacheRead:    row.CacheReadPrice,
+		cacheWrite:   row.CacheWritePrice,
+		cacheWrite1h: row.CacheWrite1hPrice,
 	}
 	var tiers []pricebook.Tier
 	if len(row.Tiers) > 0 {
@@ -135,8 +141,12 @@ func pricesForPrompt(row database.GetAIModelPriceForProviderRow, prompt int64) (
 			output:        priceOr(t.OutputPrice, row.OutputPrice),
 			cacheRead:     priceOr(t.CacheReadPrice, row.CacheReadPrice),
 			cacheWrite:    priceOr(t.CacheWritePrice, row.CacheWritePrice),
+			cacheWrite1h:  priceOr(t.CacheWrite1hPrice, sql.NullInt64{}),
 			tierThreshold: sql.NullInt64{Int64: t.ThresholdTokens, Valid: true},
 		}
+	}
+	if !set.cacheWrite1h.Valid {
+		set.cacheWrite1h = set.cacheWrite
 	}
 	return set, nil
 }
@@ -239,6 +249,7 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 	result.outputPriceMicros = prices.output
 	result.cacheReadPriceMicros = prices.cacheRead
 	result.cacheWritePriceMicros = prices.cacheWrite
+	result.cacheWrite1hPriceMicros = prices.cacheWrite1h
 	result.priceTierThresholdTokens = prices.tierThreshold
 
 	costMicros, err := computeCost(prices, usage)
@@ -256,6 +267,7 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 			slog.F("output_tokens", in.GetOutputTokens()),
 			slog.F("cache_read_input_tokens", in.GetCacheReadInputTokens()),
 			slog.F("cache_write_input_tokens", in.GetCacheWriteInputTokens()),
+			slog.F("cache_write_one_hour_input_tokens", usage.cacheWrite1h),
 			slog.F("prompt_tokens", usage.prompt),
 			slog.Error(err))
 		return result, nil
@@ -270,7 +282,8 @@ func computeCost(price priceSet, u usageTokens) (int64, error) {
 	total := tokenCost(u.input, price.input).
 		Add(tokenCost(u.output, price.output)).
 		Add(tokenCost(u.cacheRead, price.cacheRead)).
-		Add(tokenCost(u.cacheWrite, price.cacheWrite))
+		Add(tokenCost(u.cacheWrite-u.cacheWrite1h, price.cacheWrite)).
+		Add(tokenCost(u.cacheWrite1h, price.cacheWrite1h))
 
 	if err := validateTotalCost(total); err != nil {
 		return 0, err

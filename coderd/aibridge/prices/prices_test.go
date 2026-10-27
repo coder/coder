@@ -218,18 +218,20 @@ func TestSeedFromBytes(t *testing.T) {
 		// value so a query that reads the wrong field also fails.
 		var seed bytes.Buffer
 		require.NoError(t, pricebook.Write(&seed, []pricebook.Row{{
-			Provider:        "test-provider",
-			Model:           "tag-contract",
-			InputPrice:      ptr.Ref(int64(11)),
-			OutputPrice:     ptr.Ref(int64(22)),
-			CacheReadPrice:  ptr.Ref(int64(33)),
-			CacheWritePrice: ptr.Ref(int64(44)),
+			Provider:          "test-provider",
+			Model:             "tag-contract",
+			InputPrice:        ptr.Ref(int64(11)),
+			OutputPrice:       ptr.Ref(int64(22)),
+			CacheReadPrice:    ptr.Ref(int64(33)),
+			CacheWritePrice:   ptr.Ref(int64(44)),
+			CacheWrite1hPrice: ptr.Ref(int64(55)),
 			Tiers: []pricebook.Tier{{
-				ThresholdTokens: 66,
-				InputPrice:      ptr.Ref(int64(77)),
-				OutputPrice:     ptr.Ref(int64(88)),
-				CacheReadPrice:  ptr.Ref(int64(99)),
-				CacheWritePrice: ptr.Ref(int64(111)),
+				ThresholdTokens:   66,
+				InputPrice:        ptr.Ref(int64(77)),
+				OutputPrice:       ptr.Ref(int64(88)),
+				CacheReadPrice:    ptr.Ref(int64(99)),
+				CacheWritePrice:   ptr.Ref(int64(111)),
+				CacheWrite1hPrice: ptr.Ref(int64(122)),
 			}},
 		}}))
 		require.NoError(t, prices.SeedFromBytes(ctx, db, seed.Bytes()))
@@ -242,18 +244,20 @@ func TestSeedFromBytes(t *testing.T) {
 		require.Equal(t, int64(22), got.OutputPrice.Int64)
 		require.Equal(t, int64(33), got.CacheReadPrice.Int64)
 		require.Equal(t, int64(44), got.CacheWritePrice.Int64)
+		require.Equal(t, int64(55), got.CacheWrite1hPrice.Int64)
 		var tiers []pricebook.Tier
 		require.NoError(t, json.Unmarshal(got.Tiers, &tiers))
 		require.Equal(t, []pricebook.Tier{{
-			ThresholdTokens: 66,
-			InputPrice:      ptr.Ref(int64(77)),
-			OutputPrice:     ptr.Ref(int64(88)),
-			CacheReadPrice:  ptr.Ref(int64(99)),
-			CacheWritePrice: ptr.Ref(int64(111)),
+			ThresholdTokens:   66,
+			InputPrice:        ptr.Ref(int64(77)),
+			OutputPrice:       ptr.Ref(int64(88)),
+			CacheReadPrice:    ptr.Ref(int64(99)),
+			CacheWritePrice:   ptr.Ref(int64(111)),
+			CacheWrite1hPrice: ptr.Ref(int64(122)),
 		}}, tiers)
 	})
 
-	t.Run("UpdatesWhenOnlyTiersChange", func(t *testing.T) {
+	t.Run("UpdatesWhenOnly1hOrTiersChange", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		db, _ := dbtestutil.NewDB(t)
@@ -278,14 +282,20 @@ func TestSeedFromBytes(t *testing.T) {
 		}
 
 		base := seedAndGet(row)
+		require.False(t, base.CacheWrite1hPrice.Valid)
 		require.JSONEq(t, `[]`, string(base.Tiers))
+
+		row.CacheWrite1hPrice = ptr.Ref(int64(200_000))
+		with1h := seedAndGet(row)
+		require.Equal(t, int64(200_000), with1h.CacheWrite1hPrice.Int64)
+		require.True(t, with1h.UpdatedAt.After(base.UpdatedAt))
 
 		row.Tiers = []pricebook.Tier{{ThresholdTokens: 100_000, InputPrice: ptr.Ref(int64(500_000))}}
 		withTiers := seedAndGet(row)
 		var tiers []pricebook.Tier
 		require.NoError(t, json.Unmarshal(withTiers.Tiers, &tiers))
 		require.Equal(t, row.Tiers, tiers)
-		require.True(t, withTiers.UpdatedAt.After(base.UpdatedAt))
+		require.True(t, withTiers.UpdatedAt.After(with1h.UpdatedAt))
 
 		again := seedAndGet(row)
 		require.Equal(t, withTiers.UpdatedAt, again.UpdatedAt)

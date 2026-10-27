@@ -1,15 +1,15 @@
 -- name: UpsertAIModelPrices :exec
 -- Upsert a batch of model prices from a JSON array, all recorded under the
 -- given source. Each element must have provider, model, and the four price
--- fields, and null prices are written as SQL NULL. tiers is optional; an
--- absent or null tiers key means no tiers.
+-- fields, and null prices are written as SQL NULL. cache_write_1h_price and
+-- tiers are optional; an absent or null tiers key means no tiers.
 -- Each source keeps its own row, so the price book and a custom price never
 -- overwrite each other. A conflicting row is only rewritten when a price
 -- differs, so updated_at records when a price last changed. Prices are
 -- nullable and a NULL on either side counts as a difference.
 INSERT INTO ai_model_prices (
 	provider, model, input_price, output_price, cache_read_price, cache_write_price,
-	tiers, source
+	cache_write_1h_price, tiers, source
 )
 SELECT
 	elem->>'provider',
@@ -18,27 +18,31 @@ SELECT
 	(elem->>'output_price')::bigint,
 	(elem->>'cache_read_price')::bigint,
 	(elem->>'cache_write_price')::bigint,
+	(elem->>'cache_write_1h_price')::bigint,
 	CASE WHEN jsonb_typeof(elem->'tiers') = 'array' THEN elem->'tiers' ELSE '[]'::jsonb END,
 	@source::ai_model_price_source
 FROM jsonb_array_elements(@seed::jsonb) AS elem
 ON CONFLICT (provider, model, source) DO UPDATE SET
-	input_price       = EXCLUDED.input_price,
-	output_price      = EXCLUDED.output_price,
-	cache_read_price  = EXCLUDED.cache_read_price,
-	cache_write_price = EXCLUDED.cache_write_price,
-	tiers             = EXCLUDED.tiers,
-	updated_at        = NOW()
+	input_price          = EXCLUDED.input_price,
+	output_price         = EXCLUDED.output_price,
+	cache_read_price     = EXCLUDED.cache_read_price,
+	cache_write_price    = EXCLUDED.cache_write_price,
+	cache_write_1h_price = EXCLUDED.cache_write_1h_price,
+	tiers                = EXCLUDED.tiers,
+	updated_at           = NOW()
 WHERE (
 	ai_model_prices.input_price,
 	ai_model_prices.output_price,
 	ai_model_prices.cache_read_price,
 	ai_model_prices.cache_write_price,
+	ai_model_prices.cache_write_1h_price,
 	ai_model_prices.tiers
 ) IS DISTINCT FROM (
 	EXCLUDED.input_price,
 	EXCLUDED.output_price,
 	EXCLUDED.cache_read_price,
 	EXCLUDED.cache_write_price,
+	EXCLUDED.cache_write_1h_price,
 	EXCLUDED.tiers
 );
 
@@ -53,7 +57,7 @@ WHERE (
 -- prices apply. Soft-deleted organization configs, and those that set no
 -- price, are ignored. A matched price is used as a whole: its NULL prices are
 -- not filled in from a less specific price. Organization prices have no
--- long-context tiers. Each branch is a unique index
+-- long-context tiers or 1h cache write price. Each branch is a unique index
 -- lookup.
 WITH prices AS (
 	SELECT
@@ -63,6 +67,7 @@ WITH prices AS (
 		output_price,
 		cache_read_price,
 		cache_write_price,
+		cache_write_1h_price,
 		tiers
 	FROM ai_model_prices
 	WHERE ai_model_prices.provider = @provider_type::text
@@ -75,6 +80,7 @@ WITH prices AS (
 		output_price,
 		cache_read_price,
 		cache_write_price,
+		NULL::bigint,
 		'[]'::jsonb
 	FROM ai_model_configs
 	WHERE ai_model_configs.organization_id = sqlc.narg('organization_id')::uuid
@@ -94,6 +100,7 @@ SELECT
 	prices.output_price,
 	prices.cache_read_price,
 	prices.cache_write_price,
+	prices.cache_write_1h_price,
 	prices.tiers
 FROM prices
 ORDER BY
