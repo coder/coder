@@ -26,12 +26,11 @@ When the experiment is on, the **Agents** page sidebar shows a **Projects** sect
 
 ## What a project provides
 
-| Capability                    | What it does                                                                                          |
-|-------------------------------|-------------------------------------------------------------------------------------------------------|
-| [Instructions](#instructions) | Text added to the system prompt of every chat in the project.                                         |
-| [Skills](#skills)             | Skills available only to chats in the project.                                                        |
-| [Memory](#memory)             | Durable notes that the agent saves in one chat and reads in later chats.                              |
-| [Sharing](#share-a-project)   | Lets other organization members start their own chats with the same instructions, skills, and memory. |
+| Capability                    | What it does                                                             |
+|-------------------------------|--------------------------------------------------------------------------|
+| [Instructions](#instructions) | Text added to the system prompt of every chat in the project.            |
+| [Skills](#skills)             | Skills available only to chats in the project.                           |
+| [Memory](#memory)             | Durable notes that the agent saves in one chat and reads in later chats. |
 
 ## Ownership
 
@@ -42,8 +41,8 @@ Chats in a project must be in the project's organization.
 Any organization member who can use Coder Agents can create projects in that organization.
 Each user can own up to 100 projects across all organizations.
 
-A project is private to its owner until the owner [shares](#share-a-project) it.
-Coder records project, instruction, skill, memory, and sharing changes in the [audit log](../../admin/security/audit-logs.md).
+A project is private to its owner.
+Coder records project, instruction, skill, and memory changes in the [audit log](../../admin/security/audit-logs.md).
 
 ## Create a project
 
@@ -56,7 +55,7 @@ The project page shows a **Details** panel with the project owner, creation date
 
 To rename or delete a project, open the project's menu on its page or in the sidebar and select **Edit project** or **Delete project**.
 Deleting a project deletes its instructions, skills, and memories.
-Its chats are kept and move back to each owner's chat list.
+Its chats are kept and move back to your chat list.
 
 ## Add chats to a project
 
@@ -77,13 +76,13 @@ Set `project_id` to the nil UUID (`00000000-0000-0000-0000-000000000000`) to rem
 
 ## Instructions
 
-Project instructions are added to the system prompt of every chat in the project, including sub-agent chats, for every user.
+Project instructions are added to the system prompt of every chat in the project, including sub-agent chats.
 Use them for conventions, context, and preferences that apply to all work in the project.
 
 To add or change them, select **Create** or the edit icon under **Instructions** in the project's **Details** panel.
 Chats read instructions on every turn, so a change takes effect on each chat's next turn.
 
-Instructions share the deployment's prompt size limit, set with `--chat-max-prompt-bytes` (default 128&nbsp;KiB).
+Instructions use the deployment's prompt size limit, set with `--chat-max-prompt-bytes` (default 128&nbsp;KiB).
 
 ## Skills
 
@@ -107,7 +106,7 @@ The agent manages them with four tools:
 
 The agent saves facts that matter in future chats without being asked, such as how people on the project work, corrections, decisions, deadlines, and where to find information outside the codebase.
 It doesn't save what it can derive from the code or Git history.
-Everyone with access to the project can read and change its memories, so the agent is told not to save secrets, credentials, or personal details.
+The agent is told not to save secrets, credentials, or personal details in memory.
 You can also ask the agent to remember or forget something.
 
 How memory reaches the agent:
@@ -129,31 +128,3 @@ How memory reaches the agent:
 
 The dashboard doesn't show memories yet.
 To list, read, create, or delete them directly, use `/api/experimental/organizations/{organization}/chats/projects/{project}/memories`.
-
-## Share a project
-
-A project owner can share a project with organization members, groups, or the whole organization.
-Sharing a project doesn't share its chats.
-Each person's chats in the project stay private to them; use [chat sharing](./chat-sharing.md) to share a chat.
-
-| Role    | Start chats in the project | Read and write memories | Edit the project, instructions, and skills | Share the project | Delete the project |
-|---------|----------------------------|-------------------------|--------------------------------------------|-------------------|--------------------|
-| `use`   | Yes                        | Yes                     | No                                         | No                | No                 |
-| `admin` | Yes                        | Yes                     | Yes                                        | Yes               | No                 |
-
-Only the owner, and administrators whose role grants delete, can delete a project.
-Projects shared with you appear in your sidebar next to your own projects.
-
-The dashboard doesn't have a sharing control yet.
-Manage sharing with the experimental API:
-
-- `GET /api/experimental/organizations/{organization}/chats/projects/{project}/acl` lists who has access.
-- `PATCH` on the same path sets roles.
-  The body takes `user_roles` and `group_roles` maps from ID to `use`, `admin`, or `""` to remove access.
-  Use the organization ID as the group ID to share with everyone in the organization.
-
-When access is removed, the person's existing chats in the project lose its instructions, skills, and memory on their next turn.
-Removing someone from the organization removes their project access, and adding them back doesn't restore it.
-
-`--disable-chat-sharing` also turns off project sharing.
-While it's set, existing project shares are ignored and new ones are rejected.
