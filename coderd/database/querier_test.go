@@ -845,8 +845,7 @@ func TestGetTemplateInsightsByTemplate(t *testing.T) {
 	insertStat(40*time.Second, templateID, userID, otherWorkspaceID, 0, map[string]int64{"reconnecting_pty": 1, "vscode": 1})
 	insertStat(time.Minute+5*time.Second, templateID, userID, otherWorkspaceID, 1, map[string]int64{"ssh": 1, "vscode": 1})
 
-	// An app outside every family is still activity, so its user counts as
-	// active even though the session lands in no usage bucket.
+	// A session without an app name is still activity.
 	unattributedUserID := uuid.New()
 	insertStat(10*time.Second, templateID, unattributedUserID, uuid.New(), 1, map[string]int64{"unknown": 1})
 
@@ -857,7 +856,7 @@ func TestGetTemplateInsightsByTemplate(t *testing.T) {
 	insertStat(15*time.Second, sharedConnectionTemplateID, sharedConnectionUserID, uuid.New(), 0, map[string]int64{"vscode": 1})
 	insertStat(30*time.Second, sharedConnectionTemplateID, sharedConnectionUserID, uuid.New(), 1, map[string]int64{"unknown": 1})
 
-	// Apps of one family open in the same minute count that minute once.
+	// Each app counts its own minutes, even when apps overlap.
 	overlapTemplateID := uuid.New()
 	overlapUserID := uuid.New()
 	insertStat(5*time.Second, overlapTemplateID, overlapUserID, uuid.New(), 1, map[string]int64{"vscode": 1, "cursor": 1, "zed": 1, "ssh": 1})
@@ -872,18 +871,16 @@ func TestGetTemplateInsightsByTemplate(t *testing.T) {
 	}
 	require.Len(t, byTemplate, 3)
 	require.EqualValues(t, 2, byTemplate[templateID].ActiveUsers)
-	require.Equal(t, database.StringMapOfInt{"vscode": 120, "jetbrains": 60, "reconnecting_pty": 60, "ssh": 120, "unknown": 60}, byTemplate[templateID].SessionFamilyUsageSeconds)
+	require.Equal(t, database.StringMapOfInt{"vscode": 120, "jetbrains": 60, "ssh": 120, "unknown": 60, "reconnecting_pty": 60}, byTemplate[templateID].SessionAppUsageSeconds)
 	require.EqualValues(t, 1, byTemplate[sharedConnectionTemplateID].ActiveUsers)
-	require.Equal(t, database.StringMapOfInt{"vscode": 60, "unknown": 60}, byTemplate[sharedConnectionTemplateID].SessionFamilyUsageSeconds)
+	require.Equal(t, database.StringMapOfInt{"vscode": 60, "unknown": 60}, byTemplate[sharedConnectionTemplateID].SessionAppUsageSeconds)
 	require.EqualValues(t, 1, byTemplate[overlapTemplateID].ActiveUsers)
-	require.Equal(t, database.StringMapOfInt{"vscode": 120, "ssh": 60, "port_forwarding": 60, "unknown": 60}, byTemplate[overlapTemplateID].SessionFamilyUsageSeconds)
+	require.Equal(t, database.StringMapOfInt{"vscode": 60, "cursor": 120, "zed": 60, "ssh": 60, "some_new_ide": 60, "overflow": 60, "port_forwarding": 60}, byTemplate[overlapTemplateID].SessionAppUsageSeconds)
 }
 
 func templateInsightsByTemplateParams(t *testing.T, startTime, endTime time.Time) database.GetTemplateInsightsByTemplateParams {
 	t.Helper()
-	appFamilies, err := json.Marshal(codersdk.SessionCountAppFamilies())
-	require.NoError(t, err)
-	return database.GetTemplateInsightsByTemplateParams{StartTime: startTime, EndTime: endTime, AppFamilies: appFamilies}
+	return database.GetTemplateInsightsByTemplateParams{StartTime: startTime, EndTime: endTime}
 }
 
 func TestGetWorkspaceAgentUsageStats(t *testing.T) {
@@ -4789,6 +4786,10 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 	})
 
 	now := dbtime.Now()
+	const (
+		sessionA = "0123456789abcdef0123456789abcdef"
+		sessionB = "fedcba9876543210fedcba9876543210"
+	)
 	log1ConnID := uuid.New()
 	log1 := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
 		Time:             now.Add(-4 * time.Hour),
@@ -4815,6 +4816,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 		AppNameOrPort:    sql.NullString{String: "vscode", Valid: true},
 		ConnectionStatus: database.ConnectionStatusConnected,
 		ConnectionID:     uuid.NullUUID{UUID: log2ConnID, Valid: true},
+		ClientSessionID:  sql.NullString{String: sessionA, Valid: true},
 	})
 
 	// Mark log2 as disconnected
@@ -4840,6 +4842,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 		ConnectionStatus: database.ConnectionStatusConnected,
 		UserID:           uuid.NullUUID{UUID: user2.ID, Valid: true},
 		ConnectionID:     uuid.NullUUID{UUID: log3ConnID, Valid: true},
+		ClientSessionID:  sql.NullString{String: sessionB, Valid: true},
 	})
 
 	// Mark log3 as disconnected
@@ -4864,6 +4867,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 		AppNameOrPort:    sql.NullString{String: "vscode", Valid: true},
 		ConnectionStatus: database.ConnectionStatusConnected,
 		UserID:           uuid.NullUUID{UUID: user3.ID, Valid: true},
+		ClientSessionID:  sql.NullString{String: sessionA, Valid: true},
 	})
 
 	// Tunnel events are point-in-time (no disconnect event is ever
@@ -5059,6 +5063,13 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 			expectedLogIDs: []uuid.UUID{log1.ID},
 		},
 		{
+			name: "ClientSessionID",
+			params: database.GetConnectionLogsOffsetParams{
+				ClientSessionID: sessionA,
+			},
+			expectedLogIDs: []uuid.UUID{log2.ID, log4.ID},
+		},
+		{
 			name: "StatusOngoing",
 			params: database.GetConnectionLogsOffsetParams{
 				Status: string(codersdk.ConnectionLogStatusOngoing),
@@ -5103,6 +5114,7 @@ func TestConnectionLogsOffsetFilters(t *testing.T) {
 				ConnectedBefore:     tc.params.ConnectedBefore,
 				WorkspaceID:         tc.params.WorkspaceID,
 				ConnectionID:        tc.params.ConnectionID,
+				ClientSessionID:     tc.params.ClientSessionID,
 				Status:              tc.params.Status,
 				WorkspaceOwnerID:    tc.params.WorkspaceOwnerID,
 				WorkspaceOwnerEmail: tc.params.WorkspaceOwnerEmail,
@@ -19006,85 +19018,6 @@ func TestGetUnpricedAIModelsSince(t *testing.T) {
 	}, got)
 }
 
-func TestGetAIModelPriceByProviderModel(t *testing.T) {
-	t.Parallel()
-
-	const defaultSeed = `[{"provider":"anthropic","model":"model-a","input_price":1,"output_price":2,"cache_read_price":3,"cache_write_price":4}]`
-	const customSeed = `[{"provider":"anthropic","model":"model-a","input_price":5,"output_price":6,"cache_read_price":0,"cache_write_price":null}]`
-
-	defaultPrices := database.AIModelPrice{
-		InputPrice:      sql.NullInt64{Int64: 1, Valid: true},
-		OutputPrice:     sql.NullInt64{Int64: 2, Valid: true},
-		CacheReadPrice:  sql.NullInt64{Int64: 3, Valid: true},
-		CacheWritePrice: sql.NullInt64{Int64: 4, Valid: true},
-	}
-	customPrices := database.AIModelPrice{
-		InputPrice:      sql.NullInt64{Int64: 5, Valid: true},
-		OutputPrice:     sql.NullInt64{Int64: 6, Valid: true},
-		CacheReadPrice:  sql.NullInt64{Int64: 0, Valid: true},
-		CacheWritePrice: sql.NullInt64{},
-	}
-
-	tests := []struct {
-		name       string
-		seeds      []database.UpsertAIModelPricesParams
-		want       database.AIModelPrice
-		wantSource database.AIModelPriceSource
-	}{
-		{
-			name:       "DefaultOnly",
-			seeds:      []database.UpsertAIModelPricesParams{{Seed: []byte(defaultSeed), Source: database.AIModelPriceSourceDefault}},
-			want:       defaultPrices,
-			wantSource: database.AIModelPriceSourceDefault,
-		},
-		{
-			name:       "CustomOnly",
-			seeds:      []database.UpsertAIModelPricesParams{{Seed: []byte(customSeed), Source: database.AIModelPriceSourceCustom}},
-			want:       customPrices,
-			wantSource: database.AIModelPriceSourceCustom,
-		},
-		{
-			name: "CustomWinsOverDefault",
-			seeds: []database.UpsertAIModelPricesParams{
-				{Seed: []byte(defaultSeed), Source: database.AIModelPriceSourceDefault},
-				{Seed: []byte(customSeed), Source: database.AIModelPriceSourceCustom},
-			},
-			want:       customPrices,
-			wantSource: database.AIModelPriceSourceCustom,
-		},
-		{
-			name: "CustomWinsWhateverTheWriteOrder",
-			seeds: []database.UpsertAIModelPricesParams{
-				{Seed: []byte(customSeed), Source: database.AIModelPriceSourceCustom},
-				{Seed: []byte(defaultSeed), Source: database.AIModelPriceSourceDefault},
-			},
-			want:       customPrices,
-			wantSource: database.AIModelPriceSourceCustom,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			ctx := testutil.Context(t, testutil.WaitShort)
-			db, _ := dbtestutil.NewDB(t)
-			for _, seed := range tt.seeds {
-				require.NoError(t, db.UpsertAIModelPrices(ctx, seed))
-			}
-
-			got, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
-				Provider: "anthropic", Model: "model-a",
-			})
-			require.NoError(t, err)
-			require.Equal(t, tt.wantSource, got.Source)
-			require.Equal(t, tt.want.InputPrice, got.InputPrice)
-			require.Equal(t, tt.want.OutputPrice, got.OutputPrice)
-			require.Equal(t, tt.want.CacheReadPrice, got.CacheReadPrice)
-			require.Equal(t, tt.want.CacheWritePrice, got.CacheWritePrice)
-		})
-	}
-}
-
 func TestGetAIModelPrices(t *testing.T) {
 	t.Parallel()
 
@@ -19218,6 +19151,461 @@ func TestGetAIModelPrices(t *testing.T) {
 	}
 }
 
+// aiModelPriceSeed returns a one-element batch for a model price upsert, keyed
+// by keys and with only an input price set.
+func aiModelPriceSeed(t *testing.T, keys map[string]string, inputPrice int64) json.RawMessage {
+	t.Helper()
+	elem := map[string]any{
+		"input_price":       inputPrice,
+		"output_price":      nil,
+		"cache_read_price":  nil,
+		"cache_write_price": nil,
+	}
+	for k, v := range keys {
+		elem[k] = v
+	}
+	raw, err := json.Marshal([]any{elem})
+	require.NoError(t, err)
+	return raw
+}
+
+// upsertOrgProviderPrice sets an organization's price for a model on a
+// configured provider, with only an input price.
+func upsertOrgProviderPrice(ctx context.Context, t *testing.T, db database.Store, orgID, providerID uuid.UUID, model string, inputPrice int64) {
+	t.Helper()
+	require.NoError(t, db.UpsertOrganizationAIProviderModelConfig(ctx, database.UpsertOrganizationAIProviderModelConfigParams{
+		OrganizationID: orgID,
+		ProviderID:     providerID,
+		Model:          model,
+		InputPrice:     sql.NullInt64{Int64: inputPrice, Valid: true},
+	}))
+}
+
+func TestGetAIModelPriceForProvider(t *testing.T) {
+	t.Parallel()
+
+	const model = "model-a"
+
+	// Each kind of price carries its own input price, so the match is
+	// identifiable from the price alone.
+	const (
+		siteDefault      int64 = 1
+		siteCustom       int64 = 2
+		orgProvider      int64 = 3
+		otherOrgProvider int64 = 4
+	)
+
+	type kinds struct {
+		siteDefault, siteCustom, orgProvider, otherProvider bool
+	}
+	all := kinds{siteDefault: true, siteCustom: true, orgProvider: true}
+
+	tests := []struct {
+		name string
+		kinds
+		// noOrg looks the price up without organization context.
+		noOrg bool
+		// otherOrg looks the price up for an organization holding no prices.
+		otherOrg  bool
+		wantPrice int64
+		// wantNone expects no price to match.
+		wantNone bool
+	}{
+		{name: "SiteDefault", kinds: kinds{siteDefault: true}, wantPrice: siteDefault},
+		{name: "SiteCustomBeatsSiteDefault", kinds: kinds{siteDefault: true, siteCustom: true}, wantPrice: siteCustom},
+		{name: "OrgProviderBeatsAll", kinds: all, wantPrice: orgProvider},
+		{name: "OrgProviderWithoutSitePrice", kinds: kinds{orgProvider: true}, wantPrice: orgProvider},
+		{name: "NoOrgContextFallsBackToSite", kinds: all, noOrg: true, wantPrice: siteCustom},
+		{name: "OtherOrgFallsBackToSite", kinds: all, otherOrg: true, wantPrice: siteCustom},
+		// A price for another provider of the same type does not apply.
+		{name: "OtherProviderPriceDoesNotApply", kinds: kinds{siteDefault: true, otherProvider: true}, wantPrice: siteDefault},
+		{name: "NoPrice", kinds: kinds{otherProvider: true}, wantNone: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			db, _ := dbtestutil.NewDB(t)
+			org := dbgen.Organization(t, db, database.Organization{})
+			otherOrg := dbgen.Organization(t, db, database.Organization{})
+			provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+			otherProvider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+			providerType := string(provider.Type)
+
+			if tt.siteDefault {
+				require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+					Seed:   aiModelPriceSeed(t, map[string]string{"provider": providerType, "model": model}, siteDefault),
+					Source: database.AIModelPriceSourceDefault,
+				}))
+			}
+			if tt.siteCustom {
+				require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+					Seed:   aiModelPriceSeed(t, map[string]string{"provider": providerType, "model": model}, siteCustom),
+					Source: database.AIModelPriceSourceCustom,
+				}))
+			}
+			if tt.orgProvider {
+				upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, model, orgProvider)
+			}
+			if tt.otherProvider {
+				upsertOrgProviderPrice(ctx, t, db, org.ID, otherProvider.ID, model, otherOrgProvider)
+			}
+
+			orgID := uuid.NullUUID{UUID: org.ID, Valid: true}
+			switch {
+			case tt.noOrg:
+				orgID = uuid.NullUUID{}
+			case tt.otherOrg:
+				orgID = uuid.NullUUID{UUID: otherOrg.ID, Valid: true}
+			}
+
+			got, err := db.GetAIModelPriceForProvider(ctx, database.GetAIModelPriceForProviderParams{
+				ProviderType:   providerType,
+				Model:          model,
+				OrganizationID: orgID,
+				ProviderID:     provider.ID,
+			})
+			if tt.wantNone {
+				require.ErrorIs(t, err, sql.ErrNoRows)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.wantPrice, got.InputPrice.Int64)
+			require.Equal(t, model, got.Model)
+		})
+	}
+}
+
+// The requested model is preferred over the model reported by the provider
+// whatever the kind of price, and organization prices for the reported model
+// are still used when the requested model has none.
+func TestGetAIModelPriceForProviderProviderModel(t *testing.T) {
+	t.Parallel()
+
+	const (
+		requested = "model-alias"
+		reported  = "model-alias-20260101"
+	)
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+	providerType := string(provider.Type)
+	lookup := database.GetAIModelPriceForProviderParams{
+		ProviderType:   providerType,
+		Model:          requested,
+		ProviderModel:  reported,
+		OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
+		ProviderID:     provider.ID,
+	}
+
+	// Only the reported model is priced, by the organization for the provider.
+	upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, reported, 4)
+	got, err := db.GetAIModelPriceForProvider(ctx, lookup)
+	require.NoError(t, err)
+	require.Equal(t, reported, got.Model)
+	require.Equal(t, int64(4), got.InputPrice.Int64)
+
+	// A price book price for the requested model beats the organization's
+	// price for the reported model.
+	require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+		Seed:   aiModelPriceSeed(t, map[string]string{"provider": providerType, "model": requested}, 1),
+		Source: database.AIModelPriceSourceDefault,
+	}))
+	got, err = db.GetAIModelPriceForProvider(ctx, lookup)
+	require.NoError(t, err)
+	require.Equal(t, requested, got.Model)
+	require.Equal(t, int64(1), got.InputPrice.Int64)
+}
+
+// An organization price is used as a whole, and an organization config that
+// sets no price falls back to the site-wide price.
+func TestGetAIModelPriceForProviderOrganizationConfig(t *testing.T) {
+	t.Parallel()
+
+	const model = "model-a"
+
+	setup := func(t *testing.T) (context.Context, database.Store, database.GetAIModelPriceForProviderParams) {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+
+		// The site-wide price sets all four prices.
+		seed, err := json.Marshal([]map[string]any{{
+			"provider":          string(provider.Type),
+			"model":             model,
+			"input_price":       1,
+			"output_price":      2,
+			"cache_read_price":  3,
+			"cache_write_price": 4,
+		}})
+		require.NoError(t, err)
+		require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+			Seed:   seed,
+			Source: database.AIModelPriceSourceCustom,
+		}))
+
+		return ctx, db, database.GetAIModelPriceForProviderParams{
+			ProviderType:   string(provider.Type),
+			Model:          model,
+			OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
+			ProviderID:     provider.ID,
+		}
+	}
+
+	t.Run("PriceIsUsedWhole", func(t *testing.T) {
+		t.Parallel()
+		ctx, db, lookup := setup(t)
+		upsertOrgProviderPrice(ctx, t, db, lookup.OrganizationID.UUID, lookup.ProviderID, model, 10)
+
+		got, err := db.GetAIModelPriceForProvider(ctx, lookup)
+		require.NoError(t, err)
+		require.Equal(t, sql.NullInt64{Int64: 10, Valid: true}, got.InputPrice)
+		require.False(t, got.OutputPrice.Valid)
+		require.False(t, got.CacheReadPrice.Valid)
+		require.False(t, got.CacheWritePrice.Valid)
+	})
+
+	t.Run("NoPricesFallsBackToSite", func(t *testing.T) {
+		t.Parallel()
+		ctx, db, lookup := setup(t)
+		require.NoError(t, db.UpsertOrganizationAIProviderModelConfig(ctx, database.UpsertOrganizationAIProviderModelConfigParams{
+			OrganizationID: lookup.OrganizationID.UUID,
+			ProviderID:     lookup.ProviderID,
+			Model:          model,
+		}))
+
+		got, err := db.GetAIModelPriceForProvider(ctx, lookup)
+		require.NoError(t, err)
+		require.Equal(t, sql.NullInt64{Int64: 1, Valid: true}, got.InputPrice)
+		require.Equal(t, sql.NullInt64{Int64: 2, Valid: true}, got.OutputPrice)
+		require.Equal(t, sql.NullInt64{Int64: 3, Valid: true}, got.CacheReadPrice)
+		require.Equal(t, sql.NullInt64{Int64: 4, Valid: true}, got.CacheWritePrice)
+	})
+}
+
+func TestOrganizationAIModelPricesOpenAICompat(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	gateway := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeOpenaiCompat})
+	const model = "bedrock/claude-sonnet-4-5"
+
+	// A price for one gateway is matched.
+	upsertOrgProviderPrice(ctx, t, db, org.ID, gateway.ID, model, 7)
+	got, err := db.GetAIModelPriceForProvider(ctx, database.GetAIModelPriceForProviderParams{
+		ProviderType:   string(database.AIProviderTypeOpenaiCompat),
+		Model:          model,
+		OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
+		ProviderID:     gateway.ID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(7), got.InputPrice.Int64)
+
+	// Without organization context the gateway's model stays unpriced.
+	_, err = db.GetAIModelPriceForProvider(ctx, database.GetAIModelPriceForProviderParams{
+		ProviderType: string(database.AIProviderTypeOpenaiCompat),
+		Model:        model,
+		ProviderID:   gateway.ID,
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+}
+
+func TestGetOrganizationAIProviderModelConfig(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+	otherProvider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+
+	upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "model-a", 1)
+	upsertOrgProviderPrice(ctx, t, db, otherOrg.ID, provider.ID, "model-a", 2)
+	upsertOrgProviderPrice(ctx, t, db, org.ID, otherProvider.ID, "model-a", 3)
+	upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "model-b", 4)
+
+	got, err := db.GetOrganizationAIProviderModelConfig(ctx, database.GetOrganizationAIProviderModelConfigParams{
+		OrganizationID: org.ID, ProviderID: provider.ID, Model: "model-a",
+	})
+	require.NoError(t, err)
+	require.Equal(t, org.ID, got.OrganizationID)
+	require.Equal(t, provider.ID, got.ProviderID)
+	require.Equal(t, "model-a", got.Model)
+	require.Equal(t, sql.NullInt64{Int64: 1, Valid: true}, got.InputPrice)
+	require.False(t, got.OutputPrice.Valid)
+
+	_, err = db.GetOrganizationAIProviderModelConfig(ctx, database.GetOrganizationAIProviderModelConfigParams{
+		OrganizationID: org.ID, ProviderID: provider.ID, Model: "model-c",
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+}
+
+func TestUpsertOrganizationAIProviderModelConfig(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+
+	get := func(ctx context.Context, t *testing.T, model string) database.AIModelConfig {
+		t.Helper()
+		got, err := db.GetOrganizationAIProviderModelConfig(ctx, database.GetOrganizationAIProviderModelConfigParams{
+			OrganizationID: org.ID, ProviderID: provider.ID, Model: model,
+		})
+		require.NoError(t, err)
+		return got
+	}
+
+	t.Run("IdenticalPricesKeepUpdatedAt", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "identical", 1)
+		before := get(ctx, t, "identical")
+
+		upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "identical", 1)
+		require.Equal(t, before, get(ctx, t, "identical"))
+	})
+
+	t.Run("ChangedPricesAdvanceUpdatedAt", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "changed", 1)
+		before := get(ctx, t, "changed")
+
+		upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "changed", 2)
+		after := get(ctx, t, "changed")
+		require.Equal(t, int64(2), after.InputPrice.Int64)
+		require.Equal(t, before.CreatedAt, after.CreatedAt)
+		require.True(t, after.UpdatedAt.After(before.UpdatedAt), "updated_at must advance")
+	})
+
+	t.Run("EmptyModel", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := db.UpsertOrganizationAIProviderModelConfig(ctx, database.UpsertOrganizationAIProviderModelConfigParams{
+			OrganizationID: org.ID,
+			ProviderID:     provider.ID,
+			Model:          "",
+			InputPrice:     sql.NullInt64{Int64: 1, Valid: true},
+		})
+		require.True(t, database.IsCheckViolation(err, database.CheckAIModelConfigsModelCheck), "got %v", err)
+	})
+}
+
+func TestDeleteOrganizationAIProviderModelConfig(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+
+	upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "model-a", 1)
+	upsertOrgProviderPrice(ctx, t, db, otherOrg.ID, provider.ID, "model-a", 2)
+	deletedRow, err := db.GetOrganizationAIProviderModelConfig(ctx, database.GetOrganizationAIProviderModelConfigParams{
+		OrganizationID: org.ID, ProviderID: provider.ID, Model: "model-a",
+	})
+	require.NoError(t, err)
+
+	del := func(orgID uuid.UUID, model string) int64 {
+		t.Helper()
+		n, err := db.DeleteOrganizationAIProviderModelConfig(ctx, database.DeleteOrganizationAIProviderModelConfigParams{
+			OrganizationID: orgID, ProviderID: provider.ID, Model: model,
+		})
+		require.NoError(t, err)
+		return n
+	}
+
+	require.EqualValues(t, 1, del(org.ID, "model-a"))
+	_, err = db.GetOrganizationAIProviderModelConfig(ctx, database.GetOrganizationAIProviderModelConfigParams{
+		OrganizationID: org.ID, ProviderID: provider.ID, Model: "model-a",
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	// The other organization's price for the same model is untouched.
+	_, err = db.GetOrganizationAIProviderModelConfig(ctx, database.GetOrganizationAIProviderModelConfigParams{
+		OrganizationID: otherOrg.ID, ProviderID: provider.ID, Model: "model-a",
+	})
+	require.NoError(t, err)
+
+	// Deleting a price that is already soft deleted matches nothing.
+	require.Zero(t, del(org.ID, "model-a"))
+
+	// readRow reads a row by ID, including soft-deleted rows, which the
+	// queries under test cannot see.
+	readRow := func(id uuid.UUID) (deleted bool, inputPrice int64) {
+		t.Helper()
+		require.NoError(t, sqlDB.QueryRowContext(ctx,
+			`SELECT deleted, input_price FROM ai_model_configs WHERE id = $1`, id,
+		).Scan(&deleted, &inputPrice))
+		return deleted, inputPrice
+	}
+	deleted, inputPrice := readRow(deletedRow.ID)
+	require.True(t, deleted, "the row must be kept and flagged as deleted")
+	require.EqualValues(t, 1, inputPrice)
+
+	// Setting the price again inserts a new live row and leaves the
+	// soft-deleted row untouched.
+	upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "model-a", 5)
+	live, err := db.GetOrganizationAIProviderModelConfig(ctx, database.GetOrganizationAIProviderModelConfigParams{
+		OrganizationID: org.ID, ProviderID: provider.ID, Model: "model-a",
+	})
+	require.NoError(t, err)
+	require.NotEqual(t, deletedRow.ID, live.ID)
+	require.False(t, live.Deleted)
+	require.EqualValues(t, 5, live.InputPrice.Int64)
+	deleted, inputPrice = readRow(deletedRow.ID)
+	require.True(t, deleted)
+	require.EqualValues(t, 1, inputPrice)
+}
+
+// Deleting an organization price makes the lookup fall back to the site-wide
+// price, which the delete leaves in place.
+func TestGetAIModelPriceForProviderAfterDelete(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic})
+
+	require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+		Seed:   aiModelPriceSeed(t, map[string]string{"provider": "anthropic", "model": "model-a"}, 1),
+		Source: database.AIModelPriceSourceDefault,
+	}))
+	upsertOrgProviderPrice(ctx, t, db, org.ID, provider.ID, "model-a", 2)
+
+	lookup := func() int64 {
+		t.Helper()
+		got, err := db.GetAIModelPriceForProvider(ctx, database.GetAIModelPriceForProviderParams{
+			ProviderType:   "anthropic",
+			Model:          "model-a",
+			OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
+			ProviderID:     provider.ID,
+		})
+		require.NoError(t, err)
+		return got.InputPrice.Int64
+	}
+	require.Equal(t, int64(2), lookup())
+
+	n, err := db.DeleteOrganizationAIProviderModelConfig(ctx, database.DeleteOrganizationAIProviderModelConfigParams{
+		OrganizationID: org.ID, ProviderID: provider.ID, Model: "model-a",
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, n)
+	// The site-wide price is untouched.
+	require.Equal(t, int64(1), lookup())
+}
+
 func TestGetChatSiteConfigValue(t *testing.T) {
 	t.Parallel()
 
@@ -19262,25 +19650,19 @@ func TestSessionCountsAttributeByFamily(t *testing.T) {
 	db := database.New(sqlDB)
 	ctx := context.Background()
 
-	cursorTemplate := uuid.New()
-	zedTemplate := uuid.New()
-	unknownTemplate := uuid.New()
-	for _, tc := range []struct {
-		templateID uuid.UUID
-		counts     map[string]int64
-	}{
-		{cursorTemplate, map[string]int64{"cursor": 2}},
-		{zedTemplate, map[string]int64{"zed": 1}},
-		{unknownTemplate, map[string]int64{"some_new_ide": 5}},
+	for _, counts := range []map[string]int64{
+		{"cursor": 2},
+		{"zed": 1},
+		{"some_new_ide": 5},
 	} {
 		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-			TemplateID:                tc.templateID,
+			TemplateID:                uuid.New(),
 			UserID:                    uuid.New(),
 			AgentID:                   uuid.New(),
 			ConnectionCount:           1,
 			ConnectionMedianLatencyMS: 1,
 			Usage:                     true,
-			SessionCounts:             dbgen.SessionCounts(t, tc.counts),
+			SessionCounts:             dbgen.SessionCounts(t, counts),
 		})
 	}
 
@@ -19291,22 +19673,6 @@ func TestSessionCountsAttributeByFamily(t *testing.T) {
 	require.Equal(t, int64(1), sessionFamilyCounts(t, stats.SessionCounts)["ssh"])
 	require.Zero(t, sessionFamilyCounts(t, stats.SessionCounts)["jetbrains"])
 	require.Zero(t, sessionFamilyCounts(t, stats.SessionCounts)["reconnecting_pty"])
-
-	insights, err := db.GetTemplateInsightsByTemplate(ctx, templateInsightsByTemplateParams(t, dbtime.Now().Add(-time.Hour), dbtime.Now().Add(time.Hour)))
-	require.NoError(t, err)
-
-	byTemplate := make(map[uuid.UUID]database.GetTemplateInsightsByTemplateRow, len(insights))
-	for _, row := range insights {
-		byTemplate[row.TemplateID] = row
-	}
-	require.Equal(t, database.StringMapOfInt{"vscode": 60}, byTemplate[cursorTemplate].SessionFamilyUsageSeconds)
-	require.Equal(t, database.StringMapOfInt{"ssh": 60}, byTemplate[zedTemplate].SessionFamilyUsageSeconds)
-
-	// An app with no family is still activity, so the user is not counted idle.
-	unknown, ok := byTemplate[unknownTemplate]
-	require.True(t, ok, "a session with no family must still appear as usage")
-	require.Equal(t, int64(1), unknown.ActiveUsers)
-	require.Equal(t, database.StringMapOfInt{"unknown": 60}, unknown.SessionFamilyUsageSeconds)
 }
 
 // The rollup stores the app name the agent reported, whether or not the
@@ -19540,10 +19906,10 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 		rows, err := db.ListOrganizationAISpendUsers(ctx, base)
 		require.NoError(t, err)
 		require.Equal(t, []database.ListOrganizationAISpendUsersRow{
-			row(bob, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 3000, 0, 4, 6100, 1),
-			row(alice, []string{"anthropic", "openai"}, []string{"Unknown", "vscode"}, []string{"claude", "gpt-4", "gpt-4o"}, 1500, 1, 4, 6100, 1),
-			row(carol, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 1500, 0, 4, 6100, 1),
-			row(dave, []string{"anthropic"}, []string{"Unknown"}, []string{"claude"}, 100, 0, 4, 6100, 1),
+			row(bob, []string{"anthropic-prod"}, []string{"cursor"}, []string{"claude"}, 3000, 0, 4, 6100, 1),
+			row(alice, []string{"anthropic-prod", "openai-prod"}, []string{"Unknown", "vscode"}, []string{"claude", "gpt-4", "gpt-4o"}, 1500, 1, 4, 6100, 1),
+			row(carol, []string{"anthropic-prod"}, []string{"cursor"}, []string{"claude"}, 1500, 0, 4, 6100, 1),
+			row(dave, []string{"anthropic-prod"}, []string{"Unknown"}, []string{"claude"}, 100, 0, 4, 6100, 1),
 		}, rows)
 	})
 
@@ -19556,16 +19922,16 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 		require.NoError(t, err)
 		// Count and totals cover every matching user, not only the page.
 		require.Equal(t, []database.ListOrganizationAISpendUsersRow{
-			row(bob, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 3000, 0, 4, 6100, 1),
-			row(alice, []string{"anthropic", "openai"}, []string{"Unknown", "vscode"}, []string{"claude", "gpt-4", "gpt-4o"}, 1500, 1, 4, 6100, 1),
+			row(bob, []string{"anthropic-prod"}, []string{"cursor"}, []string{"claude"}, 3000, 0, 4, 6100, 1),
+			row(alice, []string{"anthropic-prod", "openai-prod"}, []string{"Unknown", "vscode"}, []string{"claude", "gpt-4", "gpt-4o"}, 1500, 1, 4, 6100, 1),
 		}, rows)
 
 		params.OffsetOpt = 2
 		rows, err = db.ListOrganizationAISpendUsers(ctx, params)
 		require.NoError(t, err)
 		require.Equal(t, []database.ListOrganizationAISpendUsersRow{
-			row(carol, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 1500, 0, 4, 6100, 1),
-			row(dave, []string{"anthropic"}, []string{"Unknown"}, []string{"claude"}, 100, 0, 4, 6100, 1),
+			row(carol, []string{"anthropic-prod"}, []string{"cursor"}, []string{"claude"}, 1500, 0, 4, 6100, 1),
+			row(dave, []string{"anthropic-prod"}, []string{"Unknown"}, []string{"claude"}, 100, 0, 4, 6100, 1),
 		}, rows)
 
 		params.OffsetOpt = 4
@@ -19584,24 +19950,24 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 			{
 				name:   "ProviderName",
 				mutate: func(p *database.ListOrganizationAISpendUsersParams) { p.ProviderName = "openai-prod" },
-				want:   []database.ListOrganizationAISpendUsersRow{row(alice, []string{"openai"}, []string{"Unknown"}, []string{"gpt-4", "gpt-4o"}, 500, 1, 1, 500, 1)},
+				want:   []database.ListOrganizationAISpendUsersRow{row(alice, []string{"openai-prod"}, []string{"Unknown"}, []string{"gpt-4", "gpt-4o"}, 500, 1, 1, 500, 1)},
 			},
 			{
 				name:   "Model",
 				mutate: func(p *database.ListOrganizationAISpendUsersParams) { p.Model = "claude" },
 				want: []database.ListOrganizationAISpendUsersRow{
-					row(bob, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 3000, 0, 4, 5600, 0),
-					row(carol, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 1500, 0, 4, 5600, 0),
-					row(alice, []string{"anthropic"}, []string{"vscode"}, []string{"claude"}, 1000, 0, 4, 5600, 0),
-					row(dave, []string{"anthropic"}, []string{"Unknown"}, []string{"claude"}, 100, 0, 4, 5600, 0),
+					row(bob, []string{"anthropic-prod"}, []string{"cursor"}, []string{"claude"}, 3000, 0, 4, 5600, 0),
+					row(carol, []string{"anthropic-prod"}, []string{"cursor"}, []string{"claude"}, 1500, 0, 4, 5600, 0),
+					row(alice, []string{"anthropic-prod"}, []string{"vscode"}, []string{"claude"}, 1000, 0, 4, 5600, 0),
+					row(dave, []string{"anthropic-prod"}, []string{"Unknown"}, []string{"claude"}, 100, 0, 4, 5600, 0),
 				},
 			},
 			{
 				name:   "Client",
 				mutate: func(p *database.ListOrganizationAISpendUsersParams) { p.Client = "cursor" },
 				want: []database.ListOrganizationAISpendUsersRow{
-					row(bob, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 3000, 0, 2, 4500, 0),
-					row(carol, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 1500, 0, 2, 4500, 0),
+					row(bob, []string{"anthropic-prod"}, []string{"cursor"}, []string{"claude"}, 3000, 0, 2, 4500, 0),
+					row(carol, []string{"anthropic-prod"}, []string{"cursor"}, []string{"claude"}, 1500, 0, 2, 4500, 0),
 				},
 			},
 			{
@@ -19609,8 +19975,8 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 				name:   "UnknownClient",
 				mutate: func(p *database.ListOrganizationAISpendUsersParams) { p.Client = "Unknown" },
 				want: []database.ListOrganizationAISpendUsersRow{
-					row(alice, []string{"openai"}, []string{"Unknown"}, []string{"gpt-4", "gpt-4o"}, 500, 1, 2, 600, 1),
-					row(dave, []string{"anthropic"}, []string{"Unknown"}, []string{"claude"}, 100, 0, 2, 600, 1),
+					row(alice, []string{"openai-prod"}, []string{"Unknown"}, []string{"gpt-4", "gpt-4o"}, 500, 1, 2, 600, 1),
+					row(dave, []string{"anthropic-prod"}, []string{"Unknown"}, []string{"claude"}, 100, 0, 2, 600, 1),
 				},
 			},
 			{
@@ -19620,7 +19986,7 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 					p.Model = "claude"
 					p.Client = "vscode"
 				},
-				want: []database.ListOrganizationAISpendUsersRow{row(alice, []string{"anthropic"}, []string{"vscode"}, []string{"claude"}, 1000, 0, 1, 1000, 0)},
+				want: []database.ListOrganizationAISpendUsersRow{row(alice, []string{"anthropic-prod"}, []string{"vscode"}, []string{"claude"}, 1000, 0, 1, 1000, 0)},
 			},
 			{
 				name:   "NoMatch",
@@ -19651,13 +20017,13 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 			{
 				// Only alice's unpriced usage is recorded from two hours in.
 				name: "LaterStart", start: start.Add(2 * time.Hour), end: end,
-				want: []database.ListOrganizationAISpendUsersRow{row(alice, []string{"openai"}, []string{"Unknown"}, []string{"gpt-4o"}, 0, 1, 1, 0, 1)},
+				want: []database.ListOrganizationAISpendUsersRow{row(alice, []string{"openai-prod"}, []string{"Unknown"}, []string{"gpt-4o"}, 0, 1, 1, 0, 1)},
 			},
 			{
 				// The usage one second before the base window is inside a
 				// window that ends where the base window starts.
 				name: "EarlierWindow", start: start.Add(-time.Hour), end: start,
-				want: []database.ListOrganizationAISpendUsersRow{row(bob, []string{"anthropic"}, []string{"Unknown"}, []string{"claude"}, 99_999, 0, 1, 99_999, 0)},
+				want: []database.ListOrganizationAISpendUsersRow{row(bob, []string{"anthropic-prod"}, []string{"Unknown"}, []string{"claude"}, 99_999, 0, 1, 99_999, 0)},
 			},
 			{
 				// Usage is attributed by when it was recorded, not by when
@@ -19666,8 +20032,8 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 				// usage at the base window's exclusive end.
 				name: "TokenUsageCreatedAt", start: end, end: end.Add(2 * time.Hour),
 				want: []database.ListOrganizationAISpendUsersRow{
-					row(bob, []string{"anthropic"}, []string{"Unknown"}, []string{"claude"}, 99_999, 0, 2, 100_699, 0),
-					row(carol, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 700, 0, 2, 100_699, 0),
+					row(bob, []string{"anthropic-prod"}, []string{"Unknown"}, []string{"claude"}, 99_999, 0, 2, 100_699, 0),
+					row(carol, []string{"anthropic-prod"}, []string{"cursor"}, []string{"claude"}, 700, 0, 2, 100_699, 0),
 				},
 			},
 		}
@@ -19693,7 +20059,7 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, []database.ListOrganizationAISpendUsersRow{{
 			UserID: bob.ID, Username: bob.Username, Name: bob.Name, AvatarURL: bob.AvatarURL, OrganizationID: otherOrg.ID,
-			CostMicros: 99_999, Providers: []string{"anthropic"}, Clients: []string{"Unknown"}, Models: []string{"claude"}, Count: 1, TotalCostMicros: 99_999,
+			CostMicros: 99_999, Providers: []string{"anthropic-prod"}, Clients: []string{"Unknown"}, Models: []string{"claude"}, Count: 1, TotalCostMicros: 99_999,
 		}}, rows)
 	})
 }

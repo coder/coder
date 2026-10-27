@@ -1,3 +1,7 @@
+---
+review-personas: [accuracy, coverage, audience, structure]
+---
+
 # Coder docs content guidelines
 
 > [!NOTE]
@@ -13,7 +17,8 @@ When you have a candidate change for the docs, apply these rules in order:
 2. If the checklist routes the content away from the docs, find the correct home in the [routing table](#routing-table).
 3. If the content does belong in the docs, follow the [guiding principles](#guiding-principles), the [what belongs](#what-belongs-in-the-docs) catalog, and the [structural rules](#structural-rules).
 4. If you're still unsure, file a question in the DOCS project in Linear or tag `@vigilante` on a draft PR.
-   Don't guess.
+
+   Do not guess.
 
 ## Quick decision checklist
 
@@ -30,8 +35,8 @@ If any answer routes you away from the docs, refer to the [routing table](#routi
    **Support KB (Pylon)**, not docs.
 5. Is it about contributing to the Coder codebase or writing style?
    **GitHub** (or public Notion), not docs.
-6. Is it already documented by a third-party vendor (Terraform, AWS, Azure, GCP, etc.)?
-   **Link to their docs**, don't duplicate.
+6. Is it already documented by a third-party vendor (Terraform, AWS, Azure, GCP, and so on)?
+   **Link to their docs**, do not duplicate.
 7. Is it relevant only to a past or hypothetical future version?
    **Doesn't belong**; keep docs scoped to the version they describe.
 
@@ -65,6 +70,9 @@ Tutorials and how-to guides that include CLI commands (or chained commands) must
 *Why:* If we can run it, we can detect drift.
 Untestable claims rot silently.
 
+The same holds for claims about product behavior, such as a default, a limit, a file format, or an ordering.
+When no test pins the behavior a page describes, add one in the product, so the build fails before the page becomes false.
+
 ### Verify against the code; document exact values
 
 Docs claims should be checked against the actual implementation, not approximations:
@@ -86,8 +94,10 @@ For each identifier, ask: **within the task this page documents, does the reader
 Then pick the first rung that applies, testing in order:
 
 1. **Typed or received in this page's task:** document the exact value, per [Verify against the code; document exact values](#verify-against-the-code-document-exact-values).
+
    This is the normal case for reference, API, CLI, and configuration content.
 2. **Shown in the product, on a surface this page's task involves:** use the words the product shows there, such as a visible status text, form field label, or button name.
+
    What the screen shows is what the reader can verify against it.
    Confirm the words are rendered as visible text on that surface, not only as accessibility labels.
 3. **Neither:** describe the behavior in plain terms of the reader's task, following the [voice and tone rules](./style-guide/voice-and-tone.md).
@@ -122,10 +132,11 @@ Tying the docs bar to default visibility keeps backend-only plumbing PRs out of 
 Three corollaries:
 
 1. **Features that introduce or change behavior get documented in the PR that introduces or changes them.**
-   Don't merge a behavior change without the matching doc update.
+   Do not merge a behavior change without the matching doc update.
 2. **Features that are not yet confirmed to exist do not get documented.**
    No speculative docs for unmerged or uncommitted work.
 3. **Multi-PR launch exception.**
+
    For a body of work that spans several PRs and is spec'd to launch together by a particular date, docs may be written ahead of those merges, in the present tense, describing the feature as it will exist at launch.
    They must never read as a promise of what's coming.
    No "will support", "in a future release", "coming soon", or roadmap framing.
@@ -133,7 +144,7 @@ Three corollaries:
 ### Experiments versus feature stages
 
 Coder has two related but distinct concepts.
-Don't conflate them:
+Do not conflate them:
 
 - **Experiments** are the feature flagging system: the `--experiments` flag on `coder server` and the `CODER_EXPERIMENTS` environment variable.
   An experiment is either *safe* (ready for users to try) or *unsafe* (active development, not designed for users at all).
@@ -173,7 +184,7 @@ Each entry includes the reason it belongs in the docs.
   *Why:* Users need an authoritative answer to "does Coder work with X?", and this is a high-drift area worth actively monitoring.
 
 - **New features that add genuine net-new value.**
-  New UI sections, and new CLI commands or flags (e.g., key expiration policy for Coder secrets), including expected command flags and output.
+  New UI sections, and new CLI commands or flags (for example, key expiration policy for Coder secrets), including expected command flags and output.
 
   *Why:* Net-new surface area is undocumented by definition; documenting expected flags and output also feeds the testable-CI-surface goal.
 
@@ -231,7 +242,7 @@ These govern *how* content enters the docs, for both humans and the doc-check ag
 
 - **Every new page must be added to the sidebar sources in `docs/manifest/`.**
   Pages not in the sidebar don't appear in navigation and effectively don't exist on [coder.com/docs](https://coder.com/docs).
-  Run `make gen/docs-manifest` to rebuild `docs/manifest.json` from the sources; don't edit the JSON directly.
+  Run `make gen/docs-manifest` to rebuild `docs/manifest.json` from the sources; do not edit the JSON directly.
 - **Never hand-edit auto-generated content.**
   Files under `docs/reference/cli/` are generated from Go code; changes go in the CLI definitions (typically under `cli/`), then regenerate.
   Generated sections are marked with `<!-- Code generated ... DO NOT EDIT -->`.
@@ -242,6 +253,7 @@ These govern *how* content enters the docs, for both humans and the doc-check ag
   If a page changes its position in the directory structure:
   1. Update every link that relies on its existing location.
   2. Add a rule to `docs/redirects.json` in the same PR that moves the page.
+
      Each rule has a `source` and a `destination`, both full `/docs/...` paths, and an optional `permanent` flag that defaults to `true`.
      A `destination` can also be an external `http` or `https` URL.
      A `source` is an exact path, a path ending in `/:path*`, or a path with a `:slug(.*)` capture.
@@ -264,7 +276,9 @@ These govern *how* content enters the docs, for both humans and the doc-check ag
 - **Terminology changes update the glossary.**
   When a change introduces, renames, or deprecates a Coder product or feature name, update the [glossary](../reference/glossary.md) in the same change, the way a user-facing feature lands with its docs:
   1. New name: add an entry with a short definition and a link to the page that covers the term.
-  2. Rename: update the entry and record the former name (for example, "previously named ...") so a reader who searches the old term still lands in the right place.
+  2. Rename: update the entry and record the former name (for example, "previously named ...").
+
+     A reader who searches the old term then still lands in the right place.
   3. Deprecation: mark the term deprecated and name its replacement.
 
   A term earns an entry when it is a Coder-specific product or feature proper noun, or a word that collides with another Coder meaning (for example, the several senses of "agent").
@@ -307,7 +321,7 @@ Each entry includes the destination and the reason.
 - **Timeless, predictive, or stale content.**
   Only content relevant to the specific version a doc applies to belongs in that doc.
 
-  *Why:* Don't predict the future; don't carry forward material that no longer applies.
+  *Why:* Do not predict the future; do not carry forward material that no longer applies.
   Version-scoped content is what keeps the docs trustworthy and drift-detectable.
   Refer to the multi-PR launch exception in [Documentation lands with the change](#documentation-lands-with-the-change).
 

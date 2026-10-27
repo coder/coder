@@ -9,6 +9,7 @@ import {
 	useSearchParams,
 } from "react-router";
 import { getErrorMessage, isApiError } from "#/api/errors";
+import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
 import { chatProject } from "#/api/queries/chatProjects";
 import {
 	archiveChat,
@@ -44,7 +45,10 @@ import { ChimeButton } from "../components/ChimeButton";
 import { ProjectPage } from "../components/ProjectPage/ProjectPage";
 import { WebPushButton } from "../components/WebPushButton";
 import { isAbortError } from "../utils/chatAttachments";
-import { toWorkspaceFileReferencePart } from "../utils/chatInputContent";
+import {
+	buildChatInputContent,
+	toWorkspaceFileReferencePart,
+} from "../utils/chatInputContent";
 import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
 import { type DeepLinkState, readDeepLinkState } from "../utils/deepLinkState";
 import { buildAgentChatPath } from "../utils/navigation";
@@ -258,8 +262,23 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 		(debugBuild === undefined ||
 			(debugBuildFailed && debugBuildLogsQuery.data === undefined));
 
-	const handleCreateChat = async ({
+	const handleCreateChat = async (options: CreateChatOptions) => {
+		try {
+			await createChatAndNavigate(options);
+		} catch (error) {
+			// The request may have invoked a project skill removed elsewhere.
+			if (options.projectId) {
+				void queryClient.invalidateQueries({
+					queryKey: chatProjectSkillsKey(options.projectId),
+				});
+			}
+			throw error;
+		}
+	};
+
+	const createChatAndNavigate = async ({
 		message,
+		composerParts,
 		fileIDs,
 		workspaceId,
 		model,
@@ -270,10 +289,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 		planMode,
 		uploadWorkspaceFiles,
 	}: CreateChatOptions) => {
-		const content: TypesGen.ChatInputPart[] = [];
-		if (message.trim()) {
-			content.push({ type: "text", text: message });
-		}
+		const content = buildChatInputContent({ message, composerParts }).content;
 		if (fileIDs) {
 			for (const fileID of fileIDs) {
 				content.push({ type: "file", file_id: fileID });

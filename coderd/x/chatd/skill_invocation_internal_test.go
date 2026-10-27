@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"slices"
 	"testing"
@@ -52,6 +53,9 @@ func TestResolveSkillInvocations(t *testing.T) {
 		skillMarkdown := func(name string) string {
 			return "---\nname: " + name + "\ndescription: Test\n---\n\nInstructions for " + name + ".\n"
 		}
+		// Every invoked stored skill is hidden from the agent: users can
+		// invoke skills the agent cannot use on its own.
+		manualOnly := sql.NullBool{Bool: false, Valid: true}
 		org := dbgen.Organization(t, db, database.Organization{})
 		owner := dbgen.User(t, db, database.User{})
 		other := dbgen.User(t, db, database.User{})
@@ -63,7 +67,7 @@ func TestResolveSkillInvocations(t *testing.T) {
 			name   string
 		}{{owner.ID, "notes"}, {other.ID, "secret"}} {
 			_, err := db.InsertUserSkill(ctx, database.InsertUserSkillParams{
-				ID: uuid.New(), UserID: skill.userID, Name: skill.name, Content: skillMarkdown(skill.name),
+				ID: uuid.New(), UserID: skill.userID, Name: skill.name, Content: skillMarkdown(skill.name), ModelInvocable: manualOnly,
 			})
 			require.NoError(t, err)
 		}
@@ -74,9 +78,13 @@ func TestResolveSkillInvocations(t *testing.T) {
 			GroupACL:       database.ChatACL{org.ID.String(): {Permissions: []policy.Action{policy.ActionRead}}},
 			UserACL:        database.ChatACL{},
 		})
+		_, err := db.UpdateOrganizationSkillByOrganizationIDAndName(ctx, database.UpdateOrganizationSkillByOrganizationIDAndNameParams{
+			ModelInvocable: manualOnly, OrganizationID: org.ID, Name: "team-review",
+		})
+		require.NoError(t, err)
 		project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
-		_, err := db.InsertProjectSkill(ctx, database.InsertProjectSkillParams{
-			ID: uuid.New(), ProjectID: project.ID, Name: "triage", Content: skillMarkdown("triage"),
+		_, err = db.InsertProjectSkill(ctx, database.InsertProjectSkillParams{
+			ID: uuid.New(), ProjectID: project.ID, Name: "triage", Content: skillMarkdown("triage"), ModelInvocable: manualOnly,
 		})
 		require.NoError(t, err)
 
@@ -118,12 +126,14 @@ func TestResolveSkillInvocations(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
 		chat := database.Chat{ID: uuid.New(), WorkspaceID: uuid.NullUUID{UUID: uuid.New(), Valid: true}}
+		// The invoked workspace skill is hidden from the agent: users can
+		// invoke skills the agent cannot use on its own.
 		db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chat.ID).
 			Return([]database.ChatContextResource{{
 				Source:   "/home/coder/.agents/skills/deploy",
 				BodyKind: database.WorkspaceAgentContextBodyKindSkill,
 				Body: mustMarshalContextBody(t, &agentproto.SkillMetaBody{
-					Meta: []byte("---\nname: deploy\ndescription: Deploy\n---\n\nDeploy steps.\n"),
+					Meta: []byte("---\nname: deploy\ndescription: Deploy\ndisable-model-invocation: true\n---\n\nDeploy steps.\n"),
 					Name: "deploy",
 				}),
 				Status: database.WorkspaceAgentContextResourceStatusOk,
@@ -135,6 +145,8 @@ func TestResolveSkillInvocations(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, "Deploy steps.", resolved[0].SkillBody)
+		require.Equal(t, "/home/coder/.agents/skills/deploy", resolved[0].SkillDir)
+		require.Equal(t, chat.WorkspaceID.UUID, resolved[0].SkillWorkspaceID)
 
 		_, err = server.resolveSkillInvocations(context.Background(), chat, []codersdk.ChatMessagePart{
 			codersdk.ChatMessageSkillInvocation(codersdk.ChatSkillSourceWorkspace, "missing"),

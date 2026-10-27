@@ -11,6 +11,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/enterprise/coderd/dormancy"
 	"github.com/coder/quartz"
@@ -48,6 +49,12 @@ func TestCheckInactiveUsers(t *testing.T) {
 	suspendedUser2 := setupUser(ctx, t, db, "suspended-user-2@coder.com", database.UserStatusSuspended, dormancyThreshold.Add(-time.Hour))
 	suspendedUser3 := setupUser(ctx, t, db, "suspended-user-3@coder.com", database.UserStatusSuspended, dormancyThreshold.Add(-6*time.Hour))
 
+	inactiveServiceAccount := dbgen.User(t, db, database.User{
+		IsServiceAccount: true,
+		Status:           database.UserStatusActive,
+		LastSeenAt:       dormancyThreshold.Add(-time.Hour),
+	})
+
 	mAudit := audit.NewMock()
 	mClock := quartz.NewMock(t)
 	// Set the mock clock to the base time to ensure consistent behavior
@@ -73,8 +80,8 @@ func TestCheckInactiveUsers(t *testing.T) {
 		}
 	}
 
-	// 9 users in total, 3 active, 3 dormant, 3 suspended
-	require.Len(t, rows, 9)
+	// 10 users in total, 4 active, 3 dormant, 3 suspended
+	require.Len(t, rows, 10)
 	require.Equal(t, 3, dormant)
 	require.Equal(t, 3, suspended)
 
@@ -93,6 +100,7 @@ func TestCheckInactiveUsers(t *testing.T) {
 		suspendedUser1,
 		suspendedUser2,
 		suspendedUser3,
+		inactiveServiceAccount,
 	})
 
 	require.ElementsMatch(t, allUsers, expectedUsers)

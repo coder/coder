@@ -20,4 +20,4 @@ The following IDEs are supported for remote development:
 
 <children></children>
 
-If you experience any issues, please [create a GitHub issue](https://github.com/coder/coder/issues) or ask in [our Discord channel](https://discord.gg/coder).
+If you experience any issues, [create a GitHub issue](https://github.com/coder/coder/issues) or ask in [our Discord channel](https://discord.gg/coder).

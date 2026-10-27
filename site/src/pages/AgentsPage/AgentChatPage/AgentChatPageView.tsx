@@ -85,6 +85,7 @@ type EditingState = {
 		messageId: number,
 		text: string,
 		fileBlocks?: readonly ChatMessagePart[],
+		editorState?: string,
 	) => void;
 	handleCancelHistoryEdit: () => void;
 	handleSendFromInput: (options: SendChatMessageOptions) => void;
@@ -649,10 +650,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 						isVisible={shouldShowSidebar && effectiveSidebarTabId === "summary"}
 						store={store}
 						hasMoreMessages={hasMoreMessages}
-						isFetchingMoreMessages={isFetchingMoreMessages}
 						isHydratingMessages={isHydratingMessages}
-						hasFetchMoreError={hasFetchMoreError}
-						onFetchMoreMessages={onFetchMoreMessages}
 					/>
 				);
 			case "git":

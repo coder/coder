@@ -2,6 +2,9 @@
 title: Workspace startup coordination examples
 ---
 
+To order whole scripts without calling the CLI, refer to [declarative script ordering](../extending-templates/script-ordering.md).
+The examples below use `coder exp sync` for coordination inside script bodies.
+
 ## Script Example
 
 This example shows a complete, production-ready script that starts Claude Code only after a repository has been cloned.
@@ -128,7 +131,7 @@ resource "coder_script" "setup" {
 
 We can note the following issues in the above template:
 
-1. There is a race between cloning the repository and the `pip install` commands, which can lead to failed workspace startups in some cases.
+1. There is a race between cloning the repository and the `pip install` commands, which can sometimes cause failed workspace startups.
 2. The `apt` commands can run independently of the `git clone` command, meaning that there is a potential speedup here.
 
 Based on the above, we can improve both the startup time and reliability of the template by splitting the monolithic startup script into multiple independent scripts:

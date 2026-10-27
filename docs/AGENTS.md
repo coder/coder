@@ -42,7 +42,7 @@ When the style guide and the [content guidelines](.style/content-guidelines.md) 
 | Table format      | `pnpm run format-docs` |
 
 Prettier does not own Markdown in this repository.
-Don't run it over `docs/`.
+Do not run it over `docs/`.
 
 ## Where the rules live
 
