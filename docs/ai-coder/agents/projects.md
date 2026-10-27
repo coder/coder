@@ -2,27 +2,9 @@
 title: Projects
 ---
 
-> [!NOTE]
-> Projects are an [early access](../../reference/feature-stages.md#early-access-features) feature behind the `chat-projects` experiment.
-> Behavior and APIs might change between releases.
-> Try projects on a staging deployment, and review the release notes before upgrading.
-
 Projects group related Coder Agents chats.
 Every chat in a project gets the project's instructions, skills, and memory, so you don't repeat the same context in each chat.
-
-## Enable projects
-
-```sh
-coder server --experiments=chat-projects
-```
-
-Or set the environment variable:
-
-```sh
-CODER_EXPERIMENTS=chat-projects
-```
-
-When the experiment is on, the **Agents** page sidebar shows a **Projects** section.
+Your projects appear in the **Projects** section of the **Agents** page sidebar.
 
 ## What a project provides
 
