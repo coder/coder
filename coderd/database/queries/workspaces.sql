@@ -1191,3 +1191,16 @@ AND wb.build_number = (
     FROM workspace_builds wb2
     WHERE wb2.workspace_id = w.id
 );
+
+-- name: GetWorkspaceLastUsedForMetrics :many
+SELECT
+    o.name AS organization_name,
+    t.name AS template_name,
+    u.username AS owner_username,
+    w.name AS workspace_name,
+    w.last_used_at
+FROM workspaces w
+JOIN users u ON w.owner_id = u.id
+JOIN templates t ON w.template_id = t.id
+JOIN organizations o ON w.organization_id = o.id
+WHERE w.deleted = false;
