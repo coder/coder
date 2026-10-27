@@ -57,7 +57,7 @@ Before you save, confirm that the model supports the provider's computer use too
 To turn the Responses API back on for a model whose AI provider type is OpenAI:
 
 1. On the **Models** page, select the model.
-1. Expand **Provider configuration**.
+1. Expand **Advanced**.
 1. Set **Use Responses API** to **Default** or **On**.
 1. Select **Update model**.
 
