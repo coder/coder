@@ -27,7 +27,7 @@ import (
 )
 
 // TestOpenAIResponsesNoStaleWebSearchReplay checks that a follow-up after
-// an unstored turn sends no provider item ID or item_reference, which
+// an unstored turn sends no web search ID or item_reference, which
 // OpenAI cannot resolve, and sends the search inline instead.
 func TestOpenAIResponsesNoStaleWebSearchReplay(t *testing.T) {
 	t.Parallel()
