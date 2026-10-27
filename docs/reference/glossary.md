@@ -267,6 +267,11 @@ Refer to [Parameters](#parameters).
 
 ### Envbuilder
 
+> [!WARNING]
+> Envbuilder is in **maintenance mode** with no new features planned.
+> The recommended way to use dev containers in Coder is the built-in [Dev Containers Integration](../admin/integrations/devcontainers/integration.md).
+> To find the best approach for your deployment, ask in the [Coder Discord server](https://discord.gg/coder).
+
 The Coder-built tool that constructs a workspace image from a `devcontainer.json` file without requiring Docker inside the workspace.
 Refer to [Envbuilder](../admin/integrations/devcontainers/envbuilder/index.md) and the [`envbuilder` repository](https://github.com/coder/envbuilder).
 
