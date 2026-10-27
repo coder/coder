@@ -1167,9 +1167,8 @@ const minSecretBytes = 8
 // user:password@host holds a credential without a URL. The rest after
 // that colon is parsed as a URL too, as in
 // jdbc:postgresql://db/app?password=secret. A value that is a JSON
-// object or array, or that assigns one after its first "=" or in a
-// name=value part, adds each string and number it holds, like a value of
-// its own.
+// object or array, or that assigns one with "=", adds each string and
+// number it holds, like a value of its own.
 func configSecrets(cfg ServerConfig, env []string) []string {
 	var values []string
 	addURL := func(u *url.URL) {
@@ -1224,35 +1223,49 @@ func configSecrets(cfg ServerConfig, env []string) []string {
 		}
 	}
 	var add func(value string)
-	// A JSON value, such as service account credentials, holds its
-	// credentials as members that a server may echo on their own.
-	addJSON := func(text string) {
-		trimmed := strings.TrimSpace(text)
-		if !strings.HasPrefix(trimmed, "{") && !strings.HasPrefix(trimmed, "[") {
-			return
-		}
-		decoder := json.NewDecoder(strings.NewReader(trimmed))
-		decoder.UseNumber()
-		var decoded any
-		if decoder.Decode(&decoded) == nil {
+	// addJSON adds the members of the JSON that value is, such as service
+	// account credentials, or that it assigns with "=", as in
+	// --credentials={"token":"..."}, since a server may echo a member on
+	// its own. JSON is decoded in the whole value, since it may hold the
+	// separators that split the value below, and decoding resumes after
+	// each JSON value, so each byte starts at most one decode that
+	// succeeds.
+	addJSON := func(value string) {
+		decodeAt := func(start int) int {
+			decoder := json.NewDecoder(strings.NewReader(value[start:]))
+			decoder.UseNumber()
+			var decoded any
+			if decoder.Decode(&decoded) != nil {
+				return start + 1
+			}
 			jsonScalars(decoded, add)
+			return start + int(decoder.InputOffset())
+		}
+		next := 0
+		if trimmed := strings.TrimLeftFunc(value, unicode.IsSpace); strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[") {
+			next = decodeAt(len(value) - len(trimmed))
+		}
+		for next < len(value) {
+			i := strings.IndexByte(value[next:], '=')
+			if i < 0 {
+				return
+			}
+			next += i + 1
+			if next < len(value) && (value[next] == '{' || value[next] == '[') {
+				next = decodeAt(next)
+			}
 		}
 	}
 	add = func(value string) {
 		addValue(value)
 		addJSON(value)
-		// JSON assigned to a flag, as in --credentials={"token":"..."},
-		// may hold the separators that split the value below.
-		if _, assigned, ok := strings.Cut(value, "="); ok {
-			addJSON(assigned)
-		}
 		parts := strings.FieldsFunc(value, func(r rune) bool {
 			return unicode.IsSpace(r) || r == ';' || r == ','
 		})
 		for i, part := range parts {
 			addValue(part)
 			if _, v, ok := strings.Cut(part, "="); ok {
-				add(strings.Trim(v, `"`))
+				addValue(strings.Trim(v, `"`))
 			}
 			// A server may echo the user name or password that a Basic
 			// authorization encodes decoded.
