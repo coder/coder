@@ -1343,14 +1343,12 @@ export const AssistantMessageWithImageViewFocused: Story = {
 	},
 };
 
+// The hidden link stays in the tab order, so Shift+Tab from the end of the
+// page reaches it.
 export const AssistantMessageWithImageDownloadFocused: Story = {
 	args: AssistantMessageWithImage.args,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		canvas.getByRole("button", { name: "View generated-image.png" }).focus();
-		// Focus on View sets the frame's :focus-within, which makes Download
-		// visible, so this Tab reaches it.
-		await userEvent.tab();
+	play: async () => {
+		await userEvent.tab({ shift: true });
 	},
 };
 
