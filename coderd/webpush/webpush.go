@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/SherClockHolmes/webpush-go"
 	"github.com/google/uuid"
@@ -19,6 +20,23 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/codersdk"
+)
+
+const (
+	// MaxResponseBodyBytes caps how much of a push service response is read.
+	// Push services reply with an empty body or a short error message, so a
+	// longer body comes from a misbehaving or hostile endpoint, and reading
+	// all of it would exhaust memory.
+	MaxResponseBodyBytes = 64 << 10
+
+	// pushRequestTimeout bounds the whole exchange with a push service,
+	// including reading the body, so a stalled endpoint cannot hold a
+	// goroutine open indefinitely.
+	pushRequestTimeout = 30 * time.Second
+
+	// maxResponseHeaderBytes caps the response headers, which the transport
+	// reads before the body cap applies. Go allows 10 MiB when unset.
+	maxResponseHeaderBytes = 64 << 10
 )
 
 // Dispatcher is an interface that can be used to dispatch
@@ -66,9 +84,27 @@ func New(ctx context.Context, log *slog.Logger, db database.Store, vapidSub stri
 		vapidSub:        vapidSub,
 		store:           db,
 		log:             log,
+		httpClient:      newHTTPClient(),
 		VAPIDPublicKey:  keys.VapidPublicKey,
 		VAPIDPrivateKey: keys.VapidPrivateKey,
 	}, nil
+}
+
+// newHTTPClient returns the client used to deliver push notifications. It
+// keeps the default transport so proxy settings from the environment still
+// apply, and adds the limits the library's own default client lacks.
+func newHTTPClient() *http.Client {
+	transport, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		transport = &http.Transport{}
+	} else {
+		transport = transport.Clone()
+	}
+	transport.MaxResponseHeaderBytes = maxResponseHeaderBytes
+	return &http.Client{
+		Timeout:   pushRequestTimeout,
+		Transport: transport,
+	}
 }
 
 type Webpusher struct {
@@ -78,6 +114,10 @@ type Webpusher struct {
 	// This must be a https:// URL or an email address.
 	// Some push services (such as Apple's) require this to be set.
 	vapidSub string
+
+	// httpClient delivers the push requests. Endpoints are chosen by users,
+	// so the client must bound how long a request runs and how much it reads.
+	httpClient *http.Client
 
 	// public and private keys for VAPID. These are used to sign and encrypt
 	// the message payload.
@@ -155,6 +195,7 @@ func (n *Webpusher) webpushSend(ctx context.Context, msg []byte, endpoint string
 		Endpoint: endpoint,
 		Keys:     keys,
 	}, &webpush.Options{
+		HTTPClient:      n.httpClient,
 		Subscriber:      n.vapidSub,
 		VAPIDPublicKey:  n.VAPIDPublicKey,
 		VAPIDPrivateKey: n.VAPIDPrivateKey,
@@ -164,7 +205,7 @@ func (n *Webpusher) webpushSend(ctx context.Context, msg []byte, endpoint string
 		return -1, nil, xerrors.Errorf("send webpush notification: %w", err)
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, MaxResponseBodyBytes))
 	if err != nil {
 		return -1, nil, xerrors.Errorf("read response body: %w", err)
 	}
