@@ -78,7 +78,7 @@ func WaitForChatSettled(
 
 	server := api.ChatDaemon()
 	require.NotNil(t, server)
-	chatd.WaitUntilIdleForTest(server)
+	require.NoError(t, chatd.WaitUntilIdleForTest(ctx, server))
 
 	chat, err := getChatByIDAsSystem(ctx, api.Database, chatID)
 	require.NoError(t, err)
