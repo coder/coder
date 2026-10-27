@@ -122,12 +122,19 @@ function useTabScroll(activeTabElementId: string | undefined) {
 		if (!strip || !tab) {
 			return;
 		}
-		// A ResizeObserver reports each element once when it starts, and again
-		// when the tab widens as the web font loads or the strip resizes.
+		// The ResizeObserver reports once when it starts, then when the label
+		// widens as the web font loads or the strip resizes. The
+		// MutationObserver reports tabs added before the active tab, such as
+		// workspace tabs that appear after the workspace loads.
 		const resizeObserver = new ResizeObserver(scrollActiveTabIntoView);
 		resizeObserver.observe(strip);
 		resizeObserver.observe(tab);
-		return () => resizeObserver.disconnect();
+		const mutationObserver = new MutationObserver(scrollActiveTabIntoView);
+		mutationObserver.observe(strip, { childList: true });
+		return () => {
+			resizeObserver.disconnect();
+			mutationObserver.disconnect();
+		};
 	}, [activeTabElementId]);
 
 	const scrollLeft = () => {
