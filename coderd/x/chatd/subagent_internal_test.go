@@ -34,6 +34,8 @@ import (
 	experimentrules "github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/experiments/experimentstest"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
@@ -2813,7 +2815,41 @@ func TestResolveComputerUseModel(t *testing.T) {
 
 		_, reason, err := server.resolveComputerUseModel(ctx, user.ID, org.ID)
 		require.NoError(t, err)
-		require.Equal(t, `type "computer_use" is unavailable because no computer use model is configured and the organization has no default chat model`, reason)
+		require.Equal(t, `type "computer_use" is unavailable because no computer use model is configured and the organization has no default chat model available to the chat owner`, reason)
+	})
+
+	t.Run("DefaultModelFollowsOwnerModelACL", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		authzDB := dbauthz.New(db, rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), nil)
+		server := newInternalTestServer(t, authzDB, ps, chatprovider.ProviderAPIKeys{})
+		ctx := chatdTestContext(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		member := dbgen.User(t, db, database.User{})
+		outsider := dbgen.User(t, db, database.User{})
+		for _, user := range []database.User{member, outsider} {
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+		}
+		team := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: member.ID, GroupID: team.ID})
+		provider := insertInternalAIProvider(t, db, database.AIProviderTypeAnthropic, "test-key", true)
+		model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+			Model:          "claude-opus-5",
+			IsDefault:      true,
+			OrganizationID: org.ID,
+			GroupACL:       database.ChatACL{team.ID.String(): {Permissions: []policy.Action{policy.ActionRead}}},
+			UserACL:        database.ChatACL{},
+		})
+
+		got, reason, err := server.resolveComputerUseModel(ctx, member.ID, org.ID)
+		require.NoError(t, err)
+		require.Empty(t, reason)
+		require.Equal(t, model.ID, got.config.ID)
+
+		_, reason, err = server.resolveComputerUseModel(ctx, outsider.ID, org.ID)
+		require.NoError(t, err)
+		require.Equal(t, `type "computer_use" is unavailable because no computer use model is configured and the organization has no default chat model available to the chat owner`, reason)
 	})
 }
 

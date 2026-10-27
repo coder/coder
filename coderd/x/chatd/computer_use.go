@@ -72,9 +72,14 @@ func (p *Server) resolveComputerUseModel(
 	if override.Set {
 		model = computerUseModel{config: override.Config, reasoningEffort: override.ReasoningEffort}
 	} else {
-		model.config, err = p.db.GetDefaultChatModelConfig(chatdCtx, organizationID)
+		// Read the default under the owner's model ACLs, as chat turns do.
+		modelCtx, err := p.callerModelConfigContext(chatdCtx, ownerID)
+		if err != nil {
+			return computerUseModel{}, "", err
+		}
+		model.config, err = effectiveDefaultChatModelConfig(modelCtx, p.db, organizationID)
 		if errors.Is(err, sql.ErrNoRows) {
-			return computerUseModel{}, `type "computer_use" is unavailable because no computer use model is configured and the organization has no default chat model`, nil
+			return computerUseModel{}, `type "computer_use" is unavailable because no computer use model is configured and the organization has no default chat model available to the chat owner`, nil
 		}
 		if err != nil {
 			return computerUseModel{}, "", xerrors.Errorf("get default chat model config: %w", err)
