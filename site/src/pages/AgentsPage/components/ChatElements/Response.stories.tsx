@@ -108,9 +108,11 @@ export const LongLineFencedBlock: Story = {
 		// shadow root, so retry until a horizontally scrollable container
 		// exists, then scroll it so the capture shows the scrolled state.
 		const scroller = await waitFor(() => {
-			const found = [
-				...canvasElement.querySelectorAll<HTMLElement>(".overflow-auto"),
-			].find((v) => v.scrollWidth > v.clientWidth);
+			const found = [...canvasElement.querySelectorAll<HTMLElement>("*")].find(
+				(v) =>
+					getComputedStyle(v).overflowX === "auto" &&
+					v.scrollWidth > v.clientWidth,
+			);
 			if (!found) {
 				throw new Error("Expected a horizontally scrollable code block.");
 			}
