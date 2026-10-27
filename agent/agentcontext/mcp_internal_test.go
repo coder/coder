@@ -389,9 +389,12 @@ func TestBuildMCPServerResourcesInputSchemaCaps(t *testing.T) {
 			return proto.Size(pushRequestToProto(&PushRequest{Resources: slices.Concat(others, servers)}))
 		}
 		server := Resource{ID: resourceID(KindMCPServer, "fs"), Kind: KindMCPServer, Source: "fs", Name: "fs", Status: StatusOK, Tools: reducedTools}
+		// The server keeps room for the error applyProviderCaps would
+		// add if it excluded the server.
+		headroom := maxPushWireBytes - exclusionWireBytes - t2ExtraWireBytes
 		errorBytes := 3 << 20
-		errorBytes += maxPushWireBytes - t2ExtraWireBytes - pushWireBytes(others(errorBytes), []Resource{server})
-		require.Equal(t, maxPushWireBytes-t2ExtraWireBytes, pushWireBytes(others(errorBytes), []Resource{server}))
+		errorBytes += headroom - pushWireBytes(others(errorBytes), []Resource{server})
+		require.Equal(t, headroom, pushWireBytes(others(errorBytes), []Resource{server}))
 
 		build := func(errorBytes int) []Resource {
 			return buildMCPServerResources(testutil.Logger(t), []MCPServerStatus{{Name: "fs", Connected: true, Tools: serverTools}}, others(errorBytes))
@@ -409,6 +412,62 @@ func TestBuildMCPServerResourcesInputSchemaCaps(t *testing.T) {
 		require.LessOrEqual(t, proto.Size(pushRequestToProto(push)), drpcsdk.MaxMessageSize)
 		got = build(errorBytes + 1)
 		require.Equal(t, map[string]bool{"fs/t1": false, "fs/t2": false}, fullSchemas(got))
+	})
+
+	t.Run("KeepsRoomForExclusionErrors", func(t *testing.T) {
+		t.Parallel()
+		// Filesystem context fills the resource count cap, so
+		// applyProviderCaps excludes every MCP server after the full
+		// schemas are chosen and adds an error to each. A resource error
+		// stands in for the rest of the push: with the reduced servers it
+		// leaves room for every full schema, but not for those errors.
+		const serverCount = 40
+		servers := make([]MCPServerStatus, serverCount)
+		reducedServers := make([]Resource, serverCount)
+		extraWireBytes := 0
+		for i := range servers {
+			name := fmt.Sprintf("s%02d", i)
+			tool := MCPTool{Name: "t", InputSchema: padded(10)}
+			reducedTool := MCPTool{Name: "t", InputSchema: reduced}
+			servers[i] = MCPServerStatus{Name: name, Connected: true, Tools: []MCPTool{tool}}
+			reducedServers[i] = Resource{ID: resourceID(KindMCPServer, name), Kind: KindMCPServer, Source: name, Name: name, Status: StatusOK, Tools: []MCPTool{reducedTool}}
+			_, toolExtraWireBytes, err := fullSchemaExtraBytes(tool, reducedTool)
+			require.NoError(t, err)
+			extraWireBytes += toolExtraWireBytes
+		}
+		others := func(errorBytes int) []Resource {
+			return []Resource{{ID: "instruction_file:a", Kind: KindInstructionFile, Source: "a", Status: StatusUnreadable, Error: strings.Repeat("e", errorBytes)}}
+		}
+		pushWireBytes := func(resources []Resource) int {
+			return proto.Size(pushRequestToProto(&PushRequest{Resources: resources}))
+		}
+		headroom := maxPushWireBytes - extraWireBytes
+		errorBytes := 3 << 20
+		errorBytes += headroom - pushWireBytes(slices.Concat(others(errorBytes), reducedServers))
+		require.Equal(t, headroom, pushWireBytes(slices.Concat(others(errorBytes), reducedServers)))
+
+		got := buildMCPServerResources(testutil.Logger(t), servers, others(errorBytes))
+		full := fullSchemas(got)
+		require.True(t, full["s00/t"])
+		require.False(t, full[fmt.Sprintf("s%02d/t", serverCount-1)])
+		resolver := &Resolver{MaxResources: 1, MaxSnapshotBytes: DefaultMaxSnapshotBytes}
+		resources, _ := resolver.applyProviderCaps(slices.Concat(others(errorBytes), got), 1, 0, nil)
+		for _, r := range resources[1:] {
+			require.Equal(t, StatusExcluded, r.Status, r.Name)
+		}
+		push := &PushRequest{
+			Version:       math.MaxUint64,
+			Initial:       true,
+			SnapshotError: strings.Repeat("e", maxSnapshotErrorBytes),
+			Resources:     resources,
+		}
+		require.LessOrEqual(t, proto.Size(pushRequestToProto(push)), drpcsdk.MaxMessageSize)
+	})
+
+	t.Run("BoundsExclusionErrors", func(t *testing.T) {
+		t.Parallel()
+		require.LessOrEqual(t, len(fmt.Sprintf(countCapExclusionFormat, math.MinInt)), maxExclusionErrorBytes)
+		require.LessOrEqual(t, len(fmt.Sprintf(byteCapExclusionFormat, uint64(math.MaxUint64))), maxExclusionErrorBytes)
 	})
 }
 

@@ -520,6 +520,7 @@ func TestConfigSecrets(t *testing.T) {
 			"API":          "session=envsecret1; mode=fast",
 			"DATABASE_URL": "postgres://dbuser01:envpassword1@db/app?sslmode=require&apikey=env%2Bquery1",
 			"WORKDIR":      "/home/coder/workspace",
+			"BASIC_AUTH":   "basicuser1:basicpassword1",
 		},
 		Args: []string{"--key=argsecret12", "--db=mysql://root:argpassword1@db/app"},
 	})
@@ -532,6 +533,7 @@ func TestConfigSecrets(t *testing.T) {
 		"dbuser01", "envpassword1", "env%2Bquery1", "env+query1",
 		"--key=argsecret12", "argsecret12",
 		"root:argpassword1", "argpassword1",
+		"basicuser1", "basicpassword1",
 	} {
 		require.Contains(t, secrets, want)
 	}
