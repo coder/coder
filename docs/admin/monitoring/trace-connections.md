@@ -19,6 +19,7 @@ To diagnose a connection that is still open, refer to [Networking troubleshootin
   Client and agent logs don't.
 - For VS Code, use the Coder Remote extension version 1.16.1 or later to send session IDs, and version 1.17.1 or later to report the editor name, such as `cursor`.
 - For JetBrains Toolbox, use the Coder Toolbox plugin version 0.9.5 or later to send session IDs and to include `coder ssh` logs in **Collect logs**.
+  Plugin version 0.9.5 requires JetBrains Toolbox version 3.9.0 or later.
 
 ## How client session IDs work
 
@@ -91,9 +92,10 @@ Toolbox starts `coder ssh`.
 Toolbox log lines for a session include the full 32-character `client_session_id`.
 With Coder Toolbox plugin version 0.9.5 or later, the plugin chooses the directory for the `coder ssh` logs: the SSH log directory in the Coder plugin settings, then `CODER_SSH_LOG_DIR`, then an `ssh-logs` directory in the plugin's data directory for the deployment.
 Ask the user to select **Collect logs** from the workspace action menu.
-The archive includes the Toolbox logs and a Coder support bundle, and version 0.9.5 or later adds recent `coder ssh` logs to the bundle under `toolbox-logs/ssh/`.
-With earlier plugin versions, `coder ssh` writes to the [`coder ssh` log directory](#coder-ssh) unless an SSH log directory is set in the plugin settings, and **Collect logs** doesn't include those files, so ask the user for them separately.
-For details, refer to [JetBrains Toolbox troubleshooting](../../user-guides/workspace-access/jetbrains/toolbox.md#troubleshooting).
+With plugin version 0.9.5 or later, the archive includes the Toolbox logs and a nested Coder support bundle, `coder-support.zip`, with recent `coder ssh` logs under `toolbox-logs/ssh/`.
+With earlier plugin versions, **Collect logs** includes only the Toolbox logs.
+In that case, `coder ssh` writes to the [`coder ssh` log directory](#coder-ssh) unless an SSH log directory is set in the plugin settings, so ask the user for those files separately and [generate a support bundle with the CLI](../../support/support-bundle.md#generate-with-the-cli).
+For details, refer to [Generate a support bundle](../../support/support-bundle.md#jetbrains-toolbox) and [JetBrains Toolbox troubleshooting](../../user-guides/workspace-access/jetbrains/toolbox.md#troubleshooting).
 
 ### Web terminal
 
