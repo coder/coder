@@ -5023,6 +5023,11 @@ describe("chat stream contract", () => {
 		act(() => {
 			sockets[0].emitOpen();
 			sockets[0].emitData(sentHead);
+		});
+		// The head shows as a message and not in the queue.
+		expect(result.current.queuedIDs).toHaveLength(1);
+		expect(result.current.queuedIDs).not.toContain(10);
+		act(() => {
 			sockets[0].emitError();
 		});
 		await act(async () => {

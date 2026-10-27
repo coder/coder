@@ -126,7 +126,7 @@ type QueueEdit = (
  * syncedVersion, even if the event changes nothing in the stored state:
  *
  * - message: a user message or a queue update, because the server queues a
- *   send or promote when the chat is busy.
+ *   send, and keeps a promoted row in the queue, if it finds the chat busy.
  * - editedMessage: a user message, because an edit never queues.
  * - queue: a queue update. For a delete, only one without the row, because a
  *   row's ID never returns to the queue.
@@ -134,12 +134,14 @@ type QueueEdit = (
  *
  * An edit has editedMessage, history and, if the queue is not empty, queue.
  * A stream open resends the commit at the version it opens with. An entry
- * synced at that version ignores it, and for an entry synced below it, those
- * events already ended a part or never arrived. The first open after a page
- * load also resends the commits above the page's snapshot version that the
- * page holds, because the server reads that version before the rest of the
- * page. Such a commit ends the part of an action clicked before the first
- * sync, so the action's result disappears until its own event arrives.
+ * synced at that version ignores the resend. For an entry synced below it,
+ * each resent event either ended its part when it first arrived, so ending
+ * it again changes nothing, or was lost when the connection dropped, so it
+ * ends the part now. The first open after a page load also resends the
+ * commits above the page's snapshot version that the page holds, because the
+ * server reads that version before the rest of the page. Such a commit ends
+ * the part of an action clicked before the first sync, so the action's result
+ * disappears until its own event arrives.
  */
 type PendingEntry = {
 	id: number;
