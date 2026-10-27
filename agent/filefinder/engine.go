@@ -5,6 +5,7 @@ package filefinder
 
 import (
 	"context"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -12,6 +13,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -21,6 +23,9 @@ import (
 type SearchOptions struct {
 	Limit         int
 	MaxCandidates int
+	// Roots restricts the search to these absolute roots. Empty
+	// searches all roots.
+	Roots []string
 }
 
 // DefaultSearchOptions returns sensible default search options.
@@ -43,58 +48,113 @@ type Engine struct {
 	closeCh chan struct{}
 	closed  atomic.Bool
 	wg      sync.WaitGroup
+	ignorer *Ignorer
+	// ctx is canceled by Close; each root's context derives from it.
+	ctx    context.Context
+	cancel context.CancelFunc
+	// walks admits at most maxConcurrentWalks root walks at a time,
+	// covering both new roots and reloads.
+	walks chan struct{}
+	// lastGen issues watcher generations unique across the engine, so
+	// a root removed and added again cannot accept events queued by
+	// its earlier instance.
+	lastGen atomic.Uint64
 }
 type rootState struct {
 	root    string
 	index   *Index
 	watcher *fsWatcher
-	cancel  context.CancelFunc
+	// ctx lives until the root is removed or the engine closes; stop
+	// cancels it, which also cancels any reload of the root.
+	ctx  context.Context
+	stop context.CancelFunc
+	// cancelWatcher stops the current watcher.
+	cancelWatcher context.CancelFunc
+	// gen identifies the current watcher. Events from any other
+	// watcher are dropped so they cannot modify this index.
+	gen uint64
+	// reloading is set while reloadRoot runs; reloadAgain asks it to
+	// run once more because ignore rules changed again meanwhile.
+	reloading   bool
+	reloadAgain bool
 }
 type rootEvent struct {
 	root   string
+	gen    uint64
 	events []FSEvent
 }
 
-// walkRoot performs a full filesystem walk of absRoot and returns
-// a populated Index containing all discovered files and directories.
-func walkRoot(absRoot string) (*Index, error) {
-	idx := NewIndex()
-	err := filepath.Walk(absRoot, func(path string, info os.FileInfo, walkErr error) error {
-		if walkErr != nil {
-			return nil //nolint:nilerr
+const (
+	// maxIndexEntries bounds the entries indexed and watched per root
+	// so a single large root cannot exhaust memory or inotify
+	// watches. Entries past the budget are not indexed.
+	maxIndexEntries = 300_000
+	// maxConcurrentWalks bounds concurrent root walks.
+	maxConcurrentWalks = 2
+)
+
+// walkRoot walks absRoot without watching it and returns an Index of
+// the entries that are not ignored. It stops early when ctx is
+// canceled or the index reaches maxIndexEntries, reporting the latter
+// as truncated.
+func walkRoot(ctx context.Context, ig *Ignorer, absRoot string) (idx *Index, truncated bool, err error) {
+	idx = NewIndex()
+	err = ig.walk(ctx, absRoot, func(path string, d fs.DirEntry) error {
+		if idx.Len() >= maxIndexEntries {
+			truncated = true
+			return filepath.SkipAll
 		}
-		base := filepath.Base(path)
-		if _, skip := skipDirs[base]; skip && info.IsDir() {
-			return filepath.SkipDir
-		}
-		if path == absRoot {
-			return nil
-		}
-		relPath, relErr := filepath.Rel(absRoot, path)
-		if relErr != nil {
-			return nil //nolint:nilerr
-		}
-		relPath = filepath.ToSlash(relPath)
 		var flags uint16
-		if info.IsDir() {
+		if d.IsDir() {
 			flags = uint16(FlagDir)
-		} else if info.Mode()&os.ModeSymlink != 0 {
+		} else if d.Type()&fs.ModeSymlink != 0 {
 			flags = uint16(FlagSymlink)
 		}
-		idx.Add(relPath, flags)
+		addToIndex(idx, absRoot, path, flags)
 		return nil
-	})
-	return idx, err
+	}, nil)
+	return idx, truncated, err
+}
+
+func addToIndex(idx *Index, root, path string, flags uint16) {
+	if rel, err := filepath.Rel(root, path); err == nil {
+		idx.Add(filepath.ToSlash(rel), flags)
+	}
+}
+
+// EngineOption configures an Engine.
+type EngineOption func(*Engine)
+
+// WithIgnorer sets the gitignore rules the engine applies. The default
+// uses git from PATH, falling back to go-git with the current user's
+// global excludes.
+func WithIgnorer(ig *Ignorer) EngineOption {
+	return func(e *Engine) {
+		e.ignorer = ig
+	}
 }
 
 // NewEngine creates a new Engine.
-func NewEngine(logger slog.Logger) *Engine {
+func NewEngine(logger slog.Logger, opts ...EngineOption) *Engine {
 	e := &Engine{
 		logger:  logger,
 		roots:   make(map[string]*rootState),
 		eventCh: make(chan rootEvent, 256),
 		closeCh: make(chan struct{}),
+		walks:   make(chan struct{}, maxConcurrentWalks),
 	}
+	for _, opt := range opts {
+		opt(e)
+	}
+	if e.ignorer == nil {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			e.logger.Warn(context.Background(), "home directory unknown, skipping global gitignore excludes in the fallback", slog.Error(err))
+			home = ""
+		}
+		e.ignorer = NewIgnorer(afero.NewOsFs(), home)
+	}
+	e.ctx, e.cancel = context.WithCancel(context.Background())
 	empty := make([]*rootSnapshot, 0)
 	e.snap.Store(&empty)
 	e.wg.Add(1)
@@ -106,7 +166,53 @@ func NewEngine(logger slog.Logger) *Engine {
 // closed engine.
 var ErrClosed = xerrors.New("engine is closed")
 
-// AddRoot adds a directory root to the engine.
+func (e *Engine) acquireWalk(ctx context.Context) error {
+	select {
+	case e.walks <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-e.closeCh:
+		return ErrClosed
+	}
+}
+
+func (e *Engine) releaseWalk() { <-e.walks }
+
+// startWatcher starts a watcher for root and indexes what its initial
+// walk found. Watches are added before each directory is read, so
+// changes during the walk are delivered as events after it; the caller
+// applies them to the returned index by forwarding the watcher's
+// events.
+func (e *Engine) startWatcher(ctx context.Context, root string) (*fsWatcher, *Index, error) {
+	w, err := newFSWatcher(root, e.logger, e.ignorer)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("create watcher: %w", err)
+	}
+	initial := w.Start(ctx)
+	if err := ctx.Err(); err != nil {
+		_ = w.Close()
+		return nil, nil, err
+	}
+	if len(initial) >= maxIndexEntries {
+		e.logger.Warn(ctx, "root exceeds the index budget, indexing partially",
+			slog.F("root", root),
+			slog.F("max_entries", maxIndexEntries),
+		)
+	}
+	idx := NewIndex()
+	for _, ev := range initial {
+		var flags uint16
+		if ev.IsDir {
+			flags = uint16(FlagDir)
+		}
+		addToIndex(idx, root, ev.Path, flags)
+	}
+	return w, idx, nil
+}
+
+// AddRoot adds a directory root to the engine. It waits for a walk
+// slot, then indexes and watches the root.
 func (e *Engine) AddRoot(ctx context.Context, root string) error {
 	absRoot, err := filepath.Abs(root)
 	if err != nil {
@@ -123,40 +229,53 @@ func (e *Engine) AddRoot(ctx context.Context, root string) error {
 	}
 	e.mu.Unlock()
 
-	// Walk and create the watcher outside the lock to avoid
-	// blocking the event pipeline on filesystem I/O.
-	idx, walkErr := walkRoot(absRoot)
-	if walkErr != nil {
-		return xerrors.Errorf("walk root: %w", walkErr)
+	if err := e.acquireWalk(ctx); err != nil {
+		return err
 	}
-	wCtx, wCancel := context.WithCancel(context.Background())
-	w, wErr := newFSWatcher(absRoot, e.logger)
-	if wErr != nil {
+	rootCtx, rootStop := context.WithCancel(e.ctx)
+	wCtx, wCancel := context.WithCancel(rootCtx)
+	// Canceling ctx stops the walk; once added, the root lives until
+	// RemoveRoot or Close.
+	stop := context.AfterFunc(ctx, rootStop)
+	w, idx, err := e.startWatcher(wCtx, absRoot)
+	canceled := !stop()
+	e.releaseWalk()
+	cleanup := func() {
 		wCancel()
-		return xerrors.Errorf("create watcher: %w", wErr)
+		rootStop()
+		if w != nil {
+			_ = w.Close()
+		}
+	}
+	if canceled {
+		cleanup()
+		return ctx.Err()
+	}
+	if err != nil {
+		cleanup()
+		return xerrors.Errorf("walk root: %w", err)
 	}
 
 	e.mu.Lock()
-	// Re-check after re-acquiring the lock: another goroutine
-	// may have added this root or closed the engine while we
-	// were walking.
+	// Re-check after re-acquiring the lock: another goroutine may
+	// have added this root or closed the engine while we walked.
 	if e.closed.Load() {
 		e.mu.Unlock()
-		wCancel()
-		_ = w.Close()
+		cleanup()
 		return ErrClosed
 	}
 	if _, exists := e.roots[absRoot]; exists {
 		e.mu.Unlock()
-		wCancel()
-		_ = w.Close()
+		cleanup()
 		return nil
 	}
-	rs := &rootState{root: absRoot, index: idx, watcher: w, cancel: wCancel}
+	rs := &rootState{
+		root: absRoot, index: idx, watcher: w,
+		ctx: rootCtx, stop: rootStop, cancelWatcher: wCancel, gen: e.lastGen.Add(1),
+	}
 	e.roots[absRoot] = rs
-	w.Start(wCtx)
 	e.wg.Add(1)
-	go e.forwardEvents(wCtx, absRoot, w)
+	go e.forwardEvents(wCtx, absRoot, rs.gen, w)
 	e.publishSnapshot()
 	fileCount := idx.Len()
 	e.mu.Unlock()
@@ -167,7 +286,8 @@ func (e *Engine) AddRoot(ctx context.Context, root string) error {
 	return nil
 }
 
-// RemoveRoot stops watching a root and removes it.
+// RemoveRoot stops watching a root and removes it, canceling any
+// reload of it.
 func (e *Engine) RemoveRoot(root string) error {
 	absRoot, err := filepath.Abs(root)
 	if err != nil {
@@ -179,7 +299,7 @@ func (e *Engine) RemoveRoot(root string) error {
 	if !exists {
 		return xerrors.Errorf("root %q not found", absRoot)
 	}
-	rs.cancel()
+	rs.stop()
 	_ = rs.watcher.Close()
 	delete(e.roots, absRoot)
 	e.publishSnapshot()
@@ -209,7 +329,14 @@ func (e *Engine) Search(_ context.Context, query string, opts SearchOptions) ([]
 	params := defaultScoreParams()
 	var allCands []candidate
 	for _, rs := range roots {
-		allCands = append(allCands, searchSnapshot(plan, rs.snap, opts.MaxCandidates)...)
+		if len(opts.Roots) > 0 && !slices.Contains(opts.Roots, rs.root) {
+			continue
+		}
+		cands := searchSnapshot(plan, rs.snap, opts.MaxCandidates)
+		for i := range cands {
+			cands[i].Root = rs.root
+		}
+		allCands = append(allCands, cands...)
 	}
 	results := mergeAndScore(allCands, plan, params, opts.Limit)
 	return results, nil
@@ -221,9 +348,10 @@ func (e *Engine) Close() error {
 		return nil
 	}
 	close(e.closeCh)
+	e.cancel()
 	e.mu.Lock()
 	for _, rs := range e.roots {
-		rs.cancel()
+		rs.stop()
 		_ = rs.watcher.Close()
 	}
 	e.roots = make(map[string]*rootState)
@@ -232,16 +360,18 @@ func (e *Engine) Close() error {
 	return nil
 }
 
-// Rebuild forces a complete re-walk and re-index of a root.
+// Rebuild forces a complete re-walk and re-index of a root. Unlike a
+// reload after an ignore change, it keeps the current watcher.
 func (e *Engine) Rebuild(ctx context.Context, root string) error {
 	absRoot, err := filepath.Abs(root)
 	if err != nil {
 		return xerrors.Errorf("resolve root: %w", err)
 	}
-
-	// Walk outside the lock to avoid blocking the event
-	// pipeline on potentially slow filesystem I/O.
-	idx, walkErr := walkRoot(absRoot)
+	if err := e.acquireWalk(ctx); err != nil {
+		return err
+	}
+	idx, _, walkErr := walkRoot(ctx, e.ignorer, absRoot)
+	e.releaseWalk()
 	if walkErr != nil {
 		return xerrors.Errorf("rebuild walk: %w", walkErr)
 	}
@@ -278,7 +408,7 @@ func (e *Engine) start() {
 	}
 }
 
-func (e *Engine) forwardEvents(ctx context.Context, root string, w *fsWatcher) {
+func (e *Engine) forwardEvents(ctx context.Context, root string, gen uint64, w *fsWatcher) {
 	defer e.wg.Done()
 	for {
 		select {
@@ -291,7 +421,7 @@ func (e *Engine) forwardEvents(ctx context.Context, root string, w *fsWatcher) {
 				return
 			}
 			select {
-			case e.eventCh <- rootEvent{root: root, events: evts}:
+			case e.eventCh <- rootEvent{root: root, gen: gen, events: evts}:
 			case <-ctx.Done():
 				return
 			case <-e.closeCh:
@@ -305,11 +435,15 @@ func (e *Engine) applyEvents(re rootEvent) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	rs, exists := e.roots[re.root]
-	if !exists {
+	if !exists || rs.gen != re.gen {
 		return
 	}
 	changed := false
 	for _, ev := range re.events {
+		if ev.Op == OpIgnoreChanged {
+			e.scheduleReloadLocked(rs)
+			continue
+		}
 		relPath, err := filepath.Rel(rs.root, ev.Path)
 		if err != nil {
 			continue
@@ -361,4 +495,71 @@ func (e *Engine) publishSnapshot() {
 		return strings.Compare(a.root, b.root)
 	})
 	e.snap.Store(&roots)
+}
+
+// scheduleReloadLocked starts reloadRoot for rs unless one is running,
+// in which case that one runs again. Must be called with e.mu held.
+func (e *Engine) scheduleReloadLocked(rs *rootState) {
+	if rs.reloading {
+		rs.reloadAgain = true
+		return
+	}
+	rs.reloading = true
+	e.wg.Add(1)
+	go e.reloadRoot(rs)
+}
+
+// reloadRoot replaces rs's index and watcher after its ignore rules
+// changed, so newly ignored paths are dropped and newly unignored
+// directories are indexed and watched. The new watcher starts before
+// its walk, so changes during the walk reach the new index as events
+// once it is swapped in; events from the old watcher are dropped by
+// generation. The old index serves searches until then. The walk
+// takes a walk slot and stops when the root is removed.
+func (e *Engine) reloadRoot(rs *rootState) {
+	defer e.wg.Done()
+	for {
+		var (
+			w   *fsWatcher
+			idx *Index
+		)
+		wCtx, wCancel := context.WithCancel(rs.ctx)
+		err := e.acquireWalk(rs.ctx)
+		if err == nil {
+			w, idx, err = e.startWatcher(wCtx, rs.root)
+			e.releaseWalk()
+		}
+
+		e.mu.Lock()
+		if err != nil || rs.ctx.Err() != nil || e.roots[rs.root] != rs {
+			rs.reloading = false
+			e.mu.Unlock()
+			wCancel()
+			if w != nil {
+				_ = w.Close()
+			}
+			if err != nil && rs.ctx.Err() == nil {
+				e.logger.Warn(rs.ctx, "reload root after ignore rules changed", slog.F("root", rs.root), slog.Error(err))
+			}
+			return
+		}
+		oldCancel, oldWatcher := rs.cancelWatcher, rs.watcher
+		rs.gen = e.lastGen.Add(1)
+		rs.index, rs.watcher, rs.cancelWatcher = idx, w, wCancel
+		e.wg.Add(1)
+		go e.forwardEvents(wCtx, rs.root, rs.gen, w)
+		e.publishSnapshot()
+		again := rs.reloadAgain
+		rs.reloadAgain = false
+		if !again {
+			rs.reloading = false
+		}
+		e.mu.Unlock()
+
+		oldCancel()
+		_ = oldWatcher.Close()
+		if !again {
+			return
+		}
+	}
 }

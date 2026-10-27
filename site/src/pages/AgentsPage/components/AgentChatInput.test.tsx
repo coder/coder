@@ -21,6 +21,7 @@ import { createMockFile } from "#/testHelpers/files";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
 import { mobileViewportMediaQuery } from "#/utils/mobile";
+import { WorkspaceFilesContext } from "../context/WorkspaceFilesContext";
 import type * as speechRecognition from "../hooks/useSpeechRecognition";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
@@ -277,6 +278,49 @@ describe("AgentChatInput", () => {
 			name: "project-conventions",
 		});
 		expect(getChatProjectSkills).toHaveBeenCalledWith("org-1", "project-1");
+	});
+
+	it("sends an @ file reference as its backticked absolute path", async () => {
+		const user = userEvent.setup();
+		const onSend = vi.fn();
+		vi.spyOn(API, "findWorkspaceAgentFiles").mockResolvedValue({
+			results: [
+				{
+					absolute_path: "/home/coder/repo/src/main.go",
+					path: "src/main.go",
+					root: "/home/coder/repo",
+					is_dir: false,
+					score: 10,
+				},
+			],
+		});
+
+		renderInput(
+			<WorkspaceFilesContext
+				value={{
+					agentId: "agent-1",
+					defaultDirectory: "/home/coder",
+					repoRoots: ["/home/coder/repo"],
+					repoRootsSettled: true,
+					repositories: new Map(),
+					openFile: vi.fn(),
+					revealInFiles: vi.fn(),
+					diffStatuses: [],
+				}}
+			>
+				<AgentChatInput {...inputProps} onSend={onSend} />
+			</WorkspaceFilesContext>,
+		);
+
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.paste("explain @main");
+		await screen.findByRole("option", { name: /main\.go/ });
+		await user.keyboard("{Enter}");
+		expect(onSend).not.toHaveBeenCalled();
+		await user.keyboard("{Enter}");
+		expect(onSend).toHaveBeenCalledWith(
+			"explain `/home/coder/repo/src/main.go`",
+		);
 	});
 
 	it("skips the project skills request while the chat-projects experiment is off", async () => {

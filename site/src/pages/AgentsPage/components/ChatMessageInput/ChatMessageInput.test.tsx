@@ -20,6 +20,10 @@ import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { MockChatProject } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
+import {
+	WorkspaceFilesContext,
+	type WorkspaceFilesContextValue,
+} from "../../context/WorkspaceFilesContext";
 import { DEFAULT_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
 import { buildChatInputContent } from "../../utils/chatInputContent";
 import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
@@ -839,6 +843,338 @@ describe("ChatMessageInput", () => {
 			await waitFor(() => {
 				expect(getRequestContent(inputRef)).toEqual(content);
 			});
+		});
+	});
+
+	describe("@ workspace file references", () => {
+		const workspaceFiles: WorkspaceFilesContextValue = {
+			agentId: "agent-1",
+			defaultDirectory: "/home/coder",
+			repoRoots: ["/home/coder/a", "/home/coder/b"],
+			repoRootsSettled: true,
+			repositories: new Map(),
+			openFile: vi.fn(),
+			revealInFiles: vi.fn(),
+			diffStatuses: [],
+		};
+
+		const mockFindFiles = () =>
+			vi.spyOn(API, "findWorkspaceAgentFiles").mockResolvedValue({
+				results: [
+					{
+						absolute_path: "/home/coder/a/src/main.go",
+						path: "src/main.go",
+						root: "/home/coder/a",
+						is_dir: false,
+						score: 10,
+					},
+					{
+						absolute_path: "/home/coder/b/src",
+						path: "src",
+						root: "/home/coder/b",
+						is_dir: true,
+						score: 5,
+					},
+				],
+			});
+
+		const renderWithWorkspaceFiles = (
+			value: WorkspaceFilesContextValue | undefined,
+		) => {
+			const inputRef = createRef<ChatMessageInputRef>();
+			const onEnter = vi.fn();
+			const queryClient = createTestQueryClient();
+			queryClient.setQueryData(userSkills().queryKey, [
+				{ ...MockSkill, name: "reviewer" },
+			]);
+			renderWithQueryClient(
+				<WorkspaceFilesContext value={value}>
+					<ChatMessageInput
+						{...requiredProps()}
+						ref={inputRef}
+						onEnter={onEnter}
+						aria-label="Chat message input"
+					/>
+				</WorkspaceFilesContext>,
+				queryClient,
+			);
+			return { inputRef, onEnter };
+		};
+
+		const pasteText = async (text: string) => {
+			const user = userEvent.setup();
+			await user.click(
+				screen.getByRole("textbox", { name: "Chat message input" }),
+			);
+			await user.paste(text);
+			return user;
+		};
+
+		it("searches the repo roots and inserts the chosen file on Enter", async () => {
+			mockFindFiles();
+			const { inputRef, onEnter } = renderWithWorkspaceFiles(workspaceFiles);
+			const user = await pasteText("see @main");
+			await screen.findByRole("option", { name: /main\.go/ });
+			expect(API.findWorkspaceAgentFiles).toHaveBeenLastCalledWith(
+				"agent-1",
+				["/home/coder/a", "/home/coder/b"],
+				"main",
+				undefined,
+			);
+
+			await user.keyboard("{Enter}");
+			expect(onEnter).not.toHaveBeenCalled();
+			expect(inputRef.current?.getContentParts()).toEqual([
+				{ type: "text", text: "see `/home/coder/a/src/main.go` " },
+			]);
+
+			await user.keyboard("{Enter}");
+			expect(onEnter).toHaveBeenCalledTimes(1);
+		});
+
+		it("searches the default directory without repo roots", async () => {
+			mockFindFiles();
+			renderWithWorkspaceFiles({ ...workspaceFiles, repoRoots: [] });
+			await pasteText("@x");
+			await waitFor(() =>
+				expect(API.findWorkspaceAgentFiles).toHaveBeenCalledWith(
+					"agent-1",
+					[""],
+					"x",
+					undefined,
+				),
+			);
+		});
+
+		it("references a folder with a trailing slash", async () => {
+			mockFindFiles();
+			const { inputRef } = renderWithWorkspaceFiles(workspaceFiles);
+			const user = await pasteText("@src");
+			await user.click(await screen.findByRole("option", { name: /^src\// }));
+			expect(inputRef.current?.getValue()).toBe("`/home/coder/b/src/` ");
+		});
+
+		it("restores chips from a saved draft", async () => {
+			mockFindFiles();
+			const onChange =
+				vi.fn<(content: string, serializedEditorState: string) => void>();
+			const queryClient = createTestQueryClient();
+			const { unmount } = renderWithQueryClient(
+				<WorkspaceFilesContext value={workspaceFiles}>
+					<ChatMessageInput
+						{...requiredProps()}
+						onChange={onChange}
+						aria-label="Chat message input"
+					/>
+				</WorkspaceFilesContext>,
+				queryClient,
+			);
+			const user = await pasteText("@main");
+			await screen.findByRole("option", { name: /main\.go/ });
+			await user.keyboard("{Enter}");
+			const [content, draft] = onChange.mock.lastCall ?? [];
+			expect(content).toBe("`/home/coder/a/src/main.go` ");
+			unmount();
+
+			const inputRef = createRef<ChatMessageInputRef>();
+			renderWithQueryClient(
+				<ChatMessageInput
+					{...requiredProps()}
+					ref={inputRef}
+					initialEditorState={draft}
+					aria-label="Chat message input"
+				/>,
+			);
+			await waitFor(() =>
+				expect(inputRef.current?.getValue()).toBe(
+					"`/home/coder/a/src/main.go` ",
+				),
+			);
+			await user.click(screen.getByRole("button", { name: "Remove main.go" }));
+			await waitFor(() => expect(inputRef.current?.getValue()).toBe(" "));
+			expect(
+				screen.getByRole("textbox", { name: "Chat message input" }),
+			).toHaveFocus();
+		});
+
+		it("reopens an edited message with its path chips in place", async () => {
+			const content: ChatMessagePart[] = [
+				{
+					type: "text",
+					text: "see `/home/coder/a/src/main.go` and\n`/home/coder/b/src/` ",
+				},
+			];
+			const { text, editorState } = getEditableUserMessagePayload({
+				...MockChatMessage,
+				content,
+			});
+			const inputRef = createRef<ChatMessageInputRef>();
+			renderWithQueryClient(
+				<ChatMessageInput
+					{...requiredProps()}
+					ref={inputRef}
+					initialValue={text}
+					initialEditorState={editorState}
+					aria-label="Chat message input"
+				/>,
+			);
+			await waitFor(() => {
+				expect(getRequestContent(inputRef)).toEqual(content);
+			});
+			const user = userEvent.setup();
+			await user.click(
+				await screen.findByRole("button", { name: "Remove main.go" }),
+			);
+			await waitFor(() =>
+				expect(inputRef.current?.getValue()).toBe(
+					"see  and\n`/home/coder/b/src/` ",
+				),
+			);
+		});
+
+		it("lets Enter send after Escape dismisses the picker", async () => {
+			mockFindFiles();
+			const { inputRef, onEnter } = renderWithWorkspaceFiles(workspaceFiles);
+			const user = await pasteText("@main");
+			await screen.findByRole("option", { name: /main\.go/ });
+			await user.keyboard("{Escape}{Enter}");
+			expect(onEnter).toHaveBeenCalledTimes(1);
+			expect(inputRef.current?.getValue()).toBe("@main");
+		});
+
+		it("does not send on Enter while the picker has no results", async () => {
+			vi.spyOn(API, "findWorkspaceAgentFiles").mockResolvedValue({
+				results: [],
+			});
+			const { inputRef, onEnter } = renderWithWorkspaceFiles(workspaceFiles);
+			const user = await pasteText("@none");
+			await screen.findByText("No matching files.");
+			await user.keyboard("{Enter}");
+			expect(onEnter).not.toHaveBeenCalled();
+			expect(inputRef.current?.getValue()).toBe("@none");
+		});
+
+		it("reopens a dismissed picker when the query changes", async () => {
+			mockFindFiles();
+			renderWithWorkspaceFiles(workspaceFiles);
+			const user = await pasteText("@main");
+			await screen.findByRole("option", { name: /main\.go/ });
+			await user.keyboard("{Escape}");
+			await user.paste("x");
+			await waitFor(() =>
+				expect(API.findWorkspaceAgentFiles).toHaveBeenLastCalledWith(
+					"agent-1",
+					["/home/coder/a", "/home/coder/b"],
+					"mainx",
+					undefined,
+				),
+			);
+		});
+
+		it("points the editor at the picker's listbox and highlighted option", async () => {
+			mockFindFiles();
+			renderWithWorkspaceFiles(workspaceFiles);
+			const user = await pasteText("@main");
+			const file = await screen.findByRole("option", { name: /main\.go/ });
+			const textbox = screen.getByRole("textbox", {
+				name: "Chat message input",
+			});
+			const listbox = screen.getByRole("listbox", { name: "Workspace files" });
+			await waitFor(() =>
+				expect(textbox.getAttribute("aria-activedescendant")).toBe(file.id),
+			);
+			expect(textbox.getAttribute("aria-controls")).toBe(listbox.id);
+
+			await user.keyboard("{ArrowDown}");
+			const folder = screen.getByRole("option", { name: /^src\// });
+			await waitFor(() =>
+				expect(textbox.getAttribute("aria-activedescendant")).toBe(folder.id),
+			);
+
+			await user.keyboard("{Escape}");
+			await waitFor(() =>
+				expect(textbox.getAttribute("aria-controls")).toBeNull(),
+			);
+		});
+
+		it("points the editor at the skills listbox and highlighted option", async () => {
+			mockFindFiles();
+			renderWithWorkspaceFiles(workspaceFiles);
+			await pasteText("/rev");
+			const option = await screen.findByRole("option", { name: /reviewer/ });
+			const textbox = screen.getByRole("textbox", {
+				name: "Chat message input",
+			});
+			const listbox = screen.getByRole("listbox", {
+				name: "Commands and skills",
+			});
+			await waitFor(() =>
+				expect(textbox.getAttribute("aria-activedescendant")).toBe(option.id),
+			);
+			expect(textbox.getAttribute("aria-controls")).toBe(listbox.id);
+		});
+
+		it("does not open inside a word", async () => {
+			mockFindFiles();
+			const { onEnter } = renderWithWorkspaceFiles(workspaceFiles);
+			const user = await pasteText("mail user@host");
+			await user.keyboard("{Enter}");
+			expect(onEnter).toHaveBeenCalledTimes(1);
+			expect(API.findWorkspaceAgentFiles).not.toHaveBeenCalled();
+		});
+
+		it("is plain text without workspace files", async () => {
+			mockFindFiles();
+			const { inputRef, onEnter } = renderWithWorkspaceFiles(undefined);
+			const user = await pasteText("@main");
+			await user.keyboard("{Enter}");
+			expect(onEnter).toHaveBeenCalledTimes(1);
+			expect(inputRef.current?.getValue()).toBe("@main");
+			expect(API.findWorkspaceAgentFiles).not.toHaveBeenCalled();
+		});
+
+		it("copies path and skill chips as the text they send", async () => {
+			// Lexical's clipboard handlers check these jsdom-missing classes.
+			vi.stubGlobal("ClipboardEvent", class ClipboardEvent extends Event {});
+			vi.stubGlobal("DragEvent", class DragEvent extends MouseEvent {});
+			mockFindFiles();
+			const { inputRef } = renderWithWorkspaceFiles(workspaceFiles);
+			const user = await pasteText("see @main");
+			await screen.findByRole("option", { name: /main\.go/ });
+			await user.keyboard("{Enter}");
+			act(() => inputRef.current?.insertSkill("personal", "reviewer"));
+			await user.keyboard("{Control>}a{/Control}");
+			const copied = await user.copy();
+			expect(copied?.getData("text/plain")).toBe(
+				"see `/home/coder/a/src/main.go` /personal/reviewer ",
+			);
+
+			act(() => inputRef.current?.clear());
+			await user.paste(copied);
+			await waitFor(() =>
+				expect(getRequestContent(inputRef)).toEqual([
+					{ type: "text", text: "see `/home/coder/a/src/main.go` " },
+					mockSkillPart("personal", "reviewer"),
+				]),
+			);
+			await user.click(screen.getByRole("button", { name: "Remove main.go" }));
+			await waitFor(() =>
+				expect(getRequestContent(inputRef)).toEqual([
+					{ type: "text", text: "see  " },
+					mockSkillPart("personal", "reviewer"),
+				]),
+			);
+		});
+
+		it("keeps the skills trigger working", async () => {
+			mockFindFiles();
+			const { inputRef } = renderWithWorkspaceFiles(workspaceFiles);
+			const user = await pasteText("/rev");
+			await user.click(await screen.findByRole("option", { name: /reviewer/ }));
+			expect(getRequestContent(inputRef)).toEqual([
+				mockSkillPart("personal", "reviewer"),
+			]);
+			expect(API.findWorkspaceAgentFiles).not.toHaveBeenCalled();
 		});
 	});
 });

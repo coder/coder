@@ -1393,6 +1393,18 @@ func New(options *Options) *API {
 			})
 		})
 		api.registerExperimentalChatRoutes(r, apiKeyMiddleware)
+		r.Route("/workspaceagents/{workspaceagent}/files", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.NoStore,
+				httpmw.RequireUserExperimentWithDevBypass(api.ExperimentEvaluator, codersdk.ExperimentWorkspaceFiles),
+				httpmw.ExtractWorkspaceAgentAndWorkspaceParam(options.Database),
+			)
+			r.Post("/list-directory", api.workspaceAgentFilesListDirectory)
+			r.Get("/read-file", api.workspaceAgentFilesReadFile)
+			r.Post("/write-file", api.workspaceAgentFilesWriteFile)
+			r.Get("/find-files", api.workspaceAgentFilesFindFiles)
+		})
 		r.Route("/organizations/{organization}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,

@@ -1,5 +1,6 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatAttachmentMediaTypes } from "#/api/typesGenerated";
+import { splitWorkspacePathReferences } from "../../utils/workspacePathReference";
 import { asRecord, asString } from "../ChatElements/runtimeTypeUtils";
 import {
 	getProvidedSubagentTitle,
@@ -402,7 +403,7 @@ export const getEditableUserMessagePayload = (
 ): {
 	text: string;
 	fileBlocks: readonly TypesGen.ChatMessagePart[] | undefined;
-	/** Restores skill chips in place; undefined when there are none. */
+	/** Restores skill and "@" path chips in place; undefined when there are none. */
 	editorState: string | undefined;
 } => {
 	// Concatenate text parts verbatim to match the server-side string_agg in
@@ -417,11 +418,17 @@ export const getEditableUserMessagePayload = (
 	return {
 		text,
 		fileBlocks: fileBlocks.length > 0 ? fileBlocks : undefined,
-		editorState: parsed.blocks.some(
-			(block) => block.type === "skill-invocation",
-		)
-			? serializeMessageDraft(message.content ?? [])
-			: undefined,
+		editorState:
+			parsed.blocks.some((block) => block.type === "skill-invocation") ||
+			(message.content ?? []).some(
+				(part) =>
+					part.type === "text" &&
+					splitWorkspacePathReferences(part.text).some(
+						(segment) => segment.type === "path",
+					),
+			)
+				? serializeMessageDraft(message.content ?? [])
+				: undefined,
 	};
 };
 

@@ -2,11 +2,19 @@ import type { FileContents, FileDiffMetadata } from "@pierre/diffs";
 import { cn } from "cn";
 import { countChangedLines } from "../../../utils/countChangedLines";
 import { changeColor, changeLabel } from "../../../utils/diffColors";
+import { OpenFileButton } from "./FileToolHeader";
 
 export function DiffFileHeader({
 	file,
+	openPath,
 }: {
 	file: FileDiffMetadata | FileContents;
+	/**
+	 * Absolute path that a button in the header opens, for rows that list
+	 * several files. Diff parsing can drop the leading slash from the file
+	 * name, so the caller passes the path it acted on.
+	 */
+	openPath?: string;
 }) {
 	const isDiff = "type" in file;
 	const stats = isDiff ? countChangedLines(file) : null;
@@ -33,20 +41,23 @@ export function DiffFileHeader({
 					{file.name}
 				</span>
 			</div>
-			{stats && (stats.additions > 0 || stats.deletions > 0) && (
-				<span className="inline-flex shrink-0 flex-row-reverse items-stretch overflow-hidden rounded-[3px] border border-solid border-border font-mono text-xs font-medium leading-5">
-					{stats.deletions > 0 && (
-						<span className="flex items-center bg-surface-git-deleted px-1 text-git-deleted-bright">
-							&minus;{stats.deletions}
-						</span>
-					)}
-					{stats.additions > 0 && (
-						<span className="flex items-center bg-surface-git-added px-1 text-git-added-bright">
-							+{stats.additions}
-						</span>
-					)}
-				</span>
-			)}
+			<div className="flex shrink-0 items-center gap-1">
+				{stats && (stats.additions > 0 || stats.deletions > 0) && (
+					<span className="inline-flex shrink-0 flex-row-reverse items-stretch overflow-hidden rounded-[3px] border border-solid border-border font-mono text-xs font-medium leading-5">
+						{stats.deletions > 0 && (
+							<span className="flex items-center bg-surface-git-deleted px-1 text-git-deleted-bright">
+								&minus;{stats.deletions}
+							</span>
+						)}
+						{stats.additions > 0 && (
+							<span className="flex items-center bg-surface-git-added px-1 text-git-added-bright">
+								+{stats.additions}
+							</span>
+						)}
+					</span>
+				)}
+				{openPath && <OpenFileButton path={openPath} />}
+			</div>
 		</div>
 	);
 }

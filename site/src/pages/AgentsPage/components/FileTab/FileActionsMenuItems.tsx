@@ -1,0 +1,162 @@
+import { ExternalLinkIcon } from "lucide-react";
+import { useSyncExternalStore } from "react";
+import { useQuery } from "react-query";
+import { workspaceAgentFile } from "#/api/queries/workspaceFiles";
+import type {
+	ContextMenuItem,
+	ContextMenuSeparator,
+} from "#/components/ContextMenu/ContextMenu";
+import type {
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+} from "#/components/DropdownMenu/DropdownMenu";
+import { useClipboard } from "#/hooks/useClipboard";
+import { useWorkspaceFiles } from "../../context/WorkspaceFilesContext";
+import {
+	changeRequestLabel,
+	getChangeRequestFilesUrl,
+	getFileDiffAnchor,
+	getFileWebLinks,
+	gitProviderNames,
+} from "../../utils/gitWebUrl";
+import {
+	findRepoRoot,
+	getHeadLine,
+	isAddedInDiff,
+} from "../MainTabs/useFileTabRefresh";
+
+type FileActionsMenuItemsProps = {
+	readonly Item: typeof DropdownMenuItem | typeof ContextMenuItem;
+	readonly Separator:
+		| typeof DropdownMenuSeparator
+		| typeof ContextMenuSeparator;
+	/** The file's absolute path. */
+	readonly path: string;
+	/**
+	 * The cursor's line in the file on disk, which the link at HEAD scrolls
+	 * to. Undefined while the editor has unsaved edits, since the lines of
+	 * the file on disk then differ from the editor's.
+	 */
+	readonly line?: number;
+};
+
+const subscribeToNoMessages = () => () => {};
+const getNoArrival = () => undefined;
+
+/** Actions on an open file, shared by its header menu and its tab's menu. */
+export const FileActionsMenuItems: React.FC<FileActionsMenuItemsProps> = ({
+	Item,
+	Separator,
+	path,
+	line,
+}) => {
+	const workspaceFiles = useWorkspaceFiles();
+	const { copyToClipboard } = useClipboard();
+	const root = workspaceFiles && findRepoRoot(workspaceFiles.repoRoots, path);
+	const relativePath =
+		root && root !== path ? path.slice(root.length + 1) : undefined;
+	const repository = root ? workspaceFiles?.repositories.get(root) : undefined;
+	const diff = repository?.unified_diff ?? "";
+	// Follows the tab's read of the file without reading it. With an
+	// infinite staleTime, only an invalidation, which a reread follows,
+	// makes the read stale. gcTime matches the tab's.
+	const fileQuery = useQuery({
+		...workspaceAgentFile(workspaceFiles?.agentId ?? "", path),
+		enabled: false,
+		staleTime: Number.POSITIVE_INFINITY,
+		gcTime: 0,
+	});
+	const watcherMessages = workspaceFiles?.watcherMessages;
+	const watcherMessageAt = useSyncExternalStore(
+		watcherMessages?.subscribe ?? subscribeToNoMessages,
+		watcherMessages?.getLastArrival ?? getNoArrival,
+	);
+	// The diff describes the file as the tab read or saved it only once a
+	// scan reported after that, and while no reread is pending.
+	const diffDescribesRead =
+		watcherMessageAt !== undefined &&
+		watcherMessageAt > fileQuery.dataUpdatedAt &&
+		!fileQuery.isStale &&
+		fileQuery.fetchStatus === "idle";
+	// A file HEAD lacks has no page on the host, at HEAD or in the pull
+	// request.
+	const links =
+		workspaceFiles &&
+		relativePath &&
+		repository?.remote_origin &&
+		!isAddedInDiff(diff, relativePath)
+			? getFileWebLinks({
+					origin: repository.remote_origin,
+					branch: repository.branch,
+					headCommit: repository.head_commit ?? "",
+					relativePath,
+					headLine:
+						line !== undefined && diffDescribesRead
+							? getHeadLine(diff, relativePath, line)
+							: undefined,
+					diffStatuses: workspaceFiles.diffStatuses,
+				})
+			: undefined;
+	const provider = links?.repository.provider;
+	// Hashing is asynchronous, so the pull request link gains its file's
+	// anchor a moment after the menu opens.
+	const anchorQuery = useQuery({
+		queryKey: ["fileDiffAnchor", provider, relativePath],
+		queryFn: async () =>
+			(provider &&
+				relativePath &&
+				(await getFileDiffAnchor(provider, relativePath))) ||
+			null,
+		enabled: Boolean(links?.changeRequest),
+		staleTime: Number.POSITIVE_INFINITY,
+	});
+
+	return (
+		<>
+			<Item onSelect={() => void copyToClipboard(path)}>Copy path</Item>
+			{relativePath !== undefined && (
+				<Item onSelect={() => void copyToClipboard(relativePath)}>
+					Copy relative path
+				</Item>
+			)}
+			{workspaceFiles && (
+				<Item onSelect={() => workspaceFiles.revealInFiles(path)}>
+					Reveal in Files
+				</Item>
+			)}
+			{provider && (links?.blob || links?.changeRequest) && <Separator />}
+			{provider && links?.blob && (
+				<Item asChild>
+					<a
+						href={links.blob.url}
+						target="_blank"
+						rel="noreferrer"
+						title={
+							links.blob.commit &&
+							`Opens commit ${links.blob.commit.slice(0, 7)}, the checked-out HEAD. ${gitProviderNames[provider]} shows a 404 if the commit is not pushed.`
+						}
+					>
+						Open on {gitProviderNames[provider]}
+						<ExternalLinkIcon className="ml-auto size-3.5!" />
+					</a>
+				</Item>
+			)}
+			{provider && links?.changeRequest && (
+				<Item asChild>
+					<a
+						href={getChangeRequestFilesUrl(
+							provider,
+							links.changeRequest.url,
+							anchorQuery.data ?? undefined,
+						)}
+						target="_blank"
+						rel="noreferrer"
+					>
+						Open in {changeRequestLabel(provider, links.changeRequest.number)}
+						<ExternalLinkIcon className="ml-auto size-3.5!" />
+					</a>
+				</Item>
+			)}
+		</>
+	);
+};
