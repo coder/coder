@@ -58,6 +58,7 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 					isLatestAskUserQuestion
 					previousResponseText={queuedAnswerText}
 					onSendAskUserQuestionResponse={onSubmitAnswer}
+					announcesQuestion={false}
 					onStepChange={() => {
 						if (sectionRef.current) {
 							sectionRef.current.scrollTop = 0;

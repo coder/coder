@@ -43,6 +43,12 @@ type AskUserQuestionToolProps = {
 	asyncToolCallId?: string;
 	/** The question is answered in the dock above the chat input instead of in this card. */
 	isDocked?: boolean;
+	/**
+	 * False for the dock's card. The dock mounts with its question in it, and
+	 * screen readers can miss a live region that arrives with its text, so
+	 * the timeline card, mounted while the call ran, announces the question.
+	 */
+	announcesQuestion?: boolean;
 	onSubmitAnswer?: (message: string) => Promise<void> | void;
 	onStepChange?: () => void;
 };
@@ -389,6 +395,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	previousResponseText,
 	asyncToolCallId,
 	isDocked = false,
+	announcesQuestion = true,
 	onSubmitAnswer,
 	onStepChange,
 }) => {
@@ -438,13 +445,13 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 		Math.max(filteredQuestions.length - 1, 0),
 	);
 	const currentAnswer = answers[activeQuestionIndex];
-	const isInteractive =
+	const isAnswerable =
 		(isAsync || isChatCompleted) &&
 		status === "completed" &&
 		isLatestAskUserQuestion &&
 		!hasSubmittedResponse &&
-		!isDocked &&
 		Boolean(onSubmitAnswer);
+	const isInteractive = isAnswerable && !isDocked;
 	const isClosed =
 		isAsync &&
 		status === "completed" &&
@@ -454,7 +461,8 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	const announcement = (
 		<span role="status" className="sr-only">
 			{isAsync &&
-				isInteractive &&
+				isAnswerable &&
+				announcesQuestion &&
 				"The agent asked a question. It keeps working while you answer."}
 		</span>
 	);

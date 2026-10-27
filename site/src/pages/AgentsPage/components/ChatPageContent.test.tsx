@@ -302,6 +302,18 @@ describe("ChatPageTimeline question dock", () => {
 		);
 	});
 
+	it("announces the docked question once, from its timeline card", () => {
+		renderChatPageTimeline(vi.fn());
+
+		const announcements = screen
+			.getAllByRole("status")
+			.filter((region) =>
+				region.textContent?.includes("The agent asked a question"),
+			);
+		expect(announcements).toHaveLength(1);
+		expect(getQuestionDock().contains(announcements[0])).toBe(false);
+	});
+
 	it("keeps the dock's draft through a failed send", async () => {
 		const user = userEvent.setup();
 		const pendingSend = createDeferred<undefined>();

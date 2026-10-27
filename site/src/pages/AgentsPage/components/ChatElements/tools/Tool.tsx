@@ -685,7 +685,10 @@ type AskUserQuestionRendererProps = Pick<
 	| "isDockedAskUserQuestion"
 	| "previousResponseText"
 > &
-	Pick<React.ComponentProps<typeof AskUserQuestionTool>, "onStepChange">;
+	Pick<
+		React.ComponentProps<typeof AskUserQuestionTool>,
+		"announcesQuestion" | "onStepChange"
+	>;
 
 /**
  * Reads the questions from the call's raw args, or from its result when the
@@ -704,6 +707,7 @@ export const AskUserQuestionRenderer: React.FC<
 	isLatestAskUserQuestion,
 	isDockedAskUserQuestion,
 	previousResponseText,
+	announcesQuestion,
 	onStepChange,
 }) => {
 	const parsedArgs = parseArgs(args);
@@ -736,6 +740,7 @@ export const AskUserQuestionRenderer: React.FC<
 			isDocked={isDockedAskUserQuestion}
 			previousResponseText={previousResponseText}
 			asyncToolCallId={parsedResult?.isAsync ? toolCallId : undefined}
+			announcesQuestion={announcesQuestion}
 			onStepChange={onStepChange}
 		/>
 	);
