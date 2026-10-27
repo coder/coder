@@ -177,7 +177,7 @@ type ToolStep = {
 	result: TypesGen.ChatToolResultPart["result"];
 };
 
-/** A tool call at `callAt` and its result at `resultAt`, as the server stores them. */
+/** A tool call whose result sits in its own tool message, as the server stores it. */
 export const workingStepMessages = (
 	id: number,
 	toolCallId: string,

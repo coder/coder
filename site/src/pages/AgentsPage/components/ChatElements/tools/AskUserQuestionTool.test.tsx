@@ -115,4 +115,24 @@ describe("AskUserQuestionTool", () => {
 		expect(onSubmitAnswer).toHaveBeenCalledTimes(2);
 		expect(onSubmitAnswer).toHaveBeenNthCalledWith(2, answer);
 	});
+
+	it.each([
+		["announces an answerable async question", vi.fn(), "The agent asked"],
+		["stays quiet without an answer handler", undefined, ""],
+	])("%s", (_, onSubmitAnswer, announcement) => {
+		render(
+			<QueryClientProvider client={createTestQueryClient()}>
+				<AskUserQuestionTool
+					questions={questions}
+					status="completed"
+					isError={false}
+					isLatestAskUserQuestion
+					asyncToolCallId="call-123"
+					onSubmitAnswer={onSubmitAnswer}
+				/>
+			</QueryClientProvider>,
+		);
+
+		expect(screen.getByRole("status")).toHaveTextContent(announcement);
+	});
 });

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	getAsyncAnswerPrefix,
 	getAsyncAnswerText,
+	isAsyncAnswerPrompt,
 	parseAsyncAnswer,
 } from "./asyncAnswer";
 
@@ -46,5 +47,16 @@ describe("getAsyncAnswerText", () => {
 
 		expect(getAsyncAnswerText(answer, "toolu_123")).toBe("Single migration");
 		expect(getAsyncAnswerText(answer, "toolu_456")).toBeUndefined();
+	});
+});
+
+describe("isAsyncAnswerPrompt", () => {
+	// The prompt history joins text parts, so a chip right after the prefix
+	// line leaves no line break after the call ID.
+	it.each([
+		`${getAsyncAnswerPrefix("toolu_123")}Frontend`,
+		"Answer to ask_user_question call toolu_123:on the rollout plan.",
+	])("matches the answer %j", (text) => {
+		expect(isAsyncAnswerPrompt(text)).toBe(true);
 	});
 });

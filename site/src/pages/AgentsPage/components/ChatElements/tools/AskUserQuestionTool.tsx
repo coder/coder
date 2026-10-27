@@ -4,7 +4,7 @@ import {
 	MessageCircleQuestionIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useMutation } from "react-query";
 import { Button } from "#/components/Button/Button";
@@ -428,14 +428,6 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	) {
 		setSubmittedResponseText(null);
 	}
-	// The transcript or queue can confirm an answer whose send reported an
-	// error, or one that another tab sent.
-	const { reset: resetSubmitAnswer } = submitAnswerMutation;
-	useEffect(() => {
-		if (answeredResponseText !== undefined) {
-			resetSubmitAnswer();
-		}
-	}, [answeredResponseText, resetSubmitAnswer]);
 	const displayedSubmittedResponseText =
 		answeredResponseText ?? submittedResponseText;
 	const hasSubmittedResponse = displayedSubmittedResponseText != null;
@@ -459,20 +451,20 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 		!isLatestAskUserQuestion &&
 		!hasSubmittedResponse;
 	// The agent keeps working, so the question needs its own announcement.
-	const isOpenAsyncQuestion =
-		isAsync &&
-		status === "completed" &&
-		isLatestAskUserQuestion &&
-		!hasSubmittedResponse &&
-		!isDocked;
 	const announcement = (
 		<span role="status" className="sr-only">
-			{isOpenAsyncQuestion &&
+			{isAsync &&
+				isInteractive &&
 				"The agent asked a question. It keeps working while you answer."}
 		</span>
 	);
 	const isSubmitting = submitAnswerMutation.isPending;
-	const submitError = getSubmissionErrorMessage(submitAnswerMutation.error);
+	// A send can fail after the server took the answer, so the error shows
+	// only until the transcript or queue has an answer.
+	const submitError =
+		answeredResponseText === undefined
+			? getSubmissionErrorMessage(submitAnswerMutation.error)
+			: undefined;
 	const canAdvanceToNextQuestion = isAnswerValid(currentAnswer);
 	const canSubmitAllAnswers = filteredQuestions.every((_, questionIndex) =>
 		isAnswerValid(answers[questionIndex]),
