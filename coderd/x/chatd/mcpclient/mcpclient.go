@@ -1078,6 +1078,9 @@ type secretRedactor struct {
 	// names holds the redacted name of each schema name that
 	// withSchemaNames renamed.
 	names map[string]string
+	// uriNames holds the placeholder that withSchemaNames gave each
+	// sensitive value in the URIs of references and resource IDs.
+	uriNames map[string]string
 }
 
 func newSecretRedactor(values []string) secretRedactor {
@@ -1204,7 +1207,8 @@ func (r secretRedactor) redactValue(value any) any {
 // maps of names, "required" lists, and references keep agreeing on what
 // each name is. A published "$schema" is kept, since it is public and
 // decides how the schema is read. Instance data and annotations, such
-// as "enum" values and descriptions, are redacted like any other text.
+// as "enum" values and descriptions, are redacted like any other text,
+// except for their keys (see redactSchemaData).
 func (r secretRedactor) redactSchemaMap(schema map[string]any) map[string]any {
 	if len(schema) == 0 || len(r.values) == 0 {
 		return schema
@@ -1282,7 +1286,26 @@ func (r secretRedactor) redactKeywordValue(key string, value any) any {
 			return r.redactSchemaProperties(named)
 		}
 	}
-	return r.redactValue(value)
+	return r.redactSchemaData(value)
+}
+
+// redactSchemaData redacts a value in a schema that holds no subschemas,
+// such as instance data or the value of a key that is not a keyword. Its
+// keys are redacted like names, since a reference's JSON Pointer may pass
+// through them, and its text like any other text.
+func (r secretRedactor) redactSchemaData(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		return r.redactNamedMap(typed, r.redactSchemaData)
+	case []any:
+		redacted := make([]any, len(typed))
+		for i, item := range typed {
+			redacted[i] = r.redactSchemaData(item)
+		}
+		return redacted
+	default:
+		return r.redactValue(value)
+	}
 }
 
 // redactSchemaProperties redacts a map from names to schemas, such as
@@ -1366,7 +1389,11 @@ func (r secretRedactor) redactSchemaName(value string) string {
 // placeholder, so that the pointer does not show a value that spans
 // tokens and still names its target. Names are taken from every key
 // and string in schema and from the fragment of each reference, which
-// reserves more names than schema has but never fewer.
+// reserves more names than schema has but never fewer. Each sensitive
+// value also gets a numbered placeholder of its own for the URIs of
+// references and resource IDs, one that no name holds, so that URIs
+// that differ still differ once redacted and a relative reference still
+// resolves to the resource ID it named.
 func (r secretRedactor) withSchemaNames(schema map[string]any) secretRedactor {
 	if len(r.values) == 0 {
 		return r
@@ -1392,14 +1419,31 @@ func (r secretRedactor) withSchemaNames(schema map[string]any) secretRedactor {
 		last := strings.LastIndex(base, redactedNamePlaceholder)
 		redacted := base
 		for n := 2; taken[redacted]; n++ {
-			suffix := "_" + strconv.Itoa(n)
-			placeholder := redactedNamePlaceholder[:max(0, len(redactedNamePlaceholder)-len(suffix))] + suffix
-			redacted = base[:last] + placeholder + base[last+len(redactedNamePlaceholder):]
+			redacted = base[:last] + numberedPlaceholder(n) + base[last+len(redactedNamePlaceholder):]
 		}
 		taken[redacted] = true
 		r.names[name] = redacted
 	}
+	r.uriNames = make(map[string]string, len(r.values))
+	n := 1
+	for _, secret := range r.values {
+		for names.spell(numberedPlaceholder(n)) {
+			n++
+		}
+		r.uriNames[secret] = numberedPlaceholder(n)
+		n++
+	}
 	return r
+}
+
+// numberedPlaceholder returns redactedNamePlaceholder for 1 and, for a
+// larger n, a placeholder of the same length that ends in "_n".
+func numberedPlaceholder(n int) string {
+	if n == 1 {
+		return redactedNamePlaceholder
+	}
+	suffix := "_" + strconv.Itoa(n)
+	return redactedNamePlaceholder[:max(0, len(redactedNamePlaceholder)-len(suffix))] + suffix
 }
 
 // schemaNames maps each name in a schema to whether a sensitive value
@@ -1409,6 +1453,23 @@ type schemaNames map[string]bool
 
 func (n schemaNames) add(name string, overlapped bool) {
 	n[name] = n[name] || overlapped
+}
+
+// spell reports whether a name holds text, also where it percent-encodes
+// some of it.
+func (n schemaNames) spell(text string) bool {
+	for name := range n {
+		if strings.Contains(name, text) {
+			return true
+		}
+		if !strings.Contains(name, "%") {
+			continue
+		}
+		if decoded, _ := decodePercentOffsets(name); strings.Contains(decoded, text) {
+			return true
+		}
+	}
+	return false
 }
 
 // collectSchemaNames adds every key and string in value to names, along
@@ -1506,17 +1567,14 @@ func referenceAnchor(fragment string) string {
 // in the redacted schema: an anchor fragment and each name in a JSON
 // Pointer fragment are redacted like the names they are, and the pointer
 // tokens that are keywords stay. Each occurrence of a sensitive value
-// left in the reference, as in its URI, is then replaced like
-// redactSchemaName does, unless it lies within those keyword tokens and
-// the delimiters between them, which show nothing every schema does not.
-// A URI that percent-encodes a sensitive value is replaced whole.
+// left in the reference is then replaced like redactSchemaName does,
+// unless it lies within those keyword tokens and the delimiters between
+// them, which show nothing every schema does not. The URI part is
+// redacted by redactReferenceURI first.
 func (r secretRedactor) redactReference(ref string) string {
 	uri, fragment, hasFragment := strings.Cut(ref, "#")
-	if decoded, err := url.PathUnescape(uri); err == nil && decoded != uri && r.replace(decoded, "") != decoded {
-		uri = redactedNamePlaceholder
-	}
 	var text maskedText
-	text.write(uri, false)
+	text.write(r.redactReferenceURI(uri), false)
 	if hasFragment {
 		text.write("#", true)
 		if pointer, ok := parseReferencePointer(fragment); ok {
@@ -1534,6 +1592,65 @@ func (r secretRedactor) redactReference(ref string) string {
 		}
 	}
 	return r.redactReferenceText(text.String(), text.kept)
+}
+
+// redactReferenceURI replaces each sensitive value in the URI part of a
+// reference or resource ID with the placeholder withSchemaNames gave it,
+// also where the URI percent-encodes some of the value's bytes, and
+// keeps the rest of the URI as it is spelled.
+func (r secretRedactor) redactReferenceURI(uri string) string {
+	// decoded holds the bytes uri spells, and starts[i] is the offset in
+	// uri of the text that spells decoded[i].
+	decoded, starts := decodePercentOffsets(uri)
+	var b strings.Builder
+	written := 0
+	for i := 0; i < len(decoded); {
+		secret := r.valueAt(decoded[i:])
+		if secret == "" {
+			i++
+			continue
+		}
+		_, _ = b.WriteString(uri[written:starts[i]])
+		_, _ = b.WriteString(cmp.Or(r.uriNames[secret], redactedNamePlaceholder))
+		i += len(secret)
+		written = starts[i]
+	}
+	if written == 0 {
+		return uri
+	}
+	_, _ = b.WriteString(uri[written:])
+	return b.String()
+}
+
+// valueAt returns the longest sensitive value text starts with, or "".
+func (r secretRedactor) valueAt(text string) string {
+	for _, secret := range r.values {
+		if strings.HasPrefix(text, secret) {
+			return secret
+		}
+	}
+	return ""
+}
+
+// decodePercentOffsets decodes the percent-encoded bytes of text, keeping
+// a "%" that starts no escape, and returns the offset in text where each
+// decoded byte starts, followed by len(text).
+func decodePercentOffsets(text string) (string, []int) {
+	decoded := make([]byte, 0, len(text))
+	starts := make([]int, 0, len(text)+1)
+	for i := 0; i < len(text); {
+		starts = append(starts, i)
+		if text[i] == '%' && i+3 <= len(text) {
+			if value, err := strconv.ParseUint(text[i+1:i+3], 16, 8); err == nil {
+				decoded = append(decoded, byte(value))
+				i += 3
+				continue
+			}
+		}
+		decoded = append(decoded, text[i])
+		i++
+	}
+	return string(decoded), append(starts, len(text))
 }
 
 var pointerUnescaper = strings.NewReplacer("~1", "/", "~0", "~")
