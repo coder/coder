@@ -114,6 +114,12 @@ export const SubagentModelOverrideSettings: React.FC<
 		: undefined;
 	const isUnavailableSavedModel =
 		form.values.model_config_id !== "" && selectedModelOption === undefined;
+	let placeholder = unsetPlaceholder;
+	if (isLoading) {
+		placeholder = "Loading models...";
+	} else if (isUnavailableSavedModel) {
+		placeholder = "Unavailable model";
+	}
 
 	return (
 		<AgentSettingLayout
@@ -149,13 +155,7 @@ export const SubagentModelOverrideSettings: React.FC<
 						}}
 						triggerAriaLabel={title}
 						disabled={isFormDisabled}
-						placeholder={
-							isLoading
-								? "Loading models..."
-								: isUnavailableSavedModel
-									? "Unavailable model"
-									: unsetPlaceholder
-						}
+						placeholder={placeholder}
 						emptyMessage="No enabled models found."
 						className="h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm"
 						contentClassName="min-w-72"

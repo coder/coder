@@ -21,13 +21,13 @@ func TestMigration000634ChatModelOverrideComputerUse(t *testing.T) {
 
 	sqlDB := testSQLDB(t)
 	stepTo(t, sqlDB, 633)
-	ctx := testutil.Context(t, testutil.WaitLong)
 
 	upSQL, err := os.ReadFile("000634_chat_model_override_computer_use.up.sql")
 	require.NoError(t, err)
 	downSQL, err := os.ReadFile("000634_chat_model_override_computer_use.down.sql")
 	require.NoError(t, err)
 
+	ctx := testutil.Context(t, testutil.WaitLong)
 	var orgID uuid.UUID
 	require.NoError(t, sqlDB.QueryRowContext(ctx,
 		"SELECT id FROM organizations WHERE is_default = true").Scan(&orgID))

@@ -25,6 +25,7 @@ const CoderAgentsPage: React.FC = () => {
 	const { experiments, organizations } = useDashboard();
 	const queryClient = useQueryClient();
 	const [searchParams, setSearchParams] = useSearchParams();
+
 	const canEditDeploymentConfig = permissions.editDeploymentConfig;
 	const accessibleOrganizationsQuery =
 		useAccessibleModelOrganizations(organizations);
@@ -42,6 +43,7 @@ const CoderAgentsPage: React.FC = () => {
 	const activeOrganizationPermissions = activeOrganization
 		? organizationPermissionsQuery.data?.[activeOrganization.id]
 		: undefined;
+
 	const showAdvisorSettings = experiments.includes("chat-advisor");
 	const showComputerUseSettings = experiments.includes("chat-virtual-desktop");
 	const personalOverridesQuery = useQuery({
@@ -58,6 +60,7 @@ const CoderAgentsPage: React.FC = () => {
 	const saveAdvisorConfigMutation = useMutation(
 		updateChatAdvisorConfig(queryClient),
 	);
+
 	const canAccessOrganizationSettings =
 		accessibleOrganizationsQuery.organizations.length > 0;
 	const isFeatureVisible =
@@ -65,23 +68,29 @@ const CoderAgentsPage: React.FC = () => {
 		canAccessOrganizationSettings ||
 		accessibleOrganizationsQuery.isLoading ||
 		accessibleOrganizationsQuery.error !== null;
-	const organizationSettings =
-		activeOrganization &&
-		organizationPermissionsQuery.data === undefined &&
-		organizationPermissionsQuery.error == null ? (
-			<Loader />
-		) : activeOrganization &&
-			organizationPermissionsQuery.data !== undefined ? (
-			<OrganizationAgentSettings
-				organization={activeOrganization}
-				canEdit={
-					!organizationSelection.requestedOrganizationDenied &&
-					(activeOrganizationPermissions?.editChatModelConfigs ?? false)
-				}
-				showAdvisor={showAdvisorSettings}
-				showComputerUse={showComputerUseSettings}
-			/>
-		) : undefined;
+
+	const organizationSettings = (() => {
+		if (!activeOrganization) {
+			return undefined;
+		}
+		if (organizationPermissionsQuery.data !== undefined) {
+			return (
+				<OrganizationAgentSettings
+					organization={activeOrganization}
+					canEdit={
+						!organizationSelection.requestedOrganizationDenied &&
+						(activeOrganizationPermissions?.editChatModelConfigs ?? false)
+					}
+					showAdvisor={showAdvisorSettings}
+					showComputerUse={showComputerUseSettings}
+				/>
+			);
+		}
+		if (organizationPermissionsQuery.error == null) {
+			return <Loader />;
+		}
+		return undefined;
+	})();
 
 	return (
 		<RequirePermission isFeatureVisible={isFeatureVisible}>

@@ -344,7 +344,6 @@ func TestBuildTurnEnvironmentComputerUseRunsOnChatModel(t *testing.T) {
 			t.Parallel()
 
 			db, ps := dbtestutil.NewDB(t)
-			ctx := chatdTestContext(t)
 			user := dbgen.User(t, db, database.User{})
 			org := dbgen.Organization(t, db, database.Organization{})
 			dbgen.OrganizationMember(t, db, database.OrganizationMember{
@@ -370,6 +369,7 @@ func TestBuildTurnEnvironmentComputerUseRunsOnChatModel(t *testing.T) {
 			})
 
 			const attachmentText = "text attachment body"
+			ctx := chatdTestContext(t)
 			file, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
 				OwnerID:        user.ID,
 				OrganizationID: org.ID,

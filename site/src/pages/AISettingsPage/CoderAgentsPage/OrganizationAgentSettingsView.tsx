@@ -206,6 +206,40 @@ const CompactionOverrideAlert: React.FC<CompactionOverrideAlertProps> = ({
 	);
 };
 
+type ComputerUseModelWarningProps = {
+	selectedModelID: string;
+	defaultModelID: string | undefined;
+	computerUseProviderModels: readonly TypesGen.ChatModel[];
+	enabledModels: readonly TypesGen.ChatModel[];
+	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
+};
+
+const ComputerUseModelWarning: React.FC<ComputerUseModelWarningProps> = ({
+	selectedModelID,
+	defaultModelID,
+	computerUseProviderModels,
+	enabledModels,
+	providerInfoByID,
+}) => {
+	if (
+		!isUnverifiedComputerUseModel(
+			selectedModelID,
+			defaultModelID,
+			computerUseProviderModels,
+			enabledModels,
+			providerInfoByID,
+		)
+	) {
+		return null;
+	}
+
+	return (
+		<InfoTooltip type="warning" ariaLabel="Computer use model warning">
+			Make sure that the selected model supports computer use.
+		</InfoTooltip>
+	);
+};
+
 const OrganizationAgentSettingsView: React.FC<
 	OrganizationAgentSettingsViewProps
 > = ({
@@ -230,6 +264,7 @@ const OrganizationAgentSettingsView: React.FC<
 }) => {
 	const bannerError =
 		overridesLoadError ?? overridesRefetchError ?? modelsError;
+
 	// The default row only needs the model catalog, so a failed initial
 	// overrides load removes just the override rows.
 	const visibleSettings =
@@ -240,23 +275,11 @@ const OrganizationAgentSettingsView: React.FC<
 						(setting.context !== "computer_use" || showComputerUse),
 				)
 			: [];
+
 	const computerUseProviderModels = filterComputerUseProviderModels(
 		enabledModels,
 		providerInfoByID,
 	);
-	const renderComputerUseWarning = (selectedModelID: string) =>
-		overrides !== undefined &&
-		isUnverifiedComputerUseModel(
-			selectedModelID,
-			defaultModelID,
-			computerUseProviderModels,
-			enabledModels,
-			providerInfoByID,
-		) && (
-			<InfoTooltip type="warning" ariaLabel="Computer use model warning">
-				Make sure that the selected model supports computer use.
-			</InfoTooltip>
-		);
 
 	return (
 		<div className="flex flex-col gap-6">
@@ -318,7 +341,17 @@ const OrganizationAgentSettingsView: React.FC<
 									: undefined
 							}
 							renderSelectorAdornment={
-								isComputerUse ? renderComputerUseWarning : undefined
+								isComputerUse && overrides !== undefined
+									? (selectedModelID) => (
+											<ComputerUseModelWarning
+												selectedModelID={selectedModelID}
+												defaultModelID={defaultModelID}
+												computerUseProviderModels={computerUseProviderModels}
+												enabledModels={enabledModels}
+												providerInfoByID={providerInfoByID}
+											/>
+										)
+									: undefined
 							}
 							unsetPlaceholder={setting.unsetPlaceholder ?? "Use chat model"}
 							disabled={!canEdit}

@@ -16091,12 +16091,12 @@ func TestChatModelOverridesComputerUse(t *testing.T) {
 func TestChatModelOverridesComputerUseRequiresVirtualDesktopExperiment(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitLong)
 	values := coderdtest.DeploymentValues(t)
 	values.Experiments = serpent.StringArray{string(codersdk.ExperimentChatAdvisor)}
 	adminClient := newChatClientWithDeploymentValues(t, values)
 	firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
 
+	ctx := testutil.Context(t, testutil.WaitLong)
 	_, err := adminClient.UpdateOrganizationChatModelOverride(ctx, firstUser.OrganizationID, codersdk.ChatModelOverrideContextComputerUse, codersdk.UpdateChatModelOverrideRequest{})
 	requireSDKError(t, err, http.StatusNotFound)
 	// Other contexts stay available without the experiment.

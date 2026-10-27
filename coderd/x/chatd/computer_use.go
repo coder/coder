@@ -23,7 +23,6 @@ import (
 	"github.com/coder/quartz"
 )
 
-// computerUseModel is the model a computer use subagent runs on.
 type computerUseModel struct {
 	config   database.ChatModelConfig
 	provider codersdk.ChatComputerUseProvider
@@ -31,8 +30,6 @@ type computerUseModel struct {
 	reasoningEffort *string
 }
 
-// computerUseProviderForAIProviderType maps an AI provider type to the
-// computer use tool flavor it supports.
 func computerUseProviderForAIProviderType(providerType string) (codersdk.ChatComputerUseProvider, bool) {
 	switch chatprovider.NormalizeProvider(providerType) {
 	case fantasyanthropic.Name:
