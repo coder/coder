@@ -6,12 +6,18 @@ import { AskUserQuestionRenderer } from "./ChatElements/tools/Tool";
 
 type AskUserQuestionDockProps = {
 	question: MergedTool;
+	/**
+	 * Hides the dock while the answer waits in the queue. The dock stays
+	 * mounted so its draft is still there if the queue drops the answer.
+	 */
+	queuedAnswerText?: string;
 	onSubmitAnswer?: (message: string) => Promise<void> | void;
 };
 
 /** Callers must pass the question that deriveAskUserQuestionState reports as open. */
 export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 	question,
+	queuedAnswerText,
 	onSubmitAnswer,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
@@ -21,7 +27,10 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 	return (
 		// The stable scrollbar gutter matches the chat input's wrapper, so the
 		// panel lines up with the input where scrollbars take up space.
-		<div className="flex min-h-0 flex-col overflow-y-auto px-4 scrollbar-gutter-stable scrollbar-thin">
+		<div
+			hidden={queuedAnswerText !== undefined}
+			className="flex min-h-0 flex-col overflow-y-auto px-4 scrollbar-gutter-stable scrollbar-thin"
+		>
 			{/* Shrinks before the chat input does, so a long question set never
 			    pushes the input off a short screen. */}
 			<section
@@ -45,6 +54,7 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 					status={question.status}
 					isError={question.isError}
 					isLatestAskUserQuestion
+					previousResponseText={queuedAnswerText}
 					onSendAskUserQuestionResponse={onSubmitAnswer}
 					onStepChange={() => {
 						if (sectionRef.current) {

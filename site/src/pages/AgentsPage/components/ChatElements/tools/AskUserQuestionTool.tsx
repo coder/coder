@@ -518,6 +518,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 
 	// Focus moves to the new question because the Back or Next button can
 	// end up out of view below a taller step, or disabled on the first one.
+	// flushSync renders that step first; only an interactive step holds the ref.
 	const changeQuestion = (getIndex: (currentIndex: number) => number) => {
 		flushSync(() => {
 			setCurrentQuestionIndex(getIndex);

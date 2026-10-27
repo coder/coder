@@ -6,7 +6,7 @@ import { defaultUrlTransform } from "streamdown";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChat } from "#/testHelpers/chatEntities";
+import { MockChat, MockChatQueuedMessage } from "#/testHelpers/chatEntities";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
 	createPreferenceSeededQueryClient,
@@ -304,6 +304,37 @@ describe("ChatPageTimeline question dock", () => {
 			2,
 			"Answer to ask_user_question call question:\nFrontend",
 		);
+	});
+
+	it("hides the dock while its answer is queued and keeps the draft if the queue drops it", async () => {
+		const user = userEvent.setup();
+		const onSendAskUserQuestionResponse = vi.fn();
+		const { store } = renderChatPageTimeline(onSendAskUserQuestionResponse);
+		const answer = "Answer to ask_user_question call question:\nFrontend";
+
+		await user.click(
+			within(getQuestionDock()).getByRole("radio", { name: /^Frontend/ }),
+		);
+		await user.click(
+			within(getQuestionDock()).getByRole("button", { name: "Submit" }),
+		);
+		act(() => {
+			store.setQueuedMessages([
+				{ ...MockChatQueuedMessage, content: [{ type: "text", text: answer }] },
+			]);
+		});
+		expect(
+			screen.queryByRole("region", { name: "Open question" }),
+		).not.toBeInTheDocument();
+		act(() => {
+			store.setQueuedMessages([]);
+		});
+		await user.click(
+			within(getQuestionDock()).getByRole("button", { name: "Submit" }),
+		);
+
+		expect(onSendAskUserQuestionResponse).toHaveBeenCalledTimes(2);
+		expect(onSendAskUserQuestionResponse).toHaveBeenNthCalledWith(2, answer);
 	});
 
 	it("gives a newer async question a fresh form in the dock", async () => {

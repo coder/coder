@@ -98,7 +98,7 @@ export const buildStreamRenderState = (
 	};
 };
 
-/** Timeline args for a transcript with questions, derived as the chat page derives them. */
+/** Parses messages and derives their question state, taking live tools as given. */
 export const buildQuestionTimelineArgs = (
 	messages: readonly TypesGen.ChatMessage[],
 	{
@@ -123,6 +123,9 @@ export const buildQuestionTimelineArgs = (
 		),
 	};
 };
+
+/** Question state for a transcript that asks no question. */
+export const MockEmptyQuestionState = deriveAskUserQuestionState([], [], []);
 
 /**
  * Pinned clock for stories that render countdown timers. Stories
@@ -477,6 +480,7 @@ export const MockAsyncQuestionResult = {
 	async: true,
 };
 
+/** The tool message that returns MockAsyncQuestionResult to MockQuestionCallMessage. */
 export const MockAsyncQuestionResultMessage: TypesGen.ChatMessage = {
 	...MockChatMessage,
 	id: 5,

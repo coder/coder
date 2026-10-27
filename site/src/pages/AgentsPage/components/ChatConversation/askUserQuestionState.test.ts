@@ -171,7 +171,7 @@ describe("deriveAskUserQuestionState", () => {
 		expect(state.responseTextByToolId.get("async-call")).toBe(
 			answerMessage("async-call"),
 		);
-		expect(state.openAsyncQuestion).toBeUndefined();
+		expect(state.openAsyncQuestion?.id).toBe("async-call");
 	});
 
 	it("leaves no async question open once a newer blocking one asks", () => {

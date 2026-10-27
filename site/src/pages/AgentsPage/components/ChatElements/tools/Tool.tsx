@@ -689,7 +689,7 @@ type AskUserQuestionRendererProps = Pick<
 
 /**
  * Reads the questions from the call's raw args, or from its result when the
- * args have none, so the transcript and the question dock show the same form.
+ * args have none.
  */
 export const AskUserQuestionRenderer: React.FC<
 	AskUserQuestionRendererProps

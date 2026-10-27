@@ -218,6 +218,9 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 	const dockedQuestion = isReadOnly
 		? undefined
 		: askUserQuestionState.openAsyncQuestion;
+	const queuedAnswerText =
+		dockedQuestion &&
+		askUserQuestionState.responseTextByToolId.get(dockedQuestion.id);
 
 	return (
 		<ACPContext value={acpSessions}>
@@ -259,7 +262,9 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 						urlTransform={urlTransform}
 						mcpServers={mcpServers}
 						showDesktopPreviews={false}
-						dockedAskUserQuestionToolId={dockedQuestion?.id}
+						dockedAskUserQuestionToolId={
+							queuedAnswerText === undefined ? dockedQuestion?.id : undefined
+						}
 					/>
 					<TerminalStatusRow liveStatus={liveStatus} />
 				</ChatMessageScroller>
@@ -278,6 +283,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 					<AskUserQuestionDock
 						key={dockedQuestion.id}
 						question={dockedQuestion}
+						queuedAnswerText={queuedAnswerText}
 						onSubmitAnswer={onSendAskUserQuestionResponse}
 					/>
 				)}

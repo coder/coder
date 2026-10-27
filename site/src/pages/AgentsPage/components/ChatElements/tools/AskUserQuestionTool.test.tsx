@@ -74,13 +74,15 @@ describe("AskUserQuestionTool", () => {
 		);
 
 		await user.click(screen.getByRole("button", { name: "Next" }));
-		expect(document.activeElement).toHaveTextContent(
-			"How should the change ship?",
-		);
+		expect(
+			screen.getByText("How should the change ship?").closest("p"),
+		).toHaveFocus();
 		await user.click(screen.getByRole("button", { name: "Back" }));
-		expect(document.activeElement).toHaveTextContent(
-			"How should we structure the database migration?",
-		);
+		expect(
+			screen
+				.getByText("How should we structure the database migration?")
+				.closest("p"),
+		).toHaveFocus();
 	});
 
 	it("reopens an async question when its sent answer leaves the queue undelivered", async () => {

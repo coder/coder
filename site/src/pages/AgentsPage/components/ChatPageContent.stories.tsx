@@ -685,8 +685,6 @@ const MockTwoTallAsyncQuestionsResultMessage = buildQuestionResultMessage({
 	],
 });
 
-// Next sits at the bottom of a scrolled dock, and the next question still
-// starts at the top.
 export const AsyncQuestionDockedNextStepStartsAtTop: Story = {
 	render: () => (
 		<AsyncQuestionChatPage

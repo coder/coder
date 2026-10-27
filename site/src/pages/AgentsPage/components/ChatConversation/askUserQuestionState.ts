@@ -4,13 +4,22 @@ import { isAsyncAskUserQuestionResult } from "../ChatElements/tools/utils";
 import { getMessageText } from "./messageParsing";
 import type { MergedTool, ParsedMessageEntry } from "./types";
 
+/**
+ * Question progress derived from the transcript, the live stream and the
+ * queue. Only delivered messages answer a call; queued answers only record
+ * their text.
+ */
 export type AskUserQuestionState = {
 	latestToolId: string | undefined;
 	/** Set only by delivered messages, never by queued ones. */
 	isLatestAnswered: boolean;
 	/** Whole answer messages, prefix line included, from delivered and queued messages. */
 	responseTextByToolId: ReadonlyMap<string, string>;
-	/** The latest question while it is async, finished, and unanswered. */
+	/**
+	 * The latest question while it is async, finished, and has no delivered
+	 * answer. A queued answer leaves it open because the queue can drop the
+	 * answer before delivery.
+	 */
 	openAsyncQuestion: MergedTool | undefined;
 };
 
@@ -93,6 +102,13 @@ export const deriveAskUserQuestionState = (
 		isLatestAnswered = false;
 	}
 
+	const openAsyncQuestion =
+		latestTool?.status === "completed" &&
+		isAsyncAskUserQuestionResult(latestTool.result) &&
+		!responseTextByToolId.has(latestTool.id)
+			? latestTool
+			: undefined;
+
 	// A queued answer is not delivered yet, but it already answers its call,
 	// so another tab or a reload does not offer the question again.
 	for (const queuedMessage of queuedMessages) {
@@ -101,13 +117,6 @@ export const deriveAskUserQuestionState = (
 			responseTextByToolId.set(asyncAnswer.toolCallId, asyncAnswer.messageText);
 		}
 	}
-
-	const openAsyncQuestion =
-		latestTool?.status === "completed" &&
-		isAsyncAskUserQuestionResult(latestTool.result) &&
-		!responseTextByToolId.has(latestTool.id)
-			? latestTool
-			: undefined;
 
 	return {
 		latestToolId: latestTool?.id,

@@ -21,10 +21,13 @@ import { MessageScroller } from "#/vendor/message-scroller";
 import { getChatFileURL } from "../../utils/chatAttachments";
 import { getAsyncAnswerPrefix } from "../ChatElements/tools/asyncAnswer";
 import { ChatMessageScroller } from "../ChatMessageScroller";
-import { deriveAskUserQuestionState } from "./askUserQuestionState";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
-import { buildLiveStatus, buildQuestionTimelineArgs } from "./storyFixtures";
+import {
+	buildLiveStatus,
+	buildQuestionTimelineArgs,
+	MockEmptyQuestionState,
+} from "./storyFixtures";
 import type { ParsedMessageEntry } from "./types";
 
 // The timeline renders scroller items, so every story needs the scroller
@@ -453,7 +456,7 @@ const defaultArgs: Omit<
 	isAwaitingFirstStreamChunk: false,
 	chatStatus: null,
 	hasMoreMessages: false,
-	askUserQuestionState: deriveAskUserQuestionState([], [], []),
+	askUserQuestionState: MockEmptyQuestionState,
 };
 
 const meta: Meta<typeof ConversationTimeline> = {

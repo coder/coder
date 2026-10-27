@@ -7,7 +7,6 @@ import { preferenceSettingsKey } from "#/api/queries/users";
 import { Button } from "#/components/Button/Button";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { MessageScroller } from "#/vendor/message-scroller";
-import { deriveAskUserQuestionState } from "./askUserQuestionState";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
 import {
@@ -15,6 +14,7 @@ import {
 	buildQuestionTimelineArgs,
 	MockAttachmentWorkingMessages,
 	MockCollapsedStepsPreferences,
+	MockEmptyQuestionState,
 	MockLeadInSearchMessages,
 	MockLongTurnPageLoads,
 	MockPlanAttachmentMessages,
@@ -51,7 +51,7 @@ const meta: Meta<typeof ConversationTimeline> = {
 		chatStatus: null,
 		hasMoreMessages: false,
 		parsedMessages: parseMessagesWithMergedTools(MockWorkingMessages),
-		askUserQuestionState: deriveAskUserQuestionState([], [], []),
+		askUserQuestionState: MockEmptyQuestionState,
 	},
 	decorators: [
 		(Story) => (

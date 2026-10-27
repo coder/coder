@@ -4,7 +4,6 @@ import { preferenceSettingsKey } from "#/api/queries/users";
 import type { ChatMessage } from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { MessageScroller } from "#/vendor/message-scroller";
-import { deriveAskUserQuestionState } from "./askUserQuestionState";
 import { ConversationTimeline } from "./ConversationTimeline";
 import {
 	getPendingToolCallIDs,
@@ -16,6 +15,7 @@ import {
 	MockAsyncQuestionMessages,
 	MockAsyncQuestionResult,
 	MockCollapsedStepsPreferences,
+	MockEmptyQuestionState,
 	MockQuestionCallMessage,
 	MockWorkingMessages,
 	pinFixtureClock,
@@ -37,7 +37,7 @@ const meta: Meta<typeof ConversationTimeline> = {
 		subagentTitles: new Map(),
 		chatStatus: "running",
 		parsedMessages: parseMessagesWithMergedTools(MockWorkingMessages),
-		askUserQuestionState: deriveAskUserQuestionState([], [], []),
+		askUserQuestionState: MockEmptyQuestionState,
 	},
 	decorators: [
 		(Story) => (
