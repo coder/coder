@@ -7144,7 +7144,8 @@
 							"explore",
 							"title_generation",
 							"compaction",
-							"advisor"
+							"advisor",
+							"computer_use"
 						],
 						"type": "string",
 						"description": "Override context",
@@ -20858,14 +20859,16 @@
 				"explore",
 				"title_generation",
 				"compaction",
-				"advisor"
+				"advisor",
+				"computer_use"
 			],
 			"x-enum-varnames": [
 				"ChatModelOverrideContextGeneral",
 				"ChatModelOverrideContextExplore",
 				"ChatModelOverrideContextTitleGeneration",
 				"ChatModelOverrideContextCompaction",
-				"ChatModelOverrideContextAdvisor"
+				"ChatModelOverrideContextAdvisor",
+				"ChatModelOverrideContextComputerUse"
 			]
 		},
 		"codersdk.ChatModelOverrideResponse": {

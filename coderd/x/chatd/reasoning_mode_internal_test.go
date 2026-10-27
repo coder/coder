@@ -14,10 +14,10 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/util/ptr"
-	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -111,26 +111,6 @@ func TestResolveModelCallReasoningModeWire(t *testing.T) {
 					baseline = got
 				} else {
 					require.Equal(t, baseline, got)
-				}
-
-				if mode == "pro" {
-					modelProvider, modelName, ok := chattool.DefaultComputerUseModel(codersdk.ChatComputerUseProviderOpenAI)
-					require.True(t, ok)
-					fixed, err := server.resolveModelCall(t.Context(), modelCallSpec{
-						purpose: "computer_use", chat: chat,
-						fixedModel:   &fixedModelCall{providerType: modelProvider, modelName: modelName, callConfig: callConfig},
-						buildOptions: modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
-					})
-					require.NoError(t, err)
-					fixedCall := fixed.newCall()
-					fixedCall.Prompt = call.Prompt
-					_, err = fixed.model.LanguageModel().Generate(t.Context(), fixedCall)
-					require.NoError(t, err)
-					got := <-seen
-					reasoning, ok := got["reasoning"].(map[string]any)
-					require.True(t, ok)
-					require.NotContains(t, reasoning, "mode")
-					require.Equal(t, modelName, got["model"])
 				}
 			}
 		})

@@ -1916,23 +1916,36 @@ func TestCollectAgentsVirtualDesktop(t *testing.T) {
 		return payload
 	}
 
-	t.Run("Default", func(t *testing.T) {
+	expectOverrides := func(db *dbmock.MockStore, rows []database.GetChatOrganizationModelOverridesByContextRow, err error) {
+		db.EXPECT().GetChatOrganizationModelOverridesByContext(gomock.Any(), string(codersdk.ChatModelOverrideContextComputerUse)).Return(rows, err)
+	}
+
+	t.Run("NoOverrides", func(t *testing.T) {
 		t.Parallel()
 
 		db := dbmock.NewMockStore(gomock.NewController(t))
-		db.EXPECT().GetChatComputerUseProvider(gomock.Any()).Return("", nil)
+		expectOverrides(db, nil, nil)
 
 		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
 		require.False(t, payload.Enabled)
-		require.EqualValues(t, codersdk.ChatComputerUseProviderAnthropic, payload.ComputerUse.Provider)
-		require.Equal(t, "default", payload.ComputerUse.ProviderSource)
+		require.NotNil(t, payload.ComputerUse.Overrides)
+		require.Empty(t, payload.ComputerUse.Overrides)
 	})
 
-	t.Run("Configured", func(t *testing.T) {
+	t.Run("Overrides", func(t *testing.T) {
 		t.Parallel()
 
+		available, inactive := uuid.New(), uuid.New()
 		db := dbmock.NewMockStore(gomock.NewController(t))
-		db.EXPECT().GetChatComputerUseProvider(gomock.Any()).Return("openai", nil)
+		expectOverrides(db, []database.GetChatOrganizationModelOverridesByContextRow{
+			{
+				OrganizationID: available,
+				ModelAvailable: true,
+				Model:          "claude-opus-5",
+				ProviderType:   string(database.AIProviderTypeAnthropic),
+			},
+			{OrganizationID: inactive, ModelAvailable: false},
+		}, nil)
 
 		payload := collect(t, telemetry.Options{
 			Database:    db,
@@ -1940,19 +1953,24 @@ func TestCollectAgentsVirtualDesktop(t *testing.T) {
 			Experiments: codersdk.Experiments{codersdk.ExperimentChatVirtualDesktop},
 		})
 		require.True(t, payload.Enabled)
-		require.Equal(t, "openai", payload.ComputerUse.Provider)
-		require.Equal(t, "configured", payload.ComputerUse.ProviderSource)
+		require.Equal(t, []telemetry.AgentsComputerUseOverrideTelemetry{
+			{OrganizationID: available.String(), Provider: string(database.AIProviderTypeAnthropic), Model: "claude-opus-5"},
+			{
+				OrganizationID: inactive.String(),
+				Provider:       telemetry.AgentsExperimentComputerUseOrgDefaultModel,
+				Model:          telemetry.AgentsExperimentComputerUseOrgDefaultModel,
+			},
+		}, payload.ComputerUse.Overrides)
 	})
 
 	t.Run("QueryError", func(t *testing.T) {
 		t.Parallel()
 
 		db := dbmock.NewMockStore(gomock.NewController(t))
-		db.EXPECT().GetChatComputerUseProvider(gomock.Any()).Return("", sql.ErrConnDone)
+		expectOverrides(db, nil, sql.ErrConnDone)
 
 		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
-		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.ComputerUse.Provider)
-		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.ComputerUse.ProviderSource)
+		require.Empty(t, payload.ComputerUse.Overrides)
 	})
 }
 

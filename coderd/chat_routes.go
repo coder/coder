@@ -118,11 +118,6 @@ func (api *API) registerExperimentalChatRoutes(r chi.Router, apiKeyMiddleware fu
 		})
 		r.Route("/config", func(r chi.Router) {
 			r.Group(func(r chi.Router) {
-				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatVirtualDesktop))
-				r.Get("/computer-use-provider", api.getChatComputerUseProvider)
-				r.Put("/computer-use-provider", api.putChatComputerUseProvider)
-			})
-			r.Group(func(r chi.Router) {
 				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatAdvisor))
 				r.Get("/advisor", api.getChatAdvisorConfig)
 				r.Put("/advisor", api.putChatAdvisorConfig)

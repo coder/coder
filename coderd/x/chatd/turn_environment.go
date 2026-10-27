@@ -207,53 +207,32 @@ func (p *Server) buildTurnEnvironment(
 	}
 	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
 
+	isComputerUse := chat.Mode.Valid && chat.Mode.ChatMode == database.ChatModeComputerUse
 	requestedEffort := chatRequestedEffort(chat)
 	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
 		purpose:         "standard_turn",
 		chat:            chat,
 		requestedEffort: requestedEffort,
 		buildOptions:    modelOpts,
+		// The OpenAI computer tool exists only on the Responses API.
+		requireOpenAIResponses: isComputerUse,
 	})
 	if err != nil {
 		return turnEnvironment{}, err
 	}
-	// The chat config keeps driving compaction, sanitization, and debug
-	// attribution even when computer use swaps the resolved call below.
 	modelConfig := resolved.dbConfig
 	providerIdentity := modelConfigProviderIdentity(modelConfig, chatprovider.NormalizeProvider(string(resolved.route.Provider.Type)))
 
-	// Computer-use turns swap in a specialized model, so the substitution
-	// must happen before anything model-sensitive runs: file-part
-	// classification, history sanitization, and provider option preparation
-	// must all agree with the client actually used for the turn.
-	isComputerUse := chat.Mode.Valid && chat.Mode.ChatMode == database.ChatModeComputerUse
 	var computerUseProvider codersdk.ChatComputerUseProvider
 	if isComputerUse {
-		var cuModelProvider, cuModelName string
-		computerUseProvider, cuModelProvider, cuModelName, err = p.computerUseProviderAndModelFromConfig(ctx)
-		if err != nil {
-			return turnEnvironment{}, xerrors.Errorf("resolve computer use provider and model: %w", err)
-		}
-		cuResolved, cuErr := p.resolveModelCall(ctx, modelCallSpec{
-			purpose: "computer_use",
-			chat:    chat,
-			fixedModel: &fixedModelCall{
-				providerType: cuModelProvider,
-				modelName:    cuModelName,
-				callConfig:   resolved.callConfig,
-			},
-			requestedEffort: requestedEffort,
-			buildOptions:    modelOpts,
-		})
-		if cuErr != nil {
+		var ok bool
+		computerUseProvider, ok = computerUseProviderForAIProviderType(string(resolved.route.Provider.Type))
+		if !ok {
 			return turnEnvironment{}, xerrors.Errorf(
-				"resolve computer use model for provider %q model %q: %w",
-				computerUseProvider,
-				cuModelName,
-				cuErr,
+				"computer use requires a model from an Anthropic or OpenAI AI provider, but model %q uses AI provider %q of type %q",
+				modelConfig.Model, resolved.route.Provider.Name, resolved.route.Provider.Type,
 			)
 		}
-		resolved = cuResolved
 	}
 	model := resolved.model
 	callConfig := resolved.callConfig

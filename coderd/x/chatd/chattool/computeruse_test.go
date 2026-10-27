@@ -17,63 +17,14 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/quartz"
+
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/quartz"
 )
-
-func TestDefaultComputerUseModel(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name              string
-		provider          codersdk.ChatComputerUseProvider
-		wantModelProvider string
-		wantModelName     string
-		wantOK            bool
-	}{
-		{
-			name:              "empty defaults to Anthropic",
-			provider:          "",
-			wantModelProvider: fantasyanthropic.Name,
-			wantModelName:     chattool.ComputerUseAnthropicModelName,
-			wantOK:            true,
-		},
-		{
-			name:              "Anthropic",
-			provider:          codersdk.ChatComputerUseProviderAnthropic,
-			wantModelProvider: fantasyanthropic.Name,
-			wantModelName:     chattool.ComputerUseAnthropicModelName,
-			wantOK:            true,
-		},
-		{
-			name:              "OpenAI",
-			provider:          codersdk.ChatComputerUseProviderOpenAI,
-			wantModelProvider: fantasyopenai.Name,
-			wantModelName:     chattool.ComputerUseOpenAIModelName,
-			wantOK:            true,
-		},
-		{
-			name:     "unsupported",
-			provider: codersdk.ChatComputerUseProvider("unsupported"),
-			wantOK:   false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			modelProvider, modelName, ok := chattool.DefaultComputerUseModel(tt.provider)
-			assert.Equal(t, tt.wantOK, ok)
-			assert.Equal(t, tt.wantModelProvider, modelProvider)
-			assert.Equal(t, tt.wantModelName, modelName)
-		})
-	}
-}
 
 func TestDefaultComputerUseDesktopGeometry(t *testing.T) {
 	t.Parallel()

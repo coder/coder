@@ -8027,7 +8027,8 @@ const docTemplate = `{
                             "explore",
                             "title_generation",
                             "compaction",
-                            "advisor"
+                            "advisor",
+                            "computer_use"
                         ],
                         "type": "string",
                         "description": "Override context",
@@ -23014,14 +23015,16 @@ const docTemplate = `{
                 "explore",
                 "title_generation",
                 "compaction",
-                "advisor"
+                "advisor",
+                "computer_use"
             ],
             "x-enum-varnames": [
                 "ChatModelOverrideContextGeneral",
                 "ChatModelOverrideContextExplore",
                 "ChatModelOverrideContextTitleGeneration",
                 "ChatModelOverrideContextCompaction",
-                "ChatModelOverrideContextAdvisor"
+                "ChatModelOverrideContextAdvisor",
+                "ChatModelOverrideContextComputerUse"
             ]
         },
         "codersdk.ChatModelOverrideResponse": {

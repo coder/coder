@@ -1232,6 +1232,9 @@ const (
 	ChatModelOverrideContextTitleGeneration ChatModelOverrideContext = "title_generation"
 	ChatModelOverrideContextCompaction      ChatModelOverrideContext = "compaction"
 	ChatModelOverrideContextAdvisor         ChatModelOverrideContext = "advisor"
+	// ChatModelOverrideContextComputerUse selects the model that computer use
+	// subagents run on. Unset uses the organization's default chat model.
+	ChatModelOverrideContextComputerUse ChatModelOverrideContext = "computer_use"
 )
 
 // Valid reports whether the override context is one of the supported values.
@@ -1241,7 +1244,8 @@ func (c ChatModelOverrideContext) Valid() bool {
 		ChatModelOverrideContextExplore,
 		ChatModelOverrideContextTitleGeneration,
 		ChatModelOverrideContextCompaction,
-		ChatModelOverrideContextAdvisor:
+		ChatModelOverrideContextAdvisor,
+		ChatModelOverrideContextComputerUse:
 		return true
 	default:
 		return false
@@ -1256,6 +1260,7 @@ func AllChatModelOverrideContexts() []ChatModelOverrideContext {
 		ChatModelOverrideContextTitleGeneration,
 		ChatModelOverrideContextCompaction,
 		ChatModelOverrideContextAdvisor,
+		ChatModelOverrideContextComputerUse,
 	}
 }
 
@@ -1396,8 +1401,9 @@ type UpdateAdvisorConfigRequest struct {
 	DeprecatedReasoningEffort *string `json:"reasoning_effort,omitempty"`
 }
 
-// ChatComputerUseProvider identifies the provider that backs computer use for
-// the virtual desktop.
+// ChatComputerUseProvider identifies the computer use tool flavor. Chatd
+// derives it from the AI provider type of the model a computer use chat runs
+// on.
 type ChatComputerUseProvider string
 
 const (
@@ -1414,18 +1420,6 @@ var AllChatComputerUseProviders = []ChatComputerUseProvider{
 // Valid reports whether p is a supported computer use provider.
 func (p ChatComputerUseProvider) Valid() bool {
 	return slices.Contains(AllChatComputerUseProviders, p)
-}
-
-// ChatComputerUseProviderResponse is the response for getting the computer use
-// provider setting.
-type ChatComputerUseProviderResponse struct {
-	Provider ChatComputerUseProvider `json:"provider"`
-}
-
-// UpdateChatComputerUseProviderRequest is the request to update the computer use
-// provider setting.
-type UpdateChatComputerUseProviderRequest struct {
-	Provider ChatComputerUseProvider `json:"provider"`
 }
 
 // ChatDebugLoggingAdminSettings describes the runtime admin setting
@@ -3125,34 +3119,6 @@ func (c *ExperimentalClient) GetChatAdvisorConfig(ctx context.Context) (AdvisorC
 // UpdateChatAdvisorConfig updates the deployment-wide advisor configuration.
 func (c *ExperimentalClient) UpdateChatAdvisorConfig(ctx context.Context, req UpdateAdvisorConfigRequest) error {
 	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/advisor", req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
-}
-
-// GetChatComputerUseProvider returns the deployment-wide computer use provider.
-func (c *ExperimentalClient) GetChatComputerUseProvider(ctx context.Context) (ChatComputerUseProviderResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/computer-use-provider", nil)
-	if err != nil {
-		return ChatComputerUseProviderResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatComputerUseProviderResponse{}, ReadBodyAsError(res)
-	}
-	var resp ChatComputerUseProviderResponse
-	return resp, ReadBodyAsJSON(res, &resp)
-}
-
-// UpdateChatComputerUseProvider updates the deployment-wide computer use
-// provider.
-func (c *ExperimentalClient) UpdateChatComputerUseProvider(ctx context.Context, req UpdateChatComputerUseProviderRequest) error {
-	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/computer-use-provider", req)
 	if err != nil {
 		return err
 	}

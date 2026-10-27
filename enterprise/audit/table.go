@@ -651,7 +651,6 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"chat_debug_retention_days":        ActionTrack,
 		"chat_auto_archive_days":           ActionTrack,
 		"workspace_ttl":                    ActionTrack,
-		"computer_use_provider":            ActionTrack,
 		"debug_logging_allow_users":        ActionTrack,
 		"personal_model_overrides_enabled": ActionTrack,
 	},

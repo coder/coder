@@ -2,56 +2,125 @@ package chatd
 
 import (
 	"context"
-	"strings"
+	"database/sql"
+	"errors"
+	"fmt"
 
+	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasyopenai "charm.land/fantasy/providers/openai"
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	openaicomputeruse "github.com/coder/coder/v2/coderd/x/chatd/chatopenai/computeruse"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/quartz"
 )
 
-// computerUseConfigContext lets internal and worker callers read
-// deployment-wide chat settings when they lack an HTTP-derived actor. HTTP
-// handlers always carry an actor, so the AsChatd fallback never elevates user
-// contexts and this function is a no-op in that path. The setting it gates is
-// global and readable by any authenticated actor, not a back-door.
-func computerUseConfigContext(ctx context.Context) context.Context {
-	if _, ok := dbauthz.ActorFromContext(ctx); ok {
-		return ctx
-	}
-	//nolint:gocritic // Worker contexts may lack an actor.
-	return dbauthz.AsChatd(ctx)
+// computerUseModel is the model a computer use subagent runs on.
+type computerUseModel struct {
+	config   database.ChatModelConfig
+	provider codersdk.ChatComputerUseProvider
+	// reasoningEffort comes from the organization override, if any.
+	reasoningEffort *string
 }
 
-func (p *Server) computerUseProviderAndModelFromConfig(
+// computerUseProviderForAIProviderType maps an AI provider type to the
+// computer use tool flavor it supports.
+func computerUseProviderForAIProviderType(providerType string) (codersdk.ChatComputerUseProvider, bool) {
+	switch chatprovider.NormalizeProvider(providerType) {
+	case fantasyanthropic.Name:
+		return codersdk.ChatComputerUseProviderAnthropic, true
+	case fantasyopenai.Name:
+		return codersdk.ChatComputerUseProviderOpenAI, true
+	default:
+		return "", false
+	}
+}
+
+func computerUseModelLabel(config database.ChatModelConfig) string {
+	if config.DisplayName != "" && config.DisplayName != config.Model {
+		return fmt.Sprintf("%q (%s)", config.DisplayName, config.Model)
+	}
+	return fmt.Sprintf("%q", config.Model)
+}
+
+// resolveComputerUseModel picks the model for a computer use subagent: the
+// organization's computer_use override, else the organization's default chat
+// model. A non-empty reason means computer use is unavailable to the owner.
+func (p *Server) resolveComputerUseModel(
 	ctx context.Context,
-) (provider codersdk.ChatComputerUseProvider, modelProvider, modelName string, err error) {
-	rawProvider, err := p.db.GetChatComputerUseProvider(
-		computerUseConfigContext(ctx),
-	)
+	ownerID uuid.UUID,
+	organizationID uuid.UUID,
+) (model computerUseModel, reason string, err error) {
+	//nolint:gocritic // Chatd reads organization model configuration for the chat owner.
+	chatdCtx := dbauthz.AsChatd(ctx)
+	override, err := p.resolveModelOverride(chatdCtx, modelOverrideSpec{
+		context:        string(codersdk.ChatModelOverrideContextComputerUse),
+		ownerID:        ownerID,
+		organizationID: organizationID,
+	})
 	if err != nil {
-		return "", "", "", xerrors.Errorf("get computer use provider: %w", err)
+		return computerUseModel{}, "", err
 	}
-
-	provider = chattool.DefaultComputerUseProvider(
-		codersdk.ChatComputerUseProvider(strings.TrimSpace(rawProvider)),
+	if override.Set {
+		model = computerUseModel{config: override.Config, reasoningEffort: override.ReasoningEffort}
+	} else {
+		model.config, err = p.db.GetDefaultChatModelConfig(chatdCtx, organizationID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return computerUseModel{}, `type "computer_use" is unavailable because no computer use model is configured and the organization has no default chat model`, nil
+		}
+		if err != nil {
+			return computerUseModel{}, "", xerrors.Errorf("get default chat model config: %w", err)
+		}
+	}
+	label := computerUseModelLabel(model.config)
+	unavailable := fmt.Sprintf(
+		`type "computer_use" is unavailable because model %s or its AI provider is disabled`,
+		label,
 	)
-
-	modelProvider, modelName, ok := chattool.DefaultComputerUseModel(provider)
-	if !ok {
-		return "", "", "", xerrors.Errorf(
-			"unknown computer-use provider %q configured in agents_computer_use_provider",
-			provider,
-		)
+	if !model.config.Enabled || !model.config.AIProviderID.Valid {
+		return computerUseModel{}, unavailable, nil
 	}
+	aiProvider, err := p.db.GetAIProviderByID(chatdCtx, model.config.AIProviderID.UUID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return computerUseModel{}, unavailable, nil
+	}
+	if err != nil {
+		return computerUseModel{}, "", xerrors.Errorf("get AI provider for model %s: %w", model.config.ID, err)
+	}
+	if !aiProvider.Enabled {
+		return computerUseModel{}, unavailable, nil
+	}
+	provider, ok := computerUseProviderForAIProviderType(string(aiProvider.Type))
+	if !ok {
+		return computerUseModel{}, fmt.Sprintf(
+			`type "computer_use" is unavailable because model %s uses AI provider %q of type %q; computer use requires an Anthropic or OpenAI AI provider`,
+			label, aiProvider.Name, aiProvider.Type,
+		), nil
+	}
+	model.provider = provider
 
-	return provider, modelProvider, modelName, nil
+	// resolveModelOverride already verified credentials for an override.
+	if !override.Set {
+		providerKeys, err := p.resolveUserProviderAPIKeys(chatdCtx, ownerID, aiProvider.ID)
+		if err != nil {
+			return computerUseModel{}, "", xerrors.Errorf("resolve provider API keys: %w", err)
+		}
+		if !userCanUseProviderKeys(providerKeys, string(provider)) {
+			return computerUseModel{}, fmt.Sprintf(
+				`type "computer_use" is unavailable because credentials for AI provider %q, used by model %s, are not configured`,
+				aiProvider.Name, label,
+			), nil
+		}
+	}
+	return model, "", nil
 }
 
 type computerUseProviderToolOptions struct {

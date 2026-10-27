@@ -3365,18 +3365,6 @@ func (q *querier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (datab
 	return fetch(q.log, q.auth, q.db.GetChatByIDForUpdate)(ctx, id)
 }
 
-func (q *querier) GetChatComputerUseProvider(ctx context.Context) (string, error) {
-	// The computer-use provider is a deployment-wide runtime chat setting
-	// read by authenticated chat users and chatd. Feature and experiment
-	// access is enforced at caller and API boundaries where applicable, so
-	// this matches peer runtime config getters and only requires an explicit
-	// actor so unauthenticated calls fail closed.
-	if _, ok := ActorFromContext(ctx); !ok {
-		return "", ErrNoActor
-	}
-	return q.db.GetChatComputerUseProvider(ctx)
-}
-
 func (q *querier) GetChatDebugLoggingAllowUsers(ctx context.Context) (bool, error) {
 	// The allow-users flag is a deployment-wide setting read by any
 	// authenticated chat user. We only require that an explicit actor
@@ -9503,13 +9491,6 @@ func (q *querier) UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDays
 		return err
 	}
 	return q.db.UpsertChatAutoArchiveDays(ctx, autoArchiveDays)
-}
-
-func (q *querier) UpsertChatComputerUseProvider(ctx context.Context, provider string) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return err
-	}
-	return q.db.UpsertChatComputerUseProvider(ctx, provider)
 }
 
 func (q *querier) UpsertChatDebugLoggingAllowUsers(ctx context.Context, allowUsers bool) error {
