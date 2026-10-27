@@ -93,6 +93,7 @@ import { SidebarSectionHeader } from "./SidebarSectionHeader";
 import { UserSidebarFooter } from "./UserSidebarFooter";
 
 const SHARED_WITH_YOU_SECTION_KEY = "Shared with you";
+const CHATS_SECTION_KEY = "Chats";
 
 // The chat link is the drag handle, so a click and Enter must still open the
 // chat: a mouse drag starts after 5 pixels, and only Space starts a keyboard
@@ -432,9 +433,12 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	// are held back, so the section is not known to be empty yet.
 	const isWithholdingProjectChats =
 		isProjectsLoading && unpinnedOwnedChats.some((chat) => chat.project_id);
+	const isShowingPinnedSection =
+		!isLoading && !loadError && pinnedChats.length > 0;
+	const isPinnedSectionExpanded = !collapsedSections[PINNED_SECTION_KEY];
+	const isChatsSectionExpanded = !collapsedSections[CHATS_SECTION_KEY];
 	const isShowingEmptyState =
 		!isWithholdingProjectChats &&
-		pinnedChats.length === 0 &&
 		sharedWithYouChats.length === 0 &&
 		chatSections.length === 0;
 	const isViewingArchived = sidebarFilters.archiveStatus === "archived";
@@ -444,11 +448,14 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		: isViewingArchived
 			? "No archived agents"
 			: "No agents yet";
-	// Without projects the header stays pinned above the scrolling list, as
-	// before; with projects it scrolls below the folders.
+	// Scrolls with the list, below the Pinned and Projects sections.
 	const chatsHeader = (
 		<SidebarSectionHeader
 			title={chatsHeadingLabel}
+			collapsible={{
+				expanded: isChatsSectionExpanded,
+				onToggle: () => toggleSection(CHATS_SECTION_KEY),
+			}}
 			actions={
 				<>
 					{onOpenSearchDialog && (
@@ -569,7 +576,6 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 				)}
 			</nav>
 			<div className="relative min-h-0 flex-1 flex flex-col">
-				{!chatProjectsEnabled && chatsHeader}
 				<ScrollArea
 					className="min-h-0 flex-1 [&_[data-radix-scroll-area-viewport]>div]:block!"
 					scrollBarClassName="w-1.5"
@@ -597,6 +603,32 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 						onDragMove={moveKeyboardChatDrag}
 						onDragEnd={handleDragEnd}
 					>
+						{isShowingPinnedSection && (
+							<ChatTreeContext value={chatTreeCtx}>
+								<SidebarSectionHeader
+									title={PINNED_SECTION_KEY}
+									collapsible={{
+										expanded: isPinnedSectionExpanded,
+										onToggle: () => toggleSection(PINNED_SECTION_KEY),
+									}}
+								/>
+								{isPinnedSectionExpanded && (
+									<div className="flex flex-col gap-0.5 px-2">
+										{disablePinnedReordering
+											? sortedPinnedChats.map((chat) => (
+													<ChatTreeNode key={chat.id} chat={chat} />
+												))
+											: sortedPinnedChats.map((chat, index) => (
+													<SortableChatTreeNode
+														key={chat.id}
+														chat={chat}
+														index={index}
+													/>
+												))}
+									</div>
+								)}
+							</ChatTreeContext>
+						)}
 						{/* Projects share the chat list's scroll area, so expanding a folder
 					    pushes the Chats section down instead of scrolling on its own. */}
 						{chatProjectsEnabled && (
@@ -625,167 +657,139 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 							</ChatTreeContext>
 						)}
 						<ChatDropArea target={{ kind: "unfiled", folderProjectIds }}>
-							{chatProjectsEnabled && (
-								<div className="group-data-[drop=unavailable]/drop:opacity-50">
-									{chatsHeader}
-								</div>
-							)}
-							<div className="flex flex-col gap-2 px-2 pb-3">
-								{loadError ? (
-									<div className="space-y-3 px-1">
-										<ErrorAlert error={loadError} />
-										{onRetryLoad && (
-											<Button size="sm" variant="outline" onClick={onRetryLoad}>
-												Retry
-											</Button>
-										)}
-									</div>
-								) : isLoading ? (
-									<>
-										<Skeleton className="ml-2.5 h-3.5 w-16" />
-										<div className="flex flex-col gap-0.5">
-											{Array.from({ length: 6 }, (_, i) => (
-												<div
-													key={i}
-													className="flex items-start gap-2 rounded-md px-2 py-1"
+							<div className="group-data-[drop=unavailable]/drop:opacity-50">
+								{chatsHeader}
+							</div>
+							{isChatsSectionExpanded && (
+								<div className="flex flex-col gap-2 px-2 pb-3">
+									{loadError ? (
+										<div className="space-y-3 px-1">
+											<ErrorAlert error={loadError} />
+											{onRetryLoad && (
+												<Button
+													size="sm"
+													variant="outline"
+													onClick={onRetryLoad}
 												>
-													<Skeleton className="mt-0.5 size-5 shrink-0 rounded-md" />
-													<div className="min-w-0 flex-1 space-y-1.5">
-														<Skeleton
-															className="h-3.5"
-															style={{ width: `${55 + ((i * 17) % 35)}%` }}
-														/>
-														<Skeleton className="h-3 w-20" />
-													</div>
-												</div>
-											))}
+													Retry
+												</Button>
+											)}
 										</div>
-									</>
-								) : (
-									<ChatTreeContext value={chatTreeCtx}>
-										<div className="pb-2">
-											{isShowingEmptyState ? (
-												<div className="rounded-lg border border-dashed border-border bg-surface-primary p-4 text-center text-xs text-content-secondary">
-													<p className="m-0">{emptyStateMessage}</p>
-													{hasAppliedResultFilters && (
-														<button
-															type="button"
-															className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
-															onClick={clearResultFilters}
-														>
-															Clear filters
-														</button>
-													)}
-												</div>
-											) : (
-												<>
-													{pinnedChats.length > 0 && (
-														<div className="not-first:mt-3">
-															<ChatSectionHeader
-																label={PINNED_SECTION_KEY}
-																count={pinnedChats.length}
-																expanded={
-																	!collapsedSections[PINNED_SECTION_KEY]
-																}
-																onToggle={() =>
-																	toggleSection(PINNED_SECTION_KEY)
-																}
-																testId={getSectionToggleTestId(
-																	PINNED_SECTION_KEY,
-																)}
+									) : isLoading ? (
+										<>
+											<Skeleton className="ml-2.5 h-3.5 w-16" />
+											<div className="flex flex-col gap-0.5">
+												{Array.from({ length: 6 }, (_, i) => (
+													<div
+														key={i}
+														className="flex items-start gap-2 rounded-md px-2 py-1"
+													>
+														<Skeleton className="mt-0.5 size-5 shrink-0 rounded-md" />
+														<div className="min-w-0 flex-1 space-y-1.5">
+															<Skeleton
+																className="h-3.5"
+																style={{ width: `${55 + ((i * 17) % 35)}%` }}
 															/>
-															{!collapsedSections[PINNED_SECTION_KEY] &&
-																(disablePinnedReordering ? (
+															<Skeleton className="h-3 w-20" />
+														</div>
+													</div>
+												))}
+											</div>
+										</>
+									) : (
+										<ChatTreeContext value={chatTreeCtx}>
+											<div className="pb-2">
+												{isShowingEmptyState ? (
+													<div className="rounded-lg border border-dashed border-border bg-surface-primary p-4 text-center text-xs text-content-secondary">
+														<p className="m-0">{emptyStateMessage}</p>
+														{hasAppliedResultFilters && (
+															<button
+																type="button"
+																className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
+																onClick={clearResultFilters}
+															>
+																Clear filters
+															</button>
+														)}
+													</div>
+												) : (
+													<>
+														{sharedWithYouChats.length > 0 && (
+															<div className="not-first:mt-3">
+																<ChatSectionHeader
+																	label={SHARED_WITH_YOU_SECTION_KEY}
+																	count={sharedWithYouChats.length}
+																	expanded={
+																		!collapsedSections[
+																			SHARED_WITH_YOU_SECTION_KEY
+																		]
+																	}
+																	onToggle={() =>
+																		toggleSection(SHARED_WITH_YOU_SECTION_KEY)
+																	}
+																	testId={getSectionToggleTestId(
+																		SHARED_WITH_YOU_SECTION_KEY,
+																	)}
+																/>
+																{!collapsedSections[
+																	SHARED_WITH_YOU_SECTION_KEY
+																] && (
 																	<div className="flex flex-col gap-0.5">
-																		{sortedPinnedChats.map((chat) => (
+																		{sharedWithYouChats.map((chat) => (
 																			<ChatTreeNode key={chat.id} chat={chat} />
 																		))}
 																	</div>
-																) : (
-																	<div className="flex flex-col gap-0.5">
-																		{sortedPinnedChats.map((chat, index) => (
-																			<SortableChatTreeNode
-																				key={chat.id}
-																				chat={chat}
-																				index={index}
-																			/>
-																		))}
-																	</div>
-																))}
-														</div>
-													)}
-													{sharedWithYouChats.length > 0 && (
-														<div className="not-first:mt-3">
-															<ChatSectionHeader
-																label={SHARED_WITH_YOU_SECTION_KEY}
-																count={sharedWithYouChats.length}
-																expanded={
-																	!collapsedSections[
-																		SHARED_WITH_YOU_SECTION_KEY
-																	]
-																}
-																onToggle={() =>
-																	toggleSection(SHARED_WITH_YOU_SECTION_KEY)
-																}
-																testId={getSectionToggleTestId(
-																	SHARED_WITH_YOU_SECTION_KEY,
-																)}
-															/>
-															{!collapsedSections[
-																SHARED_WITH_YOU_SECTION_KEY
-															] && (
-																<div className="flex flex-col gap-0.5">
-																	{sharedWithYouChats.map((chat) => (
-																		<ChatTreeNode key={chat.id} chat={chat} />
-																	))}
-																</div>
-															)}
-														</div>
-													)}
-													{chatSections.map((section) => {
-														const isSectionExpanded =
-															!collapsedSections[section.key];
-														return (
-															<div key={section.key} className="not-first:mt-3">
-																<ChatSectionHeader
-																	label={section.label}
-																	count={section.chats.length}
-																	expanded={isSectionExpanded}
-																	onToggle={() => toggleSection(section.key)}
-																	testId={getSectionToggleTestId(section.key)}
-																/>
-																{isSectionExpanded && (
-																	<div className="flex flex-col gap-0.5">
-																		{section.chats.map((chat) =>
-																			chatProjectsEnabled ? (
-																				<DraggableChatTreeNode
-																					key={chat.id}
-																					chat={chat}
-																				/>
-																			) : (
-																				<ChatTreeNode
-																					key={chat.id}
-																					chat={chat}
-																				/>
-																			),
-																		)}
-																	</div>
 																)}
 															</div>
-														);
-													})}
-												</>
+														)}
+														{chatSections.map((section) => {
+															const isSectionExpanded =
+																!collapsedSections[section.key];
+															return (
+																<div
+																	key={section.key}
+																	className="not-first:mt-3"
+																>
+																	<ChatSectionHeader
+																		label={section.label}
+																		count={section.chats.length}
+																		expanded={isSectionExpanded}
+																		onToggle={() => toggleSection(section.key)}
+																		testId={getSectionToggleTestId(section.key)}
+																	/>
+																	{isSectionExpanded && (
+																		<div className="flex flex-col gap-0.5">
+																			{section.chats.map((chat) =>
+																				chatProjectsEnabled ? (
+																					<DraggableChatTreeNode
+																						key={chat.id}
+																						chat={chat}
+																					/>
+																				) : (
+																					<ChatTreeNode
+																						key={chat.id}
+																						chat={chat}
+																					/>
+																				),
+																			)}
+																		</div>
+																	)}
+																</div>
+															);
+														})}
+													</>
+												)}
+											</div>
+											{(hasNextPage || isFetchingNextPage) && (
+												<LoadMoreSentinel
+													onLoadMore={onLoadMore}
+													isFetchingNextPage={isFetchingNextPage}
+												/>
 											)}
-										</div>
-										{(hasNextPage || isFetchingNextPage) && (
-											<LoadMoreSentinel
-												onLoadMore={onLoadMore}
-												isFetchingNextPage={isFetchingNextPage}
-											/>
-										)}
-									</ChatTreeContext>
-								)}
-							</div>
+										</ChatTreeContext>
+									)}
+								</div>
+							)}
 						</ChatDropArea>
 						{/* dnd-kit shows the overlay in the top layer, so the ScrollArea's
 						    clip and mask do not reach it. */}
