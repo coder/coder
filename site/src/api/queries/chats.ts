@@ -1521,6 +1521,9 @@ const fetchMessagesPage = async (
 	return { ...page, messages };
 };
 
+/** The key of the query that holds a chat's message store. */
+export const chatStoreKey = (chatId: string) => ["chatStore", chatId] as const;
+
 /** The newest page, the only page with `snapshot_version` and the queue. */
 export const fetchNewestChatMessages = (chatId: string, signal?: AbortSignal) =>
 	fetchMessagesPage(chatId, undefined, signal);

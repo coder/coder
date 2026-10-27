@@ -13,6 +13,7 @@ import {
 	chatEntityKey,
 	chatListKey,
 	chatPromptsKey,
+	chatStoreKey,
 	mcpServerConfigsKey,
 	organizationChatModelOverridesKey,
 	organizationChatModelsKey,
@@ -53,9 +54,9 @@ import {
 import { belowLgViewportMediaQuery } from "#/utils/mobile";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import {
+	buildLoadedChatStore,
 	buildLongConversation,
 	loadedChatStore,
-	loadedChatStoreQuery,
 	MockWorkingMessages,
 } from "../components/ChatConversation/storyFixtures";
 import { RIGHT_PANEL_OPEN_KEY } from "../components/RightPanel/RightPanel";
@@ -308,7 +309,10 @@ const buildQueries = (
 	};
 	return [
 		{ key: chatEntityKey(CHAT_ID), data: mockChatWithDiffStatus },
-		loadedChatStoreQuery(CHAT_ID, messagesData),
+		{
+			key: chatStoreKey(CHAT_ID),
+			data: () => buildLoadedChatStore(CHAT_ID, messagesData),
+		},
 		{
 			key: chatPromptsKey(CHAT_ID),
 			data: {
