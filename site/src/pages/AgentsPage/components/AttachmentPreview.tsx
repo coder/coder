@@ -137,17 +137,30 @@ export const AttachmentPreview: React.FC<{
 					const hasTextAttachment =
 						file.type === "text/plain" &&
 						(textContent !== undefined || textFileId !== undefined);
+					const hasImagePreview =
+						isRasterImageMediaType(file.type) && previewUrl !== "";
 					return (
 						<div
 							// Key combines file metadata with index as a fallback for
 							// duplicate names. Acceptable for a small, append-only list.
 							key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
-							className="group relative isolate"
+							// Each WebKit `A:focus-within B` rule adds a restyle of every
+							// ancestor's subtree on focus, so the card sets variables with
+							// its own `focus-within` and the buttons read them. `visibility`
+							// keeps hidden buttons out of the tab order, so a card without
+							// a focusable preview shows them at rest to keep Remove
+							// reachable from the keyboard.
+							className={cn(
+								"relative",
+								hasImagePreview || hasTextAttachment
+									? "[--actions-opacity:0] [--actions-visibility:hidden] hover:[--actions-opacity:1] hover:[--actions-visibility:visible] focus-within:[--actions-opacity:1] focus-within:[--actions-visibility:visible] [@media(hover:none)]:[--actions-opacity:1] [@media(hover:none)]:[--actions-visibility:visible]"
+									: "[--actions-opacity:1] [--actions-visibility:visible]",
+							)}
 						>
-							{isRasterImageMediaType(file.type) && previewUrl ? (
+							{hasImagePreview ? (
 								<button
 									type="button"
-									className="peer border-0 bg-transparent p-0 cursor-pointer transition-opacity hover:opacity-80"
+									className="border-0 bg-transparent p-0 cursor-pointer transition-opacity hover:opacity-80"
 									onClick={() => onPreview(previewUrl)}
 								>
 									<ImageThumbnail previewUrl={previewUrl} alt={file.name} />
@@ -156,7 +169,7 @@ export const AttachmentPreview: React.FC<{
 								<button
 									type="button"
 									aria-label={`View ${file.name}`}
-									className="peer flex h-16 w-28 flex-col items-start justify-start overflow-hidden rounded-md border-0 bg-surface-tertiary p-2 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+									className="flex h-16 w-28 flex-col items-start justify-start overflow-hidden rounded-md border-0 bg-surface-tertiary p-2 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 									onClick={async () => {
 										const nextContent = await loadTextAttachmentContent(
 											textContent,
@@ -176,39 +189,22 @@ export const AttachmentPreview: React.FC<{
 									{file.name.split(".").pop()?.toUpperCase() || "FILE"}
 								</div>
 							)}
-							{/* Focus on the card or either button shows both buttons. Each WebKit
-							    `A:focus-within B` rule adds a restyle of every ancestor's subtree, so
-							    the wrapper sets a variable with its own `focus-within`. At opacity 1
-							    it is no stacking context, so overlays paint over Paste, under Remove. */}
-							<div className="pointer-events-none absolute inset-0 [--actions-opacity:0] group-hover:[--actions-opacity:1] peer-focus:[--actions-opacity:1] focus-within:[--actions-opacity:1]">
-								{hasTextAttachment && (
-									<button
-										type="button"
-										onClick={async () => {
-											const nextContent = await loadTextAttachmentContent(
-												textContent,
-												textFileId,
-											);
-											onInlineText(file, nextContent);
-										}}
-										className="pointer-events-auto absolute -bottom-2 -right-2 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary opacity-(--actions-opacity) shadow-xs transition-opacity hover:bg-surface-secondary hover:text-content-primary"
-										aria-label="Paste inline"
-									>
-										<ClipboardPasteIcon
-											aria-hidden="true"
-											className="size-3.5"
-										/>
-									</button>
-								)}
+							{hasTextAttachment && (
 								<button
 									type="button"
-									onClick={() => onRemove(file)}
-									className="pointer-events-auto absolute -right-2 -top-2 z-10 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary opacity-(--actions-opacity) shadow-xs transition-opacity hover:bg-surface-secondary hover:text-content-primary"
-									aria-label={`Remove ${file.name}`}
+									onClick={async () => {
+										const nextContent = await loadTextAttachmentContent(
+											textContent,
+											textFileId,
+										);
+										onInlineText(file, nextContent);
+									}}
+									className="absolute -bottom-2 -right-2 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary opacity-(--actions-opacity) shadow-xs transition-opacity [visibility:var(--actions-visibility)] hover:bg-surface-secondary hover:text-content-primary"
+									aria-label="Paste inline"
 								>
-									<XIcon aria-hidden="true" className="size-3.5" />
+									<ClipboardPasteIcon aria-hidden="true" className="size-3.5" />
 								</button>
-							</div>
+							)}
 							{(uploadState?.status === "pending" ||
 								uploadState?.status === "processing" ||
 								uploadState?.status === "uploading") && (
@@ -234,6 +230,14 @@ export const AttachmentPreview: React.FC<{
 									</TooltipContent>
 								</Tooltip>
 							)}
+							<button
+								type="button"
+								onClick={() => onRemove(file)}
+								className="absolute -right-2 -top-2 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary opacity-(--actions-opacity) shadow-xs transition-opacity [visibility:var(--actions-visibility)] hover:bg-surface-secondary hover:text-content-primary"
+								aria-label={`Remove ${file.name}`}
+							>
+								<XIcon aria-hidden="true" className="size-3.5" />
+							</button>
 						</div>
 					);
 				})}
