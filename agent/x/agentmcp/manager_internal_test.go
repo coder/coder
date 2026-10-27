@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -479,6 +480,17 @@ func TestToolInputSchemaMap(t *testing.T) {
 		"$defs":                map[string]any{"Filter": map[string]any{"type": "string"}},
 	}
 	require.Equal(t, schema, toolInputSchemaMap(schema, nil))
+
+	// A schema too large to send whole keeps only the reduced shape.
+	large := map[string]any{
+		"type":       "object",
+		"properties": map[string]any{"filter": map[string]any{"$ref": "#/$defs/Filter"}},
+		"$defs":      map[string]any{"Filter": map[string]any{"type": "string", "description": strings.Repeat("x", maxToolInputSchemaBytes)}},
+	}
+	require.Equal(t, map[string]any{
+		"type":       "object",
+		"properties": map[string]any{"filter": map[string]any{"$ref": "#/$defs/Filter"}},
+	}, toolInputSchemaMap(large, nil))
 }
 
 // TestToolInputSchemaMapSecrets verifies that a schema echoing a
@@ -573,7 +585,7 @@ func TestConfigSecrets(t *testing.T) {
 			"PIN":          "0012345678",
 			"LONG_PIN":     "12345678901234567890",
 		},
-		Args: []string{"--key=argsecret12", "--db=mysql://root:argpassword1@db/app", `--credentials={"token": "flagsecret1", "scope": "read"}`, `mode=fast;creds={"key":"partsecret1"}`},
+		Args: []string{"--key=argsecret12", "--db=mysql://root:argpassword1@db/app", `--credentials={"token": "flagsecret1", "scope": "read"}`, `mode=fast;creds={"key":"partsecret1"}`, `mode=ro; cfg={"k": "partsecret2", "z": "partother22"}`},
 	}, []string{"INHERITED_TOKEN=inheritedsecret1", "HOME=/home/coder", "PATH=/usr/local/bin:/usr/bin", "LC_ALL=en_US.UTF-8"})
 	for _, want := range []string{
 		rawURL, "pathsecret1",
@@ -589,7 +601,7 @@ func TestConfigSecrets(t *testing.T) {
 		"inheritedsecret1",
 		"proxyuser1", "proxypassword1",
 		"jsonkeyid12", "jsonsecret1", "jsonlistkey1", "12345678901",
-		"flagsecret1", "partsecret1",
+		"flagsecret1", "partsecret1", "partsecret2", "partother22",
 	} {
 		require.Contains(t, secrets, want)
 	}
@@ -601,6 +613,9 @@ func TestConfigSecrets(t *testing.T) {
 	// Numeric credentials match the numbers a schema decodes them to.
 	require.True(t, containsSecret(float64(12345678), secrets))
 	require.True(t, containsSecret(float64(12345678901234567890), secrets))
+	// The "=" signs of a value add no suffix of it each, so a long value
+	// with many of them adds a few secrets, not one per sign.
+	require.Less(t, len(configSecrets(ServerConfig{Args: []string{strings.Repeat("a=", 8192)}}, nil)), 16)
 }
 
 // runFakeMCPServer implements a minimal JSON-RPC / MCP server over

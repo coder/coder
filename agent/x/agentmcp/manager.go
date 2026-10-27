@@ -1103,27 +1103,45 @@ type ToolInfo struct {
 	InputSchema map[string]any
 }
 
+// maxToolInputSchemaBytes is the largest encoded schema with keys beyond
+// the reduced shape that a catalog keeps whole. It matches agentcontext's
+// maxMCPToolInputSchemaBytes, past which the agent sends a schema reduced
+// anyway, so a larger one would only hold memory.
+const maxToolInputSchemaBytes = 64 << 10
+
 // The schema map is passed through whole so coderd sees every key the
 // server reported ($defs, additionalProperties, combinators, ...);
 // non-object and empty schemas leave InputSchema unset. A server may
 // echo a credential from its configuration in its schema, so when a key
 // beyond the reduced shape (see reducedInputSchema) holds one of
-// secrets, only the reduced shape is passed.
+// secrets, only the reduced shape is passed, as it is when the schema
+// encodes to more than maxToolInputSchemaBytes.
 func toolInputSchemaMap(schema any, secrets []string) map[string]any {
 	m, ok := schema.(map[string]any)
 	if !ok || len(m) == 0 {
 		return nil
 	}
 	reduced := reducedInputSchema(m)
+	fallback := func() map[string]any {
+		if len(reduced) == 0 {
+			return nil
+		}
+		return reduced
+	}
+	beyond := false
 	for key, value := range m {
 		if _, kept := reduced[key]; kept {
 			continue
 		}
+		beyond = true
 		if containsSecret(key, secrets) || containsSecret(value, secrets) {
-			if len(reduced) == 0 {
-				return nil
-			}
-			return reduced
+			return fallback()
+		}
+	}
+	if beyond {
+		encoded, err := json.Marshal(m)
+		if err != nil || len(encoded) > maxToolInputSchemaBytes {
+			return fallback()
 		}
 	}
 	return m
@@ -1167,9 +1185,8 @@ const minSecretBytes = 8
 // user:password@host holds a credential without a URL. The rest after
 // that colon is parsed as a URL too, as in
 // jdbc:postgresql://db/app?password=secret. A value that is a JSON
-// object or array, or that assigns one after its first "=" or in a
-// name=value part, adds each string and number it holds, like a value of
-// its own.
+// object or array, or that assigns one with "=", adds each string and
+// number it holds, like a value of its own.
 func configSecrets(cfg ServerConfig, env []string) []string {
 	var values []string
 	addURL := func(u *url.URL) {
@@ -1224,35 +1241,49 @@ func configSecrets(cfg ServerConfig, env []string) []string {
 		}
 	}
 	var add func(value string)
-	// A JSON value, such as service account credentials, holds its
-	// credentials as members that a server may echo on their own.
-	addJSON := func(text string) {
-		trimmed := strings.TrimSpace(text)
-		if !strings.HasPrefix(trimmed, "{") && !strings.HasPrefix(trimmed, "[") {
-			return
-		}
-		decoder := json.NewDecoder(strings.NewReader(trimmed))
-		decoder.UseNumber()
-		var decoded any
-		if decoder.Decode(&decoded) == nil {
+	// addJSON adds the members of the JSON that value is, such as service
+	// account credentials, or that it assigns with "=", as in
+	// --credentials={"token":"..."}, since a server may echo a member on
+	// its own. JSON is decoded in the whole value, since it may hold the
+	// separators that split the value below, and decoding resumes after
+	// each JSON value, so each byte starts at most one decode that
+	// succeeds.
+	addJSON := func(value string) {
+		decodeAt := func(start int) int {
+			decoder := json.NewDecoder(strings.NewReader(value[start:]))
+			decoder.UseNumber()
+			var decoded any
+			if decoder.Decode(&decoded) != nil {
+				return start + 1
+			}
 			jsonScalars(decoded, add)
+			return start + int(decoder.InputOffset())
+		}
+		next := 0
+		if trimmed := strings.TrimLeftFunc(value, unicode.IsSpace); strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[") {
+			next = decodeAt(len(value) - len(trimmed))
+		}
+		for next < len(value) {
+			i := strings.IndexByte(value[next:], '=')
+			if i < 0 {
+				return
+			}
+			next += i + 1
+			if next < len(value) && (value[next] == '{' || value[next] == '[') {
+				next = decodeAt(next)
+			}
 		}
 	}
 	add = func(value string) {
 		addValue(value)
 		addJSON(value)
-		// JSON assigned to a flag, as in --credentials={"token":"..."},
-		// may hold the separators that split the value below.
-		if _, assigned, ok := strings.Cut(value, "="); ok {
-			addJSON(assigned)
-		}
 		parts := strings.FieldsFunc(value, func(r rune) bool {
 			return unicode.IsSpace(r) || r == ';' || r == ','
 		})
 		for i, part := range parts {
 			addValue(part)
 			if _, v, ok := strings.Cut(part, "="); ok {
-				add(strings.Trim(v, `"`))
+				addValue(strings.Trim(v, `"`))
 			}
 			// A server may echo the user name or password that a Basic
 			// authorization encodes decoded.
