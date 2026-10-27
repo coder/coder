@@ -175,6 +175,21 @@ func classifyResponsesInputItem(raw interface{}) responsesInputItem {
 	}
 }
 
+// ResponsesItemReferenceID returns the id of a decoded Responses API
+// item_reference, or an empty string for any other item. openai-go
+// leaves out the optional type, so a reference can be just {"id": ...}.
+func ResponsesItemReferenceID(item map[string]any) string {
+	id := StringResponseField(item, "id")
+	switch {
+	case StringResponseField(item, "type") == "item_reference":
+		return id
+	case len(item) == 1 && id != "":
+		return id
+	default:
+		return ""
+	}
+}
+
 // StringResponseField returns the string value for key from a decoded
 // Responses API item, or an empty string when the field is absent or not a
 // string.

@@ -960,6 +960,8 @@ func promptItemTypes(prompt []interface{}) []string {
 		}
 		if itemType := chattest.StringResponseField(itemMap, "type"); itemType != "" {
 			types = append(types, itemType)
+		} else if chattest.ResponsesItemReferenceID(itemMap) != "" {
+			types = append(types, "item_reference")
 		}
 	}
 	return types
@@ -988,11 +990,11 @@ func assertNoResponsesProviderItemReplay(
 	t.Helper()
 	switch typed := value.(type) {
 	case map[string]interface{}:
+		if chattest.ResponsesItemReferenceID(typed) != "" {
+			require.FailNow(t, "prompt replayed provider item reference")
+		}
 		for key, raw := range typed {
 			if text, ok := raw.(string); ok {
-				if key == "type" && text == "item_reference" {
-					require.FailNow(t, "prompt replayed provider item reference")
-				}
 				if key == "id" || key == "call_id" || key == "item_id" {
 					if _, isStale := staleIDs[text]; isStale {
 						require.FailNowf(t, "prompt replayed stale provider item ID",
