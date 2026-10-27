@@ -1,7 +1,11 @@
 package chattest_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"io"
+	"net/http"
 	"sync/atomic"
 	"testing"
 
@@ -10,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/testutil"
 )
 
 var openAIAPIs = []struct {
@@ -246,4 +251,48 @@ func TestOpenAI_NonStreaming_MismatchReturnsError_ResponsesAPI(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "streaming response for non-streaming request")
+}
+
+func TestOpenAI_ResponsesAPI_UnstoredItemReference(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name       string
+		store      bool
+		wantStatus int
+	}{
+		{name: "Unstored", store: false, wantStatus: http.StatusNotFound},
+		{name: "Stored", store: true, wantStatus: http.StatusOK},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			serverURL := chattest.NewOpenAI(t, func(*chattest.OpenAIRequest) chattest.OpenAIResponse {
+				resp := chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+				resp.Reasoning = &chattest.OpenAIReasoningItem{ID: "rs_served", EncryptedContent: "encrypted"}
+				resp.WebSearch = &chattest.OpenAIWebSearchCall{ID: "ws_served", Queries: []string{"go"}}
+				return resp
+			})
+			post := func(store bool, input []any) *http.Response {
+				body, err := json.Marshal(map[string]any{
+					"model": "gpt-4", "stream": true, "store": store, "input": input,
+				})
+				require.NoError(t, err)
+				req, err := http.NewRequestWithContext(testutil.Context(t, testutil.WaitShort), http.MethodPost, serverURL+"/responses", bytes.NewReader(body))
+				require.NoError(t, err)
+				resp, err := http.DefaultClient.Do(req)
+				require.NoError(t, err)
+				_, err = io.Copy(io.Discard, resp.Body)
+				require.NoError(t, err)
+				require.NoError(t, resp.Body.Close())
+				return resp
+			}
+
+			user := map[string]any{"role": "user", "content": "search"}
+			require.Equal(t, http.StatusOK, post(tc.store, []any{user}).StatusCode)
+			// openai-go leaves out the optional type on item references.
+			resp := post(true, []any{user, map[string]any{"id": "rs_served"}, map[string]any{"id": "ws_served"}})
+			require.Equal(t, tc.wantStatus, resp.StatusCode)
+		})
+	}
 }
