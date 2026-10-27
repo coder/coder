@@ -1390,8 +1390,10 @@ func TestBufferedPartsToPartialMessages_SynthesizesMissingToolResults(t *testing
 	require.Equal(t, codersdk.ChatMessagePartTypeToolCall, assistantParts[3].Type)
 
 	require.Equal(t, database.ChatMessageRoleTool, got[1].Role)
+	require.Equal(t, database.ChatMessageVisibilityBoth, got[1].Visibility)
 	toolParts := parseMessageParts(t, got[1].Role, got[1].Content)
 	require.Equal(t, "call-2", toolParts[0].ToolCallID)
+	require.JSONEq(t, `{"ok":true}`, string(toolParts[0].Result))
 	require.Equal(t, createdAt, requireNotNilTime(t, toolParts[0].CreatedAt))
 
 	require.Equal(t, database.ChatMessageRoleTool, got[2].Role)
