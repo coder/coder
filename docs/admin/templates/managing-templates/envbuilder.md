@@ -2,6 +2,9 @@
 title: Envbuilder
 ---
 
+> [!WARNING]
+> `envbuilder` is in maintenance mode and no new features are planned, please explore alternative options.
+
 Envbuilder shifts environment definition from template administrators to developers.
 Instead of baking tools into template images, developers define their environments via `devcontainer.json` files in their repositories.
 
@@ -11,5 +14,6 @@ For setup instructions, see [Envbuilder documentation](../../integrations/devcon
 
 For an alternative that uses Docker inside workspaces, see [Dev Containers Integration](../../integrations/devcontainers/integration.md).
 
-Nix flakes also let developers define their environments in their repositories, without building images.
-See [Nix(OS)](../../integrations/nixos.md).
+> [!TIP]
+> Nix flakes also let developers define their environments in their repositories, without building images.
+> See [Nix(OS)](../../integrations/nixos.md).

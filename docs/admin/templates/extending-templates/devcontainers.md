@@ -10,4 +10,5 @@ For setup instructions, see [Dev Containers Integration](../../integrations/devc
 
 For an alternative approach that doesn't require Docker, see [Envbuilder](../../integrations/devcontainers/envbuilder/index.md).
 
-To define environments with Nix flakes instead, see [Nix(OS)](../../integrations/nixos.md).
+> [!TIP]
+> To define environments with Nix flakes instead, see [Nix(OS)](../../integrations/nixos.md).
