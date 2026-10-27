@@ -70,7 +70,7 @@ replace github.com/charmbracelet/bubbletea => github.com/coder/bubbletea v1.2.2-
 
 // Trivy has some issues that we're floating patches for, and will hopefully
 // be upstreamed eventually.
-replace github.com/aquasecurity/trivy => github.com/coder/trivy v0.0.0-20260911135535-15b949537506
+replace github.com/aquasecurity/trivy => github.com/coder/trivy v0.0.0-20261026151418-65abc04915bd
 
 // afero/tarfs has a bug that breaks our usage. A PR has been submitted upstream.
 // https://github.com/spf13/afero/pull/487
@@ -552,7 +552,7 @@ require (
 	github.com/brianvoe/gofakeit/v7 v7.18.0
 	github.com/coder/aisdk-go v0.0.9
 	github.com/coder/boundary v0.11.0
-	github.com/coder/preview v1.0.10-0.20260915135839-c0dfdeecbd89
+	github.com/coder/preview v1.0.10-0.20261027154125-155f674f1c7b
 	github.com/coder/safedial v0.2.0
 	github.com/danieljoos/wincred v1.2.3
 	github.com/dgraph-io/ristretto/v2 v2.4.0
