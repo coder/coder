@@ -214,8 +214,8 @@ export const Empty: Story = {
 	args: { attachments: [] },
 };
 
-export const EmptyWithEarlierMessages: Story = {
-	args: { attachments: [], hasMoreMessages: true },
+export const LoadingEarlierAttachments: Story = {
+	args: { isLoadingEarlierAttachments: true },
 };
 
 const mockEarlierAttachmentsError = mockApiError({
