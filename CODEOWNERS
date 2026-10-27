@@ -52,15 +52,28 @@ site/src/modules/aiModels/knownModels/knownModelsGenerated.json @ssncferreira @j
 # are served on coder.com, so a docs/ change gets the same code-owner review
 # as code. The workflow files stay co-owned with .github/'s owner, since a
 # later rule replaces an earlier one here.
-docs/ @nickvigilante
-.vale.ini @nickvigilante
-.markdownlint.jsonc @nickvigilante
-.markdownlint-cli2.jsonc @nickvigilante
-.github/workflows/audit-docs-paths.yaml @nickvigilante @jdomeracki-coder
-.github/workflows/deploy-docs.yaml @nickvigilante @jdomeracki-coder
-.github/workflows/doc-check.yaml @nickvigilante @jdomeracki-coder
-.github/workflows/docs-preview.yaml @nickvigilante @jdomeracki-coder
-.github/workflows/weekly-docs.yaml @nickvigilante @jdomeracki-coder
-.github/workflows/test-deploy-docs-diff.sh @nickvigilante @jdomeracki-coder
-.github/workflows/test-deploy-docs-release.sh @nickvigilante @jdomeracki-coder
-.github/workflows/test-docs-preview-mapper.sh @nickvigilante @jdomeracki-coder
+docs/ @coder/docs
+.vale.ini @coder/docs
+.markdownlint.jsonc @coder/docs
+.markdownlint-cli2.jsonc @coder/docs
+.github/workflows/audit-docs-paths.yaml @coder/docs @jdomeracki-coder
+.github/workflows/deploy-docs.yaml @coder/docs @jdomeracki-coder
+.github/workflows/doc-check.yaml @coder/docs @jdomeracki-coder
+.github/workflows/docs-preview.yaml @coder/docs @jdomeracki-coder
+.github/workflows/weekly-docs.yaml @coder/docs @jdomeracki-coder
+.github/workflows/test-deploy-docs-diff.sh @coder/docs @jdomeracki-coder
+.github/workflows/test-deploy-docs-release.sh @coder/docs @jdomeracki-coder
+.github/workflows/test-docs-preview-mapper.sh @coder/docs @jdomeracki-coder
+
+# Generated documentation has no owner. The Makefile regenerates these on
+# many code changes, so owning them would send the docs team a review
+# request for each of those PRs. A path with no owners overrides the docs/
+# rule above.
+docs/manifest.json
+docs/manifest/generated/
+docs/reference/api/
+docs/reference/api-key-scopes.md
+docs/reference/cli/
+docs/admin/integrations/prometheus.md
+docs/admin/security/audit-logs.md
+docs/admin/setup/configuration-reference.md
