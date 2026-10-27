@@ -1120,7 +1120,7 @@ func newServerRedactor(kind connectionKind, srv Server) secretRedactor {
 		parts := strings.FieldsFunc(value, func(r rune) bool {
 			return unicode.IsSpace(r) || r == ';' || r == ','
 		})
-		for _, part := range parts {
+		for i, part := range parts {
 			values = append(values, part)
 			// Add the value of a name=value part on its own, but not the
 			// name. A name is not secret, and redacting it could rewrite
@@ -1128,9 +1128,28 @@ func newServerRedactor(kind connectionKind, srv Server) secretRedactor {
 			if _, v, ok := strings.Cut(part, "="); ok {
 				values = append(values, strings.Trim(v, `"`))
 			}
+			if strings.EqualFold(part, "Basic") && i+1 < len(parts) {
+				values = append(values, basicCredentials(parts[i+1])...)
+			}
 		}
 	}
 	return newSecretRedactor(values)
+}
+
+// basicCredentials returns the user information that the token of a
+// Basic authorization encodes, whole and as the user name and password,
+// since a server may echo them decoded. A token that is not Base64 holds
+// none.
+func basicCredentials(token string) []string {
+	decoded, err := base64.StdEncoding.DecodeString(token)
+	if err != nil {
+		decoded, err = base64.RawStdEncoding.DecodeString(token)
+	}
+	if err != nil {
+		return nil
+	}
+	userinfo := string(decoded)
+	return append([]string{userinfo}, strings.SplitN(userinfo, ":", 2)...)
 }
 
 // urlCredentials returns the parts of a URL that may hold a credential
@@ -1299,6 +1318,10 @@ func (r secretRedactor) redactKeywordValue(key string, value any) any {
 		if named, ok := value.(map[string]any); ok {
 			return r.redactNamedMap(named, r.redactSchemaNames)
 		}
+	case "$vocabulary":
+		if vocabularies, ok := value.(map[string]any); ok {
+			return r.redactVocabularies(vocabularies)
+		}
 	}
 	if toolschema.HoldsDraft3Schemas(key) {
 		return r.redactDraft3Schemas(value)
@@ -1320,6 +1343,22 @@ func (r secretRedactor) redactKeywordValue(key string, value any) any {
 		}
 	}
 	return r.redactSchemaData(value)
+}
+
+// redactVocabularies redacts the URIs that key a "$vocabulary" map like
+// references, so that a sensitive value is replaced also where it is
+// percent-encoded. When two URIs redact to the same one, the first in
+// sorted order keeps it, so that the result does not depend on map
+// order.
+func (r secretRedactor) redactVocabularies(vocabularies map[string]any) map[string]any {
+	redacted := make(map[string]any, len(vocabularies))
+	for _, uri := range slices.Sorted(maps.Keys(vocabularies)) {
+		redactedURI := r.redactReference(uri)
+		if _, taken := redacted[redactedURI]; !taken {
+			redacted[redactedURI] = r.redactSchemaData(vocabularies[uri])
+		}
+	}
+	return redacted
 }
 
 // redactDraft3Schemas redacts the value of a keyword that

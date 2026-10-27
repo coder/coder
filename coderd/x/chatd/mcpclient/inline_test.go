@@ -3,6 +3,7 @@ package mcpclient_test
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -522,6 +523,39 @@ func TestConnectInline_RedactsURLCredentials(t *testing.T) {
 	require.Equal(t, "Signs in as [REDACTED] with [REDACTED], then sends [REDACTED].", tools[0].Info().Description)
 }
 
+// TestConnectInline_RedactsBasicCredentials verifies that the user name
+// and password a Basic authorization header encodes are redacted
+// decoded, as a server may echo them.
+func TestConnectInline_RedactsBasicCredentials(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	account := testTool{
+		tool: &mcp.Tool{
+			Name:        "lookup_account",
+			Description: "Signs in as svc-account-name with pass-word-secret.",
+			InputSchema: map[string]any{"type": "object", "properties": map[string]any{}},
+		},
+		handler: func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return textToolResult("ok"), nil
+		},
+	}
+	ts := newTestMCPServer(t, account)
+	cfg := makeInlineConfig("data-bot", ts.URL+"/mcp", map[string]string{
+		"Authorization": "Basic " + base64.StdEncoding.EncodeToString([]byte("svc-account-name:pass-word-secret")),
+	})
+
+	tools, summaries, cleanup := mcpclient.ConnectInlineForTest(
+		ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
+	)
+	t.Cleanup(cleanup)
+	require.Len(t, summaries, 1)
+	require.Equal(t, mcpclient.ConnectOutcomeConnected, summaries[0].Outcome)
+	require.Len(t, tools, 1)
+	require.Equal(t, "Signs in as [REDACTED] with [REDACTED].", tools[0].Info().Description)
+}
+
 // TestConnectInline_IgnoresShortSensitiveValues verifies that a
 // sensitive value shorter than MinSensitiveValueBytes is dropped rather
 // than redacted, so a one-letter value cannot mangle tool names,
@@ -838,8 +872,8 @@ func TestConnectInline_RedactsResourceURIsApart(t *testing.T) {
 // TestConnectInline_RedactsEncodedAndKeywordReferences verifies that a
 // reference does not show a sensitive value that it percent-encodes, in
 // its fragment or its URI, that is spelled like a keyword, or that spans a
-// keyword token, and that a published "$schema" holding a sensitive value
-// stays.
+// keyword token, that neither does a "$vocabulary" URI, and that a
+// published "$schema" holding a sensitive value stays.
 func TestConnectInline_RedactsEncodedAndKeywordReferences(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -861,6 +895,10 @@ func TestConnectInline_RedactsEncodedAndKeywordReferences(t *testing.T) {
 				"definitions": map[string]any{
 					"topsecret": map[string]any{"type": "string"},
 					"mcp":       map[string]any{"properties": map[string]any{"x": map[string]any{"type": "integer"}}},
+				},
+				"$vocabulary": map[string]any{
+					"https://example.test/top%73ecret": true,
+					"https://example.test/topsecret":   false,
 				},
 			},
 		},
@@ -901,6 +939,7 @@ func TestConnectInline_RedactsEncodedAndKeywordReferences(t *testing.T) {
 			"REDACT_3": map[string]any{"type": "string"},
 			"REDACT_2": map[string]any{"properties": map[string]any{"x": map[string]any{"type": "integer"}}},
 		},
+		"$vocabulary": map[string]any{"https://example.test/REDACT_4": true},
 	}, fullSchema.FullInputSchema())
 }
 

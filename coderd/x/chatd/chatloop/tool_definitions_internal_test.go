@@ -1447,6 +1447,47 @@ func TestBuildToolDefinitionsFullSchemaRootFoldObjectKeywords(t *testing.T) {
 			accepted: []string{`{"a": 1, "b": 1, "e": 1}`, `{"c": 1, "d": 1, "nested": {"b": 1}}`},
 			rejected: []string{`{}`, `{"a": 1, "e": 1}`, `{"c": 1}`, `{"c": 1, "d": 1, "nested": {}}`},
 		},
+		{
+			// A reference to a property that a branch narrows keeps
+			// pointing at the root's own schema for it.
+			name:     "ReferencedNarrowedProperty",
+			source:   `{"type": "object", "properties": {"x": {"type": "string"}, "y": {"$ref": "#/properties/x"}}, "allOf": [{"properties": {"x": {"minLength": 5}}}]}`,
+			want:     `{"type": "object", "properties": {"x": {"allOf": [{"$ref": "#/$defs/coder_root_properties_x"}, {"minLength": 5}]}, "y": {"$ref": "#/$defs/coder_root_properties_x"}}, "$defs": {"coder_root_properties_x": {"type": "string"}}}`,
+			accepted: []string{`{"x": "abcde", "y": "a"}`},
+			rejected: []string{`{"x": "a"}`, `{"y": 1}`},
+		},
+		{
+			name:     "NarrowedPropertyReferencingNarrowed",
+			source:   `{"type": "object", "properties": {"a": {"type": "string"}, "b": {"$ref": "#/properties/a"}, "c": {"$ref": "#/properties/b"}}, "allOf": [{"properties": {"c": {}}, "additionalProperties": false}]}`,
+			want:     `{"type": "object", "properties": {"c": {"$ref": "#/$defs/coder_root_properties_b"}}, "additionalProperties": false, "$defs": {"coder_root_properties_a": {"type": "string"}, "coder_root_properties_b": {"$ref": "#/$defs/coder_root_properties_a"}}}`,
+			accepted: []string{`{"c": "s"}`},
+			rejected: []string{`{"c": 1}`, `{"a": "s"}`},
+		},
+		{
+			name:     "PointerIntoNarrowedProperty",
+			source:   `{"type": "object", "properties": {"x": {"type": "object", "properties": {"a": {"type": "string"}}}, "y": {"$ref": "#/properties/x/properties/a"}}, "allOf": [{"properties": {"x": {"minProperties": 1}}}]}`,
+			want:     `{"type": "object", "properties": {"x": {"allOf": [{"$ref": "#/$defs/coder_root_properties_x"}, {"minProperties": 1}]}, "y": {"$ref": "#/$defs/coder_root_properties_x/properties/a"}}, "$defs": {"coder_root_properties_x": {"type": "object", "properties": {"a": {"type": "string"}}}}}`,
+			accepted: []string{`{"x": {"a": "s"}, "y": "t"}`},
+			rejected: []string{`{"x": {}}`, `{"y": 1}`},
+		},
+		{
+			// The branch lists "p", so its "additionalProperties" does not
+			// hold for it, but it narrows the root's, which "p" names.
+			name:     "ReferencedNarrowedAdditionalProperties",
+			source:   `{"type": "object", "additionalProperties": {"type": "string"}, "properties": {"p": {"$ref": "#/additionalProperties"}}, "allOf": [{"properties": {"p": {}}, "additionalProperties": {"maxLength": 2}}]}`,
+			want:     `{"type": "object", "additionalProperties": {"allOf": [{"$ref": "#/$defs/coder_root_additionalProperties"}, {"maxLength": 2}]}, "properties": {"p": {"$ref": "#/$defs/coder_root_additionalProperties"}}, "$defs": {"coder_root_additionalProperties": {"type": "string"}}}`,
+			accepted: []string{`{"p": "abc", "q": "ab"}`},
+			rejected: []string{`{"q": "abc"}`, `{"p": 1}`},
+		},
+		{
+			// The branch declaring the anchor moves where the reference
+			// still finds it, rather than the one in another resource.
+			name:     "AnchorInRemovedBranch",
+			source:   `{"type": "object", "properties": {"v": {"$dynamicRef": "#node"}}, "allOf": [{"$dynamicAnchor": "node", "type": "object"}], "$defs": {"other": {"$id": "https://example.com/other", "$dynamicAnchor": "node", "type": "string"}}}`,
+			want:     `{"type": "object", "properties": {"v": {"$dynamicRef": "#node"}}, "$defs": {"coder_root_allOf_0": {"$dynamicAnchor": "node", "type": "object"}, "other": {"$id": "https://example.com/other", "$dynamicAnchor": "node", "type": "string"}}}`,
+			accepted: []string{`{"v": {}}`},
+			rejected: []string{`{"v": "s"}`},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
