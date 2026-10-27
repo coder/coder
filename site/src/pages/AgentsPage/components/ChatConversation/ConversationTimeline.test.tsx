@@ -33,6 +33,7 @@ import {
 	attachmentStepMessages,
 	buildLiveStatus,
 	buildStreamRenderState,
+	MockAsyncQuestionMessages,
 	MockCollapsedStepsPreferences,
 	MockLongTurnPageLoads,
 	MockTextBeforeSecondStepMessage,
@@ -829,4 +830,61 @@ describe("ConversationTimeline attachment previews", () => {
 
 		await waitFor(() => expect(attachment).toHaveFocus());
 	});
+});
+
+describe("ConversationTimeline async questions", () => {
+	it.each<[string, ChatMessage["content"]]>([
+		[
+			"text",
+			[
+				{
+					type: "text",
+					text: "Answer to ask_user_question call question:\nBackend",
+				},
+			],
+		],
+		[
+			"a leading skill chip",
+			[
+				{ type: "text", text: "Answer to ask_user_question call question:" },
+				{
+					type: "skill-invocation",
+					skill_source: "project",
+					skill_name: "triage",
+				},
+				{ type: "text", text: "Backend" },
+			],
+		],
+	])(
+		"copies a delivered answer with %s without its prefix line",
+		async (_, content) => {
+			const user = userEvent.setup();
+			const writeText = vi
+				.spyOn(navigator.clipboard, "writeText")
+				.mockResolvedValue();
+			renderTimeline({
+				messages: [
+					...MockAsyncQuestionMessages,
+					{
+						...MockChatMessage,
+						id: 6,
+						role: "user",
+						created_at: workingFixtureTime(7),
+						content,
+					},
+				],
+			});
+
+			await user.click(
+				within(screen.getByTestId("chat-message-message:6")).getByRole(
+					"button",
+					{
+						name: "Copy message",
+					},
+				),
+			);
+
+			expect(writeText).toHaveBeenCalledWith("Backend");
+		},
+	);
 });

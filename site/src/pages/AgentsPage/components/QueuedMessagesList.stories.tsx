@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
 import { MockChatQueuedMessage } from "#/testHelpers/chatEntities";
+import { getAsyncAnswerPrefix } from "./ChatElements/tools/asyncAnswer";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 
 // Helper to build a ChatQueuedMessage with minimal boilerplate.
@@ -112,6 +113,20 @@ export const MultiLineTextTruncation: Story = {
 					"First line of the message\nSecond line that should be hidden",
 				),
 			),
+		],
+	},
+};
+
+export const AsyncQuestionAnswer: Story = {
+	args: {
+		messages: [
+			buildMessage(
+				1,
+				textContent(
+					`${getAsyncAnswerPrefix("toolu_01ABC")}1. Scope: Backend\n2. Rollout: Single migration`,
+				),
+			),
+			buildMessage(2, textContent("Also update the docs")),
 		],
 	},
 };

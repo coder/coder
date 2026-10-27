@@ -365,7 +365,7 @@ const ChatMessageItem = memo<{
 						>
 							{displayState.hasCopyableContent && parsed && (
 								<CopyButton
-									text={parsed.markdown}
+									text={displayState.copyText}
 									label="Copy message"
 									className="size-6"
 									tooltipSide="bottom"

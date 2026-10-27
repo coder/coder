@@ -2,6 +2,11 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { ChatAttachmentMediaTypes } from "#/api/typesGenerated";
 import { asRecord, asString } from "../ChatElements/runtimeTypeUtils";
 import {
+	type AsyncAnswer,
+	getAsyncAnswerPrefix,
+	parseAsyncAnswer,
+} from "../ChatElements/tools/asyncAnswer";
+import {
 	getProvidedSubagentTitle,
 	getSubagentChatId,
 	getSubagentDescriptor,
@@ -135,18 +140,17 @@ export const getPendingToolCallIDs = (
 		return undefined;
 	}
 
+	// Only results in or after the newest assistant message settle its calls,
+	// so an older result for a reused call ID does not.
 	const resultIDs = new Set<string>();
-	for (const message of messages) {
+	for (const message of messages.toReversed()) {
+		if (message.role === "user") {
+			return undefined;
+		}
 		for (const part of message.content ?? []) {
 			if (isToolResultPart(part) && part.tool_call_id) {
 				resultIDs.add(part.tool_call_id);
 			}
-		}
-	}
-
-	for (const message of messages.toReversed()) {
-		if (message.role === "user") {
-			return undefined;
 		}
 		if (message.role !== "assistant") {
 			continue;
@@ -397,6 +401,61 @@ const isEditableUserMessageFileBlock = (
 	// preserves the reference (or drops it when the chip is removed).
 	block.type === "workspace-file-reference";
 
+/**
+ * Concatenates text parts verbatim to match the server-side string_agg in
+ * GetChatUserPromptsByChatID; parseMessageContent/appendText drops leading
+ * whitespace-only chunks.
+ */
+const getMessageText = (
+	content: readonly TypesGen.ChatMessagePart[] | undefined,
+): string =>
+	(content ?? [])
+		.filter((part): part is TypesGen.ChatTextPart => part.type === "text")
+		.map((part) => part.text)
+		.join("");
+
+// Without this, the restored editor would show the prefix line, and the send
+// would add a second one.
+const withoutAsyncAnswerPrefix = (
+	content: readonly TypesGen.ChatMessagePart[],
+): readonly TypesGen.ChatMessagePart[] => {
+	const firstPart = content.at(0);
+	if (firstPart?.type !== "text") {
+		return content;
+	}
+	const answer = parseAsyncAnswer(firstPart.text);
+	return answer
+		? [{ ...firstPart, text: answer.body }, ...content.slice(1)]
+		: content;
+};
+
+type AsyncAnswerContent = AsyncAnswer & {
+	/** The whole answer, keeping the prefix line's break so it still parses. */
+	text: string;
+};
+
+/**
+ * Reads an async answer from its message parts. The joined message text
+ * cannot show where the call ID ends when a chip follows the prefix line,
+ * so only the first part is parsed.
+ */
+export const parseAsyncAnswerContent = (
+	content: readonly TypesGen.ChatMessagePart[] | undefined,
+): AsyncAnswerContent | undefined => {
+	const firstPart = content?.at(0);
+	const answer =
+		firstPart?.type === "text" ? parseAsyncAnswer(firstPart.text) : undefined;
+	if (!answer) {
+		return undefined;
+	}
+	const body = answer.body + getMessageText(content?.slice(1));
+	return {
+		toolCallId: answer.toolCallId,
+		body,
+		text: getAsyncAnswerPrefix(answer.toolCallId) + body,
+	};
+};
+
 export const getEditableUserMessagePayload = (
 	message: TypesGen.ChatMessage,
 ): {
@@ -405,13 +464,9 @@ export const getEditableUserMessagePayload = (
 	/** Restores skill chips in place; undefined when there are none. */
 	editorState: string | undefined;
 } => {
-	// Concatenate text parts verbatim to match the server-side string_agg in
-	// GetChatUserPromptsByChatID; parseMessageContent/appendText drops leading
-	// whitespace-only chunks.
-	const text = (message.content ?? [])
-		.filter((part): part is TypesGen.ChatTextPart => part.type === "text")
-		.map((part) => part.text)
-		.join("");
+	const text =
+		parseAsyncAnswerContent(message.content)?.text ??
+		getMessageText(message.content);
 	const parsed = parseMessageContent(message.content);
 	const fileBlocks = parsed.blocks.filter(isEditableUserMessageFileBlock);
 	return {
@@ -420,11 +475,15 @@ export const getEditableUserMessagePayload = (
 		editorState: parsed.blocks.some(
 			(block) => block.type === "skill-invocation",
 		)
-			? serializeMessageDraft(message.content ?? [])
+			? serializeMessageDraft(withoutAsyncAnswerPrefix(message.content ?? []))
 			: undefined,
 	};
 };
 
+/**
+ * Providers can reuse a call ID, so a call takes the nearest result after it
+ * and an older result never completes a newer call.
+ */
 export const parseMessagesWithMergedTools = (
 	messages: readonly TypesGen.ChatMessage[],
 	options: MergeToolsOptions = {},
@@ -434,25 +493,20 @@ export const parseMessagesWithMergedTools = (
 		parsed: parseMessageContent(message.content),
 	}));
 
-	const globalToolResults = new Map<string, ParsedToolResult>();
-	for (const { parsed } of rawParsed) {
-		for (const result of parsed.toolResults) {
-			globalToolResults.set(result.id, result);
-		}
-	}
-
-	for (const { parsed } of rawParsed) {
+	// Results not yet claimed by a call, gathered walking backward.
+	const laterResults = new Map<string, ParsedToolResult>();
+	for (const { parsed } of rawParsed.toReversed()) {
 		const resultById = new Map<string, ParsedToolResult>();
 		for (const result of parsed.toolResults) {
 			resultById.set(result.id, result);
+			laterResults.set(result.id, result);
 		}
 		for (const call of parsed.toolCalls) {
-			if (!resultById.has(call.id)) {
-				const global = globalToolResults.get(call.id);
-				if (global) {
-					resultById.set(global.id, global);
-				}
+			const laterResult = laterResults.get(call.id);
+			if (laterResult) {
+				resultById.set(call.id, laterResult);
 			}
+			laterResults.delete(call.id);
 		}
 		parsed.tools = mergeTools(
 			parsed.toolCalls,

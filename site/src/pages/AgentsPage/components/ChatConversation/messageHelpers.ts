@@ -2,6 +2,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { getAttachmentHref } from "../../utils/chatAttachments";
 import { asRecord } from "../ChatElements/runtimeTypeUtils";
 import { shouldRenderTool } from "../ChatElements/tools/toolVisibility";
+import { parseAsyncAnswerContent } from "./messageParsing";
 import type {
 	MergedTool,
 	ParsedMessageContent,
@@ -30,6 +31,8 @@ export type MessageDisplayState = {
 	hasFileBlocks: boolean;
 	hasWorkspaceFileReferences: boolean;
 	hasCopyableContent: boolean;
+	/** The message text, without an async answer's prefix line. */
+	copyText: string;
 	needsAssistantBottomSpacer: boolean;
 };
 
@@ -189,12 +192,15 @@ export const deriveMessageDisplayState = ({
 	const hasFileBlocks = userFileBlocks.length > 0;
 	const { hasThinkingOnlyContent, endsWithResponseBlock } =
 		getRenderableContentState(parsed);
+	const copyText =
+		(isUser ? parseAsyncAnswerContent(message.content)?.body : undefined) ??
+		parsed.markdown;
 	// The copy action row renders below the whole message, so assistant
 	// messages only get one when the last visible block is text.
 	// Otherwise the button would sit under a tool call with nothing
 	// copyable directly above it.
 	const hasCopyableContent =
-		Boolean(parsed.markdown.trim()) &&
+		Boolean(copyText.trim()) &&
 		!hasFileAttachments &&
 		!hasWorkspaceFileReferences &&
 		(isUser || endsWithResponseBlock);
@@ -215,6 +221,7 @@ export const deriveMessageDisplayState = ({
 		hasFileBlocks,
 		hasWorkspaceFileReferences,
 		hasCopyableContent,
+		copyText,
 		needsAssistantBottomSpacer,
 	};
 };

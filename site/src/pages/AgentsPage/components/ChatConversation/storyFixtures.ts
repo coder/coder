@@ -481,6 +481,45 @@ export const MockQuestionCallMessage: TypesGen.ChatMessage = {
 	],
 };
 
+/** An async ask_user_question result; the agent keeps working while it is open. */
+const MockAsyncQuestionResult = {
+	questions: [
+		{
+			header: "Scope",
+			question: "Which part should change first?",
+			options: [
+				{ label: "Backend", description: "Change the API first." },
+				{ label: "Frontend", description: "Change the UI first." },
+			],
+		},
+	],
+	async: true,
+};
+
+/** The tool message that returns MockAsyncQuestionResult to MockQuestionCallMessage. */
+const MockAsyncQuestionResultMessage: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	id: 5,
+	role: "tool",
+	created_at: workingFixtureTime(6),
+	content: [
+		{
+			type: "tool-result",
+			tool_call_id: "question",
+			tool_name: "ask_user_question",
+			result: { output: JSON.stringify(MockAsyncQuestionResult) },
+			created_at: workingFixtureTime(6),
+		},
+	],
+};
+
+/** A transcript whose latest step asked an async question that is still open. */
+export const MockAsyncQuestionMessages: TypesGen.ChatMessage[] = [
+	...MockWorkingMessages.slice(0, 1),
+	MockQuestionCallMessage,
+	MockAsyncQuestionResultMessage,
+];
+
 export const buildReconnectState = (
 	overrides: Partial<ReconnectState> = {},
 ): ReconnectState => ({

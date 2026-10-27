@@ -19,6 +19,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { parseAsyncAnswer } from "./ChatElements/tools/asyncAnswer";
 import { SkillChip } from "./ChatMessageInput/SkillChip";
 
 type QueuedMessagesListProps = {
@@ -93,9 +94,17 @@ const QueuedMessagePreview: React.FC<{
 	if (parts.length === 0) {
 		return "[Queued message]";
 	}
-	const firstLine = getFirstLinePreview(parts);
+	const [firstPart, ...restParts] = parts;
+	const asyncAnswer =
+		firstPart.type === "text" ? parseAsyncAnswer(firstPart.text) : undefined;
+	const firstLine = getFirstLinePreview(
+		asyncAnswer
+			? [{ type: "text", text: asyncAnswer.body }, ...restParts]
+			: parts,
+	);
 	return (
 		<>
+			{asyncAnswer && <span className="text-content-secondary">Answer: </span>}
 			{firstLine.parts.map((part, index) => (
 				<Fragment key={index}>
 					{index > 0 && " "}
