@@ -43,7 +43,7 @@ To add a model to the list, enable an Anthropic or OpenAI model on the **Models*
 
 When no model is selected, the row shows **Use default model** and computer use runs on the organization's default model.
 To return to the default model, select **Clear**, then select **Save**.
-If the selected model is later disabled, deleted, or unusable for the chat owner, computer use falls back to the organization's default model.
+If the selected model is later disabled, deleted, moved to an AI provider that isn't Anthropic or OpenAI, or unusable for the chat owner, computer use falls back to the organization's default model.
 
 Computer use is unavailable in a chat when the chat owner has no usable [credentials](../models.md#credential-selection) for the AI provider of the model it runs on.
 It's also unavailable when it runs on the organization's default model and that model isn't an Anthropic or OpenAI model.

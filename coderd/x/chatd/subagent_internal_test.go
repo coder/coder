@@ -2776,20 +2776,24 @@ func TestResolveComputerUseModel(t *testing.T) {
 		require.Contains(t, reason, `of type "google"; computer use requires an Anthropic or OpenAI AI provider`)
 	})
 
-	t.Run("UnsupportedOverrideProviderType", func(t *testing.T) {
+	t.Run("UnsupportedOverrideProviderTypeFallsBackToDefault", func(t *testing.T) {
 		t.Parallel()
 		db, ps := dbtestutil.NewDB(t)
 		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 		ctx := chatdTestContext(t)
-		user, org, _ := seedInternalChatDeps(t, db)
+		user, org, model := seedInternalChatDeps(t, db)
 		insertInternalAIProvider(t, db, database.AIProviderTypeOpenrouter, "test-key", true)
+		// The override API rejects this model, but the model API can move a
+		// saved override's model to such a provider.
 		override := insertInternalChatModelConfigForProvider(t, db, org.ID, "openrouter", "openai/gpt-test", true)
-		upsertInternalChatOrganizationModelOverride(t, db, org.ID, codersdk.ChatModelOverrideContextComputerUse, override.ID.String())
+		upsertInternalChatOrganizationModelOverride(t, db, org.ID, codersdk.ChatModelOverrideContextComputerUse, override.ID.String()+":high")
 
-		_, reason, err := server.resolveComputerUseModel(ctx, user.ID, org.ID)
+		got, reason, err := server.resolveComputerUseModel(ctx, user.ID, org.ID)
 		require.NoError(t, err)
-		require.Contains(t, reason, `model "openai/gpt-test" uses AI provider`)
-		require.Contains(t, reason, `of type "openrouter"`)
+		require.Empty(t, reason)
+		require.Equal(t, model.ID, got.config.ID)
+		require.Equal(t, codersdk.ChatComputerUseProviderOpenAI, got.provider)
+		require.Nil(t, got.reasoningEffort)
 	})
 
 	t.Run("MissingCredentials", func(t *testing.T) {
