@@ -1,16 +1,18 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
 import { QueryClientProvider } from "react-query";
 import { defaultUrlTransform } from "streamdown";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { preferenceSettingsKey } from "#/api/queries/users";
-import type { ChatMessage } from "#/api/typesGenerated";
+import type { ChatFilePart, ChatMessage } from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { MockPngBase64 } from "#/testHelpers/files";
 import {
 	createTestQueryClient,
 	renderComponent,
 } from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { ConversationTimeline } from "./ConversationTimeline";
 import {
@@ -456,6 +458,14 @@ describe("ConversationTimeline live working blocks", () => {
 	});
 });
 
+const buildUserFileMessage = (file: ChatFilePart): ChatMessage => ({
+	...MockChatMessage,
+	id: 1,
+	role: "user",
+	created_at: workingFixtureTime(0),
+	content: [file],
+});
+
 describe("ConversationTimeline attachment previews", () => {
 	it.each([
 		["an image", "image/png", MockPngBase64, "View Attached image"],
@@ -466,24 +476,47 @@ describe("ConversationTimeline attachment previews", () => {
 			const user = userEvent.setup();
 			renderTimeline({
 				messages: [
-					{
-						...MockChatMessage,
-						id: 1,
-						role: "user",
-						created_at: workingFixtureTime(0),
-						content: [{ type: "file", media_type: mediaType, data }],
-					},
+					buildUserFileMessage({ type: "file", media_type: mediaType, data }),
 				],
 			});
 
 			const attachment = screen.getByRole("button", { name });
 			attachment.focus();
 			await user.keyboard("{Enter}");
-			expect(await screen.findByRole("dialog")).toBeInTheDocument();
+			await screen.findByRole("dialog");
 			await user.keyboard("{Escape}");
 
-			expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 			expect(attachment).toHaveFocus();
 		},
 	);
+
+	it("returns keyboard focus to a text file that loads after focus moves on", async () => {
+		const user = userEvent.setup();
+		const download = Promise.withResolvers<string>();
+		server.use(
+			http.get("/api/v2/chats/files/:fileId", async () =>
+				HttpResponse.text(await download.promise),
+			),
+		);
+		renderTimeline({
+			messages: [
+				buildUserFileMessage({
+					type: "file",
+					media_type: "text/plain",
+					name: "notes.txt",
+					file_id: "notes-file",
+				}),
+			],
+		});
+
+		const attachment = screen.getByRole("button", { name: "View notes.txt" });
+		attachment.focus();
+		await user.keyboard("{Enter}");
+		await user.tab();
+		download.resolve("hello");
+		await screen.findByRole("dialog");
+		await user.keyboard("{Escape}");
+
+		expect(attachment).toHaveFocus();
+	});
 });

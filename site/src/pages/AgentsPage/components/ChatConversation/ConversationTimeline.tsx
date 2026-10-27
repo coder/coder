@@ -190,13 +190,16 @@ const ChatMessageItem = memo<{
 		const [previewImage, setPreviewImage] = useState<string | null>(null);
 		const [previewText, setPreviewText] =
 			useState<PreviewTextAttachment | null>(null);
-		const previewFocusReturn = useDialogFocusReturn();
-		const openImagePreview = (src: string) => {
-			previewFocusReturn.rememberFocusedButton();
+		const { rememberTriggerButton, restoreFocus } = useDialogFocusReturn();
+		const openImagePreview = (src: string, trigger: HTMLButtonElement) => {
+			rememberTriggerButton(trigger);
 			setPreviewImage(src);
 		};
-		const openTextPreview = (attachment: PreviewTextAttachment) => {
-			previewFocusReturn.rememberFocusedButton();
+		const openTextPreview = (
+			attachment: PreviewTextAttachment,
+			trigger: HTMLButtonElement,
+		) => {
+			rememberTriggerButton(trigger);
 			setPreviewText(attachment);
 		};
 		const displayState =
@@ -438,7 +441,7 @@ const ChatMessageItem = memo<{
 					<ImageLightbox
 						src={previewImage}
 						onClose={() => setPreviewImage(null)}
-						onCloseAutoFocus={previewFocusReturn.restoreFocus}
+						onCloseAutoFocus={restoreFocus}
 					/>
 				)}
 				{previewText !== null && (
@@ -447,7 +450,7 @@ const ChatMessageItem = memo<{
 						fileName={previewText.fileName}
 						mediaType={previewText.mediaType}
 						onClose={() => setPreviewText(null)}
-						onCloseAutoFocus={previewFocusReturn.restoreFocus}
+						onCloseAutoFocus={restoreFocus}
 					/>
 				)}
 			</div>

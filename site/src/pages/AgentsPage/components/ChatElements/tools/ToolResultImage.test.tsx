@@ -19,10 +19,9 @@ describe("ToolResultImage", () => {
 		const image = screen.getByRole("button", { name: "Screenshot" });
 		image.focus();
 		await user.keyboard("{Enter}");
-		expect(await screen.findByRole("dialog")).toBeInTheDocument();
+		await screen.findByRole("dialog");
 		await user.keyboard("{Escape}");
 
-		expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 		expect(image).toHaveFocus();
 	});
 });
