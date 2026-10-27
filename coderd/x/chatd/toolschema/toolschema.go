@@ -1,5 +1,6 @@
 // Package toolschema rejects tool inputs whose object keys the Go decoder
-// and a case-sensitive reader resolve differently.
+// and a case-sensitive reader resolve differently, and rewrites tool input
+// JSON Schemas without disturbing the instance data they contain.
 package toolschema
 
 import (

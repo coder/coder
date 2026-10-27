@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"charm.land/fantasy"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
@@ -872,6 +873,99 @@ func TestConnectAll_FullInputSchema_ModelIntentRebasesRefs(t *testing.T) {
 	first, err := json.Marshal(schema)
 	require.NoError(t, err)
 	require.JSONEq(t, string(first), string(again))
+}
+
+// TestConnectAll_FullInputSchema_ModelIntentResources verifies that the
+// model_intent wrapper keeps references resolvable in a schema that
+// declares "$id": the resource identity moves to the wrapper, absolute,
+// relative, and percent-encoded pointers resolve like local ones, and a
+// nested resource's own pointers are left alone.
+func TestConnectAll_FullInputSchema_ModelIntentResources(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	inputSchema := map[string]any{
+		"$schema": "https://json-schema.org/draft/2020-12/schema",
+		"$id":     "https://example.com/tool.json",
+		"type":    "object",
+		"properties": map[string]any{
+			"a": map[string]any{"type": "string"},
+			"b": map[string]any{"$ref": "#/properties/a"},
+			"c": map[string]any{"$ref": "https://example.com/tool.json#/properties/a"},
+			"d": map[string]any{"$ref": "#/%24defs/Count"},
+			"e": map[string]any{"$ref": "tool.json#/$defs/Count"},
+			"nested": map[string]any{
+				"$id":  "https://example.com/nested.json",
+				"type": "object",
+				"properties": map[string]any{
+					"x": map[string]any{"type": "integer"},
+					"y": map[string]any{"$ref": "#/properties/x"},
+					"z": map[string]any{"$ref": "tool.json#/properties/a"},
+				},
+			},
+		},
+		"$defs": map[string]any{"Count": map[string]any{"type": "integer"}},
+	}
+	refTool := testTool{
+		tool: &mcp.Tool{Name: "resources", InputSchema: inputSchema},
+		handler: func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return textToolResult("ok"), nil
+		},
+	}
+
+	ts := newTestMCPServer(t, refTool)
+	cfg := makeConfig("srv", ts.URL)
+	cfg.ModelIntent = true
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []mcpclient.Server{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
+	t.Cleanup(cleanup)
+	require.Len(t, tools, 1)
+	full, ok := tools[0].(fullSchemaTool)
+	require.True(t, ok)
+	schema := full.FullInputSchema()
+
+	assert.Equal(t, "https://example.com/tool.json", schema["$id"])
+	assert.Equal(t, "https://json-schema.org/draft/2020-12/schema", schema["$schema"])
+	wrapped, ok := schema["properties"].(map[string]any)
+	require.True(t, ok)
+	inner, ok := wrapped["properties"].(map[string]any)
+	require.True(t, ok)
+	assert.NotContains(t, inner, "$id")
+	assert.NotContains(t, inner, "$schema")
+
+	valid := `{"a": "s", "b": "s", "c": "s", "d": 1, "e": 2, "nested": {"x": 1, "y": 2, "z": "s"}}`
+	require.NoError(t, validateSchemaInstance(t, inputSchema, valid), "the source schema must accept the instance")
+	wrap := func(arguments string) string {
+		return `{"model_intent": "Testing", "properties": ` + arguments + `}`
+	}
+	require.NoError(t, validateSchemaInstance(t, schema, wrap(valid)))
+	for name, arguments := range map[string]string{
+		"local pointer":            `{"b": 1}`,
+		"absolute pointer":         `{"c": 1}`,
+		"percent-encoded pointer":  `{"d": "s"}`,
+		"relative pointer":         `{"e": "s"}`,
+		"nested resource pointer":  `{"nested": {"y": "s"}}`,
+		"pointer out of a nesting": `{"nested": {"z": 1}}`,
+	} {
+		require.Error(t, validateSchemaInstance(t, inputSchema, arguments), name)
+		require.Error(t, validateSchemaInstance(t, schema, wrap(arguments)), name)
+	}
+}
+
+// validateSchemaInstance resolves schema with a JSON Schema validator,
+// which fails on references that point at nothing, and validates the
+// JSON instance against it.
+func validateSchemaInstance(t *testing.T, schema map[string]any, instance string) error {
+	t.Helper()
+	raw, err := json.Marshal(schema)
+	require.NoError(t, err)
+	var parsed jsonschema.Schema
+	require.NoError(t, json.Unmarshal(raw, &parsed))
+	resolved, err := parsed.Resolve(nil)
+	require.NoError(t, err)
+	var value any
+	require.NoError(t, json.Unmarshal([]byte(instance), &value))
+	return resolved.Validate(value)
 }
 
 // TestConnectAll_APIKeyAuth verifies that api_key auth sends the

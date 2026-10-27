@@ -6,6 +6,7 @@ import (
 
 	"charm.land/fantasy"
 	fantasyopenai "charm.land/fantasy/providers/openai"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/require"
 )
 
@@ -187,17 +188,18 @@ func TestBuildToolDefinitionsFullSchemaNilFallsBack(t *testing.T) {
 
 // TestBuildToolDefinitionsFullSchemaBannedRootKeywords verifies that
 // schema keywords OpenAI rejects at the top level of a tool schema are
-// stripped from the root, with an object root enforced, dangling
-// "required" entries filtered, and every other key (nested
-// combinators, $defs, additionalProperties, description) preserved.
+// removed from the root after their properties and required names fold
+// into it, with an object root enforced, dangling "required" entries
+// filtered, and every other key (nested combinators, $defs,
+// additionalProperties, description) preserved.
 func TestBuildToolDefinitionsFullSchemaBannedRootKeywords(t *testing.T) {
 	t.Parallel()
 
 	source := map[string]any{
-		"$ref":  "#/$defs/Root",
+		"$ref":  "#/$defs/Missing",
 		"oneOf": []any{map[string]any{"required": []any{"kept"}}},
-		"anyOf": []any{map[string]any{"required": []any{"lost"}}},
-		"allOf": []any{map[string]any{"properties": map[string]any{"lost": map[string]any{"type": "string"}}}},
+		"anyOf": []any{map[string]any{"required": []any{"dangling"}}},
+		"allOf": []any{map[string]any{"properties": map[string]any{"merged": map[string]any{"type": "string"}}}},
 		"enum":  []any{"a", "b"},
 		"const": "a",
 		"not":   map[string]any{"type": "string"},
@@ -209,7 +211,7 @@ func TestBuildToolDefinitionsFullSchemaBannedRootKeywords(t *testing.T) {
 				},
 			},
 		},
-		"required":             []any{"kept", "lost"},
+		"required":             []any{"kept", "merged"},
 		"$defs":                map[string]any{"Kept": map[string]any{"type": "string"}},
 		"additionalProperties": false,
 		"description":          "root description",
@@ -223,9 +225,10 @@ func TestBuildToolDefinitionsFullSchemaBannedRootKeywords(t *testing.T) {
 	require.JSONEq(t, `{
 		"type": "object",
 		"properties": {
-			"kept": {"oneOf": [{"$ref": "#/$defs/Kept"}, {"type": "integer"}]}
+			"kept": {"oneOf": [{"$ref": "#/$defs/Kept"}, {"type": "integer"}]},
+			"merged": {"type": "string"}
 		},
-		"required": ["kept"],
+		"required": ["kept", "merged"],
 		"$defs": {"Kept": {"type": "string"}},
 		"additionalProperties": false,
 		"description": "root description"
@@ -233,7 +236,136 @@ func TestBuildToolDefinitionsFullSchemaBannedRootKeywords(t *testing.T) {
 	// The tool's own schema map keeps its top-level keys.
 	require.Contains(t, source, "oneOf")
 	require.Contains(t, source, "$ref")
-	require.Equal(t, []any{"kept", "lost"}, source["required"])
+	require.Equal(t, []any{"kept", "merged"}, source["required"])
+}
+
+// TestBuildToolDefinitionsFullSchemaRootComposition verifies that an
+// object root built from "$ref", "allOf", and "anyOf" keeps its
+// parameters once those keywords leave the root, and that references
+// into the removed keywords still resolve.
+func TestBuildToolDefinitionsFullSchemaRootComposition(t *testing.T) {
+	t.Parallel()
+
+	source := map[string]any{
+		"type": "object",
+		"$ref": "#/$defs/Base",
+		"properties": map[string]any{
+			"alias": map[string]any{"$ref": "#/allOf/0/properties/name"},
+		},
+		"allOf": []any{
+			map[string]any{
+				"properties": map[string]any{"name": map[string]any{"type": "string"}},
+				"required":   []any{"name"},
+			},
+		},
+		"anyOf": []any{
+			map[string]any{
+				"properties": map[string]any{"email": map[string]any{"type": "string"}},
+				"required":   []any{"email", "phone"},
+			},
+			map[string]any{
+				"properties": map[string]any{
+					"email": map[string]any{"type": "string", "format": "email"},
+					"phone": map[string]any{"type": "string"},
+				},
+				"required": []any{"phone"},
+			},
+		},
+		"$defs": map[string]any{
+			"Base": map[string]any{
+				"properties": map[string]any{"id": map[string]any{"type": "integer"}},
+				"required":   []any{"id"},
+			},
+		},
+	}
+	defs := BuildToolDefinitions([]fantasy.AgentTool{fullSchemaTestTool{schema: source}}, nil, nil)
+	require.Len(t, defs, 1)
+	ft, ok := defs[0].(fantasy.FunctionTool)
+	require.True(t, ok)
+	raw, err := json.Marshal(ft.InputSchema)
+	require.NoError(t, err)
+	require.JSONEq(t, `{
+		"type": "object",
+		"properties": {
+			"alias": {"$ref": "#/$defs/coder_root_allOf/allOf/0/properties/name"},
+			"id": {"type": "integer"},
+			"name": {"type": "string"},
+			"email": {"anyOf": [{"type": "string"}, {"type": "string", "format": "email"}]},
+			"phone": {"type": "string"}
+		},
+		"required": ["id", "name", "phone"],
+		"$defs": {
+			"Base": {
+				"properties": {"id": {"type": "integer"}},
+				"required": ["id"]
+			},
+			"coder_root_allOf": {
+				"allOf": [{
+					"properties": {"name": {"type": "string"}},
+					"required": ["name"]
+				}]
+			}
+		}
+	}`, string(raw))
+
+	instance := `{"alias": "a", "id": 1, "name": "n", "phone": "p"}`
+	require.NoError(t, validateSchemaInstance(t, source, instance), "the source schema must accept the instance")
+	require.NoError(t, validateSchemaInstance(t, ft.InputSchema, instance))
+	require.Error(t, validateSchemaInstance(t, source, `{"alias": 1, "id": 1, "name": "n", "phone": "p"}`))
+	require.Error(t, validateSchemaInstance(t, ft.InputSchema, `{"alias": 1, "id": 1, "name": "n", "phone": "p"}`))
+}
+
+// TestBuildToolDefinitionsFullSchemaKeepsInstanceValues verifies that
+// normalization rewrites type lists only where they are schemas, so
+// "const", "enum", and "default" values that look like schemas reach
+// the provider unchanged, and that the tool's schema is not modified.
+func TestBuildToolDefinitionsFullSchemaKeepsInstanceValues(t *testing.T) {
+	t.Parallel()
+
+	source := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"payload": map[string]any{"$ref": "#/$defs/Payload"},
+			// A property named like a keyword is still a schema.
+			"const": map[string]any{"type": []any{"string", "null"}},
+		},
+		"$defs": map[string]any{
+			"Payload": map[string]any{
+				"type":    "object",
+				"const":   map[string]any{"type": []any{"string", "number"}},
+				"enum":    []any{map[string]any{"type": []any{"boolean"}}},
+				"default": map[string]any{"type": "array"},
+			},
+		},
+	}
+	before, err := json.Marshal(source)
+	require.NoError(t, err)
+
+	defs := BuildToolDefinitions([]fantasy.AgentTool{fullSchemaTestTool{schema: source}}, nil, nil)
+	require.Len(t, defs, 1)
+	ft, ok := defs[0].(fantasy.FunctionTool)
+	require.True(t, ok)
+	raw, err := json.Marshal(ft.InputSchema)
+	require.NoError(t, err)
+	require.JSONEq(t, `{
+		"type": "object",
+		"properties": {
+			"payload": {"$ref": "#/$defs/Payload"},
+			"const": {"anyOf": [{"type": "string"}, {"type": "null"}]}
+		},
+		"$defs": {
+			"Payload": {
+				"type": "object",
+				"const": {"type": ["string", "number"]},
+				"enum": [{"type": ["boolean"]}],
+				"default": {"type": "array"}
+			}
+		}
+	}`, string(raw))
+
+	after, err := json.Marshal(source)
+	require.NoError(t, err)
+	require.JSONEq(t, string(before), string(after), "the tool's schema must not be modified")
 }
 
 // TestBuildToolDefinitionsFullSchemaRootTypeArray verifies that a root
@@ -261,4 +393,20 @@ func TestBuildToolDefinitionsFullSchemaRootTypeArray(t *testing.T) {
 		"properties": {"name": {"type": "string"}},
 		"required": ["name"]
 	}`, string(raw))
+}
+
+// validateSchemaInstance resolves schema with a JSON Schema validator,
+// which fails on references that point at nothing, and validates the
+// JSON instance against it.
+func validateSchemaInstance(t *testing.T, schema map[string]any, instance string) error {
+	t.Helper()
+	raw, err := json.Marshal(schema)
+	require.NoError(t, err)
+	var parsed jsonschema.Schema
+	require.NoError(t, json.Unmarshal(raw, &parsed))
+	resolved, err := parsed.Resolve(nil)
+	require.NoError(t, err)
+	var value any
+	require.NoError(t, json.Unmarshal([]byte(instance), &value))
+	return resolved.Validate(value)
 }
