@@ -54,7 +54,7 @@ const TAB_SCROLL_AMOUNT = 120;
 // Width of the scroll chevrons (w-8) that cover the ends of the tab strip.
 const TAB_CHEVRON_WIDTH = 32;
 
-function useTabScroll() {
+function useTabScroll(activeTabElementId: string | undefined) {
 	const ref = useRef<HTMLDivElement>(null);
 	const [canScrollLeft, setCanScrollLeft] = useState(false);
 	const [canScrollRight, setCanScrollRight] = useState(false);
@@ -70,6 +70,29 @@ function useTabScroll() {
 		);
 	});
 
+	// Opening an artifact adds a tab at the end of the strip, where it can be
+	// out of view. Keep the active tab and its close button in view when the
+	// active tab changes and when the strip resizes, for example when a panel
+	// that was hidden opens.
+	const scrollActiveTabIntoView = useEffectEvent(() => {
+		const strip = ref.current;
+		const tab = activeTabElementId
+			? document.getElementById(activeTabElementId)?.parentElement
+			: undefined;
+		if (!strip || !tab || strip.clientWidth === 0) {
+			return;
+		}
+		const stripRect = strip.getBoundingClientRect();
+		const tabRect = tab.getBoundingClientRect();
+		const left = stripRect.left + TAB_CHEVRON_WIDTH;
+		const right = stripRect.right - TAB_CHEVRON_WIDTH;
+		if (tabRect.left < left) {
+			strip.scrollLeft -= left - tabRect.left;
+		} else if (tabRect.right > right) {
+			strip.scrollLeft += tabRect.right - right;
+		}
+	});
+
 	useEffect(() => {
 		const element = ref.current;
 		if (!element) {
@@ -79,7 +102,10 @@ function useTabScroll() {
 		updateScrollState();
 		element.addEventListener("scroll", updateScrollState, { passive: true });
 
-		const resizeObserver = new ResizeObserver(updateScrollState);
+		const resizeObserver = new ResizeObserver(() => {
+			scrollActiveTabIntoView();
+			updateScrollState();
+		});
 		resizeObserver.observe(element);
 
 		return () => {
@@ -91,6 +117,12 @@ function useTabScroll() {
 	useEffect(() => {
 		updateScrollState();
 	});
+
+	useEffect(() => {
+		if (activeTabElementId) {
+			scrollActiveTabIntoView();
+		}
+	}, [activeTabElementId]);
 
 	const scrollLeft = () => {
 		ref.current?.scrollBy({
@@ -159,29 +191,9 @@ export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
 		canScrollRight,
 		scrollLeft: scrollTabsLeft,
 		scrollRight: scrollTabsRight,
-	} = useTabScroll();
-
-	// Opening an artifact adds a tab at the end of the strip, where it can be
-	// out of view. Scroll the active tab and its close button into view.
-	useEffect(() => {
-		const strip = tabScrollRef.current;
-		const tab = effectiveTabId
-			? document.getElementById(`${tabIdPrefix}-tab-${effectiveTabId}`)
-					?.parentElement
-			: undefined;
-		if (!strip || !tab) {
-			return;
-		}
-		const stripRect = strip.getBoundingClientRect();
-		const tabRect = tab.getBoundingClientRect();
-		const left = stripRect.left + TAB_CHEVRON_WIDTH;
-		const right = stripRect.right - TAB_CHEVRON_WIDTH;
-		if (tabRect.left < left) {
-			strip.scrollLeft -= left - tabRect.left;
-		} else if (tabRect.right > right) {
-			strip.scrollLeft += tabRect.right - right;
-		}
-	}, [effectiveTabId, tabIdPrefix, tabScrollRef]);
+	} = useTabScroll(
+		effectiveTabId ? `${tabIdPrefix}-tab-${effectiveTabId}` : undefined,
+	);
 
 	const allPanels: { id: string; content: React.ReactNode }[] = tabs.map(
 		(t) => ({
