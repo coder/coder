@@ -25,9 +25,15 @@ func TestChatProjectSkills(t *testing.T) {
 	member := codersdk.NewExperimentalClient(memberRaw)
 	content := userSkillMarkdown("deploy", "Deploy the app", "Run make deploy.")
 
-	created, err := client.CreateChatProjectSkill(ctx, orgID, project.ID, codersdk.CreateSkillRequest{Content: content})
+	created, err := client.CreateChatProjectSkill(ctx, orgID, project.ID, codersdk.CreateSkillRequest{
+		Content:        content,
+		Action:         ptr.Ref(true),
+		ModelInvocable: ptr.Ref(false),
+	})
 	require.NoError(t, err)
 	require.Equal(t, "Deploy the app", created.Description)
+	require.True(t, created.Action)
+	require.False(t, created.ModelInvocable)
 	list, err := client.ChatProjectSkills(ctx, orgID, project.ID)
 	require.NoError(t, err)
 	require.Equal(t, []codersdk.SkillMetadata{created.SkillMetadata}, list)
@@ -39,6 +45,17 @@ func TestChatProjectSkills(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "Ship the app", updated.Description)
 	require.False(t, updated.Enabled)
+	// Omitted settings keep their values, and set ones flip independently.
+	require.True(t, updated.Action)
+	require.False(t, updated.ModelInvocable)
+	updated, err = client.UpdateChatProjectSkill(ctx, orgID, project.ID, "deploy", codersdk.UpdateSkillRequest{
+		Action:         ptr.Ref(false),
+		ModelInvocable: ptr.Ref(true),
+	})
+	require.NoError(t, err)
+	require.False(t, updated.Action)
+	require.True(t, updated.ModelInvocable)
+	require.Equal(t, "Ship the app", updated.Description)
 
 	_, err = client.CreateChatProjectSkill(ctx, orgID, project.ID, codersdk.CreateSkillRequest{Content: content})
 	requireSDKErrorStatus(t, err, http.StatusConflict)

@@ -44,6 +44,12 @@ func LockIDChatOrganizationSystemPrompt(organizationID uuid.UUID) int64 {
 	return GenLockID("chat_organization_system_prompt:" + organizationID.String())
 }
 
+// LockIDChatDebugRunSteps returns the advisory lock ID that serializes
+// step numbering within one chat debug run.
+func LockIDChatDebugRunSteps(runID uuid.UUID) int64 {
+	return GenLockID("chat_debug_run_steps:" + runID.String())
+}
+
 // GenLockID generates a unique and consistent lock ID from a given string.
 func GenLockID(name string) int64 {
 	hash := fnv.New64()

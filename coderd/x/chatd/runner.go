@@ -28,17 +28,9 @@ type localWorkKey struct {
 	status         database.ChatStatus
 }
 
-type taskIndexKey struct {
-	kind taskKind
-	key  localWorkKey
-}
-
 type taskRecord struct {
-	id       taskInstanceID
-	kind     taskKind
-	localKey localWorkKey
-	cancel   context.CancelFunc
-	done     <-chan struct{}
+	cancel context.CancelFunc
+	done   <-chan struct{}
 }
 
 type runner struct {
@@ -54,7 +46,6 @@ type runner struct {
 	activeTaskID  taskInstanceID
 	activeTaskSet bool
 	tasks         map[taskInstanceID]*taskRecord
-	tasksByIndex  map[taskIndexKey]taskInstanceID
 	localLocks    *localLockSet
 	debugTurn     *runnerDebugTurn
 	turnSpan      *runnerTurnSpan
@@ -65,15 +56,14 @@ type runner struct {
 
 func newRunner(ctx context.Context, mgr *runnerManager, rec *runnerRecord, opts chatWorkerOptions) *runner {
 	return &runner{
-		ctx:          ctx,
-		mgr:          mgr,
-		rec:          rec,
-		opts:         opts,
-		tasks:        make(map[taskInstanceID]*taskRecord),
-		tasksByIndex: make(map[taskIndexKey]taskInstanceID),
-		localLocks:   newLocalLockSet(),
-		debugTurn:    newRunnerDebugTurn(ctx, opts.Logger),
-		turnSpan:     newRunnerTurnSpan(mgr.server.stages, rec.takenOver),
+		ctx:        ctx,
+		mgr:        mgr,
+		rec:        rec,
+		opts:       opts,
+		tasks:      make(map[taskInstanceID]*taskRecord),
+		localLocks: newLocalLockSet(),
+		debugTurn:  newRunnerDebugTurn(opts.Logger),
+		turnSpan:   newRunnerTurnSpan(mgr.server.stages, rec.takenOver),
 	}
 }
 
@@ -168,10 +158,7 @@ func (r *runner) processState(state runnerStateUpdate) {
 		r.acceptState(state)
 		return
 	}
-	if r.hasAcceptedState && r.activeTaskSet {
-		r.cancelActiveTask()
-	}
-
+	r.cancelActiveTask()
 	r.spawnForState(state)
 	r.acceptState(state)
 }
@@ -184,42 +171,29 @@ func (r *runner) acceptState(state runnerStateUpdate) {
 
 func (r *runner) spawnForState(state runnerStateUpdate) {
 	if state.Archived {
-		r.spawnTaskIfNeeded(taskKindAbandon, state)
+		r.spawnTask(taskKindAbandon, state)
 		return
 	}
 	switch state.Status {
 	case database.ChatStatusRunning:
-		r.spawnTaskIfNeeded(taskKindGeneration, state)
+		r.spawnTask(taskKindGeneration, state)
 	case database.ChatStatusInterrupting:
-		r.spawnTaskIfNeeded(taskKindInterrupt, state)
+		r.spawnTask(taskKindInterrupt, state)
 	case database.ChatStatusRequiresAction:
-		r.spawnTaskIfNeeded(taskKindRequiresActionTimeout, state)
+		r.spawnTask(taskKindRequiresActionTimeout, state)
 	case database.ChatStatusWaiting, database.ChatStatusError:
-		r.spawnTaskIfNeeded(taskKindAbandon, state)
+		r.spawnTask(taskKindAbandon, state)
 	default:
-		r.spawnTaskIfNeeded(taskKindAbandon, state)
+		r.spawnTask(taskKindAbandon, state)
 	}
 }
 
-func (r *runner) spawnTaskIfNeeded(kind taskKind, state runnerStateUpdate) {
+func (r *runner) spawnTask(kind taskKind, state runnerStateUpdate) {
 	key := localWorkKey{historyVersion: state.HistoryVersion, status: state.Status}
-	idx := taskIndexKey{kind: kind, key: key}
-	if r.activeTaskSet && r.tasksByIndex[idx] == r.activeTaskID {
-		return
-	}
-
 	id := taskInstanceID(uuid.New())
 	taskCtx, cancel := context.WithCancel(r.ctx)
 	done := make(chan struct{})
-	record := &taskRecord{
-		id:       id,
-		kind:     kind,
-		localKey: key,
-		cancel:   cancel,
-		done:     done,
-	}
-	r.tasks[id] = record
-	r.tasksByIndex[idx] = id
+	r.tasks[id] = &taskRecord{cancel: cancel, done: done}
 	r.activeTaskID = id
 	r.activeTaskSet = true
 
@@ -315,10 +289,6 @@ func (r *runner) removeFinishedTasks() {
 		select {
 		case <-record.done:
 			delete(r.tasks, id)
-			idx := taskIndexKey{kind: record.kind, key: record.localKey}
-			if r.tasksByIndex[idx] == id {
-				delete(r.tasksByIndex, idx)
-			}
 			if r.activeTaskSet && r.activeTaskID == id {
 				r.activeTaskSet = false
 			}

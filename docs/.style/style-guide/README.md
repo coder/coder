@@ -1,7 +1,7 @@
 # Coder documentation style guide
 
 This is the canonical prose style guide for the Coder documentation.
-It tells you *how* to write the words that go in the docs.
+It tells you _how_ to write the words that go in the docs.
 For decisions about what belongs in the docs and what doesn't, refer to [`content-guidelines.md`](../content-guidelines.md).
 
 Each rule on the linked pages is a policy decision the Coder docs team has made.
@@ -22,24 +22,36 @@ The doctrine for adding Vale rules lives in the [Vale doctrine README](../README
 ## What the tooling checks, and what it doesn't
 
 A clean `make lint/prose` run is not evidence that a page follows this guide.
-The guide documents 88 rules.
-Automated tooling checks 9 of them, and 1 of those 9 doesn't run on published pages.
-The other 79 are yours to apply by reading, 80 on published pages, where the one-sentence-per-line rule is off.
+The guide documents 90 rules.
+Automated tooling checks 21 of them, and 1 of those 21 doesn't run on published pages.
+The other 69 are yours to apply by reading, 70 on published pages, where the one-sentence-per-line rule is off.
 
 Open the section that matches what you're writing and work through it.
 The linters catch a narrow band of mechanical errors; they can't tell you that a page serves 2 audiences, buries a required step in a `NOTE`, or wraps every paragraph at 80 columns.
 
 ### Checks that run today
 
-| Check                              | Tool               | Severity  | Scope                                                                                                                                                                           | What it catches                                                       |
-|------------------------------------|--------------------|-----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------|
-| `Coder.BrandNames`                 | Vale               | `error`   | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | `Hashicorp` casing only, not the other brands in the word-choice list |
-| `Coder.GerundHeading`              | Vale               | `warning` | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | Headings that lead with a gerund                                      |
-| `Coder.SelectClick`                | Vale               | `warning` | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | `click` and its inflections                                           |
-| `Coder.OneSentencePerLine`         | Vale               | `warning` | `docs/.style/*.md` and `docs/.style/styles/Coder/*.md` only                                                                                                                     | Sentence boundaries mid-line, on contributor docs only                |
-| `Coder.UnitSpacing`                | Vale               | `warning` | `docs/**` except `docs/.style/style-guide/**` and `docs/admin/integrations/prometheus.md` and `docs/admin/setup/configuration-reference.md` and `docs/reference/{api,cli}/*.md` | A regular space, or no space, between a number and its unit           |
-| `MD001`, `MD025`, `MD040`, `MD045` | markdownlint       | `error`   | All Markdown                                                                                                                                                                    | Heading increments, single H1, fence language, missing alt text       |
-| `scripts/check_emdash.sh`          | `make lint/emdash` | `error`   | Repository                                                                                                                                                                      | Em-dash, en-dash, and ` -- ` as punctuation                           |
+| Check                              | Tool                      | Severity     | Scope                                                                                                                                                                           | What it catches                                                                |
+|------------------------------------|---------------------------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------|
+| `Coder.AcronymPeriods`             | Vale                      | `warning`    | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | Capitalized acronyms written with periods, such as `A.P.I.`                    |
+| `Coder.BrandNames`                 | Vale                      | `error`      | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | `Hashicorp` casing only, not the other brands in the word-choice list          |
+| `Coder.GerundHeading`              | Vale                      | `warning`    | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | Headings that lead with a gerund                                               |
+| `Coder.ImperativeNegation`         | Vale                      | `warning`    | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | `don't` that opens an imperative, such as at a sentence start                  |
+| `Coder.InclusiveLanguage`          | Vale                      | `warning`    | `docs/**` except `docs/.style/style-guide/**` and `docs/reference/cli/agent-firewall.md`                                                                                        | Whitelist, blacklist, slave, master branch, dummy, sanity check, grandfathered |
+| `Coder.LGBTQ`                      | Vale                      | `warning`    | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | Outdated LGBTQ terms, such as `preferred pronouns` and `transgendered`         |
+| `Coder.Please`                     | Vale                      | `warning`    | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | The word `please`, in any case, outside code                                   |
+| `Coder.SelectClick`                | Vale                      | `warning`    | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | `click` and its inflections                                                    |
+| `Coder.OneSentencePerLine`         | Vale                      | `warning`    | `docs/.style/*.md` and `docs/.style/styles/Coder/*.md` only                                                                                                                     | Sentence boundaries mid-line, on contributor docs only                         |
+| `Coder.UnitSpacing`                | Vale                      | `warning`    | `docs/**` except `docs/.style/style-guide/**` and `docs/admin/integrations/prometheus.md` and `docs/admin/setup/configuration-reference.md` and `docs/reference/{api,cli}/*.md` | A regular space, or no space, between a number and its unit                    |
+| `Coder.StepLength`                 | Vale                      | `warning`    | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | The instruction paragraph of an ordered-list step longer than 20 words         |
+| `Coder.CheckOut`                   | Vale                      | `warning`    | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | `check out` as a cross-reference verb, not the Git sense                       |
+| `Coder.AmbiguousWords`             | Vale                      | `suggestion` | `docs/**` except `docs/.style/style-guide/**` and `docs/reference/{api,cli}/*.md`                                                                                               | `ensure`, `should`, `since`, and `may` (not the month `May`)                   |
+| `Coder.USSpelling`                 | Vale                      | `warning`    | `docs/**` except `docs/.style/style-guide/**` and `docs/reference/{api,cli}/*.md`                                                                                               | The `-ise` family and a list of British spellings                              |
+| `Coder.LatinAbbreviations`         | Vale                      | `suggestion` | `docs/**` except `docs/.style/style-guide/**` and `docs/admin/setup/configuration-reference.md` and `docs/reference/{api,cli}/*.md`                                             | `e.g.`, `i.e.`, and `etc.` in prose, not tables or code                        |
+| `MD001`, `MD025`, `MD040`, `MD045` | markdownlint              | `error`      | All Markdown                                                                                                                                                                    | Heading increments, single H1, fence language, missing alt text                |
+| `scripts/check_emdash.sh`          | `make lint/emdash`        | `error`      | Repository                                                                                                                                                                      | Em-dash, en-dash, and `--` as punctuation                                      |
+| `empty-table-header`               | `make lint/docs-html`     | `error`      | `docs/**`, including generated pages                                                                                                                                            | Table header cells with no text, in Markdown and HTML tables                   |
+| `scripts/docsmanifestgen`          | `make lint/docs-manifest` | `error`      | Descriptions in `docs/manifest/**` and in the front matter of every page they list                                                                                              | A page description that doesn't end with a period                              |
 
 The markdownlint row lists only the rules that map to a rule in this guide.
 markdownlint runs its full default set minus the rules `.markdownlint.jsonc` disables, so it catches more than these 4.
@@ -47,21 +59,21 @@ markdownlint runs its full default set minus the rules `.markdownlint.jsonc` dis
 Vale runs advisory.
 `make lint/prose` passes `--no-exit`, and the CI step is advisory by design, so no Vale finding fails a build at any severity.
 Findings accumulate instead of blocking: rules that shipped against a clean corpus have since collected a backlog of warnings in `docs/`.
-The markdownlint and emdash checks do fail the build.
+The markdownlint, emdash, docs HTML, and docs-manifest checks do fail the build.
 
 ### Coverage by section
 
 | Section                                                               | Rules | Tool-checked | Planned | Documentation-only |
 |-----------------------------------------------------------------------|-------|--------------|---------|--------------------|
-| [Audience and scope](./audience-and-scope.md)                         | 6     | 0            | 0       | 6                  |
-| [Voice and tone](./voice-and-tone.md)                                 | 12    | 0            | 4       | 8                  |
-| [Procedural writing](./procedural-writing.md)                         | 6     | 0            | 1       | 5                  |
-| [Word choice](./word-choice.md)                                       | 20    | 2            | 12      | 6                  |
-| [Accessibility and inclusion](./accessibility-and-inclusion.md)       | 14    | 2            | 5       | 7                  |
-| [Capitalization and punctuation](./capitalization-and-punctuation.md) | 12    | 2            | 8       | 2                  |
-| [Formatting](./formatting.md)                                         | 13    | 2            | 0       | 11                 |
+| [Audience and scope](./audience-and-scope.md)                         | 7     | 0            | 0       | 7                  |
+| [Voice and tone](./voice-and-tone.md)                                 | 13    | 2            | 2       | 9                  |
+| [Procedural writing](./procedural-writing.md)                         | 6     | 1            | 0       | 5                  |
+| [Word choice](./word-choice.md)                                       | 20    | 5            | 9       | 6                  |
+| [Accessibility and inclusion](./accessibility-and-inclusion.md)       | 14    | 6            | 2       | 6                  |
+| [Capitalization and punctuation](./capitalization-and-punctuation.md) | 12    | 3            | 7       | 2                  |
+| [Formatting](./formatting.md)                                         | 13    | 3            | 0       | 10                 |
 | [Numbers, units, and dates](./numbers-units-and-dates.md)             | 5     | 1            | 4       | 0                  |
-| **Total**                                                             | 88    | 9            | 34      | 45                 |
+| **Total**                                                             | 90    | 21           | 24      | 45                 |
 
 Every column counts rule sections, not linter rule names.
 A rule section is a heading that carries an enforcement footer, the italic line that names the section's enforcement status.
@@ -88,7 +100,7 @@ Classify a counted section from its footer, in this order:
    A section that names several checks still counts once.
 3. Anything else: the section is planned.
 
-So the 7 rows in the table above name 10 checks, because the markdownlint row bundles 4, and those 10 checks cover 9 sections: each check counts under the section that owns it rather than under every section that mentions it.
+So the 19 rows in the table above name 22 checks, because the markdownlint row bundles 4, and those 22 checks cover 21 sections: each check counts under the section that owns it rather than under every section that mentions it.
 
 A rule marked `(planned)` in a section footer names the rule that would enforce it if it existed.
 It isn't running today.

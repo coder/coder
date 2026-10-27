@@ -25,6 +25,7 @@ import { Response } from "../ChatElements/Response";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
+import { useDialogFocusReturn } from "../useDialogFocusReturn";
 import { AssistantOutput } from "./AssistantOutput";
 import type { PreviewTextAttachment } from "./AttachmentBlocks";
 import { FileProbeProvider } from "./FileProbeContext";
@@ -122,6 +123,7 @@ const ChatMessageItem = memo<{
 		messageId: number,
 		text: string,
 		fileBlocks?: readonly TypesGen.ChatMessagePart[],
+		editorState?: string,
 	) => void;
 	editingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
@@ -188,6 +190,18 @@ const ChatMessageItem = memo<{
 		const [previewImage, setPreviewImage] = useState<string | null>(null);
 		const [previewText, setPreviewText] =
 			useState<PreviewTextAttachment | null>(null);
+		const { rememberTriggerButton, restoreFocus } = useDialogFocusReturn();
+		const openImagePreview = (src: string, trigger: HTMLButtonElement) => {
+			rememberTriggerButton(trigger);
+			setPreviewImage(src);
+		};
+		const openTextPreview = (
+			attachment: PreviewTextAttachment,
+			trigger: HTMLButtonElement,
+		) => {
+			rememberTriggerButton(trigger);
+			setPreviewText(attachment);
+		};
 		const displayState =
 			message && parsed
 				? deriveMessageDisplayState({
@@ -272,8 +286,8 @@ const ChatMessageItem = memo<{
 							isEditing={
 								messageId !== undefined && editingMessageId === messageId
 							}
-							onImageClick={setPreviewImage}
-							onTextFileClick={setPreviewText}
+							onImageClick={openImagePreview}
+							onTextFileClick={openTextPreview}
 						/>
 					) : (
 						<Message className="w-full">
@@ -300,8 +314,8 @@ const ChatMessageItem = memo<{
 									hasUserResponseAfterAskQuestion={
 										hasUserResponseAfterAskQuestion
 									}
-									onImageClick={setPreviewImage}
-									onTextFileClick={setPreviewText}
+									onImageClick={openImagePreview}
+									onTextFileClick={openTextPreview}
 									urlTransform={urlTransform}
 									mcpServers={mcpServers}
 								/>
@@ -346,9 +360,14 @@ const ChatMessageItem = memo<{
 											className="size-6"
 											aria-label="Edit message"
 											onClick={() => {
-												const { text, fileBlocks } =
+												const { text, fileBlocks, editorState } =
 													getEditableUserMessagePayload(message);
-												onEditUserMessage?.(messageId, text, fileBlocks);
+												onEditUserMessage?.(
+													messageId,
+													text,
+													fileBlocks,
+													editorState,
+												);
 											}}
 										>
 											<PencilIcon />
@@ -422,6 +441,7 @@ const ChatMessageItem = memo<{
 					<ImageLightbox
 						src={previewImage}
 						onClose={() => setPreviewImage(null)}
+						onCloseAutoFocus={restoreFocus}
 					/>
 				)}
 				{previewText !== null && (
@@ -430,6 +450,7 @@ const ChatMessageItem = memo<{
 						fileName={previewText.fileName}
 						mediaType={previewText.mediaType}
 						onClose={() => setPreviewText(null)}
+						onCloseAutoFocus={restoreFocus}
 					/>
 				)}
 			</div>
@@ -454,6 +475,7 @@ type ConversationTimelineProps = {
 		messageId: number,
 		text: string,
 		fileBlocks?: readonly TypesGen.ChatMessagePart[],
+		editorState?: string,
 	) => void;
 	editingMessageId?: number | null;
 	onImplementPlan?: () => Promise<void> | void;

@@ -113,7 +113,7 @@ resource "kubernetes_pod" "dev" {
 
 [Envbox](https://github.com/coder/envbox) is an image developed and maintained by Coder that bundles the sysbox runtime.
 It works by starting an outer container that manages the various sysbox daemons and spawns an unprivileged inner container that acts as the user's workspace.
-The inner container is able to run system-level software similar to a regular virtual machine (e.g. `systemd`, `dockerd`, etc).
+The inner container is able to run system-level software similar to a regular virtual machine (for example, `systemd`, `dockerd`, and so on).
 Envbox offers the following benefits over running sysbox directly on the nodes:
 
 - No custom runtime installation or management on your Kubernetes nodes.
@@ -131,7 +131,7 @@ Some drawbacks include:
 Envbox requires the same kernel requirements as running sysbox directly on the nodes.
 Refer to sysbox's [compatibility matrix](https://github.com/nestybox/sysbox/blob/master/docs/distro-compat.md#sysbox-distro-compatibility) to ensure your nodes are compliant.
 
-To get started with `envbox` check out the [starter template](../../../../examples/templates/kubernetes-envbox) or visit the [repo](https://github.com/coder/envbox).
+To get started with `envbox`, refer to the [starter template](../../../../examples/templates/kubernetes-envbox) or visit the [repo](https://github.com/coder/envbox).
 
 <a id="authenticating-with-a-private-registry"></a>
 
@@ -170,7 +170,7 @@ env {
 [Podman](https://docs.podman.io/en/latest/) is Docker alternative that is compatible with OCI containers specification. which can run rootless inside Kubernetes pods.
 No custom RuntimeClass is required.
 
-Before using Podman, please review the following documentation:
+Before using Podman, review the following documentation:
 
 - [Basic setup and use of Podman in a rootless environment](https://github.com/containers/podman/blob/main/docs/tutorials/rootless_tutorial.md)
 
@@ -221,10 +221,12 @@ Before using Podman, please review the following documentation:
    kubectl label nodes --all smarter-device-manager=enabled
    ```
 
-   > ⚠️ **Warning**: If you are using a managed Kubernetes distribution (e.g. AKS, EKS, GKE), be sure to set node labels via your cloud provider.
+   > ⚠️ **Warning**: If you are using a managed Kubernetes distribution (for example, AKS, EKS, GKE), be sure to set node labels via your cloud provider.
    > Otherwise, your nodes may drop the labels and break podman functionality.
 
-3. For systems running SELinux (typically Fedora-, CentOS-, and Red Hat-based systems), you might need to disable SELinux or set it to permissive mode.
+3. For systems running SELinux, you might need to disable SELinux or set it to permissive mode.
+
+   These are typically Fedora-, CentOS-, and Red Hat-based systems.
 
 4. Create a template from the built-in `kubernetes` starter, then adapt it for rootless Podman:
 

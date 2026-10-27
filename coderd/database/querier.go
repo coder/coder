@@ -247,6 +247,9 @@ type sqlcQuerier interface {
 	DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) (int64, error)
 	DeleteOldWorkspaceAgentStats(ctx context.Context) error
 	DeleteOldWorkspaceBuildOrchestrations(ctx context.Context, arg DeleteOldWorkspaceBuildOrchestrationsParams) (int64, error)
+	// Soft deletes the organization's live config for one model on one configured
+	// provider. Returns zero rows when there is no live config.
+	DeleteOrganizationAIProviderModelConfig(ctx context.Context, arg DeleteOrganizationAIProviderModelConfigParams) (int64, error)
 	DeleteOrganizationMember(ctx context.Context, arg DeleteOrganizationMemberParams) error
 	DeleteOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg DeleteOrganizationSkillByOrganizationIDAndNameParams) (Skill, error)
 	DeleteProjectSkillByProjectIDAndName(ctx context.Context, arg DeleteProjectSkillByProjectIDAndNameParams) (Skill, error)
@@ -305,19 +308,6 @@ type sqlcQuerier interface {
 	FetchNewMessageMetadata(ctx context.Context, arg FetchNewMessageMetadataParams) (FetchNewMessageMetadataRow, error)
 	FetchVolumesResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]WorkspaceAgentVolumeResourceMonitor, error)
 	FetchVolumesResourceMonitorsUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]WorkspaceAgentVolumeResourceMonitor, error)
-	// Marks orphaned in-progress rows as interrupted so they do not stay
-	// in a non-terminal state forever. The NOT IN list must match the
-	// terminal statuses defined by ChatDebugStatus in codersdk/chats.go.
-	//
-	// The steps CTE also catches steps whose parent run was just finalized
-	// (via run_id IN), because PostgreSQL data-modifying CTEs share the
-	// same snapshot and cannot see each other's row updates. Without this,
-	// a step with a recent updated_at would survive its run's finalization
-	// and remain in 'in_progress' state permanently.
-	//
-	// @now is the caller's clock timestamp so that mock-clock tests stay
-	// consistent with the @updated_before cutoff.
-	FinalizeStaleChatDebugRows(ctx context.Context, arg FinalizeStaleChatDebugRowsParams) (FinalizeStaleChatDebugRowsRow, error)
 	// FindMatchingPresetID finds a preset ID that is the largest exact subset of the provided parameters.
 	// It returns the preset ID if a match is found, or NULL if no match is found.
 	// The query finds presets where all preset parameters are present in the provided parameters,
@@ -359,14 +349,18 @@ type sqlcQuerier interface {
 	// returning the matched key. The lookup is an exact match on a unique index,
 	// so a returned row is itself proof the secret is valid.
 	GetAIGatewayKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (AIGatewayKey, error)
-	// Returns the price in effect for the requested model, falling back to the
-	// model reported by the provider when the requested model has no price.
-	// Rows are ordered by model first, then by source, so the lookup order is:
-	//   1. Custom price for the requested model.
-	//   2. Price book price for the requested model.
-	//   3. Custom price for the provider-reported model.
-	//   4. Price book price for the provider-reported model.
-	GetAIModelPriceByProviderModel(ctx context.Context, arg GetAIModelPriceByProviderModelParams) (AIModelPrice, error)
+	// Returns the price in effect for the model served by the configured provider.
+	// The requested model is preferred over the model reported by the provider,
+	// whatever the kind of price. For each model, the lookup order is:
+	//   1. The organization's price for the provider.
+	//   2. A site-wide custom price.
+	//   3. The price book price.
+	// A NULL organization_id matches no organization price, so only site-wide
+	// prices apply. Soft-deleted organization configs, and those that set no
+	// price, are ignored. A matched price is used as a whole: its NULL prices are
+	// not filled in from a less specific price. Each branch is a unique index
+	// lookup.
+	GetAIModelPriceForProvider(ctx context.Context, arg GetAIModelPriceForProviderParams) (GetAIModelPriceForProviderRow, error)
 	// Returns the price in effect for each model, preferring a custom price over
 	// the price book. Filtering by source narrows the rows considered first, so a
 	// model carrying both prices reports the one from the named source.
@@ -538,6 +532,11 @@ type sqlcQuerier interface {
 	// The compaction boundary and final ordering must use the same key so tool
 	// results remain after their assistant calls.
 	GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error)
+	// Returns the user-visible user and assistant messages in a chat that hold
+	// at least one file part, newest first, optionally only those before
+	// @before_id. Backs the attachments endpoint so a client can list every
+	// attachment without paging through the transcript.
+	GetChatMessagesWithFilePartsByChatID(ctx context.Context, arg GetChatMessagesWithFilePartsByChatIDParams) ([]ChatMessage, error)
 	GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error)
 	GetChatModelConfigs(ctx context.Context, organizationID uuid.UUID) ([]ChatModelConfig, error)
 	// All live configs in one organization, unfiltered. Consumed ONLY by
@@ -795,6 +794,9 @@ type sqlcQuerier interface {
 	GetOAuth2ProviderAppsByUserID(ctx context.Context, userID uuid.UUID) ([]GetOAuth2ProviderAppsByUserIDRow, error)
 	// Locks candidate rows against foreign-key inserts for the transaction.
 	GetOldUnlinkedChatFileIDs(ctx context.Context, arg GetOldUnlinkedChatFileIDsParams) ([]uuid.UUID, error)
+	// Returns the organization's live config for one model on one configured
+	// provider. Soft-deleted rows are ignored.
+	GetOrganizationAIProviderModelConfig(ctx context.Context, arg GetOrganizationAIProviderModelConfigParams) (AIModelConfig, error)
 	GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetOrganizationByName(ctx context.Context, arg GetOrganizationByNameParams) (Organization, error)
 	// Returns AI spend limits and aggregate spend for groups in @group_ids that
@@ -932,10 +934,8 @@ type sqlcQuerier interface {
 	// GetTemplateInsightsByTemplate is used for Prometheus metrics. Keep
 	// in sync with GetTemplateInsights and UpsertTemplateUsageStats.
 	//
-	// Session usage is reported per app family. It reads the raw agent stats
-	// because the rollup stores minutes per app, which can't show whether two
-	// apps of one family were open in the same minute. @app_families maps each
-	// app name to its family; names missing from the map count as unknown.
+	// Session usage is per app name. It reads raw agent stats because rollup
+	// buckets are coarser than the metrics window.
 	GetTemplateInsightsByTemplate(ctx context.Context, arg GetTemplateInsightsByTemplateParams) ([]GetTemplateInsightsByTemplateRow, error)
 	// GetTemplateParameterInsights does for each template in a given timeframe,
 	// look for the latest workspace build (for every workspace) that has been
@@ -1230,11 +1230,15 @@ type sqlcQuerier interface {
 	// Set it on every write to keep retention semantics correct.
 	InsertChatDebugRun(ctx context.Context, arg InsertChatDebugRunParams) (ChatDebugRun, error)
 	// The CTE atomically locks the parent run via UPDATE, bumps its
-	// updated_at (eliminating a separate TouchChatDebugRunUpdatedAt
-	// call), and enforces the finalization guard: if the run is already
+	// updated_at, and enforces the finalization guard: if the run is already
 	// finished, the UPDATE returns zero rows, the INSERT gets no source
 	// rows, and sql.ErrNoRows is returned. The UPDATE also serializes
-	// with concurrent FinalizeStale under READ COMMITTED isolation.
+	// with a concurrent run finalization under READ COMMITTED isolation.
+	// A zero @step_number numbers the step after the run's highest step.
+	// The row lock does not make that number unique, because the statement
+	// snapshot predates the lock wait. Callers hold LockIDChatDebugRunSteps
+	// from an earlier statement of the same transaction, so the snapshot
+	// includes every committed step.
 	InsertChatDebugStep(ctx context.Context, arg InsertChatDebugStepParams) (ChatDebugStep, error)
 	InsertChatFile(ctx context.Context, arg InsertChatFileParams) (InsertChatFileRow, error)
 	// Returns the inserted rows in input array order. Ids are allocated before the
@@ -1538,31 +1542,6 @@ type sqlcQuerier interface {
 	// Changed chats are locked in ID order so concurrent clear-then-copy re-pins
 	// cannot interleave with the replacement.
 	SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error)
-	// Overrides updated_at on the parent run without touching any
-	// other column. Used by tests that need to stamp a run with a
-	// specific timestamp after the InsertChatDebugStep CTE has
-	// already bumped it to NOW(), so stale-row finalization paths
-	// can be exercised deterministically. The chatdebug service
-	// itself does not call this: heartbeats go through
-	// TouchChatDebugStepAndRun, and step creation updates the parent
-	// run via the InsertChatDebugStep CTE.
-	TouchChatDebugRunUpdatedAt(ctx context.Context, arg TouchChatDebugRunUpdatedAtParams) error
-	// Atomically bumps updated_at on both the step and its parent run
-	// in a single statement. This prevents FinalizeStale from
-	// interleaving between the two touches and finalizing a run whose
-	// step heartbeat was just written.
-	//
-	// The step UPDATE joins through touched_run (via FROM) and reads
-	// its RETURNING rows. Per the PostgreSQL WITH semantics, RETURNING
-	// is the only way to communicate values between a data-modifying
-	// CTE and the main query, and consuming those rows forces the run
-	// UPDATE to complete before the step UPDATE. That matches the
-	// lock order used by FinalizeStaleChatDebugRows and avoids a
-	// deadlock between concurrent heartbeats and stale sweeps. The
-	// join also constrains the step update to the specified run so a
-	// mismatched (run_id, step_id) pair cannot silently refresh an
-	// unrelated step.
-	TouchChatDebugStepAndRun(ctx context.Context, arg TouchChatDebugStepAndRunParams) error
 	// Non blocking lock. Returns true if the lock was acquired, false otherwise.
 	//
 	// This must be called from within a transaction. The lock will be automatically
@@ -1606,8 +1585,7 @@ type sqlcQuerier interface {
 	// existing value." This is intentional: debug rows follow a
 	// write-once-finalize pattern where fields are set at creation
 	// or finalization and never cleared back to NULL. The @now
-	// parameter keeps updated_at under the caller's clock, matching
-	// the injectable quartz.Clock used by FinalizeStale sweeps.
+	// parameter keeps updated_at under the caller's clock.
 	UpdateChatDebugStep(ctx context.Context, arg UpdateChatDebugStepParams) (ChatDebugStep, error)
 	UpdateChatDiffStatusReferenceURL(ctx context.Context, arg UpdateChatDiffStatusReferenceURLParams) error
 	// Atomically updates the execution-state-managed fields on a chat:
@@ -1865,6 +1843,11 @@ type sqlcQuerier interface {
 	UpsertNotificationsSettings(ctx context.Context, value string) error
 	UpsertOAuth2DCREnabled(ctx context.Context, enabled bool) error
 	UpsertOAuth2GithubDefaultEligible(ctx context.Context, eligible bool) error
+	// Sets the organization's config for one model on one configured provider. A
+	// NULL price is unknown. An existing live row is only rewritten when a price
+	// differs, so updated_at records when a price last changed. Soft-deleted rows
+	// are left untouched, and a new live row is inserted beside them.
+	UpsertOrganizationAIProviderModelConfig(ctx context.Context, arg UpsertOrganizationAIProviderModelConfigParams) error
 	UpsertPrebuildsSettings(ctx context.Context, value string) error
 	UpsertProvisionerDaemon(ctx context.Context, arg UpsertProvisionerDaemonParams) (ProvisionerDaemon, error)
 	UpsertRuntimeConfig(ctx context.Context, arg UpsertRuntimeConfigParams) error

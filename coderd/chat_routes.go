@@ -81,7 +81,8 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 			r.Post("/messages", api.postChatMessages)
 			r.Patch("/messages/{message}", api.patchChatMessage)
 			r.Get("/prompts", api.getChatUserPrompts)
-			r.Post("/interrupt", api.interruptChat)
+			r.Get("/attachments", api.getChatAttachments)
+			r.Post("/interrupt", api.postChatInterrupt)
 			r.Post("/compact", api.compactChat)
 			r.Post("/clear", api.clearChat)
 			r.Post("/reconcile-invalid", api.reconcileInvalidChatState)
@@ -89,7 +90,7 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 			r.Post("/title/propose", api.proposeChatTitle)
 			r.Get("/diff", api.getChatDiffContents)
 			r.With(
-				httpmw.RateLimit(api.FilesRateLimit, time.Minute),
+				httpmw.RateLimitPerCaller(api.FilesRateLimit, time.Minute),
 				api.chatWorkspaceUploadMiddleware,
 			).Post("/workspace-files", api.postChatWorkspaceFile)
 			r.Put("/context", api.refreshChatContext)

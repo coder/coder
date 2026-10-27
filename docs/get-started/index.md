@@ -125,7 +125,10 @@ Its onboarding installs and configures the required Windows Subsystem for Linux 
 
 1. Follow the onboarding to configure Podman.
 
-1. If you configured Podman to use WSL2, then you will need to do either upgrade WSL2 to version 2.5.1 or later (which uses [cgroups](https://wikipedia.org/wiki/Cgroups) v2 by default) or create a `.wslconfig` file in the `%USERPROFILE%` directory with the following contents
+1. If you configured Podman to use WSL2, upgrade WSL2 to version 2.5.1 or later, or create a `.wslconfig` file.
+
+   WSL2 version 2.5.1 and later use [cgroups](https://wikipedia.org/wiki/Cgroups) v2 by default.
+   Create the `.wslconfig` file in the `%USERPROFILE%` directory with the following contents:
 
    ```txt
    [wsl2]
@@ -219,7 +222,8 @@ The template builder guides you through creating one without writing any Terrafo
    > [!NOTE]
    > This template requires Docker to be running in the background, so make sure Docker is running.
 
-1. Skip or configure any base template parameters, then select modules to add IDEs and tools to your template.
+1. Skip or configure any base template parameters, then select modules to add IDEs and tools.
+
    For example, add **code-server** to get VS Code in the browser.
    You can skip module selection for now and add modules later.
 
@@ -256,9 +260,11 @@ Now it's time to launch a workspace.
 1. After the template is ready, select **+ Create Workspace**.
 
 1. Give the workspace a name.
+
    If you need a suggestion, you can select the automatically generated name next to the **Need a suggestion?** label.
 
-1. If the template has any [parameters](../admin/templates/extending-templates/parameters.md), fill them in.
+1. If the template has any [parameters](../admin/templates/extending-templates/parameters/index.md), fill them in.
+
    Parameters vary by template and the modules you selected in the builder.
 
 1. Select **Create workspace**.
@@ -290,6 +296,7 @@ If you didn't clone an existing Git repository when you created your workspace, 
    Learn more about how to find the repository URL in the [GitHub documentation](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository).
 
 2. Choose the folder to which VS Code should clone the repo.
+
    It will be in its own directory within this folder.
 
    Note that you cannot create a new parent directory in this step.
@@ -334,7 +341,9 @@ When you're ready for other people to use it:
 
 1. Install the control plane on a separate machine by following the [Install guide](../install/index.md).
 1. [Create users](../admin/users/index.md#create-a-user) for your teammates, or connect an SSO provider.
-1. Have each teammate launch their own workspace from your template, which everyone in the organization can use by default; refer to [Workspace management](../user-guides/workspace-management.md).
+1. Have each teammate launch their own workspace from your template.
+
+   Everyone in the organization can use the template by default; refer to [Workspace management](../user-guides/workspace-management.md).
 
 ## Learn more
 

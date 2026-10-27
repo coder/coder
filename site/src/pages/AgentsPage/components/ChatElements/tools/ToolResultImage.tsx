@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ImageLightbox } from "../../ImageLightbox";
+import { useDialogFocusReturn } from "../../useDialogFocusReturn";
 
 export const ToolResultImage: React.FC<{
 	data: string;
@@ -7,6 +8,7 @@ export const ToolResultImage: React.FC<{
 	alt: string;
 }> = ({ data, mimeType, alt }) => {
 	const [showLightbox, setShowLightbox] = useState(false);
+	const { rememberTrigger, restoreFocus } = useDialogFocusReturn();
 	const imageSrc = `data:${mimeType};base64,${data}`;
 
 	return (
@@ -15,7 +17,10 @@ export const ToolResultImage: React.FC<{
 				<button
 					type="button"
 					className="cursor-pointer bg-transparent p-0 border-none"
-					onClick={() => setShowLightbox(true)}
+					onClick={(event) => {
+						rememberTrigger(event);
+						setShowLightbox(true);
+					}}
 				>
 					<img
 						src={imageSrc}
@@ -25,7 +30,11 @@ export const ToolResultImage: React.FC<{
 				</button>
 			</div>
 			{showLightbox && (
-				<ImageLightbox src={imageSrc} onClose={() => setShowLightbox(false)} />
+				<ImageLightbox
+					src={imageSrc}
+					onClose={() => setShowLightbox(false)}
+					onCloseAutoFocus={restoreFocus}
+				/>
 			)}
 		</>
 	);
