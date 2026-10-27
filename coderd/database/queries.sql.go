@@ -42301,6 +42301,57 @@ func (q *sqlQuerier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspace
 	return i, err
 }
 
+const getWorkspaceLastUsedForMetrics = `-- name: GetWorkspaceLastUsedForMetrics :many
+SELECT
+    o.name AS organization_name,
+    t.name AS template_name,
+    u.username AS owner_username,
+    w.name AS workspace_name,
+    w.last_used_at
+FROM workspaces w
+JOIN users u ON w.owner_id = u.id
+JOIN templates t ON w.template_id = t.id
+JOIN organizations o ON w.organization_id = o.id
+WHERE w.deleted = false
+`
+
+type GetWorkspaceLastUsedForMetricsRow struct {
+	OrganizationName string    `db:"organization_name" json:"organization_name"`
+	TemplateName     string    `db:"template_name" json:"template_name"`
+	OwnerUsername    string    `db:"owner_username" json:"owner_username"`
+	WorkspaceName    string    `db:"workspace_name" json:"workspace_name"`
+	LastUsedAt       time.Time `db:"last_used_at" json:"last_used_at"`
+}
+
+func (q *sqlQuerier) GetWorkspaceLastUsedForMetrics(ctx context.Context) ([]GetWorkspaceLastUsedForMetricsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceLastUsedForMetrics)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetWorkspaceLastUsedForMetricsRow
+	for rows.Next() {
+		var i GetWorkspaceLastUsedForMetricsRow
+		if err := rows.Scan(
+			&i.OrganizationName,
+			&i.TemplateName,
+			&i.OwnerUsername,
+			&i.WorkspaceName,
+			&i.LastUsedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaceUniqueOwnerCountByTemplateIDs = `-- name: GetWorkspaceUniqueOwnerCountByTemplateIDs :many
 SELECT templates.id AS template_id, COUNT(DISTINCT workspaces.owner_id) AS unique_owners_sum
 FROM templates

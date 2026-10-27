@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -26,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -524,6 +526,71 @@ func TestWorkspaceCreationTotal(t *testing.T) {
 			}, testutil.WaitShort, testutil.IntervalFast)
 		})
 	}
+}
+
+func TestWorkspaceStats(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	prebuildsUser, err := db.GetUserByID(ctx, database.PrebuildsSystemUserID)
+	require.NoError(t, err)
+	tpl := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{OrganizationID: org.ID, CreatedBy: user.ID}).Do().Template
+
+	now := dbtime.Now().Truncate(time.Second)
+	createWorkspace := func(owner database.User, transition database.WorkspaceTransition, lastUsedAt time.Time, deleted bool) database.WorkspaceTable {
+		return dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        owner.ID,
+			OrganizationID: org.ID,
+			TemplateID:     tpl.ID,
+			LastUsedAt:     lastUsedAt,
+			Deleted:        deleted,
+		}).Seed(database.WorkspaceBuild{Transition: transition}).Do().Workspace
+	}
+	running := createWorkspace(user, database.WorkspaceTransitionStart, now.Add(-time.Minute), false)
+	stopped := createWorkspace(user, database.WorkspaceTransitionStop, now.Add(-30*24*time.Hour), false)
+	prebuild := createWorkspace(prebuildsUser, database.WorkspaceTransitionStart, now.Add(-time.Hour), false)
+	createWorkspace(user, database.WorkspaceTransitionStart, now, true)
+	owners := map[uuid.UUID]string{user.ID: user.Username, prebuildsUser.ID: prebuildsUser.Username}
+
+	reg := prometheus.NewRegistry()
+	requireLastUsed := func(want ...database.WorkspaceTable) {
+		t.Helper()
+		const metricName = "coderd_workspace_last_used_timestamp_seconds"
+		count, err := promtest.GatherAndCount(reg, metricName)
+		require.NoError(t, err)
+		require.Equal(t, len(want), count)
+		for _, ws := range want {
+			metric := promhelp.MetricValue(t, reg, metricName, prometheus.Labels{
+				"organization_name": org.Name,
+				"template_name":     tpl.Name,
+				"workspace_owner":   owners[ws.OwnerID],
+				"workspace_name":    ws.Name,
+			})
+			require.NotNil(t, metric, "workspace %q", ws.Name)
+			require.Equal(t, float64(ws.LastUsedAt.Unix()), metric.GetGauge().GetValue())
+		}
+	}
+
+	clock := quartz.NewMock(t)
+	closeFunc, err := prometheusmetrics.WorkspaceStats(ctx, testutil.Logger(t), clock, reg, db, time.Minute)
+	require.NoError(t, err)
+	t.Cleanup(closeFunc)
+	requireLastUsed(running, stopped, prebuild)
+
+	stopped.LastUsedAt = now
+	require.NoError(t, db.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
+		ID:         stopped.ID,
+		LastUsedAt: stopped.LastUsedAt,
+	}))
+	require.NoError(t, db.UpdateWorkspaceDeletedByID(ctx, database.UpdateWorkspaceDeletedByIDParams{
+		ID:      running.ID,
+		Deleted: true,
+	}))
+	clock.Advance(time.Minute).MustWait(ctx)
+	requireLastUsed(stopped, prebuild)
 }
 
 func TestAgents(t *testing.T) {

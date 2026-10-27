@@ -1025,6 +1025,16 @@ If set to false, a reduced set of database metrics are still collected.
 - YAML key: `introspection.prometheus.collect_db_metrics`
 - Default value: `false`
 
+#### Collect workspace stats
+
+Collect per-workspace stats (may increase charges for metrics storage).
+
+- Type: `bool`
+- Environment variable: `CODER_PROMETHEUS_COLLECT_WORKSPACE_STATS`
+- CLI flag: [`--prometheus-collect-workspace-stats`](../../reference/cli/server/index.md#--prometheus-collect-workspace-stats)
+- YAML key: `introspection.prometheus.collect_workspace_stats`
+- Default value: `false`
+
 #### Enable
 
 Serve prometheus metrics on the address defined by prometheus address.

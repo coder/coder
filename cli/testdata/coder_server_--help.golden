@@ -444,6 +444,10 @@ INTROSPECTION / PROMETHEUS OPTIONS:
           storage). If set to false, a reduced set of database metrics are still
           collected.
 
+      --prometheus-collect-workspace-stats bool, $CODER_PROMETHEUS_COLLECT_WORKSPACE_STATS (default: false)
+          Collect per-workspace stats (may increase charges for metrics
+          storage).
+
       --prometheus-enable bool, $CODER_PROMETHEUS_ENABLE
           Serve prometheus metrics on the address defined by prometheus address.
 

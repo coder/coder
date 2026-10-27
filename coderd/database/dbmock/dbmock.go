@@ -7794,6 +7794,21 @@ func (mr *MockStoreMockRecorder) GetWorkspaceByWorkspaceAppID(ctx, workspaceAppI
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceByWorkspaceAppID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceByWorkspaceAppID), ctx, workspaceAppID)
 }
 
+// GetWorkspaceLastUsedForMetrics mocks base method.
+func (m *MockStore) GetWorkspaceLastUsedForMetrics(ctx context.Context) ([]database.GetWorkspaceLastUsedForMetricsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceLastUsedForMetrics", ctx)
+	ret0, _ := ret[0].([]database.GetWorkspaceLastUsedForMetricsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceLastUsedForMetrics indicates an expected call of GetWorkspaceLastUsedForMetrics.
+func (mr *MockStoreMockRecorder) GetWorkspaceLastUsedForMetrics(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceLastUsedForMetrics", reflect.TypeOf((*MockStore)(nil).GetWorkspaceLastUsedForMetrics), ctx)
+}
+
 // GetWorkspaceModulesByJobID mocks base method.
 func (m *MockStore) GetWorkspaceModulesByJobID(ctx context.Context, jobID uuid.UUID) ([]database.WorkspaceModule, error) {
 	m.ctrl.T.Helper()

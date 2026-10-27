@@ -1140,6 +1140,7 @@ type sqlcQuerier interface {
 	GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWorkspaceByOwnerIDAndNameParams) (Workspace, error)
 	GetWorkspaceByResourceID(ctx context.Context, resourceID uuid.UUID) (Workspace, error)
 	GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceAppID uuid.UUID) (Workspace, error)
+	GetWorkspaceLastUsedForMetrics(ctx context.Context) ([]GetWorkspaceLastUsedForMetricsRow, error)
 	GetWorkspaceModulesByJobID(ctx context.Context, jobID uuid.UUID) ([]WorkspaceModule, error)
 	GetWorkspaceModulesCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceModule, error)
 	GetWorkspaceProxies(ctx context.Context) ([]WorkspaceProxy, error)

@@ -8666,6 +8666,7 @@ export interface PrometheusConfig {
 	readonly collect_agent_stats: boolean;
 	readonly collect_db_metrics: boolean;
 	readonly aggregate_agent_stats_by: string;
+	readonly collect_workspace_stats: boolean;
 }
 
 // From codersdk/chats.go

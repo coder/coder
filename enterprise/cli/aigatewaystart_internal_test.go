@@ -616,6 +616,7 @@ func TestAIGatewayStart_InheritedOptions(t *testing.T) {
 		"CODER_PROMETHEUS_AGGREGATE_AGENT_STATS_BY": {},
 		"CODER_PROMETHEUS_COLLECT_AGENT_STATS":      {},
 		"CODER_PROMETHEUS_COLLECT_DB_METRICS":       {},
+		"CODER_PROMETHEUS_COLLECT_WORKSPACE_STATS":  {},
 	}
 
 	dv := codersdk.DeploymentValues{}
