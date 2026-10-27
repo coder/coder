@@ -3,7 +3,15 @@ import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
 import { type QueryClient, QueryClientProvider } from "react-query";
 import { defaultUrlTransform } from "streamdown";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	onTestFinished,
+	vi,
+} from "vitest";
 import { API } from "#/api/api";
 import { chatPromptsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -292,6 +300,41 @@ const renderChatPageTimeline = (
 const getQuestionDock = () =>
 	screen.getByRole("region", { name: "Open question" });
 
+const upsertNewerQuestion = (
+	store: ReturnType<typeof createChatStore>,
+	callId: string,
+) => {
+	act(() => {
+		store.upsertDurableMessages([
+			{
+				...MockQuestionCallMessage,
+				id: 6,
+				content: [
+					{
+						type: "tool-call",
+						tool_call_id: callId,
+						tool_name: "ask_user_question",
+						args: {},
+						created_at: workingFixtureTime(7),
+					},
+				],
+			},
+			{
+				...MockAsyncQuestionResultMessage,
+				id: 7,
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: callId,
+						tool_name: "ask_user_question",
+						result: MockAsyncQuestionResult,
+					},
+				],
+			},
+		]);
+	});
+};
+
 describe("ChatPageTimeline question dock", () => {
 	it("answers the open async question from the dock above the input", async () => {
 		const user = userEvent.setup();
@@ -409,7 +452,7 @@ describe("ChatPageTimeline question dock", () => {
 		{ callId: "newer-question", callIdKind: "a new call ID" },
 		{ callId: "question", callIdKind: "a reused call ID" },
 	])(
-		"gives a newer async question with $callIdKind a fresh form in the dock",
+		"gives a newer async question with $callIdKind a fresh, focused form in the dock",
 		async ({ callId }) => {
 			const user = userEvent.setup();
 			const onSendAskUserQuestionResponse = vi.fn();
@@ -418,35 +461,8 @@ describe("ChatPageTimeline question dock", () => {
 			await user.click(
 				within(getQuestionDock()).getByRole("radio", { name: /^Frontend/ }),
 			);
-			act(() => {
-				store.upsertDurableMessages([
-					{
-						...MockQuestionCallMessage,
-						id: 6,
-						content: [
-							{
-								type: "tool-call",
-								tool_call_id: callId,
-								tool_name: "ask_user_question",
-								args: {},
-								created_at: workingFixtureTime(7),
-							},
-						],
-					},
-					{
-						...MockAsyncQuestionResultMessage,
-						id: 7,
-						content: [
-							{
-								type: "tool-result",
-								tool_call_id: callId,
-								tool_name: "ask_user_question",
-								result: MockAsyncQuestionResult,
-							},
-						],
-					},
-				]);
-			});
+			upsertNewerQuestion(store, callId);
+			expect(getQuestionDock()).toHaveFocus();
 			await user.click(
 				within(getQuestionDock()).getByRole("button", { name: "Submit" }),
 			);
@@ -454,6 +470,30 @@ describe("ChatPageTimeline question dock", () => {
 			expect(onSendAskUserQuestionResponse).toHaveBeenCalledWith(
 				`Answer to ask_user_question call ${callId}:\nBackend`,
 			);
+		},
+	);
+
+	it.each([
+		{
+			focusKind: "a control outside the dock",
+			getFocusTarget: () => {
+				const outside = document.createElement("button");
+				document.body.append(outside);
+				onTestFinished(() => outside.remove());
+				return outside;
+			},
+		},
+		{ focusKind: "the page body", getFocusTarget: () => document.body },
+	])(
+		"leaves focus on $focusKind when a newer question arrives",
+		({ getFocusTarget }) => {
+			const { store } = renderChatPageTimeline(vi.fn());
+			const focusTarget = getFocusTarget();
+			focusTarget.focus();
+
+			upsertNewerQuestion(store, "newer-question");
+
+			expect(focusTarget).toHaveFocus();
 		},
 	);
 });

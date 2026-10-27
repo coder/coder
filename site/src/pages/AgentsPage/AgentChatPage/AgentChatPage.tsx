@@ -76,6 +76,7 @@ import { isChatAgentBindingUnresolved } from "../components/ChatConversation/wat
 import { workspaceSkillsFromChat } from "../components/ChatPageContent";
 import { getModelSelectorHelp } from "../components/ModelSelectorHelp";
 import { useAgentChatPanelPreference } from "../components/RightPanel/useAgentChatPanelPreference";
+import { useComposerFocusAfterSend } from "../hooks/useComposerFocusAfterSend";
 import {
 	type SendChatTurnOptions,
 	useConversationEditingState,
@@ -721,10 +722,14 @@ const AgentChatPage: React.FC = () => {
 		});
 	}
 
+	// An answer's form takes focus with it when it closes, so answers refocus
+	// the chat input on every screen size.
+	const sendAnswer = useComposerFocusAfterSend(chatInputRef, sendMessage);
 	const handleSendAskUserQuestionResponse = async (message: string) => {
 		await submitChatTurn({
 			...chatTurnDeps,
 			message,
+			sendMessage: sendAnswer,
 		});
 	};
 

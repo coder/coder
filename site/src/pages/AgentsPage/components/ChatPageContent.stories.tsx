@@ -609,6 +609,22 @@ export const AsyncQuestionDockedAboveInput: Story = {
 	},
 };
 
+// The dock's region takes focus when a newer question replaces the form that
+// had it, and shows this ring.
+export const AsyncQuestionDockFocused: Story = {
+	render: () => (
+		<AsyncQuestionChatPage
+			store={buildAsyncQuestionStore()}
+			onSendAskUserQuestionResponse={fn()}
+		/>
+	),
+	play: ({ canvasElement }) => {
+		within(canvasElement)
+			.getByRole("region", { name: "Open question" })
+			.focus();
+	},
+};
+
 const mockTallQuestion = {
 	header: "Rollout",
 	question: "How should the new billing export reach customers?",
