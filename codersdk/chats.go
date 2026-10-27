@@ -61,6 +61,21 @@ const MaxChatFileSizeBytes = 10 * 1024 * 1024
 // derives its silence timeout from it.
 const ChatStreamKeepaliveIntervalSeconds = 15
 
+// ChatStreamChunkBytes is the largest encoded batch the chat stream sends
+// as one message. A larger batch is sent as consecutive [ChatStreamChunk]
+// messages that each hold at most this many bytes of it, so no message
+// takes long to download.
+const ChatStreamChunkBytes = 256 * 1024
+
+// ChatStreamChunk is one piece of a chat stream batch that encodes to
+// more than [ChatStreamChunkBytes]. The pieces of a batch arrive in order
+// with no other message between them; concatenating Chunk up to and
+// including the piece with Last set gives the JSON array of the batch.
+type ChatStreamChunk struct {
+	Chunk string `json:"chunk"`
+	Last  bool   `json:"last"`
+}
+
 // Inline MCP server declaration caps. Clients can validate before sending.
 const (
 	MaxInlineMCPServers                = 5
@@ -3351,9 +3366,10 @@ func (c *Client) StreamChat(ctx context.Context, chatID uuid.UUID, opts *StreamC
 			_ = conn.Close(websocket.StatusNormalClosure, "")
 		}()
 
+		var chunks []byte
 		for {
-			var batch []ChatStreamEvent
-			if err := wsjson.Read(streamCtx, conn, &batch); err != nil {
+			_, data, err := conn.Read(streamCtx)
+			if err != nil {
 				if streamCtx.Err() != nil {
 					return
 				}
@@ -3366,6 +3382,31 @@ func (c *Client) StreamChat(ctx context.Context, chatID uuid.UUID, opts *StreamC
 					Error: &ChatError{
 						Message: fmt.Sprintf("read chat stream: %v", err),
 					},
+				})
+				return
+			}
+
+			if trimmed := bytes.TrimLeft(data, " \t\r\n"); len(trimmed) > 0 && trimmed[0] == '{' {
+				var chunk ChatStreamChunk
+				if err := json.Unmarshal(data, &chunk); err != nil {
+					_ = send(ChatStreamEvent{
+						Type:  ChatStreamEventTypeError,
+						Error: &ChatError{Message: fmt.Sprintf("decode chat stream chunk: %v", err)},
+					})
+					return
+				}
+				chunks = append(chunks, chunk.Chunk...)
+				if !chunk.Last {
+					continue
+				}
+				data, chunks = chunks, nil
+			}
+
+			var batch []ChatStreamEvent
+			if err := json.Unmarshal(data, &batch); err != nil {
+				_ = send(ChatStreamEvent{
+					Type:  ChatStreamEventTypeError,
+					Error: &ChatError{Message: fmt.Sprintf("decode chat stream batch: %v", err)},
 				})
 				return
 			}

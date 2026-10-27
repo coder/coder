@@ -3832,6 +3832,27 @@ export interface ChatStreamActionRequired {
 
 // From codersdk/chats.go
 /**
+ * ChatStreamChunk is one piece of a chat stream batch that encodes to
+ * more than [ChatStreamChunkBytes]. The pieces of a batch arrive in order
+ * with no other message between them; concatenating Chunk up to and
+ * including the piece with Last set gives the JSON array of the batch.
+ */
+export interface ChatStreamChunk {
+	readonly chunk: string;
+	readonly last: boolean;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatStreamChunkBytes is the largest encoded batch the chat stream sends
+ * as one message. A larger batch is sent as consecutive [ChatStreamChunk]
+ * messages that each hold at most this many bytes of it, so no message
+ * takes long to download.
+ */
+export const ChatStreamChunkBytes = 262144;
+
+// From codersdk/chats.go
+/**
  * ChatStreamEvent represents a real-time update for chat streaming.
  */
 export interface ChatStreamEvent {

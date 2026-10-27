@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"crypto/sha256"
@@ -4005,7 +4006,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		if len(batch) == 0 {
 			return nil
 		}
-		return encoder.Encode(batch)
+		return writeChatStreamBatch(wsNetConn, batch)
 	}
 
 	drainChatStreamBatch := func(
@@ -4080,6 +4081,43 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+}
+
+// writeChatStreamBatch writes batch as one message, or as consecutive
+// codersdk.ChatStreamChunk messages when it encodes to more than
+// codersdk.ChatStreamChunkBytes. Browsers deliver a message only after its
+// last byte, so an unsplit large batch on a slow link would arrive after
+// the web client's silence timeout and be requested again forever.
+func writeChatStreamBatch(w io.Writer, batch []codersdk.ChatStreamEvent) error {
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(batch); err != nil {
+		return xerrors.Errorf("encode chat stream batch: %w", err)
+	}
+	data := buf.Bytes()
+	if len(data) <= codersdk.ChatStreamChunkBytes {
+		_, err := w.Write(data)
+		return err
+	}
+	for len(data) > 0 {
+		n := min(len(data), codersdk.ChatStreamChunkBytes)
+		// Encoder output is valid UTF-8, so a rune start is at most three
+		// bytes back, and each chunk is a valid string.
+		for n < len(data) && !utf8.RuneStart(data[n]) {
+			n--
+		}
+		chunk, err := json.Marshal(codersdk.ChatStreamChunk{
+			Chunk: string(data[:n]),
+			Last:  n == len(data),
+		})
+		if err != nil {
+			return xerrors.Errorf("encode chat stream chunk: %w", err)
+		}
+		if _, err := w.Write(chunk); err != nil {
+			return err
+		}
+		data = data[n:]
+	}
+	return nil
 }
 
 // @Summary Interrupt chat
