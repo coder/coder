@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -139,6 +140,19 @@ func TestStreamPartsEndpointReselectsWhileEpisodeMissing(t *testing.T) {
 	require.Equal(t, selectedKey.HistoryVersion, got[0].MessagePart.HistoryVersion)
 }
 
+type recordingSubscriber struct {
+	*messagepartbuffer.Buffer
+	mu   sync.Mutex
+	keys []int64
+}
+
+func (r *recordingSubscriber) SubscribeToEpisode(ctx context.Context, key messagepartbuffer.Key) (<-chan messagepartbuffer.Part, func(), error) {
+	r.mu.Lock()
+	r.keys = append(r.keys, key.HistoryVersion)
+	r.mu.Unlock()
+	return r.Buffer.SubscribeToEpisode(ctx, key)
+}
+
 type writeCountingServerTransport struct {
 	streamPartsServerTransport
 	writes atomic.Int64
@@ -156,9 +170,10 @@ func TestStreamPartsEndpointLatestSelectionWinsWhileBlocked(t *testing.T) {
 	chatID := uuid.New()
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
 	defer buffer.Close()
+	subscriber := &recordingSubscriber{Buffer: buffer}
 	endpoint := streamPartsEndpoint{
 		chatID: chatID,
-		buffer: buffer,
+		buffer: subscriber,
 		logger: slogtest.Make(t, nil),
 	}
 	serverTransport, clientTransport := newStreamPartsChannelTransportPair()
@@ -211,6 +226,9 @@ func TestStreamPartsEndpointLatestSelectionWinsWhileBlocked(t *testing.T) {
 		got := readStreamPartsTransportBatch(ctx, t, clientTransport)
 		if got[0].MessagePart.HistoryVersion == latestKey.HistoryVersion {
 			require.Equal(t, "latest", got[0].MessagePart.Part.Text)
+			subscriber.mu.Lock()
+			defer subscriber.mu.Unlock()
+			require.Equal(t, []int64{blockingKey.HistoryVersion, latestKey.HistoryVersion}, subscriber.keys, "the endpoint subscribed to a replaced selection")
 			return
 		}
 	}
