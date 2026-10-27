@@ -51,6 +51,8 @@ type SidebarTabViewProps = {
 };
 
 const TAB_SCROLL_AMOUNT = 120;
+// Width of the scroll chevrons (w-8) that cover the ends of the tab strip.
+const TAB_CHEVRON_WIDTH = 32;
 
 function useTabScroll() {
 	const ref = useRef<HTMLDivElement>(null);
@@ -158,6 +160,28 @@ export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
 		scrollLeft: scrollTabsLeft,
 		scrollRight: scrollTabsRight,
 	} = useTabScroll();
+
+	// Opening an artifact adds a tab at the end of the strip, where it can be
+	// out of view. Scroll the active tab and its close button into view.
+	useEffect(() => {
+		const strip = tabScrollRef.current;
+		const tab = effectiveTabId
+			? document.getElementById(`${tabIdPrefix}-tab-${effectiveTabId}`)
+					?.parentElement
+			: undefined;
+		if (!strip || !tab) {
+			return;
+		}
+		const stripRect = strip.getBoundingClientRect();
+		const tabRect = tab.getBoundingClientRect();
+		const left = stripRect.left + TAB_CHEVRON_WIDTH;
+		const right = stripRect.right - TAB_CHEVRON_WIDTH;
+		if (tabRect.left < left) {
+			strip.scrollLeft -= left - tabRect.left;
+		} else if (tabRect.right > right) {
+			strip.scrollLeft += tabRect.right - right;
+		}
+	}, [effectiveTabId, tabIdPrefix, tabScrollRef]);
 
 	const allPanels: { id: string; content: React.ReactNode }[] = tabs.map(
 		(t) => ({
