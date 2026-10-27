@@ -5,8 +5,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
+	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -934,7 +936,8 @@ func TestPinnedWorkspaceMCPTools(t *testing.T) {
 		// Normalization rewrites every type list into an "anyOf", so this
 		// schema is under the per-tool cap as pushed but over it as sent.
 		typeLists := schemaWith(1700, map[string]any{"type": []any{"string", "null"}})
-		// Four of these fit in one server's budget, and a fifth does not.
+		// Four of these fit in the budget shared by every workspace
+		// server's tools, so b5 and linear's c do not.
 		large := schemaWith(2300, map[string]any{"type": "string"})
 		pushed, err := json.Marshal(typeLists)
 		require.NoError(t, err)
@@ -977,7 +980,7 @@ func TestPinnedWorkspaceMCPTools(t *testing.T) {
 			"github__b3":           true,
 			"github__b4":           true,
 			"github__b5":           false,
-			"linear__c":            true,
+			"linear__c":            false,
 		}, full)
 		sent, err := json.Marshal(chatloop.ToolInputSchema(tools[0]))
 		require.NoError(t, err)
@@ -1004,4 +1007,71 @@ func TestPinnedWorkspaceMCPTools(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, tools)
 	})
+}
+
+// TestBoundWorkspaceMCPToolSchemas verifies that schemas already in the
+// reduced shape (type, properties, and required only), such as the
+// agent's fallback, take none of the full-schema budget, matching the
+// agent, so a tool that fits the agent's budget also fits chatd's.
+func TestBoundWorkspaceMCPToolSchemas(t *testing.T) {
+	t.Parallel()
+
+	properties := map[string]any{"q": map[string]any{"type": "string"}}
+	padded := func(padding int) map[string]any {
+		return map[string]any{
+			"type":       "object",
+			"properties": properties,
+			"$defs":      map[string]any{"D": map[string]any{"type": "string", "description": strings.Repeat("x", padding)}},
+		}
+	}
+	tools := func(lastPadding int) []fantasy.AgentTool {
+		infos := []workspacesdk.MCPToolInfo{{
+			Name:        "a__fallback",
+			InputSchema: map[string]any{"type": "object", "properties": properties, "required": []any{"q"}},
+		}}
+		for i := range 4 {
+			infos = append(infos, workspacesdk.MCPToolInfo{Name: fmt.Sprintf("b__full%d", i), InputSchema: padded(60_000)})
+		}
+		infos = append(infos, workspacesdk.MCPToolInfo{Name: "c__last", InputSchema: padded(lastPadding)})
+		return chattool.NewWorkspaceMCPTools(infos, nil)
+	}
+	sentBytes := func(tool fantasy.AgentTool) int {
+		encoded, err := json.Marshal(chatloop.ToolInputSchema(tool))
+		require.NoError(t, err)
+		return len(encoded)
+	}
+	fullSchemas := func(tools []fantasy.AgentTool) map[string]bool {
+		full := map[string]bool{}
+		for _, tool := range tools {
+			workspaceTool, ok := tool.(*chattool.WorkspaceMCPTool)
+			require.True(t, ok)
+			full[workspaceTool.Info().Name] = workspaceTool.FullInputSchema() != nil
+		}
+		return full
+	}
+
+	// Pad the last schema to exactly the budget the full schemas leave.
+	probe := tools(0)
+	remaining := maxWorkspaceMCPToolSchemasTotalBytes
+	for _, tool := range probe[1:5] {
+		remaining -= sentBytes(tool)
+	}
+	lastPadding := remaining - sentBytes(probe[5])
+	server := newPinServer(t, nil)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	require.Equal(t, remaining, sentBytes(tools(lastPadding)[5]))
+
+	fitting := server.boundWorkspaceMCPToolSchemas(ctx, tools(lastPadding))
+	require.Equal(t, map[string]bool{
+		"a__fallback": true,
+		"b__full0":    true,
+		"b__full1":    true,
+		"b__full2":    true,
+		"b__full3":    true,
+		"c__last":     true,
+	}, fullSchemas(fitting))
+
+	over := server.boundWorkspaceMCPToolSchemas(ctx, tools(lastPadding+1))
+	require.False(t, fullSchemas(over)["c__last"])
 }

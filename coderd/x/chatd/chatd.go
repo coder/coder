@@ -379,35 +379,37 @@ func (p *Server) pinnedWorkspaceMCPTools(
 	return p.boundWorkspaceMCPToolSchemas(ctx, chattool.NewWorkspaceMCPTools(infos, getConn)), nil
 }
 
-// Caps on one server's full workspace MCP tool input schemas as the model
-// receives them, matching the definition caps for inline MCP servers. The
-// agent caps the schemas it pushes, but before normalization, which can
-// make them larger.
+// Caps on full workspace MCP tool input schemas as the model receives
+// them: one tool's schema, and all full schemas across every workspace
+// server, matching the agent's caps on the schemas it pushes. The agent
+// measures before normalization, which can make a schema larger.
 const (
-	maxWorkspaceMCPToolSchemaBytes  = 64 << 10
-	maxWorkspaceMCPToolSchemasBytes = 256 << 10
+	maxWorkspaceMCPToolSchemaBytes       = 64 << 10
+	maxWorkspaceMCPToolSchemasTotalBytes = 256 << 10
 )
 
 // boundWorkspaceMCPToolSchemas sends a tool with only its properties and
 // required names when its schema is over maxWorkspaceMCPToolSchemaBytes
-// or would take its server's full schemas past
-// maxWorkspaceMCPToolSchemasBytes.
+// or would take the full schemas of all workspace tools past
+// maxWorkspaceMCPToolSchemasTotalBytes. Tools arrive sorted by routing
+// name, so the same tools keep the same full schemas. As in the agent,
+// a pushed schema with no keys beyond type, properties, and required,
+// such as the agent's reduced fallback, takes no budget.
 func (p *Server) boundWorkspaceMCPToolSchemas(ctx context.Context, tools []fantasy.AgentTool) []fantasy.AgentTool {
-	serverBytes := map[string]int{}
+	fullSchemaBytes := 0
 	var reduced []string
 	for i, tool := range tools {
 		workspaceTool, ok := tool.(*chattool.WorkspaceMCPTool)
-		if !ok || workspaceTool.FullInputSchema() == nil {
+		if !ok || !hasKeysBeyondReducedSchema(workspaceTool.FullInputSchema()) {
 			continue
 		}
-		server := workspaceTool.ServerName()
 		encoded, err := json.Marshal(chatloop.ToolInputSchema(workspaceTool))
 		if err != nil {
 			p.logger.Warn(ctx, "failed to encode workspace MCP tool input schema",
 				slog.F("tool_name", workspaceTool.Info().Name),
 				slog.Error(err))
-		} else if len(encoded) <= min(maxWorkspaceMCPToolSchemaBytes, maxWorkspaceMCPToolSchemasBytes-serverBytes[server]) {
-			serverBytes[server] += len(encoded)
+		} else if len(encoded) <= min(maxWorkspaceMCPToolSchemaBytes, maxWorkspaceMCPToolSchemasTotalBytes-fullSchemaBytes) {
+			fullSchemaBytes += len(encoded)
 			continue
 		}
 		reduced = append(reduced, workspaceTool.Info().Name)
@@ -417,9 +419,22 @@ func (p *Server) boundWorkspaceMCPToolSchemas(ctx context.Context, tools []fanta
 		p.logger.Warn(ctx, "workspace MCP tool input schemas exceed size limits, sending only properties and required",
 			slog.F("tool_names", reduced),
 			slog.F("max_schema_bytes", maxWorkspaceMCPToolSchemaBytes),
-			slog.F("max_server_schema_bytes", maxWorkspaceMCPToolSchemasBytes))
+			slog.F("max_total_schema_bytes", maxWorkspaceMCPToolSchemasTotalBytes))
 	}
 	return tools
+}
+
+// hasKeysBeyondReducedSchema reports whether schema has a key besides
+// type, properties, and required, the shape the agent reduces to.
+func hasKeysBeyondReducedSchema(schema map[string]any) bool {
+	for key := range schema {
+		switch key {
+		case "type", "properties", "required":
+		default:
+			return true
+		}
+	}
+	return false
 }
 
 // AgentConnFunc provides access to workspace agent connections.
