@@ -260,10 +260,12 @@ func TestOpenAI_ResponsesAPI_UnstoredItemReference(t *testing.T) {
 		name       string
 		store      bool
 		refs       []string
+		typed      bool
 		wantStatus int
 	}{
 		{name: "UnstoredReasoning", refs: []string{"rs_served"}, wantStatus: http.StatusNotFound},
 		{name: "UnstoredWebSearch", refs: []string{"ws_served"}, wantStatus: http.StatusNotFound},
+		{name: "UnstoredTyped", refs: []string{"ws_served"}, typed: true, wantStatus: http.StatusNotFound},
 		{name: "Stored", store: true, refs: []string{"rs_served", "ws_served"}, wantStatus: http.StatusOK},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -295,7 +297,11 @@ func TestOpenAI_ResponsesAPI_UnstoredItemReference(t *testing.T) {
 			// openai-go leaves out the optional type on item references.
 			input := []any{user}
 			for _, id := range tc.refs {
-				input = append(input, map[string]any{"id": id})
+				ref := map[string]any{"id": id}
+				if tc.typed {
+					ref["type"] = "item_reference"
+				}
+				input = append(input, ref)
 			}
 			require.Equal(t, tc.wantStatus, post(true, input))
 		})

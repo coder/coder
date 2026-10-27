@@ -304,7 +304,7 @@ func (s *openAIServer) handleResponses(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Prompt != nil {
-		if errResp := s.unstoredItemReference(req.Prompt); errResp != nil {
+		if errResp := s.rejectUnstoredItemReference(&req); errResp != nil {
 			writeErrorResponse(s.t, w, errResp)
 			return
 		}
@@ -318,29 +318,34 @@ func (s *openAIServer) handleResponses(w http.ResponseWriter, r *http.Request) {
 	s.writeResponsesAPIResponse(w, req, resp)
 }
 
-// unstoredItemReference returns the 404 OpenAI sends for an item_reference
-// to an item from a store: false response.
-func (s *openAIServer) unstoredItemReference(prompt []any) *ErrorResponse {
+// rejectUnstoredItemReference returns the 404 OpenAI sends for an
+// item_reference to an item from a store: false response. Like OpenAI, it
+// adds the store hint only when the referencing request is unstored too.
+func (s *openAIServer) rejectUnstoredItemReference(req *OpenAIRequest) *ErrorResponse {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for _, raw := range prompt {
+	for _, raw := range req.Prompt {
 		item, ok := raw.(map[string]any)
 		if !ok {
 			continue
 		}
 		id := ResponsesItemReferenceID(item)
 		if _, unstored := s.unstoredItems[id]; id != "" && unstored {
+			message := fmt.Sprintf("Item with id '%s' not found.", id)
+			if req.Store != nil && !*req.Store {
+				message += " Items are not persisted when `store` is set to false. Try again with `store` set to true, or remove this item from your input."
+			}
 			return &ErrorResponse{
 				StatusCode: http.StatusNotFound,
 				Type:       "invalid_request_error",
-				Message:    fmt.Sprintf("Item with id '%s' not found.", id),
+				Message:    message,
 			}
 		}
 	}
 	return nil
 }
 
-func (s *openAIServer) recordServedItem(req *OpenAIRequest, id string) {
+func (s *openAIServer) recordUnstoredItem(req *OpenAIRequest, id string) {
 	if req.Store == nil || *req.Store || id == "" {
 		return
 	}
@@ -381,7 +386,7 @@ func (s *openAIServer) writeResponsesAPIResponse(w http.ResponseWriter, req *Ope
 	case msg != "":
 		http.Error(w, msg, http.StatusInternalServerError)
 	case hasStreaming:
-		writeResponsesAPIStreaming(s.t, w, req, resp, func(id string) { s.recordServedItem(req, id) })
+		writeResponsesAPIStreaming(s.t, w, req, resp, func(id string) { s.recordUnstoredItem(req, id) })
 	default:
 		s.writeResponsesAPINonStreaming(w, resp.Response)
 	}
