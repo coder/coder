@@ -53,7 +53,13 @@ A warning icon next to the model selector means that Coder hasn't verified the m
 The icon reflects the selected model, or the organization's default model when no model is selected or the selected model no longer appears in the list.
 The warning doesn't block saving.
 Before you save, confirm that the model supports the provider's computer use tool.
-For an OpenAI model, also set **Use Responses API** to **Default** or **On** on the **Models** page.
+
+To turn the Responses API back on for a model whose AI provider type is OpenAI:
+
+1. On the **Models** page, select the model.
+1. Expand **Provider configuration**.
+1. Set **Use Responses API** to **Default** or **On**.
+1. Select **Update model**.
 
 The same setting is available through the API at `PUT /api/v2/organizations/{organization}/chats/model-overrides/computer_use`.
 The request fails with `404 Not Found` while the experiment is disabled, and with `400 Bad Request` when the model's AI provider type is not Anthropic or OpenAI.
