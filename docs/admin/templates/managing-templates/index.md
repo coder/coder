@@ -149,9 +149,7 @@ coder templates delete <template-name>
 ## Next steps
 
 - [Image management](./image-management.md)
-- Dev Containers
-  - [Dev Containers CLI integration](../../integrations/devcontainers/integration.md) (recommended)
-  - [Envbuilder](../../integrations/devcontainers/envbuilder/index.md) (maintenance mode ⚠️) (alternative for environments without Docker)
+- [Dev Containers CLI integration](../../integrations/devcontainers/integration.md)
 - [Nix(OS)](../../integrations/nix.md) (more flexible alternative to Dev Containers using Nix flakes)
 - [Change management](./change-management.md)
 
