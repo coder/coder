@@ -414,10 +414,10 @@ func hoistKeywords(root map[string]any, merged []map[string]any) {
 // closeHoistedPatterns makes the "additionalProperties" of each of
 // nodes, schemas folded into root, hold for the names that match a
 // pattern hoisted from another schema, which no longer counts them as
-// additional at the root. It is added to the pattern when the node has
-// no patterns and lists no name the pattern matches, so that it holds
-// for every such name in the source. Otherwise it is left out there,
-// which only drops a constraint.
+// additional at the root. It is added to the pattern when the node
+// lists no name the pattern matches and has no pattern that could match
+// a name it does, so that it holds for every such name in the source.
+// Otherwise it is left out there, which only drops a constraint.
 func (f *rootFolder) closeHoistedPatterns(root map[string]any, nodes []map[string]any) {
 	hoisted, _ := root["patternProperties"].(map[string]any)
 	if len(hoisted) == 0 {
@@ -429,14 +429,15 @@ func (f *rootFolder) closeHoistedPatterns(root map[string]any, nodes []map[strin
 		if schema, ok := additional.(map[string]any); !isBooleanSchema(additional, false) && (!ok || len(schema) == 0) {
 			continue
 		}
-		if patterns, _ := node["patternProperties"].(map[string]any); len(patterns) > 0 {
-			continue
-		}
+		own, _ := node["patternProperties"].(map[string]any)
 		listed, _ := node["properties"].(map[string]any)
-		if !f.spend(len(hoisted) * (1 + len(listed))) {
+		if !f.spend(len(hoisted) * (1 + len(listed) + len(own))) {
 			return
 		}
 		for _, pattern := range slices.Sorted(maps.Keys(hoisted)) {
+			if !disjointFromAll(pattern, own) {
+				continue
+			}
 			only := map[string]any{pattern: hoisted[pattern]}
 			if slices.ContainsFunc(slices.Sorted(maps.Keys(listed)), func(name string) bool {
 				matched, known := f.patterns.match(only, name)
@@ -448,6 +449,31 @@ func (f *rootFolder) closeHoistedPatterns(root map[string]any, nodes []map[strin
 		}
 	}
 	root["patternProperties"] = closed
+}
+
+// disjointFromAll reports whether no name can match both pattern and any
+// of patterns. It knows only patterns that anchor a literal prefix, such
+// as "^x-", and reports false when another pattern is involved.
+func disjointFromAll(pattern string, patterns map[string]any) bool {
+	prefix, ok := literalPrefix(pattern)
+	if !ok && len(patterns) > 0 {
+		return false
+	}
+	for other := range patterns {
+		otherPrefix, ok := literalPrefix(other)
+		if !ok || strings.HasPrefix(prefix, otherPrefix) || strings.HasPrefix(otherPrefix, prefix) {
+			return false
+		}
+	}
+	return true
+}
+
+// literalPrefix returns the text a pattern of the form "^" followed by
+// characters without regular expression meaning requires names to start
+// with, and false for other patterns.
+func literalPrefix(pattern string) (string, bool) {
+	prefix, ok := strings.CutPrefix(pattern, "^")
+	return prefix, ok && !strings.ContainsAny(prefix, `\.+*?()|[]{}^$`)
 }
 
 // conditionalKeywords are the keywords of a JSON Schema conditional.
@@ -884,6 +910,8 @@ func (s *objectShape) addProperty(name string, property any) {
 	switch {
 	case !ok || allowsAny(existing):
 		s.properties[name] = property
+	case isBooleanSchema(existing, false) || isBooleanSchema(property, false):
+		s.properties[name] = false
 	case !allowsAny(property) && !reflect.DeepEqual(existing, property):
 		s.properties[name] = map[string]any{"allOf": []any{existing, property}}
 	}
@@ -1102,7 +1130,7 @@ func (f *rootFolder) mergeAlternatives(shape *objectShape, branches []any) {
 		f.mergeAll(&alternative, branch)
 		f.applyAdditionalProperties(&alternative, alternative.merged)
 		f.applyPatternProperties(&alternative)
-		if alternative.impossible {
+		if alternative.impossible || f.requiresForbidden(&alternative) {
 			continue
 		}
 		f.opaque = f.opaque || slices.ContainsFunc(alternative.merged, alternativeEvaluatesUnfolded)
@@ -1186,6 +1214,25 @@ func (f *rootFolder) alternativeOptions(alternatives []objectShape, name string)
 		options = append(options, property)
 	}
 	return options, true
+}
+
+// requiresForbidden reports whether shape, an alternative, requires a
+// name that it allows no value for, so that no object satisfies it. It
+// reports false when the work budget runs out.
+func (f *rootFolder) requiresForbidden(shape *objectShape) bool {
+	if !f.spend(len(shape.required) * (1 + len(shape.merged))) {
+		return false
+	}
+	for _, name := range shape.required {
+		property, ok := shape.properties[name]
+		if !ok {
+			property, ok = f.undeclaredSchema(shape, name)
+		}
+		if !ok || isBooleanSchema(property, false) {
+			return true
+		}
+	}
+	return false
 }
 
 // applyAdditionalProperties makes the "additionalProperties" of each of

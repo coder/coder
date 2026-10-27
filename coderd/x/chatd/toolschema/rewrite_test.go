@@ -519,6 +519,31 @@ func TestNormalize(t *testing.T) {
 			want:   `{"$schema": "https://json-schema.org/draft/2019-09/schema", "properties": {"child": {"$ref": "#"}}}`,
 		},
 		{
+			// Draft 4 ignores the keywords later drafts define, so they
+			// go, except one that a reference's pointer names.
+			name: "draft 4 drops keywords it ignores",
+			schema: `{
+				"$schema": "http://json-schema.org/draft-04/schema#",
+				"properties": {
+					"mode": {"type": "string", "const": "fixed", "if": {"minLength": 2}, "then": {"maxLength": 3}},
+					"tags": {"type": "array", "contains": {"type": "string"}},
+					"meta": {"type": "object", "propertyNames": {"maxLength": 3}, "dependentRequired": {"a": ["b"]}},
+					"other": {"$ref": "#/properties/kept/else"},
+					"kept": {"else": {"type": "integer"}}
+				}
+			}`,
+			want: `{
+				"$schema": "http://json-schema.org/draft-07/schema#",
+				"properties": {
+					"mode": {"type": "string"},
+					"tags": {"type": "array", "items": {}},
+					"meta": {"type": "object"},
+					"other": {"$ref": "#/properties/kept/else"},
+					"kept": {"else": {"type": "integer"}}
+				}
+			}`,
+		},
+		{
 			// URIs compare their scheme and host without case.
 			name:   "an uppercase draft 4 URI is draft 4",
 			schema: `{"$schema": "HTTP://JSON-SCHEMA.ORG/draft-04/schema#", "properties": {"low": {"type": "number", "minimum": 1, "exclusiveMinimum": true}}}`,

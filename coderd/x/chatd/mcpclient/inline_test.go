@@ -626,6 +626,66 @@ func TestConnectInline_KeepsSchemaKeywords(t *testing.T) {
 	require.Equal(t, "found [REDACTED] [REDACTED]", resp.Content)
 }
 
+// TestConnectInline_RedactsReferencesLikeNames verifies that a redacted
+// reference still names its target, whose names are redacted one by one,
+// and that names that redact to the same text stay unique.
+func TestConnectInline_RedactsReferencesLikeNames(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	lookup := testTool{
+		tool: &mcp.Tool{
+			Name: "lookup",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"path":           map[string]any{"$ref": "#/definitions/topsecret"},
+					"slashed":        map[string]any{"$ref": "#/properties/x_slash~1secret"},
+					"x_slash/secret": map[string]any{"type": "string"},
+					"k_alpha-secret": map[string]any{"type": "string"},
+					"k_bravo-secret": map[string]any{"type": "integer"},
+				},
+				"definitions": map[string]any{"topsecret": map[string]any{"type": "string"}},
+				"required":    []string{"k_alpha-secret", "k_bravo-secret"},
+			},
+		},
+		handler: func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return textToolResult("ok"), nil
+		},
+	}
+	ts := newTestMCPServer(t, lookup)
+	cfg := makeInlineConfig("data-bot", ts.URL+"/definitions/topsecret", map[string]string{
+		"X-Slash": "slash/secret",
+		"X-Alpha": "alpha-secret",
+		"X-Bravo": "bravo-secret",
+	})
+
+	tools, summaries, cleanup := mcpclient.ConnectInlineForTest(
+		ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
+	)
+	t.Cleanup(cleanup)
+	require.Len(t, summaries, 1)
+	require.Equal(t, mcpclient.ConnectOutcomeConnected, summaries[0].Outcome)
+	require.Len(t, tools, 1)
+	fullSchema, ok := tools[0].(fullSchemaTool)
+	require.True(t, ok)
+	// Of the names that redact to the same text, the first in sorted
+	// order keeps its schema.
+	require.Equal(t, map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"path":       map[string]any{"$ref": "#/definitions/REDACTED"},
+			"slashed":    map[string]any{"$ref": "#/properties/x_REDACTED"},
+			"x_REDACTED": map[string]any{"type": "string"},
+			"k_REDACTED": map[string]any{"type": "string"},
+		},
+		"definitions": map[string]any{"REDACTED": map[string]any{"type": "string"}},
+		"required":    []any{"k_REDACTED"},
+	}, fullSchema.FullInputSchema())
+	require.Equal(t, []string{"k_REDACTED"}, tools[0].Info().Required)
+}
+
 func TestConnectInline_BodyCap(t *testing.T) {
 	t.Parallel()
 
