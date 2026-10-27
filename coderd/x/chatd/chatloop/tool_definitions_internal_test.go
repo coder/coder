@@ -1218,6 +1218,43 @@ func TestBuildToolDefinitionsFullSchemaRootFoldObjectKeywords(t *testing.T) {
 			rejected: []string{`{"xa": 1}`, `{"y": "a"}`},
 		},
 		{
+			// The closed branch's own pattern matches no name the other
+			// branch's pattern does, so its closure covers that pattern.
+			name:     "ClosedBranchBesideDisjointPattern",
+			source:   `{"type": "object", "allOf": [{"patternProperties": {"^a": {}}, "additionalProperties": false}, {"patternProperties": {"^b": {"type": "string"}}}]}`,
+			want:     `{"type": "object", "properties": {}, "patternProperties": {"^a": {}, "^b": false}, "additionalProperties": false}`,
+			accepted: []string{`{}`, `{"a1": 1}`},
+			rejected: []string{`{"b": "s"}`, `{"c": 1}`},
+		},
+		{
+			// The closed branch's own pattern can match names the other
+			// branch's pattern does, which its closure does not
+			// constrain, so that pattern stays open.
+			name:     "ClosedBranchBesideOverlappingPattern",
+			source:   `{"type": "object", "allOf": [{"patternProperties": {"^a": {}}, "additionalProperties": false}, {"patternProperties": {"b": {"type": "string"}}}]}`,
+			want:     `{"type": "object", "properties": {}, "patternProperties": {"^a": {}, "b": {"type": "string"}}, "additionalProperties": false}`,
+			accepted: []string{`{"ab": "s"}`},
+			rejected: []string{`{"ab": 1}`, `{"c": 1}`},
+		},
+		{
+			// The first alternative requires a name it allows no value
+			// for, so no value satisfies it.
+			name:     "RequiredFalseAlternative",
+			source:   `{"type": "object", "anyOf": [{"properties": {"x": false}, "required": ["x"]}, {"properties": {"y": {"type": "string"}}, "required": ["y"]}]}`,
+			want:     `{"type": "object", "properties": {"y": {"type": "string"}}, "required": ["y"]}`,
+			accepted: []string{`{"y": "s"}`},
+			rejected: []string{`{}`, `{"x": 1}`, `{"y": 1}`},
+		},
+		{
+			// A required name that one branch forbids, or that a closed
+			// alternative does not list, also allows no value.
+			name:     "RequiredForbiddenAlternatives",
+			source:   `{"type": "object", "anyOf": [{"allOf": [{"properties": {"x": {"type": "string"}}}, {"properties": {"x": false}}], "required": ["x"]}, {"required": ["z"], "additionalProperties": false}, {"properties": {"y": {"type": "string"}}, "required": ["y"]}]}`,
+			want:     `{"type": "object", "properties": {"y": {"type": "string"}}, "required": ["y"]}`,
+			accepted: []string{`{"y": "s"}`},
+			rejected: []string{`{}`, `{"x": "s"}`, `{"z": 1}`},
+		},
+		{
 			name:       "ObjectKeywordsRawNumbers",
 			source:     objectKeywords,
 			rawNumbers: true,
