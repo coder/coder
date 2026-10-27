@@ -573,7 +573,7 @@ func TestConfigSecrets(t *testing.T) {
 			"PIN":          "0012345678",
 			"LONG_PIN":     "12345678901234567890",
 		},
-		Args: []string{"--key=argsecret12", "--db=mysql://root:argpassword1@db/app"},
+		Args: []string{"--key=argsecret12", "--db=mysql://root:argpassword1@db/app", `--credentials={"token": "flagsecret1", "scope": "read"}`, `mode=fast;creds={"key":"partsecret1"}`},
 	}, []string{"INHERITED_TOKEN=inheritedsecret1", "HOME=/home/coder", "PATH=/usr/local/bin:/usr/bin", "LC_ALL=en_US.UTF-8"})
 	for _, want := range []string{
 		rawURL, "pathsecret1",
@@ -589,6 +589,7 @@ func TestConfigSecrets(t *testing.T) {
 		"inheritedsecret1",
 		"proxyuser1", "proxypassword1",
 		"jsonkeyid12", "jsonsecret1", "jsonlistkey1", "12345678901",
+		"flagsecret1", "partsecret1",
 	} {
 		require.Contains(t, secrets, want)
 	}
