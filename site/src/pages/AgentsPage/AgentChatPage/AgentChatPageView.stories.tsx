@@ -864,15 +864,18 @@ const buildMessage = (
 	buildMessageWithContent(id, role, [{ type: "text", text }]);
 
 // A play function reruns on a module-level store, so it replaces the history
-// a previous run left.
+// a previous run left. A reset applies only above the last reset's version.
+let replaceVersion = 0;
 const replaceStoreMessages = (
 	store: ReturnType<typeof createChatStore>,
 	msgs: TypesGen.ChatMessage[],
-) =>
+) => {
+	replaceVersion += 1;
 	store.batch(() => {
-		store.resetHistoryFrom(0, 1);
-		store.upsertDurableMessages(msgs, 1);
+		store.resetHistoryFrom(0, replaceVersion);
+		store.upsertDurableMessages(msgs, replaceVersion);
 	});
+};
 
 const buildStoreWithMessages = (
 	msgs: TypesGen.ChatMessage[],
