@@ -2,6 +2,8 @@
 title: Nix(OS)
 ---
 
+<img height="120px" src="../../images/admin/integrations/nixos-logomark.svg" alt="NixOS snowflake logo" align="center" />
+
 > [!NOTE]
 > Nix(OS) support is in alpha as an [early access](../../reference/feature-stages.md#early-access-features) feature.
 > Expect breaking changes, and report issues on [GitHub](https://github.com/coder/registry/issues).

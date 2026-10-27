@@ -937,6 +937,7 @@
 							"title": "Nix(OS)",
 							"description": "Define reproducible environments with Nix flakes, with or without NixOS.",
 							"path": "./admin/integrations/nix.md",
+							"icon_path": "./images/icons/nix.svg",
 							"state": ["early access"]
 						}
 					]
