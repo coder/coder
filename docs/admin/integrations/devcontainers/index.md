@@ -18,7 +18,7 @@ Coder supports two approaches for running dev containers.
 Choose based on your infrastructure and workflow requirements.
 
 > [!TIP]
-> Nix flakes let developers and template administrators define environments and manage dependencies at a much deeper level, without requiring a container runtime.
+> Nix flakes let developers and/or template administrators define environments and manage dependencies at a much deeper level, without requiring a container runtime.
 > To use them in Coder with or without NixOS, see [Nix(OS)](../nix.md).
 
 ## Dev Containers Integration
