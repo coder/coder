@@ -866,13 +866,24 @@ const buildMessage = (
 ): TypesGen.ChatMessage =>
 	buildMessageWithContent(id, role, [{ type: "text", text }]);
 
+// A play function reruns on a module-level store, so it replaces the history
+// a previous run left.
+const replaceStoreMessages = (
+	store: ReturnType<typeof createChatStore>,
+	msgs: TypesGen.ChatMessage[],
+) =>
+	store.batch(() => {
+		store.resetHistoryFrom(0);
+		store.upsertDurableMessages(msgs);
+	});
+
 const buildStoreWithMessages = (
 	msgs: TypesGen.ChatMessage[],
 	status: TypesGen.ChatStatus = "waiting",
 	queuedMessages?: TypesGen.ChatQueuedMessage[],
 ) => {
 	const store = createChatStore();
-	store.replaceMessages(msgs);
+	store.upsertDurableMessages(msgs);
 	store.applyServerChatStatus(status);
 	return store;
 };
@@ -1088,7 +1099,7 @@ const prependOlderMessages = (
 				: `Older answer ${Math.abs(id)}.`;
 		return buildMessage(id, role, text);
 	});
-	store.replaceMessages([...olderMessages, ...existing]);
+	store.upsertDurableMessages(olderMessages);
 };
 
 const singleRenderStore = buildStoreWithMessages([
@@ -1140,7 +1151,8 @@ export const ReachingTheStartLoadsEarlierMessages: Story = {
 		/>
 	),
 	play: async ({ canvasElement }) => {
-		startEdgeStore.replaceMessages(
+		replaceStoreMessages(
+			startEdgeStore,
 			buildLongConversation(AGENT_ID, 40).slice(1),
 		);
 		startEdgeStore.applyServerChatStatus("waiting");
@@ -1187,7 +1199,10 @@ export const StreamCompletionKeepsViewportPosition: Story = {
 	decorators: scrollStoryDecorators,
 	render: () => <StoryAgentChatPageView store={streamCompletionStore} />,
 	play: async ({ canvasElement }) => {
-		streamCompletionStore.replaceMessages(buildLongConversation(AGENT_ID, 40));
+		replaceStoreMessages(
+			streamCompletionStore,
+			buildLongConversation(AGENT_ID, 40),
+		);
 		streamCompletionStore.applyServerChatStatus("waiting");
 		const canvas = within(canvasElement);
 		const viewport = getViewport(canvas);
@@ -1254,7 +1269,10 @@ export const ThinkingHandoffKeepsPromptPosition: Story = {
 	decorators: scrollStoryDecorators,
 	render: () => <StoryAgentChatPageView store={thinkingShiftStore} />,
 	play: async ({ canvasElement }) => {
-		thinkingShiftStore.replaceMessages(buildLongConversation(AGENT_ID, 40));
+		replaceStoreMessages(
+			thinkingShiftStore,
+			buildLongConversation(AGENT_ID, 40),
+		);
 		thinkingShiftStore.applyServerChatStatus("waiting");
 		const canvas = within(canvasElement);
 		const viewport = getViewport(canvas);
@@ -1317,13 +1335,12 @@ const UnderflowPaginationStory: React.FC = () => {
 
 	const completePage = () => {
 		const nextPage = loadedPages + 1;
-		store.replaceMessages([
+		store.upsertDurableMessages([
 			buildMessage(
 				9 - nextPage,
 				nextPage % 2 === 1 ? "user" : "assistant",
 				`Loaded underflow page ${nextPage}. `.repeat(20),
 			),
-			...getStoreMessages(store),
 		]);
 		setLoadedPages(nextPage);
 		setIsFetching(false);

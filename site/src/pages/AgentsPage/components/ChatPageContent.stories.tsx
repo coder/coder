@@ -159,7 +159,7 @@ const StoryChatPageInput: React.FC<{
 export const ContextUsageAfterCompaction: Story = {
 	render: () => {
 		const store = createChatStore();
-		store.replaceMessages([MockChatCompactionMessage]);
+		store.upsertDurableMessages([MockChatCompactionMessage]);
 		store.applyServerChatStatus("waiting");
 		return <StoryChatPageInput store={store} contextLimit={200000} />;
 	},
@@ -177,7 +177,7 @@ export const UncommittedCompactionKeepsContextUsage: Story = {
 			...MockChatMessage,
 			usage: { input_tokens: 90000, context_limit: 200000 },
 		};
-		store.replaceMessages([previousMessage]);
+		store.upsertDurableMessages([previousMessage]);
 		store.applyServerChatStatus("waiting");
 		return <StoryChatPageInput store={store} contextLimit={200000} />;
 	},
@@ -205,7 +205,7 @@ const buildMessage = (
 // stream state while the chat status is still "interrupting".
 const buildInterruptingStore = () => {
 	const store = createChatStore();
-	store.replaceMessages([
+	store.upsertDurableMessages([
 		buildMessage(1, "user", [{ type: "text", text: "Refactor the module" }]),
 	]);
 	store.setQueuedMessages([
@@ -224,7 +224,7 @@ const buildInterruptingStore = () => {
 const buildThinkingSpacerStore = () => {
 	const store = createChatStore();
 
-	store.replaceMessages([
+	store.upsertDurableMessages([
 		buildMessage(1, "user", [{ type: "text", text: "Read the source files" }]),
 		buildMessage(2, "assistant", [
 			{
@@ -250,7 +250,7 @@ export const SpacerVisibleWhenNotStreaming: Story = {
 export const DurableUnresolvedWorkspaceToolRuns: Story = {
 	render: () => {
 		const store = createChatStore();
-		store.replaceMessages([
+		store.upsertDurableMessages([
 			buildMessage(1, "user", [{ type: "text", text: "Create a workspace" }]),
 			buildMessage(2, "assistant", [
 				{
@@ -277,7 +277,7 @@ export const DurableUnresolvedWorkspaceToolRuns: Story = {
 export const StreamedAdvisorResultOverlaysDurableCall: Story = {
 	render: () => {
 		const store = createChatStore();
-		store.replaceMessages([
+		store.upsertDurableMessages([
 			buildMessage(1, "user", [
 				{ type: "text", text: "Should the advisor be on by default?" },
 			]),
@@ -318,7 +318,7 @@ const errorClearsStreamStore = createChatStore();
 export const ErrorClearsStreamingTool: Story = {
 	render: () => {
 		errorClearsStreamStore.resetTransientState();
-		errorClearsStreamStore.replaceMessages([
+		errorClearsStreamStore.upsertDurableMessages([
 			buildMessage(1, "user", [{ type: "text", text: "Create a workspace" }]),
 		]);
 		errorClearsStreamStore.applyServerChatStatus("running");
@@ -351,7 +351,7 @@ export const HiddenAssistantPlaceholderDoesNotRender: Story = {
 	render: () => {
 		const store = createChatStore();
 
-		store.replaceMessages([
+		store.upsertDurableMessages([
 			buildMessage(1, "user", [{ type: "text", text: "Run the command" }]),
 			buildMessage(2, "assistant", [{ type: "text", text: "Done." }]),
 			buildMessage(3, "assistant", []),
@@ -376,7 +376,7 @@ export const MergedMessagesRenderInIDOrder: Story = {
 			created_at: batchCreatedAt,
 		});
 
-		store.replaceMessages([
+		store.upsertDurableMessages([
 			batched(3, "user", "charlie"),
 			batched(4, "assistant", "delta"),
 		]);
@@ -568,7 +568,7 @@ export const QueuePermissionRefetchError: Story = {
 
 const CompactionChatPageInput: React.FC = () => {
 	const store = createChatStore();
-	store.replaceMessages([
+	store.upsertDurableMessages([
 		buildMessage(1, "user", [{ type: "text", text: "Summarize the diff" }]),
 		{
 			...buildMessage(2, "assistant", [
