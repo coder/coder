@@ -1,4 +1,4 @@
-package chatd_test
+package chatsanitize_test
 
 import (
 	"context"
@@ -149,4 +149,132 @@ func TestAnthropicProviderToolPreRequestGuard(t *testing.T) {
 		require.Equal(t, 1, requireLogField(t, entries[0], "removed_tool_calls"))
 		require.Equal(t, 1, requireLogField(t, entries[0], "removed_tool_results"))
 	})
+}
+
+func validWebSearchProviderMetadataForTest() fantasy.ProviderMetadata {
+	return fantasy.ProviderMetadata{
+		fantasyanthropic.Name: &fantasyanthropic.WebSearchResultMetadata{
+			Results: []fantasyanthropic.WebSearchResultItem{
+				{
+					URL:              "https://example.com",
+					Title:            "Example",
+					EncryptedContent: "encrypted",
+				},
+			},
+		},
+	}
+}
+
+func safeToolCallPart(part fantasy.MessagePart) (fantasy.ToolCallPart, bool) {
+	var zero fantasy.ToolCallPart
+	if part == nil {
+		return zero, false
+	}
+	if value, ok := part.(*fantasy.ToolCallPart); ok && value == nil {
+		return zero, false
+	}
+	type toolCallPart = fantasy.ToolCallPart
+	return fantasy.AsMessagePart[toolCallPart](part)
+}
+
+func safeToolResultPart(part fantasy.MessagePart) (fantasy.ToolResultPart, bool) {
+	var zero fantasy.ToolResultPart
+	if part == nil {
+		return zero, false
+	}
+	if value, ok := part.(*fantasy.ToolResultPart); ok && value == nil {
+		return zero, false
+	}
+	type toolResultPart = fantasy.ToolResultPart
+	return fantasy.AsMessagePart[toolResultPart](part)
+}
+
+func requireProviderExecutedToolCallPrompt(
+	t *testing.T,
+	prompt []fantasy.Message,
+	id string,
+) fantasy.ToolCallPart {
+	t.Helper()
+	for _, message := range prompt {
+		for _, part := range message.Content {
+			toolCall, ok := safeToolCallPart(part)
+			if ok && toolCall.ProviderExecuted && toolCall.ToolCallID == id {
+				return toolCall
+			}
+		}
+	}
+	t.Fatalf("missing provider-executed prompt tool call %q", id)
+	return fantasy.ToolCallPart{}
+}
+
+func requireProviderExecutedToolResultPrompt(
+	t *testing.T,
+	prompt []fantasy.Message,
+	id string,
+) fantasy.ToolResultPart {
+	t.Helper()
+	for _, message := range prompt {
+		for _, part := range message.Content {
+			toolResult, ok := safeToolResultPart(part)
+			if ok && toolResult.ProviderExecuted && toolResult.ToolCallID == id {
+				return toolResult
+			}
+		}
+	}
+	t.Fatalf("missing provider-executed prompt tool result %q", id)
+	return fantasy.ToolResultPart{}
+}
+
+func requireNoProviderExecutedToolCallPrompt(t *testing.T, prompt []fantasy.Message) {
+	t.Helper()
+	for i, message := range prompt {
+		for j, part := range message.Content {
+			toolCall, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part)
+			if ok && toolCall.ProviderExecuted {
+				t.Fatalf("prompt[%d].content[%d]: unexpected provider-executed call", i, j)
+			}
+		}
+	}
+}
+
+func requireNoProviderExecutedToolResultPrompt(t *testing.T, prompt []fantasy.Message) {
+	t.Helper()
+	for i, message := range prompt {
+		for j, part := range message.Content {
+			toolResult, ok := safeToolResultPart(part)
+			if ok && toolResult.ProviderExecuted {
+				t.Fatalf("prompt[%d].content[%d]: unexpected provider-executed result", i, j)
+			}
+		}
+	}
+}
+
+func requireTextPrompt(t *testing.T, prompt []fantasy.Message, text string) fantasy.TextPart {
+	t.Helper()
+	for _, message := range prompt {
+		for _, part := range message.Content {
+			textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](part)
+			if ok && textPart.Text == text {
+				return textPart
+			}
+		}
+	}
+	t.Fatalf("missing prompt text %q", text)
+	return fantasy.TextPart{}
+}
+
+func requireAnthropicProviderToolPromptSafe(t *testing.T, prompt []fantasy.Message) {
+	t.Helper()
+	require.Empty(t, chatsanitize.ValidateAnthropicProviderToolHistory(prompt))
+}
+
+func requireLogField(t *testing.T, entry slog.SinkEntry, name string) any {
+	t.Helper()
+	for _, field := range entry.Fields {
+		if field.Name == name {
+			return field.Value
+		}
+	}
+	t.Fatalf("missing log field %q", name)
+	return nil
 }
