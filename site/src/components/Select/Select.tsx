@@ -79,7 +79,8 @@ export const SelectContent: React.FC<
 	<SelectPrimitive.Portal>
 		<SelectPrimitive.Content
 			className={cn(
-				"relative z-50 max-h-96 min-w-32 overflow-hidden rounded-md border ",
+				"relative z-50 max-h-[min(24rem,var(--radix-select-content-available-height,24rem))] min-w-32 overflow-hidden rounded-md border ",
+				"max-w-(--radix-select-content-available-width) ",
 				"border-border border-solid bg-surface-primary text-content-primary shadow-md ",
 				"origin-(--radix-popper-transform-origin) ease-out-strong ",
 				"data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 ",

@@ -48,7 +48,7 @@ export const UserGroupsCell: React.FC<GroupsCellProps> = ({ userGroups }) => {
 					<PopoverContent
 						align="start"
 						sideOffset={8}
-						className="w-auto min-w-[240px] max-w-sm max-h-[400px] p-0"
+						className="w-auto min-w-[240px] max-w-[min(24rem,var(--radix-popper-available-width))] max-h-[min(400px,var(--radix-popper-available-height))] p-0"
 					>
 						<ul className="m-0 list-none flex flex-col flex-nowrap gap-0 px-0.5 py-1 text-sm">
 							{userGroups.map((group) => {
