@@ -4890,7 +4890,11 @@ describe("chat stream contract", () => {
 			);
 			await waitFor(() => expect(sockets).toHaveLength(1));
 			act(() => {
-				result.current.store.addPendingAction(action, status);
+				void result.current.store.runPendingAction(
+					action,
+					status,
+					() => new Promise(() => {}),
+				);
 			});
 			expect(result.current.pendingCount).toBe(1);
 
@@ -4936,9 +4940,10 @@ describe("chat stream contract", () => {
 		await waitFor(() => expect(result.current.loadState.status).toBe("loaded"));
 		const sentFrom = result.current.store;
 		act(() => {
-			sentFrom.addPendingAction(
+			void sentFrom.runPendingAction(
 				{ kind: "send", message: buildMessage(chatID, 0, "user", "sent") },
 				"waiting",
+				() => new Promise(() => {}),
 			);
 		});
 

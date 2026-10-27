@@ -532,7 +532,7 @@ describe("ChatPageInput", () => {
 			snapshot_version: 1,
 		});
 		store.applyServerChatStatus("running");
-		store.addPendingAction(
+		void store.runPendingAction(
 			{
 				kind: "send",
 				message: {
@@ -544,6 +544,7 @@ describe("ChatPageInput", () => {
 				},
 			},
 			"running",
+			() => new Promise(() => {}),
 		);
 
 		renderChatPageInput(store, {

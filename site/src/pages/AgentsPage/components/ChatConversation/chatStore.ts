@@ -205,12 +205,8 @@ export type ChatStore = {
 	// The highest snapshot version of the newest page and the applied events.
 	getSyncedSnapshotVersion: () => number;
 	advanceSnapshotVersion: (version: number) => void;
+	// Shows the action until a stream update ends it or request rejects.
 	// status is the chat status the page shows, which places the message.
-	addPendingAction: (
-		action: PendingAction,
-		status: TypesGen.ChatStatus | null,
-	) => number;
-	// Shows the action while request runs, and removes it if request rejects.
 	runPendingAction: (
 		action: PendingAction,
 		status: TypesGen.ChatStatus | null,
@@ -532,7 +528,6 @@ export const createChatStore = (): ChatStore => {
 		advanceSnapshotVersion: (version) => {
 			syncedSnapshotVersion = Math.max(syncedSnapshotVersion, version);
 		},
-		addPendingAction,
 		runPendingAction: async (action, status, request) => {
 			const id = addPendingAction(action, status);
 			try {
