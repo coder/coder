@@ -14,8 +14,6 @@ describe("parseAsyncAnswer", () => {
 		},
 	);
 
-	// The server trims each text part, so an answer whose first chip follows
-	// the prefix line directly stores that line without its line break.
 	it("reads a prefix line that is the whole text as an empty answer", () => {
 		expect(
 			parseAsyncAnswer("Answer to ask_user_question call toolu_123:"),
