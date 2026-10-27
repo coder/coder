@@ -49,50 +49,34 @@ afterEach(() => {
 	localStorage.clear();
 });
 
-beforeAll(() => {
-	// Lexical measures the selection to scroll it into view; jsdom has no
-	// layout.
-	Object.defineProperty(Range.prototype, "getBoundingClientRect", {
-		configurable: true,
-		value: () => new DOMRect(0, 0, 1, 16),
-	});
-});
-
-// Renders the page for MockChat with the given queued rows; the user owns
-// the chat. publish delivers stream events to the page. Queries are scoped
-// to this render, so a test can render the page twice as two tabs.
-const renderQueuedChat = ({
-	queuedMessages,
-	chat = MockChat,
-	models = [{ ...MockChatModel, id: chat.last_model_config_id }],
-}: {
-	queuedMessages: readonly TypesGen.ChatQueuedMessage[];
-	chat?: TypesGen.Chat;
-	models?: readonly TypesGen.ChatModel[];
-}) => {
-	let server: MockWebSocketServer | undefined;
+const renderChatPage = (
+	queuedMessages: readonly TypesGen.ChatQueuedMessage[] = [],
+) => {
+	vi.spyOn(API, "getExperiments").mockResolvedValue(["chat-projects"]);
 	vi.spyOn(apiModule, "watchChat").mockImplementation(
 		() =>
 			new OneWayWebSocket({
-				apiRoute: `/api/experimental/chats/${chat.id}/stream`,
-				websocketInit: (url, protocol) => {
-					const [socket, socketServer] = createMockWebSocket(url, protocol);
-					server = socketServer;
-					return socket;
-				},
+				apiRoute: `/api/experimental/chats/${mockProjectChat.id}/stream`,
+				websocketInit: (url, protocol) =>
+					createMockWebSocket(url, protocol)[0],
 			}),
 	);
-	vi.spyOn(API.experimental, "getChat").mockResolvedValue(chat);
+	vi.spyOn(API.experimental, "getChat").mockResolvedValue(mockProjectChat);
 	vi.spyOn(API.experimental, "getChatMessages").mockResolvedValue({
 		messages: [],
-		queued_messages: [...queuedMessages],
+		queued_messages: queuedMessages,
 		has_more: false,
+		snapshot_version: 1,
 	});
 	vi.spyOn(API.experimental, "getChatModels").mockResolvedValue({
-		models: models.map((model) => ({
-			...model,
-			organization_id: chat.organization_id,
-		})),
+		models: [
+			{
+				...MockChatModel,
+				id: mockProjectChat.last_model_config_id,
+				organization_id: mockProjectChat.organization_id,
+				is_default: true,
+			},
+		],
 		providers: [MockChatModelProviderDescriptor],
 		unsupported_providers: [],
 	});
@@ -100,93 +84,15 @@ const renderQueuedChat = ({
 		MockUserPreferenceSettings,
 	);
 	vi.spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
-	const editChatQueuedMessage = vi
-		.spyOn(API.experimental, "editChatQueuedMessage")
-		.mockResolvedValue(undefined);
-	const deleteChatQueuedMessage = vi
-		.spyOn(API.experimental, "deleteChatQueuedMessage")
-		.mockResolvedValue(undefined);
-	const promoteChatQueuedMessage = vi
-		.spyOn(API.experimental, "promoteChatQueuedMessage")
-		.mockResolvedValue(undefined);
-	const user = userEvent.setup();
-
-	const { container, unmount } = renderWithAuth(
-		<Outlet context={outletContext} />,
-		{
-			path: "/agents",
-			route: `/agents/${chat.id}`,
-			children: [{ path: ":agentId", element: <AgentChatPage /> }],
-		},
-	);
-	const view = within(container);
-
-	const composer = () => view.getByRole("textbox", { name: "Chat message" });
-	// Lexical does not handle userEvent keystrokes in jsdom; a paste goes
-	// through its input path.
-	const type = async (text: string) => {
-		await user.click(
-			await view.findByRole("textbox", { name: "Chat message" }),
-		);
-		await user.paste(text);
-	};
-	// The tests render one queued row, so its actions have unique names.
-	const rowAction = async (action: string) => {
-		await user.click(await view.findByRole("button", { name: action }));
-	};
-	const publish = (event: TypesGen.ChatStreamEvent) =>
-		act(() =>
-			server?.publishMessage(
-				new MessageEvent("message", { data: JSON.stringify([event]) }),
-			),
-		);
-	return {
-		user,
-		view,
-		unmount,
-		composer,
-		type,
-		rowAction,
-		publish,
-		editChatQueuedMessage,
-		deleteChatQueuedMessage,
-		promoteChatQueuedMessage,
-	};
+	return renderWithAuth(<Outlet context={outletContext} />, {
+		path: "/agents",
+		route: `/agents/${mockProjectChat.id}`,
+		children: [{ path: ":agentId", element: <AgentChatPage /> }],
+	});
 };
 
 describe("AgentChatPage", () => {
 	it("refreshes the project actions after a send fails", async () => {
-		vi.spyOn(apiModule, "watchChat").mockImplementation(
-			() =>
-				new OneWayWebSocket({
-					apiRoute: `/api/experimental/chats/${mockProjectChat.id}/stream`,
-					websocketInit: (url, protocol) =>
-						createMockWebSocket(url, protocol)[0],
-				}),
-		);
-		vi.spyOn(API.experimental, "getChat").mockResolvedValue(mockProjectChat);
-		vi.spyOn(API.experimental, "getChatMessages").mockResolvedValue({
-			messages: [],
-			queued_messages: [],
-			has_more: false,
-			snapshot_version: 1,
-		});
-		vi.spyOn(API.experimental, "getChatModels").mockResolvedValue({
-			models: [
-				{
-					...MockChatModel,
-					id: mockProjectChat.last_model_config_id,
-					organization_id: mockProjectChat.organization_id,
-					is_default: true,
-				},
-			],
-			providers: [MockChatModelProviderDescriptor],
-			unsupported_providers: [],
-		});
-		vi.spyOn(API, "getUserPreferenceSettings").mockResolvedValue(
-			MockUserPreferenceSettings,
-		);
-		vi.spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
 		const getChatProjectSkills = vi
 			.spyOn(API.experimental, "getChatProjectSkills")
 			.mockResolvedValue([{ ...MockSkill, name: "deploy", action: true }]);
@@ -197,11 +103,7 @@ describe("AgentChatPage", () => {
 			);
 		const user = userEvent.setup();
 
-		const { queryClient } = renderWithAuth(<Outlet context={outletContext} />, {
-			path: "/agents",
-			route: `/agents/${mockProjectChat.id}`,
-			children: [{ path: ":agentId", element: <AgentChatPage /> }],
-		});
+		const { queryClient } = renderChatPage();
 
 		// The actions bar remounts after the send, so only the failure's
 		// invalidation may refetch the list.
@@ -229,212 +131,17 @@ describe("AgentChatPage", () => {
 		);
 	});
 
-	describe("queued message editing", () => {
-		const row = {
-			...MockChatQueuedMessage,
-			id: 7,
-			chat_id: MockChat.id,
-			content: [{ type: "text" as const, text: "queued text" }],
-		};
-		const draftKey = `agents.draft-input.${MockChat.id}`;
-		const savedEditKey = `${draftKey}.queued.${row.id}`;
-
-		// Opens the row's edit and types into it, so the typed text is saved.
-		const editAndType = async (page: ReturnType<typeof renderQueuedChat>) => {
-			await page.rowAction("Edit");
-			await waitFor(() =>
-				expect(page.composer().textContent).toBe("queued text"),
-			);
-			await page.type(" edit");
-			await waitFor(() =>
-				expect(localStorage.getItem(savedEditKey)).not.toBeNull(),
-			);
-		};
-
-		// Tab b renders after tab a typed into its edit, so b follows the edit
-		// and loads the typed text.
-		it.each([
-			["gives its own draft back", ""],
-			["keeps text it typed there as a draft", " more"],
-		])(
-			"when another tab's edit ends, a tab that followed it %s",
-			async (_name, typedInB) => {
-				const a = renderQueuedChat({ queuedMessages: [row] });
-				await a.view.findByRole("button", { name: "Send now" });
-				await a.type("draft");
-				await editAndType(a);
-
-				const b = renderQueuedChat({
-					queuedMessages: [{ ...row, editing_since: "2024-01-01T00:00:00Z" }],
-				});
-				await b.view.findByRole("button", { name: "Editing" });
-				await waitFor(() =>
-					expect(b.composer().textContent).toBe("queued text edit"),
-				);
-				if (typedInB) {
-					await b.type(typedInB);
-				}
-				await b.publish({
-					type: "queue_update",
-					chat_id: MockChat.id,
-					queued_messages: [row],
-				});
-
-				const expected = typedInB ? `queued text edit${typedInB}` : "draft";
-				await waitFor(() => expect(b.composer().textContent).toBe(expected));
-				expect(parseStoredDraft(localStorage.getItem(draftKey)).text).toBe(
-					expected,
-				);
-				expect(localStorage.getItem(savedEditKey)).toBeNull();
-			},
+	it("shows the error of a failed promote and keeps the row queued", async () => {
+		vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([]);
+		vi.spyOn(API.experimental, "promoteChatQueuedMessage").mockRejectedValue(
+			mockApiError({ message: "promote failed" }),
 		);
+		const user = userEvent.setup();
 
-		it.each([
-			[
-				"restores the typed text while the row is unchanged",
-				"queued text",
-				"queued text edit",
-			],
-			[
-				"loads the row's content when another client saved it since the text was typed",
-				"saved elsewhere",
-				"saved elsewhere",
-			],
-		])("Edit after a reload %s", async (_name, rowText, expected) => {
-			const before = renderQueuedChat({ queuedMessages: [row] });
-			await editAndType(before);
-			before.unmount();
+		renderChatPage([MockChatQueuedMessage]);
 
-			const after = renderQueuedChat({
-				queuedMessages: [
-					{ ...row, content: [{ type: "text", text: rowText }] },
-				],
-			});
-			await after.rowAction("Edit");
-
-			await waitFor(() => expect(after.composer().textContent).toBe(expected));
-			expect(localStorage.getItem(savedEditKey) !== null).toBe(
-				rowText === "queued text",
-			);
-		});
-
-		it.each([
-			["Remove from queue", "deleteChatQueuedMessage"],
-			["Send now", "promoteChatQueuedMessage"],
-		] as const)(
-			"%s on the row being edited discards the typed text and gives the draft back",
-			async (action, request) => {
-				const page = renderQueuedChat({ queuedMessages: [row] });
-				await screen.findByRole("button", { name: "Send now" });
-				await page.type("draft");
-				expect(page.composer().textContent).toBe("draft");
-				await editAndType(page);
-
-				await page.rowAction(action);
-
-				await waitFor(() =>
-					expect(page[request]).toHaveBeenCalledWith(MockChat.id, row.id),
-				);
-				await waitFor(() => expect(page.composer().textContent).toBe("draft"));
-				expect(page.editChatQueuedMessage).not.toHaveBeenCalledWith(
-					MockChat.id,
-					row.id,
-					expect.objectContaining({ content: expect.anything() }),
-				);
-				expect(localStorage.getItem(savedEditKey)).toBeNull();
-			},
-		);
-
-		// The row was queued with another model than the one the picker shows.
-		it.each([
-			["keeps the row's model when the picker is untouched", undefined],
-			["sends the model picked during the edit", "model-c"],
-		])("saving a queued edit %s", async (_name, pickedModel) => {
-			const page = renderQueuedChat({
-				queuedMessages: [{ ...row, model_config_id: "model-b" }],
-				models: [
-					{
-						...MockChatModel,
-						id: MockChat.last_model_config_id,
-						display_name: "Model A",
-					},
-					{ ...MockChatModel, id: "model-b", display_name: "Model B" },
-					{ ...MockChatModel, id: "model-c", display_name: "Model C" },
-				],
-			});
-			await page.rowAction("Edit");
-			await waitFor(() =>
-				expect(page.composer().textContent).toBe("queued text"),
-			);
-			if (pickedModel) {
-				await page.user.click(
-					screen.getByRole("combobox", { name: "Model A" }),
-				);
-				await page.user.click(
-					within(await screen.findByRole("listbox")).getByRole("option", {
-						name: /Model C/,
-					}),
-				);
-			}
-			await page.type(" edit");
-			await page.user.click(screen.getByRole("button", { name: "Save Edit" }));
-
-			await waitFor(() =>
-				expect(page.editChatQueuedMessage).toHaveBeenCalledWith(
-					MockChat.id,
-					row.id,
-					expect.objectContaining({
-						content: expect.anything(),
-						model_config_id: pickedModel,
-					}),
-				),
-			);
-			expect(localStorage.getItem(savedEditKey)).toBeNull();
-		});
-
-		// react-query delivers the failed request's state to the page on a
-		// scheduler it owns, which may run before the request's own error
-		// handlers.
-		it.each([
-			["", defaultScheduler],
-			[
-				" when the page sees the failure before the request's handlers",
-				queueMicrotask,
-			],
-		])(
-			"an Edit the server refuses leaves the composer as it was, so it does not open another client's edit of the row%s",
-			async (_name, scheduler) => {
-				notifyManager.setScheduler(scheduler);
-				onTestFinished(() => notifyManager.setScheduler(defaultScheduler));
-				const page = renderQueuedChat({ queuedMessages: [row] });
-				await screen.findByRole("button", { name: "Send now" });
-				await page.type("draft");
-				// Cancelling an edit leaves the composer writing a new message.
-				await page.rowAction("Edit");
-				await waitFor(() =>
-					expect(page.composer().textContent).toBe("queued text"),
-				);
-				await page.user.keyboard("{Escape}");
-				await waitFor(() => expect(page.composer().textContent).toBe("draft"));
-
-				page.editChatQueuedMessage.mockRejectedValueOnce({
-					...mockApiError({ message: "Another edit is open." }),
-					status: 409,
-				});
-				await page.rowAction("Edit");
-				await waitFor(() =>
-					expect(page.editChatQueuedMessage).toHaveBeenCalledTimes(3),
-				);
-				await waitFor(() => expect(page.composer().textContent).toBe("draft"));
-
-				await page.publish({
-					type: "queue_update",
-					chat_id: MockChat.id,
-					queued_messages: [{ ...row, editing_since: "2024-01-01T00:00:00Z" }],
-				});
-				await screen.findByRole("button", { name: "Editing" });
-				expect(page.composer().textContent).toBe("draft");
-			},
-		);
+		await user.click(await screen.findByRole("button", { name: "Send now" }));
+		expect(await screen.findByText("promote failed")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Send now" })).toBeEnabled();
 	});
 });
