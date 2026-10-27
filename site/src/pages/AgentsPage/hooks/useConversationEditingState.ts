@@ -177,8 +177,8 @@ export function useConversationEditingState(deps: {
 	};
 
 	// Returns a rollback for a failed send: the message, then anything typed
-	// during the request. An edit comes back alone, because the composer showed
-	// the compose draft during it, and the typed text stays that draft.
+	// during the request. An edit comes back alone, because the composer was in
+	// compose mode during it, so the typed text becomes the compose draft.
 	const clearInputForSend = (message: string) => {
 		const snapshot: SendInFlight = {
 			message,
@@ -204,6 +204,7 @@ export function useConversationEditingState(deps: {
 					text: typed.text,
 					editorState: typed.editorState,
 				});
+				saveDraft(typed.editorState ?? typed.text);
 			}
 			setDraftState({
 				editorInitialValue: text,

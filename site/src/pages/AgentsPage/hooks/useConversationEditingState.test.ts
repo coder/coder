@@ -504,6 +504,7 @@ describe("useConversationEditingState", () => {
 
 		expect(result.current.editingMessageId).toBe(7);
 		expect(result.current.editorInitialValue).toBe("edited");
+		expect(localStorage.getItem(expectedKey)).toBe("typed");
 		act(() => {
 			result.current.handleCancelHistoryEdit();
 		});
