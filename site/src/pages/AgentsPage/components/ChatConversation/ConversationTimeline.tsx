@@ -28,7 +28,7 @@ import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import { AssistantOutput } from "./AssistantOutput";
 import type { PreviewTextAttachment } from "./AttachmentBlocks";
-import { deriveAskUserQuestionState } from "./askUserQuestionState";
+import type { AskUserQuestionState } from "./askUserQuestionState";
 import { FileProbeProvider } from "./FileProbeContext";
 import {
 	emptyLiveBlockKeys,
@@ -465,7 +465,7 @@ type ConversationTimelineProps = {
 	showDesktopPreviews: boolean;
 	hasActiveStream: boolean;
 	isAwaitingFirstStreamChunk: boolean;
-	queuedMessages?: readonly TypesGen.ChatQueuedMessage[];
+	askUserQuestionState: AskUserQuestionState;
 	dockedAskUserQuestionToolId?: string;
 };
 
@@ -493,7 +493,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		showDesktopPreviews,
 		hasActiveStream,
 		isAwaitingFirstStreamChunk,
-		queuedMessages = [],
+		askUserQuestionState,
 		dockedAskUserQuestionToolId,
 	}) => {
 		const { scrollToMessage } = useMessageScroller();
@@ -597,11 +597,6 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				nextKey: i < userRowKeys.length - 1 ? userRowKeys[i + 1] : undefined,
 			});
 		}
-		const askUserQuestionState = deriveAskUserQuestionState(
-			parsedMessages,
-			liveTools,
-			queuedMessages,
-		);
 		const latestAskUserQuestionToolId = askUserQuestionState.latestToolId;
 		const askUserQuestionResponseTextByToolId =
 			askUserQuestionState.responseTextByToolId.size > 0

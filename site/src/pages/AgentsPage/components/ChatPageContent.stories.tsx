@@ -32,10 +32,10 @@ import { MessageScroller } from "#/vendor/message-scroller";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { createChatStore } from "./ChatConversation/chatStore";
 import {
+	buildQuestionResultMessage,
 	FIXTURE_NOW,
 	MockAsyncQuestionMessages,
 	MockAsyncQuestionResult,
-	MockAsyncQuestionResultMessage,
 	MockTwoAsyncQuestionsMessages,
 	MockWorkingMessages,
 } from "./ChatConversation/storyFixtures";
@@ -118,7 +118,8 @@ const StoryChatPageInput: React.FC<{
 	store: ReturnType<typeof createChatStore>;
 	onInterrupt?: () => void;
 	contextLimit?: number;
-}> = ({ store, onInterrupt, contextLimit }) => (
+	isInputDisabled?: boolean;
+}> = ({ store, onInterrupt, contextLimit, isInputDisabled = false }) => (
 	<div className="mx-auto w-full max-w-3xl p-4">
 		<ChatPageInput
 			chat={{ ...MockChat, id: "", organization_id: "" }}
@@ -128,7 +129,7 @@ const StoryChatPageInput: React.FC<{
 			onDeleteQueuedMessage={fn()}
 			onPromoteQueuedMessage={fn()}
 			onInterrupt={onInterrupt ?? fn()}
-			isInputDisabled={false}
+			isInputDisabled={isInputDisabled}
 			isSendPending={false}
 			isInterruptPending={false}
 			hasModelOptions
@@ -576,19 +577,23 @@ const AsyncQuestionChatPage: React.FC<{
 	className?: string;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isReadOnly?: boolean;
+	isInputDisabled?: boolean;
 }> = ({
 	store,
 	className = "flex h-160 flex-col",
 	onSendAskUserQuestionResponse,
 	isReadOnly,
+	isInputDisabled,
 }) => (
-	<div data-testid="async-question-chat-page" className={className}>
+	<div className={className}>
 		<StoryChatPageTimeline
 			store={store}
 			onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 			isReadOnly={isReadOnly}
 		/>
-		{!isReadOnly && <StoryChatPageInput store={store} />}
+		{!isReadOnly && (
+			<StoryChatPageInput store={store} isInputDisabled={isInputDisabled} />
+		)}
 	</div>
 );
 
@@ -603,48 +608,36 @@ export const AsyncQuestionDockedAboveInput: Story = {
 	},
 };
 
-const buildQuestionResultMessage = (result: unknown): TypesGen.ChatMessage => ({
-	...MockAsyncQuestionResultMessage,
-	content: [
+const mockTallQuestion = {
+	header: "Rollout",
+	question: "How should the new billing export reach customers?",
+	options: [
 		{
-			type: "tool-result",
-			tool_call_id: "question",
-			tool_name: "ask_user_question",
-			result,
+			label: "Feature flag",
+			description:
+				"Ship the export dark behind a per-organization flag, enable it for internal organizations first, and widen the rollout once a full billing cycle has run without discrepancies.",
+		},
+		{
+			label: "Beta program",
+			description:
+				"Offer the export to customers who opted into the beta program, collect feedback through the support portal for two weeks, and then promote it to general availability.",
+		},
+		{
+			label: "General availability",
+			description:
+				"Enable the export for every organization in the next release, announce it in the changelog, and rely on the existing billing alerts to catch regressions after launch.",
+		},
+		{
+			label: "Hold",
+			description:
+				"Keep the export unreleased until the finance team signs off on the reconciliation report format, and revisit the rollout plan in the next planning cycle.",
 		},
 	],
-});
+};
 
 const MockTallAsyncQuestionResultMessage = buildQuestionResultMessage({
 	...MockAsyncQuestionResult,
-	questions: [
-		{
-			header: "Rollout",
-			question: "How should the new billing export reach customers?",
-			options: [
-				{
-					label: "Feature flag",
-					description:
-						"Ship the export dark behind a per-organization flag, enable it for internal organizations first, and widen the rollout once a full billing cycle has run without discrepancies.",
-				},
-				{
-					label: "Beta program",
-					description:
-						"Offer the export to customers who opted into the beta program, collect feedback through the support portal for two weeks, and then promote it to general availability.",
-				},
-				{
-					label: "General availability",
-					description:
-						"Enable the export for every organization in the next release, announce it in the changelog, and rely on the existing billing alerts to catch regressions after launch.",
-				},
-				{
-					label: "Hold",
-					description:
-						"Keep the export unreleased until the finance team signs off on the reconciliation report format, and revisit the rollout plan in the next planning cycle.",
-				},
-			],
-		},
-	],
+	questions: [mockTallQuestion],
 });
 
 // The question outgrows the dock's height cap, so the dock scrolls on its own
@@ -678,13 +671,39 @@ export const AsyncQuestionDockedShortScreen: Story = {
 			onSendAskUserQuestionResponse={fn()}
 		/>
 	),
+};
+
+const MockTwoTallAsyncQuestionsResultMessage = buildQuestionResultMessage({
+	...MockAsyncQuestionResult,
+	questions: [
+		mockTallQuestion,
+		{
+			...mockTallQuestion,
+			header: "Self-hosted",
+			question: "How should the export reach self-hosted deployments?",
+		},
+	],
+});
+
+// Next sits at the bottom of a scrolled dock, and the next question still
+// starts at the top.
+export const AsyncQuestionDockedNextStepStartsAtTop: Story = {
+	render: () => (
+		<AsyncQuestionChatPage
+			store={buildAsyncQuestionStore([
+				...MockAsyncQuestionMessages.slice(0, 2),
+				MockTwoTallAsyncQuestionsResultMessage,
+			])}
+			className="flex h-[390px] w-[844px] flex-col overflow-hidden"
+			onSendAskUserQuestionResponse={fn()}
+		/>
+	),
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const page = canvas.getByTestId("async-question-chat-page");
-		const send = canvas.getByRole("button", { name: "Send" });
-		expect(send.getBoundingClientRect().bottom).toBeLessThanOrEqual(
-			page.getBoundingClientRect().bottom,
-		);
+		const dock = within(canvasElement).getByRole("region", {
+			name: "Open question",
+		});
+		dock.scrollTop = dock.scrollHeight;
+		await userEvent.click(within(dock).getByRole("button", { name: "Next" }));
 	},
 };
 
@@ -694,9 +713,15 @@ export const AsyncQuestionArchivedChat: Story = {
 	),
 };
 
+// The page withholds the answer callback while the chat input is disabled.
 export const AsyncQuestionDockedDisabled: Story = {
 	render: () => {
-		return <AsyncQuestionChatPage store={buildAsyncQuestionStore()} />;
+		return (
+			<AsyncQuestionChatPage
+				store={buildAsyncQuestionStore()}
+				isInputDisabled
+			/>
+		);
 	},
 };
 

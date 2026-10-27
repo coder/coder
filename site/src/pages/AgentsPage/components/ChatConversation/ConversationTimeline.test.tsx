@@ -11,12 +11,10 @@ import {
 } from "#/testHelpers/renderHelpers";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { ConversationTimeline } from "./ConversationTimeline";
-import {
-	getPendingToolCallIDs,
-	parseMessagesWithMergedTools,
-} from "./messageParsing";
+import { getPendingToolCallIDs } from "./messageParsing";
 import {
 	buildLiveStatus,
+	buildQuestionTimelineArgs,
 	buildStreamRenderState,
 	MockAsyncQuestionMessages,
 	MockCollapsedStepsPreferences,
@@ -57,9 +55,7 @@ function renderTimeline(initial: TimelineStage = {}) {
 								subagentStatusOverrides={new Map()}
 								subagentTitles={new Map()}
 								subagentVariants={new Map()}
-								parsedMessages={parseMessagesWithMergedTools(messages, {
-									pendingToolCallIDs,
-								})}
+								{...buildQuestionTimelineArgs(messages, { pendingToolCallIDs })}
 								chatStatus={null}
 								hasMoreMessages={false}
 								isChatCompleted

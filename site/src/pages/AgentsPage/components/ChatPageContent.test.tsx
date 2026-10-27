@@ -22,7 +22,6 @@ import {
 	MockAsyncQuestionResult,
 	MockAsyncQuestionResultMessage,
 	MockQuestionCallMessage,
-	MockTwoAsyncQuestionsMessages,
 } from "./ChatConversation/storyFixtures";
 import { ChatPageInput, ChatPageTimeline } from "./ChatPageContent";
 
@@ -232,10 +231,9 @@ const TimelineStage: React.FC<TimelineStageProps> = ({
 
 const renderChatPageTimeline = (
 	onSendAskUserQuestionResponse: AnswerCallback,
-	messages: readonly TypesGen.ChatMessage[] = MockAsyncQuestionMessages,
 ) => {
 	const store = createChatStore();
-	store.replaceMessages(messages);
+	store.replaceMessages(MockAsyncQuestionMessages);
 	const queryClient = createPreferenceSeededQueryClient();
 	const { rerender } = renderComponent(
 		<TimelineStage
@@ -351,19 +349,5 @@ describe("ChatPageTimeline question dock", () => {
 		expect(onSendAskUserQuestionResponse).toHaveBeenCalledWith(
 			"Answer to ask_user_question call newer-question:\nBackend",
 		);
-	});
-
-	it("starts each question at the top of the dock", async () => {
-		const user = userEvent.setup();
-		renderChatPageTimeline(vi.fn(), MockTwoAsyncQuestionsMessages);
-
-		const dock = getQuestionDock();
-		dock.scrollTop = 500;
-		await user.click(within(dock).getByRole("button", { name: "Next" }));
-		expect(dock.scrollTop).toBe(0);
-
-		dock.scrollTop = 500;
-		await user.click(within(dock).getByRole("button", { name: "Back" }));
-		expect(dock.scrollTop).toBe(0);
 	});
 });

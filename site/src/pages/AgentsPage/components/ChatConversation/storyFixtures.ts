@@ -1,11 +1,13 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { MockUserPreferenceSettings } from "#/testHelpers/entities";
+import { deriveAskUserQuestionState } from "./askUserQuestionState";
 import {
 	type DeriveLiveStatusParams,
 	deriveLiveStatus,
 	type LiveStatusModel,
 } from "./liveStatusModel";
+import { parseMessagesWithMergedTools } from "./messageParsing";
 import { applyMessagePartToStreamState, buildStreamTools } from "./streamState";
 import type {
 	MergedTool,
@@ -93,6 +95,32 @@ export const buildStreamRenderState = (
 			streamState?.toolResults,
 		),
 		liveStatus: buildLiveStatus({ streamState }),
+	};
+};
+
+/** Timeline args for a transcript with questions, derived as the chat page derives them. */
+export const buildQuestionTimelineArgs = (
+	messages: readonly TypesGen.ChatMessage[],
+	{
+		pendingToolCallIDs,
+		liveTools = [],
+		queuedMessages = [],
+	}: {
+		pendingToolCallIDs?: ReadonlySet<string>;
+		liveTools?: readonly MergedTool[];
+		queuedMessages?: readonly TypesGen.ChatQueuedMessage[];
+	} = {},
+) => {
+	const parsedMessages = parseMessagesWithMergedTools(messages, {
+		pendingToolCallIDs,
+	});
+	return {
+		parsedMessages,
+		askUserQuestionState: deriveAskUserQuestionState(
+			parsedMessages,
+			liveTools,
+			queuedMessages,
+		),
 	};
 };
 
@@ -472,39 +500,44 @@ export const MockAsyncQuestionMessages: TypesGen.ChatMessage[] = [
 	MockAsyncQuestionResultMessage,
 ];
 
+/** MockAsyncQuestionResultMessage with another result for the same call. */
+export const buildQuestionResultMessage = (
+	result: unknown,
+): TypesGen.ChatMessage => ({
+	...MockAsyncQuestionResultMessage,
+	content: [
+		{
+			type: "tool-result",
+			tool_call_id: "question",
+			tool_name: "ask_user_question",
+			result,
+		},
+	],
+});
+
 /** MockAsyncQuestionMessages with a second question, so the form has two steps. */
 export const MockTwoAsyncQuestionsMessages: TypesGen.ChatMessage[] = [
 	...MockAsyncQuestionMessages.slice(0, 2),
-	{
-		...MockAsyncQuestionResultMessage,
-		content: [
+	buildQuestionResultMessage({
+		...MockAsyncQuestionResult,
+		questions: [
+			...MockAsyncQuestionResult.questions,
 			{
-				type: "tool-result",
-				tool_call_id: "question",
-				tool_name: "ask_user_question",
-				result: {
-					...MockAsyncQuestionResult,
-					questions: [
-						...MockAsyncQuestionResult.questions,
-						{
-							header: "Testing",
-							question: "How should the change be verified?",
-							options: [
-								{
-									label: "Unit tests",
-									description: "Cover the change with unit tests.",
-								},
-								{
-									label: "Manual check",
-									description: "Verify the change in a dev deployment.",
-								},
-							],
-						},
-					],
-				},
+				header: "Testing",
+				question: "How should the change be verified?",
+				options: [
+					{
+						label: "Unit tests",
+						description: "Cover the change with unit tests.",
+					},
+					{
+						label: "Manual check",
+						description: "Verify the change in a dev deployment.",
+					},
+				],
 			},
 		],
-	},
+	}),
 ];
 
 export const buildReconnectState = (

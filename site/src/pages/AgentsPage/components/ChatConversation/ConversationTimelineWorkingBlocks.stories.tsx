@@ -7,10 +7,12 @@ import { preferenceSettingsKey } from "#/api/queries/users";
 import { Button } from "#/components/Button/Button";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { MessageScroller } from "#/vendor/message-scroller";
+import { deriveAskUserQuestionState } from "./askUserQuestionState";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
 import {
 	buildLiveStatus,
+	buildQuestionTimelineArgs,
 	MockAttachmentWorkingMessages,
 	MockCollapsedStepsPreferences,
 	MockLeadInSearchMessages,
@@ -49,6 +51,7 @@ const meta: Meta<typeof ConversationTimeline> = {
 		chatStatus: null,
 		hasMoreMessages: false,
 		parsedMessages: parseMessagesWithMergedTools(MockWorkingMessages),
+		askUserQuestionState: deriveAskUserQuestionState([], [], []),
 	},
 	decorators: [
 		(Story) => (
@@ -266,7 +269,7 @@ export const QuestionStaysVisible: Story = {
 	args: {
 		isChatCompleted: true,
 		onSendAskUserQuestionResponse: fn(),
-		parsedMessages: parseMessagesWithMergedTools([
+		...buildQuestionTimelineArgs([
 			...MockWorkingMessages.slice(0, 3),
 			MockQuestionCallMessage,
 			{

@@ -49,6 +49,40 @@ describe("AskUserQuestionTool", () => {
 		expect(onSubmitAnswer).toHaveBeenNthCalledWith(2, "Single migration");
 	});
 
+	it("moves focus to the new question on Next and Back", async () => {
+		const user = userEvent.setup();
+		render(
+			<QueryClientProvider client={createTestQueryClient()}>
+				<AskUserQuestionTool
+					questions={[
+						...questions,
+						{
+							header: "Rollout",
+							question: "How should the change ship?",
+							options: [
+								{ label: "Feature flag", description: "Ship it dark first." },
+							],
+						},
+					]}
+					status="completed"
+					isError={false}
+					isChatCompleted
+					isLatestAskUserQuestion
+					onSubmitAnswer={vi.fn()}
+				/>
+			</QueryClientProvider>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Next" }));
+		expect(document.activeElement).toHaveTextContent(
+			"How should the change ship?",
+		);
+		await user.click(screen.getByRole("button", { name: "Back" }));
+		expect(document.activeElement).toHaveTextContent(
+			"How should we structure the database migration?",
+		);
+	});
+
 	it("reopens an async question when its sent answer leaves the queue undelivered", async () => {
 		const user = userEvent.setup();
 		const onSubmitAnswer = vi.fn();

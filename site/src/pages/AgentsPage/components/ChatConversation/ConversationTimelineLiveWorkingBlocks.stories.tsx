@@ -4,12 +4,14 @@ import { preferenceSettingsKey } from "#/api/queries/users";
 import type { ChatMessage } from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { MessageScroller } from "#/vendor/message-scroller";
+import { deriveAskUserQuestionState } from "./askUserQuestionState";
 import { ConversationTimeline } from "./ConversationTimeline";
 import {
 	getPendingToolCallIDs,
 	parseMessagesWithMergedTools,
 } from "./messageParsing";
 import {
+	buildQuestionTimelineArgs,
 	buildStreamRenderState,
 	MockAsyncQuestionMessages,
 	MockAsyncQuestionResult,
@@ -35,6 +37,7 @@ const meta: Meta<typeof ConversationTimeline> = {
 		subagentTitles: new Map(),
 		chatStatus: "running",
 		parsedMessages: parseMessagesWithMergedTools(MockWorkingMessages),
+		askUserQuestionState: deriveAskUserQuestionState([], [], []),
 	},
 	decorators: [
 		(Story) => (
@@ -190,7 +193,7 @@ export const RequiresActionCompletesBlock: Story = {
 	args: {
 		chatStatus: "requires_action",
 		onSendAskUserQuestionResponse: fn(),
-		parsedMessages: parseMessagesWithMergedTools(
+		...buildQuestionTimelineArgs(
 			[...MockWorkingMessages.slice(0, 3), MockQuestionCallMessage],
 			{ pendingToolCallIDs: new Set(["question"]) },
 		),
@@ -246,27 +249,31 @@ const MockLiveAsyncQuestionResult = {
 	],
 };
 
+const MockLiveQuestionStream = buildStreamRenderState([
+	{
+		type: "tool-call",
+		tool_call_id: "live-question",
+		tool_name: "ask_user_question",
+		args: {},
+		created_at: workingFixtureTime(7),
+	},
+	{
+		type: "tool-result",
+		tool_call_id: "live-question",
+		tool_name: "ask_user_question",
+		result: MockLiveAsyncQuestionResult,
+		created_at: workingFixtureTime(8),
+	},
+]);
+
 // A question still streaming supersedes the persisted one. It is not closed,
 // and it becomes answerable once its step persists.
 export const AsyncQuestionBeforeStepPersists: Story = {
 	args: {
 		onSendAskUserQuestionResponse: fn(),
-		parsedMessages: parseMessagesWithMergedTools(MockAsyncQuestionMessages),
-		...buildStreamRenderState([
-			{
-				type: "tool-call",
-				tool_call_id: "live-question",
-				tool_name: "ask_user_question",
-				args: {},
-				created_at: workingFixtureTime(7),
-			},
-			{
-				type: "tool-result",
-				tool_call_id: "live-question",
-				tool_name: "ask_user_question",
-				result: MockLiveAsyncQuestionResult,
-				created_at: workingFixtureTime(8),
-			},
-		]),
+		...MockLiveQuestionStream,
+		...buildQuestionTimelineArgs(MockAsyncQuestionMessages, {
+			liveTools: MockLiveQuestionStream.streamTools,
+		}),
 	},
 };

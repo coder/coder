@@ -210,12 +210,14 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 		...streamTools,
 	]);
 	const onRenderProfiler = useOnRenderProfiler();
-	const { openAsyncQuestion } = deriveAskUserQuestionState(
+	const askUserQuestionState = deriveAskUserQuestionState(
 		parsedMessages,
 		showsStreamOutput(liveStatus) ? streamTools : [],
 		queuedMessages,
 	);
-	const dockedQuestion = isReadOnly ? undefined : openAsyncQuestion;
+	const dockedQuestion = isReadOnly
+		? undefined
+		: askUserQuestionState.openAsyncQuestion;
 
 	return (
 		<ACPContext value={acpSessions}>
@@ -253,7 +255,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 						isChatCompleted={isChatCompleted}
 						hasActiveStream={hasStream}
 						isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
-						queuedMessages={queuedMessages}
+						askUserQuestionState={askUserQuestionState}
 						urlTransform={urlTransform}
 						mcpServers={mcpServers}
 						showDesktopPreviews={false}

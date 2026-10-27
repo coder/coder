@@ -687,6 +687,10 @@ type AskUserQuestionRendererProps = Pick<
 > &
 	Pick<React.ComponentProps<typeof AskUserQuestionTool>, "onStepChange">;
 
+/**
+ * Reads the questions from the call's raw args, or from its result when the
+ * args have none, so the transcript and the question dock show the same form.
+ */
 export const AskUserQuestionRenderer: React.FC<
 	AskUserQuestionRendererProps
 > = ({

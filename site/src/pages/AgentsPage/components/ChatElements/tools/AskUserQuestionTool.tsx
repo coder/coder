@@ -4,7 +4,8 @@ import {
 	MessageCircleQuestionIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { useMutation } from "react-query";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
@@ -43,7 +44,6 @@ type AskUserQuestionToolProps = {
 	/** The question is answered in the dock above the chat input instead of in this card. */
 	isDocked?: boolean;
 	onSubmitAnswer?: (message: string) => Promise<void> | void;
-	/** Called when the form moves to another question. */
 	onStepChange?: () => void;
 };
 
@@ -267,6 +267,7 @@ type QuestionStepProps = {
 	answer: QuestionAnswer | undefined;
 	isInteractive: boolean;
 	isSubmitting: boolean;
+	questionTextRef?: React.Ref<HTMLParagraphElement>;
 	onOptionChange: (value: string) => void;
 	onOtherTextChange: (text: string) => void;
 };
@@ -279,6 +280,7 @@ const QuestionStep: React.FC<QuestionStepProps> = ({
 	answer,
 	isInteractive,
 	isSubmitting,
+	questionTextRef,
 	onOptionChange,
 	onOtherTextChange,
 }) => {
@@ -302,7 +304,9 @@ const QuestionStep: React.FC<QuestionStepProps> = ({
 					className="mt-0.5 size-4 shrink-0"
 				/>
 				<p
+					ref={questionTextRef}
 					id={questionTextId}
+					tabIndex={-1}
 					className="m-0 min-w-0 flex-1 whitespace-pre-wrap text-[13px]"
 				>
 					<span className="sr-only" id={questionHeaderId}>
@@ -389,6 +393,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	onStepChange,
 }) => {
 	const idPrefix = useId();
+	const questionTextRef = useRef<HTMLParagraphElement>(null);
 	const isAsync = asyncToolCallId !== undefined;
 	const filteredQuestions = questions.map(filterQuestionOptions);
 	const [answers, setAnswers] = useState<Array<QuestionAnswer | undefined>>(
@@ -511,12 +516,19 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 		});
 	};
 
-	const handleBack = () => {
-		setCurrentQuestionIndex((currentIndex) => {
-			return Math.max(currentIndex - 1, 0);
+	// Focus moves to the new question because the Back or Next button can
+	// end up out of view below a taller step, or disabled on the first one.
+	const changeQuestion = (getIndex: (currentIndex: number) => number) => {
+		flushSync(() => {
+			setCurrentQuestionIndex(getIndex);
 		});
 		resetSubmitState();
 		onStepChange?.();
+		questionTextRef.current?.focus();
+	};
+
+	const handleBack = () => {
+		changeQuestion((currentIndex) => Math.max(currentIndex - 1, 0));
 	};
 
 	const handleNext = () => {
@@ -524,11 +536,9 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 			return;
 		}
 
-		setCurrentQuestionIndex((currentIndex) => {
-			return Math.min(currentIndex + 1, filteredQuestions.length - 1);
-		});
-		resetSubmitState();
-		onStepChange?.();
+		changeQuestion((currentIndex) =>
+			Math.min(currentIndex + 1, filteredQuestions.length - 1),
+		);
 	};
 
 	const handleSubmit = () => {
@@ -633,6 +643,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 							answer={answers[questionIndex]}
 							isInteractive={isInteractive}
 							isSubmitting={isSubmitting}
+							questionTextRef={isInteractive ? questionTextRef : undefined}
 							onOptionChange={(value) => {
 								handleOptionChange(questionIndex, question, value);
 							}}

@@ -21,9 +21,10 @@ import { MessageScroller } from "#/vendor/message-scroller";
 import { getChatFileURL } from "../../utils/chatAttachments";
 import { getAsyncAnswerPrefix } from "../ChatElements/tools/asyncAnswer";
 import { ChatMessageScroller } from "../ChatMessageScroller";
+import { deriveAskUserQuestionState } from "./askUserQuestionState";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
-import { buildLiveStatus } from "./storyFixtures";
+import { buildLiveStatus, buildQuestionTimelineArgs } from "./storyFixtures";
 import type { ParsedMessageEntry } from "./types";
 
 // The timeline renders scroller items, so every story needs the scroller
@@ -452,6 +453,7 @@ const defaultArgs: Omit<
 	isAwaitingFirstStreamChunk: false,
 	chatStatus: null,
 	hasMoreMessages: false,
+	askUserQuestionState: deriveAskUserQuestionState([], [], []),
 };
 
 const meta: Meta<typeof ConversationTimeline> = {
@@ -1790,7 +1792,7 @@ export const AskUserQuestionSubmittedAnswer: Story = {
 	args: {
 		...defaultArgs,
 		isChatCompleted: true,
-		parsedMessages: buildMessages([
+		...buildQuestionTimelineArgs([
 			{
 				...baseMessage,
 				id: 1,
@@ -1888,7 +1890,7 @@ export const AsyncAskUserQuestionOpenAfterUnrelatedMessage: Story = {
 		...defaultArgs,
 		isChatCompleted: false,
 		onSendAskUserQuestionResponse: fn(),
-		parsedMessages: buildMessages(MockAsyncQuestionThenUnrelatedMessages),
+		...buildQuestionTimelineArgs(MockAsyncQuestionThenUnrelatedMessages),
 	},
 };
 
@@ -1897,18 +1899,19 @@ export const AsyncAskUserQuestionAnswerQueued: Story = {
 		...defaultArgs,
 		isChatCompleted: false,
 		onSendAskUserQuestionResponse: fn(),
-		parsedMessages: buildMessages(MockAsyncQuestionThenUnrelatedMessages),
-		queuedMessages: [
-			{
-				...MockChatQueuedMessage,
-				content: [
-					{
-						type: "text",
-						text: `${getAsyncAnswerPrefix("ask-tool-async")}${askUserQuestionSubmittedResponse}`,
-					},
-				],
-			},
-		],
+		...buildQuestionTimelineArgs(MockAsyncQuestionThenUnrelatedMessages, {
+			queuedMessages: [
+				{
+					...MockChatQueuedMessage,
+					content: [
+						{
+							type: "text",
+							text: `${getAsyncAnswerPrefix("ask-tool-async")}${askUserQuestionSubmittedResponse}`,
+						},
+					],
+				},
+			],
+		}),
 	},
 };
 
@@ -1916,7 +1919,7 @@ export const AsyncAskUserQuestionAnsweredAfterUnrelatedMessage: Story = {
 	args: {
 		...defaultArgs,
 		isChatCompleted: true,
-		parsedMessages: buildMessages([
+		...buildQuestionTimelineArgs([
 			...MockAsyncQuestionThenUnrelatedMessages,
 			{
 				...baseMessage,
