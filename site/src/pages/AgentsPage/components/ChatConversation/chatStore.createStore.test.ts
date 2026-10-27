@@ -50,7 +50,7 @@ describe("upsertDurableMessages", () => {
 		const msg1 = makeMessage(1, "user", "first");
 		const msg2 = makeMessage(2, "assistant", "second");
 
-		store.upsertDurableMessages([msg1, msg2]);
+		store.upsertDurableMessages([msg1, msg2], 2);
 
 		const state = store.getSnapshot();
 		expect(state.messagesByID.size).toBe(2);
@@ -70,21 +70,21 @@ describe("upsertDurableMessages", () => {
 			created_at: "2025-01-01T00:00:01.000Z",
 		} as TypesGen.ChatMessage;
 
-		store.upsertDurableMessages([second, first]);
+		store.upsertDurableMessages([second, first], 2);
 
 		expect(store.getSnapshot().orderedMessageIDs).toEqual([1, 2]);
 	});
 
 	it("does not notify subscribers when content is unchanged", () => {
 		const store = createChatStore();
-		store.upsertDurableMessages([makeMessage(1, "user", "hello")]);
+		store.upsertDurableMessages([makeMessage(1, "user", "hello")], 2);
 
 		let notified = false;
 		store.subscribe(() => {
 			notified = true;
 		});
 
-		store.upsertDurableMessages([makeMessage(1, "user", "hello")]);
+		store.upsertDurableMessages([makeMessage(1, "user", "hello")], 2);
 
 		expect(notified).toBe(false);
 	});
@@ -100,27 +100,27 @@ describe("upsertDurableMessages", () => {
 			created_at: sharedCreatedAt,
 		});
 
-		store.upsertDurableMessages([
-			withSharedCreatedAt(3, "assistant"),
-			withSharedCreatedAt(4, "tool"),
-		]);
-		store.upsertDurableMessages([
-			withSharedCreatedAt(1, "user"),
-			withSharedCreatedAt(2, "assistant"),
-		]);
+		store.upsertDurableMessages(
+			[withSharedCreatedAt(3, "assistant"), withSharedCreatedAt(4, "tool")],
+			2,
+		);
+		store.upsertDurableMessages(
+			[withSharedCreatedAt(1, "user"), withSharedCreatedAt(2, "assistant")],
+			2,
+		);
 
 		expect(store.getSnapshot().orderedMessageIDs).toEqual([1, 2, 3, 4]);
 	});
 
 	it("does not reorder when updating an existing message in place", () => {
 		const store = createChatStore();
-		store.upsertDurableMessages([
-			makeMessage(1, "user", "first"),
-			makeMessage(2, "assistant", "second"),
-		]);
+		store.upsertDurableMessages(
+			[makeMessage(1, "user", "first"), makeMessage(2, "assistant", "second")],
+			2,
+		);
 		const orderBefore = store.getSnapshot().orderedMessageIDs;
 
-		store.upsertDurableMessages([makeMessage(2, "assistant", "edited")]);
+		store.upsertDurableMessages([makeMessage(2, "assistant", "edited")], 2);
 
 		expect(store.getSnapshot().messagesByID.get(2)?.content).toEqual([
 			{ type: "text", text: "edited" },
@@ -131,11 +131,14 @@ describe("upsertDurableMessages", () => {
 	it("keeps one ID for a message that appears twice", () => {
 		const store = createChatStore();
 
-		store.upsertDurableMessages([
-			makeMessage(1, "user", "hello"),
-			makeMessage(2, "assistant", "hi"),
-			makeMessage(2, "assistant", "hi"),
-		]);
+		store.upsertDurableMessages(
+			[
+				makeMessage(1, "user", "hello"),
+				makeMessage(2, "assistant", "hi"),
+				makeMessage(2, "assistant", "hi"),
+			],
+			2,
+		);
 
 		const state = store.getSnapshot();
 		expect(state.messagesByID.size).toBe(2);
@@ -406,7 +409,7 @@ describe("setQueuedMessages", () => {
 		const store = createChatStore();
 		const qm = makeQueuedMessage(10, "queued");
 
-		store.setQueuedMessages([qm]);
+		store.setQueuedMessages([qm], 2);
 
 		expect(store.getSnapshot().queuedMessages).toEqual([qm]);
 	});
@@ -414,15 +417,15 @@ describe("setQueuedMessages", () => {
 	it("does not notify when queued messages are unchanged", () => {
 		const store = createChatStore();
 		const qm = makeQueuedMessage(10, "queued");
-		store.setQueuedMessages([qm]);
+		store.setQueuedMessages([qm], 2);
 
 		let notified = false;
 		store.subscribe(() => {
 			notified = true;
 		});
 
-		// Different object reference, same row.
-		store.setQueuedMessages([{ ...qm, content: [...qm.content] }]);
+		// Different object reference, same ID.
+		store.setQueuedMessages([{ ...qm }], 2);
 
 		expect(notified).toBe(false);
 	});
@@ -567,8 +570,8 @@ describe("resetTransientState", () => {
 
 	it("preserves messages and queued messages", () => {
 		const store = createChatStore();
-		store.upsertDurableMessages([makeMessage(1, "user", "hello")]);
-		store.setQueuedMessages([makeQueuedMessage(10, "queued")]);
+		store.upsertDurableMessages([makeMessage(1, "user", "hello")], 2);
+		store.setQueuedMessages([makeQueuedMessage(10, "queued")], 2);
 		store.setClientError({
 			kind: "generic",
 			message: "oops",
@@ -640,7 +643,7 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 	it("returns true when running with no stream state and no assistant message", () => {
 		const store = createChatStore();
 		store.applyServerChatStatus("running");
-		store.upsertDurableMessages([makeMessage(1, "user", "hello")]);
+		store.upsertDurableMessages([makeMessage(1, "user", "hello")], 2);
 
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
 	});
@@ -648,8 +651,8 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 	it("returns false when the latest message is from the assistant", () => {
 		const store = createChatStore();
 		store.applyServerChatStatus("running");
-		store.upsertDurableMessages([makeMessage(1, "user", "hello")]);
-		store.upsertDurableMessages([makeMessage(2, "assistant", "hi there")]);
+		store.upsertDurableMessages([makeMessage(1, "user", "hello")], 2);
+		store.upsertDurableMessages([makeMessage(2, "assistant", "hi there")], 2);
 
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
 	});
@@ -657,7 +660,7 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 	it("returns false when stream state is present", () => {
 		const store = createChatStore();
 		store.applyServerChatStatus("running");
-		store.upsertDurableMessages([makeMessage(1, "user", "hello")]);
+		store.upsertDurableMessages([makeMessage(1, "user", "hello")], 2);
 		store.applyMessagePart({ type: "text", text: "response" });
 
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
@@ -666,7 +669,7 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 	it("returns false during waiting status when latest message is from user", () => {
 		const store = createChatStore();
 		store.applyServerChatStatus("waiting");
-		store.upsertDurableMessages([makeMessage(1, "user", "hello")]);
+		store.upsertDurableMessages([makeMessage(1, "user", "hello")], 2);
 
 		// "waiting" means the chat is idle; nothing is generating,
 		// so no Thinking indicator should show.
@@ -675,7 +678,7 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 
 	it("returns false when chat status is null", () => {
 		const store = createChatStore();
-		store.upsertDurableMessages([makeMessage(1, "user", "hello")]);
+		store.upsertDurableMessages([makeMessage(1, "user", "hello")], 2);
 
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
 	});
@@ -683,9 +686,12 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 	it("returns true when latest message is a tool result during running", () => {
 		const store = createChatStore();
 		store.applyServerChatStatus("running");
-		store.upsertDurableMessages([makeMessage(1, "user", "hello")]);
-		store.upsertDurableMessages([makeMessage(2, "assistant", "calling tool")]);
-		store.upsertDurableMessages([makeMessage(3, "tool", "tool result")]);
+		store.upsertDurableMessages([makeMessage(1, "user", "hello")], 2);
+		store.upsertDurableMessages(
+			[makeMessage(2, "assistant", "calling tool")],
+			2,
+		);
+		store.upsertDurableMessages([makeMessage(3, "tool", "tool result")], 2);
 
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
 	});
@@ -696,7 +702,7 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 		// This is the event order from the server when the user
 		// sends a message. The Thinking indicator must appear
 		// before the first stream chunk arrives.
-		store.upsertDurableMessages([makeMessage(1, "user", "sweet ty")]);
+		store.upsertDurableMessages([makeMessage(1, "user", "sweet ty")], 2);
 		store.applyServerChatStatus("running");
 		store.clearStreamState();
 
@@ -804,7 +810,7 @@ describe("pending actions", () => {
 		const store = seededStore([makeMessage(1, "user", "first")], [], "waiting");
 		addPending(store, pendingSend("second"));
 
-		store.upsertDurableMessages([makeMessage(2, "assistant", "late")]);
+		store.upsertDurableMessages([makeMessage(2, "assistant", "late")], 2);
 		store.applyServerChatStatus("waiting");
 
 		expect(visible(store)).toEqual({
@@ -922,7 +928,7 @@ const convergenceScenarios: ConvergenceScenario[] = [
 		status: "waiting",
 		action: pendingSend("second"),
 		stream: (store) => {
-			store.upsertDurableMessages([makeMessage(2, "user", "second")]);
+			store.upsertDurableMessages([makeMessage(2, "user", "second")], 2);
 		},
 		statusAfter: "running",
 	},
@@ -932,7 +938,8 @@ const convergenceScenarios: ConvergenceScenario[] = [
 		queue: [],
 		status: "running",
 		action: pendingSend("q10"),
-		stream: (store) => store.setQueuedMessages([makeQueuedMessage(10, "q10")]),
+		stream: (store) =>
+			store.setQueuedMessages([makeQueuedMessage(10, "q10")], 2),
 		statusAfter: "running",
 	},
 	...(["requires_action", "interrupting"] as const).map(
@@ -943,7 +950,7 @@ const convergenceScenarios: ConvergenceScenario[] = [
 			status,
 			action: pendingSend("q10"),
 			stream: (store) =>
-				store.setQueuedMessages([makeQueuedMessage(10, "q10")]),
+				store.setQueuedMessages([makeQueuedMessage(10, "q10")], 2),
 			statusAfter: status,
 		}),
 	),
@@ -954,10 +961,11 @@ const convergenceScenarios: ConvergenceScenario[] = [
 		status: "error",
 		action: pendingSend("q11"),
 		stream: (store) => {
-			store.upsertDurableMessages([
-				{ ...makeMessage(2, "user", "q10"), queued_message_id: 10 },
-			]);
-			store.setQueuedMessages([makeQueuedMessage(11, "q11")]);
+			store.upsertDurableMessages(
+				[{ ...makeMessage(2, "user", "q10"), queued_message_id: 10 }],
+				2,
+			);
+			store.setQueuedMessages([makeQueuedMessage(11, "q11")], 2);
 		},
 		statusAfter: "running",
 	},
@@ -976,9 +984,9 @@ const convergenceScenarios: ConvergenceScenario[] = [
 			message: makeMessage(3, "user", "new"),
 		},
 		stream: (store) => {
-			store.resetHistoryFrom(3);
-			store.upsertDurableMessages([makeMessage(4, "user", "new")]);
-			store.setQueuedMessages([]);
+			store.resetHistoryFrom(3, 2);
+			store.upsertDurableMessages([makeMessage(4, "user", "new")], 2);
+			store.setQueuedMessages([], 2);
 		},
 		statusAfter: "running",
 	},
@@ -988,7 +996,8 @@ const convergenceScenarios: ConvergenceScenario[] = [
 		queue: [makeQueuedMessage(10, "q10"), makeQueuedMessage(11, "q11")],
 		status: "running",
 		action: { kind: "deleteQueued", queuedMessageID: 10 },
-		stream: (store) => store.setQueuedMessages([makeQueuedMessage(11, "q11")]),
+		stream: (store) =>
+			store.setQueuedMessages([makeQueuedMessage(11, "q11")], 2),
 		statusAfter: "running",
 	},
 	{
@@ -998,10 +1007,11 @@ const convergenceScenarios: ConvergenceScenario[] = [
 		status: "error",
 		action: { kind: "promoteQueued", queuedMessageID: 11 },
 		stream: (store) => {
-			store.upsertDurableMessages([
-				{ ...makeMessage(2, "user", "q11"), queued_message_id: 11 },
-			]);
-			store.setQueuedMessages([makeQueuedMessage(10, "q10")]);
+			store.upsertDurableMessages(
+				[{ ...makeMessage(2, "user", "q11"), queued_message_id: 11 }],
+				2,
+			);
+			store.setQueuedMessages([makeQueuedMessage(10, "q10")], 2);
 		},
 		statusAfter: "running",
 	},
@@ -1012,10 +1022,10 @@ const convergenceScenarios: ConvergenceScenario[] = [
 		status: "running",
 		action: { kind: "promoteQueued", queuedMessageID: 11 },
 		stream: (store) => {
-			store.setQueuedMessages([
-				makeQueuedMessage(11, "q11"),
-				makeQueuedMessage(10, "q10"),
-			]);
+			store.setQueuedMessages(
+				[makeQueuedMessage(11, "q11"), makeQueuedMessage(10, "q10")],
+				2,
+			);
 		},
 		statusAfter: "interrupting",
 	},
@@ -1026,7 +1036,7 @@ const convergenceScenarios: ConvergenceScenario[] = [
 		status: "waiting",
 		action: pendingSend("mine"),
 		stream: (store) => {
-			store.upsertDurableMessages([makeMessage(2, "user", "theirs")]);
+			store.upsertDurableMessages([makeMessage(2, "user", "theirs")], 2);
 		},
 		statusAfter: "running",
 		unpredictable: true,
@@ -1038,8 +1048,8 @@ const convergenceScenarios: ConvergenceScenario[] = [
 		status: "waiting",
 		action: pendingSend("mine"),
 		stream: (store) => {
-			store.resetHistoryFrom(1);
-			store.upsertDurableMessages([makeMessage(3, "user", "theirs")]);
+			store.resetHistoryFrom(1, 2);
+			store.upsertDurableMessages([makeMessage(3, "user", "theirs")], 2);
 		},
 		statusAfter: "running",
 		unpredictable: true,
@@ -1095,8 +1105,8 @@ const partEndScenarios: {
 		status: "waiting",
 		action: pendingSend("second"),
 		others: (store) => {
-			store.upsertDurableMessages([makeMessage(2, "assistant", "late")]);
-			store.resetHistoryFrom(99);
+			store.upsertDurableMessages([makeMessage(2, "assistant", "late")], 2);
+			store.resetHistoryFrom(99, 2);
 			store.applyServerChatStatus("running");
 		},
 		end: (store, version) => {
@@ -1108,8 +1118,8 @@ const partEndScenarios: {
 		status: "running",
 		action: pendingSend("q10"),
 		others: (store) => {
-			store.upsertDurableMessages([makeMessage(2, "assistant", "late")]);
-			store.resetHistoryFrom(99);
+			store.upsertDurableMessages([makeMessage(2, "assistant", "late")], 2);
+			store.resetHistoryFrom(99, 2);
 			store.applyServerChatStatus("running");
 		},
 		end: (store, version) =>
@@ -1120,8 +1130,8 @@ const partEndScenarios: {
 		status: "running",
 		action: { kind: "deleteQueued", queuedMessageID: 10 },
 		others: (store) => {
-			store.upsertDurableMessages([makeMessage(2, "user", "theirs")]);
-			store.resetHistoryFrom(99);
+			store.upsertDurableMessages([makeMessage(2, "user", "theirs")], 2);
+			store.resetHistoryFrom(99, 2);
 			store.applyServerChatStatus("running");
 		},
 		end: (store, version) => store.setQueuedMessages([], version),
@@ -1135,8 +1145,8 @@ const partEndScenarios: {
 			message: makeMessage(1, "user", "new"),
 		},
 		others: (store) => {
-			store.upsertDurableMessages([makeMessage(2, "user", "theirs")]);
-			store.setQueuedMessages([makeQueuedMessage(10, "q10")]);
+			store.upsertDurableMessages([makeMessage(2, "user", "theirs")], 2);
+			store.setQueuedMessages([makeQueuedMessage(10, "q10")], 2);
 			store.applyServerChatStatus("running");
 		},
 		end: (store, version) => store.resetHistoryFrom(1, version),
@@ -1237,8 +1247,8 @@ describe("prependOlderMessages", () => {
 			snapshot_version: 1,
 		});
 		const resetCount = store.getHistoryResetCount();
-		store.resetHistoryFrom(0);
-		store.upsertDurableMessages([makeMessage(4, "user", "new")]);
+		store.resetHistoryFrom(0, 2);
+		store.upsertDurableMessages([makeMessage(4, "user", "new")], 2);
 
 		store.prependOlderMessages(
 			[makeMessage(1, "user", "a"), makeMessage(2, "assistant", "b")],

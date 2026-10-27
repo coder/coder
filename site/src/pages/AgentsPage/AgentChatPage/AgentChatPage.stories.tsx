@@ -1387,8 +1387,8 @@ export const WithMessageHistory: Story = {
 			throw new Error("the chat store holds no message 5");
 		}
 		store.batch(() => {
-			store.resetHistoryFrom(5);
-			store.upsertDurableMessages([{ ...edited, id: 7 }]);
+			store.resetHistoryFrom(5, 1);
+			store.upsertDurableMessages([{ ...edited, id: 7 }], 1);
 			store.applyServerChatStatus("waiting");
 		});
 		await canvas.findByTestId("chat-message-message:7");
@@ -3249,15 +3249,18 @@ export const SendingFromHistoryDoesNotSnapToBottom: Story = {
 			await timeline.findByText("Follow-up question.");
 			const store = loadedChatStore(CHAT_ID);
 			store?.batch(() => {
-				store.upsertDurableMessages([
-					{
-						id: 41,
-						chat_id: CHAT_ID,
-						created_at: new Date().toISOString(),
-						role: "user",
-						content: [{ type: "text", text: "Follow-up question." }],
-					},
-				]);
+				store.upsertDurableMessages(
+					[
+						{
+							id: 41,
+							chat_id: CHAT_ID,
+							created_at: new Date().toISOString(),
+							role: "user",
+							content: [{ type: "text", text: "Follow-up question." }],
+						},
+					],
+					1,
+				);
 				store.applyServerChatStatus("running");
 			});
 			await waitFor(() => {
