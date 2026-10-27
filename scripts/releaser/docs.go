@@ -496,6 +496,7 @@ func updateReleaseDocs(
 // docs update PR and does so if confirmed.
 func promptAndUpdateDocs(
 	inv *serpent.Invocation,
+	p *prompter,
 	newVer version,
 	channel string,
 	dryRun bool,
@@ -507,7 +508,7 @@ func promptAndUpdateDocs(
 			"(calendar, helm versions, rancher)."))
 	_, _ = fmt.Fprintln(w)
 
-	if err := confirmWithDefault(inv, "Create docs update PR?", cliui.ConfirmYes); err != nil {
+	if err := p.confirmWithDefault("Create docs update PR?", cliui.ConfirmYes); err != nil {
 		infof(w, "Skipped docs update. You can update them manually.")
 		return
 	}

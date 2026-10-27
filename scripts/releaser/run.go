@@ -14,14 +14,25 @@ const (
 	repo  = "coder"
 )
 
+// releaseOptions holds the releaser command-line flags.
+type releaseOptions struct {
+	// DryRun prints mutating commands instead of executing them.
+	DryRun bool
+	// NonInteractive answers every prompt with its default.
+	NonInteractive bool
+	// AllowOpenPRs continues when open PRs target the release branch.
+	AllowOpenPRs bool
+	// AllowBreakingChanges continues when a patch release contains
+	// breaking changes.
+	AllowBreakingChanges bool
+}
+
 // Run executes the interactive release wizard.
 //
 // It verifies dependencies, warns when the gh CLI is not configured, wires
 // up a live or dry-run executor, and then walks the operator through
 // tagging, pushing, and triggering the release workflow.
-//
-//nolint:revive // dryRun selects the dry-run executor for the wizard.
-func Run(inv *serpent.Invocation, dryRun bool) error {
+func Run(inv *serpent.Invocation, opts releaseOptions) error {
 	ctx := inv.Context()
 	w := inv.Stderr
 
@@ -33,6 +44,11 @@ func Run(inv *serpent.Invocation, dryRun bool) error {
 	// --- Check gh CLI auth ---
 	ghAvailable := checkGHAuth()
 	if !ghAvailable {
+		// Without gh, the open PR and breaking change checks are
+		// skipped, so an unattended release must not proceed.
+		if opts.NonInteractive {
+			return xerrors.New("gh CLI is not available or not authenticated, which non-interactive mode requires")
+		}
 		warnf(w, "gh CLI is not available or not authenticated.")
 		infof(w, "Continuing without GitHub features (PR checks, label lookups, workflow trigger).")
 		_, _ = fmt.Fprintln(w)
@@ -40,12 +56,12 @@ func Run(inv *serpent.Invocation, dryRun bool) error {
 
 	// --- Wire up executor ---
 	var executor ReleaseExecutor
-	if dryRun {
+	if opts.DryRun {
 		outputPrefix = "[DRYRUN] "
 		executor = &dryRunExecutor{w: w}
 	} else {
 		executor = &liveExecutor{}
 	}
 
-	return runRelease(ctx, inv, executor, ghAvailable, dryRun)
+	return runRelease(ctx, inv, executor, ghAvailable, opts)
 }

@@ -19,8 +19,9 @@ import (
 )
 
 //nolint:revive // Long function is fine for a sequential release flow.
-func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseExecutor, ghAvailable, dryRun bool) error {
+func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseExecutor, ghAvailable bool, opts releaseOptions) error {
 	w := inv.Stderr
+	p := &prompter{inv: inv, nonInteractive: opts.NonInteractive}
 
 	// --- Release landscape ---
 	infof(w, "Checking current releases...")
@@ -107,7 +108,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		} else {
 			warnf(w, "Current branch %q is not 'main' or a release branch (release/X.Y).", currentBranch)
 		}
-		branchInput, err := cliui.Prompt(inv, cliui.PromptOptions{
+		branchInput, err := p.prompt(cliui.PromptOptions{
 			Text: "Enter the branch to use (e.g. main, release/2.21)",
 			Validate: func(s string) error {
 				if s == "main" || branchRe.MatchString(s) {
@@ -146,7 +147,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		fmt.Fprintf(w, "  Current commit: %s %s\n", headShort, headTitle)
 		fmt.Fprintln(w)
 
-		commitInput, err := cliui.Prompt(inv, cliui.PromptOptions{
+		commitInput, err := p.prompt(cliui.PromptOptions{
 			Text:    "Commit SHA to tag (press Enter to use current)",
 			Default: headShort,
 		})
@@ -192,7 +193,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 			warnf(w, "Your local branch is not up to date with origin/%s.", currentBranch)
 			fmt.Fprintf(w, "  Local:  %s\n", localHead[:12])
 			fmt.Fprintf(w, "  Remote: %s\n", remoteHead[:12])
-			if err := confirmWithDefault(inv, "Continue anyway?", cliui.ConfirmNo); err != nil {
+			if err := p.confirmWithDefault("Continue anyway?", cliui.ConfirmNo); err != nil {
 				return err
 			}
 			fmt.Fprintln(w)
@@ -334,7 +335,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	fmt.Fprintln(w)
 
 	// --- Version prompt ---
-	versionInput, err := cliui.Prompt(inv, cliui.PromptOptions{
+	versionInput, err := p.prompt(cliui.PromptOptions{
 		Text:    "Version to release",
 		Default: suggested.String(),
 		Validate: func(s string) error {
@@ -358,7 +359,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	case !onMain && (newVersion.Major != branchMajor || newVersion.Minor != branchMinor):
 		warnf(w, "Version %s does not match branch %s (expected v%d.%d.X).",
 			newVersion, currentBranch, branchMajor, branchMinor)
-		if err := confirmWithDefault(inv, "Continue anyway?", cliui.ConfirmNo); err != nil {
+		if err := p.confirmWithDefault("Continue anyway?", cliui.ConfirmNo); err != nil {
 			return err
 		}
 		fmt.Fprintln(w)
@@ -374,7 +375,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	if existingTag != "" {
 		tagExists = true
 		warnf(w, "Tag '%s' already exists!", newVersion)
-		if err := confirmWithDefault(inv, "This will skip tagging. Continue?", cliui.ConfirmNo); err != nil {
+		if err := p.confirmWithDefault("This will skip tagging. Continue?", cliui.ConfirmNo); err != nil {
 			return err
 		}
 		fmt.Fprintln(w)
@@ -404,8 +405,15 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 				fmt.Fprintf(w, "  #%d %s (@%s)\n", pr.Number, pr.Title, pr.Author)
 			}
 			fmt.Fprintln(w)
-			if err := confirmWithDefault(inv, "Continue without merging these?", cliui.ConfirmNo); err != nil {
-				return err
+			switch {
+			case opts.AllowOpenPRs:
+				warnf(w, "Continuing because --allow-open-prs is set.")
+			case opts.NonInteractive:
+				return xerrors.Errorf("%d open PR(s) target %s; merge or close them, or re-run with --allow-open-prs", len(openPRs), currentBranch)
+			default:
+				if err := p.confirmWithDefault("Continue without merging these?", cliui.ConfirmNo); err != nil {
+					return err
+				}
 			}
 			fmt.Fprintln(w)
 		} else {
@@ -419,7 +427,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		// Downgrade check.
 		if prevVersion.GreaterThan(newVersion) {
 			warnf(w, "Version DOWNGRADE detected: %s → %s.", prevVersion, newVersion)
-			if err := confirmWithDefault(inv, "Continue?", cliui.ConfirmNo); err != nil {
+			if err := p.confirmWithDefault("Continue?", cliui.ConfirmNo); err != nil {
 				return err
 			}
 			fmt.Fprintln(w)
@@ -428,7 +436,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		// Duplicate check.
 		if prevVersion.Equal(newVersion) {
 			warnf(w, "Version %s is the SAME as the previous tag %s.", newVersion, prevVersion)
-			if err := confirmWithDefault(inv, "Continue?", cliui.ConfirmNo); err != nil {
+			if err := p.confirmWithDefault("Continue?", cliui.ConfirmNo); err != nil {
 				return err
 			}
 			fmt.Fprintln(w)
@@ -440,7 +448,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 			if newVersion.Patch > expectedPatch {
 				warnf(w, "Skipping patch version(s): expected v%d.%d.%d, got %s.",
 					newVersion.Major, newVersion.Minor, expectedPatch, newVersion)
-				if err := confirmWithDefault(inv, "Continue?", cliui.ConfirmNo); err != nil {
+				if err := p.confirmWithDefault("Continue?", cliui.ConfirmNo); err != nil {
 					return err
 				}
 				fmt.Fprintln(w)
@@ -476,8 +484,15 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 					fmt.Fprintf(w, "    - %s %s\n", c.SHA, c.Title)
 				}
 				fmt.Fprintln(w)
-				if err := confirmWithDefault(inv, "Continue with patch release despite breaking changes?", cliui.ConfirmNo); err != nil {
-					return err
+				switch {
+				case opts.AllowBreakingChanges:
+					warnf(w, "Continuing because --allow-breaking-changes is set.")
+				case opts.NonInteractive:
+					return xerrors.Errorf("%d breaking change(s) since %s in a patch release; re-run with --allow-breaking-changes to release anyway", len(breakingCommits), prevVersion)
+				default:
+					if err := p.confirmWithDefault("Continue with patch release despite breaking changes?", cliui.ConfirmNo); err != nil {
+						return err
+					}
 				}
 				fmt.Fprintln(w)
 			} else {
@@ -503,7 +518,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 			channelHint = " (this looks like a stable release)"
 		}
 
-		_, err = cliui.Prompt(inv, cliui.PromptOptions{
+		_, err = p.prompt(cliui.PromptOptions{
 			Text:      fmt.Sprintf("Mark this as the latest stable release on GitHub?%s", channelHint),
 			Default:   channelDefault,
 			IsConfirm: true,
@@ -709,7 +724,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		editor = os.Getenv("GIT_EDITOR")
 	}
 	if editor != "" {
-		if err := confirmWithDefault(inv, fmt.Sprintf("Edit release notes in %s?", editor), cliui.ConfirmNo); err == nil {
+		if err := p.confirmWithDefault(fmt.Sprintf("Edit release notes in %s?", editor), cliui.ConfirmNo); err == nil {
 			cmd := exec.Command(editor, releaseNotesFile)
 			cmd.Stdin = os.Stdin
 			cmd.Stdout = os.Stdout
@@ -742,7 +757,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		fmt.Fprintf(w, "  Commit: %s\n", shortRef)
 		fmt.Fprintf(w, "  Branch: %s\n", currentBranch)
 		fmt.Fprintln(w)
-		if err := confirm(inv, "Create tag?"); err != nil {
+		if err := p.confirm("Create tag?"); err != nil {
 			return xerrors.New("cannot proceed without a tag")
 		}
 		if err := executor.CreateTag(ctx, newVersion.String(), ref, "Release "+newVersion.String()); err != nil {
@@ -759,7 +774,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	fmt.Fprintln(w, pretty.Sprint(cliui.BoldFmt(), fmt.Sprintf("Next step: push tag '%s' to origin.", newVersion)))
 	fmt.Fprintf(w, "  This will run: git push origin %s\n", newVersion)
 	fmt.Fprintln(w)
-	if err := confirm(inv, "Push tag?"); err != nil {
+	if err := p.confirm("Push tag?"); err != nil {
 		return xerrors.New("cannot trigger release without pushing the tag")
 	}
 	if err := executor.PushTag(ctx, newVersion.String()); err != nil {
@@ -791,7 +806,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		fmt.Fprintf(w, "    %s\n", line)
 	}
 	fmt.Fprintln(w)
-	if err := confirm(inv, "Trigger release workflow?"); err != nil {
+	if err := p.confirm("Trigger release workflow?"); err != nil {
 		infof(w, "Skipped workflow trigger. You can trigger it manually from GitHub Actions.")
 		fmt.Fprintln(w)
 		successf(w, "Done! 🎉")
@@ -808,7 +823,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	if newVersion.IsRC() {
 		infof(w, "Skipping docs update for release candidate.")
 	} else {
-		promptAndUpdateDocs(inv, newVersion, channel, dryRun)
+		promptAndUpdateDocs(inv, p, newVersion, channel, opts.DryRun)
 	}
 
 	fmt.Fprintln(w)

@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	var dryRun bool
+	var opts releaseOptions
 
 	cmd := &serpent.Command{
 		Use:   "releaser",
@@ -24,24 +24,46 @@ func main() {
 				Name:        "dry-run",
 				Flag:        "dry-run",
 				Description: "Print mutating commands instead of executing them.",
-				Value:       serpent.BoolOf(&dryRun),
+				Value:       serpent.BoolOf(&opts.DryRun),
+			},
+			{
+				Name: "non-interactive",
+				Flag: "non-interactive",
+				Description: "Answer every prompt with its default, as if pressing Enter. " +
+					"Safety checks that default to no fail the release instead.",
+				Value: serpent.BoolOf(&opts.NonInteractive),
+			},
+			{
+				Name:        "allow-open-prs",
+				Flag:        "allow-open-prs",
+				Description: "Continue when open PRs target the release branch.",
+				Value:       serpent.BoolOf(&opts.AllowOpenPRs),
+			},
+			{
+				Name:        "allow-breaking-changes",
+				Flag:        "allow-breaking-changes",
+				Description: "Continue when a patch release contains breaking changes.",
+				Value:       serpent.BoolOf(&opts.AllowBreakingChanges),
 			},
 		},
 		Handler: func(inv *serpent.Invocation) error {
-			return Run(inv, dryRun)
+			return Run(inv, opts)
 		},
 	}
 
 	err := cmd.Invoke().WithOS().Run()
 	if err != nil {
-		if errors.Is(err, cliui.ErrCanceled) {
-			os.Exit(1)
-		}
 		// Unwrap serpent's "running command ..." wrapper to keep output
 		// clean.
 		var runErr *serpent.RunCommandError
 		if errors.As(err, &runErr) {
 			err = runErr.Err
+		}
+		// An interactive cancel is the operator's own choice, so there
+		// is nothing to report. In non-interactive mode the error says
+		// which check stopped the release.
+		if errors.Is(err, cliui.ErrCanceled) && !opts.NonInteractive {
+			os.Exit(1)
 		}
 		pretty.Fprintf(os.Stderr, cliui.DefaultStyles.Error, "Error: %s\n", err)
 		os.Exit(1)
