@@ -175,17 +175,17 @@ GET wss://coder.example.com/api/v2/chats/{chat}/stream?snapshot_version={snapsho
 Each WebSocket message is a JSON array of events.
 Each event has a `type` field:
 
-| Event type        | Description                                                                                                          |
-|-------------------|----------------------------------------------------------------------------------------------------------------------|
-| `message_part`    | A chunk of the agent's response (text, tool call, etc.)                                                              |
-| `preview_reset`   | Remove the `message_part` content that you received before this event                                                |
-| `message`         | A message was created or changed; replace the message with the same ID                                               |
-| `history_reset`   | An edit removed messages; remove your messages with an ID of `history_reset.from_message_id` or higher               |
-| `status`          | The chat status changed (e.g., `running` → `waiting`)                                                                |
-| `error`           | An error occurred during processing                                                                                  |
-| `retry`           | The control plane is retrying a failed LLM call                                                                      |
-| `queue_update`    | The queued message list changed; the event includes the whole list                                                   |
-| `action_required` | The agent called a tool you provided; run the tool and send the result with `POST /api/v2/chats/{chat}/tool-results` |
+| Event type        | Description                                                                                                             |
+|-------------------|-------------------------------------------------------------------------------------------------------------------------|
+| `message_part`    | A chunk of the agent's response (text, tool call, etc.)                                                                 |
+| `preview_reset`   | Remove the `message_part` content that you received before this event                                                   |
+| `message`         | A message was created or changed, so replace your message with the same ID                                              |
+| `history_reset`   | An edit removed messages, so remove your messages with an ID of `history_reset.from_message_id` or higher               |
+| `status`          | The chat status changed (e.g., `running` → `waiting`)                                                                   |
+| `error`           | An error occurred during processing                                                                                     |
+| `retry`           | The control plane is retrying a failed LLM call                                                                         |
+| `queue_update`    | The queued message list changed (the event includes the whole list)                                                     |
+| `action_required` | The agent called a tool you provided, so run the tool and send the result with `POST /api/v2/chats/{chat}/tool-results` |
 
 The server increases a chat's `snapshot_version` each time it commits a change to the chat's messages, queue, or status.
 To keep your client in sync with the chat:
