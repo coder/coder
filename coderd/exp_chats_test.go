@@ -16936,6 +16936,7 @@ func TestChatRetentionDays_AuditInfrastructureFailureRejectsWrite(t *testing.T) 
 		name          string
 		retentionDays int32
 		store         func(database.Store) (database.Store, func())
+		wantDetail    string
 	}{
 		{
 			name:          "BaselineRead",
@@ -16944,6 +16945,7 @@ func TestChatRetentionDays_AuditInfrastructureFailureRejectsWrite(t *testing.T) 
 				store := newFailNextGetChatSiteConfigValueStore(db)
 				return store, func() { store.failNextGetChatSiteConfigValue.Store(true) }
 			},
+			wantDetail: "forced chat site configuration read failure",
 		},
 		{
 			name:          "Lock",
@@ -16952,6 +16954,7 @@ func TestChatRetentionDays_AuditInfrastructureFailureRejectsWrite(t *testing.T) 
 				store := newFailNextAcquireLockStore(db, database.GenLockID("agents_chat_retention_days"))
 				return store, func() { store.failNextAcquireLock.Store(true) }
 			},
+			wantDetail: "acquire chat operational setting write lock: context deadline exceeded",
 		},
 	}
 	for _, tt := range tests {
@@ -16977,7 +16980,9 @@ func TestChatRetentionDays_AuditInfrastructureFailureRejectsWrite(t *testing.T) 
 			err = adminClient.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{
 				RetentionDays: tt.retentionDays,
 			})
-			requireSDKError(t, err, http.StatusInternalServerError)
+			sdkErr := requireSDKError(t, err, http.StatusInternalServerError)
+			require.Equal(t, "Failed to update chat retention days.", sdkErr.Message)
+			require.Contains(t, sdkErr.Detail, tt.wantDetail)
 
 			response, err := adminClient.GetChatRetentionDays(ctx)
 			require.NoError(t, err)
@@ -17086,7 +17091,8 @@ func TestChatRetentionDays(t *testing.T) {
 	err = adminClient.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{
 		RetentionDays: 3651, // retentionDaysMaximum + 1; keep in sync with coderd/exp_chats.go.
 	})
-	requireSDKError(t, err, http.StatusBadRequest)
+	sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+	require.Equal(t, "Retention days must be between 0 and 3650.", sdkErr.Message)
 }
 
 func TestChatDebugRetentionDays(t *testing.T) {
