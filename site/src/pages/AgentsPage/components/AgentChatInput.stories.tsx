@@ -134,8 +134,6 @@ export const PromptHistorySuppressedWhileLoading: Story = {
 	},
 };
 
-// The chat is paused because the queue head is under edit; the send button
-// reads Queue.
 export const ChatPaused: Story = {
 	args: {
 		isChatPaused: true,
@@ -155,7 +153,7 @@ export const ChatPaused: Story = {
 };
 
 // The queue head is under edit on a chat that is not paused, for example
-// one in error; the send button reads Queue.
+// one in error.
 export const QueueHeadUnderEdit: Story = {
 	args: {
 		queuedMessages: [

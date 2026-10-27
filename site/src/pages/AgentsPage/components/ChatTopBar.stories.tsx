@@ -663,8 +663,6 @@ export const MoveToProjectSubmenuLoadError: Story = {
 	},
 };
 
-// The paused hint names what unblocks archiving: the queued message under
-// edit.
 export const PausedChatArchiveActionsDisabled: Story = {
 	args: {
 		chat: {

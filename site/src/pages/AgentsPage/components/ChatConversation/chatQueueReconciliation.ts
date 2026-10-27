@@ -43,12 +43,12 @@ export const restoreOptimisticRequestSnapshot = (
  * actual user message is delivered via SSE or the messages REST endpoint.
  * Suppress the promoted ID so the transient reordered queue published by
  * the running-case backend does not flash the message back into the
- * visible queue. On API error, status, stream and suppression are rolled
- * back. The queue is restored from the snapshot when no queue update
- * arrived during the request. Otherwise it is refetched and written to the
- * store and the messages cache: that update was filtered through the
- * suppression, so both lack the promoted row the server still holds. If
- * the refetch fails, the snapshot is written instead.
+ * visible queue. On API error, the suppression is lifted and the state is
+ * restored with restoreOptimisticRequestSnapshot. If a queue update arrived
+ * during the request, the queue is then refetched into the store and the
+ * messages cache, because that update was filtered through the suppression
+ * and lacks the promoted row the server still holds. A failed refetch
+ * writes the snapshot instead.
  */
 export const runPromoteQueuedMessage = async (params: {
 	id: number;
