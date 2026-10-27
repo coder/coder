@@ -24,32 +24,31 @@ Lets agents drive a graphical desktop inside the workspace through `spawn_agent`
 
 ## Configuration
 
-Once the experiment is enabled, configure the computer-use provider under **Admin settings** > **AI** > **Coder Agents** > **Deployment settings**.
-Use the **Virtual desktop** card.
+Virtual desktop requires the [portabledesktop](https://registry.coder.com/modules/coder/portabledesktop) module installed in the workspace template.
 
-Select an AI provider from the dropdown.
-The list shows every enabled AI provider of type Anthropic or OpenAI.
-The list adds the type to a provider name that does not already contain it.
-When two providers share a display name, the list also shows the provider name of each.
-Computer-use turns use the selected provider.
-If no Anthropic or OpenAI AI provider is enabled, add one under the **Providers** sidebar item first.
+### Choose the computer use model
 
-Virtual desktop also requires:
+Computer use runs on a chat model from the chat's organization.
+Each organization picks its own model as an organization-scoped [model override](../models.md#model-overrides).
+To change it, you need permission to edit that organization's models.
 
-- The [portabledesktop](https://registry.coder.com/modules/coder/portabledesktop) module installed in the workspace template.
-- An API key for the selected AI provider, set under the **Providers** sidebar item.
+1. Go to **Admin settings** > **AI** > **Coder Agents**.
+1. If the **Organization settings** section shows an organization picker, select the organization.
+1. In the **Computer use** row, select a model.
+1. Select **Save**.
 
-The Anthropic and OpenAI computer-use models are fixed by Coder per provider type and are not selectable from this UI.
+The **Computer use** row appears only while the `chat-virtual-desktop` experiment is enabled.
+The list shows the organization's enabled models whose AI provider type is Anthropic or OpenAI, because computer use supports only those provider types.
+To add a model to the list, enable an Anthropic or OpenAI model on the **Models** page, with an API key for its AI provider set on the **Providers** page.
 
-When no AI provider is selected, computer use uses the first enabled AI provider of the configured type, sorted by name.
-Anthropic is the default type when no type is set.
-If the selected AI provider is disabled, `computer_use` subagents are unavailable until you enable it again or select another provider.
-If it is deleted, `computer_use` subagents are unavailable until you select another provider.
+When no model is selected, the row shows **Use default model** and computer use runs on the organization's default model.
+To return to the default model, select **Clear**, then select **Save**.
+If the selected model is later disabled or deleted, computer use falls back to the organization's default model until you select another model.
 
-The same configuration is available at:
+A warning icon next to the model selector means that Coder hasn't verified the model for computer use.
+The icon follows the model that computer use runs on: the selected model, or the organization's default model when no model is selected.
+The warning doesn't block saving.
+Before you save, confirm that the model supports the provider's computer use tool.
 
-- `GET /api/experimental/chats/config/computer-use-provider`
-- `PUT /api/experimental/chats/config/computer-use-provider`
-
-The UI can't clear a saved AI provider selection.
-To clear it, send a `PUT` request with `provider` set and `ai_provider_id` omitted.
+The same setting is available through the API at `PUT /api/v2/organizations/{organization}/chats/model-overrides/computer_use`.
+The request fails with `404 Not Found` while the experiment is disabled, and with `400 Bad Request` when the model's AI provider type is not Anthropic or OpenAI.
