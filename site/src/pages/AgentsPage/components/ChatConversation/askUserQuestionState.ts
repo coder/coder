@@ -1,7 +1,7 @@
 import type * as TypesGen from "#/api/typesGenerated";
-import { parseAsyncAnswer } from "../ChatElements/tools/asyncAnswer";
+import { getAsyncAnswerPrefix } from "../ChatElements/tools/asyncAnswer";
 import { isAsyncAskUserQuestionResult } from "../ChatElements/tools/utils";
-import { getMessageText } from "./messageParsing";
+import { getMessageText, parseAsyncAnswerContent } from "./messageParsing";
 import type { MergedTool, ParsedMessageEntry } from "./types";
 
 type AskUserQuestionState = {
@@ -22,12 +22,13 @@ const getTextContent = (
 const readAsyncAnswer = (
 	content: readonly TypesGen.ChatMessagePart[] | undefined,
 ): { toolCallId: string; messageText: string } | undefined => {
-	const messageText = getTextContent(content);
-	if (messageText === undefined) {
-		return undefined;
-	}
-	const answer = parseAsyncAnswer(messageText);
-	return answer && { toolCallId: answer.toolCallId, messageText };
+	const answer = parseAsyncAnswerContent(content);
+	return (
+		answer && {
+			toolCallId: answer.toolCallId,
+			messageText: getAsyncAnswerPrefix(answer.toolCallId) + answer.body,
+		}
+	);
 };
 
 // A call that failed validation asked nothing, so it supersedes nothing.
