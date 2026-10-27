@@ -122,33 +122,37 @@ type QueueEdit = (
 
 /**
  * The expected result of a pending action, computed at the click from the
- * shown state. The store shows each part until a stream update of that
- * part's kind ends it, unless the update is at or below syncedVersion or
- * isRowGone returns false.
+ * shown state. Each part ends at the first stream event of its kind above
+ * syncedVersion, even if the event changes nothing in the stored state:
+ *
+ * - message: a user message or a queue update, because the server queues a
+ *   send or promote when the chat is busy.
+ * - editedMessage: a user message, because an edit never queues.
+ * - queue: a queue update. For a delete, only one without the row, because a
+ *   row's ID never returns to the queue.
+ * - history: a history reset.
+ *
+ * An edit has editedMessage, history and, if the queue is not empty, queue.
+ * A stream open resends the commit at the version it opens with. For an entry
+ * from before the open, those events already ended a part or never arrived.
  */
 type PendingEntry = {
 	id: number;
 	// The snapshot version synced at the click. An event at or below it is
-	// from a commit before the request. An event above it ends a part even
-	// if it changes nothing in the stored state. A stream open resends the
-	// commit at the version it opens with, and for an entry from before the
-	// open, those events already ended a part or never arrived.
+	// from a commit before the request.
 	syncedVersion: number;
-	// Set for a delete. A row's ID never returns to the queue, so the part
-	// ends at the first queue update without the row, whichever commit
-	// removed it.
+	// Set for a delete.
 	isRowGone?: (rows: readonly TypesGen.ChatQueuedMessage[]) => boolean;
-	// The message the request adds. The next user message or queue update
-	// ends it, because the server queues the message when the chat is busy.
+	// The message a send or promote adds, in the transcript or the queue.
 	message?: { shown?: TypesGen.ChatMessage; queue?: QueueEdit };
-	// The queue change of a delete, promote, edit or send. The next queue
-	// update ends it.
+	editedMessage?: TypesGen.ChatMessage;
+	// The queue change of a delete, promote, edit or errored-chat send.
 	queue?: QueueEdit;
-	// Hides the history from the edited message on. A history reset ends it.
+	// Hides the history from the edited message on.
 	history?: { fromID: number };
 };
 
-type PendingPart = "message" | "queue" | "history";
+type PendingPart = "message" | "editedMessage" | "queue" | "history";
 
 export type ChatStoreState = {
 	messagesByID: Map<number, TypesGen.ChatMessage>;
@@ -394,7 +398,12 @@ export const createChatStore = (): ChatStore => {
 		const entry = pendingEntry(id, action, state.view, status);
 		// An action that shows nothing gets no entry, and
 		// removePendingAction ignores its ID.
-		if (!entry.message && !entry.queue && !entry.history) {
+		if (
+			!entry.message &&
+			!entry.editedMessage &&
+			!entry.queue &&
+			!entry.history
+		) {
 			return id;
 		}
 		setState((current) => ({
@@ -453,7 +462,7 @@ export const createChatStore = (): ChatStore => {
 			batch(() => {
 				writeMessages(messages);
 				if (messages.some((message) => message.role === "user")) {
-					endPending(["message"], userMessageVersion);
+					endPending(["message", "editedMessage"], userMessageVersion);
 				}
 			});
 		},
@@ -759,8 +768,9 @@ const pendingEntry = (
 			return {
 				id,
 				history: { fromID: action.editedMessageID },
-				message: action.message && {
-					shown: { ...action.message, id: pendingRowID },
+				editedMessage: action.message && {
+					...action.message,
+					id: pendingRowID,
 				},
 				// The server sends no queue update when the queue is already empty.
 				queue: view.queuedMessages.length > 0 ? () => [] : undefined,
@@ -789,19 +799,23 @@ const endPendingParts = (
 			return [entry];
 		}
 		const message = ended.includes("message") ? undefined : entry.message;
+		const editedMessage = ended.includes("editedMessage")
+			? undefined
+			: entry.editedMessage;
 		const queue = ended.includes("queue") ? undefined : entry.queue;
 		const history = ended.includes("history") ? undefined : entry.history;
-		if (!message && !queue && !history) {
+		if (!message && !editedMessage && !queue && !history) {
 			return [];
 		}
 		if (
 			message === entry.message &&
+			editedMessage === entry.editedMessage &&
 			queue === entry.queue &&
 			history === entry.history
 		) {
 			return [entry];
 		}
-		return [{ ...entry, message, queue, history }];
+		return [{ ...entry, message, editedMessage, queue, history }];
 	});
 
 const buildView = (state: Omit<ChatStoreState, "view">): ChatView => {
@@ -815,7 +829,12 @@ const buildView = (state: Omit<ChatStoreState, "view">): ChatView => {
 		view.messagesByID = new Map(view.messagesByID).set(message.id, message);
 		view.orderedMessageIDs = [...view.orderedMessageIDs, message.id];
 	};
-	for (const { message, queue, history } of state.pendingEntries) {
+	for (const {
+		message,
+		editedMessage,
+		queue,
+		history,
+	} of state.pendingEntries) {
 		if (history) {
 			view.messagesByID = new Map(
 				[...view.messagesByID].filter(([id]) => id < history.fromID),
@@ -824,6 +843,9 @@ const buildView = (state: Omit<ChatStoreState, "view">): ChatView => {
 				(id) => id < history.fromID,
 			);
 			view.streamState = null;
+		}
+		if (editedMessage) {
+			show(editedMessage);
 		}
 		if (queue) {
 			view.queuedMessages = queue(view.queuedMessages);
