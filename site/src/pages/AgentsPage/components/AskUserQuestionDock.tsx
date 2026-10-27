@@ -35,7 +35,8 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 		shownQuestionKeyRef.current = questionKey;
 		// A newer question replaced the form, and focus inside it fell to the
 		// page body. Focus elsewhere, such as in the chat input, stays put. The
-		// labelled region takes focus, so the new question is announced whole.
+		// region takes focus, so screen readers announce "Open question" and the
+		// next Tab reaches the new form.
 		if (document.activeElement === document.body) {
 			sectionRef.current?.focus({ preventScroll: true });
 		}
