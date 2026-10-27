@@ -4,6 +4,10 @@ import type { WebpushMessage } from "#/api/typesGenerated";
 
 declare const self: ServiceWorkerGlobalScope;
 
+// The page a notification opens.
+const notificationTargetUrl = (data: WebpushMessage["data"]): string =>
+	data?.url || "/agents";
+
 self.addEventListener("install", (_event) => {
 	self.skipWaiting();
 });
@@ -44,12 +48,24 @@ self.addEventListener("push", (event) => {
 						return;
 					}
 				}
-				return self.registration.showNotification(payload.title, {
+				// Declarative Web Push: on click, Safari opens the navigate URL
+				// itself instead of firing notificationclick, and the installed
+				// iOS app loads it in its own window, also when already running.
+				// A window from clients.openWindow() opens over a blank one
+				// instead, and a back swipe to its first page closes it and
+				// leaves the blank one on screen. Other browsers ignore the
+				// member.
+				const options: NotificationOptions & { navigate: string } = {
 					body: payload.body || "",
 					icon: payload.icon || "/favicon.ico",
 					data: payload.data,
 					tag: payload.tag,
-				});
+					navigate: new URL(
+						notificationTargetUrl(payload.data),
+						self.location.origin,
+					).href,
+				};
+				return self.registration.showNotification(payload.title, options);
 			}),
 	);
 });
@@ -112,10 +128,11 @@ async function handlePushSubscriptionChange(
 	}
 }
 
-// Handle notification click — navigate to the specific chat or agents page.
+// Handles notification clicks in browsers without Declarative Web Push:
+// navigates to the specific chat or agents page.
 self.addEventListener("notificationclick", (event) => {
 	event.notification.close();
-	const targetUrl: string = event.notification.data?.url || "/agents";
+	const targetUrl = notificationTargetUrl(event.notification.data);
 	event.waitUntil(
 		self.clients
 			.matchAll({ type: "window", includeUncontrolled: true })

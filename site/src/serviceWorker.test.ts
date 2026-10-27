@@ -34,6 +34,7 @@ const mockSelf = {
 	skipWaiting: vi.fn(),
 	clients: mockClients,
 	registration: mockRegistration,
+	location: { origin: "https://example.com" },
 };
 
 // Assign our mock to the global `self` that serviceWorker.ts
@@ -90,6 +91,7 @@ describe("serviceWorker push handler", () => {
 			icon: testPayload.icon,
 			data: testPayload.data,
 			tag: undefined,
+			navigate: "https://example.com/agents/abc",
 		});
 	});
 
@@ -127,6 +129,7 @@ describe("serviceWorker push handler", () => {
 			icon: testPayload.icon,
 			data: testPayload.data,
 			tag: undefined,
+			navigate: "https://example.com/agents/abc",
 		});
 	});
 
@@ -154,6 +157,7 @@ describe("serviceWorker push handler", () => {
 			icon: "/icon.png",
 			data: undefined,
 			tag: undefined,
+			navigate: "https://example.com/agents",
 		});
 	});
 
@@ -175,6 +179,7 @@ describe("serviceWorker push handler", () => {
 			icon: testPayload.icon,
 			data: testPayload.data,
 			tag: undefined,
+			navigate: "https://example.com/agents/abc",
 		});
 	});
 
@@ -196,6 +201,7 @@ describe("serviceWorker push handler", () => {
 			icon: testPayload.icon,
 			data: testPayload.data,
 			tag: undefined,
+			navigate: "https://example.com/agents/abc",
 		});
 	});
 
@@ -217,6 +223,7 @@ describe("serviceWorker push handler", () => {
 			icon: testPayload.icon,
 			data: testPayload.data,
 			tag: undefined,
+			navigate: "https://example.com/agents/abc",
 		});
 	});
 
@@ -246,6 +253,7 @@ describe("serviceWorker push handler", () => {
 			icon: "/favicon.ico",
 			data: undefined,
 			tag: undefined,
+			navigate: "https://example.com/agents",
 		});
 	});
 });
