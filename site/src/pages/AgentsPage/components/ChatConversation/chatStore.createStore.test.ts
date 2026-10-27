@@ -1188,6 +1188,21 @@ describe("pending part ends", () => {
 		},
 	);
 
+	it("ends no part at a resent event that changes nothing", () => {
+		const store = seededStore(
+			[makeMessage(1, "user", "first")],
+			[makeQueuedMessage(10, "q10")],
+			"running",
+		);
+		addPending(store, pendingSend("second"));
+		addPending(store, { kind: "deleteQueued", queuedMessageID: 10 });
+
+		store.upsertDurableMessages([makeMessage(1, "user", "first")], 2);
+		store.setQueuedMessages([makeQueuedMessage(10, "q10")], 2);
+
+		expect(store.getSnapshot().pendingEntries).toHaveLength(2);
+	});
+
 	it("keeps a delete's row hidden through another delete's queue update", () => {
 		const store = seededStore(
 			[makeMessage(1, "user", "first")],
