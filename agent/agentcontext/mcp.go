@@ -13,6 +13,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog/v3"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 )
 
 // MCPServerStatus is a non-blocking, point-in-time view of a single MCP
@@ -53,9 +54,10 @@ type MCPServerStatus struct {
 // plane's concern, since the resource already carries the server name.
 //
 // Full input schemas are capped by fitMCPToolInputSchemas in the same
-// server and tool order, so the same catalog always yields the same
-// resources.
-func buildMCPServerResources(logger slog.Logger, servers []MCPServerStatus) []Resource {
+// server and tool order, so the same catalog and others always yield
+// the same resources. others are the rest of the push, measured against
+// coderd's aggregate body cap.
+func buildMCPServerResources(logger slog.Logger, servers []MCPServerStatus, others []Resource) []Resource {
 	if len(servers) == 0 {
 		return nil
 	}
@@ -65,7 +67,9 @@ func buildMCPServerResources(logger slog.Logger, servers []MCPServerStatus) []Re
 	})
 
 	resources := make([]Resource, 0, len(sorted))
-	schemaBudget := maxMCPCatalogInputSchemasBytes
+	// fullTools[i] holds the sorted tools of resources[i], nil for a
+	// failed server.
+	fullTools := make([][]MCPTool, 0, len(sorted))
 	for _, s := range sorted {
 		if s.Name == "" {
 			continue
@@ -84,6 +88,7 @@ func buildMCPServerResources(logger slog.Logger, servers []MCPServerStatus) []Re
 				Error:       errMsg,
 				ContentHash: hashMCPServerError(s.Name, errMsg),
 			})
+			fullTools = append(fullTools, nil)
 			continue
 		}
 		if len(s.Tools) == 0 {
@@ -93,19 +98,29 @@ func buildMCPServerResources(logger slog.Logger, servers []MCPServerStatus) []Re
 		slices.SortFunc(serverTools, func(a, b MCPTool) int {
 			return strings.Compare(a.Name, b.Name)
 		})
-		res := Resource{
+		reduced := make([]MCPTool, len(serverTools))
+		for i, tool := range serverTools {
+			reduced[i] = tool
+			reduced[i].InputSchema = reducedToolInputSchema(tool.InputSchema)
+		}
+		resources = append(resources, Resource{
 			ID:     resourceID(KindMCPServer, s.Name),
 			Kind:   KindMCPServer,
 			Source: s.Name,
 			Name:   s.Name,
 			Status: StatusOK,
-		}
-		res.Tools, schemaBudget = fitMCPToolInputSchemas(logger, res, serverTools, schemaBudget)
-		res.ContentHash = hashMCPServer(s.Name, res.Tools)
-		resources = append(resources, res)
+			Tools:  reduced,
+		})
+		fullTools = append(fullTools, serverTools)
 	}
 	if len(resources) == 0 {
 		return nil
+	}
+	fitMCPToolInputSchemas(logger, resources, fullTools, others)
+	for i := range resources {
+		if fullTools[i] != nil {
+			resources[i].ContentHash = hashMCPServer(resources[i].Name, resources[i].Tools)
+		}
 	}
 	return resources
 }
@@ -121,59 +136,91 @@ const (
 	// maxMCPServerBodyBytes is coderd's maxContextResourceBodyBytes:
 	// one body past it makes coderd reject the whole push.
 	maxMCPServerBodyBytes = 256 << 10
+	// maxPushBodyBytes is coderd's maxContextAggregateBodyBytes: the
+	// bodies of one push past it make coderd reject the whole push.
+	maxPushBodyBytes = 4 << 20
 )
 
-// fitMCPToolInputSchemas returns tools with each schema reduced unless
-// its full form fits the per-tool cap, the remaining catalog budget,
-// and res's MCP server body under coderd's body cap. It returns the
-// unspent budget. Tools are considered in the order given. A schema
-// with no keys beyond the reduced shape takes no budget, since coderd
-// cannot tell it from a reduced one.
-func fitMCPToolInputSchemas(logger slog.Logger, res Resource, tools []MCPTool, budget int) ([]MCPTool, int) {
+// fitMCPToolInputSchemas replaces reduced tools of resources with their
+// full forms from fullTools, in order, while each full schema fits the
+// per-tool cap and the remaining catalog budget, its MCP server body
+// stays under coderd's body cap, and all bodies of the push, others
+// included, stay under coderd's aggregate cap. Full schemas only get
+// the aggregate headroom the reduced push leaves, so they never make
+// coderd reject a push that would pass with reduced schemas. A schema
+// with no keys beyond the reduced shape takes no catalog budget, since
+// coderd cannot tell it from a reduced one.
+func fitMCPToolInputSchemas(logger slog.Logger, resources []Resource, fullTools [][]MCPTool, others []Resource) {
 	ctx := context.Background()
-	fitted := make([]MCPTool, len(tools))
-	for i, tool := range tools {
-		fitted[i] = tool
-		fitted[i].InputSchema = reducedToolInputSchema(tool.InputSchema)
-	}
-	res.Tools = fitted
-	bodyBytes, err := coderdBodyBytesBound(mcpServerBody(res))
-	if err != nil {
-		logger.Warn(ctx, "failed to measure MCP server body, sending reduced tool input schemas",
-			slog.F("server", res.Name), slog.Error(err))
-		return fitted, budget
-	}
-	for i, tool := range tools {
-		if tool.InputSchema == nil {
-			continue
+	pushBodyBytes := 0
+	for _, r := range others {
+		bodyBytes, err := resourceBodyBytesBound(r)
+		if err != nil {
+			logger.Warn(ctx, "failed to measure context resource body, sending reduced MCP tool input schemas",
+				slog.F("resource", r.ID), slog.Error(err))
+			return
 		}
-		schemaBytes := 0
-		if hasKeysBeyondReducedSchema(tool.InputSchema) {
-			encoded, err := json.Marshal(tool.InputSchema)
+		pushBodyBytes += bodyBytes
+	}
+	serverBodyBytes := make([]int, len(resources))
+	for i, res := range resources {
+		bodyBytes, err := coderdBodyBytesBound(mcpServerBody(res))
+		if err != nil {
+			logger.Warn(ctx, "failed to measure MCP server body, sending reduced MCP tool input schemas",
+				slog.F("server", res.Name), slog.Error(err))
+			return
+		}
+		serverBodyBytes[i] = bodyBytes
+		pushBodyBytes += bodyBytes
+	}
+
+	budget := maxMCPCatalogInputSchemasBytes
+	for i, res := range resources {
+		for j, tool := range fullTools[i] {
+			if tool.InputSchema == nil {
+				continue
+			}
+			schemaBytes := 0
+			if hasKeysBeyondReducedSchema(tool.InputSchema) {
+				encoded, err := json.Marshal(tool.InputSchema)
+				if err != nil {
+					logger.Warn(ctx, "failed to encode MCP tool input schema, sending it reduced",
+						slog.F("server", res.Name), slog.F("tool", tool.Name), slog.Error(err))
+					continue
+				}
+				if len(encoded) > min(maxMCPToolInputSchemaBytes, budget) {
+					continue
+				}
+				schemaBytes = len(encoded)
+			}
+			extraBytes, err := fullSchemaExtraBodyBytes(tool, res.Tools[j])
 			if err != nil {
-				logger.Warn(ctx, "failed to encode MCP tool input schema, sending it reduced",
+				logger.Warn(ctx, "failed to measure MCP tool, sending its input schema reduced",
 					slog.F("server", res.Name), slog.F("tool", tool.Name), slog.Error(err))
 				continue
 			}
-			if len(encoded) > min(maxMCPToolInputSchemaBytes, budget) {
+			if serverBodyBytes[i]+extraBytes > maxMCPServerBodyBytes || pushBodyBytes+extraBytes > maxPushBodyBytes {
 				continue
 			}
-			schemaBytes = len(encoded)
+			serverBodyBytes[i] += extraBytes
+			pushBodyBytes += extraBytes
+			budget -= schemaBytes
+			res.Tools[j] = tool
 		}
-		extraBytes, err := fullSchemaExtraBodyBytes(tool, fitted[i])
-		if err != nil {
-			logger.Warn(ctx, "failed to measure MCP tool, sending its input schema reduced",
-				slog.F("server", res.Name), slog.F("tool", tool.Name), slog.Error(err))
-			continue
-		}
-		if bodyBytes+extraBytes > maxMCPServerBodyBytes {
-			continue
-		}
-		bodyBytes += extraBytes
-		budget -= schemaBytes
-		fitted[i] = tool
 	}
-	return fitted, budget
+}
+
+// resourceBodyBytesBound returns coderdBodyBytesBound of r's pushed body.
+func resourceBodyBytesBound(r Resource) (int, error) {
+	var entry agentproto.ContextResource
+	setResourceBody(&entry, r)
+	msg := entry.ProtoReflect()
+	field := msg.WhichOneof(msg.Descriptor().Oneofs().ByName("body"))
+	if field == nil {
+		// coderd rejects a resource without a body regardless of size.
+		return 0, nil
+	}
+	return coderdBodyBytesBound(msg.Get(field).Message().Interface())
 }
 
 // fullSchemaExtraBodyBytes returns how much sending full instead of

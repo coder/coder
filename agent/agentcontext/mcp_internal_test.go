@@ -10,8 +10,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -20,8 +22,8 @@ func TestBuildMCPServerResources(t *testing.T) {
 
 	t.Run("Empty", func(t *testing.T) {
 		t.Parallel()
-		require.Nil(t, buildMCPServerResources(testutil.Logger(t), nil))
-		require.Nil(t, buildMCPServerResources(testutil.Logger(t), []MCPServerStatus{}))
+		require.Nil(t, buildMCPServerResources(testutil.Logger(t), nil, nil))
+		require.Nil(t, buildMCPServerResources(testutil.Logger(t), []MCPServerStatus{}, nil))
 	})
 
 	t.Run("GroupsByServerSortedWithTools", func(t *testing.T) {
@@ -39,7 +41,7 @@ func TestBuildMCPServerResources(t *testing.T) {
 			// Dropped: a server with no name cannot be addressed.
 			{Name: "", Connected: true, Tools: []MCPTool{{Name: "orphan"}}},
 		}
-		got := buildMCPServerResources(testutil.Logger(t), servers)
+		got := buildMCPServerResources(testutil.Logger(t), servers, nil)
 		require.Len(t, got, 2)
 
 		// Servers are emitted in name order: fs, then github.
@@ -67,14 +69,14 @@ func TestBuildMCPServerResources(t *testing.T) {
 		// arrive.
 		require.Nil(t, buildMCPServerResources(testutil.Logger(t), []MCPServerStatus{
 			{Name: "fs", Connected: true},
-		}))
+		}, nil))
 	})
 
 	t.Run("FailedServerSurfacesAsIssue", func(t *testing.T) {
 		t.Parallel()
 		got := buildMCPServerResources(testutil.Logger(t), []MCPServerStatus{
 			{Name: "broken", Connected: false, Err: "initialize \"broken\": exec: no such file"},
-		})
+		}, nil)
 		require.Len(t, got, 1)
 		require.Equal(t, KindMCPServer, got[0].Kind)
 		require.Equal(t, "broken", got[0].Source)
@@ -90,7 +92,7 @@ func TestBuildMCPServerResources(t *testing.T) {
 		t.Parallel()
 		got := buildMCPServerResources(testutil.Logger(t), []MCPServerStatus{
 			{Name: "broken", Connected: false},
-		})
+		}, nil)
 		require.Len(t, got, 1)
 		require.Equal(t, StatusUnreadable, got[0].Status)
 		require.Equal(t, "failed to connect", got[0].Error)
@@ -103,47 +105,47 @@ func TestBuildMCPServerResources(t *testing.T) {
 				{Name: "read", Description: "Read"},
 			}},
 		}
-		h1 := buildMCPServerResources(testutil.Logger(t), base)[0].ContentHash
+		h1 := buildMCPServerResources(testutil.Logger(t), base, nil)[0].ContentHash
 		// Identical input is hashed identically.
-		require.Equal(t, h1, buildMCPServerResources(testutil.Logger(t), base)[0].ContentHash)
+		require.Equal(t, h1, buildMCPServerResources(testutil.Logger(t), base, nil)[0].ContentHash)
 		// A description change flips the hash.
 		require.NotEqual(t, h1, buildMCPServerResources(testutil.Logger(t), []MCPServerStatus{
 			{Name: "fs", Connected: true, Tools: []MCPTool{
 				{Name: "read", Description: "Read files"},
 			}},
-		})[0].ContentHash)
+		}, nil)[0].ContentHash)
 		// Adding a tool flips the hash.
 		require.NotEqual(t, h1, buildMCPServerResources(testutil.Logger(t), []MCPServerStatus{
 			{Name: "fs", Connected: true, Tools: []MCPTool{
 				{Name: "read", Description: "Read"},
 				{Name: "write", Description: "Write"},
 			}},
-		})[0].ContentHash)
+		}, nil)[0].ContentHash)
 		// A schema change flips the hash.
 		require.NotEqual(t, h1, buildMCPServerResources(testutil.Logger(t), []MCPServerStatus{
 			{Name: "fs", Connected: true, Tools: []MCPTool{
 				{Name: "read", Description: "Read", InputSchema: map[string]any{"type": "object"}},
 			}},
-		})[0].ContentHash)
+		}, nil)[0].ContentHash)
 	})
 
 	t.Run("FailedServerHashErrorSensitive", func(t *testing.T) {
 		t.Parallel()
 		h1 := buildMCPServerResources(testutil.Logger(t), []MCPServerStatus{
 			{Name: "fs", Connected: false, Err: "boom"},
-		})[0].ContentHash
+		}, nil)[0].ContentHash
 		// The error text participates in the hash so a changed error
 		// is detectable.
 		require.NotEqual(t, h1, buildMCPServerResources(testutil.Logger(t), []MCPServerStatus{
 			{Name: "fs", Connected: false, Err: "different"},
-		})[0].ContentHash)
+		}, nil)[0].ContentHash)
 		// A failed server hashes differently from a connected one, so
 		// the connected->failed transition is detectable.
 		require.NotEqual(t, h1, buildMCPServerResources(testutil.Logger(t), []MCPServerStatus{
 			{Name: "fs", Connected: true, Tools: []MCPTool{
 				{Name: "read", Description: "boom"},
 			}},
-		})[0].ContentHash)
+		}, nil)[0].ContentHash)
 	})
 
 	t.Run("MixedServersSortedByName", func(t *testing.T) {
@@ -153,7 +155,7 @@ func TestBuildMCPServerResources(t *testing.T) {
 		got := buildMCPServerResources(testutil.Logger(t), []MCPServerStatus{
 			{Name: "fs", Connected: true, Tools: []MCPTool{{Name: "read"}}},
 			{Name: "broken", Connected: false, Err: "nope"},
-		})
+		}, nil)
 		require.Len(t, got, 2)
 		require.Equal(t, "broken", got[0].Source)
 		require.Equal(t, StatusUnreadable, got[0].Status)
@@ -208,7 +210,7 @@ func TestBuildMCPServerResourcesInputSchemaCaps(t *testing.T) {
 		got := buildMCPServerResources(testutil.Logger(t), []MCPServerStatus{{Name: "fs", Connected: true, Tools: []MCPTool{
 			{Name: "big", InputSchema: padded(64 << 10)},
 			{Name: "small", InputSchema: padded(10)},
-		}}})
+		}}}, nil)
 		require.Equal(t, map[string]bool{"fs/big": false, "fs/small": true}, fullSchemas(got))
 	})
 
@@ -218,8 +220,8 @@ func TestBuildMCPServerResourcesInputSchemaCaps(t *testing.T) {
 		reversed := slices.Clone(forward)
 		slices.Reverse(reversed)
 		want := map[string]bool{"fs/t1": true, "fs/t2": true, "fs/t3": true, "fs/t4": true, "fs/t5": false}
-		fromForward := buildMCPServerResources(testutil.Logger(t), []MCPServerStatus{{Name: "fs", Connected: true, Tools: forward}})
-		fromReversed := buildMCPServerResources(testutil.Logger(t), []MCPServerStatus{{Name: "fs", Connected: true, Tools: reversed}})
+		fromForward := buildMCPServerResources(testutil.Logger(t), []MCPServerStatus{{Name: "fs", Connected: true, Tools: forward}}, nil)
+		fromReversed := buildMCPServerResources(testutil.Logger(t), []MCPServerStatus{{Name: "fs", Connected: true, Tools: reversed}}, nil)
 		require.Equal(t, want, fullSchemas(fromForward))
 		require.Equal(t, want, fullSchemas(fromReversed))
 		require.Equal(t, fromForward[0].ContentHash, fromReversed[0].ContentHash)
@@ -230,7 +232,7 @@ func TestBuildMCPServerResourcesInputSchemaCaps(t *testing.T) {
 		got := buildMCPServerResources(testutil.Logger(t), []MCPServerStatus{
 			{Name: "b", Connected: true, Tools: tools("t", 3, 60_000)},
 			{Name: "a", Connected: true, Tools: tools("t", 3, 60_000)},
-		})
+		}, nil)
 		require.Equal(t, map[string]bool{
 			"a/t1": true, "a/t2": true, "a/t3": true,
 			"b/t1": true, "b/t2": false, "b/t3": false,
@@ -268,13 +270,13 @@ func TestBuildMCPServerResourcesInputSchemaCaps(t *testing.T) {
 			}
 		}
 
-		got := buildMCPServerResources(testutil.Logger(t), catalog(lastPadding))
+		got := buildMCPServerResources(testutil.Logger(t), catalog(lastPadding), nil)
 		require.Equal(t, simple.InputSchema, got[0].Tools[0].InputSchema)
 		require.Equal(t, map[string]bool{
 			"b/t1": true, "b/t2": true, "b/t3": true, "b/t4": true, "c/last": true,
 		}, fullSchemas(got[1:]))
 
-		got = buildMCPServerResources(testutil.Logger(t), catalog(lastPadding+1))
+		got = buildMCPServerResources(testutil.Logger(t), catalog(lastPadding+1), nil)
 		require.False(t, fullSchemas(got[1:])["c/last"])
 	})
 
@@ -289,7 +291,7 @@ func TestBuildMCPServerResourcesInputSchemaCaps(t *testing.T) {
 		allFull := Resource{Kind: KindMCPServer, Name: "fs", Tools: serverTools}
 		require.Greater(t, len(coderdMCPServerBody(t, allFull)), maxContextResourceBodyBytes)
 
-		got := buildMCPServerResources(testutil.Logger(t), []MCPServerStatus{{Name: "fs", Connected: true, Tools: serverTools}})
+		got := buildMCPServerResources(testutil.Logger(t), []MCPServerStatus{{Name: "fs", Connected: true, Tools: serverTools}}, nil)
 		require.Equal(t, map[string]bool{"fs/t1": true, "fs/t2": true, "fs/t3": true, "fs/t4": false}, fullSchemas(got))
 		// The bound holds for coderd binaries that add a space after
 		// every comma.
@@ -301,14 +303,112 @@ func TestBuildMCPServerResourcesInputSchemaCaps(t *testing.T) {
 		t.Parallel()
 		got := buildMCPServerResources(testutil.Logger(t), []MCPServerStatus{{Name: "fs", Connected: true, Tools: []MCPTool{
 			{Name: "t1", Description: strings.Repeat("d", 300<<10), InputSchema: padded(10)},
-		}}})
+		}}}, nil)
 		require.Equal(t, map[string]bool{"fs/t1": false}, fullSchemas(got))
+	})
+
+	t.Run("KeepsPushUnderCoderdAggregateCap", func(t *testing.T) {
+		t.Parallel()
+		// ACP harness bodies stand in for ordinary context that, with
+		// the reduced MCP server body, nearly fills coderd's aggregate
+		// cap. The headroom left fits t2's full schema but not t1's.
+		serverTools := []MCPTool{
+			{Name: "t1", InputSchema: padded(50_000)},
+			{Name: "t2", InputSchema: padded(10_000)},
+		}
+		reducedTools := slices.Clone(serverTools)
+		for i := range reducedTools {
+			reducedTools[i].InputSchema = reduced
+		}
+		reducedBodyBytes, err := coderdBodyBytesBound(mcpServerBody(Resource{Name: "fs", Tools: reducedTools}))
+		require.NoError(t, err)
+		t2ExtraBytes, err := fullSchemaExtraBodyBytes(serverTools[1], reducedTools[1])
+		require.NoError(t, err)
+
+		resolve := func(otherBodyBytes int) Snapshot {
+			harnesses := acpHarnessesWithBodyBytes(t, otherBodyBytes)
+			resolver := &Resolver{
+				ACPResources: func() []Resource { return harnesses },
+				MCPResources: func(others []Resource) []Resource {
+					return buildMCPServerResources(testutil.Logger(t), []MCPServerStatus{{Name: "fs", Connected: true, Tools: serverTools}}, others)
+				},
+			}
+			snap := resolver.Resolve(nil)
+			require.Len(t, snap.Resources, len(harnesses)+1)
+			require.LessOrEqual(t, coderdPushBodyBytesBound(t, snap), maxContextAggregateBodyBytes)
+			return snap
+		}
+
+		snap := resolve(maxContextAggregateBodyBytes - reducedBodyBytes - t2ExtraBytes)
+		require.Equal(t, map[string]bool{"fs/t1": false, "fs/t2": true}, fullSchemas(snap.Resources))
+		snap = resolve(maxContextAggregateBodyBytes - reducedBodyBytes - t2ExtraBytes + 1)
+		require.Equal(t, map[string]bool{"fs/t1": false, "fs/t2": false}, fullSchemas(snap.Resources))
 	})
 }
 
-// maxContextResourceBodyBytes is coderd/agentapi's cap on one pushed
-// resource body.
-const maxContextResourceBodyBytes = 256 << 10
+// acpHarnessesWithBodyBytes returns ACP harnesses, each under coderd's
+// per-resource body cap, whose bodies total bodyBytes under
+// coderdBodyBytesBound.
+func acpHarnessesWithBodyBytes(t *testing.T, bodyBytes int) []Resource {
+	t.Helper()
+	const perHarness = 200 << 10
+	count := (bodyBytes + perHarness - 1) / perHarness
+	out := make([]Resource, count)
+	for i := range out {
+		target := bodyBytes / count
+		if i < bodyBytes%count {
+			target++
+		}
+		slug := fmt.Sprintf("h%03d", i)
+		harness := &workspacesdk.ACPHarness{Slug: slug, DisplayName: "x"}
+		r := Resource{ID: "acp_harness:" + slug, Kind: KindACPHarness, Source: slug, Status: StatusOK, ACPHarness: harness}
+		base := acpHarnessBodyBytesBound(t, r)
+		harness.DisplayName = strings.Repeat("x", 1+target-base)
+		require.Equal(t, target, acpHarnessBodyBytesBound(t, r))
+		out[i] = r
+	}
+	return out
+}
+
+func acpHarnessBodyBytesBound(t *testing.T, r Resource) int {
+	t.Helper()
+	var entry agentproto.ContextResource
+	setResourceBody(&entry, r)
+	bodyBytes, err := coderdBodyBytesBound(entry.GetAcpHarness())
+	require.NoError(t, err)
+	return bodyBytes
+}
+
+// coderdPushBodyBytesBound sums the bodies of snap's push the way
+// coderd/agentapi encodes them for its aggregate cap, counting a space
+// after every comma so the bound holds for every coderd binary.
+func coderdPushBodyBytesBound(t *testing.T, snap Snapshot) int {
+	t.Helper()
+	total := 0
+	for _, r := range pushRequestToProto(snapshotToPushRequest(snap, true)).Resources {
+		var body proto.Message
+		switch b := r.Body.(type) {
+		case *agentproto.ContextResource_McpServer:
+			body = b.McpServer
+		case *agentproto.ContextResource_AcpHarness:
+			body = b.AcpHarness
+		default:
+			t.Fatalf("unexpected body %T", r.Body)
+		}
+		encoded, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(body)
+		require.NoError(t, err)
+		total += len(encoded) + bytes.Count(encoded, []byte(","))
+	}
+	return total
+}
+
+// maxContextResourceBodyBytes and maxContextAggregateBodyBytes are
+// coderd/agentapi's caps on one pushed resource body and on all bodies
+// of one push.
+const (
+	maxContextResourceBodyBytes  = 256 << 10
+	maxContextAggregateBodyBytes = 4 << 20
+)
 
 // coderdMCPServerBody encodes r's MCP server body the way
 // coderd/agentapi does before checking its size.

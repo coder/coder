@@ -563,7 +563,7 @@ func TestManager_MCPResourcesAppliesToSnapshot(t *testing.T) {
 	m := newTestManager(t, agentcontext.ManagerOptions{
 		WorkingDir: func() string { return dir },
 		Resolver: &agentcontext.Resolver{
-			MCPResources: func() []agentcontext.Resource {
+			MCPResources: func([]agentcontext.Resource) []agentcontext.Resource {
 				return []agentcontext.Resource{{
 					ID:     "mcp_server:fs",
 					Kind:   agentcontext.KindMCPServer,

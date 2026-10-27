@@ -95,7 +95,7 @@ func TestACPContextLimits(t *testing.T) {
 				},
 			}
 			if tc.mcp {
-				resolver.MCPResources = func() []Resource {
+				resolver.MCPResources = func([]Resource) []Resource {
 					return []Resource{{ID: "mcp_server:fake", Kind: KindMCPServer, Source: "fake", Status: StatusOK, Payload: []byte("tool list")}}
 				}
 			}
