@@ -277,15 +277,16 @@ describe("deriveAskUserQuestionState", () => {
 	);
 
 	it.each(reusingCalls)(
-		"counts a queued answer only if it is newer than $source that reuses its call ID",
+		"gives a queued answer to $source that reuses its call ID only if it is newer",
 		({ deriveAfter }) => {
-			const isAnsweredByAnswerQueuedAt = (createdAt: string) =>
+			const answersWhenQueuedAt = (queuedAt: string) =>
 				deriveAfter(questionStep("reused-call", { async: true }), [
-					queued(answerMessage("reused-call"), createdAt),
-				]).responseTextByTool.size > 0;
+					queued(answerMessage("reused-call"), queuedAt),
+				]).responseTextByTool;
 
-			expect(isAnsweredByAnswerQueuedAt("2026-01-01T00:01:00Z")).toBe(false);
-			expect(isAnsweredByAnswerQueuedAt("2026-01-01T00:03:00Z")).toBe(true);
+			expect(answersWhenQueuedAt("2026-01-01T00:01:00Z").size).toBe(0);
+			const [answeredTool] = answersWhenQueuedAt("2026-01-01T00:03:00Z").keys();
+			expect(answeredTool?.startedAt).toBe(reusedCallStartedAt);
 		},
 	);
 

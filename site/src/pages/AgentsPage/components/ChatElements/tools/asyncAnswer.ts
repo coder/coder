@@ -16,7 +16,7 @@ export const isAsyncAnswerPrompt = (text: string): boolean =>
 /** An answer split at its prefix line. */
 export type AsyncAnswer = {
 	toolCallId: string;
-	/** The answer without its prefix line, as users see it. */
+	/** The text after the prefix line. */
 	body: string;
 };
 
