@@ -123,13 +123,18 @@ type QueueEdit = (
 /**
  * The expected result of a pending action, computed at the click from the
  * shown state. The store shows each part until a stream update of that
- * part's kind ends it, unless the update is at or below syncedVersion.
+ * part's kind ends it, unless the update is at or below syncedVersion or
+ * isRowDone rejects it.
  */
 type PendingEntry = {
 	id: number;
 	// The snapshot version synced at the click. The request's result has a
 	// higher version, so an event at or below it ends no part.
 	syncedVersion: number;
+	// Set for a delete. A deleted row's ID never returns, so the first queue
+	// update without the row is the delete's own, and another row's update
+	// does not end it.
+	isRowDone?: (rows: readonly TypesGen.ChatQueuedMessage[]) => boolean;
 	// The message the request adds. The next user message or queue update
 	// ends it, because the server queues the message when the chat is busy.
 	message?: { shown?: TypesGen.ChatMessage; queue?: QueueEdit };
@@ -292,12 +297,17 @@ export const createChatStore = (): ChatStore => {
 		}
 	};
 
-	const endPending = (parts: readonly PendingPart[], version: number): void => {
+	const endPending = (
+		parts: readonly PendingPart[],
+		version: number,
+		rows?: readonly TypesGen.ChatQueuedMessage[],
+	): void => {
 		setState((current) => {
 			const pendingEntries = endPendingParts(
 				current.pendingEntries,
 				parts,
 				version,
+				rows,
 			);
 			return arraysEqual(pendingEntries, current.pendingEntries)
 				? current
@@ -464,7 +474,7 @@ export const createChatStore = (): ChatStore => {
 					}
 					return { ...current, queuedMessages };
 				});
-				endPending(["message", "queue"], version);
+				endPending(["message", "queue"], version, queuedMessages);
 			});
 		},
 		seed,
@@ -780,6 +790,8 @@ const pendingEntry = (
 		case "deleteQueued":
 			return {
 				id,
+				isRowDone: (rows) =>
+					!rows.some((row) => row.id === action.queuedMessageID),
 				queue: withoutRow(action.queuedMessageID),
 			};
 	}
@@ -789,9 +801,13 @@ const endPendingParts = (
 	entries: readonly PendingEntry[],
 	ended: readonly PendingPart[],
 	version: number,
+	rows?: readonly TypesGen.ChatQueuedMessage[],
 ): readonly PendingEntry[] =>
 	entries.flatMap((entry) => {
-		if (version <= entry.syncedVersion) {
+		if (
+			version <= entry.syncedVersion ||
+			(rows && entry.isRowDone && !entry.isRowDone(rows))
+		) {
 			return [entry];
 		}
 		const message = ended.includes("message") ? undefined : entry.message;

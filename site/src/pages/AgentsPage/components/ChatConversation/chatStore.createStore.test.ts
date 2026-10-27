@@ -1188,6 +1188,29 @@ describe("pending part ends", () => {
 		},
 	);
 
+	it("keeps a delete's row hidden through another delete's queue update", () => {
+		const store = seededStore(
+			[makeMessage(1, "user", "first")],
+			[
+				makeQueuedMessage(10, "q10"),
+				makeQueuedMessage(11, "q11"),
+				makeQueuedMessage(12, "q12"),
+			],
+			"running",
+		);
+		addPending(store, { kind: "deleteQueued", queuedMessageID: 11 });
+		addPending(store, { kind: "deleteQueued", queuedMessageID: 12 });
+
+		store.setQueuedMessages(
+			[makeQueuedMessage(10, "q10"), makeQueuedMessage(12, "q12")],
+			2,
+		);
+		expect(visible(store).queue).toEqual(["q10"]);
+
+		store.setQueuedMessages([makeQueuedMessage(10, "q10")], 3);
+		expect(store.getSnapshot().pendingEntries).toEqual([]);
+	});
+
 	// Both promotes commit before the next sync, so one queue update reports
 	// both, and the store then shows only the stream's queue.
 	it("shows the stream's queue after two promotes that one update reports", () => {
