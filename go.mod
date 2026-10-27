@@ -1,6 +1,6 @@
 module github.com/coder/coder/v2
 
-go 1.26.9
+go 1.26.10
 
 // Required until a v3 of chroma is created to lazily initialize all XML files.
 // None of our dependencies seem to use the registries anyways, so this
@@ -131,7 +131,7 @@ require (
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d
 	github.com/adrg/xdg v0.5.0
 	github.com/ammario/tlru v0.4.0
-	github.com/andybalholm/brotli v1.2.2
+	github.com/andybalholm/brotli v1.2.7
 	github.com/aquasecurity/trivy-iac v0.8.0
 	github.com/armon/circbuf v0.0.0-20190214190532-5111143e8da2
 	github.com/awalterschulze/gographviz v2.0.3+incompatible
