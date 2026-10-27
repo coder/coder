@@ -86,8 +86,8 @@ const shouldSurfaceReconnectState = (state: ChatStoreState): boolean =>
 		state.retryState !== null ||
 		isActiveChatStatus(state.chatStatus));
 
-// The keepalive interval plus 25 s to download the next message. The server splits batches into
-// messages of at most about 512 KiB (ChatStreamChunkBytes, doubled by escaping): 4 s at 1 Mbit/s.
+// Keepalive interval plus 25 s to download the next message (at most about 512 KiB,
+// see writeChatStreamBatch), which covers links down to about 0.17 Mbit/s.
 export const CHAT_STREAM_SILENCE_TIMEOUT_MS =
 	(ChatStreamKeepaliveIntervalSeconds + 25) * 1000;
 
@@ -409,8 +409,8 @@ export const useChatStore = (
 		let historyResetPending = false;
 		const historyReplacementBuf: TypesGen.ChatMessage[] = [];
 
-		// Pieces of a batch the server split into ChatStreamChunk
-		// messages, joined when the last piece arrives.
+		// Chunk strings of a batch the server split into chunk messages,
+		// joined when the last chunk message arrives.
 		const chunkBuf: string[] = [];
 
 		// Set when the stream reports a completed turn, cleared by any other
