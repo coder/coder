@@ -131,10 +131,10 @@ export function useConversationEditingState(deps: {
 		editorState: serializedEditorStateRef.current,
 		hasFileReferences: hasFileReferencesRef.current,
 	});
-	// The send in flight, from a submit's clear until it settles. While it is
-	// set, content changes save what a failure would restore as the draft, so
-	// a reload or unmount mid-send keeps the sent message and what was typed
-	// since. A history edit leaves the draft from before the edit started.
+	// The send in flight, from submit until it settles.
+	// While a new message is in flight, content changes save what a failure
+	// would restore as the draft, so a reload or unmount mid-send keeps the
+	// sent message and what was typed since.
 	const sendInFlightRef = useRef<SendInFlight | null>(null);
 
 	// Monotonic counter to force LexicalComposer remount.
@@ -235,109 +235,28 @@ export function useConversationEditingState(deps: {
 		);
 	};
 
-	const restoreDraftBeforeEdit = () => {
-		removeQueuedEdit(loadedTarget?.target);
-		loadEditorText(draftBeforeEdit?.text ?? "", draftBeforeEdit?.editorState);
-		setLoadedTarget(null);
-		setDraftBeforeEdit(null);
-	};
-
-	// Loads the target into the editor when it differs from the loaded
-	// target. A layout effect because the Lexical editor is uncontrolled and
-	// the load must land before paint. Whether the editor changed is checked
-	// only when the target changes, so text typed and deleted again does not
-	// count. A changed editor keeps its content: if its target goes away it
-	// stays as a new-message draft, and in follow mode it does not load a
-	// newly marked row. If an unchanged edit's target goes away, the pre-edit
-	// draft comes back and the composer follows the row the server marks,
-	// unless the composer mode was already set to draft, as a refused Edit
-	// does.
-	// The pre-edit draft is captured once per session. A queued row with
-	// saved text typed against its current content loads that text, which
-	// counts as changed against the row's content. When that edit ends, the
-	// loaded saved text counts as unchanged, so only text typed since the
-	// load stays as a draft.
-	const loadTargetIntoEditor = useEffectEvent(() => {
-		if (isEqual(target, loadedTarget?.target ?? null)) {
-			return;
-		}
-
-		if (loadedTarget?.savedEdit !== undefined) {
-			loadedContentRef.current = loadedTarget.savedEdit;
-		}
-		removeQueuedEdit(loadedTarget?.target);
-
-		if (isEditorChanged() && (target === null || composerMode === "follow")) {
-			if (loadedTarget !== null) {
-				onLoadedTargetChange?.();
-				setLoadedTarget(null);
-				setDraftBeforeEdit(null);
-				persistDraft();
-			}
-			setComposerMode("draft");
-			return;
-		}
-
-		onLoadedTargetChange?.();
-		if (target === null) {
-			restoreDraftBeforeEdit();
-			if (composerMode !== "draft") {
-				setComposerMode("follow");
-			}
-			return;
-		}
-
-		const { text, fileBlocks, editorState } =
-			getEditableContentPayload(targetContent);
-		if (draftBeforeEdit === null) {
-			// localStorage holds the serialized state handleContentChange
-			// persisted; the initialEditorState React state is stale.
-			setDraftBeforeEdit({
-				text: inputValueRef.current,
-				editorState: parseStoredDraft(localStorage.getItem(draftStorageKey))
-					.editorState,
-			});
-		}
-		loadEditorText(text, editorState);
-		const base = JSON.stringify(targetContent ?? []);
-		const savedEdit =
-			target.kind === "queued"
-				? readSavedQueuedEdit(
-						localStorage.getItem(queuedEditStorageKey(target.id)),
-					)
-				: null;
-		let saved: ParsedDraft | undefined;
-		if (savedEdit?.base === base) {
-			saved = parseStoredDraft(savedEdit.state);
-			loadEditorText(saved.text, saved.editorState);
-			loadedContentRef.current = { text, editorState };
-		} else {
-			removeQueuedEdit(target);
-		}
-
-		setLoadedTarget({
-			target,
-			text,
-			fileBlocks: fileBlocks ?? noFileBlocks,
-			base,
-			savedEdit: saved,
+	const showComposeDraft = () => {
+		const savedText = draftBeforeHistoryEdit?.text ?? "";
+		const savedState = draftBeforeHistoryEdit?.editorState;
+		setDraftState({
+			editorInitialValue: savedText,
+			initialEditorState: savedState,
 		});
-		targetLoadCountRef.current++;
-	});
-	useLayoutEffect(() => {
-		loadTargetIntoEditor();
-	}, [target, loadedTarget]);
-
-	// Ends the edit and gives the draft from before it back. next is the
-	// composer mode afterwards; a target there opens that edit.
-	const handleCancelEdit = (next: ComposerMode = "draft") => {
-		restoreDraftBeforeEdit();
-		setComposerMode(next);
+		serializedEditorStateRef.current = savedState;
+		setRemountKey((k) => k + 1);
+		inputValueRef.current = savedText;
 	};
 
-	// Returns a rollback for a failed send: the message, then anything typed
-	// during the request. An edit comes back alone, because the composer was in
-	// compose mode during it, so the typed text becomes the compose draft.
+	const handleCancelHistoryEdit = () => {
+		showComposeDraft();
+		setEditingMessageId(null);
+		setDraftBeforeHistoryEdit(null);
+		setEditingFileBlocks([]);
+	};
+
+	// Returns a rollback for a failed request. A send comes back followed by
+	// what was typed since. An edit comes back alone, and what the composer
+	// showed during it becomes the compose draft that Cancel restores.
 	const clearInputForSend = (message: string) => {
 		const snapshot: SendInFlight = {
 			message,
@@ -347,23 +266,27 @@ export function useConversationEditingState(deps: {
 		};
 
 		sendInFlightRef.current = snapshot;
-		chatInputRef.current?.clear();
-		inputValueRef.current = "";
+		if (snapshot.editedMessageId === null) {
+			chatInputRef.current?.clear();
+			inputValueRef.current = "";
+		} else {
+			// The edit leaves edit mode, so the composer shows the compose draft.
+			showComposeDraft();
+		}
 		hasFileReferencesRef.current = false;
 		setEditingMessageId(null);
 
 		return () => {
-			const typed = composerContent();
+			const shown = composerContent();
 			const isEdit = snapshot.editedMessageId !== null;
 			const { text, editorState } = isEdit
 				? { text: snapshot.message, editorState: snapshot.editorState }
-				: restoredDraft(snapshot, typed);
-			if (isEdit && hasContent(typed)) {
+				: restoredDraft(snapshot, shown);
+			if (isEdit) {
 				setDraftBeforeHistoryEdit({
-					text: typed.text,
-					editorState: typed.editorState,
+					text: shown.text,
+					editorState: shown.editorState,
 				});
-				saveDraft(typed.editorState ?? typed.text);
 			}
 			setDraftState({
 				editorInitialValue: text,
@@ -390,8 +313,8 @@ export function useConversationEditingState(deps: {
 		}
 	};
 
-	// The composer was cleared at submit, so after a successful send it holds
-	// only what was typed during the request, which is the chat's draft now.
+	// After a successful request the composer shows the chat's draft: for a
+	// send what was typed since, for an edit the compose draft as edited since.
 	const finalizeSuccessfulSend = (editedMessageID: number | undefined) => {
 		saveDraft(
 			hasContent(composerContent())
@@ -465,10 +388,7 @@ export function useConversationEditingState(deps: {
 			return;
 		}
 		const sendInFlight = sendInFlightRef.current;
-		if (sendInFlight) {
-			if (sendInFlight.editedMessageId !== null) {
-				return;
-			}
+		if (sendInFlight && sendInFlight.editedMessageId === null) {
 			const draft = restoredDraft(sendInFlight, composerContent());
 			saveDraft(draft.editorState ?? draft.text);
 			return;
