@@ -4035,7 +4035,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 
 		_, child := createParentChildChats(ctx, t, server, user, org, model)
 
-		WaitUntilIdleForTest(server)
+		require.NoError(t, WaitUntilIdleForTest(ctx, server))
 		insertAssistantMessage(t, db, child.ID, model.ID, "partial result")
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusPaused, "")
 
