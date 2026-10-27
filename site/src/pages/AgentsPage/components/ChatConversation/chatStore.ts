@@ -492,7 +492,10 @@ export const createChatStore = (): ChatStore => {
 		seed,
 		resetHistoryFrom: (fromID, snapshotVersion) => {
 			// A commit has at most one reset, so a reset at or below
-			// resetVersion is a resend.
+			// resetVersion is a resend. On the first open, a reset above the
+			// page's snapshot_version can be one the page already holds: it
+			// applies again and drops an older page in flight, which the next
+			// scroll loads again.
 			if (snapshotVersion <= resetVersion) {
 				return;
 			}
