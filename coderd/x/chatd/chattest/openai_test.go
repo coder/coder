@@ -259,10 +259,12 @@ func TestOpenAI_ResponsesAPI_UnstoredItemReference(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
 		store      bool
+		refs       []string
 		wantStatus int
 	}{
-		{name: "Unstored", store: false, wantStatus: http.StatusNotFound},
-		{name: "Stored", store: true, wantStatus: http.StatusOK},
+		{name: "UnstoredReasoning", refs: []string{"rs_served"}, wantStatus: http.StatusNotFound},
+		{name: "UnstoredWebSearch", refs: []string{"ws_served"}, wantStatus: http.StatusNotFound},
+		{name: "Stored", store: true, refs: []string{"rs_served", "ws_served"}, wantStatus: http.StatusOK},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -273,7 +275,7 @@ func TestOpenAI_ResponsesAPI_UnstoredItemReference(t *testing.T) {
 				resp.WebSearch = &chattest.OpenAIWebSearchCall{ID: "ws_served", Queries: []string{"go"}}
 				return resp
 			})
-			post := func(store bool, input []any) *http.Response {
+			post := func(store bool, input []any) int {
 				body, err := json.Marshal(map[string]any{
 					"model": "gpt-4", "stream": true, "store": store, "input": input,
 				})
@@ -285,14 +287,17 @@ func TestOpenAI_ResponsesAPI_UnstoredItemReference(t *testing.T) {
 				_, err = io.Copy(io.Discard, resp.Body)
 				require.NoError(t, err)
 				require.NoError(t, resp.Body.Close())
-				return resp
+				return resp.StatusCode
 			}
 
 			user := map[string]any{"role": "user", "content": "search"}
-			require.Equal(t, http.StatusOK, post(tc.store, []any{user}).StatusCode)
+			require.Equal(t, http.StatusOK, post(tc.store, []any{user}))
 			// openai-go leaves out the optional type on item references.
-			resp := post(true, []any{user, map[string]any{"id": "rs_served"}, map[string]any{"id": "ws_served"}})
-			require.Equal(t, tc.wantStatus, resp.StatusCode)
+			input := []any{user}
+			for _, id := range tc.refs {
+				input = append(input, map[string]any{"id": id})
+			}
+			require.Equal(t, tc.wantStatus, post(true, input))
 		})
 	}
 }

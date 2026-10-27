@@ -224,8 +224,8 @@ type openAIServer struct {
 	handler OpenAIHandler
 
 	mu sync.Mutex
-	// unstoredItems holds the ids of output items served for store: false
-	// requests, which OpenAI cannot resolve as item references.
+	// unstoredItems holds the ids of streamed output items served for
+	// store: false requests, which OpenAI cannot resolve as item references.
 	unstoredItems map[string]struct{}
 }
 
