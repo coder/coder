@@ -19,11 +19,8 @@ import {
 
 type ProjectFolderChatsProps = {
 	readonly projectId: string;
-	/** Names the project in the Retry button's label. */
 	readonly projectLabel: string;
-	/** The loaded sidebar chats filed under this project. */
 	readonly filedChats: readonly Chat[];
-	/** The loaded sidebar pins in this project. */
 	readonly filedPinnedChats: readonly Chat[];
 	readonly chatListInput: ChatListInput;
 	readonly emptyMessage: string;

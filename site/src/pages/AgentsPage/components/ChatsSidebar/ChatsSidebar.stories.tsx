@@ -3086,6 +3086,14 @@ const mockPinnedProjectChat = buildChat({
 	pin_order: 1,
 });
 
+const mockSecondPinnedProjectChat = buildChat({
+	id: "second-pinned-project-chat",
+	title: "Second pinned project chat",
+	organization_id: MockChatProject.organization_id,
+	project_id: MockChatProject.id,
+	pin_order: 2,
+});
+
 /** The pinned project chat is listed in Pinned and only counted in its folder. */
 export const ProjectFolderWithPinnedChat: Story = {
 	args: { chats: [...mockProjectChats, mockPinnedProjectChat] },
@@ -3108,17 +3116,7 @@ export const ProjectFolderWithPinnedChat: Story = {
 /** A folder whose chats are all pinned shows their count, not its empty state. */
 export const ProjectFolderWithOnlyPinnedChats: Story = {
 	args: {
-		chats: [
-			mockLooseChat,
-			mockPinnedProjectChat,
-			buildChat({
-				id: "second-pinned-project-chat",
-				title: "Second pinned project chat",
-				organization_id: MockChatProject.organization_id,
-				project_id: MockChatProject.id,
-				pin_order: 2,
-			}),
-		],
+		chats: [mockLooseChat, mockPinnedProjectChat, mockSecondPinnedProjectChat],
 	},
 	parameters: {
 		experiments: ["chat-projects"],
