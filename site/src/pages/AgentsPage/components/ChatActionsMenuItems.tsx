@@ -45,7 +45,6 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { toast } from "#/components/Toaster/toast";
 import { useClipboard } from "#/hooks/useClipboard";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import {
 	type ArchiveAndDeleteAction,
 	fetchArchiveAndDeleteAction,
@@ -329,7 +328,6 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	SubContent,
 }) => {
 	const { copyToClipboard } = useClipboard();
-	const { experiments } = useDashboard();
 	const isArchived = chat.archived;
 	const isPinned = chat.pin_order > 0;
 	const isChildChat = getParentChatID(chat) !== undefined;
@@ -341,13 +339,11 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	// child chats expose neither archive nor unarchive.
 	const showArchiveActions = canManage && !isArchived && !isChildChat;
 	const showUnarchiveAction = canManage && isArchived && !isChildChat;
-	const showMoveToProject =
-		showArchiveActions && experiments.includes("chat-projects");
 	const hasActionsAboveCopy = canManage
 		? showUnarchiveAction ||
 			(!isArchived &&
 				(Boolean(onOpenRenameDialog) ||
-					showMoveToProject ||
+					showArchiveActions ||
 					showPinAction ||
 					showSubagentsToggle ||
 					showReadToggle))
@@ -482,7 +478,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 							Rename chat
 						</Item>
 					)}
-					{showMoveToProject && (
+					{showArchiveActions && (
 						<MoveToProjectMenuItems
 							chat={chat}
 							blocked={isArchiveBlocked}
