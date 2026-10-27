@@ -735,6 +735,10 @@ func TestEditFiles_IndependentFiles(t *testing.T) {
 		editA = `{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 2"}`
 		editB = `{"path":"/repo/b.go","old_text":"foo()","new_text":"bar()"}`
 		editC = `{"path":"/repo/c.go","old_text":"a","new_text":"b"}`
+
+		noOpLine = "old_text equals new_text, so it would change nothing. If you meant to change this text, resend the edit with the new text."
+		// noOpLines is the line form for a file with several no-ops.
+		noOpLines = "old_text equals new_text in each, so they would change nothing. If you meant to change this text, resend these edits with the new text."
 	)
 	var (
 		fileEditA = workspacesdk.FileEdit{OldText: "x := 1", NewText: "x := 2"}
@@ -792,11 +796,10 @@ func TestEditFiles_IndependentFiles(t *testing.T) {
 				`{"path":"/repo/b.go","status":"applied","diff":"` + diffBJSON + `"}]}`,
 		},
 		{
-			// An edit that changes nothing gets an empty diff from
-			// the agent.
+			// An empty diff from the agent is kept, not omitted.
 			name:  "EmptyDiff",
-			input: `{"edits":[{"path":"/repo/a.go","old_text":"x","new_text":"x"}]}`,
-			files: edits(workspacesdk.FileEdits{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{{OldText: "x", NewText: "x"}}}),
+			input: `{"edits":[` + editA + `]}`,
+			files: edits(workspacesdk.FileEdits{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{fileEditA}}),
 			resp:  results(result("/repo/a.go", "")),
 			want:  `{"status":"applied","message":"Applied 1 of 1 edit.","files":[{"path":"/repo/a.go","status":"applied","diff":""}]}`,
 		},
@@ -1006,6 +1009,176 @@ func TestEditFiles_IndependentFiles(t *testing.T) {
 				`{"path":"/repo/a.go","status":"applied","diff":"` + diffAJSON + `"}]}`,
 		},
 		{
+			// A file whose edits are all no-ops is rejected without being
+			// sent.
+			name:        "FileOfOnlyNoOpsIsNotSent",
+			input:       `{"edits":[{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 1"}]}`,
+			wantIsError: true,
+			want:        "Applied 0 of 1 edit. Not applied:\n- edits[0] (/repo/a.go): " + noOpLine,
+		},
+		{
+			name:        "FileOfSeveralNoOpsIsNotSent",
+			input:       `{"edits":[{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 1"},{"path":"/repo/a.go","old_text":"y","new_text":"y"}]}`,
+			wantIsError: true,
+			want:        "Applied 0 of 2 edits. Not applied:\n- edits[0], edits[1] (/repo/a.go): " + noOpLines,
+		},
+		{
+			// The files entry of a file of several no-ops uses the plural
+			// reason.
+			name:  "SeveralNoOpsFileEntryIsPlural",
+			input: `{"edits":[{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 1"},{"path":"/repo/a.go","old_text":"y","new_text":"y"},` + editB + `]}`,
+			files: edits(workspacesdk.FileEdits{Path: "/repo/b.go", Edits: []workspacesdk.FileEdit{fileEditB}}),
+			resp:  results(result("/repo/b.go", diffB)),
+			want: `{"status":"partial",` +
+				`"message":"Applied 1 of 3 edits. Not applied:\n- edits[0], edits[1] (/repo/a.go): ` + noOpLines + `",` +
+				`"files":[` +
+				`{"path":"/repo/a.go","status":"rejected","edits":[0,1],"error":"old_text equals new_text in each, so they would change nothing"},` +
+				`{"path":"/repo/b.go","status":"applied","diff":"` + diffBJSON + `"}]}`,
+		},
+		{
+			// Dropped no-ops are reported beside an unknown outcome for the
+			// rest of the request.
+			name: "NoOpsBesideUnknown",
+			input: `{"edits":[` +
+				`{"path":"/repo/a.go","old_text":"x","new_text":"x"},` +
+				`{"path":"/repo/a.go","old_text":"y","new_text":"z"},` +
+				`{"path":"/repo/b.go","old_text":"q","new_text":"q"},` +
+				`{"path":"/repo/b.go","old_text":"p","new_text":"r"}` +
+				`]}`,
+			files: edits(
+				workspacesdk.FileEdits{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{{OldText: "y", NewText: "z"}}},
+				workspacesdk.FileEdits{Path: "/repo/b.go", Edits: []workspacesdk.FileEdit{{OldText: "p", NewText: "r"}}},
+			),
+			err:         xerrors.New("do request: connection reset by peer"),
+			wantIsError: true,
+			want: "Applied 0 of 4 edits. Not applied:\n" +
+				"- edits[0] (/repo/a.go): " + noOpLine + "\n" +
+				"- edits[2] (/repo/b.go): " + noOpLine + "\n" +
+				"Unknown whether applied:\n" +
+				"- edits[1] (/repo/a.go): do request: connection reset by peer. Re-read /repo/a.go before resending these edits.\n" +
+				"- edits[3] (/repo/b.go): do request: connection reset by peer. Re-read /repo/b.go before resending these edits.",
+		},
+		{
+			// Dropped no-ops are reported beside a file applied by an agent
+			// that returns no per-file results.
+			name:  "NoOpBesideUnreportedDiff",
+			input: `{"edits":[{"path":"/repo/b.go","old_text":"q","new_text":"q"},{"path":"/repo/b.go","old_text":"p","new_text":"r"}]}`,
+			files: edits(workspacesdk.FileEdits{Path: "/repo/b.go", Edits: []workspacesdk.FileEdit{{OldText: "p", NewText: "r"}}}),
+			want: `{"status":"partial",` +
+				`"message":"Applied 1 of 2 edits. Not applied:\n- edits[0] (/repo/b.go): ` + noOpLine + `",` +
+				`"files":[{"path":"/repo/b.go","status":"applied"}]}`,
+		},
+		{
+			name:        "NoOpReplaceAllIsNotSent",
+			input:       `{"edits":[{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 1","replace_all":true}]}`,
+			wantIsError: true,
+			want:        "Applied 0 of 1 edit. Not applied:\n- edits[0] (/repo/a.go): " + noOpLine,
+		},
+		{
+			name:        "EmptyOldTextAndNewTextIsNoOp",
+			input:       `{"edits":[{"path":"/repo/a.go","old_text":"","new_text":""}]}`,
+			wantIsError: true,
+			want:        "Applied 0 of 1 edit. Not applied:\n- edits[0] (/repo/a.go): " + noOpLine,
+		},
+		{
+			name:        "PathCheckReasonBeforeNoOp",
+			input:       `{"edits":[{"path":"plan.md","old_text":"x","new_text":"x"}]}`,
+			wantIsError: true,
+			want:        editFilesOnlyEditRejectedMessage("plan.md", "Use the chat-specific absolute plan path; plan files must use absolute paths"),
+		},
+		{
+			name:  "NoOpFileDoesNotBlockOtherFiles",
+			input: `{"edits":[` + editA + `,{"path":"/repo/b.go","old_text":"foo()","new_text":"foo()"}]}`,
+			files: edits(workspacesdk.FileEdits{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{fileEditA}}),
+			resp:  results(result("/repo/a.go", diffA)),
+			want: `{"status":"partial",` +
+				`"message":"Applied 1 of 2 edits. Not applied:\n- edits[1] (/repo/b.go): ` + noOpLine + `",` +
+				`"files":[` +
+				`{"path":"/repo/b.go","status":"rejected","edits":[1],"error":"old_text equals new_text, so it would change nothing"},` +
+				`{"path":"/repo/a.go","status":"applied","diff":"` + diffAJSON + `"}]}`,
+		},
+		{
+			// The no-op is dropped and the rest of its file is sent; the
+			// applied file's entry does not mention the no-op.
+			name:  "NoOpIsDroppedFromItsFile",
+			input: `{"edits":[` + editA + `,` + editB + `,{"path":"/repo/a.go","old_text":"y := 1","new_text":"y := 1"}]}`,
+			files: edits(
+				workspacesdk.FileEdits{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{fileEditA}},
+				workspacesdk.FileEdits{Path: "/repo/b.go", Edits: []workspacesdk.FileEdit{fileEditB}},
+			),
+			resp: results(result("/repo/a.go", diffA), result("/repo/b.go", diffB)),
+			want: `{"status":"partial",` +
+				`"message":"Applied 2 of 3 edits. Not applied:\n- edits[2] (/repo/a.go): ` + noOpLine + `",` +
+				`"files":[` +
+				`{"path":"/repo/a.go","status":"applied","diff":"` + diffAJSON + `"},` +
+				`{"path":"/repo/b.go","status":"applied","diff":"` + diffBJSON + `"}]}`,
+		},
+		{
+			// One line names every no-op in a file.
+			name: "EveryNoOpInAFileNamed",
+			input: `{"edits":[` +
+				`{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 1"},` +
+				editB + `,` +
+				`{"path":"/repo/a.go","old_text":"y := 1","new_text":"y := 2"},` +
+				`{"path":"/repo/a.go","old_text":"z","new_text":"z","replace_all":true}` +
+				`]}`,
+			files: edits(
+				workspacesdk.FileEdits{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{{OldText: "y := 1", NewText: "y := 2"}}},
+				workspacesdk.FileEdits{Path: "/repo/b.go", Edits: []workspacesdk.FileEdit{fileEditB}},
+			),
+			resp: results(result("/repo/a.go", diffA), failed("/repo/b.go", "open /repo/b.go: file does not exist")),
+			want: `{"status":"partial",` +
+				`"message":"Applied 1 of 4 edits. Not applied:\n` +
+				`- edits[0], edits[3] (/repo/a.go): ` + noOpLines + `\n` +
+				`- edits[1] (/repo/b.go): open /repo/b.go: file does not exist. /repo/b.go is unchanged; fix and resend only these edits.",` +
+				`"files":[` +
+				`{"path":"/repo/b.go","status":"rejected","edits":[1],"error":"open /repo/b.go: file does not exist"},` +
+				`{"path":"/repo/a.go","status":"applied","diff":"` + diffAJSON + `"}]}`,
+		},
+		{
+			// A file with a no-op and a failing edit gets a line for
+			// each, and its entry lists only the edits that were sent.
+			name:        "NoOpAndFailingEditInOneFile",
+			input:       `{"edits":[{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 1"},` + editA + `]}`,
+			files:       edits(workspacesdk.FileEdits{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{fileEditA}}),
+			resp:        results(failed("/repo/a.go", "edit /repo/a.go: search string not found in file")),
+			wantIsError: true,
+			want: "Applied 0 of 2 edits. Not applied:\n" +
+				"- edits[0] (/repo/a.go): " + noOpLine + "\n" +
+				"- edits[1] (/repo/a.go): edit /repo/a.go: search string not found in file. /repo/a.go is unchanged; fix and resend only these edits.",
+		},
+		{
+			// Texts that differ only in whitespace or line endings, or
+			// where one side is empty, are not no-ops.
+			name: "NearlyIdenticalTextsAreSent",
+			input: `{"edits":[` +
+				`{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 1 "},` +
+				`{"path":"/repo/a.go","old_text":"\tfoo()","new_text":"    foo()"},` +
+				`{"path":"/repo/a.go","old_text":"a\nb","new_text":"a\r\nb"},` +
+				`{"path":"/repo/a.go","old_text":"y := 1","new_text":""}` +
+				`]}`,
+			files: edits(workspacesdk.FileEdits{
+				Path: "/repo/a.go",
+				Edits: []workspacesdk.FileEdit{
+					{OldText: "x := 1", NewText: "x := 1 "},
+					{OldText: "\tfoo()", NewText: "    foo()"},
+					{OldText: "a\nb", NewText: "a\r\nb"},
+					{OldText: "y := 1", NewText: ""},
+				},
+			}),
+			resp: results(result("/repo/a.go", diffA)),
+			want: `{"status":"applied","message":"Applied 4 of 4 edits.","files":[{"path":"/repo/a.go","status":"applied","diff":"` + diffAJSON + `"}]}`,
+		},
+		{
+			// Empty old_text is left for the agent to reject.
+			name:        "EmptyOldTextIsSent",
+			input:       `{"edits":[{"path":"/repo/a.go","old_text":"","new_text":"x := 2"}]}`,
+			files:       edits(workspacesdk.FileEdits{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{{NewText: "x := 2"}}}),
+			resp:        results(failed("/repo/a.go", "old_text must not be empty")),
+			wantIsError: true,
+			want:        "Applied 0 of 1 edit. Not applied:\n- edits[0] (/repo/a.go): old_text must not be empty. /repo/a.go is unchanged; fix and resend only these edits.",
+		},
+		{
 			// When the coderd checks reject every file, nothing is sent.
 			name:        "EveryFileRejectedSendsNoRequest",
 			input:       `{"edits":[{"path":"plan.md","old_text":"a","new_text":"b"}]}`,
@@ -1048,8 +1221,8 @@ func TestEditFiles_IndependentFiles(t *testing.T) {
 
 	// A call interrupted before its request is reported as not
 	// applied, without a request or a resend instruction. The interrupt
-	// is checked before the path checks, so a plan-named file gets the
-	// interrupt reason rather than a resolver error.
+	// is checked before the path and no-op checks, so a plan-named file
+	// and a no-op get the interrupt reason.
 	t.Run("Interrupted", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
@@ -1067,13 +1240,14 @@ func TestEditFiles_IndependentFiles(t *testing.T) {
 		resp, err := tool.Run(ctx, fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "edit_files",
-			Input: `{"edits":[` + editA + `,{"path":"/home/coder/plan.md","old_text":"c","new_text":"d"}]}`,
+			Input: `{"edits":[` + editA + `,{"path":"/home/coder/plan.md","old_text":"c","new_text":"d"},{"path":"/repo/b.go","old_text":"foo()","new_text":"foo()"}]}`,
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError, resp.Content)
-		assert.Equal(t, "Applied 0 of 2 edits. Not applied:\n"+
+		assert.Equal(t, "Applied 0 of 3 edits. Not applied:\n"+
 			"- edits[0] (/repo/a.go): not sent because the tool call was interrupted.\n"+
-			"- edits[1] (/home/coder/plan.md): not sent because the tool call was interrupted.", resp.Content)
+			"- edits[1] (/home/coder/plan.md): not sent because the tool call was interrupted.\n"+
+			"- edits[2] (/repo/b.go): not sent because the tool call was interrupted.", resp.Content)
 	})
 }
 
