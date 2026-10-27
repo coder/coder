@@ -764,8 +764,15 @@ func (p *Server) buildTurnEnvironment(
 		chattool.ProcessList(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.ProcessSignal(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 	}
+	// Web UI chats can answer a question while the agent keeps working, so
+	// outside plan mode the question does not end the turn. API chats keep
+	// the tool in plan mode only, where it stops the turn.
+	asyncAskUserQuestion := isRootChat && !isPlanModeTurn && !isExploreSubagent &&
+		chat.ClientType == database.ChatClientTypeUi
 	if isPlanModeTurn && isRootChat {
-		tools = append(tools, chattool.NewAskUserQuestionTool())
+		tools = append(tools, chattool.NewAskUserQuestionTool(chattool.AskUserQuestionOptions{}))
+	} else if asyncAskUserQuestion {
+		tools = append(tools, chattool.NewAskUserQuestionTool(chattool.AskUserQuestionOptions{Async: true}))
 	}
 	if isRootChat {
 		tools, err = p.appendRootChatTools(ctx, tools, rootChatToolsOptions{
@@ -1235,6 +1242,9 @@ func (p *Server) afterGenerationOutcome(
 	chat := outcome.Chat
 	logger := p.logger.With(slog.F("chat_id", chat.ID), slog.F("owner_id", chat.OwnerID))
 
+	if outcome.AsyncQuestion != "" {
+		p.dispatchQuestionPush(ctx, chat, outcome.AsyncQuestion, logger)
+	}
 	switch outcome.Kind {
 	case runnerActionKindFinishTurn:
 		finalizeCtx := context.WithoutCancel(ctx)
