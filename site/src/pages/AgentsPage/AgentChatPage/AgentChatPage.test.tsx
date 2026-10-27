@@ -43,8 +43,7 @@ const renderChatPage = (
 		() =>
 			new OneWayWebSocket({
 				apiRoute: `/api/experimental/chats/${mockProjectChat.id}/stream`,
-				websocketInit: (url, protocol) =>
-					createMockWebSocket(url, protocol)[0],
+				websocketInit: (url, protocol) => createMockWebSocket(url, protocol)[0],
 			}),
 	);
 	vi.spyOn(API.experimental, "getChat").mockResolvedValue(mockProjectChat);
