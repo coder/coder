@@ -396,7 +396,7 @@ describe("submitChatTurn", () => {
 			textMessage(3, "user", "old"),
 			textMessage(4, "assistant", "old answer"),
 		]);
-		store.setQueuedMessages([{ ...MockChatQueuedMessage, id: 8 }]);
+		store.setQueuedMessages([{ ...MockChatQueuedMessage, id: 8 }], 2);
 		store.applyMessagePart({ type: "text", text: "old partial answer" });
 		const edit = createDeferred<undefined>();
 		const editMessage = vi.fn(() => edit.promise);
@@ -421,9 +421,9 @@ describe("submitChatTurn", () => {
 		expect(selectQueuedMessages(store.getSnapshot())).toEqual([]);
 
 		store.batch(() => {
-			store.resetHistoryFrom(3);
-			store.upsertDurableMessages([textMessage(9, "user", "new")]);
-			store.setQueuedMessages([]);
+			store.resetHistoryFrom(3, 2);
+			store.upsertDurableMessages([textMessage(9, "user", "new")], 2);
+			store.setQueuedMessages([], 2);
 			store.applyServerChatStatus("running");
 		});
 		expect(visibleTexts(store)).toEqual(["first", "answer", "new"]);
@@ -478,7 +478,7 @@ describe("submitChatTurn", () => {
 		expect(visibleTexts(store)).toEqual(["first", "hello"]);
 
 		store.batch(() => {
-			store.upsertDurableMessages([textMessage(9, "user", "hello")]);
+			store.upsertDurableMessages([textMessage(9, "user", "hello")], 2);
 			store.applyServerChatStatus("running");
 		});
 		expect(visibleTexts(store)).toEqual(["first", "hello"]);
@@ -489,7 +489,7 @@ describe("submitChatTurn", () => {
 		const store = seededStore([textMessage(1, "user", "first")]);
 		const sendMessage = vi.fn(async () => {
 			store.batch(() => {
-				store.upsertDurableMessages([textMessage(9, "user", "hello")]);
+				store.upsertDurableMessages([textMessage(9, "user", "hello")], 2);
 				store.applyServerChatStatus("running");
 			});
 			return { queued: false };
@@ -515,7 +515,7 @@ describe("submitChatTurn", () => {
 		).toEqual([queued.content]);
 
 		store.batch(() => {
-			store.setQueuedMessages([queued]);
+			store.setQueuedMessages([queued], 2);
 			store.applyServerChatStatus("running");
 		});
 		expect(selectQueuedMessages(store.getSnapshot())).toEqual([queued]);

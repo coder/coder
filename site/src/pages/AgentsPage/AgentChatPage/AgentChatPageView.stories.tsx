@@ -870,8 +870,8 @@ const replaceStoreMessages = (
 	msgs: TypesGen.ChatMessage[],
 ) =>
 	store.batch(() => {
-		store.resetHistoryFrom(0);
-		store.upsertDurableMessages(msgs);
+		store.resetHistoryFrom(0, 1);
+		store.upsertDurableMessages(msgs, 1);
 	});
 
 const buildStoreWithMessages = (
@@ -880,7 +880,7 @@ const buildStoreWithMessages = (
 	queuedMessages?: TypesGen.ChatQueuedMessage[],
 ) => {
 	const store = createChatStore();
-	store.upsertDurableMessages(msgs);
+	store.upsertDurableMessages(msgs, 1);
 	store.applyServerChatStatus(status);
 	return store;
 };
@@ -1078,7 +1078,7 @@ const prependOlderMessages = (
 				: `Older answer ${Math.abs(id)}.`;
 		return buildMessage(id, role, text);
 	});
-	store.upsertDurableMessages(olderMessages);
+	store.upsertDurableMessages(olderMessages, 1);
 };
 
 const singleRenderStore = buildStoreWithMessages([
@@ -1201,9 +1201,10 @@ export const StreamCompletionKeepsViewportPosition: Story = {
 		// A new turn begins: the prompt is appended and the assistant starts
 		// streaming into the live row.
 		streamCompletionStore.batch(() => {
-			streamCompletionStore.upsertDurableMessages([
-				buildMessage(41, "user", "Final question."),
-			]);
+			streamCompletionStore.upsertDurableMessages(
+				[buildMessage(41, "user", "Final question.")],
+				1,
+			);
 			streamCompletionStore.applyServerChatStatus("running");
 			streamCompletionStore.applyMessageParts([
 				{ type: "text", text: "Streaming the final answer." },
@@ -1219,9 +1220,10 @@ export const StreamCompletionKeepsViewportPosition: Story = {
 
 		// The durable assistant row replaces the live row, then the turn ends.
 		streamCompletionStore.batch(() => {
-			streamCompletionStore.upsertDurableMessages([
-				buildMessage(42, "assistant", "Streaming the final answer."),
-			]);
+			streamCompletionStore.upsertDurableMessages(
+				[buildMessage(42, "assistant", "Streaming the final answer.")],
+				1,
+			);
 			streamCompletionStore.clearStreamState();
 			streamCompletionStore.applyServerChatStatus("waiting");
 		});
@@ -1263,9 +1265,10 @@ export const ThinkingHandoffKeepsPromptPosition: Story = {
 		// Begin a turn: the prompt is appended and the chat goes running, so
 		// the live row shows the Thinking indicator with no stream output yet.
 		thinkingShiftStore.batch(() => {
-			thinkingShiftStore.upsertDurableMessages([
-				buildMessage(41, "user", "Follow-up question."),
-			]);
+			thinkingShiftStore.upsertDurableMessages(
+				[buildMessage(41, "user", "Follow-up question.")],
+				1,
+			);
 			thinkingShiftStore.applyServerChatStatus("running");
 		});
 		await canvas.findByTestId("chat-message-live-assistant");
@@ -1314,13 +1317,16 @@ const UnderflowPaginationStory: React.FC = () => {
 
 	const completePage = () => {
 		const nextPage = loadedPages + 1;
-		store.upsertDurableMessages([
-			buildMessage(
-				9 - nextPage,
-				nextPage % 2 === 1 ? "user" : "assistant",
-				`Loaded underflow page ${nextPage}. `.repeat(20),
-			),
-		]);
+		store.upsertDurableMessages(
+			[
+				buildMessage(
+					9 - nextPage,
+					nextPage % 2 === 1 ? "user" : "assistant",
+					`Loaded underflow page ${nextPage}. `.repeat(20),
+				),
+			],
+			1,
+		);
 		setLoadedPages(nextPage);
 		setIsFetching(false);
 	};
