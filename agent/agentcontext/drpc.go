@@ -122,13 +122,16 @@ func setResourceBody(entry *agentproto.ContextResource, r Resource) {
 			McpConfig: &agentproto.MCPConfigBody{},
 		}
 	case KindMCPServer:
-		entry.Body = &agentproto.ContextResource_McpServer{
-			McpServer: &agentproto.MCPServerBody{
-				ServerName:  serverNameOrSource(r),
-				Description: r.Description,
-				Tools:       mcpToolsToProto(r.Tools),
-			},
-		}
+		entry.Body = &agentproto.ContextResource_McpServer{McpServer: mcpServerBody(r)}
+	}
+}
+
+// mcpServerBody builds the wire body of a KindMCPServer resource.
+func mcpServerBody(r Resource) *agentproto.MCPServerBody {
+	return &agentproto.MCPServerBody{
+		ServerName:  serverNameOrSource(r),
+		Description: r.Description,
+		Tools:       mcpToolsToProto(r.Tools),
 	}
 }
 
@@ -154,18 +157,22 @@ func mcpToolsToProto(in []MCPTool) []*agentproto.MCPTool {
 	}
 	out := make([]*agentproto.MCPTool, 0, len(in))
 	for _, t := range in {
-		entry := &agentproto.MCPTool{
-			Name:        t.Name,
-			Description: t.Description,
-		}
-		if len(t.InputSchema) > 0 {
-			if s, err := structpb.NewStruct(t.InputSchema); err == nil {
-				entry.InputSchema = s
-			}
-		}
-		out = append(out, entry)
+		out = append(out, mcpToolToProto(t))
 	}
 	return out
+}
+
+func mcpToolToProto(t MCPTool) *agentproto.MCPTool {
+	entry := &agentproto.MCPTool{
+		Name:        t.Name,
+		Description: t.Description,
+	}
+	if len(t.InputSchema) > 0 {
+		if s, err := structpb.NewStruct(t.InputSchema); err == nil {
+			entry.InputSchema = s
+		}
+	}
+	return entry
 }
 
 // resourceStatusToProto maps a ResourceStatus to its proto enum.
