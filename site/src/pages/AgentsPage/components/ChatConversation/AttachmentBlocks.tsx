@@ -171,8 +171,8 @@ const DownloadOverlay: React.FC<AttachmentDownload> = (download) => (
 	<AttachmentDownloadLink
 		{...download}
 		// The frame sets the blur only while the link shows, so a hidden link adds
-		// no compositing layer.
-		className="absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-(--download-opacity) shadow-xs [backdrop-filter:var(--download-backdrop-filter)] transition-opacity [pointer-events:var(--download-pointer-events)] hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+		// no compositing layer. The blur transitions with the opacity so both fade.
+		className="absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-(--download-opacity) shadow-xs [backdrop-filter:var(--download-backdrop-filter)] transition-[opacity,backdrop-filter] [pointer-events:var(--download-pointer-events)] hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 	>
 		<DownloadIcon aria-hidden="true" className="size-3.5" />
 	</AttachmentDownloadLink>
