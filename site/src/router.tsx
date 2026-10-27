@@ -565,8 +565,6 @@ const RedirectAIBridgeSession = () => {
 	return <Navigate to={`/ai-gateway/sessions/${sessionId}`} replace />;
 };
 
-// Rewrites the window's first history entry, so it must run before
-// createBrowserRouter reads it.
 openChatListFirst();
 
 export const router = createBrowserRouter(

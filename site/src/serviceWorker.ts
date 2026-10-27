@@ -4,7 +4,6 @@ import type { WebpushMessage } from "#/api/typesGenerated";
 
 declare const self: ServiceWorkerGlobalScope;
 
-// The page a notification opens.
 const notificationTargetUrl = (data: WebpushMessage["data"]): string =>
 	data?.url || "/agents";
 
