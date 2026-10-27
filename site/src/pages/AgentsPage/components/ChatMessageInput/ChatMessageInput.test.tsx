@@ -840,5 +840,35 @@ describe("ChatMessageInput", () => {
 				expect(getRequestContent(inputRef)).toEqual(content);
 			});
 		});
+
+		it("reopens an edited async answer with its skill chips and without its prefix line", async () => {
+			const { editorState } = getEditableUserMessagePayload({
+				...MockChatMessage,
+				content: [
+					{
+						type: "text",
+						text: "Answer to ask_user_question call call-1:\nUse ",
+					},
+					mockSkillPart("project", "triage"),
+					{ type: "text", text: " on the diff" },
+				],
+			});
+			const inputRef = createRef<ChatMessageInputRef>();
+			renderWithQueryClient(
+				<ChatMessageInput
+					{...requiredProps()}
+					ref={inputRef}
+					initialEditorState={editorState}
+					aria-label="Chat message input"
+				/>,
+			);
+			await waitFor(() => {
+				expect(getRequestContent(inputRef)).toEqual([
+					{ type: "text", text: "Use " },
+					mockSkillPart("project", "triage"),
+					{ type: "text", text: " on the diff" },
+				]);
+			});
+		});
 	});
 });

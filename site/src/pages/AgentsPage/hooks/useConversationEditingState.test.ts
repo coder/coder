@@ -326,7 +326,7 @@ describe("useConversationEditingState", () => {
 	it("puts an edited async answer's prefix line before a leading chip", async () => {
 		const { result, onSend, unmount } = renderEditing();
 		const mockInput = createMockChatInputHandle();
-		const fileReference = {
+		const mockFileReference = {
 			type: "file-reference",
 			reference: {
 				fileName: "main.go",
@@ -336,7 +336,7 @@ describe("useConversationEditingState", () => {
 			},
 		} as const;
 		vi.mocked(mockInput.handle.getContentParts).mockReturnValue([
-			fileReference,
+			mockFileReference,
 			{ type: "text", text: " Frontend" },
 		]);
 		result.current.chatInputRef.current = mockInput.handle;
@@ -358,7 +358,7 @@ describe("useConversationEditingState", () => {
 						type: "text",
 						text: "Answer to ask_user_question call question:\n",
 					},
-					fileReference,
+					mockFileReference,
 					{ type: "text", text: " Frontend" },
 				],
 			}),
