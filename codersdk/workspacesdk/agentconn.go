@@ -1408,16 +1408,19 @@ type FileEditRequest struct {
 	// and return it in FileEditResponse.Files[i].Diff. When false
 	// (default) the agent skips diff computation and Files is nil.
 	IncludeDiff bool `json:"include_diff,omitempty"`
+	// IndependentFiles asks the agent to apply each file on its own: a
+	// file with an error is left unchanged and the other files are still
+	// written. The response then has one entry per file, with Error set
+	// for each file that was not written. Agents that predate the field
+	// ignore it and apply the request all or nothing.
+	IndependentFiles bool `json:"independent_files,omitempty"`
 }
 
 // FileEditResponse is the success response for the edit-files endpoint.
-// When the request's IncludeDiff flag is set, Files contains one entry
-// per edited file in request order. Each entry's Path matches the
+// When the request's IncludeDiff or IndependentFiles flag is set, Files
+// contains one entry per file in request order, after the agent merges
+// entries that name the same path. Each entry's Path matches the
 // caller-supplied path (pre-symlink resolution).
-//
-// The slice is named Files (rather than Diffs) so future work can
-// hang per-file errors or status off each element without a second
-// wire break.
 type FileEditResponse struct {
 	Files []FileEditResult `json:"files,omitempty"`
 }
@@ -1426,10 +1429,13 @@ type FileEditResponse struct {
 // the original caller-supplied path, not any symlink-resolved
 // target. Diff is the unified-diff string produced when the
 // caller set FileEditRequest.IncludeDiff; it is empty for no-op
-// edits or when diffs were not requested.
+// edits or when diffs were not requested. Error is set only for a
+// request with IndependentFiles, and says why the file was not
+// written; the file is unchanged.
 type FileEditResult struct {
-	Path string `json:"path"`
-	Diff string `json:"diff"`
+	Path  string `json:"path"`
+	Diff  string `json:"diff"`
+	Error string `json:"error,omitempty"`
 }
 
 // MCPToolInfo describes a single tool discovered from an MCP

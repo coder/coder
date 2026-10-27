@@ -1773,6 +1773,130 @@ func TestEditFiles_FileResults(t *testing.T) {
 // decodes the success body into FileEditResponse. It requires a 200
 // response; tests for error paths should decode the error shape
 // directly.
+func TestEditFiles_IndependentFiles(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	dir := os.TempDir()
+	pathA := filepath.Join(dir, "independent-a")
+	pathB := filepath.Join(dir, "independent-b")
+	missing := filepath.Join(dir, "independent-missing")
+
+	tests := []struct {
+		name        string
+		includeDiff bool
+		files       []workspacesdk.FileEdits
+		// wantErrors maps each reported path to a substring of its
+		// error, or "" when it was written.
+		wantErrors map[string]string
+		wantA      string
+		wantB      string
+	}{
+		{
+			name:        "FailingFileDoesNotStopOthers",
+			includeDiff: true,
+			files: []workspacesdk.FileEdits{
+				{Path: pathA, Edits: []workspacesdk.FileEdit{{OldText: "absent", NewText: "x"}}},
+				{Path: pathB, Edits: []workspacesdk.FileEdit{{OldText: "b", NewText: "B"}}},
+			},
+			wantErrors: map[string]string{pathA: "old_text not found", pathB: ""},
+			wantA:      "a\n",
+			wantB:      "B\n",
+		},
+		{
+			// A failing edit leaves its whole file unchanged, including
+			// the edits before it.
+			name: "FileIsAllOrNothing",
+			files: []workspacesdk.FileEdits{
+				{Path: pathA, Edits: []workspacesdk.FileEdit{{OldText: "a", NewText: "A"}, {OldText: "absent", NewText: "x"}}},
+				{Path: missing, Edits: []workspacesdk.FileEdit{{OldText: "m", NewText: "M"}}},
+				{Path: pathB, Edits: []workspacesdk.FileEdit{{OldText: "b", NewText: "B"}}},
+			},
+			wantErrors: map[string]string{pathA: "old_text not found", missing: "file does not exist", pathB: ""},
+			wantA:      "a\n",
+			wantB:      "B\n",
+		},
+		{
+			name: "EveryFileFails",
+			files: []workspacesdk.FileEdits{
+				{Path: pathA, Edits: []workspacesdk.FileEdit{{OldText: "absent", NewText: "x"}}},
+				{Path: "relative", Edits: []workspacesdk.FileEdit{{OldText: "b", NewText: "B"}}},
+			},
+			wantErrors: map[string]string{pathA: "old_text not found", "relative": "must be absolute"},
+			wantA:      "a\n",
+			wantB:      "b\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			fs := afero.NewMemMapFs()
+			require.NoError(t, afero.WriteFile(fs, pathA, []byte("a\n"), 0o644))
+			require.NoError(t, afero.WriteFile(fs, pathB, []byte("b\n"), 0o644))
+			api := agentfiles.NewAPI(logger, fs, nil)
+
+			resp := runEditFiles(t, api, workspacesdk.FileEditRequest{
+				Files:            tt.files,
+				IncludeDiff:      tt.includeDiff,
+				IndependentFiles: true,
+			})
+
+			require.Len(t, resp.Files, len(tt.files))
+			for i, file := range resp.Files {
+				require.Equal(t, tt.files[i].Path, file.Path, "results follow request order")
+				wantErr := tt.wantErrors[file.Path]
+				if wantErr == "" {
+					require.Empty(t, file.Error, file.Path)
+					if tt.includeDiff {
+						require.NotEmpty(t, file.Diff, file.Path)
+					}
+					continue
+				}
+				require.Contains(t, file.Error, wantErr, file.Path)
+				require.Empty(t, file.Diff, file.Path)
+			}
+			gotA, err := afero.ReadFile(fs, pathA)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantA, string(gotA))
+			gotB, err := afero.ReadFile(fs, pathB)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantB, string(gotB))
+		})
+	}
+}
+
+// Only files that were written are recorded for git watch.
+func TestHandleEditFiles_IndependentFiles_UpdatesPathStoreForWrittenFiles(t *testing.T) {
+	t.Parallel()
+
+	pathStore := agentgit.NewPathStore()
+	fs := afero.NewMemMapFs()
+	api := agentfiles.NewAPI(slogtest.Make(t, nil), fs, pathStore)
+	written := filepath.Join(os.TempDir(), "independent-written")
+	require.NoError(t, afero.WriteFile(fs, written, []byte("hello"), 0o644))
+
+	chatID := uuid.New()
+	body, err := json.Marshal(workspacesdk.FileEditRequest{
+		IndependentFiles: true,
+		Files: []workspacesdk.FileEdits{
+			{Path: "/nonexistent/file.txt", Edits: []workspacesdk.FileEdit{{OldText: "hello", NewText: "world"}}},
+			{Path: written, Edits: []workspacesdk.FileEdit{{OldText: "hello", NewText: "world"}}},
+		},
+	})
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/edit-files", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(workspacesdk.CoderChatIDHeader, chatID.String())
+
+	rr := httptest.NewRecorder()
+	r := chi.NewRouter()
+	r.Post("/edit-files", api.HandleEditFiles)
+	agentchat.Middleware(r).ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	require.Equal(t, []string{written}, pathStore.GetPaths(chatID))
+}
+
 func runEditFiles(t *testing.T, api *agentfiles.API, req workspacesdk.FileEditRequest) workspacesdk.FileEditResponse {
 	t.Helper()
 

@@ -10,8 +10,11 @@ func planPathVerificationMessage(requestedPath string) string {
 		" could not be verified because the workspace is currently unavailable to resolve the chat-specific plan path, try again shortly"
 }
 
-func editFilesBatchRejectedMessage(message string) string {
-	return message + ".\nNo edits were applied."
+// editFilesOnlyEditRejectedMessage is the edit_files error result for
+// a call whose only edit, to path, was rejected with message.
+func editFilesOnlyEditRejectedMessage(path, message string) string {
+	return "Applied 0 of 1 edit. Not applied:\n- edits[0] (" + path + "): " + message +
+		". " + path + " is unchanged; fix and resend only these edits."
 }
 
 func relativePlanPathMessage() string {

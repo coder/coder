@@ -423,6 +423,11 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 	}
 	req.Files = merged
 
+	if req.IndependentFiles {
+		api.editFilesIndependently(ctx, rw, req)
+		return
+	}
+
 	// Phase 1: compute all edits in memory. If any file fails
 	// (bad path, search miss, permission error), bail before
 	// writing anything.
@@ -463,40 +468,78 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Track edited paths for git watch.
-	if api.pathStore != nil {
-		if chatContext, ok := agentchat.FromContext(ctx); ok {
-			filePaths := make([]string, 0, len(req.Files))
-			for _, f := range req.Files {
-				filePaths = append(filePaths, f.Path)
-			}
-			api.pathStore.AddPaths(append([]uuid.UUID{chatContext.ID}, chatContext.AncestorIDs...), filePaths)
-		}
+	filePaths := make([]string, 0, len(req.Files))
+	for _, f := range req.Files {
+		filePaths = append(filePaths, f.Path)
 	}
+	api.trackEditedPaths(ctx, filePaths)
 
 	resp := workspacesdk.FileEditResponse{}
 	if req.IncludeDiff {
 		resp.Files = make([]workspacesdk.FileEditResult, 0, len(pending))
 		for _, p := range pending {
-			// udiff.Unified calls log.Fatalf on its internal error,
-			// which would kill the agent process. Route through
-			// Lines + ToUnified so a library bug yields an empty
-			// diff plus a log line instead.
-			edits := udiff.Lines(p.oldContent, p.content)
-			diff, err := udiff.ToUnified(p.origPath, p.origPath, p.oldContent, edits, udiff.DefaultContextLines)
-			if err != nil {
-				api.logger.Warn(ctx, "unified diff computation failed",
-					slog.F("path", p.origPath),
-					slog.Error(err))
-				diff = ""
-			}
 			resp.Files = append(resp.Files, workspacesdk.FileEditResult{
 				Path: p.origPath,
-				Diff: diff,
+				Diff: api.unifiedDiff(ctx, p),
 			})
 		}
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// editFilesIndependently prepares and writes each file on its own, so a
+// file with an error is left unchanged and does not stop the others,
+// and reports every file's outcome. Each file is written to a temporary
+// file and renamed into place, so a failed write leaves it unchanged.
+func (api *API) editFilesIndependently(ctx context.Context, rw http.ResponseWriter, req workspacesdk.FileEditRequest) {
+	resp := workspacesdk.FileEditResponse{Files: make([]workspacesdk.FileEditResult, 0, len(req.Files))}
+	written := make([]string, 0, len(req.Files))
+	for _, f := range req.Files {
+		result := workspacesdk.FileEditResult{Path: f.Path}
+		_, p, err := api.prepareFileEdit(f.Path, f.Edits)
+		if err == nil {
+			mode := p.mode
+			_, err = api.atomicWrite(ctx, p.path, &mode, strings.NewReader(p.content))
+		}
+		if err != nil {
+			result.Error = err.Error()
+		} else {
+			written = append(written, f.Path)
+			if req.IncludeDiff {
+				result.Diff = api.unifiedDiff(ctx, *p)
+			}
+		}
+		resp.Files = append(resp.Files, result)
+	}
+	api.trackEditedPaths(ctx, written)
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// trackEditedPaths records edited paths for git watch.
+func (api *API) trackEditedPaths(ctx context.Context, paths []string) {
+	if api.pathStore == nil || len(paths) == 0 {
+		return
+	}
+	if chatContext, ok := agentchat.FromContext(ctx); ok {
+		api.pathStore.AddPaths(append([]uuid.UUID{chatContext.ID}, chatContext.AncestorIDs...), paths)
+	}
+}
+
+// unifiedDiff returns the diff of an applied edit, or "" when it cannot
+// be computed.
+func (api *API) unifiedDiff(ctx context.Context, p pendingEdit) string {
+	// udiff.Unified calls log.Fatalf on its internal error, which would
+	// kill the agent process. Route through Lines + ToUnified so a
+	// library bug yields an empty diff plus a log line instead.
+	edits := udiff.Lines(p.oldContent, p.content)
+	diff, err := udiff.ToUnified(p.origPath, p.origPath, p.oldContent, edits, udiff.DefaultContextLines)
+	if err != nil {
+		api.logger.Warn(ctx, "unified diff computation failed",
+			slog.F("path", p.origPath),
+			slog.Error(err))
+		return ""
+	}
+	return diff
 }
 
 // prepareFileEdit validates, reads, and computes edits for a single
