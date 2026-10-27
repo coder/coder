@@ -2745,6 +2745,67 @@ describe("useChatStore", () => {
 		);
 	});
 
+	it("renders a reopened chat without the previous visit's stream state", async () => {
+		const sockets = mockWatchChatWithFreshSockets();
+		const chatID = "chat-reopen-transient";
+		const wrapper = createWrapper(
+			new QueryClient({
+				defaultOptions: {
+					queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
+				},
+			}),
+		);
+		mockNewestPage(chatID, {
+			messages: [buildMessage(chatID, 1, "user", "prompt")],
+			queued_messages: [],
+			has_more: false,
+			snapshot_version: 5,
+		});
+		const renders: (TypesGen.ChatStatus | null)[] = [];
+		const renderChat = () =>
+			renderHook(
+				() => {
+					const { store } = useChatStore({
+						chatID,
+						setChatErrorReason: vi.fn(),
+						clearChatErrorReason: vi.fn(),
+					});
+					const status = useChatSelector(store, selectChatStatus);
+					const streamState = useChatSelector(store, selectStreamState);
+					renders.push(status);
+					return { store, status, streamState };
+				},
+				{ wrapper },
+			);
+
+		const first = renderChat();
+		await waitFor(() => expect(sockets).toHaveLength(1));
+		act(() => {
+			sockets[0].emitOpen();
+			sockets[0].emitDataBatch([
+				{ type: "status", chat_id: chatID, status: { status: "running" } },
+				{
+					type: "message_part",
+					chat_id: chatID,
+					message_part: {
+						role: "assistant",
+						part: { type: "text", text: "hi" },
+					},
+				},
+			]);
+		});
+		await waitFor(() =>
+			expect(first.result.current.streamState).not.toBeNull(),
+		);
+		first.unmount();
+		renders.length = 0;
+
+		const second = renderChat();
+		expect(second.result.current.store).toBe(first.result.current.store);
+		expect(renders[0]).toBeNull();
+		expect(second.result.current.streamState).toBeNull();
+	});
+
 	it("reopens a remounted chat at its last snapshot version without fetching its page again", async () => {
 		const sockets = mockWatchChatWithFreshSockets();
 		const chatID = "chat-remount-snapshot-version";
