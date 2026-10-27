@@ -73,6 +73,13 @@ export const RBACResourceActions: Partial<
 		share: "share a chat with other users or groups",
 		update: "update chat title or settings",
 	},
+	chat_artifact: {
+		create: "create a chat artifact",
+		delete: "delete a chat artifact",
+		read: "read chat artifacts and their versions",
+		share: "share a chat artifact with other users or groups",
+		update: "publish a new version of a chat artifact",
+	},
 	chat_model_config: {
 		create: "create a new chat model config",
 		delete: "delete a chat model config",

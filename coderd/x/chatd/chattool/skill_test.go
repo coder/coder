@@ -416,6 +416,31 @@ func TestReadSkillTool(t *testing.T) {
 		assert.NotContains(t, resp.Content, `"dir"`)
 	})
 
+	t.Run("BuiltinSkill", func(t *testing.T) {
+		t.Parallel()
+
+		builtin := skillspkg.Skill{Name: "coder-kit", Description: "test", Source: skillspkg.SourceBuiltin}
+		tool := chattool.ReadSkill(chattool.ReadSkillOptions{
+			ResolveAlias: func(string) (skillspkg.ResolvedSkill, error) {
+				return skillspkg.ResolvedSkill{Skill: builtin, Alias: "coder-kit"}, nil
+			},
+			LoadStoredSkillBody: func(_ context.Context, skill skillspkg.Skill) (skillspkg.ParsedSkill, error) {
+				require.Equal(t, builtin, skill)
+				return skillspkg.ParsedSkill{Skill: builtin, Body: "Built-in instructions."}, nil
+			},
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "read_skill",
+			Input: `{"name":"coder-kit"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError, resp.Content)
+		assert.Contains(t, resp.Content, "Built-in instructions.")
+		assert.Contains(t, resp.Content, `"files":[]`)
+	})
+
 	t.Run("PersonalQualifiedAliasPreservesAlias", func(t *testing.T) {
 		t.Parallel()
 

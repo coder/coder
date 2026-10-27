@@ -2088,6 +2088,7 @@ func TestPersonalSkillsInSystemPrompt(t *testing.T) {
 			nil,
 			nil,
 			nil,
+			nil,
 		),
 		"",
 		"",
@@ -2117,6 +2118,7 @@ func TestPersonalAndWorkspaceSkillCollisionInSystemPrompt(t *testing.T) {
 			Description: "Workspace deployment process",
 			Dir:         "/skills/deploy",
 		}},
+		nil,
 	)
 	prompt := buildSystemPrompt(
 		nil,
@@ -2173,6 +2175,7 @@ func TestModelHiddenWorkspaceSkillsLeftOutOfModelSkills(t *testing.T) {
 		nil,
 		nil,
 		workspaceSkills,
+		nil,
 	)
 
 	text := systemPromptText(t, buildSystemPrompt(nil, "", "", resolved, "", "", "", systemPromptBehaviorContext{}))

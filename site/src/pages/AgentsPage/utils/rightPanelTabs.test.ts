@@ -24,6 +24,7 @@ import {
 import {
 	type UserRightPanelTab,
 	validateUserRightPanelTabs,
+	withArtifactTab,
 } from "./rightPanelTabs";
 
 type TerminalRightPanelTab = Extract<UserRightPanelTab, { kind: "terminal" }>;
@@ -36,6 +37,13 @@ const terminalTab = (
 	reconnectionToken: "11111111-1111-4111-8111-111111111111",
 	...overrides,
 });
+
+const mockArtifactTab: UserRightPanelTab = {
+	id: "artifact-repo-layout",
+	kind: "artifact",
+	label: "Repo layout",
+	artifactId: "artifact-1",
+};
 
 describe("right-panel tab validation", () => {
 	const tabs: UserRightPanelTab[] = [
@@ -75,6 +83,16 @@ describe("right-panel tab validation", () => {
 		});
 
 		expect(validated).toEqual(tabs.filter((tab) => tab.kind !== "terminal"));
+	});
+
+	it("keeps artifact tabs without a workspace", () => {
+		expect(
+			validateUserRightPanelTabs([...tabs, mockArtifactTab], {
+				workspace: undefined,
+				workspaceAgent: undefined,
+				wildcardHostname: "",
+			}),
+		).toEqual([mockArtifactTab]);
 	});
 
 	it("drops port tabs when wildcard access is unavailable", () => {
@@ -198,6 +216,39 @@ function buildApp(
 	};
 }
 
+describe("withArtifactTab", () => {
+	it("adds a tab for an artifact without one", () => {
+		const result = withArtifactTab(
+			[terminalTab()],
+			{ artifactId: "artifact-2", title: "Cache options" },
+			"artifact-new",
+		);
+
+		expect(result.tabId).toBe("artifact-new");
+		expect(result.tabs).toEqual([
+			terminalTab(),
+			{
+				id: "artifact-new",
+				kind: "artifact",
+				label: "Cache options",
+				artifactId: "artifact-2",
+			},
+		]);
+	});
+
+	it("reuses the open tab of an artifact", () => {
+		const tabs = [mockArtifactTab, terminalTab()];
+
+		const result = withArtifactTab(
+			tabs,
+			{ artifactId: mockArtifactTab.artifactId, title: "Renamed" },
+			"artifact-new",
+		);
+
+		expect(result).toEqual({ tabs, tabId: mockArtifactTab.id });
+	});
+});
+
 describe("right-panel tab storage", () => {
 	beforeEach(() => {
 		localStorage.clear();
@@ -278,6 +329,12 @@ describe("right-panel tab storage", () => {
 		savePersistedRightPanelTabs("chat-1", tabs);
 
 		expect(getPersistedRightPanelTabs("chat-1")).toEqual(tabs);
+	});
+
+	it("persists artifact tabs", () => {
+		savePersistedRightPanelTabs("chat-1", [mockArtifactTab]);
+
+		expect(getPersistedRightPanelTabs("chat-1")).toEqual([mockArtifactTab]);
 	});
 
 	it("ignores invalid stored values", () => {

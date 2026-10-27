@@ -116,6 +116,17 @@ func (api *API) registerExperimentalChatRoutes(r chi.Router, apiKeyMiddleware fu
 			r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatProjects))
 			r.Get("/", api.listChatProjects)
 		})
+		r.Route("/artifacts", func(r chi.Router) {
+			r.Get("/", api.listChatArtifacts)
+			r.Route("/{artifact}", func(r chi.Router) {
+				r.Use(httpmw.ExtractChatArtifactParam(api.Database))
+				r.Get("/", api.getChatArtifact)
+				r.Get("/versions/{version}", api.getChatArtifactVersion)
+				r.Get("/versions/{version}/frame", api.chatArtifactFrame)
+				r.Get("/acl", api.getChatArtifactACL)
+				r.Patch("/acl", api.patchChatArtifactACL)
+			})
+		})
 		r.Route("/config", func(r chi.Router) {
 			r.Group(func(r chi.Router) {
 				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatVirtualDesktop))

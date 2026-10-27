@@ -40,6 +40,7 @@ type Auditable interface {
 		database.Chat |
 		database.ChatProject |
 		database.ChatProjectMemory |
+		database.ChatArtifact |
 		database.AuditableChatProjectInstructions |
 		database.ChatModelConfig |
 		database.MCPServerConfig |

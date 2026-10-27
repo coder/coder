@@ -355,6 +355,27 @@ func TestUpdateChatProjectACLByIDDisabled(t *testing.T) {
 	require.ErrorContains(t, err, "chat sharing is disabled")
 }
 
+//nolint:paralleltest // It toggles the global chat ACL flag.
+func TestUpdateChatArtifactACLByIDDisabled(t *testing.T) {
+	rbac.SetChatACLDisabled(true)
+	t.Cleanup(func() { rbac.SetChatACLDisabled(false) })
+
+	// The mock expects no calls: the guard refuses before any lookup.
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	db.EXPECT().Wrappers().Return([]string{}).AnyTimes()
+	q := dbauthz.New(db, &coderdtest.FakeAuthorizer{}, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+	ctx := dbauthz.As(context.Background(), rbac.Subject{ID: uuid.NewString(), Scope: rbac.ScopeAll})
+
+	err := q.UpdateChatArtifactACLByID(ctx, database.UpdateChatArtifactACLByIDParams{
+		ID:       uuid.New(),
+		UserACL:  database.ChatACL{},
+		GroupACL: database.ChatACL{},
+	})
+	require.True(t, dbauthz.IsNotAuthorizedError(err))
+	require.ErrorContains(t, err, "chat sharing is disabled")
+}
+
 func TestUpdateChatModelConfigACLByIDAuthorization(t *testing.T) {
 	t.Parallel()
 
@@ -8476,4 +8497,91 @@ func TestAsExternalAuthChecker(t *testing.T) {
 			require.Error(t, err, "%s read should be denied", res.Type)
 		}
 	})
+}
+
+func (s *MethodTestSuite) TestChatArtifacts() {
+	// fakeArtifact returns an artifact in a project, the project, and the
+	// row that GetChatArtifactByID returns for it.
+	fakeArtifact := func(faker *gofakeit.Faker) (database.ChatArtifact, database.ChatProject, database.GetChatArtifactByIDRow) {
+		project := testutil.Fake(s.T(), faker, database.ChatProject{})
+		artifact := testutil.Fake(s.T(), faker, database.ChatArtifact{
+			OrganizationID: project.OrganizationID,
+			ProjectID:      uuid.NullUUID{UUID: project.ID, Valid: true},
+		})
+		return artifact, project, database.GetChatArtifactByIDRow{ChatArtifact: artifact, LatestVersion: 1}
+	}
+	expectArtifact := func(dbm *dbmock.MockStore, row database.GetChatArtifactByIDRow, project database.ChatProject) {
+		dbm.EXPECT().GetChatArtifactByID(gomock.Any(), row.ChatArtifact.ID).Return(row, nil).AnyTimes()
+		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
+	}
+	s.Run("GetChatArtifactByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		artifact, project, row := fakeArtifact(faker)
+		expectArtifact(dbm, row, project)
+		check.Args(artifact.ID).Asserts(artifact.RBACObject(&project), policy.ActionRead).Returns(row)
+	}))
+	s.Run("GetChatArtifactVersion", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		artifact, project, row := fakeArtifact(faker)
+		expectArtifact(dbm, row, project)
+		version := testutil.Fake(s.T(), faker, database.ChatArtifactVersion{ArtifactID: artifact.ID})
+		arg := database.GetChatArtifactVersionParams{ArtifactID: artifact.ID, Version: version.Version}
+		dbm.EXPECT().GetChatArtifactVersion(gomock.Any(), arg).Return(version, nil).AnyTimes()
+		check.Args(arg).Asserts(artifact.RBACObject(&project), policy.ActionRead).Returns(version)
+	}))
+	s.Run("GetLatestChatArtifactVersion", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		artifact, project, row := fakeArtifact(faker)
+		expectArtifact(dbm, row, project)
+		version := testutil.Fake(s.T(), faker, database.ChatArtifactVersion{ArtifactID: artifact.ID})
+		dbm.EXPECT().GetLatestChatArtifactVersion(gomock.Any(), artifact.ID).Return(version, nil).AnyTimes()
+		check.Args(artifact.ID).Asserts(artifact.RBACObject(&project), policy.ActionRead).Returns(version)
+	}))
+	s.Run("GetChatArtifactVersionsMetadata", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		artifact, project, row := fakeArtifact(faker)
+		expectArtifact(dbm, row, project)
+		versions := []database.GetChatArtifactVersionsMetadataRow{{ArtifactID: artifact.ID, Version: 1}}
+		dbm.EXPECT().GetChatArtifactVersionsMetadata(gomock.Any(), artifact.ID).Return(versions, nil).AnyTimes()
+		check.Args(artifact.ID).Asserts(artifact.RBACObject(&project), policy.ActionRead).Returns(versions)
+	}))
+	s.Run("GetChatArtifactsOwnedOrInUserProjects", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		artifact, project, _ := fakeArtifact(faker)
+		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
+		userID := uuid.New()
+		rows := []database.GetChatArtifactsOwnedOrInUserProjectsRow{{ChatArtifact: artifact, LatestVersion: 1}}
+		dbm.EXPECT().GetChatArtifactsOwnedOrInUserProjects(gomock.Any(), userID).Return(rows, nil).AnyTimes()
+		check.Args(userID).Asserts(artifact.RBACObject(&project), policy.ActionRead).Returns(rows)
+	}))
+	s.Run("InsertChatArtifact", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := testutil.Fake(s.T(), faker, database.InsertChatArtifactParams{})
+		artifact := testutil.Fake(s.T(), faker, database.ChatArtifact{OrganizationID: arg.OrganizationID, OwnerID: arg.OwnerID, ProjectID: arg.ProjectID})
+		dbm.EXPECT().InsertChatArtifact(gomock.Any(), arg).Return(artifact, nil).AnyTimes()
+		obj := database.ChatArtifact{OrganizationID: arg.OrganizationID, OwnerID: arg.OwnerID, ProjectID: arg.ProjectID}.RBACObject(nil)
+		check.Args(arg).Asserts(obj, policy.ActionCreate).Returns(artifact)
+	}))
+	s.Run("InsertChatArtifactVersion", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		artifact, project, row := fakeArtifact(faker)
+		expectArtifact(dbm, row, project)
+		arg := testutil.Fake(s.T(), faker, database.InsertChatArtifactVersionParams{ArtifactID: artifact.ID})
+		out := database.InsertChatArtifactVersionRow{ArtifactID: artifact.ID, Version: arg.BaseVersion + 1}
+		dbm.EXPECT().InsertChatArtifactVersion(gomock.Any(), arg).Return(out, nil).AnyTimes()
+		check.Args(arg).Asserts(artifact.RBACObject(&project), policy.ActionUpdate).Returns(out)
+	}))
+	s.Run("GetChatArtifactByIDForUpdate", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		artifact, project, row := fakeArtifact(faker)
+		expectArtifact(dbm, row, project)
+		dbm.EXPECT().GetChatArtifactByIDForUpdate(gomock.Any(), artifact.ID).Return(artifact, nil).AnyTimes()
+		check.Args(artifact.ID).Asserts(artifact.RBACObject(&project), policy.ActionShare).Returns(artifact)
+	}))
+	s.Run("UpdateChatArtifactACLByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		artifact, project, row := fakeArtifact(faker)
+		expectArtifact(dbm, row, project)
+		arg := database.UpdateChatArtifactACLByIDParams{ID: artifact.ID, UserACL: database.ChatACL{}, GroupACL: database.ChatACL{}}
+		dbm.EXPECT().UpdateChatArtifactACLByID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(artifact.RBACObject(&project), policy.ActionShare).Returns()
+	}))
+	s.Run("UpdateChatArtifactOnPublish", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		artifact, project, row := fakeArtifact(faker)
+		expectArtifact(dbm, row, project)
+		arg := database.UpdateChatArtifactOnPublishParams{ID: artifact.ID, Title: "New title"}
+		dbm.EXPECT().UpdateChatArtifactOnPublish(gomock.Any(), arg).Return(artifact, nil).AnyTimes()
+		check.Args(arg).Asserts(artifact.RBACObject(&project), policy.ActionUpdate).Returns(artifact)
+	}))
 }

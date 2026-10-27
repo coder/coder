@@ -245,6 +245,67 @@ func ChatProjectMemoryRBACObject(project ChatProject) rbac.Object {
 		WithGroupACL(chatProjectMemoryACL(project.GroupACL))
 }
 
+// chatArtifactProjectACL maps project read to artifact read and update,
+// so project members can open an artifact and publish new versions of it.
+// The artifact tools run as chatd and bypass this ACL, so chatd checks
+// IsChatProjectUsableByUserID first.
+func chatArtifactProjectACL(projectACL ChatACL) map[string][]policy.Action {
+	artifactACL := make(map[string][]policy.Action, len(projectACL))
+	for id, entry := range projectACL {
+		if chatACLGrants(entry, policy.ActionRead) {
+			artifactACL[id] = []policy.Action{policy.ActionRead, policy.ActionUpdate}
+		}
+	}
+	return artifactACL
+}
+
+// chatArtifactShareACL maps the artifact's own ACL to read only. Sharing
+// an artifact never grants publishing, even if a stored entry names more
+// actions.
+func chatArtifactShareACL(shareACL ChatACL) map[string][]policy.Action {
+	artifactACL := make(map[string][]policy.Action, len(shareACL))
+	for id, entry := range shareACL {
+		if chatACLGrants(entry, policy.ActionRead) {
+			artifactACL[id] = []policy.Action{policy.ActionRead}
+		}
+	}
+	return artifactACL
+}
+
+// mergeChatArtifactACL adds the actions of src to dst, key by key.
+func mergeChatArtifactACL(dst, src map[string][]policy.Action) {
+	for id, actions := range src {
+		for _, action := range actions {
+			if !slices.Contains(dst[id], action) {
+				dst[id] = append(dst[id], action)
+			}
+		}
+	}
+}
+
+// RBACObject takes the artifact's project, or nil when the artifact has
+// none. The artifact's own ACL grants read. The project owner and the
+// project ACL also reach the artifact with read and update; a project
+// whose ID does not match the artifact grants nothing.
+func (a ChatArtifact) RBACObject(project *ChatProject) rbac.Object {
+	obj := rbac.ResourceChatArtifact.WithID(a.ID).InOrg(a.OrganizationID).WithOwner(a.OwnerID.String())
+	if rbac.ChatACLDisabled() {
+		return obj
+	}
+	userACL := chatArtifactShareACL(a.UserACL)
+	groupACL := chatArtifactShareACL(a.GroupACL)
+	if project != nil && a.ProjectID.Valid && project.ID == a.ProjectID.UUID {
+		mergeChatArtifactACL(userACL, chatArtifactProjectACL(project.UserACL))
+		mergeChatArtifactACL(userACL, map[string][]policy.Action{
+			project.OwnerID.String(): {policy.ActionRead, policy.ActionUpdate},
+		})
+		mergeChatArtifactACL(groupACL, chatArtifactProjectACL(project.GroupACL))
+	}
+	return obj.
+		WithACLUserList(userACL).
+		WithGroupACL(groupACL)
+}
+
 func (c Chat) RBACObject() rbac.Object {
 	obj := rbac.ResourceChat.
 		WithID(c.ID).

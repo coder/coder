@@ -94,6 +94,14 @@ var chatProjectMemoryActions = map[Action]ActionDefinition{
 	ActionDelete: "delete a chat project memory",
 }
 
+var chatArtifactActions = map[Action]ActionDefinition{
+	ActionCreate: "create a chat artifact",
+	ActionRead:   "read chat artifacts and their versions",
+	ActionUpdate: "publish a new version of a chat artifact",
+	ActionDelete: "delete a chat artifact",
+	ActionShare:  "share a chat artifact with other users or groups",
+}
+
 var mcpServerConfigActions = map[Action]ActionDefinition{
 	ActionCreate: "create a new MCP server config",
 	ActionRead:   "read MCP server config",
@@ -149,6 +157,9 @@ var RBACPermissions = map[string]PermissionDefinition{
 	},
 	"chat_project_memory": {
 		Actions: chatProjectMemoryActions,
+	},
+	"chat_artifact": {
+		Actions: chatArtifactActions,
 	},
 	"chat_model_config": {
 		Actions: chatModelConfigActions,

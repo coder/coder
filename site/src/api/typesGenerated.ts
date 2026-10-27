@@ -798,6 +798,12 @@ export type APIKeyScope =
 	| "boundary_usage:read"
 	| "boundary_usage:update"
 	| "chat:*"
+	| "chat_artifact:*"
+	| "chat_artifact:create"
+	| "chat_artifact:delete"
+	| "chat_artifact:read"
+	| "chat_artifact:share"
+	| "chat_artifact:update"
 	| "chat:create"
 	| "chat:delete"
 	| "chat_model_config:*"
@@ -1066,6 +1072,12 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"boundary_usage:read",
 	"boundary_usage:update",
 	"chat:*",
+	"chat_artifact:*",
+	"chat_artifact:create",
+	"chat_artifact:delete",
+	"chat_artifact:read",
+	"chat_artifact:share",
+	"chat_artifact:update",
 	"chat:create",
 	"chat:delete",
 	"chat_model_config:*",
@@ -2216,6 +2228,67 @@ export interface ChatACL {
 export interface ChatACPTranscriptMessage {
 	readonly role: ChatMessageRole;
 	readonly content: readonly ChatMessagePart[];
+}
+
+// From codersdk/chatartifacts.go
+/**
+ * ChatArtifact is a versioned file that an agent published from a
+ * workspace. It outlives the chat and the workspace that made it. The
+ * owner sees it, and when ProjectID is set, the project members see it
+ * too.
+ */
+export interface ChatArtifact {
+	readonly id: string;
+	readonly organization_id: string;
+	readonly owner_id: string;
+	readonly owner_username: string;
+	readonly project_id?: string;
+	/**
+	 * ProjectName is empty when ProjectID is unset.
+	 */
+	readonly project_name: string;
+	readonly title: string;
+	readonly latest_version: number;
+	/**
+	 * LatestName and LatestMediaType describe the latest version, so a list
+	 * can show its file type without loading the versions.
+	 */
+	readonly latest_name: string;
+	readonly latest_media_type: string;
+	readonly created_at: string;
+	readonly updated_at: string;
+	/**
+	 * Versions is set only by GetChatArtifact, newest first.
+	 */
+	readonly versions?: readonly ChatArtifactVersion[];
+}
+
+// From codersdk/chatartifacts.go
+/**
+ * ChatArtifactVersion describes one published version. The bytes come
+ * from ChatArtifactVersionData.
+ */
+export interface ChatArtifactVersion {
+	readonly version: number;
+	readonly label: string;
+	/**
+	 * Name is the file name. Its extension picks the renderer.
+	 */
+	readonly name: string;
+	readonly media_type: string;
+	readonly size: number;
+	readonly created_by?: string;
+	readonly created_by_username: string;
+	/**
+	 * ChatID is the chat that published this version. It is unset after
+	 * that chat is deleted.
+	 */
+	readonly chat_id?: string;
+	/**
+	 * ChatTitle is set only when the caller owns that chat.
+	 */
+	readonly chat_title: string;
+	readonly created_at: string;
 }
 
 // From codersdk/chats.go
@@ -9065,6 +9138,7 @@ export type RBACResource =
 	| "boundary_log"
 	| "boundary_usage"
 	| "chat"
+	| "chat_artifact"
 	| "chat_model_config"
 	| "chat_project"
 	| "chat_project_memory"
@@ -9123,6 +9197,7 @@ export const RBACResources: RBACResource[] = [
 	"boundary_log",
 	"boundary_usage",
 	"chat",
+	"chat_artifact",
 	"chat_model_config",
 	"chat_project",
 	"chat_project_memory",
@@ -9280,6 +9355,7 @@ export type ResourceType =
 	| "ai_seat"
 	| "api_key"
 	| "chat"
+	| "chat_artifact"
 	| "chat_automation"
 	| "chat_instruction_settings"
 	| "chat_model_config"
@@ -9330,6 +9406,7 @@ export const ResourceTypes: ResourceType[] = [
 	"ai_seat",
 	"api_key",
 	"chat",
+	"chat_artifact",
 	"chat_automation",
 	"chat_instruction_settings",
 	"chat_model_config",

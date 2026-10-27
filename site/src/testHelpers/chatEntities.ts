@@ -1,16 +1,20 @@
 import type {
 	Chat,
+	ChatArtifact,
+	ChatArtifactVersion,
 	ChatAttachment,
 	ChatContext,
 	ChatContextResource,
 	ChatCost,
 	ChatDiffStatus,
 	ChatFileMetadata,
+	ChatGroup,
 	ChatMessage,
 	ChatQueuedMessage,
+	ChatUser,
 	MCPServerConfig,
 } from "#/api/typesGenerated";
-import { MockUserOwner } from "./entities";
+import { MockGroup, MockUserMember, MockUserOwner } from "./entities";
 
 export const MOCK_TIMESTAMP = "2024-01-01T00:00:00Z";
 
@@ -239,3 +243,57 @@ export const MockChatDiffStatus: ChatDiffStatus = {
 	deletions: 0,
 	changed_files: 1,
 };
+
+export const MockChatArtifactVersion: ChatArtifactVersion = {
+	version: 1,
+	label: "",
+	name: "repo-layout.md",
+	media_type: "text/markdown",
+	size: 80,
+	created_by: MockUserOwner.id,
+	created_by_username: MockUserOwner.username,
+	chat_id: "chat-0",
+	chat_title: "Repo report",
+	created_at: MOCK_TIMESTAMP,
+};
+
+export const MockChatArtifact: ChatArtifact = {
+	id: "artifact-1",
+	organization_id: "test-org-id",
+	owner_id: MockUserOwner.id,
+	owner_username: MockUserOwner.username,
+	project_name: "",
+	title: "Repo layout",
+	latest_version: 2,
+	latest_name: "repo-layout.md",
+	latest_media_type: "text/markdown",
+	created_at: MOCK_TIMESTAMP,
+	updated_at: MOCK_TIMESTAMP,
+	versions: [
+		{
+			version: 2,
+			label: "Adds enterprise",
+			name: "repo-layout.md",
+			media_type: "text/markdown",
+			size: 120,
+			created_by: MockUserOwner.id,
+			created_by_username: MockUserOwner.username,
+			chat_id: "chat-1",
+			chat_title: "Agent",
+			created_at: MOCK_TIMESTAMP,
+		},
+		MockChatArtifactVersion,
+	],
+};
+
+/** A user an artifact or chat is shared with. */
+export const MockChatUser: ChatUser = {
+	id: MockUserMember.id,
+	username: MockUserMember.username,
+	name: MockUserMember.name,
+	avatar_url: MockUserMember.avatar_url,
+	role: "read",
+};
+
+/** A group an artifact or chat is shared with. */
+export const MockChatGroup: ChatGroup = { ...MockGroup, role: "read" };

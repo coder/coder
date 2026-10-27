@@ -51,8 +51,10 @@ type SidebarTabViewProps = {
 };
 
 const TAB_SCROLL_AMOUNT = 120;
+// Width of the scroll chevrons (w-8) that cover the ends of the tab strip.
+const TAB_CHEVRON_WIDTH = 32;
 
-function useTabScroll() {
+function useTabScroll(activeTabElementId: string | undefined) {
 	const ref = useRef<HTMLDivElement>(null);
 	const [canScrollLeft, setCanScrollLeft] = useState(false);
 	const [canScrollRight, setCanScrollRight] = useState(false);
@@ -66,6 +68,28 @@ function useTabScroll() {
 		setCanScrollRight(
 			element.scrollLeft + element.clientWidth < element.scrollWidth - 1,
 		);
+	});
+
+	// Opening an artifact adds a tab at the end of the strip, where it can be
+	// out of view. Keep the active tab and its close button in view.
+	const scrollActiveTabIntoView = useEffectEvent(() => {
+		const strip = ref.current;
+		const tab = activeTabElementId
+			? document.getElementById(activeTabElementId)?.parentElement
+			: undefined;
+		// A hidden panel has no layout to scroll.
+		if (!strip || !tab || strip.clientWidth === 0) {
+			return;
+		}
+		const stripRect = strip.getBoundingClientRect();
+		const tabRect = tab.getBoundingClientRect();
+		const left = stripRect.left + TAB_CHEVRON_WIDTH;
+		const right = stripRect.right - TAB_CHEVRON_WIDTH;
+		if (tabRect.left < left) {
+			strip.scrollLeft -= left - tabRect.left;
+		} else if (tabRect.right > right) {
+			strip.scrollLeft += tabRect.right - right;
+		}
 	});
 
 	useEffect(() => {
@@ -89,6 +113,29 @@ function useTabScroll() {
 	useEffect(() => {
 		updateScrollState();
 	});
+
+	useEffect(() => {
+		const strip = ref.current;
+		const tab = activeTabElementId
+			? document.getElementById(activeTabElementId)?.parentElement
+			: undefined;
+		if (!strip || !tab) {
+			return;
+		}
+		// The ResizeObserver reports once when it starts, then when the label
+		// widens as the web font loads or the strip resizes. The
+		// MutationObserver reports tabs added before the active tab, such as
+		// workspace tabs that appear after the workspace loads.
+		const resizeObserver = new ResizeObserver(scrollActiveTabIntoView);
+		resizeObserver.observe(strip);
+		resizeObserver.observe(tab);
+		const mutationObserver = new MutationObserver(scrollActiveTabIntoView);
+		mutationObserver.observe(strip, { childList: true });
+		return () => {
+			resizeObserver.disconnect();
+			mutationObserver.disconnect();
+		};
+	}, [activeTabElementId]);
 
 	const scrollLeft = () => {
 		ref.current?.scrollBy({
@@ -157,7 +204,9 @@ export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
 		canScrollRight,
 		scrollLeft: scrollTabsLeft,
 		scrollRight: scrollTabsRight,
-	} = useTabScroll();
+	} = useTabScroll(
+		effectiveTabId ? `${tabIdPrefix}-tab-${effectiveTabId}` : undefined,
+	);
 
 	const allPanels: { id: string; content: React.ReactNode }[] = tabs.map(
 		(t) => ({
@@ -270,7 +319,8 @@ export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
 									)}
 								>
 									{tab.icon}
-									{tab.label}
+									{/* Artifact titles can be long. */}
+									<span className="max-w-40 truncate">{tab.label}</span>
 									{tab.badge && (
 										<span
 											className={cn(

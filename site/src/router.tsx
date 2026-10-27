@@ -374,6 +374,12 @@ const DesktopPopoutPage = lazy(
 const AgentCreatePage = lazy(
 	() => import("./pages/AgentsPage/AgentCreatePage/AgentCreatePage"),
 );
+const ArtifactsGalleryPage = lazy(
+	() => import("./pages/AgentsPage/ArtifactsPage/ArtifactsGalleryPage"),
+);
+const ArtifactPage = lazy(
+	() => import("./pages/AgentsPage/ArtifactsPage/ArtifactPage"),
+);
 const AgentSettingsLayout = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsPage/AgentSettingsLayout"),
 );
@@ -916,6 +922,8 @@ export const router = createBrowserRouter(
 						/>
 					</Route>
 					<Route path="projects/:projectId" element={<AgentCreatePage />} />
+					<Route path="artifacts" element={<ArtifactsGalleryPage />} />
+					<Route path="artifacts/:artifactId" element={<ArtifactPage />} />
 					<Route
 						path=":agentId"
 						element={

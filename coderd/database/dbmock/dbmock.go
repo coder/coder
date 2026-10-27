@@ -2904,6 +2904,81 @@ func (mr *MockStoreMockRecorder) GetChatAdvisorConfig(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatAdvisorConfig", reflect.TypeOf((*MockStore)(nil).GetChatAdvisorConfig), ctx)
 }
 
+// GetChatArtifactByID mocks base method.
+func (m *MockStore) GetChatArtifactByID(ctx context.Context, id uuid.UUID) (database.GetChatArtifactByIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatArtifactByID", ctx, id)
+	ret0, _ := ret[0].(database.GetChatArtifactByIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatArtifactByID indicates an expected call of GetChatArtifactByID.
+func (mr *MockStoreMockRecorder) GetChatArtifactByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatArtifactByID", reflect.TypeOf((*MockStore)(nil).GetChatArtifactByID), ctx, id)
+}
+
+// GetChatArtifactByIDForUpdate mocks base method.
+func (m *MockStore) GetChatArtifactByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ChatArtifact, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatArtifactByIDForUpdate", ctx, id)
+	ret0, _ := ret[0].(database.ChatArtifact)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatArtifactByIDForUpdate indicates an expected call of GetChatArtifactByIDForUpdate.
+func (mr *MockStoreMockRecorder) GetChatArtifactByIDForUpdate(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatArtifactByIDForUpdate", reflect.TypeOf((*MockStore)(nil).GetChatArtifactByIDForUpdate), ctx, id)
+}
+
+// GetChatArtifactVersion mocks base method.
+func (m *MockStore) GetChatArtifactVersion(ctx context.Context, arg database.GetChatArtifactVersionParams) (database.ChatArtifactVersion, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatArtifactVersion", ctx, arg)
+	ret0, _ := ret[0].(database.ChatArtifactVersion)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatArtifactVersion indicates an expected call of GetChatArtifactVersion.
+func (mr *MockStoreMockRecorder) GetChatArtifactVersion(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatArtifactVersion", reflect.TypeOf((*MockStore)(nil).GetChatArtifactVersion), ctx, arg)
+}
+
+// GetChatArtifactVersionsMetadata mocks base method.
+func (m *MockStore) GetChatArtifactVersionsMetadata(ctx context.Context, artifactID uuid.UUID) ([]database.GetChatArtifactVersionsMetadataRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatArtifactVersionsMetadata", ctx, artifactID)
+	ret0, _ := ret[0].([]database.GetChatArtifactVersionsMetadataRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatArtifactVersionsMetadata indicates an expected call of GetChatArtifactVersionsMetadata.
+func (mr *MockStoreMockRecorder) GetChatArtifactVersionsMetadata(ctx, artifactID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatArtifactVersionsMetadata", reflect.TypeOf((*MockStore)(nil).GetChatArtifactVersionsMetadata), ctx, artifactID)
+}
+
+// GetChatArtifactsOwnedOrInUserProjects mocks base method.
+func (m *MockStore) GetChatArtifactsOwnedOrInUserProjects(ctx context.Context, userID uuid.UUID) ([]database.GetChatArtifactsOwnedOrInUserProjectsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatArtifactsOwnedOrInUserProjects", ctx, userID)
+	ret0, _ := ret[0].([]database.GetChatArtifactsOwnedOrInUserProjectsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatArtifactsOwnedOrInUserProjects indicates an expected call of GetChatArtifactsOwnedOrInUserProjects.
+func (mr *MockStoreMockRecorder) GetChatArtifactsOwnedOrInUserProjects(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatArtifactsOwnedOrInUserProjects", reflect.TypeOf((*MockStore)(nil).GetChatArtifactsOwnedOrInUserProjects), ctx, userID)
+}
+
 // GetChatAutoArchiveDays mocks base method.
 func (m *MockStore) GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchiveDays int32) (int32, error) {
 	m.ctrl.T.Helper()
@@ -4732,6 +4807,21 @@ func (m *MockStore) GetLastUpdateCheck(ctx context.Context) (string, error) {
 func (mr *MockStoreMockRecorder) GetLastUpdateCheck(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastUpdateCheck", reflect.TypeOf((*MockStore)(nil).GetLastUpdateCheck), ctx)
+}
+
+// GetLatestChatArtifactVersion mocks base method.
+func (m *MockStore) GetLatestChatArtifactVersion(ctx context.Context, artifactID uuid.UUID) (database.ChatArtifactVersion, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLatestChatArtifactVersion", ctx, artifactID)
+	ret0, _ := ret[0].(database.ChatArtifactVersion)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLatestChatArtifactVersion indicates an expected call of GetLatestChatArtifactVersion.
+func (mr *MockStoreMockRecorder) GetLatestChatArtifactVersion(ctx, artifactID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestChatArtifactVersion", reflect.TypeOf((*MockStore)(nil).GetLatestChatArtifactVersion), ctx, artifactID)
 }
 
 // GetLatestCryptoKeyByFeature mocks base method.
@@ -8392,6 +8482,36 @@ func (mr *MockStoreMockRecorder) InsertChat(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChat", reflect.TypeOf((*MockStore)(nil).InsertChat), ctx, arg)
 }
 
+// InsertChatArtifact mocks base method.
+func (m *MockStore) InsertChatArtifact(ctx context.Context, arg database.InsertChatArtifactParams) (database.ChatArtifact, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertChatArtifact", ctx, arg)
+	ret0, _ := ret[0].(database.ChatArtifact)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertChatArtifact indicates an expected call of InsertChatArtifact.
+func (mr *MockStoreMockRecorder) InsertChatArtifact(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatArtifact", reflect.TypeOf((*MockStore)(nil).InsertChatArtifact), ctx, arg)
+}
+
+// InsertChatArtifactVersion mocks base method.
+func (m *MockStore) InsertChatArtifactVersion(ctx context.Context, arg database.InsertChatArtifactVersionParams) (database.InsertChatArtifactVersionRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertChatArtifactVersion", ctx, arg)
+	ret0, _ := ret[0].(database.InsertChatArtifactVersionRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertChatArtifactVersion indicates an expected call of InsertChatArtifactVersion.
+func (mr *MockStoreMockRecorder) InsertChatArtifactVersion(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatArtifactVersion", reflect.TypeOf((*MockStore)(nil).InsertChatArtifactVersion), ctx, arg)
+}
+
 // InsertChatDebugRun mocks base method.
 func (m *MockStore) InsertChatDebugRun(ctx context.Context, arg database.InsertChatDebugRunParams) (database.ChatDebugRun, error) {
 	m.ctrl.T.Helper()
@@ -10652,6 +10772,35 @@ func (m *MockStore) UpdateChatACLByID(ctx context.Context, arg database.UpdateCh
 func (mr *MockStoreMockRecorder) UpdateChatACLByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatACLByID", reflect.TypeOf((*MockStore)(nil).UpdateChatACLByID), ctx, arg)
+}
+
+// UpdateChatArtifactACLByID mocks base method.
+func (m *MockStore) UpdateChatArtifactACLByID(ctx context.Context, arg database.UpdateChatArtifactACLByIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatArtifactACLByID", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateChatArtifactACLByID indicates an expected call of UpdateChatArtifactACLByID.
+func (mr *MockStoreMockRecorder) UpdateChatArtifactACLByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatArtifactACLByID", reflect.TypeOf((*MockStore)(nil).UpdateChatArtifactACLByID), ctx, arg)
+}
+
+// UpdateChatArtifactOnPublish mocks base method.
+func (m *MockStore) UpdateChatArtifactOnPublish(ctx context.Context, arg database.UpdateChatArtifactOnPublishParams) (database.ChatArtifact, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatArtifactOnPublish", ctx, arg)
+	ret0, _ := ret[0].(database.ChatArtifact)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateChatArtifactOnPublish indicates an expected call of UpdateChatArtifactOnPublish.
+func (mr *MockStoreMockRecorder) UpdateChatArtifactOnPublish(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatArtifactOnPublish", reflect.TypeOf((*MockStore)(nil).UpdateChatArtifactOnPublish), ctx, arg)
 }
 
 // UpdateChatBuildAgentBinding mocks base method.

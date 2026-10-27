@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "react-query";
 import { chat, chatAttachments, chatCost } from "#/api/queries/chats";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { ChatArtifacts } from "./Artifacts/ChatArtifacts";
 import { ChatAttachments } from "./ChatAttachments";
 import { getChatCostTreeID } from "./ChatConversation/chatHelpers";
 import { type ChatStore, useChatMessages } from "./ChatConversation/chatStore";
@@ -107,6 +108,7 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 	return (
 		<div className="flex h-full min-h-0 flex-col gap-6 overflow-y-auto p-4">
 			{content}
+			<ChatArtifacts messages={messages} isVisible={isVisible} />
 			<ChatAttachments
 				attachments={attachments}
 				evictedFileIds={evictedFileIds}

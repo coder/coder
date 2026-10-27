@@ -23,7 +23,11 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
-import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
+import {
+	MockChat,
+	MockChatArtifact,
+	MockChatDiffStatus,
+} from "#/testHelpers/chatEntities";
 import {
 	MockDefaultOrganization,
 	MockGroup,
@@ -47,8 +51,14 @@ import { MessageScroller } from "#/vendor/message-scroller";
 import type { ChatDetailError } from "../components/ChatConversation/chatError";
 import { createChatStore } from "../components/ChatConversation/chatStore";
 import { buildLongConversation } from "../components/ChatConversation/storyFixtures";
-import { visibleSingletonTabsStorageKeyPrefix } from "../utils/rightPanelTabStorage";
-import type { SingletonRightPanelTabId } from "../utils/rightPanelTabs";
+import {
+	rightPanelTabStorageKeyPrefix,
+	visibleSingletonTabsStorageKeyPrefix,
+} from "../utils/rightPanelTabStorage";
+import type {
+	SingletonRightPanelTabId,
+	UserRightPanelTab,
+} from "../utils/rightPanelTabs";
 import { lastActiveSidebarTabStorageKeyPrefix } from "../utils/sidebarTabStorage";
 import {
 	AgentChatPageLoadingView,
@@ -1540,6 +1550,52 @@ export const PersistsSidebarTabClick: Story = {
 
 		expect(localStorage.getItem(sidebarTabStorageKey)).toBe("git");
 	},
+};
+
+const mockCacheArtifact: TypesGen.ChatArtifact = {
+	...MockChatArtifact,
+	id: "artifact-cache",
+	title: "Cache options for the template list and the build queue",
+};
+
+const rightPanelTabsStorageKey = `${rightPanelTabStorageKeyPrefix}${AGENT_ID}`;
+
+/** Two artifacts open in their own tabs. A long title stops short. */
+export const WithArtifactTabs: Story = {
+	beforeEach: () => {
+		localStorage.setItem(
+			rightPanelTabsStorageKey,
+			JSON.stringify([
+				{
+					id: "artifact-tab-repo",
+					kind: "artifact",
+					label: MockChatArtifact.title,
+					artifactId: MockChatArtifact.id,
+				},
+				{
+					id: "artifact-tab-cache",
+					kind: "artifact",
+					label: mockCacheArtifact.title,
+					artifactId: mockCacheArtifact.id,
+				},
+			] satisfies UserRightPanelTab[]),
+		);
+		localStorage.setItem(sidebarTabStorageKey, "artifact-tab-repo");
+		spyOn(API.experimental, "getChatArtifact").mockImplementation(
+			async (artifactId) =>
+				artifactId === mockCacheArtifact.id
+					? mockCacheArtifact
+					: MockChatArtifact,
+		);
+		spyOn(API.experimental, "getChatArtifactVersionText").mockResolvedValue(
+			"# Repo layout\n\n- `coderd/` API server\n- `site/` frontend\n",
+		);
+		return () => {
+			localStorage.removeItem(rightPanelTabsStorageKey);
+			localStorage.removeItem(sidebarTabStorageKey);
+		};
+	},
+	render: () => <StoryAgentChatPageView showSidebarPanel />,
 };
 
 /**

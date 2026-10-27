@@ -1,0 +1,354 @@
+import { cn } from "cn";
+import { LayoutGridIcon, ListIcon } from "lucide-react";
+import { useState } from "react";
+import { Link, useLocation, useSearchParams } from "react-router";
+import type { ChatArtifact } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { Loader } from "#/components/Loader/Loader";
+import { SearchField } from "#/components/SearchField/SearchField";
+import { timeFrom } from "#/utils/time";
+import {
+	artifactKindIcons,
+	getArtifactPagePath,
+	kindOf,
+} from "../components/Artifacts/artifactUtils";
+import { getTimeGroup, TIME_GROUPS } from "../utils/timeGroups";
+
+type ArtifactFilter = "all" | "yours" | "shared";
+type GalleryLayout = "list" | "grid";
+
+const FILTERS: readonly { id: ArtifactFilter; label: string }[] = [
+	{ id: "all", label: "All" },
+	{ id: "yours", label: "Yours" },
+	{ id: "shared", label: "Shared with you" },
+];
+
+/** The search parameters that keep the filter and the search text. */
+const filterParam = "show";
+const searchParam = "search";
+
+/** The localStorage key that keeps the list or grid choice. */
+export const galleryLayoutStorageKey = "agents.artifacts-gallery-layout";
+
+const ownerLabel = (artifact: ChatArtifact, currentUserId: string) =>
+	artifact.owner_id === currentUserId ? "" : `by ${artifact.owner_username}`;
+
+/**
+ * Keeps the artifacts that pass the filter and contain the search text in
+ * the title, file name, project name or owner name. The order stays.
+ */
+export const filterArtifacts = (
+	artifacts: readonly ChatArtifact[],
+	filter: ArtifactFilter,
+	search: string,
+	userId: string,
+): ChatArtifact[] => {
+	const needle = search.trim().toLowerCase();
+	return artifacts.filter((artifact) => {
+		const isOwn = artifact.owner_id === userId;
+		if ((filter === "yours" && !isOwn) || (filter === "shared" && isOwn)) {
+			return false;
+		}
+		return [
+			artifact.title,
+			artifact.latest_name,
+			artifact.project_name,
+			artifact.owner_username,
+		].some((field) => field.toLowerCase().includes(needle));
+	});
+};
+
+type ArtifactItemProps = {
+	artifact: ChatArtifact;
+	currentUserId: string;
+	now: Date;
+	/** The gallery URL, so the artifact page can link back to it. */
+	galleryPath: string;
+};
+
+const ArtifactListItem: React.FC<ArtifactItemProps> = ({
+	artifact,
+	currentUserId,
+	now,
+	galleryPath,
+}) => {
+	const Icon =
+		artifactKindIcons[kindOf(artifact.latest_name, artifact.latest_media_type)];
+	return (
+		<li>
+			<Link
+				to={getArtifactPagePath(artifact.id)}
+				state={{ from: galleryPath }}
+				className="flex items-center gap-3 rounded-lg p-2 no-underline hover:bg-surface-secondary"
+			>
+				<span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-solid border-border bg-surface-secondary text-content-secondary">
+					<Icon className="size-4" />
+				</span>
+				<span className="flex min-w-0 flex-1 flex-col">
+					<span className="truncate text-sm font-medium text-content-primary">
+						{artifact.title || "Untitled artifact"}
+					</span>
+					<span className="truncate text-xs text-content-secondary">
+						{[
+							artifact.latest_name,
+							`v${artifact.latest_version}`,
+							artifact.project_name,
+							ownerLabel(artifact, currentUserId),
+						]
+							.filter(Boolean)
+							.join(" · ")}
+					</span>
+				</span>
+				<span className="shrink-0 text-xs text-content-secondary">
+					Edited {timeFrom(artifact.updated_at, now)}
+				</span>
+			</Link>
+		</li>
+	);
+};
+
+const ArtifactCard: React.FC<ArtifactItemProps> = ({
+	artifact,
+	currentUserId,
+	now,
+	galleryPath,
+}) => {
+	const Icon =
+		artifactKindIcons[kindOf(artifact.latest_name, artifact.latest_media_type)];
+	return (
+		<li>
+			<Link
+				to={getArtifactPagePath(artifact.id)}
+				state={{ from: galleryPath }}
+				className="flex flex-col overflow-hidden rounded-lg border border-solid border-border no-underline hover:bg-surface-secondary"
+			>
+				<span className="flex h-28 items-center justify-center border-0 border-b border-solid border-border bg-surface-secondary text-content-secondary">
+					<Icon className="size-6" />
+				</span>
+				<span className="flex flex-col gap-0.5 p-3">
+					<span className="truncate text-sm font-medium text-content-primary">
+						{artifact.title || "Untitled artifact"}
+					</span>
+					<span className="truncate text-xs text-content-secondary">
+						Edited {timeFrom(artifact.updated_at, now)} · v
+						{artifact.latest_version}
+					</span>
+					<span className="truncate text-xs text-content-secondary">
+						{[
+							artifact.latest_name,
+							artifact.project_name,
+							ownerLabel(artifact, currentUserId),
+						]
+							.filter(Boolean)
+							.join(" · ")}
+					</span>
+				</span>
+			</Link>
+		</li>
+	);
+};
+
+type ArtifactsGalleryPageViewProps = {
+	/** Undefined until the first load succeeds. */
+	artifacts: readonly ChatArtifact[] | undefined;
+	error: unknown;
+	currentUserId: string;
+	now: Date;
+};
+
+/**
+ * The artifact gallery. The filter and the search text live in the URL, so
+ * a reload or a link keeps them. The list or grid choice persists in
+ * localStorage under galleryLayoutStorageKey. `now` is the reference time for the
+ * "Edited" labels and for the time sections of the list.
+ */
+export const ArtifactsGalleryPageView: React.FC<
+	ArtifactsGalleryPageViewProps
+> = ({ artifacts, error, currentUserId, now }) => {
+	const location = useLocation();
+	const [searchParams, setSearchParams] = useSearchParams();
+	// The URL seeds the state and mirrors it. Each change writes both values
+	// from state, because a second change can run before the navigation of
+	// the first one renders, and its search parameters would be stale.
+	const [filter, setFilterState] = useState((): ArtifactFilter => {
+		const value = searchParams.get(filterParam);
+		return value === "yours" || value === "shared" ? value : "all";
+	});
+	const [search, setSearchState] = useState(
+		() => searchParams.get(searchParam) ?? "",
+	);
+	const galleryPath = location.pathname + location.search;
+	const writeParams = (nextFilter: ArtifactFilter, nextSearch: string) => {
+		setSearchParams(
+			(prev) => {
+				// Other parameters, such as the sidebar filters, stay.
+				const next = new URLSearchParams(prev);
+				if (nextFilter === "all") {
+					next.delete(filterParam);
+				} else {
+					next.set(filterParam, nextFilter);
+				}
+				if (nextSearch) {
+					next.set(searchParam, nextSearch);
+				} else {
+					next.delete(searchParam);
+				}
+				return next;
+			},
+			// Typing does not add history entries.
+			{ replace: true },
+		);
+	};
+	const setFilter = (next: ArtifactFilter) => {
+		setFilterState(next);
+		writeParams(next, search);
+	};
+	const setSearch = (next: string) => {
+		setSearchState(next);
+		writeParams(filter, next);
+	};
+	const [layout, setLayout] = useState<GalleryLayout>(() =>
+		localStorage.getItem(galleryLayoutStorageKey) === "grid" ? "grid" : "list",
+	);
+
+	const changeLayout = (next: GalleryLayout) => {
+		setLayout(next);
+		localStorage.setItem(galleryLayoutStorageKey, next);
+	};
+
+	// A failed background refetch keeps the cached list on screen.
+	let content: React.ReactNode;
+	if (!artifacts) {
+		content = error ? (
+			<ErrorAlert error={error} />
+		) : (
+			<Loader label="Loading artifacts" />
+		);
+	} else if (artifacts.length === 0) {
+		content = (
+			<EmptyState
+				message="No artifacts yet"
+				description="Files that agents publish from a chat show here."
+			/>
+		);
+	} else {
+		const shown = filterArtifacts(artifacts, filter, search, currentUserId);
+		if (shown.length === 0) {
+			content = (
+				<EmptyState
+					message="No matching artifacts"
+					description="Try another search or filter."
+				/>
+			);
+		} else if (layout === "grid") {
+			content = (
+				<ul className="m-0 grid list-none grid-cols-1 gap-3 p-0 sm:grid-cols-2 lg:grid-cols-3">
+					{shown.map((artifact) => (
+						<ArtifactCard
+							key={artifact.id}
+							artifact={artifact}
+							currentUserId={currentUserId}
+							now={now}
+							galleryPath={galleryPath}
+						/>
+					))}
+				</ul>
+			);
+		} else {
+			content = TIME_GROUPS.map((name) => {
+				const items = shown.filter(
+					(artifact) => getTimeGroup(artifact.updated_at, now) === name,
+				);
+				if (items.length === 0) {
+					return null;
+				}
+				return (
+					<section key={name} aria-label={name} className="flex flex-col gap-2">
+						<h2 className="m-0 text-xs font-medium text-content-secondary">
+							{name}
+						</h2>
+						<ul className="m-0 flex list-none flex-col gap-0.5 p-0">
+							{items.map((artifact) => (
+								<ArtifactListItem
+									key={artifact.id}
+									artifact={artifact}
+									currentUserId={currentUserId}
+									now={now}
+									galleryPath={galleryPath}
+								/>
+							))}
+						</ul>
+					</section>
+				);
+			});
+		}
+	}
+
+	return (
+		<div className="p-4 pt-8">
+			<div className="mx-auto flex w-full max-w-4xl flex-col gap-5">
+				<h1 className="m-0 text-2xl font-semibold text-content-primary">
+					Artifacts
+				</h1>
+				<div className="flex flex-wrap items-center gap-2">
+					<div
+						role="group"
+						aria-label="Show artifacts"
+						className="flex items-center gap-1"
+					>
+						{FILTERS.map(({ id, label }) => (
+							<Button
+								key={id}
+								variant="subtle"
+								size="sm"
+								aria-pressed={filter === id}
+								onClick={() => setFilter(id)}
+								className={cn(
+									"min-w-0",
+									filter === id &&
+										"bg-surface-quaternary/25 text-content-primary",
+								)}
+							>
+								{label}
+							</Button>
+						))}
+					</div>
+					<div className="flex w-full items-center gap-1 sm:ml-auto sm:w-auto">
+						<SearchField
+							value={search}
+							onChange={setSearch}
+							placeholder="Search artifacts"
+							aria-label="Search artifacts"
+							className="min-w-0 flex-1 sm:w-60"
+						/>
+						<div role="group" aria-label="Layout" className="flex shrink-0">
+							<Button
+								variant="subtle"
+								size="icon"
+								aria-label="List view"
+								aria-pressed={layout === "list"}
+								onClick={() => changeLayout("list")}
+								className={cn(layout === "list" && "text-content-primary")}
+							>
+								<ListIcon />
+							</Button>
+							<Button
+								variant="subtle"
+								size="icon"
+								aria-label="Grid view"
+								aria-pressed={layout === "grid"}
+								onClick={() => changeLayout("grid")}
+								className={cn(layout === "grid" && "text-content-primary")}
+							>
+								<LayoutGridIcon />
+							</Button>
+						</div>
+					</div>
+				</div>
+				{content}
+			</div>
+		</div>
+	);
+};

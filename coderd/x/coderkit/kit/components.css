@@ -1,0 +1,312 @@
+/* Coder Kit components: ck- classes for HTML that agents render. Each section copies one component card of
+   the Coder Kit Product Design System in Claude Design (preview/comp-*.html), which mirror the coder/coder
+   React components. upstream.json holds the etag of each card. ../references/components.md documents the
+   markup and lists every place where this file differs from a card, with the reason.
+   Colors come only from the product tokens of coder-kit.css, as hsl(var(--token)). */
+
+/* ── Page and type: colors_and_type.css (html/body base, .type-*) ── */
+.ck-page {
+  margin: 0; background: hsl(var(--surface-primary)); color: hsl(var(--content-primary));
+  font-family: var(--font-sans); font-size: var(--text-sm); line-height: var(--lh-sm); font-weight: var(--weight-regular);
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+}
+.ck-h1 { font-family: var(--font-sans); font-weight: var(--weight-semibold); font-size: var(--text-3xl); line-height: var(--lh-3xl); letter-spacing: var(--tracking-heading); }
+.ck-h2 { font-family: var(--font-sans); font-weight: var(--weight-semibold); font-size: var(--text-2xl); line-height: var(--lh-2xl); letter-spacing: var(--tracking-heading); }
+.ck-h3 { font-family: var(--font-sans); font-weight: var(--weight-semibold); font-size: var(--text-xl); line-height: var(--lh-xl); }
+.ck-body { font-family: var(--font-sans); font-weight: var(--weight-regular); font-size: var(--text-sm); line-height: var(--lh-sm); }
+.ck-body-bold { font-family: var(--font-sans); font-weight: var(--weight-semibold); font-size: var(--text-sm); line-height: var(--lh-sm); }
+.ck-small { font-family: var(--font-sans); font-weight: var(--weight-regular); font-size: var(--text-xs); line-height: var(--lh-xs); }
+.ck-small-bold { font-family: var(--font-sans); font-weight: var(--weight-semibold); font-size: var(--text-xs); line-height: var(--lh-xs); }
+.ck-mono { font-family: var(--font-mono); font-weight: var(--weight-medium); font-size: var(--text-xs); line-height: var(--lh-xs); }
+.ck-footnote { font-family: var(--font-sans); font-weight: var(--weight-medium); font-size: var(--text-2xs); line-height: var(--lh-2xs); }
+.ck-secondary { color: hsl(var(--content-secondary)); }
+.ck-link { color: hsl(var(--content-link)); text-decoration: none; }
+.ck-link:hover { text-decoration: underline; }
+/* Inline code: comp-dialog.html (.d-body code) */
+.ck-code { font-family: var(--font-mono); font-size: 0.92em; background: hsl(var(--surface-tertiary)); color: hsl(var(--content-primary)); padding: 1px 6px; border-radius: 4px; }
+/* Screen-reader-only text: Tailwind's sr-only, as coder/coder uses it */
+.ck-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0; }
+
+/* ── Button: comp-buttons.html (Button.tsx). .ck-btn alone is the default variant at size lg. ── */
+.ck-btn {
+  box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  min-width: 80px; height: 40px; padding: 8px 12px; white-space: nowrap; cursor: pointer; text-decoration: none;
+  font-family: var(--font-sans); font-size: 14px; font-weight: 600; line-height: 1;
+  border-radius: 6px; border: 1px solid transparent;
+  background: hsl(var(--surface-invert-primary)); color: hsl(var(--content-invert));
+  transition: background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
+}
+.ck-btn:hover { background: hsl(var(--surface-invert-secondary)); }
+.ck-btn:focus-visible { outline: 2px solid hsl(var(--content-link)); outline-offset: 2px; }
+.ck-btn > .ck-icon { width: 18px; height: 18px; margin: 2px; }
+.ck-btn:disabled, .ck-btn[aria-disabled="true"] { pointer-events: none; color: hsl(var(--content-disabled)); background: hsl(var(--surface-secondary)); }
+.ck-btn-outline { background: transparent; color: hsl(var(--content-primary)); border-color: hsl(var(--border-default)); font-weight: 500; }
+.ck-btn-outline:hover { background: hsl(var(--surface-secondary)); }
+.ck-btn-subtle { background: transparent; color: hsl(var(--content-secondary)); font-weight: 500; }
+.ck-btn-subtle:hover { background: transparent; color: hsl(var(--content-primary)); }
+.ck-btn-destructive { background: hsl(var(--surface-destructive)); color: hsl(var(--content-primary)); border-color: hsl(var(--border-destructive)); }
+.ck-btn-destructive:hover { background: transparent; }
+.ck-btn-outline:disabled, .ck-btn-subtle:disabled, .ck-btn-destructive:disabled,
+.ck-btn-outline[aria-disabled="true"], .ck-btn-subtle[aria-disabled="true"], .ck-btn-destructive[aria-disabled="true"] { background: transparent; }
+.ck-btn-sm { height: 32px; padding: 6px 8px; font-size: 12px; }
+.ck-btn-sm > .ck-icon { width: 16px; height: 16px; }
+.ck-btn-xs { min-width: 32px; height: 24px; padding: 4px 8px; font-size: 10px; }
+.ck-btn-xs > .ck-icon { width: 14px; height: 14px; }
+.ck-btn-icon { width: 32px; min-width: 32px; height: 32px; padding: 6px; }
+.ck-btn-icon > .ck-icon { width: 16px; height: 16px; }
+.ck-btn-icon-lg { width: 40px; min-width: 40px; height: 40px; padding: 8px; }
+
+/* ── Badge: comp-badges.html (Badge.tsx). .ck-badge alone is the default variant at size md. ── */
+.ck-badge {
+  box-sizing: border-box; display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 2px 6px;
+  white-space: nowrap; font-family: var(--font-sans); font-weight: 400; font-size: 12px; line-height: 16px;
+  border-radius: 6px; border: 1px solid hsl(var(--surface-secondary));
+  background: hsl(var(--surface-secondary)); color: hsl(var(--content-secondary));
+  transition: background-color var(--dur-fast) var(--ease-standard);
+}
+.ck-badge > .ck-icon { width: 14px; height: 14px; }
+.ck-badge-sm { height: 22px; font-size: 10px; line-height: 14px; }
+.ck-badge-xs { height: 18px; border: 0; font-size: 10px; line-height: 14px; border-radius: 4px; }
+.ck-badge-info { background: hsl(var(--surface-sky)); border-color: hsl(var(--border-sky)); color: hsl(var(--highlight-sky)); }
+.ck-badge-green { background: hsl(var(--surface-green)); border-color: hsl(var(--border-green)); color: hsl(var(--highlight-green)); }
+.ck-badge-warning { background: hsl(var(--surface-orange)); border-color: hsl(var(--border-warning)); color: hsl(var(--highlight-orange)); }
+.ck-badge-destructive { background: hsl(var(--surface-red)); border-color: hsl(var(--border-destructive)); color: hsl(var(--highlight-red)); }
+.ck-badge-purple { background: hsl(var(--surface-purple)); border-color: hsl(var(--border-purple)); color: hsl(var(--highlight-purple)); }
+.ck-badge-magenta { background: hsl(var(--surface-magenta)); border-color: hsl(var(--border-magenta)); color: hsl(var(--highlight-magenta)); }
+.ck-badge-hoverable { cursor: pointer; }
+.ck-badge-hoverable:hover { background: hsl(var(--surface-tertiary)); }
+.ck-badge-info.ck-badge-hoverable:hover { background: hsl(var(--surface-sky) / 0.6); }
+.ck-badge-x {
+  display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; margin: 0 -2px 0 2px; padding: 0;
+  border: 0; border-radius: 3px; background: transparent; color: inherit; cursor: pointer; opacity: 0.7;
+}
+.ck-badge-x:hover { opacity: 1; background: hsl(var(--content-primary) / 0.08); }
+.ck-badge-x > .ck-icon { width: 12px; height: 12px; }
+
+/* ── Status pill and dot: comp-badges.html ── */
+.ck-status {
+  box-sizing: border-box; display: inline-flex; align-items: center; gap: 8px; height: 24px; padding: 0 10px 0 8px; white-space: nowrap;
+  border-radius: 9999px; border: 1px solid hsl(var(--border-default)); background: hsl(var(--surface-secondary));
+  font: 500 12px/1 var(--font-sans); color: hsl(var(--content-primary));
+}
+.ck-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: hsl(var(--content-secondary) / 0.7); }
+.ck-dot-running { background: hsl(var(--content-success)); box-shadow: 0 0 0 3px hsl(var(--content-success) / 0.22); }
+.ck-dot-stopped { background: hsl(var(--content-secondary) / 0.7); }
+.ck-dot-starting { background: hsl(var(--content-warning)); animation: ck-pulse 1.4s ease-in-out infinite; }
+.ck-dot-pending { background: hsl(var(--border-sky)); animation: ck-pulse 1.4s ease-in-out infinite; }
+.ck-dot-failed { background: hsl(var(--content-destructive)); }
+@keyframes ck-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+/* ── Field and input: comp-inputs.html. .ck-input styles an <input>, a <textarea>, or a wrapper that holds
+   an icon and an <input>. ── */
+.ck-field { display: flex; flex-direction: column; gap: 6px; }
+.ck-label { font: 500 13px/18px var(--font-sans); color: hsl(var(--content-primary)); }
+.ck-hint { font: 500 12px/18px var(--font-sans); color: hsl(var(--content-secondary)); }
+.ck-error { font: 500 12px/18px var(--font-sans); color: hsl(var(--highlight-red)); }
+.ck-input {
+  box-sizing: border-box; display: flex; align-items: center; gap: 8px; width: 100%; height: 40px; padding: 0 12px;
+  border-radius: 6px; border: 1px solid hsl(var(--border-default)); outline: none;
+  background: hsl(var(--surface-secondary)); color: hsl(var(--content-primary)); font: 500 14px/1 var(--font-sans);
+  transition: border-color var(--dur-fast);
+}
+.ck-input:focus, .ck-input:focus-within, .ck-input-focus { border-color: hsl(var(--content-link)); box-shadow: 0 0 0 1px hsl(var(--content-link)); }
+.ck-input input { all: unset; flex: 1; min-width: 0; }
+.ck-input > .ck-icon { color: hsl(var(--content-secondary)); }
+textarea.ck-input { display: block; height: auto; min-height: 96px; padding: 10px 12px; resize: vertical; line-height: 20px; }
+.ck-input-error { border-color: hsl(var(--content-destructive)); }
+
+/* ── Tabs: comp-tabs.html. The selected tab has aria-selected="true". The bar scrolls sideways when the tabs
+   do not fit; its line is an inset shadow, so the selected tab's underline still covers it. ── */
+.ck-tabs { display: flex; overflow-x: auto; scrollbar-width: none; box-shadow: inset 0 -1px 0 hsl(var(--border-default)); }
+.ck-tab {
+  display: inline-flex; flex-shrink: 0; align-items: center; gap: 6px; height: 40px; padding: 0 14px; cursor: pointer; white-space: nowrap;
+  background: none; border: 0; border-bottom: 2px solid transparent; text-decoration: none;
+  font: 500 14px/1 var(--font-sans); color: hsl(var(--content-secondary)); transition: color 0.1s;
+}
+.ck-tab:hover { color: hsl(var(--content-primary)); }
+.ck-tab[aria-selected="true"] { color: hsl(var(--content-primary)); border-bottom-color: hsl(var(--content-link)); }
+.ck-tab:focus-visible, .ck-segment:focus-visible { outline: 2px solid hsl(var(--content-link)); outline-offset: -2px; }
+.ck-tab-count {
+  box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; height: 18px; min-width: 18px; padding: 0 5px;
+  border-radius: 9999px; background: hsl(var(--surface-tertiary)); color: hsl(var(--content-secondary)); font: 600 10px/1 var(--font-sans);
+}
+.ck-tab[aria-selected="true"] .ck-tab-count { background: hsl(var(--surface-sky)); color: hsl(var(--highlight-sky)); }
+.ck-segmented { display: inline-flex; gap: 2px; padding: 3px; border-radius: 8px; border: 1px solid hsl(var(--border-default)); background: hsl(var(--surface-secondary)); }
+.ck-segment {
+  display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; cursor: pointer;
+  border: 0; border-radius: 6px; background: none; font: 500 13px/1 var(--font-sans); color: hsl(var(--content-secondary));
+  transition: background 0.1s, color 0.1s;
+}
+.ck-segment:hover { color: hsl(var(--content-primary)); }
+.ck-segment[aria-selected="true"] { background: hsl(var(--surface-primary)); color: hsl(var(--content-primary)); box-shadow: 0 1px 3px rgb(0 0 0 / 0.3); }
+
+/* ── Toast: comp-toast.html ── */
+.ck-toast {
+  box-sizing: border-box; display: flex; align-items: flex-start; gap: 10px; width: 320px; max-width: 100%; padding: 12px 14px;
+  border-radius: 8px; border: 1px solid hsl(var(--border-default)); background: hsl(var(--surface-secondary));
+  color: hsl(var(--content-primary)); box-shadow: var(--shadow-menu);
+}
+.ck-toast > .ck-icon { margin-top: 2px; }
+.ck-toast-success > .ck-icon { color: hsl(var(--content-success)); }
+.ck-toast-warning > .ck-icon { color: hsl(var(--content-warning)); }
+.ck-toast-error > .ck-icon { color: hsl(var(--content-destructive)); }
+.ck-toast-info > .ck-icon { color: hsl(var(--content-link)); }
+.ck-toast-title { font: 600 13px/18px var(--font-sans); color: hsl(var(--content-primary)); }
+.ck-toast-body { font: 500 12px/18px var(--font-sans); color: hsl(var(--content-secondary)); }
+.ck-toast-stack { position: fixed; right: 16px; bottom: 16px; z-index: 50; display: flex; flex-direction: column; gap: 8px; }
+
+/* ── Dialog: comp-dialog.html. Works on a <dialog> (opened by coder-kit.js) or on a plain block in a mockup. ── */
+.ck-dialog {
+  box-sizing: border-box; width: 420px; max-width: 100%; padding: 20px; border-radius: 10px;
+  border: 1px solid hsl(var(--border-default)); background: hsl(var(--surface-secondary)); color: hsl(var(--content-primary));
+  box-shadow: var(--shadow-dialog);
+}
+dialog.ck-dialog { max-width: calc(100% - 32px); }
+dialog.ck-dialog::backdrop { background: hsla(var(--overlay-default)); }
+.ck-dialog-title { margin: 0 0 6px; font: 700 18px/24px var(--font-sans); color: hsl(var(--content-primary)); }
+.ck-dialog-body { margin: 0 0 18px; font: 500 13px/20px var(--font-sans); color: hsl(var(--content-secondary)); }
+.ck-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* ── Panel: comp-checkbox.html (.panel). A bordered box with a header, rows and a footer. ── */
+.ck-panel { border: 1px solid hsl(var(--border-default)); border-radius: 8px; overflow: hidden; }
+.ck-panel-header { display: flex; flex-direction: column; gap: 2px; padding: 12px 16px; border-bottom: 1px solid hsl(var(--border-default)); }
+.ck-panel-title { font: 600 14px/20px var(--font-sans); color: hsl(var(--content-primary)); }
+.ck-panel-desc { font: 400 12px/18px var(--font-sans); color: hsl(var(--content-secondary)); }
+.ck-panel-body { padding: 8px 0; }
+.ck-panel-row { display: flex; align-items: center; gap: 10px; padding: 8px 16px; transition: background 0.1s; }
+.ck-panel-row:hover { background: hsl(var(--surface-secondary)); }
+.ck-panel-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 16px; border-top: 1px solid hsl(var(--border-default)); }
+
+/* ── Table: coder/coder site/src/components/Table/Table.tsx; the Kit has no table card. .ck-table-wrap scrolls
+   sideways on a narrow page. The body rows get the outer border and the rounded corners. ── */
+.ck-table-wrap { position: relative; width: 100%; min-width: 0; overflow: auto; }
+.ck-table {
+  width: 100%; border-collapse: separate; border-spacing: 0;
+  font-family: var(--font-sans); font-size: var(--text-xs); line-height: var(--lh-xs); font-weight: 500; color: hsl(var(--content-secondary));
+}
+.ck-table th { padding: 12px; text-align: left; vertical-align: middle; font-weight: 600; }
+.ck-table td { padding: 12px; vertical-align: middle; border-top: 1px solid hsl(var(--border-default)); }
+.ck-table tbody > tr > :first-child { border-left: 1px solid hsl(var(--border-default)); }
+.ck-table tbody > tr > :last-child { border-right: 1px solid hsl(var(--border-default)); }
+.ck-table tbody > tr:first-child > * { border-top: 1px solid hsl(var(--border-default)); }
+.ck-table tbody > tr:last-child > * { border-bottom: 1px solid hsl(var(--border-default)); }
+.ck-table tbody > tr:first-child > :first-child { border-top-left-radius: 6px; }
+.ck-table tbody > tr:first-child > :last-child { border-top-right-radius: 6px; }
+.ck-table tbody > tr:last-child > :first-child { border-bottom-left-radius: 6px; }
+.ck-table tbody > tr:last-child > :last-child { border-bottom-right-radius: 6px; }
+.ck-table-lg td { box-sizing: border-box; height: 72px; }
+.ck-table tr[aria-selected="true"] { background: hsl(var(--surface-secondary)); }
+.ck-row-hover { cursor: pointer; outline-offset: -1px; }
+.ck-row-hover:hover, .ck-row-hover:focus-visible { outline: 1px solid hsl(var(--border-secondary)); }
+.ck-cell-actions { width: 0; text-align: right; white-space: nowrap; }
+
+/* ── Navbar: comp-topnav.html (.navbar, .nav-link). The links scroll sideways when they do not fit, where the
+   card swaps them for a mobile menu. ── */
+.ck-navbar {
+  box-sizing: border-box; display: flex; align-items: center; min-width: 0; height: 72px; padding: 0 24px;
+  border-bottom: 1px solid hsl(var(--border-default)); background: hsl(var(--surface-primary)); color: hsl(var(--content-primary));
+}
+.ck-logo {
+  display: inline-block; flex-shrink: 0; width: 28px; height: 28px; background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 60'%3E%3Cpath d='M34.5381 0C54.5335 6.29882e-05 65.7432 10.1355 66.122 25.0544L48.853 25.6216C48.3984 17.3514 41.544 11.9189 34.5381 12.0809C24.919 12.2836 17.7989 19.1351 17.7988 29.9999C17.7988 40.8648 24.919 47.5951 34.5381 47.5951C41.544 47.5945 48.2468 42.4055 49.0043 34.1352L66.2733 34.5408C65.8189 49.7027 53.9276 60 34.5381 60C15.1484 60 0 48.2433 0 29.9999C7.1014e-05 11.6757 14.5426 0 34.5381 0ZM120 1.7728V58.5299H74.5559V1.7728H120Z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 60'%3E%3Cpath d='M34.5381 0C54.5335 6.29882e-05 65.7432 10.1355 66.122 25.0544L48.853 25.6216C48.3984 17.3514 41.544 11.9189 34.5381 12.0809C24.919 12.2836 17.7989 19.1351 17.7988 29.9999C17.7988 40.8648 24.919 47.5951 34.5381 47.5951C41.544 47.5945 48.2468 42.4055 49.0043 34.1352L66.2733 34.5408C65.8189 49.7027 53.9276 60 34.5381 60C15.1484 60 0 48.2433 0 29.9999C7.1014e-05 11.6757 14.5426 0 34.5381 0ZM120 1.7728V58.5299H74.5559V1.7728H120Z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.ck-nav { display: flex; align-self: stretch; gap: 16px; min-width: 0; margin-left: 16px; overflow-x: auto; scrollbar-width: none; }
+.ck-nav-link {
+  display: flex; align-items: center; flex-shrink: 0; padding: 0 8px; white-space: nowrap; text-decoration: none; cursor: pointer;
+  font: 500 14px/1 var(--font-sans); color: hsl(var(--content-secondary)); transition: color var(--dur-fast);
+}
+.ck-nav-link:hover, .ck-nav-link[aria-current="page"] { color: hsl(var(--content-primary)); }
+.ck-nav-link:focus-visible { outline: 2px solid hsl(var(--content-link)); outline-offset: -2px; }
+.ck-navbar-end { display: flex; align-items: center; gap: 12px; flex-shrink: 0; margin-left: auto; padding-left: 12px; }
+
+/* ── Page layout: coder/coder Margins.tsx (1380 px wide, 24 px sides), PageHeader.tsx, and the filter row of
+   WorkspacesPageView.tsx; the Kit has no card for them. ── */
+.ck-main { box-sizing: border-box; width: 100%; max-width: 1380px; margin: 0 auto; padding: 0 24px 48px; }
+.ck-page-header { display: flex; flex-direction: column; align-items: flex-start; gap: 32px; padding: 48px 0; }
+.ck-page-header > hgroup { display: flex; flex-direction: column; gap: 8px; margin: 0; }
+.ck-page-header > hgroup > * { margin: 0; }
+.ck-page-header-actions { display: flex; align-items: center; gap: 8px; }
+@media (min-width: 768px) {
+  .ck-page-header { flex-direction: row; align-items: center; }
+  .ck-page-header-actions { margin-left: auto; }
+}
+.ck-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 16px; }
+.ck-toolbar > .ck-input { flex: 1 1 240px; width: auto; }
+
+/* ── Menu: comp-topnav.html (.dropdown, .dd-item, .ud-divider). coder-kit.js opens a menu under the button that
+   names it in data-ck-menu. In a static mockup, a .ck-menu-anchor holds the button and the open menu. ── */
+.ck-menu {
+  box-sizing: border-box; width: max-content; min-width: 220px; max-width: calc(100vw - 16px); z-index: 40; overflow: hidden;
+  background: hsl(var(--surface-primary)); border: 1px solid hsl(var(--border-default)); border-radius: 8px; box-shadow: var(--shadow-menu);
+}
+.ck-menu[hidden] { display: none; }
+.ck-menu-anchor { position: relative; display: inline-flex; }
+.ck-menu-anchor > .ck-menu { position: absolute; top: calc(100% + 4px); right: 0; }
+.ck-menu-item {
+  box-sizing: border-box; display: flex; align-items: center; gap: 8px; width: calc(100% - 12px); height: 40px; margin: 1px 6px; padding: 0 10px;
+  border: 0; border-radius: 6px; background: none; cursor: pointer; text-align: left; text-decoration: none; white-space: nowrap;
+  font: 500 14px/1 var(--font-sans); color: hsl(var(--content-secondary)); transition: background var(--dur-fast);
+}
+.ck-menu-item:hover, .ck-menu-item:focus-visible { background: hsl(var(--surface-secondary)); outline: none; }
+.ck-menu-item > .ck-icon { width: 18px; height: 18px; }
+.ck-menu-divider { height: 1px; margin: 4px 0; background: hsl(var(--border-default)); }
+
+/* ── Checkbox, radio and switch: comp-checkbox.html, comp-radio.html, comp-switch.html. Each styles the
+   native <input>; .ck-choice lays one out with its label. ── */
+.ck-choice { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; user-select: none; font: 500 14px/24px var(--font-sans); color: hsl(var(--content-primary)); }
+.ck-choice:has(input:disabled) { cursor: not-allowed; }
+.ck-choice:has(input:disabled) > :not(input) { opacity: 0.4; }
+.ck-choice-text { display: flex; flex-direction: column; }
+.ck-choice-desc { font: 500 12px/18px var(--font-sans); color: hsl(var(--content-secondary)); }
+.ck-checkbox, .ck-radio, .ck-switch { -webkit-appearance: none; appearance: none; box-sizing: border-box; flex-shrink: 0; cursor: pointer; }
+.ck-checkbox:disabled, .ck-radio:disabled { opacity: 0.55; cursor: not-allowed; }
+.ck-checkbox {
+  display: inline-grid; place-content: center; width: 18px; height: 18px; margin: 3px;
+  border-radius: 2px; border: 1px solid hsl(var(--border-default)); background: transparent;
+  transition: background 0.1s, border-color 0.1s;
+}
+.ck-checkbox:hover { border-color: hsl(var(--border-secondary)); }
+.ck-checkbox:checked, .ck-checkbox:indeterminate { background: hsl(var(--surface-invert-primary)); border-color: hsl(var(--surface-invert-primary)); }
+.ck-checkbox:checked:hover { background: hsl(var(--surface-invert-secondary)); border-color: hsl(var(--surface-invert-secondary)); }
+.ck-checkbox:focus-visible { outline: 2px solid hsl(var(--content-link)); outline-offset: 1px; }
+.ck-checkbox:checked::before, .ck-checkbox:indeterminate::before { content: ""; width: 10px; height: 10px; background: hsl(var(--content-invert)); }
+.ck-checkbox:checked::before {
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M1 5.2 3.8 8 9 2' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M1 5.2 3.8 8 9 2' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.ck-checkbox:indeterminate::before {
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M1.5 5h7' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M1.5 5h7' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.ck-radio { width: 16px; height: 16px; margin: 4px; border-radius: 9999px; border: 1px solid hsl(var(--border-default)); background: transparent; }
+.ck-radio:checked { background: radial-gradient(circle, hsl(var(--surface-invert-primary)) 0 3.5px, transparent 4px); }
+.ck-radio:focus-visible { outline: none; border: 2px solid hsl(var(--content-link)); }
+.ck-switch { position: relative; width: 36px; height: 20px; margin: 2px; border: 0; border-radius: 9999px; background: hsl(var(--surface-quaternary)); transition: background 0.15s; }
+.ck-switch::before { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: hsl(var(--surface-primary)); transition: left 0.15s; }
+.ck-switch:checked { background: hsl(var(--surface-invert-primary)); }
+.ck-switch:checked::before { left: 18px; }
+.ck-switch:focus-visible { outline: 2px solid hsl(var(--content-link)); outline-offset: 2px; }
+.ck-switch:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Avatar: comp-avatar.md. Always square. ── */
+.ck-avatar {
+  position: relative; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: var(--avatar-default); height: var(--avatar-default); padding: 4px; overflow: hidden;
+  border-radius: 6px; border: 1px solid hsl(var(--border-default)); background: hsl(var(--surface-secondary));
+  color: hsl(var(--content-secondary)); font: 500 11px/1 var(--font-sans); text-transform: uppercase;
+}
+.ck-avatar > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.ck-avatar > svg, .ck-avatar > .ck-icon { width: 100%; height: 100%; }
+.ck-avatar-sm { width: var(--avatar-sm); height: var(--avatar-sm); padding: 3px; font-size: 9px; }
+.ck-avatar-lg { width: var(--avatar-lg); height: var(--avatar-lg); font-size: 14px; }
+.ck-avatar-service { background: transparent; color: hsl(var(--border-default)); }
+.ck-avatar-data { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.ck-avatar-data > div { min-width: 0; }
+.ck-avatar-title { font: 600 14px/20px var(--font-sans); color: hsl(var(--content-primary)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ck-avatar-subtitle { font: 500 12px/16px var(--font-sans); color: hsl(var(--content-secondary)); }
+
+/* ── Motion ── */
+.ck-spin { animation: ck-spin 1s linear infinite; }
+@keyframes ck-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ck-dot, .ck-spin { animation: none; } }

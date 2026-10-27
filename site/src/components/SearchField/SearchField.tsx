@@ -52,6 +52,8 @@ export const SearchField: React.FC<SearchFieldProps> = ({
 		} else {
 			onChange("");
 		}
+		// The clear button unmounts, so focus would fall back to the page.
+		internalRef.current?.focus();
 	};
 
 	const setRefs = (el: HTMLInputElement | null) => {

@@ -256,6 +256,67 @@ func TestChatProjectRBACObjects(t *testing.T) {
 	})
 }
 
+//nolint:tparallel,paralleltest // It toggles the global chat ACL flag.
+func TestChatArtifactRBACObject(t *testing.T) {
+	sharee, member, both, wildcard := uuid.NewString(), uuid.NewString(), uuid.NewString(), uuid.NewString()
+	shareGroup, projectGroup := uuid.NewString(), uuid.NewString()
+	project := ChatProject{
+		ID:             uuid.New(),
+		OrganizationID: uuid.New(),
+		OwnerID:        uuid.New(),
+		UserACL: ChatACL{
+			member: {Permissions: []policy.Action{policy.ActionRead}},
+			both:   {Permissions: []policy.Action{policy.ActionRead}},
+		},
+		GroupACL: ChatACL{projectGroup: {Permissions: []policy.Action{policy.ActionRead}}},
+	}
+	artifact := ChatArtifact{
+		ID:             uuid.New(),
+		OrganizationID: project.OrganizationID,
+		OwnerID:        uuid.New(),
+		ProjectID:      uuid.NullUUID{UUID: project.ID, Valid: true},
+		UserACL: ChatACL{
+			sharee: {Permissions: []policy.Action{policy.ActionRead}},
+			both:   {Permissions: []policy.Action{policy.ActionRead}},
+			// A stored entry that names more than read still grants read only.
+			wildcard: {Permissions: []policy.Action{policy.WildcardSymbol}},
+		},
+		GroupACL: ChatACL{shareGroup: {Permissions: []policy.Action{policy.ActionRead}}},
+	}
+	read := []policy.Action{policy.ActionRead}
+	readUpdate := []policy.Action{policy.ActionRead, policy.ActionUpdate}
+
+	t.Run("SharedOnly", func(t *testing.T) {
+		rbac.SetChatACLDisabled(false)
+		obj := artifact.RBACObject(nil)
+		require.Equal(t, map[string][]policy.Action{sharee: read, both: read, wildcard: read}, obj.ACLUserList)
+		require.Equal(t, map[string][]policy.Action{shareGroup: read}, obj.ACLGroupList)
+	})
+
+	t.Run("SharedAndProject", func(t *testing.T) {
+		rbac.SetChatACLDisabled(false)
+		obj := artifact.RBACObject(&project)
+		require.Equal(t, map[string][]policy.Action{
+			sharee:                   read,
+			wildcard:                 read,
+			member:                   readUpdate,
+			both:                     readUpdate,
+			project.OwnerID.String(): readUpdate,
+		}, obj.ACLUserList)
+		require.Equal(t, map[string][]policy.Action{shareGroup: read, projectGroup: readUpdate}, obj.ACLGroupList)
+		// The merge must not write into the project's or artifact's ACL.
+		require.Len(t, artifact.UserACL[both].Permissions, 1)
+	})
+
+	t.Run("Disabled", func(t *testing.T) {
+		rbac.SetChatACLDisabled(true)
+		t.Cleanup(func() { rbac.SetChatACLDisabled(false) })
+		obj := artifact.RBACObject(&project)
+		require.Empty(t, obj.ACLUserList)
+		require.Empty(t, obj.ACLGroupList)
+	})
+}
+
 //nolint:tparallel,paralleltest
 func TestWorkspaceACLDisabled(t *testing.T) {
 	uid := uuid.NewString()

@@ -394,6 +394,10 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			Negate:       true,
 			ResourceType: ResourceChatProject.Type,
 			Action:       policy.ActionShare,
+		}, Permission{
+			Negate:       true,
+			ResourceType: ResourceChatArtifact.Type,
+			Action:       policy.ActionShare,
 		})
 	}
 
@@ -774,6 +778,10 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 							// Memory objects carry the owning project's owner, so this
 							// grant reaches only the member's own projects.
 							ResourceChatProjectMemory.Type: ResourceChatProjectMemory.AvailableActions(),
+							// Artifact objects carry the artifact owner, so this grant
+							// reaches only the member's own artifacts; others reach
+							// one through its project.
+							ResourceChatArtifact.Type: ResourceChatArtifact.AvailableActions(),
 						}),
 					},
 				},

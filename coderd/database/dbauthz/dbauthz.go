@@ -817,6 +817,7 @@ var (
 					rbac.ResourceChat.Type:              {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceChatProject.Type:       {policy.ActionRead},
 					rbac.ResourceChatProjectMemory.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
+					rbac.ResourceChatArtifact.Type:      {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceChatModelConfig.Type:   {policy.ActionRead},
 					rbac.ResourceWorkspace.Type:         {policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceDeploymentConfig.Type:  {policy.ActionRead},
@@ -1830,6 +1831,59 @@ func (q *querier) authorizeChatProjectMemory(ctx context.Context, action policy.
 		return err
 	}
 	return q.authorizeContext(ctx, action, memory.RBACObject(project))
+}
+
+// chatArtifactListItem pairs a listed artifact with its prebuilt object,
+// because the object needs the project that the row does not carry.
+type chatArtifactListItem struct {
+	row database.GetChatArtifactsOwnedOrInUserProjectsRow
+	obj rbac.Object
+}
+
+func (i chatArtifactListItem) RBACObject() rbac.Object { return i.obj }
+
+// chatArtifactRBACObjectCached builds the artifact's object with its
+// project ACL. projects caches project lookups; a nil entry means the
+// project is gone.
+func (q *querier) chatArtifactRBACObjectCached(ctx context.Context, artifact database.ChatArtifact, projects map[uuid.UUID]*database.ChatProject) (rbac.Object, error) {
+	if !artifact.ProjectID.Valid {
+		return artifact.RBACObject(nil), nil
+	}
+	project, cached := projects[artifact.ProjectID.UUID]
+	if !cached {
+		row, err := q.db.GetChatProjectByID(ctx, artifact.ProjectID.UUID)
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			// A deleted project sets project_id to NULL; until then the
+			// artifact is personal.
+		case err != nil:
+			return rbac.Object{}, xerrors.Errorf("get chat artifact project: %w", err)
+		default:
+			project = &row
+		}
+		if projects != nil {
+			projects[artifact.ProjectID.UUID] = project
+		}
+	}
+	return artifact.RBACObject(project), nil
+}
+
+func (q *querier) authorizeChatArtifactObject(ctx context.Context, action policy.Action, artifact database.ChatArtifact) error {
+	obj, err := q.chatArtifactRBACObjectCached(ctx, artifact, nil)
+	if err != nil {
+		return err
+	}
+	return q.authorizeContext(ctx, action, obj)
+}
+
+// authorizeChatArtifact authorizes an action on an artifact and its
+// versions. Version permissions derive from the artifact.
+func (q *querier) authorizeChatArtifact(ctx context.Context, action policy.Action, artifactID uuid.UUID) error {
+	row, err := q.db.GetChatArtifactByID(ctx, artifactID)
+	if err != nil {
+		return err
+	}
+	return q.authorizeChatArtifactObject(ctx, action, row.ChatArtifact)
 }
 
 func (q *querier) AcquireExternalAuthLinkRefreshLease(ctx context.Context, arg database.AcquireExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
@@ -3342,6 +3396,72 @@ func (q *querier) GetChatAdvisorConfig(ctx context.Context) (string, error) {
 	return q.db.GetChatAdvisorConfig(ctx)
 }
 
+func (q *querier) GetChatArtifactByID(ctx context.Context, id uuid.UUID) (database.GetChatArtifactByIDRow, error) {
+	row, err := q.db.GetChatArtifactByID(ctx, id)
+	if err != nil {
+		return database.GetChatArtifactByIDRow{}, err
+	}
+	if err := q.authorizeChatArtifactObject(ctx, policy.ActionRead, row.ChatArtifact); err != nil {
+		return database.GetChatArtifactByIDRow{}, err
+	}
+	return row, nil
+}
+
+// GetChatArtifactByIDForUpdate requires share, because only the share
+// handler locks the row. The check runs before the lock, so a caller
+// without share never holds the row lock.
+func (q *querier) GetChatArtifactByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ChatArtifact, error) {
+	if err := q.authorizeChatArtifact(ctx, policy.ActionShare, id); err != nil {
+		return database.ChatArtifact{}, err
+	}
+	return q.db.GetChatArtifactByIDForUpdate(ctx, id)
+}
+
+func (q *querier) GetChatArtifactVersion(ctx context.Context, arg database.GetChatArtifactVersionParams) (database.ChatArtifactVersion, error) {
+	if err := q.authorizeChatArtifact(ctx, policy.ActionRead, arg.ArtifactID); err != nil {
+		return database.ChatArtifactVersion{}, err
+	}
+	return q.db.GetChatArtifactVersion(ctx, arg)
+}
+
+func (q *querier) GetChatArtifactVersionsMetadata(ctx context.Context, artifactID uuid.UUID) ([]database.GetChatArtifactVersionsMetadataRow, error) {
+	if err := q.authorizeChatArtifact(ctx, policy.ActionRead, artifactID); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatArtifactVersionsMetadata(ctx, artifactID)
+}
+
+func (q *querier) GetChatArtifactsOwnedOrInUserProjects(ctx context.Context, userID uuid.UUID) ([]database.GetChatArtifactsOwnedOrInUserProjectsRow, error) {
+	act, ok := ActorFromContext(ctx)
+	if !ok {
+		return nil, ErrNoActor
+	}
+	rows, err := q.db.GetChatArtifactsOwnedOrInUserProjects(ctx, userID)
+	if err != nil {
+		return nil, xerrors.Errorf("fetch object: %w", err)
+	}
+	// Each row's object depends on its project's ACL, so build the objects
+	// first and filter them in one pass.
+	projects := make(map[uuid.UUID]*database.ChatProject)
+	items := make([]chatArtifactListItem, 0, len(rows))
+	for _, row := range rows {
+		obj, err := q.chatArtifactRBACObjectCached(ctx, row.ChatArtifact, projects)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, chatArtifactListItem{row: row, obj: obj})
+	}
+	allowed, err := rbac.Filter(ctx, q.auth, act, policy.ActionRead, items, rbac.DefaultFilterThreshold)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]database.GetChatArtifactsOwnedOrInUserProjectsRow, 0, len(allowed))
+	for _, item := range allowed {
+		out = append(out, item.row)
+	}
+	return out, nil
+}
+
 func (q *querier) GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchiveDays int32) (int32, error) {
 	// Chat auto-archive is a deployment-wide config read by dbpurge.
 	// Only requires a valid actor in context. The HTTP GET handler
@@ -4429,6 +4549,13 @@ func (q *querier) GetLastUpdateCheck(ctx context.Context) (string, error) {
 		return "", err
 	}
 	return q.db.GetLastUpdateCheck(ctx)
+}
+
+func (q *querier) GetLatestChatArtifactVersion(ctx context.Context, artifactID uuid.UUID) (database.ChatArtifactVersion, error) {
+	if err := q.authorizeChatArtifact(ctx, policy.ActionRead, artifactID); err != nil {
+		return database.ChatArtifactVersion{}, err
+	}
+	return q.db.GetLatestChatArtifactVersion(ctx, artifactID)
 }
 
 func (q *querier) GetLatestCryptoKeyByFeature(ctx context.Context, feature database.CryptoKeyFeature) (database.CryptoKey, error) {
@@ -6501,6 +6628,27 @@ func (q *querier) InsertChat(ctx context.Context, arg database.InsertChatParams)
 	return insert(q.log, q.auth, rbac.ResourceChat.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), q.db.InsertChat)(ctx, arg)
 }
 
+func (q *querier) InsertChatArtifact(ctx context.Context, arg database.InsertChatArtifactParams) (database.ChatArtifact, error) {
+	// Creating needs owner rights in the organization; the project ACL
+	// grants only read and update.
+	obj := database.ChatArtifact{
+		OrganizationID: arg.OrganizationID,
+		OwnerID:        arg.OwnerID,
+		ProjectID:      arg.ProjectID,
+	}.RBACObject(nil)
+	if err := q.authorizeContext(ctx, policy.ActionCreate, obj); err != nil {
+		return database.ChatArtifact{}, err
+	}
+	return q.db.InsertChatArtifact(ctx, arg)
+}
+
+func (q *querier) InsertChatArtifactVersion(ctx context.Context, arg database.InsertChatArtifactVersionParams) (database.InsertChatArtifactVersionRow, error) {
+	if err := q.authorizeChatArtifact(ctx, policy.ActionUpdate, arg.ArtifactID); err != nil {
+		return database.InsertChatArtifactVersionRow{}, err
+	}
+	return q.db.InsertChatArtifactVersion(ctx, arg)
+}
+
 func (q *querier) InsertChatDebugRun(ctx context.Context, arg database.InsertChatDebugRunParams) (database.ChatDebugRun, error) {
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
@@ -7874,6 +8022,23 @@ func (q *querier) UpdateChatACLByID(ctx context.Context, arg database.UpdateChat
 	}
 
 	return fetchAndExec(q.log, q.auth, policy.ActionShare, fetch, q.db.UpdateChatACLByID)(ctx, arg)
+}
+
+func (q *querier) UpdateChatArtifactACLByID(ctx context.Context, arg database.UpdateChatArtifactACLByIDParams) error {
+	if rbac.ChatACLDisabled() {
+		return NotAuthorizedError{Err: xerrors.New("chat sharing is disabled")}
+	}
+	if err := q.authorizeChatArtifact(ctx, policy.ActionShare, arg.ID); err != nil {
+		return err
+	}
+	return q.db.UpdateChatArtifactACLByID(ctx, arg)
+}
+
+func (q *querier) UpdateChatArtifactOnPublish(ctx context.Context, arg database.UpdateChatArtifactOnPublishParams) (database.ChatArtifact, error) {
+	if err := q.authorizeChatArtifact(ctx, policy.ActionUpdate, arg.ID); err != nil {
+		return database.ChatArtifact{}, err
+	}
+	return q.db.UpdateChatArtifactOnPublish(ctx, arg)
 }
 
 func (q *querier) UpdateChatBuildAgentBinding(ctx context.Context, arg database.UpdateChatBuildAgentBindingParams) (database.Chat, error) {

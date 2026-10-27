@@ -463,6 +463,17 @@ type sqlcQuerier interface {
 	// result into codersdk.AdvisorConfig. Returns '{}' when unset so zero
 	// values apply by default.
 	GetChatAdvisorConfig(ctx context.Context) (string, error)
+	GetChatArtifactByID(ctx context.Context, id uuid.UUID) (GetChatArtifactByIDRow, error)
+	GetChatArtifactByIDForUpdate(ctx context.Context, id uuid.UUID) (ChatArtifact, error)
+	GetChatArtifactVersion(ctx context.Context, arg GetChatArtifactVersionParams) (ChatArtifactVersion, error)
+	// Lists the versions of an artifact, newest first, without their bytes.
+	GetChatArtifactVersionsMetadata(ctx context.Context, artifactID uuid.UUID) ([]GetChatArtifactVersionsMetadataRow, error)
+	// Lists the artifacts that the user owns, can reach through a chat project
+	// (the membership rule of IsChatProjectUsableByUserID), or that are shared
+	// with the user or one of their groups. Callers must still authorize each
+	// row. Keep the columns equal to GetChatArtifactByID: handlers convert one
+	// row type to the other.
+	GetChatArtifactsOwnedOrInUserProjects(ctx context.Context, userID uuid.UUID) ([]GetChatArtifactsOwnedOrInUserProjectsRow, error)
 	// Auto-archive window in days. 0 disables.
 	GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchiveDays int32) (int32, error)
 	GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error)
@@ -744,6 +755,7 @@ type sqlcQuerier interface {
 	// "last" must use id order.
 	GetLastChatMessageByRole(ctx context.Context, arg GetLastChatMessageByRoleParams) (ChatMessage, error)
 	GetLastUpdateCheck(ctx context.Context) (string, error)
+	GetLatestChatArtifactVersion(ctx context.Context, artifactID uuid.UUID) (ChatArtifactVersion, error)
 	GetLatestCryptoKeyByFeature(ctx context.Context, feature CryptoKeyFeature) (CryptoKey, error)
 	GetLatestWorkspaceAgentContextSnapshot(ctx context.Context, workspaceAgentID uuid.UUID) (WorkspaceAgentContextSnapshot, error)
 	GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (WorkspaceAppStatus, error)
@@ -1226,6 +1238,10 @@ type sqlcQuerier interface {
 	InsertBoundaryLogs(ctx context.Context, arg InsertBoundaryLogsParams) ([]BoundaryLog, error)
 	InsertBoundarySession(ctx context.Context, arg InsertBoundarySessionParams) (BoundarySession, error)
 	InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error)
+	InsertChatArtifact(ctx context.Context, arg InsertChatArtifactParams) (ChatArtifact, error)
+	// Inserts base_version + 1 only while base_version is the latest version.
+	// If two chats publish on the same base, the primary key refuses the second.
+	InsertChatArtifactVersion(ctx context.Context, arg InsertChatArtifactVersionParams) (InsertChatArtifactVersionRow, error)
 	// updated_at is the retention clock used by DeleteOldChatDebugRuns.
 	// Set it on every write to keep retention semantics correct.
 	InsertChatDebugRun(ctx context.Context, arg InsertChatDebugRunParams) (ChatDebugRun, error)
@@ -1565,6 +1581,9 @@ type sqlcQuerier interface {
 	UpdateAIProvider(ctx context.Context, arg UpdateAIProviderParams) (AIProvider, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
 	UpdateChatACLByID(ctx context.Context, arg UpdateChatACLByIDParams) error
+	UpdateChatArtifactACLByID(ctx context.Context, arg UpdateChatArtifactACLByIDParams) error
+	// Marks a publish. An empty title keeps the current title.
+	UpdateChatArtifactOnPublish(ctx context.Context, arg UpdateChatArtifactOnPublishParams) (ChatArtifact, error)
 	UpdateChatBuildAgentBinding(ctx context.Context, arg UpdateChatBuildAgentBindingParams) (Chat, error)
 	// Uses COALESCE so that passing NULL from Go means "keep the
 	// existing value." This is intentional: debug rows follow a

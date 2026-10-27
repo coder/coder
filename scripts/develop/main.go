@@ -786,6 +786,14 @@ func startServer(cfg *devConfig, group *procGroup) error {
 			"--prometheus-collect-db-metrics",
 		)
 	}
+	// PROTOTYPE ONLY (artifacts branch, do not merge): the ephemeral
+	// preview cannot pass server flags, and project artifacts need chat
+	// projects. An explicit --experiments flag or CODER_EXPERIMENTS wins.
+	if os.Getenv("CODER_EXPERIMENTS") == "" && !slices.ContainsFunc(cfg.serverExtraArgs, func(arg string) bool {
+		return strings.HasPrefix(arg, "--experiments")
+	}) {
+		serverArgs = append(serverArgs, "--experiments=chat-projects")
+	}
 	serverArgs = append(serverArgs, cfg.serverExtraArgs...)
 
 	if cfg.debug {

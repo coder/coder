@@ -176,6 +176,22 @@ const ChatsSidebarWithDeferredModels = (
 	);
 };
 
+/** On the artifacts gallery, the Artifacts link is the current page. */
+export const ArtifactsGalleryActive: Story = {
+	args: {
+		chats: [buildChat({ id: "chat-repo-report", title: "Repo report" })],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/artifacts" },
+			routing: [
+				{ path: "/agents/artifacts", useStoryElement: true },
+				...agentsRouting,
+			],
+		}),
+	},
+};
+
 export const ModelNameWaitsForModelsToLoad: Story = {
 	args: {
 		chats: [

@@ -6,6 +6,7 @@ import { useTheme } from "#/theme/context";
 import type { SourceLink } from "../../ChatConversation/types";
 import { ACPTool } from "./ACPTool";
 import { AdvisorTool, type AdvisorToolResultType } from "./AdvisorTool";
+import { ArtifactToolCard } from "./ArtifactToolCard";
 import {
 	type AskUserQuestion,
 	AskUserQuestionTool,
@@ -1152,6 +1153,37 @@ const WorkspaceLifecycleRenderer: React.FC<ToolRendererProps> = ({
 	);
 };
 
+const ArtifactRenderer: React.FC<ToolRendererProps> = ({
+	name,
+	status,
+	result,
+	isError,
+}) => {
+	const rec = asRecord(result);
+	const artifactId = rec ? asString(rec.artifact_id) : "";
+	const version = rec ? asNumber(rec.version) : undefined;
+	const artifact =
+		rec && artifactId && version !== undefined
+			? {
+					artifactId,
+					version,
+					title: asString(rec.title),
+					name: asString(rec.name),
+					path: asString(rec.path),
+					untrusted: rec.untrusted === true,
+				}
+			: undefined;
+	return (
+		<ArtifactToolCard
+			toolName={name === "read_artifact" ? "read_artifact" : "publish_artifact"}
+			status={status}
+			isError={isError}
+			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+			artifact={artifact}
+		/>
+	);
+};
+
 // A client dynamic tool can also be named web_search, so only
 // provider-executed calls get the web search row.
 const WebSearchRenderer: React.FC<ToolRendererProps> = (props) =>
@@ -1202,6 +1234,8 @@ export const toolRenderers: Record<string, React.FC<ToolRendererProps>> = {
 	propose_plan: ProposePlanRenderer,
 	advisor: AdvisorRenderer,
 	computer: ComputerRenderer,
+	publish_artifact: ArtifactRenderer,
+	read_artifact: ArtifactRenderer,
 	web_search: WebSearchRenderer,
 };
 

@@ -127,7 +127,8 @@ type MemberIdentityProps =
 	| { kind: "group"; group: TypesGen.ChatGroup }
 	| { kind: "user"; user: TypesGen.ChatUser };
 
-const MemberIdentity: React.FC<MemberIdentityProps> = (props) => {
+/** A user or group in a sharing list: avatar, name and subtitle. */
+export const MemberIdentity: React.FC<MemberIdentityProps> = (props) => {
 	if (props.kind === "group") {
 		const { group } = props;
 		return (

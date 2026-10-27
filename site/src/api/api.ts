@@ -376,6 +376,22 @@ const chatProjectSkillPath = (
 	name: string,
 ) =>
 	`${chatProjectSkillsPath(organizationId, projectId)}/${encodeURIComponent(name)}`;
+const chatArtifactPath = (artifactId: string) =>
+	`/api/experimental/chats/artifacts/${encodeURIComponent(artifactId)}`;
+/** The raw bytes of one artifact version. HTML and SVG download. */
+export const getChatArtifactVersionURL = (
+	artifactId: string,
+	version: number,
+) => `${chatArtifactPath(artifactId)}/versions/${version}`;
+/**
+ * An HTML artifact version served with a CSP sandbox, for an iframe only.
+ * A page that links coder-kit.css gets the Coder Kit in this theme.
+ */
+export const getChatArtifactFrameURL = (
+	artifactId: string,
+	version: number,
+	theme: "light" | "dark",
+) => `${getChatArtifactVersionURL(artifactId, version)}/frame?theme=${theme}`;
 const userAIProviderKeysPath = (user = "me") =>
 	`/api/v2/users/${encodeURIComponent(user)}/ai-provider-keys`;
 const mcpServerConfigsPath = (organization: string) =>
@@ -3308,6 +3324,51 @@ class ExperimentalApiMethods {
 			"/api/experimental/chats/projects",
 		);
 		return response.data;
+	};
+
+	listChatArtifacts = async (): Promise<TypesGen.ChatArtifact[]> => {
+		const response = await this.axios.get<TypesGen.ChatArtifact[]>(
+			"/api/experimental/chats/artifacts",
+		);
+		return response.data;
+	};
+
+	getChatArtifact = async (
+		artifactId: string,
+	): Promise<TypesGen.ChatArtifact> => {
+		const response = await this.axios.get<TypesGen.ChatArtifact>(
+			chatArtifactPath(artifactId),
+		);
+		return response.data;
+	};
+
+	getChatArtifactVersionText = async (
+		artifactId: string,
+		version: number,
+	): Promise<string> => {
+		const response = await this.axios.get<string>(
+			getChatArtifactVersionURL(artifactId, version),
+			{ responseType: "text" },
+		);
+		return response.data;
+	};
+
+	/** The users and groups an artifact is shared with. */
+	getChatArtifactACL = async (
+		artifactId: string,
+	): Promise<TypesGen.ChatACL> => {
+		const response = await this.axios.get<TypesGen.ChatACL>(
+			`${chatArtifactPath(artifactId)}/acl`,
+		);
+		return response.data;
+	};
+
+	/** Shares an artifact with users and groups. Role "" stops sharing. */
+	updateChatArtifactACL = async (
+		artifactId: string,
+		req: TypesGen.UpdateChatACL,
+	): Promise<void> => {
+		await this.axios.patch(`${chatArtifactPath(artifactId)}/acl`, req);
 	};
 
 	createChatProject = async (

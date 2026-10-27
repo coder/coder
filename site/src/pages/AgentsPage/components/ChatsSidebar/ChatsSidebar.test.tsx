@@ -710,6 +710,27 @@ describe("ChatsSidebar section switcher", () => {
 	});
 });
 
+describe("ChatsSidebar artifacts link", () => {
+	it("opens the artifacts gallery", async () => {
+		const user = userEvent.setup();
+
+		render(
+			<Wrapper initialEntry="/agents">
+				<ChatsSidebar {...defaultProps} />
+				<ProjectLocationProbe />
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("link", { name: "Artifacts" }));
+
+		await waitFor(() => {
+			expect(screen.getByTestId("location-pathname").textContent).toBe(
+				"/agents/artifacts",
+			);
+		});
+	});
+});
+
 describe("ChatsSidebar sections", () => {
 	it("renders another user's shared chats in Shared with you regardless of pin order", () => {
 		render(

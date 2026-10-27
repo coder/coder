@@ -6,6 +6,7 @@ import {
 	EllipsisIcon,
 	PanelLeftIcon,
 	SettingsIcon,
+	ShapesIcon,
 	Volume2Icon,
 	VolumeOffIcon,
 } from "lucide-react";
@@ -31,6 +32,7 @@ import { toast } from "#/components/Toaster/toast";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
+import { artifactsGalleryPath } from "./Artifacts/artifactUtils";
 
 type AgentPageHeaderProps = {
 	children?: React.ReactNode;
@@ -177,6 +179,13 @@ export const AgentPageHeader: React.FC<AgentPageHeaderProps> = ({
 						align="end"
 						className="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-sm"
 					>
+						{/* The sidebar, with its Artifacts link, is hidden on a phone. */}
+						<DropdownMenuItem asChild>
+							<Link to={artifactsGalleryPath}>
+								<ShapesIcon className="size-icon-sm" />
+								Artifacts
+							</Link>
+						</DropdownMenuItem>
 						<DropdownMenuItem asChild>
 							<Link
 								to="/agents/settings"

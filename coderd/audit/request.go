@@ -157,6 +157,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Name
 	case database.ChatProjectMemory:
 		return typed.Name
+	case database.ChatArtifact:
+		return typed.Title
 	case database.AuditableChatProjectInstructions:
 		return typed.ProjectName
 	case database.ChatModelConfig:
@@ -280,6 +282,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.ID
 	case database.ChatProjectMemory:
 		return typed.ID
+	case database.ChatArtifact:
+		return typed.ID
 	case database.AuditableChatProjectInstructions:
 		// One row per project, keyed by the project.
 		return typed.ProjectID
@@ -378,6 +382,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeChatProject
 	case database.ChatProjectMemory:
 		return database.ResourceTypeChatProjectMemory
+	case database.ChatArtifact:
+		return database.ResourceTypeChatArtifact
 	case database.AuditableChatProjectInstructions:
 		return database.ResourceTypeChatProjectInstructions
 	case database.ChatModelConfig:
@@ -485,6 +491,8 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 	case database.ChatProject:
 		return true
 	case database.ChatProjectMemory:
+		return true
+	case database.ChatArtifact:
 		return true
 	case database.AuditableChatProjectInstructions:
 		return true
