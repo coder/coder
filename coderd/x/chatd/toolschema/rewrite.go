@@ -39,42 +39,75 @@ var (
 	}
 )
 
-// Normalize returns a copy of a schema in which every type list is
-// rewritten into an equivalent "anyOf" and every array schema without
-// "items" gets an empty one, the shapes provider drivers accept. Only
-// schema positions are rewritten, so instance data such as "const" and
-// "enum" values keeps its exact shape. The source is not modified.
+// Normalize returns a copy of a schema in the shapes provider drivers
+// accept: every type list is rewritten into an equivalent "anyOf", every
+// array schema without "items" gets an empty one, an "enum" with an
+// array or object member becomes an "anyOf" of "const" values, and a
+// reference that names the root resource by URI becomes a fragment
+// reference. Instance data such as "const" and "enum" values keeps its
+// exact shape. The source is not modified.
 func Normalize(schema map[string]any) map[string]any {
-	return copyNode(schema, refScope{}, func(node map[string]any, _ refScope) {
-		normalizeNode(node)
+	return copyNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
+		normalizeNode(node, scope)
 	})
 }
 
-func normalizeNode(node map[string]any) {
-	types, ok := node["type"].([]any)
-	if !ok {
-		if node["type"] == "array" {
-			if _, ok := node["items"]; !ok {
-				node["items"] = map[string]any{}
+func normalizeNode(node map[string]any, scope refScope) {
+	if types, ok := node["type"].([]any); ok {
+		variants := make([]any, 0, len(types))
+		for _, typ := range types {
+			variant := map[string]any{"type": typ}
+			if typ == "array" {
+				variant["items"] = map[string]any{}
 			}
+			variants = append(variants, variant)
 		}
+		delete(node, "type")
+		requireAnyOf(node, variants)
+	} else if node["type"] == "array" {
+		if _, ok := node["items"]; !ok {
+			node["items"] = map[string]any{}
+		}
+	}
+
+	// OpenAI rejects a tool schema whose "enum" has an array or object
+	// member, but accepts the same values as "const".
+	if values, ok := node["enum"].([]any); ok && slices.ContainsFunc(values, isComposite) {
+		variants := make([]any, 0, len(values))
+		for _, value := range values {
+			variants = append(variants, map[string]any{"const": value})
+		}
+		delete(node, "enum")
+		requireAnyOf(node, variants)
+	}
+
+	// Some providers resolve only fragment references.
+	if ref, ok := node["$ref"].(string); ok && !scope.nested && !strings.HasPrefix(ref, "#") {
+		if tokens, ok := scope.rootPointer(ref); ok {
+			node["$ref"] = "#" + encodePointer(tokens)
+		}
+	}
+}
+
+// requireAnyOf requires one of variants to hold. An existing "anyOf"
+// keeps its place, so references into it still resolve, and the
+// variants join "allOf" instead.
+func requireAnyOf(node map[string]any, variants []any) {
+	if _, ok := node["anyOf"]; !ok {
+		node["anyOf"] = variants
 		return
 	}
-	variants := make([]any, 0, len(types))
-	for _, typ := range types {
-		variant := map[string]any{"type": typ}
-		if typ == "array" {
-			variant["items"] = map[string]any{}
-		}
-		variants = append(variants, variant)
+	allOf, _ := node["allOf"].([]any)
+	node["allOf"] = append(slices.Clone(allOf), map[string]any{"anyOf": variants})
+}
+
+func isComposite(value any) bool {
+	switch value.(type) {
+	case map[string]any, []any:
+		return true
+	default:
+		return false
 	}
-	if existing, ok := node["anyOf"]; ok {
-		// Both constraints apply, so keep the original alternatives.
-		allOf, _ := node["allOf"].([]any)
-		node["allOf"] = append(slices.Clone(allOf), map[string]any{"anyOf": existing})
-	}
-	delete(node, "type")
-	node["anyOf"] = variants
 }
 
 // RewriteRefs returns a copy of a schema in which every "$ref" that
@@ -102,35 +135,85 @@ func RewriteRefs(schema map[string]any, rewrite func(tokens []string) ([]string,
 	})
 }
 
-// ResolveLocalRef returns the value that a reference made from root's
-// own resource points at in root. This covers fragment references such
-// as "#/$defs/Filter" and, when root declares "$id", references that
-// name that URI, such as "https://example.com/tool.json#/$defs/Filter".
-func ResolveLocalRef(root map[string]any, ref string) (any, bool) {
-	tokens, ok := rootScope(root).rootPointer(ref)
+// HasRefs reports whether schema or one of its subschemas holds a
+// reference keyword.
+func HasRefs(schema map[string]any) bool {
+	found := false
+	copyNode(schema, refScope{}, func(node map[string]any, _ refScope) {
+		for _, key := range []string{"$ref", "$dynamicRef", "$recursiveRef"} {
+			if _, ok := node[key]; ok {
+				found = true
+			}
+		}
+	})
+	return found
+}
+
+// ResolveLocalRef returns the value in root that a reference made from
+// root's own resource points at. The reference may be a fragment such as
+// "#/$defs/Filter", name root's "$id", or name the "$id" of a resource
+// that root embeds. sameResource reports whether the value belongs to
+// root's resource, so that references inside it resolve as they would
+// at the root.
+func ResolveLocalRef(root map[string]any, ref string) (target any, sameResource bool, ok bool) {
+	scope := rootScope(root)
+	prefix, fragment, _ := strings.Cut(ref, "#")
+	tokens, ok := decodePointer(fragment)
 	if !ok {
-		return nil, false
+		return nil, false, false
 	}
-	current := any(root)
+	current, sameResource := any(root), true
+	if prefix != "" {
+		uri, ok := scope.resolve(prefix)
+		if !ok {
+			return nil, false, false
+		}
+		if scope.rootBase == nil || canonicalURI(uri) != canonicalURI(scope.rootBase) {
+			current, ok = embeddedResource(root, scope, uri)
+			if !ok {
+				return nil, false, false
+			}
+			sameResource = false
+		}
+	}
 	for _, token := range tokens {
 		switch typed := current.(type) {
 		case map[string]any:
 			next, ok := typed[token]
 			if !ok {
-				return nil, false
+				return nil, false, false
 			}
 			current = next
 		case []any:
 			index, err := strconv.Atoi(token)
 			if err != nil || index < 0 || index >= len(typed) {
-				return nil, false
+				return nil, false, false
 			}
 			current = typed[index]
 		default:
-			return nil, false
+			return nil, false, false
+		}
+		if node, ok := current.(map[string]any); ok {
+			if _, ok := resourceID(node); ok {
+				sameResource = false
+			}
 		}
 	}
-	return current, true
+	return current, sameResource, true
+}
+
+// embeddedResource returns the subschema of root that declares the
+// resource uri with its own "$id".
+func embeddedResource(root map[string]any, scope refScope, uri *url.URL) (map[string]any, bool) {
+	want := canonicalURI(uri)
+	var found map[string]any
+	copyNode(root, scope, func(node map[string]any, scope refScope) {
+		if _, ok := resourceID(node); ok && scope.nested && scope.base != nil &&
+			found == nil && canonicalURI(scope.base) == want {
+			found = node
+		}
+	})
+	return found, found != nil
 }
 
 // visitFunc is called on every copied schema object after its subschemas
@@ -220,11 +303,18 @@ type refScope struct {
 	nested bool
 }
 
+// rootScope returns the scope of root. The URI root was retrieved from
+// is unknown, so a relative root "$id" resolves against an empty base,
+// the same way as the references compared with it.
 func rootScope(root map[string]any) refScope {
-	var scope refScope
+	scope := refScope{base: &url.URL{}}
 	if id, ok := resourceID(root); ok {
-		scope.rootBase = id
-		scope.base = id
+		if id == nil {
+			scope.base = nil
+		} else {
+			scope.base = scope.base.ResolveReference(id)
+			scope.rootBase = scope.base
+		}
 	}
 	return scope
 }
@@ -240,10 +330,27 @@ func (s refScope) enter(node map[string]any) refScope {
 		s.base = nil
 	case s.base != nil:
 		s.base = s.base.ResolveReference(id)
-	default:
-		s.base = id
+	case id.IsAbs():
+		s.base = (&url.URL{}).ResolveReference(id)
 	}
 	return s
+}
+
+// resolve returns the absolute form of a reference's URI part, or false
+// when it is relative to an unknown base.
+func (s refScope) resolve(prefix string) (*url.URL, bool) {
+	target, err := parseURI(prefix)
+	if err != nil {
+		return nil, false
+	}
+	switch {
+	case s.base != nil:
+		return s.base.ResolveReference(target), true
+	case target.IsAbs():
+		return (&url.URL{}).ResolveReference(target), true
+	default:
+		return nil, false
+	}
 }
 
 // rootPointer returns the decoded JSON Pointer tokens of ref when its
@@ -259,14 +366,8 @@ func (s refScope) rootPointer(ref string) ([]string, bool) {
 	if s.rootBase == nil {
 		return nil, false
 	}
-	target, err := url.Parse(prefix)
-	if err != nil {
-		return nil, false
-	}
-	if s.base != nil {
-		target = s.base.ResolveReference(target)
-	}
-	if target.String() != s.rootBase.String() {
+	target, ok := s.resolve(prefix)
+	if !ok || canonicalURI(target) != canonicalURI(s.rootBase) {
 		return nil, false
 	}
 	return decodePointer(fragment)
@@ -280,13 +381,72 @@ func resourceID(node map[string]any) (*url.URL, bool) {
 	if !ok || id == "" || strings.HasPrefix(id, "#") {
 		return nil, false
 	}
-	parsed, err := url.Parse(id)
+	parsed, err := parseURI(id)
 	if err != nil {
 		return nil, true
 	}
 	parsed.Fragment, parsed.RawFragment = "", ""
 	return parsed, true
 }
+
+// parseURI parses a URI reference after the percent-encoding
+// normalization of RFC 3986 section 6.2.2.2: escaped unreserved
+// characters are decoded and other escapes use uppercase hex digits.
+// Escaped dot segments then resolve like plain ones.
+func parseURI(raw string) (*url.URL, error) {
+	if !strings.Contains(raw, "%") {
+		return url.Parse(raw)
+	}
+	normalized := make([]byte, 0, len(raw))
+	for i := 0; i < len(raw); i++ {
+		if raw[i] == '%' && i+2 < len(raw) {
+			if octet, err := strconv.ParseUint(raw[i+1:i+3], 16, 8); err == nil {
+				if isUnreserved(byte(octet)) {
+					normalized = append(normalized, byte(octet))
+				} else {
+					normalized = append(normalized, '%')
+					normalized = append(normalized, strings.ToUpper(raw[i+1:i+3])...)
+				}
+				i += 2
+				continue
+			}
+		}
+		normalized = append(normalized, raw[i])
+	}
+	return url.Parse(string(normalized))
+}
+
+func isUnreserved(c byte) bool {
+	return 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' || '0' <= c && c <= '9' ||
+		c == '-' || c == '.' || c == '_' || c == '~'
+}
+
+// canonicalURI returns a resolved URI in the form used to compare
+// resource URIs: the scheme and host are lowercase, and for http and
+// https the default port is dropped and an empty path is "/". Parsing
+// with parseURI and resolving have already normalized percent-encoding
+// and dot segments.
+func canonicalURI(uri *url.URL) string {
+	canonical := *uri
+	canonical.Host = strings.ToLower(canonical.Host)
+	if defaultPort, ok := httpDefaultPorts[canonical.Scheme]; ok {
+		port := canonical.Port()
+		host := strings.TrimSuffix(strings.TrimSuffix(canonical.Host, port), ":")
+		if number, err := strconv.Atoi(port); err == nil {
+			port = strconv.Itoa(number)
+		}
+		if port != "" && port != defaultPort {
+			host += ":" + port
+		}
+		canonical.Host = host
+		if canonical.Host != "" && canonical.Path == "" {
+			canonical.Path = "/"
+		}
+	}
+	return canonical.String()
+}
+
+var httpDefaultPorts = map[string]string{"http": "80", "https": "443"}
 
 // decodePointer splits a URI fragment holding a JSON Pointer into its
 // unescaped tokens. It rejects anchors and malformed escapes.
