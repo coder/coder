@@ -142,7 +142,7 @@ export const AttachmentPreview: React.FC<{
 							// Key combines file metadata with index as a fallback for
 							// duplicate names. Acceptable for a small, append-only list.
 							key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
-							className="group relative"
+							className="group relative isolate"
 						>
 							{isRasterImageMediaType(file.type) && previewUrl ? (
 								<button
@@ -176,6 +176,39 @@ export const AttachmentPreview: React.FC<{
 									{file.name.split(".").pop()?.toUpperCase() || "FILE"}
 								</div>
 							)}
+							{/* Focus on the card or either button shows both buttons. Each WebKit
+							    `A:focus-within B` rule adds a restyle of every ancestor's subtree, so
+							    the wrapper sets a variable with its own `focus-within`. At opacity 1
+							    it is no stacking context, so overlays paint over Paste, under Remove. */}
+							<div className="pointer-events-none absolute inset-0 [--actions-opacity:0] group-hover:[--actions-opacity:1] peer-focus:[--actions-opacity:1] focus-within:[--actions-opacity:1]">
+								{hasTextAttachment && (
+									<button
+										type="button"
+										onClick={async () => {
+											const nextContent = await loadTextAttachmentContent(
+												textContent,
+												textFileId,
+											);
+											onInlineText(file, nextContent);
+										}}
+										className="pointer-events-auto absolute -bottom-2 -right-2 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary opacity-(--actions-opacity) shadow-xs transition-opacity hover:bg-surface-secondary hover:text-content-primary"
+										aria-label="Paste inline"
+									>
+										<ClipboardPasteIcon
+											aria-hidden="true"
+											className="size-3.5"
+										/>
+									</button>
+								)}
+								<button
+									type="button"
+									onClick={() => onRemove(file)}
+									className="pointer-events-auto absolute -right-2 -top-2 z-10 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary opacity-(--actions-opacity) shadow-xs transition-opacity hover:bg-surface-secondary hover:text-content-primary"
+									aria-label={`Remove ${file.name}`}
+								>
+									<XIcon aria-hidden="true" className="size-3.5" />
+								</button>
+							</div>
 							{(uploadState?.status === "pending" ||
 								uploadState?.status === "processing" ||
 								uploadState?.status === "uploading") && (
@@ -201,37 +234,6 @@ export const AttachmentPreview: React.FC<{
 									</TooltipContent>
 								</Tooltip>
 							)}
-							{/* Focus on either button shows both. Only subject `focus-within`: WebKit
-							    restyles every ancestor's subtree while any `A:focus-within B` exists. */}
-							<div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity group-hover:opacity-100 peer-focus:opacity-100 focus-within:opacity-100">
-								{hasTextAttachment && (
-									<button
-										type="button"
-										onClick={async () => {
-											const nextContent = await loadTextAttachmentContent(
-												textContent,
-												textFileId,
-											);
-											onInlineText(file, nextContent);
-										}}
-										className="pointer-events-auto absolute -bottom-2 -right-2 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-xs hover:bg-surface-secondary hover:text-content-primary"
-										aria-label="Paste inline"
-									>
-										<ClipboardPasteIcon
-											aria-hidden="true"
-											className="size-3.5"
-										/>
-									</button>
-								)}
-								<button
-									type="button"
-									onClick={() => onRemove(file)}
-									className="pointer-events-auto absolute -right-2 -top-2 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-xs hover:bg-surface-secondary hover:text-content-primary"
-									aria-label={`Remove ${file.name}`}
-								>
-									<XIcon aria-hidden="true" className="size-3.5" />
-								</button>
-							</div>
 						</div>
 					);
 				})}
