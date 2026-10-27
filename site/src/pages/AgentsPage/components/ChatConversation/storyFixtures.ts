@@ -497,7 +497,6 @@ export const MockAsyncQuestionResult = {
 	async: true,
 };
 
-/** The tool message that returns MockAsyncQuestionResult to MockQuestionCallMessage. */
 const MockAsyncQuestionResultMessage: TypesGen.ChatMessage = {
 	...MockChatMessage,
 	id: 5,
