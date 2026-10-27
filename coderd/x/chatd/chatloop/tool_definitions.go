@@ -169,9 +169,11 @@ const maxRootFoldWork = 1 << 20
 // an object "const" requires its fields and no other name, and an
 // alternative that no object satisfies is dropped. A schema declaring a
 // draft before 2019-09 ignores every keyword beside "$ref", so only the
-// reference is folded there. Removed content that a reference still
-// points into moves under the root definitions, and those references
-// follow it.
+// reference is folded there. A schema read in another dialect than the
+// root, or whose copied content would declare a resource or an anchor a
+// second time, is not folded, which only drops constraints. Removed
+// content that a reference still points into moves under the root
+// definitions, and those references follow it.
 func enforceObjectRoot(inputSchema map[string]any) map[string]any {
 	var banned []string
 	for _, key := range bannedRootKeys {
@@ -203,6 +205,7 @@ func foldRootComposition(inputSchema map[string]any, banned []string) map[string
 		visiting:          map[string]struct{}{},
 		maxMerged:         compositionEntries(inputSchema) + maxRootMergeSchemas,
 		ignoreRefSiblings: ignoresRefSiblings(inputSchema),
+		dialect:           toolschema.Dialect(inputSchema),
 	}
 	shape := objectShape{properties: map[string]any{}}
 	if ref, ok := inputSchema["$ref"].(string); ok && folder.ignoreRefSiblings {
@@ -986,6 +989,9 @@ type rootFolder struct {
 	// ignoreRefSiblings reports that the schema declares a draft before
 	// 2019-09, which ignores every keyword beside "$ref".
 	ignoreRefSiblings bool
+	// dialect is the dialect the root is read in, as toolschema.Dialect
+	// returns it.
+	dialect string
 	// opaque reports that the fold left out how a schema evaluates
 	// property names, which "unevaluatedProperties" depends on.
 	opaque bool
@@ -1047,6 +1053,11 @@ func (f *rootFolder) mergeAll(shape *objectShape, branch any) {
 		return
 	}
 	f.merged++
+	if _, ok := node["$schema"].(string); ok && !toolschema.SameDialect(toolschema.Dialect(node), f.dialect) {
+		// The root's dialect would read its content differently.
+		f.leaveOut()
+		return
+	}
 	if ref, ok := node["$ref"].(string); ok && f.ignoreRefSiblings {
 		f.mergeRef(shape, ref)
 		return
@@ -1054,6 +1065,12 @@ func (f *rootFolder) mergeAll(shape *objectShape, branch any) {
 	if _, ok := node["$id"]; ok && f.refScanner.HasRefs(node) {
 		// References in a separate resource resolve against its own
 		// "$id", so its content cannot move into the root resource.
+		f.leaveOut()
+		return
+	}
+	if f.idScanner.HasNestedIdentifiers(node) {
+		// The schema also stays where it is, so copying a resource or an
+		// anchor it declares would declare it twice.
 		f.leaveOut()
 		return
 	}
@@ -1145,16 +1162,15 @@ func (f *rootFolder) mergeRef(shape *objectShape, ref string) {
 		f.skipped++
 		return
 	}
-	target, sameResource, ok := f.resolver.Resolve(ref)
-	if !ok {
+	target, sameResource, dialect, ok := f.resolver.ResolveDialect(ref)
+	if !ok || !toolschema.SameDialect(dialect, f.dialect) {
+		// The root's dialect would read the target's content differently.
 		f.leaveOut()
 		return
 	}
-	if node, ok := target.(map[string]any); ok && ((!sameResource && f.refScanner.HasRefs(node)) || f.idScanner.HasNestedIdentifiers(node)) {
+	if node, ok := target.(map[string]any); ok && !sameResource && f.refScanner.HasRefs(node) {
 		// As in mergeAll, references inside another resource resolve
-		// against its own "$id". The target also stays where it is, so
-		// copying a resource or an anchor it declares would declare it
-		// twice.
+		// against its own "$id".
 		f.leaveOut()
 		return
 	}

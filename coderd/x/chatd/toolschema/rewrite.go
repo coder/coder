@@ -68,7 +68,9 @@ func IsKeyword(value string) bool {
 // Normalize returns a copy of a schema in the shapes provider drivers
 // accept: draft 3 and draft 4 schemas are rewritten in draft 7 (see
 // UpgradeLegacyDrafts),
-// recursive references are replaced (see ReplaceRecursiveRefs), a
+// recursive references are replaced and the keywords of later drafts
+// that a schema's dialect ignores are removed (see
+// ReplaceRecursiveRefs), a
 // "$schema" that names a published dialect is spelled as published, one
 // that does not is removed, or names draft 7 when it is a draft before
 // 2019-09 that the rest of the rewriting reads like draft 7, every type
@@ -103,7 +105,7 @@ func Normalize(schema map[string]any) map[string]any {
 			dynamicAnchors[name]++
 		}
 		resource := keys.of(scope.resourcePath)
-		if _, ok := resourceID(node); ok && scope.nested && scope.base != nil {
+		if _, ok := resourceIDIn(node, scope.dialect); ok && scope.nested && scope.base != nil {
 			uri := canonicalURI(scope.base)
 			resources[uri] = append(resources[uri], resource)
 		}
@@ -250,12 +252,13 @@ type anchorRef struct {
 }
 
 // draft4UnknownKeywords are keywords that later drafts apply to
-// instances but draft 4 does not define, so that a draft 4 validator
-// ignores them.
+// instances or read to name resources and anchors but draft 4 does not
+// define, so that a draft 4 validator ignores them.
 var draft4UnknownKeywords = [...]string{
 	"const", "contains", "minContains", "maxContains", "propertyNames",
 	"if", "then", "else", "dependentRequired", "dependentSchemas",
 	"prefixItems", "unevaluatedItems", "unevaluatedProperties", "$dynamicRef",
+	"$id", "$anchor", "$dynamicAnchor",
 }
 
 // draft3UnknownKeywords are keywords that draft 4 added, so that a draft
@@ -275,10 +278,11 @@ var draft3UnknownKeywords = [...]string{
 // upgradeDraft3). In draft 4 schemas "id" becomes "$id", a boolean
 // "exclusiveMinimum" or "exclusiveMaximum" becomes the number that draft
 // 7 expects, and "$schema" names draft 7. The keywords a draft ignores
-// but later drafts apply are removed, except where a reference's JSON
-// Pointer passes through one: that occurrence keeps its value under a
-// key no draft defines, which validators also ignore, and the references
-// follow it. Normalize may then add some back where they hold as in the
+// but later drafts apply, or read to name resources and anchors such as
+// "$id", are removed first, except where a reference's JSON Pointer
+// passes through one: that occurrence keeps its value under a key no
+// draft defines, which validators also ignore, and the references follow
+// it. Normalize may then add some back where they hold as in the
 // source, such as "const" for an "enum". Schemas read in other dialects
 // keep their keywords, and a schema without any read in draft 3 or
 // draft 4 is returned as is. A reference to an object outside the
@@ -289,9 +293,15 @@ func UpgradeLegacyDrafts(schema map[string]any) map[string]any {
 	if !readsIn(schema, isDraft4) {
 		return schema
 	}
-	upgraded := copyNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
+	// The keywords are removed while draft 4 schemas still name their
+	// resources with "id", which the scopes then read.
+	schema = removeUnknownKeywords(schema, isDraft4, draft4UnknownKeywords[:], "x-draft4-")
+	return copyNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
 		if !isDraft4(scope.dialect) {
 			return
+		}
+		if _, ok := node["$schema"].(string); ok {
+			node["$schema"] = "http://json-schema.org/draft-07/schema#"
 		}
 		if id, ok := node["id"].(string); ok {
 			node["$id"] = id
@@ -309,7 +319,6 @@ func UpgradeLegacyDrafts(schema map[string]any) map[string]any {
 			}
 		}
 	})
-	return removeUnknownKeywords(upgraded, isDraft4, draft4UnknownKeywords[:], "x-draft4-", "http://json-schema.org/draft-07/schema#")
 }
 
 // pullReferencedData returns a copy of a schema in which each "$ref"
@@ -322,33 +331,20 @@ func UpgradeLegacyDrafts(schema map[string]any) map[string]any {
 // An object that declares an identifier is not copied, since in
 // "definitions" it would declare it, and neither is one whose resource
 // has "definitions" that is not an object. The schema itself is returned
-// when nothing is copied, or when a schema read in those drafts other
-// than the root names a resource with "id", which the scopes read only
-// once it becomes "$id".
+// when nothing is copied.
 func pullReferencedData(schema map[string]any) map[string]any {
 	legacy := func(dialect string) bool { return isDraft3(dialect) || isDraft4(dialect) }
 	if !readsIn(schema, legacy) {
 		return schema
 	}
-	resources := map[string][]*pathToken{}
+	resources := embeddedResources(schema)
 	// roots maps the encoded path of each resource root to its scope.
 	roots := map[string]refScope{}
-	unread := false
-	walkNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
-		if id, ok := node["id"].(string); ok && scope.path != nil && legacy(scope.dialect) && !strings.HasPrefix(id, "#") {
-			unread = true
-		}
-		if _, ok := resourceID(node); ok && scope.nested && scope.base != nil {
-			uri := canonicalURI(scope.base)
-			resources[uri] = append(resources[uri], scope.path)
-		}
+	walkNode(schema, rootScope(schema), func(_ map[string]any, scope refScope) {
 		if scope.path == scope.resourcePath {
 			roots[EncodePointer(scope.path.tokens())] = scope
 		}
 	})
-	if unread {
-		return schema
-	}
 	// names maps the encoded path of each object copied to the name of
 	// its copy, and added maps the encoded path of each resource root to
 	// the objects copied into its "definitions" by name.
@@ -459,7 +455,7 @@ func upgradeDraft3(schema map[string]any) map[string]any {
 	if !readsIn(schema, isDraft3) {
 		return schema
 	}
-	schema = removeUnknownKeywords(schema, isDraft3, draft3UnknownKeywords[:], "x-draft3-", "")
+	schema = removeUnknownKeywords(schema, isDraft3, draft3UnknownKeywords[:], "x-draft3-")
 	// moved maps each schema the rewriting moves, by its encoded path
 	// through the draft 3 keyword of its rewritten holder, to its new
 	// path.
@@ -580,21 +576,7 @@ func upgradeDraft3(schema map[string]any) map[string]any {
 	if len(moved) == 0 {
 		return upgraded
 	}
-	// References through a moved schema follow it. The paths are
-	// compared encoded, built a token at a time.
-	return RewriteRefs(upgraded, func(tokens []string) ([]string, bool) {
-		renamed := make([]string, 0, len(tokens))
-		var path []byte
-		for _, token := range tokens {
-			renamed = append(renamed, token)
-			path = append(path, EncodePointer([]string{token})...)
-			if to, ok := moved[string(path)]; ok {
-				renamed = slices.Clone(to)
-				path = append(path[:0], EncodePointer(to)...)
-			}
-		}
-		return renamed, !slices.Equal(renamed, tokens)
-	})
+	return followMoves(upgraded, moved)
 }
 
 // draft3Types returns the schemas of the alternatives that a draft 3
@@ -679,22 +661,71 @@ func draftPath(dialect string) string {
 	return uri.Path
 }
 
-// removeUnknownKeywords returns a copy of a schema without the unknown
-// keywords in the schemas read in a dialect that legacy reports, keeping
-// the occurrences that references pass through under a key that starts
-// with prefix, as UpgradeLegacyDrafts describes. When target is not
-// empty, their "$schema" becomes target.
-func removeUnknownKeywords(schema map[string]any, legacy func(dialect string) bool, unknown []string, prefix, target string) map[string]any {
-	// kept maps the encoded path of each occurrence a reference passes
-	// through to the key that keeps its value.
-	kept := map[string]string{}
+// embeddedResources maps the canonical URI of each resource that schema
+// embeds to the paths of the subschemas that declare it, as
+// resourcePointer expects.
+func embeddedResources(schema map[string]any) map[string][]*pathToken {
 	resources := map[string][]*pathToken{}
 	walkNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
-		if _, ok := resourceID(node); ok && scope.nested && scope.base != nil {
+		if _, ok := resourceIDIn(node, scope.dialect); ok && scope.nested && scope.base != nil {
 			uri := canonicalURI(scope.base)
 			resources[uri] = append(resources[uri], scope.path)
 		}
 	})
+	return resources
+}
+
+// followMoves returns a copy of a schema in which each reference whose
+// JSON Pointer passes through a schema that moved names its new
+// location. moved maps the encoded path in the root of each schema that
+// moved to its new path, which lies in the same resource. The paths of
+// schemas inside a moved schema start at its new path.
+func followMoves(schema map[string]any, moved map[string][]string) map[string]any {
+	resources := embeddedResources(schema)
+	return copyNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
+		for _, key := range []string{"$ref", "$dynamicRef"} {
+			ref, _ := node[key].(string)
+			resource, tokens, ok := scope.resourcePointer(ref, resources)
+			if !ok {
+				continue
+			}
+			if path, changed := movePath(moved, resource, tokens); changed {
+				prefix, _, _ := strings.Cut(ref, "#")
+				node[key] = prefix + "#" + EncodePointer(path[len(resource):])
+			}
+		}
+	})
+}
+
+// movePath returns the path that tokens locate from start, a path in the
+// root, once the schemas in moved moved, as followMoves describes, and
+// reports whether it differs.
+func movePath(moved map[string][]string, start, tokens []string) ([]string, bool) {
+	// The paths are compared encoded, built a token at a time.
+	path := slices.Clone(start)
+	encoded := []byte(EncodePointer(path))
+	changed := false
+	for _, token := range tokens {
+		path = append(path, token)
+		encoded = append(encoded, EncodePointer([]string{token})...)
+		if to, ok := moved[string(encoded)]; ok {
+			path = slices.Clone(to)
+			encoded = append(encoded[:0], EncodePointer(to)...)
+			changed = true
+		}
+	}
+	return path, changed
+}
+
+// removeUnknownKeywords returns a copy of a schema without the unknown
+// keywords in the schemas read in a dialect that legacy reports, keeping
+// the occurrences that references pass through under a key that starts
+// with prefix, as UpgradeLegacyDrafts describes.
+func removeUnknownKeywords(schema map[string]any, legacy func(dialect string) bool, unknown []string, prefix string) map[string]any {
+	// kept maps the encoded path of each occurrence a reference passes
+	// through to the key that keeps its value.
+	kept := map[string]string{}
+	resources := embeddedResources(schema)
 	walkNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
 		ref, _ := node["$ref"].(string)
 		resource, tokens, ok := scope.resourcePointer(ref, resources)
@@ -726,9 +757,6 @@ func removeUnknownKeywords(schema map[string]any, legacy func(dialect string) bo
 	})
 	return copyNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
 		if legacy(scope.dialect) {
-			if _, ok := node["$schema"].(string); ok && target != "" {
-				node["$schema"] = target
-			}
 			var path []string
 			for _, key := range unknown {
 				value, ok := node[key]
@@ -844,15 +872,24 @@ func lookupPointer(root any, tokens []string) (any, bool) {
 // in a resource other than the root whose root declares
 // "$recursiveAnchor": there the dynamic scope picks the target, so it
 // becomes a "$dynamicRef" to a "$dynamicAnchor" that each such resource
-// root declares, which resolves the same way. It is left out when a name
-// for that anchor cannot be added, which only drops a constraint. Other
-// values are kept. Only a schema read in draft 2019-09 (see
+// root declares, which resolves the same way. Those keywords are draft
+// 2020-12, so then every schema read in draft 2019-09 is rewritten in
+// it: "$schema" names draft 2020-12, and a list of schemas in "items"
+// moves to "prefixItems" while "additionalItems" becomes "items", with
+// the references through them following. Draft 2020-12 also counts the
+// items that "contains" matches as evaluated, so when those schemas have
+// both "contains" and "unevaluatedItems", the references that would
+// become dynamic are left out instead, which only drops a constraint.
+// Other values are kept. Only a schema read in draft 2019-09 (see
 // UpgradeLegacyDrafts) has these keywords: other dialects ignore them,
 // and so does a schema read without "$schema", which MCP reads as draft
-// 2020-12, so there they are only removed. Other schemas are returned as
-// is.
+// 2020-12, so there they are only removed. The keywords of later drafts
+// that the rewriting reads are removed first from the schemas read in a
+// dialect that ignores them (see removeIgnoredKeywords). Other schemas
+// are returned as is.
 func ReplaceRecursiveRefs(schema map[string]any) map[string]any {
-	found, dynamic, clash := false, false, false
+	schema = removeIgnoredKeywords(schema)
+	found, dynamic, contains, unevaluatedItems := false, false, false, false
 	used := map[string]bool{}
 	walkNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
 		_, hasRef := node["$recursiveRef"]
@@ -871,9 +908,10 @@ func ReplaceRecursiveRefs(schema map[string]any) map[string]any {
 		if !isDraft201909(scope.dialect) {
 			return
 		}
-		if _, ok := node["$dynamicAnchor"]; ok && recursiveAnchor(node) && scope.resourcePath == scope.path {
-			clash = true
-		}
+		_, hasContains := node["contains"]
+		_, hasUnevaluated := node["unevaluatedItems"]
+		contains = contains || hasContains
+		unevaluatedItems = unevaluatedItems || hasUnevaluated
 		if ref, ok := node["$recursiveRef"].(string); ok && scope.nested && recursiveAnchor(scope.resource) && scope.namesResource(ref) {
 			dynamic = true
 		}
@@ -881,19 +919,50 @@ func ReplaceRecursiveRefs(schema map[string]any) map[string]any {
 	if !found {
 		return schema
 	}
+	upgrade := dynamic && (!contains || !unevaluatedItems)
 	name := "recursive"
 	for i := 2; used[name]; i++ {
 		name = "recursive" + strconv.Itoa(i)
 	}
-	return copyNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
+	// moved maps the encoded path of each list of schemas in "items",
+	// and of each "additionalItems" beside one, to its new path, as
+	// followMoves expects. Each schema is visited after the schemas
+	// around it, whose new paths it starts at.
+	moved := map[string][]string{}
+	if upgrade {
+		walkNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
+			if _, ok := node["items"].([]any); !ok || !isDraft201909(scope.dialect) {
+				return
+			}
+			path, _ := movePath(moved, nil, scope.path.tokens())
+			moved[EncodePointer(append(slices.Clone(path), "items"))] = append(slices.Clone(path), "prefixItems")
+			if _, ok := node["additionalItems"]; ok {
+				moved[EncodePointer(append(slices.Clone(path), "additionalItems"))] = append(slices.Clone(path), "items")
+			}
+		})
+	}
+	replaced := copyNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
 		anchored := recursiveAnchor(node)
 		delete(node, "$recursiveAnchor")
 		if !isDraft201909(scope.dialect) {
 			delete(node, "$recursiveRef")
 			return
 		}
-		if anchored && dynamic && !clash && scope.resourcePath == scope.path {
-			node["$dynamicAnchor"] = name
+		if upgrade {
+			if _, ok := node["$schema"].(string); ok {
+				node["$schema"] = "https://json-schema.org/draft/2020-12/schema"
+			}
+			if items, ok := node["items"].([]any); ok {
+				delete(node, "items")
+				if additional, ok := node["additionalItems"]; ok {
+					delete(node, "additionalItems")
+					node["items"] = additional
+				}
+				node["prefixItems"] = items
+			}
+			if anchored && scope.resourcePath == scope.path {
+				node["$dynamicAnchor"] = name
+			}
 		}
 		ref, ok := node["$recursiveRef"].(string)
 		if !ok || !scope.namesResource(ref) {
@@ -903,10 +972,48 @@ func ReplaceRecursiveRefs(schema map[string]any) map[string]any {
 		switch {
 		case !scope.nested || !recursiveAnchor(scope.resource):
 			addReference(node, "$ref", "#")
-		case !clash:
+		case upgrade:
 			addReference(node, "$dynamicRef", "#"+name)
 		}
 	})
+	if len(moved) == 0 {
+		return replaced
+	}
+	return followMoves(replaced, moved)
+}
+
+// removeIgnoredKeywords returns a copy of a schema without the keywords
+// of later drafts that the rewriting and providers read as draft 2020-12
+// does in the schemas read in a dialect that ignores them: "$anchor",
+// "$dynamicAnchor", and "$dynamicRef" before draft 2019-09, which names
+// anchors with a "$id" fragment, and "$dynamicAnchor", "$dynamicRef",
+// and "prefixItems" in draft 2019-09. As in UpgradeLegacyDrafts, an
+// occurrence that a reference's JSON Pointer passes through keeps its
+// value under a key no draft defines. The schema itself is returned when
+// it has none of them.
+func removeIgnoredKeywords(schema map[string]any) map[string]any {
+	for _, ignored := range []struct {
+		dialect  func(dialect string) bool
+		keywords []string
+	}{
+		{dialect: IsLegacyDialect, keywords: []string{"$anchor", "$dynamicAnchor", "$dynamicRef"}},
+		{dialect: isDraft201909, keywords: []string{"$dynamicAnchor", "$dynamicRef", "prefixItems"}},
+	} {
+		found := false
+		walkNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
+			if found || !ignored.dialect(scope.dialect) {
+				return
+			}
+			found = slices.ContainsFunc(ignored.keywords, func(key string) bool {
+				_, ok := node[key]
+				return ok
+			})
+		})
+		if found {
+			schema = removeUnknownKeywords(schema, ignored.dialect, ignored.keywords, "x-ignored-")
+		}
+	}
+	return schema
 }
 
 // recursiveAnchor reports whether node declares "$recursiveAnchor": true.
@@ -924,6 +1031,18 @@ func addReference(node map[string]any, key, ref string) {
 	}
 	allOf, _ := node["allOf"].([]any)
 	node["allOf"] = append(slices.Clone(allOf), map[string]any{key: ref})
+}
+
+// SameDialect reports whether two dialects that Dialect returned are the
+// same, reading "" as draft 2020-12, which MCP specifies as the default.
+func SameDialect(a, b string) bool {
+	defaultDialect := func(dialect string) string {
+		if dialect == "" {
+			return "https://json-schema.org/draft/2020-12/schema"
+		}
+		return dialect
+	}
+	return defaultDialect(a) == defaultDialect(b)
 }
 
 // Dialect returns the "$schema" URI that schema declares, with the
@@ -1173,12 +1292,19 @@ type IdentifierScanner struct {
 	scanner keywordScanner
 }
 
-// HasNestedIdentifiers reports whether a subschema of schema, other than
-// schema itself, declares a resource or an anchor through "$id",
-// "$anchor" or "$dynamicAnchor".
+// HasNestedIdentifiers reports whether a subschema of schema declares a
+// resource or an anchor through "$id", "$anchor" or "$dynamicAnchor",
+// leaving out schema itself and the subschemas in its "$defs",
+// "definitions", "allOf", "anyOf" and "oneOf": root folding copies the
+// rest of a schema it merges into the root, merges each schema of a
+// composition on its own, and leaves the schema where it is.
 func (s *IdentifierScanner) HasNestedIdentifiers(schema map[string]any) bool {
 	found := false
 	for key, value := range schema {
+		switch key {
+		case "$defs", "definitions", "allOf", "anyOf", "oneOf":
+			continue
+		}
 		forEachSubschema(key, value, refScope{}, func(node map[string]any, _ refScope) {
 			found = found || s.scanner.holds(node, []string{"$id", "$anchor", "$dynamicAnchor"})
 		})
@@ -1240,14 +1366,18 @@ type Resolver struct {
 	// anchors maps each resource, by its canonical URI or "" for the
 	// root resource, and each "$anchor" or "$dynamicAnchor" name in it to
 	// the subschemas declaring that anchor.
-	anchors map[string]map[string][]map[string]any
+	anchors map[string]map[string][]embeddedResource
 }
 
+// embeddedResource is a subschema that declares an embedded resource or
+// an anchor.
 type embeddedResource struct {
 	node map[string]any
 	// outer is the path to the resource, or to the outermost embedded
 	// resource holding it.
 	outer *pathToken
+	// dialect is the dialect node is read in (see UpgradeLegacyDrafts).
+	dialect string
 }
 
 // NewResolver returns a Resolver for references made from root's own
@@ -1261,7 +1391,7 @@ func (r *Resolver) index() {
 		return
 	}
 	r.resources = map[string][]embeddedResource{}
-	r.anchors = map[string]map[string][]map[string]any{}
+	r.anchors = map[string]map[string][]embeddedResource{}
 	walkNode(r.root, r.scope, func(node map[string]any, scope refScope) {
 		resource := ""
 		if scope.nested {
@@ -1270,15 +1400,15 @@ func (r *Resolver) index() {
 				return
 			}
 			resource = canonicalURI(scope.base)
-			if _, ok := resourceID(node); ok {
-				r.resources[resource] = append(r.resources[resource], embeddedResource{node: node, outer: scope.outer})
+			if _, ok := resourceIDIn(node, scope.dialect); ok {
+				r.resources[resource] = append(r.resources[resource], embeddedResource{node: node, outer: scope.outer, dialect: scope.dialect})
 			}
 		}
 		for _, anchor := range plainAnchors(node) {
 			if r.anchors[resource] == nil {
-				r.anchors[resource] = map[string][]map[string]any{}
+				r.anchors[resource] = map[string][]embeddedResource{}
 			}
-			r.anchors[resource][anchor] = append(r.anchors[resource][anchor], node)
+			r.anchors[resource][anchor] = append(r.anchors[resource][anchor], embeddedResource{node: node, dialect: scope.dialect})
 		}
 	})
 }
@@ -1307,33 +1437,40 @@ func (r *Resolver) embedded(uri *url.URL) (embeddedResource, bool) {
 // inside it resolve as they would at the root. An anchor declared more
 // than once in a resource names no subschema.
 func (r *Resolver) Resolve(ref string) (target any, sameResource bool, ok bool) {
+	target, sameResource, _, ok = r.ResolveDialect(ref)
+	return target, sameResource, ok
+}
+
+// ResolveDialect is Resolve that also returns the dialect the value is
+// read in (see UpgradeLegacyDrafts), as Dialect returns it.
+func (r *Resolver) ResolveDialect(ref string) (target any, sameResource bool, dialect string, ok bool) {
 	prefix, fragment, _ := strings.Cut(ref, "#")
 	tokens, isPointer := decodePointer(fragment)
 	anchor, isAnchor := anchorFragment(fragment)
 	if !isPointer && !isAnchor {
-		return nil, false, false
+		return nil, false, "", false
 	}
-	resource, resourceKey, sameResource := r.root, "", true
+	resource, resourceKey, sameResource, dialect := r.root, "", true, r.scope.dialect
 	if prefix != "" {
 		uri, ok := r.scope.resolve(prefix)
 		if !ok {
-			return nil, false, false
+			return nil, false, "", false
 		}
 		if !r.isRoot(uri) {
 			embedded, ok := r.embedded(uri)
 			if !ok {
-				return nil, false, false
+				return nil, false, "", false
 			}
-			resource, resourceKey, sameResource = embedded.node, canonicalURI(uri), false
+			resource, resourceKey, sameResource, dialect = embedded.node, canonicalURI(uri), false, embedded.dialect
 		}
 	}
 	if !isPointer {
 		r.index()
 		found := r.anchors[resourceKey][anchor]
 		if len(found) != 1 {
-			return nil, false, false
+			return nil, false, "", false
 		}
-		return found[0], sameResource, true
+		return found[0].node, sameResource, found[0].dialect, true
 	}
 	current := any(resource)
 	for _, token := range tokens {
@@ -1341,25 +1478,28 @@ func (r *Resolver) Resolve(ref string) (target any, sameResource bool, ok bool) 
 		case map[string]any:
 			next, ok := typed[token]
 			if !ok {
-				return nil, false, false
+				return nil, false, "", false
 			}
 			current = next
 		case []any:
 			index, err := strconv.Atoi(token)
 			if err != nil || index < 0 || index >= len(typed) {
-				return nil, false, false
+				return nil, false, "", false
 			}
 			current = typed[index]
 		default:
-			return nil, false, false
+			return nil, false, "", false
 		}
 		if node, ok := current.(map[string]any); ok {
 			if _, ok := resourceID(node); ok {
 				sameResource = false
 			}
+			if _, ok := node["$schema"].(string); ok {
+				dialect = Dialect(node)
+			}
 		}
 	}
-	return current, sameResource, true
+	return current, sameResource, dialect, true
 }
 
 // ResourceRefs returns the JSON Pointer tokens, in the root, of the
@@ -1654,7 +1794,7 @@ func (p *pathToken) encodedLen(lengths map[*pathToken]int) int {
 // the same way as the references compared with it.
 func rootScope(root map[string]any) refScope {
 	scope := refScope{base: &url.URL{}, resource: root, dialect: Dialect(root)}
-	if id, ok := resourceID(root); ok {
+	if id, ok := resourceIDIn(root, scope.dialect); ok {
 		if id == nil {
 			scope.base = nil
 		} else {
@@ -1669,7 +1809,7 @@ func (s refScope) enter(node map[string]any) refScope {
 	if _, ok := node["$schema"].(string); ok {
 		s.dialect = Dialect(node)
 	}
-	id, ok := resourceID(node)
+	id, ok := resourceIDIn(node, s.dialect)
 	if !ok {
 		return s
 	}
@@ -1783,7 +1923,20 @@ func (s refScope) namesResource(ref string) bool {
 // and returns its URI without a fragment, or nil when it does not parse.
 // A fragment-only "$id" is a draft 7 anchor and starts no resource.
 func resourceID(node map[string]any) (*url.URL, bool) {
-	id, ok := node["$id"].(string)
+	return identifierURI(node, "$id")
+}
+
+// resourceIDIn is resourceID for a schema read in dialect. Drafts 3 and
+// 4 name a resource with "id" and ignore "$id".
+func resourceIDIn(node map[string]any, dialect string) (*url.URL, bool) {
+	if isDraft3(dialect) || isDraft4(dialect) {
+		return identifierURI(node, "id")
+	}
+	return resourceID(node)
+}
+
+func identifierURI(node map[string]any, key string) (*url.URL, bool) {
+	id, ok := node[key].(string)
 	if !ok || id == "" || strings.HasPrefix(id, "#") {
 		return nil, false
 	}

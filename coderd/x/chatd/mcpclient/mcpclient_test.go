@@ -858,9 +858,9 @@ func TestConnectAll_FullInputSchema_ModelIntentRebasesRefs(t *testing.T) {
 					// A recursive reference names the root, which moves.
 					"recursive": map[string]any{"$recursiveRef": "#"},
 					"filter":    map[string]any{"$ref": "#/definitions/Filter"},
-					// A dynamic reference by pointer resolves like a
-					// reference.
-					"template": map[string]any{"$dynamicRef": "#/properties/kind"},
+					// A dynamic reference by pointer, read in a dialect
+					// that has them, resolves like a reference.
+					"template": map[string]any{"$schema": "https://json-schema.org/draft/2020-12/schema", "$dynamicRef": "#/properties/kind"},
 					// A property named like a keyword is still a schema.
 					"enum": map[string]any{"$ref": "#/properties/kind"},
 				},
@@ -913,7 +913,7 @@ func TestConnectAll_FullInputSchema_ModelIntentRebasesRefs(t *testing.T) {
 			"child": {"$ref": "#/properties/properties"},
 			"recursive": {"$ref": "#/properties/properties"},
 			"filter": {"$ref": "#/definitions/Filter"},
-			"template": {"$dynamicRef": "#/properties/properties/properties/kind"},
+			"template": {"$schema": "https://json-schema.org/draft/2020-12/schema", "$dynamicRef": "#/properties/properties/properties/kind"},
 			"enum": {"$ref": "#/properties/properties/properties/kind"}
 		},
 		"default": {"$ref": "#/properties/kind"}

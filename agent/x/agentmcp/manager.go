@@ -1143,27 +1143,16 @@ const minSecretBytes = 8
 
 // configSecrets returns the values of a server's configuration that may
 // be credentials, whole and as each part a server may echo on its own:
-// the URL, its path segments, its user information with the user name
-// and password, and its query with each parameter value, as spelled and
-// decoded, and the header, environment, and argument values with their
-// space, semicolon, or comma separated parts and the value of each
-// name=value part.
+// the header, environment, and argument values with their space,
+// semicolon, or comma separated parts and the value of each name=value
+// part, and the server URL and each of those values or parts that holds
+// a URL authority, such as postgres://user:password@db/app, with the
+// URL's path segments, its user information with the user name and
+// password, and its query with each parameter value, as spelled and
+// decoded.
 func configSecrets(cfg ServerConfig) []string {
 	var values []string
-	add := func(value string) {
-		values = append(values, value)
-		parts := strings.FieldsFunc(value, func(r rune) bool {
-			return unicode.IsSpace(r) || r == ';' || r == ','
-		})
-		for _, part := range parts {
-			values = append(values, part)
-			if _, v, ok := strings.Cut(part, "="); ok {
-				values = append(values, strings.Trim(v, `"`))
-			}
-		}
-	}
-	values = append(values, cfg.URL)
-	if u, err := url.Parse(cfg.URL); err == nil {
+	addURL := func(u *url.URL) {
 		for _, path := range []string{u.EscapedPath(), u.Path} {
 			values = append(values, path)
 			values = append(values, strings.Split(path, "/")...)
@@ -1187,6 +1176,30 @@ func configSecrets(cfg ServerConfig) []string {
 				}
 			}
 		}
+	}
+	// addValue parses only values with a URL authority, because the path
+	// segments of a plain file path or word are not secrets.
+	addValue := func(value string) {
+		values = append(values, value)
+		if u, err := url.Parse(value); err == nil && (u.Host != "" || u.User != nil) {
+			addURL(u)
+		}
+	}
+	add := func(value string) {
+		addValue(value)
+		parts := strings.FieldsFunc(value, func(r rune) bool {
+			return unicode.IsSpace(r) || r == ';' || r == ','
+		})
+		for _, part := range parts {
+			addValue(part)
+			if _, v, ok := strings.Cut(part, "="); ok {
+				addValue(strings.Trim(v, `"`))
+			}
+		}
+	}
+	values = append(values, cfg.URL)
+	if u, err := url.Parse(cfg.URL); err == nil {
+		addURL(u)
 	}
 	for _, value := range cfg.Headers {
 		add(value)
