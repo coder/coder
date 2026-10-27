@@ -4088,6 +4088,14 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 // codersdk.ChatStreamChunkBytes. Browsers deliver a message only after its
 // last byte, so an unsplit large batch on a slow link would arrive after
 // the web client's silence timeout and be requested again forever.
+//
+// The encoder escapes <, > and &, so encoding a chunk as a JSON string at
+// most doubles it. The WSWatcher probe still fails on a slow link when its
+// ping waits over 5 s for the write lock or over 15 s for the pong, and
+// both waits grow with the bytes queued ahead of the ping, not with chunk
+// size. With a 10 MiB image, an unsplit message failed at 1 and 4 Mbit/s;
+// chunks passed at 4 Mbit/s, and at 1 Mbit/s only while under about
+// 1.9 MB was queued.
 func writeChatStreamBatch(w io.Writer, batch []codersdk.ChatStreamEvent) error {
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(batch); err != nil {
