@@ -20,8 +20,6 @@ To diagnose a connection that is still open, refer to [Networking troubleshootin
 - The `connection_log` entries in this guide require a [Premium license](https://coder.com/pricing#compare-plans).
   Client and agent logs don't.
 - For VS Code, use the Coder Remote extension version 1.17.2 or later.
-  Earlier versions label output channel lines with only the first 8 characters of the session ID.
-  Versions before 1.17.0 don't report the editor name, such as `cursor`.
 - For JetBrains Toolbox, use the Coder Toolbox plugin version 0.9.5 or later to send session IDs and to include `coder ssh` logs in **Collect logs**.
   Plugin version 0.9.5 requires JetBrains Toolbox version 3.9.0 or later.
 
