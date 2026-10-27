@@ -410,7 +410,8 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	>(null);
 	// Records that the queue or transcript showed the answer while it was
 	// being sent. The send then keeps no local copy, which would bring back
-	// an answer that the user removed from the queue before the send resolved.
+	// an answer that the user removed from the queue, and no error, which
+	// would describe an answer that the server took.
 	const hasShownAnswerRef = useRef(false);
 	const submitAnswerMutation = useMutation({
 		mutationFn: async (answerText: string) => {
@@ -427,6 +428,8 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 			}
 		},
 	});
+	const { isError: hasSubmitError, reset: resetSubmitAnswer } =
+		submitAnswerMutation;
 	const isRunning = status === "running";
 	const answeredResponseText = isAsync
 		? getAsyncAnswerText(previousResponseText, asyncToolCallId)
@@ -435,7 +438,10 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 		if (answeredResponseText !== undefined) {
 			hasShownAnswerRef.current = true;
 		}
-	}, [answeredResponseText]);
+		if (hasShownAnswerRef.current && hasSubmitError) {
+			resetSubmitAnswer();
+		}
+	}, [answeredResponseText, hasSubmitError, resetSubmitAnswer]);
 	// An async answer can leave the queue without being delivered, so the
 	// local copy only bridges the send until the queue or transcript has it.
 	if (
