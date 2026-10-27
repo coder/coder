@@ -122,6 +122,32 @@ const ROW_SELECTOR =
 
 const log = (...a) => console.log(new Date().toISOString().slice(11, 23), ...a);
 
+// Writes an object of arrays one element at a time: a WebKit timeline of a
+// large page can exceed V8's maximum string length as a single string.
+function writeJsonByElement(file, obj) {
+	const fd = fs.openSync(file, "w");
+	try {
+		let sep = "{";
+		for (const [key, value] of Object.entries(obj)) {
+			if (value === undefined) continue;
+			fs.writeSync(fd, `${sep}${JSON.stringify(key)}:`);
+			sep = ",";
+			if (!Array.isArray(value)) {
+				fs.writeSync(fd, JSON.stringify(value));
+				continue;
+			}
+			fs.writeSync(fd, "[");
+			value.forEach((v, i) => {
+				fs.writeSync(fd, (i ? "," : "") + (JSON.stringify(v) ?? "null"));
+			});
+			fs.writeSync(fd, "]");
+		}
+		fs.writeSync(fd, sep === "{" ? "{}" : "}");
+	} finally {
+		fs.closeSync(fd);
+	}
+}
+
 // Resident set size of the browser's content processes (WebKit
 // WebProcess, Chromium renderers), read from /proc. WebKit's memory
 // pressure handler acts on the WebProcess footprint, so this is the
@@ -592,10 +618,7 @@ async function main() {
 		if (wk && profiling) {
 			profiling = false;
 			const data = await wk.stop();
-			fs.writeFileSync(
-				path.join(outDir, `${name}.wktimeline.json`),
-				JSON.stringify(data),
-			);
+			writeJsonByElement(path.join(outDir, `${name}.wktimeline.json`), data);
 			log(
 				`saved ${name}.wktimeline.json (${data.records.length} records, ${data.samples.length} samples, ${data.cpu.length} cpu samples, ${data.gc.length} gc events, ${data.memory.length} memory events, other events ${JSON.stringify(data.otherEvents)})`,
 			);
@@ -862,8 +885,14 @@ async function main() {
 		log(`phase ${name}`);
 		// Starting the profiler and tracing stalls the renderer for up to a
 		// second; let that settle before the counters start.
-		if (profile && wantProfile) await startProfile();
+		let probeAtStart;
+		if (profile && wantProfile) {
+			await page.evaluate(() => window.__bench.probeReset?.());
+			await startProfile();
+		}
 		await page.waitForTimeout(500);
+		if (profile && wantProfile)
+			probeAtStart = await page.evaluate(() => window.__bench.probe?.());
 		await resetBench();
 		if (wantReact)
 			await page.evaluate(reactProfileStart, args["react-changes"] === "1");
@@ -891,6 +920,14 @@ async function main() {
 			log(`saved ${name}.reactprofile.json (${commits} commits)`);
 		}
 		if (profile && wantProfile) await stopProfile(name);
+		// A recording also covers the time to start and stop it, so add the
+		// probe counts from those spans to match the recording.
+		if (raw.probe && probeAtStart) {
+			const atStop = await page.evaluate(() => window.__bench.probe());
+			raw.probeThroughRecording = Object.fromEntries(
+				Object.entries(atStop).map(([k, v]) => [k, v + (probeAtStart[k] ?? 0)]),
+			);
+		}
 		const keyLat = raw.interactions
 			.filter((i) => i.type === "key")
 			.map((i) => i.latency);
@@ -927,6 +964,10 @@ async function main() {
 		if (bigFrames.length)
 			log(`  frames >=300ms at page time: ${bigFrames.join(" ")}`);
 		if (raw.probe) log(`  probe: ${JSON.stringify(raw.probe)}`);
+		if (raw.probeThroughRecording)
+			log(
+				`  probe through recording: ${JSON.stringify(raw.probeThroughRecording)}`,
+			);
 		for (const f of raw.longFrames.filter((f) => f.dur >= 300)) {
 			const near = raw.domEvents.filter(
 				(e) => e.t >= f.start - 1500 && e.t <= f.start + f.dur,
