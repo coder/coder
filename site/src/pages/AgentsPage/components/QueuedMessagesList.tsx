@@ -30,8 +30,6 @@ type QueuedMessagesListProps = {
 	onPromote: (id: number) => Promise<void> | void;
 	onEdit?: (id: number) => void;
 	onEndEdit?: (id: number) => Promise<void> | void;
-	// While paused, Edit is disabled on rows other than the one under edit and
-	// the Cancel edit tooltip says the row is sent.
 	isChatPaused?: boolean;
 	// The queued row shown as under edit, or null for none.
 	queuedMessageUnderEditID: number | null;

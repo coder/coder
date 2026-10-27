@@ -683,8 +683,6 @@ const AgentChatPage: React.FC = () => {
 		setComposerMode,
 		target: composerTarget,
 		targetContent: composerTargetContent,
-		// An edit sends reasoning effort only when the user changed it for
-		// that edit.
 		onLoadedTargetChange: () => {
 			isEditReasoningEffortDirtyRef.current = false;
 		},

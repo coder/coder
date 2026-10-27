@@ -6,11 +6,9 @@ import {
 import type { EditingTarget } from "../components/ChatConversation/types";
 
 /**
- * What the user chose for the composer in this chat session. "follow" means
- * the composer edits the row the server marks; the composer leaves it for
- * "draft" when the marked row changes while the user has changed the editor.
- * "draft" means the user is writing a new message. A target means the user
- * opened an edit on that row.
+ * What the user chose for the composer in this chat session. "follow" edits
+ * the row the server marks, "draft" writes a new message, and a target edits
+ * that row.
  */
 export type ComposerMode = EditingTarget | "draft" | "follow";
 
@@ -46,11 +44,10 @@ export const deriveQueuedMessageUnderEditID = (
 };
 
 /**
- * The row the composer edits. A composer in follow mode follows the owner's
- * marked row. A queued choice stays in effect while the server marks that
- * row or its begin is in flight, and is null once the server no longer
- * marks it. The composer decides what a closed edit leaves behind, and
- * whether a changed editor follows (see useConversationEditingState).
+ * The row the composer edits. In follow mode it is the owner's marked row. A
+ * queued choice holds while the server marks that row or its begin is in
+ * flight, and is null otherwise. useConversationEditingState decides what
+ * the editor does with the target.
  */
 export const deriveComposerTarget = (
 	composerMode: ComposerMode,
@@ -78,8 +75,7 @@ export const deriveComposerTarget = (
 
 /**
  * Derives the queued-edit view from the store marker, the user's composer
- * choice and the latest marker request. The page owns the choice and the
- * requests; the store is the only projection of the server marker.
+ * choice and the latest marker request.
  */
 export function useQueuedMessageEdit(deps: {
 	store: ChatStore;

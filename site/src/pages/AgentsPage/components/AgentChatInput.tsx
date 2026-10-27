@@ -200,9 +200,7 @@ type AgentChatInputProps = {
 	isChatPaused?: boolean;
 	// Editing state, owned by the parent. The kind selects the banner text.
 	editingKind?: EditingTarget["kind"];
-	// The queued row shown as under edit, or null for none.
 	queuedMessageUnderEditID?: number | null;
-	// The queued row this composer edits, or null.
 	composerQueuedMessageID?: number | null;
 	onCancelEdit?: () => void;
 	// Newest-first list of non-empty user prompts for local history cycling.

@@ -366,7 +366,6 @@ export async function submitChatTurn(
 		const originalRow = store
 			.getSnapshot()
 			.queuedMessages.find((row) => row.id === queuedMessageID);
-		// Saving clears the row's editing marker.
 		const request: TypesGen.EditChatQueuedMessageRequest = {
 			content,
 			...buildEditModelOverrides({

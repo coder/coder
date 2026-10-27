@@ -109,8 +109,8 @@ const chipNodeTypes: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * The serialized chip nodes, file references and skills, of a Lexical
- * editor state in document order. A plain-text or malformed state has none.
+ * The serialized file-reference and skill chip nodes of a Lexical editor
+ * state, in document order. A plain-text or malformed state has none.
  */
 export function getChipNodes(
 	editorState: string | undefined,

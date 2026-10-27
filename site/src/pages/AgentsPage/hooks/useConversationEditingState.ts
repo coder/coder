@@ -39,9 +39,8 @@ export function useConversationEditingState(deps: {
 	// The row the composer edits and its content as the editor loads it.
 	target: EditingTarget | null;
 	targetContent: readonly ChatMessagePart[] | undefined;
-	// Called when the editor loads a target, which every opened edit does,
-	// or leaves one because the target went away. Cancel, a send, the
-	// post-save restore and a failed send's rollback do not call it.
+	// Called when the editor loads a target or drops one because the target
+	// went away. Cancel, sends and send rollbacks do not call it.
 	onLoadedTargetChange?: () => void;
 }) {
 	const {
@@ -88,9 +87,7 @@ export function useConversationEditingState(deps: {
 	// Counts target loads, so code that resumes after an await can tell
 	// whether another edit opened in the meantime.
 	const targetLoadCountRef = useRef(0);
-	// The draft the user had before the edit session opened. It is restored
-	// when the session ends, except after a history send or when the server
-	// closes a modified edit.
+	// The draft the user had before the edit session opened.
 	const [draftBeforeEdit, setDraftBeforeEdit] = useState<ParsedDraft | null>(
 		null,
 	);
@@ -132,7 +129,6 @@ export function useConversationEditingState(deps: {
 		);
 	};
 
-	// A draft is kept while it has text or file references.
 	const writeDraft = (
 		text: string,
 		serializedEditorState: string,
@@ -163,16 +159,15 @@ export function useConversationEditingState(deps: {
 		setDraftBeforeEdit(null);
 	};
 
-	// Brings the editor in line with the target whenever the target and the
-	// loaded target differ. The editor is uncontrolled, Lexical behind
-	// inputValueRef, so loading it is imperative work that belongs in a layout
-	// effect; it runs before paint. Whether the editor changed is decided
-	// here, when the target changes, so text typed and deleted again does not
-	// count. A changed editor keeps its content: when its target goes away it
+	// Loads the target into the editor when it differs from the loaded
+	// target. A layout effect because the Lexical editor is uncontrolled and
+	// the load must land before paint. Whether the editor changed is checked
+	// only when the target changes, so text typed and deleted again does not
+	// count. A changed editor keeps its content: if its target goes away it
 	// stays as a new-message draft, and in follow mode it does not load a
-	// newly marked row. When an unchanged edit's target goes away, the draft
-	// comes back and the composer follows the row the server marks now. The
-	// draft from before the edit is captured once per session.
+	// newly marked row. If an unchanged edit's target goes away, the pre-edit
+	// draft comes back and the composer follows the row the server marks.
+	// The pre-edit draft is captured once per session.
 	const loadTargetIntoEditor = useEffectEvent(() => {
 		if (isEqual(target, loadedTarget?.target ?? null)) {
 			return;
@@ -344,9 +339,8 @@ export function useConversationEditingState(deps: {
 		editorInitialValue,
 		initialEditorState,
 		remountKey,
-		// The target the editor holds, which lags a new target until the load
-		// effect runs before paint. A target the editor declines to load, as a
-		// changed composer declines a newly marked row, never shows edit chrome.
+		// The loaded target, not `target`: it lags until the load effect runs
+		// and stays null for a target the editor declined.
 		editingTarget: loadedTarget?.target ?? null,
 		editingFileBlocks: loadedTarget?.fileBlocks ?? noFileBlocks,
 		handleCancelEdit,
