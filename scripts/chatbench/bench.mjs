@@ -700,9 +700,10 @@ async function main() {
 	// the top sometimes does not load the next page, which left runs at the
 	// first page (50 rows per pane). Returns whether every row rendered.
 	const loadFullHistory = async () => {
-		const expected = (
-			await Promise.all(chats.map(messageCount))
-		).reduce((a, b) => a + b, 0);
+		const expected = (await Promise.all(chats.map(messageCount))).reduce(
+			(a, b) => a + b,
+			0,
+		);
 		let stalls = 0;
 		while ((await rowCountNow()) < expected && stalls < 5) {
 			const before = await rowCountNow();
