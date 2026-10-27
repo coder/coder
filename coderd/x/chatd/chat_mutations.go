@@ -55,10 +55,10 @@ func (p *Server) updateChat(
 }
 
 // SendMessage admits a user message through the chatstate.SendMessage
-// transition. Pre-transition admission policy (usage limit, plan-mode
-// metadata update, MCP server ID update, model-config resolution, queue
-// cap) runs inside the same chatstate transaction via the transactional
-// store so everything commits or rolls back together.
+// transition. A requested model config is validated before the
+// transaction (see validateModelConfigOverride); the other admission
+// checks and writes run in the transition's transaction, so they commit
+// or roll back together.
 func (p *Server) SendMessage(
 	ctx context.Context,
 	opts SendMessageOptions,
@@ -84,19 +84,22 @@ func (p *Server) SendMessage(
 	if err != nil {
 		return SendMessageResult{}, err
 	}
-	if p.hooks.Enabled() {
-		turnID := uuid.New()
-		chat, err := p.db.GetChatByID(ctx, opts.ChatID)
+	var (
+		chat           database.Chat
+		requestedModel uuid.NullUUID
+	)
+	if p.hooks.Enabled() || opts.ModelConfigID != uuid.Nil {
+		chat, err = p.loadChatForAdmission(ctx, opts.ChatID)
 		if err != nil {
-			return SendMessageResult{}, xerrors.Errorf("load chat for user_prompt_submit: %w", err)
-		}
-		// Repeat these admission checks under the transaction lock.
-		if chat.Archived {
-			return SendMessageResult{}, ErrChatArchived
-		}
-		if _, err := resolveSendMessageModelConfigID(ctx, p.db, chat, opts.ModelConfigID); err != nil {
 			return SendMessageResult{}, err
 		}
+		requestedModel, err = validateModelConfigOverride(ctx, p.db, chat.OrganizationID, opts.ModelConfigID)
+		if err != nil {
+			return SendMessageResult{}, err
+		}
+	}
+	if p.hooks.Enabled() {
+		turnID := uuid.New()
 		// Check queue capacity before dispatch; the transaction
 		// rechecks it under lock.
 		queuedCount, err := p.db.CountChatQueuedMessages(ctx, opts.ChatID)
@@ -154,14 +157,14 @@ func (p *Server) SendMessage(
 			}
 		}
 
-		modelConfigID, err := resolveSendMessageModelConfigID(
-			ctx,
-			store,
-			lockedChat,
-			opts.ModelConfigID,
-		)
-		if err != nil {
-			return err
+		modelConfigID := requestedModel.UUID
+		if !requestedModel.Valid {
+			// The fallback reads the chat's last model, so it runs under
+			// the row lock.
+			modelConfigID, err = resolveFallbackModelConfigID(ctx, store, lockedChat, lockedChat.LastModelConfigID)
+			if err != nil {
+				return err
+			}
 		}
 
 		lockedChat, err = p.applyRequestedMCPServerIDs(ctx, store, lockedChat, opts.MCPServerIDs)
@@ -258,6 +261,23 @@ func (p *Server) SendMessage(
 	return result, nil
 }
 
+// loadChatForAdmission loads a chat for checks that run before a
+// message transaction and rejects archived chats. Callers must recheck
+// archived under the row lock.
+func (p *Server) loadChatForAdmission(ctx context.Context, chatID uuid.UUID) (database.Chat, error) {
+	chat, err := p.db.GetChatByID(ctx, chatID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return database.Chat{}, chatstate.ErrChatNotFound
+		}
+		return database.Chat{}, xerrors.Errorf("load chat: %w", err)
+	}
+	if chat.Archived {
+		return database.Chat{}, ErrChatArchived
+	}
+	return chat, nil
+}
+
 func validateEditTarget(ctx context.Context, store database.Store, chatID uuid.UUID, messageID int64) (database.ChatMessage, error) {
 	target, err := store.GetChatMessageByID(ctx, messageID)
 	if err != nil {
@@ -276,9 +296,9 @@ func validateEditTarget(ctx context.Context, store database.Store, chatID uuid.U
 }
 
 // EditMessage replaces an earlier user message and discards the
-// active-history suffix through chatstate.EditMessage. Model-config
-// override validation and usage-limit admission run in the same
-// transaction as the state-machine transition.
+// active-history suffix through chatstate.EditMessage. A requested
+// model config is validated before the transaction; the other
+// admission checks and writes run in the transition's transaction.
 func (p *Server) EditMessage(
 	ctx context.Context,
 	opts EditMessageOptions,
@@ -297,23 +317,27 @@ func (p *Server) EditMessage(
 	if err != nil {
 		return EditMessageResult{}, err
 	}
-	var sessionStartHookResult *chathooks.Result
-	if p.hooks.Enabled() {
-		turnID := uuid.New()
-		chat, err := p.db.GetChatByID(ctx, opts.ChatID)
+	var (
+		chat                   database.Chat
+		requestedModel         uuid.NullUUID
+		sessionStartHookResult *chathooks.Result
+	)
+	if p.hooks.Enabled() || opts.ModelConfigID != uuid.Nil {
+		chat, err = p.loadChatForAdmission(ctx, opts.ChatID)
 		if err != nil {
-			return EditMessageResult{}, xerrors.Errorf("load chat for edit hooks: %w", err)
+			return EditMessageResult{}, err
 		}
-		// Repeat these admission checks under the transaction lock.
-		if chat.Archived {
-			return EditMessageResult{}, ErrChatArchived
-		}
+		// The transaction rechecks the target under the lock.
 		if _, err := validateEditTarget(ctx, p.db, opts.ChatID, opts.EditedMessageID); err != nil {
 			return EditMessageResult{}, err
 		}
-		if _, err := validateModelConfigOverride(ctx, p.db, chat.OrganizationID, opts.ModelConfigID); err != nil {
+		requestedModel, err = validateModelConfigOverride(ctx, p.db, chat.OrganizationID, opts.ModelConfigID)
+		if err != nil {
 			return EditMessageResult{}, err
 		}
+	}
+	if p.hooks.Enabled() {
+		turnID := uuid.New()
 		sessionStartHookResult, err = p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), chathooks.Message{Source: chathooks.SessionStartSourceClear}, agenthooks.EventSessionStart, dispatch.CapacityClassAdmission)
 		if err != nil {
 			return EditMessageResult{}, p.handleAPIDispatchError(ctx, opts.ChatID, agenthooks.EventSessionStart, err)
@@ -361,10 +385,7 @@ func (p *Server) EditMessage(
 			return err
 		}
 
-		modelOverride, err := validateModelConfigOverride(ctx, store, lockedChat.OrganizationID, opts.ModelConfigID)
-		if err != nil {
-			return err
-		}
+		modelOverride := requestedModel
 		if !modelOverride.Valid {
 			// Without an explicit override the transition preserves
 			// the edited message's original model, which may have been
@@ -602,16 +623,18 @@ func (p *Server) EditQueuedMessage(
 	if err != nil {
 		return err
 	}
-	if len(contentParts) > 0 && p.hooks.Enabled() {
-		turnID := uuid.New()
-		chat, err := p.db.GetChatByID(ctx, opts.ChatID)
+	var chat database.Chat
+	input := chatstate.EditQueuedMessageInput{
+		QueuedMessageID: opts.QueuedMessageID,
+		Editing:         opts.Editing,
+		MaxFileLinks:    p.chatLimits.MaxAttachmentsPerChat,
+	}
+	if len(contentParts) > 0 && (p.hooks.Enabled() || opts.ModelConfigID != uuid.Nil) {
+		chat, err = p.loadChatForAdmission(ctx, opts.ChatID)
 		if err != nil {
-			return xerrors.Errorf("load chat for user_prompt_submit: %w", err)
+			return err
 		}
-		// Repeat these admission checks under the transaction lock.
-		if chat.Archived {
-			return ErrChatArchived
-		}
+		// The transition rechecks the queued row under the lock.
 		if _, err := p.db.GetChatQueuedMessageByID(ctx, database.GetChatQueuedMessageByIDParams{
 			ID:     opts.QueuedMessageID,
 			ChatID: opts.ChatID,
@@ -619,11 +642,15 @@ func (p *Server) EditQueuedMessage(
 			if errors.Is(err, sql.ErrNoRows) {
 				return chatstate.ErrQueuedMessageNotFound
 			}
-			return xerrors.Errorf("load queued message for user_prompt_submit: %w", err)
+			return xerrors.Errorf("load queued message: %w", err)
 		}
-		if _, err := validateModelConfigOverride(ctx, p.db, chat.OrganizationID, opts.ModelConfigID); err != nil {
+		input.ModelConfigIDOverride, err = validateModelConfigOverride(ctx, p.db, chat.OrganizationID, opts.ModelConfigID)
+		if err != nil {
 			return err
 		}
+	}
+	if len(contentParts) > 0 && p.hooks.Enabled() {
+		turnID := uuid.New()
 		promptMessage, err := chathooks.UserPromptMessage(contentParts)
 		if err != nil {
 			return err
@@ -640,11 +667,6 @@ func (p *Server) EditQueuedMessage(
 		}
 	}
 
-	input := chatstate.EditQueuedMessageInput{
-		QueuedMessageID: opts.QueuedMessageID,
-		Editing:         opts.Editing,
-		MaxFileLinks:    p.chatLimits.MaxAttachmentsPerChat,
-	}
 	if len(contentParts) > 0 {
 		content, err := chatprompt.MarshalParts(contentParts)
 		if err != nil {
@@ -669,12 +691,6 @@ func (p *Server) EditQueuedMessage(
 		}
 		if lockedChat.Archived {
 			return ErrChatArchived
-		}
-		if len(contentParts) > 0 {
-			input.ModelConfigIDOverride, err = validateModelConfigOverride(ctx, store, lockedChat.OrganizationID, opts.ModelConfigID)
-			if err != nil {
-				return err
-			}
 		}
 		edited, err = tx.EditQueuedMessage(input)
 		return err

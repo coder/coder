@@ -4053,70 +4053,6 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		require.ErrorIs(t, err, ErrNoDefaultChatModelConfig)
 	})
 
-	t.Run("ExplicitEnabledModel", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		orgID := newModelConfigOrg(t, db)
-		provider := newProvider(t, db, true)
-		model := newModelConfig(t, db, orgID, provider.ID, false)
-
-		resolved, err := resolveSendMessageModelConfigID(ctx, db, database.Chat{OrganizationID: orgID}, model.ID)
-		require.NoError(t, err)
-		require.Equal(t, model.ID, resolved)
-	})
-
-	t.Run("ExplicitDefaultOrgModelRejected", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		chatOrgID := newModelConfigOrg(t, db)
-		defaultOrg, err := db.GetDefaultOrganization(ctx)
-		require.NoError(t, err)
-		provider := newProvider(t, db, true)
-		model := newModelConfig(t, db, defaultOrg.ID, provider.ID, false)
-
-		_, err = resolveSendMessageModelConfigID(
-			ctx,
-			db,
-			database.Chat{OrganizationID: chatOrgID},
-			model.ID,
-		)
-		require.ErrorIs(t, err, ErrInvalidModelConfigID)
-	})
-
-	t.Run("ExplicitUnrelatedOrgModelRejected", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		chatOrgID := newModelConfigOrg(t, db)
-		unrelatedOrgID := newModelConfigOrg(t, db)
-		provider := newProvider(t, db, true)
-		model := newModelConfig(t, db, unrelatedOrgID, provider.ID, false)
-
-		_, err := resolveSendMessageModelConfigID(
-			ctx,
-			db,
-			database.Chat{OrganizationID: chatOrgID},
-			model.ID,
-		)
-		require.ErrorIs(t, err, ErrInvalidModelConfigID)
-	})
-
-	// An explicit model whose provider was disabled after the coderd
-	// preflight must still be rejected inside the daemon.
-	t.Run("ExplicitProviderDisabledRejected", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		orgID := newModelConfigOrg(t, db)
-		disabledProvider := newProvider(t, db, false)
-		model := newModelConfig(t, db, orgID, disabledProvider.ID, false)
-
-		_, err := resolveSendMessageModelConfigID(ctx, db, database.Chat{OrganizationID: orgID}, model.ID)
-		require.ErrorIs(t, err, ErrInvalidModelConfigID)
-	})
-
 	// The create path performs the same daemon-side recheck before
 	// inserting the chat and its initial messages.
 	t.Run("CreateChatProviderDisabledRejected", func(t *testing.T) {
@@ -4137,6 +4073,78 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 				codersdk.ChatMessageText("hello"),
 			},
 		})
+		require.ErrorIs(t, err, ErrInvalidModelConfigID)
+	})
+}
+
+func TestValidateModelConfigOverride(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+
+	newModelConfig := func(t *testing.T, orgID uuid.UUID, providerEnabled bool) database.ChatModelConfig {
+		provider := dbgen.AIProvider(t, db, database.AIProvider{}, func(p *database.InsertAIProviderParams) {
+			p.Enabled = providerEnabled
+		})
+		return dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+			OrganizationID: orgID,
+		})
+	}
+
+	t.Run("NilRequestNoOverride", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		resolved, err := validateModelConfigOverride(ctx, db, uuid.New(), uuid.Nil)
+		require.NoError(t, err)
+		require.Equal(t, uuid.NullUUID{}, resolved)
+	})
+
+	t.Run("EnabledModel", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		orgID := dbgen.Organization(t, db, database.Organization{}).ID
+		model := newModelConfig(t, orgID, true)
+
+		resolved, err := validateModelConfigOverride(ctx, db, orgID, model.ID)
+		require.NoError(t, err)
+		require.Equal(t, uuid.NullUUID{UUID: model.ID, Valid: true}, resolved)
+	})
+
+	t.Run("DefaultOrgModelRejected", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		defaultOrg, err := db.GetDefaultOrganization(ctx)
+		require.NoError(t, err)
+		model := newModelConfig(t, defaultOrg.ID, true)
+
+		_, err = validateModelConfigOverride(ctx, db, dbgen.Organization(t, db, database.Organization{}).ID, model.ID)
+		require.ErrorIs(t, err, ErrInvalidModelConfigID)
+	})
+
+	t.Run("UnrelatedOrgModelRejected", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		model := newModelConfig(t, dbgen.Organization(t, db, database.Organization{}).ID, true)
+
+		_, err := validateModelConfigOverride(ctx, db, dbgen.Organization(t, db, database.Organization{}).ID, model.ID)
+		require.ErrorIs(t, err, ErrInvalidModelConfigID)
+	})
+
+	// A model whose provider was disabled after the coderd preflight
+	// must still be rejected inside the daemon.
+	t.Run("ProviderDisabledRejected", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		orgID := dbgen.Organization(t, db, database.Organization{}).ID
+		model := newModelConfig(t, orgID, false)
+
+		_, err := validateModelConfigOverride(ctx, db, orgID, model.ID)
 		require.ErrorIs(t, err, ErrInvalidModelConfigID)
 	})
 }
