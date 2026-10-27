@@ -53,8 +53,14 @@ func Normalize(schema map[string]any) map[string]any {
 	pointers := map[string]string{}
 	duplicated := map[string]bool{}
 	normalized := copyNode(schema, rootScope(schema), func(node map[string]any, scope refScope) {
+		// Read before normalizing, which drops a "$id" anchor when the
+		// node also declares "$anchor".
+		var anchors []string
+		if !scope.nested {
+			anchors = declaredAnchors(node)
+		}
 		normalizeNode(node, scope)
-		if anchor, ok := node["$anchor"].(string); ok && !scope.nested && anchorName.MatchString(anchor) {
+		for _, anchor := range anchors {
 			if _, seen := pointers[anchor]; seen {
 				duplicated[anchor] = true
 			}
@@ -145,6 +151,21 @@ func normalizeNode(node map[string]any, scope refScope) {
 // anchorName matches the plain-name fragments that draft 2020-12 allows
 // as "$anchor" values.
 var anchorName = regexp.MustCompile(`^[A-Za-z_][-A-Za-z0-9._]*$`)
+
+// declaredAnchors returns the plain-name anchors node declares, with
+// "$anchor" or, as drafts before 2019-09 did, with a "$id" fragment.
+func declaredAnchors(node map[string]any) []string {
+	var anchors []string
+	if anchor, ok := node["$anchor"].(string); ok && anchorName.MatchString(anchor) {
+		anchors = append(anchors, anchor)
+	}
+	if id, ok := node["$id"].(string); ok {
+		if _, fragment, _ := strings.Cut(id, "#"); anchorName.MatchString(fragment) && !slices.Contains(anchors, fragment) {
+			anchors = append(anchors, fragment)
+		}
+	}
+	return anchors
+}
 
 // requireAnyOf requires one of variants to hold. An existing "anyOf"
 // keeps its place, so references into it still resolve, and the

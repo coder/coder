@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
@@ -22,6 +23,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
@@ -912,6 +915,74 @@ func TestPinnedWorkspaceMCPTools(t *testing.T) {
 		require.Len(t, tools, 2)
 		require.Equal(t, "github__create_issue", tools[0].Info().Name)
 		require.Equal(t, "github__search", tools[1].Info().Name)
+	})
+
+	t.Run("CapsSchemasAsTheModelReceivesThem", func(t *testing.T) {
+		t.Parallel()
+
+		schemaWith := func(count int, property map[string]any) map[string]any {
+			properties := make(map[string]any, count)
+			for i := range count {
+				properties[fmt.Sprintf("p%04d", i)] = property
+			}
+			return map[string]any{
+				"type":       "object",
+				"properties": properties,
+				"$defs":      map[string]any{"D": map[string]any{"type": "string"}},
+			}
+		}
+		// Normalization rewrites every type list into an "anyOf", so this
+		// schema is under the per-tool cap as pushed but over it as sent.
+		typeLists := schemaWith(1700, map[string]any{"type": []any{"string", "null"}})
+		// Four of these fit in one server's budget, and a fifth does not.
+		large := schemaWith(2300, map[string]any{"type": "string"})
+		pushed, err := json.Marshal(typeLists)
+		require.NoError(t, err)
+		require.Less(t, len(pushed), maxWorkspaceMCPToolSchemaBytes)
+
+		tool := func(name string, schema map[string]any) *agentproto.MCPTool {
+			return &agentproto.MCPTool{Name: name, InputSchema: mustStruct(t, schema)}
+		}
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		chatID := uuid.New()
+		db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chatID).
+			Return([]database.ChatContextResource{
+				mcpServerResource(t, "github", &agentproto.MCPServerBody{
+					ServerName: "github",
+					Tools: []*agentproto.MCPTool{
+						tool("a_type_lists", typeLists),
+						tool("b1", large), tool("b2", large), tool("b3", large), tool("b4", large), tool("b5", large),
+					},
+				}, database.WorkspaceAgentContextResourceStatusOk),
+				mcpServerResource(t, "linear", &agentproto.MCPServerBody{
+					ServerName: "linear",
+					Tools:      []*agentproto.MCPTool{tool("c", large)},
+				}, database.WorkspaceAgentContextResourceStatusOk),
+			}, nil)
+		server := newPinServer(t, db)
+
+		tools, err := server.pinnedWorkspaceMCPTools(context.Background(), database.Chat{ID: chatID}, getConn)
+		require.NoError(t, err)
+		full := map[string]bool{}
+		for _, tool := range tools {
+			workspaceTool, ok := tool.(*chattool.WorkspaceMCPTool)
+			require.True(t, ok)
+			full[workspaceTool.Info().Name] = workspaceTool.FullInputSchema() != nil
+		}
+		require.Equal(t, map[string]bool{
+			"github__a_type_lists": false,
+			"github__b1":           true,
+			"github__b2":           true,
+			"github__b3":           true,
+			"github__b4":           true,
+			"github__b5":           false,
+			"linear__c":            true,
+		}, full)
+		sent, err := json.Marshal(chatloop.ToolInputSchema(tools[0]))
+		require.NoError(t, err)
+		require.NotContains(t, string(sent), "$defs")
+		require.Contains(t, string(sent), `"p0000"`)
 	})
 
 	t.Run("PinWithoutMCPServersIsAuthoritative", func(t *testing.T) {
