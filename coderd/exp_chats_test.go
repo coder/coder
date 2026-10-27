@@ -6464,7 +6464,10 @@ func TestGetChatAttachments(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, msgs, 1)
 		if deleted {
-			require.NoError(t, db.SoftDeleteChatMessageByID(dbauthz.AsSystemRestricted(ctx), msgs[0].ID))
+			require.NoError(t, db.SoftDeleteChatMessagesAfterID(dbauthz.AsSystemRestricted(ctx), database.SoftDeleteChatMessagesAfterIDParams{
+				ChatID:  chat.ID,
+				AfterID: msgs[0].ID - 1,
+			}))
 		}
 		return database.ChatMessage(msgs[0])
 	}
