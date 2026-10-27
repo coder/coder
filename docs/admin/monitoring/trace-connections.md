@@ -17,7 +17,8 @@ To diagnose a connection that is still open, refer to [Networking troubleshootin
   Human-readable logs also go to `/dev/stderr` by default, so set [`CODER_LOGGING_HUMAN`](../../reference/cli/server/index.md#--log-human) to `/dev/null` to keep only JSON there.
 - The `connection_log` entries in this guide require a [Premium license](https://coder.com/pricing#compare-plans).
   Client and agent logs don't.
-- For VS Code, use the Coder Remote extension version 1.16.1 or later to send session IDs, and version 1.17.1 or later to report the editor name, such as `cursor`.
+- For VS Code, use the Coder Remote extension version 1.17.2 or later.
+  Earlier versions don't report the editor name, such as `cursor`, or label output channel lines with the full session ID.
 - For JetBrains Toolbox, use the Coder Toolbox plugin version 0.9.5 or later to send session IDs and to include `coder ssh` logs in **Collect logs**.
   Plugin version 0.9.5 requires JetBrains Toolbox version 3.9.0 or later.
 
@@ -82,8 +83,8 @@ For details, refer to [Generate a support bundle](../../support/support-bundle.m
 The extension starts `coder ssh` with debug logging.
 It writes the `coder ssh` logs to the directory in the `coder.proxyLogDirectory` VS Code setting.
 If the setting is empty, the extension uses `CODER_SSH_LOG_DIR`, and if that isn't set either, a `log` directory in the extension's global storage.
-In the **Coder** output channel, each line starts with `[session` and the first 8 characters of the session ID.
-Starting with version 1.16.4, the extension keeps the 1,000 most recent entries below the channel's log level and writes them to the channel when a connection fails or the user collects a support bundle.
+In the **Coder** output channel, each line starts with `[client_session_id=<session-id>]`, with the full 32-character session ID.
+The extension keeps the 1,000 most recent entries below the channel's log level and writes them to the channel when a connection fails or the user collects a support bundle.
 To change the number of entries, set `coder.connectionLogBuffer.size`.
 
 ### JetBrains Toolbox
@@ -133,7 +134,7 @@ To turn it on, set [`CODER_LOG_FILTER`](../../reference/cli/server/index.md#-l--
 ### Agent logs
 
 The workspace agent writes its log to `coder-agent.log` in the directory set by `CODER_AGENT_LOG_DIR`.
-The agent rotates the file at 5 MB and keeps up to 19 older files named `coder-agent-<timestamp>.log` in the same directory.
+The agent rotates the file at 5&nbsp;MB and keeps up to 19 older files named `coder-agent-<timestamp>.log` in the same directory.
 If `CODER_AGENT_LOG_DIR` isn't set, the agent uses the system temporary directory.
 On Linux and macOS, that's `$TMPDIR` if it's set, or `/tmp` otherwise.
 On Windows, it's the user's temporary directory, usually `%TEMP%`.
@@ -216,6 +217,7 @@ Otherwise, the connection log keeps `server_shutdown`.
 
 For SSH sessions, the reason can also be a specific message, such as `process exited with error status: 1` when the command exited with a nonzero status, or the raw error text when the session failed.
 SSH sessions don't record `network_error`, so search the agent log for `ssh session failed` to find SSH transport failures.
+If the agent was shutting down when an SSH session ended, the reason is `server_shutdown`, and the agent log keeps the specific message in `disconnect_detail`.
 
 In the agent log, `disconnect_expected` is `true` for `graceful`, `server_shutdown`, and `workspace_stopped`, and `false` for `network_error`, `unknown`, and error messages.
 Filter the agent log on `disconnect_expected=false` to find the disconnects worth investigating.
