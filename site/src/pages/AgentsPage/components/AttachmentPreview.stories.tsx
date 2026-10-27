@@ -41,9 +41,9 @@ export const SingleImage: Story = {
 	},
 };
 
-// Focus on View, Paste inline or Remove shows both buttons. Hidden buttons
-// stay in the tab order, so Shift+Tab from the end of the page reaches
-// Remove and then Paste inline.
+// Focus on View, Paste inline or Remove shows Paste inline and Remove. The
+// hidden buttons stay in the tab order, so Shift+Tab from the end of the page
+// reaches Remove and then Paste inline.
 export const ViewFocused: Story = {
 	args: (() => {
 		const file = createMockFile("clipboard.txt", "text/plain", 2048);
