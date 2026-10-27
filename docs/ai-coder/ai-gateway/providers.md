@@ -104,7 +104,9 @@ AI Gateway chooses authentication from the credentials available for each reques
 
 1. When [Bring Your Own Key](#bring-your-own-key) is enabled, a client key takes precedence over stored provider keys and IAM signing.
 2. Otherwise, AI Gateway uses the provider's stored API-key collection, with key pooling, rotation, masking, and [key failover](#key-failover).
-3. When no client or stored provider key is available, AI Gateway signs the request with AWS SigV4 for the `aws-external-anthropic` service using its ambient AWS credentials.
+3. When no client or stored provider key is available, AI Gateway signs the request with AWS SigV4.
+
+   It signs for the `aws-external-anthropic` service using its ambient AWS credentials.
 
 Configure the AWS identity on the gateway process through the default AWS credential chain, such as an instance profile, container identity, or `AWS_PROFILE`.
 Individual Claude Platform provider settings do not select an AWS identity or authentication mode.
@@ -199,7 +201,9 @@ When you cannot use the default credential chain, create a dedicated IAM user an
    - Select **Create access key**.
    - Save both the access key ID and secret access key securely.
 
-4. **Enter the access key ID and secret access key** when you add or edit the Bedrock provider from the dashboard or the [AI Providers API](../../reference/api/aiproviders.md), along with the region (or base URL) and model identifiers.
+4. **Enter the access key ID and secret access key** when you add or edit the Bedrock provider.
+
+   Add or edit the provider from the dashboard or the [AI Providers API](../../reference/api/aiproviders.md), along with the region (or base URL) and model identifiers.
 
 #### IAM role assumption
 
@@ -209,7 +213,9 @@ The field is optional: a provider with no Role ARN authenticates with its base i
 
 To use role assumption:
 
-1. **Create the IAM role** in the target account and grant it `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream` for the configured models.
+1. **Create the IAM role** in the target account.
+
+   Grant it `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream` for the configured models.
    The base identity does not need Bedrock permissions itself; the assumed role does.
 
 2. **Configure the role's trust policy** to allow the gateway's base identity to assume it.

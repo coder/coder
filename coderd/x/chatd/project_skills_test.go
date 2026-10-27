@@ -50,13 +50,15 @@ func TestProjectSkillsFollowProjectAccess(t *testing.T) {
 		{"project-review", "Project review process"},
 		{"shared", "Project shared process"},
 		{"project-disabled", "Disabled project process"},
+		{"project-manual", "Manual project process"},
 	} {
 		_, err := db.InsertProjectSkill(ctx, database.InsertProjectSkillParams{
-			ID:          uuid.New(),
-			ProjectID:   project.ID,
-			Name:        skill.name,
-			Description: skill.description,
-			Content:     skillMarkdown(skill.name, skill.description, "Instructions for "+skill.name+"."),
+			ID:             uuid.New(),
+			ProjectID:      project.ID,
+			Name:           skill.name,
+			Description:    skill.description,
+			Content:        skillMarkdown(skill.name, skill.description, "Instructions for "+skill.name+"."),
+			ModelInvocable: sql.NullBool{Bool: skill.name != "project-manual", Valid: true},
 		})
 		require.NoError(t, err)
 	}
@@ -131,16 +133,19 @@ func TestProjectSkillsFollowProjectAccess(t *testing.T) {
 	inProject := chatd.CreateOptions{ProjectID: uuid.NullUUID{UUID: project.ID, Valid: true}}
 
 	// A project chat lists enabled project skills. A name shared with a
-	// personal skill gets qualified aliases, and disabled skills are hidden.
-	projectChatID, calls := runTurn(t, owner.ID, uuid.Nil, inProject, readSkillsDirective+"project-review,project/shared,project-disabled")
+	// personal skill gets qualified aliases, and disabled skills and skills
+	// that are not model-invocable are hidden.
+	projectChatID, calls := runTurn(t, owner.ID, uuid.Nil, inProject, readSkillsDirective+"project-review,project/shared,project-disabled,project-manual")
 	require.Contains(t, calls[0].system, "- project-review: Project review process\n")
 	require.Contains(t, calls[0].system, "- project/shared: Project shared process\n")
 	require.Contains(t, calls[0].system, "- personal/shared: Personal shared process\n")
 	require.NotContains(t, calls[0].system, "project-disabled")
-	results := lastToolResults(calls[1], 3)
+	require.NotContains(t, calls[0].system, "project-manual")
+	results := lastToolResults(calls[1], 4)
 	require.Contains(t, results[0], "Instructions for project-review.")
 	require.Contains(t, results[1], "Instructions for shared.")
 	require.Equal(t, `skill "project-disabled" not found`, results[2])
+	require.Equal(t, `skill "project-manual" not found`, results[3])
 
 	// A chat outside the project does not see project skills.
 	_, calls = runTurn(t, owner.ID, uuid.Nil, chatd.CreateOptions{}, readSkillsDirective+"project-review")

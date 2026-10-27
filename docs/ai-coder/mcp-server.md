@@ -116,7 +116,7 @@ Coder is published to the official [MCP Registry](https://github.com/modelcontex
 1. Open VS Code Command Palette and run **MCP: Add Server...**
 1. Select **From MCP Registry**
 1. Search for "Coder" and select it
-1. Enter your Coder deployment hostname when prompted (e.g., `coder.example.com`)
+1. Enter your Coder deployment hostname when prompted (for example, `coder.example.com`)
 1. VS Code will automatically handle OAuth2 authentication
 
 #### Claude Desktop (Remote)

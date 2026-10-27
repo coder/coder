@@ -3,6 +3,7 @@ package codersdk
 import (
 	"cmp"
 	"encoding/json"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -45,7 +46,7 @@ func (f AppFamilyName) DisplayName() string {
 	return appFamilyDisplayNames[f]
 }
 
-// AppNameOverflow sums the app names past the per-report cap.
+// AppNameOverflow sums the unregistered app names past the limit of 64.
 const AppNameOverflow = "overflow"
 
 // SessionCountApp is one app's session count and how to present it.
@@ -221,4 +222,43 @@ func DecodeAppMap[V appMapValue](raw json.RawMessage) (map[string]V, error) {
 		decoded = map[string]V{}
 	}
 	return decoded, nil
+}
+
+// SessionAppMethod derives a session app's method from its normalized name.
+// Every reporter's app name implies its method, so none is stored.
+func SessionAppMethod(appName string) ConnectionLogMethod {
+	switch AppFamilyName(appName) {
+	case AppFamilyReconnectingPTY:
+		return ConnectionLogMethodReconnectingPTY
+	case AppFamilyPortForwarding:
+		return ConnectionLogMethodPortForwarding
+	default:
+		return ConnectionLogMethodSSH
+	}
+}
+
+// FoldUnregisteredSessionApps applies the session app fold rule, which
+// GetTemplateInsights mirrors in SQL. Registered apps, unknown, overflow, and
+// the busiest TemplateInsightsMaxUnregisteredApps other apps keep their
+// entries; the rest are added to overflow. Ties break by app name in byte
+// order. It edits apps in place and returns the number of apps folded.
+func FoldUnregisteredSessionApps(apps map[string]int64) int {
+	var unregistered []string
+	for app := range apps {
+		if _, ok := sessionApps[app]; !ok && app != string(AppFamilyUnknown) && app != AppNameOverflow {
+			unregistered = append(unregistered, app)
+		}
+	}
+	if len(unregistered) <= TemplateInsightsMaxUnregisteredApps {
+		return 0
+	}
+	slices.SortFunc(unregistered, func(a, b string) int {
+		return cmp.Or(cmp.Compare(apps[b], apps[a]), strings.Compare(a, b))
+	})
+	folded := unregistered[TemplateInsightsMaxUnregisteredApps:]
+	for _, app := range folded {
+		apps[AppNameOverflow] += apps[app]
+		delete(apps, app)
+	}
+	return len(folded)
 }

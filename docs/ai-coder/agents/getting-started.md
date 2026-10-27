@@ -79,6 +79,7 @@ Role sync assigns roles at sign-in and doesn't store default roles, so members w
 To limit Coder Agents to a subset of members in an organization (requires a Premium license):
 
 1. Remove **Coder Agents User** from the organization's default roles.
+
    In the dashboard, go to **Admin settings** > **Organizations** > **Roles** > **Default Roles**.
    From the CLI, run `coder organizations edit --org <organization> --default-org-member-roles organization-workspace-access`, keeping any other default roles in the list.
 1. Grant `agents-access` to the members who need it:
@@ -106,7 +107,7 @@ Update your template descriptions to include:
 
 - The language, framework, or stack the template targets.
 - Which repository or service it is for, if applicable.
-- What type of work it supports (backend, frontend, data pipeline, etc.).
+- What type of work it supports (backend, frontend, data pipeline, and so on).
 
 When 128 characters is not enough, put the most important routing context near the top of the template's [`README.md`](./platform-controls/template-optimization.md#put-routing-context-near-the-top-of-the-readme).
 The chat agent's template listing includes a bounded README excerpt (roughly the first 1,000 characters), and template detail includes the README (up to roughly 8,000 characters).
@@ -267,7 +268,7 @@ The warning disappears once the user edits the message.
 
 If the user isn't signed in, Coder keeps the message through sign-in.
 
-Don't put secrets in these links.
+Do not put secrets in these links.
 URLs end up in browser history and server logs.
 
 ### Add workspace context with AGENTS.md

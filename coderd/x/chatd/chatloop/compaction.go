@@ -26,12 +26,6 @@ const (
 	// CompactionDisabledThresholdPercent turns a compaction trigger off.
 	CompactionDisabledThresholdPercent = int32(100)
 
-	// compactionDebugCreateRunTimeout caps the compaction debug
-	// CreateRun budget. Debug instrumentation is best-effort;
-	// running without the debug row is preferable to blocking
-	// compaction on a slow or locked DB.
-	compactionDebugCreateRunTimeout = 5 * time.Second
-
 	// compactionContextTooLargeMessage tells the user how to recover a
 	// conversation that is too large to summarize.
 	compactionContextTooLargeMessage = "This conversation is too large for the model to compact. " +
@@ -400,15 +394,7 @@ func startCompactionDebugRun(
 		modelConfigID = options.ModelConfigID
 	}
 
-	// Use a separate short-lived context for the debug insert so a
-	// slow or locked DB cannot block the model call. Detached from
-	// the parent so cancellation of the compaction run still lets
-	// the insert reach a terminal state, matching the best-effort
-	// contract of debug instrumentation.
-	createRunCtx, createRunCancel := context.WithTimeout(
-		context.WithoutCancel(ctx), compactionDebugCreateRunTimeout,
-	)
-	run, err := options.DebugSvc.CreateRun(createRunCtx, chatdebug.CreateRunParams{
+	return options.DebugSvc.StartRun(ctx, chatdebug.CreateRunParams{
 		ChatID:              options.ChatID,
 		RootChatID:          parentRun.RootChatID,
 		ParentChatID:        parentRun.ParentChatID,
@@ -419,34 +405,7 @@ func startCompactionDebugRun(
 		Status:              chatdebug.StatusInProgress,
 		Provider:            provider,
 		Model:               model,
-	})
-	createRunCancel()
-	if err != nil {
-		// Debug instrumentation must not surface as a compaction failure.
-		return ctx, func(error) {}
-	}
-
-	compactionCtx := chatdebug.ContextWithRun(ctx, &chatdebug.RunContext{
-		RunID:               run.ID,
-		ChatID:              options.ChatID,
-		RootChatID:          parentRun.RootChatID,
-		ParentChatID:        parentRun.ParentChatID,
-		ModelConfigID:       modelConfigID,
-		TriggerMessageID:    parentRun.TriggerMessageID,
-		HistoryTipMessageID: historyTipMessageID,
-		Provider:            provider,
-		Model:               model,
-	})
-
-	return compactionCtx, func(runErr error) {
-		status := chatdebug.ClassifyError(runErr)
-		// Debug instrumentation must not surface as a compaction failure.
-		_ = options.DebugSvc.FinalizeRun(compactionCtx, chatdebug.FinalizeRunParams{
-			RunID:  run.ID,
-			ChatID: options.ChatID,
-			Status: status,
-		})
-	}
+	}, nil, 0)
 }
 
 // summaryToolResultCaps are the sizes, in bytes, that successive summary

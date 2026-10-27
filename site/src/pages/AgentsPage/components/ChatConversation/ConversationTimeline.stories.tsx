@@ -14,6 +14,7 @@ import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatFileMetadata } from "#/testHelpers/chatEntities";
 import { MockUserPreferenceSettings } from "#/testHelpers/entities";
+import { MockPngBase64 } from "#/testHelpers/files";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { getChatFileURL } from "../../utils/chatAttachments";
 import { ChatMessageScroller } from "../ChatMessageScroller";
@@ -47,10 +48,6 @@ const withMessageScroller: Decorator = (Story, { parameters }) => {
 		</div>
 	);
 };
-
-// 1×1 solid coral (#FF6B6B) PNG encoded as base64.
-const TEST_PNG_B64 =
-	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4n539HwAHFwLVF8kc1wAAAABJRU5ErkJggg==";
 
 const buildMessages = (messages: TypesGen.ChatMessage[]) =>
 	parseMessagesWithMergedTools(messages);
@@ -814,7 +811,7 @@ export const UserMessageWithSingleImage: Story = {
 					{
 						type: "file",
 						media_type: "image/png",
-						data: TEST_PNG_B64,
+						data: MockPngBase64,
 					},
 				],
 			},
@@ -847,17 +844,17 @@ export const UserMessageWithMultipleImages: Story = {
 					{
 						type: "file",
 						media_type: "image/png",
-						data: TEST_PNG_B64,
+						data: MockPngBase64,
 					},
 					{
 						type: "file",
 						media_type: "image/jpeg",
-						data: TEST_PNG_B64,
+						data: MockPngBase64,
 					},
 					{
 						type: "file",
 						media_type: "image/webp",
-						data: TEST_PNG_B64,
+						data: MockPngBase64,
 					},
 				],
 			},
@@ -1279,7 +1276,7 @@ export const UserMessageWithMixedAttachments: Story = {
 		buildUserMessage({
 			text: "Here is a screenshot and some context",
 			files: [
-				buildInlineAttachmentPart("image/png", TEST_PNG_B64),
+				buildInlineAttachmentPart("image/png", MockPngBase64),
 				buildTextAttachmentPart("storybook-test-text"),
 			],
 		}),
@@ -1315,7 +1312,7 @@ export const AssistantMessageWithImage: Story = {
 					{
 						type: "file",
 						media_type: "image/png",
-						data: TEST_PNG_B64,
+						data: MockPngBase64,
 						name: "generated-image.png",
 					},
 				],
@@ -1328,7 +1325,7 @@ export const AssistantMessageWithImage: Story = {
 		expect(images).toHaveLength(1);
 		expect(images[0]).toHaveAttribute(
 			"src",
-			`data:image/png;base64,${TEST_PNG_B64}`,
+			`data:image/png;base64,${MockPngBase64}`,
 		);
 		expect(
 			canvas.queryByRole("link", { name: "Download generated-image.png" }),
@@ -1425,7 +1422,7 @@ export const UserMessageWithImagesAndFileRefs: Story = {
 					{
 						type: "file",
 						media_type: "image/png",
-						data: TEST_PNG_B64,
+						data: MockPngBase64,
 					},
 					{
 						type: "file-reference",
@@ -1469,6 +1466,40 @@ export const UserMessageWithInlineFileRef: Story = {
 					{
 						type: "text",
 						text: "Sure, I'll update that component.",
+					},
+				],
+			},
+		]),
+	},
+};
+
+export const UserMessageWithSkillChips: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{ type: "text", text: "Use " },
+					{
+						type: "skill-invocation",
+						skill_source: "project",
+						skill_name: "triage",
+					},
+					{ type: "text", text: " on the flaky test." },
+				],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "user",
+				content: [
+					{
+						type: "skill-invocation",
+						skill_source: "personal",
+						skill_name: "release-notes",
 					},
 				],
 			},
@@ -1675,6 +1706,7 @@ export const UserMessageCopyButton: Story = {
 		expect(args.onEditUserMessage).toHaveBeenCalledWith(
 			1,
 			"Can you fix this bug?",
+			undefined,
 			undefined,
 		);
 

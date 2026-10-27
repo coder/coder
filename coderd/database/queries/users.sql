@@ -98,9 +98,13 @@ INSERT INTO
 	)
 VALUES
 	($1, $2, $3, $4, $5, $6, $7, $8, $9,
-		-- if the status passed in is empty, fallback to dormant, which is what
-		-- we were doing before.
-		COALESCE(NULLIF(@status::text, '')::user_status, 'dormant'::user_status),
+		-- If the status passed in is empty, service accounts fall back to
+		-- active, because they are never dormant. Other users fall back to
+		-- dormant.
+		COALESCE(
+			NULLIF(@status::text, '')::user_status,
+			CASE WHEN @is_service_account::bool THEN 'active'::user_status ELSE 'dormant'::user_status END
+		),
 		@is_service_account::bool
 	) RETURNING *;
 
@@ -740,6 +744,7 @@ WHERE
     last_seen_at < @last_seen_after :: timestamp
     AND status = 'active'::user_status
 		AND NOT is_system
+		AND NOT is_service_account
 RETURNING id, email, username, last_seen_at;
 
 -- AllUserIDs returns all UserIDs regardless of user status or deletion.

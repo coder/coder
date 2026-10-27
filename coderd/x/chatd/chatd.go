@@ -182,6 +182,7 @@ type Server struct {
 	disableCallerSuppliedTools     bool
 	oidcTokenSource                mcpclient.UserOIDCTokenSource
 	mcpHTTPClient                  *http.Client
+	internalMCPServers             []InternalMCPServer
 	debugSvc                       *chatdebug.Service
 	debugSvcFactory                func() *chatdebug.Service
 	debugSvcReady                  atomic.Bool
@@ -660,7 +661,18 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	}
 
 	chatID := uuid.New()
-	contentParts := opts.InitialUserContent
+	// The new chat has no pinned workspace context yet, so it is resolved
+	// without a workspace and cannot invoke workspace skills.
+	contentParts, err := p.resolveSkillInvocations(ctx, database.Chat{
+		ID:             chatID,
+		OwnerID:        opts.OwnerID,
+		OrganizationID: opts.OrganizationID,
+		ProjectID:      opts.ProjectID,
+		RootChatID:     opts.RootChatID,
+	}, opts.InitialUserContent)
+	if err != nil {
+		return database.Chat{}, err
+	}
 	// The prompt-submit hook fires with the first SendMessage when the
 	// chat is created without an initial user message.
 	if p.hooks.Enabled() && len(contentParts) > 0 {
@@ -1290,6 +1302,9 @@ type Config struct {
 	// using user_oidc will then send no Authorization header.
 	OIDCTokenSource mcpclient.UserOIDCTokenSource
 	MCPHTTPClient   *http.Client
+	// InternalMCPServers are MCP servers that coderd code serves to chats
+	// in process. Slugs must be unique and not empty.
+	InternalMCPServers []InternalMCPServer
 
 	NotificationsEnqueuer notifications.Enqueuer
 	Auditor               *atomic.Pointer[audit.Auditor]
@@ -1303,6 +1318,9 @@ type Config struct {
 func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 	if cfg.ExperimentEvaluator == nil {
 		return nil, xerrors.New("chatd: experiment evaluator is required")
+	}
+	if err := validateInternalMCPServers(cfg.InternalMCPServers); err != nil {
+		return nil, xerrors.Errorf("chatd: %w", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -1387,6 +1405,7 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 		disableCallerSuppliedTools:     cfg.DisableCallerSuppliedTools,
 		oidcTokenSource:                cfg.OIDCTokenSource,
 		mcpHTTPClient:                  mcpHTTPClient,
+		internalMCPServers:             cfg.InternalMCPServers,
 		debugSvcFactory: func() *chatdebug.Service {
 			return chatdebug.NewService(
 				cfg.Database,
@@ -1785,25 +1804,15 @@ func (p *Server) aiProviderConfigFromKeys(provider database.AIProvider, keys []d
 			break
 		}
 	}
-	region := ""
-	supportsAmbientCredentials := false
-	if settings.Bedrock != nil {
-		region = strings.TrimSpace(settings.Bedrock.Region)
-	}
-	if cp := settings.ClaudePlatformAWS; cp != nil {
-		region = strings.TrimSpace(cp.Region)
-		supportsAmbientCredentials = true
-	}
 	return chatprovider.ConfiguredProvider{
 		ProviderID:                 provider.ID,
 		Provider:                   string(provider.Type),
 		APIKey:                     apiKey,
 		BaseURL:                    provider.BaseUrl,
-		Region:                     region,
 		CentralAPIKeyEnabled:       true,
 		AllowUserAPIKey:            p.allowBYOK,
 		AllowCentralAPIKeyFallback: true,
-		SupportsAmbientCredentials: supportsAmbientCredentials,
+		SupportsAmbientCredentials: settings.ClaudePlatformAWS != nil,
 	}, nil
 }
 

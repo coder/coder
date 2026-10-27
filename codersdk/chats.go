@@ -427,6 +427,13 @@ type ChatFileMetadata struct {
 	CreatedAt      time.Time `json:"created_at" format:"date-time"`
 }
 
+// ChatACPTranscriptMessage is a workspace-local ACP message returned by
+// acp_wait_agent without database message metadata.
+type ChatACPTranscriptMessage struct {
+	Role    ChatMessageRole   `json:"role"`
+	Content []ChatMessagePart `json:"content"`
+}
+
 // ChatMessage represents a single message in a chat.
 type ChatMessage struct {
 	ID            int64             `json:"id"`
@@ -483,6 +490,10 @@ const (
 	ChatMessagePartTypeContextFile            ChatMessagePartType = "context-file"
 	ChatMessagePartTypeSkill                  ChatMessagePartType = "skill"
 	ChatMessagePartTypeWorkspaceFileReference ChatMessagePartType = "workspace-file-reference"
+	// ChatMessagePartTypeSkillInvocation is a skill the user attached to
+	// a message. The server loads the skill body when the message is sent
+	// and renders it into the user's prompt.
+	ChatMessagePartTypeSkillInvocation ChatMessagePartType = "skill-invocation"
 	// ChatMessagePartTypeHookContext is model context injected into a user
 	// prompt by a lifecycle hook. It is included in model prompt assembly
 	// and stripped from every client-facing conversion; the server rejects
@@ -507,6 +518,7 @@ func AllChatMessagePartTypes() []ChatMessagePartType {
 		ChatMessagePartTypeContextFile,
 		ChatMessagePartTypeSkill,
 		ChatMessagePartTypeWorkspaceFileReference,
+		ChatMessagePartTypeSkillInvocation,
 		ChatMessagePartTypeHookContext,
 		ChatMessagePartTypeHookNotice,
 	}
@@ -640,16 +652,29 @@ type ChatMessagePart struct {
 	// workspace agent. Internal only: same purpose as
 	// ContextFileOS.
 	ContextFileDirectory string `json:"context_file_directory,omitempty" typescript:"-"`
-	// SkillName is the kebab-case name of a discovered skill
-	// from the workspace's .agents/skills/ directory.
-	SkillName string `json:"skill_name" variants:"skill"`
+	// SkillName is the kebab-case name of the skill.
+	SkillName string `json:"skill_name" variants:"skill,skill-invocation"`
+	// SkillSource is where the invoked skill of a skill-invocation
+	// part is stored.
+	SkillSource ChatSkillSource `json:"skill_source" variants:"skill-invocation"`
+	// SkillBody is the invoked skill body loaded when the message was
+	// sent, so past turns keep the instructions the model received.
+	// Internal only: stripped before API responses.
+	SkillBody string `json:"skill_body,omitempty" typescript:"-" swaggerignore:"true"`
 	// SkillDescription is the short description from the skill's
 	// SKILL.md frontmatter.
 	SkillDescription string `json:"skill_description,omitempty" variants:"skill?"`
 	// SkillDir is the absolute path to the skill directory inside
 	// the workspace filesystem. Internal only: used by
-	// read_skill/read_skill_file tools to locate skill files.
+	// read_skill/read_skill_file tools to locate skill files, and
+	// shown to the model for an invoked workspace skill so it can
+	// run the skill's scripts.
 	SkillDir string `json:"skill_dir,omitempty" typescript:"-"`
+	// SkillWorkspaceID is the workspace whose filesystem holds the
+	// SkillDir of an invoked workspace skill. Internal only: the
+	// prompt shows SkillDir only while the chat stays bound to this
+	// workspace.
+	SkillWorkspaceID uuid.UUID `json:"skill_workspace_id,omitzero" format:"uuid" typescript:"-" swaggerignore:"true"`
 	// ContextFileSkillMetaFile is the basename of the skill
 	// meta file (e.g. "SKILL.md") at the time of persistence.
 	// Internal only: restored on subsequent turns so the
@@ -693,7 +718,9 @@ func (p *ChatMessagePart) StripInternal() {
 	p.ContextFileOS = ""
 	p.ContextFileDirectory = ""
 	p.SkillDir = ""
+	p.SkillWorkspaceID = uuid.Nil
 	p.ContextFileSkillMetaFile = ""
+	p.SkillBody = ""
 }
 
 // ChatMessageText builds a text chat message part.
@@ -766,6 +793,16 @@ func ChatMessageWorkspaceFileReference(workspaceID uuid.UUID, path, name string,
 	}
 }
 
+// ChatMessageSkillInvocation builds a skill-invocation chat message
+// part without a body; the server loads the body at send time.
+func ChatMessageSkillInvocation(source ChatSkillSource, name string) ChatMessagePart {
+	return ChatMessagePart{
+		Type:        ChatMessagePartTypeSkillInvocation,
+		SkillSource: source,
+		SkillName:   name,
+	}
+}
+
 // ChatMessageSource builds a source chat message part.
 func ChatMessageSource(sourceID, sourceURL, title string) ChatMessagePart {
 	return ChatMessagePart{
@@ -784,6 +821,17 @@ const (
 	ChatInputPartTypeFile                   ChatInputPartType = "file"
 	ChatInputPartTypeFileReference          ChatInputPartType = "file-reference"
 	ChatInputPartTypeWorkspaceFileReference ChatInputPartType = "workspace-file-reference"
+	ChatInputPartTypeSkillInvocation        ChatInputPartType = "skill-invocation"
+)
+
+// ChatSkillSource identifies where an invoked skill is stored.
+type ChatSkillSource string
+
+const (
+	ChatSkillSourcePersonal     ChatSkillSource = "personal"
+	ChatSkillSourceOrganization ChatSkillSource = "org"
+	ChatSkillSourceProject      ChatSkillSource = "project"
+	ChatSkillSourceWorkspace    ChatSkillSource = "workspace"
 )
 
 // ChatInputPart is a single user input part for creating a chat.
@@ -808,6 +856,11 @@ type ChatInputPart struct {
 	// to, as returned by the upload endpoint. It must match the chat's
 	// currently bound workspace.
 	WorkspaceFileWorkspaceID uuid.UUID `json:"workspace_file_workspace_id,omitempty" format:"uuid"`
+	// The following fields are only set when Type is
+	// ChatInputPartTypeSkillInvocation. The server loads the skill
+	// as the chat owner when the message is sent.
+	SkillSource ChatSkillSource `json:"skill_source,omitempty"`
+	SkillName   string          `json:"skill_name,omitempty"`
 }
 
 // SubmitToolResultsRequest is the body for POST /chats/{id}/tool-results.
@@ -1065,6 +1118,51 @@ type ChatPrompt struct {
 // up/down arrow history cycling.
 type ChatPromptsResponse struct {
 	Prompts []ChatPrompt `json:"prompts"`
+}
+
+// ChatAttachment is a file part of a chat message, returned by
+// GET /api/v2/chats/{chat}/attachments.
+type ChatAttachment struct {
+	MessageID int64 `json:"message_id"`
+	// PartIndex is the file part's position in the message content the
+	// messages endpoint returns.
+	PartIndex int                `json:"part_index"`
+	Role      ChatAttachmentRole `json:"role"`
+	File      ChatAttachmentFile `json:"file"`
+}
+
+// ChatAttachmentRole is the role of the message that holds an attachment.
+// The attachments endpoint lists only user and assistant messages.
+type ChatAttachmentRole string
+
+const (
+	ChatAttachmentRoleUser      ChatAttachmentRole = "user"
+	ChatAttachmentRoleAssistant ChatAttachmentRole = "assistant"
+)
+
+// ChatAttachmentFileType is the part type of a ChatAttachmentFile, which
+// is always a file part.
+type ChatAttachmentFileType string
+
+const ChatAttachmentFileTypeFile ChatAttachmentFileType = "file"
+
+// ChatAttachmentFile holds the fields of a file part, the only part type
+// the attachments endpoint returns.
+type ChatAttachmentFile struct {
+	Type      ChatAttachmentFileType `json:"type"`
+	MediaType string                 `json:"media_type"`
+	Name      string                 `json:"name,omitempty"`
+	// Data holds an inline file's bytes, which JSON carries as a base64 string.
+	Data []byte `json:"data,omitempty" swaggertype:"string" format:"byte"`
+	// Omitted, not null, for an inline file.
+	FileID uuid.NullUUID `json:"file_id,omitzero" format:"uuid"`
+}
+
+// ChatAttachmentsResponse is the payload of
+// GET /api/v2/chats/{chat}/attachments. Attachments are returned newest
+// first.
+type ChatAttachmentsResponse struct {
+	Attachments []ChatAttachment `json:"attachments"`
 }
 
 // ChatModelProviderUnavailableReason explains why a provider cannot be used.
@@ -3603,6 +3701,38 @@ func (c *Client) GetChatPrompts(ctx context.Context, chatID uuid.UUID, opts *Cha
 		return ChatPromptsResponse{}, ReadBodyAsError(res)
 	}
 	var resp ChatPromptsResponse
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// ChatAttachmentsOptions are optional query parameters for
+// GetChatAttachments.
+// @typescript-ignore ChatAttachmentsOptions
+type ChatAttachmentsOptions struct {
+	// BeforeID, when > 0, restricts results to messages with id strictly
+	// less than BeforeID. 0 returns every attachment in the chat.
+	BeforeID int64
+}
+
+// GetChatAttachments returns the file parts of a chat's user-visible user
+// and assistant messages, newest first.
+func (c *Client) GetChatAttachments(ctx context.Context, chatID uuid.UUID, opts *ChatAttachmentsOptions) (ChatAttachmentsResponse, error) {
+	reqOpts := []RequestOption{}
+	if opts != nil && opts.BeforeID > 0 {
+		reqOpts = append(reqOpts, func(r *http.Request) {
+			q := r.URL.Query()
+			q.Set("before_id", strconv.FormatInt(opts.BeforeID, 10))
+			r.URL.RawQuery = q.Encode()
+		})
+	}
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/chats/%s/attachments", chatID), nil, reqOpts...)
+	if err != nil {
+		return ChatAttachmentsResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatAttachmentsResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatAttachmentsResponse
 	return resp, ReadBodyAsJSON(res, &resp)
 }
 

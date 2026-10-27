@@ -7,6 +7,12 @@ import { workspaceBuildLogs } from "#/api/queries/workspaceBuilds";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { MCPServerConfig } from "#/api/typesGenerated";
+import {
+	MockACPSession,
+	MockACPSessionArgs,
+	MockACPSpawnArgs,
+	MockACPWaitResult,
+} from "#/testHelpers/acp";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	MockStoppingWorkspace,
@@ -16,20 +22,18 @@ import {
 	MockWorkspaceBuild,
 	MockWorkspaceBuildLogs,
 } from "#/testHelpers/entities";
+import { MockPngBase64 } from "#/testHelpers/files";
 import { withWebSocket } from "#/testHelpers/storybook";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
 import { BlockList } from "../../ChatConversation/MessageBlocks";
 import { DESKTOP_SCREENSHOT_BASE64 } from "./__fixtures__/desktopScreenshot";
+import { ACPToolNames } from "./acpToolNames";
 import { DesktopPanelContext } from "./DesktopPanelContext";
 import { Tool, toolRendererNames } from "./Tool";
 
 const executeCommand = "git fetch origin";
 const longExecuteCommand =
 	"docker build --no-cache --build-arg NODE_ENV=production --build-arg API_URL=https://coder.example.com/api --build-arg SENTRY_DSN=https://example.com/sentry --build-arg FEATURE_FLAGS=agents,shell-tools --tag coder-agent:latest .";
-
-// 1x1 solid coral (#FF6B6B) PNG encoded as base64.
-const TEST_PNG_B64 =
-	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4n539HwAHFwLVF8kc1wAAAABJRU5ErkJggg==";
 
 const meta: Meta<typeof Tool> = {
 	title: "pages/AgentsPage/ChatElements/tools/Tool",
@@ -68,6 +72,29 @@ type ToolShowcaseItem = {
 };
 
 const allToolShowcaseItems: ToolShowcaseItem[] = [
+	{
+		name: ACPToolNames.SpawnAgent,
+		args: MockACPSpawnArgs,
+		result: MockACPSession,
+	},
+	{
+		name: ACPToolNames.WaitAgent,
+		args: MockACPSessionArgs,
+		result: MockACPWaitResult,
+	},
+	{
+		name: ACPToolNames.MessageAgent,
+		args: {
+			...MockACPSessionArgs,
+			message: "Check error handling.",
+		},
+		result: MockACPSession,
+	},
+	{
+		name: ACPToolNames.InterruptAgent,
+		args: MockACPSessionArgs,
+		result: { ...MockACPSessionArgs, ...MockACPSession, interrupted: true },
+	},
 	{
 		name: "execute",
 		args: { command: "pnpm check" },
@@ -216,7 +243,7 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 	{
 		name: "computer",
 		args: { action: "screenshot" },
-		result: { output: { type: "image", data: TEST_PNG_B64 } },
+		result: { output: { type: "image", data: MockPngBase64 } },
 	},
 	{
 		name: "read_skill",
@@ -1411,7 +1438,7 @@ export const MCPToolMediaShapedTextResult: Story = {
 		...MCPToolImageResult.args,
 		isMedia: false,
 		result: {
-			data: TEST_PNG_B64,
+			data: MockPngBase64,
 			mime_type: "image/png",
 			source: "structured-content",
 		},

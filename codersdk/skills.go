@@ -17,8 +17,16 @@ type SkillMetadata struct {
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
 	Enabled     bool      `json:"enabled"`
-	CreatedAt   time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt   time.Time `json:"updated_at" format:"date-time"`
+	// Action reports whether a project skill is offered as a one-click
+	// action above project composers. It is always false for personal and
+	// organization skills.
+	Action bool `json:"action"`
+	// ModelInvocable reports whether agents can discover and load the skill
+	// on their own. Users can still invoke a skill explicitly when it is
+	// false.
+	ModelInvocable bool      `json:"model_invocable"`
+	CreatedAt      time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt      time.Time `json:"updated_at" format:"date-time"`
 }
 
 // Skill represents a personal or organization skill with its raw Markdown
@@ -34,6 +42,11 @@ type CreateSkillRequest struct {
 	// frontmatter must include name, may include description, and must be
 	// followed by a non-empty body.
 	Content string `json:"content"`
+	// Action is only accepted for project skills and defaults to false.
+	Action *bool `json:"action,omitempty"`
+	// ModelInvocable defaults to false when the content's frontmatter sets
+	// disable-model-invocation: true, and to true otherwise.
+	ModelInvocable *bool `json:"model_invocable,omitempty"`
 }
 
 // UpdateSkillRequest is the payload for updating a skill. At least one field
@@ -44,6 +57,9 @@ type UpdateSkillRequest struct {
 	// followed by a non-empty body.
 	Content *string `json:"content,omitempty"`
 	Enabled *bool   `json:"enabled,omitempty"`
+	// Action is only accepted for project skills.
+	Action         *bool `json:"action,omitempty"`
+	ModelInvocable *bool `json:"model_invocable,omitempty"`
 }
 
 // OrganizationSkillRole is a role a user or group holds in an organization

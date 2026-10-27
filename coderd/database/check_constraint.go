@@ -74,6 +74,7 @@ const (
 	CheckMaxProvisionerLogsLength                            CheckConstraint = "max_provisioner_logs_length"                               // provisioner_jobs
 	CheckNatsPortValidTcp                                    CheckConstraint = "nats_port_valid_tcp"                                       // replicas
 	CheckSkillsAclOnlyOnOrganizationSkills                   CheckConstraint = "skills_acl_only_on_organization_skills"                    // skills
+	CheckSkillsActionProjectOnly                             CheckConstraint = "skills_action_project_only"                                // skills
 	CheckSkillsContentSize                                   CheckConstraint = "skills_content_size"                                       // skills
 	CheckSkillsDescriptionSize                               CheckConstraint = "skills_description_size"                                   // skills
 	CheckSkillsGroupAclIsObject                              CheckConstraint = "skills_group_acl_is_object"                                // skills

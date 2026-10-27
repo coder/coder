@@ -326,6 +326,13 @@ title: Schemas
   },
   "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
   "model": "string",
+  "priced_model": {
+    "cache_read_price": 0,
+    "cache_write_price": 0,
+    "input_price": 0,
+    "model": "string",
+    "output_price": 0
+  },
   "thinking": [
     {
       "text": "string"
@@ -334,6 +341,8 @@ title: Schemas
   "token_usage": {
     "cache_read_input_tokens": 0,
     "cache_write_input_tokens": 0,
+    "cost_micros": 0,
+    "has_unpriced_usage": true,
     "input_tokens": 0,
     "metadata": {
       "property1": null,
@@ -367,6 +376,7 @@ title: Schemas
 | `attribution`     | [codersdk.AIBridgeAttribution](#codersdkaibridgeattribution)                           | false    |              | Attribution contains attribution data from this interception. Unknown attribution is serialized as an empty object. |
 | `interception_id` | string                                                                                 | false    |              |                                                                                                                     |
 | `model`           | string                                                                                 | false    |              |                                                                                                                     |
+| `priced_model`    | [codersdk.AIBridgePricedModel](#codersdkaibridgepricedmodel)                           | false    |              | Priced model is the model and prices used for this interception. Nil when it was not priced.                        |
 | `thinking`        | array of [codersdk.AIBridgeModelThought](#codersdkaibridgemodelthought)                | false    |              |                                                                                                                     |
 | `token_usage`     | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |                                                                                                                     |
 | `tool_calls`      | array of [codersdk.AIBridgeToolCall](#codersdkaibridgetoolcall)                        | false    |              |                                                                                                                     |
@@ -505,6 +515,28 @@ title: Schemas
 | Name   | Type   | Required | Restrictions | Description |
 |--------|--------|----------|--------------|-------------|
 | `text` | string | false    |              |             |
+
+## codersdk.AIBridgePricedModel
+
+```json
+{
+  "cache_read_price": 0,
+  "cache_write_price": 0,
+  "input_price": 0,
+  "model": "string",
+  "output_price": 0
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description                                                                                  |
+|---------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------|
+| `cache_read_price`  | integer | false    |              |                                                                                              |
+| `cache_write_price` | integer | false    |              |                                                                                              |
+| `input_price`       | integer | false    |              |                                                                                              |
+| `model`             | string  | false    |              | Model is the priced model, either the requested model or the model reported by the provider. |
+| `output_price`      | integer | false    |              |                                                                                              |
 
 ## codersdk.AIBridgeProvider
 
@@ -720,6 +752,13 @@ title: Schemas
           },
           "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
           "model": "string",
+          "priced_model": {
+            "cache_read_price": 0,
+            "cache_write_price": 0,
+            "input_price": 0,
+            "model": "string",
+            "output_price": 0
+          },
           "thinking": [
             {
               "text": "string"
@@ -728,6 +767,8 @@ title: Schemas
           "token_usage": {
             "cache_read_input_tokens": 0,
             "cache_write_input_tokens": 0,
+            "cost_micros": 0,
+            "has_unpriced_usage": true,
             "input_tokens": 0,
             "metadata": {
               "property1": null,
@@ -764,12 +805,21 @@ title: Schemas
       "error_type": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "model": "string",
+      "priced_model": {
+        "cache_read_price": 0,
+        "cache_write_price": 0,
+        "input_price": 0,
+        "model": "string",
+        "output_price": 0
+      },
       "prompt": "string",
       "provider": "string",
       "started_at": "2019-08-24T14:15:22Z",
       "token_usage": {
         "cache_read_input_tokens": 0,
         "cache_write_input_tokens": 0,
+        "cost_micros": 0,
+        "has_unpriced_usage": true,
         "input_tokens": 0,
         "metadata": {
           "property1": null,
@@ -782,6 +832,8 @@ title: Schemas
   "token_usage_summary": {
     "cache_read_input_tokens": 0,
     "cache_write_input_tokens": 0,
+    "cost_micros": 0,
+    "has_unpriced_usage": true,
     "input_tokens": 0,
     "metadata": {
       "property1": null,
@@ -820,6 +872,8 @@ title: Schemas
 {
   "cache_read_input_tokens": 0,
   "cache_write_input_tokens": 0,
+  "cost_micros": 0,
+  "has_unpriced_usage": true,
   "input_tokens": 0,
   "metadata": {
     "property1": null,
@@ -831,14 +885,16 @@ title: Schemas
 
 ### Properties
 
-| Name                       | Type    | Required | Restrictions | Description |
-|----------------------------|---------|----------|--------------|-------------|
-| `cache_read_input_tokens`  | integer | false    |              |             |
-| `cache_write_input_tokens` | integer | false    |              |             |
-| `input_tokens`             | integer | false    |              |             |
-| `metadata`                 | object  | false    |              |             |
-| » `[any property]`         | any     | false    |              |             |
-| `output_tokens`            | integer | false    |              |             |
+| Name                       | Type    | Required | Restrictions | Description                                                                             |
+|----------------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------|
+| `cache_read_input_tokens`  | integer | false    |              |                                                                                         |
+| `cache_write_input_tokens` | integer | false    |              |                                                                                         |
+| `cost_micros`              | integer | false    |              | Cost micros is the summed cost of the priced usage, in micro-units (1000000 is $1.00).  |
+| `has_unpriced_usage`       | boolean | false    |              | Has unpriced usage reports that some usage has no cost, so CostMicros is a lower bound. |
+| `input_tokens`             | integer | false    |              |                                                                                         |
+| `metadata`                 | object  | false    |              |                                                                                         |
+| » `[any property]`         | any     | false    |              |                                                                                         |
+| `output_tokens`            | integer | false    |              |                                                                                         |
 
 ## codersdk.AIBridgeSessionTokenUsageSummary
 
@@ -874,6 +930,13 @@ title: Schemas
       },
       "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
       "model": "string",
+      "priced_model": {
+        "cache_read_price": 0,
+        "cache_write_price": 0,
+        "input_price": 0,
+        "model": "string",
+        "output_price": 0
+      },
       "thinking": [
         {
           "text": "string"
@@ -882,6 +945,8 @@ title: Schemas
       "token_usage": {
         "cache_read_input_tokens": 0,
         "cache_write_input_tokens": 0,
+        "cost_micros": 0,
+        "has_unpriced_usage": true,
         "input_tokens": 0,
         "metadata": {
           "property1": null,
@@ -918,12 +983,21 @@ title: Schemas
   "error_type": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "model": "string",
+  "priced_model": {
+    "cache_read_price": 0,
+    "cache_write_price": 0,
+    "input_price": 0,
+    "model": "string",
+    "output_price": 0
+  },
   "prompt": "string",
   "provider": "string",
   "started_at": "2019-08-24T14:15:22Z",
   "token_usage": {
     "cache_read_input_tokens": 0,
     "cache_write_input_tokens": 0,
+    "cost_micros": 0,
+    "has_unpriced_usage": true,
     "input_tokens": 0,
     "metadata": {
       "property1": null,
@@ -949,6 +1023,7 @@ title: Schemas
 | `error_type`                     | string                                                                                 | false    |              | Error type is the categorized terminal upstream error from the root interception, or nil when the interception succeeded. See the aibridge_interception_error_type enum for possible values.                                              |
 | `id`                             | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `model`                          | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `priced_model`                   | [codersdk.AIBridgePricedModel](#codersdkaibridgepricedmodel)                           | false    |              | Priced model is the model and prices used for the root interception (the prompt). Other requests in the thread may use different models and prices, see agentic_actions[].priced_model. Nil when the root interception was not priced.    |
 | `prompt`                         | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `provider`                       | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `started_at`                     | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
@@ -2672,6 +2747,109 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `groups` | array of [codersdk.ChatGroup](#codersdkchatgroup) | false    |              |             |
 | `users`  | array of [codersdk.ChatUser](#codersdkchatuser)   | false    |              |             |
 
+## codersdk.ChatAttachment
+
+```json
+{
+  "file": {
+    "data": "string",
+    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+    "media_type": "string",
+    "name": "string",
+    "type": "file"
+  },
+  "message_id": 0,
+  "part_index": 0,
+  "role": "user"
+}
+```
+
+### Properties
+
+| Name         | Type                                                       | Required | Restrictions | Description                                                                                  |
+|--------------|------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------|
+| `file`       | [codersdk.ChatAttachmentFile](#codersdkchatattachmentfile) | false    |              |                                                                                              |
+| `message_id` | integer                                                    | false    |              |                                                                                              |
+| `part_index` | integer                                                    | false    |              | Part index is the file part's position in the message content the messages endpoint returns. |
+| `role`       | [codersdk.ChatAttachmentRole](#codersdkchatattachmentrole) | false    |              |                                                                                              |
+
+## codersdk.ChatAttachmentFile
+
+```json
+{
+  "data": "string",
+  "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+  "media_type": "string",
+  "name": "string",
+  "type": "file"
+}
+```
+
+### Properties
+
+| Name         | Type                                                               | Required | Restrictions | Description                                                               |
+|--------------|--------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------|
+| `data`       | string                                                             | false    |              | Data holds an inline file's bytes, which JSON carries as a base64 string. |
+| `file_id`    | string                                                             | false    |              | Omitted, not null, for an inline file.                                    |
+| `media_type` | string                                                             | false    |              |                                                                           |
+| `name`       | string                                                             | false    |              |                                                                           |
+| `type`       | [codersdk.ChatAttachmentFileType](#codersdkchatattachmentfiletype) | false    |              |                                                                           |
+
+## codersdk.ChatAttachmentFileType
+
+```json
+"file"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s) |
+|----------|
+| `file`   |
+
+## codersdk.ChatAttachmentRole
+
+```json
+"user"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)            |
+|---------------------|
+| `assistant`, `user` |
+
+## codersdk.ChatAttachmentsResponse
+
+```json
+{
+  "attachments": [
+    {
+      "file": {
+        "data": "string",
+        "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+        "media_type": "string",
+        "name": "string",
+        "type": "file"
+      },
+      "message_id": 0,
+      "part_index": 0,
+      "role": "user"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name          | Type                                                        | Required | Restrictions | Description |
+|---------------|-------------------------------------------------------------|----------|--------------|-------------|
+| `attachments` | array of [codersdk.ChatAttachment](#codersdkchatattachment) | false    |              |             |
+
 ## codersdk.ChatAutoArchiveDaysResponse
 
 ```json
@@ -3163,6 +3341,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "end_line": 0,
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "file_name": "string",
+  "skill_name": "string",
+  "skill_source": "personal",
   "start_line": 0,
   "text": "string",
   "type": "text",
@@ -3182,6 +3362,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `end_line`                    | integer                                                  | false    |              |                                                                                                                                                                |
 | `file_id`                     | string                                                   | false    |              |                                                                                                                                                                |
 | `file_name`                   | string                                                   | false    |              | The following fields are only set when Type is ChatInputPartTypeFileReference.                                                                                 |
+| `skill_name`                  | string                                                   | false    |              |                                                                                                                                                                |
+| `skill_source`                | [codersdk.ChatSkillSource](#codersdkchatskillsource)     | false    |              | The following fields are only set when Type is ChatInputPartTypeSkillInvocation. The server loads the skill as the chat owner when the message is sent.        |
 | `start_line`                  | integer                                                  | false    |              |                                                                                                                                                                |
 | `text`                        | string                                                   | false    |              |                                                                                                                                                                |
 | `type`                        | [codersdk.ChatInputPartType](#codersdkchatinputparttype) | false    |              |                                                                                                                                                                |
@@ -3201,9 +3383,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                     |
-|--------------------------------------------------------------|
-| `file`, `file-reference`, `text`, `workspace-file-reference` |
+| Value(s)                                                                         |
+|----------------------------------------------------------------------------------|
+| `file`, `file-reference`, `skill-invocation`, `text`, `workspace-file-reference` |
 
 ## codersdk.ChatMessage
 
@@ -3257,6 +3439,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
+      "skill_source": "personal",
       "source_id": "string",
       "start_line": 0,
       "text": "string",
@@ -3353,6 +3536,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "skill_description": "string",
   "skill_dir": "string",
   "skill_name": "string",
+  "skill_source": "personal",
   "source_id": "string",
   "start_line": 0,
   "text": "string",
@@ -3404,8 +3588,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `result_delta`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result_reset`                 | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `skill_description`            | string                                                       | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                                                                                                                                                          |
-| `skill_dir`                    | string                                                       | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files.                                                                                                                                                                                                                                      |
-| `skill_name`                   | string                                                       | false    |              | Skill name is the kebab-case name of a discovered skill from the workspace's .agents/skills/ directory.                                                                                                                                                                                                                                                                                                    |
+| `skill_dir`                    | string                                                       | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files, and shown to the model for an invoked workspace skill so it can run the skill's scripts.                                                                                                                                             |
+| `skill_name`                   | string                                                       | false    |              | Skill name is the kebab-case name of the skill.                                                                                                                                                                                                                                                                                                                                                            |
+| `skill_source`                 | [codersdk.ChatSkillSource](#codersdkchatskillsource)         | false    |              | Skill source is where the invoked skill of a skill-invocation part is stored.                                                                                                                                                                                                                                                                                                                              |
 | `source_id`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `start_line`                   | integer                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `text`                         | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -3430,9 +3615,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                |
-|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `context-file`, `file`, `file-reference`, `hook-context`, `hook-notice`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
+| Value(s)                                                                                                                                                                                    |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `context-file`, `file`, `file-reference`, `hook-context`, `hook-notice`, `reasoning`, `skill`, `skill-invocation`, `source`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
 
 ## codersdk.ChatMessageRole
 
@@ -3529,6 +3714,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
+          "skill_source": "personal",
           "source_id": "string",
           "start_line": 0,
           "text": "string",
@@ -3611,6 +3797,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
+          "skill_source": "personal",
           "source_id": "string",
           "start_line": 0,
           "text": "string",
@@ -5195,6 +5382,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
+      "skill_source": "personal",
       "source_id": "string",
       "start_line": 0,
       "text": "string",
@@ -5253,6 +5441,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Value(s)   |
 |------------|
 | ``, `read` |
+
+## codersdk.ChatSkillSource
+
+```json
+"personal"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                  |
+|-------------------------------------------|
+| `org`, `personal`, `project`, `workspace` |
 
 ## codersdk.ChatStatus
 
@@ -5359,6 +5561,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
+        "skill_source": "personal",
         "source_id": "string",
         "start_line": 0,
         "text": "string",
@@ -5439,6 +5642,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
+      "skill_source": "personal",
       "source_id": "string",
       "start_line": 0,
       "text": "string",
@@ -5506,6 +5710,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
+          "skill_source": "personal",
           "source_id": "string",
           "start_line": 0,
           "text": "string",
@@ -5622,6 +5827,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "skill_description": "string",
     "skill_dir": "string",
     "skill_name": "string",
+    "skill_source": "personal",
     "source_id": "string",
     "start_line": 0,
     "text": "string",
@@ -6374,6 +6580,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
+      "skill_name": "string",
+      "skill_source": "personal",
       "start_line": 0,
       "text": "string",
       "type": "text",
@@ -6482,6 +6690,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
+        "skill_source": "personal",
         "source_id": "string",
         "start_line": 0,
         "text": "string",
@@ -6563,6 +6772,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
+          "skill_source": "personal",
           "source_id": "string",
           "start_line": 0,
           "text": "string",
@@ -6645,6 +6855,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
+        "skill_source": "personal",
         "source_id": "string",
         "start_line": 0,
         "text": "string",
@@ -6909,6 +7120,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
+      "skill_name": "string",
+      "skill_source": "personal",
       "start_line": 0,
       "text": "string",
       "type": "text",
@@ -7217,15 +7430,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "content": "string"
+  "action": true,
+  "content": "string",
+  "model_invocable": true
 }
 ```
 
 ### Properties
 
-| Name      | Type   | Required | Restrictions | Description                                                                                                                                                           |
-|-----------|--------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `content` | string | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                           |
+|-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`          | boolean | false    |              | Action is only accepted for project skills and defaults to false.                                                                                                     |
+| `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
+| `model_invocable` | boolean | false    |              | Model invocable defaults to false when the content's frontmatter sets disable-model-invocation: true, and to true otherwise.                                          |
 
 ## codersdk.CreateTemplateRequest
 
@@ -7504,17 +7721,17 @@ This is required on creation to enable a user-flow of validating a template work
 
 ### Properties
 
-| Name               | Type                                       | Required | Restrictions | Description                                                                         |
-|--------------------|--------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------|
-| `email`            | string                                     | false    |              |                                                                                     |
-| `login_type`       | [codersdk.LoginType](#codersdklogintype)   | false    |              | Login type defaults to LoginTypePassword.                                           |
-| `name`             | string                                     | false    |              |                                                                                     |
-| `organization_ids` | array of string                            | false    |              | Organization ids is a list of organization IDs that the user should be a member of. |
-| `password`         | string                                     | false    |              |                                                                                     |
-| `roles`            | array of string                            | false    |              | Roles is an optional list of site-level roles to assign at creation.                |
-| `service_account`  | boolean                                    | false    |              | Service accounts are admin-managed accounts that cannot login.                      |
-| `user_status`      | [codersdk.UserStatus](#codersdkuserstatus) | false    |              | User status defaults to UserStatusDormant.                                          |
-| `username`         | string                                     | true     |              |                                                                                     |
+| Name               | Type                                       | Required | Restrictions | Description                                                                                                   |
+|--------------------|--------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------|
+| `email`            | string                                     | false    |              |                                                                                                               |
+| `login_type`       | [codersdk.LoginType](#codersdklogintype)   | false    |              | Login type defaults to LoginTypePassword.                                                                     |
+| `name`             | string                                     | false    |              |                                                                                                               |
+| `organization_ids` | array of string                            | false    |              | Organization ids is a list of organization IDs that the user should be a member of.                           |
+| `password`         | string                                     | false    |              |                                                                                                               |
+| `roles`            | array of string                            | false    |              | Roles is an optional list of site-level roles to assign at creation.                                          |
+| `service_account`  | boolean                                    | false    |              | Service accounts are admin-managed accounts that cannot login.                                                |
+| `user_status`      | [codersdk.UserStatus](#codersdkuserstatus) | false    |              | User status defaults to UserStatusDormant. Service accounts default to UserStatusActive and can't be dormant. |
+| `username`         | string                                     | true     |              |                                                                                                               |
 
 ## codersdk.CreateUserSecretRequest
 
@@ -9510,6 +9727,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
+      "skill_name": "string",
+      "skill_source": "personal",
       "start_line": 0,
       "text": "string",
       "type": "text",
@@ -9593,6 +9812,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
+        "skill_source": "personal",
         "source_id": "string",
         "start_line": 0,
         "text": "string",
@@ -9674,6 +9894,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
+          "skill_source": "personal",
           "source_id": "string",
           "start_line": 0,
           "text": "string",
@@ -12471,7 +12692,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `cost_micros`          | integer         | false    |              | Cost micros is the user's priced spend over the period.                                                                                           |
 | `models`               | array of string | false    |              | Models are the models the user spent through, sorted.                                                                                             |
 | `name`                 | string          | false    |              |                                                                                                                                                   |
-| `providers`            | array of string | false    |              | Providers are the provider types the user spent through, sorted.                                                                                  |
+| `providers`            | array of string | false    |              | Providers are the configured provider names the user spent through, sorted.                                                                       |
 | `unpriced_usage_count` | integer         | false    |              | Unpriced usage count is the number of the user's token usage records that carry no cost because their model had no price when they were recorded. |
 | `user_id`              | string          | false    |              |                                                                                                                                                   |
 | `username`             | string          | false    |              |                                                                                                                                                   |
@@ -14892,11 +15113,13 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ```json
 {
+  "action": true,
   "content": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "description": "string",
   "enabled": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "model_invocable": true,
   "name": "string",
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -14904,24 +15127,28 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name          | Type    | Required | Restrictions | Description |
-|---------------|---------|----------|--------------|-------------|
-| `content`     | string  | false    |              |             |
-| `created_at`  | string  | false    |              |             |
-| `description` | string  | false    |              |             |
-| `enabled`     | boolean | false    |              |             |
-| `id`          | string  | false    |              |             |
-| `name`        | string  | false    |              |             |
-| `updated_at`  | string  | false    |              |             |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                               |
+|-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`          | boolean | false    |              | Action reports whether a project skill is offered as a one-click action above project composers. It is always false for personal and organization skills. |
+| `content`         | string  | false    |              |                                                                                                                                                           |
+| `created_at`      | string  | false    |              |                                                                                                                                                           |
+| `description`     | string  | false    |              |                                                                                                                                                           |
+| `enabled`         | boolean | false    |              |                                                                                                                                                           |
+| `id`              | string  | false    |              |                                                                                                                                                           |
+| `model_invocable` | boolean | false    |              | Model invocable reports whether agents can discover and load the skill on their own. Users can still invoke a skill explicitly when it is false.          |
+| `name`            | string  | false    |              |                                                                                                                                                           |
+| `updated_at`      | string  | false    |              |                                                                                                                                                           |
 
 ## codersdk.SkillMetadata
 
 ```json
 {
+  "action": true,
   "created_at": "2019-08-24T14:15:22Z",
   "description": "string",
   "enabled": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "model_invocable": true,
   "name": "string",
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -14929,14 +15156,16 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name          | Type    | Required | Restrictions | Description |
-|---------------|---------|----------|--------------|-------------|
-| `created_at`  | string  | false    |              |             |
-| `description` | string  | false    |              |             |
-| `enabled`     | boolean | false    |              |             |
-| `id`          | string  | false    |              |             |
-| `name`        | string  | false    |              |             |
-| `updated_at`  | string  | false    |              |             |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                               |
+|-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`          | boolean | false    |              | Action reports whether a project skill is offered as a one-click action above project composers. It is always false for personal and organization skills. |
+| `created_at`      | string  | false    |              |                                                                                                                                                           |
+| `description`     | string  | false    |              |                                                                                                                                                           |
+| `enabled`         | boolean | false    |              |                                                                                                                                                           |
+| `id`              | string  | false    |              |                                                                                                                                                           |
+| `model_invocable` | boolean | false    |              | Model invocable reports whether agents can discover and load the skill on their own. Users can still invoke a skill explicitly when it is false.          |
+| `name`            | string  | false    |              |                                                                                                                                                           |
+| `updated_at`      | string  | false    |              |                                                                                                                                                           |
 
 ## codersdk.SlimRole
 
@@ -17318,17 +17547,21 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 
 ```json
 {
+  "action": true,
   "content": "string",
-  "enabled": true
+  "enabled": true,
+  "model_invocable": true
 }
 ```
 
 ### Properties
 
-| Name      | Type    | Required | Restrictions | Description                                                                                                                                                           |
-|-----------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `content` | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
-| `enabled` | boolean | false    |              |                                                                                                                                                                       |
+| Name              | Type    | Required | Restrictions | Description                                                                                                                                                           |
+|-------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`          | boolean | false    |              | Action is only accepted for project skills.                                                                                                                           |
+| `content`         | string  | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
+| `enabled`         | boolean | false    |              |                                                                                                                                                                       |
+| `model_invocable` | boolean | false    |              |                                                                                                                                                                       |
 
 ## codersdk.UpdateTemplateACL
 
