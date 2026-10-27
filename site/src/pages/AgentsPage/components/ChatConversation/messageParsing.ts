@@ -395,8 +395,8 @@ const getMessageText = (
 		.map((part) => part.text)
 		.join("");
 
-// The composer edits an async answer without its prefix line, and the send
-// adds the line back.
+// Without this, the restored editor would show the prefix line, and the send
+// would add a second one.
 const withoutAsyncAnswerPrefix = (
 	content: readonly TypesGen.ChatMessagePart[],
 ): readonly TypesGen.ChatMessagePart[] => {
