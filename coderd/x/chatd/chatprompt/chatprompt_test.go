@@ -3067,227 +3067,120 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 		require.Equal(t, mimeType, mediaOutput.MediaType)
 		require.Equal(t, "screenshot after click", mediaOutput.Text)
 	})
+}
 
-	t.Run("TextResultStaysText", func(t *testing.T) {
-		t.Parallel()
+func toolCallAndResultMessages(t *testing.T, result codersdk.ChatMessagePart) []database.ChatMessage {
+	t.Helper()
 
-		const callID = "call-text-1"
-		const toolName = "read_file"
+	callPart := codersdk.ChatMessageToolCall(result.ToolCallID, result.ToolName, json.RawMessage(`{}`))
+	assistantEncoded, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{callPart})
+	require.NoError(t, err)
+	resultEncoded, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{result})
+	require.NoError(t, err)
+	return []database.ChatMessage{
+		testMsgV1(codersdk.ChatMessageRoleAssistant, assistantEncoded),
+		testMsgV1(codersdk.ChatMessageRoleTool, resultEncoded),
+	}
+}
 
-		textResult := json.RawMessage(`{"output":"file contents here"}`)
+func TestMediaToolResultConversion(t *testing.T) {
+	t.Parallel()
 
-		chat := insertPair(t, callID, toolName, []codersdk.ChatMessagePart{
-			codersdk.ChatMessageToolResult(callID, toolName, textResult, false, false),
+	const toolName = "computer"
+
+	// A text tool result that happens to contain "data" and
+	// "mime_type" fields must NOT be misidentified as media
+	// when IsMedia is false. The protection is entirely the
+	// IsMedia boolean flag on the ChatMessagePart.
+	nonMediaJSON := `{"result_type":"listing","data":"file1.txt","mime_type":"text/csv"}`
+
+	tests := []struct {
+		name      string
+		result    codersdk.ChatMessagePart
+		wantError string
+		wantText  string
+	}{
+		{
+			name:     "TextResultStaysText",
+			result:   codersdk.ChatMessageToolResult("call-text-1", "read_file", json.RawMessage(`{"output":"file contents here"}`), false, false),
+			wantText: `{"output":"file contents here"}`,
+		},
+		{
+			name:     "MissingMimeTypeStaysText",
+			result:   codersdk.ChatMessageToolResult("call-no-mime", toolName, json.RawMessage(`{"data":"some_base64","text":""}`), false, false),
+			wantText: `{"data":"some_base64","text":""}`,
+		},
+		{
+			name:     "MissingDataStaysText",
+			result:   codersdk.ChatMessageToolResult("call-no-data", toolName, json.RawMessage(`{"mime_type":"image/png","text":""}`), false, false),
+			wantText: `{"mime_type":"image/png","text":""}`,
+		},
+		{
+			name: "ErrorResultStaysError",
+			result: chatprompt.PartFromContent(fantasy.ToolResultContent{
+				ToolCallID: "call-err",
+				ToolName:   toolName,
+				Result:     fantasy.ToolResultOutputContentError{Error: xerrors.New("screenshot failed")},
+			}),
+			wantError: "screenshot failed",
+		},
+		{
+			name:     "NonMediaResultTypeStaysText",
+			result:   codersdk.ChatMessageToolResult("call-not-media", "list_files", json.RawMessage(nonMediaJSON), false, false),
+			wantText: nonMediaJSON,
+		},
+		{
+			name:     "IsMediaTrueButMissingMimeType",
+			result:   codersdk.ChatMessageToolResult("call-media-no-mime", toolName, json.RawMessage(`{"data":"aGVsbG8=","text":""}`), false, true),
+			wantText: `{"data":"aGVsbG8=","text":""}`,
+		},
+		{
+			name:     "IsMediaTrueButMissingData",
+			result:   codersdk.ChatMessageToolResult("call-media-no-data", toolName, json.RawMessage(`{"mime_type":"image/png","text":""}`), false, true),
+			wantText: `{"mime_type":"image/png","text":""}`,
+		},
+		{
+			// IsMedia is true but the result is a JSON string, not
+			// an object. Unmarshal into persistedMediaResult fails
+			// and the result should fall through to text. Truly
+			// invalid JSON cannot reach the read path because both
+			// MarshalParts and PostgreSQL jsonb reject it, so a
+			// non-object JSON value is the realistic edge case.
+			name:     "IsMediaTrueButGarbageJSON",
+			result:   codersdk.ChatMessageToolResult("call-media-garbage", toolName, json.RawMessage(`"not a json object"`), false, true),
+			wantText: `"not a json object"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			prompt := convertMessagesWithoutFiles(t, toolCallAndResultMessages(t, tt.result))
+			require.Len(t, prompt, 2)
+			require.Equal(t, fantasy.MessageRoleTool, prompt[1].Role)
+			require.Len(t, prompt[1].Content, 1)
+
+			resultPart, ok := asToolResultPartForTest(prompt[1].Content[0])
+			require.True(t, ok, "expected ToolResultPart")
+			require.Equal(t, tt.result.ToolCallID, resultPart.ToolCallID)
+			require.False(t, resultPart.ProviderExecuted)
+
+			if tt.wantError != "" {
+				errOutput, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentError](resultPart.Output)
+				require.True(t, ok, "expected ToolResultOutputContentError, got %T", resultPart.Output)
+				require.Equal(t, tt.wantError, errOutput.Error.Error())
+				return
+			}
+
+			_, isMedia := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentMedia](resultPart.Output)
+			require.False(t, isMedia, "expected text output, got %T", resultPart.Output)
+
+			textOutput, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentText](resultPart.Output)
+			require.True(t, ok, "expected ToolResultOutputContentText, got %T", resultPart.Output)
+			require.JSONEq(t, tt.wantText, textOutput.Text)
 		})
-
-		prompt := loadPrompt(t, chat)
-		require.Len(t, prompt, 2)
-
-		resultPart, ok := asToolResultPartForTest(prompt[1].Content[0])
-		require.True(t, ok)
-
-		_, isMedia := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentMedia](resultPart.Output)
-		require.False(t, isMedia, "text result should not be detected as media")
-
-		textOutput, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentText](resultPart.Output)
-		require.True(t, ok, "expected ToolResultOutputContentText")
-		require.JSONEq(t, string(textResult), textOutput.Text)
-	})
-
-	t.Run("MissingMimeTypeStaysText", func(t *testing.T) {
-		t.Parallel()
-
-		const callID = "call-no-mime"
-		const toolName = "computer"
-
-		noMimeJSON := json.RawMessage(`{"data":"some_base64","text":""}`)
-
-		chat := insertPair(t, callID, toolName, []codersdk.ChatMessagePart{
-			codersdk.ChatMessageToolResult(callID, toolName, noMimeJSON, false, false),
-		})
-
-		prompt := loadPrompt(t, chat)
-		require.Len(t, prompt, 2)
-
-		resultPart, ok := asToolResultPartForTest(prompt[1].Content[0])
-		require.True(t, ok)
-
-		_, isMedia := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentMedia](resultPart.Output)
-		require.False(t, isMedia, "missing mime_type should not produce media")
-	})
-
-	t.Run("MissingDataStaysText", func(t *testing.T) {
-		t.Parallel()
-
-		const callID = "call-no-data"
-		const toolName = "computer"
-
-		noDataJSON := json.RawMessage(`{"mime_type":"image/png","text":""}`)
-
-		chat := insertPair(t, callID, toolName, []codersdk.ChatMessagePart{
-			codersdk.ChatMessageToolResult(callID, toolName, noDataJSON, false, false),
-		})
-
-		prompt := loadPrompt(t, chat)
-		require.Len(t, prompt, 2)
-
-		resultPart, ok := asToolResultPartForTest(prompt[1].Content[0])
-		require.True(t, ok)
-
-		_, isMedia := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentMedia](resultPart.Output)
-		require.False(t, isMedia, "missing data should not produce media")
-	})
-
-	t.Run("ErrorResultStaysError", func(t *testing.T) {
-		t.Parallel()
-
-		const callID = "call-err"
-		const toolName = "computer"
-
-		// Use PartFromContent to go through the production
-		// write path for error results.
-		sdkPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
-			ToolCallID: callID,
-			ToolName:   toolName,
-			Result: fantasy.ToolResultOutputContentError{
-				Error: xerrors.New("screenshot failed"),
-			},
-		})
-
-		chat := insertPair(t, callID, toolName, []codersdk.ChatMessagePart{sdkPart})
-
-		prompt := loadPrompt(t, chat)
-		require.Len(t, prompt, 2)
-
-		resultPart, ok := asToolResultPartForTest(prompt[1].Content[0])
-		require.True(t, ok)
-
-		errOutput, isError := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentError](resultPart.Output)
-		require.True(t, isError, "error result should remain error")
-		require.Contains(t, errOutput.Error.Error(), "screenshot failed")
-	})
-
-	t.Run("NonMediaResultTypeStaysText", func(t *testing.T) {
-		t.Parallel()
-
-		// A text tool result that happens to contain "data" and
-		// "mime_type" fields must NOT be misidentified as media
-		// when IsMedia is false. The protection is entirely the
-		// IsMedia boolean flag on the ChatMessagePart.
-		const callID = "call-not-media"
-		const toolName = "list_files"
-
-		textJSON, jsonErr := json.Marshal(map[string]any{
-			"result_type": "listing",
-			"data":        "file1.txt",
-			"mime_type":   "text/csv",
-		})
-		require.NoError(t, jsonErr)
-
-		chat := insertPair(t, callID, toolName, []codersdk.ChatMessagePart{
-			codersdk.ChatMessageToolResult(callID, toolName, textJSON, false, false),
-		})
-
-		prompt := loadPrompt(t, chat)
-		require.Len(t, prompt, 2)
-
-		resultPart, ok := asToolResultPartForTest(prompt[1].Content[0])
-		require.True(t, ok)
-
-		_, isMedia := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentMedia](resultPart.Output)
-		require.False(t, isMedia, "non-media result_type must not be detected as media")
-
-		textOutput, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentText](resultPart.Output)
-		require.True(t, ok, "expected ToolResultOutputContentText")
-		require.JSONEq(t, string(textJSON), textOutput.Text)
-	})
-
-	t.Run("IsMediaTrueButMissingMimeType", func(t *testing.T) {
-		t.Parallel()
-
-		// IsMedia is true but the JSON payload has no mime_type
-		// field. The media reconstruction guard should fail and
-		// the result should fall through to text.
-		const callID = "call-media-no-mime"
-		const toolName = "computer"
-
-		noMimeJSON := json.RawMessage(`{"data":"some_base64","text":""}`)
-
-		chat := insertPair(t, callID, toolName, []codersdk.ChatMessagePart{
-			codersdk.ChatMessageToolResult(callID, toolName, noMimeJSON, false, true),
-		})
-
-		prompt := loadPrompt(t, chat)
-		require.Len(t, prompt, 2)
-
-		resultPart, ok := asToolResultPartForTest(prompt[1].Content[0])
-		require.True(t, ok)
-
-		_, isMedia := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentMedia](resultPart.Output)
-		require.False(t, isMedia, "IsMedia=true with missing mime_type should fall through to text")
-
-		_, isText := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentText](resultPart.Output)
-		require.True(t, isText, "expected ToolResultOutputContentText")
-	})
-
-	t.Run("IsMediaTrueButMissingData", func(t *testing.T) {
-		t.Parallel()
-
-		// IsMedia is true but the JSON payload has no data field.
-		// The media reconstruction guard should fail and the result
-		// should fall through to text.
-		const callID = "call-media-no-data"
-		const toolName = "computer"
-
-		noDataJSON := json.RawMessage(`{"mime_type":"image/png","text":""}`)
-
-		chat := insertPair(t, callID, toolName, []codersdk.ChatMessagePart{
-			codersdk.ChatMessageToolResult(callID, toolName, noDataJSON, false, true),
-		})
-
-		prompt := loadPrompt(t, chat)
-		require.Len(t, prompt, 2)
-
-		resultPart, ok := asToolResultPartForTest(prompt[1].Content[0])
-		require.True(t, ok)
-
-		_, isMedia := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentMedia](resultPart.Output)
-		require.False(t, isMedia, "IsMedia=true with missing data should fall through to text")
-
-		_, isText := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentText](resultPart.Output)
-		require.True(t, isText, "expected ToolResultOutputContentText")
-	})
-
-	t.Run("IsMediaTrueButGarbageJSON", func(t *testing.T) {
-		t.Parallel()
-
-		// IsMedia is true but the result is a JSON string, not
-		// an object. Unmarshal into persistedMediaResult fails
-		// and the result should fall through to text. Truly
-		// invalid JSON cannot reach the read path because both
-		// MarshalParts and PostgreSQL jsonb reject it, so a
-		// non-object JSON value is the realistic edge case.
-		const callID = "call-media-garbage"
-		const toolName = "computer"
-
-		garbageJSON := json.RawMessage(`"not a json object"`)
-
-		chat := insertPair(t, callID, toolName, []codersdk.ChatMessagePart{
-			codersdk.ChatMessageToolResult(callID, toolName, garbageJSON, false, true),
-		})
-
-		prompt := loadPrompt(t, chat)
-		require.Len(t, prompt, 2)
-
-		resultPart, ok := asToolResultPartForTest(prompt[1].Content[0])
-		require.True(t, ok)
-
-		_, isMedia := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentMedia](resultPart.Output)
-		require.False(t, isMedia, "IsMedia=true with garbage JSON should fall through to text")
-
-		_, isText := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentText](resultPart.Output)
-		require.True(t, isText, "expected ToolResultOutputContentText")
-	})
+	}
 }
 
 func TestPartFromContent_CreatedAtNotStamped(t *testing.T) {
