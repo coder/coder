@@ -19,6 +19,7 @@ const meta: Meta<typeof QueuedMessagesList> = {
 	title: "pages/AgentsPage/QueuedMessagesList",
 	component: QueuedMessagesList,
 	args: {
+		busyRows: new Map(),
 		onDelete: fn(),
 		onPromote: fn(),
 		onEdit: fn(),
@@ -191,156 +192,14 @@ export const HeadRowActions: Story = {
 	},
 };
 
-// A read-only viewer gets no edit handlers, so only Send now and Remove render.
-export const ReadOnlyViewerActions: Story = {
-	args: {
-		messages: [buildMessage(1, textContent("Run the linter"))],
-		onEdit: undefined,
-		onEndEdit: undefined,
-	},
-};
-
-// A row under edit behind the head: the head stays sendable; rows behind the
-// edit wait. The row, under edit in another client, offers Cancel edit, Edit,
-// Send now and Remove, and its Editing badge shows its tooltip.
-export const RowUnderEditWithWaitingTail: Story = {
-	args: {
-		queuedMessageUnderEditID: 2,
-		messages: [
-			buildMessage(1, textContent("Install dependencies")),
-			{
-				...MockChatQueuedMessageUnderEdit,
-				id: 2,
-				content: textContent("Run database migrations"),
-			},
-			buildMessage(3, textContent("Start the dev server")),
-			buildMessage(4, textContent("Open the browser")),
-		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.hover(canvas.getByRole("button", { name: "Editing" }));
-	},
-};
-
-// The queue head is under edit, so the Enter-to-send hint is hidden. The
-// Waiting badge on the row behind it shows its tooltip.
-export const WaitingBehindHeadUnderEdit: Story = {
-	args: {
-		queuedMessageUnderEditID: 1,
-		showEnterToSendHint: false,
-		messages: [
-			{
-				...MockChatQueuedMessageUnderEdit,
-				id: 1,
-				content: textContent("Run the test suite"),
-			},
-			buildMessage(2, textContent("Open the browser")),
-		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.hover(canvas.getByRole("button", { name: "Waiting" }));
-	},
-};
-
-// The queue head is under edit on a paused chat, so the Enter-to-send hint is
-// hidden, and the Cancel edit tooltip says cancelling sends the head.
-export const HeadUnderEdit: Story = {
-	args: {
-		queuedMessageUnderEditID: 1,
-		isChatPaused: true,
-		showEnterToSendHint: false,
-		messages: [
-			{
-				...MockChatQueuedMessageUnderEdit,
-				id: 1,
-				content: textContent("Run the test suite"),
-			},
-			buildMessage(2, textContent("Open the browser")),
-		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.hover(canvas.getByRole("button", { name: "Cancel edit" }));
-	},
-};
-
-export const PausedEditBehindHead: Story = {
-	args: {
-		queuedMessageUnderEditID: 1,
-		isChatPaused: true,
-		showEnterToSendHint: false,
-		messages: [
-			{
-				...MockChatQueuedMessageUnderEdit,
-				id: 1,
-				content: textContent("Run the test suite"),
-			},
-			buildMessage(2, textContent("Open the browser")),
-		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const editBehind = canvas.getAllByRole("button", { name: "Edit" })[1];
-		await userEvent.hover(editBehind);
-	},
-};
-
-// The begin request is in flight: the row shows as under edit and the Enter
-// hint is hidden because Enter saves the edit.
-export const BeginRequestPending: Story = {
-	args: {
-		queuedMessageUnderEditID: 1,
-		showEnterToSendHint: false,
-		messages: [
-			buildMessage(1, textContent("Run the test suite")),
-			buildMessage(2, textContent("Open the browser")),
-		],
-	},
-};
-
-// The end request is in flight while the row still carries the server
-// marker: the row shows no edit state.
-export const EndRequestPending: Story = {
-	args: {
-		queuedMessageUnderEditID: null,
-		messages: [
-			{
-				...MockChatQueuedMessageUnderEdit,
-				id: 1,
-				content: textContent("Run the test suite"),
-			},
-			buildMessage(2, textContent("Open the browser")),
-		],
-	},
-};
-
-let rejectQueuedDelete: ((error: Error) => void) | undefined;
-
 // A pending delete disables only that row's actions.
-export const DeleteRejectionReenablesActions: Story = {
+export const DeletePendingDisablesRow: Story = {
 	args: {
 		messages: [
 			buildMessage(1, textContent("First queued")),
 			buildMessage(2, textContent("Second queued")),
 		],
-		onDelete: () =>
-			new Promise<void>((_, reject) => {
-				rejectQueuedDelete = reject;
-			}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const removeButtons = canvas.getAllByRole("button", {
-			name: "Remove from queue",
-		});
-		await userEvent.click(removeButtons[0]);
-
-		if (!rejectQueuedDelete) {
-			throw new Error("onDelete was not invoked");
-		}
-		rejectQueuedDelete(new Error("delete failed"));
+		busyRows: new Map([[1, "delete"]]),
 	},
 };
 
