@@ -3356,6 +3356,21 @@ func (mr *MockStoreMockRecorder) GetChatMessagesForPromptByChatID(ctx, chatID an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessagesForPromptByChatID", reflect.TypeOf((*MockStore)(nil).GetChatMessagesForPromptByChatID), ctx, chatID)
 }
 
+// GetChatMessagesWithFilePartsByChatID mocks base method.
+func (m *MockStore) GetChatMessagesWithFilePartsByChatID(ctx context.Context, arg database.GetChatMessagesWithFilePartsByChatIDParams) ([]database.ChatMessage, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatMessagesWithFilePartsByChatID", ctx, arg)
+	ret0, _ := ret[0].([]database.ChatMessage)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatMessagesWithFilePartsByChatID indicates an expected call of GetChatMessagesWithFilePartsByChatID.
+func (mr *MockStoreMockRecorder) GetChatMessagesWithFilePartsByChatID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessagesWithFilePartsByChatID", reflect.TypeOf((*MockStore)(nil).GetChatMessagesWithFilePartsByChatID), ctx, arg)
+}
+
 // GetChatModelConfigByID mocks base method.
 func (m *MockStore) GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (database.ChatModelConfig, error) {
 	m.ctrl.T.Helper()
@@ -10349,19 +10364,19 @@ func (mr *MockStoreMockRecorder) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, wor
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SoftDeleteWorkspaceAgentsByWorkspaceID", reflect.TypeOf((*MockStore)(nil).SoftDeleteWorkspaceAgentsByWorkspaceID), ctx, workspaceID)
 }
 
-// SyncAgentChatsContextMCPResources mocks base method.
-func (m *MockStore) SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {
+// SyncAgentChatsContextLiveResources mocks base method.
+func (m *MockStore) SyncAgentChatsContextLiveResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SyncAgentChatsContextMCPResources", ctx, agentID)
+	ret := m.ctrl.Call(m, "SyncAgentChatsContextLiveResources", ctx, agentID)
 	ret0, _ := ret[0].([]uuid.UUID)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// SyncAgentChatsContextMCPResources indicates an expected call of SyncAgentChatsContextMCPResources.
-func (mr *MockStoreMockRecorder) SyncAgentChatsContextMCPResources(ctx, agentID any) *gomock.Call {
+// SyncAgentChatsContextLiveResources indicates an expected call of SyncAgentChatsContextLiveResources.
+func (mr *MockStoreMockRecorder) SyncAgentChatsContextLiveResources(ctx, agentID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SyncAgentChatsContextMCPResources", reflect.TypeOf((*MockStore)(nil).SyncAgentChatsContextMCPResources), ctx, agentID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SyncAgentChatsContextLiveResources", reflect.TypeOf((*MockStore)(nil).SyncAgentChatsContextLiveResources), ctx, agentID)
 }
 
 // TryAcquireLock mocks base method.
