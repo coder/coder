@@ -78,6 +78,47 @@ export const findKnownModelByCanonicalId = (
 	);
 };
 
+// Canonical identifiers verified to accept chatd's computer use tool
+// (Anthropic computer_20251124, OpenAI Responses computer tool).
+export const knownComputerUseModels: readonly {
+	readonly provider: string;
+	readonly modelIdentifier: string;
+}[] = [
+	{ provider: "anthropic", modelIdentifier: "claude-fable-5-1" },
+	{ provider: "anthropic", modelIdentifier: "claude-fable-5" },
+	{ provider: "anthropic", modelIdentifier: "claude-opus-5" },
+	{ provider: "anthropic", modelIdentifier: "claude-opus-4-8" },
+	{ provider: "anthropic", modelIdentifier: "claude-opus-4-7" },
+	{ provider: "anthropic", modelIdentifier: "claude-opus-4-6" },
+	{ provider: "anthropic", modelIdentifier: "claude-sonnet-5" },
+	{ provider: "anthropic", modelIdentifier: "claude-sonnet-4-6" },
+	{ provider: "openai", modelIdentifier: "gpt-6-astra" },
+	{ provider: "openai", modelIdentifier: "gpt-6.1-sol" },
+	{ provider: "openai", modelIdentifier: "gpt-6-sol" },
+	{ provider: "openai", modelIdentifier: "gpt-6-luna" },
+	{ provider: "openai", modelIdentifier: "gpt-5.6-sol" },
+	{ provider: "openai", modelIdentifier: "gpt-5.6-terra" },
+	{ provider: "openai", modelIdentifier: "gpt-5.6-luna" },
+	{ provider: "openai", modelIdentifier: "gpt-5.5" },
+	{ provider: "openai", modelIdentifier: "gpt-5.4" },
+	{ provider: "openai", modelIdentifier: "gpt-5.4-mini" },
+];
+
+/**
+ * Reports whether a model is on the curated computer use list. Only the exact
+ * canonical identifier matches; aliases and dated snapshots do not.
+ */
+export const isKnownComputerUseModel = (
+	provider: string,
+	model: string,
+): boolean => {
+	const normalizedProvider = normalizeProvider(provider);
+	return knownComputerUseModels.some(
+		(entry) =>
+			entry.provider === normalizedProvider && entry.modelIdentifier === model,
+	);
+};
+
 const formatCompactNumber = (value: number): string => {
 	if (Number.isInteger(value)) {
 		return String(value);
