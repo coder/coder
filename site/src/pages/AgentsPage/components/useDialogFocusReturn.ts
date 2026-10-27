@@ -6,6 +6,20 @@ const canFocus = (
 	Boolean(button?.isConnected && !button.disabled);
 
 /**
+ * Returns focus to the button that opened one dialog. A lightbox host drops an
+ * open while another lightbox is open, so each open keeps its own opener
+ * instead of sharing the ref in {@link useDialogFocusReturn}.
+ */
+export const returnFocusTo =
+	(trigger: HTMLButtonElement) =>
+	(event: Event): void => {
+		if (canFocus(trigger)) {
+			event.preventDefault();
+			trigger.focus();
+		}
+	};
+
+/**
  * Returns focus to the button that opened a dialog. Dialogs opened without a
  * Radix DialogTrigger would otherwise return focus to the document body. An
  * unmounted or disabled opener falls back to the primary, then the secondary
@@ -15,12 +29,8 @@ export const useDialogFocusReturn = () => {
 	const triggerRef = useRef<HTMLButtonElement | null>(null);
 	const primaryFallbackRef = useRef<HTMLButtonElement | null>(null);
 	const secondaryFallbackRef = useRef<HTMLButtonElement | null>(null);
-	/** For openers handed a button, since event.currentTarget is null after an await. */
-	const rememberTriggerButton = (button: HTMLButtonElement) => {
-		triggerRef.current = button;
-	};
 	const rememberTrigger = (event: React.SyntheticEvent<HTMLButtonElement>) => {
-		rememberTriggerButton(event.currentTarget);
+		triggerRef.current = event.currentTarget;
 	};
 	const restoreFocus = (event: Event) => {
 		// An array find here would stop the React Compiler memoizing this closure.
@@ -44,7 +54,6 @@ export const useDialogFocusReturn = () => {
 			secondaryFallbackRef.current = button;
 		},
 		rememberTrigger,
-		rememberTriggerButton,
 		restoreFocus,
 	};
 };

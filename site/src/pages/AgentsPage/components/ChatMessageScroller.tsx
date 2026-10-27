@@ -125,7 +125,7 @@ export const ChatMessageScroller: React.FC<ChatMessageScrollerProps> = ({
 					data-testid="conversation-timeline"
 					aria-busy={earlierMessages.isFetchingMoreMessages || undefined}
 					className={cn(
-						"mx-auto flex w-full flex-col gap-2 px-4 py-6",
+						"mx-auto flex w-full flex-col gap-3 px-4 py-6",
 						chatWidthClass(chatFullWidth),
 					)}
 				>
