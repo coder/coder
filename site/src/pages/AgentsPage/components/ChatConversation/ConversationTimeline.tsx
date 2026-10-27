@@ -127,7 +127,7 @@ const ChatMessageItem = memo<{
 	showDesktopPreviews?: boolean;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
-	latestAskUserQuestionToolId?: string;
+	latestAskUserQuestion?: MergedTool;
 	askUserQuestionResponseTextByToolId?: ReadonlyMap<string, string>;
 	isLatestAskUserQuestionAnswered?: boolean;
 	prevUserMessageKey?: string;
@@ -155,7 +155,7 @@ const ChatMessageItem = memo<{
 		onImplementPlan,
 		onSendAskUserQuestionResponse,
 		isChatCompleted,
-		latestAskUserQuestionToolId,
+		latestAskUserQuestion,
 		askUserQuestionResponseTextByToolId,
 		isLatestAskUserQuestionAnswered = false,
 		prevUserMessageKey,
@@ -278,7 +278,7 @@ const ChatMessageItem = memo<{
 									onImplementPlan={onImplementPlan}
 									onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 									isChatCompleted={isChatCompleted}
-									latestAskUserQuestionToolId={latestAskUserQuestionToolId}
+									latestAskUserQuestion={latestAskUserQuestion}
 									askUserQuestionResponseTextByToolId={
 										askUserQuestionResponseTextByToolId
 									}
@@ -593,7 +593,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			liveTools,
 			queuedMessages,
 		);
-		const latestAskUserQuestionToolId = askUserQuestionState.latestToolId;
+		const latestAskUserQuestion = askUserQuestionState.latestTool;
 		const askUserQuestionResponseTextByToolId =
 			askUserQuestionState.responseTextByToolId.size > 0
 				? askUserQuestionState.responseTextByToolId
@@ -615,7 +615,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						liveStatus={liveStatus}
 						liveBlocks={liveBlocks}
 						liveTools={liveTools}
-						latestAskUserQuestionToolId={latestAskUserQuestionToolId}
+						latestAskUserQuestion={latestAskUserQuestion}
 						subagentStatusOverrides={
 							showsStreamOutput ? subagentStatusOverrides : undefined
 						}
@@ -650,7 +650,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					onImplementPlan={onImplementPlan}
 					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 					isChatCompleted={isChatCompleted}
-					latestAskUserQuestionToolId={latestAskUserQuestionToolId}
+					latestAskUserQuestion={latestAskUserQuestion}
 					askUserQuestionResponseTextByToolId={
 						askUserQuestionResponseTextByToolId
 					}

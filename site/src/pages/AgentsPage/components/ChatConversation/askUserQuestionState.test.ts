@@ -45,9 +45,9 @@ const questionCall = (toolCallId: string, startedAt?: string): ChatMessage => ({
 
 const questionStep = (
 	toolCallId: string,
-	result: { async?: boolean; isError?: boolean; startedAt?: string } = {},
+	options: { async?: boolean; isError?: boolean; startedAt?: string } = {},
 ): ChatMessage[] => [
-	questionCall(toolCallId, result.startedAt),
+	questionCall(toolCallId, options.startedAt),
 	{
 		...MockChatMessage,
 		id: nextMessageId++,
@@ -57,13 +57,13 @@ const questionStep = (
 				type: "tool-result",
 				tool_call_id: toolCallId,
 				tool_name: "ask_user_question",
-				is_error: result.isError,
-				result: result.isError
+				is_error: options.isError,
+				result: options.isError
 					? "questions[0].options must contain 2-4 items"
 					: {
 							output: JSON.stringify({
 								questions: mockQuestions,
-								async: result.async,
+								async: options.async,
 							}),
 						},
 			},
@@ -146,7 +146,7 @@ describe("deriveAskUserQuestionState", () => {
 			userMessage("Also update the docs."),
 		]);
 
-		expect(state.latestToolId).toBe("async-call");
+		expect(state.latestTool?.id).toBe("async-call");
 		expect(state.isLatestAnswered).toBe(false);
 		expect(state.responseTextByToolId.has("async-call")).toBe(false);
 	});
@@ -199,7 +199,7 @@ describe("deriveAskUserQuestionState", () => {
 			userMessage("Phased rollout, please."),
 		]);
 
-		expect(state.latestToolId).toBe("blocking-call");
+		expect(state.latestTool?.id).toBe("blocking-call");
 		expect(state.isLatestAnswered).toBe(true);
 		expect(state.responseTextByToolId.get("blocking-call")).toBe(
 			"Phased rollout, please.",
@@ -215,7 +215,7 @@ describe("deriveAskUserQuestionState", () => {
 			userMessage(answerMessage("async-call")),
 		]);
 
-		expect(state.latestToolId).toBe("blocking-call");
+		expect(state.latestTool?.id).toBe("blocking-call");
 		expect(state.isLatestAnswered).toBe(false);
 		expect(state.responseTextByToolId.has("blocking-call")).toBe(false);
 		expect(state.responseTextByToolId.get("async-call")).toBe(
@@ -242,7 +242,7 @@ describe("deriveAskUserQuestionState", () => {
 				{ pendingToolCallIDs },
 			);
 
-			expect(state.latestToolId).toBe("async-call");
+			expect(state.latestTool?.id).toBe("async-call");
 			expect(state.isLatestAnswered).toBe(false);
 		},
 	);
@@ -269,7 +269,7 @@ describe("deriveAskUserQuestionState", () => {
 				userMessage(answerMessage("reused-call")),
 			]);
 
-			expect(state.latestToolId).toBe("reused-call");
+			expect(state.latestTool?.startedAt).toBe(reusedCallStartedAt);
 			expect(state.isLatestAnswered).toBe(false);
 			expect(state.responseTextByToolId.has("reused-call")).toBe(false);
 		},
@@ -301,14 +301,15 @@ describe("deriveAskUserQuestionState", () => {
 		const messages = questionStep("async-call", { async: true });
 
 		expect(
-			derive(messages, { liveTools: [liveQuestion("running")] }).latestToolId,
+			derive(messages, { liveTools: [liveQuestion("running")] }).latestTool?.id,
 		).toBe("async-call");
 		expect(
-			derive(messages, { liveTools: [liveQuestion("error", true)] })
-				.latestToolId,
+			derive(messages, { liveTools: [liveQuestion("error", true)] }).latestTool
+				?.id,
 		).toBe("async-call");
 		expect(
-			derive(messages, { liveTools: [liveQuestion("completed")] }).latestToolId,
+			derive(messages, { liveTools: [liveQuestion("completed")] }).latestTool
+				?.id,
 		).toBe("live-call");
 	});
 });
