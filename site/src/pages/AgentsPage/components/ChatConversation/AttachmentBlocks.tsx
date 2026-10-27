@@ -170,7 +170,7 @@ export const getAttachmentDownload = (
 const DownloadOverlay: React.FC<AttachmentDownload> = (download) => (
 	<AttachmentDownloadLink
 		{...download}
-		className="absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-0 shadow-xs backdrop-blur-xs transition-opacity hover:text-content-primary group-hover/attachment:opacity-100 peer-focus-within/attachment:opacity-100 focus:opacity-100 [@media(hover:none)]:opacity-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+		className="absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-(--download-opacity) shadow-xs backdrop-blur-xs transition-opacity [visibility:var(--download-visibility)] hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 	>
 		<DownloadIcon aria-hidden="true" className="size-3.5" />
 	</AttachmentDownloadLink>
@@ -184,9 +184,12 @@ const AttachmentPreviewFrame: React.FC<{
 	children: React.ReactNode;
 }> = ({ href, displayName, downloadName, mediaType, children }) => {
 	return (
-		<div className="group/attachment relative inline-flex flex-col items-start">
-			{/* `peer`, not `group-focus-within`, for the reason in AttachmentPreview. */}
-			<div className="peer/attachment contents">{children}</div>
+		// Each WebKit `A:focus-within B` rule adds a restyle of every ancestor's
+		// subtree on focus, so the frame sets variables with its own
+		// `focus-within` and the link reads them. `visibility` keeps the hidden
+		// link out of the tab order and the accessibility tree.
+		<div className="relative inline-flex flex-col items-start [--download-opacity:0] [--download-visibility:hidden] hover:[--download-opacity:1] hover:[--download-visibility:visible] focus-within:[--download-opacity:1] focus-within:[--download-visibility:visible] [@media(hover:none)]:[--download-opacity:1] [@media(hover:none)]:[--download-visibility:visible]">
+			{children}
 			<DownloadOverlay
 				href={href}
 				displayName={displayName}
