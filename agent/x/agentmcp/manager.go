@@ -3,6 +3,7 @@ package agentmcp
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -1088,15 +1089,41 @@ type ToolInfo struct {
 	InputSchema map[string]any
 }
 
+// maxToolInputSchemaBytes matches coderd's per-tool definition cap for
+// inline MCP servers. Context snapshot caps count resource payloads, not
+// tool lists, so this bound is applied here.
+const maxToolInputSchemaBytes = 64 << 10
+
 // The schema map is passed through whole so coderd sees every key the
 // server reported ($defs, additionalProperties, combinators, ...);
-// non-object and empty schemas leave InputSchema unset.
+// non-object and empty schemas leave InputSchema unset. A schema over
+// maxToolInputSchemaBytes keeps only type, properties, and required,
+// so it costs no more than before full schemas were forwarded.
 func toolInputSchemaMap(schema any) map[string]any {
 	m, ok := schema.(map[string]any)
 	if !ok || len(m) == 0 {
 		return nil
 	}
-	return m
+	encoded, err := json.Marshal(m)
+	if err == nil && len(encoded) <= maxToolInputSchemaBytes {
+		return m
+	}
+	out := map[string]any{}
+	if typ, ok := m["type"].(string); ok && typ != "" {
+		out["type"] = typ
+	}
+	// Preserve an empty "properties" object: a nil properties
+	// serializes to JSON null, which OpenAI rejects.
+	if properties, ok := m["properties"].(map[string]any); ok {
+		out["properties"] = properties
+	}
+	if required, ok := m["required"].([]any); ok && len(required) > 0 {
+		out["required"] = required
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // cloneServerStatuses deep-copies a catalog so callers cannot mutate the

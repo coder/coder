@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -424,7 +425,8 @@ func TestResolveWorkingDir(t *testing.T) {
 // TestToolInputSchemaMap verifies that object schemas pass through
 // whole, so keys beyond type, properties, and required ($defs,
 // additionalProperties, combinators, ...) reach coderd, while
-// non-object and empty schemas leave InputSchema unset.
+// non-object and empty schemas leave InputSchema unset and oversized
+// schemas are reduced to type, properties, and required.
 func TestToolInputSchemaMap(t *testing.T) {
 	t.Parallel()
 
@@ -442,6 +444,24 @@ func TestToolInputSchemaMap(t *testing.T) {
 		"$defs":                map[string]any{"Filter": map[string]any{"type": "string"}},
 	}
 	require.Equal(t, schema, toolInputSchemaMap(schema))
+
+	// Past the per-tool cap, only type, properties, and required are
+	// kept, so a large $defs tree adds nothing to context pushes.
+	oversized := map[string]any{
+		"type":                 "object",
+		"properties":           schema["properties"],
+		"required":             []any{"filter"},
+		"additionalProperties": false,
+		"$defs": map[string]any{"Filter": map[string]any{
+			"type":        "string",
+			"description": strings.Repeat("x", 64<<10),
+		}},
+	}
+	require.Equal(t, map[string]any{
+		"type":       "object",
+		"properties": schema["properties"],
+		"required":   []any{"filter"},
+	}, toolInputSchemaMap(oversized))
 }
 
 // runFakeMCPServer implements a minimal JSON-RPC / MCP server over
