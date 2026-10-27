@@ -51,8 +51,6 @@ describe("getAsyncAnswerText", () => {
 });
 
 describe("isAsyncAnswerPrompt", () => {
-	// The prompt history joins text parts, so a chip right after the prefix
-	// line leaves no line break after the call ID.
 	it.each([
 		`${getAsyncAnswerPrefix("toolu_123")}Frontend`,
 		"Answer to ask_user_question call toolu_123:on the rollout plan.",

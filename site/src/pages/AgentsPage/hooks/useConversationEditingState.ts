@@ -148,7 +148,6 @@ export function useConversationEditingState(deps: {
 			editorState: serializedEditorStateRef.current,
 			fileBlocks: editingFileBlocks,
 			messageId: editingMessageId,
-			answerPrefix: editingAnswerPrefix,
 		};
 
 		chatInputRef.current?.clear();
@@ -165,7 +164,6 @@ export function useConversationEditingState(deps: {
 			inputValueRef.current = message;
 			setEditingMessageId(snapshot.messageId);
 			setEditingFileBlocks(snapshot.fileBlocks);
-			setEditingAnswerPrefix(snapshot.answerPrefix);
 		};
 	};
 
@@ -222,7 +220,9 @@ export function useConversationEditingState(deps: {
 			if (error instanceof BuiltInCommandPendingError) {
 				return;
 			}
-			rollback?.();
+			if (openedEditCountRef.current === openedEditCount) {
+				rollback?.();
+			}
 			throw error;
 		}
 
