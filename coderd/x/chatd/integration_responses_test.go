@@ -33,11 +33,16 @@ func TestOpenAIResponsesNoStaleWebSearchReplay(t *testing.T) {
 		name             string
 		destinationStore bool
 		summary          string
-		// wantInlineSearch reports whether the follow-up resends the
-		// search as an inline item without a provider ID.
-		wantInlineSearch bool
+		// wantSearchReplay is the inline web_search_call the follow-up
+		// sends right after the reasoning item, or empty when it sends
+		// none.
+		wantSearchReplay string
 	}{
-		{name: "stateless", summary: "checked provider-side search state", wantInlineSearch: true},
+		{
+			name:             "stateless",
+			summary:          "checked provider-side search state",
+			wantSearchReplay: `{"type":"web_search_call","status":"completed","action":{"type":"search","query":"coder changelog"}}`,
+		},
 		{name: "switch to stored", destinationStore: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -126,13 +131,16 @@ func TestOpenAIResponsesNoStaleWebSearchReplay(t *testing.T) {
 			require.Equal(t, tc.destinationStore, *followup.Store)
 			require.NotEmpty(t, followup.Prompt)
 			requireNoResponsesProviderItemReplay(t, followup.Prompt, webSearchID)
-			if tc.wantInlineSearch {
-				require.Contains(t, promptItemTypes(followup.Prompt), "web_search_call")
+			reasoningIndex := requireInlineReasoningItem(t, followup.Prompt, reasoningID, "encrypted-no-stale",
+				tc.summary)
+			if tc.wantSearchReplay != "" {
+				require.Greater(t, len(followup.Prompt), reasoningIndex+1, "no item after the reasoning item")
+				replayed, err := json.Marshal(followup.Prompt[reasoningIndex+1])
+				require.NoError(t, err)
+				require.JSONEq(t, tc.wantSearchReplay, string(replayed))
 			} else {
 				require.NotContains(t, promptItemTypes(followup.Prompt), "web_search_call")
 			}
-			requireInlineReasoningItem(t, followup.Prompt, reasoningID, "encrypted-no-stale",
-				tc.summary)
 		})
 	}
 }
@@ -988,7 +996,7 @@ func assertNoResponsesProviderItemReplay(
 			if text, ok := raw.(string); ok {
 				// Only a web search with an ID resolves to stored state.
 				if _, hasID := typed["id"]; hasID && key == "type" && text == "web_search_call" {
-					require.FailNow(t, "prompt replayed web_search_call provider item")
+					require.FailNowf(t, "prompt replayed web_search_call with provider id", "id %v", typed["id"])
 				}
 				if key == "type" && text == "item_reference" {
 					require.FailNow(t, "prompt replayed provider item reference")
