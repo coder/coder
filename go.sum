@@ -323,8 +323,8 @@ github.com/coder/bubbletea v1.2.2-0.20241212190825-007a1cdb2c41 h1:SBN/DA63+ZHwu
 github.com/coder/bubbletea v1.2.2-0.20241212190825-007a1cdb2c41/go.mod h1:I9ULxr64UaOSUv7hcb3nX4kowodJCVS7vt7VVJk/kW4=
 github.com/coder/clistat v1.2.1 h1:P9/10njXMyj5cWzIU5wkRsSy5LVQH49+tcGMsAgWX0w=
 github.com/coder/clistat v1.2.1/go.mod h1:m7SC0uj88eEERgvF8Kn6+w6XF21BeSr+15f7GoLAw0A=
-github.com/coder/fantasy v0.0.0-20261027183532-9bd10018bb59 h1:BbvB5wD2g1ofQq9pnEkc7UUh5dDYBwMAfXDmlaXG+RU=
-github.com/coder/fantasy v0.0.0-20261027183532-9bd10018bb59/go.mod h1:qTrE+p9h8zW+x0f0mU8ih2VdmYHX4ULCaWImvuMHJMc=
+github.com/coder/fantasy v0.0.0-20261027184634-b4d4cdef4722 h1:uo8HdWnwr3NUwN22l2yJmL/LNRVRlGzL7NiRF0mQf5w=
+github.com/coder/fantasy v0.0.0-20261027184634-b4d4cdef4722/go.mod h1:qTrE+p9h8zW+x0f0mU8ih2VdmYHX4ULCaWImvuMHJMc=
 github.com/coder/flog v1.1.0 h1:kbAes1ai8fIS5OeV+QAnKBQE22ty1jRF/mcAwHpLBa4=
 github.com/coder/flog v1.1.0/go.mod h1:UQlQvrkJBvnRGo69Le8E24Tcl5SJleAAR7gYEHzAmdQ=
 github.com/coder/go-httpstat v0.0.0-20230801153223-321c88088322 h1:m0lPZjlQ7vdVpRBPKfYIFlmgevoTkBxB10wv6l2gOaU=
