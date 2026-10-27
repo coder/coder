@@ -286,7 +286,7 @@ describe("deriveAskUserQuestionState", () => {
 
 			expect(answersWhenQueuedAt("2026-01-01T00:01:00Z").size).toBe(0);
 			const [answeredTool] = answersWhenQueuedAt("2026-01-01T00:03:00Z").keys();
-			expect(answeredTool?.startedAt).toBe(reusedCallStartedAt);
+			expect(answeredTool.startedAt).toBe(reusedCallStartedAt);
 		},
 	);
 
