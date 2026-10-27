@@ -142,9 +142,9 @@ export const AttachmentPreview: React.FC<{
 							// Key combines file metadata with index as a fallback for
 							// duplicate names. Acceptable for a small, append-only list.
 							key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
-							// A descendant `:focus-within` rule makes WebKit restyle every
-							// ancestor's subtree on focus. Hidden buttons stay in the tab
-							// order, since focus shows them, and take no taps.
+							// Variables instead of `group-focus-within`: WebKit restyles every
+							// ancestor's subtree for a descendant `:focus-within` rule. Hidden
+							// buttons stay in the tab order and take no pointer input.
 							className="relative [--actions-opacity:0] [--actions-pointer-events:none] hover:[--actions-opacity:1] hover:[--actions-pointer-events:auto] focus-within:[--actions-opacity:1] focus-within:[--actions-pointer-events:auto] [@media(hover:none)]:[--actions-opacity:1] [@media(hover:none)]:[--actions-pointer-events:auto]"
 						>
 							{isRasterImageMediaType(file.type) && previewUrl ? (

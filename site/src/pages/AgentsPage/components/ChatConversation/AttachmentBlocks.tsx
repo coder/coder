@@ -184,9 +184,9 @@ const AttachmentPreviewFrame: React.FC<{
 	children: React.ReactNode;
 }> = ({ href, displayName, downloadName, mediaType, children }) => {
 	return (
-		// A descendant `:focus-within` rule makes WebKit restyle every ancestor's
-		// subtree on focus. `visibility` keeps the hidden link out of the tab
-		// order and the accessibility tree.
+		// Variables instead of `group-focus-within`: WebKit restyles every
+		// ancestor's subtree for a descendant `:focus-within` rule. Hidden, the
+		// link is out of the tab order; focus on View shows it before the next Tab.
 		<div className="relative inline-flex flex-col items-start [--download-opacity:0] [--download-visibility:hidden] hover:[--download-opacity:1] hover:[--download-visibility:visible] focus-within:[--download-opacity:1] focus-within:[--download-visibility:visible] [@media(hover:none)]:[--download-opacity:1] [@media(hover:none)]:[--download-visibility:visible]">
 			{children}
 			<DownloadOverlay
