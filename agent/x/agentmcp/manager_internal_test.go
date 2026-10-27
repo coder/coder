@@ -39,7 +39,7 @@ func TestToolInputSchemaMapPreservesEmptyProperties(t *testing.T) {
 	out := toolInputSchemaMap(map[string]any{
 		"type":       "object",
 		"properties": map[string]any{},
-	})
+	}, nil)
 	require.NotNil(t, out, "schema must not collapse to nil")
 	properties, ok := out["properties"].(map[string]any)
 	require.True(t, ok, "properties must be preserved as a map, got %T", out["properties"])
@@ -428,9 +428,9 @@ func TestResolveWorkingDir(t *testing.T) {
 func TestToolInputSchemaMap(t *testing.T) {
 	t.Parallel()
 
-	require.Nil(t, toolInputSchemaMap(nil))
-	require.Nil(t, toolInputSchemaMap("bogus"))
-	require.Nil(t, toolInputSchemaMap(map[string]any{}))
+	require.Nil(t, toolInputSchemaMap(nil, nil))
+	require.Nil(t, toolInputSchemaMap("bogus", nil))
+	require.Nil(t, toolInputSchemaMap(map[string]any{}, nil))
 
 	schema := map[string]any{
 		"type": "object",
@@ -441,7 +441,94 @@ func TestToolInputSchemaMap(t *testing.T) {
 		"additionalProperties": false,
 		"$defs":                map[string]any{"Filter": map[string]any{"type": "string"}},
 	}
-	require.Equal(t, schema, toolInputSchemaMap(schema))
+	require.Equal(t, schema, toolInputSchemaMap(schema, nil))
+}
+
+// TestToolInputSchemaMapSecrets verifies that a schema echoing a
+// credential from the server's configuration in a key beyond type,
+// properties, and required keeps only those three keys, as before full
+// schemas were passed, so the credential never reaches coderd through
+// the keys full schemas add.
+func TestToolInputSchemaMapSecrets(t *testing.T) {
+	t.Parallel()
+
+	const token = "tok_abcdefgh123"
+	secrets := configSecrets(ServerConfig{
+		URL:     "https://mcp.example.com/u/" + token + "/mcp",
+		Headers: map[string]string{"Authorization": "Bearer " + token},
+		Env:     map[string]string{"API_KEY": "key=" + token + "; region=us"},
+		Args:    []string{"--token=" + token},
+	})
+	properties := map[string]any{"q": map[string]any{"description": "uses " + token}}
+	reduced := map[string]any{"type": "object", "properties": properties}
+	// A secret in the reduced keys was passed before full schemas.
+	clean := map[string]any{"type": "object", "properties": properties, "$defs": map[string]any{"D": map[string]any{"type": "string"}}}
+	for _, tc := range []struct {
+		name   string
+		schema map[string]any
+		want   map[string]any
+	}{
+		{
+			name:   "value beyond the reduced keys",
+			schema: map[string]any{"type": "object", "properties": properties, "$defs": map[string]any{"D": map[string]any{"default": token}}},
+			want:   reduced,
+		},
+		{
+			name:   "key beyond the reduced keys",
+			schema: map[string]any{"type": "object", "properties": properties, "$defs": map[string]any{token: map[string]any{}}},
+			want:   reduced,
+		},
+		{
+			name:   "list beyond the reduced keys",
+			schema: map[string]any{"type": "object", "properties": properties, "examples": []any{"x", token}},
+			want:   reduced,
+		},
+		{
+			name:   "non-string type",
+			schema: map[string]any{"type": []any{"object", token}, "properties": properties},
+			want:   map[string]any{"properties": properties},
+		},
+		{
+			name:   "nothing reduced",
+			schema: map[string]any{"description": token},
+			want:   nil,
+		},
+		{
+			name:   "reduced keys only",
+			schema: clean,
+			want:   clean,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, toolInputSchemaMap(tc.schema, secrets))
+		})
+	}
+}
+
+// TestConfigSecrets verifies that every part of a server's
+// configuration that a server may echo on its own is a secret, while
+// values too short to be one are not.
+func TestConfigSecrets(t *testing.T) {
+	t.Parallel()
+
+	secrets := configSecrets(ServerConfig{
+		URL:     "https://mcp.example.com/u/pathsecret1/mcp",
+		Headers: map[string]string{"Authorization": "Bearer headersecret1", "X-Short": "abc"},
+		Env:     map[string]string{"API": "session=envsecret1; mode=fast"},
+		Args:    []string{"--key=argsecret12"},
+	})
+	for _, want := range []string{
+		"https://mcp.example.com/u/pathsecret1/mcp", "pathsecret1",
+		"Bearer headersecret1", "headersecret1",
+		"session=envsecret1", "envsecret1",
+		"--key=argsecret12", "argsecret12",
+	} {
+		require.Contains(t, secrets, want)
+	}
+	for _, short := range []string{"abc", "u", "mcp", "Bearer", "fast"} {
+		require.NotContains(t, secrets, short)
+	}
 }
 
 // runFakeMCPServer implements a minimal JSON-RPC / MCP server over

@@ -341,7 +341,7 @@ func TestBuildMCPServerResourcesInputSchemaCaps(t *testing.T) {
 		}
 		reducedBodyBytes, err := coderdBodyBytesBound(mcpServerBody(Resource{Name: "fs", Tools: reducedTools}))
 		require.NoError(t, err)
-		t2ExtraBytes, err := fullSchemaExtraBodyBytes(serverTools[1], reducedTools[1])
+		t2ExtraBytes, _, err := fullSchemaExtraBytes(serverTools[1], reducedTools[1])
 		require.NoError(t, err)
 
 		resolve := func(otherBodyBytes int) Snapshot {
@@ -363,11 +363,50 @@ func TestBuildMCPServerResourcesInputSchemaCaps(t *testing.T) {
 		snap = resolve(maxContextAggregateBodyBytes - reducedBodyBytes - t2ExtraBytes + 1)
 		require.Equal(t, map[string]bool{"fs/t1": false, "fs/t2": false}, fullSchemas(snap.Resources))
 	})
+
+	t.Run("KeepsPushUnderDRPCMessageLimit", func(t *testing.T) {
+		t.Parallel()
+		// A resource error stands in for push content that no body
+		// holds, so coderd's body caps do not count it but dRPC's message
+		// limit does. With the reduced MCP server, it nearly fills the
+		// limit, and the headroom left fits t2's full schema but not t1's.
+		serverTools := []MCPTool{
+			{Name: "t1", InputSchema: padded(50_000)},
+			{Name: "t2", InputSchema: padded(10_000)},
+		}
+		reducedTools := slices.Clone(serverTools)
+		for i := range reducedTools {
+			reducedTools[i].InputSchema = reduced
+		}
+		_, t2ExtraWireBytes, err := fullSchemaExtraBytes(serverTools[1], reducedTools[1])
+		require.NoError(t, err)
+		others := func(errorBytes int) []Resource {
+			return []Resource{{ID: "instruction_file:a", Kind: KindInstructionFile, Source: "a", Status: StatusUnreadable, Error: strings.Repeat("e", errorBytes)}}
+		}
+		pushWireBytes := func(others, servers []Resource) int {
+			return proto.Size(pushRequestToProto(&PushRequest{Resources: slices.Concat(others, servers)}))
+		}
+		server := Resource{ID: resourceID(KindMCPServer, "fs"), Kind: KindMCPServer, Source: "fs", Name: "fs", Status: StatusOK, Tools: reducedTools}
+		errorBytes := 3 << 20
+		errorBytes += maxPushWireBytes - t2ExtraWireBytes - pushWireBytes(others(errorBytes), []Resource{server})
+		require.Equal(t, maxPushWireBytes-t2ExtraWireBytes, pushWireBytes(others(errorBytes), []Resource{server}))
+
+		build := func(errorBytes int) []Resource {
+			return buildMCPServerResources(testutil.Logger(t), []MCPServerStatus{{Name: "fs", Connected: true, Tools: serverTools}}, others(errorBytes))
+		}
+		got := build(errorBytes)
+		require.Equal(t, map[string]bool{"fs/t1": false, "fs/t2": true}, fullSchemas(got))
+		require.LessOrEqual(t, pushWireBytes(others(errorBytes), got), maxPushWireBytes)
+		got = build(errorBytes + 1)
+		require.Equal(t, map[string]bool{"fs/t1": false, "fs/t2": false}, fullSchemas(got))
+	})
 }
 
 // acpHarnessesWithBodyBytes returns ACP harnesses, each under coderd's
 // per-resource body cap, whose bodies total bodyBytes under
-// coderdBodyBytesBound.
+// coderdBodyBytesBound. Empty config values fill half of each body:
+// they count twice as much toward that bound as toward the serialized
+// push, so coderd's aggregate cap binds before dRPC's message limit.
 func acpHarnessesWithBodyBytes(t *testing.T, bodyBytes int) []Resource {
 	t.Helper()
 	const perHarness = 200 << 10
@@ -379,7 +418,9 @@ func acpHarnessesWithBodyBytes(t *testing.T, bodyBytes int) []Resource {
 			target++
 		}
 		slug := fmt.Sprintf("h%03d", i)
-		harness := &workspacesdk.ACPHarness{Slug: slug, DisplayName: "x"}
+		harness := &workspacesdk.ACPHarness{Slug: slug, DisplayName: "x", ConfigOptions: []workspacesdk.ACPConfigOption{
+			{Values: make([]workspacesdk.ACPConfigValue, target/8)},
+		}}
 		r := Resource{ID: "acp_harness:" + slug, Kind: KindACPHarness, Source: slug, Status: StatusOK, ACPHarness: harness}
 		base := acpHarnessBodyBytesBound(t, r)
 		harness.DisplayName = strings.Repeat("x", 1+target-base)
