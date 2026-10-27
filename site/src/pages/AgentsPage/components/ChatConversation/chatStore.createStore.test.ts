@@ -1231,7 +1231,9 @@ describe("pending part ends", () => {
 		},
 	);
 
-	it("ends a queued row's action only at the update without the row", () => {
+	// Both promotes commit before the next sync, so one queue update reports
+	// both, and the store then shows only the stream's queue.
+	it("shows the stream's queue after two promotes that one update reports", () => {
 		const store = seededStore(
 			[makeMessage(1, "user", "first")],
 			[
@@ -1241,16 +1243,19 @@ describe("pending part ends", () => {
 			],
 			"running",
 		);
-		addPending(store, { kind: "deleteQueued", queuedMessageID: 11 });
-		addPending(store, { kind: "deleteQueued", queuedMessageID: 12 });
+		addPending(store, { kind: "promoteQueued", queuedMessageID: 11 });
+		addPending(store, { kind: "promoteQueued", queuedMessageID: 12 });
 
 		store.setQueuedMessages(
-			[makeQueuedMessage(10, "q10"), makeQueuedMessage(12, "q12")],
+			[
+				makeQueuedMessage(12, "q12"),
+				makeQueuedMessage(11, "q11"),
+				makeQueuedMessage(10, "q10"),
+			],
 			2,
 		);
-		expect(visible(store).queue).toEqual(["q10"]);
 
-		store.setQueuedMessages([makeQueuedMessage(10, "q10")], 3);
+		expect(visible(store).queue).toEqual(["q12", "q11", "q10"]);
 		expect(store.getSnapshot().pendingEntries).toEqual([]);
 	});
 });
