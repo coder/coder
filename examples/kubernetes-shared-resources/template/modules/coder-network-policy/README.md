@@ -1,4 +1,4 @@
-# Native network policy module POC
+# Cilium network policy module
 
 This trusted module owns exactly one namespace-scoped `cilium.io/v2`
 `CiliumNetworkPolicy`, via `hashicorp/kubernetes` `kubernetes_manifest`.
@@ -12,27 +12,27 @@ Terraform CLI is pinned by `.terraform-version` to **1.16.6** (the installed
 version); supported constraint is `>= 1.9.0, < 2.0.0`. Kubernetes provider is
 pinned to **2.38.0**, with checksums in `.terraform.lock.hcl`. The module has no
 provider configuration or backend: the trusted runner supplies credentials,
-provider configuration, isolated state, and locking. It works as a root module
-with injected variables, or as the bundled child at `./module`.
+provider configuration, isolated state, and locking. The example calls it as a
+child module at `./modules/coder-network-policy`.
 
-Coder owns and injects these required inputs:
+The calling Terraform root supplies these required inputs:
 
-| Input | Type | Meaning |
-| --- | --- | --- |
-| `policy_id` | `string` | Immutable lowercase DNS label, at most 47 characters; UUIDs work. |
-| `namespace` | `string` | Existing target namespace, not chosen by the author. |
-| `template_ids` | `set(string)` | Stable template IDs attached to the policy. |
+| Input          | Type          | Meaning                                                           |
+|----------------|---------------|-------------------------------------------------------------------|
+| `policy_id`    | `string`      | Immutable lowercase DNS label, at most 47 characters; UUIDs work. |
+| `namespace`    | `string`      | Target namespace owned or selected by the calling root.           |
+| `template_ids` | `set(string)` | Stable template IDs attached to the policy.                       |
 
 Static user inputs:
 
-| Input | Type | Default |
-| --- | --- | --- |
-| `allowed_https_hosts` | `set(string)` | `[]` |
-| `dns_query_names` | `set(string)` | `[]`, additional exact dependency DNS queries only |
-| `control_plane_allowances` | `list(allowance)` | `[]` |
-| `relay_allowances` | `list(allowance)` | `[]` |
-| `direct_p2p_enabled` | `bool` | **`true`** |
-| `direct_p2p_cidrs` | `set(string)` | `["0.0.0.0/0", "::/0"]` |
+| Input                      | Type              | Default                                            |
+|----------------------------|-------------------|----------------------------------------------------|
+| `allowed_https_hosts`      | `set(string)`     | `[]`                                               |
+| `dns_query_names`          | `set(string)`     | `[]`, additional exact dependency DNS queries only |
+| `control_plane_allowances` | `list(allowance)` | `[]`                                               |
+| `relay_allowances`         | `list(allowance)` | `[]`                                               |
+| `direct_p2p_enabled`       | `bool`            | **`true`**                                         |
+| `direct_p2p_cidrs`         | `set(string)`     | `["0.0.0.0/0", "::/0"]`                            |
 
 An `allowance` is an object with `endpoint_selectors = list(map(string))`
 (default `[]`), `cidrs = set(string)` (default `[]`), and required nonempty
@@ -69,7 +69,7 @@ protection, so detach is not a quarantine operation. Coder must retain and reuse
 the same state to destroy it, including during policy deletion. Do not discard
 state or use `terraform state rm` as deletion.
 
-### Supported HCL subset for the native command
+### Earlier policy-specific command
 
 The policy author supplies exactly one `module "coder_network_policy"` block with
 literal `source = "./module"` and only the static inputs listed above. Values
@@ -87,7 +87,9 @@ The bundled runner supplies the trusted module bytes and provider pin, injects
 identity/namespace/attachments, configures the provider from trusted target
 credentials, and keeps state per organization/policy/target. The native validator
 and immutable archive builder are implemented in `coderd/networkpolicy/`.
-See `../serpent-dev-policy.hcl` for author HCL and `../NATIVE-DEMO.md` for setup.
+See [the earlier policy HCL](../../../legacy/serpent-dev-policy.hcl)
+and [its setup guide](../../../legacy/README.md) for the
+policy-specific workflow.
 Organization authorization and target ownership belong to Coder; they cannot
 be delegated to arbitrary HCL.
 
@@ -137,10 +139,10 @@ not URL authorization, and ECH may not expose usable SNI.
 ## Offline checks
 
 ```bash
-terraform -chdir=scratch/coder-cilium/network-policy-module init -backend=false -input=false
-terraform -chdir=scratch/coder-cilium/network-policy-module fmt -check -recursive
-terraform -chdir=scratch/coder-cilium/network-policy-module validate
-terraform -chdir=scratch/coder-cilium/network-policy-module test
+terraform -chdir=examples/kubernetes-shared-resources/template/modules/coder-network-policy init -backend=false -input=false
+terraform -chdir=examples/kubernetes-shared-resources/template/modules/coder-network-policy fmt -check -recursive
+terraform -chdir=examples/kubernetes-shared-resources/template/modules/coder-network-policy validate
+terraform -chdir=examples/kubernetes-shared-resources/template/modules/coder-network-policy test
 ```
 
 Tests mock the provider and never use cluster credentials. Live apply and

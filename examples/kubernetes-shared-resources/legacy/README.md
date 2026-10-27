@@ -1,22 +1,23 @@
 # Native workspace network-policy demo
 
 For the current Serpent demo, see
-[Kubernetes provisioning scopes](template-resources-demo/kubernetes/README.md).
+[Kubernetes provisioning scopes](../README.md).
 The shared configuration owns the namespace and policy, while the per-workspace
 configuration consumes the namespace output. This guide preserves the
-earlier policy-specific setup; use `--network-policies` to enable its legacy API
+earlier policy-specific setup; use `--experiments network-policies` to enable its API
 explicitly. Do not apply this guide's shared-namespace setup or upload its legacy
 workspace configuration over the current provisioning-scopes demo.
 
-This directory contains the trusted Cilium Terraform module and the persistent
-`serpent dev` workspace template for the native implementation in this branch.
+This directory contains the earlier `serpent dev` workspace template. The trusted
+Cilium Terraform module is in
+`examples/kubernetes-shared-resources/template/modules/coder-network-policy`.
 The older Helm deployment and cluster-bootstrap experiments are not required.
 Credentials, Terraform state, VM images, caches, and execution logs are excluded.
 Use an existing local K3s cluster; do not bootstrap or replace its networking.
 
 ## Prerequisites
 
-- Repository development dependencies for `scripts/develop.sh`, plus Python 3,
+- Repository development dependencies for `scripts/develop.sh`, plus
   kubectl, and Terraform >= 1.9.0, < 2.0.0. Module tests were run with 1.16.6.
 - An explicit local kubeconfig with context `default` and a loopback HTTPS API.
   The original demo API is `https://127.0.0.1:22643`.
@@ -35,34 +36,46 @@ Do not use remote clusters or AWS credentials.
 
 ## Start the development server
 
-From the repository root, inspect the explicit context and shared namespace:
+From the repository root, inspect the explicit context:
 
 ```bash
-export DEMO_KUBECONFIG="$PWD/scratch/coder-cilium/.local/kubeconfig"
+export DEMO_KUBECONFIG="/absolute/path/to/local-kubeconfig"
 kubectl --kubeconfig "$DEMO_KUBECONFIG" --context default config view --minify
+```
+
+Confirm that `default` selects the intended HTTPS loopback API, with no proxy or
+credential plugin. Supply your existing kubeconfig; it is not included in Git.
+Only for this earlier policy-specific setup, inspect and create its namespace:
+
+```bash
 kubectl --kubeconfig "$DEMO_KUBECONFIG" --context default get nodes
 kubectl --kubeconfig "$DEMO_KUBECONFIG" --context default apply \
-  -f scratch/coder-cilium/workspaces-namespace.yaml
+  -f examples/kubernetes-shared-resources/legacy/workspaces-namespace.yaml
 ```
 
-Supply your existing kubeconfig at that path or change `DEMO_KUBECONFIG`. It is
-not included in Git. Confirm the intended local API before applying the namespace.
-Do not recreate the retired `coder-policy-poc-a` or `coder-policy-poc-b` namespaces.
+Do not apply that manifest over the current shared-root example or recreate the
+retired `coder-policy-poc-a` or `coder-policy-poc-b` namespaces. Start Coder directly:
 
 ```bash
-python3 scratch/coder-cilium/start-native-dev.py \
-  --kubeconfig "$DEMO_KUBECONFIG" \
-  --access-url http://172.20.0.3:3100 \
-  --network-policies
+env -i PATH="$PATH" HOME="$HOME" DEVELOP_IN_CODER=1 \
+  AWS_CONFIG_FILE=/dev/null AWS_SHARED_CREDENTIALS_FILE=/dev/null \
+  AWS_EC2_METADATA_DISABLED=true \
+  TF_CLI_CONFIG_FILE="${TF_CLI_CONFIG_FILE:-/dev/null}" \
+  KUBE_CONFIG_PATH="$DEMO_KUBECONFIG" KUBECONFIG="$DEMO_KUBECONFIG" \
+  ./scripts/develop.sh \
+  --port 3100 --web-port 8180 --prometheus-port 0 \
+  --access-url http://172.20.0.3:3100 --skip-setup -- \
+  --experiments template-resources --experiments network-policies \
+  --network-policy-module-path "$PWD/examples/kubernetes-shared-resources/template/modules/coder-network-policy" \
+  --telemetry=false --derp-config-url '' --derp-server-stun-addresses '' \
+  --block-direct-connections=true
 ```
 
-Replace the access address if needed. The launcher starts `scripts/develop.sh`
-with the native experiment, trusted module, built-in provisioners, API port
-3100, and UI port 8180. Open 8180 through the workspace Ports panel. It removes
-inherited deployment/cloud credentials and disables direct P2P and external STUN.
-It does not start a cluster or log into AWS. An optional
-`--terraform-cli-config /absolute/path/to/config.tfrc` supports an explicit local
-provider mirror; by default no user Terraform CLI configuration is loaded.
+Replace the access address if needed. This uses the trusted module and built-in
+provisioners, with API port 3100 and UI port 8180. It excludes inherited deployment,
+cloud, and proxy credentials and disables direct P2P and external STUN. It does not
+start a cluster or log into AWS. Set `TF_CLI_CONFIG_FILE` to an explicit provider
+mirror or development override if needed; otherwise it defaults to `/dev/null`.
 Do not run a second instance on these ports or reset an existing demo database.
 
 ## Import the workspace template
@@ -70,9 +83,9 @@ Do not run a second instance on these ports or reset an existing demo database.
 Create an archive containing only the four template files:
 
 ```bash
-mkdir -p scratch/coder-cilium/.local
-tar -C scratch/coder-cilium/serpent-dev-template \
-  -cf scratch/coder-cilium/.local/serpent-dev.tar \
+mkdir -p examples/kubernetes-shared-resources/.local
+tar -C examples/kubernetes-shared-resources/legacy/serpent-dev-template \
+  -cf examples/kubernetes-shared-resources/.local/serpent-dev.tar \
   main.tf startup.sh .terraform.lock.hcl README.md
 ```
 
@@ -146,18 +159,18 @@ this demo's trust boundary.
 ## Offline validation
 
 ```bash
-terraform -chdir=scratch/coder-cilium/network-policy-module init -backend=false -input=false -lockfile=readonly
-terraform -chdir=scratch/coder-cilium/network-policy-module fmt -check -recursive
-terraform -chdir=scratch/coder-cilium/network-policy-module validate
-terraform -chdir=scratch/coder-cilium/network-policy-module test
-terraform -chdir=scratch/coder-cilium/serpent-dev-template init -backend=false -input=false -lockfile=readonly
-terraform -chdir=scratch/coder-cilium/serpent-dev-template validate
-bash -n scratch/coder-cilium/serpent-dev-template/startup.sh
-shellcheck scratch/coder-cilium/serpent-dev-template/startup.sh
+terraform -chdir=examples/kubernetes-shared-resources/template/modules/coder-network-policy init -backend=false -input=false -lockfile=readonly
+terraform -chdir=examples/kubernetes-shared-resources/template/modules/coder-network-policy fmt -check -recursive
+terraform -chdir=examples/kubernetes-shared-resources/template/modules/coder-network-policy validate
+terraform -chdir=examples/kubernetes-shared-resources/template/modules/coder-network-policy test
+terraform -chdir=examples/kubernetes-shared-resources/legacy/serpent-dev-template init -backend=false -input=false -lockfile=readonly
+terraform -chdir=examples/kubernetes-shared-resources/legacy/serpent-dev-template validate
+bash -n examples/kubernetes-shared-resources/legacy/serpent-dev-template/startup.sh
+shellcheck examples/kubernetes-shared-resources/legacy/serpent-dev-template/startup.sh
 ```
 
 Module tests mock the provider and do not access a cluster. The native Go and
-frontend tests live alongside the implementation outside `scratch/`.
+frontend tests live alongside the implementation.
 
 ## Known limitations
 

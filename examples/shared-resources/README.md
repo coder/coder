@@ -11,14 +11,28 @@ configuration, state, and publishing lifecycle:
 
 The minimal example below uses only `terraform_data`, so it creates no cluster or
 cloud resources. For the real Serpent demo with a template-owned Kubernetes
-namespace and network policy, see [Kubernetes provisioning scopes](kubernetes/README.md).
+namespace and network policy, see
+[Kubernetes provisioning scopes](../kubernetes-shared-resources/README.md).
 Both examples have two separate Terraform roots. Do not combine or apply them in
 the same directory/state.
 
 ## Try it
 
-Run the development server with the `template-resources` experiment (the default
-in `../start-native-dev.py`) and the companion provider override described below.
+Run the development server from the repository root with the `template-resources`
+experiment and the [companion provider override](#companion-terraform-provider):
+
+```bash
+env -i PATH="$PATH" HOME="$HOME" DEVELOP_IN_CODER=1 \
+  AWS_CONFIG_FILE=/dev/null AWS_SHARED_CREDENTIALS_FILE=/dev/null \
+  AWS_EC2_METADATA_DISABLED=true \
+  TF_CLI_CONFIG_FILE=/absolute/path/to/coder-provider.tfrc \
+  ./scripts/develop.sh -- --experiments template-resources
+```
+
+This minimal example uses no cluster or cloud credentials. For the Kubernetes
+example, use its [development command](../kubernetes-shared-resources/README.md#start-the-development-server)
+instead.
+
 The experiment, API, and data-source identifiers retain their existing names;
 **Shared** and **Per-workspace** name the customer-facing provisioning scopes.
 Create a normal template with a bootstrap workspace configuration first. For this
@@ -71,7 +85,8 @@ provider_installation {
 ```
 
 That directory must contain the built `terraform-provider-coder` executable.
-Pass this file to the development launcher with `--terraform-cli-config`.
+Set `TF_CLI_CONFIG_FILE` to this file when running `./scripts/develop.sh` or
+Terraform locally.
 The version constraint in the example permits initialization against the
 registry; Terraform uses the explicit local binary for plan/apply. This is a
 local development arrangement, not a published provider release.

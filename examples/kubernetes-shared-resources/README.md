@@ -11,9 +11,9 @@ A template has two provisioning scopes with independent Terraform roots:
   Both read `data.coder_template_outputs.current.outputs.namespace`
   without a fallback. `startup.sh` is unchanged from the earlier Serpent demo.
 
-The module source is shared with `../../network-policy-module` through the local
-`template/modules/coder-network-policy` symlink. The upload command below includes
-its actual Terraform files, not a symlink or provisioner-local path. Each native
+The canonical module source is included directly in
+`template/modules/coder-network-policy`. The upload command below includes its
+actual Terraform files, with no symlinks or dependencies on `scratch/`. Each native
 revision therefore preserves its own module bytes for later publication and destroy.
 There is no policy-specific API, target, attachment, or module injection.
 
@@ -21,9 +21,10 @@ There is no policy-specific API, target, attachment, or module injection.
 
 - The repository's development dependencies, Terraform >= 1.9.0 and < 2.0.0,
   `kubectl`, GNU tar, curl, and jq.
-- The [companion Coder provider](../README.md#companion-terraform-provider).
-  Released Coder 2.19.0 alone lacks the new data sources. Pass the explicit
-  Terraform CLI override to `start-native-dev.py --terraform-cli-config`.
+- The [companion Coder provider](../shared-resources/README.md#companion-terraform-provider)
+  and a Coder server with the `template-resources` experiment enabled.
+  Released Coder 2.19.0 alone lacks the new data sources. Set `TF_CLI_CONFIG_FILE`
+  to the explicit Terraform CLI development override.
 - The existing local K3s cluster and kubeconfig, context `default`, healthy Cilium
   with its CNP CRD, DNS/L7 proxy and Envoy. CoreDNS uses `k8s-app=kube-dns` in
   `kube-system`. A default dynamic storage class must support 10 GiB PVCs.
@@ -31,11 +32,46 @@ There is no policy-specific API, target, attachment, or module injection.
   plus schema discovery. No separate provisioner pod, namespace, or service
   account is needed. Workspace pods do not mount Kubernetes credentials.
 - Coder and its embedded relay must be reachable from pods at `172.20.0.3:3100`.
-  Replace this demo-specific address in Terraform and the launcher when needed;
+  Replace this demo-specific address in Terraform and the development command when needed;
   do not broaden the `/32`. Keep direct P2P and external STUN disabled.
 
 Use only the existing local cluster. Do not bootstrap networking, use AWS
 credentials, or recreate `coder-policy-poc-a` or `coder-policy-poc-b`.
+
+## Start the development server
+
+From the repository root, set the paths to your existing local kubeconfig and
+[provider override](../shared-resources/README.md#companion-terraform-provider):
+
+```bash
+export DEMO_KUBECONFIG="/absolute/path/to/local-kubeconfig"
+export TF_CLI_CONFIG_FILE="/absolute/path/to/coder-provider.tfrc"
+kubectl --kubeconfig "$DEMO_KUBECONFIG" --context default config view --minify
+```
+
+Confirm that `default` selects the intended HTTPS loopback Kubernetes API, with no
+proxy or credential plugin. Then check the cluster and start Coder directly:
+
+```bash
+kubectl --kubeconfig "$DEMO_KUBECONFIG" --context default get nodes
+
+env -i PATH="$PATH" HOME="$HOME" DEVELOP_IN_CODER=1 \
+  AWS_CONFIG_FILE=/dev/null AWS_SHARED_CREDENTIALS_FILE=/dev/null \
+  AWS_EC2_METADATA_DISABLED=true \
+  TF_CLI_CONFIG_FILE="$TF_CLI_CONFIG_FILE" \
+  KUBE_CONFIG_PATH="$DEMO_KUBECONFIG" KUBECONFIG="$DEMO_KUBECONFIG" \
+  ./scripts/develop.sh \
+  --port 3100 --web-port 8180 --prometheus-port 0 \
+  --access-url http://172.20.0.3:3100 --skip-setup -- \
+  --experiments template-resources --telemetry=false \
+  --derp-config-url '' --derp-server-stun-addresses '' \
+  --block-direct-connections=true
+```
+
+This uses the built-in provisioners and excludes inherited deployment, cloud, and
+proxy credentials. Replace the pod-reachable access address and the matching
+Terraform `/32` allowance together if needed. Open port 8180 for the UI. Do not
+start another instance on these ports or reset an existing demo database.
 
 ## Create the shared resources
 
@@ -51,8 +87,8 @@ namespace YAML over this configuration. Never bypass UNKNOWN quarantine.
 2. From the repository root, package the shared root and canonical module:
 
    ```bash
-   tar --format=ustar --dereference --no-recursion \
-     -C scratch/coder-cilium/template-resources-demo/kubernetes/template \
+   tar --format=ustar --no-recursion \
+     -C examples/kubernetes-shared-resources/template \
      -cf /tmp/opencode/serpent-template-resources.tar \
      main.tf outputs.tf modules modules/coder-network-policy \
      modules/coder-network-policy/main.tf \
@@ -82,7 +118,7 @@ Use your Coder CLI login against the local development server:
 
 ```bash
 tar --format=ustar \
-  -C scratch/coder-cilium/template-resources-demo/kubernetes/workspace \
+  -C examples/kubernetes-shared-resources/workspace \
   -cf - main.tf startup.sh |
   coder templates push serpent-dev --directory - --ignore-lockfile
 ```
@@ -95,7 +131,7 @@ version is active.
 The public Go 1.21.13 image digest, Serpent revision
 `40b60bf4c1495caddc0292f862de275da292e6aa`, Makefile, and linter v1.53.3 are unchanged.
 Run `go build ./...`, `make lint`, and the network/persistence checks in the
-[Serpent verification guide](../../NATIVE-DEMO.md#verify-and-demonstrate).
+[Serpent verification guide](legacy/README.md#verify-and-demonstrate).
 The unchanged `make lint` exits 2 with nine findings: five errcheck, three
 loopclosure, and one SA1019. This is not a clean-lint claim.
 
@@ -118,14 +154,14 @@ With `TF_CLI_CONFIG_FILE` set to the companion override, initialize and validate
 both roots and run their mocked tests:
 
 ```bash
-terraform -chdir=scratch/coder-cilium/template-resources-demo/kubernetes/template init -backend=false -input=false
-terraform -chdir=scratch/coder-cilium/template-resources-demo/kubernetes/template validate
-terraform -chdir=scratch/coder-cilium/template-resources-demo/kubernetes/template test
-terraform -chdir=scratch/coder-cilium/template-resources-demo/kubernetes/workspace init -backend=false -input=false
-terraform -chdir=scratch/coder-cilium/template-resources-demo/kubernetes/workspace validate
-terraform -chdir=scratch/coder-cilium/template-resources-demo/kubernetes/workspace test
-terraform -chdir=scratch/coder-cilium/network-policy-module init -backend=false -input=false
-terraform -chdir=scratch/coder-cilium/network-policy-module test
+terraform -chdir=examples/kubernetes-shared-resources/template init -backend=false -input=false
+terraform -chdir=examples/kubernetes-shared-resources/template validate
+terraform -chdir=examples/kubernetes-shared-resources/template test
+terraform -chdir=examples/kubernetes-shared-resources/workspace init -backend=false -input=false
+terraform -chdir=examples/kubernetes-shared-resources/workspace validate
+terraform -chdir=examples/kubernetes-shared-resources/workspace test
+terraform -chdir=examples/kubernetes-shared-resources/template/modules/coder-network-policy init -backend=false -input=false
+terraform -chdir=examples/kubernetes-shared-resources/template/modules/coder-network-policy test
 ```
 
 These tests do not mutate the cluster. Coder owns the live state; never run a

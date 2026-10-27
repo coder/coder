@@ -145,6 +145,26 @@ Terraform data-source identifiers are unchanged; no state migration is needed.
   Markdown checks passed. No live Build/Publish or infrastructure changes were
   made for this terminology update.
 
+## Example location
+
+The example and canonical module now live in `examples/kubernetes-shared-resources/`.
+Both Terraform roots, module source, tests, and startup script are tracked there;
+the shared root no longer depends on a module symlink into `scratch/`. The minimal
+example and provider patch are in `examples/shared-resources/`. The earlier
+policy-specific source is preserved under `legacy/`. Development uses
+`./scripts/develop.sh` directly; the Python launcher and its tests were removed.
+No tracked files remain under `scratch/`. Local credentials, Terraform runtime
+files, and private evidence remain excluded and were not moved.
+The earlier validation records above describe the layout used at the time.
+
+Relocation validation on 2026-10-27 passed: 16 Terraform mock tests across both
+examples and the module, Terraform validation and formatting, archive validation
+outside the checkout, `go test ./examples`, ShellCheck, Markdown checks, and
+relative-link and shell-command syntax checks. The 23 relocated source/configuration
+files are byte-identical, including both startup scripts and the provider patch.
+Independent review found no issues. No live server or infrastructure changes were
+made for the relocation.
+
 ## Limits
 
 Publish applies a fresh Terraform plan, not the earlier Build plan artifact.

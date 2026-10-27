@@ -1,0 +1,4 @@
+.local/
+.coder/
+*.tfvars
+*.tfvars.json

@@ -53,6 +53,9 @@ site/.swc
 /_gen/
 .gen-golden
 
+# Local experiments and runtime artifacts.
+/scratch/
+
 # Build
 bin/
 build/
