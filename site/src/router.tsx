@@ -12,7 +12,10 @@ import { GlobalErrorBoundary } from "./components/ErrorBoundary/GlobalErrorBound
 import { Loader } from "./components/Loader/Loader";
 import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
-import { insertChatListHistoryEntry } from "./pages/AgentsPage/utils/chatListHistoryEntry";
+import {
+	keepNotificationWindowBackEntry,
+	openChatListFirst,
+} from "./pages/AgentsPage/utils/notificationWindow";
 import { AISettingsIndexRedirect } from "./pages/AISettingsPage/AISettingsIndexRedirect";
 import { ModelDefaultsRedirect } from "./pages/AISettingsPage/ModelsPage/ModelDefaultsRedirect";
 import AuditPage from "./pages/AuditPage/AuditPage";
@@ -565,9 +568,9 @@ const RedirectAIBridgeSession = () => {
 	return <Navigate to={`/ai-gateway/sessions/${sessionId}`} replace />;
 };
 
-// Rewrites the window's initial history entries, so it must run before
-// createBrowserRouter reads them.
-insertChatListHistoryEntry();
+// Rewrites the window's first history entry, so it must run before
+// createBrowserRouter reads it.
+openChatListFirst();
 
 export const router = createBrowserRouter(
 	createRoutesFromChildren(
@@ -964,3 +967,5 @@ export const router = createBrowserRouter(
 		</Route>,
 	),
 );
+
+keepNotificationWindowBackEntry(router);
