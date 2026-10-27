@@ -1015,6 +1015,11 @@
 							"state": ["premium"]
 						},
 						{
+							"title": "Trace workspace connections",
+							"description": "Correlate client, coderd, and agent logs by session ID for SSH, IDE, and web terminal connections.",
+							"path": "./admin/monitoring/trace-connections.md"
+						},
+						{
 							"title": "Notifications",
 							"description": "Configure how Coder sends notifications for deployment events over email and webhooks.",
 							"path": "./admin/monitoring/notifications/index.md",
