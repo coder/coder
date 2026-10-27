@@ -60,12 +60,9 @@ var keywords = [...]string{
 	"unevaluatedProperties", "uniqueItems", "writeOnly",
 }
 
-// InKeyword reports whether value is part of a JSON Schema keyword, so
-// that replacing it in a schema's keys could rename a keyword.
-func InKeyword(value string) bool {
-	return slices.ContainsFunc(keywords[:], func(keyword string) bool {
-		return strings.Contains(keyword, value)
-	})
+// IsKeyword reports whether value is a JSON Schema keyword.
+func IsKeyword(value string) bool {
+	return slices.Contains(keywords[:], value)
 }
 
 // Normalize returns a copy of a schema in the shapes provider drivers

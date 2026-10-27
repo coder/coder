@@ -547,9 +547,10 @@ func TestConnectInline_IgnoresShortSensitiveValues(t *testing.T) {
 }
 
 // TestConnectInline_KeepsSchemaKeywords verifies that a sensitive value
-// that is part of a JSON Schema keyword, such as a URL path segment named
-// "properties", is not redacted, since replacing it would rename the
-// keywords of every input schema, while other values still are.
+// that is a JSON Schema keyword, or part of one, such as a URL path
+// segment named "properties", is redacted from descriptions, schema text,
+// and results but does not rename the keywords of input schemas, the
+// names "required" lists, or the keyword segments of references.
 func TestConnectInline_KeepsSchemaKeywords(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -561,18 +562,28 @@ func TestConnectInline_KeepsSchemaKeywords(t *testing.T) {
 			Name:        "lookup",
 			Description: "Looks up required properties using " + secret + ".",
 			InputSchema: map[string]any{
-				"type":                 "object",
-				"properties":           map[string]any{"name": map[string]any{"type": "string"}},
-				"required":             []string{"name"},
+				"type": "object",
+				"properties": map[string]any{
+					"name":        map[string]any{"type": "string", "description": "Name in the properties list"},
+					"description": map[string]any{"$ref": "#/properties/name"},
+					"token":       map[string]any{"$ref": "#/$defs/" + secret},
+				},
+				"$defs":                map[string]any{secret: map[string]any{"type": "string"}},
+				"required":             []string{"name", "description"},
 				"additionalProperties": false,
 			},
 		},
 		handler: func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return textToolResult("ok"), nil
+			return textToolResult("found required properties"), nil
 		},
 	}
 	ts := newTestMCPServer(t, lookup)
-	cfg := makeInlineConfig("data-bot", ts.URL+"/properties", map[string]string{"X-Mode": "required", "X-Key": secret})
+	cfg := makeInlineConfig("data-bot", ts.URL+"/properties", map[string]string{
+		"X-Mode": "required",
+		"X-Doc":  "description",
+		"X-Part": "itionalPropert",
+		"X-Key":  secret,
+	})
 
 	tools, summaries, cleanup := mcpclient.ConnectInlineForTest(
 		ctx, logger, []mcpclient.Server{cfg}, nil, testutil.WaitLong,
@@ -581,15 +592,26 @@ func TestConnectInline_KeepsSchemaKeywords(t *testing.T) {
 	require.Len(t, summaries, 1)
 	require.Equal(t, mcpclient.ConnectOutcomeConnected, summaries[0].Outcome)
 	require.Len(t, tools, 1)
-	require.Equal(t, "Looks up required properties using [REDACTED].", tools[0].Info().Description)
+	require.Equal(t, "Looks up [REDACTED] [REDACTED] using [REDACTED].", tools[0].Info().Description)
 	fullSchema, ok := tools[0].(fullSchemaTool)
 	require.True(t, ok)
 	require.Equal(t, map[string]any{
-		"type":                 "object",
-		"properties":           map[string]any{"name": map[string]any{"type": "string"}},
-		"required":             []any{"name"},
+		"type": "object",
+		"properties": map[string]any{
+			"name":        map[string]any{"type": "string", "description": "Name in the [REDACTED] list"},
+			"description": map[string]any{"$ref": "#/properties/name"},
+			"token":       map[string]any{"$ref": "#/$defs/[REDACTED]"},
+		},
+		"$defs":                map[string]any{"[REDACTED]": map[string]any{"type": "string"}},
+		"required":             []any{"name", "description"},
 		"additionalProperties": false,
 	}, fullSchema.FullInputSchema())
+	require.Equal(t, []string{"name", "description"}, tools[0].Info().Required)
+
+	resp, err := tools[0].Run(ctx, fantasy.ToolCall{ID: "call-1", Input: `{"name":"alice","description":"alice"}`})
+	require.NoError(t, err)
+	require.False(t, resp.IsError, resp.Content)
+	require.Equal(t, "found [REDACTED] [REDACTED]", resp.Content)
 }
 
 func TestConnectInline_BodyCap(t *testing.T) {

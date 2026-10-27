@@ -1057,13 +1057,11 @@ const MinSensitiveValueBytes = 8
 // secretRedactor replaces a fixed set of sensitive strings with
 // redactedPlaceholder. The zero value redacts nothing. Longer values
 // are replaced first so a value that contains another value is
-// redacted whole. Empty values, substrings of the placeholder, values
-// shorter than MinSensitiveValueBytes, and parts of JSON Schema keywords
-// are dropped: the first would insert the placeholder between every
-// byte, the second would mangle placeholders and cannot hide anything,
-// the third would rewrite ordinary text without hiding a plausible
-// secret, and the last would rename keywords in input schemas, such as
-// a URL path segment named "properties".
+// redacted whole. Empty values, substrings of the placeholder, and
+// values shorter than MinSensitiveValueBytes are dropped: the first
+// would insert the placeholder between every byte, the second would
+// mangle placeholders and cannot hide anything, and the third would
+// rewrite ordinary text without hiding a plausible secret.
 // Redaction can lengthen its input, so size caps are checked after it.
 type secretRedactor struct {
 	values []string
@@ -1074,8 +1072,7 @@ func newSecretRedactor(values []string) secretRedactor {
 	values = slices.DeleteFunc(values, func(value string) bool {
 		return value == "" ||
 			strings.Contains(redactedPlaceholder, value) ||
-			len(value) < MinSensitiveValueBytes ||
-			toolschema.InKeyword(value)
+			len(value) < MinSensitiveValueBytes
 	})
 	slices.SortFunc(values, func(a, b string) int {
 		return cmp.Or(cmp.Compare(len(b), len(a)), cmp.Compare(a, b))
@@ -1180,6 +1177,103 @@ func (r secretRedactor) redactValue(value any) any {
 	}
 }
 
+// redactSchemaMap redacts an input schema like redactMap, but keeps the
+// keys and strings that are JSON Schema keywords, and the keyword
+// segments of references. A sensitive value such as a URL path segment
+// named "properties" would otherwise rename keywords, the property names
+// "required" lists, and the pointers references follow, while keeping
+// them shows nothing that every schema does not.
+func (r secretRedactor) redactSchemaMap(schema map[string]any) map[string]any {
+	if len(schema) == 0 || len(r.values) == 0 {
+		return schema
+	}
+	redacted := make(map[string]any, len(schema))
+	for key, item := range schema {
+		if ref, ok := item.(string); ok && (key == "$ref" || key == "$dynamicRef" || key == "$recursiveRef") {
+			redacted[key] = r.redactReference(ref)
+			continue
+		}
+		redacted[r.redactSchemaString(key)] = r.redactSchemaValue(item)
+	}
+	return redacted
+}
+
+func (r secretRedactor) redactSchemaValue(value any) any {
+	switch typed := value.(type) {
+	case string:
+		return r.redactSchemaString(typed)
+	case map[string]any:
+		return r.redactSchemaMap(typed)
+	case []any:
+		redacted := make([]any, len(typed))
+		for i, item := range typed {
+			redacted[i] = r.redactSchemaValue(item)
+		}
+		return redacted
+	case []string:
+		return r.redactSchemaStrings(typed)
+	default:
+		return value
+	}
+}
+
+func (r secretRedactor) redactSchemaStrings(values []string) []string {
+	if len(values) == 0 || len(r.values) == 0 {
+		return values
+	}
+	redacted := make([]string, len(values))
+	for i, item := range values {
+		redacted[i] = r.redactSchemaString(item)
+	}
+	return redacted
+}
+
+func (r secretRedactor) redactSchemaString(value string) string {
+	if toolschema.IsKeyword(value) {
+		return value
+	}
+	return r.redactString(value)
+}
+
+// redactReference redacts a reference like redactString, but keeps each
+// occurrence of a sensitive value made only of pointer delimiters and
+// pointer segments that are JSON Schema keywords.
+func (r secretRedactor) redactReference(ref string) string {
+	kept := make([]bool, len(ref))
+	start := 0
+	for i := 0; i <= len(ref); i++ {
+		if i < len(ref) && ref[i] != '/' && ref[i] != '#' {
+			continue
+		}
+		if i < len(ref) {
+			kept[i] = true
+		}
+		if toolschema.IsKeyword(ref[start:i]) {
+			for j := start; j < i; j++ {
+				kept[j] = true
+			}
+		}
+		start = i + 1
+	}
+	for _, secret := range r.values {
+		var b strings.Builder
+		next := make([]bool, 0, len(kept))
+		for i := 0; i < len(ref); {
+			if strings.HasPrefix(ref[i:], secret) && slices.Contains(kept[i:i+len(secret)], false) {
+				_, _ = b.WriteString(redactedPlaceholder)
+				next = append(next, make([]bool, len(redactedPlaceholder))...)
+				i += len(secret)
+				continue
+			}
+			_ = b.WriteByte(ref[i])
+			next = append(next, kept[i])
+			i++
+		}
+		ref, kept = b.String(), next
+	}
+	return ref
+}
+
 func (r secretRedactor) redactResponse(response fantasy.ToolResponse) fantasy.ToolResponse {
 	if len(r.values) == 0 {
 		return response
@@ -1237,9 +1331,9 @@ func newMCPTool(
 		prefixedName:   truncateToolName(aidmcp.SanitizeToolName(redactor.redactString(serverSlug)) + toolNameSep + aidmcp.SanitizeToolName(redactor.redactString(tool.Name))),
 		originalName:   tool.Name,
 		description:    redactor.redactString(tool.Description),
-		inputSchema:    redactor.redactMap(inputSchema),
-		parameters:     redactor.redactMap(properties),
-		required:       redactor.redactStrings(required),
+		inputSchema:    redactor.redactSchemaMap(inputSchema),
+		parameters:     redactor.redactSchemaMap(properties),
+		required:       redactor.redactSchemaStrings(required),
 		modelIntent:    modelIntent,
 		session:        session,
 		redactor:       redactor,

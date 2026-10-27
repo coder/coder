@@ -162,11 +162,13 @@ const maxRootFoldWork = 1 << 20
 // keywords of merged "allOf" and "$ref" schemas that constrain the
 // object as a whole, such as "additionalProperties" and "minProperties",
 // apply at the root as well, the "additionalProperties" of each schema
-// still holds for the names the others add, and an alternative that no
-// object satisfies is dropped. A schema declaring a draft before 2019-09
-// ignores every keyword beside "$ref", so only the reference is folded
-// there. Removed content that a reference still points into moves under
-// the root definitions, and those references follow it.
+// still holds for the names the others add, so do their conditionals,
+// an object "const" requires its fields and no other name, and an
+// alternative that no object satisfies is dropped. A schema declaring a
+// draft before 2019-09 ignores every keyword beside "$ref", so only the
+// reference is folded there. Removed content that a reference still
+// points into moves under the root definitions, and those references
+// follow it.
 func enforceObjectRoot(inputSchema map[string]any) map[string]any {
 	var banned []string
 	for _, key := range bannedRootKeys {
@@ -214,6 +216,9 @@ func foldRootComposition(inputSchema map[string]any, banned []string) map[string
 			}
 		}
 		shape.addRequired(coerceRequiredStrings(inputSchema["required"]))
+		if value, ok := inputSchema["const"].(map[string]any); ok {
+			folder.mergeAll(&shape, objectConstSchema(value))
+		}
 		if ref, ok := inputSchema["$ref"].(string); ok {
 			folder.mergeRef(&shape, ref)
 		}
@@ -245,6 +250,7 @@ func foldRootComposition(inputSchema map[string]any, banned []string) map[string
 		delete(inputSchema, key)
 	}
 	hoistKeywords(inputSchema, shape.merged)
+	hoistConditionals(inputSchema, shape.merged, removed)
 	// Some providers reject a required name missing from "properties".
 	var undeclared []string
 	for _, name := range shape.required {
@@ -402,6 +408,64 @@ func hoistKeywords(root map[string]any, merged []map[string]any) {
 			}
 		}
 	}
+}
+
+// conditionalKeywords are the keywords of a JSON Schema conditional.
+var conditionalKeywords = [...]string{"if", "then", "else"}
+
+// hoistConditionals makes the conditionals of the schemas folded into
+// the root hold at the root. The root has room for one, and providers
+// reject a root "allOf" that would hold several, so several, the root's
+// own among them, become the "allOf" of a "then" whose "if" always holds.
+// The root's own conditional keywords then move to removed, which keeps
+// the references into them resolving.
+func hoistConditionals(root map[string]any, merged []map[string]any, removed map[string]any) {
+	var conditionals []map[string]any
+	for _, node := range merged {
+		if conditional := conditionalOf(node); conditional != nil {
+			conditionals = append(conditionals, conditional)
+		}
+	}
+	if len(conditionals) == 0 {
+		return
+	}
+	if own := conditionalOf(root); own != nil {
+		conditionals = append([]map[string]any{own}, conditionals...)
+	}
+	for _, key := range conditionalKeywords {
+		if value, ok := root[key]; ok {
+			removed[key] = value
+			delete(root, key)
+		}
+	}
+	if len(conditionals) == 1 {
+		maps.Copy(root, conditionals[0])
+		return
+	}
+	all := make([]any, len(conditionals))
+	for i, conditional := range conditionals {
+		all[i] = conditional
+	}
+	root["if"] = map[string]any{}
+	root["then"] = map[string]any{"allOf": all}
+}
+
+// conditionalOf returns the conditional keywords of node, or nil when
+// they constrain nothing, since "then" and "else" apply only beside "if".
+func conditionalOf(node map[string]any) map[string]any {
+	if _, ok := node["if"]; !ok {
+		return nil
+	}
+	conditional := map[string]any{}
+	for _, key := range conditionalKeywords {
+		if value, ok := node[key]; ok {
+			conditional[key] = value
+		}
+	}
+	if len(conditional) == 1 {
+		return nil
+	}
+	return conditional
 }
 
 // conjoinEntries combines two entries of a keyword that maps property
@@ -778,11 +842,18 @@ func (s *objectShape) addRequired(names []string) {
 func (s *objectShape) addProperty(name string, property any) {
 	existing, ok := s.properties[name]
 	switch {
-	case !ok:
+	case !ok || allowsAny(existing):
 		s.properties[name] = property
-	case !reflect.DeepEqual(existing, property):
+	case !allowsAny(property) && !reflect.DeepEqual(existing, property):
 		s.properties[name] = map[string]any{"allOf": []any{existing, property}}
 	}
+}
+
+// allowsAny reports whether schema is one that every value satisfies:
+// true or {}.
+func allowsAny(schema any) bool {
+	node, ok := schema.(map[string]any)
+	return isBooleanSchema(schema, true) || (ok && len(node) == 0)
 }
 
 type rootFolder struct {
@@ -863,6 +934,9 @@ func (f *rootFolder) mergeAll(shape *objectShape, branch any) {
 		return
 	}
 	shape.merged = append(shape.merged, node)
+	if value, ok := node["const"].(map[string]any); ok {
+		f.mergeAll(shape, objectConstSchema(value))
+	}
 	if ref, ok := node["$ref"].(string); ok {
 		f.mergeRef(shape, ref)
 	}
@@ -912,13 +986,14 @@ func (f *rootFolder) mergeRef(shape *objectShape, ref string) {
 }
 
 // mergeAlternatives merges schemas of which at least one must hold. Each
-// property becomes the "anyOf" of the alternatives' schemas for it, and a
-// name is required only when every alternative requires it. An
-// alternative that does not define a property gives it the schema its
-// "patternProperties" or "additionalProperties" does, and an alternative
-// that allows no value is left out. When the work budget runs out, the
-// names left are not merged, and neither is the restriction of names no
-// alternative lists, which could otherwise forbid them.
+// property, and each name an alternative requires, becomes the "anyOf" of
+// the alternatives' schemas for it, and a name is required only when
+// every alternative requires it. An alternative that does not define a
+// property gives it the schema its "patternProperties" or
+// "additionalProperties" does, and an alternative that allows no value is
+// left out. When the work budget runs out, the names left are not merged,
+// and neither is the restriction of names no alternative lists, which
+// could otherwise forbid them.
 func (f *rootFolder) mergeAlternatives(shape *objectShape, branches []any) {
 	alternatives := make([]objectShape, 0, len(branches))
 	for _, branch := range branches {
@@ -942,15 +1017,22 @@ func (f *rootFolder) mergeAlternatives(shape *objectShape, branches []any) {
 		for name := range alternative.properties {
 			names[name] = struct{}{}
 		}
+		for _, name := range alternative.required {
+			names[name] = struct{}{}
+		}
 	}
 	for _, name := range slices.Sorted(maps.Keys(names)) {
 		options, ok := f.alternativeOptions(alternatives, name)
 		if !ok {
 			return
 		}
-		if len(options) == 1 {
+		switch len(options) {
+		case 0:
+			// Every alternative forbids the name, so no argument holds it.
+			delete(names, name)
+		case 1:
 			shape.addProperty(name, options[0])
-		} else {
+		default:
 			shape.addProperty(name, map[string]any{"anyOf": options})
 		}
 	}
@@ -1073,6 +1155,20 @@ func (f *rootFolder) applyPatternProperties(shape *objectShape) {
 				shape.impossible = true
 			}
 		}
+	}
+}
+
+// objectConstSchema returns the schema of the one object that equals
+// value: each of its names with that value, and no other name.
+func objectConstSchema(value map[string]any) map[string]any {
+	properties := make(map[string]any, len(value))
+	for name, field := range value {
+		properties[name] = map[string]any{"const": field}
+	}
+	return map[string]any{
+		"properties":           properties,
+		"required":             slices.Sorted(maps.Keys(value)),
+		"additionalProperties": false,
 	}
 }
 
