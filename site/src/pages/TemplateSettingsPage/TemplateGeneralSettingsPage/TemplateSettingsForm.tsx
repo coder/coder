@@ -9,7 +9,6 @@ import {
 	WorkspaceAppSharingLevels,
 } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
-import { PremiumBadge } from "#/components/Badge/PresetBadges";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import {
@@ -22,6 +21,7 @@ import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
 import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
+import { PremiumNotice } from "#/components/Paywall/PremiumNotice";
 import {
 	Select,
 	SelectContent,
@@ -73,9 +73,14 @@ type TemplateSettingsFormProps = {
 	error?: unknown;
 	// Helpful to show field errors on Storybook
 	initialTouched?: FormikTouched<UpdateTemplateMeta>;
+	/**
+	 * Gates deprecation and require-active-version. The server stores and
+	 * enforces both through the access_control entitlement.
+	 */
 	accessControlEnabled: boolean;
-	advancedSchedulingEnabled: boolean;
 	portSharingControlsEnabled: boolean;
+	/** Shows Premium page links in Premium notices. */
+	canViewPremium: boolean;
 };
 
 export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
@@ -86,8 +91,8 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 	isSubmitting,
 	initialTouched,
 	accessControlEnabled,
-	advancedSchedulingEnabled,
 	portSharingControlsEnabled,
+	canViewPremium,
 }) => {
 	const form = useFormik<UpdateTemplateMeta>({
 		initialValues: {
@@ -264,7 +269,7 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 								form.setFieldValue("require_active_version", checked === true);
 							}}
 							disabled={
-								!template.require_active_version && !advancedSchedulingEnabled
+								!template.require_active_version && !accessControlEnabled
 							}
 						/>
 						<Label htmlFor="require_active_version">
@@ -279,11 +284,13 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 										</strong>
 									</span>
 
-									{!advancedSchedulingEnabled && (
-										<div className="flex flex-row gap-4 items-center mt-4">
-											<PremiumBadge />
-											<span>Premium license required to be enabled.</span>
-										</div>
+									{!accessControlEnabled && (
+										<PremiumNotice
+											canViewPremium={canViewPremium}
+											className="mt-4"
+										>
+											Premium license required to be enabled.
+										</PremiumNotice>
 									)}
 								</StackLabelHelperText>
 							</StackLabel>
@@ -395,14 +402,11 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 						className="w-full"
 					/>
 					{!accessControlEnabled && (
-						<div className="flex flex-row gap-4 items-center">
-							<PremiumBadge />
-							<span className="text-xs text-content-secondary">
-								Premium license required to deprecate templates.
-								{template.deprecated &&
-									" You cannot change the message, but you may remove it to mark this template as no longer deprecated."}
-							</span>
-						</div>
+						<PremiumNotice canViewPremium={canViewPremium}>
+							Premium license required to deprecate templates.
+							{template.deprecated &&
+								" You cannot change the message, but you may remove it to mark this template as no longer deprecated."}
+						</PremiumNotice>
 					)}
 				</FormFields>
 			</FormSection>
@@ -467,12 +471,9 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 						)}
 					</div>
 					{!portSharingControlsEnabled && (
-						<div className="flex flex-row gap-4 items-center">
-							<PremiumBadge />
-							<span className="text-xs text-content-secondary">
-								Premium license required to control max port sharing level.
-							</span>
-						</div>
+						<PremiumNotice canViewPremium={canViewPremium}>
+							Premium license required to control max port sharing level.
+						</PremiumNotice>
 					)}
 				</FormFields>
 			</FormSection>
