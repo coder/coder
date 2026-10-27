@@ -1167,7 +1167,8 @@ const minSecretBytes = 8
 // user:password@host holds a credential without a URL. The rest after
 // that colon is parsed as a URL too, as in
 // jdbc:postgresql://db/app?password=secret. A value that is a JSON
-// object or array adds each string and number it holds, like a value of
+// object or array, or that assigns one after its first "=" or in a
+// name=value part, adds each string and number it holds, like a value of
 // its own.
 func configSecrets(cfg ServerConfig, env []string) []string {
 	var values []string
@@ -1223,17 +1224,27 @@ func configSecrets(cfg ServerConfig, env []string) []string {
 		}
 	}
 	var add func(value string)
+	// A JSON value, such as service account credentials, holds its
+	// credentials as members that a server may echo on their own.
+	addJSON := func(text string) {
+		trimmed := strings.TrimSpace(text)
+		if !strings.HasPrefix(trimmed, "{") && !strings.HasPrefix(trimmed, "[") {
+			return
+		}
+		decoder := json.NewDecoder(strings.NewReader(trimmed))
+		decoder.UseNumber()
+		var decoded any
+		if decoder.Decode(&decoded) == nil {
+			jsonScalars(decoded, add)
+		}
+	}
 	add = func(value string) {
 		addValue(value)
-		// A JSON value, such as service account credentials, holds its
-		// credentials as members that a server may echo on their own.
-		if trimmed := strings.TrimSpace(value); strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[") {
-			decoder := json.NewDecoder(strings.NewReader(trimmed))
-			decoder.UseNumber()
-			var decoded any
-			if decoder.Decode(&decoded) == nil {
-				jsonScalars(decoded, add)
-			}
+		addJSON(value)
+		// JSON assigned to a flag, as in --credentials={"token":"..."},
+		// may hold the separators that split the value below.
+		if _, assigned, ok := strings.Cut(value, "="); ok {
+			addJSON(assigned)
 		}
 		parts := strings.FieldsFunc(value, func(r rune) bool {
 			return unicode.IsSpace(r) || r == ';' || r == ','
@@ -1241,7 +1252,7 @@ func configSecrets(cfg ServerConfig, env []string) []string {
 		for i, part := range parts {
 			addValue(part)
 			if _, v, ok := strings.Cut(part, "="); ok {
-				addValue(strings.Trim(v, `"`))
+				add(strings.Trim(v, `"`))
 			}
 			// A server may echo the user name or password that a Basic
 			// authorization encodes decoded.
