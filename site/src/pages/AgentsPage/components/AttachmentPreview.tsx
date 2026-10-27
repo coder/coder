@@ -144,12 +144,9 @@ export const AttachmentPreview: React.FC<{
 							// Key combines file metadata with index as a fallback for
 							// duplicate names. Acceptable for a small, append-only list.
 							key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
-							// Each WebKit `A:focus-within B` rule adds a restyle of every
-							// ancestor's subtree on focus, so the card sets variables with
-							// its own `focus-within` and the buttons read them. `visibility`
-							// keeps hidden buttons out of the tab order, so a card without
-							// a focusable preview shows them at rest to keep Remove
-							// reachable from the keyboard.
+							// A descendant `:focus-within` rule makes WebKit restyle every
+							// ancestor's subtree on focus. Hidden buttons leave the tab
+							// order, so a card with no focusable preview shows them.
 							className={cn(
 								"relative",
 								hasImagePreview || hasTextAttachment
