@@ -2272,10 +2272,13 @@ func CollectAgentsVirtualDesktop(ctx context.Context, opts Options) json.RawMess
 		opts.Logger.Warn(ctx, "get chat computer use model overrides for telemetry", slog.Error(err))
 	} else {
 		for _, override := range overrides {
-			// When the override's model is disabled or deleted, the runtime
-			// falls back to the organization's default chat model.
+			// When the override's model is disabled or deleted, or its AI
+			// provider type does not support computer use, the runtime falls
+			// back to the organization's default chat model.
+			supported := override.ProviderType == string(database.AIProviderTypeAnthropic) ||
+				override.ProviderType == string(database.AIProviderTypeOpenai)
 			provider, model := AgentsExperimentComputerUseOrgDefaultModel, AgentsExperimentComputerUseOrgDefaultModel
-			if override.ModelAvailable {
+			if override.ModelAvailable && supported {
 				provider, model = override.ProviderType, override.Model
 			}
 			payload.ComputerUse.Overrides = append(payload.ComputerUse.Overrides, AgentsComputerUseOverrideTelemetry{

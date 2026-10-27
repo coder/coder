@@ -1935,7 +1935,7 @@ func TestCollectAgentsVirtualDesktop(t *testing.T) {
 	t.Run("Overrides", func(t *testing.T) {
 		t.Parallel()
 
-		available, inactive := uuid.New(), uuid.New()
+		available, inactive, unsupported := uuid.New(), uuid.New(), uuid.New()
 		db := dbmock.NewMockStore(gomock.NewController(t))
 		expectOverrides(db, []database.GetChatOrganizationModelOverridesByContextRow{
 			{
@@ -1945,6 +1945,14 @@ func TestCollectAgentsVirtualDesktop(t *testing.T) {
 				ProviderType:   string(database.AIProviderTypeAnthropic),
 			},
 			{OrganizationID: inactive, ModelAvailable: false},
+			// The model API can move a saved override's model to an AI
+			// provider type that computer use does not support.
+			{
+				OrganizationID: unsupported,
+				ModelAvailable: true,
+				Model:          "openai/gpt-test",
+				ProviderType:   string(database.AIProviderTypeOpenrouter),
+			},
 		}, nil)
 
 		payload := collect(t, telemetry.Options{
@@ -1957,6 +1965,11 @@ func TestCollectAgentsVirtualDesktop(t *testing.T) {
 			{OrganizationID: available.String(), Provider: string(database.AIProviderTypeAnthropic), Model: "claude-opus-5"},
 			{
 				OrganizationID: inactive.String(),
+				Provider:       telemetry.AgentsExperimentComputerUseOrgDefaultModel,
+				Model:          telemetry.AgentsExperimentComputerUseOrgDefaultModel,
+			},
+			{
+				OrganizationID: unsupported.String(),
 				Provider:       telemetry.AgentsExperimentComputerUseOrgDefaultModel,
 				Model:          telemetry.AgentsExperimentComputerUseOrgDefaultModel,
 			},
