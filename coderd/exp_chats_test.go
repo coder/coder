@@ -10739,11 +10739,13 @@ func TestStreamChat(t *testing.T) {
 
 // TestChatOpenAIResponsesWebSearch runs provider-executed OpenAI web
 // searches through the chat API and the AI Gateway daemon, then checks the
-// streamed parts and the reloaded messages the chat UI renders.
+// streamed parts and the reloaded messages the chat UI renders, and what
+// the next turn sends the model about the search.
 func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 	t.Parallel()
 
 	const answer = "Tokyo has about 14 million residents."
+	const followUpAnswer = "Osaka has about 2.7 million residents."
 	found := []string{"https://www.metro.tokyo.lg.jp/", "https://example.com/tokyo"}
 	// Live OpenAI streams add pages the answer cited to the search's
 	// sources only in response.completed; they are not found pages.
@@ -10751,13 +10753,19 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 
 	tests := []struct {
 		name       string
+		store      *bool
 		webSearch  chattest.OpenAIWebSearchCall
 		wantArgs   string
 		wantResult string
 		wantError  bool
 		wantFound  []string
+		// wantReplay is the web_search_call input item the next turn
+		// sends, or empty when it sends none.
+		wantReplay string
 	}{
 		{
+			// Stored searches replay only as item references paired with
+			// reasoning, which this model does not produce.
 			name: "QueriesAndSources",
 			webSearch: chattest.OpenAIWebSearchCall{
 				Queries: []string{"tokyo population", "tokyo census 2025"},
@@ -10777,6 +10785,53 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 			wantResult: `{"error":"web search failed"}`,
 			wantError:  true,
 		},
+		{
+			name:  "UnstoredSearch",
+			store: ptr.Ref(false),
+			webSearch: chattest.OpenAIWebSearchCall{
+				Queries: []string{"tokyo population", "tokyo census 2025"},
+				Query:   "tokyo population",
+			},
+			wantArgs:   `{"type":"search","queries":["tokyo population","tokyo census 2025"]}`,
+			wantResult: `{}`,
+			wantFound:  found,
+			wantReplay: `{"type":"web_search_call","status":"completed","action":{"type":"search","queries":["tokyo population","tokyo census 2025"],"query":"tokyo population"}}`,
+		},
+		{
+			name:  "UnstoredOpenPage",
+			store: ptr.Ref(false),
+			webSearch: chattest.OpenAIWebSearchCall{
+				Action: "open_page",
+				URL:    "https://www.metro.tokyo.lg.jp/",
+			},
+			wantArgs:   `{"type":"open_page","url":"https://www.metro.tokyo.lg.jp/"}`,
+			wantResult: `{}`,
+			wantReplay: `{"type":"web_search_call","status":"completed","action":{"type":"open_page","url":"https://www.metro.tokyo.lg.jp/"}}`,
+		},
+		{
+			name:  "UnstoredFindInPage",
+			store: ptr.Ref(false),
+			webSearch: chattest.OpenAIWebSearchCall{
+				Action:  "find_in_page",
+				URL:     "https://www.metro.tokyo.lg.jp/",
+				Pattern: "population",
+			},
+			wantArgs:   `{"type":"find_in_page","url":"https://www.metro.tokyo.lg.jp/","pattern":"population"}`,
+			wantResult: `{}`,
+			wantReplay: `{"type":"web_search_call","status":"completed","action":{"type":"find_in_page","url":"https://www.metro.tokyo.lg.jp/","pattern":"population"}}`,
+		},
+		{
+			name:  "UnstoredFailed",
+			store: ptr.Ref(false),
+			webSearch: chattest.OpenAIWebSearchCall{
+				Queries: []string{"tokyo population"},
+				Status:  "failed",
+			},
+			wantArgs:   `{"type":"search","queries":["tokyo population"]}`,
+			wantResult: `{"error":"web search failed"}`,
+			wantError:  true,
+			wantReplay: `{"type":"web_search_call","status":"failed","action":{"type":"search","queries":["tokyo population"]}}`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -10790,9 +10845,18 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 			// stream so the streamed parts cannot be missed.
 			streamReady := make(chan struct{})
 			var requestIncludes atomic.Pointer[[]string]
+			var streamRequests atomic.Int32
+			followUpBody := make(chan []byte, 1)
 			baseURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 				if !req.Stream {
 					return chattest.OpenAINonStreamingResponse(`{"title": "Tokyo population"}`)
+				}
+				if streamRequests.Add(1) > 1 {
+					select {
+					case followUpBody <- req.RawBody:
+					default:
+					}
+					return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks(followUpAnswer)...)
 				}
 				var body struct {
 					Include []string `json:"include"`
@@ -10831,7 +10895,10 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 				ModelConfig: &codersdk.ChatModelCallConfig{
 					OpenAIConfig: &codersdk.ChatModelOpenAIConfig{UseResponsesAPI: ptr.Ref(true)},
 					ProviderOptions: &codersdk.ChatModelProviderOptions{
-						OpenAI: &codersdk.ChatModelOpenAIProviderOptions{WebSearchEnabled: ptr.Ref(true)},
+						OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
+							WebSearchEnabled: ptr.Ref(true),
+							Store:            tt.store,
+						},
 					},
 				},
 			})
@@ -10940,6 +11007,60 @@ func TestChatOpenAIResponsesWebSearch(t *testing.T) {
 			}
 			requireWebSearchParts(t, reloadedCall, reloadedResult, reloadedFound)
 			require.Equal(t, answer, reloadedText)
+
+			// The next turn builds its prompt from the saved history.
+			_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+				Content: []codersdk.ChatInputPart{{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "And Osaka?",
+				}},
+			})
+			require.NoError(t, err)
+			var rawFollowUp []byte
+			select {
+			case <-ctx.Done():
+				require.FailNow(t, "timed out waiting for the follow-up request")
+			case rawFollowUp = <-followUpBody:
+			}
+			settled = coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+			require.Equal(t, database.ChatStatusWaiting, settled.Status)
+
+			var followUp struct {
+				Store *bool             `json:"store"`
+				Input []json.RawMessage `json:"input"`
+			}
+			require.NoError(t, json.Unmarshal(rawFollowUp, &followUp))
+			require.NotNil(t, followUp.Store)
+			require.Equal(t, tt.store == nil || *tt.store, *followUp.Store)
+			// Items are named by type, or by role for messages.
+			var inputItems []string
+			var replayed json.RawMessage
+			for _, raw := range followUp.Input {
+				var item struct {
+					Type string `json:"type"`
+					Role string `json:"role"`
+				}
+				require.NoError(t, json.Unmarshal(raw, &item))
+				switch {
+				case item.Role == "system" || item.Role == "developer":
+					continue
+				case item.Type == "web_search_call":
+					replayed = raw
+				}
+				if item.Role != "" {
+					inputItems = append(inputItems, item.Role)
+				} else {
+					inputItems = append(inputItems, item.Type)
+				}
+			}
+			wantInputItems := []string{"user", "assistant", "user"}
+			if tt.wantReplay != "" {
+				wantInputItems = []string{"user", "web_search_call", "assistant", "user"}
+			}
+			require.Equal(t, wantInputItems, inputItems)
+			if tt.wantReplay != "" {
+				require.JSONEq(t, tt.wantReplay, string(replayed))
+			}
 		})
 	}
 }

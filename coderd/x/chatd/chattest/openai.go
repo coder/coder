@@ -44,6 +44,12 @@ type OpenAIReasoningItem struct {
 // Responses API test server.
 type OpenAIWebSearchCall struct {
 	ID string `json:"id,omitempty"`
+	// Action is action.type. It defaults to "search".
+	Action string `json:"action,omitempty"`
+	// URL is action.url for open_page and find_in_page.
+	URL string `json:"url,omitempty"`
+	// Pattern is action.pattern for find_in_page.
+	Pattern string `json:"pattern,omitempty"`
 	// Queries is action.queries.
 	Queries []string `json:"queries,omitempty"`
 	// Query is the deprecated action.query; OpenAI sends both.
@@ -653,7 +659,17 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, req *OpenAI
 		}
 		includeSources := requestIncludes(req.RawBody, "web_search_call.action.sources")
 		newAction := func(sourceURLs []string) map[string]interface{} {
-			action := map[string]interface{}{"type": "search"}
+			actionType := resp.WebSearch.Action
+			if actionType == "" {
+				actionType = "search"
+			}
+			action := map[string]interface{}{"type": actionType}
+			if resp.WebSearch.URL != "" {
+				action["url"] = resp.WebSearch.URL
+			}
+			if resp.WebSearch.Pattern != "" {
+				action["pattern"] = resp.WebSearch.Pattern
+			}
 			if len(resp.WebSearch.Queries) > 0 {
 				action["queries"] = resp.WebSearch.Queries
 			}
