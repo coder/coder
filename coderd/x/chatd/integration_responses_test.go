@@ -33,8 +33,11 @@ func TestOpenAIResponsesNoStaleWebSearchReplay(t *testing.T) {
 		name             string
 		destinationStore bool
 		summary          string
+		// wantInlineSearch reports whether the follow-up resends the
+		// search as an inline item without a provider ID.
+		wantInlineSearch bool
 	}{
-		{name: "stateless", summary: "checked provider-side search state"},
+		{name: "stateless", summary: "checked provider-side search state", wantInlineSearch: true},
 		{name: "switch to stored", destinationStore: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -123,7 +126,11 @@ func TestOpenAIResponsesNoStaleWebSearchReplay(t *testing.T) {
 			require.Equal(t, tc.destinationStore, *followup.Store)
 			require.NotEmpty(t, followup.Prompt)
 			requireNoResponsesProviderItemReplay(t, followup.Prompt, webSearchID)
-			require.NotContains(t, promptItemTypes(followup.Prompt), "web_search_call")
+			if tc.wantInlineSearch {
+				require.Contains(t, promptItemTypes(followup.Prompt), "web_search_call")
+			} else {
+				require.NotContains(t, promptItemTypes(followup.Prompt), "web_search_call")
+			}
 			requireInlineReasoningItem(t, followup.Prompt, reasoningID, "encrypted-no-stale",
 				tc.summary)
 		})
@@ -979,7 +986,8 @@ func assertNoResponsesProviderItemReplay(
 	case map[string]interface{}:
 		for key, raw := range typed {
 			if text, ok := raw.(string); ok {
-				if key == "type" && text == "web_search_call" {
+				// Only a web search with an ID resolves to stored state.
+				if _, hasID := typed["id"]; hasID && key == "type" && text == "web_search_call" {
 					require.FailNow(t, "prompt replayed web_search_call provider item")
 				}
 				if key == "type" && text == "item_reference" {
