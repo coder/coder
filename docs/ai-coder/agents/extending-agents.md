@@ -335,36 +335,44 @@ Refer to [MCP servers](./platform-controls/mcp-servers.md) for how admins add an
 A chat offers its organization's servers in the chat's **+** menu, under **MCP servers**.
 A server that uses OAuth2 needs your own account before a chat can use it.
 
+You connect your accounts on the **MCP connections** settings page.
+To open it from a chat, select **Manage connections** in the **MCP servers** list.
+The page opens for the chat's organization.
+
+You can connect only to servers you have access to.
+New servers grant access to the organization's **Everyone** group, so all members have access by default.
+
 To connect your account to a server:
 
 1. Open the **Agents** page and go to **Settings** > **MCP connections**.
-
-   In a chat, you can instead select **Manage connections** at the bottom of the **MCP servers** list, which opens the page for the chat's organization.
 
 1. If you belong to more than one organization, choose the chat's organization in the organization picker.
 
    A server that you connect in one organization doesn't appear in the chats of another organization.
 
 1. Select **Connect** next to the server.
+   The provider's sign-in page opens in a popup.
 
 1. Sign in to the provider in the popup.
+   When the sign-in finishes, the row shows **Disconnect**.
 
-   When the sign-in finishes, the row shows **Disconnect**, and the server appears in the chat's **MCP servers** list.
+   The server then appears in the chat's **MCP servers** list.
 
-Connecting a server doesn't turn it on in any chat.
-Servers that don't use OAuth2 need no connection, so the page lists their names below the table, and chats offer them without one.
+Connecting a server doesn't change whether it is on in a chat.
+Servers that don't use OAuth2 need no connection, so the page names them in a note, and chats offer them without one.
 
 To disconnect a server, select **Disconnect** next to it, then select **Disconnect** in the confirmation dialog.
-Coder deletes your stored token for that server.
+Coder removes your credentials for that server, and you can connect again later.
 
 ### Turn a server on or off in a chat
 
-In a chat, open the **+** menu and select **MCP servers**.
+You can turn servers on or off only in a chat that you own.
+In the chat, open the **+** menu and select **MCP servers**.
 Use the switch next to a server to turn it on or off for that chat.
 The change applies from the next message you send.
-A server with the `force_on` policy shows a lock and stays on in every chat.
+A server that an administrator turns on for every chat shows a lock, and you can't turn it off.
 A server that is on for the chat but not connected shows `Disconnected` instead of a switch until you connect it.
-This happens to a server that is on by default, and to a server that was on when its connection ended.
+The `Disconnected` state applies to a server that is on by default, and to a server that was on when its connection ended.
 The footer of the list counts the OAuth2 servers that you haven't connected.
 
 ## Workspace MCP tools

@@ -45,11 +45,11 @@ The add and update views always show the target organization, as a read-only fie
 
 #### Availability policies
 
-| Policy        | Behavior                                                                                                |
-|---------------|---------------------------------------------------------------------------------------------------------|
-| `force_on`    | Injected into every chat whose owner has ACL access to the server. No opting out.                       |
-| `default_on`  | Pre-selected in new chats. Users can opt out.                                                           |
-| `default_off` | Available in the server list but users must opt in. An OAuth2 server is listed after the user connects. |
+| Policy        | Behavior                                                                                                                |
+|---------------|-------------------------------------------------------------------------------------------------------------------------|
+| `force_on`    | Injected into every chat whose owner has ACL access to the server. No opting out.                                       |
+| `default_on`  | Pre-selected in new chats. Users can opt out.                                                                           |
+| `default_off` | Available in the chat's **MCP servers** list but users must opt in. An OAuth2 server is listed after the user connects. |
 
 ## Authentication
 
