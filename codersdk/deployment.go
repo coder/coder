@@ -4002,7 +4002,9 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.ProxyHealthStatusInterval,
 			Group:       &deploymentGroupNetworkingHTTP,
 			YAML:        "proxyHealthInterval",
-			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+			Annotations: serpent.Annotations{}.
+				Mark(annotationEnterpriseKey, "true").
+				Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Default Quiet Hours Schedule",

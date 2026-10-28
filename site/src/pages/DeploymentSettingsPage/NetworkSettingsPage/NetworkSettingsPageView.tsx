@@ -16,11 +16,13 @@ import OptionsTable from "../OptionsTable";
 
 type NetworkSettingsPageViewProps = {
 	options: SerpentOption[];
+	/** When false, options that need a license show a Premium badge. */
+	hasLicense: boolean;
 };
 
 export const NetworkSettingsPageView: React.FC<
 	NetworkSettingsPageViewProps
-> = ({ options }) => (
+> = ({ options, hasLicense }) => (
 	<div className="flex flex-col gap-12">
 		<div>
 			<SettingsHeader>
@@ -38,6 +40,7 @@ export const NetworkSettingsPageView: React.FC<
 				options={options.filter((o) =>
 					deploymentGroupHasParent(o.group, "Networking"),
 				)}
+				hasLicense={hasLicense}
 			/>
 		</div>
 

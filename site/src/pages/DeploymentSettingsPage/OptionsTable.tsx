@@ -1,4 +1,5 @@
 import type { SerpentOption } from "#/api/typesGenerated";
+import { PremiumBadge } from "#/components/Badge/PresetBadges";
 import {
 	Table,
 	TableBody,
@@ -19,11 +20,14 @@ import { optionValue } from "./optionValue";
 type OptionsTableProps = {
 	options: readonly SerpentOption[];
 	additionalValues?: readonly string[];
+	/** When false, options annotated `enterprise` show a Premium badge. */
+	hasLicense?: boolean;
 };
 
 const OptionsTable: React.FC<OptionsTableProps> = ({
 	options,
 	additionalValues,
+	hasLicense = true,
 }) => {
 	if (options.length === 0) {
 		return <p>No options to configure</p>;
@@ -42,7 +46,12 @@ const OptionsTable: React.FC<OptionsTableProps> = ({
 					return (
 						<TableRow key={option.flag} className={`option-${option.flag}`}>
 							<TableCell>
-								<OptionName>{option.name}</OptionName>
+								<div className="flex items-center gap-2">
+									<OptionName>{option.name}</OptionName>
+									{!hasLicense && option.annotations?.enterprise === "true" && (
+										<PremiumBadge />
+									)}
+								</div>
 								<OptionDescription>{option.description}</OptionDescription>
 								<div className="pt-2 flex flex-wrap gap-2">
 									{option.flag && (
