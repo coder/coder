@@ -18,6 +18,7 @@ import type { Chat } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
+import { COPY_FAILED_MESSAGE } from "#/hooks/useClipboard";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
 import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import { MockChatModel } from "#/testHelpers/chatModels";
@@ -87,21 +88,19 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 });
 
 type WrapperProps = React.PropsWithChildren<{
-	experiments?: TypesGen.Experiment[];
 	organizations?: TypesGen.Organization[];
 	initialEntry?: string;
 }>;
 
 const Wrapper: React.FC<WrapperProps> = ({
 	children,
-	experiments = [],
 	organizations = [MockDefaultOrganization],
 	initialEntry = "/agents",
 }) => {
 	const queryClient = createTestQueryClient();
 	const dashboardValue = {
 		entitlements: MockEntitlements,
-		experiments,
+		experiments: [],
 		appearance: MockAppearanceConfig,
 		buildInfo: MockBuildInfo,
 		organizations,
@@ -183,7 +182,7 @@ describe("ChatsSidebar projects", () => {
 			),
 		);
 		render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper>
 				<ChatsSidebar {...defaultProps} />
 			</Wrapper>,
 		);
@@ -246,18 +245,18 @@ describe("ChatsSidebar projects", () => {
 		});
 
 		render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper>
 				<ChatsSidebar {...defaultProps} chats={[mockProjectChat]} />
 			</Wrapper>,
 		);
 
 		// The chat's project is still loading, so its chat may yet be unfiled.
 		await waitFor(() => expect(projectsRequested).toBe(true));
-		expect(screen.queryByText("No agents yet")).toBeNull();
+		expect(screen.queryByText("No chats yet")).toBeNull();
 
 		resolveProjects();
 		await screen.findByRole("link", { name: MockChatProject.name });
-		expect(screen.getByText("No agents yet")).toBeInTheDocument();
+		expect(screen.getByText("No chats yet")).toBeInTheDocument();
 		expect(screen.queryByRole("link", { name: /Project chat/ })).toBeNull();
 	});
 
@@ -283,7 +282,7 @@ describe("ChatsSidebar projects", () => {
 		const mockLooseChat = buildChat({ id: "loose-chat", title: "Loose chat" });
 
 		render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper>
 				<ChatsSidebar
 					{...defaultProps}
 					chats={[mockProjectChat, mockLooseChat]}
@@ -323,10 +322,7 @@ describe("ChatsSidebar projects", () => {
 			);
 
 			render(
-				<Wrapper
-					experiments={["chat-projects"]}
-					organizations={[MockOrganization2, MockDefaultOrganization]}
-				>
+				<Wrapper organizations={[MockOrganization2, MockDefaultOrganization]}>
 					<ChatsSidebar {...defaultProps} chats={[]} />
 					<ProjectLocationProbe />
 				</Wrapper>,
@@ -401,10 +397,7 @@ describe("ChatsSidebar projects", () => {
 		);
 
 		render(
-			<Wrapper
-				experiments={["chat-projects"]}
-				organizations={[MockOrganization2]}
-			>
+			<Wrapper organizations={[MockOrganization2]}>
 				<ChatsSidebar {...defaultProps} />
 			</Wrapper>,
 		);
@@ -443,7 +436,7 @@ describe("ChatsSidebar projects", () => {
 		);
 
 		render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper>
 				<ChatsSidebar {...defaultProps} />
 			</Wrapper>,
 		);
@@ -473,10 +466,7 @@ describe("ChatsSidebar projects", () => {
 		);
 
 		render(
-			<Wrapper
-				experiments={["chat-projects"]}
-				initialEntry={`/agents/projects/${MockChatProject.id}`}
-			>
+			<Wrapper initialEntry={`/agents/projects/${MockChatProject.id}`}>
 				<ChatsSidebar {...defaultProps} />
 				<ProjectLocationProbe />
 			</Wrapper>,
@@ -523,7 +513,7 @@ describe("ChatsSidebar projects", () => {
 		);
 
 		render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper>
 				<ChatsSidebar {...defaultProps} />
 			</Wrapper>,
 		);
@@ -559,10 +549,7 @@ describe("ChatsSidebar projects", () => {
 		);
 
 		render(
-			<Wrapper
-				experiments={["chat-projects"]}
-				organizations={[MockDefaultOrganization, MockOrganization2]}
-			>
+			<Wrapper organizations={[MockDefaultOrganization, MockOrganization2]}>
 				<ChatsSidebar {...defaultProps} />
 			</Wrapper>,
 		);
@@ -590,10 +577,7 @@ describe("ChatsSidebar projects", () => {
 		);
 
 		render(
-			<Wrapper
-				experiments={["chat-projects"]}
-				initialEntry={`/agents/projects/${MockChatProject.id}`}
-			>
+			<Wrapper initialEntry={`/agents/projects/${MockChatProject.id}`}>
 				<ChatsSidebar {...defaultProps} />
 			</Wrapper>,
 		);
@@ -640,10 +624,7 @@ describe("ChatsSidebar projects", () => {
 		});
 
 		render(
-			<Wrapper
-				experiments={["chat-projects"]}
-				initialEntry={`/agents/${mockFirstProjectChat.id}`}
-			>
+			<Wrapper initialEntry={`/agents/${mockFirstProjectChat.id}`}>
 				<Routes>
 					<Route
 						path="/agents/:agentId"
@@ -840,7 +821,7 @@ describe("ChatsSidebar move to project", () => {
 
 	const renderSidebar = (chats: Chat[]) =>
 		render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper>
 				<ChatsSidebar {...defaultProps} chats={chats} />
 			</Wrapper>,
 		);
@@ -1053,7 +1034,7 @@ describe("ChatsSidebar project drops", () => {
 			),
 		);
 		return render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper>
 				<ChatsSidebar {...defaultProps} chats={chats} />
 			</Wrapper>,
 		);
@@ -1211,7 +1192,7 @@ describe("ChatsSidebar project drops", () => {
 			.spyOn(API.experimental, "updateChat")
 			.mockResolvedValue(undefined);
 		render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper>
 				<ChatsSidebar
 					{...defaultProps}
 					chats={[
@@ -1327,7 +1308,7 @@ describe("ChatsSidebar project drops", () => {
 			http.get("/api/experimental/chats/projects", () => HttpResponse.json([])),
 		);
 		render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper>
 				<StatusChange />
 			</Wrapper>,
 		);
@@ -1542,7 +1523,7 @@ describe("ChatsSidebar project drops", () => {
 			http.get("/api/experimental/chats/projects", () => HttpResponse.json([])),
 		);
 		render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper>
 				<ChatsSidebar
 					{...defaultProps}
 					chats={[
@@ -1796,7 +1777,7 @@ describe("ChatsSidebar filters", () => {
 			screen.getByRole("button", { name: "Filter agents" }),
 		).toBeInTheDocument();
 		expect(
-			screen.getByText("No agents match these filters"),
+			screen.getByText("No chats match these filters"),
 		).toBeInTheDocument();
 
 		await user.click(screen.getByRole("button", { name: "Clear filters" }));
@@ -2565,6 +2546,8 @@ describe("ChatsSidebar read state actions", () => {
 });
 
 describe("ChatsSidebar copy actions", () => {
+	afterEach(() => vi.restoreAllMocks());
+
 	// Radix submenu items do not react to userEvent clicks in jsdom, so the
 	// selection itself uses fireEvent.
 	const openCopySubmenu = async (
@@ -2586,6 +2569,7 @@ describe("ChatsSidebar copy actions", () => {
 			const writeText = vi
 				.spyOn(navigator.clipboard, "writeText")
 				.mockResolvedValue();
+			const successToast = vi.spyOn(toast, "success");
 			render(
 				<Wrapper>
 					<ChatsSidebar
@@ -2612,19 +2596,25 @@ describe("ChatsSidebar copy actions", () => {
 			await waitFor(() => {
 				expect(writeText).toHaveBeenCalledWith("copy-chat");
 			});
+			await waitFor(() => {
+				expect(successToast).toHaveBeenCalledWith(
+					"Chat ID copied to clipboard.",
+				);
+			});
 		},
 	);
 
 	it.each([
-		["Copy ID", "branch-chat"],
-		["Copy branch", "jakehwll/copy-branch"],
+		["Copy ID", "branch-chat", "Chat ID copied to clipboard."],
+		["Copy branch", "jakehwll/copy-branch", "Branch name copied to clipboard."],
 	])(
 		"copies %s from the submenu when a branch is available",
-		async (label, value) => {
+		async (label, value, message) => {
 			const user = userEvent.setup();
 			const writeText = vi
 				.spyOn(navigator.clipboard, "writeText")
 				.mockResolvedValue();
+			const successToast = vi.spyOn(toast, "success");
 			render(
 				<Wrapper>
 					<ChatsSidebar
@@ -2654,6 +2644,9 @@ describe("ChatsSidebar copy actions", () => {
 
 			await waitFor(() => {
 				expect(writeText).toHaveBeenCalledWith(value);
+			});
+			await waitFor(() => {
+				expect(successToast).toHaveBeenCalledWith(message);
 			});
 		},
 	);
@@ -2687,5 +2680,34 @@ describe("ChatsSidebar copy actions", () => {
 		await waitFor(() => {
 			expect(writeText).toHaveBeenCalledWith("shared-copy-chat");
 		});
+	});
+
+	it("shows only the error toast when copying fails", async () => {
+		const user = userEvent.setup();
+		const writeText = vi
+			.spyOn(navigator.clipboard, "writeText")
+			.mockRejectedValue(new Error("Clipboard unavailable"));
+		const successToast = vi.spyOn(toast, "success");
+		const errorToast = vi.spyOn(toast, "error");
+		vi.spyOn(console, "error").mockImplementation(() => {});
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[buildChat({ id: "failed-copy-chat", title: "Failed copy" })]}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Open actions for Failed copy" }),
+		);
+		await user.click(await screen.findByRole("menuitem", { name: "Copy ID" }));
+
+		await waitFor(() => {
+			expect(errorToast).toHaveBeenCalledWith(COPY_FAILED_MESSAGE);
+		});
+		expect(writeText).toHaveBeenCalledWith("failed-copy-chat");
+		expect(successToast).not.toHaveBeenCalled();
 	});
 });

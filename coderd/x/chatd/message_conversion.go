@@ -24,7 +24,17 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-const interruptedToolResultErrorMessage = "tool call was interrupted before it produced a result"
+const (
+	interruptedToolResultErrorMessage       = "tool call was interrupted before it produced a result"
+	interruptedToolResultReplacementMessage = "tool call was interrupted"
+)
+
+// For these tools, chatloop.ExecuteLocalTools can publish the
+// chattool.WithUserResult projection instead of the model result, so their
+// buffered output must not reach the model on interruption.
+var userOnlyResultToolNames = []string{
+	"acp_wait_agent",
+}
 
 type buildCommitStepMessagesInput struct {
 	modelConfigID          uuid.UUID
@@ -1058,7 +1068,21 @@ func (s *partialMessageConversionState) consumeToolPart(buffered messagepartbuff
 	if err := s.flushAssistant(); err != nil {
 		return err
 	}
-	if err := s.appendToolResult(part); err != nil {
+	visibility := database.ChatMessageVisibilityBoth
+	if slices.Contains(userOnlyResultToolNames, part.ToolName) {
+		if err := s.appendToolResult(part, database.ChatMessageVisibilityUser); err != nil {
+			return err
+		}
+		result, err := json.Marshal(map[string]string{"error": interruptedToolResultReplacementMessage})
+		if err != nil {
+			return xerrors.Errorf("marshal interrupted tool result replacement: %w", err)
+		}
+		part.Result = result
+		part.IsError = true
+		part.IsMedia = false
+		visibility = database.ChatMessageVisibilityModel
+	}
+	if err := s.appendToolResult(part, visibility); err != nil {
 		return err
 	}
 	s.answered[part.ToolCallID] = true
@@ -1154,12 +1178,12 @@ func (s *partialMessageConversionState) flushAccumulatedToolResults() error {
 	return nil
 }
 
-func (s *partialMessageConversionState) appendToolResult(part codersdk.ChatMessagePart) error {
+func (s *partialMessageConversionState) appendToolResult(part codersdk.ChatMessagePart, visibility database.ChatMessageVisibility) error {
 	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{part})
 	if err != nil {
 		return xerrors.Errorf("marshal partial tool result: %w", err)
 	}
-	s.messages = append(s.messages, baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, s.input.modelConfigID, s.contentVersion, content))
+	s.messages = append(s.messages, baseMessage(database.ChatMessageRoleTool, visibility, s.input.modelConfigID, s.contentVersion, content))
 	return nil
 }
 
@@ -1181,7 +1205,7 @@ func (s *partialMessageConversionState) appendSyntheticInterruptionResults() err
 		if !s.input.interruptedAt.IsZero() {
 			part.CreatedAt = &s.input.interruptedAt
 		}
-		if err := s.appendToolResult(part); err != nil {
+		if err := s.appendToolResult(part, database.ChatMessageVisibilityBoth); err != nil {
 			return xerrors.Errorf("marshal synthetic interruption message: %w", err)
 		}
 		s.answered[id] = true

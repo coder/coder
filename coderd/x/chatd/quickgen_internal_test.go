@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/database/pubsub/psmock"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -567,11 +568,10 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 		}
 	}
 
-	run := func(t *testing.T, db database.Store, ps dbpubsub.Pubsub, chat database.Chat, model *chattest.FakeModel) *generatedChatTitle {
+	run := func(t *testing.T, db database.Store, ps dbpubsub.Pubsub, chat database.Chat, model *chattest.FakeModel) {
 		t.Helper()
 		message := mustChatMessage(t, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, codersdk.ChatMessageText(userPrompt))
 		message.ID = 1
-		generated := &generatedChatTitle{}
 		server := &Server{db: db, pubsub: ps, logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), chatLimits: Limits{}.withDefaults()}
 		server.maybeGenerateChatTitle(
 			testutil.Context(t, testutil.WaitMedium),
@@ -582,11 +582,9 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 				model:    chatprovider.NewModel(model, nil),
 				dbConfig: database.ChatModelConfig{Model: "test-model"},
 			},
-			generated,
 			server.logger,
 			nil,
 		)
-		return generated
 	}
 
 	t.Run("WritesGeneratedTitle", func(t *testing.T) {
@@ -609,17 +607,13 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 				ps := dbpubsub.NewInMemory()
 				events := subscribeChatWatchEvents(t, ps, owner.ID)
 
-				generated := run(t, db, ps, chat, newFakeModel(t, nil, tc.title, nil))
+				run(t, db, ps, chat, newFakeModel(t, nil, tc.title, nil))
 
 				fetched, err := db.GetChatByID(ctx, chat.ID)
 				require.NoError(t, err)
 				require.Equal(t, tc.title, fetched.Title)
 				require.Equal(t, database.ChatTitleSourceGenerated, fetched.TitleSource)
 				require.True(t, fetched.UpdatedAt.Equal(chat.UpdatedAt), "title writes must not reorder chat lists")
-
-				gotTitle, ok := generated.Load()
-				require.True(t, ok)
-				require.Equal(t, tc.title, gotTitle)
 
 				event := testutil.RequireReceive(ctx, t, events)
 				require.Equal(t, codersdk.ChatWatchEventKindTitleChange, event.Kind)
@@ -660,9 +654,8 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 
 				db, _ := dbtestutil.NewDB(t)
 				ctx := testutil.Context(t, testutil.WaitMedium)
-				owner, chat := seedTitleChat(t, db, fallbackTitle, database.ChatTitleSourceFallback)
-				ps := dbpubsub.NewInMemory()
-				events := subscribeChatWatchEvents(t, ps, owner.ID)
+				_, chat := seedTitleChat(t, db, fallbackTitle, database.ChatTitleSourceFallback)
+				ps := psmock.NewMockPubsub(gomock.NewController(t))
 
 				var rename func()
 				if tc.renameDuringCall {
@@ -677,21 +670,12 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 				}
 				model := newFakeModel(t, rename, "Generated title", tc.modelErr)
 
-				generated := run(t, db, ps, chat, model)
+				run(t, db, ps, chat, model)
 
 				fetched, err := db.GetChatByID(ctx, chat.ID)
 				require.NoError(t, err)
 				require.Equal(t, tc.wantTitle, fetched.Title)
 				require.Equal(t, tc.wantSource, fetched.TitleSource)
-
-				_, ok := generated.Load()
-				require.False(t, ok)
-
-				select {
-				case event := <-events:
-					t.Fatalf("unexpected %q event", event.Kind)
-				default:
-				}
 			})
 		}
 	})
@@ -780,7 +764,6 @@ func TestQuickgenFollowsConfiguredRetries(t *testing.T) {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{},
 			withInternalTestServerLimits(limits))
-		generated := &generatedChatTitle{}
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		server.maybeGenerateChatTitle(
@@ -792,14 +775,11 @@ func TestQuickgenFollowsConfiguredRetries(t *testing.T) {
 				model:    chatprovider.NewModel(model, nil),
 				dbConfig: database.ChatModelConfig{Model: "test-model"},
 			},
-			generated,
 			logger,
 			nil,
 		)
 
 		require.EqualValues(t, 2, calls.Load(), "one configured retry allows exactly two model calls")
-		_, ok := generated.Load()
-		require.False(t, ok)
 	})
 
 	t.Run("Summary", func(t *testing.T) {
@@ -916,7 +896,6 @@ func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {
 			dbConfig:        fallbackConfig,
 			providerOptions: chatprovider.ProviderOptionsForCall(fallbackModel, callConfig, nil),
 		},
-		&generatedChatTitle{},
 		logger,
 		nil,
 	)

@@ -81,7 +81,8 @@ Coder's built-in tools decode that JSON with Go, which matches property names ca
 Coder rejects a built-in tool call whose input repeats a key or spells a schema property with different capitalization, before dispatching `pre_tool_use`.
 This check doesn't cover dynamic and MCP tools, because the client and the workspace agent execute those calls rather than `coderd`.
 A policy that gates them must validate their input itself.
-The chat `edit_files` tool reads `old_text` and `new_text`; a policy that gates edit content must inspect those keys.
+The chat `edit_files` tool reads `old_text` and `new_text`.
+A policy that gates edit content must inspect those keys.
 
 For `user_prompt_submit`, `prompt` concatenates the original submitted text parts, and `parts` carries the original structured message, including non-text parts such as file references.
 These values are captured before the consumer's override or injected context changes the stored prompt.
@@ -131,7 +132,8 @@ Permission rules depend on the event:
   Attachments and file references remain in `parts`, so consumers that must block them should inspect `parts` and return `deny`.
 - For `pre_tool_use`, `allow` requires `input_override` containing the replacement tool input.
   Coder persists the replacement with the tool call and executes the tool with it.
-  An override for a built-in tool must not repeat a key or vary the capitalization of a schema property; an ambiguous override fails the dispatch closed because the model can't correct it.
+  An override for a built-in tool must not repeat a key or vary the capitalization of a schema property.
+  An ambiguous override fails the dispatch closed because the model can't correct it.
   The stored call is marked as rewritten, and the chat shows a "Modified by policy" badge.
   The marker is client-facing, so return `model_context` if the model also needs an explanation of the rewrite.
 - For either event, `deny` blocks the input and must not include `input_override`.
@@ -177,7 +179,8 @@ Coder checks admission before dispatching, but concurrent requests can still fai
 The consumer then observes an event for a request that Coder rejects, and the rejected request doesn't persist a prompt or tool result.
 Treat events as attempt notifications rather than proof of a committed operation, and key idempotent tool-event processing on `tool_use_id`.
 
-Each `coderd` replica runs at most 256 dispatches at once and waits up to 250&nbsp;ms for a free slot; a dispatch that waits out that limit fails as over capacity.
+Each `coderd` replica runs at most 256 dispatches at once and waits up to 250&nbsp;ms for a free slot.
+A dispatch that waits out that limit fails as over capacity.
 The limit is per replica rather than deployment-wide, so size the consumer for 256 concurrent requests per replica.
 Slow consumer responses hold slots for longer, so a slow consumer turns a burst of chat activity into over-capacity failures.
 Prompt admission (creating, sending, or editing a message) can hold at most 192 of a replica's slots, so at least 64 stay reachable only by dispatches for work a chat already admitted.
@@ -188,7 +191,8 @@ Delivery is best-effort and can duplicate.
 Coder never queues a failed dispatch for redelivery, so plan for duplicates without assuming every event arrives.
 Coder retries one connection failure per dispatch with the same JWT, so use `dispatch_id` to recognize a repeated HTTP attempt and return the same response.
 Coder also re-dispatches the same logical event with a new `dispatch_id` whenever an operation runs again, for example when a chat recovers after a crash and retries a pending tool call, or when a user retries a turn that failed before committing.
-Every tool call that reaches execution is validated through a fresh `pre_tool_use` dispatch; Coder never reuses an earlier decision on the consumer's behalf.
+Every tool call that reaches execution is validated through a fresh `pre_tool_use` dispatch.
+Coder never reuses an earlier decision on the consumer's behalf.
 Calls that Coder rejects before execution, such as input that isn't valid JSON, ambiguous input, or a batch that mixes an exclusive tool with other calls, produce an error result for the model without a dispatch.
 
 Use event-specific identifiers for logical duplicates:
@@ -211,7 +215,7 @@ If the consumer continues blocking chat activity, set `CODER_CHAT_HOOK_ENABLED=f
 
 Use the following rollout sequence:
 
-1. Deploy a consumer that verifies every request, logs the event and identifiers, and always returns a `2xx` status with an empty response.
+1. Deploy a consumer that verifies every request, logs the event and identifiers, and always returns an empty `2xx` response.
 2. Configure the hook URL, secret, and timeout on a test deployment.
 3. Exercise normal chats, tool calls, compaction, consumer timeouts, and consumer restarts.
 4. Review the consumer's own logs for event coverage and unexpected failures.

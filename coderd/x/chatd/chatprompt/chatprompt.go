@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"html"
 	"mime"
 	"regexp"
 	"strings"
@@ -702,6 +703,7 @@ func sdkPartFromContent(
 			SourceID:         value.ID,
 			URL:              value.URL,
 			Title:            value.Title,
+			ToolCallID:       value.ToolCallID,
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
 		}
 	case *fantasy.SourceContent:
@@ -710,6 +712,7 @@ func sdkPartFromContent(
 			SourceID:         value.ID,
 			URL:              value.URL,
 			Title:            value.Title,
+			ToolCallID:       value.ToolCallID,
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
 		}
 	case fantasy.FileContent:
@@ -1346,9 +1349,14 @@ func SkillInvocationAlias(part codersdk.ChatMessagePart) string {
 var invokedSkillTagPattern = regexp.MustCompile(`(?i)<\s*/?\s*invoked-skill\b[^>]*>`)
 
 // skillInvocationPartToText tells the model which skill the user invoked
-// and includes the skill body loaded at send time. Wrapper tags inside the
-// body are escaped so it cannot end the block early.
-func skillInvocationPartToText(part codersdk.ChatMessagePart) string {
+// and includes the skill body loaded at send time, plus the directory of a
+// workspace skill so the model can run the scripts its body references.
+// Like a workspace file reference, the directory is shown only while the
+// chat stays bound to the workspace the skill was invoked in.
+// Wrapper tags inside the body are escaped so it cannot end the block
+// early, and the directory is escaped as an attribute value so it cannot
+// end the opening tag.
+func skillInvocationPartToText(part codersdk.ChatMessagePart, chatWorkspaceID uuid.NullUUID) string {
 	alias := SkillInvocationAlias(part)
 	text := fmt.Sprintf("The user invoked the %s skill for this message. Follow its instructions.", alias)
 	body := strings.TrimSpace(codersdk.SanitizePromptText(part.SkillBody))
@@ -1358,7 +1366,11 @@ func skillInvocationPartToText(part codersdk.ChatMessagePart) string {
 	body = invokedSkillTagPattern.ReplaceAllStringFunc(body, func(tag string) string {
 		return "&lt;" + tag[1:len(tag)-1] + "&gt;"
 	})
-	return text + "\n<invoked-skill name=\"" + alias + "\">\n" + body + "\n</invoked-skill>"
+	openTag := "<invoked-skill name=\"" + alias + "\""
+	if part.SkillDir != "" && chatWorkspaceID.Valid && part.SkillWorkspaceID == chatWorkspaceID.UUID {
+		openTag += " dir=\"" + html.EscapeString(part.SkillDir) + "\""
+	}
+	return text + "\n" + openTag + ">\n" + body + "\n</invoked-skill>"
 }
 
 // toolResultPartToMessagePart converts an SDK tool-result part
@@ -1626,7 +1638,7 @@ func partsToMessageParts(
 			})
 		case codersdk.ChatMessagePartTypeSkillInvocation:
 			result = append(result, fantasy.TextPart{
-				Text: skillInvocationPartToText(part),
+				Text: skillInvocationPartToText(part, chatWorkspaceID),
 			})
 		case codersdk.ChatMessagePartTypeContextFile:
 			if part.ContextFileContent == "" {

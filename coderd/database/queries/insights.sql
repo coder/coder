@@ -271,10 +271,8 @@ FROM
 -- GetTemplateInsightsByTemplate is used for Prometheus metrics. Keep
 -- in sync with GetTemplateInsights and UpsertTemplateUsageStats.
 --
--- Session usage is reported per app family. It reads the raw agent stats
--- because the rollup stores minutes per app, which can't show whether two
--- apps of one family were open in the same minute. @app_families maps each
--- app name to its family; names missing from the map count as unknown.
+-- Session usage is per app name. It reads raw agent stats because rollup
+-- buckets are coarser than the metrics window.
 WITH
 	connected AS (
 		-- NOTE(mafredri): connection_count covers one report interval, while
@@ -297,14 +295,14 @@ WITH
 			BOOL_OR(connection_count > 0)
 	),
 	insights AS (
-		-- A minute counts once per family, however many of its apps were
+		-- A minute counts once per app, however many of its sessions were
 		-- open, which COUNT(DISTINCT) does in the grouping. Deduplicating the
 		-- expanded rows first instead spills to disk once a deployment has a
 		-- few thousand agents.
 		SELECT
 			was.template_id,
 			was.user_id,
-			COALESCE(@app_families::jsonb ->> app_name, 'unknown') AS family,
+			app_name,
 			COUNT(DISTINCT date_trunc('minute', was.created_at)) AS usage_mins
 		FROM
 			workspace_agent_stats AS was
@@ -320,22 +318,22 @@ WITH
 			AND was.created_at < @end_time::timestamptz
 			AND was.session_counts <> '{}'::jsonb
 		GROUP BY
-			was.template_id, was.user_id, family
+			was.template_id, was.user_id, app_name
 	),
-	app_family_usage AS (
+	app_usage AS (
 		SELECT
 			template_id,
-			jsonb_object_agg(family, usage_seconds) AS session_family_usage_seconds
+			jsonb_object_agg(app_name, usage_seconds) AS session_app_usage_seconds
 		FROM (
 			SELECT
 				template_id,
-				family,
+				app_name,
 				(SUM(usage_mins) * 60)::bigint AS usage_seconds
 			FROM
 				insights
 			GROUP BY
-				template_id, family
-		) AS family_seconds
+				template_id, app_name
+		) AS app_seconds
 		GROUP BY
 			template_id
 	),
@@ -352,15 +350,15 @@ WITH
 SELECT
 	active_users.template_id,
 	active_users.active_users,
-	app_family_usage.session_family_usage_seconds
+	app_usage.session_app_usage_seconds
 FROM
 	active_users
 JOIN
-	-- Every counted template has at least one family; both sides come from
+	-- Every counted template has at least one app; both sides come from
 	-- insights.
-	app_family_usage
+	app_usage
 ON
-	app_family_usage.template_id = active_users.template_id;
+	app_usage.template_id = active_users.template_id;
 
 -- name: GetTemplateAppInsights :many
 -- GetTemplateAppInsights returns the aggregate usage of each app in a given

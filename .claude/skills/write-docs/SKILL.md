@@ -44,7 +44,7 @@ style.
 1. **Establish ground truth before you write a sentence.** This is the
    highest-leverage step and the one most often skipped. It is the practical
    form of the content guidelines principle
-   [Verify against the code; document exact values](../../../docs/.style/content-guidelines.md#verify-against-the-code-document-exact-values).
+   [Verify against the code and document exact values](../../../docs/.style/content-guidelines.md#verify-against-the-code-and-document-exact-values).
    - **Read the real source.** Open the actual template, config, code path,
      or CLI definition. Copy exact identifiers, defaults, file paths, option
      names, RBAC role names, thresholds, and API paths from the source, not
@@ -144,7 +144,7 @@ style.
 ## Evidence versus claim
 
 The canonical rule is
-[Evidence justifies a claim; it does not belong in the claim](../../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
+[Evidence justifies a claim and does not belong in the claim](../../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-and-does-not-belong-in-the-claim)
 in the content guidelines; they govern. Read it there rather than from a
 summary here.
 
