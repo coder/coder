@@ -100,7 +100,6 @@ describe("UserCompactionThresholdSettings", () => {
 		expect(onSaveThreshold).toHaveBeenCalledExactlyOnceWith("model-1", 90);
 		expect(unloadIsBlocked()).toBe(true);
 
-		// A different row remains editable while the first request is pending.
 		await user.click(second.getByRole("button", { name: /^Save/ }));
 		expect(onSaveThreshold).toHaveBeenNthCalledWith(2, "model-2", 55);
 		await act(async () => pendingSave.resolve(undefined));

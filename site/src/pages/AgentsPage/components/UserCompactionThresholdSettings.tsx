@@ -6,7 +6,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
-import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import { UnsavedChangesDialog } from "#/components/Dialog/UnsavedChangesDialog/UnsavedChangesDialog";
 import {
 	HelpPopover,
 	HelpPopoverContent,
@@ -518,7 +518,6 @@ export const UserCompactionThresholdSettings: React.FC<
 	onSaveThreshold,
 	onResetThreshold,
 }) => {
-	const leaveTriggerRef = useRef<HTMLElement | null>(null);
 	const [drafts, setDrafts] = useState<Record<string, string>>({});
 	const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
 	const [pendingModels, setPendingModels] = useState<Set<string>>(new Set());
@@ -760,31 +759,10 @@ export const UserCompactionThresholdSettings: React.FC<
 					</TableBody>
 				</Table>
 			)}
-			<ConfirmDialog
-				type="info"
-				hideCancel={false}
+			<UnsavedChangesDialog
 				open={unsavedChanges.isOpen}
 				onClose={unsavedChanges.onCancel}
 				onConfirm={unsavedChanges.onConfirm}
-				onOpenAutoFocus={() => {
-					leaveTriggerRef.current =
-						document.activeElement instanceof HTMLElement
-							? document.activeElement
-							: null;
-				}}
-				onCloseAutoFocus={(event) => {
-					event.preventDefault();
-					if (
-						document.activeElement === document.body &&
-						leaveTriggerRef.current?.isConnected
-					) {
-						leaveTriggerRef.current.focus({ preventScroll: true });
-					}
-				}}
-				title="Unsaved changes"
-				description="Your compaction settings haven't been saved. Are you sure you want to leave?"
-				cancelText="Stay"
-				confirmText="Leave"
 			/>
 		</div>
 	);

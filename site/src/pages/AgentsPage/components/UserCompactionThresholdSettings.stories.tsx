@@ -357,9 +357,8 @@ export const RowSaveFailure: Story = {
 		}),
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
 		const claudeRow = within(
-			canvas.getByRole("row", { name: /Claude Sonnet/i }),
+			within(canvasElement).getByRole("row", { name: /Claude Sonnet/i }),
 		);
 		await userEvent.type(claudeRow.getByRole("textbox"), "55");
 		await userEvent.click(claudeRow.getByRole("button", { name: /^Save / }));
@@ -506,9 +505,8 @@ export const LongListNarrowViewport: Story = {
 	},
 	globals: { viewport: { value: "ipad" } },
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
 		await userEvent.type(
-			await canvas.findByRole("textbox", {
+			await within(canvasElement).findByRole("textbox", {
 				name: /GPT-4o model 1 compaction threshold/i,
 			}),
 			"95",
@@ -522,9 +520,8 @@ export const MobileEditedRow: Story = {
 	},
 	globals: { viewport: { value: "iphone12" } },
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
 		await userEvent.type(
-			await canvas.findByRole("textbox", {
+			await within(canvasElement).findByRole("textbox", {
 				name: /GPT-4o compaction threshold/i,
 			}),
 			"95",
