@@ -140,7 +140,7 @@ describe("UserCompactionThresholdSettings", () => {
 			expect(unloadIsBlocked()).toBe(true);
 			await user.click(screen.getByRole("link", { name: "General settings" }));
 			expect(router.state.location.pathname).toBe("/compaction");
-			await user.click(screen.getByRole("button", { name: "Stay" }));
+			await user.click(await screen.findByRole("button", { name: "Stay" }));
 			await waitFor(() =>
 				expect(document.activeElement).toBe(
 					screen.getByRole("link", { name: "General settings" }),
@@ -148,7 +148,7 @@ describe("UserCompactionThresholdSettings", () => {
 			);
 			expect(router.state.location.pathname).toBe("/compaction");
 			await user.keyboard("{Enter}");
-			await user.click(screen.getByRole("button", { name: "Leave" }));
+			await user.click(await screen.findByRole("button", { name: "Leave" }));
 			expect(router.state.location.pathname).toBe("/general");
 			await waitFor(() =>
 				expect(document.activeElement).toBe(
@@ -207,7 +207,7 @@ describe("UserCompactionThresholdSettings", () => {
 		expect(unloadIsBlocked()).toBe(true);
 		await user.click(screen.getByRole("link", { name: "General settings" }));
 		expect(router.state.location.pathname).toBe("/compaction");
-		await user.click(screen.getByRole("button", { name: "Stay" }));
+		await user.click(await screen.findByRole("button", { name: "Stay" }));
 		await user.click(screen.getByRole("combobox"));
 		await user.click(
 			screen.getByRole("option", {
