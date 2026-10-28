@@ -4,7 +4,7 @@ import { useEffect } from "react";
 // site/site.go), so a browser that has fetched a URL never refetches it.
 // Bump this when manifest.json or apple-touch-icon.png changes, and bump the
 // icon URLs in manifest.json when an icon changes.
-const pwaAssetVersion = "2";
+const pwaAssetVersion = "5";
 
 /**
  * Injects PWA-related <head> tags while the Agents page is mounted

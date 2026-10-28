@@ -153,7 +153,7 @@ title: Schemas
 | `message`              | string                                                               | false    |              |                                                                           |
 | `needs_user_attention` | boolean                                                              | false    |              | Deprecated: this field is unused and will be removed in a future version. |
 | `state`                | [codersdk.WorkspaceAppStatusState](#codersdkworkspaceappstatusstate) | false    |              |                                                                           |
-| `uri`                  | string                                                               | false    |              |                                                                           |
+| `uri`                  | string                                                               | false    |              | Only http, https, and file URIs are kept; others are dropped.             |
 
 ## agentsdk.PatchLogs
 
@@ -2746,6 +2746,109 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |----------|---------------------------------------------------|----------|--------------|-------------|
 | `groups` | array of [codersdk.ChatGroup](#codersdkchatgroup) | false    |              |             |
 | `users`  | array of [codersdk.ChatUser](#codersdkchatuser)   | false    |              |             |
+
+## codersdk.ChatAttachment
+
+```json
+{
+  "file": {
+    "data": "string",
+    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+    "media_type": "string",
+    "name": "string",
+    "type": "file"
+  },
+  "message_id": 0,
+  "part_index": 0,
+  "role": "user"
+}
+```
+
+### Properties
+
+| Name         | Type                                                       | Required | Restrictions | Description                                                                                  |
+|--------------|------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------|
+| `file`       | [codersdk.ChatAttachmentFile](#codersdkchatattachmentfile) | false    |              |                                                                                              |
+| `message_id` | integer                                                    | false    |              |                                                                                              |
+| `part_index` | integer                                                    | false    |              | Part index is the file part's position in the message content the messages endpoint returns. |
+| `role`       | [codersdk.ChatAttachmentRole](#codersdkchatattachmentrole) | false    |              |                                                                                              |
+
+## codersdk.ChatAttachmentFile
+
+```json
+{
+  "data": "string",
+  "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+  "media_type": "string",
+  "name": "string",
+  "type": "file"
+}
+```
+
+### Properties
+
+| Name         | Type                                                               | Required | Restrictions | Description                                                               |
+|--------------|--------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------|
+| `data`       | string                                                             | false    |              | Data holds an inline file's bytes, which JSON carries as a base64 string. |
+| `file_id`    | string                                                             | false    |              | Omitted, not null, for an inline file.                                    |
+| `media_type` | string                                                             | false    |              |                                                                           |
+| `name`       | string                                                             | false    |              |                                                                           |
+| `type`       | [codersdk.ChatAttachmentFileType](#codersdkchatattachmentfiletype) | false    |              |                                                                           |
+
+## codersdk.ChatAttachmentFileType
+
+```json
+"file"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s) |
+|----------|
+| `file`   |
+
+## codersdk.ChatAttachmentRole
+
+```json
+"user"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)            |
+|---------------------|
+| `assistant`, `user` |
+
+## codersdk.ChatAttachmentsResponse
+
+```json
+{
+  "attachments": [
+    {
+      "file": {
+        "data": "string",
+        "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+        "media_type": "string",
+        "name": "string",
+        "type": "file"
+      },
+      "message_id": 0,
+      "part_index": 0,
+      "role": "user"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name          | Type                                                        | Required | Restrictions | Description |
+|---------------|-------------------------------------------------------------|----------|--------------|-------------|
+| `attachments` | array of [codersdk.ChatAttachment](#codersdkchatattachment) | false    |              |             |
 
 ## codersdk.ChatAutoArchiveDaysResponse
 
@@ -6168,6 +6271,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "name": "string"
   },
   "ssh_info": {
+    "client_session_id": "string",
     "connection_id": "d3547de1-d1f2-4344-b4c2-17169b7526f9",
     "disconnect_reason": "string",
     "disconnect_time": "2019-08-24T14:15:22Z",
@@ -6265,6 +6369,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "name": "string"
       },
       "ssh_info": {
+        "client_session_id": "string",
         "connection_id": "d3547de1-d1f2-4344-b4c2-17169b7526f9",
         "disconnect_reason": "string",
         "disconnect_time": "2019-08-24T14:15:22Z",
@@ -6324,6 +6429,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "client_session_id": "string",
   "connection_id": "d3547de1-d1f2-4344-b4c2-17169b7526f9",
   "disconnect_reason": "string",
   "disconnect_time": "2019-08-24T14:15:22Z",
@@ -6335,6 +6441,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name                | Type    | Required | Restrictions | Description                                                                                                                           |
 |---------------------|---------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| `client_session_id` | string  | false    |              | Client session ID is set by the client and isn't guaranteed to be unique.                                                             |
 | `connection_id`     | string  | false    |              |                                                                                                                                       |
 | `disconnect_reason` | string  | false    |              | Disconnect reason is omitted if a disconnect event with the same connection ID has not yet been seen.                                 |
 | `disconnect_time`   | string  | false    |              | Disconnect time is omitted if a disconnect event with the same connection ID has not yet been seen.                                   |
@@ -9923,9 +10030,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                       |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-advisor`, `chat-inline-mcp-servers`, `chat-projects`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                              |
+|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-advisor`, `chat-inline-mcp-servers`, `chat-project-sharing`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExperimentRule
 

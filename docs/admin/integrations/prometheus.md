@@ -3,25 +3,18 @@ title: Prometheus
 ---
 
 
-Coder exposes many metrics which can be consumed by a Prometheus server, and
-give insight into the current state of a live Coder deployment.
+Coder exposes many metrics which can be consumed by a Prometheus server, and give insight into the current state of a live Coder deployment.
 
-If you don't have a Prometheus server installed, you can follow the Prometheus
-[Getting started](https://prometheus.io/docs/prometheus/latest/getting_started/) guide.
+If you don't have a Prometheus server installed, you can follow the Prometheus [Getting started](https://prometheus.io/docs/prometheus/latest/getting_started/) guide.
 
 ## Enable Prometheus metrics
 
-Coder server exports metrics via the HTTP endpoint, which can be enabled using
-either the environment variable `CODER_PROMETHEUS_ENABLE` or the flag
-`--prometheus-enable`.
+Coder server exports metrics via the HTTP endpoint, which can be enabled using either the environment variable `CODER_PROMETHEUS_ENABLE` or the flag `--prometheus-enable`.
 
-The Prometheus endpoint address is `http://localhost:2112/` by default. You can
-use either the environment variable `CODER_PROMETHEUS_ADDRESS` or the flag
-`--prometheus-address <network-interface>:<port>` to select a different listen
-address.
+The Prometheus endpoint address is `http://localhost:2112/` by default.
+You can use either the environment variable `CODER_PROMETHEUS_ADDRESS` or the flag `--prometheus-address <network-interface>:<port>` to select a different listen address.
 
-If `coder server --prometheus-enable` is started locally, you can preview the
-metrics endpoint in your browser or with `curl`:
+If `coder server --prometheus-enable` is started locally, you can preview the metrics endpoint in your browser or with `curl`:
 
 ```console
 $ curl http://localhost:2112/
@@ -33,11 +26,10 @@ coderd_api_active_users_duration_hour 0
 
 ### Kubernetes deployment
 
-The Prometheus endpoint can be enabled in the [Helm chart's](../../../helm)
-`values.yml` by setting `CODER_PROMETHEUS_ENABLE=true`. Once enabled, the environment variable `CODER_PROMETHEUS_ADDRESS` will be set by default to
-`0.0.0.0:2112`. A Service Endpoint will not be exposed; if you need to
-expose the Prometheus port on a Service, (for example, to use a
-`ServiceMonitor`), create a separate headless service instead.
+The Prometheus endpoint can be enabled in the [Helm chart's](../../../helm) `values.yml` by setting `CODER_PROMETHEUS_ENABLE=true`.
+Once enabled, the environment variable `CODER_PROMETHEUS_ADDRESS` will be set by default to `0.0.0.0:2112`.
+A Service Endpoint will not be exposed.
+If you need to expose the Prometheus port on a Service, (for example, to use a `ServiceMonitor`), create a separate headless service instead.
 
 ```yaml
 apiVersion: v1
@@ -60,9 +52,8 @@ spec:
 
 ### Prometheus configuration
 
-To allow Prometheus to scrape the Coder metrics, you will need to create a
-`scrape_config` in your `prometheus.yml` file, or in the Prometheus Helm chart
-values. The following is an example `scrape_config`.
+To allow Prometheus to scrape the Coder metrics, you will need to create a `scrape_config` in your `prometheus.yml` file, or in the Prometheus Helm chart values.
+The following is an example `scrape_config`.
 
 ```yaml
 scrape_configs:
@@ -79,9 +70,8 @@ If you run a [standalone AI gateway](../../ai-coder/ai-gateway/standalone.md), e
 Its Helm chart uses the same `0.0.0.0:2112` default as the `coder` chart, but sets up no scrape discovery.
 Refer to [AI gateway monitoring](../../ai-coder/ai-gateway/monitoring.md#kubernetes-discovery) for more details.
 
-To use the Kubernetes Prometheus operator to scrape metrics, you will need to
-create a `ServiceMonitor` in your Coder deployment namespace. The following is
-an example `ServiceMonitor`.
+To use the Kubernetes Prometheus operator to scrape metrics, you will need to create a `ServiceMonitor` in your Coder deployment namespace.
+The following is an example `ServiceMonitor`.
 
 ```yaml
 apiVersion: monitoring.coreos.com/v1
@@ -104,10 +94,8 @@ spec:
 
 ## Available metrics
 
-You must first enable `coderd_agentstats_*` with the flag
-`--prometheus-collect-agent-stats`, or the environment variable
-`CODER_PROMETHEUS_COLLECT_AGENT_STATS` before they can be retrieved from the
-deployment. They will always be available from the agent.
+You must first enable `coderd_agentstats_*` with the flag `--prometheus-collect-agent-stats`, or the environment variable `CODER_PROMETHEUS_COLLECT_AGENT_STATS` before they can be retrieved from the deployment.
+They will always be available from the agent.
 
 The `coder_ai_gateway_cost_control_*` metrics are exported only by `coderd`.
 
@@ -267,7 +255,7 @@ The `coder_ai_gateway_cost_control_*` metrics are exported only by `coderd`.
 | `coderd_dbpurge_iteration_duration_seconds`                              | histogram | Duration of each dbpurge iteration in seconds.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | `success`                                                                                             |
 | `coderd_dbpurge_records_purged_total`                                    | counter   | Total number of records purged by type.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | `record_type`                                                                                         |
 | `coderd_experiments`                                                     | gauge     | Indicates whether each experiment is enabled (1) or not (0)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | `experiment`                                                                                          |
-| `coderd_insights_applications_usage_seconds`                             | gauge     | The application usage per template. Built-in apps are grouped by app family, such as Visual Studio Code, JetBrains, Web Terminal, or SSH, with an empty slug. A user-minute counts once per family.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | `application_name` `organization_name` `slug` `template_name`                                         |
+| `coderd_insights_applications_usage_seconds`                             | gauge     | The app usage per template. connection_method is workspace_app for template apps, or ssh, reconnecting_pty, or port_forwarding for built-in apps, which have one series per app name in slug. Overlapping apps each count their own minutes.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | `connection_method` `display_name` `organization_name` `slug` `template_name`                         |
 | `coderd_insights_parameters`                                             | gauge     | The parameter usage per template.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | `organization_name` `parameter_name` `parameter_type` `parameter_value` `template_name`               |
 | `coderd_insights_templates_active_users`                                 | gauge     | The number of active users of the template.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | `organization_name` `template_name`                                                                   |
 | `coderd_license_active_users`                                            | gauge     | The number of active users.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |                                                                                                       |
@@ -369,6 +357,55 @@ The `coder_ai_gateway_cost_control_*` metrics are exported only by `coderd`.
 | `promhttp_metric_handler_requests_total`                                 | counter   | Total number of scrapes by HTTP status code.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | `code`                                                                                                |
 
 <!-- End generated by 'make docs/admin/integrations/prometheus.md'. -->
+
+### Application usage by template
+
+`coderd_insights_applications_usage_seconds` reports app usage per template over the last five minutes.
+The `connection_method` label distinguishes template apps from built-in apps:
+
+| `connection_method`                          | Apps                                                               | `slug`            | `display_name`                                                                                                      |
+|----------------------------------------------|--------------------------------------------------------------------|-------------------|---------------------------------------------------------------------------------------------------------------------|
+| `workspace_app`                              | Apps defined in the template, opened through Coder                 | Slug or port      | The app's display name                                                                                              |
+| `ssh`, `reconnecting_pty`, `port_forwarding` | Built-in apps that connect through the agent, such as desktop IDEs | Reported app name | Registered name, such as `Cursor`; `Unknown` for `unknown`, `Other apps` for `overflow`, and otherwise the app name |
+
+A template app can share a slug with a built-in app, such as `vscode`, so identify an app by `connection_method` and `slug`.
+`display_name` can change between releases.
+
+Built-in apps have one series per app name, such as `vscode`, `cursor`, or `goland`, and only for apps used in the window.
+Each app counts its own minutes, so a user with VS Code and Cursor open in the same minute counts in both series.
+`slug="unknown"` holds sessions reported without an app name, or with the reserved name `overflow`.
+
+Per template, every built-in app Coder recognizes gets a series, and so do the 64 busiest other apps.
+The same app name under two connection methods counts as two apps.
+The rest add up under `slug="overflow"` of their connection method, which can count a minute more than once.
+The template insights page in the dashboard uses the same rule, but applies the limit across all selected templates instead of per template.
+
+#### Upgrade from the family series
+
+This metric changed in three ways:
+
+* `application_name` is now `display_name`.
+* Every series has the new `connection_method` label.
+* Built-in apps report one series per app instead of one per app family. The family series had `slug=""` and were reported even at zero.
+
+Selectors with a value for `application_name`, or with `slug=""`, return nothing.
+These queries still return data, with different values:
+
+* A template app query by `slug` also matches a built-in app with the same name. Add `connection_method="workspace_app"`.
+* A total without a `slug` selector now includes every built-in app, including `port_forwarding`, `sftp`, and `unknown`.
+
+Update Grafana dashboards, alerting rules, and recording rules:
+
+| Old series                                         | Closest new series                                                            |
+|----------------------------------------------------|-------------------------------------------------------------------------------|
+| `{slug="", application_name="Visual Studio Code"}` | `{connection_method="ssh", slug="vscode"}`, plus its forks such as `cursor`   |
+| `{slug="", application_name="JetBrains"}`          | `{connection_method="ssh", slug="jetbrains"}`, plus its IDEs such as `goland` |
+| `{slug="", application_name="Web Terminal"}`       | `{connection_method="reconnecting_pty", slug="reconnecting_pty"}`             |
+| `{slug="", application_name="SSH"}`                | `{connection_method="ssh", slug="ssh"}`, plus `zed`                           |
+| `{application_name="<app>"}` for a template app    | `{connection_method="workspace_app", display_name="<app>"}`                   |
+
+To total a family, sum its apps, for example `sum by (template_name) (coderd_insights_applications_usage_seconds{connection_method="ssh", slug=~"vscode|cursor|windsurf"})`.
+The sum counts a minute twice if two of the apps were open at once.
 
 ### Note on Prometheus native histogram support
 

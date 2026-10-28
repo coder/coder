@@ -48,6 +48,7 @@ function useMessageScrollerCommands({
     viewportRef,
     // LOCAL CHANGE
     followSuppressedRef,
+    revealedItemRef,
   } = refs
 
   const setAutoScrolling = React.useCallback(
@@ -195,6 +196,8 @@ function useMessageScrollerCommands({
       if (!content || !viewport || !content.contains(element)) {
         return false
       }
+
+      revealedItemRef.current = null // LOCAL CHANGE
 
       const scrollTop = getElementScrollTop({
         align,

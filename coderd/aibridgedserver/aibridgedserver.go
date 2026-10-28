@@ -264,6 +264,14 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		s.logger.Warn(ctx, "failed to parse interception attribution", slog.F("metadata", in), slog.Error(err))
 	}
 
+	organizationID, organizationSource, err := interceptionOrganization(in)
+	if err != nil {
+		s.logger.Warn(ctx, "invalid organization attribution in interception request, storing none",
+			slog.F("organization_id", in.GetOrganizationId()),
+			slog.F("organization_source", in.GetOrganizationSource()),
+			slog.Error(err))
+	}
+
 	if s.structuredLogging {
 		fields := []slog.Field{
 			slog.F("record_type", recorder.RecordTypeInterceptionStart),
@@ -282,6 +290,12 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		}
 		if workspaceID.Valid {
 			fields = append(fields, slog.F("workspace_id", workspaceID.UUID))
+		}
+		if organizationID.Valid {
+			fields = append(fields,
+				slog.F("organization_id", organizationID.UUID),
+				slog.F("organization_source", organizationSource.AIBridgeInterceptionOrganizationSource),
+			)
 		}
 		s.logger.Info(ctx, recorder.InterceptionLogMarker, fields...)
 	}
@@ -304,6 +318,8 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		AgentFirewallSessionID:      agentFirewallSessionID,
 		AgentFirewallSequenceNumber: parseOptionalInt32(in.AgentFirewallSequenceNumber),
 		WorkspaceID:                 workspaceID,
+		OrganizationID:              organizationID,
+		OrganizationSource:          organizationSource,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("start interception: %w", err)
@@ -957,6 +973,30 @@ func interceptionAttribution(in *proto.RecordInterceptionRequest) (workspaceID u
 		return uuid.NullUUID{}, xerrors.Errorf("invalid workspace ID: %w", err)
 	}
 	return uuid.NullUUID{UUID: id, Valid: true}, nil
+}
+
+// interceptionOrganization parses the optional organization attribution. It
+// returns both values valid or neither, so an invalid pair never fails the record.
+// It checks only the format. The caller must send an existing organization: a
+// well-formed ID for an unknown organization passes here and fails the foreign
+// key on insert.
+func interceptionOrganization(in *proto.RecordInterceptionRequest) (uuid.NullUUID, database.NullAIBridgeInterceptionOrganizationSource, error) {
+	rawID, rawSource := in.GetOrganizationId(), in.GetOrganizationSource()
+	if rawID == "" && rawSource == "" {
+		return uuid.NullUUID{}, database.NullAIBridgeInterceptionOrganizationSource{}, nil
+	}
+
+	id, err := uuid.Parse(rawID)
+	if err != nil {
+		return uuid.NullUUID{}, database.NullAIBridgeInterceptionOrganizationSource{}, xerrors.Errorf("invalid organization ID: %w", err)
+	}
+	source := database.AIBridgeInterceptionOrganizationSource(rawSource)
+	if !source.Valid() {
+		return uuid.NullUUID{}, database.NullAIBridgeInterceptionOrganizationSource{}, xerrors.Errorf("unknown organization source %q", rawSource)
+	}
+	return uuid.NullUUID{UUID: id, Valid: true},
+		database.NullAIBridgeInterceptionOrganizationSource{AIBridgeInterceptionOrganizationSource: source, Valid: true},
+		nil
 }
 
 // IsBudgetExceeded reports whether the user's AI spend has reached their

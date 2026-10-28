@@ -1376,6 +1376,9 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				}
 
 				dur := time.Since(start).Seconds()
+				// Probe ACP harnesses before announcing readiness so the first
+				// context snapshot already includes their capabilities or errors.
+				a.acpManager.RunDiscovery()
 				if err != nil {
 					a.logger.Warn(ctx, "startup script(s) failed", slog.Error(err))
 					if errors.Is(err, agentscripts.ErrTimeout) {
@@ -1399,7 +1402,6 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				// re-trigger a push once up, so we don't block readiness
 				// on them.
 				a.contextManager.SetReady()
-				a.acpManager.RunDiscovery()
 
 				// Connect to workspace MCP servers after the
 				// lifecycle transition to avoid delaying Ready.
