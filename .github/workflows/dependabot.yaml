@@ -45,9 +45,7 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # fetch-metadata reports the ecosystem from the branch name
-      # (dependabot/github_actions/...), so it is `github_actions`, not the
-      # `github-actions` spelling used in dependabot.yaml.
+      # fetch-metadata reports `github_actions`, not `github-actions`.
       - name: Approve the PR
         if: steps.metadata.outputs.package-ecosystem != 'github_actions'
         run: |

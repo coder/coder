@@ -6,10 +6,7 @@ inputs:
     required: false
     default: "site"
   use-cache:
-    description: >-
-      Whether to restore and save the pnpm store cache. Set to "false" in jobs
-      that hold signing keys or publish artifacts: on Depot runners the cache
-      is shared across branches, so any branch job can plant an entry.
+    description: Whether to restore and save the pnpm store cache.
     required: false
     default: "true"
 runs:
@@ -17,7 +14,6 @@ runs:
   steps:
     - name: Compute pnpm cache key
       id: pnpm-cache
-      if: ${{ inputs.use-cache == 'true' }}
       shell: bash
       run: |
         set -euo pipefail
