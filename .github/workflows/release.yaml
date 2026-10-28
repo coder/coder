@@ -1,9 +1,5 @@
 # GitHub release workflow.
 name: Release
-# requested_by is only trusted when the release App dispatched the run (see
-# check-perms). A bot actor that is not the release App fails check-perms, so
-# the name never shows on a run that goes on to publish.
-run-name: ${{ endsWith(github.actor, '[bot]') && inputs.requested_by != '' && format('Release {0} requested by @{1}', github.ref_name, inputs.requested_by) || 'Release' }}
 on:
   workflow_dispatch:
     inputs:
