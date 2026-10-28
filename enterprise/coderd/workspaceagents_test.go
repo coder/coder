@@ -477,14 +477,21 @@ func TestWorkspaceExternalAgentCredentials(t *testing.T) {
 		useShareeClient, useSharee := coderdtest.CreateAnotherUser(t, client, orgID)
 		adminShareeClient, adminSharee := coderdtest.CreateAnotherUser(t, client, orgID)
 
+		scopedMemberClient := func(scopes ...codersdk.APIKeyScope) *codersdk.Client {
+			token, err := memberClient.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+				Scopes: scopes,
+			})
+			require.NoError(t, err)
+			scopedClient := codersdk.New(client.URL)
+			scopedClient.SetSessionToken(token.Key)
+			return scopedClient
+		}
 		// Reading a workspace also reads its template, so the read-only
 		// token needs template:read alongside workspace:read.
-		token, err := memberClient.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
-			Scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeWorkspaceRead, codersdk.APIKeyScopeTemplateRead},
-		})
-		require.NoError(t, err)
-		readOnlyClient := codersdk.New(client.URL)
-		readOnlyClient.SetSessionToken(token.Key)
+		readOnlyClient := scopedMemberClient(codersdk.APIKeyScopeWorkspaceRead, codersdk.APIKeyScopeTemplateRead)
+		accessTokenClient := scopedMemberClient(codersdk.APIKeyScopeCoderWorkspacesAccess)
+		operateTokenClient := scopedMemberClient(codersdk.APIKeyScopeCoderWorkspacesOperate)
+		createTokenClient := scopedMemberClient(codersdk.APIKeyScopeCoderWorkspacesCreate)
 
 		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: orgID,
@@ -525,6 +532,9 @@ func TestWorkspaceExternalAgentCredentials(t *testing.T) {
 			{name: "OrgTemplateAdmin", client: orgTemplateAdminClient, allowed: false},
 			{name: "OrgAdmin", client: orgAdminClient, allowed: false},
 			{name: "ReadOnlyToken", client: readOnlyClient, allowed: false},
+			{name: "WorkspacesAccessToken", client: accessTokenClient, allowed: true},
+			{name: "WorkspacesOperateToken", client: operateTokenClient, allowed: false},
+			{name: "WorkspacesCreateToken", client: createTokenClient, allowed: false},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
