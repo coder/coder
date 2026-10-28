@@ -234,7 +234,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 									<ChatProjectIcon
 										project={project}
 										expanded={expanded}
-										className="size-4"
+										className="size-4 stroke-[1.75]"
 									/>
 									<span
 										className={cn(
