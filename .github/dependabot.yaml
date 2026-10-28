@@ -54,7 +54,7 @@ updates:
     labels: []
     ignore:
       # We need to coordinate terraform updates with the version hardcoded in
-      # our Go code.
+      # our Go code. .github/workflows/terraform-bump.yaml handles them.
       - dependency-name: "terraform"
 
   - package-ecosystem: "npm"
