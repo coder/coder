@@ -360,7 +360,8 @@ const ChatBoardPage: React.FC = () => {
 			if (manager) setDropTarget(dragTargetOf(manager));
 		};
 		const handleScroll = () => {
-			frame ??= requestAnimationFrame(update);
+			// Not ??=: the React Compiler cannot lower it and skips the file.
+			if (frame === undefined) frame = requestAnimationFrame(update);
 		};
 		const options = { capture: true, passive: true };
 		document.addEventListener("scroll", handleScroll, options);

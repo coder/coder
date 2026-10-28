@@ -19,7 +19,7 @@ vi.mock("#/components/Toaster/toast", () => ({
 // remounted one.
 const chatPageMounts = vi.hoisted(() => ({ mount: vi.fn(), unmount: vi.fn() }));
 
-vi.mock("../../AgentChatPage", async () => {
+vi.mock("../../AgentChatPage/AgentChatPage", async () => {
 	const { useEffect } = await import("react");
 	const MockChatPage = ({ chatId }: { chatId: string }) => {
 		useEffect(() => {
