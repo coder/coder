@@ -10,7 +10,10 @@ import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
 import type { ChatMessageInputRef } from "./AgentChatInput";
 import { createChatStore } from "./ChatConversation/chatStore";
-import { getAsyncAnswerPrefix } from "./ChatElements/tools/asyncAnswer";
+import {
+	asyncAnswerLead,
+	getAsyncAnswerPrefix,
+} from "./ChatElements/tools/asyncAnswer";
 import { ChatPageInput } from "./ChatPageContent";
 
 const renderChatPageInput = (
@@ -152,6 +155,8 @@ describe("ChatPageInput", () => {
 		const user = userEvent.setup();
 		vi.spyOn(API.experimental, "getChatPrompts").mockResolvedValue({
 			prompts: [
+				// A chip after the call line drops its line break from the history.
+				{ id: 3, text: `${asyncAnswerLead}call-2:on the rollout plan.` },
 				{ id: 2, text: `${getAsyncAnswerPrefix("call-1")}Frontend` },
 				{ id: 1, text: "Build the settings page" },
 			],
