@@ -108,7 +108,7 @@ export const Mobile: Story = {
 	},
 };
 
-// Between the @lg and @2xl container widths.
+// Between the @lg and @3xl container widths: two card columns.
 export const NarrowContainer: Story = {
 	decorators: [
 		(Story) => (

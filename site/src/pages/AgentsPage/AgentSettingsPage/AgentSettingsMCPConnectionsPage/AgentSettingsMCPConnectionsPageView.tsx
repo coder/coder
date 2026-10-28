@@ -22,6 +22,7 @@ import {
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
 import { MCPServerIcon } from "#/modules/mcpServers/MCPServerIcon";
+import { needsSignIn } from "../../components/mcpMenuServers";
 import { RetryButton } from "../../components/RetryButton";
 import { SectionHeader } from "../../components/SectionHeader";
 
@@ -121,8 +122,8 @@ const AvailableConnectorCard: React.FC<AvailableConnectorCardProps> = ({
 	const connectLabel = isConnecting ? "Connecting" : "Connect";
 
 	return (
-		<li className="flex min-w-0 flex-col gap-3 rounded-lg border border-solid border-border p-4">
-			<div className="flex min-w-0 items-center gap-3">
+		<li className="flex flex-col gap-3 rounded-lg border border-solid border-border p-4">
+			<div className="flex items-center gap-3">
 				<MCPServerIcon iconUrl={server.icon_url} className="size-8" />
 				<span
 					className="truncate font-medium text-content-primary"
@@ -132,7 +133,7 @@ const AvailableConnectorCard: React.FC<AvailableConnectorCardProps> = ({
 				</span>
 			</div>
 			<p
-				className="m-0 line-clamp-2 text-sm text-content-secondary"
+				className="m-0 line-clamp-2 text-sm text-content-secondary break-words"
 				title={server.description || undefined}
 			>
 				{server.description || (
@@ -154,10 +155,145 @@ const AvailableConnectorCard: React.FC<AvailableConnectorCardProps> = ({
 	);
 };
 
+type AddedConnectorsSectionProps = {
+	organizationName: string;
+	servers: readonly TypesGen.MCPServerConfig[];
+	enabledCount: number;
+	availableCount: number;
+	isLoading: boolean;
+	emptyMessage: string;
+	onShowAvailable: () => void;
+	onDisconnect: (server: TypesGen.MCPServerConfig) => void;
+};
+
+const AddedConnectorsSection: React.FC<AddedConnectorsSectionProps> = ({
+	organizationName,
+	servers,
+	enabledCount,
+	availableCount,
+	isLoading,
+	emptyMessage,
+	onShowAvailable,
+	onDisconnect,
+}) => {
+	const showCounts = !isLoading && enabledCount > 0;
+
+	let body: React.ReactNode = <TableEmpty message={emptyMessage} />;
+	if (isLoading) {
+		body = (
+			<TableLoaderSkeleton>
+				<TableRowSkeleton aria-label="Loading MCP servers">
+					<TableCell className="w-full max-w-0 @lg:w-auto @lg:max-w-48">
+						<Skeleton variant="text" className="w-32" />
+					</TableCell>
+					<TableCell className="hidden w-full max-w-0 @lg:table-cell">
+						<Skeleton variant="text" />
+					</TableCell>
+					<TableCell>
+						<Skeleton className="ml-auto h-8 w-24" />
+					</TableCell>
+				</TableRowSkeleton>
+			</TableLoaderSkeleton>
+		);
+	} else if (servers.length > 0) {
+		body = servers.map((server) => (
+			<AddedConnectorRow
+				key={server.id}
+				server={server}
+				onDisconnect={onDisconnect}
+			/>
+		));
+	}
+
+	return (
+		<section aria-label="Added connectors" className="flex flex-col gap-4">
+			<SectionHeader
+				level="section"
+				label="Added connectors"
+				badge={
+					showCounts && (
+						<Badge size="sm">
+							{servers.length} of {enabledCount}
+						</Badge>
+					)
+				}
+				description="Servers you've connected, plus ones that need no sign-in. They appear in the chat's + menu."
+				action={
+					showCounts &&
+					availableCount > 0 && (
+						<Button variant="outline" size="sm" onClick={onShowAvailable}>
+							View {availableCount} available
+							<ArrowDownIcon />
+						</Button>
+					)
+				}
+			/>
+			<Table
+				aria-label={`Added connectors in ${organizationName}`}
+				// Beside the settings sidebar the table is far narrower than the
+				// viewport, so the columns follow the wrapper, not the screen.
+				wrapperClassName="@container"
+			>
+				<TableHeader>
+					<TableRow>
+						<TableHead className="whitespace-nowrap">Name</TableHead>
+						<TableHead className="hidden w-full @lg:table-cell">
+							Description
+						</TableHead>
+						<TableHead>
+							<span className="sr-only">Actions</span>
+						</TableHead>
+					</TableRow>
+				</TableHeader>
+				<TableBody size="lg">{body}</TableBody>
+			</Table>
+		</section>
+	);
+};
+
+type AvailableConnectorsSectionProps = {
+	ref: React.Ref<HTMLElement>;
+	servers: readonly TypesGen.MCPServerConfig[];
+	connectingServerId: string | null;
+	onConnect: (server: TypesGen.MCPServerConfig) => void;
+};
+
+const AvailableConnectorsSection: React.FC<AvailableConnectorsSectionProps> = ({
+	ref,
+	servers,
+	connectingServerId,
+	onConnect,
+}) => {
+	return (
+		<section
+			ref={ref}
+			aria-label="Available connectors"
+			tabIndex={-1}
+			className="flex scroll-mt-8 flex-col gap-4 outline-hidden"
+		>
+			<SectionHeader
+				level="section"
+				label="Available connectors"
+				badge={<Badge size="sm">{servers.length}</Badge>}
+				description="Servers your organization offers. Connect to one to add it to chat."
+			/>
+			<ul className="m-0 grid list-none grid-cols-1 gap-3 p-0 @lg:grid-cols-2 @3xl:grid-cols-3">
+				{servers.map((server) => (
+					<AvailableConnectorCard
+						key={server.id}
+						server={server}
+						connectingServerId={connectingServerId}
+						onConnect={onConnect}
+					/>
+				))}
+			</ul>
+		</section>
+	);
+};
+
 /**
- * The table lists the enabled servers a chat can use now: connected OAuth2
- * servers first, then the ones that need no sign-in. The remaining OAuth2
- * servers are cards below it, each with Connect.
+ * The table lists the enabled servers a chat can use now; the OAuth2 servers
+ * the user has not signed in to are cards below it, each with Connect.
  * `onDisconnect` should set `disconnectTarget`, which opens the confirmation,
  * and while `connectingServerId` is set, every Connect button is disabled.
  */
@@ -187,17 +323,14 @@ export const AgentSettingsMCPConnectionsPageView: React.FC<
 		: "your organization";
 
 	const enabledServers = servers?.filter((server) => server.enabled) ?? [];
+	const availableServers = enabledServers.filter(needsSignIn);
 	const addedServers = [
 		...enabledServers.filter(
 			(server) => server.auth_type === "oauth2" && server.auth_connected,
 		),
 		...enabledServers.filter((server) => server.auth_type !== "oauth2"),
 	];
-	const availableServers = enabledServers.filter(
-		(server) => server.auth_type === "oauth2" && !server.auth_connected,
-	);
 	const failedFirstLoad = Boolean(error) && servers === undefined;
-	const showCounts = !isLoading && enabledServers.length > 0;
 
 	let emptyMessage = "Connect a server below to add it to chat";
 	if (!organization) {
@@ -208,11 +341,8 @@ export const AgentSettingsMCPConnectionsPageView: React.FC<
 
 	const showAvailableServers = () => {
 		const section = availableSectionRef.current;
-		if (!section) {
-			return;
-		}
-		section.scrollIntoView({ behavior: "smooth", block: "start" });
-		section.focus({ preventScroll: true });
+		section?.scrollIntoView({ behavior: "smooth", block: "start" });
+		section?.focus({ preventScroll: true });
 	};
 
 	return (
@@ -246,103 +376,24 @@ export const AgentSettingsMCPConnectionsPageView: React.FC<
 				/>
 			)}
 			{!failedFirstLoad && (
-				<section aria-label="Added connectors" className="flex flex-col gap-4">
-					<SectionHeader
-						level="section"
-						label="Added connectors"
-						badge={
-							showCounts && (
-								<Badge size="sm">
-									{addedServers.length} of {enabledServers.length}
-								</Badge>
-							)
-						}
-						description="Servers you've connected, plus ones that need no sign-in. They appear in the chat's + menu."
-						action={
-							showCounts &&
-							availableServers.length > 0 && (
-								<Button
-									variant="outline"
-									size="sm"
-									onClick={showAvailableServers}
-								>
-									View {availableServers.length} available
-									<ArrowDownIcon />
-								</Button>
-							)
-						}
-					/>
-					<Table
-						aria-label={`Added connectors in ${organizationName}`}
-						// Beside the settings sidebar the table is far narrower than the
-						// viewport, so the columns follow the wrapper, not the screen.
-						wrapperClassName="@container"
-					>
-						<TableHeader>
-							<TableRow>
-								<TableHead className="whitespace-nowrap">Name</TableHead>
-								<TableHead className="hidden w-full @lg:table-cell">
-									Description
-								</TableHead>
-								<TableHead>
-									<span className="sr-only">Actions</span>
-								</TableHead>
-							</TableRow>
-						</TableHeader>
-						<TableBody size="lg">
-							{isLoading ? (
-								<TableLoaderSkeleton>
-									<TableRowSkeleton aria-label="Loading MCP servers">
-										<TableCell className="w-full max-w-0 @lg:w-auto @lg:max-w-48">
-											<Skeleton variant="text" className="w-32" />
-										</TableCell>
-										<TableCell className="hidden w-full max-w-0 @lg:table-cell">
-											<Skeleton variant="text" />
-										</TableCell>
-										<TableCell>
-											<Skeleton className="ml-auto h-8 w-24" />
-										</TableCell>
-									</TableRowSkeleton>
-								</TableLoaderSkeleton>
-							) : addedServers.length === 0 ? (
-								<TableEmpty message={emptyMessage} />
-							) : (
-								addedServers.map((server) => (
-									<AddedConnectorRow
-										key={server.id}
-										server={server}
-										onDisconnect={onDisconnect}
-									/>
-								))
-							)}
-						</TableBody>
-					</Table>
-				</section>
+				<AddedConnectorsSection
+					organizationName={organizationName}
+					servers={addedServers}
+					enabledCount={enabledServers.length}
+					availableCount={availableServers.length}
+					isLoading={isLoading}
+					emptyMessage={emptyMessage}
+					onShowAvailable={showAvailableServers}
+					onDisconnect={onDisconnect}
+				/>
 			)}
 			{!isLoading && availableServers.length > 0 && (
-				<section
+				<AvailableConnectorsSection
 					ref={availableSectionRef}
-					aria-label="Available connectors"
-					tabIndex={-1}
-					className="flex scroll-mt-8 flex-col gap-4 outline-none"
-				>
-					<SectionHeader
-						level="section"
-						label="Available connectors"
-						badge={<Badge size="sm">{availableServers.length}</Badge>}
-						description="Servers your organization offers. Connect to one to add it to chat."
-					/>
-					<ul className="m-0 grid list-none grid-cols-1 gap-3 p-0 @lg:grid-cols-2 @3xl:grid-cols-3">
-						{availableServers.map((server) => (
-							<AvailableConnectorCard
-								key={server.id}
-								server={server}
-								connectingServerId={connectingServerId}
-								onConnect={onConnect}
-							/>
-						))}
-					</ul>
-				</section>
+					servers={availableServers}
+					connectingServerId={connectingServerId}
+					onConnect={onConnect}
+				/>
 			)}
 			<ConfirmDialog
 				open={disconnectTarget !== null}

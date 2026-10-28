@@ -1,6 +1,7 @@
 import type * as TypesGen from "#/api/typesGenerated";
 
-const needsSignIn = (server: TypesGen.MCPServerConfig) =>
+/** Reports whether the user must sign in before a chat can use the server. */
+export const needsSignIn = (server: TypesGen.MCPServerConfig) =>
 	server.auth_type === "oauth2" && !server.auth_connected;
 
 /**

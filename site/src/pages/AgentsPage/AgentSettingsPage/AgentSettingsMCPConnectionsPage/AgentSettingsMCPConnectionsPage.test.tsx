@@ -111,11 +111,12 @@ describe("AgentSettingsMCPConnectionsPage", () => {
 			.slice(1)
 			.map((row) => within(row).getAllByRole("cell")[0]?.textContent);
 		expect(names).toEqual(["Notion", "Registry"]);
-		expect(
-			within(
-				screen.getByRole("region", { name: "Available connectors" }),
-			).getByRole("button", { name: "Connect GitHub" }),
-		).toBeInTheDocument();
+		const cards = within(
+			screen.getByRole("region", { name: "Available connectors" }),
+		).getAllByRole("listitem");
+		expect(cards.map((card) => card.textContent)).toEqual([
+			"GitHubNo descriptionConnect",
+		]);
 	});
 
 	it("jumps to the available connectors", async () => {
