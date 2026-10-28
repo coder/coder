@@ -8,11 +8,6 @@
 			"icon_path": "./images/icons/home.svg",
 			"children": [
 				{
-					"title": "Screenshots",
-					"description": "See screenshots of the Coder platform, including browser-based workspace access and the admin dashboard.",
-					"path": "./about/screenshots.md"
-				},
-				{
 					"title": "Support",
 					"description": "Get help with your Coder deployment through GitHub issues, our Discord community, and premium support.",
 					"path": "./support/index.md",
