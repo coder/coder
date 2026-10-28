@@ -15,7 +15,7 @@ import { DraftChat } from "./DraftChat";
 import { type WindowTab, WindowTabs } from "./WindowTabs";
 
 // Lazy so the board loads without the chat page.
-const AgentChatPage = lazy(() => import("../../AgentChatPage"));
+const AgentChatPage = lazy(() => import("../../AgentChatPage/AgentChatPage"));
 
 type BoardWindowsProps = {
 	readonly windows: readonly ChatWindow[];
