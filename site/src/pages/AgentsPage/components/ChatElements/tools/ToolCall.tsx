@@ -117,6 +117,8 @@ type ToolCallRootProps = Omit<React.ComponentProps<"div">, "children"> & {
 	expanded?: boolean;
 	onExpandedChange?: (expanded: boolean) => void;
 	ariaLabel?: ToolCallAriaLabel;
+	/** At the transcript's end, expanding also resumes following new output. */
+	revealEndOnExpand?: boolean;
 };
 
 /**
@@ -137,6 +139,7 @@ const Root: React.FC<ToolCallRootProps> = ({
 	expanded: expandedProp,
 	onExpandedChange,
 	ariaLabel,
+	revealEndOnExpand = false,
 	className,
 	...divProps
 }) => {
@@ -156,7 +159,9 @@ const Root: React.FC<ToolCallRootProps> = ({
 	const failed = status !== "running" && (isError || status === "error");
 	const userLayoutIntent = useMessageScrollerUserLayoutIntent();
 	const onToggle = (event: React.MouseEvent<HTMLElement>) => {
-		userLayoutIntent(event.currentTarget);
+		userLayoutIntent(event.currentTarget, {
+			revealEnd: revealEndOnExpand && !expanded,
+		});
 		const nextView: ToolCallView = expanded ? "collapsed" : "expanded";
 		if (controlledView === undefined) {
 			setUncontrolledView(nextView);

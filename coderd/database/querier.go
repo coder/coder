@@ -1537,10 +1537,10 @@ type sqlcQuerier interface {
 	// Agent context rows are hard-deleted for the same reason as in
 	// SoftDeletePriorWorkspaceAgents.
 	SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error
-	// MCP resources bypass context drift and are live-synced on each push.
+	// MCP and ACP resources bypass context drift and are live-synced on each push.
 	// Changed chats are locked in ID order so concurrent clear-then-copy re-pins
 	// cannot interleave with the replacement.
-	SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error)
+	SyncAgentChatsContextLiveResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error)
 	// Non blocking lock. Returns true if the lock was acquired, false otherwise.
 	//
 	// This must be called from within a transaction. The lock will be automatically

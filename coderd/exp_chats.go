@@ -460,7 +460,7 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Param after_id query string false "After ID" format(uuid)
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
-// @Param project_id query string false "Only chats in this project. Requires the chat-projects experiment." format(uuid)
+// @Param project_id query string false "Only chats in this project." format(uuid)
 // @Success 200 {array} codersdk.Chat
 // @Router /api/v2/chats [get]
 func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
@@ -527,12 +527,6 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 
 	projectID := uuid.NullUUID{}
 	if rawProjectID := r.URL.Query().Get("project_id"); rawProjectID != "" {
-		// Ignoring the filter would return every chat as if it were the
-		// project's contents, so reject it like create and update do.
-		if !api.Experiments.Enabled(codersdk.ExperimentChatProjects) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "chat projects experiment is not enabled"})
-			return
-		}
 		parsedProjectID, err := uuid.Parse(rawProjectID)
 		if err != nil || parsedProjectID == uuid.Nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid project_id query parameter."})
@@ -747,14 +741,6 @@ func validateChatPlanMode(mode codersdk.ChatPlanMode) bool {
 	}
 }
 
-func lookupEnabledChatModelConfigByID(
-	ctx context.Context,
-	db database.Store,
-	id uuid.UUID,
-) (database.ChatModelConfig, error) {
-	return db.GetEnabledChatModelConfigByID(ctx, id)
-}
-
 func parseChatModelCallConfig(options json.RawMessage) (*codersdk.ChatModelCallConfig, error) {
 	callConfig := &codersdk.ChatModelCallConfig{}
 	if len(options) == 0 {
@@ -823,7 +809,7 @@ func validateChatModelOverride(
 			Message: "Invalid model_config_id.",
 		}
 	}
-	modelConfig, err := lookupEnabledChatModelConfigByID(ctx, db, *id)
+	modelConfig, err := db.GetEnabledChatModelConfigByID(ctx, *id)
 	if err == nil && modelConfig.OrganizationID != organizationID {
 		err = sql.ErrNoRows
 	}
@@ -1448,9 +1434,6 @@ func (api *API) createChat(
 		}
 	}
 
-	if req.ProjectID != nil && !api.Experiments.Enabled(codersdk.ExperimentChatProjects) {
-		return database.Chat{}, codersdk.Chat{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{Message: "chat projects experiment is not enabled"})
-	}
 	projectID := uuid.NullUUID{}
 	if req.ProjectID != nil {
 		var status int
@@ -2073,8 +2056,8 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatMessagesResponse{
-		Messages:       convertChatMessages(messages),
-		QueuedMessages: convertChatQueuedMessages(queuedMessages),
+		Messages:       slice.List(messages, db2sdk.ChatMessage),
+		QueuedMessages: db2sdk.ChatQueuedMessages(queuedMessages),
 		HasMore:        hasMore,
 		TurnStartID:    turnStartID,
 	})
@@ -2253,7 +2236,7 @@ func (api *API) getChatAttachments(rw http.ResponseWriter, r *http.Request) {
 	for _, m := range messages {
 		// Use the messages endpoint's conversion so part_index and the
 		// part match what GET /messages returns for the same message.
-		msg := convertChatMessage(m)
+		msg := db2sdk.ChatMessage(m)
 		for i := len(msg.Content) - 1; i >= 0; i-- {
 			part := msg.Content[i]
 			if part.Type != codersdk.ChatMessagePartTypeFile {
@@ -2893,8 +2876,6 @@ func (api *API) updateChat(
 	if req.ProjectID != nil {
 		var refusal string
 		switch {
-		case !api.Experiments.Enabled(codersdk.ExperimentChatProjects):
-			refusal = "chat projects experiment is not enabled"
 		case chat.ParentChatID.Valid:
 			refusal = "Cannot move a child chat."
 		case archived:
@@ -3354,11 +3335,10 @@ func (api *API) sendChatMessage(
 	response := codersdk.CreateChatMessageResponse{Queued: sendResult.Queued}
 	if sendResult.Queued {
 		if sendResult.QueuedMessage != nil {
-			response.QueuedMessage = convertChatQueuedMessagePtr(*sendResult.QueuedMessage)
+			response.QueuedMessage = new(db2sdk.ChatQueuedMessage(*sendResult.QueuedMessage))
 		}
 	} else {
-		message := convertChatMessage(sendResult.Message)
-		response.Message = &message
+		response.Message = new(db2sdk.ChatMessage(sendResult.Message))
 	}
 	// Return the full user-visible inserted batch. A queued send on an errored
 	// chat can promote the previous queue head, which clients must cache.
@@ -3366,7 +3346,7 @@ func (api *API) sendChatMessage(
 		if inserted.Visibility == database.ChatMessageVisibilityModel {
 			continue
 		}
-		response.Messages = append(response.Messages, convertChatMessage(inserted))
+		response.Messages = append(response.Messages, db2sdk.ChatMessage(inserted))
 	}
 	return response, nil
 }
@@ -3567,7 +3547,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := codersdk.EditChatMessageResponse{Message: convertChatMessage(editResult.Message)}
+	response := codersdk.EditChatMessageResponse{Message: db2sdk.ChatMessage(editResult.Message)}
 	// Synthetic cancellations precede the replacement with lower IDs;
 	// clients that seed their transcript cache from this response need
 	// all user-visible inserted rows, or a stream reconnect with
@@ -3576,7 +3556,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		if inserted.Visibility == database.ChatMessageVisibilityModel {
 			continue
 		}
-		response.Messages = append(response.Messages, convertChatMessage(inserted))
+		response.Messages = append(response.Messages, db2sdk.ChatMessage(inserted))
 	}
 	response.DeletedMessageIDs = editResult.DeletedMessageIDs
 	httpapi.Write(ctx, rw, http.StatusOK, response)
@@ -6342,8 +6322,6 @@ func (api *API) getChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	resp.MaxUsesPerRun = max(resp.MaxUsesPerRun, 0)
-	resp.MaxOutputTokens = max(resp.MaxOutputTokens, 0)
 	resp.Enabled = api.Experiments.Enabled(codersdk.ExperimentChatAdvisor)
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
@@ -6359,12 +6337,6 @@ func (api *API) putChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 
 	var req codersdk.UpdateAdvisorConfigRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
-		return
-	}
-	if req.DeprecatedModelConfigID != nil || req.DeprecatedReasoningEffort != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Advisor model settings moved to PUT /api/v2/organizations/{organization}/chats/model-overrides/advisor.",
-		})
 		return
 	}
 	if req.MaxUsesPerRun < 0 {
@@ -6455,19 +6427,19 @@ func (api *API) getChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 func (api *API) putChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	putChatOperationalSetting(api, rw, r, chatOperationalSettingWorkspaceTTL, "Internal error updating workspace TTL setting.",
 		func(ctx context.Context, req codersdk.UpdateChatWorkspaceTTLRequest) (string, func(database.Store) error, *codersdk.Response) {
-			// Reject negative input before conversion can wrap it into
-			// a valid TTL.
+			// Reject out-of-range input before conversion can wrap it
+			// into a valid TTL.
 			if req.WorkspaceTTLMillis < 0 {
 				return "", nil, &codersdk.Response{Message: "Workspace TTL must be non-negative."}
+			}
+			if req.WorkspaceTTLMillis > ttlMaximum.Milliseconds() {
+				return "", nil, &codersdk.Response{Message: "Workspace TTL must not exceed 30 days."}
 			}
 			d := time.Duration(req.WorkspaceTTLMillis) * time.Millisecond
 			// Keep zero as "disabled"; validWorkspaceTTLMillis substitutes
 			// a template default.
 			if d > 0 && d < ttlMinimum {
 				return "", nil, &codersdk.Response{Message: "Workspace TTL must not be less than 1 minute."}
-			}
-			if d > ttlMaximum {
-				return "", nil, &codersdk.Response{Message: "Workspace TTL must not exceed 30 days."}
 			}
 			value := d.String()
 			return value, func(tx database.Store) error { return tx.UpsertChatWorkspaceTTL(ctx, value) }, nil
@@ -7963,35 +7935,6 @@ func (api *API) fetchChatFileMetadata(ctx context.Context, chatID uuid.UUID) []d
 		return nil
 	}
 	return rows
-}
-
-func convertChatQueuedMessage(m database.ChatQueuedMessage) codersdk.ChatQueuedMessage {
-	return db2sdk.ChatQueuedMessage(m)
-}
-
-func convertChatQueuedMessagePtr(m database.ChatQueuedMessage) *codersdk.ChatQueuedMessage {
-	qm := convertChatQueuedMessage(m)
-	return &qm
-}
-
-func convertChatQueuedMessages(msgs []database.ChatQueuedMessage) []codersdk.ChatQueuedMessage {
-	result := make([]codersdk.ChatQueuedMessage, 0, len(msgs))
-	for _, m := range msgs {
-		result = append(result, convertChatQueuedMessage(m))
-	}
-	return result
-}
-
-func convertChatMessage(m database.ChatMessage) codersdk.ChatMessage {
-	return db2sdk.ChatMessage(m)
-}
-
-func convertChatMessages(messages []database.ChatMessage) []codersdk.ChatMessage {
-	result := make([]codersdk.ChatMessage, 0, len(messages))
-	for _, m := range messages {
-		result = append(result, convertChatMessage(m))
-	}
-	return result
 }
 
 func parseUserAIProviderID(r *http.Request) (uuid.UUID, error) {

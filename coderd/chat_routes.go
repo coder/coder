@@ -112,10 +112,7 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 func (api *API) registerExperimentalChatRoutes(r chi.Router, apiKeyMiddleware func(http.Handler) http.Handler) {
 	r.Route("/chats", func(r chi.Router) {
 		r.Use(apiKeyMiddleware)
-		r.Route("/projects", func(r chi.Router) {
-			r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatProjects))
-			r.Get("/", api.listChatProjects)
-		})
+		r.Get("/projects", api.listChatProjects)
 		r.Route("/config", func(r chi.Router) {
 			r.Group(func(r chi.Router) {
 				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatAdvisor))
@@ -139,7 +136,6 @@ func (api *API) registerExperimentalChatRoutes(r chi.Router, apiKeyMiddleware fu
 // organization parameter.
 func (api *API) registerExperimentalOrganizationChatRoutes(r chi.Router) {
 	r.Route("/chats/projects", func(r chi.Router) {
-		r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatProjects))
 		r.Post("/", api.postChatProject)
 		r.Route("/{project}", func(r chi.Router) {
 			r.Use(httpmw.ExtractChatProjectParam(api.Database))
@@ -147,6 +143,7 @@ func (api *API) registerExperimentalOrganizationChatRoutes(r chi.Router) {
 			r.Patch("/", api.patchChatProject)
 			r.Delete("/", api.deleteChatProject)
 			r.Route("/acl", func(r chi.Router) {
+				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatProjectSharing))
 				r.Get("/", api.getChatProjectACL)
 				r.Patch("/", api.patchChatProjectACL)
 			})

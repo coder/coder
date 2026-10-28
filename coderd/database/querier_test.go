@@ -11772,6 +11772,95 @@ func TestAIBridgeInterceptionAgentFirewallColumns(t *testing.T) {
 	})
 }
 
+func TestAIBridgeInterceptionOrganizationColumns(t *testing.T) {
+	t.Parallel()
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+
+	insert := func(ctx context.Context, t *testing.T, orgID uuid.NullUUID, source database.NullAIBridgeInterceptionOrganizationSource) (database.AIBridgeInterception, error) {
+		t.Helper()
+		user := dbgen.User(t, db, database.User{})
+		return db.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
+			ID:                 uuid.New(),
+			InitiatorID:        user.ID,
+			Metadata:           json.RawMessage("{}"),
+			CredentialKind:     database.CredentialKindCentralized,
+			OrganizationID:     orgID,
+			OrganizationSource: source,
+		})
+	}
+
+	existingOrg := func(t *testing.T) uuid.NullUUID {
+		org := dbgen.Organization(t, db, database.Organization{})
+		return uuid.NullUUID{UUID: org.ID, Valid: true}
+	}
+	missingOrg := func(*testing.T) uuid.NullUUID { return uuid.NullUUID{UUID: uuid.New(), Valid: true} }
+	noOrg := func(*testing.T) uuid.NullUUID { return uuid.NullUUID{} }
+	sourceOf := func(source database.AIBridgeInterceptionOrganizationSource) database.NullAIBridgeInterceptionOrganizationSource {
+		return database.NullAIBridgeInterceptionOrganizationSource{AIBridgeInterceptionOrganizationSource: source, Valid: true}
+	}
+	failsCheck := func(err error) bool {
+		return database.IsCheckViolation(err, database.CheckAibridgeInterceptionsOrganizationSourceCheck)
+	}
+	failsForeignKey := func(err error) bool {
+		return database.IsForeignKeyViolation(err, database.ForeignKeyAibridgeInterceptionsOrganizationID)
+	}
+
+	type testCase struct {
+		name   string
+		orgID  func(t *testing.T) uuid.NullUUID
+		source database.NullAIBridgeInterceptionOrganizationSource
+		// wantErr is nil when the insert must succeed and round-trip.
+		wantErr func(error) bool
+	}
+	var tests []testCase
+	for _, source := range database.AllAIBridgeInterceptionOrganizationSourceValues() {
+		tests = append(tests, testCase{name: "RoundTrip/" + string(source), orgID: existingOrg, source: sourceOf(source)})
+	}
+	tests = append(tests,
+		testCase{name: "RoundTripNull", orgID: noOrg},
+		testCase{name: "OrganizationWithoutSourceFailsCheck", orgID: existingOrg, wantErr: failsCheck},
+		testCase{name: "SourceWithoutOrganizationFailsCheck", orgID: noOrg, source: sourceOf(database.AibridgeInterceptionOrganizationSourceWorkspace), wantErr: failsCheck},
+		testCase{name: "MissingOrganizationFailsForeignKey", orgID: missingOrg, source: sourceOf(database.AibridgeInterceptionOrganizationSourceWorkspace), wantErr: failsForeignKey},
+	)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			orgID := tt.orgID(t)
+			inserted, err := insert(ctx, t, orgID, tt.source)
+			if tt.wantErr != nil {
+				require.True(t, tt.wantErr(err), "unexpected error: %v", err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, orgID, inserted.OrganizationID)
+			require.Equal(t, tt.source, inserted.OrganizationSource)
+
+			got, err := db.GetAIBridgeInterceptionByID(ctx, inserted.ID)
+			require.NoError(t, err)
+			require.Equal(t, orgID, got.OrganizationID)
+			require.Equal(t, tt.source, got.OrganizationSource)
+		})
+	}
+
+	t.Run("OrganizationHardDeleteBlocked", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		org := dbgen.Organization(t, db, database.Organization{})
+		_, err := insert(ctx, t, uuid.NullUUID{UUID: org.ID, Valid: true}, database.NullAIBridgeInterceptionOrganizationSource{
+			AIBridgeInterceptionOrganizationSource: database.AibridgeInterceptionOrganizationSourceChatd,
+			Valid:                                  true,
+		})
+		require.NoError(t, err)
+
+		_, err = sqlDB.ExecContext(ctx, "DELETE FROM organizations WHERE id = $1", org.ID)
+		require.True(t, database.IsForeignKeyViolation(err, database.ForeignKeyAibridgeInterceptionsOrganizationID), "unexpected error: %v", err)
+	})
+}
+
 func TestDeleteExpiredAPIKeys(t *testing.T) {
 	t.Parallel()
 	db, _ := dbtestutil.NewDB(t)

@@ -13,18 +13,18 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestMigration000634ChatModelOverrideComputerUse(t *testing.T) {
+func TestMigration000635ChatModelOverrideComputerUse(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.SkipNow()
 	}
 
 	sqlDB := testSQLDB(t)
-	stepTo(t, sqlDB, 633)
+	stepTo(t, sqlDB, 634)
 
-	upSQL, err := os.ReadFile("000634_chat_model_override_computer_use.up.sql")
+	upSQL, err := os.ReadFile("000635_chat_model_override_computer_use.up.sql")
 	require.NoError(t, err)
-	downSQL, err := os.ReadFile("000634_chat_model_override_computer_use.down.sql")
+	downSQL, err := os.ReadFile("000635_chat_model_override_computer_use.down.sql")
 	require.NoError(t, err)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -63,7 +63,7 @@ func TestMigration000634ChatModelOverrideComputerUse(t *testing.T) {
 	require.NoError(t, insertOverride("advisor"))
 	_, err = sqlDB.ExecContext(ctx, `
 		INSERT INTO site_configs (key, value)
-		VALUES ('agents_computer_use_provider', 'openai'), ('migration000634_control', 'kept')`)
+		VALUES ('agents_computer_use_provider', 'openai'), ('migration000635_control', 'kept')`)
 	require.NoError(t, err)
 
 	_, err = sqlDB.ExecContext(ctx, string(upSQL))
@@ -73,7 +73,7 @@ func TestMigration000634ChatModelOverrideComputerUse(t *testing.T) {
 	var legacyRows, controlRows int
 	require.NoError(t, sqlDB.QueryRowContext(ctx, `
 		SELECT count(*) FILTER (WHERE key = 'agents_computer_use_provider'),
-			count(*) FILTER (WHERE key = 'migration000634_control')
+			count(*) FILTER (WHERE key = 'migration000635_control')
 		FROM site_configs`).Scan(&legacyRows, &controlRows))
 	require.Zero(t, legacyRows)
 	require.Equal(t, 1, controlRows)

@@ -5932,6 +5932,8 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 			require.Equal(t, tc.overrideModel, compactionRun.Model.String)
 			require.True(t, compactionRun.ModelConfigID.Valid)
 			require.Equal(t, overrideModel.ID, compactionRun.ModelConfigID.UUID)
+			require.Equal(t, string(chatdebug.StatusCompleted), compactionRun.Status)
+			require.True(t, compactionRun.FinishedAt.Valid)
 		})
 	}
 

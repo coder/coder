@@ -460,18 +460,16 @@ func TestBuildTurnEnvironmentMemory(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name               string
-		project            bool
-		subagent           bool
-		experimentsEnabled bool
-		wantMemoryBlock    bool
-		wantMemoryTools    bool
-		intro              string
+		name            string
+		project         bool
+		subagent        bool
+		wantMemoryBlock bool
+		wantMemoryTools bool
+		intro           string
 	}{
-		{name: "Project", project: true, experimentsEnabled: true, wantMemoryBlock: true, wantMemoryTools: true, intro: `project "platform"`},
-		{name: "NoProject", experimentsEnabled: true},
-		{name: "ExperimentDisabled"},
-		{name: "Subagent", experimentsEnabled: true, subagent: true},
+		{name: "Project", project: true, wantMemoryBlock: true, wantMemoryTools: true, intro: `project "platform"`},
+		{name: "NoProject"},
+		{name: "Subagent", subagent: true},
 	}
 
 	for _, tt := range tests {
@@ -509,9 +507,6 @@ func TestBuildTurnEnvironmentMemory(t *testing.T) {
 			require.NoError(t, err)
 
 			serverOpts := []internalTestServerOpt{withInternalTestServerTransportFactory(&aibridgeTestFactory{})}
-			if !tt.experimentsEnabled {
-				serverOpts = append(serverOpts, withInternalTestServerExperiments([]codersdk.Experiment{}))
-			}
 			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, serverOpts...)
 			prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{Chat: created.Chat, Messages: created.InitialMessages})
 			require.NoError(t, err)

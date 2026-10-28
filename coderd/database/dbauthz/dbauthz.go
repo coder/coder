@@ -7743,13 +7743,13 @@ func (q *querier) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, wo
 	return q.db.SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, workspaceID)
 }
 
-func (q *querier) SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {
+func (q *querier) SyncAgentChatsContextLiveResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {
 	// The push can update multiple chats bound to the agent, so authorize the
 	// chat resource class.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
 		return nil, err
 	}
-	return q.db.SyncAgentChatsContextMCPResources(ctx, agentID)
+	return q.db.SyncAgentChatsContextLiveResources(ctx, agentID)
 }
 
 func (q *querier) TryAcquireLock(ctx context.Context, id int64) (bool, error) {
