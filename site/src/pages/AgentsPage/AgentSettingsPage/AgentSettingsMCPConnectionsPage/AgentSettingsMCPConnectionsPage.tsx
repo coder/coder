@@ -26,6 +26,23 @@ const getStateOrganizationId = (state: unknown): string | undefined =>
 		? state.organizationId
 		: undefined;
 
+const getInitialOrganizationId = (
+	organizations: readonly TypesGen.Organization[],
+	locationState: unknown,
+): string | undefined => {
+	const stateOrganizationId = getStateOrganizationId(locationState);
+	if (organizations.some(({ id }) => id === stateOrganizationId)) {
+		return stateOrganizationId;
+	}
+
+	const defaultOrganizationId = getDefaultOrganizationId(organizations);
+	if (defaultOrganizationId) {
+		return defaultOrganizationId;
+	}
+
+	return organizations.at(0)?.id;
+};
+
 const AgentSettingsMCPConnectionsPage: React.FC = () => {
 	const { user } = useAuthenticated();
 	const location = useLocation();
@@ -35,13 +52,11 @@ const AgentSettingsMCPConnectionsPage: React.FC = () => {
 		user,
 	);
 	const [selectedOrganizationId, setSelectedOrganizationId] = useState(() =>
-		getStateOrganizationId(location.state),
+		getInitialOrganizationId(memberOrganizations, location.state),
 	);
-	const defaultOrganizationId = getDefaultOrganizationId(memberOrganizations);
-	const organization =
-		memberOrganizations.find(({ id }) => id === selectedOrganizationId) ??
-		memberOrganizations.find(({ id }) => id === defaultOrganizationId) ??
-		memberOrganizations.at(0);
+	const organization = memberOrganizations.find(
+		({ id }) => id === selectedOrganizationId,
+	);
 	const organizationId = organization?.id ?? "";
 
 	const serversQuery = useQuery({

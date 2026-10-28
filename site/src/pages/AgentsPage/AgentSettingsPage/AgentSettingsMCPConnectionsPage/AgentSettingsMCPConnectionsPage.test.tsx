@@ -277,4 +277,14 @@ describe("AgentSettingsMCPConnectionsPage", () => {
 		await screen.findByRole("button", { name: "Disconnect Notion" });
 		expect(getServers).toHaveBeenCalledWith(MockOrganization3.id);
 	});
+
+	it("starts with the default organization when the chat's organization is not a member one", async () => {
+		const getServers = setup(() => [mockGitHubMCP]);
+		renderPage({ organizationId: "not-a-member-organization" });
+
+		await screen.findByRole("table", {
+			name: `MCP connections in ${MockDefaultOrganization.display_name}`,
+		});
+		expect(getServers).toHaveBeenCalledWith(MockDefaultOrganization.id);
+	});
 });
