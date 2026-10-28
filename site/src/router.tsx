@@ -199,6 +199,15 @@ const UserOAuth2ProviderSettingsPage = lazy(
 const TemplateVersionPage = lazy(
 	() => import("./pages/TemplateVersionPage/TemplateVersionPage"),
 );
+const FoundationPage = lazy(
+	() => import("./pages/FoundationsPage/FoundationPage"),
+);
+const CreateFoundationPage = lazy(
+	() => import("./pages/FoundationsPage/CreateFoundationPage"),
+);
+const FoundationsPage = lazy(
+	() => import("./pages/FoundationsPage/FoundationsPage"),
+);
 const TemplateFilesEditorPage = lazy(
 	() => import("./pages/TemplateVersionEditorPage/TemplateFilesEditorPage"),
 );
@@ -629,6 +638,14 @@ export const router = createBrowserRouter(
 
 					<Route path="/connectionlog" element={<ConnectionLogPage />} />
 
+					<Route path="/foundations">
+						<Route index element={<FoundationsPage />} />
+						<Route path="new" element={<CreateFoundationPage />} />
+					</Route>
+					<Route
+						path="/organizations/:organization/foundations"
+						element={<FoundationsPage />}
+					/>
 					<Route path="/organizations/:organization/network-policies">
 						<Route index element={<NetworkPoliciesPage />} />
 						<Route path="new" element={<NetworkPoliciesPage create />} />
@@ -852,6 +869,10 @@ export const router = createBrowserRouter(
 				</Route>
 
 				{/* Pages that don't have the dashboard layout */}
+				<Route
+					path="/organizations/:organization/foundations/:foundation"
+					element={<FoundationPage />}
+				/>
 				<Route
 					path="/templates/:template/versions/:version/edit"
 					element={<TemplateFilesEditorPage />}

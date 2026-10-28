@@ -202,6 +202,8 @@ SELECT
 	) AS available_workers,
 	-- Include template and workspace information.
 	COALESCE(tv.name, '') AS template_version_name,
+	f.id AS foundation_id,
+	COALESCE(f.name, '') AS foundation_name,
 	t.id AS template_id,
 	COALESCE(t.name, '') AS template_name,
 	COALESCE(t.display_name, '') AS template_display_name,
@@ -236,8 +238,10 @@ LEFT JOIN
 		AND tr.organization_id = pj.organization_id
 	)
 LEFT JOIN
+	foundations f ON f.id = tr.foundation_id AND f.organization_id = pj.organization_id
+LEFT JOIN
 	templates t ON (
-		t.id = COALESCE(tr.template_id, tv.template_id)
+		t.id = COALESCE(f.template_id, tv.template_id)
 		AND t.organization_id = pj.organization_id
 	)
 LEFT JOIN
@@ -250,6 +254,7 @@ WHERE
 	AND (@tags::tagset = 'null'::tagset OR provisioner_tagset_contains(pj.tags::tagset, @tags::tagset))
 	AND (@initiator_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR pj.initiator_id = @initiator_id::uuid)
 GROUP BY
+	f.id,
 	pj.id,
 	qp.queue_position,
 	qs.count,

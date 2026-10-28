@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -25,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/provisioner/terraform/scriptorder"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/provisionersdk/tfstate"
 	"github.com/coder/terraform-provider-coder/v2/provider"
 )
 
@@ -216,6 +218,9 @@ func (s *server) Plan(
 	resp, planConfig, err := e.plan(ctx, killCtx, env, vars, sess, request)
 	endStage(err)
 	if err != nil {
+		if request.Metadata.GetFoundationId() != "" {
+			sess.ProvisionLog(proto.LogLevel_ERROR, foundationPlanFailureContext(request.Metadata))
+		}
 		return provisionersdk.PlanErrorf("%s", err.Error())
 	}
 	// State JSON omits configuration, so retain the plan configuration needed to
@@ -453,17 +458,42 @@ func (s *server) Apply(
 	endStage(err)
 	if err != nil {
 		errorMessage := err.Error()
-		// Terraform can fail and apply and still need to store it's state.
-		// In this case, we return Complete with an explicit error message.
+		// Preserve partial state on failure, but only attest to its authority
+		// when Terraform exited normally without cancellation.
 		stateData, _ := os.ReadFile(statefilePath)
 		return &proto.ApplyComplete{
-			State:   stateData,
-			Error:   errorMessage,
-			Timings: e.timings.aggregate(),
+			State:                stateData,
+			Error:                errorMessage,
+			Timings:              e.timings.aggregate(),
+			StateIsAuthoritative: applyStateIsAuthoritative(ctx, killCtx, canceledOrComplete, stateData, err),
 		}
 	}
+	resp.StateIsAuthoritative = applyStateIsAuthoritative(ctx, killCtx, canceledOrComplete, resp.State, nil)
 	resp.Timings = e.timings.aggregate()
 	return resp
+}
+
+func applyStateIsAuthoritative(ctx, killCtx context.Context, canceled <-chan struct{}, state []byte, applyErr error) bool {
+	if ctx.Err() != nil || killCtx.Err() != nil {
+		return false
+	}
+	// The cancellation watcher may not have canceled ctx yet.
+	select {
+	case <-canceled:
+		return false
+	default:
+	}
+	if tfstate.ValidateState(state) != nil {
+		return false
+	}
+	if applyErr == nil {
+		return true
+	}
+	// Terraform reports normal apply failures with exit status 1. Signals,
+	// crashes (including Go's panic exit status 2), and execution errors do
+	// not guarantee that the on-disk state reflects the infrastructure.
+	var exitErr *exec.ExitError
+	return errors.As(applyErr, &exitErr) && exitErr.ProcessState != nil && exitErr.ProcessState.ExitCode() == 1
 }
 
 func planVars(plan *proto.PlanRequest) ([]string, error) {
@@ -494,7 +524,21 @@ func provisionEnv(
 		templateOutputs = "{}"
 	}
 
+	foundationTemplateIDs := metadata.GetFoundationTemplateIds()
+	if foundationTemplateIDs == nil {
+		foundationTemplateIDs = []string{}
+	}
+	foundationTemplates, err := json.Marshal(foundationTemplateIDs)
+	if err != nil {
+		return nil, xerrors.Errorf("marshal foundation template IDs: %w", err)
+	}
+
 	env = append(env,
+		"CODER_FOUNDATION_ID="+metadata.GetFoundationId(),
+		"CODER_FOUNDATION_NAME="+metadata.GetFoundationName(),
+		"CODER_FOUNDATION_TEMPLATE_IDS="+string(foundationTemplates),
+		"CODER_FOUNDATION_OUTPUT_METADATA="+metadata.GetFoundationOutputMetadata(),
+		"CODER_FOUNDATION_SNAPSHOT_ID="+metadata.GetFoundationSnapshotId(),
 		"CODER_TEMPLATE_OUTPUTS="+templateOutputs,
 		"CODER_TEMPLATE_RESOURCE_REVISION_ID="+metadata.GetTemplateResourceRevisionId(),
 		"CODER_AGENT_URL="+metadata.GetCoderUrl(),

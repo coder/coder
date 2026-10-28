@@ -48,10 +48,12 @@ func TestTemplateResourcesProvisionerTags(t *testing.T) {
 		want                      bool
 	}{
 		{name: "OlderWorker", version: "1.22", capability: "1"},
-		{name: "OptedIn", version: "1.23", capability: "1", want: true},
-		{name: "NewerWorker", version: "1.24", capability: "1", want: true},
-		{name: "NotOptedIn", version: "1.23"},
-		{name: "InvalidCapability", version: "1.23", capability: "2"},
+		{name: "SharedResourcesWithoutFoundationIdentity", version: "1.23", capability: "1"},
+		{name: "FoundationWithoutSensitivity", version: "1.24", capability: "1"},
+		{name: "OptedIn", version: "1.25", capability: "1", want: true},
+		{name: "NewerWorker", version: "1.25", capability: "1", want: true},
+		{name: "NotOptedIn", version: "1.24"},
+		{name: "InvalidCapability", version: "1.24", capability: "2"},
 		{name: "InvalidVersion", version: "invalid", capability: "1"},
 		{name: "UnknownMajor", version: "2.23", capability: "1"},
 	} {

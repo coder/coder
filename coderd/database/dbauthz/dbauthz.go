@@ -1392,6 +1392,15 @@ func (q *querier) authorizeUpdateFileTemplate(ctx context.Context, file database
 		}
 	}
 
+	foundations, err := q.db.GetFileFoundations(ctx, file.ID)
+	if err != nil {
+		return err
+	}
+	for _, foundation := range foundations {
+		if err := q.authorizeContext(ctx, policy.ActionRead, foundation); err == nil {
+			return nil
+		}
+	}
 	return NotAuthorizedError{
 		Err: xerrors.Errorf("not authorized to read file %s", file.ID),
 	}
@@ -8618,8 +8627,16 @@ func (q *querier) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg da
 
 	switch job.Type {
 	case database.ProvisionerJobTypeTemplateResources:
-		if _, err := q.GetTemplateResourceRunByJobID(ctx, job.ID); err != nil {
-			return xerrors.Errorf("authorize shared resource job: %w", err)
+		run, err := q.db.GetTemplateResourceRunByJobID(ctx, job.ID)
+		if err != nil {
+			return err
+		}
+		action := policy.ActionUse
+		if run.Action == "plan" {
+			action = policy.ActionUpdate
+		}
+		if err := q.authorizeTemplateResources(ctx, run.FoundationID, action); err != nil {
+			return err
 		}
 	case database.ProvisionerJobTypeNetworkPolicy:
 		if _, err := q.GetNetworkPolicyRunByJobID(ctx, job.ID); err != nil {

@@ -5,3 +5,7 @@ output "namespace" {
 output "template_id" {
   value = data.coder_template.current.id
 }
+
+output "foundation_id" {
+  value = data.coder_foundation.current.id
+}

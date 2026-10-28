@@ -514,6 +514,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     },
     "logs_overflowed": true,
     "metadata": {
+      "foundation_id": "e2b70a1f-64bb-4ad9-84e3-399e2ce56bf1",
+      "foundation_name": "string",
       "template_display_name": "string",
       "template_icon": "string",
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
@@ -619,6 +621,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     },
     "logs_overflowed": true,
     "metadata": {
+      "foundation_id": "e2b70a1f-64bb-4ad9-84e3-399e2ce56bf1",
+      "foundation_name": "string",
       "template_display_name": "string",
       "template_icon": "string",
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
@@ -749,6 +753,8 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
     },
     "logs_overflowed": true,
     "metadata": {
+      "foundation_id": "e2b70a1f-64bb-4ad9-84e3-399e2ce56bf1",
+      "foundation_name": "string",
       "template_display_name": "string",
       "template_icon": "string",
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
@@ -1385,6 +1391,8 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions \
       },
       "logs_overflowed": true,
       "metadata": {
+        "foundation_id": "e2b70a1f-64bb-4ad9-84e3-399e2ce56bf1",
+        "foundation_name": "string",
         "template_display_name": "string",
         "template_icon": "string",
         "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
@@ -1465,6 +1473,8 @@ Status Code **200**
 | `»»» workspace_build_id`         | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
 | `»» logs_overflowed`             | boolean                                                                      | false    |              |                                                                                                                                                                     |
 | `»» metadata`                    | [codersdk.ProvisionerJobMetadata](schemas.md#codersdkprovisionerjobmetadata) | false    |              |                                                                                                                                                                     |
+| `»»» foundation_id`              | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `»»» foundation_name`            | string                                                                       | false    |              |                                                                                                                                                                     |
 | `»»» template_display_name`      | string                                                                       | false    |              |                                                                                                                                                                     |
 | `»»» template_icon`              | string                                                                       | false    |              |                                                                                                                                                                     |
 | `»»» template_id`                | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
@@ -1672,6 +1682,8 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions/{templ
       },
       "logs_overflowed": true,
       "metadata": {
+        "foundation_id": "e2b70a1f-64bb-4ad9-84e3-399e2ce56bf1",
+        "foundation_name": "string",
         "template_display_name": "string",
         "template_icon": "string",
         "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
@@ -1752,6 +1764,8 @@ Status Code **200**
 | `»»» workspace_build_id`         | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
 | `»» logs_overflowed`             | boolean                                                                      | false    |              |                                                                                                                                                                     |
 | `»» metadata`                    | [codersdk.ProvisionerJobMetadata](schemas.md#codersdkprovisionerjobmetadata) | false    |              |                                                                                                                                                                     |
+| `»»» foundation_id`              | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `»»» foundation_name`            | string                                                                       | false    |              |                                                                                                                                                                     |
 | `»»» template_display_name`      | string                                                                       | false    |              |                                                                                                                                                                     |
 | `»»» template_icon`              | string                                                                       | false    |              |                                                                                                                                                                     |
 | `»»» template_id`                | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
@@ -1849,6 +1863,8 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion} \
     },
     "logs_overflowed": true,
     "metadata": {
+      "foundation_id": "e2b70a1f-64bb-4ad9-84e3-399e2ce56bf1",
+      "foundation_name": "string",
       "template_display_name": "string",
       "template_icon": "string",
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
@@ -1963,6 +1979,8 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
     },
     "logs_overflowed": true,
     "metadata": {
+      "foundation_id": "e2b70a1f-64bb-4ad9-84e3-399e2ce56bf1",
+      "foundation_name": "string",
       "template_display_name": "string",
       "template_icon": "string",
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
@@ -2165,6 +2183,8 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
   },
   "logs_overflowed": true,
   "metadata": {
+    "foundation_id": "e2b70a1f-64bb-4ad9-84e3-399e2ce56bf1",
+    "foundation_name": "string",
     "template_display_name": "string",
     "template_icon": "string",
     "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
@@ -2243,6 +2263,8 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
   },
   "logs_overflowed": true,
   "metadata": {
+    "foundation_id": "e2b70a1f-64bb-4ad9-84e3-399e2ce56bf1",
+    "foundation_name": "string",
     "template_display_name": "string",
     "template_icon": "string",
     "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",

@@ -502,7 +502,7 @@ func templateValidationJobTags(ctx context.Context, db database.Store, templateI
 	}
 	// Dry-run callers need not have permission to read raw resource state.
 	//nolint:gocritic // Only state existence is needed for routing.
-	_, err := db.GetTemplateResourceState(dbauthz.AsSystemRestricted(ctx), templateID)
+	_, err := db.GetFoundationByTemplateID(dbauthz.AsSystemRestricted(ctx), uuid.NullUUID{UUID: templateID, Valid: true})
 	if errors.Is(err, sql.ErrNoRows) {
 		return tags, nil
 	}

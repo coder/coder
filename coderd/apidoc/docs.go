@@ -9034,6 +9034,474 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v2/organizations/{organization}/foundations": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Foundations"
+                ],
+                "summary": "List Foundations",
+                "operationId": "list-foundations",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.Foundation"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Foundations"
+                ],
+                "summary": "Create a Foundation",
+                "operationId": "create-foundation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Settings",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateFoundationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Foundation"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/organizations/{organization}/foundations/{foundation}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Foundations"
+                ],
+                "summary": "Get a Foundation",
+                "operationId": "get-foundation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Foundation ID",
+                        "name": "foundation",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Foundation"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Foundations"
+                ],
+                "summary": "Delete a cleaned-up Foundation",
+                "operationId": "delete-foundation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Foundation ID",
+                        "name": "foundation",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Foundations"
+                ],
+                "summary": "Update Foundation settings",
+                "operationId": "update-foundation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Foundation ID",
+                        "name": "foundation",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Settings",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateFoundationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Foundation"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/organizations/{organization}/foundations/{foundation}/runs": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Foundations"
+                ],
+                "summary": "Run shared resources",
+                "operationId": "create-template-resource-run",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Foundation ID",
+                        "name": "foundation",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Run",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateTemplateResourceRunRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TemplateResourceRun"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/organizations/{organization}/foundations/{foundation}/runs/{runID}/cancel": {
+            "patch": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Foundations"
+                ],
+                "summary": "Cancel shared resource run",
+                "operationId": "cancel-template-resource-run",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Foundation ID",
+                        "name": "foundation",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Run ID",
+                        "name": "runID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/organizations/{organization}/foundations/{foundation}/runs/{runID}/logs": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Foundations"
+                ],
+                "summary": "Get shared resource run logs",
+                "operationId": "get-template-resource-run-logs",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Foundation ID",
+                        "name": "foundation",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Run ID",
+                        "name": "runID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Return logs after this ID",
+                        "name": "after",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ProvisionerJobLog"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/organizations/{organization}/foundations/{foundation}/versions": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Foundations"
+                ],
+                "summary": "Create shared resource revision",
+                "operationId": "create-template-resource-revision",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Foundation ID",
+                        "name": "foundation",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Source archive or inline main.tf",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateTemplateResourceRevisionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TemplateResourceRevision"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/v2/organizations/{organization}/groups": {
             "get": {
                 "produces": [
@@ -12633,6 +13101,92 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/templates/{template}/foundation": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Foundations"
+                ],
+                "summary": "Get a template's Foundation",
+                "operationId": "get-template-foundation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Foundation"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Foundations"
+                ],
+                "summary": "Bind a Foundation to a template",
+                "operationId": "set-template-foundation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Foundation",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.SetTemplateFoundationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Foundation"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/v2/templates/{template}/prebuilds/invalidate": {
             "post": {
                 "produces": [
@@ -12666,245 +13220,6 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ]
-            }
-        },
-        "/api/v2/templates/{template}/resources": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Templates"
-                ],
-                "summary": "Get shared resources",
-                "operationId": "get-template-resources",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Template ID",
-                        "name": "template",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.TemplateResources"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/v2/templates/{template}/resources/runs": {
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Templates"
-                ],
-                "summary": "Run shared resources",
-                "operationId": "create-template-resource-run",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Template ID",
-                        "name": "template",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Run",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.CreateTemplateResourceRunRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.TemplateResourceRun"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/v2/templates/{template}/resources/runs/{runID}/cancel": {
-            "patch": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Templates"
-                ],
-                "summary": "Cancel shared resource run",
-                "operationId": "cancel-template-resource-run",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Template ID",
-                        "name": "template",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Run ID",
-                        "name": "runID",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/v2/templates/{template}/resources/runs/{runID}/logs": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Templates"
-                ],
-                "summary": "Get shared resource run logs",
-                "operationId": "get-template-resource-run-logs",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Template ID",
-                        "name": "template",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Run ID",
-                        "name": "runID",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Return logs after this ID",
-                        "name": "after",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.ProvisionerJobLog"
-                            }
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/v2/templates/{template}/resources/versions": {
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Templates"
-                ],
-                "summary": "Create shared resource revision",
-                "operationId": "create-template-resource-revision",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Template ID",
-                        "name": "template",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Source archive or inline main.tf",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.CreateTemplateResourceRevisionRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.TemplateResourceRevision"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
             }
         },
         "/api/v2/templates/{template}/versions": {
@@ -21164,6 +21479,12 @@ const docTemplate = `{
                 "file:*",
                 "file:create",
                 "file:read",
+                "foundation:*",
+                "foundation:create",
+                "foundation:delete",
+                "foundation:read",
+                "foundation:update",
+                "foundation:use",
                 "group:*",
                 "group:create",
                 "group:delete",
@@ -21432,6 +21753,12 @@ const docTemplate = `{
                 "APIKeyScopeFileAll",
                 "APIKeyScopeFileCreate",
                 "APIKeyScopeFileRead",
+                "APIKeyScopeFoundationAll",
+                "APIKeyScopeFoundationCreate",
+                "APIKeyScopeFoundationDelete",
+                "APIKeyScopeFoundationRead",
+                "APIKeyScopeFoundationUpdate",
+                "APIKeyScopeFoundationUse",
                 "APIKeyScopeGroupAll",
                 "APIKeyScopeGroupCreate",
                 "APIKeyScopeGroupDelete",
@@ -25283,6 +25610,27 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateFoundationRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "prevent_destroy_with_workspaces": {
+                    "description": "PreventDestroyWithWorkspaces defaults to true when omitted.",
+                    "type": "boolean"
+                },
+                "provisioner_tags": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "codersdk.CreateGroupRequest": {
             "type": "object",
             "required": [
@@ -27422,6 +27770,197 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.UsagePeriod"
                         }
                     ]
+                }
+            }
+        },
+        "codersdk.Foundation": {
+            "type": "object",
+            "properties": {
+                "applied_revision_id": {
+                    "type": "string"
+                },
+                "checkpoint_revision_id": {
+                    "description": "CheckpointRevisionID identifies the configuration used for retained state,\nincluding a completed partial apply. Destroy uses this revision.",
+                    "type": "string"
+                },
+                "consumers": {
+                    "$ref": "#/definitions/codersdk.FoundationConsumers"
+                },
+                "current_revision_id": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string"
+                },
+                "output_metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.FoundationOutputMetadata"
+                    }
+                },
+                "output_snapshot_id": {
+                    "type": "string"
+                },
+                "outputs": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "prevent_destroy_with_workspaces": {
+                    "description": "PreventDestroyWithWorkspaces blocks Destroy while any consumers remain.",
+                    "type": "boolean"
+                },
+                "provisioner_tags": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "resources": {
+                    "description": "Resources is the managed inventory from retained Terraform state, not a\nlive infrastructure refresh. Unavailable state yields an empty inventory.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.FoundationResource"
+                    }
+                },
+                "resources_available": {
+                    "description": "ResourcesAvailable distinguishes unreadable state from a known empty inventory.",
+                    "type": "boolean"
+                },
+                "revisions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateResourceRevision"
+                    }
+                },
+                "runs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateResourceRun"
+                    }
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "unconfigured",
+                        "pending",
+                        "applied",
+                        "failed",
+                        "unknown",
+                        "destroyed"
+                    ]
+                },
+                "template_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.FoundationConsumerReference": {
+            "type": "object",
+            "properties": {
+                "output_names": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "template_version_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "unresolved": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.FoundationConsumers": {
+            "type": "object",
+            "properties": {
+                "running": {
+                    "type": "integer"
+                },
+                "stopped": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "unknown": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.FoundationOutputChange": {
+            "type": "object",
+            "properties": {
+                "actions": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "sensitive": {
+                    "type": "boolean"
+                },
+                "unknown": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.FoundationOutputMetadata": {
+            "type": "object",
+            "properties": {
+                "sensitive": {
+                    "type": "boolean"
+                },
+                "type": {}
+            }
+        },
+        "codersdk.FoundationPlanPreview": {
+            "type": "object",
+            "properties": {
+                "advisory": {
+                    "type": "string"
+                },
+                "available": {
+                    "type": "boolean"
+                },
+                "consumer_references": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.FoundationConsumerReference"
+                    }
+                },
+                "output_changes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.FoundationOutputChange"
+                    }
+                }
+            }
+        },
+        "codersdk.FoundationResource": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "instances": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
                 }
             }
         },
@@ -31163,6 +31702,13 @@ const docTemplate = `{
         "codersdk.ProvisionerJobMetadata": {
             "type": "object",
             "properties": {
+                "foundation_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "foundation_name": {
+                    "type": "string"
+                },
                 "template_display_name": {
                     "type": "string"
                 },
@@ -31520,6 +32066,7 @@ const docTemplate = `{
                 "deployment_config",
                 "deployment_stats",
                 "file",
+                "foundation",
                 "group",
                 "group_member",
                 "idpsync_settings",
@@ -31578,6 +32125,7 @@ const docTemplate = `{
                 "ResourceDeploymentConfig",
                 "ResourceDeploymentStats",
                 "ResourceFile",
+                "ResourceFoundation",
                 "ResourceGroup",
                 "ResourceGroupMember",
                 "ResourceIdpsyncSettings",
@@ -31796,6 +32344,7 @@ const docTemplate = `{
         "codersdk.ResourceType": {
             "type": "string",
             "enum": [
+                "foundation",
                 "template",
                 "template_version",
                 "user",
@@ -31846,6 +32395,7 @@ const docTemplate = `{
                 "experiment_rule"
             ],
             "x-enum-varnames": [
+                "ResourceTypeFoundation",
                 "ResourceTypeTemplate",
                 "ResourceTypeTemplateVersion",
                 "ResourceTypeUser",
@@ -32160,6 +32710,15 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "codersdk.SetTemplateFoundationRequest": {
+            "type": "object",
+            "properties": {
+                "foundation_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -33206,14 +33765,14 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "foundation_id": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "string"
                 },
                 "source": {
                     "description": "Source is the main.tf preview, or empty when that file is absent.",
-                    "type": "string"
-                },
-                "template_id": {
                     "type": "string"
                 }
             }
@@ -33239,48 +33798,10 @@ const docTemplate = `{
                 "job": {
                     "$ref": "#/definitions/codersdk.ProvisionerJob"
                 },
+                "preview": {
+                    "$ref": "#/definitions/codersdk.FoundationPlanPreview"
+                },
                 "revision_id": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.TemplateResources": {
-            "type": "object",
-            "properties": {
-                "applied_revision_id": {
-                    "type": "string"
-                },
-                "current_revision_id": {
-                    "type": "string"
-                },
-                "outputs": {
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "revisions": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.TemplateResourceRevision"
-                    }
-                },
-                "runs": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.TemplateResourceRun"
-                    }
-                },
-                "status": {
-                    "type": "string",
-                    "enum": [
-                        "unconfigured",
-                        "pending",
-                        "applied",
-                        "failed",
-                        "unknown",
-                        "destroyed"
-                    ]
-                },
-                "template_id": {
                     "type": "string"
                 }
             }
@@ -34046,6 +34567,27 @@ const docTemplate = `{
                 "version": {
                     "description": "Version is the semantic version for the latest release of Coder.",
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.UpdateFoundationRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "prevent_destroy_with_workspaces": {
+                    "description": "PreventDestroyWithWorkspaces is preserved when omitted.",
+                    "type": "boolean"
+                },
+                "provisioner_tags": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
                 }
             }
         },

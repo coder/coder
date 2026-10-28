@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { TemplateResources } from "#/api/typesGenerated";
+import type { Foundation } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import {
@@ -10,10 +10,11 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { FoundationPlanPreview } from "#/pages/FoundationsPage/FoundationPlanPreview";
 import { SharedResourceRunLogs } from "./SharedResourceRunLogs";
 
 type SharedResourceRunHistoryProps = {
-	resources: TemplateResources;
+	resources: Foundation;
 };
 
 /** Preserves an explicitly selected historical run while newer jobs arrive. */
@@ -73,11 +74,15 @@ export const SharedResourceRunHistory: React.FC<
 							<p className="text-sm text-content-secondary">
 								{selectedRun.action} · {selectedRun.id}
 							</p>
+							{selectedRun.action === "plan" && (
+								<FoundationPlanPreview preview={selectedRun.preview} />
+							)}
 							{selectedRun.job.error && (
 								<ErrorAlert error={{ message: selectedRun.job.error }} />
 							)}
 							<SharedResourceRunLogs
-								templateId={resources.template_id}
+								organization={resources.organization_id}
+								foundationId={resources.id}
 								runId={selectedRun.id}
 							/>
 						</div>

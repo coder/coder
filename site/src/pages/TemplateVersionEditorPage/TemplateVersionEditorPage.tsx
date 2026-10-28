@@ -32,13 +32,7 @@ import { writeTemplateArchive } from "#/utils/templateArchive";
 import { createTemplateVersionFileTree } from "#/utils/templateVersion";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
 
-type TemplateVersionEditorPageProps = {
-	scopeNavigation?: React.ReactNode;
-};
-
-const TemplateVersionEditorPage: React.FC<TemplateVersionEditorPageProps> = ({
-	scopeNavigation,
-}) => {
+const TemplateVersionEditorPage: React.FC = () => {
 	const getLink = useLinks();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
@@ -139,12 +133,10 @@ const TemplateVersionEditorPage: React.FC<TemplateVersionEditorPageProps> = ({
 
 			{!(templateQuery.data && activeTemplateVersion && fileTree) ? (
 				<div className="h-full flex flex-col">
-					{scopeNavigation}
 					<Loader className="flex-1" />
 				</div>
 			) : (
 				<TemplateVersionEditor
-					scopeNavigation={scopeNavigation}
 					activePath={activePath}
 					onActivePathChange={onActivePathChange}
 					template={templateQuery.data}

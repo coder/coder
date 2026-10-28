@@ -23,7 +23,11 @@ variable "kubeconfig_context" {
   default     = "default"
 }
 
-data "coder_template_outputs" "current" {}
+data "coder_foundation" "current" {}
+
+locals {
+  shared = data.coder_foundation.current.outputs
+}
 
 data "coder_workspace" "me" {}
 
@@ -54,7 +58,7 @@ resource "kubernetes_persistent_volume_claim_v1" "workspace" {
   wait_until_bound = false
   metadata {
     name      = "serpent-${data.coder_workspace.me.id}"
-    namespace = data.coder_template_outputs.current.outputs.namespace
+    namespace = local.shared.namespace
     labels = {
       "app.kubernetes.io/name" = "serpent-dev"
       "coder.template_id"      = data.coder_workspace.me.template_id
@@ -73,7 +77,7 @@ resource "kubernetes_pod_v1" "workspace" {
   count = data.coder_workspace.me.start_count
   metadata {
     name      = "coder-${data.coder_workspace.me.id}"
-    namespace = data.coder_template_outputs.current.outputs.namespace
+    namespace = local.shared.namespace
     labels = {
       "app.kubernetes.io/name" = "serpent-dev"
       "coder.template_id"      = data.coder_workspace.me.template_id

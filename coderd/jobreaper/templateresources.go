@@ -17,7 +17,7 @@ func reapTemplateResourceRun(ctx context.Context, db database.Store, job databas
 	if err != nil {
 		return sql.NullString{}, xerrors.Errorf("get shared resource run: %w", err)
 	}
-	state, err := db.GetTemplateResourceStateForUpdate(ctx, run.TemplateID)
+	state, err := db.GetTemplateResourceStateForUpdate(ctx, run.FoundationID)
 	if err != nil {
 		return sql.NullString{}, xerrors.Errorf("lock shared resource state: %w", err)
 	}
@@ -27,13 +27,14 @@ func reapTemplateResourceRun(ctx context.Context, db database.Store, job databas
 	code := "TEMPLATE_RESOURCE_STATE_UNCHANGED"
 	if run.Action != "plan" && (job.StartedAt.Valid || job.WorkerID.Valid) {
 		_, err := db.UpdateTemplateResourceState(ctx, database.UpdateTemplateResourceStateParams{
-			TemplateID: run.TemplateID, RunID: state.ActiveRunID, Status: "unknown", State: state.State, UpdatedAt: dbtime.Now(),
+			FoundationID: run.FoundationID, RunID: state.ActiveRunID, Status: "unknown", State: state.State, UpdatedAt: dbtime.Now(),
 		})
 		return sql.NullString{String: "TEMPLATE_RESOURCE_STATE_UNKNOWN", Valid: true}, err
 	}
 	_, err = db.CompleteTemplateResourceRun(ctx, database.CompleteTemplateResourceRunParams{
-		TemplateID: run.TemplateID, RunID: state.ActiveRunID, Status: state.Status,
-		State: state.State, Outputs: state.Outputs, AppliedRevisionID: state.AppliedRevisionID, UpdatedAt: dbtime.Now(),
+		FoundationID: run.FoundationID, RunID: state.ActiveRunID, Status: state.Status,
+		State: state.State, Outputs: state.Outputs, AppliedRevisionID: state.AppliedRevisionID,
+		CheckpointRevisionID: state.CheckpointRevisionID, UpdatedAt: dbtime.Now(),
 	})
 	if err != nil {
 		return sql.NullString{}, xerrors.Errorf("release shared resource run: %w", err)

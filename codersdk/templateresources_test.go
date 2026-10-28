@@ -24,9 +24,9 @@ func TestCreateTemplateResourceRevision(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			templateID, revisionID, fileID := uuid.New(), uuid.New(), uuid.New()
+			orgID, foundationID, revisionID, fileID := uuid.New(), uuid.New(), uuid.New(), uuid.New()
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.Method != http.MethodPost || r.URL.Path != "/api/v2/templates/"+templateID.String()+"/resources/versions" {
+				if r.Method != http.MethodPost || r.URL.Path != "/api/v2/organizations/"+orgID.String()+"/foundations/"+foundationID.String()+"/versions" {
 					t.Error("unexpected revision request", r.Method, r.URL.Path)
 					w.WriteHeader(http.StatusBadRequest)
 					return
@@ -53,7 +53,7 @@ func TestCreateTemplateResourceRevision(t *testing.T) {
 				}
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusCreated)
-				if err := json.NewEncoder(w).Encode(codersdk.TemplateResourceRevision{ID: revisionID, TemplateID: templateID, FileID: fileID, Source: tc.req.Source}); err != nil {
+				if err := json.NewEncoder(w).Encode(codersdk.TemplateResourceRevision{ID: revisionID, FoundationID: foundationID, FileID: fileID, Source: tc.req.Source}); err != nil {
 					t.Error(err)
 				}
 			}))
@@ -61,7 +61,7 @@ func TestCreateTemplateResourceRevision(t *testing.T) {
 			serverURL, err := url.Parse(server.URL)
 			require.NoError(t, err)
 			client := codersdk.New(serverURL)
-			revision, err := client.CreateTemplateResourceRevision(t.Context(), templateID, tc.req)
+			revision, err := client.CreateFoundationRevision(t.Context(), orgID, foundationID, tc.req)
 			require.NoError(t, err)
 			require.Equal(t, revisionID, revision.ID)
 			require.Equal(t, fileID, revision.FileID, "response identifies the normalized snapshot, not the upload")

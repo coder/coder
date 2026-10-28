@@ -1,0 +1,1 @@
+ALTER TABLE template_resource_states DROP COLUMN checkpoint_revision_id;

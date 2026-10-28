@@ -2328,6 +2328,7 @@ func (s *MethodTestSuite) TestFile() {
 		dbm.EXPECT().GetFileByHashAndCreator(gomock.Any(), gomock.Any()).Return(f, nil).AnyTimes()
 		// dbauthz may attempt to check template access on NotAuthorized; ensure mock handles it.
 		dbm.EXPECT().GetFileTemplates(gomock.Any(), f.ID).Return([]database.GetFileTemplatesRow{}, nil).AnyTimes()
+		dbm.EXPECT().GetFileFoundations(gomock.Any(), f.ID).Return([]database.Foundation{}, nil).AnyTimes()
 		check.Args(database.GetFileByHashAndCreatorParams{
 			Hash:      f.Hash,
 			CreatedBy: f.CreatedBy,
@@ -2337,6 +2338,7 @@ func (s *MethodTestSuite) TestFile() {
 		f := testutil.Fake(s.T(), faker, database.File{})
 		dbm.EXPECT().GetFileByID(gomock.Any(), f.ID).Return(f, nil).AnyTimes()
 		dbm.EXPECT().GetFileTemplates(gomock.Any(), f.ID).Return([]database.GetFileTemplatesRow{}, nil).AnyTimes()
+		dbm.EXPECT().GetFileFoundations(gomock.Any(), f.ID).Return([]database.Foundation{}, nil).AnyTimes()
 		check.Args(f.ID).Asserts(f, policy.ActionRead).Returns(f)
 	}))
 	s.Run("InsertFile", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

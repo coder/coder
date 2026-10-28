@@ -6,6 +6,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/provisionersdk"
+	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 func templateResourceTestState(outputs, resources string) []byte {
@@ -20,7 +23,7 @@ func TestTemplateResourceOutputs(t *testing.T) {
 		want    string
 	}{
 		{name: "Empty", outputs: `{}`, want: `{}`},
-		{name: "SensitiveExcluded", outputs: `{"secret":{"sensitive":true,"value":"password"},"public":{"sensitive":false,"value":"hello"}}`, want: `{"public":"hello"}`},
+		{name: "SensitiveIncluded", outputs: `{"secret":{"sensitive":true,"value":"password","type":"string"},"public":{"sensitive":false,"value":"hello","type":"string"}}`, want: `{"public":"hello","secret":"password"}`},
 		{name: "OmittedSensitivityIsPublic", outputs: `{"greeting":{"value":"hello","type":"string"}}`, want: `{"greeting":"hello"}`},
 		{name: "Structured", outputs: `{"config":{"sensitive":false,"value":{"ids":[1,true,null,"x"]}},"large":{"sensitive":false,"value":9007199254740993}}`, want: `{"config":{"ids":[1,true,null,"x"]},"large":9007199254740993}`},
 		{name: "NullValue", outputs: `{"empty":{"sensitive":false,"value":null}}`, want: `{"empty":null}`},
@@ -29,7 +32,18 @@ func TestTemplateResourceOutputs(t *testing.T) {
 			t.Parallel()
 			outputs, err := templateResourceOutputs(templateResourceTestState(tc.outputs, `[]`), "apply")
 			require.NoError(t, err)
-			require.Equal(t, tc.want, string(outputs))
+			values, err := templateResourceOutputsMetadata(outputs)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, values)
+			var metadata sdkproto.Metadata
+			require.NoError(t, populateFoundationOutputMetadata(outputs, &metadata))
+			var types map[string]provisionersdk.FoundationOutputMetadata
+			require.NoError(t, json.Unmarshal([]byte(metadata.FoundationOutputMetadata), &types))
+			if tc.name == "SensitiveIncluded" {
+				require.True(t, types["secret"].Sensitive)
+				require.Equal(t, `"string"`, string(types["secret"].Type))
+				require.False(t, types["public"].Sensitive)
+			}
 		})
 	}
 }
@@ -78,7 +92,12 @@ func TestTemplateResourceOutputsTerraformV4Fixture(t *testing.T) {
 }`)
 	outputs, err := templateResourceOutputs(state, "apply")
 	require.NoError(t, err)
-	require.JSONEq(t, `{"greeting":"Hello from shared resources","namespace":"workspaces","structured":{"enabled":true,"ports":[443,3100]}}`, string(outputs))
+	snapshot, err := provisionersdk.DecodeFoundationOutputSnapshot(outputs)
+	require.NoError(t, err)
+	require.Equal(t, `"Hello from shared resources"`, string(snapshot.Values["greeting"]))
+	require.True(t, snapshot.Metadata["private_setting"].Sensitive)
+	require.Equal(t, `"demo-only-not-a-real-secret"`, string(snapshot.Values["private_setting"]))
+	require.JSONEq(t, `["object", {"enabled": "bool", "ports": ["tuple", ["number", "number"]]}]`, string(snapshot.Metadata["structured"].Type))
 }
 
 func TestTemplateResourceOutputsSize(t *testing.T) {
@@ -91,15 +110,16 @@ func TestTemplateResourceOutputsSize(t *testing.T) {
 			require.EqualError(t, err, "shared resource outputs exceed the 64 KiB limit")
 		} else {
 			require.NoError(t, err)
-			require.Len(t, outputs, maxTemplateResourceOutputsSize)
+			values, err := templateResourceOutputsMetadata(outputs)
+			require.NoError(t, err)
+			require.Len(t, values, maxTemplateResourceOutputsSize)
 		}
 	}
-	// Excluded sensitive values do not consume the environment payload budget.
+	// Sensitive values use the same private environment payload budget.
 	value, err := json.Marshal(strings.Repeat("x", maxTemplateResourceOutputsSize+1))
 	require.NoError(t, err)
-	outputs, err := templateResourceOutputs(templateResourceTestState(`{"x":{"sensitive":true,"value":`+string(value)+`}}`, `[]`), "apply")
-	require.NoError(t, err)
-	require.Equal(t, "{}", string(outputs))
+	_, err = templateResourceOutputs(templateResourceTestState(`{"x":{"sensitive":true,"value":`+string(value)+`}}`, `[]`), "apply")
+	require.EqualError(t, err, "shared resource outputs exceed the 64 KiB limit")
 }
 
 func TestTemplateResourceOutputsMetadata(t *testing.T) {

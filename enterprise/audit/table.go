@@ -18,6 +18,7 @@ import (
 // AuditableResources map (below) as our documentation - generated in scripts/auditdocgen/main.go -
 // depends upon it.
 var AuditActionMap = map[string][]codersdk.AuditAction{
+	"Foundation":                       {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete, codersdk.AuditActionStart, codersdk.AuditActionStop},
 	"GitSSHKey":                        {codersdk.AuditActionCreate},
 	"Template":                         {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"TemplateVersion":                  {codersdk.AuditActionCreate, codersdk.AuditActionWrite},
@@ -72,6 +73,9 @@ type Table map[string]map[string]Action
 var AuditableResources = auditMap(auditableResourcesTypes)
 
 var auditableResourcesTypes = map[any]map[string]Action{
+	&database.Foundation{}: {
+		"id": ActionIgnore, "organization_id": ActionIgnore, "name": ActionTrack, "provisioner_tags": ActionTrack, "template_id": ActionTrack, "created_at": ActionIgnore, "updated_at": ActionIgnore, "deleted": ActionTrack, "prevent_destroy_with_workspaces": ActionTrack,
+	},
 	&database.AuditableOrganizationMember{}: {
 		"username":        ActionTrack,
 		"user_id":         ActionTrack,
@@ -208,27 +212,29 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"user_acl":           ActionTrack,
 	},
 	&database.WorkspaceBuild{}: {
-		"id":                            ActionIgnore,
-		"created_at":                    ActionIgnore,
-		"updated_at":                    ActionIgnore,
-		"workspace_id":                  ActionIgnore,
-		"template_version_id":           ActionTrack,
-		"build_number":                  ActionIgnore,
-		"transition":                    ActionIgnore,
-		"initiator_id":                  ActionIgnore,
-		"job_id":                        ActionIgnore,
-		"deadline":                      ActionIgnore,
-		"reason":                        ActionIgnore,
-		"daily_cost":                    ActionIgnore,
-		"max_deadline":                  ActionIgnore,
-		"initiator_by_avatar_url":       ActionIgnore,
-		"initiator_by_username":         ActionIgnore,
-		"initiator_by_name":             ActionIgnore,
-		"template_version_preset_id":    ActionIgnore, // Never changes.
-		"has_external_agent":            ActionIgnore, // Never changes.
-		"notified_autostop_deadline":    ActionIgnore, // Updated by the notification system, not by user action.
-		"template_resource_revision_id": ActionTrack,
-		"template_resource_outputs":     ActionIgnore, // Immutable non-sensitive build snapshot.
+		"id":                                  ActionIgnore,
+		"created_at":                          ActionIgnore,
+		"updated_at":                          ActionIgnore,
+		"workspace_id":                        ActionIgnore,
+		"template_version_id":                 ActionTrack,
+		"build_number":                        ActionIgnore,
+		"transition":                          ActionIgnore,
+		"initiator_id":                        ActionIgnore,
+		"job_id":                              ActionIgnore,
+		"deadline":                            ActionIgnore,
+		"reason":                              ActionIgnore,
+		"daily_cost":                          ActionIgnore,
+		"max_deadline":                        ActionIgnore,
+		"initiator_by_avatar_url":             ActionIgnore,
+		"initiator_by_username":               ActionIgnore,
+		"initiator_by_name":                   ActionIgnore,
+		"template_version_preset_id":          ActionIgnore, // Never changes.
+		"has_external_agent":                  ActionIgnore, // Never changes.
+		"notified_autostop_deadline":          ActionIgnore, // Updated by the notification system, not by user action.
+		"template_resource_revision_id":       ActionTrack,
+		"template_resource_outputs":           ActionIgnore, // Snapshot values may contain secrets.
+		"state_template_resource_revision_id": ActionTrack,
+		"state_template_resource_outputs":     ActionIgnore, // State-associated snapshot values are not audit data.
 	},
 	&database.AuditableGroup{}: {
 		"id":                      ActionTrack,

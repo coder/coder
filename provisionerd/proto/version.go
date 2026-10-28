@@ -121,9 +121,17 @@ import "github.com/coder/coder/v2/apiversion"
 // API v1.23:
 //   - Added native shared resource jobs and pinned output metadata, routed
 //     using the coder.template_resources capability.
+//
+// API v1.24:
+//   - Added independent Foundation identity and attached-template metadata.
+//     Shared resource jobs and Foundation consumers require this version.
+//
+// API v1.25:
+//   - Added Foundation output type/sensitivity metadata and snapshot identity.
+//   - Added workspace state checkpoint provenance for safe failed-build cleanup.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 23
+	CurrentMinor = 25
 )
 
 // CurrentVersion is the current provisionerd API version.

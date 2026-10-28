@@ -1,4 +1,4 @@
-# Shared root: managed once per template, independently of workspace builds.
+# Shared root: managed by a Foundation, independently of workspace builds.
 # This example needs no cluster or cloud credentials.
 terraform {
   required_version = ">= 1.9.0, < 2.0.0"
@@ -26,7 +26,12 @@ output "structured" {
   }
 }
 
-# Sensitive outputs remain in shared state, not workspace snapshots.
+# Public identity keys remain usable even when the snapshot also contains secrets.
+output "public_set" {
+  value = toset(["http", "https"])
+}
+
+# Sensitive root outputs are available through coder_foundation.sensitive_outputs.
 output "private_setting" {
   value     = "demo-only-not-a-real-secret"
   sensitive = true

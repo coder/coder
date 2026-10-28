@@ -564,6 +564,15 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			Name:     "Foundations",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionUse, policy.ActionDelete},
+			Resource: rbac.ResourceFoundation.WithID(uuid.New()).InOrg(orgID),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, templateAdmin, orgTemplateAdmin},
+				false: {setOtherOrg, orgUserAdmin, orgAuditor, memberMe, userAdmin, orgWorkspaceAccessUser},
+			},
+		},
+		{
 			Name:     "Templates",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 			Resource: rbac.ResourceTemplate.WithID(templateID).InOrg(orgID),

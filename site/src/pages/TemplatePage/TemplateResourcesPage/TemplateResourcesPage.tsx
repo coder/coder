@@ -13,7 +13,7 @@ const TemplateResourcesPage: React.FC = () => {
 
 	return (
 		<>
-			<title>{getTemplatePageTitle("Per-workspace resources", template)}</title>
+			<title>{getTemplatePageTitle("Resources", template)}</title>
 
 			<TemplateResourcesPageView resources={resources} template={template} />
 		</>

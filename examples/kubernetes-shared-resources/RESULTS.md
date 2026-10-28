@@ -1,5 +1,14 @@
 # Kubernetes provisioning-scopes validation
 
+All historical checks below predate Foundation ownership and its organization-scoped API.
+They are **pre-Foundation evidence**, not verification of Foundation creation, binding, migration, or independent cleanup.
+The README describes the Foundation workflow, but no live Kubernetes Foundation validation is recorded here.
+
+> [!NOTE]
+> October 28, 2026: The [current Foundation workflow](README.md) supersedes the historical ownership, startup-gate, output, and cleanup contract claims below.
+> The historical observations are preserved.
+> This note does not record a rerun of any live checks.
+
 Local POC validation on 2026-10-22. The provisioning-scopes implementation follows
 checkpoint `36f37e344a` on `feat/workspace-network-policies`; the companion provider
 uses `feat/template-resources`. Credentials, runtime state, and detailed logs stay

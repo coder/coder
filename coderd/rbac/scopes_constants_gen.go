@@ -73,6 +73,11 @@ const (
 	ScopeDeploymentStatsRead                 ScopeName = "deployment_stats:read"
 	ScopeFileCreate                          ScopeName = "file:create"
 	ScopeFileRead                            ScopeName = "file:read"
+	ScopeFoundationCreate                    ScopeName = "foundation:create"
+	ScopeFoundationDelete                    ScopeName = "foundation:delete"
+	ScopeFoundationRead                      ScopeName = "foundation:read"
+	ScopeFoundationUpdate                    ScopeName = "foundation:update"
+	ScopeFoundationUse                       ScopeName = "foundation:use"
 	ScopeGroupCreate                         ScopeName = "group:create"
 	ScopeGroupDelete                         ScopeName = "group:delete"
 	ScopeGroupRead                           ScopeName = "group:read"
@@ -284,6 +289,11 @@ func (e ScopeName) Valid() bool {
 		ScopeDeploymentStatsRead,
 		ScopeFileCreate,
 		ScopeFileRead,
+		ScopeFoundationCreate,
+		ScopeFoundationDelete,
+		ScopeFoundationRead,
+		ScopeFoundationUpdate,
+		ScopeFoundationUse,
 		ScopeGroupCreate,
 		ScopeGroupDelete,
 		ScopeGroupRead,
@@ -496,6 +506,11 @@ func AllScopeNameValues() []ScopeName {
 		ScopeDeploymentStatsRead,
 		ScopeFileCreate,
 		ScopeFileRead,
+		ScopeFoundationCreate,
+		ScopeFoundationDelete,
+		ScopeFoundationRead,
+		ScopeFoundationUpdate,
+		ScopeFoundationUse,
 		ScopeGroupCreate,
 		ScopeGroupDelete,
 		ScopeGroupRead,

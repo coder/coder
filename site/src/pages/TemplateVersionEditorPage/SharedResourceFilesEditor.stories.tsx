@@ -2,48 +2,46 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { spyOn, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
-import { getAuthorizationKey } from "#/api/queries/authCheck";
-import { templateByNameKey } from "#/api/queries/templates";
+
 import type { TemplateResourceRun } from "#/api/typesGenerated";
-import {
-	MockTemplate,
-	MockTemplateVersion,
-	mockApiError,
-} from "#/testHelpers/entities";
+import FoundationPage from "#/pages/FoundationsPage/FoundationPage";
+import { mockApiError } from "#/testHelpers/entities";
 import { pixelWithPhone } from "#/testHelpers/pixel";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import {
 	createMockTemplateResourceArchive,
+	MockFoundation,
 	MockTemplateResourceLog,
 	MockTemplateResourceRevision,
 	MockTemplateResourceRun,
-	MockTemplateResources,
 } from "#/testHelpers/templateResources";
-import TemplateFilesEditorPage from "./TemplateFilesEditorPage";
 
 const mockPlan: TemplateResourceRun = {
 	...MockTemplateResourceRun,
 	action: "plan",
 };
 const mockPlannedResources = {
-	...MockTemplateResources,
+	...MockFoundation,
 	applied_revision_id: null,
 	runs: [mockPlan],
 };
 const meta = {
-	title: "pages/TemplateFilesEditorPage",
-	component: TemplateFilesEditorPage,
+	title: "pages/Foundations/FilesEditor",
+	component: FoundationPage,
 	decorators: [withDashboardProvider],
 	beforeEach: async () => {
 		const mocks = [
+			spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
+				Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
+			),
 			spyOn(API, "getFile").mockResolvedValue(
 				await createMockTemplateResourceArchive(),
 			),
-			spyOn(API, "getTemplateResources").mockResolvedValue({
-				...MockTemplateResources,
+			spyOn(API, "getFoundation").mockResolvedValue({
+				...MockFoundation,
 				runs: [],
 			}),
-			spyOn(API, "getTemplateResourceRunLogs").mockResolvedValue([
+			spyOn(API, "getFoundationRunLogs").mockResolvedValue([
 				MockTemplateResourceLog,
 			]),
 		];
@@ -55,85 +53,50 @@ const meta = {
 		layout: "fullscreen",
 		pixel: { matrix: pixelWithPhone },
 		experiments: ["template-resources"],
-		queries: [
-			{
-				key: templateByNameKey("default", MockTemplate.name),
-				data: MockTemplate,
-			},
-			{
-				key: getAuthorizationKey({
-					checks: {
-						canUpdateTemplate: {
-							object: {
-								resource_type: "template",
-								resource_id: MockTemplate.id,
-							},
-							action: "update",
-						},
-					},
-				}),
-				data: { canUpdateTemplate: true },
-			},
-		],
+
 		reactRouter: reactRouterParameters({
 			location: {
 				pathParams: {
-					template: MockTemplate.name,
-					version: MockTemplateVersion.name,
+					organization: MockFoundation.organization_id,
+					foundation: MockFoundation.id,
 				},
-				searchParams: { scope: "template", path: "main.tf" },
+				searchParams: { edit: "true", path: "main.tf" },
 			},
-			routing: { path: "/templates/:template/versions/:version/edit" },
+			routing: { path: "/organizations/:organization/foundations/:foundation" },
 		}),
 	},
-} satisfies Meta<typeof TemplateFilesEditorPage>;
+} satisfies Meta<typeof FoundationPage>;
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const SharedScope: Story = {};
+export const Default: Story = {};
 export const Loading: Story = {
-	parameters: { queries: [] },
 	beforeEach: () => {
-		const mock = spyOn(API, "getTemplateByName").mockImplementation(
+		const mock = spyOn(API, "getFoundation").mockImplementation(
 			() => new Promise(() => {}),
 		);
 		return () => mock.mockRestore();
 	},
 };
 export const LoadError: Story = {
-	parameters: { queries: [] },
 	beforeEach: () => {
-		const mock = spyOn(API, "getTemplateByName").mockRejectedValue(
+		const mock = spyOn(API, "getFoundation").mockRejectedValue(
 			mockApiError({ message: "Template unavailable." }),
 		);
 		return () => mock.mockRestore();
 	},
 	play: async ({ canvasElement }) => {
-		await within(canvasElement).findByRole("button", { name: "Retry editor" });
+		await within(canvasElement).findByRole("button", {
+			name: "Retry Foundation",
+		});
 	},
 };
 export const PermissionDenied: Story = {
-	parameters: {
-		queries: [
-			{
-				key: templateByNameKey("default", MockTemplate.name),
-				data: MockTemplate,
-			},
-			{
-				key: getAuthorizationKey({
-					checks: {
-						canUpdateTemplate: {
-							object: {
-								resource_type: "template",
-								resource_id: MockTemplate.id,
-							},
-							action: "update",
-						},
-					},
-				}),
-				data: { canUpdateTemplate: false },
-			},
-		],
+	beforeEach: () => {
+		const mock = spyOn(API, "checkAuthorization").mockResolvedValue({
+			canReadFoundation: false,
+		});
+		return () => mock.mockRestore();
 	},
 };
 export const ArchiveError: Story = {
@@ -149,8 +112,8 @@ export const ArchiveError: Story = {
 };
 export const Unconfigured: Story = {
 	beforeEach: () => {
-		const mock = spyOn(API, "getTemplateResources").mockResolvedValue({
-			...MockTemplateResources,
+		const mock = spyOn(API, "getFoundation").mockResolvedValue({
+			...MockFoundation,
 			status: "unconfigured",
 			current_revision_id: null,
 			applied_revision_id: null,
@@ -160,35 +123,33 @@ export const Unconfigured: Story = {
 		return () => mock.mockRestore();
 	},
 };
-export const BuildSucceeded: Story = {
+export const PlanSucceeded: Story = {
 	beforeEach: () => {
-		const mock = spyOn(API, "getTemplateResources").mockResolvedValue(
+		const mock = spyOn(API, "getFoundation").mockResolvedValue(
 			mockPlannedResources,
 		);
 		return () => mock.mockRestore();
 	},
 };
-export const Published: Story = {
+export const Applied: Story = {
 	beforeEach: () => {
-		const mock = spyOn(API, "getTemplateResources").mockResolvedValue(
-			MockTemplateResources,
-		);
+		const mock = spyOn(API, "getFoundation").mockResolvedValue(MockFoundation);
 		return () => mock.mockRestore();
 	},
 };
 
-export const BuildRunning: Story = {
+export const PlanRunning: Story = {
 	beforeEach: () => {
-		const mock = spyOn(API, "getTemplateResources").mockResolvedValue({
+		const mock = spyOn(API, "getFoundation").mockResolvedValue({
 			...mockPlannedResources,
 			runs: [{ ...mockPlan, job: { ...mockPlan.job, status: "running" } }],
 		});
 		return () => mock.mockRestore();
 	},
 };
-export const BuildFailed: Story = {
+export const PlanFailed: Story = {
 	beforeEach: () => {
-		const mock = spyOn(API, "getTemplateResources").mockResolvedValue({
+		const mock = spyOn(API, "getFoundation").mockResolvedValue({
 			...mockPlannedResources,
 			runs: [
 				{
@@ -205,13 +166,15 @@ export const BuildFailed: Story = {
 		return () => mock.mockRestore();
 	},
 };
-export const BuildSaveError: Story = {
+export const SaveError: Story = {
 	beforeEach: () => {
 		const upload = spyOn(API, "uploadFile").mockResolvedValue({
 			hash: MockTemplateResourceRevision.file_id,
 		});
-		const save = spyOn(API, "createTemplateResourceRevision").mockRejectedValue(
-			mockApiError({ message: "Could not save archive. Try Build again." }),
+		const save = spyOn(API, "createFoundationRevision").mockRejectedValue(
+			mockApiError({
+				message: "Could not save archive. Try Save files again.",
+			}),
 		);
 		return () => {
 			upload.mockRestore();
@@ -220,14 +183,16 @@ export const BuildSaveError: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(await canvas.findByRole("button", { name: "Build" }));
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "Save files" }),
+		);
 		await canvas.findByRole("alert");
 	},
 };
 export const OlderDestroyRun: Story = {
 	beforeEach: () => {
-		const mock = spyOn(API, "getTemplateResources").mockResolvedValue({
-			...MockTemplateResources,
+		const mock = spyOn(API, "getFoundation").mockResolvedValue({
+			...MockFoundation,
 			status: "destroyed",
 			runs: [
 				{
@@ -237,7 +202,7 @@ export const OlderDestroyRun: Story = {
 				},
 			],
 		});
-		const logs = spyOn(API, "getTemplateResourceRunLogs").mockResolvedValue([
+		const logs = spyOn(API, "getFoundationRunLogs").mockResolvedValue([
 			{
 				...MockTemplateResourceLog,
 				output: "Destroy complete! Resources: 1 destroyed.",

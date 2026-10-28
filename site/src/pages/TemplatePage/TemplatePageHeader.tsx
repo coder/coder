@@ -37,8 +37,10 @@ import {
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
 import { toast } from "#/components/Toaster/toast";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import type { WorkspacePermissions } from "#/modules/permissions/workspaces";
+import { FoundationTemplateDeleteDialog } from "./FoundationTemplateDeleteDialog";
 import { TemplateStats } from "./TemplateStats";
 import { useDeletionDialogState } from "./useDeletionDialogState";
 
@@ -59,6 +61,7 @@ const TemplateMenu: React.FC<TemplateMenuProps> = ({
 	fileId,
 	onDelete,
 }) => {
+	const { experiments } = useDashboard();
 	const dialogState = useDeletionDialogState(
 		templateId,
 		onDelete,
@@ -147,13 +150,24 @@ const TemplateMenu: React.FC<TemplateMenuProps> = ({
 			</DropdownMenu>
 
 			{safeToDeleteTemplate ? (
-				<DeleteDialog
-					isOpen={dialogState.isDeleteDialogOpen}
-					onConfirm={dialogState.confirmDelete}
-					onCancel={dialogState.cancelDeleteConfirmation}
-					entity="template"
-					name={templateName}
-				/>
+				experiments.includes("template-resources") ? (
+					dialogState.isDeleteDialogOpen && (
+						<FoundationTemplateDeleteDialog
+							templateId={templateId}
+							templateName={templateName}
+							onConfirm={dialogState.confirmDelete}
+							onCancel={dialogState.cancelDeleteConfirmation}
+						/>
+					)
+				) : (
+					<DeleteDialog
+						isOpen={dialogState.isDeleteDialogOpen}
+						onConfirm={dialogState.confirmDelete}
+						onCancel={dialogState.cancelDeleteConfirmation}
+						entity="template"
+						name={templateName}
+					/>
+				)
 			) : (
 				<ConfirmDialog
 					type="info"

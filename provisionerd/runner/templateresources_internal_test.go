@@ -143,6 +143,38 @@ func TestTemplateResourcesCanceledAfterPlan(t *testing.T) {
 	}
 }
 
+func TestTemplateResourcesCanceledApplyResponse(t *testing.T) {
+	t.Parallel()
+	for _, operation := range []proto.TemplateResourceOperation{
+		proto.TemplateResourceOperation_TEMPLATE_RESOURCE_APPLY,
+		proto.TemplateResourceOperation_TEMPLATE_RESOURCE_DESTROY,
+	} {
+		t.Run(operation.String(), func(t *testing.T) {
+			t.Parallel()
+			for _, applyError := range []string{"", "apply failed"} {
+				t.Run("Error="+applyError, func(t *testing.T) {
+					t.Parallel()
+					state := []byte(`{"version":4,"terraform_version":"1.15.0","serial":2,"lineage":"lineage","resources":[]}`)
+					r := New(t.Context(), &proto.AcquiredJob{
+						JobId: uuid.NewString(),
+						Type: &proto.AcquiredJob_TemplateResources_{TemplateResources: &proto.AcquiredJob_TemplateResources{
+							Operation: operation, State: state,
+						}},
+					}, Options{Tracer: noop.NewTracerProvider().Tracer(t.Name())})
+					defer r.cancel()
+					defer r.stop()
+					r.session = &templateResourceSession{state: state, applyError: applyError, onApplyComplete: r.Cancel}
+					completed, failed := r.runTemplateResources(t.Context())
+					require.Nil(t, completed)
+					require.NotNil(t, failed)
+					require.Equal(t, proto.StateDisposition_UNKNOWN, failed.GetTemplateResources().StateDisposition)
+					require.Equal(t, state, failed.GetTemplateResources().State)
+				})
+			}
+		})
+	}
+}
+
 func TestTemplateOutputSnapshotsInImportAndDryRun(t *testing.T) {
 	t.Parallel()
 	for _, dryRun := range []bool{false, true} {
@@ -154,8 +186,13 @@ func TestTemplateOutputSnapshotsInImportAndDryRun(t *testing.T) {
 			t.Parallel()
 			metadata := &sdkproto.Metadata{
 				TemplateId: uuid.NewString(), TemplateName: "shared-infrastructure",
-				TemplateOutputs: `{"network_id":"pinned"}`, TemplateResourceRevisionId: uuid.NewString(),
+				TemplateOutputs: `{"network_id":"pinned","credential":"private-marker"}`, TemplateResourceRevisionId: uuid.NewString(),
+				FoundationId: uuid.NewString(), FoundationName: "network",
+				FoundationOutputMetadata: `{"network_id":{"type":"string","sensitive":false},"credential":{"type":"string","sensitive":true}}`,
+				FoundationSnapshotId:     uuid.NewString(),
 			}
+			metadata.FoundationTemplateIds = []string{metadata.TemplateId}
+			original := protobuf.Clone(metadata)
 			job := &proto.AcquiredJob{JobId: uuid.NewString()}
 			job.Type = &proto.AcquiredJob_TemplateImport_{TemplateImport: &proto.AcquiredJob_TemplateImport{Metadata: metadata}}
 			if dryRun {
@@ -184,21 +221,35 @@ func TestTemplateOutputSnapshotsInImportAndDryRun(t *testing.T) {
 			}
 			require.Nil(t, failed)
 			require.NotNil(t, completed)
-			plans := 0
+			var transitions []sdkproto.WorkspaceTransition
 			for _, request := range sess.requests {
+				var actual *sdkproto.Metadata
 				if plan := request.GetPlan(); plan != nil {
-					plans++
-					require.Equal(t, metadata.TemplateOutputs, plan.Metadata.TemplateOutputs)
-					require.Equal(t, metadata.TemplateResourceRevisionId, plan.Metadata.TemplateResourceRevisionId)
-					require.Equal(t, metadata.TemplateId, plan.Metadata.TemplateId)
-					require.Equal(t, metadata.TemplateName, plan.Metadata.TemplateName)
+					actual = plan.Metadata
+					transitions = append(transitions, actual.WorkspaceTransition)
+				} else if graph := request.GetGraph(); graph != nil {
+					actual = graph.Metadata
+				} else {
+					continue
 				}
+				require.Equal(t, metadata.TemplateOutputs, actual.TemplateOutputs)
+				require.Equal(t, metadata.TemplateResourceRevisionId, actual.TemplateResourceRevisionId)
+				require.Equal(t, metadata.TemplateId, actual.TemplateId)
+				require.Equal(t, metadata.TemplateName, actual.TemplateName)
+				require.Equal(t, metadata.FoundationId, actual.FoundationId)
+				require.Equal(t, metadata.FoundationName, actual.FoundationName)
+				require.Equal(t, metadata.FoundationTemplateIds, actual.FoundationTemplateIds)
+				require.Equal(t, metadata.FoundationOutputMetadata, actual.FoundationOutputMetadata)
+				require.Equal(t, metadata.FoundationSnapshotId, actual.FoundationSnapshotId)
 			}
-			wantPlans := 2
+			wantTransitions := []sdkproto.WorkspaceTransition{sdkproto.WorkspaceTransition_START, sdkproto.WorkspaceTransition_STOP}
 			if dryRun {
-				wantPlans = 1
+				wantTransitions = []sdkproto.WorkspaceTransition{sdkproto.WorkspaceTransition_START}
 			}
-			require.Equal(t, wantPlans, plans)
+			require.Equal(t, wantTransitions, transitions)
+			if !dryRun {
+				require.True(t, protobuf.Equal(original, metadata), "must not mutate acquired metadata")
+			}
 		})
 	}
 }
@@ -211,9 +262,11 @@ func (templateSnapshotUpdater) UpdateJob(context.Context, *proto.UpdateJobReques
 
 type templateResourceSession struct {
 	sdkproto.DRPCProvisioner_SessionClient
-	state          []byte
-	requests       []*sdkproto.Request
-	onPlanComplete func()
+	state           []byte
+	requests        []*sdkproto.Request
+	onPlanComplete  func()
+	onApplyComplete func()
+	applyError      string
 }
 
 func (s *templateResourceSession) Send(req *sdkproto.Request) error {
@@ -234,7 +287,10 @@ func (s *templateResourceSession) Recv() (*sdkproto.Response, error) {
 		}
 		return &sdkproto.Response{Type: &sdkproto.Response_Plan{Plan: &sdkproto.PlanComplete{Plan: []byte("plan")}}}, nil
 	case *sdkproto.Request_Apply:
-		return &sdkproto.Response{Type: &sdkproto.Response_Apply{Apply: &sdkproto.ApplyComplete{State: s.state}}}, nil
+		if s.onApplyComplete != nil {
+			s.onApplyComplete()
+		}
+		return &sdkproto.Response{Type: &sdkproto.Response_Apply{Apply: &sdkproto.ApplyComplete{State: s.state, StateIsAuthoritative: true, Error: s.applyError}}}, nil
 	case *sdkproto.Request_Parse:
 		return &sdkproto.Response{Type: &sdkproto.Response_Parse{Parse: &sdkproto.ParseComplete{}}}, nil
 	case *sdkproto.Request_Graph:

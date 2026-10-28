@@ -53,23 +53,7 @@ WHERE
     -- Only fetch template version associated files.
 	storage_method = 'file'
 	AND provisioner_jobs.type = 'template_version_import'
-	AND files.id = @file_id
-UNION
-SELECT
-	files.id AS file_id,
-	files.created_by AS file_created_by,
-	templates.id AS template_id,
-	templates.organization_id AS template_organization_id,
-	templates.created_by AS template_created_by,
-	templates.user_acl,
-	templates.group_acl
-FROM
-	template_resource_revisions
-INNER JOIN
-	templates ON templates.id = template_resource_revisions.template_id
-	AND templates.organization_id = template_resource_revisions.organization_id
-INNER JOIN
-	files ON files.id = template_resource_revisions.file_id
-WHERE
-	files.id = @file_id
-;
+	AND files.id = @file_id;
+
+-- name: GetFileFoundations :many
+SELECT f.* FROM foundations f JOIN template_resource_revisions r ON r.foundation_id = f.id WHERE r.file_id = @file_id;

@@ -394,9 +394,16 @@ message Metadata {
   reserved "task_id", "task_prompt";
   string template_version_id = 24;
   string template_version_modules_file = 25;
-  // JSON object containing the pinned, non-sensitive template outputs.
+  // Private JSON object containing pinned Foundation outputs, including secrets.
   string template_outputs = 26;
   string template_resource_revision_id = 27;
+  string foundation_id = 28;
+  string foundation_name = 29;
+  repeated string foundation_template_ids = 30;
+  // Terraform types and sensitivity keyed by output name.
+  string foundation_output_metadata = 31;
+  // Identity of the successful apply that produced the pinned outputs.
+  string foundation_snapshot_id = 32;
 }
 
 // Config represents execution configuration shared by all subsequent requests in the Session
@@ -482,6 +489,9 @@ message ApplyComplete {
   bytes state = 1;
   string error = 2;
   repeated Timing timings = 3;
+  // Execution terminated normally and state is a valid authoritative checkpoint,
+  // including partial apply failures. False for interrupted or uncertain execution.
+  bool state_is_authoritative = 4;
 }
 
 enum GraphSource {

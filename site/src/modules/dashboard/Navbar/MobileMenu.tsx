@@ -47,6 +47,7 @@ type MobileMenuProps = {
 	user?: TypesGen.User;
 	supportLinks?: readonly TypesGen.LinkConfig[];
 	onSignOut: () => void;
+	foundationsEnabled?: boolean;
 	isDefaultOpen?: boolean; // Useful for storybook
 };
 
@@ -56,6 +57,7 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({
 	user,
 	supportLinks,
 	onSignOut,
+	foundationsEnabled = false,
 	isDefaultOpen,
 }) => {
 	const [open, setOpen] = useState(isDefaultOpen);
@@ -84,6 +86,11 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({
 				<DropdownMenuItem asChild className={itemStyles.default}>
 					<Link to="/templates">Templates</Link>
 				</DropdownMenuItem>
+				{foundationsEnabled && (
+					<DropdownMenuItem asChild className={itemStyles.default}>
+						<Link to="/foundations">Foundations</Link>
+					</DropdownMenuItem>
+				)}
 				<DropdownMenuItem asChild className={itemStyles.default}>
 					<Link to="/agents">Agents</Link>
 				</DropdownMenuItem>

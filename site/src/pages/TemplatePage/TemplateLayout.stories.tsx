@@ -4,9 +4,9 @@ import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
 import {
-	templateResourceRunLogsKey,
-	templateResourcesKey,
-} from "#/api/queries/templateResources";
+	foundationRunLogsKey,
+	templateFoundationKey,
+} from "#/api/queries/foundations";
 import { templateKey } from "#/api/queries/templates";
 import { workspacesKey } from "#/api/queries/workspaces";
 import { workspacePermissionChecks } from "#/modules/permissions/workspaces";
@@ -22,9 +22,9 @@ import {
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
 import {
+	MockFoundation,
 	MockTemplateResourceLog,
 	MockTemplateResourceRun,
-	MockTemplateResources,
 } from "#/testHelpers/templateResources";
 import { TemplateLayout } from "./TemplateLayout";
 import TemplateSharedResourcesPage from "./TemplateSharedResourcesPage/TemplateSharedResourcesPage";
@@ -41,14 +41,24 @@ const meta = {
 	decorators: [withAuthProvider, withDashboardProvider],
 	args: { children: <TemplateSharedResourcesPage /> },
 	beforeEach: () => {
-		// Resource polling overrides the Storybook QueryClient's interval default.
-		const resources = spyOn(API, "getTemplateResources").mockResolvedValue(
-			MockTemplateResources,
+		const auth = spyOn(API, "checkAuthorization").mockImplementation(
+			async ({ checks }) =>
+				Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
 		);
-		const logs = spyOn(API, "getTemplateResourceRunLogs").mockResolvedValue([
+		const workspaces = spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces: [],
+			count: 0,
+		});
+		// Resource polling overrides the Storybook QueryClient's interval default.
+		const resources = spyOn(API, "getTemplateFoundation").mockResolvedValue(
+			MockFoundation,
+		);
+		const logs = spyOn(API, "getFoundationRunLogs").mockResolvedValue([
 			MockTemplateResourceLog,
 		]);
 		return () => {
+			auth.mockRestore();
+			workspaces.mockRestore();
 			resources.mockRestore();
 			logs.mockRestore();
 		};
@@ -64,7 +74,7 @@ const meta = {
 	play: async ({ canvasElement }) => {
 		// Wait for auth before capturing the tabs and nested resource page.
 		await within(canvasElement).findByRole("link", {
-			name: "Per-workspace resources",
+			name: "Resources",
 		});
 	},
 } satisfies Meta<typeof TemplateLayout>;
@@ -93,12 +103,13 @@ export const SharedResourcesEnabled: Story = {
 				data: { workspaces: [], count: 0 },
 			},
 			{
-				key: templateResourcesKey(MockTemplate.id),
-				data: MockTemplateResources,
+				key: templateFoundationKey(MockTemplate.id),
+				data: MockFoundation,
 			},
 			{
-				key: templateResourceRunLogsKey(
-					MockTemplate.id,
+				key: foundationRunLogsKey(
+					MockFoundation.organization_id,
+					MockFoundation.id,
 					MockTemplateResourceRun.id,
 				),
 				data: [MockTemplateResourceLog],

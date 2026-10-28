@@ -1023,38 +1023,108 @@ class ApiMethods {
 		return response.data;
 	};
 
-	getTemplateResources = async (templateId: string) => {
-		const response = await this.axios.get<TypesGen.TemplateResources>(
-			`/api/v2/templates/${templateId}/resources`,
+	getFoundations = async (organization: string) => {
+		const response = await this.axios.get<TypesGen.Foundation[]>(
+			`/api/v2/organizations/${organization}/foundations`,
 		);
 		return response.data;
 	};
 
-	createTemplateResourceRevision = async (
+	createFoundation = async (
+		organization: string,
+		request: TypesGen.CreateFoundationRequest,
+	) => {
+		const response = await this.axios.post<TypesGen.Foundation>(
+			`/api/v2/organizations/${organization}/foundations`,
+			request,
+		);
+		return response.data;
+	};
+
+	getFoundation = async (organization: string, foundationId: string) => {
+		const response = await this.axios.get<TypesGen.Foundation>(
+			`/api/v2/organizations/${organization}/foundations/${foundationId}`,
+		);
+		return response.data;
+	};
+
+	updateFoundation = async (
+		organization: string,
+		foundationId: string,
+		request: TypesGen.UpdateFoundationRequest,
+	) => {
+		const response = await this.axios.patch<TypesGen.Foundation>(
+			`/api/v2/organizations/${organization}/foundations/${foundationId}`,
+			request,
+		);
+		return response.data;
+	};
+
+	deleteFoundation = async (organization: string, foundationId: string) => {
+		await this.axios.delete(
+			`/api/v2/organizations/${organization}/foundations/${foundationId}`,
+		);
+	};
+
+	getTemplateFoundation = async (templateId: string) => {
+		const response = await this.axios.get<TypesGen.Foundation | null>(
+			`/api/v2/templates/${templateId}/foundation`,
+		);
+		return response.data;
+	};
+
+	setTemplateFoundation = async (
 		templateId: string,
+		request: TypesGen.SetTemplateFoundationRequest,
+	) => {
+		const response = await this.axios.put<TypesGen.Foundation>(
+			`/api/v2/templates/${templateId}/foundation`,
+			request,
+		);
+		return response.data;
+	};
+
+	createFoundationRevision = async (
+		organization: string,
+		foundationId: string,
 		request: TypesGen.CreateTemplateResourceRevisionRequest,
 	) => {
 		const response = await this.axios.post<TypesGen.TemplateResourceRevision>(
-			`/api/v2/templates/${templateId}/resources/versions`,
+			`/api/v2/organizations/${organization}/foundations/${foundationId}/versions`,
 			request,
 		);
 		return response.data;
 	};
 
-	createTemplateResourceRun = async (
-		templateId: string,
+	createFoundationRun = async (
+		organization: string,
+		foundationId: string,
 		request: TypesGen.CreateTemplateResourceRunRequest,
 	) => {
 		const response = await this.axios.post<TypesGen.TemplateResourceRun>(
-			`/api/v2/templates/${templateId}/resources/runs`,
+			`/api/v2/organizations/${organization}/foundations/${foundationId}/runs`,
 			request,
 		);
 		return response.data;
 	};
 
-	getTemplateResourceRunLogs = async (templateId: string, runId: string) => {
+	cancelFoundationRun = async (
+		organization: string,
+		foundationId: string,
+		runId: string,
+	) => {
+		await this.axios.patch(
+			`/api/v2/organizations/${organization}/foundations/${foundationId}/runs/${runId}/cancel`,
+		);
+	};
+
+	getFoundationRunLogs = async (
+		organization: string,
+		foundationId: string,
+		runId: string,
+	) => {
 		const response = await this.axios.get<TypesGen.ProvisionerJobLog[]>(
-			`/api/v2/templates/${templateId}/resources/runs/${runId}/logs`,
+			`/api/v2/organizations/${organization}/foundations/${foundationId}/runs/${runId}/logs`,
 		);
 		return response.data;
 	};
@@ -3049,6 +3119,21 @@ class ApiMethods {
 					throw new Error("Workspace build ID is required to cancel this job");
 				}
 				return this.cancelWorkspaceBuild(job.input.workspace_build_id);
+
+			case "template_resources":
+				if (
+					!job.metadata.foundation_id ||
+					!job.input.template_resource_run_id
+				) {
+					throw new Error(
+						"Foundation and run IDs are required to cancel this job",
+					);
+				}
+				return this.cancelFoundationRun(
+					job.organization_id,
+					job.metadata.foundation_id,
+					job.input.template_resource_run_id,
+				);
 
 			case "template_version_import":
 				if (!job.input.template_version_id) {

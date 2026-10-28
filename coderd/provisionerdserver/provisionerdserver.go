@@ -998,6 +998,12 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 				LogLevel: input.LogLevel,
 			},
 		}
+		if err := populateFoundationOutputMetadata(workspaceBuild.TemplateResourceOutputs, protoJob.GetWorkspaceBuild().Metadata); err != nil {
+			return nil, err
+		}
+		if err := s.workspaceFoundationMetadata(ctx, workspaceBuild.TemplateResourceRevisionID, protoJob.GetWorkspaceBuild().Metadata); err != nil {
+			return nil, failJob(err.Error())
+		}
 	case database.ProvisionerJobTypeTemplateResources:
 		resources, err := s.acquireTemplateResourcesJob(ctx, job)
 		if err != nil {
@@ -1480,19 +1486,26 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 		Valid:  failJob.ErrorCode != "",
 	}
 
-	err = s.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
-		ID:          jobID,
-		CompletedAt: job.CompletedAt,
-		UpdatedAt:   s.timeNow(),
-		Error:       job.Error,
-		ErrorCode:   job.ErrorCode,
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("update provisioner job: %w", err)
+	completeJob := func(db database.Store) error {
+		return db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
+			ID:          jobID,
+			CompletedAt: job.CompletedAt,
+			UpdatedAt:   s.timeNow(),
+			Error:       job.Error,
+			ErrorCode:   job.ErrorCode,
+		})
 	}
-	s.Telemetry.Report(&telemetry.Snapshot{
-		ProvisionerJobs: []telemetry.ProvisionerJob{telemetry.ConvertProvisionerJob(job)},
-	})
+	// A failed workspace checkpoint and its input snapshot must be committed
+	// before a subsequent build can observe this job as terminal.
+	_, isWorkspaceFailure := failJob.Type.(*proto.FailedJob_WorkspaceBuild_)
+	if !isWorkspaceFailure {
+		if err := completeJob(s.Database); err != nil {
+			return nil, xerrors.Errorf("update provisioner job: %w", err)
+		}
+		s.Telemetry.Report(&telemetry.Snapshot{
+			ProvisionerJobs: []telemetry.ProvisionerJob{telemetry.ConvertProvisionerJob(job)},
+		})
+	}
 
 	switch jobType := failJob.Type.(type) {
 	case *proto.FailedJob_WorkspaceBuild_:
@@ -1505,6 +1518,16 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 		var build database.WorkspaceBuild
 		var workspace database.Workspace
 		err = s.Database.InTx(func(db database.Store) error {
+			lockedJob, err := db.GetProvisionerJobByIDWithLock(ctx, jobID)
+			if err != nil {
+				return xerrors.Errorf("lock workspace job: %w", err)
+			}
+			if lockedJob.CompletedAt.Valid {
+				return xerrors.New("job already completed")
+			}
+			if !lockedJob.WorkerID.Valid || lockedJob.WorkerID.UUID != s.ID {
+				return xerrors.New("you don't own this job")
+			}
 			build, err = db.GetWorkspaceBuildByID(ctx, input.WorkspaceBuildID)
 			if err != nil {
 				return xerrors.Errorf("get workspace build: %w", err)
@@ -1515,11 +1538,15 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 				return xerrors.Errorf("get workspace: %w", err)
 			}
 
-			if jobType.WorkspaceBuild.State != nil {
+			if jobType.WorkspaceBuild.GetStateIsCheckpoint() {
+				if len(jobType.WorkspaceBuild.State) == 0 {
+					return xerrors.New("workspace checkpoint must contain state")
+				}
 				err = db.UpdateWorkspaceBuildProvisionerStateByID(ctx, database.UpdateWorkspaceBuildProvisionerStateByIDParams{
-					ID:               input.WorkspaceBuildID,
-					UpdatedAt:        s.timeNow(),
-					ProvisionerState: jobType.WorkspaceBuild.State,
+					ID:                           input.WorkspaceBuildID,
+					UpdatedAt:                    s.timeNow(),
+					ProvisionerState:             jobType.WorkspaceBuild.State,
+					UpdateStateTemplateResources: true,
 				})
 				if err != nil {
 					return xerrors.Errorf("update workspace build state: %w", err)
@@ -1542,12 +1569,18 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 				}
 			}
 
+			if err := completeJob(db); err != nil {
+				return xerrors.Errorf("complete workspace job: %w", err)
+			}
 			return nil
 		}, nil)
 		if err != nil {
 			return nil, err
 		}
 
+		s.Telemetry.Report(&telemetry.Snapshot{
+			ProvisionerJobs: []telemetry.ProvisionerJob{telemetry.ConvertProvisionerJob(job)},
+		})
 		s.notifyWorkspaceBuildFailed(ctx, workspace, build)
 
 		// Wake the orchestrator before the workspace event publish
@@ -2368,9 +2401,10 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			return xerrors.Errorf("update provisioner job: %w", err)
 		}
 		err = db.UpdateWorkspaceBuildProvisionerStateByID(ctx, database.UpdateWorkspaceBuildProvisionerStateByIDParams{
-			ID:               workspaceBuild.ID,
-			ProvisionerState: jobType.WorkspaceBuild.State,
-			UpdatedAt:        now,
+			ID:                           workspaceBuild.ID,
+			ProvisionerState:             jobType.WorkspaceBuild.State,
+			UpdatedAt:                    now,
+			UpdateStateTemplateResources: true,
 		})
 		if err != nil {
 			return xerrors.Errorf("update workspace build provisioner state: %w", err)

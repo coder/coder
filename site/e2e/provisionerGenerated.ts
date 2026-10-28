@@ -452,9 +452,16 @@ export interface Metadata {
   runningAgentAuthTokens: RunningAgentAuthToken[];
   templateVersionId: string;
   templateVersionModulesFile: string;
-  /** JSON object containing the pinned, non-sensitive template outputs. */
+  /** Private JSON object containing pinned Foundation outputs, including secrets. */
   templateOutputs: string;
   templateResourceRevisionId: string;
+  foundationId: string;
+  foundationName: string;
+  foundationTemplateIds: string[];
+  /** Terraform types and sensitivity keyed by output name. */
+  foundationOutputMetadata: string;
+  /** Identity of the successful apply that produced the pinned outputs. */
+  foundationSnapshotId: string;
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -540,6 +547,11 @@ export interface ApplyComplete {
   state: Uint8Array;
   error: string;
   timings: Timing[];
+  /**
+   * Execution terminated normally and state is a valid authoritative checkpoint,
+   * including partial apply failures. False for interrupted or uncertain execution.
+   */
+  stateIsAuthoritative: boolean;
 }
 
 export interface GraphRequest {
@@ -1402,6 +1414,21 @@ export const Metadata = {
     if (message.templateResourceRevisionId !== "") {
       writer.uint32(218).string(message.templateResourceRevisionId);
     }
+    if (message.foundationId !== "") {
+      writer.uint32(226).string(message.foundationId);
+    }
+    if (message.foundationName !== "") {
+      writer.uint32(234).string(message.foundationName);
+    }
+    for (const v of message.foundationTemplateIds) {
+      writer.uint32(242).string(v!);
+    }
+    if (message.foundationOutputMetadata !== "") {
+      writer.uint32(250).string(message.foundationOutputMetadata);
+    }
+    if (message.foundationSnapshotId !== "") {
+      writer.uint32(258).string(message.foundationSnapshotId);
+    }
     return writer;
   },
 };
@@ -1557,6 +1584,9 @@ export const ApplyComplete = {
     }
     for (const v of message.timings) {
       Timing.encode(v!, writer.uint32(26).fork()).ldelim();
+    }
+    if (message.stateIsAuthoritative !== false) {
+      writer.uint32(32).bool(message.stateIsAuthoritative);
     }
     return writer;
   },

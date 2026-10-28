@@ -408,6 +408,7 @@ func TestMigrationChain(t *testing.T) {
 		{"Migration000606ChatDiffStatusOriginCredentials", 606, testMigration000606ChatDiffStatusOriginCredentials},
 		{"Migration000621Skills", 621, testMigration000621Skills},
 		{"Migration000625TemplateVersionScriptOrderUsage", 625, testMigration000625TemplateVersionScriptOrderUsage},
+		{"Migration000637Foundations", 637, testMigration000637Foundations},
 	}
 	for _, step := range steps {
 		stepTo(step.version - 1)

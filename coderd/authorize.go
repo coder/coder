@@ -276,6 +276,8 @@ func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 				dbObj, dbErr = api.Database.GetWorkspaceByID(ctx, id)
 			case rbac.ResourceTemplate.Type:
 				dbObj, dbErr = api.Database.GetTemplateByID(ctx, id)
+			case rbac.ResourceFoundation.Type:
+				dbObj, dbErr = api.Database.GetFoundationByID(ctx, id)
 			case rbac.ResourceUser.Type:
 				dbObj, dbErr = api.Database.GetUserByID(ctx, id)
 			case rbac.ResourceGroup.Type:

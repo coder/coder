@@ -24,6 +24,7 @@ import (
 	strings2 "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/provisionersdk/tfstate"
 )
 
 const (
@@ -599,6 +600,11 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		TemplateName:               r.job.GetTemplateImport().Metadata.TemplateName,
 		TemplateOutputs:            r.job.GetTemplateImport().Metadata.TemplateOutputs,
 		TemplateResourceRevisionId: r.job.GetTemplateImport().Metadata.TemplateResourceRevisionId,
+		FoundationId:               r.job.GetTemplateImport().Metadata.FoundationId,
+		FoundationName:             r.job.GetTemplateImport().Metadata.FoundationName,
+		FoundationTemplateIds:      r.job.GetTemplateImport().Metadata.FoundationTemplateIds,
+		FoundationOutputMetadata:   r.job.GetTemplateImport().Metadata.FoundationOutputMetadata,
+		FoundationSnapshotId:       r.job.GetTemplateImport().Metadata.FoundationSnapshotId,
 		WorkspaceTransition:        sdkproto.WorkspaceTransition_START,
 	})
 	if err != nil {
@@ -619,6 +625,11 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		TemplateName:               r.job.GetTemplateImport().Metadata.TemplateName,
 		TemplateOutputs:            r.job.GetTemplateImport().Metadata.TemplateOutputs,
 		TemplateResourceRevisionId: r.job.GetTemplateImport().Metadata.TemplateResourceRevisionId,
+		FoundationId:               r.job.GetTemplateImport().Metadata.FoundationId,
+		FoundationName:             r.job.GetTemplateImport().Metadata.FoundationName,
+		FoundationTemplateIds:      r.job.GetTemplateImport().Metadata.FoundationTemplateIds,
+		FoundationOutputMetadata:   r.job.GetTemplateImport().Metadata.FoundationOutputMetadata,
+		FoundationSnapshotId:       r.job.GetTemplateImport().Metadata.FoundationSnapshotId,
 		WorkspaceTransition:        sdkproto.WorkspaceTransition_STOP,
 	})
 	if err != nil {
@@ -1038,21 +1049,31 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 	if applyComplete == nil {
 		return nil, r.failedWorkspaceBuildf("invalid message type received from provisioner during apply")
 	}
+	// Only authoritative state can attribute this build's Foundation snapshot.
+	stateIsCheckpoint := applyComplete.StateIsAuthoritative && r.notCanceled.Err() == nil && tfstate.ValidateState(applyComplete.State) == nil
+	applyError := applyComplete.Error
+	if err := r.notCanceled.Err(); applyError == "" && err != nil {
+		applyError = fmt.Sprintf("apply canceled: %s", err)
+	}
+	if applyError == "" && r.job.GetWorkspaceBuild().Metadata.GetFoundationId() != "" && !stateIsCheckpoint {
+		applyError = "apply returned non-authoritative state for Foundation-bound workspace"
+	}
 	// Collect apply timings
 	timings = append(timings, applyComplete.Timings...)
-	if applyComplete.Error != "" {
+	if applyError != "" {
 		r.logger.Warn(context.Background(), "apply failed; updating state",
-			slog.F("error", applyComplete.Error),
+			slog.F("error", applyError),
 			slog.F("state_len", len(applyComplete.State)),
 		)
 
 		return nil, &proto.FailedJob{
 			JobId: r.job.JobId,
-			Error: applyComplete.Error,
+			Error: applyError,
 			Type: &proto.FailedJob_WorkspaceBuild_{
 				WorkspaceBuild: &proto.FailedJob_WorkspaceBuild{
-					State:   applyComplete.State,
-					Timings: timings,
+					State:             applyComplete.State,
+					StateIsCheckpoint: stateIsCheckpoint,
+					Timings:           timings,
 				},
 			},
 		}
@@ -1063,11 +1084,15 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 		Metadata: r.job.GetWorkspaceBuild().Metadata,
 		Source:   sdkproto.GraphSource_SOURCE_STATE,
 	})
-	if failed != nil {
-		return nil, failed
+	if failed == nil && graphComplete == nil {
+		failed = r.failedWorkspaceBuildf("invalid message type received from provisioner during graph")
 	}
-	if graphComplete == nil {
-		return nil, r.failedWorkspaceBuildf("invalid message type received from provisioner during graph")
+	if failed != nil {
+		// Graph failure does not invalidate the checkpoint returned by apply.
+		failed.Type = &proto.FailedJob_WorkspaceBuild_{WorkspaceBuild: &proto.FailedJob_WorkspaceBuild{
+			State: applyComplete.State, StateIsCheckpoint: stateIsCheckpoint, Timings: timings,
+		}}
+		return nil, failed
 	}
 	// Collect graph timings
 	timings = append(timings, graphComplete.Timings...)
@@ -1082,8 +1107,9 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 			Type: &proto.FailedJob_WorkspaceBuild_{
 				WorkspaceBuild: &proto.FailedJob_WorkspaceBuild{
 					// Graph does not change the state, so return the state returned from apply.
-					State:   applyComplete.State,
-					Timings: timings,
+					State:             applyComplete.State,
+					StateIsCheckpoint: stateIsCheckpoint,
+					Timings:           timings,
 				},
 			},
 		}

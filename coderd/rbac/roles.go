@@ -510,6 +510,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Site: Permissions(map[string][]policy.Action{
 			ResourceAssignOrgRole.Type: {policy.ActionRead},
 			ResourceTemplate.Type:      ResourceTemplate.AvailableActions(),
+			ResourceFoundation.Type:    ResourceFoundation.AvailableActions(),
 			// CRUD all files, even those they did not upload.
 			ResourceFile.Type:              {policy.ActionCreate, policy.ActionRead},
 			ResourceWorkspace.Type:         {policy.ActionRead},
@@ -677,6 +678,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 					organizationID.String(): {
 						Org: Permissions(map[string][]policy.Action{
 							ResourceTemplate.Type:          ResourceTemplate.AvailableActions(),
+							ResourceFoundation.Type:        ResourceFoundation.AvailableActions(),
 							ResourceFile.Type:              {policy.ActionCreate, policy.ActionRead},
 							ResourceWorkspace.Type:         {policy.ActionRead},
 							ResourceWorkspaceDormant.Type:  {policy.ActionRead},

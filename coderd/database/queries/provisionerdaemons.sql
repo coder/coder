@@ -93,8 +93,10 @@ LEFT JOIN
 		AND current_resource_run.organization_id = pd.organization_id
 	)
 LEFT JOIN
+	foundations current_foundation ON current_foundation.id = current_resource_run.foundation_id
+LEFT JOIN
 	templates current_template ON (
-		current_template.id = COALESCE(current_resource_run.template_id, current_version.template_id)
+		current_template.id = COALESCE(current_foundation.template_id, current_version.template_id)
 		AND current_template.organization_id = pd.organization_id
 	)
 -- Previous job information.
@@ -112,8 +114,10 @@ LEFT JOIN
 		AND previous_resource_run.organization_id = pd.organization_id
 	)
 LEFT JOIN
+	foundations previous_foundation ON previous_foundation.id = previous_resource_run.foundation_id
+LEFT JOIN
 	templates previous_template ON (
-		previous_template.id = COALESCE(previous_resource_run.template_id, previous_version.template_id)
+		previous_template.id = COALESCE(previous_foundation.template_id, previous_version.template_id)
 		AND previous_template.organization_id = pd.organization_id
 	)
 WHERE

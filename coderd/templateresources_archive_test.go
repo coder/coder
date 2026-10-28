@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -40,7 +41,7 @@ func TestTemplateResourceRevisionArchive(t *testing.T) {
 	t.Parallel()
 	client, db := newTemplateResourceClient(t)
 	owner := coderdtest.CreateFirstUser(t, client)
-	admin, adminUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	admin, adminUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.ScopedRoleOrgTemplateAdmin(owner.OrganizationID))
 	reader, readerUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 	template := dbgen.Template(t, db, database.Template{
 		OrganizationID: owner.OrganizationID, CreatedBy: owner.UserID,
@@ -49,6 +50,7 @@ func TestTemplateResourceRevisionArchive(t *testing.T) {
 			readerUser.ID.String(): {policy.ActionRead},
 		},
 	})
+	templateFoundation := dbgen.Foundation(t, db, database.Foundation{OrganizationID: template.OrganizationID, TemplateID: uuid.NullUUID{UUID: template.ID, Valid: true}})
 	ctx := t.Context()
 	files := map[string]string{
 		"resources.tf":          `module "local" { source = "./modules/local" }`,
@@ -57,14 +59,14 @@ func TestTemplateResourceRevisionArchive(t *testing.T) {
 		".terraform.lock.hcl":   "# dependency selections\n",
 	}
 	uploadID := uploadTemplateResourceFiles(t, client, files)
-	revision, err := client.CreateTemplateResourceRevision(ctx, template.ID, codersdk.CreateTemplateResourceRevisionRequest{FileID: uploadID})
+	revision, err := client.CreateFoundationRevision(ctx, template.OrganizationID, templateFoundation.ID, codersdk.CreateTemplateResourceRevisionRequest{FileID: uploadID})
 	require.NoError(t, err)
 	require.Empty(t, revision.Source, "main.tf is not required")
 	require.NotEqual(t, uuid.Nil, revision.FileID)
 	require.NotEqual(t, uploadID, revision.FileID, "snapshot normalized metadata and implicit directories")
 
-	// A second template ACL admin can open the immutable archive before Build.
-	detail, err := admin.TemplateResources(ctx, template.ID)
+	// An organization Foundation admin can open the immutable archive before Build.
+	detail, err := admin.Foundation(ctx, template.OrganizationID, templateFoundation.ID)
 	require.NoError(t, err)
 	require.Empty(t, detail.Runs)
 	require.Equal(t, revision.FileID, detail.Revisions[0].FileID)
@@ -97,20 +99,22 @@ func TestTemplateResourceRevisionArchive(t *testing.T) {
 	unrelated := uploadTemplateResourceFiles(t, client, map[string]string{"main.tf": "# unrelated upload"})
 	_, _, err = admin.Download(ctx, unrelated)
 	require.Equal(t, http.StatusNotFound, coderdtest.SDKError(t, err).StatusCode())
-	_, err = admin.CreateTemplateResourceRevision(ctx, template.ID, codersdk.CreateTemplateResourceRevisionRequest{FileID: unrelated})
+	_, err = admin.CreateFoundationRevision(ctx, template.OrganizationID, templateFoundation.ID, codersdk.CreateTemplateResourceRevisionRequest{FileID: unrelated})
 	require.Equal(t, http.StatusNotFound, coderdtest.SDKError(t, err).StatusCode(), "revision creation must authorize uploaded file reads")
 
-	privateTemplate := dbgen.Template(t, db, database.Template{OrganizationID: owner.OrganizationID, CreatedBy: owner.UserID})
-	private, err := client.CreateTemplateResourceRevision(ctx, privateTemplate.ID, codersdk.CreateTemplateResourceRevisionRequest{Source: "# private revision"})
+	privateOrg := dbgen.Organization(t, db, database.Organization{})
+	privateTemplate := dbgen.Template(t, db, database.Template{OrganizationID: privateOrg.ID, CreatedBy: owner.UserID})
+	privateTemplateFoundation := dbgen.Foundation(t, db, database.Foundation{OrganizationID: privateTemplate.OrganizationID, TemplateID: uuid.NullUUID{UUID: privateTemplate.ID, Valid: true}})
+	private, err := client.CreateFoundationRevision(ctx, privateTemplate.OrganizationID, privateTemplateFoundation.ID, codersdk.CreateTemplateResourceRevisionRequest{Source: "# private revision"})
 	require.NoError(t, err)
 	_, _, err = admin.Download(ctx, private.FileID)
-	require.Equal(t, http.StatusNotFound, coderdtest.SDKError(t, err).StatusCode(), "an archive associated with a different template is not authorized")
+	require.Equal(t, http.StatusNotFound, coderdtest.SDKError(t, err).StatusCode(), "an archive associated in a different organization is not authorized")
 
 	// Reusing an authorized revision archive still creates an independent revision.
-	newer, err := admin.CreateTemplateResourceRevision(ctx, template.ID, codersdk.CreateTemplateResourceRevisionRequest{FileID: revision.FileID})
+	newer, err := admin.CreateFoundationRevision(ctx, template.OrganizationID, templateFoundation.ID, codersdk.CreateTemplateResourceRevisionRequest{FileID: revision.FileID})
 	require.NoError(t, err)
 	require.NotEqual(t, revision.ID, newer.ID)
-	run, err := admin.CreateTemplateResourceRun(ctx, template.ID, codersdk.CreateTemplateResourceRunRequest{RevisionID: revision.ID, Action: "plan"})
+	run, err := admin.CreateFoundationRun(ctx, template.OrganizationID, templateFoundation.ID, codersdk.CreateTemplateResourceRunRequest{RevisionID: revision.ID, Action: "plan"})
 	require.NoError(t, err)
 	//nolint:gocritic // Verify the native plan receives the complete selected snapshot.
 	job, err := db.GetProvisionerJobByID(dbauthz.AsSystemRestricted(ctx), run.Job.ID)
@@ -126,6 +130,7 @@ func TestTemplateResourceRevisionArchiveValidation(t *testing.T) {
 	client, db := newTemplateResourceClient(t)
 	owner := coderdtest.CreateFirstUser(t, client)
 	template := dbgen.Template(t, db, database.Template{OrganizationID: owner.OrganizationID, CreatedBy: owner.UserID})
+	templateFoundation := dbgen.Foundation(t, db, database.Foundation{OrganizationID: template.OrganizationID, TemplateID: uuid.NullUUID{UUID: template.ID, Valid: true}})
 	for _, tc := range []struct {
 		name  string
 		files map[string]string
@@ -144,7 +149,7 @@ func TestTemplateResourceRevisionArchiveValidation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			fileID := uploadTemplateResourceFiles(t, client, tc.files)
-			_, err := client.CreateTemplateResourceRevision(t.Context(), template.ID, codersdk.CreateTemplateResourceRevisionRequest{FileID: fileID})
+			_, err := client.CreateFoundationRevision(t.Context(), template.OrganizationID, templateFoundation.ID, codersdk.CreateTemplateResourceRevisionRequest{FileID: fileID})
 			require.Equal(t, http.StatusBadRequest, coderdtest.SDKError(t, err).StatusCode())
 		})
 	}
@@ -176,7 +181,7 @@ func TestTemplateResourceRevisionArchiveValidation(t *testing.T) {
 			require.NoError(t, writer.Close())
 			upload, err := client.Upload(t.Context(), codersdk.ContentTypeZip, bytes.NewReader(data.Bytes()))
 			require.NoError(t, err)
-			_, err = client.CreateTemplateResourceRevision(t.Context(), template.ID, codersdk.CreateTemplateResourceRevisionRequest{FileID: upload.ID})
+			_, err = client.CreateFoundationRevision(t.Context(), template.OrganizationID, templateFoundation.ID, codersdk.CreateTemplateResourceRevisionRequest{FileID: upload.ID})
 			if symlink {
 				require.Equal(t, http.StatusBadRequest, coderdtest.SDKError(t, err).StatusCode())
 			} else {
@@ -190,12 +195,12 @@ func TestTemplateResourceRevisionArchiveValidation(t *testing.T) {
 		for _, req := range []codersdk.CreateTemplateResourceRevisionRequest{
 			{}, {Source: " "}, {FileID: fileID, Source: "# root"}, {FileID: fileID, Source: " "},
 		} {
-			_, err := client.CreateTemplateResourceRevision(t.Context(), template.ID, req)
+			_, err := client.CreateFoundationRevision(t.Context(), template.OrganizationID, templateFoundation.ID, req)
 			require.Equal(t, http.StatusBadRequest, coderdtest.SDKError(t, err).StatusCode())
 		}
-		_, err := client.CreateTemplateResourceRevision(t.Context(), template.ID, codersdk.CreateTemplateResourceRevisionRequest{FileID: uuid.New()})
+		_, err := client.CreateFoundationRevision(t.Context(), template.OrganizationID, templateFoundation.ID, codersdk.CreateTemplateResourceRevisionRequest{FileID: uuid.New()})
 		require.Equal(t, http.StatusNotFound, coderdtest.SDKError(t, err).StatusCode())
-		revision, err := client.CreateTemplateResourceRevision(t.Context(), template.ID, codersdk.CreateTemplateResourceRevisionRequest{FileID: fileID})
+		revision, err := client.CreateFoundationRevision(t.Context(), template.OrganizationID, templateFoundation.ID, codersdk.CreateTemplateResourceRevisionRequest{FileID: fileID})
 		require.NoError(t, err)
 		require.Equal(t, "# root", revision.Source)
 	})

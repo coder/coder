@@ -48,7 +48,7 @@ func NetworkPolicyProvisionerTags(tags map[string]string, apiVersion string) map
 func TemplateResourcesProvisionerTags(tags map[string]string, apiVersion string) map[string]string {
 	tags = maps.Clone(tags)
 	major, minor, err := apiversion.Parse(apiVersion)
-	if err != nil || major != 1 || minor < 23 || tags[TagTemplateResources] != TemplateResourcesCapabilityVersion {
+	if err != nil || major != 1 || minor < 25 || tags[TagTemplateResources] != TemplateResourcesCapabilityVersion {
 		delete(tags, TagTemplateResources)
 	}
 	return tags

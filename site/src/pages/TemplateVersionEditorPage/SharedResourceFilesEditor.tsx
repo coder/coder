@@ -1,5 +1,5 @@
 import { ChevronLeftIcon, PlayIcon } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	Link,
@@ -9,18 +9,18 @@ import {
 } from "react-router";
 import { templateArchive, uploadFile } from "#/api/queries/files";
 import {
-	createTemplateResourceRevision,
-	createTemplateResourceRun,
-	templateResources,
-} from "#/api/queries/templateResources";
+	createFoundationRevision,
+	createFoundationRun,
+	foundationPath,
+} from "#/api/queries/foundations";
 import type {
-	Template,
+	Foundation,
 	TemplateResourceRevision,
 	TemplateResourceRun,
-	TemplateResources,
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
 	Topbar,
 	TopbarButton,
@@ -28,62 +28,35 @@ import {
 	TopbarIconButton,
 } from "#/components/FullPageLayout/Topbar";
 import { Loader } from "#/components/Loader/Loader";
-import { linkToTemplate, useLinks } from "#/modules/navigation";
+import { FoundationImpact } from "#/pages/FoundationsPage/FoundationImpact";
+import {
+	FoundationPlanPreview,
+	getFoundationPlanPreview,
+} from "#/pages/FoundationsPage/FoundationPlanPreview";
 import { SharedResourceRunLogs } from "#/pages/TemplatePage/TemplateSharedResourcesPage/SharedResourceRunLogs";
 import { existsFile, type FileTree, isFolder } from "#/utils/filetree";
 import { TarReader } from "#/utils/tar";
 import { writeTemplateArchive } from "#/utils/templateArchive";
-import { ProvisioningScopeNavigation } from "./ProvisioningScopeNavigation";
 import { TemplateFileEditor } from "./TemplateFileEditor";
 import { findEntrypointFile } from "./TemplateVersionEditorPage";
 
 const runActionLabels: Record<string, string | undefined> = {
-	plan: "Build",
-	apply: "Publish",
+	plan: "Plan",
+	apply: "Apply",
 	destroy: "Destroy",
 };
 
-type SharedResourceFilesEditorProps = { template: Template };
-
-/** Loads the shared provisioning scope independently of workspace versions. */
-export const SharedResourceFilesEditor: React.FC<
-	SharedResourceFilesEditorProps
-> = ({ template }) => {
-	const query = useQuery(templateResources(template.id));
-	return (
-		<>
-			{Boolean(query.error) && (
-				<div className="p-3">
-					<ErrorAlert error={query.error} />
-					<Button variant="outline" onClick={() => void query.refetch()}>
-						Retry resources
-					</Button>
-				</div>
-			)}
-			{query.data ? (
-				<ResourceArchive
-					key={template.id}
-					template={template}
-					resources={query.data}
-				/>
-			) : (
-				<>
-					<ResourceEditorHeader template={template} />
-					{query.isLoading && <Loader />}
-				</>
-			)}
-		</>
-	);
-};
-
 type ResourceArchiveProps = {
-	template: Template;
-	resources: TemplateResources;
+	resources: Foundation;
+	canUpdate: boolean;
+	canUse: boolean;
 };
 
-const ResourceArchive: React.FC<ResourceArchiveProps> = ({
-	template,
+/** Edits a Foundation archive without loading a workspace template version. */
+export const SharedResourceFilesEditor: React.FC<ResourceArchiveProps> = ({
 	resources,
+	canUpdate,
+	canUse,
 }) => {
 	// Freeze the opened archive. Polling revision history must not replace a draft.
 	const [revision] = useState(
@@ -113,14 +86,15 @@ const ResourceArchive: React.FC<ResourceArchiveProps> = ({
 			)}
 			{initial ? (
 				<ResourceEditorSession
-					template={template}
 					resources={resources}
+					canUpdate={canUpdate}
+					canUse={canUse}
 					initial={initial}
 					revision={revision}
 				/>
 			) : (
 				<>
-					<ResourceEditorHeader template={template} />
+					<ResourceEditorHeader resources={resources} />
 					{query.isLoading && <Loader />}
 				</>
 			)}
@@ -129,67 +103,49 @@ const ResourceArchive: React.FC<ResourceArchiveProps> = ({
 };
 
 type ResourceEditorHeaderProps = {
-	template: Template;
+	resources: Foundation;
 	children?: React.ReactNode;
 };
 
 const ResourceEditorHeader: React.FC<ResourceEditorHeaderProps> = ({
-	template,
+	resources,
 	children,
 }) => {
-	const getLink = useLinks();
 	return (
-		<>
-			<Topbar className="flex items-center gap-4 pr-4 shrink-0">
-				<TopbarIconButton asChild>
-					<Link
-						to={getLink(
-							linkToTemplate(template.organization_name, template.name),
-						)}
-						aria-label="Back to the template"
-					>
-						<ChevronLeftIcon />
-					</Link>
-				</TopbarIconButton>
-				<TopbarData>{template.display_name || template.name}</TopbarData>
-				<div className="ml-auto flex gap-2">{children}</div>
-			</Topbar>
-			<ProvisioningScopeNavigation scope="shared" />
-		</>
+		<Topbar className="flex items-center gap-4 pr-4 shrink-0">
+			<TopbarIconButton asChild>
+				<Link
+					to={foundationPath(resources.organization_id, resources.id)}
+					aria-label="Back to Foundation"
+				>
+					<ChevronLeftIcon />
+				</Link>
+			</TopbarIconButton>
+			<TopbarData>{resources.name}</TopbarData>
+			<div className="ml-auto flex gap-2">{children}</div>
+		</Topbar>
 	);
 };
 
 type ResourceEditorSessionProps = {
-	template: Template;
-	resources: TemplateResources;
+	resources: Foundation;
+	canUpdate: boolean;
+	canUse: boolean;
 	initial: { archive: TarReader; files: FileTree };
 	revision: TemplateResourceRevision | undefined;
 };
 
 const ResourceEditorSession: React.FC<ResourceEditorSessionProps> = ({
-	template,
 	resources,
+	canUpdate,
+	canUse,
 	initial,
 	revision,
 }) => {
 	const queryClient = useQueryClient();
 	const [files, setFiles] = useState(initial.files);
 	const [savedFiles, setSavedFiles] = useState(initial.files);
-	const [built, setBuilt] = useState<
-		| {
-				files: FileTree;
-				revision: TemplateResourceRevision;
-				run: TemplateResourceRun;
-		  }
-		| undefined
-	>(() => {
-		const plan = resources.runs
-			.filter((item) => item.action === "plan")
-			.toSorted((a, b) => b.created_at.localeCompare(a.created_at))[0];
-		return revision && plan?.revision_id === revision.id
-			? { files: initial.files, revision, run: plan }
-			: undefined;
-	});
+	const [savedRevision, setSavedRevision] = useState(revision);
 	const [selectedRun, setSelectedRun] = useState<
 		TemplateResourceRun | undefined
 	>(() => {
@@ -198,23 +154,28 @@ const ResourceEditorSession: React.FC<ResourceEditorSessionProps> = ({
 		);
 		return runs.find((item) => item.revision_id === revision?.id) ?? runs[0];
 	});
-	const [buildError, setBuildError] = useState<unknown>();
-	const [building, setBuilding] = useState(false);
+	const [saveError, setSaveError] = useState<unknown>();
+	const [saving, setSaving] = useState(false);
+	const [confirmApply, setConfirmApply] = useState(false);
+	const applyTrigger = useRef<HTMLButtonElement>(null);
+	const output = useRef<HTMLElement>(null);
 	const [params, setParams] = useSearchParams();
 	const upload = useMutation(uploadFile());
 	const save = useMutation(
-		createTemplateResourceRevision(queryClient, template.id),
+		createFoundationRevision(
+			queryClient,
+			resources.organization_id,
+			resources.id,
+		),
 	);
-	const run = useMutation(createTemplateResourceRun(queryClient, template.id));
+	const run = useMutation(
+		createFoundationRun(queryClient, resources.organization_id, resources.id),
+	);
 	const dirty = files !== savedFiles;
 	const liveRun =
 		selectedRun &&
 		(resources.runs.find((item) => item.id === selectedRun.id) ?? selectedRun);
-	const plan =
-		built &&
-		(resources.runs.find((item) => item.id === built.run.id) ?? built.run);
 	const busy =
-		building ||
 		run.isPending ||
 		resources.status === "pending" ||
 		resources.runs.some((item) =>
@@ -225,40 +186,19 @@ const ResourceEditorSession: React.FC<ResourceEditorSessionProps> = ({
 				["pending", "running", "canceling"].includes(liveRun.job.status),
 		);
 	const blocked = busy || resources.status === "unknown";
-	const canPublish =
-		!blocked &&
-		built &&
-		built.files === files &&
-		plan?.job.status === "succeeded" &&
-		!resources.runs.some(
-			(item) =>
-				item.action === "plan" &&
-				item.id !== plan.id &&
-				item.created_at >= plan.created_at,
-		) &&
-		resources.current_revision_id === built.revision.id &&
-		resources.applied_revision_id !== built.revision.id;
-	let buildMessage =
-		"Build a successful plan before publishing. Workspace versions are not changed.";
+	const canRun = !blocked && !saving && !dirty && Boolean(savedRevision);
+	const canApply = canUse && canRun;
+
+	let statusMessage =
+		"Save files independently, then Plan to preview or Apply to change infrastructure. Apply always creates a fresh plan, which may differ from an earlier preview.";
 	if (busy) {
-		buildMessage =
-			"Waiting for the current operation. Logs refresh automatically.";
+		statusMessage =
+			"Waiting for the current operation. You can still edit and save files. Logs refresh automatically.";
 	} else if (resources.status === "unknown") {
-		buildMessage =
-			"Shared resource state is unknown. Reconcile state before building or publishing.";
+		statusMessage =
+			"Foundation state is unknown. You can edit and save files, but must reconcile state before Plan or Apply.";
 	} else if (dirty) {
-		buildMessage =
-			"Unbuilt edits. Build saves all files and plans this Terraform root.";
-	} else if (
-		resources.current_revision_id &&
-		resources.current_revision_id === resources.applied_revision_id &&
-		resources.current_revision_id === (built?.revision.id ?? revision?.id)
-	) {
-		buildMessage =
-			"This revision is published. Build changes to publish another revision.";
-	} else if (canPublish) {
-		buildMessage =
-			"Build succeeded. Publish applies this immutable revision to shared resources only.";
+		statusMessage = "Unsaved edits. Save files before Plan or Apply.";
 	}
 	const requestedPath = params.get("path");
 	const activePath =
@@ -267,86 +207,126 @@ const ResourceEditorSession: React.FC<ResourceEditorSessionProps> = ({
 		!isFolder(requestedPath, files)
 			? requestedPath
 			: findEntrypointFile(files);
-	const build = useCallback(async () => {
-		if (blocked) return;
-		setBuilding(true);
-		setBuilt(undefined);
-		setSelectedRun(undefined);
-		setBuildError(undefined);
-		run.reset();
-		save.reset();
+	const saveFiles = useCallback(async () => {
+		if (saving || !canUpdate) return;
+		setSaving(true);
+		setSaveError(undefined);
 		try {
 			const archive = await writeTemplateArchive(initial.archive, files);
 			const uploaded = await upload.mutateAsync(archive);
 			const revision = await save.mutateAsync({ file_id: uploaded.hash });
 			setSavedFiles(files);
-			const planned = await run.mutateAsync({
-				revision_id: revision.id,
-				action: "plan",
-			});
-			setSelectedRun(planned);
-			setBuilt({ files, revision, run: planned });
+			setSavedRevision(revision);
 		} catch (error) {
-			setBuildError(error);
+			setSaveError(error);
 		} finally {
-			setBuilding(false);
+			setSaving(false);
 		}
-	}, [blocked, files, initial.archive, upload, save, run]);
+	}, [saving, canUpdate, files, initial.archive, upload, save]);
 
 	useEffect(() => {
 		const listener = (event: KeyboardEvent) => {
 			if (!(event.ctrlKey || event.metaKey)) return;
-			if (event.key === "s") event.preventDefault();
-			if (event.key === "Enter") {
+			if (event.key === "s") {
 				event.preventDefault();
-				void build();
+				void saveFiles();
 			}
 		};
 		document.addEventListener("keydown", listener);
 		return () => document.removeEventListener("keydown", listener);
-	}, [build]);
+	}, [saveFiles]);
 	usePrompt({
 		message:
 			"You have unsaved shared resource changes. Are you sure you want to leave?",
 		when: ({ currentLocation, nextLocation }) =>
-			(dirty || building) &&
+			(dirty || saving) &&
 			(currentLocation.pathname !== nextLocation.pathname ||
-				new URLSearchParams(nextLocation.search).get("scope") !== "template"),
+				new URLSearchParams(nextLocation.search).get("edit") !== "true"),
 	});
 	useBeforeUnload(
 		useCallback(
 			(event: BeforeUnloadEvent) => {
-				if (dirty || building) event.preventDefault();
+				if (dirty || saving) event.preventDefault();
 			},
-			[dirty, building],
+			[dirty, saving],
 		),
 	);
 
 	return (
 		<>
-			<ResourceEditorHeader template={template}>
+			<ResourceEditorHeader resources={resources}>
 				<TopbarButton
-					disabled={blocked}
-					title="Build shared resources (Ctrl + Enter)"
-					onClick={() => void build()}
+					disabled={saving || !canUpdate}
+					title="Save files (Ctrl + S)"
+					onClick={() => void saveFiles()}
 				>
-					<PlayIcon />
-					{building ? "Building…" : "Build"}
+					{saving ? "Saving…" : "Save files"}
 				</TopbarButton>
 				<TopbarButton
-					variant="default"
-					disabled={!canPublish}
+					disabled={!canRun || !canUpdate}
 					onClick={() => {
-						if (canPublish && built)
+						if (canRun && canUpdate && savedRevision)
 							run.mutate(
-								{ revision_id: built.revision.id, action: "apply" },
+								{ revision_id: savedRevision.id, action: "plan" },
 								{ onSuccess: setSelectedRun },
 							);
 					}}
 				>
-					Publish
+					<PlayIcon />
+					Plan
+				</TopbarButton>
+				<TopbarButton
+					ref={applyTrigger}
+					variant="default"
+					disabled={!canApply}
+					onClick={() => setConfirmApply(true)}
+				>
+					Apply
 				</TopbarButton>
 			</ResourceEditorHeader>
+			<ConfirmDialog
+				open={confirmApply}
+				hideCancel={false}
+				onCloseAutoFocus={(event) => {
+					event.preventDefault();
+					if (applyTrigger.current?.disabled) output.current?.focus();
+					else applyTrigger.current?.focus();
+				}}
+				title="Apply Foundation?"
+				confirmText="Apply Foundation"
+				confirmLoading={run.isPending}
+				disabled={!canApply}
+				onClose={() => {
+					if (!run.isPending) setConfirmApply(false);
+				}}
+				onConfirm={() => {
+					if (canApply && savedRevision)
+						run.mutate(
+							{ revision_id: savedRevision.id, action: "apply" },
+							{
+								onSuccess: (result) => {
+									setSelectedRun(result);
+									setConfirmApply(false);
+								},
+							},
+						);
+				}}
+				description={
+					<div className="space-y-3">
+						<p>
+							Apply revision {savedRevision?.id} using a fresh plan, which may
+							differ from any earlier Plan preview. It can create, change, or
+							delete infrastructure, even when workspace destruction protection
+							is enabled.
+						</p>
+						<FoundationImpact resources={resources} />
+						<FoundationPlanPreview
+							preview={getFoundationPlanPreview(resources, savedRevision?.id)}
+						/>
+						{Boolean(run.error) && <ErrorAlert error={run.error} />}
+					</div>
+				}
+			/>
 			<div className="flex flex-1 min-h-0 overflow-hidden">
 				<TemplateFileEditor
 					fileTree={files}
@@ -359,16 +339,33 @@ const ResourceEditorSession: React.FC<ResourceEditorSessionProps> = ({
 						setParams(next, { replace: true });
 					}}
 				>
-					<section aria-label="Build output" className="p-4 space-y-3">
+					<section
+						ref={output}
+						tabIndex={-1}
+						aria-label="Terraform output"
+						className="p-4 space-y-3"
+					>
 						<h2 className="text-sm font-semibold m-0">Output</h2>
-						<p className="text-sm text-content-secondary m-0">{buildMessage}</p>
-						{Boolean(buildError || run.error) && (
-							<ErrorAlert error={buildError || run.error} />
+						<p className="text-sm text-content-secondary break-all">
+							Foundation {resources.name} · {resources.id}
+						</p>
+						{!canUpdate && (
+							<p>
+								Read-only: Foundation update permission is required to save or
+								plan.
+							</p>
 						)}
-						{Boolean(buildError) && save.data && (
+						{!canUse && <p>Foundation use permission is required to apply.</p>}
+						<p className="text-sm text-content-secondary m-0">
+							{statusMessage}
+						</p>
+						{Boolean(saveError || run.error) && (
+							<ErrorAlert error={saveError || run.error} />
+						)}
+						{savedRevision && (
 							<p className="text-sm text-content-secondary">
-								Revision {save.data.id.slice(0, 8)} was saved, but its plan
-								could not be queued. Build again to retry.
+								Saved revision {savedRevision.id.slice(0, 8)}. Saving does not
+								run Terraform.
 							</p>
 						)}
 						{liveRun && (
@@ -377,13 +374,13 @@ const ResourceEditorSession: React.FC<ResourceEditorSessionProps> = ({
 									{runActionLabels[liveRun.action] ?? liveRun.action}:{" "}
 									{liveRun.job.status} · Revision{" "}
 									{liveRun.revision_id.slice(0, 8)}
-									{liveRun.revision_id !==
-										(built?.revision.id ?? revision?.id) &&
-										" (older revision, not this build)"}
+									{liveRun.revision_id !== savedRevision?.id &&
+										" (not the editor's saved revision)"}
 								</p>
 								{liveRun.job.error && <ErrorAlert error={liveRun.job.error} />}
 								<SharedResourceRunLogs
-									templateId={template.id}
+									organization={resources.organization_id}
+									foundationId={resources.id}
 									runId={liveRun.id}
 								/>
 							</>

@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -31,26 +32,27 @@ func TestTemplateResourceJobListingAndCancellation(t *testing.T) {
 				t.Parallel()
 				client, db := newTemplateResourceClient(t)
 				owner := coderdtest.CreateFirstUser(t, client)
-				member, user := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+				member, user := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.ScopedRoleOrgTemplateAdmin(owner.OrganizationID))
 				deniedMember, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 				ctx := t.Context()
 				//nolint:gocritic // Simulate acquisition/completion without infrastructure.
 				systemCtx := dbauthz.AsSystemRestricted(ctx)
-				tags, err := json.Marshal(map[string]string{provisionersdk.TagScope: provisionersdk.ScopeOrganization, provisionersdk.TagOwner: "", provisionersdk.TagTemplateResources: "1"})
+				tags, err := json.Marshal(map[string]string{provisionersdk.TagScope: provisionersdk.ScopeOrganization, provisionersdk.TagOwner: "", provisionersdk.TagTemplateResources: provisionersdk.TemplateResourcesCapabilityVersion})
 				require.NoError(t, err)
 				template := dbgen.Template(t, db, database.Template{OrganizationID: owner.OrganizationID, CreatedBy: owner.UserID, DisplayName: "Resources", Icon: "/icon/code.svg", UserACL: database.TemplateACL{user.ID.String(): []policy.Action{policy.ActionRead, policy.ActionUpdate}}})
-				revision, err := client.CreateTemplateResourceRevision(ctx, template.ID, codersdk.CreateTemplateResourceRevisionRequest{Source: "# root"})
+				templateFoundation := dbgen.Foundation(t, db, database.Foundation{OrganizationID: template.OrganizationID, TemplateID: uuid.NullUUID{UUID: template.ID, Valid: true}})
+				revision, err := client.CreateFoundationRevision(ctx, template.OrganizationID, templateFoundation.ID, codersdk.CreateTemplateResourceRevisionRequest{Source: "# root"})
 				require.NoError(t, err)
 				// Preserve an applied snapshot when canceling any operation.
-				seed, err := client.CreateTemplateResourceRun(ctx, template.ID, codersdk.CreateTemplateResourceRunRequest{RevisionID: revision.ID, Action: "apply"})
+				seed, err := client.CreateFoundationRun(ctx, template.OrganizationID, templateFoundation.ID, codersdk.CreateTemplateResourceRunRequest{RevisionID: revision.ID, Action: "apply"})
 				require.NoError(t, err)
 				_, err = db.CompleteTemplateResourceRun(systemCtx, database.CompleteTemplateResourceRunParams{
-					TemplateID: template.ID, RunID: uuid.NullUUID{UUID: seed.ID, Valid: true}, Status: "applied",
-					State: []byte("private state"), Outputs: json.RawMessage(`{"value":"saved"}`), AppliedRevisionID: uuid.NullUUID{UUID: revision.ID, Valid: true}, UpdatedAt: dbtime.Now(),
+					FoundationID: templateFoundation.ID, RunID: uuid.NullUUID{UUID: seed.ID, Valid: true}, Status: "applied",
+					State: []byte("private state"), Outputs: json.RawMessage(`{"value":"saved"}`), AppliedRevisionID: uuid.NullUUID{UUID: revision.ID, Valid: true}, CheckpointRevisionID: uuid.NullUUID{UUID: revision.ID, Valid: true}, UpdatedAt: dbtime.Now(),
 				})
 				require.NoError(t, err)
 				require.NoError(t, db.UpdateProvisionerJobWithCompleteByID(systemCtx, database.UpdateProvisionerJobWithCompleteByIDParams{ID: seed.Job.ID, CompletedAt: sql.NullTime{Time: dbtime.Now(), Valid: true}, UpdatedAt: dbtime.Now()}))
-				run, err := client.CreateTemplateResourceRun(ctx, template.ID, codersdk.CreateTemplateResourceRunRequest{RevisionID: revision.ID, Action: action})
+				run, err := client.CreateFoundationRun(ctx, template.OrganizationID, templateFoundation.ID, codersdk.CreateTemplateResourceRunRequest{RevisionID: revision.ID, Action: action})
 				require.NoError(t, err)
 				require.Equal(t, codersdk.ProvisionerJobTypeTemplateResources, run.Job.Type)
 				require.Equal(t, &run.ID, run.Job.Input.TemplateResourceRunID)
@@ -70,9 +72,10 @@ func TestTemplateResourceJobListingAndCancellation(t *testing.T) {
 				foreignOrg := dbgen.Organization(t, db, database.Organization{})
 				_, err = client.OrganizationProvisionerJob(ctx, foreignOrg.ID, run.Job.ID)
 				require.Equal(t, http.StatusNotFound, coderdtest.SDKError(t, err).StatusCode())
-				require.Equal(t, http.StatusNotFound, coderdtest.SDKError(t, deniedMember.CancelTemplateResourceRun(ctx, template.ID, run.ID)).StatusCode())
+				require.Equal(t, http.StatusNotFound, coderdtest.SDKError(t, deniedMember.CancelFoundationRun(ctx, template.OrganizationID, templateFoundation.ID, run.ID)).StatusCode())
 				other := dbgen.Template(t, db, database.Template{OrganizationID: foreignOrg.ID, CreatedBy: owner.UserID})
-				require.Equal(t, http.StatusNotFound, coderdtest.SDKError(t, client.CancelTemplateResourceRun(ctx, other.ID, run.ID)).StatusCode())
+				otherFoundation := dbgen.Foundation(t, db, database.Foundation{OrganizationID: other.OrganizationID, TemplateID: uuid.NullUUID{UUID: other.ID, Valid: true}})
+				require.Equal(t, http.StatusNotFound, coderdtest.SDKError(t, client.CancelFoundationRun(ctx, other.OrganizationID, otherFoundation.ID, run.ID)).StatusCode())
 
 				var daemon database.ProvisionerDaemon
 				if acquired {
@@ -89,10 +92,10 @@ func TestTemplateResourceJobListingAndCancellation(t *testing.T) {
 					require.Equal(t, template.Icon, daemons[0].CurrentJob.TemplateIcon)
 				}
 				// A template ACL admin can cancel without deployment-wide privileges.
-				require.NoError(t, member.CancelTemplateResourceRun(ctx, template.ID, run.ID))
+				require.NoError(t, member.CancelFoundationRun(ctx, template.OrganizationID, templateFoundation.ID, run.ID))
 				job, err = client.OrganizationProvisionerJob(ctx, owner.OrganizationID, run.Job.ID)
 				require.NoError(t, err)
-				state, err := db.GetTemplateResourceState(systemCtx, template.ID)
+				state, err := db.GetTemplateResourceState(systemCtx, templateFoundation.ID)
 				require.NoError(t, err)
 				require.Equal(t, "applied", state.Status)
 				require.Equal(t, []byte("private state"), state.State)
@@ -103,8 +106,8 @@ func TestTemplateResourceJobListingAndCancellation(t *testing.T) {
 					require.Equal(t, run.ID, state.ActiveRunID.UUID)
 					require.Equal(t, codersdk.ProvisionerJobCanceling, job.Status)
 					require.Nil(t, job.CompletedAt)
-					require.NoError(t, member.CancelTemplateResourceRun(ctx, template.ID, run.ID), "repeated request is idempotent")
-					_, err = client.CreateTemplateResourceRun(ctx, template.ID, codersdk.CreateTemplateResourceRunRequest{RevisionID: revision.ID, Action: "apply"})
+					require.NoError(t, member.CancelFoundationRun(ctx, template.OrganizationID, templateFoundation.ID, run.ID), "repeated request is idempotent")
+					_, err = client.CreateFoundationRun(ctx, template.OrganizationID, templateFoundation.ID, codersdk.CreateTemplateResourceRunRequest{RevisionID: revision.ID, Action: "apply"})
 					require.Equal(t, http.StatusConflict, coderdtest.SDKError(t, err).StatusCode())
 					require.NoError(t, db.UpdateProvisionerJobWithCompleteByID(systemCtx, database.UpdateProvisionerJobWithCompleteByIDParams{ID: run.Job.ID, CompletedAt: sql.NullTime{Time: dbtime.Now(), Valid: true}, UpdatedAt: dbtime.Now()}))
 					daemons, err := client.OrganizationProvisionerDaemons(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerDaemonsOptions{IDs: []uuid.UUID{daemon.ID}, Offline: true})
@@ -122,7 +125,7 @@ func TestTemplateResourceJobListingAndCancellation(t *testing.T) {
 					_, err = db.AcquireProvisionerJob(systemCtx, database.AcquireProvisionerJobParams{OrganizationID: owner.OrganizationID, Types: []database.ProvisionerType{database.ProvisionerTypeTerraform}, ProvisionerTags: tags})
 					require.ErrorIs(t, err, sql.ErrNoRows)
 				}
-				require.Equal(t, http.StatusConflict, coderdtest.SDKError(t, client.CancelTemplateResourceRun(ctx, template.ID, run.ID)).StatusCode())
+				require.Equal(t, http.StatusConflict, coderdtest.SDKError(t, client.CancelFoundationRun(ctx, template.OrganizationID, templateFoundation.ID, run.ID)).StatusCode())
 			})
 		}
 	}

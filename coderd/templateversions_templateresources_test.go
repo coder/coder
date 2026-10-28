@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -34,8 +35,9 @@ func TestTemplateValidationJobsRequireResourceCapability(t *testing.T) {
 			systemCtx := dbauthz.AsSystemRestricted(ctx)
 			template := dbgen.Template(t, db, database.Template{OrganizationID: owner.OrganizationID, CreatedBy: owner.UserID})
 			configure := func() {
+				templateFoundation := dbgen.Foundation(t, db, database.Foundation{OrganizationID: template.OrganizationID, TemplateID: uuid.NullUUID{UUID: template.ID, Valid: true}})
 				_, err := db.InsertTemplateResourceState(systemCtx, database.InsertTemplateResourceStateParams{
-					TemplateID: template.ID, OrganizationID: template.OrganizationID, UpdatedAt: dbtime.Now(),
+					FoundationID: templateFoundation.ID, OrganizationID: template.OrganizationID, UpdatedAt: dbtime.Now(),
 				})
 				require.NoError(t, err)
 			}

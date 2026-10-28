@@ -61,6 +61,8 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
     },
     "logs_overflowed": true,
     "metadata": {
+      "foundation_id": "e2b70a1f-64bb-4ad9-84e3-399e2ce56bf1",
+      "foundation_name": "string",
       "template_display_name": "string",
       "template_icon": "string",
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
@@ -326,6 +328,8 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
     },
     "logs_overflowed": true,
     "metadata": {
+      "foundation_id": "e2b70a1f-64bb-4ad9-84e3-399e2ce56bf1",
+      "foundation_name": "string",
       "template_display_name": "string",
       "template_icon": "string",
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
@@ -1177,6 +1181,8 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
     },
     "logs_overflowed": true,
     "metadata": {
+      "foundation_id": "e2b70a1f-64bb-4ad9-84e3-399e2ce56bf1",
+      "foundation_name": "string",
       "template_display_name": "string",
       "template_icon": "string",
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
@@ -1553,6 +1559,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
       },
       "logs_overflowed": true,
       "metadata": {
+        "foundation_id": "e2b70a1f-64bb-4ad9-84e3-399e2ce56bf1",
+        "foundation_name": "string",
         "template_display_name": "string",
         "template_icon": "string",
         "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
@@ -1796,6 +1804,8 @@ Status Code **200**
 | `»»» workspace_build_id`              | string(uuid)                                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
 | `»» logs_overflowed`                  | boolean                                                                                                            | false    |              |                                                                                                                                                                                                                                                                        |
 | `»» metadata`                         | [codersdk.ProvisionerJobMetadata](schemas.md#codersdkprovisionerjobmetadata)                                       | false    |              |                                                                                                                                                                                                                                                                        |
+| `»»» foundation_id`                   | string(uuid)                                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
+| `»»» foundation_name`                 | string                                                                                                             | false    |              |                                                                                                                                                                                                                                                                        |
 | `»»» template_display_name`           | string                                                                                                             | false    |              |                                                                                                                                                                                                                                                                        |
 | `»»» template_icon`                   | string                                                                                                             | false    |              |                                                                                                                                                                                                                                                                        |
 | `»»» template_id`                     | string(uuid)                                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
@@ -2069,6 +2079,8 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
     },
     "logs_overflowed": true,
     "metadata": {
+      "foundation_id": "e2b70a1f-64bb-4ad9-84e3-399e2ce56bf1",
+      "foundation_name": "string",
       "template_display_name": "string",
       "template_icon": "string",
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",

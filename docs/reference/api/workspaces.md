@@ -125,6 +125,8 @@ of the template will be used.
       },
       "logs_overflowed": true,
       "metadata": {
+        "foundation_id": "e2b70a1f-64bb-4ad9-84e3-399e2ce56bf1",
+        "foundation_name": "string",
         "template_display_name": "string",
         "template_icon": "string",
         "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
@@ -510,6 +512,8 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
       },
       "logs_overflowed": true,
       "metadata": {
+        "foundation_id": "e2b70a1f-64bb-4ad9-84e3-399e2ce56bf1",
+        "foundation_name": "string",
         "template_display_name": "string",
         "template_icon": "string",
         "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
@@ -870,6 +874,8 @@ of the template will be used.
       },
       "logs_overflowed": true,
       "metadata": {
+        "foundation_id": "e2b70a1f-64bb-4ad9-84e3-399e2ce56bf1",
+        "foundation_name": "string",
         "template_display_name": "string",
         "template_icon": "string",
         "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
@@ -1199,6 +1205,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
           },
           "logs_overflowed": true,
           "metadata": {
+            "foundation_id": "e2b70a1f-64bb-4ad9-84e3-399e2ce56bf1",
+            "foundation_name": "string",
             "template_display_name": "string",
             "template_icon": "string",
             "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
@@ -1494,6 +1502,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
       },
       "logs_overflowed": true,
       "metadata": {
+        "foundation_id": "e2b70a1f-64bb-4ad9-84e3-399e2ce56bf1",
+        "foundation_name": "string",
         "template_display_name": "string",
         "template_icon": "string",
         "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
@@ -2131,6 +2141,8 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
       },
       "logs_overflowed": true,
       "metadata": {
+        "foundation_id": "e2b70a1f-64bb-4ad9-84e3-399e2ce56bf1",
+        "foundation_name": "string",
         "template_display_name": "string",
         "template_icon": "string",
         "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",

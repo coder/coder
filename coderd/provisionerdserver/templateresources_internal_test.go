@@ -27,31 +27,37 @@ import (
 )
 
 type templateResourcesFixture struct {
-	server   *server
-	job      database.ProvisionerJob
-	run      database.TemplateResourceRun
-	state    database.TemplateResourceState
-	revision database.TemplateResourceRevision
+	server     *server
+	foundation database.Foundation
+	job        database.ProvisionerJob
+	run        database.TemplateResourceRun
+	state      database.TemplateResourceState
+	revision   database.TemplateResourceRevision
 }
 
-func newTemplateResourcesFixture(t *testing.T, db database.Store, ps pubsub.Pubsub, action string) templateResourcesFixture {
+func newTemplateResourcesFixture(t *testing.T, db database.Store, ps pubsub.Pubsub, action string, unbound ...bool) templateResourcesFixture {
 	t.Helper()
 	ctx := t.Context()
 	now := dbtime.Now()
 	org := dbgen.Organization(t, db, database.Organization{})
 	user := dbgen.User(t, db, database.User{})
 	template := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, CreatedBy: user.ID})
+	binding := uuid.NullUUID{UUID: template.ID, Valid: true}
+	if len(unbound) != 0 && unbound[0] {
+		binding = uuid.NullUUID{}
+	}
+	templateFoundation := dbgen.Foundation(t, db, database.Foundation{OrganizationID: template.OrganizationID, TemplateID: binding})
 	file := dbgen.File(t, db, database.File{CreatedBy: user.ID, Data: []byte("frozen source archive")})
 	_, err := db.InsertTemplateResourceState(ctx, database.InsertTemplateResourceStateParams{
-		TemplateID: template.ID, OrganizationID: org.ID, UpdatedAt: now,
+		FoundationID: templateFoundation.ID, OrganizationID: org.ID, UpdatedAt: now,
 	})
 	require.NoError(t, err)
 	revision, err := db.InsertTemplateResourceRevision(ctx, database.InsertTemplateResourceRevisionParams{
-		ID: uuid.New(), TemplateID: template.ID, OrganizationID: org.ID, FileID: file.ID, Source: "frozen generic HCL", CreatedBy: user.ID, CreatedAt: now,
+		ID: uuid.New(), FoundationID: templateFoundation.ID, OrganizationID: org.ID, FileID: file.ID, Source: "frozen generic HCL", CreatedBy: user.ID, CreatedAt: now,
 	})
 	require.NoError(t, err)
 	_, err = db.SetTemplateResourceCurrentRevision(ctx, database.SetTemplateResourceCurrentRevisionParams{
-		TemplateID: template.ID, CurrentRevisionID: uuid.NullUUID{UUID: revision.ID, Valid: true}, UpdatedAt: now,
+		FoundationID: templateFoundation.ID, CurrentRevisionID: uuid.NullUUID{UUID: revision.ID, Valid: true}, UpdatedAt: now,
 	})
 	require.NoError(t, err)
 	daemon := dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{OrganizationID: org.ID})
@@ -64,11 +70,11 @@ func newTemplateResourcesFixture(t *testing.T, db database.Store, ps pubsub.Pubs
 		StartedAt: sql.NullTime{Time: now, Valid: true}, WorkerID: uuid.NullUUID{UUID: daemon.ID, Valid: true},
 	})
 	run, err := db.InsertTemplateResourceRun(ctx, database.InsertTemplateResourceRunParams{
-		ID: runID, TemplateID: template.ID, OrganizationID: org.ID, RevisionID: revision.ID, JobID: job.ID, Action: action, CreatedAt: now,
+		ID: runID, FoundationID: templateFoundation.ID, OrganizationID: org.ID, RevisionID: revision.ID, JobID: job.ID, Action: action, CreatedAt: now,
 	})
 	require.NoError(t, err)
 	state, err := db.StartTemplateResourceRun(ctx, database.StartTemplateResourceRunParams{
-		TemplateID: template.ID, RunID: uuid.NullUUID{UUID: run.ID, Valid: true}, UpdatedAt: now,
+		FoundationID: templateFoundation.ID, RunID: uuid.NullUUID{UUID: run.ID, Valid: true}, UpdatedAt: now,
 	})
 	require.NoError(t, err)
 	// Establish a previous successful snapshot so plan and failure tests can
@@ -76,19 +82,20 @@ func newTemplateResourcesFixture(t *testing.T, db database.Store, ps pubsub.Pubs
 	appliedRevision := revision.ID
 	if action != "destroy" {
 		previous, err := db.InsertTemplateResourceRevision(ctx, database.InsertTemplateResourceRevisionParams{
-			ID: uuid.New(), TemplateID: template.ID, OrganizationID: org.ID, FileID: file.ID, Source: "previous generic HCL", CreatedBy: user.ID, CreatedAt: now,
+			ID: uuid.New(), FoundationID: templateFoundation.ID, OrganizationID: org.ID, FileID: file.ID, Source: "previous generic HCL", CreatedBy: user.ID, CreatedAt: now,
 		})
 		require.NoError(t, err)
 		appliedRevision = previous.ID
 	}
 	state, err = db.CompleteTemplateResourceRun(ctx, database.CompleteTemplateResourceRunParams{
-		TemplateID: template.ID, RunID: state.ActiveRunID, Status: "applied",
+		FoundationID: templateFoundation.ID, RunID: state.ActiveRunID, Status: "applied",
 		State:   templateResourceTestState(`{"old":{"sensitive":false,"value":"previous"}}`, `[]`),
-		Outputs: json.RawMessage(`{"old":"previous"}`), AppliedRevisionID: uuid.NullUUID{UUID: appliedRevision, Valid: true}, UpdatedAt: now,
+		Outputs: json.RawMessage(`{"old":"previous"}`), AppliedRevisionID: uuid.NullUUID{UUID: appliedRevision, Valid: true},
+		CheckpointRevisionID: uuid.NullUUID{UUID: appliedRevision, Valid: true}, UpdatedAt: now,
 	})
 	require.NoError(t, err)
 	state, err = db.StartTemplateResourceRun(ctx, database.StartTemplateResourceRunParams{
-		TemplateID: template.ID, RunID: uuid.NullUUID{UUID: run.ID, Valid: true}, UpdatedAt: now,
+		FoundationID: templateFoundation.ID, RunID: uuid.NullUUID{UUID: run.ID, Valid: true}, UpdatedAt: now,
 	})
 	require.NoError(t, err)
 	logger := testutil.Logger(t)
@@ -98,7 +105,7 @@ func newTemplateResourcesFixture(t *testing.T, db database.Store, ps pubsub.Pubs
 		Pubsub: ps, Logger: logger, Tracer: trace.NewNoopTracerProvider().Tracer("test"), Clock: quartz.NewMock(t),
 		activeJobs: map[uuid.UUID]struct{}{job.ID: {}}, lifecycleCtx: ctx,
 	}
-	return templateResourcesFixture{server: s, job: job, run: run, state: state, revision: revision}
+	return templateResourcesFixture{foundation: templateFoundation, server: s, job: job, run: run, state: state, revision: revision}
 }
 
 func TestTemplateResourcesJobLifecycle(t *testing.T) {
@@ -116,17 +123,23 @@ func TestTemplateResourcesJobLifecycle(t *testing.T) {
 		wantState   []byte
 		unknown     bool
 	}{
-		{name: "Apply", action: "apply", result: templateResourcesJobResult{success: true, disposition: proto.StateDisposition_RETURNED, state: applied}, wantStatus: "applied", wantOutputs: `{"public":{"ids":["a","b"]}}`, wantState: applied},
+		{name: "Apply", action: "apply", result: templateResourcesJobResult{success: true, disposition: proto.StateDisposition_RETURNED, state: applied}, wantStatus: "applied", wantOutputs: `{"secret":"password","public":{"ids":["a","b"]}}`, wantState: applied},
 		{name: "Plan", action: "plan", result: templateResourcesJobResult{success: true, disposition: proto.StateDisposition_UNCHANGED, plan: []byte(`{"resource_changes":[]}`)}, wantStatus: "applied"},
+		{name: "PlanWithoutPreview", action: "plan", result: templateResourcesJobResult{success: true, disposition: proto.StateDisposition_UNCHANGED}, wantStatus: "applied"},
 		{name: "FailedPlan", action: "plan", result: templateResourcesJobResult{error: "plan failed"}, wantStatus: "applied"},
 		{name: "PreApplyFailure", action: "apply", result: templateResourcesJobResult{error: "init failed", disposition: proto.StateDisposition_UNCHANGED}, wantStatus: "applied"},
 		{name: "FailedApply", action: "apply", result: templateResourcesJobResult{error: "apply failed", state: applied, disposition: proto.StateDisposition_UNKNOWN}, wantStatus: "unknown", wantState: applied, unknown: true},
-		{name: "FailedApplyReturnedCheckpoint", action: "apply", result: templateResourcesJobResult{error: "apply failed", state: applied, disposition: proto.StateDisposition_RETURNED}, wantStatus: "unknown", wantState: applied, unknown: true},
+		{name: "FailedApplyReturnedCheckpoint", action: "apply", result: templateResourcesJobResult{error: "apply failed", state: applied, disposition: proto.StateDisposition_RETURNED}, wantStatus: "failed", wantState: applied},
+		{name: "FailedApplyReturnedInvalidCheckpoint", action: "apply", result: templateResourcesJobResult{error: "apply failed", state: []byte(`{}`), disposition: proto.StateDisposition_RETURNED}, wantStatus: "unknown", wantState: []byte(`{}`), unknown: true},
+		{name: "FailedApplyReturnedMissingCheckpoint", action: "apply", result: templateResourcesJobResult{error: "apply failed", disposition: proto.StateDisposition_RETURNED}, wantStatus: "unknown", unknown: true},
+		{name: "CanceledFailedApply", action: "apply", cancel: true, result: templateResourcesJobResult{error: "apply failed", state: applied, disposition: proto.StateDisposition_RETURNED}, wantStatus: "unknown", wantState: applied, unknown: true},
+		{name: "CanceledPreApplyFailure", action: "apply", cancel: true, result: templateResourcesJobResult{error: "canceled before apply", disposition: proto.StateDisposition_UNCHANGED}, wantStatus: "applied"},
 		{name: "TransportFailure", action: "apply", result: templateResourcesJobResult{error: "connection lost"}, wantStatus: "unknown", unknown: true},
 		{name: "InvalidApplyState", action: "apply", result: templateResourcesJobResult{success: true, disposition: proto.StateDisposition_RETURNED, state: []byte(`{}`)}, wantStatus: "unknown", wantState: []byte(`{}`), unknown: true},
 		{name: "CanceledApply", action: "apply", cancel: true, result: templateResourcesJobResult{success: true, disposition: proto.StateDisposition_RETURNED, state: applied}, wantStatus: "unknown", wantState: applied, unknown: true},
 		{name: "Destroy", action: "destroy", result: templateResourcesJobResult{success: true, disposition: proto.StateDisposition_RETURNED, state: destroyed}, wantStatus: "destroyed", wantOutputs: `{}`, wantState: destroyed},
-		{name: "DestroyManagedInstances", action: "destroy", result: templateResourcesJobResult{success: true, disposition: proto.StateDisposition_RETURNED, state: applied}, wantStatus: "unknown", wantState: applied, unknown: true},
+		{name: "DestroyManagedInstances", action: "destroy", result: templateResourcesJobResult{success: true, disposition: proto.StateDisposition_RETURNED, state: applied}, wantStatus: "failed", wantState: applied},
+		{name: "FailedDestroyReturnedCheckpoint", action: "destroy", result: templateResourcesJobResult{error: "destroy failed", disposition: proto.StateDisposition_RETURNED, state: applied}, wantStatus: "failed", wantState: applied},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -148,7 +161,7 @@ func TestTemplateResourcesJobLifecycle(t *testing.T) {
 				_, err := f.server.FailJob(ctx, failed)
 				require.NoError(t, err)
 			}
-			state, err := db.GetTemplateResourceState(ctx, f.state.TemplateID)
+			state, err := db.GetTemplateResourceState(ctx, f.state.FoundationID)
 			require.NoError(t, err)
 			require.Equal(t, tc.wantStatus, state.Status)
 			require.Equal(t, tc.unknown, state.ActiveRunID.Valid)
@@ -161,7 +174,17 @@ func TestTemplateResourcesJobLifecycle(t *testing.T) {
 			if wantOutputs == "" {
 				wantOutputs = string(f.state.Outputs)
 			}
-			require.JSONEq(t, wantOutputs, string(state.Outputs))
+			metadata := &sdkproto.Metadata{}
+			require.NoError(t, populateFoundationOutputMetadata(state.Outputs, metadata))
+			require.JSONEq(t, wantOutputs, metadata.TemplateOutputs)
+			switch {
+			case tc.wantStatus == "destroyed" || (tc.unknown && tc.wantState != nil):
+				require.False(t, state.CheckpointRevisionID.Valid)
+			case !tc.unknown && tc.result.disposition == proto.StateDisposition_RETURNED:
+				require.Equal(t, uuid.NullUUID{UUID: f.revision.ID, Valid: true}, state.CheckpointRevisionID)
+			default:
+				require.Equal(t, f.state.CheckpointRevisionID, state.CheckpointRevisionID)
+			}
 			switch {
 			case tc.wantStatus == "destroyed":
 				require.False(t, state.AppliedRevisionID.Valid)
@@ -170,13 +193,23 @@ func TestTemplateResourcesJobLifecycle(t *testing.T) {
 			default:
 				require.Equal(t, f.state.AppliedRevisionID, state.AppliedRevisionID)
 			}
+			storedRun, err := db.GetTemplateResourceRunByID(ctx, f.run.ID)
+			require.NoError(t, err)
+			if tc.action == "plan" && tc.result.success {
+				preview, err := json.Marshal(provisionersdk.FoundationPlanPreview(tc.result.plan))
+				require.NoError(t, err)
+				require.True(t, storedRun.PlanPreview.Valid)
+				require.JSONEq(t, string(preview), string(storedRun.PlanPreview.RawMessage))
+			} else {
+				require.False(t, storedRun.PlanPreview.Valid)
+			}
 			job, err := db.GetProvisionerJobByID(ctx, f.job.ID)
 			require.NoError(t, err)
 			require.True(t, job.CompletedAt.Valid)
-			require.Equal(t, !tc.result.success || tc.unknown, job.Error.Valid)
+			require.Equal(t, !tc.result.success || tc.unknown || tc.wantStatus == "failed", job.Error.Valid)
 			if tc.unknown {
 				require.Equal(t, templateResourcesStateUnknown, job.ErrorCode.String)
-				_, err := db.StartTemplateResourceRun(ctx, database.StartTemplateResourceRunParams{TemplateID: state.TemplateID, RunID: uuid.NullUUID{UUID: uuid.New(), Valid: true}, UpdatedAt: dbtime.Now()})
+				_, err := db.StartTemplateResourceRun(ctx, database.StartTemplateResourceRunParams{FoundationID: state.FoundationID, RunID: uuid.NullUUID{UUID: uuid.New(), Valid: true}, UpdatedAt: dbtime.Now()})
 				require.ErrorIs(t, err, sql.ErrNoRows)
 			}
 			_, err = f.server.CompleteJob(ctx, &proto.CompletedJob{JobId: job.ID.String(), Type: &proto.CompletedJob_TemplateResources_{TemplateResources: &proto.CompletedJob_TemplateResources{State: applied, StateDisposition: proto.StateDisposition_RETURNED}}})
@@ -196,11 +229,11 @@ func TestTemplateResourcesAcquireFrozenRevision(t *testing.T) {
 	f := newTemplateResourcesFixture(t, db, ps, "apply")
 	file := dbgen.File(t, db, database.File{CreatedBy: f.job.InitiatorID, Data: []byte("new source"), Hash: uuid.NewString()})
 	revision, err := db.InsertTemplateResourceRevision(t.Context(), database.InsertTemplateResourceRevisionParams{
-		ID: uuid.New(), TemplateID: f.run.TemplateID, OrganizationID: f.run.OrganizationID, FileID: file.ID, Source: "new revision", CreatedBy: f.job.InitiatorID, CreatedAt: dbtime.Now(),
+		ID: uuid.New(), FoundationID: f.run.FoundationID, OrganizationID: f.run.OrganizationID, FileID: file.ID, Source: "new revision", CreatedBy: f.job.InitiatorID, CreatedAt: dbtime.Now(),
 	})
 	require.NoError(t, err)
 	_, err = db.SetTemplateResourceCurrentRevision(t.Context(), database.SetTemplateResourceCurrentRevisionParams{
-		TemplateID: f.run.TemplateID, CurrentRevisionID: uuid.NullUUID{UUID: revision.ID, Valid: true}, UpdatedAt: dbtime.Now(),
+		FoundationID: f.run.FoundationID, CurrentRevisionID: uuid.NullUUID{UUID: revision.ID, Valid: true}, UpdatedAt: dbtime.Now(),
 	})
 	require.NoError(t, err)
 	payload, err := f.server.acquireProtoJob(dbauthz.AsProvisionerd(t.Context()), f.job)
@@ -210,9 +243,12 @@ func TestTemplateResourcesAcquireFrozenRevision(t *testing.T) {
 	require.NotNil(t, native)
 	require.Equal(t, f.revision.ID.String(), native.GetRevisionId())
 	require.Equal(t, f.run.ID.String(), native.GetRunId())
-	require.Equal(t, f.run.TemplateID.String(), native.GetTemplateId())
-	require.Equal(t, f.run.TemplateID.String(), native.Metadata.TemplateId)
+	require.Equal(t, f.foundation.TemplateID.UUID.String(), native.GetTemplateId())
+	require.Equal(t, f.foundation.TemplateID.UUID.String(), native.Metadata.TemplateId)
 	require.NotEmpty(t, native.Metadata.TemplateName)
+	require.Equal(t, f.foundation.ID.String(), native.FoundationId)
+	require.Equal(t, f.foundation.ID.String(), native.Metadata.FoundationId)
+	require.NotEqual(t, native.Metadata.FoundationId, native.Metadata.TemplateId)
 	require.Equal(t, f.state.State, native.State)
 	require.Empty(t, native.VariableValues)
 	require.Equal(t, proto.TemplateResourceOperation_TEMPLATE_RESOURCE_APPLY, native.Operation)
@@ -224,12 +260,12 @@ func TestTemplateResourcesAcquireFailureReleasesReservation(t *testing.T) {
 	f := newTemplateResourcesFixture(t, db, ps, "apply")
 	state := make([]byte, drpcsdk.MaxMessageSize)
 	_, err := db.UpdateTemplateResourceState(t.Context(), database.UpdateTemplateResourceStateParams{
-		TemplateID: f.state.TemplateID, RunID: f.state.ActiveRunID, State: state, Status: f.state.Status, UpdatedAt: dbtime.Now(),
+		FoundationID: f.state.FoundationID, RunID: f.state.ActiveRunID, State: state, Status: f.state.Status, UpdatedAt: dbtime.Now(),
 	})
 	require.NoError(t, err)
 	_, err = f.server.acquireProtoJob(dbauthz.AsProvisionerd(t.Context()), f.job)
 	require.ErrorContains(t, err, "payload was too big")
-	current, err := db.GetTemplateResourceState(t.Context(), f.state.TemplateID)
+	current, err := db.GetTemplateResourceState(t.Context(), f.state.FoundationID)
 	require.NoError(t, err)
 	require.Equal(t, state, current.State)
 	require.False(t, current.ActiveRunID.Valid)
@@ -250,7 +286,7 @@ func TestTemplateResourcesFencing(t *testing.T) {
 			switch tc {
 			case "Reservation":
 				_, err := db.CompleteTemplateResourceRun(t.Context(), database.CompleteTemplateResourceRunParams{
-					TemplateID: f.state.TemplateID, RunID: f.state.ActiveRunID, Status: f.state.Status, State: f.state.State, Outputs: f.state.Outputs, AppliedRevisionID: f.state.AppliedRevisionID, UpdatedAt: dbtime.Now(),
+					FoundationID: f.state.FoundationID, RunID: f.state.ActiveRunID, Status: f.state.Status, State: f.state.State, Outputs: f.state.Outputs, AppliedRevisionID: f.state.AppliedRevisionID, CheckpointRevisionID: f.state.CheckpointRevisionID, UpdatedAt: dbtime.Now(),
 				})
 				require.NoError(t, err)
 			case "Owner":
@@ -266,11 +302,16 @@ func TestTemplateResourcesFencing(t *testing.T) {
 				State: templateResourceTestState(`{}`, `[]`), StateDisposition: proto.StateDisposition_RETURNED,
 			}}})
 			require.ErrorContains(t, err, wantError)
-			_, err = f.server.FailJob(t.Context(), &proto.FailedJob{JobId: f.job.ID.String(), Error: "stale"})
+			_, err = f.server.FailJob(t.Context(), &proto.FailedJob{
+				JobId: f.job.ID.String(), Error: "stale",
+				Type: &proto.FailedJob_TemplateResources_{TemplateResources: &proto.FailedJob_TemplateResources{
+					State: templateResourceTestState(`{}`, `[]`), StateDisposition: proto.StateDisposition_RETURNED,
+				}},
+			})
 			require.ErrorContains(t, err, wantError)
 			_, err = f.server.acquireTemplateResourcesJob(dbauthz.AsProvisionerd(t.Context()), f.job)
 			require.Error(t, err)
-			state, err := db.GetTemplateResourceState(t.Context(), f.state.TemplateID)
+			state, err := db.GetTemplateResourceState(t.Context(), f.state.FoundationID)
 			require.NoError(t, err)
 			require.Equal(t, f.state.State, state.State)
 			require.Equal(t, f.state.Outputs, state.Outputs)
@@ -283,7 +324,7 @@ func TestTemplateResourcesDeliveryFailure(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	f := newTemplateResourcesFixture(t, db, ps, "apply")
 	f.server.failAcquiredJob(f.server.Logger, f.job.ID, "connection lost during delivery", proto.StateDisposition_UNKNOWN)
-	state, err := db.GetTemplateResourceState(t.Context(), f.state.TemplateID)
+	state, err := db.GetTemplateResourceState(t.Context(), f.state.FoundationID)
 	require.NoError(t, err)
 	require.Equal(t, "unknown", state.Status)
 	require.Equal(t, f.state.ActiveRunID, state.ActiveRunID)
@@ -313,7 +354,7 @@ func TestTemplateResourcesValidationOutputs(t *testing.T) {
 	f := newTemplateResourcesFixture(t, db, ps, "apply")
 	ctx := dbauthz.AsProvisionerd(t.Context())
 	metadata := &sdkproto.Metadata{}
-	require.NoError(t, f.server.templateValidationMetadata(ctx, uuid.NullUUID{UUID: f.state.TemplateID, Valid: true}, metadata))
+	require.NoError(t, f.server.templateValidationMetadata(ctx, f.foundation.TemplateID, metadata))
 	require.JSONEq(t, string(f.state.Outputs), metadata.TemplateOutputs)
 	require.Equal(t, f.state.AppliedRevisionID.UUID.String(), metadata.TemplateResourceRevisionId)
 	metadata = &sdkproto.Metadata{}
@@ -337,14 +378,26 @@ func (templateResourcesCASFailureStore) CompleteTemplateResourceRun(context.Cont
 func TestTemplateResourcesCASFailure(t *testing.T) {
 	t.Parallel()
 	db, ps := dbtestutil.NewDB(t)
-	f := newTemplateResourcesFixture(t, db, ps, "apply")
-	f.server.Database = templateResourcesCASFailureStore{Store: f.server.Database}
-	err := f.server.finalizeTemplateResourcesJob(dbauthz.AsProvisionerd(t.Context()), f.job.ID, templateResourcesJobResult{success: true, disposition: proto.StateDisposition_RETURNED, state: templateResourceTestState(`{}`, `[]`)})
-	require.ErrorIs(t, err, sql.ErrNoRows)
-	job, err := db.GetProvisionerJobByID(t.Context(), f.job.ID)
-	require.NoError(t, err)
-	require.False(t, job.CompletedAt.Valid)
-	state, err := db.GetTemplateResourceState(t.Context(), f.state.TemplateID)
-	require.NoError(t, err)
-	require.Equal(t, f.state, state)
+	for _, action := range []string{"apply", "plan"} {
+		t.Run(action, func(t *testing.T) {
+			t.Parallel()
+			f := newTemplateResourcesFixture(t, db, ps, action)
+			f.server.Database = templateResourcesCASFailureStore{Store: f.server.Database}
+			result := templateResourcesJobResult{success: true, disposition: proto.StateDisposition_RETURNED, state: templateResourceTestState(`{}`, `[]`)}
+			if action == "plan" {
+				result = templateResourcesJobResult{success: true, disposition: proto.StateDisposition_UNCHANGED, plan: []byte(`{"resource_changes":[]}`)}
+			}
+			err := f.server.finalizeTemplateResourcesJob(dbauthz.AsProvisionerd(t.Context()), f.job.ID, result)
+			require.ErrorIs(t, err, sql.ErrNoRows)
+			job, err := db.GetProvisionerJobByID(t.Context(), f.job.ID)
+			require.NoError(t, err)
+			require.False(t, job.CompletedAt.Valid)
+			state, err := db.GetTemplateResourceState(t.Context(), f.state.FoundationID)
+			require.NoError(t, err)
+			require.Equal(t, f.state, state)
+			run, err := db.GetTemplateResourceRunByID(t.Context(), f.run.ID)
+			require.NoError(t, err)
+			require.False(t, run.PlanPreview.Valid, "preview and terminal state must commit together")
+		})
+	}
 }

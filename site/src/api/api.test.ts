@@ -10,12 +10,49 @@ import {
 	MockWorkspace,
 	MockWorkspaceBuild,
 } from "#/testHelpers/entities";
+import {
+	MockFoundation,
+	MockTemplateResourceRun,
+} from "#/testHelpers/templateResources";
 import { API, getURLWithSearchParams, ParameterValidationError } from "./api";
 import type * as TypesGen from "./typesGenerated";
 
 const axiosInstance = API.getAxiosInstance();
 
 describe("api.ts", () => {
+	describe("Foundation job cancellation", () => {
+		it("uses Foundation metadata and the resource run ID", async () => {
+			const patch = vi
+				.spyOn(axiosInstance, "patch")
+				.mockResolvedValueOnce({ data: {} });
+			await API.cancelProvisionerJob({
+				...MockProvisionerJob,
+				type: "template_resources",
+				organization_id: MockFoundation.organization_id,
+				input: { template_resource_run_id: MockTemplateResourceRun.id },
+				metadata: {
+					...MockProvisionerJob.metadata,
+					foundation_id: MockFoundation.id,
+				},
+			});
+			expect(patch).toHaveBeenCalledWith(
+				`/api/v2/organizations/${MockFoundation.organization_id}/foundations/${MockFoundation.id}/runs/${MockTemplateResourceRun.id}/cancel`,
+			);
+			patch.mockRestore();
+		});
+		it("rejects missing Foundation metadata rather than reporting a no-op success", async () => {
+			await expect(
+				API.cancelProvisionerJob({
+					...MockProvisionerJob,
+					type: "template_resources",
+					metadata: {
+						...MockProvisionerJob.metadata,
+						foundation_id: undefined,
+					},
+				}),
+			).rejects.toThrow("Foundation and run IDs are required");
+		});
+	});
 	describe("login", () => {
 		it("should return LoginResponse", async () => {
 			// given

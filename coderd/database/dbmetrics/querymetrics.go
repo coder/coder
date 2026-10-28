@@ -240,6 +240,14 @@ func (m queryMetricsStore) BatchUpsertConnectionLogs(ctx context.Context, arg da
 	return r0
 }
 
+func (m queryMetricsStore) BindFoundation(ctx context.Context, arg database.BindFoundationParams) (database.Foundation, error) {
+	start := time.Now()
+	r0, r1 := m.s.BindFoundation(ctx, arg)
+	m.queryLatencies.WithLabelValues("BindFoundation").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "BindFoundation").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.BulkMarkNotificationMessagesFailed(ctx, arg)
@@ -686,6 +694,14 @@ func (m queryMetricsStore) DeleteExternalAuthLink(ctx context.Context, arg datab
 	m.queryLatencies.WithLabelValues("DeleteExternalAuthLink").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteExternalAuthLink").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) DeleteFoundation(ctx context.Context, arg database.DeleteFoundationParams) (database.Foundation, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteFoundation(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteFoundation").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteFoundation").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID) (database.GroupAIBudget, error) {
@@ -2392,6 +2408,14 @@ func (m queryMetricsStore) GetFileByID(ctx context.Context, id uuid.UUID) (datab
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetFileFoundations(ctx context.Context, fileID uuid.UUID) ([]database.Foundation, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetFileFoundations(ctx, fileID)
+	m.queryLatencies.WithLabelValues("GetFileFoundations").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetFileFoundations").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]database.GetFileTemplatesRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetFileTemplates(ctx, fileID)
@@ -2413,6 +2437,54 @@ func (m queryMetricsStore) GetForcedMCPServerConfigsByOrganization(ctx context.C
 	r0, r1 := m.s.GetForcedMCPServerConfigsByOrganization(ctx, organizationID)
 	m.queryLatencies.WithLabelValues("GetForcedMCPServerConfigsByOrganization").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetForcedMCPServerConfigsByOrganization").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetFoundationByID(ctx context.Context, id uuid.UUID) (database.Foundation, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetFoundationByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetFoundationByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetFoundationByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetFoundationByTemplateID(ctx context.Context, templateID uuid.NullUUID) (database.Foundation, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetFoundationByTemplateID(ctx, templateID)
+	m.queryLatencies.WithLabelValues("GetFoundationByTemplateID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetFoundationByTemplateID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetFoundationConsumerCounts(ctx context.Context, foundationID uuid.UUID) (database.GetFoundationConsumerCountsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetFoundationConsumerCounts(ctx, foundationID)
+	m.queryLatencies.WithLabelValues("GetFoundationConsumerCounts").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetFoundationConsumerCounts").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetFoundationConsumerTemplateVersions(ctx context.Context, foundationID uuid.UUID) ([]database.GetFoundationConsumerTemplateVersionsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetFoundationConsumerTemplateVersions(ctx, foundationID)
+	m.queryLatencies.WithLabelValues("GetFoundationConsumerTemplateVersions").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetFoundationConsumerTemplateVersions").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetFoundationWorkspaceCount(ctx context.Context, foundationID uuid.UUID) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetFoundationWorkspaceCount(ctx, foundationID)
+	m.queryLatencies.WithLabelValues("GetFoundationWorkspaceCount").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetFoundationWorkspaceCount").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetFoundationsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.Foundation, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetFoundationsByOrganizationID(ctx, organizationID)
+	m.queryLatencies.WithLabelValues("GetFoundationsByOrganizationID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetFoundationsByOrganizationID").Inc()
 	return r0, r1
 }
 
@@ -3496,11 +3568,11 @@ func (m queryMetricsStore) GetTemplateResourceRevisionByID(ctx context.Context, 
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetTemplateResourceRevisionsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]database.TemplateResourceRevision, error) {
+func (m queryMetricsStore) GetTemplateResourceRevisionsByFoundationID(ctx context.Context, foundationID uuid.UUID) ([]database.TemplateResourceRevision, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetTemplateResourceRevisionsByTemplateID(ctx, templateID)
-	m.queryLatencies.WithLabelValues("GetTemplateResourceRevisionsByTemplateID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTemplateResourceRevisionsByTemplateID").Inc()
+	r0, r1 := m.s.GetTemplateResourceRevisionsByFoundationID(ctx, foundationID)
+	m.queryLatencies.WithLabelValues("GetTemplateResourceRevisionsByFoundationID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTemplateResourceRevisionsByFoundationID").Inc()
 	return r0, r1
 }
 
@@ -3520,11 +3592,11 @@ func (m queryMetricsStore) GetTemplateResourceRunByJobID(ctx context.Context, jo
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetTemplateResourceRunsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]database.TemplateResourceRun, error) {
+func (m queryMetricsStore) GetTemplateResourceRunsByFoundationID(ctx context.Context, foundationID uuid.UUID) ([]database.TemplateResourceRun, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetTemplateResourceRunsByTemplateID(ctx, templateID)
-	m.queryLatencies.WithLabelValues("GetTemplateResourceRunsByTemplateID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTemplateResourceRunsByTemplateID").Inc()
+	r0, r1 := m.s.GetTemplateResourceRunsByFoundationID(ctx, foundationID)
+	m.queryLatencies.WithLabelValues("GetTemplateResourceRunsByFoundationID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTemplateResourceRunsByFoundationID").Inc()
 	return r0, r1
 }
 
@@ -4768,6 +4840,14 @@ func (m queryMetricsStore) InsertFile(ctx context.Context, arg database.InsertFi
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertFoundation(ctx context.Context, arg database.InsertFoundationParams) (database.Foundation, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertFoundation(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertFoundation").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertFoundation").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertGitSSHKey(ctx context.Context, arg database.InsertGitSSHKeyParams) (database.GitSSHKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertGitSSHKey(ctx, arg)
@@ -5544,6 +5624,14 @@ func (m queryMetricsStore) LockChatByID(ctx context.Context, id uuid.UUID) (uuid
 	return r0, r1
 }
 
+func (m queryMetricsStore) LockFoundation(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.LockFoundation(ctx, id)
+	m.queryLatencies.WithLabelValues("LockFoundation").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockFoundation").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) LockOrganizationMembersByUserIDsForShare(ctx context.Context, arg database.LockOrganizationMembersByUserIDsForShareParams) ([]uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.LockOrganizationMembersByUserIDsForShare(ctx, arg)
@@ -6177,6 +6265,14 @@ func (m queryMetricsStore) UpdateExternalAuthLink(ctx context.Context, arg datab
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpdateFoundation(ctx context.Context, arg database.UpdateFoundationParams) (database.Foundation, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateFoundation(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateFoundation").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateFoundation").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateGitSSHKey(ctx context.Context, arg database.UpdateGitSSHKeyParams) (database.GitSSHKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateGitSSHKey(ctx, arg)
@@ -6470,6 +6566,14 @@ func (m queryMetricsStore) UpdateTemplateMetaByID(ctx context.Context, arg datab
 	r0 := m.s.UpdateTemplateMetaByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateTemplateMetaByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateTemplateMetaByID").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpdateTemplateResourceRunPlanPreview(ctx context.Context, arg database.UpdateTemplateResourceRunPlanPreviewParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateTemplateResourceRunPlanPreview(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateTemplateResourceRunPlanPreview").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateTemplateResourceRunPlanPreview").Inc()
 	return r0
 }
 

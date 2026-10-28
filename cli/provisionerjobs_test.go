@@ -134,9 +134,10 @@ func TestProvisionerJobs(t *testing.T) {
 		prepareTemplateResourceJob := func(t *testing.T) database.ProvisionerJob {
 			t.Helper()
 			template := dbgen.Template(t, db, database.Template{OrganizationID: owner.OrganizationID, CreatedBy: owner.UserID})
-			revision, err := client.CreateTemplateResourceRevision(t.Context(), template.ID, codersdk.CreateTemplateResourceRevisionRequest{Source: "# root " + template.ID.String()})
+			templateFoundation := dbgen.Foundation(t, db, database.Foundation{OrganizationID: template.OrganizationID, TemplateID: uuid.NullUUID{UUID: template.ID, Valid: true}})
+			revision, err := client.CreateFoundationRevision(t.Context(), template.OrganizationID, templateFoundation.ID, codersdk.CreateTemplateResourceRevisionRequest{Source: "# root " + template.ID.String()})
 			require.NoError(t, err)
-			run, err := client.CreateTemplateResourceRun(t.Context(), template.ID, codersdk.CreateTemplateResourceRunRequest{RevisionID: revision.ID, Action: "apply"})
+			run, err := client.CreateFoundationRun(t.Context(), template.OrganizationID, templateFoundation.ID, codersdk.CreateTemplateResourceRunRequest{RevisionID: revision.ID, Action: "apply"})
 			require.NoError(t, err)
 			job, err := db.GetProvisionerJobByID(t.Context(), run.Job.ID)
 			require.NoError(t, err)

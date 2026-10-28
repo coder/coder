@@ -79,6 +79,8 @@ type BackgroundAuditParams[T Auditable] struct {
 
 func ResourceTarget[T Auditable](tgt T) string {
 	switch typed := any(tgt).(type) {
+	case database.Foundation:
+		return typed.Name
 	case database.Template:
 		return typed.Name
 	case database.TemplateVersion:
@@ -209,6 +211,8 @@ const (
 
 func ResourceID[T Auditable](tgt T) uuid.UUID {
 	switch typed := any(tgt).(type) {
+	case database.Foundation:
+		return typed.ID
 	case database.Template:
 		return typed.ID
 	case database.TemplateVersion:
@@ -312,6 +316,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 
 func ResourceType[T Auditable](tgt T) database.ResourceType {
 	switch typed := any(tgt).(type) {
+	case database.Foundation:
+		return database.ResourceTypeFoundation
 	case database.Template:
 		return database.ResourceTypeTemplate
 	case database.TemplateVersion:
@@ -410,7 +416,7 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 func ResourceRequiresOrgID[T Auditable]() bool {
 	var tgt T
 	switch any(tgt).(type) {
-	case database.Template, database.TemplateVersion:
+	case database.Foundation, database.Template, database.TemplateVersion:
 		return true
 	case database.WorkspaceTable, database.WorkspaceBuild:
 		return true

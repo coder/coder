@@ -1,7 +1,7 @@
 import { ExternalLinkIcon } from "lucide-react";
 import { useEffect } from "react";
 import { useQuery } from "react-query";
-import { useLocation, useNavigate, useParams } from "react-router";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 import {
 	previousTemplateVersion,
 	templateFiles,
@@ -9,12 +9,14 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { TemplateFiles } from "#/modules/templates/TemplateFiles/TemplateFiles";
 import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
 import { docs } from "#/utils/docs";
 import { getTemplatePageTitle } from "../utils";
 
 const TemplateFilesPage: React.FC = () => {
+	const { experiments } = useDashboard();
 	const { organization: organizationName = "default" } = useParams() as {
 		organization?: string;
 	};
@@ -89,6 +91,12 @@ const TemplateFilesPage: React.FC = () => {
 				</Alert>
 			)}
 
+			{experiments.includes("template-resources") && (
+				<p className="mb-6 text-sm text-content-secondary">
+					Optional: <Link to="../resources">configure a Foundation</Link> for
+					shared infrastructure. Workspace Terraform remains independent.
+				</p>
+			)}
 			{shouldDisplayFiles ? (
 				<TemplateFiles
 					organizationName={template.organization_name}

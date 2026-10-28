@@ -26,6 +26,7 @@ type NavbarViewProps = {
 	onSignOut: () => void;
 	adminPermissions: AdminSettingsPermissions;
 	canCreateChat: boolean;
+	foundationsEnabled?: boolean;
 	canViewLicenses: boolean;
 	proxyContextValue?: ProxyContextValue;
 };
@@ -44,6 +45,7 @@ export const NavbarView: React.FC<NavbarViewProps> = ({
 	onSignOut,
 	adminPermissions,
 	canCreateChat,
+	foundationsEnabled = false,
 	canViewLicenses,
 	proxyContextValue,
 }) => {
@@ -73,7 +75,11 @@ export const NavbarView: React.FC<NavbarViewProps> = ({
 				<ProductLogo className="h-7" />
 			</NavLink>
 
-			<NavItems className="ml-4 hidden md:flex" canCreateChat={canCreateChat} />
+			<NavItems
+				className="ml-4 hidden md:flex"
+				canCreateChat={canCreateChat}
+				foundationsEnabled={foundationsEnabled}
+			/>
 
 			{prerelease && buildInfo?.version && (
 				<a
@@ -140,6 +146,7 @@ export const NavbarView: React.FC<NavbarViewProps> = ({
 					<MobileMenu
 						proxyContextValue={proxyContextValue}
 						adminPermissions={adminPermissions}
+						foundationsEnabled={foundationsEnabled}
 						user={user}
 						supportLinks={supportLinks}
 						onSignOut={onSignOut}
@@ -153,9 +160,14 @@ export const NavbarView: React.FC<NavbarViewProps> = ({
 type NavItemsProps = {
 	className?: string;
 	canCreateChat: boolean;
+	foundationsEnabled: boolean;
 };
 
-const NavItems: React.FC<NavItemsProps> = ({ className, canCreateChat }) => {
+const NavItems: React.FC<NavItemsProps> = ({
+	className,
+	canCreateChat,
+	foundationsEnabled,
+}) => {
 	const location = useLocation();
 
 	return (
@@ -179,6 +191,22 @@ const NavItems: React.FC<NavItemsProps> = ({ className, canCreateChat }) => {
 			>
 				Templates
 			</NavLink>
+			{foundationsEnabled && (
+				<NavLink
+					className={({ isActive }) =>
+						cn(linkStyles.default, {
+							[linkStyles.active]:
+								isActive ||
+								/^\/organizations\/[^/]+\/foundations(?:\/|$)/.test(
+									location.pathname,
+								),
+						})
+					}
+					to="/foundations"
+				>
+					Foundations
+				</NavLink>
+			)}
 			{canCreateChat && (
 				<NavLink
 					className={({ isActive }) => {

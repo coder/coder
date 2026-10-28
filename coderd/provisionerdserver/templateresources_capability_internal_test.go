@@ -26,11 +26,12 @@ func TestTemplateOutputsWorkerCapability(t *testing.T) {
 		wantErr    bool
 	}{
 		{name: "OldEvenWithTag", version: "1.22", capability: "1", wantErr: true},
-		{name: "MissingTag", version: "1.23", wantErr: true},
-		{name: "WrongTag", version: "1.23", capability: "0", wantErr: true},
+		{name: "MissingTag", version: "1.25", wantErr: true},
+		{name: "WrongTag", version: "1.25", capability: "0", wantErr: true},
 		{name: "InvalidVersion", version: "unknown", capability: "1", wantErr: true},
-		{name: "Supported", version: "1.23", capability: "1"},
-		{name: "Newer", version: "1.24", capability: "1"},
+		{name: "Supported", version: "1.25", capability: "1"},
+		{name: "Newer", version: "1.26", capability: "1"},
+		{name: "MissingSensitivitySupport", version: "1.24", capability: "1", wantErr: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -38,7 +39,7 @@ func TestTemplateOutputsWorkerCapability(t *testing.T) {
 			for _, snapshot := range [][2]string{{`{"id":"frozen"}`, ""}, {"{}", uuid.NewString()}} {
 				err := s.validateTemplateOutputsWorker(snapshot[0], snapshot[1])
 				if tc.wantErr {
-					require.ErrorContains(t, err, "shared resource outputs require a provisioner with API v1.23 or later and coder.template_resources=1 capability")
+					require.ErrorContains(t, err, "shared resource outputs require a provisioner with API v1.25 or later and coder.template_resources=1 capability")
 				} else {
 					require.NoError(t, err)
 				}
@@ -66,7 +67,7 @@ func TestTemplateOutputsAcquisitionRejectsOldWorker(t *testing.T) {
 			ctx := t.Context()
 			version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 				OrganizationID: f.job.OrganizationID, CreatedBy: f.job.InitiatorID,
-				TemplateID: uuid.NullUUID{UUID: f.run.TemplateID, Valid: true},
+				TemplateID: f.foundation.TemplateID,
 			})
 			buildID := uuid.New()
 			var input any
@@ -85,22 +86,23 @@ func TestTemplateOutputsAcquisitionRejectsOldWorker(t *testing.T) {
 				Type: jobType, Input: encoded, StartedAt: sql.NullTime{Time: dbtime.Now(), Valid: true}, WorkerID: f.job.WorkerID,
 			})
 			if jobType == database.ProvisionerJobTypeWorkspaceBuild {
-				workspace := dbgen.Workspace(t, db, database.WorkspaceTable{TemplateID: f.run.TemplateID, OrganizationID: f.job.OrganizationID, OwnerID: f.job.InitiatorID})
+				workspace := dbgen.Workspace(t, db, database.WorkspaceTable{TemplateID: f.foundation.TemplateID.UUID, OrganizationID: f.job.OrganizationID, OwnerID: f.job.InitiatorID})
 				dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{ID: buildID, WorkspaceID: workspace.ID, TemplateVersionID: version.ID, JobID: job.ID})
 				require.NoError(t, db.PinWorkspaceBuildTemplateResources(ctx, database.PinWorkspaceBuildTemplateResourcesParams{
 					ID: buildID, TemplateResourceOutputs: json.RawMessage(`{"id":"pinned"}`), TemplateResourceRevisionID: f.state.AppliedRevisionID,
+					StateTemplateResourceOutputs: json.RawMessage(`{}`),
 				}))
 			}
 			// The queued validation job has no capability requirement. A newly
 			// successful apply supplies latest outputs only after it was queued.
 			_, err = db.CompleteTemplateResourceRun(ctx, database.CompleteTemplateResourceRunParams{
-				TemplateID: f.state.TemplateID, RunID: f.state.ActiveRunID, Status: "applied", State: f.state.State,
-				Outputs: json.RawMessage(`{"id":"applied-after-enqueue"}`), AppliedRevisionID: f.state.AppliedRevisionID, UpdatedAt: dbtime.Now(),
+				FoundationID: f.state.FoundationID, RunID: f.state.ActiveRunID, Status: "applied", State: f.state.State,
+				Outputs: json.RawMessage(`{"id":"applied-after-enqueue"}`), AppliedRevisionID: f.state.AppliedRevisionID, CheckpointRevisionID: f.state.CheckpointRevisionID, UpdatedAt: dbtime.Now(),
 			})
 			require.NoError(t, err)
 			payload, err := f.server.acquireProtoJob(dbauthz.AsProvisionerd(ctx), job)
 			require.Nil(t, payload)
-			require.ErrorContains(t, err, "shared resource outputs require a provisioner with API v1.23 or later and coder.template_resources=1 capability")
+			require.ErrorContains(t, err, "shared resource outputs require a provisioner with API v1.25 or later and coder.template_resources=1 capability")
 			stored, err := db.GetProvisionerJobByID(ctx, job.ID)
 			require.NoError(t, err)
 			require.True(t, stored.CompletedAt.Valid)

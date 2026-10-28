@@ -1,20 +1,15 @@
-import "#/testHelpers/monaco";
-import { screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
 import { API } from "#/api/api";
+import { foundationPath } from "#/api/queries/foundations";
 import {
 	MockTemplate,
 	MockTemplateVersion,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { render, renderWithRouter } from "#/testHelpers/renderHelpers";
-import {
-	MockTemplateResourceLog,
-	MockTemplateResourceRevision,
-	MockTemplateResourceRun,
-	MockTemplateResources,
-} from "#/testHelpers/templateResources";
+import { MockFoundation } from "#/testHelpers/templateResources";
 import TemplateSharedResourcesPage from "./TemplateSharedResourcesPage";
 
 vi.mock(
@@ -28,147 +23,106 @@ vi.mock(
 		}),
 	}),
 );
-
 vi.mock("#/modules/dashboard/useDashboard", () => ({
 	useDashboard: () => ({ experiments: ["template-resources"] }),
 }));
-
 beforeEach(() => {
-	vi.spyOn(API, "getTemplateResourceRunLogs").mockResolvedValue([
-		MockTemplateResourceLog,
-	]);
-});
-
-it("opens the full archive editor instead of saving a main.tf-only revision", async () => {
-	const user = userEvent.setup();
-	vi.spyOn(API, "getTemplateResources").mockResolvedValue(
-		MockTemplateResources,
+	vi.spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
+		Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
 	);
-	const save = vi.spyOn(API, "createTemplateResourceRevision");
+	vi.spyOn(API, "getTemplateFoundation").mockResolvedValue(MockFoundation);
+});
+afterEach(() => vi.restoreAllMocks());
+
+it("navigates to the associated Foundation without loading its lifecycle data", async () => {
+	const user = userEvent.setup();
+	const logs = vi.spyOn(API, "getFoundationRunLogs");
+	const run = vi.spyOn(API, "createFoundationRun");
+	const version = vi.spyOn(API, "getTemplateVersionByName");
+	const path = foundationPath(
+		MockFoundation.organization_id,
+		MockFoundation.id,
+	);
 	const { router } = renderWithRouter(
 		createMemoryRouter([
 			{ path: "/", element: <TemplateSharedResourcesPage /> },
-			{ path: "/templates/:template/edit", element: <div /> },
+			{ path, element: <div /> },
 		]),
 	);
-	await user.click(await screen.findByRole("link", { name: "Edit files" }));
-	expect(router.state.location.pathname).toBe(
-		`/templates/${MockTemplate.name}/edit`,
-	);
-	expect(router.state.location.search).toBe("?scope=template");
-	expect(save).not.toHaveBeenCalled();
-});
-
-it("retries a failed apply without creating another revision", async () => {
-	const user = userEvent.setup();
-	vi.spyOn(API, "getTemplateResources").mockResolvedValue(
-		MockTemplateResources,
-	);
-	const save = vi.spyOn(API, "createTemplateResourceRevision");
-	const run = vi
-		.spyOn(API, "createTemplateResourceRun")
-		.mockRejectedValueOnce(
-			mockApiError({ message: "No provisioner available." }),
-		)
-		.mockResolvedValue(MockTemplateResourceRun);
-	const { queryClient } = render(<TemplateSharedResourcesPage />);
-	await user.click(await screen.findByRole("button", { name: "Apply" }));
-	await waitFor(() => expect(run).toHaveBeenCalledTimes(1));
-	await waitFor(() => expect(queryClient.isMutating()).toBe(0));
-	await user.click(screen.getByRole("button", { name: "Apply" }));
-	await waitFor(() => expect(run).toHaveBeenCalledTimes(2));
-	expect(run).toHaveBeenLastCalledWith(MockTemplate.id, {
-		revision_id: MockTemplateResourceRevision.id,
-		action: "apply",
-	});
-	expect(save).not.toHaveBeenCalled();
-});
-
-it("plans the selected historical revision and destroys the applied revision only after confirmation", async () => {
-	const user = userEvent.setup();
-	const mockHistorical = {
-		...MockTemplateResourceRevision,
-		id: "70000000-0000-4000-8000-000000000001",
-		created_at: "2026-10-20T12:00:00Z",
-	};
-	vi.spyOn(API, "getTemplateResources").mockResolvedValue({
-		...MockTemplateResources,
-		revisions: [mockHistorical, MockTemplateResourceRevision],
-	});
-	const run = vi
-		.spyOn(API, "createTemplateResourceRun")
-		.mockResolvedValue(MockTemplateResourceRun);
-	const { queryClient } = render(<TemplateSharedResourcesPage />);
 	await user.click(
-		await screen.findByRole("combobox", { name: "Revision history" }),
+		await screen.findByRole("link", { name: MockFoundation.name }),
 	);
-	await user.click(screen.getByRole("option", { name: /70000000/ }));
-	await user.click(screen.getByRole("button", { name: "Plan" }));
-	await waitFor(() =>
-		expect(run).toHaveBeenCalledWith(MockTemplate.id, {
-			revision_id: mockHistorical.id,
-			action: "plan",
-		}),
-	);
-	await waitFor(() => expect(queryClient.isMutating()).toBe(0));
-	await user.click(screen.getByRole("button", { name: "Destroy" }));
-	expect(run).toHaveBeenCalledTimes(1);
-	await user.click(
-		within(
-			screen.getByRole("dialog", { name: "Destroy shared resources?" }),
-		).getByRole("button", { name: "Destroy shared resources" }),
-	);
-	await waitFor(() =>
-		expect(run).toHaveBeenCalledWith(MockTemplate.id, {
-			revision_id: MockTemplateResourceRevision.id,
-			action: "destroy",
-		}),
-	);
+	expect(router.state.location.pathname).toBe(path);
+	expect(logs).not.toHaveBeenCalled();
+	expect(run).not.toHaveBeenCalled();
+	expect(version).not.toHaveBeenCalled();
 });
 
-it("fetches logs for the selected historical run", async () => {
+it("retries an initial association load failure", async () => {
 	const user = userEvent.setup();
-	const mockHistorical = {
-		...MockTemplateResourceRun,
-		id: "older-run",
-		created_at: "2026-10-20T12:00:00Z",
-	};
-	vi.spyOn(API, "getTemplateResources").mockResolvedValue({
-		...MockTemplateResources,
-		runs: [mockHistorical, MockTemplateResourceRun],
-	});
-	vi.mocked(API.getTemplateResourceRunLogs).mockRejectedValueOnce(
-		mockApiError({ message: "Unable to load job logs." }),
+	vi.mocked(API.getTemplateFoundation).mockRejectedValueOnce(
+		mockApiError({ message: "Association unavailable." }),
 	);
 	render(<TemplateSharedResourcesPage />);
-	await user.click(await screen.findByRole("button", { name: "Retry logs" }));
-	await waitFor(() =>
-		expect(API.getTemplateResourceRunLogs).toHaveBeenCalledTimes(2),
-	);
 	await user.click(
-		await screen.findByRole("button", {
-			name: "View logs for apply older-run",
-		}),
+		await screen.findByRole("button", { name: "Retry Foundation" }),
 	);
 	await waitFor(() =>
-		expect(API.getTemplateResourceRunLogs).toHaveBeenCalledWith(
-			MockTemplate.id,
-			mockHistorical.id,
-		),
+		expect(API.getTemplateFoundation).toHaveBeenCalledTimes(2),
 	);
 });
 
-it("retries an initial resource load failure", async () => {
+it("retries permissions before loading the association", async () => {
 	const user = userEvent.setup();
-	const get = vi
-		.spyOn(API, "getTemplateResources")
-		.mockRejectedValueOnce(
-			mockApiError({ message: "Resource state unavailable." }),
-		)
-		.mockResolvedValue(MockTemplateResources);
+	vi.mocked(API.checkAuthorization).mockRejectedValueOnce(
+		mockApiError({ message: "Permissions unavailable." }),
+	);
 	render(<TemplateSharedResourcesPage />);
 	await user.click(
-		await screen.findByRole("button", { name: "Retry resources" }),
+		await screen.findByRole("button", { name: "Retry Foundation" }),
 	);
-	await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
+	await waitFor(() =>
+		expect(API.getTemplateFoundation).toHaveBeenCalledWith(MockTemplate.id),
+	);
+});
+
+it("does not load the association without Foundation read permission", async () => {
+	vi.mocked(API.checkAuthorization).mockResolvedValue({
+		canReadFoundation: false,
+	});
+	render(<TemplateSharedResourcesPage />);
+	await screen.findByRole("alert");
+	expect(API.getTemplateFoundation).not.toHaveBeenCalled();
+});
+
+it("attaches a selected existing Foundation to an unbound template", async () => {
+	vi.mocked(API.getTemplateFoundation).mockResolvedValue(null);
+	vi.spyOn(API, "getFoundations").mockResolvedValue([
+		{ ...MockFoundation, template_id: null },
+	]);
+	const bind = vi
+		.spyOn(API, "setTemplateFoundation")
+		.mockResolvedValue(MockFoundation);
+	const user = userEvent.setup();
+	render(<TemplateSharedResourcesPage />);
+	await user.click(
+		await screen.findByRole("combobox", {
+			name: "Available organization Foundations",
+		}),
+	);
+	await user.click(
+		await screen.findByRole("option", {
+			name: new RegExp(MockFoundation.name),
+		}),
+	);
+	await user.click(screen.getByRole("button", { name: "Attach Foundation" }));
+	expect(bind).not.toHaveBeenCalled();
+	await user.click(
+		await screen.findByRole("button", { name: "Confirm attachment" }),
+	);
+	await waitFor(() =>
+		expect(bind).toHaveBeenCalledWith(MockTemplate.id, {
+			foundation_id: MockFoundation.id,
+		}),
+	);
 });

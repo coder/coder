@@ -846,6 +846,12 @@ export type APIKeyScope =
 	| "file:*"
 	| "file:create"
 	| "file:read"
+	| "foundation:*"
+	| "foundation:create"
+	| "foundation:delete"
+	| "foundation:read"
+	| "foundation:update"
+	| "foundation:use"
 	| "group:*"
 	| "group:create"
 	| "group:delete"
@@ -1114,6 +1120,12 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"file:*",
 	"file:create",
 	"file:read",
+	"foundation:*",
+	"foundation:create",
+	"foundation:delete",
+	"foundation:read",
+	"foundation:update",
+	"foundation:use",
 	"group:*",
 	"group:create",
 	"group:delete",
@@ -4557,6 +4569,19 @@ export interface CreateFirstUserTrialInfo {
 	readonly developers: string;
 }
 
+// From codersdk/templateresources.go
+/**
+ * CreateFoundationRequest configures a Foundation without provisioning infrastructure.
+ */
+export interface CreateFoundationRequest {
+	readonly name: string;
+	readonly provisioner_tags: Record<string, string>;
+	/**
+	 * PreventDestroyWithWorkspaces defaults to true when omitted.
+	 */
+	readonly prevent_destroy_with_workspaces?: boolean;
+}
+
 // From codersdk/groups.go
 export interface CreateGroupRequest {
 	readonly name: string;
@@ -6188,6 +6213,115 @@ export const FeatureSets: FeatureSet[] = ["enterprise", "", "premium"];
 
 // From codersdk/files.go
 export const FormatZip = "zip";
+
+// From codersdk/templateresources.go
+/**
+ * Foundation is an independently provisioned, organization-scoped Terraform deployment.
+ * Outputs contain only non-sensitive values. Raw Terraform state is never exposed.
+ */
+export interface Foundation {
+	readonly id: string;
+	readonly organization_id: string;
+	readonly name: string;
+	readonly provisioner_tags: Record<string, string>;
+	readonly template_id: string | null;
+	readonly status: string;
+	readonly current_revision_id: string | null;
+	readonly applied_revision_id: string | null;
+	/**
+	 * CheckpointRevisionID identifies the configuration used for retained state,
+	 * including a completed partial apply. Destroy uses this revision.
+	 */
+	readonly checkpoint_revision_id: string | null;
+	readonly revisions: readonly TemplateResourceRevision[];
+	readonly runs: readonly TemplateResourceRun[];
+	// empty interface{} type, falling back to unknown
+	readonly outputs: Record<string, unknown>;
+	readonly output_metadata: Record<string, FoundationOutputMetadata>;
+	readonly output_snapshot_id: string;
+	/**
+	 * Resources is the managed inventory from retained Terraform state, not a
+	 * live infrastructure refresh. Unavailable state yields an empty inventory.
+	 */
+	readonly resources: readonly FoundationResource[];
+	/**
+	 * ResourcesAvailable distinguishes unreadable state from a known empty inventory.
+	 */
+	readonly resources_available: boolean;
+	/**
+	 * PreventDestroyWithWorkspaces blocks Destroy while any consumers remain.
+	 */
+	readonly prevent_destroy_with_workspaces: boolean;
+	readonly consumers: FoundationConsumers;
+}
+
+// From codersdk/foundationpreview.go
+/**
+ * FoundationConsumerReference reports changed outputs referenced by a version.
+ * Unresolved includes dynamic references and incomplete or unavailable analysis.
+ */
+export interface FoundationConsumerReference {
+	readonly template_version_id: string;
+	readonly output_names: readonly string[];
+	readonly unresolved: boolean;
+}
+
+// From codersdk/templateresources.go
+/**
+ * FoundationConsumers counts all non-deleted consumers, including hidden workspaces.
+ * Running and stopped require a successful latest build; other states are unknown.
+ * Counts include workspaces with historical snapshots of this Foundation.
+ */
+export interface FoundationConsumers {
+	readonly total: number;
+	readonly running: number;
+	readonly stopped: number;
+	readonly unknown: number;
+}
+
+// From codersdk/foundationpreview.go
+/**
+ * FoundationOutputChange describes a root output without disclosing its value.
+ */
+export interface FoundationOutputChange {
+	readonly name: string;
+	readonly actions: readonly string[];
+	readonly unknown: boolean;
+	readonly sensitive: boolean;
+}
+
+// From codersdk/templateresources.go
+/**
+ * FoundationOutputMetadata describes an output without exposing its value.
+ */
+export interface FoundationOutputMetadata {
+	// empty interface{} type, falling back to unknown
+	readonly type?: unknown;
+	readonly sensitive: boolean;
+}
+
+// From codersdk/foundationpreview.go
+/**
+ * FoundationPlanPreview is advisory metadata, never output values or a raw plan.
+ * Missing or unavailable previews must not be interpreted as an empty change set.
+ */
+export interface FoundationPlanPreview {
+	readonly available: boolean;
+	readonly output_changes: readonly FoundationOutputChange[];
+	readonly consumer_references: readonly FoundationConsumerReference[];
+	readonly advisory: string;
+}
+
+// From codersdk/templateresources.go
+/**
+ * FoundationResource describes a managed resource without its state attributes.
+ */
+export interface FoundationResource {
+	readonly address: string;
+	readonly type: string;
+	readonly name: string;
+	readonly instances: number;
+}
 
 // From codersdk/parameters.go
 /**
@@ -8971,6 +9105,8 @@ export interface ProvisionerJobLog {
  * ProvisionerJobMetadata contains metadata for the job.
  */
 export interface ProvisionerJobMetadata {
+	readonly foundation_id?: string;
+	readonly foundation_name?: string;
 	readonly template_version_name: string;
 	readonly template_id: string;
 	readonly template_name: string;
@@ -9244,6 +9380,7 @@ export type RBACResource =
 	| "deployment_config"
 	| "deployment_stats"
 	| "file"
+	| "foundation"
 	| "group"
 	| "group_member"
 	| "idpsync_settings"
@@ -9302,6 +9439,7 @@ export const RBACResources: RBACResource[] = [
 	"deployment_config",
 	"deployment_stats",
 	"file",
+	"foundation",
 	"group",
 	"group_member",
 	"idpsync_settings",
@@ -9462,6 +9600,7 @@ export type ResourceType =
 	| "convert_login"
 	| "custom_role"
 	| "experiment_rule"
+	| "foundation"
 	| "git_ssh_key"
 	| "group"
 	| "group_ai_budget"
@@ -9512,6 +9651,7 @@ export const ResourceTypes: ResourceType[] = [
 	"convert_login",
 	"custom_role",
 	"experiment_rule",
+	"foundation",
 	"git_ssh_key",
 	"group",
 	"group_ai_budget",
@@ -10018,6 +10158,14 @@ export const SessionTokenHeader = "Coder-Session-Token";
 export interface SetNetworkPolicyTemplatesRequest {
 	readonly template_ids: readonly string[];
 	readonly expected_generation: number;
+}
+
+// From codersdk/templateresources.go
+/**
+ * SetTemplateFoundationRequest associates an existing Foundation with a template.
+ */
+export interface SetTemplateFoundationRequest {
+	readonly foundation_id: string;
 }
 
 // From codersdk/workspacesharing.go
@@ -10778,11 +10926,11 @@ export interface TemplateParameterValue {
 
 // From codersdk/templateresources.go
 /**
- * TemplateResourceRevision is an immutable source archive independent of workspace versions.
+ * TemplateResourceRevision is an immutable Foundation source archive.
  */
 export interface TemplateResourceRevision {
 	readonly id: string;
-	readonly template_id: string;
+	readonly foundation_id: string;
 	readonly created_at: string;
 	/**
 	 * FileID identifies the complete, normalized TAR archive.
@@ -10804,22 +10952,7 @@ export interface TemplateResourceRun {
 	readonly action: string;
 	readonly created_at: string;
 	readonly job: ProvisionerJob;
-}
-
-// From codersdk/templateresources.go
-/**
- * TemplateResources is the independently provisioned Terraform root of a template.
- * Outputs contain only non-sensitive values. Raw Terraform state is never exposed.
- */
-export interface TemplateResources {
-	readonly template_id: string;
-	readonly status: string;
-	readonly current_revision_id: string | null;
-	readonly applied_revision_id: string | null;
-	readonly revisions: readonly TemplateResourceRevision[];
-	readonly runs: readonly TemplateResourceRun[];
-	// empty interface{} type, falling back to unknown
-	readonly outputs: Record<string, unknown>;
+	readonly preview?: FoundationPlanPreview;
 }
 
 // From codersdk/templates.go
@@ -11311,6 +11444,19 @@ export interface UpdateCheckResponse {
 	 * URL to download the latest release of Coder.
 	 */
 	readonly url: string;
+}
+
+// From codersdk/templateresources.go
+/**
+ * UpdateFoundationRequest replaces a Foundation's settings, not its infrastructure.
+ */
+export interface UpdateFoundationRequest {
+	readonly name: string;
+	readonly provisioner_tags: Record<string, string>;
+	/**
+	 * PreventDestroyWithWorkspaces is preserved when omitted.
+	 */
+	readonly prevent_destroy_with_workspaces?: boolean;
 }
 
 // From healthsdk/healthsdk.go

@@ -1,4 +1,13 @@
 mock_provider "coder" {
+  mock_data "coder_foundation" {
+    defaults = {
+      id                = "22222222-2222-4222-8222-222222222222"
+      name              = "serpent-foundation"
+      template_ids      = ["ee88d119-881f-459f-91ac-ecf9c7347c52"]
+      outputs           = {}
+      sensitive_outputs = {}
+    }
+  }
   mock_data "coder_template" {
     defaults = {
       id   = "ee88d119-881f-459f-91ac-ecf9c7347c52"
@@ -12,6 +21,10 @@ mock_provider "kubernetes" {}
 run "template_policy_module" {
   command = plan
 
+  assert {
+    condition     = output.foundation_id == "22222222-2222-4222-8222-222222222222" && output.foundation_id != output.template_id
+    error_message = "Foundation self metadata must not replace the attached template identity."
+  }
   assert {
     condition     = output.namespace == "workspaces" && module.coder_network_policy.manifest.metadata.namespace == output.namespace
     error_message = "The policy module must consume the owned namespace exported to workspaces."

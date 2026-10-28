@@ -1,4 +1,4 @@
-# Shared root: namespace and policy are managed once per template.
+# Foundation root: namespace and policy retain their existing template identity.
 terraform {
   required_version = ">= 1.9.0, < 2.0.0"
   required_providers {
@@ -25,6 +25,8 @@ variable "kubeconfig_context" {
   default     = "default"
 }
 
+# Foundation metadata is available before Apply; policy identity stays template-scoped.
+data "coder_foundation" "current" {}
 data "coder_template" "current" {}
 
 resource "kubernetes_namespace_v1" "workspaces" {

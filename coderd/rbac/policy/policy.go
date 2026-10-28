@@ -120,6 +120,16 @@ var organizationSkillActions = map[Action]ActionDefinition{
 
 // RBACPermissions is indexed by the type
 var RBACPermissions = map[string]PermissionDefinition{
+	// Editing source does not authorize publishing live infrastructure changes.
+	"foundation": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: "create a Foundation",
+			ActionRead:   "read Foundation source, outputs, and history",
+			ActionUpdate: "edit Foundation settings and revisions, and plan changes",
+			ActionUse:    "publish or destroy Foundation infrastructure",
+			ActionDelete: "delete a cleaned-up Foundation",
+		},
+	},
 	// Wildcard is every object, and the action "*" provides all actions.
 	// So can grant all actions on all types.
 	WildcardSymbol: {

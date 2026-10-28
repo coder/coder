@@ -1489,9 +1489,9 @@ None
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_gateway_key:*`, `ai_gateway_key:create`, `ai_gateway_key:delete`, `ai_gateway_key:read`, `ai_gateway_key:update`, `ai_model_price:*`, `ai_model_price:read`, `ai_model_price:update`, `ai_provider:*`, `ai_provider:create`, `ai_provider:delete`, `ai_provider:read`, `ai_provider:update`, `ai_seat:*`, `ai_seat:create`, `ai_seat:read`, `aibridge_interception:*`, `aibridge_interception:create`, `aibridge_interception:read`, `aibridge_interception:update`, `all`, `api_key:*`, `api_key:create`, `api_key:delete`, `api_key:read`, `api_key:update`, `application_connect`, `assign_org_role:*`, `assign_org_role:assign`, `assign_org_role:create`, `assign_org_role:delete`, `assign_org_role:read`, `assign_org_role:unassign`, `assign_org_role:update`, `assign_role:*`, `assign_role:assign`, `assign_role:read`, `assign_role:unassign`, `audit_log:*`, `audit_log:create`, `audit_log:read`, `boundary_log:*`, `boundary_log:create`, `boundary_log:delete`, `boundary_log:read`, `boundary_usage:*`, `boundary_usage:delete`, `boundary_usage:read`, `boundary_usage:update`, `chat:*`, `chat:create`, `chat:delete`, `chat:read`, `chat:share`, `chat:update`, `chat_model_config:*`, `chat_model_config:create`, `chat_model_config:delete`, `chat_model_config:read`, `chat_model_config:share`, `chat_model_config:update`, `chat_project:*`, `chat_project:create`, `chat_project:delete`, `chat_project:read`, `chat_project:share`, `chat_project:update`, `chat_project_memory:*`, `chat_project_memory:create`, `chat_project_memory:delete`, `chat_project_memory:read`, `coder:all`, `coder:apikeys.manage_self`, `coder:application_connect`, `coder:templates.author`, `coder:templates.build`, `coder:workspaces.access`, `coder:workspaces.create`, `coder:workspaces.delete`, `coder:workspaces.operate`, `connection_log:*`, `connection_log:read`, `connection_log:update`, `crypto_key:*`, `crypto_key:create`, `crypto_key:delete`, `crypto_key:read`, `crypto_key:update`, `debug_info:*`, `debug_info:read`, `deployment_config:*`, `deployment_config:read`, `deployment_config:update`, `deployment_stats:*`, `deployment_stats:read`, `file:*`, `file:create`, `file:read`, `group:*`, `group:create`, `group:delete`, `group:read`, `group:update`, `group_member:*`, `group_member:read`, `idpsync_settings:*`, `idpsync_settings:read`, `idpsync_settings:update`, `inbox_notification:*`, `inbox_notification:create`, `inbox_notification:read`, `inbox_notification:update`, `license:*`, `license:create`, `license:delete`, `license:read`, `mcp_server_config:*`, `mcp_server_config:create`, `mcp_server_config:delete`, `mcp_server_config:read`, `mcp_server_config:share`, `mcp_server_config:update`, `notification_message:*`, `notification_message:create`, `notification_message:delete`, `notification_message:read`, `notification_message:update`, `notification_preference:*`, `notification_preference:read`, `notification_preference:update`, `notification_template:*`, `notification_template:read`, `notification_template:update`, `oauth2_app:*`, `oauth2_app:create`, `oauth2_app:delete`, `oauth2_app:read`, `oauth2_app:update`, `oauth2_app_code_token:*`, `oauth2_app_code_token:create`, `oauth2_app_code_token:delete`, `oauth2_app_code_token:read`, `oauth2_app_secret:*`, `oauth2_app_secret:create`, `oauth2_app_secret:delete`, `oauth2_app_secret:read`, `oauth2_app_secret:update`, `organization:*`, `organization:create`, `organization:delete`, `organization:read`, `organization:update`, `organization_member:*`, `organization_member:create`, `organization_member:delete`, `organization_member:read`, `organization_member:update`, `organization_skill:*`, `organization_skill:create`, `organization_skill:delete`, `organization_skill:read`, `organization_skill:share`, `organization_skill:update`, `prebuilt_workspace:*`, `prebuilt_workspace:delete`, `prebuilt_workspace:update`, `provisioner_daemon:*`, `provisioner_daemon:create`, `provisioner_daemon:delete`, `provisioner_daemon:read`, `provisioner_daemon:update`, `provisioner_jobs:*`, `provisioner_jobs:create`, `provisioner_jobs:read`, `provisioner_jobs:update`, `replicas:*`, `replicas:read`, `system:*`, `system:create`, `system:delete`, `system:read`, `system:update`, `tailnet_coordinator:*`, `tailnet_coordinator:create`, `tailnet_coordinator:delete`, `tailnet_coordinator:read`, `tailnet_coordinator:update`, `template:*`, `template:create`, `template:delete`, `template:read`, `template:update`, `template:use`, `template:view_insights`, `usage_event:*`, `usage_event:create`, `usage_event:read`, `usage_event:update`, `user:*`, `user:create`, `user:delete`, `user:read`, `user:read_personal`, `user:update`, `user:update_personal`, `user_secret:*`, `user_secret:create`, `user_secret:delete`, `user_secret:read`, `user_secret:update`, `user_skill:*`, `user_skill:create`, `user_skill:delete`, `user_skill:read`, `user_skill:update`, `webpush_subscription:*`, `webpush_subscription:create`, `webpush_subscription:delete`, `webpush_subscription:read`, `workspace:*`, `workspace:application_connect`, `workspace:create`, `workspace:create_agent`, `workspace:delete`, `workspace:delete_agent`, `workspace:read`, `workspace:share`, `workspace:ssh`, `workspace:start`, `workspace:stop`, `workspace:update`, `workspace:update_agent`, `workspace_agent_devcontainers:*`, `workspace_agent_devcontainers:create`, `workspace_agent_resource_monitor:*`, `workspace_agent_resource_monitor:create`, `workspace_agent_resource_monitor:read`, `workspace_agent_resource_monitor:update`, `workspace_build_orchestration:*`, `workspace_build_orchestration:create`, `workspace_build_orchestration:delete`, `workspace_build_orchestration:read`, `workspace_build_orchestration:update`, `workspace_dormant:*`, `workspace_dormant:application_connect`, `workspace_dormant:create`, `workspace_dormant:create_agent`, `workspace_dormant:delete`, `workspace_dormant:delete_agent`, `workspace_dormant:read`, `workspace_dormant:share`, `workspace_dormant:ssh`, `workspace_dormant:start`, `workspace_dormant:stop`, `workspace_dormant:update`, `workspace_dormant:update_agent`, `workspace_proxy:*`, `workspace_proxy:create`, `workspace_proxy:delete`, `workspace_proxy:read`, `workspace_proxy:update`, `workspace_secret:*`, `workspace_secret:create`, `workspace_secret:read`, `workspace_secret:read_secret`, `workspace_secret:update` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_key:*`, `ai_gateway_key:create`, `ai_gateway_key:delete`, `ai_gateway_key:read`, `ai_gateway_key:update`, `ai_model_price:*`, `ai_model_price:read`, `ai_model_price:update`, `ai_provider:*`, `ai_provider:create`, `ai_provider:delete`, `ai_provider:read`, `ai_provider:update`, `ai_seat:*`, `ai_seat:create`, `ai_seat:read`, `aibridge_interception:*`, `aibridge_interception:create`, `aibridge_interception:read`, `aibridge_interception:update`, `all`, `api_key:*`, `api_key:create`, `api_key:delete`, `api_key:read`, `api_key:update`, `application_connect`, `assign_org_role:*`, `assign_org_role:assign`, `assign_org_role:create`, `assign_org_role:delete`, `assign_org_role:read`, `assign_org_role:unassign`, `assign_org_role:update`, `assign_role:*`, `assign_role:assign`, `assign_role:read`, `assign_role:unassign`, `audit_log:*`, `audit_log:create`, `audit_log:read`, `boundary_log:*`, `boundary_log:create`, `boundary_log:delete`, `boundary_log:read`, `boundary_usage:*`, `boundary_usage:delete`, `boundary_usage:read`, `boundary_usage:update`, `chat:*`, `chat:create`, `chat:delete`, `chat:read`, `chat:share`, `chat:update`, `chat_model_config:*`, `chat_model_config:create`, `chat_model_config:delete`, `chat_model_config:read`, `chat_model_config:share`, `chat_model_config:update`, `chat_project:*`, `chat_project:create`, `chat_project:delete`, `chat_project:read`, `chat_project:share`, `chat_project:update`, `chat_project_memory:*`, `chat_project_memory:create`, `chat_project_memory:delete`, `chat_project_memory:read`, `coder:all`, `coder:apikeys.manage_self`, `coder:application_connect`, `coder:templates.author`, `coder:templates.build`, `coder:workspaces.access`, `coder:workspaces.create`, `coder:workspaces.delete`, `coder:workspaces.operate`, `connection_log:*`, `connection_log:read`, `connection_log:update`, `crypto_key:*`, `crypto_key:create`, `crypto_key:delete`, `crypto_key:read`, `crypto_key:update`, `debug_info:*`, `debug_info:read`, `deployment_config:*`, `deployment_config:read`, `deployment_config:update`, `deployment_stats:*`, `deployment_stats:read`, `file:*`, `file:create`, `file:read`, `foundation:*`, `foundation:create`, `foundation:delete`, `foundation:read`, `foundation:update`, `foundation:use`, `group:*`, `group:create`, `group:delete`, `group:read`, `group:update`, `group_member:*`, `group_member:read`, `idpsync_settings:*`, `idpsync_settings:read`, `idpsync_settings:update`, `inbox_notification:*`, `inbox_notification:create`, `inbox_notification:read`, `inbox_notification:update`, `license:*`, `license:create`, `license:delete`, `license:read`, `mcp_server_config:*`, `mcp_server_config:create`, `mcp_server_config:delete`, `mcp_server_config:read`, `mcp_server_config:share`, `mcp_server_config:update`, `notification_message:*`, `notification_message:create`, `notification_message:delete`, `notification_message:read`, `notification_message:update`, `notification_preference:*`, `notification_preference:read`, `notification_preference:update`, `notification_template:*`, `notification_template:read`, `notification_template:update`, `oauth2_app:*`, `oauth2_app:create`, `oauth2_app:delete`, `oauth2_app:read`, `oauth2_app:update`, `oauth2_app_code_token:*`, `oauth2_app_code_token:create`, `oauth2_app_code_token:delete`, `oauth2_app_code_token:read`, `oauth2_app_secret:*`, `oauth2_app_secret:create`, `oauth2_app_secret:delete`, `oauth2_app_secret:read`, `oauth2_app_secret:update`, `organization:*`, `organization:create`, `organization:delete`, `organization:read`, `organization:update`, `organization_member:*`, `organization_member:create`, `organization_member:delete`, `organization_member:read`, `organization_member:update`, `organization_skill:*`, `organization_skill:create`, `organization_skill:delete`, `organization_skill:read`, `organization_skill:share`, `organization_skill:update`, `prebuilt_workspace:*`, `prebuilt_workspace:delete`, `prebuilt_workspace:update`, `provisioner_daemon:*`, `provisioner_daemon:create`, `provisioner_daemon:delete`, `provisioner_daemon:read`, `provisioner_daemon:update`, `provisioner_jobs:*`, `provisioner_jobs:create`, `provisioner_jobs:read`, `provisioner_jobs:update`, `replicas:*`, `replicas:read`, `system:*`, `system:create`, `system:delete`, `system:read`, `system:update`, `tailnet_coordinator:*`, `tailnet_coordinator:create`, `tailnet_coordinator:delete`, `tailnet_coordinator:read`, `tailnet_coordinator:update`, `template:*`, `template:create`, `template:delete`, `template:read`, `template:update`, `template:use`, `template:view_insights`, `usage_event:*`, `usage_event:create`, `usage_event:read`, `usage_event:update`, `user:*`, `user:create`, `user:delete`, `user:read`, `user:read_personal`, `user:update`, `user:update_personal`, `user_secret:*`, `user_secret:create`, `user_secret:delete`, `user_secret:read`, `user_secret:update`, `user_skill:*`, `user_skill:create`, `user_skill:delete`, `user_skill:read`, `user_skill:update`, `webpush_subscription:*`, `webpush_subscription:create`, `webpush_subscription:delete`, `webpush_subscription:read`, `workspace:*`, `workspace:application_connect`, `workspace:create`, `workspace:create_agent`, `workspace:delete`, `workspace:delete_agent`, `workspace:read`, `workspace:share`, `workspace:ssh`, `workspace:start`, `workspace:stop`, `workspace:update`, `workspace:update_agent`, `workspace_agent_devcontainers:*`, `workspace_agent_devcontainers:create`, `workspace_agent_resource_monitor:*`, `workspace_agent_resource_monitor:create`, `workspace_agent_resource_monitor:read`, `workspace_agent_resource_monitor:update`, `workspace_build_orchestration:*`, `workspace_build_orchestration:create`, `workspace_build_orchestration:delete`, `workspace_build_orchestration:read`, `workspace_build_orchestration:update`, `workspace_dormant:*`, `workspace_dormant:application_connect`, `workspace_dormant:create`, `workspace_dormant:create_agent`, `workspace_dormant:delete`, `workspace_dormant:delete_agent`, `workspace_dormant:read`, `workspace_dormant:share`, `workspace_dormant:ssh`, `workspace_dormant:start`, `workspace_dormant:stop`, `workspace_dormant:update`, `workspace_dormant:update_agent`, `workspace_proxy:*`, `workspace_proxy:create`, `workspace_proxy:delete`, `workspace_proxy:read`, `workspace_proxy:update`, `workspace_secret:*`, `workspace_secret:create`, `workspace_secret:read`, `workspace_secret:read_secret`, `workspace_secret:update` |
 
 ## codersdk.AddLicenseRequest
 
@@ -1908,7 +1908,7 @@ None
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "resource_link": "string",
   "resource_target": "string",
-  "resource_type": "template",
+  "resource_type": "foundation",
   "status_code": 0,
   "time": "2019-08-24T14:15:22Z",
   "user": {
@@ -2000,7 +2000,7 @@ None
       "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
       "resource_link": "string",
       "resource_target": "string",
-      "resource_type": "template",
+      "resource_type": "foundation",
       "status_code": 0,
       "time": "2019-08-24T14:15:22Z",
       "user": {
@@ -7294,6 +7294,28 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `last_name`    | string | false    |              |             |
 | `phone_number` | string | false    |              |             |
 
+## codersdk.CreateFoundationRequest
+
+```json
+{
+  "name": "string",
+  "prevent_destroy_with_workspaces": true,
+  "provisioner_tags": {
+    "property1": "string",
+    "property2": "string"
+  }
+}
+```
+
+### Properties
+
+| Name                              | Type    | Required | Restrictions | Description                                                    |
+|-----------------------------------|---------|----------|--------------|----------------------------------------------------------------|
+| `name`                            | string  | true     |              |                                                                |
+| `prevent_destroy_with_workspaces` | boolean | false    |              | Prevent destroy with workspaces defaults to true when omitted. |
+| `provisioner_tags`                | object  | false    |              |                                                                |
+| » `[any property]`                | string  | false    |              |                                                                |
+
 ## codersdk.CreateGroupRequest
 
 ```json
@@ -10486,6 +10508,304 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `limit`        | integer                                      | false    |              | Limit is the maximum value the license grants for the feature, in the feature's own unit. For FeatureAgentRuntimeHours, an enabled feature with Limit omitted means the license grants unlimited runtime hours.                                                                                                                                                                                                                                                             |
 | `soft_limit`   | integer                                      | false    |              | Soft limit is the advisory warning threshold that accompanies Limit for features whose license carries it. For these features, Limit carries the purchased allocation; an unlimited allocation has no thresholds, so SoftLimit is omitted alongside the omitted Limit. Only FeatureAgentRuntimeHours sets this field.                                                                                                                                                       |
 | `usage_period` | [codersdk.UsagePeriod](#codersdkusageperiod) | false    |              | Usage period denotes that the usage is a counter that accumulates over this period (and most likely resets with the issuance of the next license). These dates are determined from the license that this entitlement comes from, see enterprise/coderd/license/license.go. Only FeatureManagedAgentLimit and FeatureAgentRuntimeHours set this field.                                                                                                                       |
+
+## codersdk.Foundation
+
+```json
+{
+  "applied_revision_id": "string",
+  "checkpoint_revision_id": "string",
+  "consumers": {
+    "running": 0,
+    "stopped": 0,
+    "total": 0,
+    "unknown": 0
+  },
+  "current_revision_id": "string",
+  "id": "string",
+  "name": "string",
+  "organization_id": "string",
+  "output_metadata": {
+    "property1": {
+      "sensitive": true,
+      "type": null
+    },
+    "property2": {
+      "sensitive": true,
+      "type": null
+    }
+  },
+  "output_snapshot_id": "string",
+  "outputs": {},
+  "prevent_destroy_with_workspaces": true,
+  "provisioner_tags": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "resources": [
+    {
+      "address": "string",
+      "instances": 0,
+      "name": "string",
+      "type": "string"
+    }
+  ],
+  "resources_available": true,
+  "revisions": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+      "foundation_id": "string",
+      "id": "string",
+      "source": "string"
+    }
+  ],
+  "runs": [
+    {
+      "action": "plan",
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "string",
+      "job": {
+        "available_workers": [
+          "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+        ],
+        "canceled_at": "2019-08-24T14:15:22Z",
+        "completed_at": "2019-08-24T14:15:22Z",
+        "created_at": "2019-08-24T14:15:22Z",
+        "error": "string",
+        "error_code": "REQUIRED_TEMPLATE_VARIABLES",
+        "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+        "input": {
+          "error": "string",
+          "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
+          "template_resource_run_id": "f5a28fe8-9947-4447-814f-59e092913ab5",
+          "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+          "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+        },
+        "logs_overflowed": true,
+        "metadata": {
+          "foundation_id": "e2b70a1f-64bb-4ad9-84e3-399e2ce56bf1",
+          "foundation_name": "string",
+          "template_display_name": "string",
+          "template_icon": "string",
+          "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+          "template_name": "string",
+          "template_version_name": "string",
+          "workspace_build_transition": "start",
+          "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+          "workspace_name": "string"
+        },
+        "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+        "queue_position": 0,
+        "queue_size": 0,
+        "started_at": "2019-08-24T14:15:22Z",
+        "status": "pending",
+        "tags": {
+          "property1": "string",
+          "property2": "string"
+        },
+        "type": "template_version_import",
+        "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+        "worker_name": "string"
+      },
+      "preview": {
+        "advisory": "string",
+        "available": true,
+        "consumer_references": [
+          {
+            "output_names": [
+              "string"
+            ],
+            "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+            "unresolved": true
+          }
+        ],
+        "output_changes": [
+          {
+            "actions": [
+              "string"
+            ],
+            "name": "string",
+            "sensitive": true,
+            "unknown": true
+          }
+        ]
+      },
+      "revision_id": "string"
+    }
+  ],
+  "status": "unconfigured",
+  "template_id": "string"
+}
+```
+
+### Properties
+
+| Name                              | Type                                                                            | Required | Restrictions | Description                                                                                                                                       |
+|-----------------------------------|---------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
+| `applied_revision_id`             | string                                                                          | false    |              |                                                                                                                                                   |
+| `checkpoint_revision_id`          | string                                                                          | false    |              | Checkpoint revision ID identifies the configuration used for retained state, including a completed partial apply. Destroy uses this revision.     |
+| `consumers`                       | [codersdk.FoundationConsumers](#codersdkfoundationconsumers)                    | false    |              |                                                                                                                                                   |
+| `current_revision_id`             | string                                                                          | false    |              |                                                                                                                                                   |
+| `id`                              | string                                                                          | false    |              |                                                                                                                                                   |
+| `name`                            | string                                                                          | false    |              |                                                                                                                                                   |
+| `organization_id`                 | string                                                                          | false    |              |                                                                                                                                                   |
+| `output_metadata`                 | object                                                                          | false    |              |                                                                                                                                                   |
+| » `[any property]`                | [codersdk.FoundationOutputMetadata](#codersdkfoundationoutputmetadata)          | false    |              |                                                                                                                                                   |
+| `output_snapshot_id`              | string                                                                          | false    |              |                                                                                                                                                   |
+| `outputs`                         | object                                                                          | false    |              |                                                                                                                                                   |
+| `prevent_destroy_with_workspaces` | boolean                                                                         | false    |              | Prevent destroy with workspaces blocks Destroy while any consumers remain.                                                                        |
+| `provisioner_tags`                | object                                                                          | false    |              |                                                                                                                                                   |
+| » `[any property]`                | string                                                                          | false    |              |                                                                                                                                                   |
+| `resources`                       | array of [codersdk.FoundationResource](#codersdkfoundationresource)             | false    |              | Resources is the managed inventory from retained Terraform state, not a live infrastructure refresh. Unavailable state yields an empty inventory. |
+| `resources_available`             | boolean                                                                         | false    |              | Resources available distinguishes unreadable state from a known empty inventory.                                                                  |
+| `revisions`                       | array of [codersdk.TemplateResourceRevision](#codersdktemplateresourcerevision) | false    |              |                                                                                                                                                   |
+| `runs`                            | array of [codersdk.TemplateResourceRun](#codersdktemplateresourcerun)           | false    |              |                                                                                                                                                   |
+| `status`                          | string                                                                          | false    |              |                                                                                                                                                   |
+| `template_id`                     | string                                                                          | false    |              |                                                                                                                                                   |
+
+#### Enumerated Values
+
+| Property | Value(s)                                                               |
+|----------|------------------------------------------------------------------------|
+| `status` | `applied`, `destroyed`, `failed`, `pending`, `unconfigured`, `unknown` |
+
+## codersdk.FoundationConsumerReference
+
+```json
+{
+  "output_names": [
+    "string"
+  ],
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "unresolved": true
+}
+```
+
+### Properties
+
+| Name                  | Type            | Required | Restrictions | Description |
+|-----------------------|-----------------|----------|--------------|-------------|
+| `output_names`        | array of string | false    |              |             |
+| `template_version_id` | string          | false    |              |             |
+| `unresolved`          | boolean         | false    |              |             |
+
+## codersdk.FoundationConsumers
+
+```json
+{
+  "running": 0,
+  "stopped": 0,
+  "total": 0,
+  "unknown": 0
+}
+```
+
+### Properties
+
+| Name      | Type    | Required | Restrictions | Description |
+|-----------|---------|----------|--------------|-------------|
+| `running` | integer | false    |              |             |
+| `stopped` | integer | false    |              |             |
+| `total`   | integer | false    |              |             |
+| `unknown` | integer | false    |              |             |
+
+## codersdk.FoundationOutputChange
+
+```json
+{
+  "actions": [
+    "string"
+  ],
+  "name": "string",
+  "sensitive": true,
+  "unknown": true
+}
+```
+
+### Properties
+
+| Name        | Type            | Required | Restrictions | Description |
+|-------------|-----------------|----------|--------------|-------------|
+| `actions`   | array of string | false    |              |             |
+| `name`      | string          | false    |              |             |
+| `sensitive` | boolean         | false    |              |             |
+| `unknown`   | boolean         | false    |              |             |
+
+## codersdk.FoundationOutputMetadata
+
+```json
+{
+  "sensitive": true,
+  "type": null
+}
+```
+
+### Properties
+
+| Name        | Type    | Required | Restrictions | Description |
+|-------------|---------|----------|--------------|-------------|
+| `sensitive` | boolean | false    |              |             |
+| `type`      | any     | false    |              |             |
+
+## codersdk.FoundationPlanPreview
+
+```json
+{
+  "advisory": "string",
+  "available": true,
+  "consumer_references": [
+    {
+      "output_names": [
+        "string"
+      ],
+      "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+      "unresolved": true
+    }
+  ],
+  "output_changes": [
+    {
+      "actions": [
+        "string"
+      ],
+      "name": "string",
+      "sensitive": true,
+      "unknown": true
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name                  | Type                                                                                  | Required | Restrictions | Description |
+|-----------------------|---------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `advisory`            | string                                                                                | false    |              |             |
+| `available`           | boolean                                                                               | false    |              |             |
+| `consumer_references` | array of [codersdk.FoundationConsumerReference](#codersdkfoundationconsumerreference) | false    |              |             |
+| `output_changes`      | array of [codersdk.FoundationOutputChange](#codersdkfoundationoutputchange)           | false    |              |             |
+
+## codersdk.FoundationResource
+
+```json
+{
+  "address": "string",
+  "instances": 0,
+  "name": "string",
+  "type": "string"
+}
+```
+
+### Properties
+
+| Name        | Type    | Required | Restrictions | Description |
+|-------------|---------|----------|--------------|-------------|
+| `address`   | string  | false    |              |             |
+| `instances` | integer | false    |              |             |
+| `name`      | string  | false    |              |             |
+| `type`      | string  | false    |              |             |
 
 ## codersdk.FriendlyDiagnostic
 
@@ -14452,6 +14772,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   },
   "logs_overflowed": true,
   "metadata": {
+    "foundation_id": "e2b70a1f-64bb-4ad9-84e3-399e2ce56bf1",
+    "foundation_name": "string",
     "template_display_name": "string",
     "template_icon": "string",
     "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
@@ -14566,6 +14888,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ```json
 {
+  "foundation_id": "e2b70a1f-64bb-4ad9-84e3-399e2ce56bf1",
+  "foundation_name": "string",
   "template_display_name": "string",
   "template_icon": "string",
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
@@ -14581,6 +14905,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 | Name                         | Type                                                         | Required | Restrictions | Description |
 |------------------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `foundation_id`              | string                                                       | false    |              |             |
+| `foundation_name`            | string                                                       | false    |              |             |
 | `template_display_name`      | string                                                       | false    |              |             |
 | `template_icon`              | string                                                       | false    |              |             |
 | `template_id`                | string                                                       | false    |              |             |
@@ -14919,9 +15245,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `*`, `ai_gateway_key`, `ai_model_price`, `ai_provider`, `ai_seat`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `boundary_log`, `boundary_usage`, `chat`, `chat_model_config`, `chat_project`, `chat_project_memory`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `mcp_server_config`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `organization_skill`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `template`, `usage_event`, `user`, `user_secret`, `user_skill`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_build_orchestration`, `workspace_dormant`, `workspace_proxy`, `workspace_secret` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `*`, `ai_gateway_key`, `ai_model_price`, `ai_provider`, `ai_seat`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `boundary_log`, `boundary_usage`, `chat`, `chat_model_config`, `chat_project`, `chat_project_memory`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `foundation`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `mcp_server_config`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `organization_skill`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `template`, `usage_event`, `user`, `user_secret`, `user_skill`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_build_orchestration`, `workspace_dormant`, `workspace_proxy`, `workspace_secret` |
 
 ## codersdk.RateLimitConfig
 
@@ -15130,16 +15456,16 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 ## codersdk.ResourceType
 
 ```json
-"template"
+"foundation"
 ```
 
 ### Properties
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `chat_automation`, `chat_instruction_settings`, `chat_model_config`, `chat_operational_settings`, `chat_organization_system_prompt`, `chat_project`, `chat_project_instructions`, `chat_project_memory`, `chat_project_skill`, `convert_login`, `custom_role`, `experiment_rule`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `mcp_server_config`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `organization_skill`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `chat_automation`, `chat_instruction_settings`, `chat_model_config`, `chat_operational_settings`, `chat_organization_system_prompt`, `chat_project`, `chat_project_instructions`, `chat_project_memory`, `chat_project_skill`, `convert_login`, `custom_role`, `experiment_rule`, `foundation`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `mcp_server_config`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `organization_skill`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
 
 ## codersdk.Response
 
@@ -15441,6 +15767,20 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |-----------------------|-----------------|----------|--------------|-------------|
 | `expected_generation` | integer         | false    |              |             |
 | `template_ids`        | array of string | false    |              |             |
+
+## codersdk.SetTemplateFoundationRequest
+
+```json
+{
+  "foundation_id": "e2b70a1f-64bb-4ad9-84e3-399e2ce56bf1"
+}
+```
+
+### Properties
+
+| Name            | Type   | Required | Restrictions | Description |
+|-----------------|--------|----------|--------------|-------------|
+| `foundation_id` | string | false    |              |             |
 
 ## codersdk.ShareableWorkspaceOwners
 
@@ -16775,21 +17115,21 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 {
   "created_at": "2019-08-24T14:15:22Z",
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+  "foundation_id": "string",
   "id": "string",
-  "source": "string",
-  "template_id": "string"
+  "source": "string"
 }
 ```
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description                                                       |
-|---------------|--------|----------|--------------|-------------------------------------------------------------------|
-| `created_at`  | string | false    |              |                                                                   |
-| `file_id`     | string | false    |              | File ID identifies the complete, normalized TAR archive.          |
-| `id`          | string | false    |              |                                                                   |
-| `source`      | string | false    |              | Source is the main.tf preview, or empty when that file is absent. |
-| `template_id` | string | false    |              |                                                                   |
+| Name            | Type   | Required | Restrictions | Description                                                       |
+|-----------------|--------|----------|--------------|-------------------------------------------------------------------|
+| `created_at`    | string | false    |              |                                                                   |
+| `file_id`       | string | false    |              | File ID identifies the complete, normalized TAR archive.          |
+| `foundation_id` | string | false    |              |                                                                   |
+| `id`            | string | false    |              |                                                                   |
+| `source`        | string | false    |              | Source is the main.tf preview, or empty when that file is absent. |
 
 ## codersdk.TemplateResourceRun
 
@@ -16819,6 +17159,8 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     },
     "logs_overflowed": true,
     "metadata": {
+      "foundation_id": "e2b70a1f-64bb-4ad9-84e3-399e2ce56bf1",
+      "foundation_name": "string",
       "template_display_name": "string",
       "template_icon": "string",
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
@@ -16841,115 +17183,49 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
     "worker_name": "string"
   },
+  "preview": {
+    "advisory": "string",
+    "available": true,
+    "consumer_references": [
+      {
+        "output_names": [
+          "string"
+        ],
+        "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+        "unresolved": true
+      }
+    ],
+    "output_changes": [
+      {
+        "actions": [
+          "string"
+        ],
+        "name": "string",
+        "sensitive": true,
+        "unknown": true
+      }
+    ]
+  },
   "revision_id": "string"
 }
 ```
 
 ### Properties
 
-| Name          | Type                                               | Required | Restrictions | Description |
-|---------------|----------------------------------------------------|----------|--------------|-------------|
-| `action`      | string                                             | false    |              |             |
-| `created_at`  | string                                             | false    |              |             |
-| `id`          | string                                             | false    |              |             |
-| `job`         | [codersdk.ProvisionerJob](#codersdkprovisionerjob) | false    |              |             |
-| `revision_id` | string                                             | false    |              |             |
+| Name          | Type                                                             | Required | Restrictions | Description |
+|---------------|------------------------------------------------------------------|----------|--------------|-------------|
+| `action`      | string                                                           | false    |              |             |
+| `created_at`  | string                                                           | false    |              |             |
+| `id`          | string                                                           | false    |              |             |
+| `job`         | [codersdk.ProvisionerJob](#codersdkprovisionerjob)               | false    |              |             |
+| `preview`     | [codersdk.FoundationPlanPreview](#codersdkfoundationplanpreview) | false    |              |             |
+| `revision_id` | string                                                           | false    |              |             |
 
 #### Enumerated Values
 
 | Property | Value(s)                   |
 |----------|----------------------------|
 | `action` | `apply`, `destroy`, `plan` |
-
-## codersdk.TemplateResources
-
-```json
-{
-  "applied_revision_id": "string",
-  "current_revision_id": "string",
-  "outputs": {},
-  "revisions": [
-    {
-      "created_at": "2019-08-24T14:15:22Z",
-      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-      "id": "string",
-      "source": "string",
-      "template_id": "string"
-    }
-  ],
-  "runs": [
-    {
-      "action": "plan",
-      "created_at": "2019-08-24T14:15:22Z",
-      "id": "string",
-      "job": {
-        "available_workers": [
-          "497f6eca-6276-4993-bfeb-53cbbbba6f08"
-        ],
-        "canceled_at": "2019-08-24T14:15:22Z",
-        "completed_at": "2019-08-24T14:15:22Z",
-        "created_at": "2019-08-24T14:15:22Z",
-        "error": "string",
-        "error_code": "REQUIRED_TEMPLATE_VARIABLES",
-        "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
-        "input": {
-          "error": "string",
-          "network_policy_run_id": "d6c154a6-c382-4a2b-9071-033cea66ec8c",
-          "template_resource_run_id": "f5a28fe8-9947-4447-814f-59e092913ab5",
-          "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
-          "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
-        },
-        "logs_overflowed": true,
-        "metadata": {
-          "template_display_name": "string",
-          "template_icon": "string",
-          "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-          "template_name": "string",
-          "template_version_name": "string",
-          "workspace_build_transition": "start",
-          "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
-          "workspace_name": "string"
-        },
-        "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-        "queue_position": 0,
-        "queue_size": 0,
-        "started_at": "2019-08-24T14:15:22Z",
-        "status": "pending",
-        "tags": {
-          "property1": "string",
-          "property2": "string"
-        },
-        "type": "template_version_import",
-        "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
-        "worker_name": "string"
-      },
-      "revision_id": "string"
-    }
-  ],
-  "status": "unconfigured",
-  "template_id": "string"
-}
-```
-
-### Properties
-
-| Name                  | Type                                                                            | Required | Restrictions | Description |
-|-----------------------|---------------------------------------------------------------------------------|----------|--------------|-------------|
-| `applied_revision_id` | string                                                                          | false    |              |             |
-| `current_revision_id` | string                                                                          | false    |              |             |
-| `outputs`             | object                                                                          | false    |              |             |
-| `revisions`           | array of [codersdk.TemplateResourceRevision](#codersdktemplateresourcerevision) | false    |              |             |
-| `runs`                | array of [codersdk.TemplateResourceRun](#codersdktemplateresourcerun)           | false    |              |             |
-| `status`              | string                                                                          | false    |              |             |
-| `template_id`         | string                                                                          | false    |              |             |
-
-#### Enumerated Values
-
-| Property | Value(s)                                                               |
-|----------|------------------------------------------------------------------------|
-| `status` | `applied`, `destroyed`, `failed`, `pending`, `unconfigured`, `unknown` |
 
 ## codersdk.TemplateRole
 
@@ -17059,6 +17335,8 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     },
     "logs_overflowed": true,
     "metadata": {
+      "foundation_id": "e2b70a1f-64bb-4ad9-84e3-399e2ce56bf1",
+      "foundation_name": "string",
       "template_display_name": "string",
       "template_icon": "string",
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
@@ -17937,6 +18215,28 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
 | `current` | boolean | false    |              | Current indicates whether the server version is the same as the latest. |
 | `url`     | string  | false    |              | URL to download the latest release of Coder.                            |
 | `version` | string  | false    |              | Version is the semantic version for the latest release of Coder.        |
+
+## codersdk.UpdateFoundationRequest
+
+```json
+{
+  "name": "string",
+  "prevent_destroy_with_workspaces": true,
+  "provisioner_tags": {
+    "property1": "string",
+    "property2": "string"
+  }
+}
+```
+
+### Properties
+
+| Name                              | Type    | Required | Restrictions | Description                                                |
+|-----------------------------------|---------|----------|--------------|------------------------------------------------------------|
+| `name`                            | string  | true     |              |                                                            |
+| `prevent_destroy_with_workspaces` | boolean | false    |              | Prevent destroy with workspaces is preserved when omitted. |
+| `provisioner_tags`                | object  | false    |              |                                                            |
+| » `[any property]`                | string  | false    |              |                                                            |
 
 ## codersdk.UpdateMCPServerConfigACLRequest
 
@@ -19511,6 +19811,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       },
       "logs_overflowed": true,
       "metadata": {
+        "foundation_id": "e2b70a1f-64bb-4ad9-84e3-399e2ce56bf1",
+        "foundation_name": "string",
         "template_display_name": "string",
         "template_icon": "string",
         "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
@@ -20897,6 +21199,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     },
     "logs_overflowed": true,
     "metadata": {
+      "foundation_id": "e2b70a1f-64bb-4ad9-84e3-399e2ce56bf1",
+      "foundation_name": "string",
       "template_display_name": "string",
       "template_icon": "string",
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
@@ -21850,6 +22154,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           },
           "logs_overflowed": true,
           "metadata": {
+            "foundation_id": "e2b70a1f-64bb-4ad9-84e3-399e2ce56bf1",
+            "foundation_name": "string",
             "template_display_name": "string",
             "template_icon": "string",
             "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",

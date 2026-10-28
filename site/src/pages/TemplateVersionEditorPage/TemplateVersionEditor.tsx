@@ -57,7 +57,6 @@ import { TemplateVersionStatusBadge } from "./TemplateVersionStatusBadge";
 type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab
 
 type TemplateVersionEditorProps = {
-	scopeNavigation?: React.ReactNode;
 	template: Template;
 	templateVersion: TemplateVersion;
 	fileTree: FileTree;
@@ -87,7 +86,6 @@ type TemplateVersionEditorProps = {
 };
 
 export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
-	scopeNavigation,
 	isBuilding,
 	canPublish,
 	template,
@@ -273,7 +271,6 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 						</TopbarButton>
 					</div>
 				</Topbar>
-				{scopeNavigation}
 
 				<div className="flex flex-1 basis-0 overflow-hidden relative">
 					{publishedVersion && (

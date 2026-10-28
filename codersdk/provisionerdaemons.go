@@ -144,6 +144,8 @@ type ProvisionerJobInput struct {
 
 // ProvisionerJobMetadata contains metadata for the job.
 type ProvisionerJobMetadata struct {
+	FoundationID             *uuid.UUID          `json:"foundation_id,omitempty" format:"uuid" table:"foundation id"`
+	FoundationName           string              `json:"foundation_name,omitempty" table:"foundation name"`
 	TemplateVersionName      string              `json:"template_version_name" table:"template version name"`
 	TemplateID               uuid.UUID           `json:"template_id" format:"uuid" table:"template id"`
 	TemplateName             string              `json:"template_name" table:"template name"`

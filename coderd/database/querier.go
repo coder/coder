@@ -82,6 +82,7 @@ type sqlcQuerier interface {
 	BatchUpdateWorkspaceLastUsedAt(ctx context.Context, arg BatchUpdateWorkspaceLastUsedAtParams) error
 	BatchUpdateWorkspaceNextStartAt(ctx context.Context, arg BatchUpdateWorkspaceNextStartAtParams) error
 	BatchUpsertConnectionLogs(ctx context.Context, arg BatchUpsertConnectionLogsParams) error
+	BindFoundation(ctx context.Context, arg BindFoundationParams) (Foundation, error)
 	BulkMarkNotificationMessagesFailed(ctx context.Context, arg BulkMarkNotificationMessagesFailedParams) (int64, error)
 	BulkMarkNotificationMessagesSent(ctx context.Context, arg BulkMarkNotificationMessagesSentParams) (int64, error)
 	// Calculates the telemetry summary for a given provider, model, and client
@@ -188,6 +189,7 @@ type sqlcQuerier interface {
 	DeleteCustomRole(ctx context.Context, arg DeleteCustomRoleParams) error
 	DeleteExpiredAPIKeys(ctx context.Context, arg DeleteExpiredAPIKeysParams) (int64, error)
 	DeleteExternalAuthLink(ctx context.Context, arg DeleteExternalAuthLinkParams) error
+	DeleteFoundation(ctx context.Context, arg DeleteFoundationParams) (Foundation, error)
 	DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID) (GroupAIBudget, error)
 	DeleteGroupByID(ctx context.Context, id uuid.UUID) error
 	DeleteGroupMemberFromGroup(ctx context.Context, arg DeleteGroupMemberFromGroupParams) error
@@ -689,6 +691,7 @@ type sqlcQuerier interface {
 	GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, arg GetFailedWorkspaceBuildsByTemplateIDParams) ([]GetFailedWorkspaceBuildsByTemplateIDRow, error)
 	GetFileByHashAndCreator(ctx context.Context, arg GetFileByHashAndCreatorParams) (File, error)
 	GetFileByID(ctx context.Context, id uuid.UUID) (File, error)
+	GetFileFoundations(ctx context.Context, fileID uuid.UUID) ([]Foundation, error)
 	// Get all templates that use a file.
 	GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]GetFileTemplatesRow, error)
 	// Fetches inbox notifications for a user filtered by templates and targets
@@ -700,6 +703,16 @@ type sqlcQuerier interface {
 	// param limit_opt: The limit of notifications to fetch. If the limit is not specified, it defaults to 25
 	GetFilteredInboxNotificationsByUserID(ctx context.Context, arg GetFilteredInboxNotificationsByUserIDParams) ([]InboxNotification, error)
 	GetForcedMCPServerConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]MCPServerConfig, error)
+	GetFoundationByID(ctx context.Context, id uuid.UUID) (Foundation, error)
+	GetFoundationByTemplateID(ctx context.Context, templateID uuid.NullUUID) (Foundation, error)
+	// Include every live consumer, even when hidden or only historically pinned.
+	GetFoundationConsumerCounts(ctx context.Context, foundationID uuid.UUID) (GetFoundationConsumerCountsRow, error)
+	// Scan active configuration and all versions used by non-deleted consumers.
+	// Include historical pins, even when the Foundation has since been detached.
+	GetFoundationConsumerTemplateVersions(ctx context.Context, foundationID uuid.UUID) ([]GetFoundationConsumerTemplateVersionsRow, error)
+	// Include pinned consumers even if their template's association changed.
+	GetFoundationWorkspaceCount(ctx context.Context, foundationID uuid.UUID) (int64, error)
+	GetFoundationsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]Foundation, error)
 	GetGitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSHKey, error)
 	GetGroupAIBudget(ctx context.Context, groupID uuid.UUID) (GroupAIBudget, error)
 	GetGroupByID(ctx context.Context, id uuid.UUID) (Group, error)
@@ -970,12 +983,12 @@ type sqlcQuerier interface {
 	// its confidence thresholds live in one place.
 	GetTemplateRankingSignalsByOwnerID(ctx context.Context, arg GetTemplateRankingSignalsByOwnerIDParams) ([]GetTemplateRankingSignalsByOwnerIDRow, error)
 	GetTemplateResourceRevisionByID(ctx context.Context, id uuid.UUID) (TemplateResourceRevision, error)
-	GetTemplateResourceRevisionsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]TemplateResourceRevision, error)
+	GetTemplateResourceRevisionsByFoundationID(ctx context.Context, foundationID uuid.UUID) ([]TemplateResourceRevision, error)
 	GetTemplateResourceRunByID(ctx context.Context, id uuid.UUID) (TemplateResourceRun, error)
 	GetTemplateResourceRunByJobID(ctx context.Context, jobID uuid.UUID) (TemplateResourceRun, error)
-	GetTemplateResourceRunsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]TemplateResourceRun, error)
-	GetTemplateResourceState(ctx context.Context, templateID uuid.UUID) (TemplateResourceState, error)
-	GetTemplateResourceStateForUpdate(ctx context.Context, templateID uuid.UUID) (TemplateResourceState, error)
+	GetTemplateResourceRunsByFoundationID(ctx context.Context, foundationID uuid.UUID) ([]TemplateResourceRun, error)
+	GetTemplateResourceState(ctx context.Context, foundationID uuid.UUID) (TemplateResourceState, error)
+	GetTemplateResourceStateForUpdate(ctx context.Context, foundationID uuid.UUID) (TemplateResourceState, error)
 	GetTemplateUsageStats(ctx context.Context, arg GetTemplateUsageStatsParams) ([]TemplateUsageStat, error)
 	GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (TemplateVersion, error)
 	GetTemplateVersionByJobID(ctx context.Context, jobID uuid.UUID) (TemplateVersion, error)
@@ -1287,6 +1300,7 @@ type sqlcQuerier interface {
 	InsertDeploymentID(ctx context.Context, value string) error
 	InsertExternalAuthLink(ctx context.Context, arg InsertExternalAuthLinkParams) (ExternalAuthLink, error)
 	InsertFile(ctx context.Context, arg InsertFileParams) (File, error)
+	InsertFoundation(ctx context.Context, arg InsertFoundationParams) (Foundation, error)
 	InsertGitSSHKey(ctx context.Context, arg InsertGitSSHKeyParams) (GitSSHKey, error)
 	InsertGroup(ctx context.Context, arg InsertGroupParams) (Group, error)
 	InsertGroupMember(ctx context.Context, arg InsertGroupMemberParams) error
@@ -1472,6 +1486,8 @@ type sqlcQuerier interface {
 	// allocate a new snapshot version in one round trip.
 	LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (Chat, error)
 	LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	// Invalidate repeatable-read snapshots, including an unconfigured deployment.
+	LockFoundation(ctx context.Context, id uuid.UUID) error
 	// Locks the listed users' membership rows with FOR KEY SHARE for the rest of
 	// the current transaction. FOR KEY SHARE conflicts with DELETE, so a member
 	// cannot be removed until the transaction ends, and a removal committed
@@ -1703,6 +1719,7 @@ type sqlcQuerier interface {
 	UpdateEncryptedWorkspaceSecretValue(ctx context.Context, arg UpdateEncryptedWorkspaceSecretValueParams) (WorkspaceSecret, error)
 	// If a refresh lease is provided, the row is only updated if the lease matches.
 	UpdateExternalAuthLink(ctx context.Context, arg UpdateExternalAuthLinkParams) (ExternalAuthLink, error)
+	UpdateFoundation(ctx context.Context, arg UpdateFoundationParams) (Foundation, error)
 	UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyParams) (GitSSHKey, error)
 	UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDParams) (Group, error)
 	UpdateInactiveUsersToDormant(ctx context.Context, arg UpdateInactiveUsersToDormantParams) ([]UpdateInactiveUsersToDormantRow, error)
@@ -1745,6 +1762,7 @@ type sqlcQuerier interface {
 	UpdateTemplateActiveVersionByID(ctx context.Context, arg UpdateTemplateActiveVersionByIDParams) error
 	UpdateTemplateDeletedByID(ctx context.Context, arg UpdateTemplateDeletedByIDParams) error
 	UpdateTemplateMetaByID(ctx context.Context, arg UpdateTemplateMetaByIDParams) error
+	UpdateTemplateResourceRunPlanPreview(ctx context.Context, arg UpdateTemplateResourceRunPlanPreviewParams) error
 	UpdateTemplateResourceState(ctx context.Context, arg UpdateTemplateResourceStateParams) (TemplateResourceState, error)
 	UpdateTemplateScheduleByID(ctx context.Context, arg UpdateTemplateScheduleByIDParams) error
 	UpdateTemplateVersionByID(ctx context.Context, arg UpdateTemplateVersionByIDParams) error

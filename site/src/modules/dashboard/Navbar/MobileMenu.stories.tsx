@@ -57,6 +57,10 @@ const meta: Meta<typeof MobileMenu> = {
 export default meta;
 type Story = StoryObj<typeof MobileMenu>;
 
+export const WithFoundations: Story = {
+	args: { foundationsEnabled: true },
+};
+
 export const Closed: Story = {
 	args: {
 		isDefaultOpen: false,

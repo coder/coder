@@ -26,19 +26,21 @@ func TestTemplateResources(t *testing.T) {
 	t.Parallel()
 	const emptyState = `{"version":4,"terraform_version":"1.15.0","serial":2,"lineage":"lineage","resources":[]}`
 	const managedState = `{"version":4,"terraform_version":"1.15.0","serial":2,"lineage":"lineage","resources":[{"mode":"managed","instances":[{}]}]}`
+	const partialState = `{"version":4,"terraform_version":"1.15.0","serial":3,"lineage":"lineage","resources":[{"mode":"managed","instances":[{}]}]}`
 	for _, tt := range []struct {
-		name          string
-		operation     proto.TemplateResourceOperation
-		initError     string
-		planError     string
-		applyError    string
-		state         string
-		priorState    *string
-		interrupt     string
-		interruptPlan bool
-		wantError     string
-		disposition   proto.StateDisposition
-		timings       int
+		name            string
+		operation       proto.TemplateResourceOperation
+		initError       string
+		planError       string
+		applyError      string
+		unauthoritative bool
+		state           string
+		priorState      *string
+		interrupt       string
+		interruptPlan   bool
+		wantError       string
+		disposition     proto.StateDisposition
+		timings         int
 	}{
 		{name: "Plan", disposition: proto.StateDisposition_UNCHANGED, timings: 2},
 		{name: "InitialPlan", priorState: new(""), disposition: proto.StateDisposition_UNCHANGED, timings: 2},
@@ -47,8 +49,11 @@ func TestTemplateResources(t *testing.T) {
 		{name: "InvalidPriorState", priorState: new("{}"), wantError: "prior state", disposition: proto.StateDisposition_UNCHANGED},
 		{name: "InitError", operation: proto.TemplateResourceOperation_TEMPLATE_RESOURCE_APPLY, initError: "init failed", wantError: "init failed", disposition: proto.StateDisposition_UNCHANGED, timings: 1},
 		{name: "PlanError", operation: proto.TemplateResourceOperation_TEMPLATE_RESOURCE_APPLY, planError: "plan failed", wantError: "plan failed", disposition: proto.StateDisposition_UNCHANGED, timings: 2},
-		{name: "PartialApply", operation: proto.TemplateResourceOperation_TEMPLATE_RESOURCE_APPLY, applyError: "apply failed", state: "checkpoint", wantError: "apply failed", disposition: proto.StateDisposition_UNKNOWN, timings: 3},
-		{name: "KilledApplyWithStaleState", operation: proto.TemplateResourceOperation_TEMPLATE_RESOURCE_APPLY, applyError: "signal: killed", state: managedState, wantError: "signal: killed", disposition: proto.StateDisposition_UNKNOWN, timings: 3},
+		{name: "PartialApply", operation: proto.TemplateResourceOperation_TEMPLATE_RESOURCE_APPLY, applyError: "apply failed", state: partialState, wantError: "apply failed", disposition: proto.StateDisposition_RETURNED, timings: 3},
+		{name: "PartialApplyInvalidState", operation: proto.TemplateResourceOperation_TEMPLATE_RESOURCE_APPLY, applyError: "apply failed", state: "checkpoint", wantError: "apply failed", disposition: proto.StateDisposition_UNKNOWN, timings: 3},
+		{name: "PartialApplyWithoutAuthority", operation: proto.TemplateResourceOperation_TEMPLATE_RESOURCE_APPLY, applyError: "apply failed", unauthoritative: true, state: managedState, wantError: "apply failed", disposition: proto.StateDisposition_UNKNOWN, timings: 3},
+		{name: "KilledApplyWithStaleState", operation: proto.TemplateResourceOperation_TEMPLATE_RESOURCE_APPLY, applyError: "signal: killed", unauthoritative: true, state: managedState, wantError: "signal: killed", disposition: proto.StateDisposition_UNKNOWN, timings: 3},
+		{name: "SuccessWithoutAuthority", operation: proto.TemplateResourceOperation_TEMPLATE_RESOURCE_APPLY, unauthoritative: true, state: managedState, wantError: "non-authoritative state", disposition: proto.StateDisposition_UNKNOWN, timings: 3},
 		{name: "MissingState", operation: proto.TemplateResourceOperation_TEMPLATE_RESOURCE_APPLY, wantError: "returned no state", disposition: proto.StateDisposition_UNKNOWN, timings: 3},
 		{name: "InvalidApplyState", operation: proto.TemplateResourceOperation_TEMPLATE_RESOURCE_APPLY, state: "{}", wantError: "complete Terraform", disposition: proto.StateDisposition_UNKNOWN, timings: 3},
 		{name: "ApplyErrorWithoutState", operation: proto.TemplateResourceOperation_TEMPLATE_RESOURCE_APPLY, applyError: "apply failed", wantError: "apply failed", disposition: proto.StateDisposition_UNKNOWN, timings: 3},
@@ -61,8 +66,10 @@ func TestTemplateResources(t *testing.T) {
 		{name: "DestroyNoPriorState", operation: proto.TemplateResourceOperation_TEMPLATE_RESOURCE_DESTROY, priorState: new(""), wantError: "requires prior state", disposition: proto.StateDisposition_UNCHANGED},
 		{name: "DestroyPlanFailure", operation: proto.TemplateResourceOperation_TEMPLATE_RESOURCE_DESTROY, planError: "plan failed", wantError: "plan failed", disposition: proto.StateDisposition_UNCHANGED, timings: 2},
 		{name: "DestroyInvalidState", operation: proto.TemplateResourceOperation_TEMPLATE_RESOURCE_DESTROY, state: "{}", wantError: "complete Terraform", disposition: proto.StateDisposition_UNKNOWN, timings: 3},
-		{name: "DestroyManagedInstances", operation: proto.TemplateResourceOperation_TEMPLATE_RESOURCE_DESTROY, state: managedState, wantError: "still contains managed instances", disposition: proto.StateDisposition_UNKNOWN, timings: 3},
-		{name: "DestroyInterrupted", operation: proto.TemplateResourceOperation_TEMPLATE_RESOURCE_DESTROY, applyError: "canceled", state: "checkpoint", wantError: "canceled", disposition: proto.StateDisposition_UNKNOWN, timings: 3},
+		{name: "DestroyManagedInstances", operation: proto.TemplateResourceOperation_TEMPLATE_RESOURCE_DESTROY, state: managedState, wantError: "still contains managed instances", disposition: proto.StateDisposition_RETURNED, timings: 3},
+		{name: "PartialDestroy", operation: proto.TemplateResourceOperation_TEMPLATE_RESOURCE_DESTROY, applyError: "destroy failed", state: partialState, wantError: "destroy failed", disposition: proto.StateDisposition_RETURNED, timings: 3},
+		{name: "PartialDestroyInvalidState", operation: proto.TemplateResourceOperation_TEMPLATE_RESOURCE_DESTROY, applyError: "destroy failed", state: "{}", wantError: "destroy failed", disposition: proto.StateDisposition_UNKNOWN, timings: 3},
+		{name: "DestroyInterrupted", operation: proto.TemplateResourceOperation_TEMPLATE_RESOURCE_DESTROY, applyError: "canceled", unauthoritative: true, state: managedState, wantError: "canceled", disposition: proto.StateDisposition_UNKNOWN, timings: 3},
 		{name: "DestroyTransportLoss", operation: proto.TemplateResourceOperation_TEMPLATE_RESOURCE_DESTROY, interrupt: "disconnect", wantError: "recv provision", disposition: proto.StateDisposition_UNKNOWN, timings: 2},
 		{name: "UnknownOperation", operation: proto.TemplateResourceOperation(42), wantError: "unknown shared resource operation", disposition: proto.StateDisposition_UNCHANGED},
 	} {
@@ -96,7 +103,7 @@ func TestTemplateResources(t *testing.T) {
 				ProvisionApply: []*sdkproto.Response{
 					{Type: &sdkproto.Response_Log{Log: &sdkproto.Log{Level: sdkproto.LogLevel_INFO, Output: "applying resources"}}},
 					{Type: &sdkproto.Response_Apply{Apply: &sdkproto.ApplyComplete{
-						Error: tt.applyError, State: []byte(tt.state), Timings: []*sdkproto.Timing{{Stage: "apply"}},
+						Error: tt.applyError, State: []byte(tt.state), StateIsAuthoritative: !tt.unauthoritative, Timings: []*sdkproto.Timing{{Stage: "apply"}},
 					}}},
 				},
 			}

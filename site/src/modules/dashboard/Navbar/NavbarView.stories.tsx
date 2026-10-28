@@ -66,6 +66,10 @@ const meta: Meta<typeof NavbarView> = {
 export default meta;
 type Story = StoryObj<typeof NavbarView>;
 
+export const WithFoundations: Story = {
+	args: { foundationsEnabled: true },
+};
+
 export const ForAdmin: Story = {
 	parameters: { pixel: { matrix: pixelWithDesktop } },
 	play: async ({ canvasElement }) => {

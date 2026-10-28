@@ -433,7 +433,11 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 		}
 	}
 
-	resourceRevisionID, resourceOutputs, err := b.templateResourceSnapshot()
+	resourceRevisionID, resourceOutputs, foundationBound, err := b.templateResourceSnapshot()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	stateResourceRevisionID, stateResourceOutputs, err := b.stateTemplateResourceSnapshot()
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -476,10 +480,10 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 	if err != nil {
 		return nil, nil, nil, err // already wrapped BuildError
 	}
-	if resourceRevisionID.Valid {
-		// Old workers cannot pass pinned outputs to Terraform. Apply this
-		// requirement to cleanup jobs as well as starts, without changing
-		// the cached routing tags used by unrelated builds.
+	if resourceRevisionID.Valid || foundationBound {
+		// Bound starts require Foundation support even before the first apply.
+		// Cleanup requires it when using historical pinned outputs. Do not
+		// change cached routing tags used by unrelated builds.
 		tags = maps.Clone(tags)
 		if tags == nil {
 			tags = make(map[string]string)
@@ -585,6 +589,7 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 		//nolint:gocritic // Persist only the snapshot selected after build authorization.
 		err = store.PinWorkspaceBuildTemplateResources(dbauthz.AsSystemRestricted(b.ctx), database.PinWorkspaceBuildTemplateResourcesParams{
 			ID: workspaceBuildID, TemplateResourceRevisionID: resourceRevisionID, TemplateResourceOutputs: resourceOutputs,
+			StateTemplateResourceRevisionID: stateResourceRevisionID, StateTemplateResourceOutputs: stateResourceOutputs,
 		})
 		if err != nil {
 			return BuildError{http.StatusInternalServerError, "pin shared resource outputs", err}

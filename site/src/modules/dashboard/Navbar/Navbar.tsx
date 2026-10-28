@@ -20,6 +20,7 @@ export const Navbar: React.FC = () => {
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
 	const {
 		appearance,
+		experiments,
 		canViewOrganizationSettings,
 		entitlements,
 		organizations,
@@ -87,6 +88,7 @@ export const Navbar: React.FC = () => {
 				canViewHealth,
 			}}
 			canCreateChat={canCreateChat}
+			foundationsEnabled={experiments.includes("template-resources")}
 			canViewLicenses={permissions.viewAllLicenses}
 			proxyContextValue={proxyContextValue}
 		/>

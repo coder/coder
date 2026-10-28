@@ -138,6 +138,8 @@ UPDATE
 	workspace_builds
 SET
 	provisioner_state = @provisioner_state::bytea,
+	state_template_resource_revision_id = CASE WHEN @update_state_template_resources::boolean THEN template_resource_revision_id ELSE state_template_resource_revision_id END,
+	state_template_resource_outputs = CASE WHEN @update_state_template_resources::boolean THEN template_resource_outputs ELSE state_template_resource_outputs END,
 	updated_at = @updated_at::timestamptz
 WHERE id = @id::uuid;
 

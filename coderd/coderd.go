@@ -1577,6 +1577,20 @@ func New(options *Options) *API {
 					httpmw.ExtractOrganizationParam(options.Database),
 				)
 				api.registerOrganizationChatRoutes(r)
+				r.Route("/foundations", func(r chi.Router) {
+					r.Use(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentTemplateResources))
+					r.Get("/", api.foundations)
+					r.Post("/", api.postFoundation)
+					r.Route("/{foundation}", func(r chi.Router) {
+						r.Get("/", api.foundation)
+						r.Patch("/", api.patchFoundation)
+						r.Delete("/", api.deleteFoundation)
+						r.Post("/versions", api.postTemplateResourceRevision)
+						r.Post("/runs", api.postTemplateResourceRun)
+						r.Get("/runs/{runID}/logs", api.templateResourceRunLogs)
+						r.Patch("/runs/{runID}/cancel", api.patchCancelTemplateResourceRun)
+					})
+				})
 				r.Get("/", api.organization)
 				r.Post("/templateversions", api.postTemplateVersionsByOrganization)
 				r.Route("/templates", func(r chi.Router) {
@@ -1644,13 +1658,10 @@ func New(options *Options) *API {
 				r.Use(
 					httpmw.ExtractTemplateParam(options.Database),
 				)
-				r.Route("/resources", func(r chi.Router) {
+				r.Route("/foundation", func(r chi.Router) {
 					r.Use(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentTemplateResources))
-					r.Get("/", api.templateResources)
-					r.Post("/versions", api.postTemplateResourceRevision)
-					r.Post("/runs", api.postTemplateResourceRun)
-					r.Get("/runs/{runID}/logs", api.templateResourceRunLogs)
-					r.Patch("/runs/{runID}/cancel", api.patchCancelTemplateResourceRun)
+					r.Get("/", api.templateFoundation)
+					r.Put("/", api.putTemplateFoundation)
 				})
 				r.Get("/daus", api.templateDAUs)
 				r.Get("/", api.template)

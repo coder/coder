@@ -111,23 +111,29 @@ func (r *Runner) runTemplateResources(ctx context.Context) (completed *proto.Com
 		}
 		timings = append(timings, applyComplete.Timings...)
 		state = applyComplete.State
+		// A failed apply may still return authoritative partial state. Interrupted
+		// execution can instead return a valid but stale state file.
+		stateErr := tfstate.ValidateState(state)
+		if applyComplete.StateIsAuthoritative && r.notCanceled.Err() == nil && stateErr == nil {
+			disposition = proto.StateDisposition_RETURNED
+		}
 		if applyComplete.Error != "" {
-			// Interrupted apply can return old state even after changing remote
-			// infrastructure. Keep it only as a checkpoint with UNKNOWN status.
 			return nil, r.failedJobf("shared resource apply: %s", applyComplete.Error)
 		}
 		if len(state) == 0 {
 			return nil, r.failedJobf("shared resource apply returned no state")
 		}
-		if err := tfstate.ValidateState(state); err != nil {
-			return nil, r.failedJobf("shared resource apply: %s", err)
+		if stateErr != nil {
+			return nil, r.failedJobf("shared resource apply: %s", stateErr)
+		}
+		if disposition != proto.StateDisposition_RETURNED {
+			return nil, r.failedJobf("shared resource apply returned non-authoritative state")
 		}
 		if job.Operation == proto.TemplateResourceOperation_TEMPLATE_RESOURCE_DESTROY {
 			if err := tfstate.ValidateDestroyState(state); err != nil {
 				return nil, r.failedJobf("shared resource destroy: %s", err)
 			}
 		}
-		disposition = proto.StateDisposition_RETURNED
 	}
 
 	return &proto.CompletedJob{

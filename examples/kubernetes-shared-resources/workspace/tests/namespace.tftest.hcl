@@ -6,9 +6,10 @@ mock_provider "coder" {
       start_count = 1
     }
   }
-  mock_data "coder_template_outputs" {
+  mock_data "coder_foundation" {
     defaults = {
-      outputs = { namespace = "snapshot-namespace" }
+      outputs           = { namespace = "snapshot-namespace" }
+      sensitive_outputs = {}
     }
   }
 }

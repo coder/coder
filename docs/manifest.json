@@ -1669,6 +1669,10 @@
 							"path": "./reference/api/files.md"
 						},
 						{
+							"title": "Foundations",
+							"path": "./reference/api/foundations.md"
+						},
+						{
 							"title": "Git",
 							"path": "./reference/api/git.md"
 						},

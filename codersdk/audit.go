@@ -14,6 +14,7 @@ import (
 type ResourceType string
 
 const (
+	ResourceTypeFoundation             ResourceType = "foundation"
 	ResourceTypeTemplate               ResourceType = "template"
 	ResourceTypeTemplateVersion        ResourceType = "template_version"
 	ResourceTypeUser                   ResourceType = "user"
@@ -75,6 +76,8 @@ const (
 
 func (r ResourceType) FriendlyString() string {
 	switch r {
+	case ResourceTypeFoundation:
+		return "foundation"
 	case ResourceTypeTemplate:
 		return "template"
 	case ResourceTypeTemplateVersion:

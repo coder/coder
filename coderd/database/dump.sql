@@ -653,7 +653,8 @@ CREATE TYPE resource_type AS ENUM (
     'chat_organization_system_prompt',
     'chat_project_instructions',
     'organization_skill',
-    'chat_project_skill'
+    'chat_project_skill',
+    'foundation'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -2722,6 +2723,19 @@ CREATE TABLE files (
     id uuid DEFAULT gen_random_uuid() NOT NULL
 );
 
+CREATE TABLE foundations (
+    id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    name text NOT NULL,
+    provisioner_tags jsonb DEFAULT '{}'::jsonb NOT NULL,
+    template_id uuid,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
+    prevent_destroy_with_workspaces boolean DEFAULT true NOT NULL,
+    CONSTRAINT foundations_provisioner_tags_check CHECK ((jsonb_typeof(provisioner_tags) = 'object'::text))
+);
+
 CREATE TABLE gitsshkeys (
     user_id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -3443,7 +3457,7 @@ COMMENT ON COLUMN telemetry_locks.period_ending_at IS 'The heartbeat period end 
 
 CREATE TABLE template_resource_revisions (
     id uuid NOT NULL,
-    template_id uuid NOT NULL,
+    foundation_id uuid NOT NULL,
     organization_id uuid NOT NULL,
     file_id uuid NOT NULL,
     source text NOT NULL,
@@ -3453,17 +3467,20 @@ CREATE TABLE template_resource_revisions (
 
 CREATE TABLE template_resource_runs (
     id uuid NOT NULL,
-    template_id uuid NOT NULL,
+    foundation_id uuid NOT NULL,
     organization_id uuid NOT NULL,
     revision_id uuid NOT NULL,
     job_id uuid NOT NULL,
     action text NOT NULL,
     created_at timestamp with time zone NOT NULL,
+    plan_preview jsonb,
     CONSTRAINT template_resource_runs_action_check CHECK ((action = ANY (ARRAY['plan'::text, 'apply'::text, 'destroy'::text])))
 );
 
+COMMENT ON COLUMN template_resource_runs.plan_preview IS 'Sanitized output names and change metadata only; never raw Terraform plans or output values.';
+
 CREATE TABLE template_resource_states (
-    template_id uuid NOT NULL,
+    foundation_id uuid NOT NULL,
     organization_id uuid NOT NULL,
     current_revision_id uuid,
     applied_revision_id uuid,
@@ -3472,9 +3489,12 @@ CREATE TABLE template_resource_states (
     state bytea DEFAULT '\x'::bytea NOT NULL,
     outputs jsonb DEFAULT '{}'::jsonb NOT NULL,
     updated_at timestamp with time zone NOT NULL,
+    checkpoint_revision_id uuid,
     CONSTRAINT template_resource_states_outputs_check CHECK ((jsonb_typeof(outputs) = 'object'::text)),
     CONSTRAINT template_resource_states_status_check CHECK ((status = ANY (ARRAY['unconfigured'::text, 'applied'::text, 'failed'::text, 'unknown'::text, 'destroyed'::text])))
 );
+
+COMMENT ON COLUMN template_resource_states.checkpoint_revision_id IS 'Revision that produced the authoritative state checkpoint, independent of the last published outputs.';
 
 CREATE TABLE template_usage_stats (
     start_time timestamp with time zone NOT NULL,
@@ -4382,11 +4402,18 @@ CREATE TABLE workspace_builds (
     notified_autostop_deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
     template_resource_revision_id uuid,
     template_resource_outputs jsonb DEFAULT '{}'::jsonb NOT NULL,
+    state_template_resource_revision_id uuid,
+    state_template_resource_outputs jsonb DEFAULT '{}'::jsonb NOT NULL,
     CONSTRAINT workspace_builds_deadline_below_max_deadline CHECK ((((deadline <> '0001-01-01 00:00:00+00'::timestamp with time zone) AND (deadline <= max_deadline)) OR (max_deadline = '0001-01-01 00:00:00+00'::timestamp with time zone))),
+    CONSTRAINT workspace_builds_state_template_resource_outputs_check CHECK ((jsonb_typeof(state_template_resource_outputs) = 'object'::text)),
     CONSTRAINT workspace_builds_template_resource_outputs_check CHECK ((jsonb_typeof(template_resource_outputs) = 'object'::text))
 );
 
 COMMENT ON COLUMN workspace_builds.notified_autostop_deadline IS 'The autostop deadline value that an autostop reminder notification was last sent for. Used for idempotence: when it equals the build deadline the reminder has already been sent, and it re-arms automatically when the deadline changes.';
+
+COMMENT ON COLUMN workspace_builds.state_template_resource_revision_id IS 'Foundation revision associated with the retained provisioner state, not the latest attempted build inputs.';
+
+COMMENT ON COLUMN workspace_builds.state_template_resource_outputs IS 'Foundation output snapshot associated with the retained provisioner state, including partial apply checkpoints.';
 
 CREATE VIEW workspace_build_with_user AS
  SELECT workspace_builds.id,
@@ -4409,7 +4436,9 @@ CREATE VIEW workspace_build_with_user AS
     COALESCE(visible_users.username, ''::text) AS initiator_by_username,
     COALESCE(visible_users.name, ''::text) AS initiator_by_name,
     workspace_builds.template_resource_revision_id,
-    workspace_builds.template_resource_outputs
+    workspace_builds.template_resource_outputs,
+    workspace_builds.state_template_resource_revision_id,
+    workspace_builds.state_template_resource_outputs
    FROM (workspace_builds
      LEFT JOIN visible_users ON ((workspace_builds.initiator_id = visible_users.id)));
 
@@ -4825,6 +4854,15 @@ ALTER TABLE ONLY files
 ALTER TABLE ONLY files
     ADD CONSTRAINT files_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY foundations
+    ADD CONSTRAINT foundations_id_organization_id_key UNIQUE (id, organization_id);
+
+ALTER TABLE ONLY foundations
+    ADD CONSTRAINT foundations_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY foundations
+    ADD CONSTRAINT foundations_template_id_key UNIQUE (template_id);
+
 ALTER TABLE ONLY external_auth_links
     ADD CONSTRAINT git_auth_links_provider_id_user_id_key UNIQUE (provider_id, user_id);
 
@@ -4994,13 +5032,13 @@ ALTER TABLE ONLY telemetry_locks
     ADD CONSTRAINT telemetry_locks_pkey PRIMARY KEY (event_type, period_ending_at);
 
 ALTER TABLE ONLY template_resource_revisions
-    ADD CONSTRAINT template_resource_revisions_id_template_id_organization_id_key UNIQUE (id, template_id, organization_id);
+    ADD CONSTRAINT template_resource_revisions_id_template_id_organization_id_key UNIQUE (id, foundation_id, organization_id);
 
 ALTER TABLE ONLY template_resource_revisions
     ADD CONSTRAINT template_resource_revisions_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY template_resource_runs
-    ADD CONSTRAINT template_resource_runs_id_template_id_organization_id_key UNIQUE (id, template_id, organization_id);
+    ADD CONSTRAINT template_resource_runs_id_template_id_organization_id_key UNIQUE (id, foundation_id, organization_id);
 
 ALTER TABLE ONLY template_resource_runs
     ADD CONSTRAINT template_resource_runs_job_id_key UNIQUE (job_id);
@@ -5009,7 +5047,7 @@ ALTER TABLE ONLY template_resource_runs
     ADD CONSTRAINT template_resource_runs_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY template_resource_states
-    ADD CONSTRAINT template_resource_states_pkey PRIMARY KEY (template_id);
+    ADD CONSTRAINT template_resource_states_pkey PRIMARY KEY (foundation_id);
 
 ALTER TABLE ONLY template_usage_stats
     ADD CONSTRAINT template_usage_stats_pkey PRIMARY KEY (start_time, template_id, user_id);
@@ -5206,6 +5244,8 @@ CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
 COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys queries filtering by last_used';
 
 CREATE INDEX chat_heartbeats_heartbeat_at_idx ON chat_heartbeats USING btree (heartbeat_at);
+
+CREATE UNIQUE INDEX foundations_org_name_idx ON foundations USING btree (organization_id, lower(name)) WHERE (NOT deleted);
 
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
@@ -5477,9 +5517,9 @@ CREATE UNIQUE INDEX skills_project_id_name_idx ON skills USING btree (project_id
 
 CREATE UNIQUE INDEX skills_user_id_name_idx ON skills USING btree (user_id, name);
 
-CREATE INDEX template_resource_revisions_template_created_idx ON template_resource_revisions USING btree (template_id, created_at DESC);
+CREATE INDEX template_resource_revisions_template_created_idx ON template_resource_revisions USING btree (foundation_id, created_at DESC);
 
-CREATE INDEX template_resource_runs_template_created_idx ON template_resource_runs USING btree (template_id, created_at DESC);
+CREATE INDEX template_resource_runs_template_created_idx ON template_resource_runs USING btree (foundation_id, created_at DESC);
 
 CREATE INDEX template_usage_stats_start_time_idx ON template_usage_stats USING btree (start_time DESC);
 
@@ -5853,6 +5893,12 @@ ALTER TABLE ONLY chat_debug_steps
 ALTER TABLE ONLY oauth2_provider_app_tokens
     ADD CONSTRAINT fk_oauth2_provider_app_tokens_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY foundations
+    ADD CONSTRAINT foundations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id);
+
+ALTER TABLE ONLY foundations
+    ADD CONSTRAINT foundations_template_id_organization_id_fkey FOREIGN KEY (template_id, organization_id) REFERENCES templates(id, organization_id);
+
 ALTER TABLE ONLY external_auth_links
     ADD CONSTRAINT git_auth_links_oauth_access_token_key_id_fkey FOREIGN KEY (oauth_access_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
@@ -6055,10 +6101,13 @@ ALTER TABLE ONLY template_resource_revisions
     ADD CONSTRAINT template_resource_revisions_file_id_fkey FOREIGN KEY (file_id) REFERENCES files(id);
 
 ALTER TABLE ONLY template_resource_revisions
-    ADD CONSTRAINT template_resource_revisions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id);
+    ADD CONSTRAINT template_resource_revisions_foundation_id_organization_id_fkey FOREIGN KEY (foundation_id, organization_id) REFERENCES foundations(id, organization_id);
 
 ALTER TABLE ONLY template_resource_revisions
-    ADD CONSTRAINT template_resource_revisions_template_id_organization_id_fkey FOREIGN KEY (template_id, organization_id) REFERENCES templates(id, organization_id);
+    ADD CONSTRAINT template_resource_revisions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id);
+
+ALTER TABLE ONLY template_resource_runs
+    ADD CONSTRAINT template_resource_runs_foundation_id_organization_id_fkey FOREIGN KEY (foundation_id, organization_id) REFERENCES foundations(id, organization_id);
 
 ALTER TABLE ONLY template_resource_runs
     ADD CONSTRAINT template_resource_runs_job_id_organization_id_fkey FOREIGN KEY (job_id, organization_id) REFERENCES provisioner_jobs(id, organization_id);
@@ -6067,25 +6116,25 @@ ALTER TABLE ONLY template_resource_runs
     ADD CONSTRAINT template_resource_runs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id);
 
 ALTER TABLE ONLY template_resource_runs
-    ADD CONSTRAINT template_resource_runs_revision_id_template_id_organizatio_fkey FOREIGN KEY (revision_id, template_id, organization_id) REFERENCES template_resource_revisions(id, template_id, organization_id);
-
-ALTER TABLE ONLY template_resource_runs
-    ADD CONSTRAINT template_resource_runs_template_id_organization_id_fkey FOREIGN KEY (template_id, organization_id) REFERENCES templates(id, organization_id);
+    ADD CONSTRAINT template_resource_runs_revision_id_foundation_id_organizat_fkey FOREIGN KEY (revision_id, foundation_id, organization_id) REFERENCES template_resource_revisions(id, foundation_id, organization_id);
 
 ALTER TABLE ONLY template_resource_states
-    ADD CONSTRAINT template_resource_states_active_run_id_template_id_organiz_fkey FOREIGN KEY (active_run_id, template_id, organization_id) REFERENCES template_resource_runs(id, template_id, organization_id);
+    ADD CONSTRAINT template_resource_states_active_run_id_foundation_id_organ_fkey FOREIGN KEY (active_run_id, foundation_id, organization_id) REFERENCES template_resource_runs(id, foundation_id, organization_id);
 
 ALTER TABLE ONLY template_resource_states
-    ADD CONSTRAINT template_resource_states_applied_revision_id_template_id_o_fkey FOREIGN KEY (applied_revision_id, template_id, organization_id) REFERENCES template_resource_revisions(id, template_id, organization_id);
+    ADD CONSTRAINT template_resource_states_applied_revision_id_foundation_id_fkey FOREIGN KEY (applied_revision_id, foundation_id, organization_id) REFERENCES template_resource_revisions(id, foundation_id, organization_id);
 
 ALTER TABLE ONLY template_resource_states
-    ADD CONSTRAINT template_resource_states_current_revision_id_template_id_o_fkey FOREIGN KEY (current_revision_id, template_id, organization_id) REFERENCES template_resource_revisions(id, template_id, organization_id);
+    ADD CONSTRAINT template_resource_states_checkpoint_revision_id_foundation_fkey FOREIGN KEY (checkpoint_revision_id, foundation_id, organization_id) REFERENCES template_resource_revisions(id, foundation_id, organization_id);
+
+ALTER TABLE ONLY template_resource_states
+    ADD CONSTRAINT template_resource_states_current_revision_id_foundation_id_fkey FOREIGN KEY (current_revision_id, foundation_id, organization_id) REFERENCES template_resource_revisions(id, foundation_id, organization_id);
+
+ALTER TABLE ONLY template_resource_states
+    ADD CONSTRAINT template_resource_states_foundation_id_organization_id_fkey FOREIGN KEY (foundation_id, organization_id) REFERENCES foundations(id, organization_id);
 
 ALTER TABLE ONLY template_resource_states
     ADD CONSTRAINT template_resource_states_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id);
-
-ALTER TABLE ONLY template_resource_states
-    ADD CONSTRAINT template_resource_states_template_id_organization_id_fkey FOREIGN KEY (template_id, organization_id) REFERENCES templates(id, organization_id);
 
 ALTER TABLE ONLY template_usage_stats_session_apps
     ADD CONSTRAINT template_usage_stats_session__start_time_template_id_user__fkey FOREIGN KEY (start_time, template_id, user_id) REFERENCES template_usage_stats(start_time, template_id, user_id) ON DELETE CASCADE;
@@ -6257,6 +6306,9 @@ ALTER TABLE ONLY workspace_build_parameters
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_builds
+    ADD CONSTRAINT workspace_builds_state_template_resource_revision_id_fkey FOREIGN KEY (state_template_resource_revision_id) REFERENCES template_resource_revisions(id);
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_template_resource_revision_id_fkey FOREIGN KEY (template_resource_revision_id) REFERENCES template_resource_revisions(id);

@@ -463,6 +463,25 @@ Actions: `write`
 </tbody>
 </table>
 
+### Foundation
+
+Actions: `create`, `write`, `delete`, `start`, `stop`
+
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>deleted</code></td><td>Yes</td></tr>
+<tr><td><code>id</code></td><td>No</td></tr>
+<tr><td><code>name</code></td><td>Yes</td></tr>
+<tr><td><code>organization_id</code></td><td>No</td></tr>
+<tr><td><code>prevent_destroy_with_workspaces</code></td><td>Yes</td></tr>
+<tr><td><code>provisioner_tags</code></td><td>Yes</td></tr>
+<tr><td><code>template_id</code></td><td>Yes</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+</tbody>
+</table>
+
 ### GitSSHKey
 
 Actions: `create`
@@ -875,6 +894,8 @@ Actions: `start`, `stop`
 <tr><td><code>max_deadline</code></td><td>No</td></tr>
 <tr><td><code>notified_autostop_deadline</code></td><td>No</td></tr>
 <tr><td><code>reason</code></td><td>No</td></tr>
+<tr><td><code>state_template_resource_outputs</code></td><td>No</td></tr>
+<tr><td><code>state_template_resource_revision_id</code></td><td>Yes</td></tr>
 <tr><td><code>template_resource_outputs</code></td><td>No</td></tr>
 <tr><td><code>template_resource_revision_id</code></td><td>Yes</td></tr>
 <tr><td><code>template_version_id</code></td><td>Yes</td></tr>

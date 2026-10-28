@@ -116,6 +116,13 @@ export const RBACResourceActions: Partial<
 		create: "create a file",
 		read: "read files",
 	},
+	foundation: {
+		create: "create a Foundation",
+		delete: "delete a cleaned-up Foundation",
+		read: "read Foundation source, outputs, and history",
+		update: "edit Foundation settings and revisions, and plan changes",
+		use: "publish or destroy Foundation infrastructure",
+	},
 	group: {
 		create: "create a group",
 		delete: "delete a group",

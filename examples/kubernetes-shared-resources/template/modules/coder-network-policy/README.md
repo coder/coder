@@ -69,6 +69,11 @@ protection, so detach is not a quarantine operation. Coder must retain and reuse
 the same state to destroy it, including during policy deletion. Do not discard
 state or use `terraform state rm` as deletion.
 
+This is the module's input behavior, not a Foundation detach API. The Foundation
+association is one-to-one and cannot be detached or rebound. Foundation Destroy
+retains its object and association; replacing it requires cleanup, Delete, and a
+new Foundation/association. This example always passes the attached template UUID.
+
 ## Network semantics
 
 - Default-deny **both ingress and egress**, with established reply traffic

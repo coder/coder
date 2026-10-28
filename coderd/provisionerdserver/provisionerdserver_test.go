@@ -656,14 +656,16 @@ func TestAcquireJob(t *testing.T) {
 
 				// Acquisition must use this build's frozen outputs even when no
 				// latest shared resource snapshot is available.
+				foundation := dbgen.Foundation(t, db, database.Foundation{OrganizationID: template.OrganizationID, TemplateID: uuid.NullUUID{UUID: template.ID, Valid: true}})
 				resourceRevision, err := db.InsertTemplateResourceRevision(ctx, database.InsertTemplateResourceRevisionParams{
-					ID: uuid.New(), TemplateID: template.ID, OrganizationID: pd.OrganizationID, FileID: file.ID,
+					ID: uuid.New(), FoundationID: foundation.ID, OrganizationID: pd.OrganizationID, FileID: file.ID,
 					Source: "output pinned {}", CreatedBy: user.ID, CreatedAt: dbtime.Now(),
 				})
 				require.NoError(t, err)
 				pinnedOutputs := json.RawMessage(`{"network":{"id":"frozen-network"}}`)
 				require.NoError(t, db.PinWorkspaceBuildTemplateResources(ctx, database.PinWorkspaceBuildTemplateResourcesParams{
 					ID: build.ID, TemplateResourceRevisionID: uuid.NullUUID{UUID: resourceRevision.ID, Valid: true}, TemplateResourceOutputs: pinnedOutputs,
+					StateTemplateResourceOutputs: json.RawMessage(`{}`),
 				}))
 
 				startPublished := make(chan struct{})
@@ -740,6 +742,10 @@ func TestAcquireJob(t *testing.T) {
 					TemplateVersionId:             version.ID.String(),
 					TemplateOutputs:               job.GetWorkspaceBuild().Metadata.TemplateOutputs,
 					TemplateResourceRevisionId:    resourceRevision.ID.String(),
+					FoundationId:                  foundation.ID.String(),
+					FoundationName:                foundation.Name,
+					FoundationTemplateIds:         []string{template.ID.String()},
+					FoundationOutputMetadata:      "{}",
 					WorkspaceOwnerSessionToken:    sessionToken,
 					WorkspaceOwnerSshPublicKey:    sshKey.PublicKey,
 					WorkspaceOwnerSshPrivateKey:   sshKey.PrivateKey,
@@ -1693,7 +1699,8 @@ func TestFailJob(t *testing.T) {
 			JobId: job.ID.String(),
 			Type: &proto.FailedJob_WorkspaceBuild_{
 				WorkspaceBuild: &proto.FailedJob_WorkspaceBuild{
-					State: []byte("some state"),
+					State:             []byte("some state"),
+					StateIsCheckpoint: true,
 				},
 			},
 		})

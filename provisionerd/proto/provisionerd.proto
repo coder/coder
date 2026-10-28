@@ -28,7 +28,7 @@ enum StateDisposition {
   UNKNOWN = 0;
   // Apply was not started. Stored state must be preserved.
   UNCHANGED = 1;
-  // Apply succeeded and authoritative state was returned.
+  // Execution terminated normally with authoritative state, even on failure.
   RETURNED = 2;
 }
 
@@ -83,8 +83,10 @@ message AcquiredJob {
     repeated provisioner.VariableValue variable_values = 3;
     provisioner.Metadata metadata = 4;
     optional string run_id = 5;
+    // Optional attached-template context, not the owner of these resources.
     optional string template_id = 6;
     optional string revision_id = 7;
+    string foundation_id = 8;
   }
 
   string job_id = 1;
@@ -108,6 +110,9 @@ message FailedJob {
   message WorkspaceBuild {
     bytes state = 1;
     repeated provisioner.Timing timings = 2;
+    // True only for authoritative state returned by this build's apply,
+    // including partial failure. False for inherited or interrupted state.
+    bool state_is_checkpoint = 3;
   }
   message TemplateImport {}
   message TemplateDryRun {}

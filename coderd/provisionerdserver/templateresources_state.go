@@ -3,7 +3,11 @@ package provisionerdserver
 import (
 	"encoding/json"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/provisionersdk"
+	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 const maxTemplateResourceOutputsSize = 64 * 1024
@@ -19,6 +23,7 @@ func templateResourceOutputs(data []byte, action string) (json.RawMessage, error
 		Outputs          map[string]struct {
 			Sensitive bool            `json:"sensitive"`
 			Value     json.RawMessage `json:"value"`
+			Type      json.RawMessage `json:"type"`
 		} `json:"outputs"`
 		Resources json.RawMessage `json:"resources"`
 	}
@@ -53,21 +58,28 @@ func templateResourceOutputs(data []byte, action string) (json.RawMessage, error
 			return nil, xerrors.New("shared resource state contains an invalid resource mode")
 		}
 	}
-	outputs := map[string]json.RawMessage{}
+	snapshot := provisionersdk.FoundationOutputSnapshot{
+		Values:   map[string]json.RawMessage{},
+		Metadata: map[string]provisionersdk.FoundationOutputMetadata{},
+	}
 	for name, output := range state.Outputs {
-		// Terraform v4 state omits sensitive when its value is false.
-		if output.Sensitive {
-			continue
-		}
 		if len(output.Value) == 0 {
 			return nil, xerrors.New("shared resource output is missing its value")
 		}
-		outputs[name] = output.Value
+		snapshot.Values[name] = output.Value
+		snapshot.Metadata[name] = provisionersdk.FoundationOutputMetadata{Type: output.Type, Sensitive: output.Sensitive}
 	}
 	if action == "destroy" {
-		outputs = map[string]json.RawMessage{}
+		return json.RawMessage(`{}`), nil
 	}
-	return marshalTemplateResourceOutputs(outputs)
+	if _, err := marshalTemplateResourceOutputs(snapshot.Values); err != nil {
+		return nil, err
+	}
+	metadata, err := json.Marshal(snapshot.Metadata)
+	if err != nil || len(metadata) > maxTemplateResourceOutputsSize {
+		return nil, xerrors.New("Foundation output type metadata exceeds the 64 KiB limit")
+	}
+	return json.Marshal(snapshot)
 }
 
 func marshalTemplateResourceOutputs(outputs map[string]json.RawMessage) (json.RawMessage, error) {
@@ -87,12 +99,38 @@ func marshalTemplateResourceOutputs(outputs map[string]json.RawMessage) (json.Ra
 // templateResourceOutputsMetadata bounds the actual environment payload after
 // compacting the JSONB representation stored by Postgres.
 func templateResourceOutputsMetadata(data json.RawMessage) (string, error) {
-	var outputs map[string]json.RawMessage
-	if len(data) != 0 {
-		if err := json.Unmarshal(data, &outputs); err != nil {
-			return "", xerrors.Errorf("decode shared resource output snapshot: %w", err)
-		}
+	snapshot, err := provisionersdk.DecodeFoundationOutputSnapshot(data)
+	if err != nil {
+		return "", err
 	}
-	encoded, err := marshalTemplateResourceOutputs(outputs)
+	encoded, err := marshalTemplateResourceOutputs(snapshot.Values)
 	return string(encoded), err
+}
+
+func stampFoundationOutputSnapshot(data json.RawMessage, runID uuid.UUID) (json.RawMessage, error) {
+	snapshot, err := provisionersdk.DecodeFoundationOutputSnapshot(data)
+	if err != nil {
+		return nil, err
+	}
+	snapshot.SnapshotID = runID.String()
+	return json.Marshal(snapshot)
+}
+
+func populateFoundationOutputMetadata(data json.RawMessage, metadata *sdkproto.Metadata) error {
+	snapshot, err := provisionersdk.DecodeFoundationOutputSnapshot(data)
+	if err != nil {
+		return err
+	}
+	values, err := marshalTemplateResourceOutputs(snapshot.Values)
+	if err != nil {
+		return err
+	}
+	types, err := json.Marshal(snapshot.Metadata)
+	if err != nil || len(types) > maxTemplateResourceOutputsSize {
+		return xerrors.New("Foundation output type metadata exceeds the 64 KiB limit")
+	}
+	metadata.TemplateOutputs = string(values)
+	metadata.FoundationOutputMetadata = string(types)
+	metadata.FoundationSnapshotId = snapshot.SnapshotID
+	return nil
 }

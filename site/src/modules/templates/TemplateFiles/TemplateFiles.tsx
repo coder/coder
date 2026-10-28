@@ -29,7 +29,33 @@ export const TemplateFiles: React.FC<TemplateFilesProps> = ({
 	baseFiles,
 }) => {
 	const getLink = useLinks();
+	const versionLink = `${getLink(
+		linkToTemplate(organizationName, templateName),
+	)}/versions/${versionName}`;
+	return (
+		<TemplateFileArchive
+			currentFiles={currentFiles}
+			baseFiles={baseFiles}
+			editFileHref={(filename) =>
+				`${versionLink}/edit?path=${encodeURIComponent(filename)}`
+			}
+		/>
+	);
+};
 
+type TemplateFileArchiveProps = Pick<
+	TemplateFilesProps,
+	"currentFiles" | "baseFiles"
+> & {
+	editFileHref?: (filename: string) => string;
+};
+
+/** Renders an entire source archive without requiring a workspace template. */
+export const TemplateFileArchive: React.FC<TemplateFileArchiveProps> = ({
+	currentFiles,
+	baseFiles,
+	editFileHref,
+}) => {
 	const fileInfo = useCallback(
 		(filename: string) => {
 			const value = currentFiles[filename].trim();
@@ -53,10 +79,6 @@ export const TemplateFiles: React.FC<TemplateFilesProps> = ({
 		}
 		return tree;
 	}, [fileInfo, currentFiles]);
-
-	const versionLink = `${getLink(
-		linkToTemplate(organizationName, templateName),
-	)}/versions/${versionName}`;
 
 	return (
 		<div>
@@ -115,15 +137,17 @@ export const TemplateFiles: React.FC<TemplateFilesProps> = ({
 											</span>
 										</div>
 
-										<div className="ml-auto">
-											<RouterLink
-												to={`${versionLink}/edit?path=${filename}`}
-												className="flex items-center gap-1 text-sm no-underline text-content-secondary hover:text-content-primary"
-											>
-												<EditIcon className="text-inherit size-icon-xs" />
-												Edit
-											</RouterLink>
-										</div>
+										{editFileHref && (
+											<div className="ml-auto">
+												<RouterLink
+													to={editFileHref(filename)}
+													className="flex items-center gap-1 text-sm no-underline text-content-secondary hover:text-content-primary"
+												>
+													<EditIcon className="text-inherit size-icon-xs" />
+													Edit
+												</RouterLink>
+											</div>
+										)}
 									</header>
 									<SyntaxHighlighter
 										language={getLanguage(filename)}

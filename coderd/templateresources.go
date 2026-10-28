@@ -18,7 +18,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -46,6 +46,8 @@ func (api *API) templateResourceError(rw http.ResponseWriter, r *http.Request, e
 	switch {
 	case errors.As(err, &requestErr):
 		status, message = requestErr.status, requestErr.message
+	case database.IsUniqueViolation(err):
+		status, message = http.StatusConflict, "A Foundation with this name or binding already exists."
 	case errors.Is(err, sql.ErrNoRows), dbauthz.IsNotAuthorizedError(err):
 		status, message = http.StatusNotFound, "Shared resource not found."
 	default:
@@ -54,71 +56,76 @@ func (api *API) templateResourceError(rw http.ResponseWriter, r *http.Request, e
 	httpapi.Write(r.Context(), rw, status, codersdk.Response{Message: message})
 }
 
-func (api *API) templateResourceAuthorized(rw http.ResponseWriter, r *http.Request) bool {
-	if !api.Authorize(r, policy.ActionUpdate, httpmw.TemplateParam(r).RBACObject()) {
-		httpapi.ResourceNotFound(rw)
-		return false
+func (api *API) foundationParam(rw http.ResponseWriter, r *http.Request, action policy.Action) (database.Foundation, bool) {
+	id, err := uuid.Parse(chi.URLParam(r, "foundation"))
+	if err != nil {
+		api.templateResourceError(rw, r, sql.ErrNoRows)
+		return database.Foundation{}, false
 	}
-	return true
-}
-
-// @Summary Get shared resources
-// @ID get-template-resources
-// @Security CoderSessionToken
-// @Tags Templates
-// @Produce json
-// @Param template path string true "Template ID" format(uuid)
-// @Success 200 {object} codersdk.TemplateResources
-// @Router /api/v2/templates/{template}/resources [get]
-// @x-apidocgen {"skip": true}
-func (api *API) templateResources(rw http.ResponseWriter, r *http.Request) {
-	if !api.templateResourceAuthorized(rw, r) {
-		return
-	}
-	template := httpmw.TemplateParam(r)
-	result := codersdk.TemplateResources{TemplateID: template.ID, Status: "unconfigured", Revisions: []codersdk.TemplateResourceRevision{}, Runs: []codersdk.TemplateResourceRun{}, Outputs: map[string]interface{}{}}
-	err := api.Database.InTx(func(tx database.Store) error {
-		state, err := tx.GetTemplateResourceState(r.Context(), template.ID)
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		result.Status = state.Status
-		if state.ActiveRunID.Valid && state.Status != "unknown" {
-			result.Status = "pending"
-		}
-		result.CurrentRevisionID = templateResourceUUID(state.CurrentRevisionID)
-		result.AppliedRevisionID = templateResourceUUID(state.AppliedRevisionID)
-		if err := json.Unmarshal(state.Outputs, &result.Outputs); err != nil {
-			return err
-		}
-		revisions, err := tx.GetTemplateResourceRevisionsByTemplateID(r.Context(), template.ID)
-		if err != nil {
-			return err
-		}
-		for _, revision := range revisions {
-			result.Revisions = append(result.Revisions, convertTemplateResourceRevision(revision))
-		}
-		runs, err := tx.GetTemplateResourceRunsByTemplateID(r.Context(), template.ID)
-		if err != nil {
-			return err
-		}
-		for _, run := range runs {
-			job, err := tx.GetProvisionerJobByID(r.Context(), run.JobID)
-			if err != nil {
-				return err
-			}
-			result.Runs = append(result.Runs, convertTemplateResourceRun(run, job))
-		}
-		return nil
-	}, &database.TxOptions{Isolation: sql.LevelRepeatableRead})
+	f, err := api.Database.GetFoundationByID(r.Context(), id)
 	if err != nil {
 		api.templateResourceError(rw, r, err)
-		return
+		return f, false
 	}
-	httpapi.Write(r.Context(), rw, http.StatusOK, result)
+	if f.Deleted || f.OrganizationID != httpmw.OrganizationParam(r).ID || !api.Authorize(r, action, f.RBACObject()) {
+		httpapi.ResourceNotFound(rw)
+		return database.Foundation{}, false
+	}
+	return f, true
+}
+
+func foundationSnapshot(ctx context.Context, tx database.Store, foundation database.Foundation) (codersdk.Foundation, error) {
+	result := convertFoundation(foundation)
+	// Foundation read access permits aggregate impact counts, not identities
+	// or details of workspaces that the caller cannot otherwise access.
+	//nolint:gocritic
+	consumers, err := tx.GetFoundationConsumerCounts(dbauthz.AsSystemRestricted(ctx), foundation.ID)
+	if err != nil {
+		return result, err
+	}
+	result.Consumers = codersdk.FoundationConsumers{Total: consumers.Total, Running: consumers.Running, Stopped: consumers.Stopped, Unknown: consumers.Unknown}
+	state, err := tx.GetTemplateResourceState(ctx, foundation.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return result, nil
+	}
+	if err != nil {
+		return result, err
+	}
+	if state.Status != "destroyed" {
+		result.Resources, result.ResourcesAvailable = foundationResources(state.State)
+	}
+	result.Status = state.Status
+	if state.ActiveRunID.Valid && state.Status != "unknown" {
+		result.Status = "pending"
+	}
+	result.CurrentRevisionID = templateResourceUUID(state.CurrentRevisionID)
+	result.AppliedRevisionID = templateResourceUUID(state.AppliedRevisionID)
+	result.CheckpointRevisionID = templateResourceUUID(state.CheckpointRevisionID)
+	if err := foundationPublicOutputs(state.Outputs, &result); err != nil {
+		return result, err
+	}
+	revisions, err := tx.GetTemplateResourceRevisionsByFoundationID(ctx, foundation.ID)
+	if err != nil {
+		return result, err
+	}
+	for _, revision := range revisions {
+		result.Revisions = append(result.Revisions, convertTemplateResourceRevision(revision))
+	}
+	runs, err := tx.GetTemplateResourceRunsByFoundationID(ctx, foundation.ID)
+	if err != nil {
+		return result, err
+	}
+	for _, run := range runs {
+		job, err := tx.GetProvisionerJobByID(ctx, run.JobID)
+		if err != nil {
+			return result, err
+		}
+		result.Runs = append(result.Runs, convertTemplateResourceRun(run, job))
+	}
+	if err := enrichFoundationPreviews(ctx, tx, foundation.ID, result.Runs); err != nil {
+		return result, err
+	}
+	return result, nil
 }
 
 // templateResourceArchive keeps a complete immutable root for eventual destroy.
@@ -146,18 +153,25 @@ func templateResourceArchive(source string) ([]byte, error) {
 // @Summary Create shared resource revision
 // @ID create-template-resource-revision
 // @Security CoderSessionToken
-// @Tags Templates
+// @Tags Foundations
 // @Accept json
 // @Produce json
-// @Param template path string true "Template ID" format(uuid)
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param foundation path string true "Foundation ID" format(uuid)
 // @Param request body codersdk.CreateTemplateResourceRevisionRequest true "Source archive or inline main.tf"
 // @Success 201 {object} codersdk.TemplateResourceRevision
-// @Router /api/v2/templates/{template}/resources/versions [post]
+// @Router /api/v2/organizations/{organization}/foundations/{foundation}/versions [post]
 // @x-apidocgen {"skip": true}
 func (api *API) postTemplateResourceRevision(rw http.ResponseWriter, r *http.Request) {
-	if !api.templateResourceAuthorized(rw, r) {
+	foundation, ok := api.foundationParam(rw, r, policy.ActionUpdate)
+	if !ok {
 		return
 	}
+	auditFields := map[string]interface{}{"operation": "save_revision"}
+	ar, commit := audit.InitRequest[database.Foundation](rw, &audit.RequestParams{Audit: *api.Auditor.Load(), Log: api.Logger, Request: r, OrganizationID: foundation.OrganizationID, Action: database.AuditActionWrite, AdditionalFields: auditFields})
+	defer commit()
+	ar.Old, ar.New = foundation, foundation
+
 	var req codersdk.CreateTemplateResourceRevisionRequest
 	if !httpapi.Read(r.Context(), rw, r, &req) {
 		return
@@ -186,13 +200,13 @@ func (api *API) postTemplateResourceRevision(rw http.ResponseWriter, r *http.Req
 		api.templateResourceError(rw, r, err)
 		return
 	}
-	template, userID, ctx := httpmw.TemplateParam(r), httpmw.APIKey(r).UserID, r.Context()
+	userID, ctx := httpmw.APIKey(r).UserID, r.Context()
 	var revision database.TemplateResourceRevision
 	err = api.Database.InTx(func(tx database.Store) error {
-		if err := tx.LockTemplateResourceTemplate(ctx, template.ID); err != nil {
+		if err := tx.LockFoundation(ctx, foundation.ID); err != nil {
 			return err
 		}
-		fresh, err := tx.GetTemplateByID(ctx, template.ID)
+		fresh, err := tx.GetFoundationByID(ctx, foundation.ID)
 		if err != nil {
 			return err
 		}
@@ -200,7 +214,7 @@ func (api *API) postTemplateResourceRevision(rw http.ResponseWriter, r *http.Req
 			return sql.ErrNoRows
 		}
 		now := dbtime.Now()
-		if _, err := tx.InsertTemplateResourceState(ctx, database.InsertTemplateResourceStateParams{TemplateID: template.ID, OrganizationID: template.OrganizationID, UpdatedAt: now}); err != nil {
+		if _, err := tx.InsertTemplateResourceState(ctx, database.InsertTemplateResourceStateParams{FoundationID: foundation.ID, OrganizationID: foundation.OrganizationID, UpdatedAt: now}); err != nil {
 			return err
 		}
 		hash := sha256.Sum256(archive)
@@ -211,58 +225,75 @@ func (api *API) postTemplateResourceRevision(rw http.ResponseWriter, r *http.Req
 		if err != nil {
 			return err
 		}
-		revision, err = tx.InsertTemplateResourceRevision(ctx, database.InsertTemplateResourceRevisionParams{ID: uuid.New(), TemplateID: template.ID, OrganizationID: template.OrganizationID, FileID: file.ID, Source: source, CreatedBy: userID, CreatedAt: now})
+		revision, err = tx.InsertTemplateResourceRevision(ctx, database.InsertTemplateResourceRevisionParams{ID: uuid.New(), FoundationID: foundation.ID, OrganizationID: foundation.OrganizationID, FileID: file.ID, Source: source, CreatedBy: userID, CreatedAt: now})
 		if err != nil {
 			return err
 		}
-		_, err = tx.SetTemplateResourceCurrentRevision(ctx, database.SetTemplateResourceCurrentRevisionParams{TemplateID: template.ID, CurrentRevisionID: uuid.NullUUID{UUID: revision.ID, Valid: true}, UpdatedAt: now})
+		_, err = tx.SetTemplateResourceCurrentRevision(ctx, database.SetTemplateResourceCurrentRevisionParams{FoundationID: foundation.ID, CurrentRevisionID: uuid.NullUUID{UUID: revision.ID, Valid: true}, UpdatedAt: now})
 		return err
 	}, nil)
 	if err != nil {
 		api.templateResourceError(rw, r, err)
 		return
 	}
+	auditFields["revision_id"] = revision.ID
 	httpapi.Write(ctx, rw, http.StatusCreated, convertTemplateResourceRevision(revision))
 }
 
 // @Summary Run shared resources
 // @ID create-template-resource-run
 // @Security CoderSessionToken
-// @Tags Templates
+// @Tags Foundations
 // @Accept json
 // @Produce json
-// @Param template path string true "Template ID" format(uuid)
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param foundation path string true "Foundation ID" format(uuid)
 // @Param request body codersdk.CreateTemplateResourceRunRequest true "Run"
 // @Success 201 {object} codersdk.TemplateResourceRun
-// @Router /api/v2/templates/{template}/resources/runs [post]
+// @Router /api/v2/organizations/{organization}/foundations/{foundation}/runs [post]
 // @x-apidocgen {"skip": true}
 func (api *API) postTemplateResourceRun(rw http.ResponseWriter, r *http.Request) {
-	if !api.templateResourceAuthorized(rw, r) {
+	foundation, ok := api.foundationParam(rw, r, policy.ActionRead)
+	if !ok {
 		return
 	}
+	auditFields := map[string]interface{}{"operation": "run"}
+	ar, commit := audit.InitRequest[database.Foundation](rw, &audit.RequestParams{Audit: *api.Auditor.Load(), Log: api.Logger, Request: r, OrganizationID: foundation.OrganizationID, Action: database.AuditActionStart, AdditionalFields: auditFields})
+	defer commit()
+	ar.Old, ar.New = foundation, foundation
+
 	var req codersdk.CreateTemplateResourceRunRequest
 	if !httpapi.Read(r.Context(), rw, r, &req) {
 		return
 	}
+	auditFields["action"], auditFields["revision_id"] = req.Action, req.RevisionID
 	if req.Action != "plan" && req.Action != "apply" && req.Action != "destroy" {
 		api.templateResourceError(rw, r, &templateResourceHTTPError{http.StatusBadRequest, "Action must be plan, apply, or destroy."})
 		return
 	}
-	ctx, template, userID := r.Context(), httpmw.TemplateParam(r), httpmw.APIKey(r).UserID
+	action := policy.ActionUse
+	if req.Action == "plan" {
+		action = policy.ActionUpdate
+	}
+	if !api.Authorize(r, action, foundation.RBACObject()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	ctx, userID := r.Context(), httpmw.APIKey(r).UserID
 	var run database.TemplateResourceRun
 	var job database.ProvisionerJob
 	err := api.Database.InTx(func(tx database.Store) error {
-		if err := tx.LockTemplateResourceTemplate(ctx, template.ID); err != nil {
+		if err := tx.LockFoundation(ctx, foundation.ID); err != nil {
 			return err
 		}
-		fresh, err := tx.GetTemplateByID(ctx, template.ID)
+		fresh, err := tx.GetFoundationByID(ctx, foundation.ID)
 		if err != nil {
 			return err
 		}
 		if fresh.Deleted {
 			return sql.ErrNoRows
 		}
-		state, err := tx.GetTemplateResourceStateForUpdate(ctx, template.ID)
+		state, err := tx.GetTemplateResourceStateForUpdate(ctx, foundation.ID)
 		if err != nil {
 			return err
 		}
@@ -276,22 +307,24 @@ func (api *API) postTemplateResourceRun(rw http.ResponseWriter, r *http.Request)
 		if err != nil {
 			return err
 		}
-		if revision.TemplateID != template.ID || revision.OrganizationID != template.OrganizationID {
+		if revision.FoundationID != foundation.ID || revision.OrganizationID != foundation.OrganizationID {
 			return sql.ErrNoRows
 		}
-		// The template ACL was checked above. Count all workspaces, not just those visible to the caller.
+		// Foundation permissions were checked above. Count all consumers, including hidden workspaces.
 		//nolint:gocritic
 		systemCtx := dbauthz.AsSystemRestricted(ctx)
 		if req.Action == "destroy" {
-			if !state.AppliedRevisionID.Valid || state.AppliedRevisionID.UUID != revision.ID {
+			if !state.CheckpointRevisionID.Valid || state.CheckpointRevisionID.UUID != revision.ID {
 				return templateResourceConflict("Destroy must use the state-producing revision.")
 			}
-			workspaces, err := tx.GetWorkspacesByTemplateID(systemCtx, template.ID)
-			if err != nil && !errors.Is(err, sql.ErrNoRows) {
-				return err
-			}
-			if len(workspaces) != 0 {
-				return templateResourceConflict("Delete all workspaces before destroying shared resources.")
+			if fresh.PreventDestroyWithWorkspaces {
+				count, err := tx.GetFoundationWorkspaceCount(systemCtx, fresh.ID)
+				if err != nil {
+					return err
+				}
+				if count != 0 {
+					return templateResourceConflict("Destroy protection is enabled. Delete all consuming workspaces or disable prevent_destroy_with_workspaces before destroying the Foundation.")
+				}
 			}
 		}
 		runID, now := uuid.New(), dbtime.Now()
@@ -301,23 +334,28 @@ func (api *API) postTemplateResourceRun(rw http.ResponseWriter, r *http.Request)
 		if err != nil {
 			return err
 		}
-		tags := provisionersdk.MutateTags(uuid.Nil, nil)
+		var routing map[string]string
+		if err := json.Unmarshal(fresh.ProvisionerTags, &routing); err != nil {
+			return err
+		}
+		tags := provisionersdk.MutateTags(uuid.Nil, routing)
 		tags[provisionersdk.TagTemplateResources] = provisionersdk.TemplateResourcesCapabilityVersion
-		job, err = tx.InsertProvisionerJob(systemCtx, database.InsertProvisionerJobParams{ID: uuid.New(), OrganizationID: template.OrganizationID, CreatedAt: now, UpdatedAt: now, InitiatorID: userID, Provisioner: database.ProvisionerTypeTerraform, Type: database.ProvisionerJobTypeTemplateResources, StorageMethod: database.ProvisionerStorageMethodFile, FileID: revision.FileID, Input: input, Tags: tags, TraceMetadata: pqtype.NullRawMessage{}, LogsOverflowed: false})
+		job, err = tx.InsertProvisionerJob(systemCtx, database.InsertProvisionerJobParams{ID: uuid.New(), OrganizationID: foundation.OrganizationID, CreatedAt: now, UpdatedAt: now, InitiatorID: userID, Provisioner: database.ProvisionerTypeTerraform, Type: database.ProvisionerJobTypeTemplateResources, StorageMethod: database.ProvisionerStorageMethodFile, FileID: revision.FileID, Input: input, Tags: tags, TraceMetadata: pqtype.NullRawMessage{}, LogsOverflowed: false})
 		if err != nil {
 			return err
 		}
-		run, err = tx.InsertTemplateResourceRun(ctx, database.InsertTemplateResourceRunParams{ID: runID, TemplateID: template.ID, OrganizationID: template.OrganizationID, RevisionID: revision.ID, JobID: job.ID, Action: req.Action, CreatedAt: now})
+		run, err = tx.InsertTemplateResourceRun(ctx, database.InsertTemplateResourceRunParams{ID: runID, FoundationID: foundation.ID, OrganizationID: foundation.OrganizationID, RevisionID: revision.ID, JobID: job.ID, Action: req.Action, CreatedAt: now})
 		if err != nil {
 			return err
 		}
-		_, err = tx.StartTemplateResourceRun(ctx, database.StartTemplateResourceRunParams{TemplateID: template.ID, RunID: uuid.NullUUID{UUID: run.ID, Valid: true}, UpdatedAt: now})
+		_, err = tx.StartTemplateResourceRun(ctx, database.StartTemplateResourceRunParams{FoundationID: foundation.ID, RunID: uuid.NullUUID{UUID: run.ID, Valid: true}, UpdatedAt: now})
 		return err
 	}, nil)
 	if err != nil {
 		api.templateResourceError(rw, r, err)
 		return
 	}
+	auditFields["run_id"] = run.ID
 	if err := provisionerjobs.PostJob(api.Pubsub, job); err != nil {
 		api.Logger.Warn(ctx, "publish shared resource job", slog.Error(err))
 	}
@@ -327,30 +365,45 @@ func (api *API) postTemplateResourceRun(rw http.ResponseWriter, r *http.Request)
 // @Summary Cancel shared resource run
 // @ID cancel-template-resource-run
 // @Security CoderSessionToken
-// @Tags Templates
+// @Tags Foundations
 // @Produce json
-// @Param template path string true "Template ID" format(uuid)
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param foundation path string true "Foundation ID" format(uuid)
 // @Param runID path string true "Run ID" format(uuid)
 // @Success 200 {object} codersdk.Response
-// @Router /api/v2/templates/{template}/resources/runs/{runID}/cancel [patch]
+// @Router /api/v2/organizations/{organization}/foundations/{foundation}/runs/{runID}/cancel [patch]
 // @x-apidocgen {"skip": true}
 func (api *API) patchCancelTemplateResourceRun(rw http.ResponseWriter, r *http.Request) {
-	if !api.templateResourceAuthorized(rw, r) {
+	foundation, ok := api.foundationParam(rw, r, policy.ActionRead)
+	if !ok {
 		return
 	}
+	auditFields := map[string]interface{}{"operation": "cancel"}
+	ar, commit := audit.InitRequest[database.Foundation](rw, &audit.RequestParams{Audit: *api.Auditor.Load(), Log: api.Logger, Request: r, OrganizationID: foundation.OrganizationID, Action: database.AuditActionStop, AdditionalFields: auditFields})
+	defer commit()
+	ar.Old, ar.New = foundation, foundation
+
 	id, err := uuid.Parse(chi.URLParam(r, "runID"))
 	if err != nil {
 		api.templateResourceError(rw, r, sql.ErrNoRows)
 		return
 	}
-	ctx, template := r.Context(), httpmw.TemplateParam(r)
+	auditFields["run_id"] = id
+	ctx := r.Context()
 	var completedJobID uuid.UUID
 	err = api.Database.InTx(func(tx database.Store) error {
 		run, err := tx.GetTemplateResourceRunByID(ctx, id)
 		if err != nil {
 			return err
 		}
-		if run.TemplateID != template.ID || run.OrganizationID != template.OrganizationID {
+		if run.FoundationID != foundation.ID || run.OrganizationID != foundation.OrganizationID {
+			return sql.ErrNoRows
+		}
+		action := policy.ActionUse
+		if run.Action == "plan" {
+			action = policy.ActionUpdate
+		}
+		if !api.Authorize(r, action, foundation.RBACObject()) {
 			return sql.ErrNoRows
 		}
 		// Match worker finalization's lock order and fence acquisition.
@@ -364,7 +417,7 @@ func (api *API) patchCancelTemplateResourceRun(rw http.ResponseWriter, r *http.R
 		if job.CanceledAt.Valid {
 			return nil
 		}
-		state, err := tx.GetTemplateResourceStateForUpdate(ctx, template.ID)
+		state, err := tx.GetTemplateResourceStateForUpdate(ctx, foundation.ID)
 		if err != nil {
 			return err
 		}
@@ -376,11 +429,11 @@ func (api *API) patchCancelTemplateResourceRun(rw http.ResponseWriter, r *http.R
 		if !job.StartedAt.Valid && !job.WorkerID.Valid {
 			// A pending job cannot have mutated infrastructure. Acquired jobs
 			// retain their reservation until the worker or reaper finalizes.
-			//nolint:gocritic // Template update ACL was checked before releasing state.
+			//nolint:gocritic // Action-specific Foundation permission was checked before releasing state.
 			systemCtx := dbauthz.AsSystemRestricted(ctx)
 			_, err = tx.CompleteTemplateResourceRun(systemCtx, database.CompleteTemplateResourceRunParams{
-				TemplateID: template.ID, RunID: state.ActiveRunID, Status: state.Status,
-				State: state.State, Outputs: state.Outputs, AppliedRevisionID: state.AppliedRevisionID, UpdatedAt: now.Time,
+				FoundationID: foundation.ID, RunID: state.ActiveRunID, Status: state.Status,
+				State: state.State, Outputs: state.Outputs, AppliedRevisionID: state.AppliedRevisionID, CheckpointRevisionID: state.CheckpointRevisionID, UpdatedAt: now.Time,
 			})
 			if err != nil {
 				return err
@@ -407,16 +460,18 @@ func (api *API) patchCancelTemplateResourceRun(rw http.ResponseWriter, r *http.R
 // @Summary Get shared resource run logs
 // @ID get-template-resource-run-logs
 // @Security CoderSessionToken
-// @Tags Templates
+// @Tags Foundations
 // @Produce json
-// @Param template path string true "Template ID" format(uuid)
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param foundation path string true "Foundation ID" format(uuid)
 // @Param runID path string true "Run ID" format(uuid)
 // @Param after query integer false "Return logs after this ID"
 // @Success 200 {array} codersdk.ProvisionerJobLog
-// @Router /api/v2/templates/{template}/resources/runs/{runID}/logs [get]
+// @Router /api/v2/organizations/{organization}/foundations/{foundation}/runs/{runID}/logs [get]
 // @x-apidocgen {"skip": true}
 func (api *API) templateResourceRunLogs(rw http.ResponseWriter, r *http.Request) {
-	if !api.templateResourceAuthorized(rw, r) {
+	foundation, ok := api.foundationParam(rw, r, policy.ActionRead)
+	if !ok {
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "runID"))
@@ -429,8 +484,7 @@ func (api *API) templateResourceRunLogs(rw http.ResponseWriter, r *http.Request)
 		api.templateResourceError(rw, r, err)
 		return
 	}
-	template := httpmw.TemplateParam(r)
-	if run.TemplateID != template.ID || run.OrganizationID != template.OrganizationID {
+	if run.FoundationID != foundation.ID || run.OrganizationID != foundation.OrganizationID {
 		api.templateResourceError(rw, r, sql.ErrNoRows)
 		return
 	}
@@ -448,11 +502,13 @@ func templateResourceUUID(id uuid.NullUUID) *uuid.UUID {
 	}
 	return &id.UUID
 }
+
 func convertTemplateResourceRevision(revision database.TemplateResourceRevision) codersdk.TemplateResourceRevision {
-	return codersdk.TemplateResourceRevision{ID: revision.ID, TemplateID: revision.TemplateID, CreatedAt: revision.CreatedAt, FileID: revision.FileID, Source: revision.Source}
+	return codersdk.TemplateResourceRevision{ID: revision.ID, FoundationID: revision.FoundationID, CreatedAt: revision.CreatedAt, FileID: revision.FileID, Source: revision.Source}
 }
+
 func convertTemplateResourceRun(run database.TemplateResourceRun, job database.ProvisionerJob) codersdk.TemplateResourceRun {
-	return codersdk.TemplateResourceRun{ID: run.ID, RevisionID: run.RevisionID, Action: run.Action, CreatedAt: run.CreatedAt, Job: convertProvisionerJob(database.GetProvisionerJobsByIDsWithQueuePositionRow{ProvisionerJob: job})}
+	return codersdk.TemplateResourceRun{ID: run.ID, RevisionID: run.RevisionID, Action: run.Action, CreatedAt: run.CreatedAt, Job: convertProvisionerJob(database.GetProvisionerJobsByIDsWithQueuePositionRow{ProvisionerJob: job}), Preview: decodeFoundationPlanPreview(run.PlanPreview.RawMessage)}
 }
 
 // guardTemplateResourceDeletionInTx serializes deletion with source creation and runs.
@@ -460,7 +516,17 @@ func guardTemplateResourceDeletionInTx(ctx context.Context, tx database.Store, t
 	if err := tx.LockTemplateResourceTemplate(ctx, templateID); err != nil {
 		return err
 	}
-	state, err := tx.GetTemplateResourceStateForUpdate(ctx, templateID)
+	foundation, err := tx.GetFoundationByTemplateID(ctx, uuid.NullUUID{UUID: templateID, Valid: true})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if err := tx.LockFoundation(ctx, foundation.ID); err != nil {
+		return err
+	}
+	state, err := tx.GetTemplateResourceStateForUpdate(ctx, foundation.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}

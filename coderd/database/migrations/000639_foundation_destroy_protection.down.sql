@@ -1,0 +1,1 @@
+ALTER TABLE foundations DROP COLUMN prevent_destroy_with_workspaces;

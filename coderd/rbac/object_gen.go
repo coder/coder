@@ -207,6 +207,17 @@ var (
 		Type: "file",
 	}
 
+	// ResourceFoundation
+	// Valid Actions
+	//  - "ActionCreate" :: create a Foundation
+	//  - "ActionDelete" :: delete a cleaned-up Foundation
+	//  - "ActionRead" :: read Foundation source, outputs, and history
+	//  - "ActionUpdate" :: edit Foundation settings and revisions, and plan changes
+	//  - "ActionUse" :: publish or destroy Foundation infrastructure
+	ResourceFoundation = Object{
+		Type: "foundation",
+	}
+
 	// ResourceGroup
 	// Valid Actions
 	//  - "ActionCreate" :: create a group
@@ -574,6 +585,7 @@ func AllResources() []Objecter {
 		ResourceDeploymentConfig,
 		ResourceDeploymentStats,
 		ResourceFile,
+		ResourceFoundation,
 		ResourceGroup,
 		ResourceGroupMember,
 		ResourceIdpsyncSettings,

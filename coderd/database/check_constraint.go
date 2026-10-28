@@ -61,6 +61,7 @@ const (
 	CheckUsersUsernameMinLength                              CheckConstraint = "users_username_min_length"                                 // users
 	CheckConnectionLogsClientSessionIDCheck                  CheckConstraint = "connection_logs_client_session_id_check"                   // connection_logs
 	CheckOrganizationIDNotZero                               CheckConstraint = "organization_id_not_zero"                                  // custom_roles
+	CheckFoundationsProvisionerTagsCheck                     CheckConstraint = "foundations_provisioner_tags_check"                        // foundations
 	CheckGroupAIBudgetsSpendLimitMicrosCheck                 CheckConstraint = "group_ai_budgets_spend_limit_micros_check"                 // group_ai_budgets
 	CheckGroupsChatSpendLimitMicrosCheck                     CheckConstraint = "groups_chat_spend_limit_micros_check"                      // groups
 	CheckMcpServerConfigsAuthTypeCheck                       CheckConstraint = "mcp_server_configs_auth_type_check"                        // mcp_server_configs
@@ -112,6 +113,7 @@ const (
 	CheckWorkspaceBuildOrchestrationsNextRetryAfterCheck     CheckConstraint = "workspace_build_orchestrations_next_retry_after_check"     // workspace_build_orchestrations
 	CheckWorkspaceBuildOrchestrationsStatusCheck             CheckConstraint = "workspace_build_orchestrations_status_check"               // workspace_build_orchestrations
 	CheckWorkspaceBuildsDeadlineBelowMaxDeadline             CheckConstraint = "workspace_builds_deadline_below_max_deadline"              // workspace_builds
+	CheckWorkspaceBuildsStateTemplateResourceOutputsCheck    CheckConstraint = "workspace_builds_state_template_resource_outputs_check"    // workspace_builds
 	CheckWorkspaceBuildsTemplateResourceOutputsCheck         CheckConstraint = "workspace_builds_template_resource_outputs_check"          // workspace_builds
 	CheckGroupAclIsObject                                    CheckConstraint = "group_acl_is_object"                                       // workspaces
 	CheckUserAclIsObject                                     CheckConstraint = "user_acl_is_object"                                        // workspaces

@@ -3800,6 +3800,7 @@ const (
 	ResourceTypeChatProjectInstructions      ResourceType = "chat_project_instructions"
 	ResourceTypeOrganizationSkill            ResourceType = "organization_skill"
 	ResourceTypeChatProjectSkill             ResourceType = "chat_project_skill"
+	ResourceTypeFoundation                   ResourceType = "foundation"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3886,7 +3887,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeChatOrganizationSystemPrompt,
 		ResourceTypeChatProjectInstructions,
 		ResourceTypeOrganizationSkill,
-		ResourceTypeChatProjectSkill:
+		ResourceTypeChatProjectSkill,
+		ResourceTypeFoundation:
 		return true
 	}
 	return false
@@ -3942,6 +3944,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeChatProjectInstructions,
 		ResourceTypeOrganizationSkill,
 		ResourceTypeChatProjectSkill,
+		ResourceTypeFoundation,
 	}
 }
 
@@ -5748,6 +5751,18 @@ type File struct {
 	ID        uuid.UUID `db:"id" json:"id"`
 }
 
+type Foundation struct {
+	ID                           uuid.UUID       `db:"id" json:"id"`
+	OrganizationID               uuid.UUID       `db:"organization_id" json:"organization_id"`
+	Name                         string          `db:"name" json:"name"`
+	ProvisionerTags              json.RawMessage `db:"provisioner_tags" json:"provisioner_tags"`
+	TemplateID                   uuid.NullUUID   `db:"template_id" json:"template_id"`
+	CreatedAt                    time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt                    time.Time       `db:"updated_at" json:"updated_at"`
+	Deleted                      bool            `db:"deleted" json:"deleted"`
+	PreventDestroyWithWorkspaces bool            `db:"prevent_destroy_with_workspaces" json:"prevent_destroy_with_workspaces"`
+}
+
 type GitSSHKey struct {
 	UserID     uuid.UUID `db:"user_id" json:"user_id"`
 	CreatedAt  time.Time `db:"created_at" json:"created_at"`
@@ -6381,7 +6396,7 @@ type Template struct {
 
 type TemplateResourceRevision struct {
 	ID             uuid.UUID `db:"id" json:"id"`
-	TemplateID     uuid.UUID `db:"template_id" json:"template_id"`
+	FoundationID   uuid.UUID `db:"foundation_id" json:"foundation_id"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	FileID         uuid.UUID `db:"file_id" json:"file_id"`
 	Source         string    `db:"source" json:"source"`
@@ -6391,16 +6406,18 @@ type TemplateResourceRevision struct {
 
 type TemplateResourceRun struct {
 	ID             uuid.UUID `db:"id" json:"id"`
-	TemplateID     uuid.UUID `db:"template_id" json:"template_id"`
+	FoundationID   uuid.UUID `db:"foundation_id" json:"foundation_id"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	RevisionID     uuid.UUID `db:"revision_id" json:"revision_id"`
 	JobID          uuid.UUID `db:"job_id" json:"job_id"`
 	Action         string    `db:"action" json:"action"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	// Sanitized output names and change metadata only; never raw Terraform plans or output values.
+	PlanPreview pqtype.NullRawMessage `db:"plan_preview" json:"plan_preview"`
 }
 
 type TemplateResourceState struct {
-	TemplateID        uuid.UUID       `db:"template_id" json:"template_id"`
+	FoundationID      uuid.UUID       `db:"foundation_id" json:"foundation_id"`
 	OrganizationID    uuid.UUID       `db:"organization_id" json:"organization_id"`
 	CurrentRevisionID uuid.NullUUID   `db:"current_revision_id" json:"current_revision_id"`
 	AppliedRevisionID uuid.NullUUID   `db:"applied_revision_id" json:"applied_revision_id"`
@@ -6409,6 +6426,8 @@ type TemplateResourceState struct {
 	State             []byte          `db:"state" json:"state"`
 	Outputs           json.RawMessage `db:"outputs" json:"outputs"`
 	UpdatedAt         time.Time       `db:"updated_at" json:"updated_at"`
+	// Revision that produced the authoritative state checkpoint, independent of the last published outputs.
+	CheckpointRevisionID uuid.NullUUID `db:"checkpoint_revision_id" json:"checkpoint_revision_id"`
 }
 
 type TemplateTable struct {
@@ -7112,27 +7131,29 @@ type WorkspaceAppStatus struct {
 
 // Joins in the username + avatar url of the initiated by user.
 type WorkspaceBuild struct {
-	ID                         uuid.UUID           `db:"id" json:"id"`
-	CreatedAt                  time.Time           `db:"created_at" json:"created_at"`
-	UpdatedAt                  time.Time           `db:"updated_at" json:"updated_at"`
-	WorkspaceID                uuid.UUID           `db:"workspace_id" json:"workspace_id"`
-	TemplateVersionID          uuid.UUID           `db:"template_version_id" json:"template_version_id"`
-	BuildNumber                int32               `db:"build_number" json:"build_number"`
-	Transition                 WorkspaceTransition `db:"transition" json:"transition"`
-	InitiatorID                uuid.UUID           `db:"initiator_id" json:"initiator_id"`
-	JobID                      uuid.UUID           `db:"job_id" json:"job_id"`
-	Deadline                   time.Time           `db:"deadline" json:"deadline"`
-	Reason                     BuildReason         `db:"reason" json:"reason"`
-	DailyCost                  int32               `db:"daily_cost" json:"daily_cost"`
-	MaxDeadline                time.Time           `db:"max_deadline" json:"max_deadline"`
-	TemplateVersionPresetID    uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
-	HasExternalAgent           sql.NullBool        `db:"has_external_agent" json:"has_external_agent"`
-	NotifiedAutostopDeadline   time.Time           `db:"notified_autostop_deadline" json:"notified_autostop_deadline"`
-	InitiatorByAvatarUrl       string              `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
-	InitiatorByUsername        string              `db:"initiator_by_username" json:"initiator_by_username"`
-	InitiatorByName            string              `db:"initiator_by_name" json:"initiator_by_name"`
-	TemplateResourceRevisionID uuid.NullUUID       `db:"template_resource_revision_id" json:"template_resource_revision_id"`
-	TemplateResourceOutputs    json.RawMessage     `db:"template_resource_outputs" json:"template_resource_outputs"`
+	ID                              uuid.UUID           `db:"id" json:"id"`
+	CreatedAt                       time.Time           `db:"created_at" json:"created_at"`
+	UpdatedAt                       time.Time           `db:"updated_at" json:"updated_at"`
+	WorkspaceID                     uuid.UUID           `db:"workspace_id" json:"workspace_id"`
+	TemplateVersionID               uuid.UUID           `db:"template_version_id" json:"template_version_id"`
+	BuildNumber                     int32               `db:"build_number" json:"build_number"`
+	Transition                      WorkspaceTransition `db:"transition" json:"transition"`
+	InitiatorID                     uuid.UUID           `db:"initiator_id" json:"initiator_id"`
+	JobID                           uuid.UUID           `db:"job_id" json:"job_id"`
+	Deadline                        time.Time           `db:"deadline" json:"deadline"`
+	Reason                          BuildReason         `db:"reason" json:"reason"`
+	DailyCost                       int32               `db:"daily_cost" json:"daily_cost"`
+	MaxDeadline                     time.Time           `db:"max_deadline" json:"max_deadline"`
+	TemplateVersionPresetID         uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
+	HasExternalAgent                sql.NullBool        `db:"has_external_agent" json:"has_external_agent"`
+	NotifiedAutostopDeadline        time.Time           `db:"notified_autostop_deadline" json:"notified_autostop_deadline"`
+	InitiatorByAvatarUrl            string              `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
+	InitiatorByUsername             string              `db:"initiator_by_username" json:"initiator_by_username"`
+	InitiatorByName                 string              `db:"initiator_by_name" json:"initiator_by_name"`
+	TemplateResourceRevisionID      uuid.NullUUID       `db:"template_resource_revision_id" json:"template_resource_revision_id"`
+	TemplateResourceOutputs         json.RawMessage     `db:"template_resource_outputs" json:"template_resource_outputs"`
+	StateTemplateResourceRevisionID uuid.NullUUID       `db:"state_template_resource_revision_id" json:"state_template_resource_revision_id"`
+	StateTemplateResourceOutputs    json.RawMessage     `db:"state_template_resource_outputs" json:"state_template_resource_outputs"`
 }
 
 // Tracks durable follow-up workspace build operations, such as server-side restart, where one child build is created after a parent build completes successfully.
@@ -7189,6 +7210,10 @@ type WorkspaceBuildTable struct {
 	NotifiedAutostopDeadline   time.Time       `db:"notified_autostop_deadline" json:"notified_autostop_deadline"`
 	TemplateResourceRevisionID uuid.NullUUID   `db:"template_resource_revision_id" json:"template_resource_revision_id"`
 	TemplateResourceOutputs    json.RawMessage `db:"template_resource_outputs" json:"template_resource_outputs"`
+	// Foundation revision associated with the retained provisioner state, not the latest attempted build inputs.
+	StateTemplateResourceRevisionID uuid.NullUUID `db:"state_template_resource_revision_id" json:"state_template_resource_revision_id"`
+	// Foundation output snapshot associated with the retained provisioner state, including partial apply checkpoints.
+	StateTemplateResourceOutputs json.RawMessage `db:"state_template_resource_outputs" json:"state_template_resource_outputs"`
 }
 
 type WorkspaceLatestBuild struct {
