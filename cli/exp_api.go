@@ -27,7 +27,8 @@ func (r *RootCmd) apiCmd() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "api <path>",
 		Short: "Make an authenticated HTTP request to the Coder API and print the response.",
-		Long: "The path is relative to /api/v2/ unless it starts with a slash. " +
+		Long: "The path is relative to /api/v2/, with or without a leading slash. " +
+			"Paths that start with /api/ are used as given, for example /api/experimental/chats. " +
 			"Fields are sent as query parameters for GET and HEAD requests and as a JSON object otherwise. " +
 			"The method defaults to GET, or POST when fields or --input are provided, so use -X GET to send fields as query parameters.\n\n" +
 			FormatExamples(
@@ -58,7 +59,7 @@ func (r *RootCmd) apiCmd() *serpent.Command {
 				return err
 			}
 			if input != "" && len(fields) > 0 {
-				return xerrors.New("--input and --field cannot be used together")
+				return xerrors.New("--input and --raw-field cannot be used together")
 			}
 
 			fieldValues, err := parseAPIFields(fields)
@@ -145,7 +146,7 @@ func (r *RootCmd) apiCmd() *serpent.Command {
 			Value:         serpent.StringOf(&method),
 		},
 		{
-			Flag:          "field",
+			Flag:          "raw-field",
 			FlagShorthand: "f",
 			Description:   "Add a string parameter in key=value format. Can be specified multiple times.",
 			Value:         serpent.StringArrayOf(&fields),
@@ -184,10 +185,10 @@ func apiRequestPath(raw string) (string, error) {
 	if u.Scheme != "" || u.Host != "" {
 		return "", xerrors.Errorf("path %q must not include a scheme or host; requests are always sent to the configured Coder URL", raw)
 	}
-	if strings.HasPrefix(raw, "/") {
+	if strings.HasPrefix(raw, "/api/") {
 		return raw, nil
 	}
-	return "/api/v2/" + raw, nil
+	return "/api/v2/" + strings.TrimPrefix(raw, "/"), nil
 }
 
 func parseAPIFields(fields []string) (url.Values, error) {

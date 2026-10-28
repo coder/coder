@@ -5,10 +5,11 @@ USAGE:
 
   Make an authenticated HTTP request to the Coder API and print the response.
 
-  The path is relative to /api/v2/ unless it starts with a slash. Fields are
-  sent as query parameters for GET and HEAD requests and as a JSON object
-  otherwise. The method defaults to GET, or POST when fields or --input are
-  provided, so use -X GET to send fields as query parameters.
+  The path is relative to /api/v2/, with or without a leading slash. Paths that
+  start with /api/ are used as given, for example /api/experimental/chats.
+  Fields are sent as query parameters for GET and HEAD requests and as a JSON
+  object otherwise. The method defaults to GET, or POST when fields or --input
+  are provided, so use -X GET to send fields as query parameters.
   
     - Get the authenticated user:
   
@@ -24,10 +25,6 @@ USAGE:
   --input -
 
 OPTIONS:
-  -f, --field string-array
-          Add a string parameter in key=value format. Can be specified multiple
-          times.
-
   -i, --include bool
           Print the response status line and headers before the body.
 
@@ -36,6 +33,10 @@ OPTIONS:
 
   -X, --method string
           The HTTP method for the request.
+
+  -f, --raw-field string-array
+          Add a string parameter in key=value format. Can be specified multiple
+          times.
 
   -H, --request-header string-array
           Add a request header in key:value format. Can be specified multiple

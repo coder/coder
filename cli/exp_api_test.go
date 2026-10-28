@@ -57,6 +57,25 @@ func TestExpAPI(t *testing.T) {
 		require.NotEmpty(t, resp.Message)
 	})
 
+	t.Run("PathResolution", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct{ arg, want string }{
+			{"organizations", "/api/v2/organizations"},
+			{"/organizations", "/api/v2/organizations"},
+			{"/api/v2/organizations", "/api/v2/organizations"},
+			{"/api/experimental/chats", "/api/experimental/chats"},
+		} {
+			t.Run(tc.arg, func(t *testing.T) {
+				t.Parallel()
+				srv, rec := newRecordingServer(t)
+				inv, root := clitest.New(t, "exp", "api", tc.arg)
+				clitest.SetupConfig(t, newTokenClient(t, srv.URL), root)
+				require.NoError(t, inv.Run())
+				require.Equal(t, tc.want, rec.last().path)
+			})
+		}
+	})
+
 	t.Run("RejectsAbsoluteURL", func(t *testing.T) {
 		t.Parallel()
 		srv, rec := newRecordingServer(t)
