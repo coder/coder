@@ -73,10 +73,6 @@ type TurnAttachmentsProps = {
 	attachments: readonly MessageAttachment[];
 };
 
-/**
- * Opens one turn's agent attachments from the action bar. When the timeline
- * knows any of them are expired, the popover explains why.
- */
 export const TurnAttachments: React.FC<TurnAttachmentsProps> = ({
 	attachments,
 }) => {

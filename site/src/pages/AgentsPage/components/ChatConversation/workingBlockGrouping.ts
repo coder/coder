@@ -317,11 +317,14 @@ const hasAnswer = (row: TimelineMessageRow): boolean => {
 };
 
 /**
- * Chat state that decides whether the newest turn is settled enough for a
- * pill and which of its rows may host it.
+ * Chat state that decides whether the newest turn's Attachments pill, which
+ * `TurnAttachments` renders, shows yet and which of the turn's rows hosts it.
  */
 export type TurnAttachmentsOptions = {
-	/** Collapsed steps: attachment-only rows never host the pill. */
+	/**
+	 * Collapsed steps hide attachment-only rows, so those rows never host the
+	 * Attachments pill.
+	 */
 	hidesAttachmentRows: boolean;
 	/** The chat may still add to its newest turn. */
 	isChatActive: boolean;
@@ -331,7 +334,10 @@ export type TurnAttachmentsOptions = {
 
 type Turn = {
 	attachments: MessageAttachment[];
-	/** The last shown assistant row other than a clear or summary. */
+	/**
+	 * The last shown assistant row that is not a context clear (`chat_cleared`)
+	 * or summary (`chat_summarized`).
+	 */
 	pillRow?: TimelineMessageRow;
 	/** A context clear or summary row follows pillRow. */
 	hasBoundaryAfterPillRow: boolean;
@@ -392,10 +398,6 @@ const canTurnChange = (
 	return !isAnswerFinal;
 };
 
-/**
- * Agent attachments keyed by the row that hosts their turn's pill. Earlier
- * turns keep their pills, and the newest gets one once it can no longer change.
- */
 export const getTurnAttachmentsByRow = (
 	rows: readonly TimelineRow[],
 	options: TurnAttachmentsOptions,

@@ -900,7 +900,6 @@ describe("ConversationTimeline attachment previews", () => {
 		await user.click(screen.getByRole("button", { name: "Attachments (4)" }));
 		screen.getByRole("link", { name: /spec\.pdf/ }).focus();
 
-		// Once the newer upload is the only linked file, spec.pdf is evicted.
 		rerenderStage({
 			messages: mockNewerUploadMessages,
 			chatFiles: mockLinkedSpecAndNewerFiles.slice(1),

@@ -30,10 +30,6 @@ type MessageActionButtonProps = {
 	disabled?: boolean;
 };
 
-/**
- * Gives the actions under a message one size and tooltip placement. `label`
- * is the accessible name and the tooltip.
- */
 export const MessageActionButton: React.FC<MessageActionButtonProps> = ({
 	label,
 	icon,

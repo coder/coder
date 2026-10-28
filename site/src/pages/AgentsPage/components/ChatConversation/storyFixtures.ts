@@ -442,7 +442,6 @@ export const MockAttachmentWorkingMessages: TypesGen.ChatMessage[] = [
 const MockAmberPngData =
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4Oo8bAAQqAZ9sWGBkAAAAAElFTkSuQmCC";
 
-/** MockAttachmentWorkingMessages and a turn that attaches four mixed files. */
 export const MockMixedAttachmentMessages: TypesGen.ChatMessage[] = [
 	...MockAttachmentWorkingMessages,
 	{
@@ -498,11 +497,9 @@ export const MockMixedAttachmentMessages: TypesGen.ChatMessage[] = [
 	},
 ];
 
-/** MockMixedAttachmentMessages before the newest turn answers. */
 export const MockUnansweredAttachmentMessages: TypesGen.ChatMessage[] =
 	MockMixedAttachmentMessages.slice(0, -1);
 
-/** MockMixedAttachmentMessages followed by a manual context clear. */
 export const MockClearedAttachmentMessages: TypesGen.ChatMessage[] = [
 	...MockMixedAttachmentMessages,
 	...workingStepMessages(24, "clear", 31, 31, {
@@ -512,7 +509,6 @@ export const MockClearedAttachmentMessages: TypesGen.ChatMessage[] = [
 	}),
 ];
 
-/** MockAttachmentWorkingMessages ending in a searched answer. */
 export const MockSearchAnswerAttachmentMessages: TypesGen.ChatMessage[] =
 	MockAttachmentWorkingMessages.map((message) =>
 		message.id === 9
@@ -525,7 +521,6 @@ export const MockSearchAnswerAttachmentMessages: TypesGen.ChatMessage[] =
 			: message,
 	);
 
-/** MockMixedAttachmentMessages whose second image cannot be decoded. */
 export const MockBrokenImageAttachmentMessages: TypesGen.ChatMessage[] =
 	MockMixedAttachmentMessages.map((message) => ({
 		...message,

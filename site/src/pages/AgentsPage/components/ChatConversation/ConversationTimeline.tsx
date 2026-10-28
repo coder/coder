@@ -193,6 +193,7 @@ const ChatMessageItem = memo<{
 	}) => {
 		const isUser = message?.role === "user";
 		const messageId = message?.id;
+
 		const { openLightbox } = useLightbox();
 		const openImagePreview = (src: string, trigger: HTMLButtonElement) => {
 			const onCloseAutoFocus = returnFocusTo(trigger);
@@ -204,6 +205,7 @@ const ChatMessageItem = memo<{
 				/>
 			));
 		};
+
 		const openTextPreview = (
 			{ content, fileName, mediaType }: PreviewTextAttachment,
 			trigger: HTMLButtonElement,
@@ -219,6 +221,7 @@ const ChatMessageItem = memo<{
 				/>
 			));
 		};
+
 		const { blocks, tools, endsRow, coversRow } = getSliceContent(
 			parsed?.blocks ?? liveBlocks,
 			parsed?.tools ?? liveTools,
@@ -230,11 +233,13 @@ const ChatMessageItem = memo<{
 				hideAttachments,
 			},
 		);
+
 		// The actions act on the whole message and live status trails the
 		// stream, so only the slice that ends the row shows them.
 		const hideSliceActions = inWorkingBlock || !endsRow;
 		const outputLiveStatus = endsRow ? liveStatus : undefined;
 		const sliceTurnAttachments = endsRow ? turnAttachments : undefined;
+
 		const displayState =
 			message && parsed
 				? deriveMessageDisplayState({
@@ -245,6 +250,7 @@ const ChatMessageItem = memo<{
 						isAwaitingFirstStreamChunk,
 					})
 				: undefined;
+
 		const canEditUserMessage =
 			isUser && messageId !== undefined && Boolean(onEditUserMessage);
 		const canJumpBetweenUserMessages =
@@ -256,9 +262,11 @@ const ChatMessageItem = memo<{
 				? parsed.markdown
 				: undefined;
 		const showsHoverActions = canEditUserMessage || canJumpBetweenUserMessages;
+
 		if (displayState?.shouldHide) {
 			return null;
 		}
+
 		if (message?.role === "system" && parsed) {
 			return (
 				<div
@@ -522,6 +530,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			isChatActive: isActiveChatStatus(chatStatus) || hasLiveAssistant,
 			isCompacting: liveTools.some((tool) => tool.name === "chat_summarized"),
 		});
+
 		const layout = collapseSteps
 			? groupWorkingBlocks(renderRows, parsedMessages, {
 					hasMoreMessages,
@@ -538,6 +547,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					keptBlockKeys,
 				})
 			: { blocks: [], items: renderRows.map(wholeRowItem) };
+
 		const nextLiveBlockKeys = reconcileLiveBlockKeys(
 			layout.blocks,
 			streamState?.startedAt,
@@ -715,6 +725,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						if (item.type === "block") {
 							const { block } = item;
 							const itemKey = getItemKey(block);
+
 							const expansionKeys = getExpansionKeys(block, itemKey);
 							const expandedKey = expansionKeys.findLast((key) =>
 								expandedBlocks.has(key),
@@ -722,10 +733,12 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 							const expanded =
 								expandedKey !== undefined &&
 								expandedBlocks.get(expandedKey) === true;
+
 							const firstRow = renderRows[block.slices[0].rowIndex];
 							const isAfterEditingMessage =
 								firstRow.type === "message" &&
 								afterEditingMessageIds.has(firstRow.entry.message.id);
+
 							const blockAttachments = getBlockTurnAttachments(
 								block,
 								renderRows,

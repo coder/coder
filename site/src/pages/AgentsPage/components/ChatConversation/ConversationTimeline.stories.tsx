@@ -1668,7 +1668,6 @@ export const UserMessageJumpArrows: Story = {
 	},
 };
 
-/** Copy shows below user messages, and Edit appears on hover. */
 export const UserMessageCopyButton: Story = {
 	args: {
 		...defaultArgs,

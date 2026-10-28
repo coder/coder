@@ -385,7 +385,6 @@ const toMessageAttachments = (
 	return href ? [{ key: `${messageId}:${partIndex}`, role, file, href }] : [];
 };
 
-/** Downloadable files in one message, in part order. */
 export const getMessageFileAttachments = (
 	message: TypesGen.ChatMessage,
 ): MessageAttachment[] =>
