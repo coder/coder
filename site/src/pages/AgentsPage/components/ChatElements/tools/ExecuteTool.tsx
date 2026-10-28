@@ -52,7 +52,11 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 	startedAt,
 	shellToolDisplayMode,
 }) => {
-	const hasTranscriptBlocks = transcriptBlocks.length > 0;
+	const visibleTranscriptBlocks =
+		status !== "running" && (isError || status === "error")
+			? transcriptBlocks.filter((block) => block.kind !== "error")
+			: transcriptBlocks;
+	const hasTranscriptBlocks = visibleTranscriptBlocks.length > 0;
 	const autoDisplayState: AgentDisplayState =
 		hasTranscriptBlocks ||
 		status === "running" ||
@@ -123,7 +127,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 			<ToolCall.Content>
 				<ShellTranscriptBody
 					command={command}
-					transcriptBlocks={transcriptBlocks}
+					transcriptBlocks={visibleTranscriptBlocks}
 					isError={isError}
 					isRunning={isRunning}
 					headerTrailing={

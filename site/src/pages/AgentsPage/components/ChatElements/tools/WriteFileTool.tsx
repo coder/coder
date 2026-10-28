@@ -47,7 +47,6 @@ export const WriteFileTool: React.FC<{
 	// The diff is synthesized from tool args, so showing it on error could
 	// misrepresent the content as written.
 	const showDiff = hasDiff && !isError;
-	const errorDetail = isError ? errorMessage?.trim() : undefined;
 
 	return (
 		<ToolCall.Root
@@ -56,16 +55,11 @@ export const WriteFileTool: React.FC<{
 			status={status}
 			isError={isError}
 			errorMessage={errorMessage || "Failed to write file"}
-			hasContent={showDiff || Boolean(errorDetail)}
+			hasContent={showDiff}
 			defaultView={displayState}
 		>
 			<ToolCall.Header iconName="write_file" label={label} />
 			<ToolCall.Content>
-				{errorDetail && (
-					<pre className="m-0 mt-1.5 whitespace-pre-wrap break-all border-0 bg-transparent p-0 font-mono text-xs leading-5 text-content-destructive">
-						{errorDetail}
-					</pre>
-				)}
 				{showDiff && (
 					<ToolCall.Scrollable
 						data-testid="write-file-diff"

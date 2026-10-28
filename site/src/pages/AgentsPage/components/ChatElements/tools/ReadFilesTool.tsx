@@ -35,7 +35,9 @@ export const ReadFilesTool: React.FC<{
 	const label = isRunning
 		? `Reading ${tools.length} files…`
 		: `Read ${tools.length} files`;
-	const errorMessage = items.find((item) => item.errorMessage)?.errorMessage;
+	const errorMessage = items.find(
+		(item) => item.isError && item.errorMessage,
+	)?.errorMessage;
 
 	return (
 		<div data-tool-call="">
@@ -43,7 +45,9 @@ export const ReadFilesTool: React.FC<{
 				className="w-full"
 				status={isRunning ? "running" : isError ? "error" : "completed"}
 				isError={isError}
-				errorMessage={errorMessage || "Failed to read one or more files"}
+				errorMessage={
+					(!expanded && errorMessage) || "Failed to read one or more files"
+				}
 				hasContent={hasContent}
 				expanded={expanded}
 				onExpandedChange={onExpandedChange}

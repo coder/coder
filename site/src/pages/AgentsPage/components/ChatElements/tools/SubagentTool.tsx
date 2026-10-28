@@ -167,6 +167,7 @@ export const SubagentTool: React.FC<{
 	report?: string;
 	toolStatus: ToolStatus;
 	isError: boolean;
+	errorMessage: string;
 	isTimeout: boolean;
 	/** Show an inline VNC desktop preview (for computer-use subagents). */
 	showDesktopPreview: boolean;
@@ -185,6 +186,7 @@ export const SubagentTool: React.FC<{
 	report,
 	toolStatus,
 	isError,
+	errorMessage,
 	isTimeout,
 	showDesktopPreview,
 	recordingFileId,
@@ -217,6 +219,7 @@ export const SubagentTool: React.FC<{
 			className="w-full"
 			status={toolStatus}
 			isError={isError}
+			errorMessage={errorMessage}
 			hasContent={hasExpandableContent}
 			expanded={expanded}
 			onExpandedChange={setExpanded}

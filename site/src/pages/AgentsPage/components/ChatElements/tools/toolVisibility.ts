@@ -3,6 +3,7 @@ import {
 	asNumber,
 	asRecord,
 	asString,
+	formatToolError,
 	parseArgs,
 	type ToolStatus,
 } from "./utils";
@@ -32,9 +33,7 @@ export const getExecuteRenderData = (
 	const command = parsedArgs ? asString(parsedArgs.command) : "";
 	const rec = asRecord(result);
 	const output = rec ? asString(rec.output).trim() : "";
-	const error = rec ? asString(rec.error).trim() : "";
-	const fallbackMessage = rec && !error ? asString(rec.message).trim() : "";
-	const errorText = error || fallbackMessage;
+	const errorText = formatToolError(result);
 	const transcriptBlocks: ExecuteTranscriptBlock[] = [];
 	if (output) {
 		transcriptBlocks.push({ kind: "output", text: output });

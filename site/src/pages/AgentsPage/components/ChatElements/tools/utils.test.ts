@@ -10,6 +10,7 @@ import {
 	formatModelIntentLabel,
 	formatResultOutput,
 	formatShellDurationMs,
+	formatToolError,
 	formatToolInput,
 	getDiffViewerOptions,
 	getFileContentForViewer,
@@ -345,6 +346,67 @@ describe("formatResultOutput", () => {
 	it("returns String representation for non-object/non-string primitives", () => {
 		expect(formatResultOutput(42)).toBe("42");
 		expect(formatResultOutput(true)).toBe("true");
+	});
+});
+
+describe("formatToolError", () => {
+	it.each([
+		{
+			name: "structured error with detail and validations",
+			result: {
+				error: "Workspace build failed",
+				detail: "Connect your GitHub account before retrying.",
+				validations: [
+					{ field: "external_auth", detail: "Authentication required" },
+					{ field: "region", detail: "Choose an available region" },
+				],
+			},
+			expected:
+				"Workspace build failed\n\nConnect your GitHub account before retrying.\n\nexternal_auth: Authentication required\nregion: Choose an available region",
+		},
+		{
+			name: "JSON-encoded error",
+			result: '{"error":"Build failed","detail":"Try another template."}',
+			expected: "Build failed\n\nTry another template.",
+		},
+		{
+			name: "plain-text error",
+			result:
+				"  workspace was deleted; use create_workspace to make a new one  ",
+			expected: "workspace was deleted; use create_workspace to make a new one",
+		},
+		{
+			name: "message fallback with malformed optional fields",
+			result: {
+				error: { unexpected: true },
+				message: "Request failed",
+				detail: 42,
+				validations: [
+					null,
+					"invalid",
+					{ field: "name", detail: "Required" },
+					{ detail: "Try again" },
+				],
+			},
+			expected: "Request failed\n\nname: Required\nTry again",
+		},
+		{
+			name: "workspace reason fallback",
+			result: { reason: "Workspace was deleted", validations: {} },
+			expected: "Workspace was deleted",
+		},
+		{
+			name: "detail without summary",
+			result: { detail: "Try again later" },
+			expected: "Try again later",
+		},
+		{
+			name: "missing error fields",
+			result: { error: false, detail: null, validations: [{ field: "name" }] },
+			expected: "",
+		},
+	])("formats $name", ({ result, expected }) => {
+		expect(formatToolError(result)).toBe(expected);
 	});
 });
 

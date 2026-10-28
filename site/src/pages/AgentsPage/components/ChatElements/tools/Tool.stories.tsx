@@ -1650,12 +1650,6 @@ export const WriteFileDeniedByHook: Story = {
 				"This tool usage was blocked by an external policy (the deployment's lifecycle hook); the tool call was not executed. Reason: writes to src are blocked.",
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(
-			canvas.getByRole("button", { name: /Failed to write helpers\.ts/ }),
-		);
-	},
 };
 
 // ---------------------------------------------------------------------------
@@ -2887,9 +2881,129 @@ export const StopWorkspaceError: Story = {
 		status: "error",
 		isError: true,
 		result: {
-			error: "workspace was deleted; use create_workspace to make a new one",
+			error: "Workspace was deleted.",
+			detail: "Use create_workspace to make a new one.",
 		},
 	},
+};
+
+export const WorkspaceErrorsWithoutBuild: Story = {
+	args: {
+		status: "completed",
+		isError: false,
+		result: {
+			error: "Workspace request failed.",
+			detail: "Connect your GitHub account before retrying.",
+			validations: [
+				{ field: "external_auth", detail: "Authentication required" },
+			],
+		},
+	},
+	render: (args) => (
+		<div className="flex w-full max-w-lg flex-col gap-6">
+			{["start_workspace", "stop_workspace", "create_workspace"].map((name) => (
+				<Tool {...args} key={name} name={name} />
+			))}
+		</div>
+	),
+};
+
+export const ToolErrorDetails: Story = {
+	args: {
+		status: "error",
+		isError: true,
+		result: {
+			error: "Request failed.",
+			detail: "Check the configuration and try again.",
+			validations: [{ field: "name", detail: "A name is required" }],
+		},
+	},
+	render: (args) => (
+		<div className="flex w-full max-w-lg flex-col gap-6">
+			{[
+				"custom_tool",
+				"read_file",
+				"list_templates",
+				"spawn_agent",
+				"computer",
+			].map((name) => (
+				<Tool {...args} key={name} name={name} />
+			))}
+		</div>
+	),
+};
+
+export const GroupedReadFileError: Story = {
+	render: (args) => (
+		<BlockList
+			organizationId={args.organizationId}
+			mcpServers={args.mcpServers}
+			subagentTitles={args.subagentTitles}
+			subagentVariants={args.subagentVariants}
+			keyPrefix="grouped-read-file-error"
+			isStreaming={false}
+			hasUserResponseAfterAskQuestion={false}
+			onImageClick={fn()}
+			onTextFileClick={fn()}
+			urlTransform={defaultUrlTransform}
+			blocks={[
+				{ type: "tool", id: "read-success" },
+				{ type: "tool", id: "read-error" },
+			]}
+			tools={[
+				{
+					id: "read-success",
+					name: "read_file",
+					status: "completed",
+					isError: false,
+					args: { path: "README.md" },
+					result: { content: "# Project", message: "File read successfully" },
+				},
+				{
+					id: "read-error",
+					name: "read_file",
+					status: "error",
+					isError: true,
+					args: { path: "config.yaml" },
+					result: {
+						error: "Cannot read config.yaml",
+						detail: "Choose a file inside the workspace.",
+						validations: [
+							{ field: "path", detail: "Path is outside the workspace" },
+						],
+					},
+				},
+			]}
+		/>
+	),
+};
+
+export const GroupedReadFileErrorExpanded: Story = {
+	...GroupedReadFileError,
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: /Read 2 files/ }),
+		);
+	},
+};
+
+export const LongToolError: Story = {
+	args: {
+		name: "stop_workspace",
+		status: "error",
+		isError: true,
+		result: {
+			error: "Workspace build failed.",
+			detail: `Unable to provision ${"workspace-".repeat(30)}.\nCheck the template configuration before retrying.`,
+		},
+	},
+	decorators: [
+		(Story) => (
+			<div className="w-72">
+				<Story />
+			</div>
+		),
+	],
 };
 
 export const StopWorkspaceBuildFailed: Story = {
