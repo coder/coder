@@ -24,8 +24,10 @@ context administration board, so every action on it must be cheap.
 Design rules that came out of building it:
 
 - Durable state lives in chat labels only (prefix `board/`), so nothing needs
-  backend support and other tools can tell these labels apart. Browser-local
-  state (column order, window geometry) may be lost.
+  backend support and other tools can tell these labels apart. The one
+  exception is a chat's project, which is the chat's own `project_id`.
+  Browser-local state (column order, window geometry, collapsed lanes) may be
+  lost.
 - Grouping must never hide a chat, in the board or in the sidebar.
 - Cards stay where the user put them; chat activity never reorders them.
 - One editing language everywhere: click the text to edit it in place, no
@@ -75,6 +77,25 @@ Efforts
   can be renamed from the filter. The filter survives a reload and
   combines with search. A chat started in a column while the filter is set
   takes that effort, so it does not vanish as it lands.
+
+Projects
+
+- When I can use at least one project, the board has a lane per project and
+  one for chats in no project. Each lane holds its own row of the board's
+  columns. A lane's header collapses it, links to the project page and
+  opens the lane's assistant. A card's lane is its primary chat's project.
+- Dragging a card, or a chat out of a card, into another lane moves its
+  chats into that project, its assistant too when the whole card moves.
+  Dropping onto a card in another lane moves the dropped chats there and
+  groups them in one step. A working chat cannot change project, so its
+  drag lights up nothing in other lanes and says why.
+- A chat started in a lane's column, or in a card, is created in that
+  project; the composer is locked to it. The composer elsewhere honors its
+  project picker.
+- Each lane's assistant is created in the lane's project, so it has the
+  project's instructions, skills and memory, and is told to work on that
+  lane's cards. A card assistant is created in its card's project. The
+  board assistant stays outside projects and is told how to read them.
 
 Status at a glance
 
@@ -150,10 +171,10 @@ snapshot the previous maps of every touched chat so they can be undone.
   write aborts a board refetch in flight, and a refetch that overlaps a
   write keeps the board's labels. The list refreshes once the label writes
   have been quiet for a moment.
-- `boardDrag.ts` maps a dnd-kit collision to a drop target and a drop to
-  a command; `windows.ts` is pure window geometry and list edits.
+- `boardDrag.ts` maps the pointer to a drop target and a drop to a command,
+  adding the project moves a drop into another lane means; `windows.ts` is pure window geometry and list edits.
 - `ChatBoardPage.tsx` owns state and mutations; `BoardHeader.tsx`,
-  `BoardColumns.tsx` and `BoardWindows.tsx` are its JSX. Columns, cards and
+  `BoardLane.tsx`, `BoardColumns.tsx` and `BoardWindows.tsx` are its JSX. Columns, cards and
   `NotesSection.tsx` translate gestures into one command call each; the
   page filters the rendered columns but always hands the full model to the
   commands. `BoardCard.tsx` composes `CardColorPicker.tsx`,
@@ -180,6 +201,12 @@ Seen while a board assistant worked, as of this experiment:
 - `coder_get_chat` returns the chat's full file list.
 
 ## Not done
+
+- A lane is as tall as its tallest column, so a big lane pushes the lanes
+  below it down the page; collapse it to reach them.
+- A card whose chats are in different projects, grouped before lanes or
+  moved outside the board, sits in its primary chat's lane; moving the card
+  puts every chat in one project.
 
 - Multi pull request chats show the first pull request only.
 - The assistant is not told when its snapshot is stale on return.

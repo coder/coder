@@ -17,6 +17,14 @@ type DraftChatProps = {
 	 * plain text, so the context needs no Markdown quoting.
 	 */
 	readonly context: string | undefined;
+	/**
+	 * A project locks the composer to it and null locks it outside every
+	 * project; undefined leaves the choice to the composer's project picker.
+	 */
+	readonly project:
+		| Pick<TypesGen.ChatProject, "id" | "organization_id">
+		| null
+		| undefined;
 	readonly onCreated: (chatId: string) => void;
 };
 
@@ -30,6 +38,7 @@ type DraftChatProps = {
 export const DraftChat: React.FC<DraftChatProps> = ({
 	labels,
 	context,
+	project,
 	onCreated,
 }) => {
 	const queryClient = useQueryClient();
@@ -46,6 +55,7 @@ export const DraftChat: React.FC<DraftChatProps> = ({
 		reasoningEffort,
 		mcpServerIds,
 		organizationId,
+		projectId,
 		planMode,
 	}: CreateChatOptions) => {
 		const text = [message.trim() ? message : "", context ?? ""]
@@ -60,6 +70,7 @@ export const DraftChat: React.FC<DraftChatProps> = ({
 		}
 		const createdChat = await createMutation.mutateAsync({
 			organization_id: organizationId,
+			project_id: projectId,
 			content,
 			workspace_id: workspaceId,
 			mcp_server_ids:
@@ -75,6 +86,8 @@ export const DraftChat: React.FC<DraftChatProps> = ({
 
 	return (
 		<AgentCreateForm
+			project={project ?? undefined}
+			withoutProject={project === null}
 			onCreateChat={handleCreateChat}
 			isCreating={createMutation.isPending}
 			createError={createMutation.error}

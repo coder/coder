@@ -6,12 +6,14 @@ import {
 	addNote,
 	type BoardState,
 	cardContext,
+	cardProjectIds,
 	deleteColumn,
 	detachChat,
 	effortCounts,
 	joinCard,
 	mergeCards,
 	moveCard,
+	moveCardToProject,
 	moveColumn,
 	moveNote,
 	newChatLabels,
@@ -44,6 +46,7 @@ const stateOf = (
 		emptyColumns: [],
 		windows: [],
 		effortFilter: null,
+		collapsedLanes: [],
 		...storage,
 	};
 	return {
@@ -603,5 +606,29 @@ describe("boardApi", () => {
 			{ name: "This week", count: 1 },
 		]);
 		expect(effortCounts([])).toEqual([]);
+	});
+});
+
+describe("moveCardToProject", () => {
+	it("moves the chats and assistant outside the chosen project, and nothing when all are in it", () => {
+		const [card] = buildCards([
+			{ ...chat("p"), project_id: "a" },
+			{ ...chat("m", { "board/group": "p" }), project_id: undefined },
+		]);
+		if (!card) throw new Error("card missing");
+		expect(cardProjectIds(card)).toEqual(["a", null]);
+
+		const assistant = { ...chat("x"), project_id: undefined };
+		const plan = moveCardToProject(card, "a", "Alpha", assistant);
+		expect(plan?.projectMoves?.map((m) => [m.chat.id, m.projectId])).toEqual([
+			["m", "a"],
+			["x", "a"],
+		]);
+		expect(plan?.undo).toBe('Moved "Chat p" to Alpha');
+
+		const [whole] = buildCards([{ ...chat("q"), project_id: "a" }]);
+		if (!whole) throw new Error("card missing");
+		expect(cardProjectIds(whole)).toEqual(["a"]);
+		expect(moveCardToProject(whole, "a", "Alpha", undefined)).toBeNull();
 	});
 });
