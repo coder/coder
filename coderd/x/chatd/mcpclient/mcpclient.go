@@ -1515,13 +1515,13 @@ func resourceFilename(uri, mediaType string) string {
 		return ""
 	}
 	// TypeByExtension adds a charset parameter to text types.
-	if extType, _, _ := mime.ParseMediaType(mime.TypeByExtension(path.Ext(name))); extType == baseType {
+	if extType, _, err := mime.ParseMediaType(mime.TypeByExtension(path.Ext(name))); err == nil && extType == baseType {
 		return name
 	}
 	ext := ".pdf"
 	if baseType != "application/pdf" {
-		exts, _ := mime.ExtensionsByType(baseType)
-		if len(exts) == 0 {
+		exts, err := mime.ExtensionsByType(baseType)
+		if err != nil || len(exts) == 0 {
 			return ""
 		}
 		ext = exts[0]
