@@ -4,9 +4,9 @@ A/B Coder Agents between a branch and `main` using
 [Harbor](https://github.com/harbor-framework/harbor) and Terminal-Bench 2.0.
 Run it manually from a dogfood workspace; it is not wired into CI.
 
-- `eval.sh <name>`: builds coderd from the current checkout, serves it with
-  embedded Postgres, runs Terminal-Bench 2.0 against it with Coder Agents, and
-  writes `jobs/<name>`. Run it once per arm.
+- `eval.sh`: the whole A/B. Builds coderd from the baseline and from the
+  current checkout, runs Terminal-Bench 2.0 against each with Coder Agents,
+  and prints the comparison.
 - `harbor_coder.environment:CoderEnvironment`: Harbor environment provider
   that runs each trial in a Coder workspace (task image plus the `coder`
   binary, created from `template/`, exec over `coder ssh`).
@@ -31,29 +31,30 @@ export PATH="$PWD/.harbor-coder/venv/bin:$PATH"
 # Dogfood gateway auth. The gateway ignores token scopes, so keep it narrow.
 export HARBOR_CODER_UPSTREAM_TOKEN=$(coder tokens create --lifetime 8h --scope user:read_personal)
 
-git checkout main && ./scripts/harbor-coder/eval.sh main
-git checkout my-prompt-change && ./scripts/harbor-coder/eval.sh branch
-python -m harbor_coder.compare --baseline jobs/main --candidate jobs/branch
+git checkout my-prompt-change
+./scripts/harbor-coder/eval.sh
 ```
 
-Use the commit your branch forked from as the baseline (`git merge-base main
-HEAD`) rather than the `main` tip, so later `main` changes are not attributed
-to your branch. Each arm builds its own coderd and refuses to start while
-something else answers on its port, and task images are tagged with the
-`coder` binary's hash, so the second arm cannot silently reuse the first build.
+`eval.sh` builds coderd twice: from the branch's merge base with `main`
+(in a temporary git worktree, so later `main` changes are not attributed to
+your branch) and from the current checkout, including uncommitted changes.
+Each arm gets a fresh embedded Postgres and runs 74 of Terminal-Bench 2.0's
+89 tasks: 3 are broken upstream, 9 are 20 to 60 minute ML and emulation
+tasks the prompt cannot affect, and 3 security tasks are always refused by
+Anthropic's content policy. Results land in `jobs/baseline`, `jobs/candidate`,
+and `jobs/report.md`.
 
-`eval.sh` runs 74 of the 89 tasks: 3 are broken upstream, 9 are 20 to 60
-minute ML and emulation tasks the prompt cannot affect, and 3 security tasks
-are always refused by Anthropic's content policy. Defaults are
-`claude-sonnet-5-5`, 2 attempts per task, concurrency 5 (chatd's unlicensed
-cap on concurrent chats); override with `HARBOR_CODER_MODEL`,
-`HARBOR_ATTEMPTS`, `HARBOR_CONCURRENCY`, `HARBOR_DATASET`. Measured: about
-$23 and 90 minutes per arm at these defaults; the full 86 tasks on `main`
-scored 73% at $31.54 and 3.4h.
+`--baseline <ref>` overrides the baseline. `--baseline HEAD` runs the same
+build twice, which is the noise floor; do that once before trusting a small
+delta. Defaults are `claude-sonnet-5-5`, 2 attempts per task, concurrency 5
+(chatd's unlicensed cap on concurrent chats); override with
+`HARBOR_CODER_MODEL`, `HARBOR_ATTEMPTS`, `HARBOR_CONCURRENCY`,
+`HARBOR_DATASET`, `HARBOR_PORT`, `HARBOR_JOBS_DIR`. Measured: about $23 and
+90 minutes per arm at these defaults, so roughly $47 and 3 hours for a full
+A/B; the complete 86 tasks on `main` scored 73% at $31.54 and 3.4h per arm.
 
 `compare` calls a change better or worse only when a paired bootstrap 95%
-interval over tasks excludes zero. Run main-vs-main once if you want to see
-the noise floor for yourself.
+interval over tasks excludes zero.
 
 ## Notes
 
@@ -62,7 +63,6 @@ the noise floor for yourself.
 - Any Harbor registry dataset works if its image has `bash` and `tar`, runs as
   root, and does not need `no-network` or a GPU.
 - Each Terminal-Bench image is pulled and re-layered per task; a full arm
-  churns ~100GB of Docker disk. `docker image prune -af` between arms if the
-  workspace is tight.
+  churns ~100GB of Docker disk. `eval.sh` prunes images between arms.
 - `.harbor-coder/` holds the built binary, embedded Postgres, logs, and the
   venv; it is gitignored.
