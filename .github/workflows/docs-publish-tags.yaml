@@ -1,0 +1,68 @@
+# Starts coder/docs-engine's publish-version.yml for every vX.Y.Z tag, so the
+# release's docs version appears without waiting for the daily reconciler
+# there. A tag that is already published ends there without a build.
+#
+# Kept apart from docs-publish.yaml so no paths filter applies to tags: a
+# release tag rarely points at a commit that touched docs/.
+#
+# Nothing is checked out. The token comes from a GitHub App installed only on
+# coder/docs-engine with Actions: write, and is scoped to that here as well.
+name: docs-publish-tags
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions: {}
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - name: Check the tag and the App secrets
+        id: check
+        env:
+          REF: ${{ github.ref_name }}
+          HAS_APP_ID: ${{ secrets.DOCS_PUBLISH_APP_ID != '' }}
+          HAS_APP_KEY: ${{ secrets.DOCS_PUBLISH_APP_PRIVATE_KEY != '' }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "${REF} is not a vX.Y.Z release tag; nothing to publish."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ "$HAS_APP_ID" != true || "$HAS_APP_KEY" != true ]]; then
+            echo "::error::Set the repository secrets DOCS_PUBLISH_APP_ID and DOCS_PUBLISH_APP_PRIVATE_KEY (see coder/docs-engine apps/docs/README.md, \"The publish App\")." >&2
+            exit 1
+          fi
+          echo "publish=true" >> "$GITHUB_OUTPUT"
+
+      - name: Mint a docs-engine dispatch token
+        if: steps.check.outputs.publish == 'true'
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.DOCS_PUBLISH_APP_ID }}
+          private-key: ${{ secrets.DOCS_PUBLISH_APP_PRIVATE_KEY }}
+          owner: coder
+          repositories: docs-engine
+          permission-actions: write
+
+      - name: Start the docs-engine publish
+        if: steps.check.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          REF: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          gh workflow run publish-version.yml -R coder/docs-engine --ref main -f ref="$REF"
+          echo "Started a docs-engine publish of ${REF}."
