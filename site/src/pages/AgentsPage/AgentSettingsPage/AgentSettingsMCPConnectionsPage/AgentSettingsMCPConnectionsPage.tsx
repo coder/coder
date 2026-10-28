@@ -12,6 +12,7 @@ import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	getDefaultOrganizationId,
+	getMemberOrganizations,
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
 import { useMCPOAuthFlow } from "../../hooks/useMCPOAuthFlow";
@@ -30,10 +31,9 @@ const AgentSettingsMCPConnectionsPage: React.FC = () => {
 	const { user } = useAuthenticated();
 	const location = useLocation();
 	const queryClient = useQueryClient();
-	// The dashboard lists every organization the user can read, but chats
-	// only run in organizations the user is a member of.
-	const memberOrganizations = useDashboard().organizations.filter(
-		(organization) => user.organization_ids.includes(organization.id),
+	const memberOrganizations = getMemberOrganizations(
+		useDashboard().organizations,
+		user,
 	);
 	const [selectedOrganizationId, setSelectedOrganizationId] = useState(() =>
 		getStateOrganizationId(location.state),

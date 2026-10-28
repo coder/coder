@@ -2,9 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { MCPServerConfig } from "#/api/typesGenerated";
 import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import {
-	countMCPServersNeedingSignIn,
 	getDefaultMCPSelection,
-	getMCPMenuServers,
 	getSavedMCPSelection,
 	mcpSelectionStorageKey,
 	saveMCPSelection,
@@ -230,63 +228,5 @@ describe("MCP selection persistence", () => {
 			];
 			expect(getDefaultMCPSelection(servers)).toEqual([]);
 		});
-	});
-});
-
-describe("getMCPMenuServers", () => {
-	const mockAPIKeyServer = buildServer({ id: "linear", auth_type: "api_key" });
-	const mockConnectedServer = buildServer({
-		id: "github",
-		auth_type: "oauth2",
-		auth_connected: true,
-	});
-	const mockSignedOutSelectedServer = buildServer({
-		id: "notion",
-		auth_type: "oauth2",
-		auth_connected: false,
-	});
-	const mockSignedOutForcedServer = buildServer({
-		id: "slack",
-		auth_type: "oauth2",
-		auth_connected: false,
-		availability: "force_on",
-	});
-	const mockSignedOutUnselectedServer = buildServer({
-		id: "wiz",
-		auth_type: "oauth2",
-		auth_connected: false,
-	});
-	const mockServers = [
-		mockAPIKeyServer,
-		mockConnectedServer,
-		mockSignedOutSelectedServer,
-		mockSignedOutForcedServer,
-		mockSignedOutUnselectedServer,
-	];
-
-	it("lists usable servers and selected or forced servers that are signed out", () => {
-		expect(
-			getMCPMenuServers(mockServers, [
-				mockConnectedServer.id,
-				mockSignedOutSelectedServer.id,
-			]),
-		).toEqual([
-			{ server: mockAPIKeyServer, isSelected: false, isDisconnected: false },
-			{ server: mockConnectedServer, isSelected: true, isDisconnected: false },
-			{
-				server: mockSignedOutSelectedServer,
-				isSelected: true,
-				isDisconnected: true,
-			},
-			{
-				server: mockSignedOutForcedServer,
-				isSelected: true,
-				isDisconnected: true,
-			},
-		]);
-	});
-
-	it("counts every server that needs sign-in", () => {
-		expect(countMCPServersNeedingSignIn(mockServers)).toBe(3);
 	});
 });

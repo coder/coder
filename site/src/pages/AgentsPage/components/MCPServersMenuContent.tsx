@@ -11,7 +11,7 @@ import { Switch } from "#/components/Switch/Switch";
 import {
 	countMCPServersNeedingSignIn,
 	getMCPMenuServers,
-} from "../utils/mcpSelection";
+} from "./mcpMenuServers";
 
 type MCPServerMenuRowProps = {
 	server: TypesGen.MCPServerConfig;
@@ -117,11 +117,11 @@ export const MCPServersMenuContent: React.FC<MCPServersMenuContentProps> = ({
 				))
 			)}
 			<Separator className="my-1" />
-			<div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1 py-0.5">
+			<div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 py-0.5">
 				<span className="whitespace-nowrap text-xs text-content-secondary">
 					{disconnectedCount === 0
 						? "All connected"
-						: `${disconnectedCount} not connected`}
+						: `${disconnectedCount} ${disconnectedCount === 1 ? "server" : "servers"} not connected`}
 				</span>
 				{onManageConnections && (
 					<Button

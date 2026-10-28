@@ -99,6 +99,17 @@ export const Mobile: Story = {
 	},
 };
 
+// Between the @lg and @2xl container widths: Description shows, Status does not.
+export const NarrowContainer: Story = {
+	decorators: [
+		(Story) => (
+			<div className="w-[580px]">
+				<Story />
+			</div>
+		),
+	],
+};
+
 export const Loading: Story = {
 	args: {
 		servers: undefined,
@@ -116,6 +127,14 @@ export const LoadError: Story = {
 export const Empty: Story = {
 	args: {
 		servers: [mockImageMCP, mockRegistryMCP],
+	},
+};
+
+export const NoOrganization: Story = {
+	args: {
+		organizations: [],
+		organization: undefined,
+		servers: undefined,
 	},
 };
 

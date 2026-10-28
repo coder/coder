@@ -168,6 +168,12 @@ export const AgentSettingsMCPConnectionsPageView: React.FC<
 	const noSignInNames = enabledServers
 		.filter((server) => server.auth_type !== "oauth2")
 		.map((server) => server.display_name);
+	let emptyMessage = `No MCP servers need sign-in in ${organizationName}`;
+	if (error) {
+		emptyMessage = "Failed to load MCP servers";
+	} else if (!organization) {
+		emptyMessage = "You are not a member of any organization";
+	}
 
 	return (
 		<div className="flex flex-col gap-8">
@@ -224,7 +230,7 @@ export const AgentSettingsMCPConnectionsPageView: React.FC<
 						{isLoading ? (
 							<TableLoaderSkeleton>
 								<TableRowSkeleton aria-label="Loading MCP servers">
-									<TableCell>
+									<TableCell className="w-full max-w-0 @lg:w-auto @lg:max-w-48">
 										<Skeleton variant="text" className="w-32" />
 									</TableCell>
 									<TableCell className="hidden w-full max-w-0 @lg:table-cell">
@@ -234,18 +240,12 @@ export const AgentSettingsMCPConnectionsPageView: React.FC<
 										<Skeleton variant="text" className="w-24" />
 									</TableCell>
 									<TableCell>
-										<Skeleton className="h-8 w-24" />
+										<Skeleton className="ml-auto h-8 w-24" />
 									</TableCell>
 								</TableRowSkeleton>
 							</TableLoaderSkeleton>
 						) : oauthServers.length === 0 ? (
-							<TableEmpty
-								message={
-									error
-										? "Failed to load MCP servers"
-										: `No MCP servers need sign-in in ${organizationName}`
-								}
-							/>
+							<TableEmpty message={emptyMessage} />
 						) : (
 							oauthServers.map((server) => (
 								<MCPConnectionRow
