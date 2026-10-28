@@ -1,6 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import type { ChatContext } from "#/api/typesGenerated";
 import {
+	MockChatContextACPHarnesses,
+	MockChatContextACPHarnessIssue,
 	MockChatContextClean,
 	MockChatContextDirty,
 } from "#/testHelpers/chatEntities";
@@ -115,6 +118,65 @@ export const ChatModelCompactionBinding: Story = {
 	},
 };
 
+const mockChatContextACPHarnessesWithOtherContext: ChatContext = {
+	...MockChatContextClean,
+	resources: [
+		...(MockChatContextClean.resources ?? []),
+		...(MockChatContextACPHarnesses.resources ?? []),
+	],
+};
+
+const mockChatContextACPHarnessesWithoutSourcePath: ChatContext = {
+	...MockChatContextACPHarnesses,
+	resources: MockChatContextACPHarnesses.resources?.map((resource) => ({
+		...resource,
+		source_path: undefined,
+	})),
+};
+
+export const ACPHarnesses: Story = {
+	args: {
+		usage: {
+			usedTokens: 12_000,
+			contextLimitTokens: 200_000,
+			context: MockChatContextACPHarnesses,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(within(canvasElement).getByRole("button"));
+	},
+};
+
+export const ACPHarnessesWithOtherContext: Story = {
+	...ACPHarnesses,
+	args: {
+		usage: {
+			...ACPHarnesses.args?.usage,
+			context: mockChatContextACPHarnessesWithOtherContext,
+		},
+	},
+};
+
+export const ACPHarnessIssue: Story = {
+	...ACPHarnesses,
+	args: {
+		usage: {
+			...ACPHarnesses.args?.usage,
+			context: MockChatContextACPHarnessIssue,
+		},
+	},
+};
+
+export const ACPHarnessesWithoutSourcePath: Story = {
+	...ACPHarnesses,
+	args: {
+		usage: {
+			...ACPHarnesses.args?.usage,
+			context: mockChatContextACPHarnessesWithoutSourcePath,
+		},
+	},
+};
+
 // A pinned resource issue flags the ring and appears under Issues.
 export const ResourceIssue: Story = {
 	args: {
@@ -127,6 +189,9 @@ export const ResourceIssue: Story = {
 	play: async ({ canvasElement }) => {
 		const button = within(canvasElement).getByRole("button");
 		await userEvent.hover(button);
+		await waitFor(() =>
+			expect(button).toHaveAttribute("aria-expanded", "true"),
+		);
 	},
 };
 

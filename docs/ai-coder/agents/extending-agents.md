@@ -3,15 +3,14 @@ title: Extending agents
 ---
 
 Workspace templates can extend the agent with custom skills and MCP tools.
-These mechanisms let platform teams provide repository-specific instructions,
-domain expertise, and external tool integrations without modifying the agent
-itself.
+These mechanisms let platform teams provide repository-specific instructions, domain expertise, and external tool integrations without modifying the agent itself.
 
 ## How the workspace shares context with chats
 
 The workspace agent owns discovery.
 It scans a fixed set of locations for instruction files, skills, and MCP configuration, then pushes the result to Coder as a single context snapshot.
-Chats never scan the workspace themselves; they read the snapshot the agent pushed.
+Chats never scan the workspace themselves.
+They read the snapshot the agent pushed.
 
 A workspace-attached chat pins one snapshot.
 The pinned copy is what the agent's system prompt and tool list are built from, so a chat keeps working with a consistent view of your skills and MCP tools even while you edit files in the workspace.
@@ -41,7 +40,8 @@ The agent scans the following:
 - Any additional source you declare through the agent's context sources API
 
 Declared sources contribute instruction files and skills only.
-A `.mcp.json` file inside a declared source appears in the context inventory, but the agent does not connect to the servers it lists; MCP servers load only from the workspace working directory.
+A `.mcp.json` file inside a declared source appears in the context inventory, but the agent does not connect to the servers it lists.
+MCP servers load only from the workspace working directory.
 
 Discovery is shallow.
 Instruction files (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`) and `.mcp.json` are read only at the top level of a scan root, and skills are read only from the fixed container directories described below.
@@ -66,11 +66,12 @@ Excluded and oversize resources still appear in the chat's context list with the
 ## Skills
 
 Skills are structured, reusable instruction sets that the agent loads on demand.
-A chat can use skills from three sources:
+A chat can use skills from four sources:
 
 - Workspace skills live in the workspace filesystem and are discovered automatically when a chat attaches to a workspace.
 - [Personal skills](#personal-skills) belong to you and are available to all of your chats.
 - [Organization skills](#organization-skills) belong to an organization and are available to the chats in that organization.
+- [Project skills](#project-skills) belong to a chat project and are available to the chats in that project.
 
 The rest of this section describes workspace skills.
 
@@ -86,7 +87,7 @@ The agent looks for skill directories in the immediate children of these contain
 
 Because `~/.coder/skills` is itself a scan root, skills placed directly under it are discovered too.
 
-Each discovered skill contributes its name and description to the `<available-skills>` block in the agent's system prompt.
+Each discovered skill contributes its name and description to the `<available-skills>` block in the agent's system prompt, unless its frontmatter sets `disable-model-invocation: true`.
 The full instructions are loaded only when the agent calls a tool, and they are served from the chat's pinned snapshot rather than read live from the workspace.
 A skill added after a chat pinned its snapshot appears in that chat after you refresh its context.
 
@@ -97,12 +98,9 @@ Two tools are registered when skills are present:
 | `read_skill`      | `name` (string)                  | Returns the SKILL.md body, the absolute skill directory (workspace skills), and a list of supporting files |
 | `read_skill_file` | `name` (string), `path` (string) | Returns the content of a supporting file                                                                   |
 
-For workspace skills, `read_skill` also returns `dir`, the absolute path to
-the skill directory in the workspace. The agent's `read_file` and `execute`
-tools operate on that same workspace filesystem, so you can join `dir` with a
-supporting file's relative path to read or run that file directly, for example
-to execute a bundled `scripts/` helper. `read_skill_file` remains available as
-a path-safe convenience for reading supporting files.
+For workspace skills, `read_skill` also returns `dir`, the absolute path to the skill directory in the workspace.
+The agent's `read_file` and `execute` tools operate on that same workspace filesystem, so you can join `dir` with a supporting file's relative path to read or run that file directly, for example to execute a bundled `scripts/` helper.
+`read_skill_file` remains available as a path-safe convenience for reading supporting files.
 
 Supporting files are read over the workspace connection, so `read_skill_file` and the supporting-file list need a reachable workspace.
 The skill body comes from the pin and keeps working when the workspace is unreachable.
@@ -124,8 +122,7 @@ The skill body comes from the pin and keeps working when the workspace is unreac
 
 ### SKILL.md format
 
-Each `SKILL.md` starts with YAML frontmatter containing a `name` and an
-optional `description`, followed by the full instructions in markdown:
+Each `SKILL.md` starts with YAML frontmatter containing a `name` and an optional `description`, followed by the full instructions in markdown:
 
 ```md
 ---
@@ -138,10 +135,18 @@ description: "Multi-reviewer code review with domain-specific reviewers"
 Instructions for the skill go here...
 ```
 
+To keep agents from using a skill on their own, add `disable-model-invocation: true` to its frontmatter.
+The skill isn't in the list of skills the agent can choose from, and the agent can't load it.
+You can still invoke the skill from the `/` menu in the chat composer.
+For a workspace skill, `read_skill_file` still returns its supporting files, so the agent can read the files an invoked skill's instructions reference.
+When you invoke a workspace skill, the agent also gets the skill's directory, as long as the chat stays in that workspace, so the agent can run the scripts that the skill includes.
+
+For a personal, organization, or project skill, the key takes effect only when you create the skill.
+For details, refer to [Turn off automatic use](#turn-off-automatic-use).
+
 ### Naming and size constraints
 
-- Names must be kebab-case (`^[a-z0-9]+(-[a-z0-9]+)*$`) and match the
-  directory name exactly.
+- Names must be kebab-case (`^[a-z0-9]+(-[a-z0-9]+)*$`) and match the directory name exactly.
 - `SKILL.md` has a maximum size of 64&nbsp;KB.
   A larger file is reported with an oversize status and contributes no content to the chat.
 - Supporting files have a maximum size of 512&nbsp;KB.
@@ -151,9 +156,8 @@ A skill with its frontmatter missing, unparsable, not kebab-case, or not matchin
 
 ### Path safety
 
-`read_skill_file` rejects absolute paths, paths containing `..`, and
-references to hidden files. All paths are resolved relative to the skill
-directory.
+`read_skill_file` rejects absolute paths, paths containing `..`, and references to hidden files.
+All paths are resolved relative to the skill directory.
 
 ## Personal skills
 
@@ -161,10 +165,8 @@ Personal skills are user-owned skills that are available to all of your chats.
 They are not tied to a specific workspace.
 Manage them from the **Agents** page, under **Settings** > **Skills**, in the **Personal skills** section.
 
-Personal skills use the same `SKILL.md` format as workspace skills: YAML
-frontmatter with a kebab-case `name`, an optional `description`, and a
-markdown body. This keeps content portable between personal skills and
-workspace skills.
+Personal skills use the same `SKILL.md` format as workspace skills: YAML frontmatter with a kebab-case `name`, an optional `description`, and a markdown body.
+This keeps content portable between personal skills and workspace skills.
 
 ```md
 ---
@@ -177,15 +179,14 @@ description: "Personal review guidance"
 Instructions for the skill go here...
 ```
 
-Each personal skill is stored as a single `SKILL.md` file containing
-frontmatter and body content. Supporting files are not supported. Each
-`SKILL.md` file can be up to 64&nbsp;KB, and each user can create up to 100 personal skills.
+Each personal skill is stored as a single `SKILL.md` file containing frontmatter and body content.
+Supporting files are not supported.
+Each `SKILL.md` file can be up to 64&nbsp;KB, and each user can create up to 100 personal skills.
 
 Personal skills are stored in Coder, not in the workspace, so they are not part of a workspace context snapshot and do not depend on a pin or a refresh.
 
-If you need richer skills with supporting files or multiple files, use
-workspace skills instead. Store them in the repo under
-`.agents/skills/<name>/`, or load them from a workspace.
+If you need richer skills with supporting files or multiple files, use workspace skills instead.
+Store them in the repo under `.agents/skills/<name>/`, or load them from a workspace.
 
 ## Organization skills
 
@@ -248,28 +249,63 @@ To save all of the listed skills of the selected organization in one archive, se
 This section is read-only.
 Ask an organization admin to change an organization skill.
 
+## Project skills
+
+Project skills let the people who work in a chat project share skills with every chat in that project.
+Chats outside the project never receive them.
+Chat projects are in [early access](../../reference/feature-stages.md#early-access-features).
+
+Project skills use the same single-file `SKILL.md` format and the same 64&nbsp;KB limit as personal skills, so they cannot include supporting files.
+Each project can have up to 100 skills, and skills that are turned off count toward that limit.
+
+Anyone who can edit a project can add, change, turn on or off, and delete its skills.
+To manage them, open the project page and select the **Skills** row in the **Details** panel.
+A chat in the project can use the project's skills while the chat owner owns the project or the project is shared with them, the same rule as for project instructions and memory.
+An administrator role that can view every project does not count.
+A sub-agent chat uses the skills of the project its top-level chat belongs to.
+
+**Show as action** adds a button that inserts the skill into your message, above the composer on the project page and in the project's chats.
+Turn off **Agents can use it automatically** to keep agents from loading the skill on their own, so it runs only when someone invokes it from the `/` menu or an action button.
+
+The project skill API lives under `/api/experimental/organizations/{organization}/chats/projects/{project}/skills`.
+It is experimental and might change.
+
 ## How chats load stored skills
 
-Personal and organization skills are stored in Coder, not in the workspace.
+Personal, organization, and project skills are stored in Coder, not in the workspace.
 At each step, a chat loads the personal skills of the chat owner that are turned on, and the organization skills of the chat's organization that are turned on and that the chat owner can use.
+A chat in a project also loads the project's skills that are turned on, as long as the chat owner owns the project or the project is shared with them.
 Workspace skills come from the chat's pinned context snapshot.
 
 Because stored skills are read again at each step, a change takes effect on the chat's next step.
 For example, when an administrator turns off an organization skill or removes someone's access, the chat stops listing that skill on its next step.
 
-The `/` menu in the chat composer lists skills in three groups: **Personal skills**, **Organization skills**, and **Workspace skills**.
+The `/` menu in the chat composer lists skills in four groups: **Personal skills**, **Organization skills**, **Project skills**, and **Workspace skills**.
+The **Project skills** group appears only in chats that belong to a project.
 The **Organization skills** group shows the skills of the chat's organization that are turned on and that you can use.
 For site owners, organization admins, and auditors, the group lists every organization skill that is turned on.
 
 ### Turn a skill on or off
 
-Personal and organization skills each have an **Enabled** column in their skills table.
+Personal, organization, and project skills each have an **Enabled** column in their skills table.
 If you can edit the skill, the column shows a switch that turns the skill on or off.
 Otherwise, the column shows a check mark for a skill that is turned on and an X for a skill that is turned off.
 For example, auditors on the **Skills** admin page and everyone in the **From your organizations** section see these icons instead of a switch.
 A skill that is turned off stays stored, but it is hidden from the `/` menu and from the list of skills the agent can choose from.
 If the agent asks for a skill that is turned off, `read_skill` reports that the skill was not found.
 When a chat has no skills left to load, the agent doesn't get the `read_skill` tool at all.
+A chat that has only workspace skills that set `disable-model-invocation: true` still gets `read_skill` and `read_skill_file`.
+
+### Turn off automatic use
+
+When automatic use is off, the agent can't use the skill on its own, but you can still invoke it from the `/` menu.
+The `disable-model-invocation: true` key turns off automatic use for a personal, organization, or project skill only when you create the skill in one of these ways:
+
+- You import a `SKILL.md` file that sets the key while you add a project skill.
+  The import turns off **Agents can use it automatically**, which [Project skills](#project-skills) describes.
+- You create the skill through the API from content that sets the key, and the request leaves out `model_invocable`.
+
+Adding the key to an existing skill doesn't change automatic use.
 
 ### Skills with the same name
 
@@ -281,8 +317,10 @@ Instead, each copy gets a qualified alias that names its source:
 |--------------|--------------------|
 | Personal     | `personal/<name>`  |
 | Organization | `org/<name>`       |
+| Project      | `project/<name>`   |
 | Workspace    | `workspace/<name>` |
 
+A workspace skill that sets `disable-model-invocation: true` isn't listed for the agent, so a listed skill that has the same name keeps its bare name.
 A bare name that matches more than one source is ambiguous, so `read_skill` rejects it.
 The agent must pass the qualified alias instead, for example `org/code-review`.
 
@@ -292,18 +330,15 @@ The `read_skill` result returns the skill body without the frontmatter, so it do
 
 ## Workspace MCP tools
 
-Workspace templates can expose custom
-[MCP](https://modelcontextprotocol.io/introduction) tools by placing a
-`.mcp.json` file in the workspace working directory.
+Workspace templates can expose custom [MCP](https://modelcontextprotocol.io/introduction) tools by placing a `.mcp.json` file in the workspace working directory.
 The agent connects to these servers, reports their tools in the context snapshot it pushes, and chats register those tools alongside their built-in tools.
 To declare an MCP server inline on one chat through the API instead, refer to [Inline MCP servers](./platform-controls/mcp-servers.md#inline-mcp-servers-experimental).
 
 ### Configuration
 
-Define MCP servers in `.mcp.json` at the workspace root. Each entry under
-`mcpServers` describes a server. The transport type is inferred from
-whether `command` or `url` is present, or you can set it explicitly with
-`type`:
+Define MCP servers in `.mcp.json` at the workspace root.
+Each entry under `mcpServers` describes a server.
+The transport type is inferred from whether `command` or `url` is present, or you can set it explicitly with `type`:
 
 ```json
 {
@@ -321,11 +356,13 @@ whether `command` or `url` is present, or you can set it explicitly with
 }
 ```
 
-**Stdio transport**: set `command`, and optionally `args` and `env`. The
-agent spawns the process in the workspace.
+**Stdio transport**:
+set `command`, and optionally `args` and `env`.
+The agent spawns the process in the workspace.
 
-**HTTP transport**: set `url`, and optionally `headers`. The agent connects
-to the HTTP endpoint from the workspace.
+**HTTP transport**:
+set `url`, and optionally `headers`.
+The agent connects to the HTTP endpoint from the workspace.
 
 ### How discovery works
 
@@ -339,17 +376,19 @@ Editing `.mcp.json` does not require a workspace restart.
 The agent notices edits to the file and reloads its servers automatically.
 The reload changes the pushed snapshot, but an MCP-only change does not mark existing chats out of date, and the dashboard offers **Refresh context** only on chats that are marked out of date.
 New chats and chats that have not pinned a snapshot yet receive the new tool set immediately.
-An existing chat keeps its current tool set until another context change, such as editing an instruction file or a skill, marks it out of date; refreshing then re-pins the whole snapshot, including the new MCP tools.
+An existing chat keeps its current tool set until another context change, such as editing an instruction file or a skill, marks it out of date.
+Refreshing then re-pins the whole snapshot, including the new MCP tools.
 
 The snapshot carries tool definitions only, not a way to run them.
 Every workspace MCP tool call is proxied back through the workspace agent, so a chat can list workspace MCP tools while the workspace is unreachable, but calling one requires a running workspace with the server connected.
 
 ### Tool naming
 
-Tool names are prefixed with the server name as `serverName__toolName` to
-avoid collisions between servers and with built-in tools.
+Tool names are prefixed with the server name as `serverName__toolName` to avoid collisions between servers and with built-in tools.
 
 ### Timeouts
 
-- **Server connect**: 30&nbsp;seconds per server.
-- **Tool calls**: 60&nbsp;seconds per invocation.
+- **Server connect**:
+  30&nbsp;seconds per server.
+- **Tool calls**:
+  60&nbsp;seconds per invocation.

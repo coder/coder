@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/url"
 	"slices"
 	"strings"
@@ -49,15 +50,17 @@ var (
 	// matching.
 	// TODO: return these errors to the client in a more structured/comparable
 	//       way.
-	ErrInvalidKey           = xerrors.New("invalid key")
-	ErrUnknownKey           = xerrors.New("unknown key")
-	ErrExpired              = xerrors.New("expired")
-	ErrUnknownUser          = xerrors.New("unknown user")
-	ErrDeletedUser          = xerrors.New("deleted user")
-	ErrInactiveUser         = xerrors.New("inactive user")
-	ErrSystemUser           = xerrors.New("system user")
-	ErrAmbiguousAuth        = xerrors.New("both key and key_id set; exactly one required")
-	ErrWorkspaceAttribution = xerrors.New("invalid workspace attribution")
+	ErrInvalidKey                = xerrors.New("invalid key")
+	ErrUnknownKey                = xerrors.New("unknown key")
+	ErrExpired                   = xerrors.New("expired")
+	ErrUnknownUser               = xerrors.New("unknown user")
+	ErrDeletedUser               = xerrors.New("deleted user")
+	ErrInactiveUser              = xerrors.New("inactive user")
+	ErrSystemUser                = xerrors.New("system user")
+	ErrAmbiguousAuth             = xerrors.New("both key and key_id set; exactly one required")
+	ErrWorkspaceAttribution      = xerrors.New("invalid workspace attribution")
+	ErrUnknownWorkspace          = xerrors.New("unknown workspace")
+	ErrUnknownOrganizationMember = xerrors.New("user is not a member of the workspace organization")
 
 	ErrNoExternalAuthLinkFound = xerrors.New("no external auth link found")
 )
@@ -78,7 +81,7 @@ type store interface {
 	// each token usage record.
 	GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (database.AIBridgeInterception, error)
 	GetAIProviderByName(ctx context.Context, name string) (database.AIProvider, error)
-	GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error)
+	GetAIModelPriceForProvider(ctx context.Context, arg database.GetAIModelPriceForProviderParams) (database.GetAIModelPriceForProviderRow, error)
 	GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error)
 	GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (database.GetHighestGroupAIBudgetByUserRow, error)
 	GetUserEveryoneFallbackGroup(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
@@ -93,6 +96,8 @@ type store interface {
 	// Authorizer-related queries.
 	GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (database.User, error)
+	GetWorkspaceByID(ctx context.Context, id uuid.UUID) (database.Workspace, error)
+	GetOrganizationsByUserID(ctx context.Context, arg database.GetOrganizationsByUserIDParams) ([]database.Organization, error)
 	// ProviderConfigurator-related queries. InTx wraps the provider and key
 	// reads in a single read-only transaction.
 	GetAIProviders(ctx context.Context, arg database.GetAIProvidersParams) ([]database.AIProvider, error)
@@ -765,6 +770,8 @@ externalAuthLoop:
 }
 
 // IsAuthorized validates a given Coder API key and returns the user ID to which it belongs (if valid).
+// It also returns the organization the request resolves to, as determined by [Server.resolveOrganization], and
+// rejects the request when that resolution fails.
 //
 // SECURITY: when in.KeyId is set (the "delegated" path), this method trusts the
 // caller's claim of identity and skips the key-secret check. This DRPCServer is
@@ -854,16 +861,68 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 		Username: user.Username,
 		Email:    user.Email,
 	}
+	var workspaceID uuid.NullUUID
 	if !delegated {
-		workspaceID, ok, err := workspaceAttribution(key)
+		id, ok, err := workspaceAttribution(key)
 		if err != nil {
 			return nil, err
 		}
 		if ok {
-			resp.WorkspaceId = workspaceID.String()
+			workspaceID = uuid.NullUUID{UUID: id, Valid: true}
+			resp.WorkspaceId = id.String()
 		}
 	}
+
+	orgID, err := s.resolveOrganization(ctx, user.ID, workspaceID)
+	if err != nil {
+		s.logger.Warn(ctx, "failed to resolve request organization", slog.F("key_id", keyID), slog.F("user_id", user.ID), slog.Error(err))
+		return nil, err
+	}
+	if orgID.Valid {
+		resp.OrganizationId = orgID.UUID.String()
+	}
 	return resp, nil
+}
+
+// resolveOrganization determines the organization an AI Gateway request acts
+// in. All org resolution for AI Gateway requests lives here.
+//
+// It returns the organization for a request made by userID. When the
+// request was authenticated with a workspace session token, workspaceID
+// identifies that workspace and its organization is returned. The workspace
+// must still exist and userID must still be a member of its organization.
+// The result is invalid when no org source applies to the request.
+func (s *Server) resolveOrganization(ctx context.Context, userID uuid.UUID, workspaceID uuid.NullUUID) (uuid.NullUUID, error) {
+	if !workspaceID.Valid {
+		return uuid.NullUUID{}, nil
+	}
+
+	workspace, err := s.store.GetWorkspaceByID(ctx, workspaceID.UUID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return uuid.NullUUID{}, ErrUnknownWorkspace
+	}
+	if err != nil {
+		return uuid.NullUUID{}, xerrors.Errorf("get workspace %s: %w", workspaceID.UUID, err)
+	}
+	// Workspaces are soft-deleted, so a deleted row still resolves by ID.
+	if workspace.Deleted {
+		return uuid.NullUUID{}, ErrUnknownWorkspace
+	}
+
+	orgs, err := s.store.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
+		UserID:  userID,
+		Deleted: sql.NullBool{Bool: false, Valid: true},
+	})
+	if err != nil {
+		return uuid.NullUUID{}, xerrors.Errorf("get organizations for user %s: %w", userID, err)
+	}
+	if !slices.ContainsFunc(orgs, func(org database.Organization) bool {
+		return org.ID == workspace.OrganizationID
+	}) {
+		return uuid.NullUUID{}, ErrUnknownOrganizationMember
+	}
+
+	return uuid.NullUUID{UUID: workspace.OrganizationID, Valid: true}, nil
 }
 
 // workspaceAttribution parses the workspace UUID from a strict server-minted

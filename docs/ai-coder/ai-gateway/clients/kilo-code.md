@@ -3,8 +3,7 @@ title: Kilo Code
 ---
 
 > [!NOTE]
-> AI Gateway is part of [AI Governance](../../ai-governance.md), which is
-> included with a Premium license.
+> AI Gateway is part of [AI Governance](../../ai-governance.md), which is included with a Premium license.
 
 Kilo Code allows you to configure providers via the UI and can be set up to use AI Gateway.
 
@@ -16,10 +15,14 @@ Kilo Code allows you to configure providers via the UI and can be set up to use 
 
 1. Open Kilo Code in VS Code.
 1. Go to **Settings**.
-1. **Provider**: Select **OpenAI**.
-1. **Base URL**: Enter `https://coder.example.com/api/v2/ai-gateway/openai/v1`.
-1. **API Key**: Enter your **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
-1. **Model ID**: Enter the model you wish to use (e.g., `gpt-5.2-codex`).
+1. **Provider**:
+   Select **OpenAI**.
+1. **Base URL**:
+   Enter `https://coder.example.com/api/v2/ai-gateway/openai/v1`.
+1. **API Key**:
+   Enter your **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
+1. **Model ID**:
+   Enter the model you wish to use (for example, `gpt-5.2-codex`).
 
 ![Kilo Code OpenAI Settings](../../../images/aibridge/clients/kilo-code-openai.png)
 
@@ -27,10 +30,14 @@ Kilo Code allows you to configure providers via the UI and can be set up to use 
 
 1. Open Kilo Code in VS Code.
 1. Go to **Settings**.
-1. **Provider**: Select **Anthropic**.
-1. **Base URL**: Enter `https://coder.example.com/api/v2/ai-gateway/anthropic`.
-1. **API Key**: Enter your **Coder API token**.
-1. **Model ID**: Select your desired Claude model.
+1. **Provider**:
+   Select **Anthropic**.
+1. **Base URL**:
+   Enter `https://coder.example.com/api/v2/ai-gateway/anthropic`.
+1. **API Key**:
+   Enter your **Coder API token**.
+1. **Model ID**:
+   Select your desired Claude model.
 
 ![Kilo Code Anthropic Settings](../../../images/aibridge/clients/kilo-code-anthropic.png)
 
@@ -41,4 +48,5 @@ Kilo Code allows you to configure providers via the UI and can be set up to use 
 > [!NOTE]
 > Kilo Code supports sending custom headers, but the integration does not currently work reliably with AI Gateway.
 
-**References:** [Kilo Code Configuration](https://kilocode.ai/docs/ai-providers/openai-compatible)
+**References:**
+[Kilo Code Configuration](https://kilocode.ai/docs/ai-providers/openai-compatible)

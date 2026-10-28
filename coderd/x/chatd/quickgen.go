@@ -180,14 +180,6 @@ var preferredTitleModels = []struct {
 	{fantasyvercel.Name, "anthropic/claude-haiku-4.5"},
 }
 
-// Debug attribution uses configured identities for title calls and the
-// resolved identity for status-label calls.
-type shortTextCandidate struct {
-	provider string
-	model    string
-	resolved resolvedModelCall
-}
-
 // modelSnapshotSuffix matches a dated snapshot suffix on a model ID, such as
 // claude-haiku-4-5-20251001 or gpt-4o-mini-2024-07-18, which admins commonly
 // configure in place of the alias.
@@ -417,7 +409,6 @@ func (p *Server) GenerateChatTitleForMessagesAsync(ctx context.Context, chat dat
 			messages,
 			pasteText,
 			resolved,
-			&generatedChatTitle{},
 			logger,
 			p.existingDebugService(),
 		)
@@ -442,7 +433,6 @@ func (p *Server) maybeGenerateChatTitle(
 	messages []database.ChatMessage,
 	pasteText map[uuid.UUID]string,
 	resolved resolvedModelCall,
-	generatedTitle *generatedChatTitle,
 	logger slog.Logger,
 	debugSvc *chatdebug.Service,
 ) {
@@ -454,12 +444,6 @@ func (p *Server) maybeGenerateChatTitle(
 
 	titleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-
-	candidate := shortTextCandidate{
-		provider: string(resolved.route.Provider.Type),
-		model:    resolved.dbConfig.Model,
-		resolved: resolved,
-	}
 
 	var historyTipMessageID int64
 	if len(messages) > 0 {
@@ -484,20 +468,18 @@ func (p *Server) maybeGenerateChatTitle(
 	candidateCtx := titleCtx
 	finishDebugRun := func(error) {}
 	if debugEnabled {
-		candidateCtx, finishDebugRun = prepareQuickgenDebugCandidate(
-			titleCtx,
-			chat,
-			debugSvc,
-			candidate,
-			chatdebug.KindTitleGeneration,
-			triggerMessageID,
-			historyTipMessageID,
-			seedSummary,
-			logger,
-		)
+		candidateCtx, finishDebugRun = debugSvc.StartRun(titleCtx, chatdebug.CreateRunParams{
+			ChatID:              chat.ID,
+			TriggerMessageID:    triggerMessageID,
+			HistoryTipMessageID: historyTipMessageID,
+			Kind:                chatdebug.KindTitleGeneration,
+			Status:              chatdebug.StatusInProgress,
+			Provider:            string(resolved.route.Provider.Type),
+			Model:               resolved.dbConfig.Model,
+		}, seedSummary, shortTextDebugFinalizeTimeout)
 	}
 
-	title, err := generateTitle(candidateCtx, candidate.resolved.model.LanguageModel(), titleObjectCall(candidate.resolved), p.chatLimits.MaxGenerationRetries, input)
+	title, err := generateTitle(candidateCtx, resolved.model.LanguageModel(), titleObjectCall(resolved), p.chatLimits.MaxGenerationRetries, input)
 	finishDebugRun(err)
 	if err != nil {
 		logger.Warn(ctx, "title model candidate failed",
@@ -523,7 +505,6 @@ func (p *Server) maybeGenerateChatTitle(
 		}
 		return
 	}
-	generatedTitle.Store(title)
 	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindTitleChange, nil)
 }
 
@@ -537,70 +518,6 @@ const titleMaxOutputTokens = int64(1024)
 
 func titleObjectCall(resolved resolvedModelCall) fantasy.ObjectCall {
 	return resolved.newObjectCall("propose_title", "Propose a short chat title.", titleMaxOutputTokens)
-}
-
-func prepareQuickgenDebugCandidate(
-	ctx context.Context,
-	chat database.Chat,
-	debugSvc *chatdebug.Service,
-	candidate shortTextCandidate,
-	kind chatdebug.RunKind,
-	triggerMessageID int64,
-	historyTipMessageID int64,
-	seedSummary map[string]any,
-	logger slog.Logger,
-) (context.Context, func(error)) {
-	finishDebugRun := func(error) {}
-
-	// Debug instrumentation must not eat into the quickgen budget
-	// (30s titleCtx / summaryCtx on the caller). Detach and bound
-	// the insert so a slow DB can't delay title generation or push
-	// summaries, matching prepareManualTitleDebugRun,
-	// prepareChatTurnDebugRun, and startCompactionDebugRun.
-	createRunCtx, createRunCancel := context.WithTimeout(
-		context.WithoutCancel(ctx), debugCreateRunTimeout,
-	)
-	run, err := debugSvc.CreateRun(createRunCtx, chatdebug.CreateRunParams{
-		ChatID:              chat.ID,
-		TriggerMessageID:    triggerMessageID,
-		HistoryTipMessageID: historyTipMessageID,
-		Kind:                kind,
-		Status:              chatdebug.StatusInProgress,
-		Provider:            candidate.provider,
-		Model:               candidate.model,
-		Summary:             seedSummary,
-	})
-	createRunCancel()
-	if err != nil {
-		logger.Warn(ctx, "failed to create short-text debug run",
-			slog.F("chat_id", chat.ID),
-			slog.F("run_kind", kind),
-			slog.F("provider", candidate.provider),
-			slog.F("model", candidate.model),
-			slog.Error(err),
-		)
-		return ctx, finishDebugRun
-	}
-
-	runContext := chatdebugRunContext(run)
-	runCtx := chatdebug.ContextWithRun(ctx, &runContext)
-	finishDebugRun = func(runErr error) {
-		if finalizeErr := debugSvc.FinalizeRun(ctx, chatdebug.FinalizeRunParams{
-			RunID:       run.ID,
-			ChatID:      chat.ID,
-			Status:      chatdebug.ClassifyError(runErr),
-			SeedSummary: seedSummary,
-			Timeout:     10 * time.Second,
-		}); finalizeErr != nil {
-			logger.Warn(ctx, "failed to finalize short-text debug run",
-				slog.F("chat_id", chat.ID),
-				slog.F("run_kind", kind),
-				slog.F("run_id", run.ID),
-				slog.Error(finalizeErr),
-			)
-		}
-	}
-	return runCtx, finishDebugRun
 }
 
 func quickgenPrompt(systemPrompt, userInput string) fantasy.Prompt {
@@ -1500,33 +1417,23 @@ func generateTurnStatusLabel(
 		"\nChat title: " + chat.Title +
 		"\n\nAgent's latest message:\n" + assistantText
 
-	candidate := shortTextCandidate{
-		provider: resolved.resolvedProvider,
-		model:    resolved.resolvedModel,
-		resolved: resolved,
-	}
-
-	statusSeedSummary := chatdebug.SeedSummary("Turn status label")
-
 	candidateCtx := labelCtx
 	finishDebugRun := func(error) {}
 	if debugEnabled {
-		candidateCtx, finishDebugRun = prepareQuickgenDebugCandidate(
-			labelCtx,
-			chat,
-			debugSvc,
-			candidate,
-			chatdebug.KindQuickgen,
-			triggerMessageID,
-			historyTipMessageID,
-			statusSeedSummary,
-			logger,
-		)
+		candidateCtx, finishDebugRun = debugSvc.StartRun(labelCtx, chatdebug.CreateRunParams{
+			ChatID:              chat.ID,
+			TriggerMessageID:    triggerMessageID,
+			HistoryTipMessageID: historyTipMessageID,
+			Kind:                chatdebug.KindQuickgen,
+			Status:              chatdebug.StatusInProgress,
+			Provider:            resolved.resolvedProvider,
+			Model:               resolved.resolvedModel,
+		}, chatdebug.SeedSummary("Turn status label"), shortTextDebugFinalizeTimeout)
 	}
 
 	generatedLabel, err := generateStructuredTurnStatusLabel(
 		candidateCtx,
-		candidate.resolved.model.LanguageModel(),
+		resolved.model.LanguageModel(),
 		turnStatusLabelObjectCall(resolved),
 		maxRetries,
 		turnStatusLabelPrompt,

@@ -15,6 +15,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -110,8 +111,15 @@ func ConnectionLogs(ctx context.Context, db database.Store, query string, apiKey
 		ConnectedBefore:     parser.Time3339Nano(values, time.Time{}, "connected_before"),
 		WorkspaceID:         parser.UUID(values, uuid.Nil, "workspace_id"),
 		ConnectionID:        parser.UUID(values, uuid.Nil, "connection_id"),
+		ClientSessionID:     parser.String(values, "", "client_session_id"),
 		Status:              string(httpapi.ParseCustom(parser, values, "", "status", httpapi.ParseEnum[codersdk.ConnectionLogStatus])),
 		ConnectionMethod:    string(httpapi.ParseCustom(parser, values, "", "method", httpapi.ParseEnum[codersdk.ConnectionLogMethod])),
+	}
+	if values.Has("client_session_id") && !tracing.ValidSessionID(filter.ClientSessionID) {
+		parser.Errors = append(parser.Errors, codersdk.ValidationError{
+			Field:  "client_session_id",
+			Detail: "client_session_id must be 32 hexadecimal characters",
+		})
 	}
 	apps := parser.Strings(values, nil, "app")
 	typ := httpapi.ParseCustom(parser, values, "", "type", httpapi.ParseEnum[codersdk.ConnectionType])
@@ -160,6 +168,7 @@ func ConnectionLogs(ctx context.Context, db database.Store, query string, apiKey
 		ConnectedBefore: filter.ConnectedBefore,
 		WorkspaceID:     filter.WorkspaceID,
 		ConnectionID:    filter.ConnectionID,
+		ClientSessionID: filter.ClientSessionID,
 		Status:          filter.Status,
 	}
 	parser.ErrorExcessParams(values)

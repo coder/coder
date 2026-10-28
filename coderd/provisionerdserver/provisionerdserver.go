@@ -1500,13 +1500,9 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 					previousBuild = database.WorkspaceBuild{}
 				}
 
-				// We pass the below information to the Auditor so that it
-				// can form a friendly string for the user to view in the UI.
-				buildResourceInfo := audit.AdditionalFields{
-					WorkspaceName: workspace.Name,
-					BuildNumber:   strconv.FormatInt(int64(build.BuildNumber), 10),
-					BuildReason:   database.BuildReason(string(build.Reason)),
-					WorkspaceID:   workspace.ID,
+				buildResourceInfo, err := audit.WorkspaceBuildFields(ctx, s.Database, workspace, build)
+				if err != nil {
+					s.Logger.Error(ctx, "audit log - workspace build fields", slog.Error(err))
 				}
 
 				wriBytes, err := json.Marshal(buildResourceInfo)
@@ -1874,6 +1870,15 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 		return xerrors.Errorf("template version ID is expected: %w", err)
 	}
 
+	// Keep plan parsing and traversal outside the transaction to avoid
+	// extending its duration for large plans.
+	// Failure to count script-order usage must not prevent import completion.
+	orderUsage, orderUsageErr := countScriptOrderUsage(jobType.TemplateImport.Plan)
+	if orderUsageErr != nil {
+		s.Logger.Warn(ctx, "count script order usage, skipping",
+			slog.F("job_id", jobID), slog.Error(orderUsageErr))
+	}
+
 	// Execute all database operations in a transaction
 	return s.Database.InTx(func(db database.Store) error {
 		now := s.timeNow()
@@ -2048,6 +2053,17 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 		})
 		if err != nil {
 			return xerrors.Errorf("update template version external agent: %w", err)
+		}
+		if orderUsageErr == nil {
+			err = db.UpdateTemplateVersionScriptOrderUsageByJobID(ctx, database.UpdateTemplateVersionScriptOrderUsageByJobIDParams{
+				JobID:                      jobID,
+				ScriptOrderDataSourceCount: orderUsage.dataSourceCount,
+				ScriptOrderRuleCount:       orderUsage.ruleCount,
+				UpdatedAt:                  now,
+			})
+			if err != nil {
+				return xerrors.Errorf("update template version script order usage: %w", err)
+			}
 		}
 
 		// Process terraform values
@@ -2432,6 +2448,16 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			}()
 		}
 
+		// The previous build's agent may run until this job completes, so its
+		// secret values are kept live until now.
+		//nolint:gocritic // Clearing superseded secrets is bookkeeping, not a user write.
+		if err := db.ClearWorkspaceSecretsBeforeBuild(dbauthz.AsWorkspaceSecretManager(ctx), database.ClearWorkspaceSecretsBeforeBuildParams{
+			WorkspaceID:      workspaceBuild.WorkspaceID,
+			WorkspaceBuildID: workspaceBuild.ID,
+		}); err != nil {
+			return xerrors.Errorf("clear previous workspace secrets: %w", err)
+		}
+
 		if workspaceBuild.Transition != database.WorkspaceTransitionDelete {
 			// This is for deleting a workspace!
 			return nil
@@ -2443,6 +2469,12 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		})
 		if err != nil {
 			return xerrors.Errorf("update workspace deleted: %w", err)
+		}
+
+		// Deleted workspaces keep their rows, so drop the secret values.
+		//nolint:gocritic // Clearing a deleted workspace's secrets is bookkeeping, not a user write.
+		if err := db.ClearWorkspaceSecretsByWorkspaceID(dbauthz.AsWorkspaceSecretManager(ctx), workspaceBuild.WorkspaceID); err != nil {
+			return xerrors.Errorf("clear workspace secrets: %w", err)
 		}
 
 		// Soft-delete any agents tied to this workspace so the
@@ -2481,13 +2513,9 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			previousBuild = database.WorkspaceBuild{}
 		}
 
-		// We pass the below information to the Auditor so that it
-		// can form a friendly string for the user to view in the UI.
-		buildResourceInfo := audit.AdditionalFields{
-			WorkspaceName: workspace.Name,
-			BuildNumber:   strconv.FormatInt(int64(workspaceBuild.BuildNumber), 10),
-			BuildReason:   database.BuildReason(string(workspaceBuild.Reason)),
-			WorkspaceID:   workspace.ID,
+		buildResourceInfo, err := audit.WorkspaceBuildFields(ctx, s.Database, workspace, workspaceBuild)
+		if err != nil {
+			s.Logger.Error(ctx, "audit log - workspace build fields", slog.Error(err))
 		}
 
 		wriBytes, err := json.Marshal(buildResourceInfo)
@@ -3805,6 +3833,13 @@ func insertAgentApp(ctx context.Context, db database.Store, agentID uuid.UUID, a
 		return xerrors.Errorf("duplicate app slug, must be unique per template: %q", slug)
 	}
 	appSlugs[slug] = struct{}{}
+
+	// Don't rely on the provisioner having validated the URL.
+	if app.External && app.Url != "" {
+		if err := provisioner.ValidateExternalURL(app.Url); err != nil {
+			return xerrors.Errorf("invalid external url %q for app %q: %w", app.Url, slug, err)
+		}
+	}
 
 	health := database.WorkspaceAppHealthDisabled
 	healthcheck := app.GetHealthcheck()

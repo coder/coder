@@ -104,7 +104,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
@@ -274,9 +273,9 @@ type Options struct {
 	ChatStreamPartsDialer chatd.StreamPartsDialer
 	// Nil keeps the default chat agent caps active.
 	ChatAgentCapacityUnlock chatd.AgentCapacityUnlock
-	// ChatProviderAPIKeys supplies fallback provider keys for chat execution.
-	// Test harnesses use this to route chat models to local providers.
-	ChatProviderAPIKeys *chatprovider.ProviderAPIKeys
+	// ChatInternalMCPServers supplies in-process MCP servers for chats.
+	// Servers must be ready when New starts the chat worker.
+	ChatInternalMCPServers []chatd.InternalMCPServer
 	// ChatWorkerDisabled skips starting the chat daemon's background
 	// worker.
 	ChatWorkerDisabled bool
@@ -752,6 +751,7 @@ func New(options *Options) *API {
 		options.AgentInactiveDisconnectTimeout,
 		options.WorkspaceAppAuditSessionTimeout,
 		options.AppSigningKeyCache,
+		options.PrometheusRegistry,
 	)
 
 	f := appearance.NewDefaultFetcher(options.Database, api.DeploymentValues.DocsURL.String())
@@ -901,10 +901,6 @@ func New(options *Options) *API {
 				options.Logger.Named("mcp-user-oidc"),
 			)
 		}
-		providerAPIKeys := chatprovider.ProviderAPIKeys{}
-		if options.ChatProviderAPIKeys != nil {
-			providerAPIKeys = *options.ChatProviderAPIKeys
-		}
 
 		// AI Gateway is mandatory for chat. When the bridge is disabled
 		// the chat daemon stays nil and chat HTTP handlers return a
@@ -943,7 +939,6 @@ func New(options *Options) *API {
 				ReplicaID:                      api.ID,
 				StreamPartsDialer:              options.ChatStreamPartsDialer,
 				MaxChatsPerAcquire:             int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
-				ProviderAPIKeys:                providerAPIKeys,
 				AllowBYOK:                      options.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
 				AllowBYOKSet:                   true,
 				AIBridgeTransportFactory:       &api.AIBridgeTransportFactory,
@@ -966,6 +961,7 @@ func New(options *Options) *API {
 				AgentCapacityUnlock:            options.ChatAgentCapacityUnlock,
 				OIDCTokenSource:                oidcMCPSrc,
 				MCPHTTPClient:                  api.mcpHTTPClient,
+				InternalMCPServers:             options.ChatInternalMCPServers,
 				NotificationsEnqueuer:          options.NotificationsEnqueuer,
 				Auditor:                        &api.Auditor,
 				Limits:                         api.chatLimits,
@@ -1939,6 +1935,7 @@ func New(options *Options) *API {
 			r.Get("/logs", api.workspaceBuildLogs)
 			r.Get("/parameters", api.workspaceBuildParameters)
 			r.Get("/resources", api.workspaceBuildResourcesDeprecated)
+			r.Get("/secrets", api.workspaceBuildSecrets)
 			r.Get("/state", api.workspaceBuildState)
 			r.Put("/state", api.workspaceBuildUpdateState)
 			r.Get("/timings", api.workspaceBuildTimings)

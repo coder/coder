@@ -550,7 +550,7 @@ func (*stubTool) ProviderOptions() fantasy.ProviderOptions   { return nil }
 func (*stubTool) SetProviderOptions(fantasy.ProviderOptions) {}
 func (s *stubTool) MCPServerConfigID() uuid.UUID             { return s.configID }
 
-func TestAppendInline_ExistingToolsWin(t *testing.T) {
+func TestAppendTools_ExistingToolsWin(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -560,7 +560,7 @@ func TestAppendInline_ExistingToolsWin(t *testing.T) {
 	bPrime := &stubTool{name: "b", configID: uuid.New()}
 	c := &stubTool{name: "c", configID: uuid.New()}
 
-	got := mcpclient.AppendInline(ctx, logger,
+	got := mcpclient.AppendTools(ctx, logger,
 		[]fantasy.AgentTool{a, b},
 		[]fantasy.AgentTool{bPrime, c},
 	)
@@ -570,7 +570,7 @@ func TestAppendInline_ExistingToolsWin(t *testing.T) {
 	require.Same(t, c, got[2])
 
 	orig := []fantasy.AgentTool{a}
-	require.Equal(t, orig, mcpclient.AppendInline(ctx, logger, orig, nil))
+	require.Equal(t, orig, mcpclient.AppendTools(ctx, logger, orig, nil))
 }
 
 func TestOrgConnectHasNoCaps(t *testing.T) {

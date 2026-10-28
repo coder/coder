@@ -3,6 +3,7 @@ import type { Chat, ChatProject, Organization } from "#/api/typesGenerated";
 type ChatsGroupedByProject = {
 	readonly chatsByProjectId: ReadonlyMap<string, readonly Chat[]>;
 	readonly unfiledChats: readonly Chat[];
+	readonly folderProjectIds: ReadonlySet<string>;
 };
 
 /**
@@ -32,7 +33,11 @@ export const groupChatsByProject = (
 			unfiledChats.push(chat);
 		}
 	}
-	return { chatsByProjectId, unfiledChats };
+	return {
+		chatsByProjectId,
+		unfiledChats,
+		folderProjectIds: loadedProjectIds,
+	};
 };
 
 /**

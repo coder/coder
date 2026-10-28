@@ -13,6 +13,19 @@ export type AttachmentFailure =
 export const getChatFileURL = (fileId: string) =>
 	`/api/v2/chats/files/${encodeURIComponent(fileId)}`;
 
+/** Where a file part downloads from, or null when it holds no file. */
+export const getAttachmentHref = (
+	file: TypesGen.ChatFilePart,
+): string | null => {
+	if (file.file_id) {
+		return getChatFileURL(file.file_id);
+	}
+	if (file.data) {
+		return `data:${file.media_type};base64,${file.data}`;
+	}
+	return null;
+};
+
 export const isAbortError = (error: unknown): error is Error =>
 	error instanceof Error && error.name === "AbortError";
 
@@ -253,7 +266,7 @@ const unsafeChatFileNameChars = /[()[\]{}<>'"`;,:*?|&#$\\/\s\p{Cc}]/gu;
  * LLM prompts, audit logs, path interpolation) with underscores. Keeps
  * dots, dashes, underscores, ASCII alphanumerics, and non-ASCII letters
  * so localized names remain readable. The server still applies its own
- * normalization (control-char strip plus 255-byte truncate) on top of this.
+ * normalization on top of this.
  *
  * If the sanitized name is empty after trimming leading or trailing `_`,
  * `.`, or whitespace, falls back to `"file"` so the server's
