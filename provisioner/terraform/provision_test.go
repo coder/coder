@@ -1610,7 +1610,7 @@ func TestProvision_MalformedModules(t *testing.T) {
 func TestProvision_LockFileCached(t *testing.T) {
 	t.Parallel()
 
-	source := testutil.CreateTar(t, map[string]string{
+	files := map[string]string{
 		"main.tf": `terraform {
 			required_providers {
 			  coder = {
@@ -1619,12 +1619,13 @@ func TestProvision_LockFileCached(t *testing.T) {
 			  }
 			}
 		}`,
-	})
+	}
+	source := testutil.CreateTar(t, files)
 
-	// An empty CLI config keeps a developer's ~/.terraformrc, such as
-	// dev_overrides for coder/coder, from changing how init installs providers.
-	cliConfigPath := filepath.Join(t.TempDir(), "empty.tfrc")
-	require.NoError(t, os.WriteFile(cliConfigPath, nil, 0o600))
+	// Install providers from a local mirror so the test does not depend on the
+	// public registry or on a developer's ~/.terraformrc.
+	cacheRootDir := filepath.Join(testutil.PersistentCacheDir(t), "terraform_lock_file_test")
+	cliConfigPath := testutil.CacheTFProviders(t, cacheRootDir, t.Name(), files)
 	ctx, api := setupProvisioner(t, &provisionerServeOptions{cliConfigPath: cliConfigPath})
 
 	// Import: no module archive is available yet, so init must resolve the

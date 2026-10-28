@@ -138,3 +138,33 @@ func Test_terraformVersionCached(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, strings.Count(string(calls), "x"), "terraform version should be resolved once")
 }
+
+// A failed lookup must not be cached, so a transient failure such as a
+// canceled context does not break every later stage.
+func Test_terraformVersionFailureNotCached(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("Dummy terraform executable on Windows requires sh which isn't very practical.")
+	}
+
+	// The stub fails until the ready file exists.
+	tempDir := t.TempDir()
+	readyPath := filepath.Join(tempDir, "ready")
+	binaryPath := filepath.Join(tempDir, "terraform")
+	script := fmt.Sprintf(`#!/bin/sh
+	[ -f %q ] || exit 1
+	echo '{"terraform_version": "1.9.0", "platform": "linux_amd64"}'`, readyPath)
+	// #nosec
+	require.NoError(t, os.WriteFile(binaryPath, []byte(script), 0o770))
+
+	srv := &server{binaryPath: binaryPath}
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	_, err := srv.terraformVersion(ctx)
+	require.Error(t, err)
+
+	require.NoError(t, os.WriteFile(readyPath, nil, 0o600))
+	v, err := srv.terraformVersion(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "1.9.0", v.String())
+}

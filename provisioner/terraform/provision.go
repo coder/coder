@@ -92,11 +92,12 @@ func (s *server) Init(
 		return provisionersdk.InitErrorf("extract template archive: %s", err)
 	}
 
+	// The imported lock file only speeds up init, so failing to restore it
+	// falls back to the lock file from the template source, if any.
 	restored, err := restoreImportedLockFile(sess.Files)
 	if err != nil {
-		return provisionersdk.InitErrorf("restore imported lock file: %s", err)
-	}
-	if restored {
+		s.logger.Warn(ctx, "failed to restore lock file captured during template import", slog.Error(err))
+	} else if restored {
 		s.logger.Debug(ctx, "using lock file captured during template import", slog.F("platform", terraformPlatform()))
 	}
 

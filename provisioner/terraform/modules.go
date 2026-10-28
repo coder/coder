@@ -358,7 +358,7 @@ func importedLockFilePath(platform string) string {
 	return path.Join(importedLockFileDir, platform+".lock.hcl")
 }
 
-// restoreImportedLockFile copies the lock file captured during template import
+// restoreImportedLockFile moves the lock file captured during template import
 // over the working directory's lock file when it was produced on this
 // platform, and reports whether it did.
 //
@@ -368,17 +368,16 @@ func importedLockFilePath(platform string) string {
 // missing from the lock file. Replacing a lock file the template author
 // committed is safe because the import ran `terraform init` on top of it, so
 // the captured file pins the same versions and adds hashes for this platform.
+// A rename replaces the file atomically, even when the committed copy is
+// read-only, so a failure leaves the original lock file intact.
 func restoreImportedLockFile(files tfpath.Layout) (bool, error) {
 	src := filepath.Join(files.WorkDirectory(), filepath.FromSlash(importedLockFilePath(terraformPlatform())))
-	content, err := os.ReadFile(src)
+	err := os.Rename(src, files.TerraformLockFile())
 	if err != nil {
 		if xerrors.Is(err, fs.ErrNotExist) {
 			return false, nil
 		}
-		return false, xerrors.Errorf("read imported lock file: %w", err)
-	}
-	if err := os.WriteFile(files.TerraformLockFile(), content, 0o600); err != nil {
-		return false, xerrors.Errorf("write lock file: %w", err)
+		return false, xerrors.Errorf("move imported lock file into place: %w", err)
 	}
 	return true, nil
 }

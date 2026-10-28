@@ -425,6 +425,24 @@ func TestRestoreImportedLockFile(t *testing.T) {
 		require.Equal(t, imported, got)
 	})
 
+	// Template archives keep file modes, so a committed lock file can be
+	// read-only in the working directory.
+	t.Run("ReadOnlyCommittedLockFile", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("Windows does not allow replacing read-only files.")
+		}
+
+		layout := setup(t, terraformPlatform())
+		require.NoError(t, os.Chmod(layout.TerraformLockFile(), 0o400))
+		restored, err := restoreImportedLockFile(layout)
+		require.NoError(t, err)
+		require.True(t, restored)
+		got, err := os.ReadFile(layout.TerraformLockFile())
+		require.NoError(t, err)
+		require.Equal(t, imported, got)
+	})
+
 	// A lock file captured on another platform may lack hashes for this one,
 	// which makes Terraform reject cached or mirrored providers.
 	t.Run("OtherPlatform", func(t *testing.T) {
