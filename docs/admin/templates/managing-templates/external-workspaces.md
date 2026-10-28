@@ -93,7 +93,11 @@ You can create and manage external workspaces using either the **CLI** or the **
    coder external-workspaces agent-instructions hello-world
    ```
 
-   The instructions include the agent token, so retrieving them requires SSH access to the workspace. The workspace owner has this access, and so do users with `use` or `admin` permissions on it through [workspace sharing](../../../user-guides/shared-workspaces.md). Users with the Owner role also have it unless [`--disable-owner-workspace-access`](../../../reference/cli/server.md#--disable-owner-workspace-access) is set. Template Admins and Organization Admins don't, unless the workspace is shared with them. A scoped API token needs a scope that grants SSH, such as `coder:workspaces.access`.
+   The instructions include the agent token, so retrieving them requires SSH access to the workspace.
+   The workspace owner has this access, and so do users with `use` or `admin` permissions on it through [workspace sharing](../../../user-guides/shared-workspaces.md).
+   Users with the Owner role also have it unless [`--disable-owner-workspace-access`](../../../reference/cli/server.md#--disable-owner-workspace-access) is set.
+   Template Admins and Organization Admins don't, unless the workspace is shared with them.
+   A scoped API token needs a scope that grants SSH, such as `coder:workspaces.access`.
 
    Example:
 
