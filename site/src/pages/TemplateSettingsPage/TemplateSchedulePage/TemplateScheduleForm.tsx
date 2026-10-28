@@ -2,6 +2,7 @@ import { cn } from "cn";
 import { type FormikTouched, useFormik } from "formik";
 import { useEffect, useState } from "react";
 import type { Template, UpdateTemplateMeta } from "#/api/typesGenerated";
+import { PremiumBadge } from "#/components/Badge/PresetBadges";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { DurationField } from "#/components/DurationField/DurationField";
@@ -479,6 +480,14 @@ export const TemplateScheduleForm: React.FC<TemplateScheduleFormProps> = ({
 									this template. Enabling this option allows users to set custom
 									Autostop timers on their workspaces or turn off the timer.
 								</StackLabelHelperText>
+								{!allowAdvancedScheduling && (
+									<div className="flex gap-4 items-center mt-4">
+										<PremiumBadge />
+										<span className="text-xs text-content-secondary">
+											Premium license required to change this setting.
+										</span>
+									</div>
+								)}
 							</StackLabel>
 						</Label>
 					</div>
@@ -506,6 +515,14 @@ export const TemplateScheduleForm: React.FC<TemplateScheduleFormProps> = ({
 						<Label htmlFor="allow_user_autostart">
 							<StackLabel>
 								Allow users to automatically start workspaces on a schedule.
+								{!allowAdvancedScheduling && (
+									<div className="flex gap-4 items-center">
+										<PremiumBadge />
+										<span className="text-xs text-content-secondary">
+											Premium license required to change this setting.
+										</span>
+									</div>
+								)}
 							</StackLabel>
 						</Label>
 					</div>
