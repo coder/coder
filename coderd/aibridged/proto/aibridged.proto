@@ -76,6 +76,12 @@ message RecordInterceptionRequest {
   // Absent when the request did not pass through Agent Firewall.
   optional int32 agent_firewall_sequence_number = 16;
   string workspace_id = 17; // UUID. Empty when workspace attribution is unknown.
+  // UUID of the organization the interception is attributed to. Empty when
+  // none was resolved. Set together with organization_source.
+  string organization_id = 18;
+  // How organization_id was chosen: "workspace", "chatd" or "effective_group".
+  // Empty when organization_id is empty.
+  string organization_source = 19;
 }
 
 message RecordInterceptionResponse {}
