@@ -5,11 +5,19 @@ inputs:
     description: "Workspace directory to install after the repository root."
     required: false
     default: "site"
+  use-cache:
+    description: >-
+      Whether to restore and save the pnpm store cache. Set to "false" in jobs
+      that hold signing keys or publish artifacts: on Depot runners the cache
+      is shared across branches, so any branch job can plant an entry.
+    required: false
+    default: "true"
 runs:
   using: "composite"
   steps:
     - name: Compute pnpm cache key
       id: pnpm-cache
+      if: ${{ inputs.use-cache == 'true' }}
       shell: bash
       run: |
         set -euo pipefail
@@ -32,7 +40,7 @@ runs:
         INPUT_DIRECTORY: ${{ inputs.directory }}
 
     - name: Restore and save pnpm cache
-      if: ${{ github.ref == 'refs/heads/main' }}
+      if: ${{ inputs.use-cache == 'true' && github.ref == 'refs/heads/main' }}
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         path: ${{ steps.pnpm-cache.outputs.store-path }}
@@ -41,7 +49,7 @@ runs:
           ${{ steps.pnpm-cache.outputs.restore-key }}
 
     - name: Restore pnpm cache
-      if: ${{ github.ref != 'refs/heads/main' }}
+      if: ${{ inputs.use-cache == 'true' && github.ref != 'refs/heads/main' }}
       uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         path: ${{ steps.pnpm-cache.outputs.store-path }}

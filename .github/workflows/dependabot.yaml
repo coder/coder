@@ -45,8 +45,11 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # fetch-metadata reports the ecosystem from the branch name
+      # (dependabot/github_actions/...), so it is `github_actions`, not the
+      # `github-actions` spelling used in dependabot.yaml.
       - name: Approve the PR
-        if: steps.metadata.outputs.package-ecosystem != 'github-actions'
+        if: steps.metadata.outputs.package-ecosystem != 'github_actions'
         run: |
           echo "Approving $PR_URL"
           gh pr review --approve "$PR_URL"
@@ -55,7 +58,7 @@ jobs:
           GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
 
       - name: Enable auto-merge
-        if: steps.metadata.outputs.package-ecosystem != 'github-actions'
+        if: steps.metadata.outputs.package-ecosystem != 'github_actions'
         run: |
           echo "Enabling auto-merge for $PR_URL"
           gh pr merge --auto --squash "$PR_URL"
@@ -65,11 +68,11 @@ jobs:
 
       - name: Send Slack notification
         run: |
-          if [ "$SECURITY_BACKPORT" = "true" ] && [ "$PACKAGE_ECOSYSTEM" = "github-actions" ]; then
+          if [ "$SECURITY_BACKPORT" = "true" ] && [ "$PACKAGE_ECOSYSTEM" = "github_actions" ]; then
             STATUS_TEXT=":rotating_light: Dependabot opened security PR #${PR_NUMBER} and added the backport label (GitHub Actions changes are not auto-merged)"
           elif [ "$SECURITY_BACKPORT" = "true" ]; then
             STATUS_TEXT=":rotating_light: Auto merge enabled for Dependabot security PR #${PR_NUMBER}; backport label added"
-          elif [ "$PACKAGE_ECOSYSTEM" = "github-actions" ]; then
+          elif [ "$PACKAGE_ECOSYSTEM" = "github_actions" ]; then
             STATUS_TEXT=":pr-opened: Dependabot opened PR #${PR_NUMBER} (GitHub Actions changes are not auto-merged)"
           else
             STATUS_TEXT=":pr-merged: Auto merge enabled for Dependabot PR #${PR_NUMBER}"

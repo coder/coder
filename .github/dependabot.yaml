@@ -26,6 +26,10 @@ updates:
       prefix: "chore"
     labels: []
     open-pull-requests-limit: 15
+    # Go module bumps are auto-merged, so give compromised releases time to
+    # be noticed and yanked before they land on main.
+    cooldown:
+      default-days: 7
     groups:
       x:
         patterns:

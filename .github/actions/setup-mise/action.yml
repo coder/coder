@@ -22,7 +22,10 @@ inputs:
     required: false
     default: ""
   use-cache:
-    description: Whether to restore and save mise tool caches.
+    description: >-
+      Whether to restore and save mise tool caches. Set to "false" in jobs
+      that hold signing keys or publish artifacts: on Depot runners the cache
+      is shared across branches, so any branch job can plant an entry.
     required: false
     default: "true"
 runs:

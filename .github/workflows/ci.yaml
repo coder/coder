@@ -1352,6 +1352,12 @@ jobs:
       - changes
     if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && needs.changes.outputs.docs-only == 'false' && !github.event.pull_request.head.repo.fork
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-22.04' }}
+    # Only main builds are signed (Coder Desktop requires signed slim
+    # binaries for dogfood). The signing secrets live in the `ci-signing`
+    # environment, which only deploys from main. release/* builds still push
+    # coder-preview:release-X.Y images, unsigned and outside the environment;
+    # release artifacts are signed by release.yaml.
+    environment: ${{ github.ref == 'refs/heads/main' && 'ci-signing' || '' }}
     permissions:
       # Necessary to push docker images to ghcr.io.
       packages: write
@@ -1384,18 +1390,24 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Caches are not restored here: on Depot runners the cache namespace is
+      # shared with every branch, so a restored tool could be attacker-planted.
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
           install-args: "go node pnpm cosign syft"
+          use-cache: "false"
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
+        with:
+          use-cache: "false"
 
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/tc-hib/go-winres go:github.com/goreleaser/nfpm/v2/cmd/nfpm
 
       - name: Install rcodesign
+        if: github.ref == 'refs/heads/main'
         run: |
           set -euo pipefail
           ./.github/scripts/retry.sh -- wget -O /tmp/rcodesign.tar.gz https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.22.0/apple-codesign-0.22.0-x86_64-unknown-linux-musl.tar.gz
@@ -1406,6 +1418,7 @@ jobs:
           rm /tmp/rcodesign.tar.gz
 
       - name: Setup Apple Developer certificate
+        if: github.ref == 'refs/heads/main'
         run: |
           set -euo pipefail
           touch /tmp/{apple_cert.p12,apple_cert_password.txt}
@@ -1418,6 +1431,7 @@ jobs:
 
       # Necessary for signing Windows binaries.
       - name: Setup Java
+        if: github.ref == 'refs/heads/main'
         uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: "zulu"
@@ -1427,6 +1441,7 @@ jobs:
         run: sudo apt-get install -y zstd
 
       - name: Setup Windows EV Signing Certificate
+        if: github.ref == 'refs/heads/main'
         run: |
           set -euo pipefail
           touch /tmp/ev_cert.pem
@@ -1439,6 +1454,7 @@ jobs:
       # Setup GCloud for signing Windows binaries.
       - name: Authenticate to Google Cloud
         id: gcloud_auth
+        if: github.ref == 'refs/heads/main'
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           workload_identity_provider: ${{ vars.GCP_CODE_SIGNING_WORKLOAD_ID_PROVIDER }}
@@ -1446,6 +1462,7 @@ jobs:
           token_format: "access_token"
 
       - name: Setup GCloud SDK
+        if: github.ref == 'refs/heads/main'
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
       - name: Build
@@ -1465,11 +1482,11 @@ jobs:
         env:
           # The Windows and Darwin slim binaries must be signed for Coder
           # Desktop to accept them.
-          CODER_SIGN_WINDOWS: "1"
+          CODER_SIGN_WINDOWS: ${{ github.ref == 'refs/heads/main' && '1' || '0' }}
           CODER_WINDOWS_RESOURCES: "1"
-          CODER_SIGN_GPG: "1"
+          CODER_SIGN_GPG: ${{ github.ref == 'refs/heads/main' && '1' || '0' }}
           CODER_GPG_RELEASE_KEY_BASE64: ${{ secrets.GPG_RELEASE_KEY_BASE64 }}
-          CODER_SIGN_DARWIN: "1"
+          CODER_SIGN_DARWIN: ${{ github.ref == 'refs/heads/main' && '1' || '0' }}
           AC_CERTIFICATE_FILE: /tmp/apple_cert.p12
           AC_CERTIFICATE_PASSWORD_FILE: /tmp/apple_cert_password.txt
           EV_KEY: ${{ secrets.EV_KEY }}

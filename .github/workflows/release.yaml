@@ -63,6 +63,10 @@ jobs:
     name: Build and publish
     needs: [check-perms]
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    # Signing keys, the release App key and the publishing identities live in
+    # the `release` environment. It requires approval for every run, including
+    # dry runs, and only deploys from v* tags and protected branches.
+    environment: release
     permissions:
       # Required to publish a release
       contents: write
@@ -172,13 +176,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Caches are not restored here: on Depot runners the cache namespace is
+      # shared with every branch, so a restored tool could be attacker-planted.
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
           install-args: "go node pnpm helm cosign syft"
+          use-cache: "false"
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
+        with:
+          use-cache: "false"
 
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/tc-hib/go-winres go:github.com/goreleaser/nfpm/v2/cmd/nfpm
@@ -706,6 +715,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: release
     if: ${{ !inputs.dry_run && inputs.release_channel == 'mainline' }}
+    # Holds CDRCI_GITHUB_TOKEN. No reviewers: the release job was approved.
+    environment: release-publish
 
     steps:
       - name: Harden Runner
@@ -782,6 +793,8 @@ jobs:
     runs-on: windows-latest
     needs: release
     if: ${{ !inputs.dry_run && inputs.release_channel != 'rc' }}
+    # Holds CDRCI_GITHUB_TOKEN. No reviewers: the release job was approved.
+    environment: release-publish
 
     steps:
       - name: Harden Runner
