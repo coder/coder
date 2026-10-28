@@ -61,7 +61,11 @@ export const BoardLane: React.FC<BoardLaneProps> = ({
 			*/}
 			<header
 				ref={headerRef}
-				className="sticky left-0 flex w-fit items-center gap-1 pt-3 pr-4 pb-2.5 pl-[22px] text-[13px] font-medium text-content-primary"
+				className={cn(
+					"sticky left-0 flex w-fit items-center gap-1 pt-3 pr-4 pl-[22px] text-[13px] font-medium text-content-primary",
+					// Expanded, the extra space sets the lane name apart from the column titles.
+					collapsed ? "pb-3" : "pb-5",
+				)}
 			>
 				<Button
 					variant="subtle"

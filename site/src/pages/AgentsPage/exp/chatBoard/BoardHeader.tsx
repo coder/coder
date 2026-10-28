@@ -36,6 +36,8 @@ type BoardHeaderProps = {
 	readonly effortFilter: string | null;
 	readonly onFilterEffort: (name: string | null) => void;
 	readonly onRenameEffort: (from: string, to: string) => void;
+	/** Shown before the board assistant; see ProjectRepair. */
+	readonly projectRepair?: React.ReactNode;
 };
 
 export const BoardHeader: React.FC<BoardHeaderProps> = ({
@@ -50,6 +52,7 @@ export const BoardHeader: React.FC<BoardHeaderProps> = ({
 	effortFilter,
 	onFilterEffort,
 	onRenameEffort,
+	projectRepair,
 }) => (
 	// The back arrow is centered on the column dots' axis and the title starts
 	// on the column names' axis; BoardLane's header uses the same two.
@@ -73,12 +76,14 @@ export const BoardHeader: React.FC<BoardHeaderProps> = ({
 				{chatCount} chats · {cardCount} cards
 			</span>
 		)}
+		<div className="ml-auto" />
+		{projectRepair}
 		<Button
 			variant="subtle"
 			size="icon"
 			aria-label="Board assistant"
 			title="Board assistant"
-			className="ml-auto size-7 text-content-secondary [&>svg]:size-3.5! [&>svg]:p-0"
+			className="size-7 text-content-secondary [&>svg]:size-3.5! [&>svg]:p-0"
 			disabled={!chatCount}
 			onClick={onBoardAssistant}
 		>

@@ -29,6 +29,7 @@ import { useDebouncedValue } from "#/hooks/debounce";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { pageTitle } from "#/utils/page";
 import { isActiveChatStatus } from "../../components/ChatConversation/chatStore";
+import { canDragChatToProject } from "../../components/ChatsSidebar/chats/projectDrag";
 import { buildChatSearchQuery } from "../../components/ChatsSidebar/dialogs/searchQuery";
 import {
 	type AssistantSpec,
@@ -45,7 +46,13 @@ import { BoardColumns } from "./BoardColumns";
 import { BoardHeader } from "./BoardHeader";
 import { BoardLane, type LaneProject } from "./BoardLane";
 import { BoardWindows } from "./BoardWindows";
-import { effortCounts, type Plan, renameEffort } from "./boardApi";
+import {
+	cardProjectIds,
+	effortCounts,
+	moveCardToProject,
+	type Plan,
+	renameEffort,
+} from "./boardApi";
 import {
 	boardChats,
 	boardWriteScope,
@@ -78,6 +85,7 @@ import {
 	saveBoardStorage,
 } from "./boardStorage";
 import { DragGhost } from "./DragGhost";
+import { ProjectRepair } from "./ProjectRepair";
 import { refetchChatListUntilLanded } from "./refreshChatList";
 import { runPlan } from "./runPlan";
 import {
@@ -616,6 +624,42 @@ const ChatBoardPage: React.FC = () => {
 				effortCounts={efforts}
 				effortFilter={effortFilter}
 				onFilterEffort={(effort) => updateStorage({ effortFilter: effort })}
+				projectRepair={
+					<ProjectRepair
+						cards={allCards.filter((card) => cardProjectIds(card).length > 1)}
+						optionsOf={(card) =>
+							cardProjectIds(card).map((id) => ({
+								id,
+								name:
+									id === null
+										? "No project"
+										: (projects.find((p) => p.id === id)?.name ??
+											"Unknown project"),
+							}))
+						}
+						blockedReason={(card, projectId) => {
+							const assistant = cardAssistants.get(card.id);
+							const stuck = [...card.members, ...(assistant ? [assistant] : [])]
+								.filter(
+									(chat) =>
+										!chat.parent_chat_id &&
+										(chat.project_id ?? null) !== projectId,
+								)
+								.find((chat) => !canDragChatToProject(chat, user.id));
+							return stuck && `"${stuck.title}" is working or cannot be moved`;
+						}}
+						onMove={(card, option) =>
+							void run(
+								moveCardToProject(
+									card,
+									option.id,
+									option.name,
+									cardAssistants.get(card.id),
+								),
+							)
+						}
+					/>
+				}
 				onRenameEffort={(from, to) =>
 					void run(renameEffort(boardState, from, to))
 				}

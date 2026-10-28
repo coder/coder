@@ -594,3 +594,38 @@ export const cardContext = (card: BoardCard): string =>
 				`- ${chat.title} (${chat.id}) status: ${chat.status}; last turn: ${chat.last_turn_summary ?? "none"}`,
 		),
 	].join("\n");
+
+/**
+ * The projects a card's root chats are in, null for none, in member order.
+ * More than one means the card spans projects.
+ */
+export const cardProjectIds = (card: BoardCard): (string | null)[] => [
+	...new Set(
+		card.members
+			.filter((chat) => !chat.parent_chat_id)
+			.map((chat) => chat.project_id ?? null),
+	),
+];
+
+/**
+ * Moves every root chat of a card, and its assistant, into one project, or
+ * out of projects when null. Null when nothing would move.
+ */
+export const moveCardToProject = (
+	card: BoardCard,
+	projectId: string | null,
+	projectName: string,
+	assistant: Chat | undefined,
+): Plan | null => {
+	const projectMoves = [...card.members, ...(assistant ? [assistant] : [])]
+		.filter(
+			(chat) => !chat.parent_chat_id && (chat.project_id ?? null) !== projectId,
+		)
+		.map((chat) => ({ chat, projectId }));
+	if (projectMoves.length === 0) return null;
+	return {
+		projectMoves,
+		writes: [],
+		undo: `Moved "${card.title}" to ${projectName}`,
+	};
+};
