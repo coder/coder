@@ -22,7 +22,6 @@ import (
 	"github.com/pkg/diff"
 	"github.com/pkg/diff/write"
 	"golang.org/x/exp/constraints"
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
@@ -1079,22 +1078,23 @@ func templateVersionResources(ctx context.Context, stderr io.Writer, client *cod
 	var (
 		mu        sync.Mutex
 		resources = make(map[uuid.UUID][]codersdk.WorkspaceResource, len(workspacesByVersion))
-		eg        errgroup.Group
+		wg        sync.WaitGroup
+		limit     = make(chan struct{}, 8)
 	)
-	eg.SetLimit(8)
 	for id, wsNames := range workspacesByVersion {
-		eg.Go(func() error {
+		limit <- struct{}{}
+		wg.Go(func() {
+			defer func() { <-limit }()
 			res, err := client.TemplateVersionResources(ctx, id)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
 				cliui.Warnf(stderr, "Skipping agent host entries for %s: fetch template version resources: %v", strings.Join(wsNames, ", "), err)
-				return nil
+				return
 			}
 			resources[id] = res
-			return nil
 		})
 	}
-	_ = eg.Wait()
+	wg.Wait()
 	return resources
 }
