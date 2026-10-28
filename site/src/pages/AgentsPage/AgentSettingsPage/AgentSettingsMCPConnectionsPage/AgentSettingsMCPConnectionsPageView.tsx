@@ -1,4 +1,3 @@
-import { ArrowUpRightIcon } from "lucide-react";
 import { useId } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -126,10 +125,7 @@ const MCPConnectionRow: React.FC<MCPConnectionRowProps> = ({
 								Connecting
 							</>
 						) : (
-							<>
-								Connect
-								<ArrowUpRightIcon />
-							</>
+							"Connect"
 						)}
 					</Button>
 				)}
