@@ -219,63 +219,61 @@ be applied selectively or to discourage anyone from contributing.
 
 ## Releases
 
-Coder releases are managed entirely through the
-[`release.yaml`](./.github/workflows/release.yaml)
-GitHub Actions workflow, triggered manually via "Run workflow" in the Actions
-tab. Release notes are automatically generated from commit titles and PR
-metadata.
+Releases and patches are cut with the
+[Tag release](https://github.com/coder/coder/actions/workflows/tag-release.yaml)
+GitHub Actions workflow. It runs the release wizard in
+[`scripts/releaser`](./scripts/releaser) without prompts: it picks the next
+version, generates release notes from commit titles and PR metadata, tags and
+pushes the release, triggers
+[`release.yaml`](./.github/workflows/release.yaml) to build and publish it,
+and opens a PR that updates the release docs.
 
-### Release types
+### Cutting a release or patch
 
-| Type                   | Tag           | Source           | Purpose                               |
-|------------------------|---------------|------------------|---------------------------------------|
-| RC (release candidate) | `vX.Y.0-rc.W` | `main` or branch | Pre-release for testing               |
-| Create release branch  | `vX.Y.0-rc.W` | `main`           | Cut `release/X.Y` + tag RC atomically |
-| Release                | `vX.Y.0`      | `release/X.Y`    | First release of a minor version      |
-| Patch                  | `vX.Y.Z`      | `release/X.Y`    | Bug fixes and security patches        |
+1. Merge any fixes into `release/X.Y` (see
+   [Backporting fixes to release branches](#backporting-fixes-to-release-branches)).
+2. Go to
+   [Actions > Tag release](https://github.com/coder/coder/actions/workflows/tag-release.yaml),
+   select "Run workflow", and select the `release/X.Y` branch in the "Use
+   workflow from" dropdown. The workflow fails on any other branch.
+3. Leave `dry_run` selected for the first run. The log shows each answer the
+   wizard chose, and the generated release notes are uploaded as the
+   `release-notes` artifact.
+4. When the dry run looks right, run the workflow again with `dry_run`
+   cleared.
 
-### Workflow
+The wizard stops the run when a safety check fails. Two checks have
+overrides you can enable on a re-run:
 
-RC tags can be created from `main` or from a release branch. The
-`create-release-branch` type creates `release/X.Y` and tags the next RC in one
-step, continuing the RC numbering sequence.
+| Check                                     | Workflow input           |
+|-------------------------------------------|--------------------------|
+| Open PRs target the release branch        | `allow_open_prs`         |
+| A patch release contains breaking changes | `allow_breaking_changes` |
 
-```txt
-main:  --*--*--*--*--*--*--*--*--*--
-              |  rc.0   rc.1  |
-              |               +--- create-release-branch ---+
-              |                                             |
-              |            release/2.34:  --*-- rc.2 -- rc.3 -- v2.34.0
-              |
-              +-- (more RCs on main for next cycle)
+Other checks, such as a version downgrade or an existing tag, have no
+override. Fix the cause, or run the wizard locally.
+
+### Running the wizard locally
+
+Run `./scripts/release.sh` only when the workflow cannot do the job:
+tagging a release candidate on `main`, overriding a check that has no
+workflow input, or editing release notes before the tag is pushed. The
+wizard needs an authenticated `gh` CLI and push access to tags.
+
+```sh
+./scripts/release.sh --dry-run   # preview without tagging or pushing
+./scripts/release.sh             # answer each prompt
 ```
 
-1. **RC:** Go to [Actions > Release](https://github.com/coder/coder/actions/workflows/release.yaml),
-   select "Run workflow", select `main` (or a release branch) from the "Use
-   workflow from" dropdown, choose `rc`, and optionally provide a commit SHA
-   (defaults to HEAD). The workflow calculates the next RC version
-   automatically.
-2. **Create release branch:** Select `main` in the dropdown, choose
-   `create-release-branch`, and optionally provide a commit SHA. This creates
-   `release/X.Y` and tags the next RC atomically.
-3. **Release:** Select the release branch (e.g. `release/2.34`) from the
-   dropdown and choose `release`. No other inputs needed.
-4. **Patch:** Cherry-pick fixes onto `release/X.Y` (see
-   [Backporting fixes to release branches](#backporting-fixes-to-release-branches)),
-   select that branch from the dropdown, and choose `release`.
-
-The workflow validates that commits are on the expected branch for each release
-type.
+Pass `--help` to list the flags, including `--non-interactive`,
+`--allow-open-prs`, and `--allow-breaking-changes`.
 
 ### Retrying a failed release
 
-If the
-[`release.yaml`](https://github.com/coder/coder/actions/workflows/release.yaml)
-workflow fails after the tag has been pushed, re-run the failed jobs from the
-GitHub Actions UI. The `prepare-release` job is idempotent and will detect
-the existing tag.
-
-To test the workflow without publishing, select dry-run.
+If Tag release fails before it pushes the tag, fix the cause and run it again.
+If [`release.yaml`](https://github.com/coder/coder/actions/workflows/release.yaml)
+fails after the tag is pushed, re-run its failed jobs from the GitHub Actions
+UI.
 
 ### Commit messages
 
