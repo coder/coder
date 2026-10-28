@@ -9,6 +9,7 @@ import {
 	WorkspaceAppSharingLevels,
 } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
+import { PremiumBadge } from "#/components/Badge/PresetBadges";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import {
@@ -272,7 +273,10 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 						/>
 						<Label htmlFor="require_active_version">
 							<StackLabel>
-								Require workspaces automatically update when started.
+								<span className="flex flex-row gap-2 items-center">
+									Require workspaces automatically update when started.
+									{!advancedSchedulingEnabled && <PremiumBadge />}
+								</span>
 								<StackLabelHelperText>
 									<span>
 										Workspaces that are manually started or auto-started will
@@ -285,9 +289,9 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 									{!advancedSchedulingEnabled && (
 										<PremiumNotice
 											canViewPremium={canViewPremium}
-											className="mt-4"
+											className="mt-2"
 										>
-											Premium license required to be enabled.
+											A Premium license is required to enable.
 										</PremiumNotice>
 									)}
 								</StackLabelHelperText>
@@ -386,26 +390,29 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 			<FormSection
 				title="Deprecate"
 				description="Deprecating a template prevents any new workspaces from being created. Existing workspaces will continue to function."
+				premium={!accessControlEnabled}
 			>
 				<FormFields>
-					<FormField
-						field={getFieldHelpers("deprecation_message", {
-							helperText:
-								"Leave the message empty to keep the template active. Any message provided will mark the template as deprecated. Use this message to inform users of the deprecation and how to migrate to a new template.",
-						})}
-						label="Deprecation Message"
-						disabled={
-							isSubmitting || (!template.deprecated && !accessControlEnabled)
-						}
-						className="w-full"
-					/>
-					{!accessControlEnabled && (
-						<PremiumNotice canViewPremium={canViewPremium}>
-							Premium license required to deprecate templates.
-							{template.deprecated &&
-								" You cannot change the message, but you may remove it to mark this template as no longer deprecated."}
-						</PremiumNotice>
-					)}
+					<div className="flex flex-col gap-2">
+						<FormField
+							field={getFieldHelpers("deprecation_message", {
+								helperText:
+									"Leave the message empty to keep the template active. Any message provided will mark the template as deprecated. Use this message to inform users of the deprecation and how to migrate to a new template.",
+							})}
+							label="Deprecation Message"
+							disabled={
+								isSubmitting || (!template.deprecated && !accessControlEnabled)
+							}
+							className="w-full"
+						/>
+						{!accessControlEnabled && (
+							<PremiumNotice canViewPremium={canViewPremium}>
+								A Premium license is required to enable.
+								{template.deprecated &&
+									" You cannot change the message, but you may remove it to mark this template as no longer deprecated."}
+							</PremiumNotice>
+						)}
+					</div>
 				</FormFields>
 			</FormSection>
 
@@ -415,6 +422,7 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
           while ports with the Authenticated sharing level can only be accessed
           by authenticated Coder users. Ports with the Owner sharing level can
           only be accessed by the workspace owner."
+				premium={!portSharingControlsEnabled}
 			>
 				<FormFields>
 					<div className="flex flex-col gap-2">
@@ -467,12 +475,12 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 								{maxPortShareField.helperText}
 							</span>
 						)}
+						{!portSharingControlsEnabled && (
+							<PremiumNotice canViewPremium={canViewPremium}>
+								A Premium license is required to enable.
+							</PremiumNotice>
+						)}
 					</div>
-					{!portSharingControlsEnabled && (
-						<PremiumNotice canViewPremium={canViewPremium}>
-							Premium license required to control max port sharing level.
-						</PremiumNotice>
-					)}
 				</FormFields>
 			</FormSection>
 

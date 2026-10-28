@@ -149,7 +149,7 @@ describe("TemplateSettingsForm", () => {
 			});
 
 			expect(
-				screen.getAllByText(/premium license required/i).length,
+				screen.getAllByText(/premium license is required/i).length,
 			).toBeGreaterThan(0);
 			expect(
 				screen.queryByRole("link", { name: /learn about premium/i }),
