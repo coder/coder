@@ -461,11 +461,10 @@ const archivedFilterForProjectListKey = (
 };
 
 const readArchivedParam = (params: unknown): boolean | undefined => {
-	if (!params || typeof params !== "object") {
+	if (!params || typeof params !== "object" || !("archived" in params)) {
 		return undefined;
 	}
-	const archived = (params as { archived?: unknown }).archived;
-	return typeof archived === "boolean" ? archived : undefined;
+	return typeof params.archived === "boolean" ? params.archived : undefined;
 };
 
 const isInfiniteChatsCacheData = (
