@@ -26578,37 +26578,93 @@ func (q *sqlQuerier) GetProvisionerJobsCreatedAfter(ctx context.Context, created
 }
 
 const getProvisionerJobsToBeReaped = `-- name: GetProvisionerJobsToBeReaped :many
+WITH provisioner_requirements AS MATERIALIZED (
+	-- Collect distinct provisioner requirements so availability is checked
+	-- once per requirement set.
+	SELECT DISTINCT pj.organization_id, pj.provisioner, pj.tags
+	FROM provisioner_jobs pj
+	WHERE pj.started_at IS NULL
+		AND pj.completed_at IS NULL
+		AND pj.job_status = 'pending'::provisioner_job_status
+		-- Check only for jobs past the ordinary timeout and within the absolute
+		-- age limit. Older jobs are candidates regardless of provisioner
+		-- availability.
+		AND pj.created_at >= $1::timestamptz
+		AND pj.updated_at < $2
+),
+requirements_with_online_provisioners AS MATERIALIZED (
+	-- Materialize availability after deduplication, then reuse the results
+	-- when joining back to jobs. Combining these two CTEs can repeat daemon
+	-- matching for every job.
+	SELECT pr.organization_id, pr.provisioner, pr.tags
+	FROM provisioner_requirements pr
+	WHERE EXISTS (
+		SELECT 1
+		FROM provisioner_daemons pd
+		WHERE pd.organization_id = pr.organization_id
+			AND pr.provisioner = ANY(pd.provisioners)
+			AND provisioner_tagset_contains(pd.tags::tagset, pr.tags::tagset)
+			AND pd.last_seen_at >= $5::timestamptz
+	)
+)
 SELECT
-	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status, logs_length, logs_overflowed
+	pj.id, pj.created_at, pj.updated_at, pj.started_at, pj.canceled_at, pj.completed_at, pj.error, pj.organization_id, pj.initiator_id, pj.provisioner, pj.storage_method, pj.type, pj.input, pj.worker_id, pj.file_id, pj.tags, pj.error_code, pj.trace_metadata, pj.job_status, pj.logs_length, pj.logs_overflowed
 FROM
-	provisioner_jobs
+	provisioner_jobs pj
+LEFT JOIN requirements_with_online_provisioners AS reqs
+	ON reqs.organization_id = pj.organization_id
+	AND reqs.provisioner = pj.provisioner
+	AND reqs.tags = pj.tags
 WHERE
 	(
-		-- If the job has not been started before @pending_since, reap it.
-		updated_at < $1
-		AND started_at IS NULL
-		AND completed_at IS NULL
+		-- Select unstarted jobs eligible for reaping.
+		pj.started_at IS NULL
+		AND pj.completed_at IS NULL
+		AND (
+			(pj.job_status = 'pending'::provisioner_job_status AND pj.created_at < $1::timestamptz)
+			OR
+			(
+				pj.updated_at < $2
+				AND (
+					-- Jobs left unfinished after cancellation or failure
+					-- need cleanup regardless of provisioner availability.
+					pj.job_status != 'pending'::provisioner_job_status
+					-- No eligible provisioner is online.
+					OR reqs.organization_id IS NULL
+				)
+			)
+		)
 	)
 	OR
 	(
-		-- If the job has been started but not completed before @hung_since, reap it.
-		updated_at < $2
-		AND started_at IS NOT NULL
-		AND completed_at IS NULL
+		-- If the job has been started but not completed before
+		-- @hung_since, reap it.
+		pj.updated_at < $3
+		AND pj.started_at IS NOT NULL
+		AND pj.completed_at IS NULL
 	)
 ORDER BY random()
-LIMIT $3
+LIMIT $4
 `
 
 type GetProvisionerJobsToBeReapedParams struct {
-	PendingSince time.Time `db:"pending_since" json:"pending_since"`
-	HungSince    time.Time `db:"hung_since" json:"hung_since"`
-	MaxJobs      int32     `db:"max_jobs" json:"max_jobs"`
+	MaxPendingSince      time.Time `db:"max_pending_since" json:"max_pending_since"`
+	PendingSince         time.Time `db:"pending_since" json:"pending_since"`
+	HungSince            time.Time `db:"hung_since" json:"hung_since"`
+	MaxJobs              int32     `db:"max_jobs" json:"max_jobs"`
+	ProvisionerSeenSince time.Time `db:"provisioner_seen_since" json:"provisioner_seen_since"`
 }
 
-// To avoid repeatedly attempting to reap the same jobs, we randomly order and limit to @max_jobs.
+// To avoid repeatedly attempting to reap the same jobs, we randomly
+// order and limit to @max_jobs.
 func (q *sqlQuerier) GetProvisionerJobsToBeReaped(ctx context.Context, arg GetProvisionerJobsToBeReapedParams) ([]ProvisionerJob, error) {
-	rows, err := q.db.QueryContext(ctx, getProvisionerJobsToBeReaped, arg.PendingSince, arg.HungSince, arg.MaxJobs)
+	rows, err := q.db.QueryContext(ctx, getProvisionerJobsToBeReaped,
+		arg.MaxPendingSince,
+		arg.PendingSince,
+		arg.HungSince,
+		arg.MaxJobs,
+		arg.ProvisionerSeenSince,
+	)
 	if err != nil {
 		return nil, err
 	}

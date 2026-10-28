@@ -209,6 +209,12 @@ autobuildPollInterval: 1m0s
 # Interval to poll for hung and pending jobs and automatically terminate them.
 # (default: 1m0s, type: duration)
 jobHangDetectorInterval: 1m0s
+# Maximum age of a pending provisioner job before it is eligible for automatic
+# termination, even while eligible provisioners are online. Jobs with no eligible
+# online provisioner remain eligible for termination after 30 minutes. Must be
+# greater than 30 minutes.
+# (default: 2h0m0s, type: duration)
+jobReaperMaxPendingAge: 2h0m0s
 introspection:
   statsCollection:
     usageStats:

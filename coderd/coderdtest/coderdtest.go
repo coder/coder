@@ -451,7 +451,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 
 	jobReaperTicker := time.NewTicker(options.DeploymentValues.JobReaperDetectorInterval.Value())
 	defer jobReaperTicker.Stop()
-	jobReaper := jobreaper.New(ctx, options.Database, options.Pubsub, options.Logger.Named("reaper.detector"), jobReaperTicker.C)
+	jobReaper := jobreaper.New(ctx, options.Database, options.Pubsub, options.Logger.Named("reaper.detector"), jobReaperTicker.C, options.DeploymentValues.JobReaperMaxPendingAge.Value())
 	jobReaper.Start()
 	t.Cleanup(jobReaper.Close)
 

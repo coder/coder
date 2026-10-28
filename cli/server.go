@@ -1376,7 +1376,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			jobReaperTicker := time.NewTicker(vals.JobReaperDetectorInterval.Value())
 			defer jobReaperTicker.Stop()
-			jobReaper := jobreaper.New(ctx, options.Database, options.Pubsub, logger, jobReaperTicker.C)
+			jobReaper := jobreaper.New(ctx, options.Database, options.Pubsub, logger, jobReaperTicker.C, vals.JobReaperMaxPendingAge.Value())
 			jobReaper.Start()
 			defer jobReaper.Close()
 

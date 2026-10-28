@@ -369,6 +369,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "secure_auth_cookie": true
     },
     "job_hang_detector_interval": 0,
+    "job_reaper_max_pending_age": 0,
     "logging": {
       "human": "string",
       "json": "string",

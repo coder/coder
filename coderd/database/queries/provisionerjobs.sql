@@ -326,25 +326,73 @@ WHERE
 	id = $1;
 
 -- name: GetProvisionerJobsToBeReaped :many
+WITH provisioner_requirements AS MATERIALIZED (
+	-- Collect distinct provisioner requirements so availability is checked
+	-- once per requirement set.
+	SELECT DISTINCT pj.organization_id, pj.provisioner, pj.tags
+	FROM provisioner_jobs pj
+	WHERE pj.started_at IS NULL
+		AND pj.completed_at IS NULL
+		AND pj.job_status = 'pending'::provisioner_job_status
+		-- Check only for jobs past the ordinary timeout and within the absolute
+		-- age limit. Older jobs are candidates regardless of provisioner
+		-- availability.
+		AND pj.created_at >= @max_pending_since::timestamptz
+		AND pj.updated_at < @pending_since
+),
+requirements_with_online_provisioners AS MATERIALIZED (
+	-- Materialize availability after deduplication, then reuse the results
+	-- when joining back to jobs. Combining these two CTEs can repeat daemon
+	-- matching for every job.
+	SELECT pr.organization_id, pr.provisioner, pr.tags
+	FROM provisioner_requirements pr
+	WHERE EXISTS (
+		SELECT 1
+		FROM provisioner_daemons pd
+		WHERE pd.organization_id = pr.organization_id
+			AND pr.provisioner = ANY(pd.provisioners)
+			AND provisioner_tagset_contains(pd.tags::tagset, pr.tags::tagset)
+			AND pd.last_seen_at >= @provisioner_seen_since::timestamptz
+	)
+)
 SELECT
-	*
+	pj.*
 FROM
-	provisioner_jobs
+	provisioner_jobs pj
+LEFT JOIN requirements_with_online_provisioners AS reqs
+	ON reqs.organization_id = pj.organization_id
+	AND reqs.provisioner = pj.provisioner
+	AND reqs.tags = pj.tags
 WHERE
 	(
-		-- If the job has not been started before @pending_since, reap it.
-		updated_at < @pending_since
-		AND started_at IS NULL
-		AND completed_at IS NULL
+		-- Select unstarted jobs eligible for reaping.
+		pj.started_at IS NULL
+		AND pj.completed_at IS NULL
+		AND (
+			(pj.job_status = 'pending'::provisioner_job_status AND pj.created_at < @max_pending_since::timestamptz)
+			OR
+			(
+				pj.updated_at < @pending_since
+				AND (
+					-- Jobs left unfinished after cancellation or failure
+					-- need cleanup regardless of provisioner availability.
+					pj.job_status != 'pending'::provisioner_job_status
+					-- No eligible provisioner is online.
+					OR reqs.organization_id IS NULL
+				)
+			)
+		)
 	)
 	OR
 	(
-		-- If the job has been started but not completed before @hung_since, reap it.
-		updated_at < @hung_since
-		AND started_at IS NOT NULL
-		AND completed_at IS NULL
+		-- If the job has been started but not completed before
+		-- @hung_since, reap it.
+		pj.updated_at < @hung_since
+		AND pj.started_at IS NOT NULL
+		AND pj.completed_at IS NULL
 	)
--- To avoid repeatedly attempting to reap the same jobs, we randomly order and limit to @max_jobs.
+-- To avoid repeatedly attempting to reap the same jobs, we randomly
+-- order and limit to @max_jobs.
 ORDER BY random()
 LIMIT @max_jobs;
 

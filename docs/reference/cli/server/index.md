@@ -77,6 +77,17 @@ Specifies the custom docs URL.
 
 Specifies whether to redirect requests that do not match the access URL host.
 
+### --job-reaper-max-pending-age
+
+| Property    | Value                                          |
+|-------------|------------------------------------------------|
+| Type        | <code>duration</code>                          |
+| Environment | <code>$CODER_JOB_REAPER_MAX_PENDING_AGE</code> |
+| YAML        | <code>jobReaperMaxPendingAge</code>            |
+| Default     | <code>2h0m0s</code>                            |
+
+Maximum age of a pending provisioner job before it is eligible for automatic termination, even while eligible provisioners are online. Jobs with no eligible online provisioner remain eligible for termination after 30 minutes. Must be greater than 30 minutes.
+
 ### --http-address
 
 | Property    | Value                                    |

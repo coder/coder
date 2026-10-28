@@ -52,7 +52,7 @@ func newDetectorTestEnv(ctx context.Context, t *testing.T) *detectorTestEnv {
 	tickCh := make(chan time.Time)
 	statsCh := make(chan jobreaper.Stats)
 
-	detector := jobreaper.New(ctx, wrapDBAuthz(db, log), ps, log, tickCh).WithStatsChannel(statsCh)
+	detector := jobreaper.New(ctx, wrapDBAuthz(db, log), ps, log, tickCh, 2*time.Hour).WithStatsChannel(statsCh)
 	detector.Start()
 
 	return &detectorTestEnv{
