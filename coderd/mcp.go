@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/safedial"
@@ -370,22 +371,8 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			callbackURL := api.AccessURL.String() + mcpServerOAuth2CallbackPath(configID)
-			// Discovery targets are attacker-influenced (the MCP
-			// server URL and any endpoints or redirects it
-			// advertises), so all discovery traffic goes through an
-			// SSRF-guarded client that refuses private/internal
-			// destinations (CDM-02-002).
-			httpClient := *api.mcpHTTPClient
-			if httpClient.Timeout == 0 {
-				httpClient.Timeout = 30 * time.Second
-			}
-			result, err := discoverAndRegisterMCPOAuth2(ctx, &httpClient, strings.TrimSpace(req.URL), callbackURL)
+			result, err := api.registerMCPOAuth2Client(ctx, configID, strings.TrimSpace(req.URL))
 			if err != nil {
-				api.Logger.Warn(ctx, "mcp oauth2 auto-discovery failed",
-					slog.F("url", req.URL),
-					slog.Error(err),
-				)
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message: "OAuth2 auto-discovery failed. Provide oauth2_client_id, oauth2_auth_url, and oauth2_token_url manually, or ensure the MCP server supports RFC 9728 (Protected Resource Metadata) and RFC 7591 (Dynamic Client Registration).",
 					Detail:  err.Error(),
@@ -400,20 +387,9 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				oauth2Scopes = result.scopes
 			}
 
-			// A discovered endpoint that fails the HTTPS policy is
-			// dropped instead of failing creation.
 			oauth2RevocationURL := strings.TrimSpace(req.OAuth2RevocationURL)
 			if oauth2RevocationURL == "" {
 				oauth2RevocationURL = result.revocationURL
-				if oauth2RevocationURL != "" {
-					if err := mcpclient.ValidateRevocationEndpoint(oauth2RevocationURL); err != nil {
-						api.Logger.Warn(ctx, "ignoring discovered MCP oauth2 revocation endpoint",
-							slog.F("url", req.URL),
-							slog.Error(err),
-						)
-						oauth2RevocationURL = ""
-					}
-				}
 			}
 
 			req.OAuth2ClientID = result.clientID
@@ -714,255 +690,47 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			return errUserOIDCRequiresDeploymentPerms
 		}
 
-		displayName := existing.DisplayName
-		if req.DisplayName != nil {
-			displayName = strings.TrimSpace(*req.DisplayName)
-		}
-
-		slug := existing.Slug
-		if req.Slug != nil {
-			slug = strings.TrimSpace(*req.Slug)
-		}
-
-		description := existing.Description
-		if req.Description != nil {
-			description = strings.TrimSpace(*req.Description)
-		}
-
-		iconURL := existing.IconURL
-		if req.IconURL != nil {
-			iconURL = strings.TrimSpace(*req.IconURL)
-		}
-
-		transport := existing.Transport
-		if req.Transport != nil {
-			transport = strings.TrimSpace(*req.Transport)
-		}
-
-		serverURL := existing.Url
-		if req.URL != nil {
-			serverURL = strings.TrimSpace(*req.URL)
-		}
-
-		authType := existing.AuthType
-		if req.AuthType != nil {
-			authType = strings.TrimSpace(*req.AuthType)
-		}
-
-		oauth2ClientID := existing.OAuth2ClientID
-		if req.OAuth2ClientID != nil {
-			oauth2ClientID = strings.TrimSpace(*req.OAuth2ClientID)
-		}
-
-		oauth2ClientSecret := existing.OAuth2ClientSecret
-		oauth2ClientSecretKeyID := existing.OAuth2ClientSecretKeyID
-		if req.OAuth2ClientSecret != nil {
-			oauth2ClientSecret = strings.TrimSpace(*req.OAuth2ClientSecret)
-			// Clear the key ID when the secret is explicitly updated.
-			oauth2ClientSecretKeyID = sql.NullString{}
-		}
-
-		oauth2AuthURL := existing.OAuth2AuthURL
-		if req.OAuth2AuthURL != nil {
-			oauth2AuthURL = strings.TrimSpace(*req.OAuth2AuthURL)
-		}
-
-		oauth2TokenURL := existing.OAuth2TokenURL
-		if req.OAuth2TokenURL != nil {
-			oauth2TokenURL = strings.TrimSpace(*req.OAuth2TokenURL)
-		}
-
-		oauth2RevocationURL := existing.OAuth2RevocationURL
-		if req.OAuth2RevocationURL != nil {
-			oauth2RevocationURL = strings.TrimSpace(*req.OAuth2RevocationURL)
-		}
-
-		oauth2Resource := existing.OAuth2Resource
-		if req.OAuth2Resource != nil {
-			oauth2Resource = strings.TrimSpace(*req.OAuth2Resource)
-		}
-
-		oauth2Scopes := existing.OAuth2Scopes
-		if req.OAuth2Scopes != nil {
-			oauth2Scopes = strings.TrimSpace(*req.OAuth2Scopes)
-		}
-
-		apiKeyHeader := existing.APIKeyHeader
-		if req.APIKeyHeader != nil {
-			apiKeyHeader = strings.TrimSpace(*req.APIKeyHeader)
-		}
-
-		apiKeyValue := existing.APIKeyValue
-		apiKeyValueKeyID := existing.APIKeyValueKeyID
-		if req.APIKeyValue != nil {
-			apiKeyValue = strings.TrimSpace(*req.APIKeyValue)
-			// Clear the key ID when the value is explicitly updated.
-			apiKeyValueKeyID = sql.NullString{}
-		}
-
-		customHeaders := existing.CustomHeaders
-		customHeadersKeyID := existing.CustomHeadersKeyID
-		if req.CustomHeaders != nil {
-			customHeaders = customHeadersJSON
-			// Clear the key ID when headers are explicitly updated.
-			customHeadersKeyID = sql.NullString{}
-		}
-
-		signingSecret := existing.SigningSecret
-		signingSecretKeyID := existing.SigningSecretKeyID
-		if req.SigningSecret != nil {
-			signingSecret = strings.TrimSpace(*req.SigningSecret)
-			signingSecretKeyID = sql.NullString{}
-		}
-
-		toolAllowList := existing.ToolAllowList
-		if req.ToolAllowList != nil {
-			toolAllowList = coalesceStringSlice(trimStringSlice(*req.ToolAllowList))
-		}
-
-		toolDenyList := existing.ToolDenyList
-		if req.ToolDenyList != nil {
-			toolDenyList = coalesceStringSlice(trimStringSlice(*req.ToolDenyList))
-		}
-
-		availability := existing.Availability
-		if req.Availability != nil {
-			availability = strings.TrimSpace(*req.Availability)
-		}
-
-		enabled := existing.Enabled
-		if req.Enabled != nil {
-			enabled = *req.Enabled
-		}
-
-		modelIntent := existing.ModelIntent
-		if req.ModelIntent != nil {
-			modelIntent = *req.ModelIntent
-		}
-
-		allowInPlanMode := existing.AllowInPlanMode
-		if req.AllowInPlanMode != nil {
-			allowInPlanMode = *req.AllowInPlanMode
-		}
-
-		forwardCoderHeaders := existing.ForwardCoderHeaders
-		if req.ForwardCoderHeaders != nil {
-			forwardCoderHeaders = *req.ForwardCoderHeaders
-		}
-
-		// When auth_type changes, clear fields belonging to the
-		// previous auth type so stale secrets don't persist.
-		if authType != existing.AuthType {
-			switch authType {
-			case "none":
-				oauth2ClientID = ""
-				oauth2ClientSecret = ""
-				oauth2ClientSecretKeyID = sql.NullString{}
-				oauth2AuthURL = ""
-				oauth2TokenURL = ""
-				oauth2RevocationURL = ""
-				oauth2Resource = ""
-				oauth2Scopes = ""
-				apiKeyHeader = ""
-				apiKeyValue = ""
-				apiKeyValueKeyID = sql.NullString{}
-				customHeaders = "{}"
-				customHeadersKeyID = sql.NullString{}
-			case "oauth2":
-				apiKeyHeader = ""
-				apiKeyValue = ""
-				apiKeyValueKeyID = sql.NullString{}
-				customHeaders = "{}"
-				customHeadersKeyID = sql.NullString{}
-			case "api_key":
-				oauth2ClientID = ""
-				oauth2ClientSecret = ""
-				oauth2ClientSecretKeyID = sql.NullString{}
-				oauth2AuthURL = ""
-				oauth2TokenURL = ""
-				oauth2RevocationURL = ""
-				oauth2Resource = ""
-				oauth2Scopes = ""
-				customHeaders = "{}"
-				customHeadersKeyID = sql.NullString{}
-			case "custom_headers":
-				oauth2ClientID = ""
-				oauth2ClientSecret = ""
-				oauth2ClientSecretKeyID = sql.NullString{}
-				oauth2AuthURL = ""
-				oauth2TokenURL = ""
-				oauth2RevocationURL = ""
-				oauth2Resource = ""
-				oauth2Scopes = ""
-				apiKeyHeader = ""
-				apiKeyValue = ""
-				apiKeyValueKeyID = sql.NullString{}
-			case "user_oidc":
-				// user_oidc forwards the calling user's OIDC access token
-				// from user_links at request time, so no admin-configured
-				// secrets are stored on the row.
-				oauth2ClientID = ""
-				oauth2ClientSecret = ""
-				oauth2ClientSecretKeyID = sql.NullString{}
-				oauth2AuthURL = ""
-				oauth2TokenURL = ""
-				oauth2RevocationURL = ""
-				oauth2Resource = ""
-				oauth2Scopes = ""
-				apiKeyHeader = ""
-				apiKeyValue = ""
-				apiKeyValueKeyID = sql.NullString{}
-				customHeaders = "{}"
-				customHeadersKeyID = sql.NullString{}
-			}
-		}
-
-		if authType == "api_key" && (apiKeyHeader == "" || apiKeyValue == "") {
+		next := applyMCPServerConfigChange(existing, req, customHeadersJSON)
+		if next.AuthType == "api_key" && (next.APIKeyHeader == "" || next.APIKeyValue == "") {
 			return errAPIKeyAuthRequiresHeaderAndValue
 		}
 
-		// User grants are bound to the destination, auth flow, token and revocation
-		// endpoints, OAuth client, and resource indicator. Invalidate them when any
-		// of these change so stored tokens cannot be sent to another endpoint,
-		// client, or resource.
-		if serverURL != existing.Url || authType != existing.AuthType ||
-			oauth2TokenURL != existing.OAuth2TokenURL || oauth2RevocationURL != existing.OAuth2RevocationURL ||
-			oauth2ClientID != existing.OAuth2ClientID || oauth2Resource != existing.OAuth2Resource {
+		if mcpOAuth2GrantBindingOf(next) != mcpOAuth2GrantBindingOf(existing) {
 			if err := tx.DeleteMCPServerUserTokensByConfigID(ctx, existing.ID); err != nil {
 				return xerrors.Errorf("invalidate MCP server user tokens: %w", err)
 			}
 		}
 
 		updatedConfig, err := tx.UpdateMCPServerConfig(ctx, database.UpdateMCPServerConfigParams{
-			DisplayName:             displayName,
-			Slug:                    slug,
-			Description:             description,
-			IconURL:                 iconURL,
-			Transport:               transport,
-			Url:                     serverURL,
-			AuthType:                authType,
-			OAuth2ClientID:          oauth2ClientID,
-			OAuth2ClientSecret:      oauth2ClientSecret,
-			OAuth2ClientSecretKeyID: oauth2ClientSecretKeyID,
-			OAuth2AuthURL:           oauth2AuthURL,
-			OAuth2TokenURL:          oauth2TokenURL,
-			OAuth2RevocationURL:     oauth2RevocationURL,
-			OAuth2Resource:          oauth2Resource,
-			OAuth2Scopes:            oauth2Scopes,
-			APIKeyHeader:            apiKeyHeader,
-			APIKeyValue:             apiKeyValue,
-			APIKeyValueKeyID:        apiKeyValueKeyID,
-			CustomHeaders:           customHeaders,
-			CustomHeadersKeyID:      customHeadersKeyID,
-			SigningSecret:           signingSecret,
-			SigningSecretKeyID:      signingSecretKeyID,
-			ToolAllowList:           toolAllowList,
-			ToolDenyList:            toolDenyList,
-			Availability:            availability,
-			Enabled:                 enabled,
-			ModelIntent:             modelIntent,
-			AllowInPlanMode:         allowInPlanMode,
-			ForwardCoderHeaders:     forwardCoderHeaders,
+			DisplayName:             next.DisplayName,
+			Slug:                    next.Slug,
+			Description:             next.Description,
+			IconURL:                 next.IconURL,
+			Transport:               next.Transport,
+			Url:                     next.Url,
+			AuthType:                next.AuthType,
+			OAuth2ClientID:          next.OAuth2ClientID,
+			OAuth2ClientSecret:      next.OAuth2ClientSecret,
+			OAuth2ClientSecretKeyID: next.OAuth2ClientSecretKeyID,
+			OAuth2AuthURL:           next.OAuth2AuthURL,
+			OAuth2TokenURL:          next.OAuth2TokenURL,
+			OAuth2RevocationURL:     next.OAuth2RevocationURL,
+			OAuth2Resource:          next.OAuth2Resource,
+			OAuth2Scopes:            next.OAuth2Scopes,
+			APIKeyHeader:            next.APIKeyHeader,
+			APIKeyValue:             next.APIKeyValue,
+			APIKeyValueKeyID:        next.APIKeyValueKeyID,
+			CustomHeaders:           next.CustomHeaders,
+			CustomHeadersKeyID:      next.CustomHeadersKeyID,
+			SigningSecret:           next.SigningSecret,
+			SigningSecretKeyID:      next.SigningSecretKeyID,
+			ToolAllowList:           next.ToolAllowList,
+			ToolDenyList:            next.ToolDenyList,
+			Availability:            next.Availability,
+			Enabled:                 next.Enabled,
+			ModelIntent:             next.ModelIntent,
+			AllowInPlanMode:         next.AllowInPlanMode,
+			ForwardCoderHeaders:     next.ForwardCoderHeaders,
 			UpdatedBy:               apiKey.UserID,
 			ID:                      existing.ID,
 		})
@@ -1011,6 +779,131 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	aReq.New = updated
 
 	httpapi.Write(ctx, rw, http.StatusOK, convertMCPServerConfig(updated))
+}
+
+// applyMCPServerConfigChange returns prev with every field that req sets
+// replaced. When the auth type changes, it clears the fields that the new
+// auth type does not use, so stale secrets do not persist.
+func applyMCPServerConfigChange(prev database.MCPServerConfig, req codersdk.UpdateMCPServerConfigRequest, customHeadersJSON string) database.MCPServerConfig {
+	setTrimmed := func(dst *string, v *string) {
+		if v != nil {
+			*dst = strings.TrimSpace(*v)
+		}
+	}
+
+	next := prev
+	setTrimmed(&next.DisplayName, req.DisplayName)
+	setTrimmed(&next.Slug, req.Slug)
+	setTrimmed(&next.Description, req.Description)
+	setTrimmed(&next.IconURL, req.IconURL)
+	setTrimmed(&next.Transport, req.Transport)
+	setTrimmed(&next.Url, req.URL)
+	setTrimmed(&next.AuthType, req.AuthType)
+	setTrimmed(&next.OAuth2ClientID, req.OAuth2ClientID)
+	if req.OAuth2ClientSecret != nil {
+		next.OAuth2ClientSecret = strings.TrimSpace(*req.OAuth2ClientSecret)
+		// Clear the key ID when the secret is explicitly updated.
+		next.OAuth2ClientSecretKeyID = sql.NullString{}
+	}
+	setTrimmed(&next.OAuth2AuthURL, req.OAuth2AuthURL)
+	setTrimmed(&next.OAuth2TokenURL, req.OAuth2TokenURL)
+	setTrimmed(&next.OAuth2RevocationURL, req.OAuth2RevocationURL)
+	setTrimmed(&next.OAuth2Resource, req.OAuth2Resource)
+	setTrimmed(&next.OAuth2Scopes, req.OAuth2Scopes)
+	setTrimmed(&next.APIKeyHeader, req.APIKeyHeader)
+	if req.APIKeyValue != nil {
+		next.APIKeyValue = strings.TrimSpace(*req.APIKeyValue)
+		next.APIKeyValueKeyID = sql.NullString{}
+	}
+	if req.CustomHeaders != nil {
+		next.CustomHeaders = customHeadersJSON
+		next.CustomHeadersKeyID = sql.NullString{}
+	}
+	if req.SigningSecret != nil {
+		next.SigningSecret = strings.TrimSpace(*req.SigningSecret)
+		next.SigningSecretKeyID = sql.NullString{}
+	}
+	if req.ToolAllowList != nil {
+		next.ToolAllowList = coalesceStringSlice(trimStringSlice(*req.ToolAllowList))
+	}
+	if req.ToolDenyList != nil {
+		next.ToolDenyList = coalesceStringSlice(trimStringSlice(*req.ToolDenyList))
+	}
+	setTrimmed(&next.Availability, req.Availability)
+	next.Enabled = ptr.NilToDefault(req.Enabled, prev.Enabled)
+	next.ModelIntent = ptr.NilToDefault(req.ModelIntent, prev.ModelIntent)
+	next.AllowInPlanMode = ptr.NilToDefault(req.AllowInPlanMode, prev.AllowInPlanMode)
+	next.ForwardCoderHeaders = ptr.NilToDefault(req.ForwardCoderHeaders, prev.ForwardCoderHeaders)
+
+	if next.AuthType != prev.AuthType {
+		next = clearUnusedMCPServerAuthFields(next)
+	}
+	return next
+}
+
+// clearUnusedMCPServerAuthFields returns c with the credential fields that
+// c.AuthType does not use cleared. An unknown auth type keeps every field.
+func clearUnusedMCPServerAuthFields(c database.MCPServerConfig) database.MCPServerConfig {
+	var usesOAuth2, usesAPIKey, usesCustomHeaders bool
+	switch c.AuthType {
+	case "oauth2":
+		usesOAuth2 = true
+	case "api_key":
+		usesAPIKey = true
+	case "custom_headers":
+		usesCustomHeaders = true
+	case "none", "user_oidc":
+		// user_oidc forwards the calling user's OIDC access token
+		// from user_links at request time, so no admin-configured
+		// secrets are stored on the row.
+	default:
+		return c
+	}
+	if !usesOAuth2 {
+		c.OAuth2ClientID = ""
+		c.OAuth2ClientSecret = ""
+		c.OAuth2ClientSecretKeyID = sql.NullString{}
+		c.OAuth2AuthURL = ""
+		c.OAuth2TokenURL = ""
+		c.OAuth2RevocationURL = ""
+		c.OAuth2Resource = ""
+		c.OAuth2Scopes = ""
+	}
+	if !usesAPIKey {
+		c.APIKeyHeader = ""
+		c.APIKeyValue = ""
+		c.APIKeyValueKeyID = sql.NullString{}
+	}
+	if !usesCustomHeaders {
+		c.CustomHeaders = "{}"
+		c.CustomHeadersKeyID = sql.NullString{}
+	}
+	return c
+}
+
+// mcpOAuth2GrantBinding holds the config fields that a stored user grant
+// is bound to: the destination, the auth flow, the token and revocation
+// endpoints, the OAuth client, and the resource indicator. When any of
+// them changes, stored tokens must not be used, so that they cannot be
+// sent to another endpoint, client, or resource.
+type mcpOAuth2GrantBinding struct {
+	url           string
+	authType      string
+	tokenURL      string
+	revocationURL string
+	clientID      string
+	resource      string
+}
+
+func mcpOAuth2GrantBindingOf(c database.MCPServerConfig) mcpOAuth2GrantBinding {
+	return mcpOAuth2GrantBinding{
+		url:           c.Url,
+		authType:      c.AuthType,
+		tokenURL:      c.OAuth2TokenURL,
+		revocationURL: c.OAuth2RevocationURL,
+		clientID:      c.OAuth2ClientID,
+		resource:      c.OAuth2Resource,
+	}
 }
 
 // @Summary Delete MCP server config
@@ -1364,9 +1257,7 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 		if err != nil {
 			return xerrors.Errorf("re-read MCP server config: %w", err)
 		}
-		if current.Url != config.Url || current.AuthType != config.AuthType ||
-			current.OAuth2TokenURL != config.OAuth2TokenURL || current.OAuth2RevocationURL != config.OAuth2RevocationURL ||
-			current.OAuth2ClientID != config.OAuth2ClientID || current.OAuth2Resource != config.OAuth2Resource {
+		if mcpOAuth2GrantBindingOf(current) != mcpOAuth2GrantBindingOf(config) {
 			return errMCPConfigSupersededDuringAuth
 		}
 		_, err = tx.UpsertMCPServerUserToken(ctx, database.UpsertMCPServerUserTokenParams{
@@ -2322,6 +2213,41 @@ func registerOAuth2Client(
 	}
 
 	return result.ClientID, result.ClientSecret, nil
+}
+
+// registerMCPOAuth2Client discovers the authorization server of the MCP
+// server at serverURL and registers an OAuth2 client whose redirect URI
+// is the callback of the config configID. A discovered revocation
+// endpoint that fails the HTTPS policy is dropped instead of failing
+// the registration.
+func (api *API) registerMCPOAuth2Client(ctx context.Context, configID uuid.UUID, serverURL string) (*mcpOAuth2Discovery, error) {
+	callbackURL := api.AccessURL.String() + mcpServerOAuth2CallbackPath(configID)
+	// Discovery targets are attacker-influenced (the MCP server URL and
+	// any endpoints or redirects it advertises), so all discovery traffic
+	// goes through an SSRF-guarded client that refuses private/internal
+	// destinations (CDM-02-002).
+	httpClient := *api.mcpHTTPClient
+	if httpClient.Timeout == 0 {
+		httpClient.Timeout = 30 * time.Second
+	}
+	result, err := discoverAndRegisterMCPOAuth2(ctx, &httpClient, serverURL, callbackURL)
+	if err != nil {
+		api.Logger.Warn(ctx, "mcp oauth2 auto-discovery failed",
+			slog.F("url", serverURL),
+			slog.Error(err),
+		)
+		return nil, err
+	}
+	if result.revocationURL != "" {
+		if err := mcpclient.ValidateRevocationEndpoint(result.revocationURL); err != nil {
+			api.Logger.Warn(ctx, "ignoring discovered MCP oauth2 revocation endpoint",
+				slog.F("url", serverURL),
+				slog.Error(err),
+			)
+			result.revocationURL = ""
+		}
+	}
+	return result, nil
 }
 
 // discoverAndRegisterMCPOAuth2 performs the full MCP OAuth2
