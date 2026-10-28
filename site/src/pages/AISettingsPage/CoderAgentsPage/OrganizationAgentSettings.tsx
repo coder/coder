@@ -62,6 +62,7 @@ const OrganizationAgentSettingsContent: React.FC<
 			"general",
 		),
 	);
+
 	const exploreMutation = useMutation(
 		updateOrganizationChatModelOverride(
 			queryClient,
@@ -69,6 +70,7 @@ const OrganizationAgentSettingsContent: React.FC<
 			"explore",
 		),
 	);
+
 	const titleMutation = useMutation(
 		updateOrganizationChatModelOverride(
 			queryClient,
@@ -76,6 +78,7 @@ const OrganizationAgentSettingsContent: React.FC<
 			"title_generation",
 		),
 	);
+
 	const compactionMutation = useMutation(
 		updateOrganizationChatModelOverride(
 			queryClient,
@@ -83,6 +86,7 @@ const OrganizationAgentSettingsContent: React.FC<
 			"compaction",
 		),
 	);
+
 	const advisorMutation = useMutation(
 		updateOrganizationChatModelOverride(
 			queryClient,
@@ -90,6 +94,7 @@ const OrganizationAgentSettingsContent: React.FC<
 			"advisor",
 		),
 	);
+
 	const computerUseMutation = useMutation(
 		updateOrganizationChatModelOverride(
 			queryClient,
@@ -97,6 +102,7 @@ const OrganizationAgentSettingsContent: React.FC<
 			"computer_use",
 		),
 	);
+
 	const mutations = [
 		generalMutation,
 		exploreMutation,
@@ -107,6 +113,7 @@ const OrganizationAgentSettingsContent: React.FC<
 	] as const;
 
 	const defaultModelMutation = useMutation(updateChatModel(queryClient));
+
 	const providerInfoByID = providerInfoByIDFromDescriptors(
 		modelsQuery.data?.providers,
 	);

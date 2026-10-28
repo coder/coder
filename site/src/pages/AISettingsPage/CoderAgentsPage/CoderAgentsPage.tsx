@@ -46,23 +46,28 @@ const CoderAgentsPage: React.FC = () => {
 
 	const showAdvisorSettings = experiments.includes("chat-advisor");
 	const showComputerUseSettings = experiments.includes("chat-virtual-desktop");
+
 	const personalOverridesQuery = useQuery({
 		...chatPersonalModelOverridesAdminSettings(),
 		enabled: canEditDeploymentConfig,
 	});
+
 	const advisorConfigQuery = useQuery({
 		...chatAdvisorConfig(),
 		enabled: canEditDeploymentConfig && showAdvisorSettings,
 	});
+
 	const savePersonalOverridesMutation = useMutation(
 		updateChatPersonalModelOverridesAdminSettings(queryClient),
 	);
+
 	const saveAdvisorConfigMutation = useMutation(
 		updateChatAdvisorConfig(queryClient),
 	);
 
 	const canAccessOrganizationSettings =
 		accessibleOrganizationsQuery.organizations.length > 0;
+
 	const isFeatureVisible =
 		canEditDeploymentConfig ||
 		canAccessOrganizationSettings ||
