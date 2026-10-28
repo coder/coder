@@ -24,6 +24,8 @@ type ProjectFolderChatsProps = {
 	readonly filedPinnedChats: readonly Chat[];
 	readonly chatListInput: ChatListInput;
 	readonly emptyMessage: string;
+	/** Called when the focused Retry button goes away, as after a successful retry. */
+	readonly onRetryFocusLost: () => void;
 };
 
 /** Fetches on its own, since the sidebar's loaded pages may not reach a project's older chats. */
@@ -34,6 +36,7 @@ export const ProjectFolderChats: React.FC<ProjectFolderChatsProps> = ({
 	filedPinnedChats,
 	chatListInput,
 	emptyMessage,
+	onRetryFocusLost,
 }) => {
 	const chatTreeContext = useChatTree();
 	const folderQuery = useInfiniteQuery(
@@ -59,6 +62,19 @@ export const ProjectFolderChats: React.FC<ProjectFolderChatsProps> = ({
 	// their subagents from.
 	const chatTree = buildChatTree(chats);
 	const isEmpty = chats.length === 0 && pinnedCount === 0;
+	// React runs ref cleanups before it removes the node, so focus has not
+	// fallen to the page body yet. A re-render runs the cleanup too, but
+	// leaves the node connected.
+	const retryButtonRef = (node: HTMLButtonElement) => () => {
+		if (!node.contains(document.activeElement)) {
+			return;
+		}
+		queueMicrotask(() => {
+			if (!node.isConnected && document.activeElement === document.body) {
+				onRetryFocusLost();
+			}
+		});
+	};
 
 	return (
 		<ChatTreeContext
@@ -98,6 +114,7 @@ export const ProjectFolderChats: React.FC<ProjectFolderChatsProps> = ({
 					className="my-1"
 					actions={
 						<Button
+							ref={retryButtonRef}
 							size="sm"
 							variant="outline"
 							aria-label={`Retry loading chats in ${projectLabel}`}

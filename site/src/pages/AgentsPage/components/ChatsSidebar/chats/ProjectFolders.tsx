@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ChevronRightIcon, EllipsisVerticalIcon, PlusIcon } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { NavLink, type To, useLocation } from "react-router";
 import type { ChatListInput } from "#/api/queries/chats";
 import type { Chat, ChatProject, Organization } from "#/api/typesGenerated";
@@ -211,6 +211,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 	const projectLabel = organizationLabel
 		? `${project.name} (${organizationLabel})`
 		: project.name;
+	const toggleRef = useRef<HTMLButtonElement>(null);
 	return (
 		<ChatDropArea
 			target={{
@@ -224,6 +225,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 				<ContextMenuTrigger asChild>
 					<div className="group relative flex items-center gap-1 rounded-md pl-1 pr-2 text-content-secondary group-data-[drop=unavailable]/drop:opacity-50 hover:bg-surface-tertiary/50 hover:text-content-primary has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:text-content-primary">
 						<Button
+							ref={toggleRef}
 							variant="subtle"
 							size="icon"
 							className="size-6 min-w-0 p-0 text-current [&>svg]:size-3.5"
@@ -320,6 +322,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 						filedPinnedChats={pinnedChats}
 						chatListInput={chatListInput}
 						emptyMessage={emptyMessage}
+						onRetryFocusLost={() => toggleRef.current?.focus()}
 					/>
 				</div>
 			)}
