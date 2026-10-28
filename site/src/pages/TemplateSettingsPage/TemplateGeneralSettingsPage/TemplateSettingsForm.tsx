@@ -73,11 +73,8 @@ type TemplateSettingsFormProps = {
 	error?: unknown;
 	// Helpful to show field errors on Storybook
 	initialTouched?: FormikTouched<UpdateTemplateMeta>;
-	/**
-	 * Gates deprecation and require-active-version. The server stores and
-	 * enforces both through the access_control entitlement.
-	 */
 	accessControlEnabled: boolean;
+	advancedSchedulingEnabled: boolean;
 	portSharingControlsEnabled: boolean;
 	/** Shows Premium page links in Premium notices. */
 	canViewPremium: boolean;
@@ -91,6 +88,7 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 	isSubmitting,
 	initialTouched,
 	accessControlEnabled,
+	advancedSchedulingEnabled,
 	portSharingControlsEnabled,
 	canViewPremium,
 }) => {
@@ -269,7 +267,7 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 								form.setFieldValue("require_active_version", checked === true);
 							}}
 							disabled={
-								!template.require_active_version && !accessControlEnabled
+								!template.require_active_version && !advancedSchedulingEnabled
 							}
 						/>
 						<Label htmlFor="require_active_version">
@@ -284,7 +282,7 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 										</strong>
 									</span>
 
-									{!accessControlEnabled && (
+									{!advancedSchedulingEnabled && (
 										<PremiumNotice
 											canViewPremium={canViewPremium}
 											className="mt-4"
