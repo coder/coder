@@ -138,6 +138,11 @@ const MCPConnectionRow: React.FC<MCPConnectionRowProps> = ({
 	);
 };
 
+/**
+ * Rows list the enabled OAuth2 servers; other enabled servers are named below.
+ * `onDisconnect` should set `disconnectTarget`, which opens the confirmation,
+ * and while `connectingServerId` is set, every Connect button is disabled.
+ */
 export const AgentSettingsMCPConnectionsPageView: React.FC<
 	AgentSettingsMCPConnectionsPageViewProps
 > = ({
