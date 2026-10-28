@@ -68,7 +68,7 @@ const MCPConnectionRow: React.FC<MCPConnectionRowProps> = ({
 	const isConnecting = connectingServerId === server.id;
 	return (
 		<TableRow>
-			<TableCell className="max-w-48">
+			<TableCell className="w-full max-w-0 @lg:w-auto @lg:max-w-48">
 				<div className="flex items-center gap-2">
 					<MCPServerIcon iconUrl={server.icon_url} className="size-6" />
 					<span className="truncate" title={server.display_name}>
@@ -77,14 +77,14 @@ const MCPConnectionRow: React.FC<MCPConnectionRowProps> = ({
 				</div>
 			</TableCell>
 			<TableCell
-				className="w-full max-w-0 truncate"
+				className="hidden w-full max-w-0 truncate @lg:table-cell"
 				title={server.description || undefined}
 			>
 				{server.description || (
 					<span className="text-content-disabled">No description</span>
 				)}
 			</TableCell>
-			<TableCell className="hidden whitespace-nowrap sm:table-cell">
+			<TableCell className="hidden whitespace-nowrap @2xl:table-cell">
 				{isConnecting ? (
 					<StatusIndicator variant="pending" size="sm">
 						<StatusIndicatorDot />
@@ -200,12 +200,19 @@ export const AgentSettingsMCPConnectionsPageView: React.FC<
 				/>
 			)}
 			<div className="flex flex-col gap-4">
-				<Table aria-label={`MCP connections in ${organizationName}`}>
+				<Table
+					aria-label={`MCP connections in ${organizationName}`}
+					// Beside the settings sidebar the table is far narrower than the
+					// viewport, so the columns follow the wrapper, not the screen.
+					wrapperClassName="@container"
+				>
 					<TableHeader>
 						<TableRow>
 							<TableHead className="whitespace-nowrap">Name</TableHead>
-							<TableHead className="w-full">Description</TableHead>
-							<TableHead className="hidden whitespace-nowrap sm:table-cell">
+							<TableHead className="hidden w-full @lg:table-cell">
+								Description
+							</TableHead>
+							<TableHead className="hidden whitespace-nowrap @2xl:table-cell">
 								Status
 							</TableHead>
 							<TableHead>
@@ -220,10 +227,10 @@ export const AgentSettingsMCPConnectionsPageView: React.FC<
 									<TableCell>
 										<Skeleton variant="text" className="w-32" />
 									</TableCell>
-									<TableCell className="w-full max-w-0">
+									<TableCell className="hidden w-full max-w-0 @lg:table-cell">
 										<Skeleton variant="text" />
 									</TableCell>
-									<TableCell className="hidden sm:table-cell">
+									<TableCell className="hidden @2xl:table-cell">
 										<Skeleton variant="text" className="w-24" />
 									</TableCell>
 									<TableCell>
