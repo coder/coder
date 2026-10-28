@@ -44,6 +44,7 @@ export const ProjectFolderChats: React.FC<ProjectFolderChatsProps> = ({
 		projectId,
 		filedChats,
 		fetchedChats,
+		sidebarChatById: chatTreeContext.chatById,
 		currentUserId: chatTreeContext.currentUserId,
 		archived: chatListInput.archived ?? false,
 	});
@@ -51,6 +52,7 @@ export const ProjectFolderChats: React.FC<ProjectFolderChatsProps> = ({
 		projectId,
 		filedPinnedChats,
 		fetchedChats,
+		sidebarChatById: chatTreeContext.chatById,
 		currentUserId: chatTreeContext.currentUserId,
 	});
 	// Fetched chats are missing from the panel's tree, which rows read

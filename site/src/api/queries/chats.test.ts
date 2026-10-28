@@ -1577,7 +1577,6 @@ describe("pinChat optimistic update", () => {
 			readInfiniteChats(queryClient)?.find((chat) => chat.id === chatId)
 				?.pin_order,
 		).toBe(1);
-		// The folder fetched with the default filters, so other lists stay out.
 		expect(
 			queryClient.getQueryData<InfiniteData>(sharedListKey)?.pages,
 		).toEqual([[]]);

@@ -78,8 +78,8 @@ const ProjectChatsSection: React.FC<ProjectChatsSectionProps> = ({
 };
 
 /**
- * The chats in a project, loaded page by page as the list scrolls. The
- * viewer's pinned chats lead in their own section, as in the sidebar.
+ * Only the viewer's own chats go in the Pinned section: pin order is each
+ * owner's setting, so another user's pinned chat stays under Chats.
  */
 export const ProjectChatsListView: React.FC<ProjectChatsListViewProps> = ({
 	chats,

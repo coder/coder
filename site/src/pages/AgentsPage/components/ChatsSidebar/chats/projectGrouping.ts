@@ -46,26 +46,30 @@ type MergeProjectFolderChatsOptions = {
 	readonly filedChats: readonly Chat[];
 	/** The folder's own fetch, which reaches chats the sidebar has not loaded. */
 	readonly fetchedChats: readonly Chat[];
+	/** Every chat the sidebar has loaded, whatever section it sits in. */
+	readonly sidebarChatById: ReadonlyMap<string, Chat>;
 	readonly currentUserId: string;
 	readonly archived: boolean;
 };
 
 /**
- * The filed copy wins because the sidebar list sees creates and moves first,
- * and fetched rows are checked again because cached rows change in place
- * after the fetch.
+ * A fetched row is used only for chats the sidebar has not loaded: the
+ * sidebar sees creates, moves, and pins first, and a collapsed folder's
+ * cached copy can be stale. Fetched rows are checked again because cached
+ * rows change in place after the fetch.
  */
 export const mergeProjectFolderChats = ({
 	projectId,
 	filedChats,
 	fetchedChats,
+	sidebarChatById,
 	currentUserId,
 	archived,
 }: MergeProjectFolderChatsOptions): readonly Chat[] => {
 	const chatsById = new Map(filedChats.map((chat) => [chat.id, chat]));
 	for (const chat of fetchedChats) {
 		if (
-			!chatsById.has(chat.id) &&
+			!sidebarChatById.has(chat.id) &&
 			chat.project_id === projectId &&
 			chat.pin_order === 0 &&
 			chat.archived === archived &&
@@ -85,6 +89,7 @@ type CountProjectFolderPinsOptions = {
 	readonly projectId: string;
 	readonly filedPinnedChats: readonly Chat[];
 	readonly fetchedChats: readonly Chat[];
+	readonly sidebarChatById: ReadonlyMap<string, Chat>;
 	readonly currentUserId: string;
 };
 
@@ -93,11 +98,13 @@ export const countProjectFolderPins = ({
 	projectId,
 	filedPinnedChats,
 	fetchedChats,
+	sidebarChatById,
 	currentUserId,
 }: CountProjectFolderPinsOptions): number => {
 	const pinnedIds = new Set(filedPinnedChats.map((chat) => chat.id));
 	for (const chat of fetchedChats) {
 		if (
+			!sidebarChatById.has(chat.id) &&
 			chat.project_id === projectId &&
 			chat.pin_order > 0 &&
 			canManageChat(chat, currentUserId)

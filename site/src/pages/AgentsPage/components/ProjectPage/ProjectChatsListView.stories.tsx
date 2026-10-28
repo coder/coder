@@ -129,7 +129,6 @@ export const OnlyPinnedChats: Story = {
 	args: { chats: [mockPinnedRunningChat, mockPinnedMergedChat] },
 };
 
-/** Every loaded chat is pinned, so Chats holds only the next page's loader. */
 export const OnlyPinnedChatsMoreToLoad: Story = {
 	args: {
 		...OnlyPinnedChats.args,

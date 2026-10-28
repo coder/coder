@@ -264,10 +264,9 @@ export const prependToInfiniteChatsCache = (
 };
 
 /**
- * Copies a chat that a project folder fetched into the sidebar list fetched
- * with the same filters, when that list lacks it. A pin or move takes the
- * chat out of its folder, and without a sidebar copy it would vanish until
- * the lists refetch. Call it after the optimistic update.
+ * A pin or move takes a folder-only chat out of its folder, so it needs a
+ * copy in the sidebar list whose filters fetched it, or it vanishes until the
+ * lists refetch. Call it after the optimistic update so the copy carries it.
  */
 const copyFolderChatToSidebarList = (
 	queryClient: QueryClient,
