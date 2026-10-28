@@ -7875,6 +7875,114 @@ func TestWorkspacePrebuildsView(t *testing.T) {
 	}
 }
 
+// TestClaimPrebuiltWorkspaceConcurrent guards against two concurrent claims
+// selecting the same prebuild. workspace_prebuilds is built from CTEs, and
+// Postgres does not push FOR UPDATE into a CTE, so locking the view is a no-op.
+func TestClaimPrebuiltWorkspaceConcurrent(t *testing.T) {
+	t.Parallel()
+
+	now := dbtime.Now()
+	orgID := uuid.New()
+	userID := uuid.New()
+
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	dbgen.Organization(t, db, database.Organization{ID: orgID})
+	dbgen.User(t, db, database.User{ID: userID})
+	claimantA := dbgen.User(t, db, database.User{})
+	claimantB := dbgen.User(t, db, database.User{})
+
+	tmpl := createTemplate(t, db, orgID, userID)
+	tmplV1 := createTmplVersionAndPreset(t, db, tmpl, tmpl.ActiveVersionID, now, nil)
+	createPrebuiltWorkspace(ctx, t, db, tmpl, tmplV1, orgID, now, &createPrebuiltWorkspaceOpts{
+		readyAgents:    1,
+		notReadyAgents: 0,
+	})
+	// Only builds whose job succeeded are claimable, and the helper leaves the job pending.
+	_, err = sqlDB.ExecContext(ctx, "UPDATE provisioner_jobs SET started_at = $1, completed_at = $1", now)
+	require.NoError(t, err)
+
+	claim := func(tx database.Store, user database.User) (database.ClaimPrebuiltWorkspaceRow, error) {
+		return tx.ClaimPrebuiltWorkspace(ctx, database.ClaimPrebuiltWorkspaceParams{
+			NewUserID: user.ID,
+			NewName:   "claimed-by-" + user.Username,
+			Now:       now,
+			PresetID:  tmplV1.preset.ID,
+		})
+	}
+
+	type claimResult struct {
+		row database.ClaimPrebuiltWorkspaceRow
+		err error
+	}
+
+	// Claim A holds its transaction open so that claim B races against it.
+	claimedA := make(chan claimResult, 1)
+	releaseA := make(chan struct{})
+	doneA := make(chan error, 1)
+	go func() {
+		doneA <- db.InTx(func(tx database.Store) error {
+			row, err := claim(tx, claimantA)
+			claimedA <- claimResult{row: row, err: err}
+			<-releaseA
+			return err
+		}, nil)
+	}()
+
+	resA := testutil.TryReceive(ctx, t, claimedA)
+	require.NoError(t, resA.err)
+
+	claimedB := make(chan claimResult, 1)
+	go func() {
+		row, err := claim(db, claimantB)
+		claimedB <- claimResult{row: row, err: err}
+	}()
+
+	// With a working SKIP LOCKED, claim B skips the prebuild locked by A and
+	// returns without waiting. Without it, claim B blocks on A's row lock, which
+	// shows up in pg_stat_activity.
+	var (
+		resB      claimResult
+		returnedB bool
+	)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		select {
+		case resB = <-claimedB:
+			returnedB = true
+			return true
+		default:
+		}
+		var waiting bool
+		err := sqlDB.QueryRowContext(ctx, `SELECT EXISTS (
+			SELECT 1 FROM pg_stat_activity
+			WHERE datname = current_database()
+				AND wait_event_type = 'Lock'
+				AND query LIKE '-- name: ClaimPrebuiltWorkspace %'
+		)`).Scan(&waiting)
+		require.NoError(t, err)
+		return waiting
+	}, testutil.IntervalFast)
+
+	close(releaseA)
+	require.NoError(t, testutil.TryReceive(ctx, t, doneA))
+	if !returnedB {
+		resB = testutil.TryReceive(ctx, t, claimedB)
+		require.Failf(t, "claim B blocked on claim A's lock",
+			"claim B returned %+v, %v after claim A committed", resB.row, resB.err)
+	}
+
+	require.ErrorIs(t, resB.err, sql.ErrNoRows, "claim B must not claim the prebuild held by claim A")
+
+	ws, err := db.GetWorkspaceByID(ctx, resA.row.ID)
+	require.NoError(t, err)
+	require.Equal(t, claimantA.ID, ws.OwnerID)
+}
+
 func TestGetPresetsBackoff(t *testing.T) {
 	t.Parallel()
 
