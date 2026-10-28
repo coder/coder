@@ -2898,9 +2898,11 @@ CREATE TABLE mcp_server_configs (
     signing_secret text DEFAULT ''::text NOT NULL,
     signing_secret_key_id text,
     oauth2_resource text DEFAULT ''::text NOT NULL,
+    oauth2_client_registration text DEFAULT 'manual'::text NOT NULL,
     CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text, 'user_oidc'::text]))),
     CONSTRAINT mcp_server_configs_availability_check CHECK ((availability = ANY (ARRAY['force_on'::text, 'default_on'::text, 'default_off'::text]))),
     CONSTRAINT mcp_server_configs_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
+    CONSTRAINT mcp_server_configs_oauth2_client_registration_check CHECK ((oauth2_client_registration = ANY (ARRAY['manual'::text, 'dynamic'::text]))),
     CONSTRAINT mcp_server_configs_transport_check CHECK ((transport = ANY (ARRAY['streamable_http'::text, 'sse'::text]))),
     CONSTRAINT mcp_server_configs_user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
 );

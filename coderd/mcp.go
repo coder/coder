@@ -339,6 +339,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	configID := uuid.New()
+	oauth2ClientRegistration := codersdk.MCPServerOAuth2ClientRegistrationManual
 
 	// Validate auth-type-dependent fields.
 	switch req.AuthType {
@@ -401,6 +402,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				req.OAuth2Resource = result.resource
 			}
 			req.OAuth2Scopes = oauth2Scopes
+			oauth2ClientRegistration = codersdk.MCPServerOAuth2ClientRegistrationDynamic
 		} else if req.OAuth2ClientID == "" || req.OAuth2AuthURL == "" || req.OAuth2TokenURL == "" {
 			// Partial manual config: all three fields are required together.
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -434,37 +436,38 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	inserted, err := api.Database.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-		ID:                      configID,
-		OrganizationID:          organization.ID,
-		DisplayName:             strings.TrimSpace(req.DisplayName),
-		Slug:                    strings.TrimSpace(req.Slug),
-		Description:             strings.TrimSpace(req.Description),
-		IconURL:                 strings.TrimSpace(req.IconURL),
-		Transport:               strings.TrimSpace(req.Transport),
-		Url:                     strings.TrimSpace(req.URL),
-		AuthType:                strings.TrimSpace(req.AuthType),
-		OAuth2ClientID:          strings.TrimSpace(req.OAuth2ClientID),
-		OAuth2ClientSecret:      strings.TrimSpace(req.OAuth2ClientSecret),
-		OAuth2ClientSecretKeyID: sql.NullString{},
-		OAuth2AuthURL:           strings.TrimSpace(req.OAuth2AuthURL),
-		OAuth2TokenURL:          strings.TrimSpace(req.OAuth2TokenURL),
-		OAuth2RevocationURL:     strings.TrimSpace(req.OAuth2RevocationURL),
-		OAuth2Resource:          strings.TrimSpace(req.OAuth2Resource),
-		OAuth2Scopes:            strings.TrimSpace(req.OAuth2Scopes),
-		APIKeyHeader:            strings.TrimSpace(req.APIKeyHeader),
-		APIKeyValue:             strings.TrimSpace(req.APIKeyValue),
-		APIKeyValueKeyID:        sql.NullString{},
-		CustomHeaders:           customHeadersJSON,
-		CustomHeadersKeyID:      sql.NullString{},
-		SigningSecret:           strings.TrimSpace(req.SigningSecret),
-		SigningSecretKeyID:      sql.NullString{},
-		ToolAllowList:           coalesceStringSlice(trimStringSlice(req.ToolAllowList)),
-		ToolDenyList:            coalesceStringSlice(trimStringSlice(req.ToolDenyList)),
-		Availability:            strings.TrimSpace(req.Availability),
-		Enabled:                 req.Enabled,
-		ModelIntent:             req.ModelIntent,
-		AllowInPlanMode:         req.AllowInPlanMode,
-		ForwardCoderHeaders:     req.ForwardCoderHeaders,
+		ID:                       configID,
+		OrganizationID:           organization.ID,
+		DisplayName:              strings.TrimSpace(req.DisplayName),
+		Slug:                     strings.TrimSpace(req.Slug),
+		Description:              strings.TrimSpace(req.Description),
+		IconURL:                  strings.TrimSpace(req.IconURL),
+		Transport:                strings.TrimSpace(req.Transport),
+		Url:                      strings.TrimSpace(req.URL),
+		AuthType:                 strings.TrimSpace(req.AuthType),
+		OAuth2ClientID:           strings.TrimSpace(req.OAuth2ClientID),
+		OAuth2ClientSecret:       strings.TrimSpace(req.OAuth2ClientSecret),
+		OAuth2ClientSecretKeyID:  sql.NullString{},
+		OAuth2AuthURL:            strings.TrimSpace(req.OAuth2AuthURL),
+		OAuth2TokenURL:           strings.TrimSpace(req.OAuth2TokenURL),
+		OAuth2RevocationURL:      strings.TrimSpace(req.OAuth2RevocationURL),
+		OAuth2Resource:           strings.TrimSpace(req.OAuth2Resource),
+		OAuth2Scopes:             strings.TrimSpace(req.OAuth2Scopes),
+		OAuth2ClientRegistration: string(oauth2ClientRegistration),
+		APIKeyHeader:             strings.TrimSpace(req.APIKeyHeader),
+		APIKeyValue:              strings.TrimSpace(req.APIKeyValue),
+		APIKeyValueKeyID:         sql.NullString{},
+		CustomHeaders:            customHeadersJSON,
+		CustomHeadersKeyID:       sql.NullString{},
+		SigningSecret:            strings.TrimSpace(req.SigningSecret),
+		SigningSecretKeyID:       sql.NullString{},
+		ToolAllowList:            coalesceStringSlice(trimStringSlice(req.ToolAllowList)),
+		ToolDenyList:             coalesceStringSlice(trimStringSlice(req.ToolDenyList)),
+		Availability:             strings.TrimSpace(req.Availability),
+		Enabled:                  req.Enabled,
+		ModelIntent:              req.ModelIntent,
+		AllowInPlanMode:          req.AllowInPlanMode,
+		ForwardCoderHeaders:      req.ForwardCoderHeaders,
 		GroupACL: database.ChatACL{
 			organization.ID.String(): {Permissions: []policy.Action{policy.ActionRead}},
 		},
@@ -691,6 +694,9 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		next := applyMCPServerConfigChange(existing, req, customHeadersJSON)
+		if next.OAuth2ClientRegistration == string(codersdk.MCPServerOAuth2ClientRegistrationDynamic) && changesDynamicOAuth2Client(existing, req) {
+			next.OAuth2ClientRegistration = string(codersdk.MCPServerOAuth2ClientRegistrationManual)
+		}
 		if next.AuthType == "api_key" && (next.APIKeyHeader == "" || next.APIKeyValue == "") {
 			return errAPIKeyAuthRequiresHeaderAndValue
 		}
@@ -702,37 +708,38 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		updatedConfig, err := tx.UpdateMCPServerConfig(ctx, database.UpdateMCPServerConfigParams{
-			DisplayName:             next.DisplayName,
-			Slug:                    next.Slug,
-			Description:             next.Description,
-			IconURL:                 next.IconURL,
-			Transport:               next.Transport,
-			Url:                     next.Url,
-			AuthType:                next.AuthType,
-			OAuth2ClientID:          next.OAuth2ClientID,
-			OAuth2ClientSecret:      next.OAuth2ClientSecret,
-			OAuth2ClientSecretKeyID: next.OAuth2ClientSecretKeyID,
-			OAuth2AuthURL:           next.OAuth2AuthURL,
-			OAuth2TokenURL:          next.OAuth2TokenURL,
-			OAuth2RevocationURL:     next.OAuth2RevocationURL,
-			OAuth2Resource:          next.OAuth2Resource,
-			OAuth2Scopes:            next.OAuth2Scopes,
-			APIKeyHeader:            next.APIKeyHeader,
-			APIKeyValue:             next.APIKeyValue,
-			APIKeyValueKeyID:        next.APIKeyValueKeyID,
-			CustomHeaders:           next.CustomHeaders,
-			CustomHeadersKeyID:      next.CustomHeadersKeyID,
-			SigningSecret:           next.SigningSecret,
-			SigningSecretKeyID:      next.SigningSecretKeyID,
-			ToolAllowList:           next.ToolAllowList,
-			ToolDenyList:            next.ToolDenyList,
-			Availability:            next.Availability,
-			Enabled:                 next.Enabled,
-			ModelIntent:             next.ModelIntent,
-			AllowInPlanMode:         next.AllowInPlanMode,
-			ForwardCoderHeaders:     next.ForwardCoderHeaders,
-			UpdatedBy:               apiKey.UserID,
-			ID:                      existing.ID,
+			DisplayName:              next.DisplayName,
+			Slug:                     next.Slug,
+			Description:              next.Description,
+			IconURL:                  next.IconURL,
+			Transport:                next.Transport,
+			Url:                      next.Url,
+			AuthType:                 next.AuthType,
+			OAuth2ClientID:           next.OAuth2ClientID,
+			OAuth2ClientSecret:       next.OAuth2ClientSecret,
+			OAuth2ClientSecretKeyID:  next.OAuth2ClientSecretKeyID,
+			OAuth2AuthURL:            next.OAuth2AuthURL,
+			OAuth2TokenURL:           next.OAuth2TokenURL,
+			OAuth2RevocationURL:      next.OAuth2RevocationURL,
+			OAuth2Resource:           next.OAuth2Resource,
+			OAuth2Scopes:             next.OAuth2Scopes,
+			OAuth2ClientRegistration: next.OAuth2ClientRegistration,
+			APIKeyHeader:             next.APIKeyHeader,
+			APIKeyValue:              next.APIKeyValue,
+			APIKeyValueKeyID:         next.APIKeyValueKeyID,
+			CustomHeaders:            next.CustomHeaders,
+			CustomHeadersKeyID:       next.CustomHeadersKeyID,
+			SigningSecret:            next.SigningSecret,
+			SigningSecretKeyID:       next.SigningSecretKeyID,
+			ToolAllowList:            next.ToolAllowList,
+			ToolDenyList:             next.ToolDenyList,
+			Availability:             next.Availability,
+			Enabled:                  next.Enabled,
+			ModelIntent:              next.ModelIntent,
+			AllowInPlanMode:          next.AllowInPlanMode,
+			ForwardCoderHeaders:      next.ForwardCoderHeaders,
+			UpdatedBy:                apiKey.UserID,
+			ID:                       existing.ID,
 		})
 		if err != nil {
 			return err
@@ -868,6 +875,7 @@ func clearUnusedMCPServerAuthFields(c database.MCPServerConfig) database.MCPServ
 		c.OAuth2RevocationURL = ""
 		c.OAuth2Resource = ""
 		c.OAuth2Scopes = ""
+		c.OAuth2ClientRegistration = string(codersdk.MCPServerOAuth2ClientRegistrationManual)
 	}
 	if !usesAPIKey {
 		c.APIKeyHeader = ""
@@ -879,6 +887,18 @@ func clearUnusedMCPServerAuthFields(c database.MCPServerConfig) database.MCPServ
 		c.CustomHeadersKeyID = sql.NullString{}
 	}
 	return c
+}
+
+// changesDynamicOAuth2Client reports whether req changes a field that
+// Coder owns for a dynamic OAuth2 client.
+func changesDynamicOAuth2Client(prev database.MCPServerConfig, req codersdk.UpdateMCPServerConfigRequest) bool {
+	changes := func(v *string, prevValue string) bool {
+		return v != nil && strings.TrimSpace(*v) != prevValue
+	}
+	return changes(req.OAuth2ClientID, prev.OAuth2ClientID) ||
+		changes(req.OAuth2ClientSecret, prev.OAuth2ClientSecret) ||
+		changes(req.OAuth2AuthURL, prev.OAuth2AuthURL) ||
+		changes(req.OAuth2TokenURL, prev.OAuth2TokenURL)
 }
 
 // mcpOAuth2GrantBinding holds the config fields that a stored user grant
@@ -1591,6 +1611,8 @@ func convertMCPServerConfig(config database.MCPServerConfig) codersdk.MCPServerC
 		OAuth2Resource:      config.OAuth2Resource,
 		OAuth2Scopes:        config.OAuth2Scopes,
 
+		OAuth2ClientRegistration: codersdk.MCPServerOAuth2ClientRegistration(config.OAuth2ClientRegistration),
+
 		APIKeyHeader: config.APIKeyHeader,
 		HasAPIKey:    config.APIKeyValue != "",
 
@@ -1628,6 +1650,7 @@ func convertMCPServerConfigRedacted(config database.MCPServerConfig) codersdk.MC
 	c.OAuth2RevocationURL = ""
 	c.OAuth2Resource = ""
 	c.OAuth2Scopes = ""
+	c.OAuth2ClientRegistration = ""
 	c.APIKeyHeader = ""
 	return c
 }

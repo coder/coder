@@ -1497,19 +1497,20 @@ func TestEnabledMCPServerConfigsForChatOrg(t *testing.T) {
 		chatOrg := dbgen.Organization(t, db, database.Organization{})
 		user := dbgen.User(t, db, database.User{})
 		disabledCfg, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-			ID:             uuid.New(),
-			OrganizationID: chatOrg.ID,
-			DisplayName:    "Disabled MCP Server",
-			Slug:           testutil.GetRandomName(t),
-			Url:            "https://mcp.example.com",
-			Transport:      "streamable_http",
-			AuthType:       "none",
-			ToolAllowList:  []string{},
-			ToolDenyList:   []string{},
-			Availability:   "default_off",
-			Enabled:        false,
-			CreatedBy:      user.ID,
-			UpdatedBy:      user.ID,
+			ID:                       uuid.New(),
+			OrganizationID:           chatOrg.ID,
+			DisplayName:              "Disabled MCP Server",
+			Slug:                     testutil.GetRandomName(t),
+			Url:                      "https://mcp.example.com",
+			Transport:                "streamable_http",
+			AuthType:                 "none",
+			OAuth2ClientRegistration: "manual",
+			ToolAllowList:            []string{},
+			ToolDenyList:             []string{},
+			Availability:             "default_off",
+			Enabled:                  false,
+			CreatedBy:                user.ID,
+			UpdatedBy:                user.ID,
 		})
 		require.NoError(t, err)
 
