@@ -336,7 +336,7 @@ A chat offers its organization's servers in the chat's **+** menu, under **MCP s
 A server that uses OAuth2 needs your own account before a chat can use it.
 
 You connect your accounts on the **MCP connections** settings page.
-To open it from a chat, select **Manage connections** in the **MCP servers** list.
+To open it from a chat, select **Manage** in the **MCP servers** list.
 The page opens for the chat's organization.
 
 You can connect only to servers you have access to.

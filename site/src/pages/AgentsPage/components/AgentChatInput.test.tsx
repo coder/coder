@@ -552,7 +552,7 @@ describe("AgentChatInput", () => {
 			await screen.findByRole("button", { name: /MCP servers/ }),
 		);
 		await user.click(
-			await screen.findByRole("button", { name: "Manage connections" }),
+			await screen.findByRole("button", { name: "Manage MCP connections" }),
 		);
 		await waitFor(() =>
 			expect(onSettingsState).toHaveBeenCalledWith({
