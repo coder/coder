@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
@@ -807,22 +808,19 @@ func TestChatMessage_PreservesProviderExecutedOnToolResults(t *testing.T) {
 		ProviderExecuted: true,
 	}
 
-	tcJSON, err := json.Marshal(toolCall)
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		chatprompt.PartFromContent(toolCall),
+		chatprompt.PartFromContent(toolResult),
+	})
 	require.NoError(t, err)
-	trJSON, err := json.Marshal(toolResult)
-	require.NoError(t, err)
-
-	rawContent := json.RawMessage("[" + string(tcJSON) + "," + string(trJSON) + "]")
 
 	dbMsg := database.ChatMessage{
-		ID:     1,
-		ChatID: uuid.New(),
-		Role:   database.ChatMessageRoleAssistant,
-		Content: pqtype.NullRawMessage{
-			RawMessage: rawContent,
-			Valid:      true,
-		},
-		CreatedAt: time.Now(),
+		ID:             1,
+		ChatID:         uuid.New(),
+		Role:           database.ChatMessageRoleAssistant,
+		Content:        content,
+		ContentVersion: chatprompt.CurrentContentVersion,
+		CreatedAt:      time.Now(),
 	}
 
 	result := db2sdk.ChatMessage(dbMsg)
