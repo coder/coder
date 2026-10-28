@@ -138,7 +138,9 @@ This is useful for sharing screenshots of errors, UI mockups, terminal output, l
 Messages can contain attachments alone or combined with text.
 Image attachments require a model that supports vision input, and Anthropic models (including Bedrock-hosted Claude) cap each inline image at 5&nbsp;MiB.
 Providers differ in which types they accept as native file content.
-A part the provider rejects is downgraded to text instead of being dropped.
+A text file the provider rejects reaches the model as text.
+Any other file the provider rejects reaches the model as a short note that names the file.
+For example, the Azure OpenAI and Google providers reject PDFs, and the Google provider rejects GIF images.
 
 ## Security benefits of the control plane architecture
 

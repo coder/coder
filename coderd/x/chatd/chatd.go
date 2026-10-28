@@ -1646,14 +1646,14 @@ func (p *Server) PublishDiffStatusChange(ctx context.Context, chatID uuid.UUID, 
 // the prompt forward). A future change should skip the file with a
 // user-facing warning, but that requires altering the FileResolver
 // contract.
-func (p *Server) chatFileResolver(provider string) chatprompt.FileResolver {
+func (p *Server) chatFileResolver(model chatprovider.Model) chatprompt.FileResolver {
+	imageCap, hasImageCap := model.InlineImageCapBytes()
+	normalizedProvider := model.RouteProvider()
 	return func(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
 		files, err := p.db.GetChatFilesByIDs(ctx, ids)
 		if err != nil {
 			return nil, err
 		}
-		imageCap, hasImageCap := chatprovider.InlineImageCapBytes(provider)
-		normalizedProvider := chatprovider.NormalizeProvider(provider)
 		result := make(map[uuid.UUID]chatprompt.FileData, len(files))
 		for _, f := range files {
 			if hasImageCap &&

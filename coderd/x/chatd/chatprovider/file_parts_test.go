@@ -3,133 +3,141 @@ package chatprovider_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func TestToolResultMediaOmission(t *testing.T) {
+func TestRouteMedia(t *testing.T) {
 	t.Parallel()
 
-	for _, tc := range []struct {
-		name               string
-		transport          string
-		configuredProvider string
-		mediaType          string
-		size               int
-		wantNote           string
-	}{
-		{name: "anthropic png", transport: "anthropic", mediaType: "image/png", size: 1024},
-		{name: "anthropic svg", transport: "anthropic", mediaType: "image/svg+xml", size: 1024, wantNote: "[image/svg+xml content omitted: unsupported tool result media type]"},
-		{name: "anthropic audio", transport: "anthropic", mediaType: "audio/mpeg", size: 1024, wantNote: "[audio/mpeg content omitted: unsupported tool result media type]"},
-		{name: "anthropic oversized png", transport: "anthropic", mediaType: "image/png", size: codersdk.AnthropicInlineImageCapBytes, wantNote: "[image omitted: 5242880 bytes exceeds the inline image limit of 5242880 bytes]"},
-		{name: "bedrock claude pdf", transport: "anthropic", configuredProvider: "bedrock", mediaType: "application/pdf", size: 1024, wantNote: "[application/pdf content omitted: unsupported tool result media type]"},
-		{name: "bedrock openai oversized png", transport: "openai", configuredProvider: "bedrock", mediaType: "image/png", size: codersdk.AnthropicInlineImageCapBytes},
-		{name: "openai audio", transport: "openai", mediaType: "audio/mpeg", size: 1024},
-		{name: "openai svg", transport: "openai", mediaType: "image/svg+xml", size: 1024, wantNote: "[image/svg+xml content omitted: unsupported tool result media type]"},
-		{name: "openai gif", transport: "openai", mediaType: "image/gif", size: 1024},
-		{name: "azure bmp", transport: "azure", mediaType: "image/bmp", size: 1024, wantNote: "[image/bmp content omitted: unsupported tool result media type]"},
-		{name: "google svg", transport: "google", mediaType: "image/svg+xml", size: 1024, wantNote: "[image/svg+xml content omitted: unsupported tool result media type]"},
-		{name: "google gif", transport: "google", mediaType: "image/gif", size: 1024, wantNote: "[image/gif content omitted: unsupported tool result media type]"},
-		{name: "google heic", transport: "google", mediaType: "image/heic", size: 1024},
-		{name: "google png", transport: "google", mediaType: "image/png", size: 1024},
-		{name: "openai uppercase with params", transport: "OpenAI", mediaType: "IMAGE/PNG; charset=binary", size: 1024},
-		{name: "openai compat svg", transport: "openai-compat", configuredProvider: "openai-compat", mediaType: "image/svg+xml", size: 1024},
-		{name: "bridged google svg", transport: "openai-compat", configuredProvider: "google", mediaType: "image/svg+xml", size: 1024, wantNote: "[image/svg+xml content omitted: unsupported tool result media type]"},
-		{name: "bridged google heic", transport: "openai-compat", configuredProvider: "google", mediaType: "image/heic", size: 1024},
-		{name: "google pdf", transport: "google", mediaType: "application/pdf", size: 1024},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			note, omit := chatprovider.ToolResultMediaOmission(tc.transport, tc.configuredProvider, tc.mediaType, tc.size)
-			if omit != (tc.wantNote != "") || note != tc.wantNote {
-				t.Fatalf("ToolResultMediaOmission(%q, %q, %d) = (%q, %v), want (%q, %v)", tc.transport, tc.mediaType, tc.size, note, omit, tc.wantNote, tc.wantNote != "")
-			}
-		})
-	}
-}
-
-func TestAcceptsFilePartMediaType(t *testing.T) {
-	t.Parallel()
-
-	// A representative Responses-capable model ID. Non-Responses models
-	// use the Chat Completions path, which also accepts audio.
-	const responsesModel = "gpt-4o"
-	const nonResponsesModel = "babbage-002"
-
+	const anthropicCap = codersdk.AnthropicInlineImageCapBytes
 	forceResponses := true
 	forceCompletions := false
 
-	cases := []struct {
+	for _, tc := range []struct {
 		name      string
-		provider  string
-		modelID   string
-		mediaType string
-		want      bool
-		override  *bool
+		transport string
+		// provider is the configured provider type. Empty means a direct
+		// client, so the route falls back to the transport.
+		provider string
+		modelID  string
+		override *bool
+		accepts  []string
+		rejects  []string
+		imageCap int
 	}{
-		// OpenAI Responses accepts only images and PDFs.
-		{"openai-json", "openai", responsesModel, "application/json", false, nil},
-		{"openai-text", "openai", responsesModel, "text/plain", false, nil},
-		{"openai-image", "openai", responsesModel, "image/png", true, nil},
-		{"openai-pdf", "openai", responsesModel, "application/pdf", true, nil},
-
-		// OpenAI Chat Completions (non-Responses models) accepts audio as
-		// native file parts, but not text files.
-		{"openai-non-responses-text", "openai", nonResponsesModel, "text/plain", false, nil},
-		{"openai-non-responses-audio", "openai", nonResponsesModel, "audio/mpeg", true, nil},
-		{"openai-non-responses-json", "openai", nonResponsesModel, "application/json", false, nil},
-		{"openai-non-responses-image", "openai", nonResponsesModel, "image/png", true, nil},
-
-		// Anthropic accepts text/* as native documents, but not JSON.
-		{"anthropic-text", "anthropic", "", "text/markdown", true, nil},
-		{"anthropic-json", "anthropic", "", "application/json", false, nil},
-		{"anthropic-pdf", "anthropic", "", "application/pdf", true, nil},
-		{"anthropic-image", "anthropic", "", "image/webp", true, nil},
-
-		// OpenAI-compatible accepts images, audio, and PDFs.
-		{"openaicompat-text", "openai-compat", "", "text/plain", false, nil},
-		{"openaicompat-json", "openai-compat", "", "application/json", false, nil},
-		{"openaicompat-audio", "openai-compat", "", "audio/mpeg", true, nil},
-
-		{"anthropic-svg", "anthropic", "", "image/svg+xml", false, nil},
-
-		// Unknown providers reject everything so text-family content is
-		// converted to text and still reaches the model.
-		{"unknown-text", "made-up-provider", "", "text/plain", false, nil},
-		{"empty-text", "", "", "text/plain", false, nil},
-
-		// Base media type handling: parameters are stripped.
-		{"anthropic-text-charset", "anthropic", "", "text/plain; charset=utf-8", true, nil},
-		{"openai-text-charset", "openai", responsesModel, "text/plain; charset=utf-8", false, nil},
-
-		// Provider name normalization is case-insensitive.
-		{"anthropic-uppercase", "Anthropic", "", "text/plain", true, nil},
-
-		{"openai-forced-responses-audio", "openai", nonResponsesModel, "audio/mpeg", false, &forceResponses},
-		{"openai-forced-responses-image", "openai", nonResponsesModel, "image/png", true, &forceResponses},
-		{"openai-forced-completions-audio", "openai", responsesModel, "audio/mpeg", true, &forceCompletions},
-
-		{"anthropic-ignores-override", "anthropic", "", "text/plain", true, &forceResponses},
-		{"openaicompat-ignores-override", "openai-compat", "", "audio/mpeg", true, &forceResponses},
-	}
-
-	for _, tc := range cases {
+		{
+			name: "Anthropic", transport: "anthropic", provider: "anthropic",
+			accepts:  []string{"image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf", "text/markdown", "text/plain; charset=utf-8"},
+			rejects:  []string{"image/heic", "image/bmp", "image/svg+xml", "audio/mpeg", "application/json"},
+			imageCap: anthropicCap,
+		},
+		{
+			name: "BedrockClaude", transport: "anthropic", provider: "bedrock",
+			accepts:  []string{"image/webp", "application/pdf", "text/csv"},
+			rejects:  []string{"image/heic", "audio/mpeg", "application/json"},
+			imageCap: anthropicCap,
+		},
+		{
+			name: "BedrockMantleResponses", transport: "openai", provider: "bedrock", modelID: "openai.gpt-oss-120b", override: &forceResponses,
+			accepts: []string{"image/gif", "application/pdf"},
+			rejects: []string{"image/heic", "text/plain", "audio/mpeg"},
+		},
+		{
+			name: "BedrockMantleChatCompletions", transport: "openai", provider: "bedrock", modelID: "openai.gpt-oss-120b", override: &forceCompletions,
+			accepts: []string{"image/png", "application/pdf", "audio/mpeg"},
+			rejects: []string{"image/heic", "text/plain", "application/json"},
+		},
+		{
+			name: "OpenAIResponses", transport: "openai", provider: "openai", modelID: "gpt-4o",
+			accepts: []string{"image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf"},
+			rejects: []string{"image/heic", "image/svg+xml", "text/plain", "audio/mpeg", "application/json"},
+		},
+		{
+			name: "OpenAIChatCompletions", transport: "openai", provider: "openai", modelID: "babbage-002",
+			accepts: []string{"image/png", "application/pdf", "audio/wav"},
+			rejects: []string{"image/heic", "text/plain", "application/json"},
+		},
+		{
+			name: "OpenAIForcedResponses", transport: "openai", provider: "openai", modelID: "babbage-002", override: &forceResponses,
+			accepts: []string{"image/png"},
+			rejects: []string{"audio/mpeg"},
+		},
+		{
+			name: "OpenAIForcedChatCompletions", transport: "openai", provider: "openai", modelID: "gpt-4o", override: &forceCompletions,
+			accepts: []string{"audio/mpeg"},
+			rejects: []string{"text/plain"},
+		},
+		{
+			name: "Azure", transport: "openai-compat", provider: "azure",
+			accepts: []string{"image/jpeg", "image/gif", "audio/mpeg"},
+			rejects: []string{"image/heic", "image/bmp", "image/svg+xml", "application/pdf", "text/plain", "application/json"},
+		},
+		{
+			name: "Google", transport: "openai-compat", provider: "google",
+			accepts: []string{"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "audio/mpeg"},
+			rejects: []string{"image/gif", "image/svg+xml", "application/pdf", "text/plain", "application/json"},
+		},
+		{
+			name: "Vercel", transport: "openai-compat", provider: "vercel",
+			accepts: []string{"image/bmp", "image/heic", "application/pdf", "audio/mpeg"},
+			rejects: []string{"image/svg+xml", "text/plain", "application/json"},
+		},
+		{
+			name: "OpenRouter", transport: "openai-compat", provider: "openrouter",
+			accepts: []string{"image/bmp", "image/gif", "application/pdf"},
+			rejects: []string{"image/svg+xml", "text/plain", "application/json"},
+		},
+		{
+			name: "OpenAICompat", transport: "openai-compat", provider: "openai-compat",
+			accepts: []string{"image/bmp", "application/pdf", "audio/mpeg"},
+			rejects: []string{"image/svg+xml", "text/plain", "application/json"},
+		},
+		{
+			name: "DirectAnthropicClient", transport: "anthropic",
+			accepts:  []string{"image/png", "application/pdf"},
+			rejects:  []string{"audio/mpeg"},
+			imageCap: anthropicCap,
+		},
+		{
+			name: "MixedCaseNamesAndParameters", transport: "Anthropic", provider: " BEDROCK ",
+			accepts:  []string{"IMAGE/PNG; charset=binary", "Application/PDF"},
+			imageCap: anthropicCap,
+		},
+		{
+			// chatd never builds the fantasy Google client.
+			name: "UnbuiltTransport", transport: "google", provider: "google",
+			rejects: []string{"image/png", "application/pdf", "text/plain"},
+		},
+		{
+			name: "UnknownConfiguredProvider", transport: "openai-compat", provider: "made-up",
+			rejects: []string{"image/png", "application/pdf", "text/plain"},
+		},
+	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+
 			var openAIConfig *codersdk.ChatModelOpenAIConfig
 			if tc.override != nil {
 				openAIConfig = &codersdk.ChatModelOpenAIConfig{UseResponsesAPI: tc.override}
 			}
 			model := chatprovider.NewModel(
-				&chattest.FakeModel{ProviderName: tc.provider, ModelName: tc.modelID},
+				&chattest.FakeModel{ProviderName: tc.transport, ModelName: tc.modelID},
 				openAIConfig,
-			)
-			got := model.AcceptsFilePartMediaType(tc.mediaType)
-			if got != tc.want {
-				t.Fatalf("AcceptsFilePartMediaType(%q, %q, %q, %v) = %v, want %v",
-					tc.provider, tc.modelID, tc.mediaType, tc.override, got, tc.want)
+			).WithConfiguredProvider(tc.provider)
+
+			for _, mediaType := range tc.accepts {
+				require.True(t, model.AcceptsFilePartMediaType(mediaType), "accepts %q", mediaType)
 			}
+			for _, mediaType := range tc.rejects {
+				require.False(t, model.AcceptsFilePartMediaType(mediaType), "rejects %q", mediaType)
+			}
+			imageCap, hasImageCap := model.InlineImageCapBytes()
+			require.Equal(t, tc.imageCap, imageCap)
+			require.Equal(t, tc.imageCap > 0, hasImageCap)
 		})
 	}
 }

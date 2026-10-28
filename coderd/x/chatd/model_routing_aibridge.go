@@ -285,6 +285,7 @@ func (p *Server) newModel(
 	if err != nil {
 		return chatprovider.Model{}, err
 	}
+	model = model.WithConfiguredProvider(string(route.Provider.Type))
 	// Safe to mutate: the model has not sent a request yet.
 	stageRT.stageModel.Provider = model.Provider()
 	return model, nil
