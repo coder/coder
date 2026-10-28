@@ -4,11 +4,7 @@ import type { SubmitChatTurnParams } from "../components/ChatConversation/submit
 
 type SendChatMessage = SubmitChatTurnParams["sendMessage"];
 
-/**
- * Wraps a question answer's send so that the chat input takes focus once the
- * answer is sent and its form closes. That includes narrow screens, where the
- * chat input skips its own refocus to keep the on-screen keyboard closed.
- */
+/** Wraps an answer's send so that the chat input takes focus once it is sent. */
 export const useComposerFocusAfterSend = (
 	chatInputRef: React.RefObject<ChatMessageInputRef | null>,
 	send: SendChatMessage,

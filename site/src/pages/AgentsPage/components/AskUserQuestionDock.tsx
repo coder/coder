@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "#/components/Button/Button";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import type { MergedTool } from "./ChatConversation/types";
@@ -23,9 +23,8 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 	onSubmitAnswer,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
-	const sectionRef = useRef<HTMLElement | null>(null);
 	const scrollerRef = useRef<HTMLDivElement>(null);
-	const replacedFocusedSectionRef = useRef(false);
+	const hadFocusRef = useRef(false);
 	// Providers can reuse a call ID, so the start time tells the calls apart.
 	// Keying the section by it gives a newer question a fresh form that starts
 	// scrolled to the top.
@@ -35,16 +34,6 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 		string | undefined
 	>();
 	const isCollapsed = collapsedQuestionKey === questionKey;
-	useEffect(() => {
-		if (!replacedFocusedSectionRef.current) {
-			return;
-		}
-		replacedFocusedSectionRef.current = false;
-		// The focus fell to the page body with the replaced section. The region
-		// takes it, so screen readers announce "Open question" and Tab reaches
-		// the form.
-		sectionRef.current?.focus({ preventScroll: true });
-	}, [questionKey]);
 
 	return (
 		<div
@@ -54,18 +43,20 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 			className="flex min-h-0 flex-col overflow-y-auto px-4 scrollbar-gutter-stable scrollbar-thin"
 		>
 			{/* Shrinks before the chat input does, so a long question set never
-			    pushes the input off a short screen. The chevron sits outside the
-			    scroller, so it stays in place while the form scrolls. */}
+			    pushes the input off a short screen. */}
 			<section
 				key={questionKey}
-				ref={(section) => {
-					sectionRef.current = section;
+				// When a newer question replaces the focused section, the region takes
+				// the focus, so screen readers announce "Open question" and Tab reaches
+				// the form instead of starting over from the page body.
+				ref={(section: HTMLElement) => {
+					if (hadFocusRef.current && document.activeElement === document.body) {
+						section.focus({ preventScroll: true });
+					}
+					// React runs ref cleanups before it removes the node, so focus
+					// inside it has not fallen to the page body yet.
 					return () => {
-						// React detaches a ref before it removes the node, so a
-						// section that a newer question replaces still holds focus.
-						replacedFocusedSectionRef.current =
-							section?.contains(document.activeElement) ?? false;
-						sectionRef.current = null;
+						hadFocusRef.current = section.contains(document.activeElement);
 					};
 				}}
 				aria-label="Open question"
@@ -98,6 +89,7 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 						}}
 					/>
 				</div>
+				{/* Outside the scroller, so it stays in place while the form scrolls. */}
 				<Button
 					type="button"
 					size="icon"

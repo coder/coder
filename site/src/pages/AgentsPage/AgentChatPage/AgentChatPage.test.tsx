@@ -163,6 +163,8 @@ describe("AgentChatPage", () => {
 		const { dock, composer } = await answerFromDockOnNarrowScreen();
 
 		await within(dock).findByText("The answer failed.");
+		// jsdom keeps the focus on the Submit button that the send disabled, and
+		// browsers move it to the page body, so only the chat input is checked.
 		expect(composer).not.toHaveFocus();
 	});
 

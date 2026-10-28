@@ -47,12 +47,8 @@ type AskUserQuestionToolProps = {
 	 * card keeps it: its live region must exist before the result streams in.
 	 */
 	announcesQuestion?: boolean;
-	/**
-	 * Shows a one-line progress summary in place of the form. The form state
-	 * stays, so expanding again restores the answers in progress.
-	 */
+	/** Swaps the form for a progress line and keeps its state for expanding. */
 	isCollapsed?: boolean;
-	/** Keeps Back, Next, and Submit at the bottom of the scrolling panel. */
 	hasStickyActions?: boolean;
 	onSubmitAnswer?: (message: string) => Promise<void> | void;
 	onStepChange?: () => void;
