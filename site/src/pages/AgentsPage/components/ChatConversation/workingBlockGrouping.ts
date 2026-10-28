@@ -430,13 +430,12 @@ export const getBlockTurnAttachments = (
 	for (const { rowIndex, pieceRange } of block.slices) {
 		const row = rows[rowIndex];
 		const attachments = turnAttachmentsByRow.get(row.key);
-		if (
-			attachments &&
-			row.type === "message" &&
-			pieceRange.end ===
-				splitRowPieces(row.entry.parsed.blocks, row.entry.parsed.tools).pieces
-					.length
-		) {
+		if (!attachments || row.type !== "message") {
+			continue;
+		}
+
+		const { blocks, tools } = row.entry.parsed;
+		if (pieceRange.end === splitRowPieces(blocks, tools).pieces.length) {
 			return attachments;
 		}
 	}

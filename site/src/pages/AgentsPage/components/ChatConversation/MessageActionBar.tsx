@@ -6,9 +6,10 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 
-type MessageActionBarProps = React.PropsWithChildren<{
+type MessageActionBarProps = {
 	className?: string;
-}>;
+	children: React.ReactNode;
+};
 
 /**
  * Message rows and collapsed working blocks share it, so a turn's pill sits

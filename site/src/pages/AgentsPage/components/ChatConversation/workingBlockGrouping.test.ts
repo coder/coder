@@ -1774,6 +1774,7 @@ describe("getTurnAttachmentsByRow", () => {
 		expect(
 			blockPills(group([user("Attach the report"), ...attachSteps("a")])),
 		).toEqual([["a"]]);
+
 		expect(
 			blockPills(
 				group([
@@ -1787,6 +1788,7 @@ describe("getTurnAttachmentsByRow", () => {
 				]),
 			),
 		).toEqual([undefined]);
+
 		const { streamState, streamTools } = buildStreamRenderState([
 			reasoning("Thinking"),
 			text("Sure"),
@@ -1874,18 +1876,18 @@ describe("getTurnAttachmentsByRow", () => {
 				result("compact", undefined, { name: "chat_summarized" }),
 			]),
 		];
-		const running = { isChatActive: true };
+		const mockRunningChat = { isChatActive: true };
 
-		expect(pills(group(mockCompactedTurnMessages).rows, running)).toEqual([
-			["message:2", ["a"]],
-		]);
+		expect(
+			pills(group(mockCompactedTurnMessages).rows, mockRunningChat),
+		).toEqual([["message:2", ["a"]]]);
 		expect(
 			pills(
 				group([
 					...mockCompactedTurnMessages,
 					message("assistant", [text("Rechecked: all good.")]),
 				]).rows,
-				running,
+				mockRunningChat,
 			),
 		).toEqual([]);
 	});

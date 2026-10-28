@@ -366,7 +366,7 @@ const ChatMessageItem = memo<{
 					<MessageActionBar className={cn(isUser && "w-full justify-end")}>
 						{showsHoverActions && (
 							<div className="flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100">
-								{canEditUserMessage && messageId !== undefined && (
+								{canEditUserMessage && (
 									<MessageActionButton
 										label="Edit message"
 										icon={<PencilIcon />}
@@ -382,33 +382,30 @@ const ChatMessageItem = memo<{
 										}}
 									/>
 								)}
-								{isUser &&
-									onJumpToUserMessage &&
-									(prevUserMessageKey !== undefined ||
-										nextUserMessageKey !== undefined) && (
-										<>
-											<MessageActionButton
-												label="Jump to previous user message"
-												icon={<ChevronLeftIcon />}
-												disabled={prevUserMessageKey === undefined}
-												onClick={() => {
-													if (prevUserMessageKey !== undefined) {
-														onJumpToUserMessage(prevUserMessageKey);
-													}
-												}}
-											/>
-											<MessageActionButton
-												label="Jump to next user message"
-												icon={<ChevronRightIcon />}
-												disabled={nextUserMessageKey === undefined}
-												onClick={() => {
-													if (nextUserMessageKey !== undefined) {
-														onJumpToUserMessage(nextUserMessageKey);
-													}
-												}}
-											/>
-										</>
-									)}
+								{canJumpBetweenUserMessages && (
+									<>
+										<MessageActionButton
+											label="Jump to previous user message"
+											icon={<ChevronLeftIcon />}
+											disabled={prevUserMessageKey === undefined}
+											onClick={() => {
+												if (prevUserMessageKey !== undefined) {
+													onJumpToUserMessage?.(prevUserMessageKey);
+												}
+											}}
+										/>
+										<MessageActionButton
+											label="Jump to next user message"
+											icon={<ChevronRightIcon />}
+											disabled={nextUserMessageKey === undefined}
+											onClick={() => {
+												if (nextUserMessageKey !== undefined) {
+													onJumpToUserMessage?.(nextUserMessageKey);
+												}
+											}}
+										/>
+									</>
+								)}
 							</div>
 						)}
 						{copyText !== undefined && (

@@ -18,7 +18,10 @@ import type { MessageAttachment } from "./messageHelpers";
 
 const THUMBNAIL_STACK_MAX = 3;
 
-type StackSlotProps = React.PropsWithChildren<{ className?: string }>;
+type StackSlotProps = {
+	className?: string;
+	children: React.ReactNode;
+};
 
 const StackSlot: React.FC<StackSlotProps> = ({ className, children }) => (
 	<span
