@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	BotIcon,
 	FileIcon,
@@ -31,56 +32,71 @@ const ResourceMetadata: React.FC<{ resource: ChatContextResource }> = ({
 	</>
 );
 
+const RESOURCE_GROUP_ICONS = {
+	file: FileIcon,
+	skill: ZapIcon,
+	harness: BotIcon,
+} as const;
+
 export const ContextResourceGroups: React.FC<{
 	items: readonly ContextResourceItem[];
 	kind: "file" | "skill" | "harness";
 }> = ({ items, kind }) => {
-	const Icon = { file: FileIcon, skill: ZapIcon, harness: BotIcon }[kind];
+	const Icon = RESOURCE_GROUP_ICONS[kind];
 	return (
 		<div className="flex flex-col gap-4">
-			{groupContextResources(items).map(({ dir, items }) => (
-				<div key={dir} className="min-w-0">
-					{/* Harnesses without a source path have no directory to name. */}
-					{(dir || kind !== "harness") && (
-						<div className="mb-2 flex items-start gap-2 text-xs text-content-secondary">
-							<FolderIcon
-								aria-hidden="true"
-								className="mt-0.5 size-3.5 shrink-0"
-							/>
-							<span className="min-w-0 wrap-anywhere">
-								{dir || "Current directory"}
-							</span>
-						</div>
-					)}
-					<ul className="m-0 ml-1.5 flex list-none flex-col gap-3 border-0 border-l border-solid border-border py-0 pl-4">
-						{items.map(({ resource, name }) => (
-							<li
-								key={resource.source}
-								className="flex min-w-0 items-start gap-2"
-							>
-								<Icon
+			{groupContextResources(items).map(({ dir, items }) => {
+				// Harnesses without a source path have no directory to name.
+				const hasDirectory = Boolean(dir) || kind !== "harness";
+				return (
+					<div key={dir} className="min-w-0">
+						{hasDirectory && (
+							<div className="mb-2 flex items-start gap-2 text-xs text-content-secondary">
+								<FolderIcon
 									aria-hidden="true"
-									className="mt-0.5 size-3.5 shrink-0 text-content-secondary"
+									className="mt-0.5 size-3.5 shrink-0"
 								/>
-								<div className="flex min-w-0 flex-col gap-1">
-									<span className="wrap-anywhere">{name}</span>
-									{kind === "skill" && (
-										<span className="text-xs text-content-secondary wrap-anywhere">
-											{resource.source || "Source unavailable"}
-										</span>
-									)}
-									{resource.skill_description && (
-										<p className="m-0 text-xs text-content-secondary wrap-anywhere">
-											{resource.skill_description}
-										</p>
-									)}
-									<ResourceMetadata resource={resource} />
-								</div>
-							</li>
-						))}
-					</ul>
-				</div>
-			))}
+								<span className="min-w-0 wrap-anywhere">
+									{dir || "Current directory"}
+								</span>
+							</div>
+						)}
+						<ul
+							className={cn(
+								"m-0 flex list-none flex-col gap-3 p-0",
+								hasDirectory &&
+									"ml-1.5 border-0 border-l border-solid border-border pl-4",
+							)}
+						>
+							{items.map(({ resource, name }) => (
+								<li
+									key={resource.source}
+									className="flex min-w-0 items-start gap-2"
+								>
+									<Icon
+										aria-hidden="true"
+										className="mt-0.5 size-3.5 shrink-0 text-content-secondary"
+									/>
+									<div className="flex min-w-0 flex-col gap-1">
+										<span className="wrap-anywhere">{name}</span>
+										{kind === "skill" && (
+											<span className="text-xs text-content-secondary wrap-anywhere">
+												{resource.source || "Source unavailable"}
+											</span>
+										)}
+										{resource.skill_description && (
+											<p className="m-0 text-xs text-content-secondary wrap-anywhere">
+												{resource.skill_description}
+											</p>
+										)}
+										<ResourceMetadata resource={resource} />
+									</div>
+								</li>
+							))}
+						</ul>
+					</div>
+				);
+			})}
 		</div>
 	);
 };
@@ -95,29 +111,36 @@ export const ContextResourceIssues: React.FC<{
 				Resource issues
 			</p>
 			<ul className="m-0 flex list-none flex-col gap-3 p-0">
-				{items.map(({ resource, name }) => (
-					<li
-						key={resource.source}
-						className="flex flex-col gap-1 wrap-anywhere"
-					>
-						<span>
-							{name}{" "}
-							<span className="text-xs text-highlight-orange">
-								(
-								{resource.status === "ok"
-									? "Missing resource name or path"
-									: resource.status}
-								)
+				{items.map(({ resource, name }) => {
+					// A harness name is its source slug, so show its directory instead.
+					const location =
+						resource.kind === "acp_harness"
+							? resource.source_path
+							: resource.source;
+					return (
+						<li
+							key={resource.source}
+							className="flex flex-col gap-1 wrap-anywhere"
+						>
+							<span>
+								{name}{" "}
+								<span className="text-xs text-highlight-orange">
+									(
+									{resource.status === "ok"
+										? "Missing resource name or path"
+										: resource.status}
+									)
+								</span>
 							</span>
-						</span>
-						{resource.source && (
-							<span className="text-xs text-content-secondary">
-								{resource.source}
-							</span>
-						)}
-						<ResourceMetadata resource={resource} />
-					</li>
-				))}
+							{location && (
+								<span className="text-xs text-content-secondary">
+									{location}
+								</span>
+							)}
+							<ResourceMetadata resource={resource} />
+						</li>
+					);
+				})}
 			</ul>
 		</div>
 	);

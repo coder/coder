@@ -3,6 +3,7 @@ import { ChevronRightIcon } from "lucide-react";
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { chat, chatAttachments, chatCost } from "#/api/queries/chats";
+import type { ChatFileMetadata } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import {
@@ -58,7 +59,6 @@ export const ChatDetailsPanel: React.FC<ChatDetailsPanelProps> = ({
 	isHydratingMessages,
 	...props
 }) => {
-	const queryClient = useQueryClient();
 	const showCost = Boolean(useFeatureVisibility().aibridge);
 	const chatQuery = useQuery({ ...chat(chatId), enabled: isVisible });
 	const chatData = chatQuery.data;
@@ -85,6 +85,51 @@ export const ChatDetailsPanel: React.FC<ChatDetailsPanelProps> = ({
 			/>
 		);
 	else if (chatQuery.isError) summary = <ErrorAlert error={chatQuery.error} />;
+	const attachments = (
+		<DetailsAttachments
+			chatId={chatId}
+			isVisible={isVisible}
+			chatFiles={chatData?.files}
+			store={store}
+			hasMoreMessages={hasMoreMessages}
+			isHydratingMessages={isHydratingMessages}
+		/>
+	);
+	return (
+		<div
+			ref={focusRef}
+			role="region"
+			aria-label="Details"
+			tabIndex={-1}
+			className="h-full min-h-0 overflow-y-auto outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link forced-colors:[&_*]:text-[CanvasText] forced-colors:focus-visible:outline forced-colors:focus-visible:outline-2 forced-colors:focus-visible:outline-[Highlight]"
+		>
+			<DetailsSections
+				key={chatId}
+				{...props}
+				summary={summary}
+				attachments={attachments}
+			/>
+		</div>
+	);
+};
+
+/** Loaded and earlier-page attachments, fetched only while Details is visible. */
+const DetailsAttachments: React.FC<
+	{
+		chatFiles: readonly ChatFileMetadata[] | undefined;
+	} & Pick<
+		ChatDetailsPanelProps,
+		"chatId" | "isVisible" | "store" | "hasMoreMessages" | "isHydratingMessages"
+	>
+> = ({
+	chatId,
+	isVisible,
+	chatFiles,
+	store,
+	hasMoreMessages,
+	isHydratingMessages,
+}) => {
+	const queryClient = useQueryClient();
 	const messages = useChatMessages(store);
 	const oldestLoadedMessageId = messages.at(0)?.id;
 	const earlierAttachmentsQuery = useQuery({
@@ -116,7 +161,7 @@ export const ChatDetailsPanel: React.FC<ChatDetailsPanelProps> = ({
 		hasMoreMessages &&
 		!earlierAttachmentsQuery.data &&
 		!earlierAttachmentsError;
-	const attachments = (
+	return (
 		<ChatAttachments
 			// Gating on isHydratingMessages alone would blank the list on every
 			// live message.
@@ -127,7 +172,7 @@ export const ChatDetailsPanel: React.FC<ChatDetailsPanelProps> = ({
 			}
 			evictedFileIds={deriveEvictedFileIds(
 				messages.map((message) => ({ message })),
-				chatData?.files,
+				chatFiles,
 				earlierAttachments.flatMap(({ file }) => partFileIds(file)),
 			)}
 			isLoadingEarlierAttachments={isLoadingEarlierAttachments}
@@ -143,22 +188,6 @@ export const ChatDetailsPanel: React.FC<ChatDetailsPanelProps> = ({
 					.finally(() => setRetriedFailure(undefined));
 			}}
 		/>
-	);
-	return (
-		<div
-			ref={focusRef}
-			role="region"
-			aria-label="Details"
-			tabIndex={-1}
-			className="h-full min-h-0 overflow-y-auto outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link forced-colors:[&_*]:text-[CanvasText] forced-colors:focus-visible:outline forced-colors:focus-visible:outline-2 forced-colors:focus-visible:outline-[Highlight]"
-		>
-			<DetailsSections
-				key={chatId}
-				{...props}
-				summary={summary}
-				attachments={attachments}
-			/>
-		</div>
 	);
 };
 
@@ -433,7 +462,7 @@ const DetailsSections: React.FC<
 				{(inventory.harnesses.length > 0 || harnessIssues.length > 0) && (
 					<DetailsSection
 						title="ACP harnesses"
-						count={`${inventory.harnesses.length} ${inventory.harnesses.length === 1 ? "harness" : "harnesses"}`}
+						count={`${inventory.harnesses.length} ${inventory.harnesses.length === 1 ? "harness" : "harnesses"}${harnessIssues.length > 0 ? `, ${harnessIssues.length} with issues` : ""}`}
 						warning={harnessIssues.length > 0}
 					>
 						<ContextResourceGroups items={inventory.harnesses} kind="harness" />

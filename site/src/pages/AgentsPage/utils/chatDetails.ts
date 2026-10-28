@@ -17,18 +17,16 @@ export function getContextInventory(context: ChatContext | undefined) {
 	const issues: ContextResourceItem[] = [];
 	for (const resource of context?.resources ?? []) {
 		const source = resource.source.trim();
-		// ACP harnesses are keyed by slug, with their directory in source_path.
-		const isKeyedByName =
-			resource.kind === "mcp_server" || resource.kind === "acp_harness";
 		const name =
 			resource.kind === "skill"
 				? resource.skill_name?.trim() || getPathBasename(source)
-				: isKeyedByName
+				: resource.kind === "mcp_server" || resource.kind === "acp_harness"
 					? source
 					: getPathBasename(source);
 		const item = {
 			resource,
 			name: name || "Unknown resource",
+			// ACP harness sources are slugs; their directory is in source_path.
 			dir:
 				resource.kind === "acp_harness"
 					? (resource.source_path?.trim() ?? "")

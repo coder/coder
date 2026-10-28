@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "react-query";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { chat } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -214,10 +214,6 @@ describe("ChatDetailsPanel attachments", () => {
 		return setup({ store, hasMoreMessages: true, ...overrides });
 	};
 
-	afterEach(() => {
-		vi.restoreAllMocks();
-	});
-
 	it.each([
 		{
 			name: "asks for attachments before the loaded page",
@@ -250,15 +246,18 @@ describe("ChatDetailsPanel attachments", () => {
 			hasMoreMessages: true,
 			calls: [],
 		},
-	])("$name", ({ isVisible, hasMoreMessages, isHydratingMessages, calls }) => {
-		const getChatAttachments = vi
-			.spyOn(API.experimental, "getChatAttachments")
-			.mockResolvedValue({ attachments: [MockChatAttachment] });
+	])(
+		"$name",
+		({ isVisible, hasMoreMessages, isHydratingMessages = false, calls }) => {
+			const getChatAttachments = vi
+				.spyOn(API.experimental, "getChatAttachments")
+				.mockResolvedValue({ attachments: [MockChatAttachment] });
 
-		setupWithMessages({ isVisible, hasMoreMessages, isHydratingMessages });
+			setupWithMessages({ isVisible, hasMoreMessages, isHydratingMessages });
 
-		expect(getChatAttachments.mock.calls).toEqual(calls);
-	});
+			expect(getChatAttachments.mock.calls).toEqual(calls);
+		},
+	);
 
 	it("retries the earlier attachments after a failure", async () => {
 		const user = userEvent.setup();
