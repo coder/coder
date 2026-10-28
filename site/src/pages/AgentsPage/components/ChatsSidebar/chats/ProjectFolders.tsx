@@ -236,8 +236,6 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 										expanded={expanded}
 										className="size-4"
 									/>
-									{/* Matches ChatTreeNode's chat title: dimmed at rest, full
-									    strength on hover, while a menu is open, or when selected. */}
 									<span
 										className={cn(
 											"flex-1 truncate",
