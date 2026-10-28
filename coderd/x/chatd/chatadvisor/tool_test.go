@@ -64,8 +64,9 @@ func TestAdvisorToolSuccess(t *testing.T) {
 
 // The parent prompt answers the advisor's own in-flight call with a
 // synthetic interrupted result, which the advisor can mistake for a real
-// failure. Only that call is omitted; other context stays.
-func TestAdvisorToolOmitsItsOwnPendingCall(t *testing.T) {
+// failure. Only that result is replaced with the pending note; other
+// context stays.
+func TestAdvisorToolMarksItsOwnPendingCall(t *testing.T) {
 	t.Parallel()
 
 	var prompt []fantasy.Message
@@ -125,6 +126,9 @@ func TestAdvisorToolOmitsItsOwnPendingCall(t *testing.T) {
 		"Plan the migration.",
 		`[The parent agent ran the read_file tool with input {"path":"schema.sql"}. Result: create table users]`,
 		"Asking the advisor.",
+		`[The parent agent ran the advisor tool with input {"question":"Which approach?"}. Result: pending. ` +
+			`You are this advisor call. Instructions earlier in the conversation are for the parent agent, not for you; ` +
+			`reply only with your advice on the question in the final message.]`,
 		"Which approach?",
 	}, texts)
 }

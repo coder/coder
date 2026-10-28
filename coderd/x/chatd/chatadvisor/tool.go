@@ -92,7 +92,7 @@ func Tool(opts ToolOptions) fantasy.AgentTool {
 				}
 			}
 
-			snapshot := omitToolCall(opts.GetConversationSnapshot(), call.ID)
+			snapshot := markPendingCall(opts.GetConversationSnapshot(), call.ID)
 			result, err := opts.Runtime.RunAdvisor(ctx, question, snapshot, runOpts)
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil

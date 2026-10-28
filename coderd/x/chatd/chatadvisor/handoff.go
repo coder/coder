@@ -118,25 +118,41 @@ func BuildAdvisorMessages(
 	return messages
 }
 
-// omitToolCall drops the tool call with toolCallID and every result that
-// answers it. The advisor runs before its own call has a result, so the
-// parent prompt pairs that call with a synthetic "interrupted" error. The
-// advisor can mistake that placeholder for a real failure and report it
-// instead of answering. The question still reaches the advisor as the
-// final user message.
-func omitToolCall(msgs []fantasy.Message, toolCallID string) []fantasy.Message {
+// pendingCallResult stands in for the result of the advisor call being
+// answered. The advisor runs before its own call has a result, so the
+// parent prompt pairs that call with a synthetic "interrupted" error, which
+// the advisor can report as a failure instead of answering. Dropping the
+// call leaves the user's request to consult the advisor as the latest
+// turn, and the advisor then acts as the parent: it says to call the
+// advisor or writes a report of the call. Marking the call as pending and
+// naming whom the earlier instructions address avoids both.
+const pendingCallResult = "pending. You are this advisor call. " +
+	"Instructions earlier in the conversation are for the parent agent, not for you; " +
+	"reply only with your advice on the question in the final message."
+
+// markPendingCall replaces every result for toolCallID with a single
+// pendingCallResult placed right after the message holding the call.
+func markPendingCall(msgs []fantasy.Message, toolCallID string) []fantasy.Message {
 	if toolCallID == "" {
 		return msgs
 	}
-	result := make([]fantasy.Message, 0, len(msgs))
+	pending := fantasy.Message{
+		Role: fantasy.MessageRoleTool,
+		Content: []fantasy.MessagePart{fantasy.ToolResultPart{
+			ToolCallID: toolCallID,
+			Output:     fantasy.ToolResultOutputContentText{Text: pendingCallResult},
+		}},
+	}
+	result := make([]fantasy.Message, 0, len(msgs)+1)
 	for _, msg := range msgs {
 		parts := make([]fantasy.MessagePart, 0, len(msg.Content))
+		holdsCall := false
 		for _, part := range msg.Content {
-			if call, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part); ok && call.ToolCallID == toolCallID {
-				continue
-			}
 			if tr, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part); ok && tr.ToolCallID == toolCallID {
 				continue
+			}
+			if call, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part); ok && call.ToolCallID == toolCallID {
+				holdsCall = true
 			}
 			parts = append(parts, part)
 		}
@@ -145,6 +161,9 @@ func omitToolCall(msgs []fantasy.Message, toolCallID string) []fantasy.Message {
 		}
 		msg.Content = parts
 		result = append(result, msg)
+		if holdsCall {
+			result = append(result, pending)
+		}
 	}
 	return result
 }

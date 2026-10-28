@@ -13788,9 +13788,13 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	for _, msg := range gotAdvisorMessages {
 		require.NotContains(t, msg.Content, chatadvisor.ParentGuidanceBlock,
 			"ParentGuidanceBlock must be stripped before reaching the advisor")
-		require.NotContains(t, msg.Content, "ran the advisor tool",
-			"the advisor must not see its own pending call")
+		require.NotContains(t, msg.Content, "did not receive a result",
+			"the advisor must not see its own pending call as interrupted")
 	}
+	require.True(t, slices.ContainsFunc(gotAdvisorMessages, func(msg chattest.OpenAIMessage) bool {
+		return strings.Contains(msg.Content, "ran the advisor tool") &&
+			strings.Contains(msg.Content, "Result: pending")
+	}), "the advisor must see its own call marked as pending")
 
 	var parentSawAdvisorResult bool
 	for _, msg := range gotFinalMessages {
