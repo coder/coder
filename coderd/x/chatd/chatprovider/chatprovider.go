@@ -143,11 +143,14 @@ var mediaByRoute = map[mediaRoute]routeMedia{
 	{provider: database.AIProviderTypeOpenai, transport: fantasyopenai.Name}: {
 		images: commonImageTypes, pdf: true, audio: true,
 	},
+	// Azure Chat Completions rejects file content parts with HTTP 400, and
+	// Gemini's OpenAI-compatible endpoint does not process them, so neither
+	// route takes PDFs.
 	{provider: database.AIProviderTypeAzure, transport: fantasyopenaicompat.Name}: {
-		images: commonImageTypes, pdf: true, audio: true,
+		images: commonImageTypes, audio: true,
 	},
 	{provider: database.AIProviderTypeGoogle, transport: fantasyopenaicompat.Name}: {
-		images: googleImageTypes, pdf: true, audio: true,
+		images: googleImageTypes, audio: true,
 	},
 	{provider: database.AIProviderTypeVercel, transport: fantasyopenaicompat.Name}: {
 		anyImage: true, pdf: true, audio: true,

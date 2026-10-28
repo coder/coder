@@ -73,13 +73,13 @@ func TestRouteMedia(t *testing.T) {
 		},
 		{
 			name: "Azure", transport: "openai-compat", provider: "azure",
-			accepts: []string{"image/jpeg", "image/gif", "application/pdf", "audio/mpeg"},
-			rejects: []string{"image/heic", "image/bmp", "image/svg+xml", "text/plain", "application/json"},
+			accepts: []string{"image/jpeg", "image/gif", "audio/mpeg"},
+			rejects: []string{"image/heic", "image/bmp", "image/svg+xml", "application/pdf", "text/plain", "application/json"},
 		},
 		{
 			name: "Google", transport: "openai-compat", provider: "google",
-			accepts: []string{"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "application/pdf"},
-			rejects: []string{"image/gif", "image/svg+xml", "text/plain", "application/json"},
+			accepts: []string{"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "audio/mpeg"},
+			rejects: []string{"image/gif", "image/svg+xml", "application/pdf", "text/plain", "application/json"},
 		},
 		{
 			name: "Vercel", transport: "openai-compat", provider: "vercel",
