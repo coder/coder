@@ -337,7 +337,7 @@ A subagent chat in plan mode gets none of them.
 | Time per tool call            | 60&nbsp;s    |
 
 Tool results can include images and PDFs, and the model receives them as files.
-Every model provider receives PDFs.
+Models from the Azure OpenAI and Google providers don't receive PDFs.
 If the model can't accept a file's type, the model gets a short note in place of the file.
 
 The tool result limit counts images and PDFs at their base64-encoded size.
