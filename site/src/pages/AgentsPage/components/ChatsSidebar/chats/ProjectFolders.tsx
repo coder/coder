@@ -48,7 +48,6 @@ type ProjectFoldersProps = {
 	readonly chatsByProjectId: ReadonlyMap<string, readonly Chat[]>;
 	/** The Pinned section lists these, so folders only count them. */
 	readonly pinnedChatsByProjectId: ReadonlyMap<string, readonly Chat[]>;
-	/** The sidebar's list filters, which open folders fetch with. */
 	readonly chatListInput: ChatListInput;
 	readonly expandedProjectIds: Readonly<Record<string, boolean>>;
 	readonly onToggle: (projectId: string) => void;

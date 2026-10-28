@@ -3137,10 +3137,6 @@ const mockOlderProjectChat = buildChat({
 	project_id: MockChatProject.id,
 });
 
-/**
- * The sidebar has not loaded this project's chat yet, so the open folder
- * fetches it.
- */
 export const ProjectFolderWithUnloadedChat: Story = {
 	args: { chats: [mockLooseChat] },
 	parameters: {
@@ -3149,6 +3145,38 @@ export const ProjectFolderWithUnloadedChat: Story = {
 			{
 				key: launchFolderChatsKey,
 				data: { pages: [[mockOlderProjectChat]], pageParams: [0] },
+			},
+		],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/agents/projects/${MockChatProject.id}`,
+				pathParams: { projectId: MockChatProject.id },
+			},
+			routing: agentsRouting,
+		}),
+	},
+};
+
+// More pins than the sidebar's first page holds leave this one unloaded.
+const mockUnloadedPinnedProjectChat = buildChat({
+	id: "unloaded-pinned-project-chat",
+	title: "Unloaded pinned project chat",
+	organization_id: MockChatProject.organization_id,
+	project_id: MockChatProject.id,
+	pin_order: 51,
+});
+
+export const ProjectFolderWithUnloadedPinnedChat: Story = {
+	args: { chats: [mockLooseChat] },
+	parameters: {
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
+			{
+				key: launchFolderChatsKey,
+				data: {
+					pages: [[mockUnloadedPinnedProjectChat, mockOlderProjectChat]],
+					pageParams: [0],
+				},
 			},
 		],
 		reactRouter: reactRouterParameters({
