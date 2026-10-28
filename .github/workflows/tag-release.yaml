@@ -122,6 +122,9 @@ jobs:
           DRY_RUN: ${{ inputs.dry_run }}
           ALLOW_OPEN_PRS: ${{ inputs.allow_open_prs }}
           ALLOW_BREAKING_CHANGES: ${{ inputs.allow_breaking_changes }}
+          # The release App dispatches release.yaml, so pass the human who
+          # started this run for attribution.
+          REQUESTED_BY: ${{ github.actor }}
         run: |
           set -euo pipefail
 
@@ -131,7 +134,11 @@ jobs:
           git config user.name "$bot_login"
           git config user.email "${bot_id}+${bot_login}@users.noreply.github.com"
 
-          args=(--non-interactive)
+          args=(
+            --non-interactive
+            --requested-by "$REQUESTED_BY"
+            --requested-by-run-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          )
           if [[ "$DRY_RUN" == "true" ]]; then
             args+=(--dry-run)
           fi

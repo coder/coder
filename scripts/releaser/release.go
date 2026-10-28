@@ -781,7 +781,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		if err := p.confirm("Create tag?"); err != nil {
 			return xerrors.New("cannot proceed without a tag")
 		}
-		if err := executor.CreateTag(ctx, newVersion.String(), ref, "Release "+newVersion.String()); err != nil {
+		if err := executor.CreateTag(ctx, newVersion.String(), ref, tagMessage(newVersion, opts)); err != nil {
 			return xerrors.Errorf("creating tag: %w", err)
 		}
 		successf(w, "Tag %s created.", newVersion)
@@ -820,6 +820,9 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, pretty.Sprint(cliui.BoldFmt(), "  Payload fields:"))
 	fmt.Fprintf(w, "    release_channel: %s\n", channel)
+	if opts.RequestedBy != "" {
+		fmt.Fprintf(w, "    requested_by:    %s\n", opts.RequestedBy)
+	}
 	fmt.Fprintf(w, "    dry_run:         false\n")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, pretty.Sprint(cliui.BoldFmt(), "  release_notes:"))
@@ -858,4 +861,19 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	fmt.Fprintln(w)
 	successf(w, "Done! 🎉")
 	return nil
+}
+
+// tagMessage returns the annotated tag message for a release. It names
+// the requester when the releaser runs on someone's behalf, so the tag
+// records who asked for it even though a bot pushes it.
+func tagMessage(v version, opts releaseOptions) string {
+	msg := "Release " + v.String()
+	if opts.RequestedBy == "" {
+		return msg
+	}
+	msg += "\n\nRequested-by: @" + opts.RequestedBy
+	if opts.RequestedByRunURL != "" {
+		msg += "\nRequested-via: " + opts.RequestedByRunURL
+	}
+	return msg
 }

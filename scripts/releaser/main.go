@@ -45,6 +45,18 @@ func main() {
 				Description: "Continue when a patch release contains breaking changes.",
 				Value:       serpent.BoolOf(&opts.AllowBreakingChanges),
 			},
+			{
+				Name:        "requested-by",
+				Flag:        "requested-by",
+				Description: "GitHub login of the user the release runs on behalf of. Recorded in the tag message and passed to release.yaml.",
+				Value:       serpent.StringOf(&opts.RequestedBy),
+			},
+			{
+				Name:        "requested-by-run-url",
+				Flag:        "requested-by-run-url",
+				Description: "URL of the workflow run that requested the release.",
+				Value:       serpent.StringOf(&opts.RequestedByRunURL),
+			},
 		},
 		Handler: func(inv *serpent.Invocation) error {
 			return Run(inv, opts)

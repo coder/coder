@@ -25,6 +25,12 @@ type releaseOptions struct {
 	// AllowBreakingChanges continues when a patch release contains
 	// breaking changes.
 	AllowBreakingChanges bool
+	// RequestedBy is the GitHub login of the user who asked for the
+	// release when the releaser runs on their behalf, such as from the
+	// Tag release workflow.
+	RequestedBy string
+	// RequestedByRunURL links to the run that asked for the release.
+	RequestedByRunURL string
 }
 
 // Run executes the interactive release wizard.
@@ -60,7 +66,7 @@ func Run(inv *serpent.Invocation, opts releaseOptions) error {
 		outputPrefix = "[DRYRUN] "
 		executor = &dryRunExecutor{w: w}
 	} else {
-		executor = &liveExecutor{}
+		executor = &liveExecutor{requestedBy: opts.RequestedBy, requestedByRunURL: opts.RequestedByRunURL}
 	}
 
 	return runRelease(ctx, inv, executor, ghAvailable, opts)

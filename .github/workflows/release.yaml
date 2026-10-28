@@ -1,5 +1,9 @@
 # GitHub release workflow.
 name: Release
+# requested_by is only trusted when the release App dispatched the run (see
+# check-perms). A bot actor that is not the release App fails check-perms, so
+# the name never shows on a run that goes on to publish.
+run-name: ${{ endsWith(github.actor, '[bot]') && inputs.requested_by != '' && format('Release {0} requested by @{1}', github.ref_name, inputs.requested_by) || 'Release' }}
 on:
   workflow_dispatch:
     inputs:
@@ -17,6 +21,16 @@ on:
         type: boolean
         required: true
         default: false
+      requested_by:
+        description: Set by the Tag release workflow to the user who started it. Ignored on manual runs.
+        type: string
+        required: false
+        default: ""
+      requested_by_run_url:
+        description: Set by the Tag release workflow to its run URL. Ignored on manual runs.
+        type: string
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -52,13 +66,30 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           RELEASE_APP_SLUG: ${{ steps.release_app_token.outputs.app-slug }}
+          REQUESTED_BY: ${{ inputs.requested_by }}
+          REQUESTED_BY_RUN_URL: ${{ inputs.requested_by_run_url }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const releaseAppSlug = process.env.RELEASE_APP_SLUG;
+            const {REQUESTED_BY: requestedBy, REQUESTED_BY_RUN_URL: requestedByRunURL} = process.env;
             if (releaseAppSlug && context.actor === `${releaseAppSlug}[bot]`) {
               core.info(`Actor ${context.actor} is the release App; tag-release.yaml checked the human actor.`);
+              if (requestedBy) {
+                core.info(`Requested by @${requestedBy}${requestedByRunURL ? ` via ${requestedByRunURL}` : ''}`);
+                await core.summary
+                  .addRaw(`Requested by @${requestedBy}`)
+                  .addRaw(requestedByRunURL ? ` via [Tag release](${requestedByRunURL})` : '')
+                  .addEOL()
+                  .write();
+              }
               return;
+            }
+
+            // Anyone can type these inputs on a manual run, so they are not
+            // attribution here. The run is attributed to the actor.
+            if (requestedBy || requestedByRunURL) {
+              core.warning('Ignoring requested_by inputs: they are only used when the Tag release workflow dispatches this run.');
             }
 
             const {data} = await github.rest.repos.getCollaboratorPermissionLevel({
