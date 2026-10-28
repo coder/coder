@@ -1554,6 +1554,27 @@ describe("pinChat optimistic update", () => {
 		).toBe(5);
 	});
 
+	it("adds a chat only a project folder fetched to the sidebar lists", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-folder-only";
+		seedInfiniteChats(queryClient, [makeChat("chat-loaded")]);
+		queryClient.setQueryData(
+			projectFolderChatsKey("project-1", toChatListParams({})),
+			{
+				pages: [[makeChat(chatId, { project_id: "project-1" })]],
+				pageParams: [0],
+			},
+		);
+
+		const mutation = pinChat(queryClient);
+		await mutation.onMutate(chatId);
+
+		expect(
+			readInfiniteChats(queryClient)?.find((chat) => chat.id === chatId)
+				?.pin_order,
+		).toBe(1);
+	});
+
 	it("restores the project list on error", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";

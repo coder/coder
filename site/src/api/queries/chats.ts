@@ -214,6 +214,20 @@ export const prependToInfiniteChatsCache = (
 	queryClient: QueryClient,
 	chat: TypesGen.Chat,
 ) => {
+	prependToSidebarChatLists(queryClient, chat);
+	// Growing the first page of a project list would shift its offset
+	// pagination and duplicate a row on the next page, so refetch it instead.
+	if (chat.project_id && !chat.archived && !chat.parent_chat_id) {
+		void queryClient.invalidateQueries({
+			queryKey: projectChatsKey(chat.project_id),
+		});
+	}
+};
+
+const prependToSidebarChatLists = (
+	queryClient: QueryClient,
+	chat: TypesGen.Chat,
+) => {
 	const queries = queryClient.getQueriesData<InfiniteChatsCacheData>({
 		queryKey: chatListFamilyKey,
 	});
@@ -252,13 +266,6 @@ export const prependToInfiniteChatsCache = (
 				i === 0 ? [chat, ...page] : page,
 			);
 			return { ...prev, pages: nextPages };
-		});
-	}
-	// Growing the first page of a project list would shift its offset
-	// pagination and duplicate a row on the next page, so refetch it instead.
-	if (chat.project_id && !chat.archived && !chat.parent_chat_id) {
-		void queryClient.invalidateQueries({
-			queryKey: projectChatsKey(chat.project_id),
 		});
 	}
 };
@@ -2323,19 +2330,24 @@ export const pinChat = (queryClient: QueryClient) => ({
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatEntityKey(chatId),
 		);
-		const previousPinOrder = findChatInListCaches(
-			queryClient,
-			chatId,
-		)?.pin_order;
+		const listedChat = findChatInListCaches(queryClient, chatId);
 		const optimisticPinOrder = getNextOptimisticPinOrder(queryClient);
 		setListedChatPinOrder(queryClient, chatId, optimisticPinOrder);
+		// A chat only an open project folder fetched has no sidebar row for
+		// the Pinned section to show, and the folder hides pinned chats.
+		if (listedChat) {
+			prependToSidebarChatLists(queryClient, {
+				...listedChat,
+				pin_order: optimisticPinOrder,
+			});
+		}
 		if (previousChat) {
 			queryClient.setQueryData<TypesGen.Chat>(chatEntityKey(chatId), {
 				...previousChat,
 				pin_order: optimisticPinOrder,
 			});
 		}
-		return { previousChat, previousPinOrder };
+		return { previousChat, previousPinOrder: listedChat?.pin_order };
 	},
 	onError: rollBackPinChange(queryClient),
 	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
