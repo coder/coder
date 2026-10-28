@@ -7,8 +7,9 @@
 # is published as final or promoted from a prerelease, never for a draft or a
 # prerelease, so a release candidate's tag never publishes.
 #
-# Nothing is checked out. The token comes from a GitHub App installed only on
-# coder/docs-engine with Actions: write, and is scoped to that here as well.
+# Nothing is checked out. The token comes from the docs-engine GitHub App
+# (DOCS_ENGINE_APP_ID), installed only on coder/docs-engine, and is scoped here
+# to Actions: write on that repository alone.
 name: docs-publish-releases
 
 on:
@@ -34,8 +35,8 @@ jobs:
         env:
           REF: ${{ github.event.release.tag_name }}
           PRERELEASE: ${{ github.event.release.prerelease }}
-          HAS_APP_ID: ${{ secrets.DOCS_PUBLISH_APP_ID != '' }}
-          HAS_APP_KEY: ${{ secrets.DOCS_PUBLISH_APP_PRIVATE_KEY != '' }}
+          HAS_APP_ID: ${{ secrets.DOCS_ENGINE_APP_ID != '' }}
+          HAS_APP_KEY: ${{ secrets.DOCS_ENGINE_APP_PRIVATE_KEY != '' }}
         run: |
           set -euo pipefail
           if [[ "$PRERELEASE" == true ]]; then
@@ -49,7 +50,7 @@ jobs:
             exit 0
           fi
           if [[ "$HAS_APP_ID" != true || "$HAS_APP_KEY" != true ]]; then
-            echo "::error::Set the repository secrets DOCS_PUBLISH_APP_ID and DOCS_PUBLISH_APP_PRIVATE_KEY (see coder/docs-engine apps/docs/README.md, \"The publish App\")." >&2
+            echo "::error::Set the repository secrets DOCS_ENGINE_APP_ID and DOCS_ENGINE_APP_PRIVATE_KEY for the docs-engine GitHub App." >&2
             exit 1
           fi
           echo "publish=true" >> "$GITHUB_OUTPUT"
@@ -59,8 +60,8 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          app-id: ${{ secrets.DOCS_PUBLISH_APP_ID }}
-          private-key: ${{ secrets.DOCS_PUBLISH_APP_PRIVATE_KEY }}
+          app-id: ${{ secrets.DOCS_ENGINE_APP_ID }}
+          private-key: ${{ secrets.DOCS_ENGINE_APP_PRIVATE_KEY }}
           owner: coder
           repositories: docs-engine
           permission-actions: write
