@@ -2,7 +2,6 @@ const RELOAD_TIMESTAMP_STORAGE_KEY = "preload-reload";
 const RELOAD_GUARD_MS = 10_000;
 
 let reloadPending = false;
-let prefetches = 0;
 
 /**
  * Reloads the page when Vite fails to load a chunk. After a redeploy the SPA
@@ -12,9 +11,6 @@ let prefetches = 0;
  */
 export function registerStaleChunkReload(): void {
 	window.addEventListener("vite:preloadError", () => {
-		if (prefetches > 0) {
-			return;
-		}
 		const lastReloadAt = sessionStorage.getItem(RELOAD_TIMESTAMP_STORAGE_KEY);
 		const now = Date.now();
 
@@ -36,23 +32,4 @@ export function registerStaleChunkReload(): void {
  */
 export function isStaleChunkReloadPending(): boolean {
 	return reloadPending;
-}
-
-/**
- * Loads a chunk the page may need later, such as on hover, and ignores a
- * failure without reloading: the import that needs the chunk fails again and
- * reloads then. Other chunk failures while a prefetch runs also skip the
- * reload, so start the import that needs the chunk after this settles.
- */
-export async function prefetchChunk(
-	load: () => Promise<unknown>,
-): Promise<void> {
-	prefetches++;
-	try {
-		await load();
-	} catch {
-		// The import that needs the chunk reports the failure.
-	} finally {
-		prefetches--;
-	}
 }

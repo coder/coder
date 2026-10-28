@@ -1,25 +1,21 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useEffect, useEffectEvent, useState } from "react";
 import { Loader } from "#/components/Loader/Loader";
-import { prefetchChunk } from "#/utils/staleChunkReload";
 
-const loadTerminalPanel = () => import("./TerminalPanel");
-let prefetch: Promise<void> | undefined;
-// A load during the prefetch would skip the stale-chunk reload with it.
-const TerminalPanel = lazy(async () => {
-	await prefetch;
-	return loadTerminalPanel();
-});
-
-/**
- * Starts loading `TerminalPanel` before a terminal tab opens. A new tab stays
- * hidden until its terminal is ready, so its first open would otherwise also
- * wait for the chunk.
- */
-export const preloadTerminalPanel = (): void => {
-	prefetch ??= prefetchChunk(loadTerminalPanel);
-};
+const TerminalPanel = lazy(() => import("./TerminalPanel"));
 
 type LazyTerminalPanelProps = React.ComponentProps<typeof TerminalPanel>;
+
+// A pending tab stays hidden until `onReady`, which would otherwise also wait
+// for the chunk. Suspense shows this only while the chunk loads.
+const TerminalPanelLoader: React.FC<{ onReady: () => void }> = ({
+	onReady,
+}) => {
+	const signalReady = useEffectEvent(onReady);
+	useEffect(() => {
+		signalReady();
+	}, []);
+	return <Loader />;
+};
 
 /**
  * Loads `TerminalPanel`, and with it xterm, when its tab is first hot: the
@@ -35,7 +31,7 @@ export const LazyTerminalPanel: React.FC<LazyTerminalPanelProps> = (props) => {
 		return null;
 	}
 	return (
-		<Suspense fallback={<Loader />}>
+		<Suspense fallback={<TerminalPanelLoader onReady={props.onReady} />}>
 			<TerminalPanel {...props} />
 		</Suspense>
 	);

@@ -1,17 +1,9 @@
-import { act, render, waitFor } from "@testing-library/react";
+import { render, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import { LazyTerminalPanel } from "./LazyTerminalPanel";
 
 const panel = vi.hoisted(() => ({ loads: 0, mounts: 0, unmounts: 0 }));
-const prefetch = vi.hoisted(() => ({ settle: () => {} }));
-
-vi.mock("#/utils/staleChunkReload", () => ({
-	prefetchChunk: () =>
-		new Promise<void>((resolve) => {
-			prefetch.settle = resolve;
-		}),
-}));
 
 vi.mock("./TerminalPanel", async () => {
 	panel.loads++;
@@ -50,17 +42,21 @@ describe("LazyTerminalPanel", () => {
 		expect(panel.unmounts).toBe(0);
 	});
 
-	it("waits for a running prefetch before loading the panel", async () => {
-		// A fresh module, since the first test already resolved the lazy panel.
+	it("signals ready while the chunk loads and leaves it to the panel after", async () => {
+		// A fresh module, since the first test already loaded the chunk.
 		vi.resetModules();
 		const fresh = await import("./LazyTerminalPanel");
+		const onReady = vi.fn();
 		const mounts = panel.mounts;
-		fresh.preloadTerminalPanel();
-		render(<fresh.LazyTerminalPanel {...props} isHot />);
-		await act(() => import("./TerminalPanel"));
-		expect(panel.mounts).toBe(mounts);
-
-		prefetch.settle();
+		const first = render(
+			<fresh.LazyTerminalPanel {...props} isHot onReady={onReady} />,
+		);
+		expect(onReady).toHaveBeenCalledTimes(1);
 		await waitFor(() => expect(panel.mounts).toBe(mounts + 1));
+		first.unmount();
+
+		render(<fresh.LazyTerminalPanel {...props} isHot onReady={onReady} />);
+		expect(panel.mounts).toBe(mounts + 2);
+		expect(onReady).toHaveBeenCalledTimes(1);
 	});
 });
