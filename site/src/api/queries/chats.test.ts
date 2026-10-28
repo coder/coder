@@ -1595,6 +1595,27 @@ describe("pinChat optimistic update", () => {
 });
 
 describe("moveChatToProject", () => {
+	it("gives the sidebar a copy of a chat only its old folder fetched", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-folder-only";
+		seedInfiniteChats(queryClient, [makeChat("chat-loaded")]);
+		queryClient.setQueryData(
+			projectFolderChatsKey("project-a", toChatListParams({})),
+			{
+				pages: [[makeChat(chatId, { project_id: "project-a" })]],
+				pageParams: [0],
+			},
+		);
+
+		const mutation = moveChatToProject(queryClient);
+		await mutation.onMutate({ chatId, projectId: "project-b" });
+
+		expect(
+			readInfiniteChats(queryClient)?.find((chat) => chat.id === chatId)
+				?.project_id,
+		).toBe("project-b");
+	});
+
 	it("restores the project when the move fails", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";

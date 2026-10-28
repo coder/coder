@@ -43,7 +43,6 @@ export const groupChatsByProject = (
 
 type MergeProjectFolderChatsOptions = {
 	readonly projectId: string;
-	/** The loaded sidebar chats that `groupChatsByProject` filed here. */
 	readonly filedChats: readonly Chat[];
 	/** The folder's own fetch, which reaches chats the sidebar has not loaded. */
 	readonly fetchedChats: readonly Chat[];

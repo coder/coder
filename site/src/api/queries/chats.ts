@@ -2088,10 +2088,19 @@ export const moveChatToProject = (queryClient: QueryClient) => ({
 	onMutate: async ({ chatId, projectId }: MoveChatToProjectVariables) => {
 		await cancelChatListQueries(queryClient);
 		await cancelChatEntity(queryClient, chatId);
+		const listedChat = findChatInListCaches(queryClient, chatId);
 		const previousChat =
-			findChatInListCaches(queryClient, chatId) ??
+			listedChat ??
 			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId));
 		setCachedChatProjectId(queryClient, chatId, projectId ?? undefined);
+		// A chat only its old folder fetched is missing from the destination
+		// folder's cache, so give the sidebar a copy to file there.
+		if (listedChat) {
+			prependToSidebarChatLists(queryClient, {
+				...listedChat,
+				project_id: projectId ?? undefined,
+			});
+		}
 		return { previousProjectId: previousChat?.project_id };
 	},
 	onError: (
