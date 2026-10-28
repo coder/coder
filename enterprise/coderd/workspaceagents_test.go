@@ -513,8 +513,10 @@ func TestWorkspaceExternalAgentCredentials(t *testing.T) {
 		}).Do()
 
 		// dbgen.Workspace doesn't persist UserACL on this branch, so set the
-		// shares directly.
-		err := db.UpdateWorkspaceACLByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceACLByIDParams{
+		// shares directly. The system-restricted subject can't share a
+		// workspace here, so act as the workspace owner, who can.
+		ownerCtx := dbauthz.As(ctx, coderdtest.AuthzUserSubject(member, orgID))
+		err := db.UpdateWorkspaceACLByID(ownerCtx, database.UpdateWorkspaceACLByIDParams{
 			ID: r.Workspace.ID,
 			UserACL: database.WorkspaceACL{
 				useSharee.ID.String(): {
