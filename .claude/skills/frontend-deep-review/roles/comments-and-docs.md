@@ -77,7 +77,7 @@ Look for:
 - Frontend doc comments that describe callers ("used on the org members editor") or coderd internals (which endpoint populates which field); both belong with the code they describe, or nowhere. The values the frontend must handle are the exception CD2 keeps.
 - Module-level or config-file prose placed away from the section it governs (a cleanup note at the top of a file whose cleanup section sits at the bottom, a one-line policy at line 1 of a 300-line module).
 
-Fix: move the sentence to the declaration it describes and delete the original; drop stack-layer notes, and keep `@public` only on exports with a named external consumer.
+Fix: move the sentence to the declaration it describes and delete the original; drop stack-layer notes, and keep `@public` only on exports with a named external consumer. On an exported symbol, which the root `AGENTS.md` requires to carry JSDoc, replace a caller or coderd note with the symbol's own contract instead of leaving it undocumented.
 
 ### CD6: Explain the non-obvious decision, or make the existing explanation readable
 

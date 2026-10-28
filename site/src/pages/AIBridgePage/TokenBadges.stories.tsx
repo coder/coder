@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { userEvent } from "storybook/test";
 import { TokenBadges } from "./TokenBadges";
 
 const meta: Meta<typeof TokenBadges> = {
@@ -38,5 +39,18 @@ export const WithMetadata: Story = {
 			cache_read_input_tokens: 3200,
 			cache_creation_input_tokens: 800,
 		},
+	},
+};
+
+export const WithCacheTokens: Story = {
+	args: {
+		inputTokens: 1234,
+		outputTokens: 567,
+		cacheReadTokens: 1_635_778,
+		cacheWriteTokens: 130_734,
+		tokenUsageMetadata: WithMetadata.args?.tokenUsageMetadata,
+	},
+	play: async ({ canvas }) => {
+		await userEvent.hover(canvas.getByRole("button"));
 	},
 };

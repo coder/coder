@@ -3,14 +3,13 @@ title: Codex CLI
 ---
 
 > [!NOTE]
-> AI Gateway is part of [AI Governance](../../ai-governance.md), which is
-> included with a Premium license.
+> AI Gateway is part of [AI Governance](../../ai-governance.md), which is included with a Premium license.
 
 Codex CLI can be configured to use AI Gateway by setting up a custom model provider.
 
 ## Centralized API Key
 
-To configure Codex CLI to use AI Gateway, set the following configuration options in your Codex configuration file (e.g., `~/.codex/config.toml`):
+To configure Codex CLI to use AI Gateway, set the following configuration options in your Codex configuration file (for example, `~/.codex/config.toml`):
 
 ```toml
 model_provider = "ai_gateway"
@@ -28,11 +27,12 @@ To authenticate with AI Gateway, get your **[Coder API token](../../../admin/use
 export OPENAI_API_KEY="<your-coder-api-token>"
 ```
 
-Run Codex as usual. It will automatically use the `ai_gateway` model provider from your configuration.
+Run Codex as usual.
+It will automatically use the `ai_gateway` model provider from your configuration.
 
 ## BYOK (Personal API Key)
 
-Add the following to your Codex configuration file (e.g., `~/.codex/config.toml`):
+Add the following to your Codex configuration file (for example, `~/.codex/config.toml`):
 
 ```toml
 model_provider = "ai_gateway"
@@ -58,11 +58,10 @@ export CODER_API_TOKEN="<your-coder-api-token>"
 ## BYOK (ChatGPT Subscription)
 
 > [!IMPORTANT]
-> This flow requires a [ChatGPT provider](../providers.md#chatgpt) on
-> the deployment. Without it, Codex requests fail with
-> `404 route not supported: POST /chatgpt/v1/responses`.
+> This flow requires a [ChatGPT provider](../providers.md#chatgpt) on the deployment.
+> Without it, Codex requests fail with `404 route not supported: POST /chatgpt/v1/responses`.
 
-Add the following to your Codex configuration file (e.g., `~/.codex/config.toml`):
+Add the following to your Codex configuration file (for example, `~/.codex/config.toml`):
 
 ```toml
 model_provider = "ai_gateway"
@@ -92,8 +91,7 @@ When you run Codex, it will prompt you to log in with your ChatGPT account.
 
 ## Pre-configuring in Templates
 
-If configuring within a Coder workspace, you can use the
-[Codex CLI](https://registry.coder.com/modules/coder-labs/codex) module.
+If configuring within a Coder workspace, you can use the [Codex CLI](https://registry.coder.com/modules/coder-labs/codex) module.
 
 For the centralized API key flow, set `enable_ai_gateway`:
 
@@ -107,10 +105,8 @@ module "codex" {
 }
 ```
 
-For the ChatGPT subscription flow, pass the provider configuration
-through `base_config_toml` and inject the Coder API token with a
-`coder_env` resource. Users authenticate by running `codex login` with
-their ChatGPT account:
+For the ChatGPT subscription flow, pass the provider configuration through `base_config_toml` and inject the Coder API token with a `coder_env` resource.
+Users authenticate by running `codex login` with their ChatGPT account:
 
 ```tf
 resource "coder_env" "coder_api_token" {
@@ -138,28 +134,23 @@ module "codex" {
 }
 ```
 
-Do not set `OPENAI_API_KEY` in the workspace when using the ChatGPT
-subscription flow, or Codex authenticates with the API key instead of
-the ChatGPT login.
+Do not set `OPENAI_API_KEY` in the workspace when using the ChatGPT subscription flow, or Codex authenticates with the API key instead of the ChatGPT login.
 
 ## Troubleshooting
 
 ### Codex falls back from WebSockets to HTTPS transport
 
-Recent Codex CLI versions default to the WebSocket runtime for the
-Responses API. AI Gateway does not support WebSocket transport, so each
-request attempts a WebSocket connection and retries up to 5 times before
-falling back to HTTPS. When this happens you will see:
+Recent Codex CLI versions default to the WebSocket runtime for the Responses API.
+AI Gateway does not support WebSocket transport, so each request attempts a WebSocket connection and retries up to 5 times before falling back to HTTPS.
+When this happens you will see:
 
 ```txt
 Falling back from WebSockets to HTTPS transport.
 ```
 
-The requests still succeed over HTTPS, but every turn waits through the
-five failed WebSocket attempts first.
+The requests still succeed over HTTPS, but every turn waits through the five failed WebSocket attempts first.
 
-To stop Codex from attempting WebSockets, set `supports_websockets = false`
-in your AI Gateway provider block in `~/.codex/config.toml`:
+To stop Codex from attempting WebSockets, set `supports_websockets = false` in your AI Gateway provider block in `~/.codex/config.toml`:
 
 ```toml
 model_provider = "ai_gateway"
@@ -173,4 +164,5 @@ supports_websockets = false
 
 This forces the HTTPS transport directly and removes the fallback delay.
 
-**References:** [Codex CLI Configuration](https://developers.openai.com/codex/config-reference)
+**References:**
+[Codex CLI Configuration](https://developers.openai.com/codex/config-reference)
