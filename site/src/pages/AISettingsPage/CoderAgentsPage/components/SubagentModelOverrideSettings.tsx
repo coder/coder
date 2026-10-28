@@ -114,6 +114,7 @@ export const SubagentModelOverrideSettings: React.FC<
 		: undefined;
 	const isUnavailableSavedModel =
 		form.values.model_config_id !== "" && selectedModelOption === undefined;
+
 	let placeholder = unsetPlaceholder;
 	if (isLoading) {
 		placeholder = "Loading models...";

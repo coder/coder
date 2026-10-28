@@ -311,6 +311,7 @@ const OrganizationAgentSettingsView: React.FC<
 					if (!onSave) {
 						return null;
 					}
+
 					const isComputerUse = setting.context === "computer_use";
 					return (
 						<SubagentModelOverrideSettings

@@ -74,28 +74,22 @@ const CoderAgentsPage: React.FC = () => {
 		accessibleOrganizationsQuery.isLoading ||
 		accessibleOrganizationsQuery.error !== null;
 
-	const organizationSettings = (() => {
-		if (!activeOrganization) {
-			return undefined;
-		}
-		if (organizationPermissionsQuery.data !== undefined) {
-			return (
-				<OrganizationAgentSettings
-					organization={activeOrganization}
-					canEdit={
-						!organizationSelection.requestedOrganizationDenied &&
-						(activeOrganizationPermissions?.editChatModelConfigs ?? false)
-					}
-					showAdvisor={showAdvisorSettings}
-					showComputerUse={showComputerUseSettings}
-				/>
-			);
-		}
-		if (organizationPermissionsQuery.error == null) {
-			return <Loader />;
-		}
-		return undefined;
-	})();
+	let organizationSettings: React.ReactNode;
+	if (activeOrganization && organizationPermissionsQuery.data !== undefined) {
+		organizationSettings = (
+			<OrganizationAgentSettings
+				organization={activeOrganization}
+				canEdit={
+					!organizationSelection.requestedOrganizationDenied &&
+					(activeOrganizationPermissions?.editChatModelConfigs ?? false)
+				}
+				showAdvisor={showAdvisorSettings}
+				showComputerUse={showComputerUseSettings}
+			/>
+		);
+	} else if (activeOrganization && organizationPermissionsQuery.error == null) {
+		organizationSettings = <Loader />;
+	}
 
 	return (
 		<RequirePermission isFeatureVisible={isFeatureVisible}>
