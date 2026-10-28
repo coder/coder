@@ -1554,10 +1554,14 @@ describe("pinChat optimistic update", () => {
 		).toBe(5);
 	});
 
-	it("adds a chat only a project folder fetched to the sidebar lists", async () => {
+	it("copies a chat only a project folder fetched into the matching sidebar list", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-folder-only";
 		seedInfiniteChats(queryClient, [makeChat("chat-loaded")]);
+		const sharedListKey = chatListKey(
+			toChatListParams({ sources: ["shared_with_me"] }),
+		);
+		queryClient.setQueryData(sharedListKey, { pages: [[]], pageParams: [0] });
 		queryClient.setQueryData(
 			projectFolderChatsKey("project-1", toChatListParams({})),
 			{
@@ -1573,6 +1577,10 @@ describe("pinChat optimistic update", () => {
 			readInfiniteChats(queryClient)?.find((chat) => chat.id === chatId)
 				?.pin_order,
 		).toBe(1);
+		// The folder fetched with the default filters, so other lists stay out.
+		expect(
+			queryClient.getQueryData<InfiniteData>(sharedListKey)?.pages,
+		).toEqual([[]]);
 	});
 
 	it("restores the project list on error", async () => {

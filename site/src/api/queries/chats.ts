@@ -214,20 +214,6 @@ export const prependToInfiniteChatsCache = (
 	queryClient: QueryClient,
 	chat: TypesGen.Chat,
 ) => {
-	prependToSidebarChatLists(queryClient, chat);
-	// Growing the first page of a project list would shift its offset
-	// pagination and duplicate a row on the next page, so refetch it instead.
-	if (chat.project_id && !chat.archived && !chat.parent_chat_id) {
-		void queryClient.invalidateQueries({
-			queryKey: projectChatsKey(chat.project_id),
-		});
-	}
-};
-
-const prependToSidebarChatLists = (
-	queryClient: QueryClient,
-	chat: TypesGen.Chat,
-) => {
 	const queries = queryClient.getQueriesData<InfiniteChatsCacheData>({
 		queryKey: chatListFamilyKey,
 	});
@@ -267,6 +253,56 @@ const prependToSidebarChatLists = (
 			);
 			return { ...prev, pages: nextPages };
 		});
+	}
+	// Growing the first page of a project list would shift its offset
+	// pagination and duplicate a row on the next page, so refetch it instead.
+	if (chat.project_id && !chat.archived && !chat.parent_chat_id) {
+		void queryClient.invalidateQueries({
+			queryKey: projectChatsKey(chat.project_id),
+		});
+	}
+};
+
+/**
+ * Copies a chat that a project folder fetched into the sidebar list fetched
+ * with the same filters, when that list lacks it. A pin or move takes the
+ * chat out of its folder, and without a sidebar copy it would vanish until
+ * the lists refetch. Call it after the optimistic update.
+ */
+const copyFolderChatToSidebarList = (
+	queryClient: QueryClient,
+	chatId: string,
+) => {
+	const folderQueries = queryClient.getQueriesData<InfiniteChatsCacheData>({
+		queryKey: chatProjectListFamilyKey,
+	});
+	for (const [queryKey, data] of folderQueries) {
+		// projectFolderChatsKey ends with the sidebar's list params.
+		if (queryKey.length !== chatProjectListFamilyKey.length + 2) {
+			continue;
+		}
+		const chat = data?.pages.flat().find((c) => c.id === chatId);
+		if (!chat) {
+			continue;
+		}
+		const params = queryKey[chatProjectListFamilyKey.length + 1];
+		queryClient.setQueryData<InfiniteChatsCacheData>(
+			[...chatListFamilyKey, params],
+			(prev) => {
+				if (
+					!prev?.pages ||
+					prev.pages.some((page) => page.some((c) => c.id === chatId))
+				) {
+					return prev;
+				}
+				return {
+					...prev,
+					pages: prev.pages.map((page, i) =>
+						i === 0 ? [chat, ...page] : page,
+					),
+				};
+			},
+		);
 	}
 };
 
@@ -2088,19 +2124,11 @@ export const moveChatToProject = (queryClient: QueryClient) => ({
 	onMutate: async ({ chatId, projectId }: MoveChatToProjectVariables) => {
 		await cancelChatListQueries(queryClient);
 		await cancelChatEntity(queryClient, chatId);
-		const listedChat = findChatInListCaches(queryClient, chatId);
 		const previousChat =
-			listedChat ??
+			findChatInListCaches(queryClient, chatId) ??
 			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId));
 		setCachedChatProjectId(queryClient, chatId, projectId ?? undefined);
-		// A chat only its old folder fetched is missing from the destination
-		// folder's cache, so give the sidebar a copy to file there.
-		if (listedChat) {
-			prependToSidebarChatLists(queryClient, {
-				...listedChat,
-				project_id: projectId ?? undefined,
-			});
-		}
+		copyFolderChatToSidebarList(queryClient, chatId);
 		return { previousProjectId: previousChat?.project_id };
 	},
 	onError: (
@@ -2339,24 +2367,20 @@ export const pinChat = (queryClient: QueryClient) => ({
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatEntityKey(chatId),
 		);
-		const listedChat = findChatInListCaches(queryClient, chatId);
+		const previousPinOrder = findChatInListCaches(
+			queryClient,
+			chatId,
+		)?.pin_order;
 		const optimisticPinOrder = getNextOptimisticPinOrder(queryClient);
 		setListedChatPinOrder(queryClient, chatId, optimisticPinOrder);
-		// A chat only an open project folder fetched has no sidebar row for
-		// the Pinned section to show, and the folder hides pinned chats.
-		if (listedChat) {
-			prependToSidebarChatLists(queryClient, {
-				...listedChat,
-				pin_order: optimisticPinOrder,
-			});
-		}
+		copyFolderChatToSidebarList(queryClient, chatId);
 		if (previousChat) {
 			queryClient.setQueryData<TypesGen.Chat>(chatEntityKey(chatId), {
 				...previousChat,
 				pin_order: optimisticPinOrder,
 			});
 		}
-		return { previousChat, previousPinOrder: listedChat?.pin_order };
+		return { previousChat, previousPinOrder };
 	},
 	onError: rollBackPinChange(queryClient),
 	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
