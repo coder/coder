@@ -25,7 +25,6 @@ func TestChatProjectInstructionsUpdateOnlyRole(t *testing.T) {
 	t.Parallel()
 
 	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentChatProjects)}
 	ownerClient, firstUser := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{DeploymentValues: dv},
 		LicenseOptions: &coderdenttest.LicenseOptions{
@@ -70,7 +69,6 @@ func TestChatProjectInstructionsAudit(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	auditor := entaudit.NewAuditor(db, entaudit.DefaultFilter, backends.NewPostgres(db, true))
 	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentChatProjects)}
 	ownerClient, firstUser := coderdenttest.New(t, &coderdenttest.Options{
 		AuditLogging: true,
 		Options: &coderdtest.Options{

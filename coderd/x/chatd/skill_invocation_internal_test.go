@@ -42,9 +42,8 @@ func TestResolveSkillInvocations(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		authzDB := dbauthz.New(db, rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), nil)
 		server := &Server{
-			db:          authzDB,
-			logger:      slogtest.Make(t, nil),
-			experiments: codersdk.Experiments{codersdk.ExperimentChatProjects},
+			db:     authzDB,
+			logger: slogtest.Make(t, nil),
 			modelConfigContext: func(ctx context.Context, ownerID uuid.UUID) (context.Context, error) {
 				return callerModelConfigContext(ctx, authzDB, ownerID)
 			},
