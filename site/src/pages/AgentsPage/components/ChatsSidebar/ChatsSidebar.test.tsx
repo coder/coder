@@ -252,11 +252,11 @@ describe("ChatsSidebar projects", () => {
 
 		// The chat's project is still loading, so its chat may yet be unfiled.
 		await waitFor(() => expect(projectsRequested).toBe(true));
-		expect(screen.queryByText("No agents yet")).toBeNull();
+		expect(screen.queryByText("No chats yet")).toBeNull();
 
 		resolveProjects();
 		await screen.findByRole("link", { name: MockChatProject.name });
-		expect(screen.getByText("No agents yet")).toBeInTheDocument();
+		expect(screen.getByText("No chats yet")).toBeInTheDocument();
 		expect(screen.queryByRole("link", { name: /Project chat/ })).toBeNull();
 	});
 
@@ -1777,7 +1777,7 @@ describe("ChatsSidebar filters", () => {
 			screen.getByRole("button", { name: "Filter agents" }),
 		).toBeInTheDocument();
 		expect(
-			screen.getByText("No agents match these filters"),
+			screen.getByText("No chats match these filters"),
 		).toBeInTheDocument();
 
 		await user.click(screen.getByRole("button", { name: "Clear filters" }));
