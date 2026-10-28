@@ -50,6 +50,10 @@ import {
 	chatFamilyAllowsArchive,
 } from "./ChatActionsMenuItems";
 import { getParentChatID } from "./ChatConversation/chatHelpers";
+import {
+	ChatOverviewToggle,
+	type ChatOverviewToggleProps,
+} from "./ChatOverviewCard";
 import { ChatSharingPopoverContent } from "./ChatSharingPopover";
 import { useEmbedContext } from "./EmbedContext";
 import { PrStateIcon } from "./GitPanel/GitPanel";
@@ -69,6 +73,8 @@ type ChatTopBarProps = {
 	chat?: TypesGen.Chat;
 	liveChatStatus?: TypesGen.ChatStatus | null;
 	panel: SidebarPanelState;
+	/** Leave it out to hide the overview toggle. */
+	overview?: ChatOverviewToggleProps;
 };
 
 const ChatSharingTopBarButton: React.FC<ChatSharingTopBarButtonProps> = ({
@@ -112,6 +118,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 	chat,
 	liveChatStatus,
 	panel,
+	overview,
 }) => {
 	const { isEmbedded } = useEmbedContext();
 	const { user: currentUser } = useAuthenticated();
@@ -366,6 +373,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 						organizationId={chat.organization_id}
 					/>
 				)}
+				{overview && <ChatOverviewToggle {...overview} />}
 				{!isEmbedded && (
 					<Button
 						variant="subtle"

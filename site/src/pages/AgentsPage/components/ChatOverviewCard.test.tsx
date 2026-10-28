@@ -1,11 +1,12 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ChatStatus } from "#/api/typesGenerated";
-import { MockChatDiffStatus } from "#/testHelpers/chatEntities";
+import { MockChatDiffStatus, mockChatCost } from "#/testHelpers/chatEntities";
 import { render } from "#/testHelpers/renderHelpers";
 import {
 	type ChatOverview,
 	ChatOverviewCardView,
+	getOverviewCost,
 	type OverviewTabId,
 } from "./ChatOverviewCard";
 
@@ -109,4 +110,51 @@ describe("ChatOverviewCardView", () => {
 			screen.getByRole("region", { name: "Subagents · 0 of 3 not idle" }),
 		).toHaveAccessibleName();
 	});
+});
+
+describe("getOverviewCost", () => {
+	const cost = mockChatCost("root", 1_250_000);
+
+	it.each([
+		{
+			name: "AI Gateway is off",
+			showCost: false,
+			data: cost,
+			isError: false,
+			expected: undefined,
+		},
+		{
+			name: "the request is pending",
+			showCost: true,
+			data: undefined,
+			isError: false,
+			expected: undefined,
+		},
+		{
+			name: "the request failed",
+			showCost: true,
+			data: undefined,
+			isError: true,
+			expected: "unavailable",
+		},
+		{
+			name: "a refetch failed",
+			showCost: true,
+			data: cost,
+			isError: true,
+			expected: cost,
+		},
+		{
+			name: "the chat has no requests",
+			showCost: true,
+			data: { ...cost, request_count: 0 },
+			isError: false,
+			expected: undefined,
+		},
+	])(
+		"returns $expected when $name",
+		({ showCost, data, isError, expected }) => {
+			expect(getOverviewCost(showCost, { data, isError })).toEqual(expected);
+		},
+	);
 });

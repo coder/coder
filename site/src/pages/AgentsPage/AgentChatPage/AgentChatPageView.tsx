@@ -34,12 +34,14 @@ import {
 
 import { QueuedForCapacityCallout } from "../components/ChatConversation/QueuedForCapacityCallout";
 import { DesktopPanelContext } from "../components/ChatElements/tools/DesktopPanelContext";
+import { ChatOverviewCard } from "../components/ChatOverviewCard";
 import type { SendChatMessageOptions } from "../components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "../components/ChatPageContent";
 import { ChatSummaryPanel } from "../components/ChatSummaryPanel";
 import { getEffectiveTabId } from "../components/ChatsSidebar/tabs/getEffectiveTabId";
 import { SidebarTabView } from "../components/ChatsSidebar/tabs/SidebarTabView";
 import { ChatTopBar } from "../components/ChatTopBar";
+import { useEmbedContext } from "../components/EmbedContext";
 import { GitPanel } from "../components/GitPanel/GitPanel";
 import { DebugPanel } from "../components/RightPanel/DebugPanel/DebugPanel";
 import { DesktopPanel } from "../components/RightPanel/DesktopPanel";
@@ -51,6 +53,10 @@ import { TerminalPanel } from "../components/TerminalPanel";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { TerminalClientSessionContext } from "../context/TerminalClientSessionContext";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
+import {
+	getPersistedOverviewCardOpen,
+	savePersistedOverviewCardOpen,
+} from "../utils/overviewCardStorage";
 import {
 	getPersistedDefaultTerminalHidden,
 	getPersistedRightPanelTabs,
@@ -327,6 +333,16 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	const isArchived = chat.archived;
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chat.status;
+	const [chatFullWidth] = useChatFullWidth();
+	const { isEmbedded } = useEmbedContext();
+	const canShowOverview = !showSidebarPanel && !chatFullWidth && !isEmbedded;
+	const [isOverviewOpen, setIsOverviewOpen] = useState(
+		getPersistedOverviewCardOpen,
+	);
+	const toggleOverview = () => {
+		savePersistedOverviewCardOpen(!isOverviewOpen);
+		setIsOverviewOpen(!isOverviewOpen);
+	};
 
 	const canSubmitChatTurn = !isInputDisabled && !isSubmissionPending;
 
@@ -819,7 +835,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 				<DesktopPanelContext value={desktopPanelCtx}>
 					<div
 						className={cn(
-							"relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]",
+							"@container/chat relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]",
 							shouldShowSidebar && !visualExpanded && "flex-row",
 						)}
 					>
@@ -841,6 +857,11 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										onToggleSidebar: () =>
 											onSetShowSidebarPanel(!showSidebarPanel),
 									}}
+									overview={
+										canShowOverview
+											? { isOpen: isOverviewOpen, onToggle: toggleOverview }
+											: undefined
+									}
 								/>
 								{modelCatalogError != null && (
 									<ErrorAlert error={modelCatalogError} />
@@ -872,6 +893,16 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 											"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
 									}}
 								/>
+								{canShowOverview && isOverviewOpen && (
+									<ChatOverviewCard
+										chat={chat}
+										store={store}
+										repositories={gitWatcher.repositories}
+										hasMoreMessages={hasMoreMessages}
+										isHydratingMessages={isHydratingMessages}
+										onOpenTab={activateRightPanelTab}
+									/>
+								)}
 							</div>
 							<ChatPageTimeline
 								key={agentId}

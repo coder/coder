@@ -84,8 +84,8 @@ const countDiffLines = (unifiedDiff: string): DiffStats => {
 	return { additions, deletions };
 };
 
-// Per-repo diff stats, repos with no net change excluded.
-const computeRepoStats = (
+/** Per-repo diff stats. Repos with no added or deleted lines are left out. */
+export const computeRepoStats = (
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>,
 ): Map<string, DiffStats> => {
 	const stats = new Map<string, DiffStats>();
@@ -158,7 +158,8 @@ type GitPanelProps = {
 	everDirty: ReadonlySet<string>;
 };
 
-function repoLabel(repoRoot: string): string {
+/** The last path segment of `repoRoot`, or `repoRoot` when it has none. */
+export function repoLabel(repoRoot: string): string {
 	const segments = repoRoot.split("/").filter(Boolean);
 	return segments[segments.length - 1] ?? repoRoot;
 }

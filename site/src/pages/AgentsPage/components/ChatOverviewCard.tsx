@@ -3,25 +3,41 @@ import {
 	CoinsIcon,
 	FileIcon,
 	GitBranchIcon,
+	ListIcon,
 	type LucideIcon,
 } from "lucide-react";
 import { useId, useState } from "react";
-import { Link } from "react-router";
+import { type UseQueryResult, useQuery } from "react-query";
+import { Link, useOutletContext } from "react-router";
+import { chatCost } from "#/api/queries/chats";
 import type {
 	Chat,
 	ChatCost,
 	ChatDiffStatus,
 	ChatStatus,
+	WorkspaceAgentRepoChanges,
 } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { formatCostMicros } from "#/utils/currency";
+import type { AgentsPageOutletContext } from "../AgentsPageLayout";
+import { useChatAttachments } from "../hooks/useChatAttachments";
 import { buildAgentChatPath } from "../utils/navigation";
+import { prNumber } from "../utils/pullRequest";
 import { getAttachmentDisplayName } from "./ChatConversation/AttachmentBlocks";
+import { getChatCostTreeID } from "./ChatConversation/chatHelpers";
+import {
+	type ChatStore,
+	selectSubagentStatusOverrides,
+	useChatSelector,
+} from "./ChatConversation/chatStore";
 import type { MessageAttachment } from "./ChatConversation/messageHelpers";
 import {
 	getChatStatusDisplay,
 	getPRIconConfig,
 } from "./ChatsSidebar/tree/statusConfig";
 import { DiffStatBadge } from "./DiffViewer/DiffStats";
+import { computeRepoStats, repoLabel } from "./GitPanel/GitPanel";
 
 /** Rows a list section shows before it folds the rest behind a toggle. */
 const OVERVIEW_MAX_LIST_ROWS = 3;
@@ -59,6 +75,129 @@ export type ChatOverview = {
 	subagents: OverviewSubagent[];
 	/** Files in the chat's messages, newest first. */
 	attachments: MessageAttachment[];
+};
+
+/** The overview toggle state. ChatTopBar renders the toggle only with it. */
+export type ChatOverviewToggleProps = {
+	isOpen: boolean;
+	onToggle: () => void;
+};
+
+/** The top bar button that shows and hides the card, at the card's widths. */
+export const ChatOverviewToggle: React.FC<ChatOverviewToggleProps> = ({
+	isOpen,
+	onToggle,
+}) => (
+	<Button
+		variant="subtle"
+		size="icon"
+		onClick={onToggle}
+		className={cn(
+			"hidden size-7 text-content-secondary hover:text-content-primary @min-[84rem]/chat:inline-flex",
+			isOpen && "bg-surface-secondary text-content-primary",
+		)}
+		aria-label="Toggle overview"
+		aria-expanded={isOpen}
+	>
+		<ListIcon className="size-4" />
+	</Button>
+);
+
+type ChatOverviewCardProps = {
+	chat: Chat;
+	store: ChatStore;
+	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
+	hasMoreMessages: boolean;
+	isHydratingMessages: boolean;
+	onOpenTab: (tabId: OverviewTabId) => void;
+};
+
+/**
+ * Owns the data hooks, so a new message renders this card again and not the
+ * whole page view.
+ */
+export const ChatOverviewCard: React.FC<ChatOverviewCardProps> = ({
+	chat,
+	store,
+	repositories,
+	hasMoreMessages,
+	isHydratingMessages,
+	onOpenTab,
+}) => {
+	const showCost = Boolean(useFeatureVisibility().aibridge);
+	const costQuery = useQuery({
+		...chatCost(getChatCostTreeID(chat) ?? chat.id),
+		enabled: showCost,
+	});
+	const statusOverrides = useChatSelector(store, selectSubagentStatusOverrides);
+	const { activeChatChildren } =
+		useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
+	const { attachments, earlierAttachmentsQuery } = useChatAttachments({
+		chatId: chat.id,
+		store,
+		hasMoreMessages,
+		isHydratingMessages,
+		enabled: true,
+	});
+	const repoStats = computeRepoStats(repositories);
+
+	const overview: ChatOverview = {
+		cost: getOverviewCost(showCost, costQuery),
+		isSubagent: Boolean(chat.parent_chat_id),
+		repos: [...repositories]
+			.map(([root, repo]) => ({
+				root,
+				branch: repo.branch.trim() || repoLabel(root),
+				...(repoStats.get(root) ?? { additions: 0, deletions: 0 }),
+			}))
+			.sort((a, b) => a.root.localeCompare(b.root)),
+		// Branch rows have no number, so they stay out.
+		pullRequests: (chat.diff_statuses ?? []).flatMap((status) => {
+			const number = prNumber(status);
+			return number ? [{ number, status }] : [];
+		}),
+		subagents: (activeChatChildren ?? chat.children).map((child) => ({
+			id: child.id,
+			title: child.title,
+			status: statusOverrides.get(child.id) ?? child.status,
+		})),
+		attachments: attachments ?? [],
+	};
+
+	return (
+		<ChatOverviewCardView
+			overview={overview}
+			isLoading={
+				(showCost && costQuery.isPending) ||
+				isHydratingMessages ||
+				(hasMoreMessages && earlierAttachmentsQuery.isPending)
+			}
+			onOpenTab={onOpenTab}
+			// The 16rem card with its 1rem inset and 1rem gap fits beside the
+			// centered 48rem transcript from an 84rem chat on.
+			className="absolute top-full right-4 z-20 mt-2 hidden @min-[84rem]/chat:flex"
+		/>
+	);
+};
+
+/**
+ * The cost row's state. A failed refetch keeps the cost that loaded, and a
+ * chat without AI Gateway requests has no cost row.
+ */
+export const getOverviewCost = (
+	showCost: boolean,
+	costQuery: Pick<UseQueryResult<ChatCost>, "isError" | "data">,
+): ChatOverview["cost"] => {
+	if (!showCost) {
+		return undefined;
+	}
+	const { data } = costQuery;
+	if (!data) {
+		return costQuery.isError ? "unavailable" : undefined;
+	}
+	// The endpoint always returns a row, so a chat without requests reports
+	// zero rather than nothing.
+	return data.request_count === 0 ? undefined : data;
 };
 
 type ChatOverviewCardViewProps = {
