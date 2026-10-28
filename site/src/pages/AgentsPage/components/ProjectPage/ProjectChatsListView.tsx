@@ -97,8 +97,6 @@ export const ProjectChatsListView: React.FC<ProjectChatsListViewProps> = ({
 	const unpinnedChats = (chats ?? []).filter(
 		(chat) => !pinnedChatIds.has(chat.id),
 	);
-	// When every loaded chat is pinned, the Chats section stays only to show
-	// a load error or to load the next page.
 	const isShowingChatsSection =
 		pinnedChats.length === 0 ||
 		unpinnedChats.length > 0 ||

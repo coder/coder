@@ -3160,6 +3160,57 @@ export const ProjectFolderWithUnloadedChat: Story = {
 	},
 };
 
+// A full page (the query's limit is 50) means the folder has another page.
+const mockFullPageOfProjectChats = Array.from({ length: 50 }, (_, index) =>
+	buildChat({
+		id: `paged-project-chat-${index + 1}`,
+		title: `Project chat ${index + 1}`,
+		organization_id: MockChatProject.organization_id,
+		project_id: MockChatProject.id,
+	}),
+);
+
+export const ProjectFolderChatsLoadingNextPage: Story = {
+	args: { chats: [mockLooseChat] },
+	// The sidebar fills its parent, so it needs a height to scroll the
+	// sentinel into view.
+	decorators: [
+		(Story) => (
+			<div style={{ height: 500, width: 360 }}>
+				<Story />
+			</div>
+		),
+	],
+	parameters: {
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
+			{
+				key: launchFolderChatsKey,
+				data: { pages: [mockFullPageOfProjectChats], pageParams: [0] },
+			},
+		],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/agents/projects/${MockChatProject.id}`,
+				pathParams: { projectId: MockChatProject.id },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChats").mockReturnValue(new Promise(() => {}));
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const rows = await canvas.findAllByRole("link", {
+			name: /^Project chat \d+/,
+		});
+		// Scrolling the folder's last row into view reveals the sentinel.
+		rows.at(-1)?.scrollIntoView({ block: "start" });
+		await canvas.findByTitle("Loading spinner");
+	},
+};
+
 export const ProjectFolderChatsLoading: Story = {
 	args: { chats: [mockLooseChat] },
 	parameters: {

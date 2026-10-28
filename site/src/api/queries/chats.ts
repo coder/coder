@@ -1487,7 +1487,7 @@ export const projectFolderChatsKey = (
 	params: ChatListParams,
 ) => [...projectChatsKey(projectId), params] as const;
 
-/** One project's chats for its sidebar folder, filtered like the sidebar. */
+/** Applies the sidebar's filters, so a folder lists what the sidebar would. */
 export const infiniteProjectFolderChats = (
 	projectId: string,
 	input: ChatListInput,

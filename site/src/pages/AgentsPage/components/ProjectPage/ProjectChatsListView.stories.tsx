@@ -138,7 +138,6 @@ export const OnlyPinnedChatsMoreToLoad: Story = {
 	},
 };
 
-/** Every loaded chat is pinned and the next page failed to load. */
 export const OnlyPinnedChatsLoadError: Story = {
 	args: {
 		...OnlyPinnedChats.args,
