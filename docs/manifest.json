@@ -1152,7 +1152,7 @@
 									"title": "Advisor",
 									"description": "Provide strategic, high-level guidance to root Coder Agents chats with the Advisor.",
 									"path": "./ai-coder/agents/platform-controls/advisor.md",
-									"state": ["early access"]
+									"state": ["beta"]
 								},
 								{
 									"title": "Virtual desktop",

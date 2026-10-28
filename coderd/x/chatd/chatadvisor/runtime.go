@@ -140,7 +140,7 @@ func (rt *Runtime) tryAcquire() bool {
 // release returns a previously acquired use to the pool. Callers must
 // invoke this at most once per successful tryAcquire when the advisor
 // call did not complete successfully, so a transient provider failure
-// does not permanently consume quota for the run.
+// does not permanently consume quota for the turn.
 func (rt *Runtime) release() {
 	rt.used.Add(-1)
 }

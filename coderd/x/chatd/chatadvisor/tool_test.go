@@ -437,7 +437,7 @@ func TestAdvisorToolReportsNestedError(t *testing.T) {
 	require.Contains(t, result.Error, "boom")
 	require.Empty(t, result.Advice)
 	require.Empty(t, result.AdvisorModel)
-	// A failed nested run does not consume the per-run quota.
+	// A failed nested run does not consume the per-turn quota.
 	require.Equal(t, 1, result.RemainingUses)
 }
 
