@@ -565,6 +565,7 @@ require (
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-git/go-git/v5 v5.19.2
 	github.com/invopop/jsonschema v0.14.0
+	github.com/itchyny/gojq v0.12.19
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/nats-io/nats-server/v2 v2.15.0
 	github.com/nats-io/nats.go v1.55.0
@@ -582,6 +583,7 @@ require (
 
 require (
 	github.com/go-openapi/swag/pools v0.29.2 // indirect
+	github.com/itchyny/timefmt-go v0.1.8 // indirect
 	go.opentelemetry.io/otel/log v1.47.0 // indirect
 )
 

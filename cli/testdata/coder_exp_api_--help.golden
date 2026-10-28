@@ -7,17 +7,33 @@ USAGE:
 
   The path is relative to /api/v2/, with or without a leading slash. Paths that
   start with /api/ are used as given, for example /api/experimental/chats.
-  Fields are sent as query parameters for GET and HEAD requests and as a JSON
-  object otherwise. The method defaults to GET, or POST when fields or --input
-  are provided, so use -X GET to send fields as query parameters.
+  
+  Fields are sent as query parameters for GET and HEAD requests or when --input
+  is set, and as a JSON object otherwise. The method defaults to GET, or POST
+  when fields or --input are provided, so use -X GET to send fields as query
+  parameters.
+  
+  --field (-F) converts true, false, null, and integers to JSON values, and
+  reads the value from a file with @path or from stdin with @-. Use
+  key[sub]=value for nested objects and key[]=value for arrays. --raw-field (-f)
+  always sends strings.
+  
+  --paginate follows offset and limit pagination until every page is printed.
+  Each page is printed as its own JSON document. Use the global --verbose flag
+  to print request and response headers to stderr.
   
     - Get the authenticated user:
   
        $ coder exp api users/me
   
-    - List workspaces with a query parameter:
+    - Print the username of every user:
   
-       $ coder exp api -X GET workspaces -f q=owner:me
+       $ coder exp api users --paginate --jq '.users[].username'
+  
+    - Create an organization:
+  
+       $ coder exp api /organizations -f name=new-org -f display_name="New
+  Organization"
   
     - Send a JSON body from stdin:
   
@@ -25,14 +41,26 @@ USAGE:
   --input -
 
 OPTIONS:
+  -F, --field string-array
+          Add a typed parameter in key=value format. Can be specified multiple
+          times.
+
   -i, --include bool
           Print the response status line and headers before the body.
 
       --input string
           The file to use as the request body, or - to read from stdin.
 
+  -q, --jq string
+          Filter each JSON response with a jq expression. String results are
+          printed without quotes.
+
   -X, --method string
           The HTTP method for the request.
+
+      --paginate bool
+          Request every page of results by following offset and limit
+          pagination.
 
   -f, --raw-field string-array
           Add a string parameter in key=value format. Can be specified multiple
