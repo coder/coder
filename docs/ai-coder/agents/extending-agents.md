@@ -359,7 +359,7 @@ To connect your account to a server:
    The server then appears in the chat's **MCP servers** list.
 
 Connecting a server doesn't change whether it is on in a chat.
-Servers that don't use OAuth2 need no connection, so the page names them in a note, and chats offer them without one.
+Servers that don't use OAuth2 need no connection, so their rows show **No auth required**, and chats offer them without one.
 
 To disconnect a server, select **Disconnect** next to it, then select **Disconnect** in the confirmation dialog.
 Coder removes your credentials for that server, and you can connect again later.
@@ -367,12 +367,14 @@ Coder removes your credentials for that server, and you can connect again later.
 ### Turn a server on or off in a chat
 
 You can turn servers on or off only in a chat that you own.
-In the chat, open the **+** menu and select **MCP servers**.
+In the chat, open the **+** menu and select **MCP servers**, or select the MCP pill in the message box.
+The pill shows **Add MCPs** when no server is on, and otherwise the number of servers that are on.
 Use the switch next to a server to turn it on or off for that chat.
 The change applies from the next message you send.
 A server that an administrator turns on for every chat shows a lock, and you can't turn it off.
-A server that is on for the chat but not connected shows `Disconnected` instead of a switch until you connect it.
-The `Disconnected` state applies to a server that is on by default, and to a server that was on when its connection ended.
+A server that is on for the chat but not connected shows an orange dot instead of a switch until you connect it.
+Hover over the dot to see **Not connected**.
+This applies to a server that is on by default, and to a server that was on when its connection ended.
 The footer of the list counts the OAuth2 servers that you haven't connected.
 
 ## Workspace MCP tools
