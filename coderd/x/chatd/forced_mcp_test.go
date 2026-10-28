@@ -54,7 +54,7 @@ func newToolRecordingOpenAI(t *testing.T) (string, func() [][]string) {
 		if !req.Stream {
 			return chattest.OpenAINonStreamingResponse("title")
 		}
-		names := offeredToolNames(req)
+		names := offeredToolNames(t, req)
 		mu.Lock()
 		calls = append(calls, names)
 		mu.Unlock()

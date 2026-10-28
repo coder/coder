@@ -28,6 +28,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/sqlc-dev/pqtype"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 	"go.opentelemetry.io/otel/codes"
@@ -81,8 +82,8 @@ import (
 type recordedOpenAIRequest struct {
 	Messages []chattest.OpenAIMessage
 	Tools    []string
-	// Offered adds the deferred MCP tools cataloged by find_tools to
-	// Tools.
+	// Offered is Tools plus the deferred MCP tools listed in the
+	// find_tools catalog.
 	Offered       []string
 	Store         *bool
 	ContentLength int64
@@ -107,8 +108,11 @@ func openAIToolName(tool chattest.OpenAITool) string {
 
 // offeredToolNames returns the tools a request advertises plus the
 // deferred MCP tools listed in its find_tools catalog, so tests of which
-// tools a turn offers do not depend on schema deferral.
-func offeredToolNames(req *chattest.OpenAIRequest) []string {
+// tools a turn offers do not depend on schema deferral. It runs in mock
+// server handler goroutines, so a body that does not parse fails the
+// test through assert, not require.
+func offeredToolNames(t testing.TB, req *chattest.OpenAIRequest) []string {
+	t.Helper()
 	names := make([]string, 0, len(req.Tools))
 	for _, tool := range req.Tools {
 		names = append(names, openAIToolName(tool))
@@ -124,7 +128,7 @@ func offeredToolNames(req *chattest.OpenAIRequest) []string {
 			} `json:"function"`
 		} `json:"tools"`
 	}
-	if err := json.Unmarshal(req.RawBody, &body); err != nil {
+	if !assert.NoError(t, json.Unmarshal(req.RawBody, &body), "parse the request body for the find_tools catalog") {
 		return names
 	}
 	for _, tool := range body.Tools {
@@ -207,7 +211,8 @@ func chatLastErrorMessage(raw pqtype.NullRawMessage) string {
 	return string(raw.RawMessage)
 }
 
-func recordOpenAIRequest(req *chattest.OpenAIRequest) recordedOpenAIRequest {
+func recordOpenAIRequest(t testing.TB, req *chattest.OpenAIRequest) recordedOpenAIRequest {
+	t.Helper()
 	messages := append([]chattest.OpenAIMessage(nil), req.Messages...)
 	tools := make([]string, 0, len(req.Tools))
 	for _, tool := range req.Tools {
@@ -228,7 +233,7 @@ func recordOpenAIRequest(req *chattest.OpenAIRequest) recordedOpenAIRequest {
 	return recordedOpenAIRequest{
 		Messages:      messages,
 		Tools:         tools,
-		Offered:       offeredToolNames(req),
+		Offered:       offeredToolNames(t, req),
 		Store:         store,
 		ContentLength: contentLength,
 	}
@@ -659,7 +664,7 @@ func TestPlanTurnPromptContract(t *testing.T) {
 		}
 
 		requestsMu.Lock()
-		requests = append(requests, recordOpenAIRequest(req))
+		requests = append(requests, recordOpenAIRequest(t, req))
 		requestsMu.Unlock()
 
 		return chattest.OpenAIStreamingResponse(
@@ -3902,7 +3907,7 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 		}
 
 		streamedCallsMu.Lock()
-		streamedCalls = append(streamedCalls, recordOpenAIRequest(req))
+		streamedCalls = append(streamedCalls, recordOpenAIRequest(t, req))
 		streamedCallsMu.Unlock()
 
 		if streamedCallCount.Add(1) == 1 {
@@ -10805,7 +10810,7 @@ func TestMCPToolSearchGenerationFlows(t *testing.T) {
 				return chattest.OpenAINonStreamingResponse("title")
 			}
 			requestsMu.Lock()
-			requests = append(requests, recordOpenAIRequest(req))
+			requests = append(requests, recordOpenAIRequest(t, req))
 			requestsMu.Unlock()
 			switch streamCount.Add(1) {
 			case 1:
@@ -10890,7 +10895,7 @@ func TestMCPToolSearchGenerationFlows(t *testing.T) {
 				return chattest.OpenAINonStreamingResponse("title")
 			}
 			requestsMu.Lock()
-			requests = append(requests, recordOpenAIRequest(req))
+			requests = append(requests, recordOpenAIRequest(t, req))
 			requestsMu.Unlock()
 			if streamCount.Add(1) == 1 {
 				return chattest.OpenAIStreamingResponse(
@@ -11149,7 +11154,7 @@ func TestMCPServerToolInvocation(t *testing.T) {
 
 		// Record tool names from the first streamed call.
 		if callCount.Add(1) == 1 {
-			names := offeredToolNames(req)
+			names := offeredToolNames(t, req)
 			llmToolsMu.Lock()
 			llmToolNames = names
 			llmToolsMu.Unlock()
@@ -11732,7 +11737,7 @@ func TestPlanModeRootChatApprovedExternalMCPWorkflowCanReachProposePlan(t *testi
 
 		switch callCount.Add(1) {
 		case 1:
-			names := offeredToolNames(req)
+			names := offeredToolNames(t, req)
 			llmToolsMu.Lock()
 			llmToolNames = names
 			llmToolsMu.Unlock()
@@ -11928,7 +11933,7 @@ func TestMCPServerOAuth2TokenRefresh(t *testing.T) {
 		}
 
 		if callCount.Add(1) == 1 {
-			names := offeredToolNames(req)
+			names := offeredToolNames(t, req)
 			llmToolsMu.Lock()
 			llmToolNames = names
 			llmToolsMu.Unlock()
