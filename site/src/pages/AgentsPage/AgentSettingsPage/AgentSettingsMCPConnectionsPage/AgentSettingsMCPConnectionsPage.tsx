@@ -18,7 +18,6 @@ import {
 import { useMCPOAuthFlow } from "../../hooks/useMCPOAuthFlow";
 import { AgentSettingsMCPConnectionsPageView } from "./AgentSettingsMCPConnectionsPageView";
 
-/** Reads the organization a link into this page asked to show first. */
 const getStateOrganizationId = (state: unknown): string | undefined =>
 	typeof state === "object" &&
 	state !== null &&

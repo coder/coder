@@ -85,10 +85,8 @@ type MCPServersMenuContentProps = {
 };
 
 /**
- * Lists the chat's MCP servers with one switch each and links to the MCP
- * connections settings page, where users sign in and out. Without
- * `onToggle` the switches are read-only; without `onManageConnections`
- * the link is hidden.
+ * Without `onToggle` the switches are read-only; without
+ * `onManageConnections` the link is hidden.
  */
 export const MCPServersMenuContent: React.FC<MCPServersMenuContentProps> = ({
 	servers,

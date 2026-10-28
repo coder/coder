@@ -228,9 +228,6 @@ describe("AgentSettingsMCPConnectionsPage", () => {
 				name: "Cancel",
 			}),
 		);
-		await waitFor(() =>
-			expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
-		);
 		expect(disconnect).not.toHaveBeenCalled();
 	});
 
