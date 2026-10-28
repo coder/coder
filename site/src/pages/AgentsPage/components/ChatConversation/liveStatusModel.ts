@@ -60,8 +60,8 @@ export type DeriveLiveStatusParams = {
 	persistedError: ChatDetailError | null;
 	isAwaitingFirstStreamChunk: boolean;
 	chatStatus: TypesGen.ChatStatus | null;
-	/** Whether the stream state changed within the recent-output window. */
-	hasRecentStreamOutput: boolean;
+	/** Whether stream output arrived recently enough to show progress. */
+	hasRecentOutput: boolean;
 };
 
 const getHasAccumulatedOutput = (streamState: StreamState | null): boolean =>
@@ -114,7 +114,7 @@ export const deriveLiveStatus = ({
 	persistedError,
 	isAwaitingFirstStreamChunk,
 	chatStatus,
-	hasRecentStreamOutput,
+	hasRecentOutput,
 }: DeriveLiveStatusParams): LiveStatusModel => {
 	const hasAccumulatedOutput = getHasAccumulatedOutput(streamState);
 	// The stream is cleared on error, so leftover blocks are stale.
@@ -153,7 +153,7 @@ export const deriveLiveStatus = ({
 		return {
 			phase: "streaming",
 			hasAccumulatedOutput,
-			hasRecentOutput: hasRecentStreamOutput,
+			hasRecentOutput,
 		};
 	}
 

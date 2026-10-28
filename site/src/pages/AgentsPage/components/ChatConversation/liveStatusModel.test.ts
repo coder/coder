@@ -36,7 +36,7 @@ const derive = (
 		persistedError: null,
 		isAwaitingFirstStreamChunk: false,
 		chatStatus: null,
-		hasRecentStreamOutput: true,
+		hasRecentOutput: true,
 		...overrides,
 	});
 
@@ -103,7 +103,7 @@ describe("deriveLiveStatus", () => {
 		],
 		[
 			"streaming after output goes quiet",
-			{ streamState: buildStreamState(), hasRecentStreamOutput: false },
+			{ streamState: buildStreamState(), hasRecentOutput: false },
 			{
 				phase: "streaming",
 				hasAccumulatedOutput: false,

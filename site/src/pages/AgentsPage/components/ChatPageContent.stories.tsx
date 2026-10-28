@@ -345,7 +345,8 @@ export const ErrorClearsStreamingTool: Story = {
 	},
 };
 
-// The part arrives after mount, so the capture waits out the real quiet window.
+// The part arrives after mount, so the play function waits out the real quiet
+// window.
 const quietStreamStore = createChatStore();
 export const QuietStreamShowsThinking: Story = {
 	render: () => {
