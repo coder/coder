@@ -13,8 +13,7 @@ import (
 const (
 	askUserQuestionToolName = "ask_user_question"
 	askUserQuestionToolDesc = "Ask the user one or more structured clarification questions during plan mode. Use this instead of listing open questions in prose. Each question should have a short label, a detailed question, and 2-4 answer options."
-	// The async description is model-facing guidance for questions that
-	// do not end the turn.
+
 	askUserQuestionAsyncToolDesc = "Ask the user one or more structured questions without stopping your work. " +
 		"The call returns immediately and does not wait for an answer. " +
 		"Use it only for decisions that depend on the user's context or preference; if one option is clearly best, proceed with it and state the assumption. " +
