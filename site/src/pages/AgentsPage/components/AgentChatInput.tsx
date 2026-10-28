@@ -188,7 +188,7 @@ type AgentChatInputProps = {
 	chatProjectId?: string;
 	isWorkspaceLoading?: boolean;
 	// Opts in to project action skills above the composer, which also need
-	// the chat-projects experiment and a composer the user can send from.
+	// a composer the user can send from.
 	showProjectActions?: boolean;
 	// Queued user messages rendered above the textarea.
 	queuedMessages?: readonly ChatQueuedMessage[];
@@ -581,7 +581,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	);
 	const [chatFullWidth] = useChatFullWidth();
 	const isMobile = useMediaQuery(mobileViewportMediaQuery);
-	const { organizations, experiments } = useDashboard();
+	const { organizations } = useDashboard();
 	const chatOrganization = organizations.find(
 		(organization) => organization.id === chatOrganizationId,
 	);
@@ -1322,7 +1322,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const editingHoldsStop = isEditingHistoryMessage && !speech.isRecording;
 	const canShowProjectActions =
 		showProjectActions &&
-		experiments.includes("chat-projects") &&
 		!isReadOnly &&
 		!isReadOnlyView &&
 		!isLoading &&
@@ -1491,9 +1490,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						disabled={isReadOnly || isLoading}
 						hasWorkspace={hasSkillsWorkspace}
 						organizationId={chatOrganizationId}
-						projectId={
-							experiments.includes("chat-projects") ? chatProjectId : undefined
-						}
+						projectId={chatProjectId}
 						workspaceSkills={workspaceSkills}
 						slashCommands={slashCommands}
 						skillsMenuAnchor={composerElement}

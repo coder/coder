@@ -86,7 +86,6 @@ const mockProjectChat: TypesGen.Chat = {
 };
 
 const mockSkillRequests = () => {
-	vi.spyOn(API, "getExperiments").mockResolvedValue(["chat-projects"]);
 	vi.spyOn(API.experimental, "getUserSkills").mockResolvedValue([
 		{ ...MockSkill, name: "compactor" },
 	]);

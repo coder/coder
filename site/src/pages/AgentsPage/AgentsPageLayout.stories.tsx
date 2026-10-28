@@ -271,6 +271,7 @@ const meta: Meta<typeof AgentsPageLayout> = {
 		localStorage.removeItem(emptyInputStorageKey);
 		// Mocks for the queries AgentsPageLayout runs for the sidebar.
 		spyOn(API.experimental, "getChats").mockResolvedValue([]);
+		spyOn(API.experimental, "getChatProjects").mockResolvedValue([]);
 		spyOn(
 			API.experimental,
 			"getUserChatPersonalModelOverrides",
@@ -1055,7 +1056,6 @@ const debugWorkspaceBuildRouter = (buildId: string) =>
 	});
 
 const projectPageParameters = {
-	experiments: ["chat-projects"],
 	reactRouter: reactRouterParameters({
 		location: { path: `/agents/projects/${MockChatProject.id}` },
 		routing: [agentsRouting, aiSettingsRouting],
