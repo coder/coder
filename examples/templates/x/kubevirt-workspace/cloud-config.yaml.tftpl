@@ -1,0 +1,57 @@
+#cloud-config
+hostname: ${hostname}
+manage_etc_hosts: true
+ssh_pwauth: false
+disable_root: true
+groups: [docker]
+users:
+  - name: coder
+    shell: /bin/bash
+    lock_passwd: true
+    ssh_authorized_keys: ${authorized_keys}
+    groups: [sudo, docker]
+    sudo: ALL=(ALL) NOPASSWD:ALL
+package_update: true
+packages:
+  - ca-certificates
+  - curl
+  - docker.io
+  - docker-buildx
+  - docker-compose-v2
+  - git
+  - python3
+  - qemu-guest-agent
+write_files:
+  - path: /etc/systemd/system/run-coder-credentials.mount
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Read-only Coder bootstrap disk
+
+      [Mount]
+      What=/dev/disk/by-label/CODERAGENT
+      Where=/run/coder/credentials
+      Type=iso9660
+      Options=ro,nosuid,nodev,noexec
+      DirectoryMode=0700
+  - path: /etc/systemd/system/coder-bootstrap.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Load this start's Coder agent configuration
+      RequiresMountsFor=/run/coder/credentials
+      After=local-fs.target
+
+      [Service]
+      Type=oneshot
+      ExecStartPre=/usr/bin/chmod 0700 /run/coder
+      ExecStart=/bin/sh /run/coder/credentials/bootstrap.sh
+      RemainAfterExit=yes
+
+      [Install]
+      WantedBy=multi-user.target
+runcmd:
+  - [systemctl, daemon-reload]
+  - [systemctl, enable, --now, docker]
+  - [systemctl, enable, --now, qemu-guest-agent]
+  - [systemctl, enable, --now, coder-bootstrap]

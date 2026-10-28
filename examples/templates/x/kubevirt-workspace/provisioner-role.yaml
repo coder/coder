@@ -1,0 +1,59 @@
+# Apply only in the dedicated lab namespace, never to a shared default namespace.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: coder-provisioner
+  namespace: coder-kubevirt-prototype
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: coder-provisioner
+  namespace: coder-kubevirt-prototype
+rules:
+  - apiGroups: ["kubevirt.io"]
+    resources: ["virtualmachines"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["cdi.kubevirt.io"]
+    resources: ["datavolumes"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: coder-provisioner
+  namespace: coder-kubevirt-prototype
+subjects:
+  - kind: ServiceAccount
+    name: coder-provisioner
+    namespace: coder-kubevirt-prototype
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: coder-provisioner
+---
+# kubernetes_manifest lists CRD schemas during planning, even for namespaced writes.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: coder-kubevirt-prototype-discovery
+rules:
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: coder-kubevirt-prototype-discovery
+subjects:
+  - kind: ServiceAccount
+    name: coder-provisioner
+    namespace: coder-kubevirt-prototype
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: coder-kubevirt-prototype-discovery

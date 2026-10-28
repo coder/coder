@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "date_utc": "2026-10-28",
+  "status": "blocked_before_end_to_end_validation",
+  "complete": false,
+  "generated_by": "Coder Agents",
+  "coder_base_commit": "0b8d9135ae47a7c0b9e096315a306e4e36a39f07",
+  "coder_version": "v2.38.3-devel+0b8d9135ae",
+  "template_version_id": "75793ab4-bb95-4644-a932-b9107abdd84c",
+  "template_version_name": "prototype-v3",
+  "template_archive_sha256": "a8fb71c2be1c5b0943c1b523268c6794af17d6147110f50d9e442a04dc31c507",
+  "source_sha256": {
+    "main.tf": "25bc62d8520c765b0182886fa82045e10fe9f87ed9dd7b35782b7fdba0893582",
+    "bootstrap-agent.sh": "9caa1abcf2cb2b9f4ad350ff3e397d8e9186d3e9ca27d8bcc433d4f4a018d599",
+    "cloud-config.yaml.tftpl": "4609acf57be0ce1f357833599226e0644446da230f29ec9f1546a9c455c2997a",
+    "provisioner-role.yaml": "c59c4265bae568e5db017c993bd754f2cf6098d561253010ada659e0e67ede57",
+    "tests/Dockerfile": "4cf51ff7a03113408acce0eb6ba5f70cfe81c63d71ba311097eabb05f8fd5db9",
+    "tests/compose.yaml": "3d238477a458e96b7902c5866d8081734d62fd845813b37318b99a3cf0a24b7b",
+    "tests/workloads.sh": "0a09c5742ed1cb975dd078d37718776b8883ac6249cbabeb7532d45658249e5d"
+  },
+  "environment": {
+    "kind_version": "v0.33.0",
+    "kubernetes_version": "v1.36.4",
+    "kind_node_image": "kindest/node:v1.36.4@sha256:099e049362a1526b2db71494e1947aae99bd16290d7c895f2b7ea312e3cbfaed",
+    "kubevirt_version": "v1.9.1",
+    "cdi_version": "v1.66.1",
+    "terraform_version": "1.16.7",
+    "kubernetes_provider_version": "3.4.0",
+    "coder_provider_version": "2.19.0",
+    "outer_qemu_version": "10.2.1",
+    "outer_accelerator": "tcg",
+    "runner_kernel": "6.8.0-147-generic",
+    "guest_image_release": "Ubuntu 24.04 release-20261017 amd64",
+    "guest_image_sha256": "04e8f2461a16a44e78a370284471f29616cdd9baf1893df25807b71f985b6c94",
+    "guest_cpu_model": "Nehalem",
+    "guest_vcpus": 2,
+    "guest_memory_gib": 2,
+    "guest_disk_request_gib": 24,
+    "hardware_kvm_usable_in_outer_workspace": false
+  },
+  "observations": {
+    "kubevirt_and_cdi_deployed": true,
+    "cdi_image_import_succeeded": true,
+    "root_pvc_bound": true,
+    "terraform_vm_create_succeeded_after_annotation_fix": true,
+    "kubevirt_reported_running_and_ready": true,
+    "ubuntu_guest_login_banner_observed": true,
+    "workspace_id": "895cec83-381b-4a83-afb4-ce525c55972d",
+    "last_recorded_coder_build_status": "running",
+    "last_recorded_agent": {
+      "id": "dd5e83d7-8868-43ae-b6f2-293a85fcd899",
+      "status": "connecting",
+      "lifecycle_state": "created",
+      "first_connected_at": null
+    },
+    "listed_source_hashes_matched_uploaded_archive": true,
+    "workspace_resources_absent_after_cleanup": true,
+    "disposable_cluster_deleted": true,
+    "runner_qemu_exit_code": 0,
+    "local_servers_and_tunnels_stopped": true,
+    "generated_runtime_credentials_removed": true
+  },
+  "runtime_suite": {
+    "run_id": "e16c34010f4e491d8715ec74372163dc",
+    "started_at_utc": "2026-10-28T17:16:57Z",
+    "prepare_status": "aborted_while_waiting_for_agent_after_runner_kernel_panic",
+    "completed_phases": [],
+    "docker_workloads_executed": false,
+    "workspace_file_persistence_verified": false,
+    "docker_volume_persistence_verified": false,
+    "guest_token_rotation_verified": false,
+    "guest_permissions_verified": false,
+    "devcontainers_tested": false,
+    "kind_inside_workspace_tested": false,
+    "production_performance_tested": false,
+    "hostile_tenant_isolation_tested": false
+  },
+  "runner_failures": [
+    {
+      "attempt": "inner_software_emulation_on_outer_tcg",
+      "error": "Failed to fork off sandboxing environment for executing generators: Protocol error",
+      "result": "guest_systemd_froze"
+    },
+    {
+      "attempt": "nested_kvm_on_outer_tcg_emulated_svm",
+      "minimal_kvm_halt_probe_exit_reason": 5,
+      "error": "Kernel panic - not syncing: corrupted stack end detected inside scheduler",
+      "result": "runner_rebooted_and_kubernetes_tunnel_disconnected"
+    }
+  ],
+  "cleanup_note": "The unstable guest was first halted through KubeVirt; Coder stop/delete then completed and no VM, VMI, DataVolume, PVC, pod, or Secret remained in the dedicated namespace. This is not a completed workload lifecycle test."
+}

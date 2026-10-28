@@ -1,0 +1,16 @@
+services:
+  app:
+    image: ${PROTOTYPE_IMAGE:?Run workloads.sh prepare first}
+    restart: unless-stopped
+    volumes:
+      - ./project:/workspace
+    ports:
+      - "127.0.0.1::8080"
+  backend:
+    image: ${PROTOTYPE_IMAGE:?Run workloads.sh prepare first}
+    restart: unless-stopped
+    command: ["httpd", "-f", "-p", "8080", "-h", "/data"]
+    volumes:
+      - data:/data
+volumes:
+  data:
