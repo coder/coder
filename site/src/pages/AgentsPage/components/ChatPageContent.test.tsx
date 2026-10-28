@@ -321,6 +321,7 @@ describe("ChatPageTimeline question dock", () => {
 				region.textContent?.includes("The agent asked a question"),
 			);
 		expect(announcements).toHaveLength(1);
+		// The count alone would pass if the dock announced instead of the card.
 		expect(getQuestionDock().contains(announcements[0])).toBe(false);
 	});
 

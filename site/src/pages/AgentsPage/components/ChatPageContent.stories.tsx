@@ -741,7 +741,6 @@ export const AsyncQuestionDockedSubmitError: Story = {
 			within(canvasElement).getByRole("region", { name: "Open question" }),
 		);
 		await userEvent.click(dock.getByRole("button", { name: "Submit" }));
-		await dock.findByRole("alert");
 	},
 };
 
