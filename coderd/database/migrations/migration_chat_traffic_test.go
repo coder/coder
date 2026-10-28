@@ -18,19 +18,18 @@ import (
 )
 
 // TestMigrationUpgradeFromReleaseDuringChatTraffic upgrades a v2.38 database
-// (migration 605) in one transaction, as coder server does, while chat
-// requests wait for the lock that 000607 and 000608 hold on chats. Each
-// request holds a lock that the target migration needs, so they deadlock.
-// Postgres checks a waiting request for a deadlock once, deadlock_timeout
-// after it starts waiting. The migration is waiting at that moment, so
-// Postgres cancels the request and the upgrade continues. A migration that
-// pauses between short lock waits misses some of those checks and is still
-// retrying when the test context expires.
+// in one transaction, as coder server does, while chat requests wait for the
+// lock that 000607 and 000608 hold on chats. The target migration must
+// complete, with Postgres canceling each request as the deadlock victim. A
+// migration that retries short lock waits is still retrying when the test
+// context expires.
 //
-// This covers only requests that start waiting shortly before the migration
-// needs their lock. A request that waited longer than deadlock_timeout has
-// already had its check, so Postgres cancels the migration instead and the
-// upgrade fails, with or without lock retries.
+// This covers only requests that start waiting less than deadlock_timeout
+// before the migration needs their lock. A request that waited longer has
+// already had its single deadlock check, so Postgres cancels the migration
+// instead and the upgrade fails. Retrying short lock waits does not avoid
+// this: such a migration is never canceled, retries until its own deadline,
+// and then fails.
 func TestMigrationUpgradeFromReleaseDuringChatTraffic(t *testing.T) {
 	t.Parallel()
 
@@ -73,24 +72,28 @@ func TestMigrationUpgradeFromReleaseDuringChatTraffic(t *testing.T) {
 }
 
 func testUpgradeFromReleaseDuringChatTraffic(t *testing.T, target int, request func(ctx context.Context, conn *sql.Conn, chatID, userID uuid.UUID) error) {
-	// Each request gets its own deadlock_timeout, requestDeadlockTimeoutStep
-	// apart, and all requests start waiting at about the same time, so their
-	// deadlock checks land 50ms apart over 150ms. A migration that alternates
-	// 100ms lock waits with 100ms pauses is therefore paused for at least one
-	// check. requestDeadlockTimeout is much longer than the time between the
-	// requests waiting and the migration waiting, so every check finds the
-	// migration waiting. migrationDeadlockTimeout keeps the migration's own
-	// check from firing first; in production the requests start waiting first
-	// and every check uses the same timeout, with the same result.
+	// Postgres checks a waiting request for a deadlock once, deadlock_timeout
+	// after it starts waiting. All requests start waiting together and their
+	// timeouts differ by requestDeadlockTimeoutStep, so their checks spread
+	// over (requestCount-1)*requestDeadlockTimeoutStep. A migration that
+	// alternates 100ms lock waits with 100ms pauses is paused for at least one
+	// check as long as that spread is longer than one lock wait and the step
+	// is shorter than one pause. requestDeadlockTimeout is much longer than the
+	// time between the requests waiting and the migration waiting, so every
+	// check finds the migration waiting. migrationDeadlockTimeout keeps the
+	// migration's own check from firing first. In production every check uses
+	// the same timeout, with the same result for requests that start waiting
+	// less than deadlock_timeout before the migration does.
 	const (
-		requests                   = 4
+		releaseVersion             = 605 // Last migration in v2.38.
+		requestCount               = 4
 		requestDeadlockTimeout     = 2 * time.Second
 		requestDeadlockTimeoutStep = 50 * time.Millisecond
 		migrationDeadlockTimeout   = 10 * time.Second
 	)
 
 	sqlDB := testSQLDB(t)
-	stepTo(t, sqlDB, 605)
+	stepTo(t, sqlDB, releaseVersion)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	orgID, userID, modelID, chatID := uuid.New(), uuid.New(), uuid.New(), uuid.New()
@@ -117,20 +120,20 @@ func testUpgradeFromReleaseDuringChatTraffic(t *testing.T, target int, request f
 	defer func() { _ = tx.Rollback() }()
 	_, err = tx.ExecContext(ctx, fmt.Sprintf("SET LOCAL deadlock_timeout = '%dms'", migrationDeadlockTimeout.Milliseconds()))
 	require.NoError(t, err)
-	for version := 606; version < target; version++ {
+	for version := releaseVersion + 1; version < target; version++ {
 		_, err := tx.ExecContext(ctx, readUpMigration(t, version))
 		require.NoError(t, err, "migration %d", version)
 	}
 
-	requestConns := make([]*sql.Conn, requests)
-	requestPIDs := make([]int, requests)
-	for i := range requests {
+	requestConns := make([]*sql.Conn, requestCount)
+	requestPIDs := make([]int, requestCount)
+	for i := range requestCount {
 		requestConns[i], requestPIDs[i] = dedicatedConn(ctx, t, sqlDB)
 		timeout := requestDeadlockTimeout + time.Duration(i)*requestDeadlockTimeoutStep
 		_, err := requestConns[i].ExecContext(ctx, fmt.Sprintf("SET deadlock_timeout = '%dms'", timeout.Milliseconds()))
 		require.NoError(t, err)
 	}
-	requestResults := make([]<-chan error, requests)
+	requestResults := make([]<-chan error, requestCount)
 	for i, conn := range requestConns {
 		requestResults[i] = async(func() error {
 			return request(ctx, conn, chatID, userID)
@@ -148,17 +151,17 @@ func testUpgradeFromReleaseDuringChatTraffic(t *testing.T, target int, request f
 	}, testutil.WaitMedium, testutil.IntervalFast, "the chat requests never waited for the upgrade")
 
 	targetSQL := readUpMigration(t, target)
-	migrated := async(func() error {
+	migrationResult := async(func() error {
 		_, err := tx.ExecContext(ctx, targetSQL)
 		return err
 	})
-	require.NoError(t, testutil.TryReceive(ctx, t, migrated), "migration %d", target)
+	require.NoError(t, testutil.TryReceive(ctx, t, migrationResult), "migration %d", target)
 	require.NoError(t, tx.Commit())
 
 	for _, result := range requestResults {
 		err := testutil.TryReceive(ctx, t, result)
 		pqErr, ok := errors.AsType[*pq.Error](err)
-		require.Truef(t, ok && pqErr.Code == "40P01", "chat request: want deadlock_detected, got %v", err)
+		require.Truef(t, ok && pqErr.Code.Name() == "deadlock_detected", "chat request: want deadlock_detected, got %v", err)
 	}
 }
 
