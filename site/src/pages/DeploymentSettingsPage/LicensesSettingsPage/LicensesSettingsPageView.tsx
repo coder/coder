@@ -6,6 +6,7 @@ import type { Feature, UserStatusChangeCount } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { Link } from "#/components/Link/Link";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -19,6 +20,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useWindowSize } from "#/hooks/useWindowSize";
+import { CONTACT_SALES_LINK } from "#/modules/licenses/trialLicense";
 import { useTheme } from "#/theme/context";
 import { AIGovernanceUsersConsumption } from "./AIGovernanceUsersConsumptionChart";
 import { LicenseCard } from "./LicenseCard";
@@ -171,21 +173,34 @@ const LicensesSettingsPageView: React.FC<Props> = ({
 					<EmptyState
 						className="rounded-lg border border-solid border-border"
 						message="No licenses yet"
-						description="Add a license to unlock high availability, RBAC, quotas, and more. Don't have one? Start a free trial."
+						description={
+							<>
+								Add a license to unlock high availability, RBAC, quotas, and
+								more.{" "}
+								<Link
+									href={CONTACT_SALES_LINK}
+									className="m-0 p-0 text-sm"
+									showExternalIcon={false}
+								>
+									Contact sales
+								</Link>{" "}
+								or{" "}
+								<RouterLink
+									to="/deployment/premium"
+									className="m-0 p-0 text-content-link"
+								>
+									request a trial license
+								</RouterLink>{" "}
+								to get started.
+							</>
+						}
 						cta={
-							<div className="flex flex-row gap-2">
-								<Button asChild>
-									<RouterLink to="/deployment/licenses/add">
-										<PlusIcon />
-										Add a license
-									</RouterLink>
-								</Button>
-								<Button variant="outline" asChild>
-									<RouterLink to="/deployment/premium">
-										Start a trial
-									</RouterLink>
-								</Button>
-							</div>
+							<Button asChild>
+								<RouterLink to="/deployment/licenses/add">
+									<PlusIcon />
+									Add a license
+								</RouterLink>
+							</Button>
 						}
 					/>
 				)}

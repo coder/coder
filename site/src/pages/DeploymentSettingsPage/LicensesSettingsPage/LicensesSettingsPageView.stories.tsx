@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import type { Feature } from "#/api/typesGenerated";
+import { CONTACT_SALES_LINK } from "#/modules/licenses/trialLicense";
 import {
 	MockAgentRuntimeHoursFeature,
 	MockLicenseResponse,
@@ -52,8 +53,14 @@ export const Empty: Story = {
 			await expect(link).toHaveAttribute("href", "/deployment/licenses/add");
 		}
 		await expect(
-			canvas.getByRole("link", { name: /start a trial/i }),
+			canvas.getByRole("link", { name: /request a trial license/i }),
 		).toHaveAttribute("href", "/deployment/premium");
+		await expect(
+			canvas.getByRole("link", { name: /contact sales/i }),
+		).toHaveAttribute("href", CONTACT_SALES_LINK);
+		await expect(
+			canvas.queryByRole("link", { name: /start a trial/i }),
+		).not.toBeInTheDocument();
 	},
 };
 
