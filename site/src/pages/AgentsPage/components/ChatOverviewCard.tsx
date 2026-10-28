@@ -6,18 +6,35 @@ import {
 	type LucideIcon,
 } from "lucide-react";
 import { useId, useState } from "react";
-import type { ChatCost, ChatDiffStatus } from "#/api/typesGenerated";
+import { Link } from "react-router";
+import type {
+	Chat,
+	ChatCost,
+	ChatDiffStatus,
+	ChatStatus,
+} from "#/api/typesGenerated";
 import { formatCostMicros } from "#/utils/currency";
+import { buildAgentChatPath } from "../utils/navigation";
 import { getAttachmentDisplayName } from "./ChatConversation/AttachmentBlocks";
 import type { MessageAttachment } from "./ChatConversation/messageHelpers";
-import { getPRIconConfig } from "./ChatsSidebar/tree/statusConfig";
+import {
+	getChatStatusDisplay,
+	getPRIconConfig,
+} from "./ChatsSidebar/tree/statusConfig";
 import { DiffStatBadge } from "./DiffViewer/DiffStats";
 
 /** Rows a list section shows before it folds the rest behind a toggle. */
 const OVERVIEW_MAX_LIST_ROWS = 3;
+/**
+ * Subagent rows the card shows, with no toggle: a chat can have 100+
+ * subagents, and the chat tree in the sidebar already lists all of them.
+ */
+const OVERVIEW_MAX_SUBAGENT_ROWS = 5;
 
 /** The right panel tabs that the overview card can open. */
 export type OverviewTabId = "summary" | "git";
+
+type OverviewSubagent = Pick<Chat, "id" | "title" | "status">;
 
 /** What the overview card shows. */
 export type ChatOverview = {
@@ -38,6 +55,8 @@ export type ChatOverview = {
 		deletions: number;
 	}>;
 	pullRequests: Array<{ number: string; status: ChatDiffStatus }>;
+	/** Child chats, with their live status. The card lists the non-idle ones. */
+	subagents: OverviewSubagent[];
 	/** Files in the chat's messages, newest first. */
 	attachments: MessageAttachment[];
 };
@@ -62,10 +81,12 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 }) => {
 	const { cost } = overview;
 	const headingId = useId();
+	const nonIdleSubagents = getNonIdleSubagents(overview.subagents);
 	const isEmpty =
 		cost === undefined &&
 		overview.repos.length === 0 &&
 		overview.pullRequests.length === 0 &&
+		overview.subagents.length === 0 &&
 		overview.attachments.length === 0;
 
 	return (
@@ -87,7 +108,7 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 				<p className="m-0 py-2 text-xs text-content-secondary">
 					{isLoading
 						? "Loading…"
-						: "Nothing to show yet. Cost, changes, pull requests, and attachments show up here as the agent works."}
+						: "Nothing to show yet. Cost, changes, pull requests, subagents, and attachments show up here as the agent works."}
 				</p>
 			)}
 
@@ -164,6 +185,28 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 				</OverviewSection>
 			)}
 
+			{overview.subagents.length > 0 && (
+				<OverviewSection
+					title={`Subagents · ${nonIdleSubagents.length} of ${overview.subagents.length} not idle`}
+				>
+					{nonIdleSubagents
+						.slice(0, OVERVIEW_MAX_SUBAGENT_ROWS)
+						.map((subagent) => {
+							const display = getChatStatusDisplay(subagent.status);
+							return (
+								<OverviewRow
+									key={subagent.id}
+									icon={display.icon}
+									iconClassName={display.className}
+									iconLabel={display.label}
+									label={subagent.title || "Untitled subagent"}
+									to={buildAgentChatPath({ chatId: subagent.id })}
+								/>
+							);
+						})}
+				</OverviewSection>
+			)}
+
 			{overview.attachments.length > 0 && (
 				<OverviewSection title="Attachments">
 					<OverviewList
@@ -182,6 +225,22 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 		</aside>
 	);
 };
+
+/**
+ * Non-idle subagents, with error and requires_action first so the row cap
+ * hides them last. The order within each group is kept.
+ */
+const getNonIdleSubagents = (
+	subagents: readonly OverviewSubagent[],
+): OverviewSubagent[] =>
+	subagents
+		.filter(({ status }) => status !== "waiting")
+		.toSorted(
+			(a, b) => Number(needsUser(b.status)) - Number(needsUser(a.status)),
+		);
+
+const needsUser = (status: ChatStatus): boolean =>
+	status === "error" || status === "requires_action";
 
 const getCostSubtitle = (overview: ChatOverview): string | undefined => {
 	const { cost } = overview;
@@ -259,8 +318,7 @@ type OverviewRowProps = {
 	label: string;
 	subtitle?: string;
 	detail?: React.ReactNode;
-	onClick: () => void;
-};
+} & ({ onClick: () => void; to?: never } | { to: string; onClick?: never });
 
 const OverviewRow: React.FC<OverviewRowProps> = ({
 	icon: Icon,
@@ -270,26 +328,39 @@ const OverviewRow: React.FC<OverviewRowProps> = ({
 	subtitle,
 	detail,
 	onClick,
-}) => (
-	<button
-		type="button"
-		onClick={onClick}
-		className="-mx-1.5 flex items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm text-content-primary hover:bg-surface-secondary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
-	>
-		<Icon
-			className={cn("size-4 shrink-0 text-content-secondary", iconClassName)}
-			{...(iconLabel
-				? { role: "img", "aria-label": iconLabel }
-				: { "aria-hidden": true })}
-		/>
-		<span className="flex min-w-0 flex-1 flex-col">
-			<span className="truncate">{label}</span>
-			{subtitle && (
-				<span className="truncate text-xs text-content-secondary">
-					{subtitle}
-				</span>
-			)}
-		</span>
-		{detail && <span className="shrink-0 tabular-nums">{detail}</span>}
-	</button>
-);
+	to,
+}) => {
+	const className =
+		"-mx-1.5 flex items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm text-content-primary no-underline hover:bg-surface-secondary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link";
+	const content = (
+		<>
+			<Icon
+				className={cn("size-4 shrink-0 text-content-secondary", iconClassName)}
+				{...(iconLabel
+					? { role: "img", "aria-label": iconLabel }
+					: { "aria-hidden": true })}
+			/>
+			<span className="flex min-w-0 flex-1 flex-col">
+				<span className="truncate">{label}</span>
+				{subtitle && (
+					<span className="truncate text-xs text-content-secondary">
+						{subtitle}
+					</span>
+				)}
+			</span>
+			{detail && <span className="shrink-0 tabular-nums">{detail}</span>}
+		</>
+	);
+	if (to !== undefined) {
+		return (
+			<Link to={to} className={className}>
+				{content}
+			</Link>
+		);
+	}
+	return (
+		<button type="button" onClick={onClick} className={className}>
+			{content}
+		</button>
+	);
+};
