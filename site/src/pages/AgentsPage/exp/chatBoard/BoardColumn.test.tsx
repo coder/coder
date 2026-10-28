@@ -26,6 +26,7 @@ const renderColumn = (name: string) => {
 	const onDelete = vi.fn();
 	const onNewChat = vi.fn();
 	const noop = vi.fn();
+	const onArchiveCards = vi.fn();
 	// The board's sensors, see BoardCard.test.tsx.
 	renderComponent(
 		<DragDropProvider sensors={dragSensors}>
@@ -54,11 +55,12 @@ const renderColumn = (name: string) => {
 				onEditNote={noop}
 				onRemoveNote={noop}
 				onArchiveCard={noop}
+				onArchiveCards={onArchiveCards}
 				onArchiveChat={noop}
 			/>
 		</DragDropProvider>,
 	);
-	return { onRename, onDelete, onNewChat };
+	return { column, onRename, onDelete, onNewChat, onArchiveCards };
 };
 
 describe("BoardColumn", () => {
@@ -88,6 +90,24 @@ describe("BoardColumn", () => {
 			await screen.findByRole("menuitem", { name: "Delete column" }),
 		);
 		expect(onDelete).toHaveBeenCalledTimes(1);
+	});
+
+	it("archives the column's cards from the menu, which Inbox has without delete", async () => {
+		const user = userEvent.setup();
+		const { column, onArchiveCards } = renderColumn(INBOX_COLUMN);
+
+		await user.click(
+			screen.getByRole("button", {
+				name: `Actions for ${INBOX_COLUMN} column`,
+			}),
+		);
+		expect(
+			screen.queryByRole("menuitem", { name: "Delete column" }),
+		).not.toBeInTheDocument();
+		await user.click(
+			await screen.findByRole("menuitem", { name: "Archive 1 card" }),
+		);
+		expect(onArchiveCards).toHaveBeenCalledWith(column.cards);
 	});
 });
 

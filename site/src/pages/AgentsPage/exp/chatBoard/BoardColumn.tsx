@@ -2,7 +2,7 @@ import { pointerIntersection } from "@dnd-kit/collision";
 import { useDraggable, useDroppable } from "@dnd-kit/react";
 import { cva } from "class-variance-authority";
 import { cn } from "cn";
-import { PlusIcon, Trash2Icon } from "lucide-react";
+import { ArchiveIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { useState } from "react";
 import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -66,6 +66,7 @@ type BoardColumnProps = ChatOpenHandlers & {
 	readonly onNewChatInCard: (card: BoardCardModel) => void;
 	readonly onRemoveFromGroup: (chat: Chat, card: BoardCardModel) => void;
 	readonly onArchiveCard: (card: BoardCardModel) => void;
+	readonly onArchiveCards: (cards: readonly BoardCardModel[]) => void;
 	readonly onArchiveChat: (chat: Chat, card: BoardCardModel) => void;
 	readonly onAddNote: (card: BoardCardModel, text: string) => void;
 	readonly onEditNote: (
@@ -95,6 +96,7 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
 	onNewChatInCard,
 	onRemoveFromGroup,
 	onArchiveCard,
+	onArchiveCards,
 	onArchiveChat,
 	onOpen,
 	onPreview,
@@ -187,27 +189,13 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
 				<span className={dot({ hue: columnHue(column.name) })} />
 				{title}
 				{/*
-				  The new-chat button is last in every column, Inbox included, so
-				  its right edge lines up across the board; the menu keeps its
-				  slot while hidden.
+				  Every column has the same controls, Inbox included, so they line
+				  up across the board.
 				*/}
 				<div className="ml-auto flex items-center gap-1.5">
 					<span className="text-[11px] text-content-secondary/70 tabular-nums">
 						{column.cards.length}
 					</span>
-					{!isInbox && (
-						<ActionsMenu
-							label={`${column.name} column`}
-							items={[
-								{
-									label: "Delete column",
-									icon: Trash2Icon,
-									destructive: true,
-									onSelect: onDelete,
-								},
-							]}
-						/>
-					)}
 					<Button
 						variant="subtle"
 						size="icon"
@@ -220,6 +208,32 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
 					>
 						<PlusIcon />
 					</Button>
+					<ActionsMenu
+						label={`${column.name} column`}
+						items={[
+							{
+								// Archives what the column shows, so a filter narrows it.
+								label:
+									column.cards.length === 1
+										? "Archive 1 card"
+										: `Archive ${column.cards.length} cards`,
+								icon: ArchiveIcon,
+								destructive: true,
+								disabled: column.cards.length === 0,
+								onSelect: () => onArchiveCards(column.cards),
+							},
+							...(isInbox
+								? []
+								: [
+										{
+											label: "Delete column",
+											icon: Trash2Icon,
+											destructive: true,
+											onSelect: onDelete,
+										},
+									]),
+						]}
+					/>
 				</div>
 			</header>
 			<div className="flex min-h-16 flex-1 flex-col overflow-y-auto pb-2">

@@ -252,7 +252,6 @@ export const BoardCard: React.FC<BoardCardProps> = ({
 					)}
 					<ActionsMenu
 						label={card.title}
-						permanent
 						items={[
 							{ label: "Assistant", icon: BotIcon, onSelect: onCardAssistant },
 							{
@@ -505,7 +504,6 @@ const ChatRow: React.FC<ChatRowProps> = ({
 				/>
 				<ActionsMenu
 					label={chat.title}
-					permanent
 					items={[
 						{
 							label: "Remove from group",

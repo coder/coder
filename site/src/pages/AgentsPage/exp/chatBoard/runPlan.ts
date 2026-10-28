@@ -129,7 +129,8 @@ export const runPlan = (
 	return Promise.all(pending).then(
 		() => {
 			if (plan.undo) {
-				toast(plan.undo, {
+				// Typed, so the shared Toaster draws an icon and puts Undo under the text.
+				toast.success(plan.undo, {
 					duration: UNDO_MS,
 					action: { label: "Undo", onClick: () => void undo() },
 				});

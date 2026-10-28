@@ -40,7 +40,7 @@ vi.mock("#/components/Toaster/toast", () => {
 
 /** The Undo action of the most recent confirmation toast. */
 const lastUndo = () => {
-	const [, options] = vi.mocked(toast).mock.lastCall ?? [];
+	const [, options] = vi.mocked(toast.success).mock.lastCall ?? [];
 	const action = (options as { action?: { onClick: () => void } })?.action;
 	if (!action) throw new Error("no undo action on the last toast");
 	return action.onClick;
@@ -141,7 +141,7 @@ describe("runPlan", () => {
 			m: { labels: { "board/group": "p", "board/column": "Doing" } },
 			s: { title: "Solo" },
 		});
-		expect(toast).not.toHaveBeenCalled();
+		expect(toast.success).not.toHaveBeenCalled();
 	});
 
 	it("applies a plan's storage patch and skips a null plan", async () => {
@@ -170,7 +170,7 @@ describe("runPlan", () => {
 		]);
 		const { deps } = renderDeps();
 		await runPlan(mergeCards(state, "s", "t"), deps);
-		expect(toast).toHaveBeenCalledWith(
+		expect(toast.success).toHaveBeenCalledWith(
 			'Merged into "Source"',
 			expect.objectContaining({ action: expect.anything() }),
 		);
@@ -219,7 +219,7 @@ describe("runPlan", () => {
 		await waitFor(() => expect(queryClient.isMutating()).toBe(0));
 		expect(spy).toHaveBeenCalledTimes(1);
 		expect(toast.error).toHaveBeenCalledWith("too many labels");
-		expect(toast).not.toHaveBeenCalled();
+		expect(toast.success).not.toHaveBeenCalled();
 	});
 
 	it("sends no label write after a failed move and moves the landed chats back", async () => {
@@ -364,7 +364,7 @@ describe("runPlan", () => {
 
 		expect(spy).toHaveBeenCalledWith("t", expect.anything());
 		expect(toast.error).toHaveBeenCalledWith("boom");
-		expect(toast).not.toHaveBeenCalled();
+		expect(toast.success).not.toHaveBeenCalled();
 	});
 
 	it("patches the board and sidebar caches before the request settles, then refreshes once quiet", async () => {

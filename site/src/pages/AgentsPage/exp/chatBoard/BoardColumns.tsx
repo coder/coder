@@ -54,6 +54,7 @@ type BoardColumnsProps = ChatOpenHandlers & {
 	/** A card's effort tag narrows the board to that effort. */
 	readonly onFilterEffort: (name: string) => void;
 	readonly onArchiveCard: (card: BoardCardModel) => void;
+	readonly onArchiveCards: (cards: readonly BoardCardModel[]) => void;
 	readonly onArchiveChat: (chat: Chat, card: BoardCardModel) => void;
 };
 
@@ -83,6 +84,7 @@ export const BoardColumns: React.FC<BoardColumnsProps> = ({
 	onNewChat,
 	onFilterEffort,
 	onArchiveCard,
+	onArchiveCards,
 	onArchiveChat,
 	onOpen,
 	onPreview,
@@ -132,6 +134,7 @@ export const BoardColumns: React.FC<BoardColumnsProps> = ({
 					onCardAssistant={onCardAssistant}
 					onNewChatInCard={(card) => onNewChat({ cardId: card.id })}
 					onArchiveCard={onArchiveCard}
+					onArchiveCards={onArchiveCards}
 					onArchiveChat={onArchiveChat}
 					onRemoveFromGroup={(chat) =>
 						void run(removeFromGroup(board, chat.id))

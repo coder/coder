@@ -30,6 +30,7 @@ import { toast } from "#/components/Toaster/toast";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { pageTitle } from "#/utils/page";
+import { chatFamilyAllowsArchive } from "../../components/ChatActionsMenuItems";
 import { isActiveChatStatus } from "../../components/ChatConversation/chatStore";
 import { canDragChatToProject } from "../../components/ChatsSidebar/chats/projectDrag";
 import { buildChatSearchQuery } from "../../components/ChatsSidebar/dialogs/searchQuery";
@@ -428,7 +429,8 @@ const ChatBoardPage: React.FC = () => {
 		);
 		const archived = chats.filter((_, i) => results[i]?.status === "fulfilled");
 		if (archived.length === 0) return;
-		toast(message, {
+		// Typed, so the shared Toaster draws an icon and puts Undo under the text.
+		toast.success(message, {
 			duration: ARCHIVE_UNDO_MS,
 			action: {
 				label: "Undo",
@@ -443,6 +445,30 @@ const ChatBoardPage: React.FC = () => {
 		void archiveChatsAndOfferUndo(
 			[...card.members, ...(assistant ? [assistant] : [])],
 			`Archived "${card.title}"`,
+		);
+	};
+	// A card with a working chat is left whole rather than half archived.
+	const archiveCards = (cards: readonly BoardCardModel[]) => {
+		const chatsOf = (card: BoardCardModel) => {
+			const assistant = cardAssistants.get(card.id);
+			return [...card.members, ...(assistant ? [assistant] : [])];
+		};
+		const ready = cards.filter((card) =>
+			chatsOf(card).every((chat) =>
+				chatFamilyAllowsArchive(chat.status, chat.children),
+			),
+		);
+		const skipped = cards.length - ready.length;
+		if (ready.length === 0) {
+			toast.error("Every card here has a working chat.");
+			return;
+		}
+		const count = ready.length === 1 ? "1 card" : `${ready.length} cards`;
+		void archiveChatsAndOfferUndo(
+			ready.flatMap(chatsOf),
+			skipped > 0
+				? `Archived ${count}, ${skipped} with a working chat left`
+				: `Archived ${count}`,
 		);
 	};
 	// A group's card data lives on its primary, so the chat first leaves the
@@ -606,6 +632,7 @@ const ChatBoardPage: React.FC = () => {
 											updateStorage({ effortFilter: effort })
 										}
 										onArchiveCard={archiveCard}
+										onArchiveCards={archiveCards}
 										onArchiveChat={archiveCardChat}
 										onOpen={openChat}
 										onPreview={previewChat}
@@ -631,6 +658,7 @@ const ChatBoardPage: React.FC = () => {
 						onNewChat={openDraft}
 						onFilterEffort={(effort) => updateStorage({ effortFilter: effort })}
 						onArchiveCard={archiveCard}
+						onArchiveCards={archiveCards}
 						onArchiveChat={archiveCardChat}
 						onOpen={openChat}
 						onPreview={previewChat}
