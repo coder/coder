@@ -2,6 +2,7 @@ package chattool
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"path"
@@ -12,6 +13,7 @@ import (
 	"golang.org/x/xerrors"
 
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -275,9 +277,7 @@ func LoadSkillFile(
 		ctx, skill.Dir, relativePath, 0, maxSkillFileBytes+1,
 	)
 	if err != nil {
-		return "", xerrors.Errorf(
-			"read skill file: %w", err,
-		)
+		return "", skillFileReadError(err)
 	}
 	raw, err := io.ReadAll(io.LimitReader(reader, maxSkillFileBytes+1))
 	reader.Close()
@@ -292,6 +292,22 @@ func LoadSkillFile(
 	}
 
 	return string(raw), nil
+}
+
+// skillFileReadError rewrites an agent error for the model. It omits
+// the request URL that codersdk.Error includes and explains the
+// validation error that agents without the root parameter return.
+func skillFileReadError(err error) error {
+	var sdkErr *codersdk.Error
+	if !errors.As(err, &sdkErr) {
+		return xerrors.Errorf("read skill file: %w", err)
+	}
+	for _, v := range sdkErr.Validations {
+		if v.Field == "root" {
+			return xerrors.New("read skill file: the workspace agent is outdated; restart the workspace to read skill files")
+		}
+	}
+	return xerrors.Errorf("read skill file: %s", sdkErr.Message)
 }
 
 // validateSkillFilePath rejects paths that could escape the skill
