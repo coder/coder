@@ -47,8 +47,9 @@ const shouldSurfaceReconnectState = (state: ChatStoreState): boolean =>
 		state.retryState !== null ||
 		isActiveChatStatus(state.chatStatus));
 
-// Keepalive interval plus 25 s to download the next message (at most about 512 KiB,
-// see writeChatStreamBatch), which covers links down to about 0.17 Mbit/s.
+// The keepalive interval plus 25 s to download the next frame. Frames have no
+// byte cap; the largest seen on dogfood was a 1.3 MB snapshot frame, and a frame
+// slower than 25 s times out and is requested again.
 export const CHAT_STREAM_SILENCE_TIMEOUT_MS =
 	(ChatStreamKeepaliveIntervalSeconds + 25) * 1000;
 
@@ -244,21 +245,7 @@ export const useChatStore = (
 				return;
 			}
 
-			let streamEvents: TypesGen.ChatStreamEvent[];
-			if (Array.isArray(payload.parsedMessage)) {
-				streamEvents = payload.parsedMessage;
-			} else {
-				chunkBuf.push(payload.parsedMessage.chunk);
-				if (!payload.parsedMessage.last) {
-					return;
-				}
-				try {
-					streamEvents = JSON.parse(chunkBuf.splice(0).join(""));
-				} catch {
-					setParseError();
-					return;
-				}
-			}
+			const streamEvents = payload.parsedMessage;
 			if (streamEvents.length === 0) {
 				return;
 			}
