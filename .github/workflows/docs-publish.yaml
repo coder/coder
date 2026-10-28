@@ -4,8 +4,8 @@
 # it to a commit when the publish starts, and queues publishes of one ref, so a
 # burst of pushes ends in one build of the newest commit.
 #
-# Tags are in docs-publish-tags.yaml, which carries no paths filter: a release
-# tag rarely points at a commit that touched docs/.
+# Releases are in docs-publish-releases.yaml, which publishes a vX.Y.Z tag when
+# its GitHub release is published, so a release candidate's tag never publishes.
 #
 # Nothing is checked out. The token comes from a GitHub App installed only on
 # coder/docs-engine with Actions: write, and is scoped to that here as well.

@@ -1,18 +1,20 @@
-# Starts coder/docs-engine's publish-version.yml for every vX.Y.Z tag, so the
-# release's docs version appears without waiting for the daily reconciler
-# there. A tag that is already published ends there without a build.
+# Starts coder/docs-engine's publish-version.yml when a vX.Y.Z release is
+# published, so the release's docs version appears without waiting for the
+# daily reconciler there. A version that is already published ends there
+# without a build.
 #
-# Kept apart from docs-publish.yaml so no paths filter applies to tags: a
-# release tag rarely points at a commit that touched docs/.
+# It follows published releases, not tags: `released` fires for a release that
+# is published as final or promoted from a prerelease, never for a draft or a
+# prerelease, so a release candidate's tag never publishes.
 #
 # Nothing is checked out. The token comes from a GitHub App installed only on
 # coder/docs-engine with Actions: write, and is scoped to that here as well.
-name: docs-publish-tags
+name: docs-publish-releases
 
 on:
-  push:
-    tags:
-      - "v*"
+  release:
+    types:
+      - released
 
 permissions: {}
 
@@ -27,14 +29,20 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Check the tag and the App secrets
+      - name: Check the release and the App secrets
         id: check
         env:
-          REF: ${{ github.ref_name }}
+          REF: ${{ github.event.release.tag_name }}
+          PRERELEASE: ${{ github.event.release.prerelease }}
           HAS_APP_ID: ${{ secrets.DOCS_PUBLISH_APP_ID != '' }}
           HAS_APP_KEY: ${{ secrets.DOCS_PUBLISH_APP_PRIVATE_KEY != '' }}
         run: |
           set -euo pipefail
+          if [[ "$PRERELEASE" == true ]]; then
+            echo "${REF} is a prerelease; nothing to publish."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if [[ ! "$REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "${REF} is not a vX.Y.Z release tag; nothing to publish."
             echo "publish=false" >> "$GITHUB_OUTPUT"
@@ -61,7 +69,7 @@ jobs:
         if: steps.check.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          REF: ${{ github.ref_name }}
+          REF: ${{ github.event.release.tag_name }}
         run: |
           set -euo pipefail
           gh workflow run publish-version.yml -R coder/docs-engine --ref main -f ref="$REF"
