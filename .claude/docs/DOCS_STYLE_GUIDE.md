@@ -253,7 +253,7 @@ Link to specific endpoints:
 
 The exact-value instructions in this section are about how to state a value
 once it belongs on the page; whether it belongs there at all is governed by
-[Evidence justifies a claim; it does not belong in the claim](../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
+[Evidence justifies a claim and does not belong in the claim](../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-and-does-not-belong-in-the-claim)
 in the content guidelines.
 
 ### Specific Numbers Matter
@@ -372,7 +372,7 @@ When you rename or move a doc page, add the rule to `docs/redirects.json` in the
 1. **Research first** - Verify against actual code implementation
 2. **Be precise** - Use exact numbers, permission names, and API paths for
    the values that belong on the page per
-   [Evidence justifies a claim; it does not belong in the claim](../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
+   [Evidence justifies a claim and does not belong in the claim](../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-and-does-not-belong-in-the-claim)
 3. **Screenshots** - Include one only when the topic needs it; refer to [Screenshot policy](#screenshot-policy)
 4. **Link everything** - Related docs, API endpoints, CLI references
 5. **Manifest inclusion** - Add to `docs/manifest/` for navigation

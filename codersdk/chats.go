@@ -550,7 +550,7 @@ func AllChatMessagePartTypes() []ChatMessagePartType {
 type ChatMessagePart struct {
 	Type              ChatMessagePartType `json:"type"`
 	Text              string              `json:"text" variants:"text,reasoning,hook-notice"`
-	ToolCallID        string              `json:"tool_call_id,omitempty" variants:"tool-call?,tool-result?"`
+	ToolCallID        string              `json:"tool_call_id,omitempty" variants:"tool-call?,tool-result?,source?"`
 	ToolName          string              `json:"tool_name,omitempty" variants:"tool-call?,tool-result?"`
 	MCPServerConfigID uuid.NullUUID       `json:"mcp_server_config_id,omitempty" format:"uuid" variants:"tool-call?,tool-result?"`
 	Args              json.RawMessage     `json:"args,omitempty" variants:"tool-call?"`
@@ -1390,10 +1390,6 @@ type AdvisorConfig struct {
 type UpdateAdvisorConfigRequest struct {
 	MaxUsesPerRun   int   `json:"max_uses_per_run"`
 	MaxOutputTokens int64 `json:"max_output_tokens"`
-	// Deprecated: moved to the organization model override endpoint.
-	DeprecatedModelConfigID *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
-	// Deprecated: moved to the organization model override endpoint.
-	DeprecatedReasoningEffort *string `json:"reasoning_effort,omitempty"`
 }
 
 // ChatComputerUseProvider identifies the provider that backs computer use for

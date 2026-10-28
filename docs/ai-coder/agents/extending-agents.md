@@ -9,7 +9,8 @@ These mechanisms let platform teams provide repository-specific instructions, do
 
 The workspace agent owns discovery.
 It scans a fixed set of locations for instruction files, skills, and MCP configuration, then pushes the result to Coder as a single context snapshot.
-Chats never scan the workspace themselves; they read the snapshot the agent pushed.
+Chats never scan the workspace themselves.
+They read the snapshot the agent pushed.
 
 A workspace-attached chat pins one snapshot.
 The pinned copy is what the agent's system prompt and tool list are built from, so a chat keeps working with a consistent view of your skills and MCP tools even while you edit files in the workspace.
@@ -39,7 +40,8 @@ The agent scans the following:
 - Any additional source you declare through the agent's context sources API
 
 Declared sources contribute instruction files and skills only.
-A `.mcp.json` file inside a declared source appears in the context inventory, but the agent does not connect to the servers it lists; MCP servers load only from the workspace working directory.
+A `.mcp.json` file inside a declared source appears in the context inventory, but the agent does not connect to the servers it lists.
+MCP servers load only from the workspace working directory.
 
 Discovery is shallow.
 Instruction files (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`) and `.mcp.json` are read only at the top level of a scan root, and skills are read only from the fixed container directories described below.
@@ -251,7 +253,7 @@ Ask an organization admin to change an organization skill.
 
 Project skills let the people who work in a chat project share skills with every chat in that project.
 Chats outside the project never receive them.
-Chat projects are experimental and require the `chat-projects` experiment.
+Chat projects are in [early access](../../reference/feature-stages.md#early-access-features).
 
 Project skills use the same single-file `SKILL.md` format and the same 64&nbsp;KB limit as personal skills, so they cannot include supporting files.
 Each project can have up to 100 skills, and skills that are turned off count toward that limit.
@@ -374,7 +376,8 @@ Editing `.mcp.json` does not require a workspace restart.
 The agent notices edits to the file and reloads its servers automatically.
 The reload changes the pushed snapshot, but an MCP-only change does not mark existing chats out of date, and the dashboard offers **Refresh context** only on chats that are marked out of date.
 New chats and chats that have not pinned a snapshot yet receive the new tool set immediately.
-An existing chat keeps its current tool set until another context change, such as editing an instruction file or a skill, marks it out of date; refreshing then re-pins the whole snapshot, including the new MCP tools.
+An existing chat keeps its current tool set until another context change, such as editing an instruction file or a skill, marks it out of date.
+Refreshing then re-pins the whole snapshot, including the new MCP tools.
 
 The snapshot carries tool definitions only, not a way to run them.
 Every workspace MCP tool call is proxied back through the workspace agent, so a chat can list workspace MCP tools while the workspace is unreachable, but calling one requires a running workspace with the server connected.

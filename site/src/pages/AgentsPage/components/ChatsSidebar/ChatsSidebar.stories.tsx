@@ -109,6 +109,9 @@ const meta: Meta<typeof ChatsSidebar> = {
 	title: "pages/AgentsPage/ChatsSidebar",
 	component: ChatsSidebar,
 	decorators: [withAuthProvider, withDashboardProvider],
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockResolvedValue([]);
+	},
 	args: {
 		chatErrorReasons: {},
 		modelConfigs: defaultModelConfigs,
@@ -2920,7 +2923,6 @@ const launchFolderChatsKey = projectFolderChatsKey(
 export const ProjectFolderCollapsed: Story = {
 	args: { chats: mockProjectChats },
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [
 			{
 				key: chatProjectsKey,
@@ -2942,7 +2944,6 @@ const startKeyboardDrag = async (canvasElement: HTMLElement, title: RegExp) => {
 export const ChatDraggedOverProjectFolder: Story = {
 	args: { chats: [mockLooseChat] },
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
 	},
 	play: async ({ canvasElement }) => {
@@ -2954,7 +2955,6 @@ export const ChatDraggedOverProjectFolder: Story = {
 /** Reads the cached chat list so the drop moves the chat. */
 export const ChatDroppedOnProjectFolder: Story = {
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [
 			{ key: chatProjectsKey, data: [MockChatProject] },
 			{ key: launchFolderChatsKey, data: { pages: [[]], pageParams: [0] } },
@@ -3006,7 +3006,6 @@ const mockOtherOrganizationProject: TypesGen.ChatProject = {
 export const LooseChatDragMutesUnavailableTargets: Story = {
 	args: { chats: [mockLooseChat] },
 	parameters: {
-		experiments: ["chat-projects"],
 		organizations: [MockDefaultOrganization, MockOrganization2],
 		queries: [
 			{
@@ -3036,7 +3035,6 @@ export const ProjectChatDragMutesItsFolder: Story = {
 		],
 	},
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [
 			{
 				key: chatProjectsKey,
@@ -3060,7 +3058,6 @@ export const ProjectChatDragMutesItsFolder: Story = {
 export const ProjectFolderExpanded: Story = {
 	args: { chats: mockProjectChats },
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [
 			{
 				key: chatProjectsKey,
@@ -3098,7 +3095,6 @@ const mockSecondPinnedProjectChat = buildChat({
 export const ProjectFolderWithPinnedChat: Story = {
 	args: { chats: [...mockProjectChats, mockPinnedProjectChat] },
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [
 			{ key: chatProjectsKey, data: [MockChatProject] },
 			{ key: launchFolderChatsKey, data: { pages: [[]], pageParams: [0] } },
@@ -3119,7 +3115,6 @@ export const ProjectFolderWithOnlyPinnedChats: Story = {
 		chats: [mockLooseChat, mockPinnedProjectChat, mockSecondPinnedProjectChat],
 	},
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [
 			{ key: chatProjectsKey, data: [MockChatProject] },
 			{ key: launchFolderChatsKey, data: { pages: [[]], pageParams: [0] } },
@@ -3148,7 +3143,6 @@ const mockOlderProjectChat = buildChat({
 export const ProjectFolderWithUnloadedChat: Story = {
 	args: { chats: [mockLooseChat] },
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [
 			{ key: chatProjectsKey, data: [MockChatProject] },
 			{
@@ -3169,7 +3163,6 @@ export const ProjectFolderWithUnloadedChat: Story = {
 export const ProjectFolderChatsLoading: Story = {
 	args: { chats: [mockLooseChat] },
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
 		reactRouter: reactRouterParameters({
 			location: {
@@ -3187,7 +3180,6 @@ export const ProjectFolderChatsLoading: Story = {
 export const ProjectFolderChatsLoadError: Story = {
 	args: { chats: mockProjectChats },
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
 		reactRouter: reactRouterParameters({
 			location: {
@@ -3221,7 +3213,6 @@ const mockOtherOrganizationLaunchProject: TypesGen.ChatProject = {
 export const SameNamedProjects: Story = {
 	args: { chats: mockProjectChats },
 	parameters: {
-		experiments: ["chat-projects"],
 		organizations: [MockDefaultOrganization, MockOrganization2],
 		queries: [
 			{
@@ -3235,7 +3226,6 @@ export const SameNamedProjects: Story = {
 export const ProjectsSectionCollapsed: Story = {
 	args: { chats: mockProjectChats },
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [
 			{
 				key: chatProjectsKey,
@@ -3253,7 +3243,6 @@ export const ProjectsSectionCollapsed: Story = {
 export const ChatDraggedOverCollapsedProjects: Story = {
 	args: { chats: [mockLooseChat] },
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
 	},
 	beforeEach: () => {
@@ -3271,7 +3260,6 @@ export const ChatDraggedOverCollapsedProjects: Story = {
 export const ProjectsEmpty: Story = {
 	args: { chats: [buildChat({ id: "loose-chat", title: "Loose chat" })] },
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [{ key: chatProjectsKey, data: [] }],
 	},
 };
@@ -3279,7 +3267,6 @@ export const ProjectsEmpty: Story = {
 export const ProjectActionsWithoutUpdateOrDeletePermission: Story = {
 	args: { chats: mockProjectChats },
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [
 			{
 				key: chatProjectsKey,
@@ -3304,7 +3291,6 @@ export const ProjectActionsWithoutUpdateOrDeletePermission: Story = {
 export const ProjectActionsWithoutDeletePermission: Story = {
 	args: { chats: mockProjectChats },
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [
 			{
 				key: chatProjectsKey,
@@ -3337,7 +3323,6 @@ export const ProjectChatWithoutLoadedProject: Story = {
 		],
 	},
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [
 			{
 				key: chatProjectsKey,
@@ -3350,7 +3335,6 @@ export const ProjectChatWithoutLoadedProject: Story = {
 export const UnloadedProjectChatDragMutesChats: Story = {
 	args: ProjectChatWithoutLoadedProject.args,
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
 	},
 	play: async ({ canvasElement }) => {
@@ -3360,7 +3344,6 @@ export const UnloadedProjectChatDragMutesChats: Story = {
 
 export const ProjectsLoading: Story = {
 	args: { chats: mockProjectChats },
-	parameters: { experiments: ["chat-projects"] },
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatProjects").mockReturnValue(
 			new Promise(() => {}),
@@ -3370,7 +3353,6 @@ export const ProjectsLoading: Story = {
 
 export const ProjectsLoadError: Story = {
 	args: { chats: mockProjectChats },
-	parameters: { experiments: ["chat-projects"] },
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatProjects").mockRejectedValue(
 			mockApiError({ message: "Failed to load projects." }),
@@ -3385,7 +3367,6 @@ export const ProjectsLoadError: Story = {
 export const ProjectsEmptyRefetchError: Story = {
 	args: { chats: [buildChat({ id: "loose-chat", title: "Loose chat" })] },
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [{ key: chatProjectsKey, data: [] }],
 	},
 	beforeEach: () => {
@@ -3415,7 +3396,6 @@ const mockEmojiProject: TypesGen.ChatProject = {
 export const ProjectFolderEmptyWithEmojiIcon: Story = {
 	args: { chats: [buildChat({ id: "loose-chat", title: "Loose chat" })] },
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [
 			{ key: chatProjectsKey, data: [mockEmojiProject] },
 			{ key: launchFolderChatsKey, data: { pages: [[]], pageParams: [0] } },
@@ -3445,7 +3425,6 @@ export const ArchivedChatMenuHasNoMoveToProject: Story = {
 		sidebarFilters: { ...defaultSidebarFilters, archiveStatus: "archived" },
 	},
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
 	},
 	play: async ({ canvasElement }) => {
@@ -3475,7 +3454,6 @@ export const SharedChatMenuHasNoMoveToProject: Story = {
 		],
 	},
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
 	},
 	play: async ({ canvasElement }) => {
@@ -3508,7 +3486,6 @@ export const ChildChatMenuHasNoMoveToProject: Story = {
 		],
 	},
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
 		reactRouter: reactRouterParameters({
 			location: {
@@ -3531,7 +3508,6 @@ export const ChildChatMenuHasNoMoveToProject: Story = {
 export const MoveToProjectOffWhileSubagentRuns: Story = {
 	args: IdleParentWithRunningChild.args,
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
 	},
 	play: async ({ canvasElement }) => {

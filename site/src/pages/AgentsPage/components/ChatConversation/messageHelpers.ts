@@ -58,7 +58,7 @@ const isWorkspaceFileReferenceBlock = (
 ): block is WorkspaceFileReferenceBlock =>
 	block.type === "workspace-file-reference";
 
-export const isProviderToolResult = (part: TypesGen.ChatMessagePart): boolean =>
+const isProviderToolResult = (part: TypesGen.ChatMessagePart): boolean =>
 	part.type === "tool-result" && part.provider_executed === true;
 
 const isProviderToolResultOnlyMessage = (
@@ -108,9 +108,12 @@ const getRenderableContentState = (parsed: ParsedMessageContent) => {
 	const hasThinkingOnlyContent =
 		visibleBlocks.length > 0 &&
 		visibleBlocks.every((block) => block.type === "thinking");
-	const endsWithResponseBlock =
-		visibleBlocks.length > 0 &&
-		visibleBlocks[visibleBlocks.length - 1].type === "response";
+	// The answer's citation row renders after the text it cites, so it
+	// does not stop the message from ending with text.
+	const lastNonSourceBlock = visibleBlocks.findLast(
+		(block) => block.type !== "sources",
+	);
+	const endsWithResponseBlock = lastNonSourceBlock?.type === "response";
 
 	return {
 		hasRenderableContent,
@@ -252,6 +255,8 @@ const mergeReadFileMessageGroup = (
 			toolResults: group.flatMap((entry) => entry.parsed.toolResults),
 			tools: group.flatMap((entry) => entry.parsed.tools),
 			blocks: group.flatMap((entry) => entry.parsed.blocks),
+			// The merged entry keeps the first message, whose blocks lead the list.
+			partBlockIndices: first.parsed.partBlockIndices,
 			sources: [],
 			hookNotices: [],
 		},

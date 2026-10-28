@@ -331,7 +331,8 @@ spec:
 
 The `EC2NodeClass` above applies to self-managed Karpenter nodes.
 On EKS Auto Mode, the built-in `NodeClass` (`eks.amazonaws.com`) doesn't expose `userData` or kernel sysctls, so `user.max_user_namespaces` stays at `0` with no way to raise it on those nodes.
-Run Podman workspaces on a separate managed node group instead; the default AL2023 AMIs ship with user namespaces enabled.
+Run Podman workspaces on a separate managed node group instead.
+The default AL2023 AMIs ship with user namespaces enabled.
 
 > On a brand-new Auto Mode cluster, install the `vpc-cni` and `kube-proxy` add-ons before your managed node group can reach `Ready`.
 

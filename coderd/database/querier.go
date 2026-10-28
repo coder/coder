@@ -934,10 +934,8 @@ type sqlcQuerier interface {
 	// GetTemplateInsightsByTemplate is used for Prometheus metrics. Keep
 	// in sync with GetTemplateInsights and UpsertTemplateUsageStats.
 	//
-	// Session usage is reported per app family. It reads the raw agent stats
-	// because the rollup stores minutes per app, which can't show whether two
-	// apps of one family were open in the same minute. @app_families maps each
-	// app name to its family; names missing from the map count as unknown.
+	// Session usage is per app name. It reads raw agent stats because rollup
+	// buckets are coarser than the metrics window.
 	GetTemplateInsightsByTemplate(ctx context.Context, arg GetTemplateInsightsByTemplateParams) ([]GetTemplateInsightsByTemplateRow, error)
 	// GetTemplateParameterInsights does for each template in a given timeframe,
 	// look for the latest workspace build (for every workspace) that has been
@@ -1540,10 +1538,10 @@ type sqlcQuerier interface {
 	// Agent context rows are hard-deleted for the same reason as in
 	// SoftDeletePriorWorkspaceAgents.
 	SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error
-	// MCP resources bypass context drift and are live-synced on each push.
+	// MCP and ACP resources bypass context drift and are live-synced on each push.
 	// Changed chats are locked in ID order so concurrent clear-then-copy re-pins
 	// cannot interleave with the replacement.
-	SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error)
+	SyncAgentChatsContextLiveResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error)
 	// Non blocking lock. Returns true if the lock was acquired, false otherwise.
 	//
 	// This must be called from within a transaction. The lock will be automatically

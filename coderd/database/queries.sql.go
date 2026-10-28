@@ -13401,12 +13401,12 @@ func (q *sqlQuerier) SoftDeleteContextFileMessages(ctx context.Context, chatID u
 	return err
 }
 
-const syncAgentChatsContextMCPResources = `-- name: SyncAgentChatsContextMCPResources :many
-WITH agent_mcp AS (
+const syncAgentChatsContextLiveResources = `-- name: SyncAgentChatsContextLiveResources :many
+WITH agent_live AS (
     SELECT source, body_kind, body, content_hash, size_bytes, status, error, source_path
     FROM workspace_agent_context_resources
     WHERE workspace_agent_id = $1::uuid
-        AND body_kind IN ('mcp_config', 'mcp_server')
+        AND body_kind IN ('mcp_config', 'mcp_server', 'acp_harness')
 ),
 changed AS (
     SELECT chats.id
@@ -13416,7 +13416,7 @@ changed AS (
         AND chats.context_aggregate_hash IS NOT NULL
         AND (
             EXISTS (
-                SELECT 1 FROM agent_mcp m
+                SELECT 1 FROM agent_live m
                 WHERE NOT EXISTS (
                     SELECT 1 FROM chat_context_resources ccr
                     WHERE ccr.chat_id = chats.id
@@ -13430,9 +13430,9 @@ changed AS (
             OR EXISTS (
                 SELECT 1 FROM chat_context_resources ccr
                 WHERE ccr.chat_id = chats.id
-                    AND ccr.body_kind IN ('mcp_config', 'mcp_server')
+                    AND ccr.body_kind IN ('mcp_config', 'mcp_server', 'acp_harness')
                     AND NOT EXISTS (
-                        SELECT 1 FROM agent_mcp m
+                        SELECT 1 FROM agent_live m
                         WHERE m.source = ccr.source
                             AND m.body_kind = ccr.body_kind
                             AND m.content_hash = ccr.content_hash
@@ -13452,8 +13452,8 @@ deleted AS (
     DELETE FROM chat_context_resources
     USING locked
     WHERE chat_context_resources.chat_id = locked.id
-        AND chat_context_resources.body_kind IN ('mcp_config', 'mcp_server')
-        AND chat_context_resources.source NOT IN (SELECT source FROM agent_mcp)
+        AND chat_context_resources.body_kind IN ('mcp_config', 'mcp_server', 'acp_harness')
+        AND chat_context_resources.source NOT IN (SELECT source FROM agent_live)
 ),
 upserted AS (
     INSERT INTO chat_context_resources (
@@ -13463,7 +13463,7 @@ upserted AS (
         locked.id, m.source, m.body_kind, m.body, m.content_hash,
         m.size_bytes, m.status, m.error, m.source_path
     FROM locked
-    CROSS JOIN agent_mcp m
+    CROSS JOIN agent_live m
     ON CONFLICT (chat_id, source) DO UPDATE SET
         body_kind = EXCLUDED.body_kind,
         body = EXCLUDED.body,
@@ -13477,11 +13477,11 @@ upserted AS (
 SELECT id FROM locked
 `
 
-// MCP resources bypass context drift and are live-synced on each push.
+// MCP and ACP resources bypass context drift and are live-synced on each push.
 // Changed chats are locked in ID order so concurrent clear-then-copy re-pins
 // cannot interleave with the replacement.
-func (q *sqlQuerier) SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {
-	rows, err := q.db.QueryContext(ctx, syncAgentChatsContextMCPResources, agentID)
+func (q *sqlQuerier) SyncAgentChatsContextLiveResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, syncAgentChatsContextLiveResources, agentID)
 	if err != nil {
 		return nil, err
 	}
@@ -15903,11 +15903,16 @@ SELECT COUNT(*) AS count FROM (
 				connection_logs.connection_id = $14
 			ELSE true
 		END
-		-- Filter by whether the session has a disconnect_time
 		AND CASE
 			WHEN $15 :: text != '' THEN
-				(($15 = 'ongoing' AND disconnect_time IS NULL) OR
-				($15 = 'completed' AND disconnect_time IS NOT NULL)) AND
+				connection_logs.client_session_id = $15
+			ELSE true
+		END
+		-- Filter by whether the session has a disconnect_time
+		AND CASE
+			WHEN $16 :: text != '' THEN
+				(($16 = 'ongoing' AND disconnect_time IS NULL) OR
+				($16 = 'completed' AND disconnect_time IS NOT NULL)) AND
 				-- Exclude point-in-time events reported by coderd, since we
 				-- don't know their close time.
 				connection_method IN ('ssh', 'reconnecting_pty')
@@ -15917,7 +15922,7 @@ SELECT COUNT(*) AS count FROM (
 		-- CountAuthorizedConnectionLogs
 		-- @authorize_filter
 	-- NOTE: See the CountAuditLogs LIMIT note.
-	LIMIT NULLIF($16::int, 0) + 1
+	LIMIT NULLIF($17::int, 0) + 1
 ) AS limited_count
 `
 
@@ -15936,6 +15941,7 @@ type CountConnectionLogsParams struct {
 	ConnectedBefore     time.Time `db:"connected_before" json:"connected_before"`
 	WorkspaceID         uuid.UUID `db:"workspace_id" json:"workspace_id"`
 	ConnectionID        uuid.UUID `db:"connection_id" json:"connection_id"`
+	ClientSessionID     string    `db:"client_session_id" json:"client_session_id"`
 	Status              string    `db:"status" json:"status"`
 	CountCap            int32     `db:"count_cap" json:"count_cap"`
 }
@@ -15956,6 +15962,7 @@ func (q *sqlQuerier) CountConnectionLogs(ctx context.Context, arg CountConnectio
 		arg.ConnectedBefore,
 		arg.WorkspaceID,
 		arg.ConnectionID,
+		arg.ClientSessionID,
 		arg.Status,
 		arg.CountCap,
 	)
@@ -16116,11 +16123,16 @@ WHERE
 			connection_logs.connection_id = $14
 		ELSE true
 	END
-	-- Filter by whether the session has a disconnect_time
 	AND CASE
 		WHEN $15 :: text != '' THEN
-			(($15 = 'ongoing' AND disconnect_time IS NULL) OR
-			($15 = 'completed' AND disconnect_time IS NOT NULL)) AND
+			connection_logs.client_session_id = $15
+		ELSE true
+	END
+	-- Filter by whether the session has a disconnect_time
+	AND CASE
+		WHEN $16 :: text != '' THEN
+			(($16 = 'ongoing' AND disconnect_time IS NULL) OR
+			($16 = 'completed' AND disconnect_time IS NOT NULL)) AND
 			-- Exclude point-in-time events reported by coderd, since we
 			-- don't know their close time.
 			connection_method IN ('ssh', 'reconnecting_pty')
@@ -16135,9 +16147,9 @@ LIMIT
 	-- a limit of 0 means "no limit". The connection log table is unbounded
 	-- in size, and is expected to be quite large. Implement a default
 	-- limit of 100 to prevent accidental excessively large queries.
-	COALESCE(NULLIF($17 :: int, 0), 100)
+	COALESCE(NULLIF($18 :: int, 0), 100)
 OFFSET
-	$16
+	$17
 `
 
 type GetConnectionLogsOffsetParams struct {
@@ -16155,6 +16167,7 @@ type GetConnectionLogsOffsetParams struct {
 	ConnectedBefore     time.Time `db:"connected_before" json:"connected_before"`
 	WorkspaceID         uuid.UUID `db:"workspace_id" json:"workspace_id"`
 	ConnectionID        uuid.UUID `db:"connection_id" json:"connection_id"`
+	ClientSessionID     string    `db:"client_session_id" json:"client_session_id"`
 	Status              string    `db:"status" json:"status"`
 	OffsetOpt           int32     `db:"offset_opt" json:"offset_opt"`
 	LimitOpt            int32     `db:"limit_opt" json:"limit_opt"`
@@ -16196,6 +16209,7 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 		arg.ConnectedBefore,
 		arg.WorkspaceID,
 		arg.ConnectionID,
+		arg.ClientSessionID,
 		arg.Status,
 		arg.OffsetOpt,
 		arg.LimitOpt,
@@ -18781,14 +18795,14 @@ WITH
 			BOOL_OR(connection_count > 0)
 	),
 	insights AS (
-		-- A minute counts once per family, however many of its apps were
+		-- A minute counts once per app, however many of its sessions were
 		-- open, which COUNT(DISTINCT) does in the grouping. Deduplicating the
 		-- expanded rows first instead spills to disk once a deployment has a
 		-- few thousand agents.
 		SELECT
 			was.template_id,
 			was.user_id,
-			COALESCE($3::jsonb ->> app_name, 'unknown') AS family,
+			app_name,
 			COUNT(DISTINCT date_trunc('minute', was.created_at)) AS usage_mins
 		FROM
 			workspace_agent_stats AS was
@@ -18804,22 +18818,22 @@ WITH
 			AND was.created_at < $2::timestamptz
 			AND was.session_counts <> '{}'::jsonb
 		GROUP BY
-			was.template_id, was.user_id, family
+			was.template_id, was.user_id, app_name
 	),
-	app_family_usage AS (
+	app_usage AS (
 		SELECT
 			template_id,
-			jsonb_object_agg(family, usage_seconds) AS session_family_usage_seconds
+			jsonb_object_agg(app_name, usage_seconds) AS session_app_usage_seconds
 		FROM (
 			SELECT
 				template_id,
-				family,
+				app_name,
 				(SUM(usage_mins) * 60)::bigint AS usage_seconds
 			FROM
 				insights
 			GROUP BY
-				template_id, family
-		) AS family_seconds
+				template_id, app_name
+		) AS app_seconds
 		GROUP BY
 			template_id
 	),
@@ -18836,38 +18850,35 @@ WITH
 SELECT
 	active_users.template_id,
 	active_users.active_users,
-	app_family_usage.session_family_usage_seconds
+	app_usage.session_app_usage_seconds
 FROM
 	active_users
 JOIN
-	-- Every counted template has at least one family; both sides come from
+	-- Every counted template has at least one app; both sides come from
 	-- insights.
-	app_family_usage
+	app_usage
 ON
-	app_family_usage.template_id = active_users.template_id
+	app_usage.template_id = active_users.template_id
 `
 
 type GetTemplateInsightsByTemplateParams struct {
-	StartTime   time.Time       `db:"start_time" json:"start_time"`
-	EndTime     time.Time       `db:"end_time" json:"end_time"`
-	AppFamilies json.RawMessage `db:"app_families" json:"app_families"`
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	EndTime   time.Time `db:"end_time" json:"end_time"`
 }
 
 type GetTemplateInsightsByTemplateRow struct {
-	TemplateID                uuid.UUID      `db:"template_id" json:"template_id"`
-	ActiveUsers               int64          `db:"active_users" json:"active_users"`
-	SessionFamilyUsageSeconds StringMapOfInt `db:"session_family_usage_seconds" json:"session_family_usage_seconds"`
+	TemplateID             uuid.UUID      `db:"template_id" json:"template_id"`
+	ActiveUsers            int64          `db:"active_users" json:"active_users"`
+	SessionAppUsageSeconds StringMapOfInt `db:"session_app_usage_seconds" json:"session_app_usage_seconds"`
 }
 
 // GetTemplateInsightsByTemplate is used for Prometheus metrics. Keep
 // in sync with GetTemplateInsights and UpsertTemplateUsageStats.
 //
-// Session usage is reported per app family. It reads the raw agent stats
-// because the rollup stores minutes per app, which can't show whether two
-// apps of one family were open in the same minute. @app_families maps each
-// app name to its family; names missing from the map count as unknown.
+// Session usage is per app name. It reads raw agent stats because rollup
+// buckets are coarser than the metrics window.
 func (q *sqlQuerier) GetTemplateInsightsByTemplate(ctx context.Context, arg GetTemplateInsightsByTemplateParams) ([]GetTemplateInsightsByTemplateRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTemplateInsightsByTemplate, arg.StartTime, arg.EndTime, arg.AppFamilies)
+	rows, err := q.db.QueryContext(ctx, getTemplateInsightsByTemplate, arg.StartTime, arg.EndTime)
 	if err != nil {
 		return nil, err
 	}
@@ -18875,7 +18886,7 @@ func (q *sqlQuerier) GetTemplateInsightsByTemplate(ctx context.Context, arg GetT
 	var items []GetTemplateInsightsByTemplateRow
 	for rows.Next() {
 		var i GetTemplateInsightsByTemplateRow
-		if err := rows.Scan(&i.TemplateID, &i.ActiveUsers, &i.SessionFamilyUsageSeconds); err != nil {
+		if err := rows.Scan(&i.TemplateID, &i.ActiveUsers, &i.SessionAppUsageSeconds); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

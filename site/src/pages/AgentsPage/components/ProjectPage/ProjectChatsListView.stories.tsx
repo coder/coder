@@ -91,7 +91,6 @@ const meta: Meta<typeof ProjectChatsListView> = {
 		showCost: true,
 	},
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [
 			...chats.map((chat, index) => ({
 				key: chatCostTreeKey(chat.id),

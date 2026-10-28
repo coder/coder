@@ -377,7 +377,7 @@ jobs:
           esac
 
           if [[ -n "${SUBAGENT_MODEL_CONFIG_ID}" ]]; then
-            SUBAGENT_LINE="When you spawn persona sub-agents, pass model_config_id ${SUBAGENT_MODEL_CONFIG_ID}."
+            SUBAGENT_LINE="When you spawn persona or verifier sub-agents, pass model_config_id ${SUBAGENT_MODEL_CONFIG_ID}."
           else
             SUBAGENT_LINE="Run the personas yourself, one at a time. Do not spawn sub-agents."
           fi

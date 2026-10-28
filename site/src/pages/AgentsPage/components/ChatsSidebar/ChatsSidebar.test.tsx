@@ -87,21 +87,19 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 });
 
 type WrapperProps = React.PropsWithChildren<{
-	experiments?: TypesGen.Experiment[];
 	organizations?: TypesGen.Organization[];
 	initialEntry?: string;
 }>;
 
 const Wrapper: React.FC<WrapperProps> = ({
 	children,
-	experiments = [],
 	organizations = [MockDefaultOrganization],
 	initialEntry = "/agents",
 }) => {
 	const queryClient = createTestQueryClient();
 	const dashboardValue = {
 		entitlements: MockEntitlements,
-		experiments,
+		experiments: [],
 		appearance: MockAppearanceConfig,
 		buildInfo: MockBuildInfo,
 		organizations,
@@ -170,10 +168,7 @@ describe("ChatsSidebar projects", () => {
 		);
 
 		render(
-			<Wrapper
-				experiments={["chat-projects"]}
-				initialEntry={`/agents/projects/${MockChatProject.id}`}
-			>
+			<Wrapper initialEntry={`/agents/projects/${MockChatProject.id}`}>
 				<ChatsSidebar {...defaultProps} chats={[]} />
 			</Wrapper>,
 		);
@@ -213,7 +208,7 @@ describe("ChatsSidebar projects", () => {
 			),
 		);
 		render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper>
 				<ChatsSidebar {...defaultProps} />
 			</Wrapper>,
 		);
@@ -276,7 +271,7 @@ describe("ChatsSidebar projects", () => {
 		});
 
 		render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper>
 				<ChatsSidebar {...defaultProps} chats={[mockProjectChat]} />
 			</Wrapper>,
 		);
@@ -313,7 +308,7 @@ describe("ChatsSidebar projects", () => {
 		const mockLooseChat = buildChat({ id: "loose-chat", title: "Loose chat" });
 
 		render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper>
 				<ChatsSidebar
 					{...defaultProps}
 					chats={[mockProjectChat, mockLooseChat]}
@@ -353,10 +348,7 @@ describe("ChatsSidebar projects", () => {
 			);
 
 			render(
-				<Wrapper
-					experiments={["chat-projects"]}
-					organizations={[MockOrganization2, MockDefaultOrganization]}
-				>
+				<Wrapper organizations={[MockOrganization2, MockDefaultOrganization]}>
 					<ChatsSidebar {...defaultProps} chats={[]} />
 					<ProjectLocationProbe />
 				</Wrapper>,
@@ -431,10 +423,7 @@ describe("ChatsSidebar projects", () => {
 		);
 
 		render(
-			<Wrapper
-				experiments={["chat-projects"]}
-				organizations={[MockOrganization2]}
-			>
+			<Wrapper organizations={[MockOrganization2]}>
 				<ChatsSidebar {...defaultProps} />
 			</Wrapper>,
 		);
@@ -473,7 +462,7 @@ describe("ChatsSidebar projects", () => {
 		);
 
 		render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper>
 				<ChatsSidebar {...defaultProps} />
 			</Wrapper>,
 		);
@@ -503,10 +492,7 @@ describe("ChatsSidebar projects", () => {
 		);
 
 		render(
-			<Wrapper
-				experiments={["chat-projects"]}
-				initialEntry={`/agents/projects/${MockChatProject.id}`}
-			>
+			<Wrapper initialEntry={`/agents/projects/${MockChatProject.id}`}>
 				<ChatsSidebar {...defaultProps} />
 				<ProjectLocationProbe />
 			</Wrapper>,
@@ -553,7 +539,7 @@ describe("ChatsSidebar projects", () => {
 		);
 
 		render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper>
 				<ChatsSidebar {...defaultProps} />
 			</Wrapper>,
 		);
@@ -589,10 +575,7 @@ describe("ChatsSidebar projects", () => {
 		);
 
 		render(
-			<Wrapper
-				experiments={["chat-projects"]}
-				organizations={[MockDefaultOrganization, MockOrganization2]}
-			>
+			<Wrapper organizations={[MockDefaultOrganization, MockOrganization2]}>
 				<ChatsSidebar {...defaultProps} />
 			</Wrapper>,
 		);
@@ -620,10 +603,7 @@ describe("ChatsSidebar projects", () => {
 		);
 
 		render(
-			<Wrapper
-				experiments={["chat-projects"]}
-				initialEntry={`/agents/projects/${MockChatProject.id}`}
-			>
+			<Wrapper initialEntry={`/agents/projects/${MockChatProject.id}`}>
 				<ChatsSidebar {...defaultProps} />
 			</Wrapper>,
 		);
@@ -670,10 +650,7 @@ describe("ChatsSidebar projects", () => {
 		});
 
 		render(
-			<Wrapper
-				experiments={["chat-projects"]}
-				initialEntry={`/agents/${mockFirstProjectChat.id}`}
-			>
+			<Wrapper initialEntry={`/agents/${mockFirstProjectChat.id}`}>
 				<Routes>
 					<Route
 						path="/agents/:agentId"
@@ -870,7 +847,7 @@ describe("ChatsSidebar move to project", () => {
 
 	const renderSidebar = (chats: Chat[]) =>
 		render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper>
 				<ChatsSidebar {...defaultProps} chats={chats} />
 			</Wrapper>,
 		);
@@ -1083,7 +1060,7 @@ describe("ChatsSidebar project drops", () => {
 			),
 		);
 		return render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper>
 				<ChatsSidebar {...defaultProps} chats={chats} />
 			</Wrapper>,
 		);
@@ -1241,7 +1218,7 @@ describe("ChatsSidebar project drops", () => {
 			.spyOn(API.experimental, "updateChat")
 			.mockResolvedValue(undefined);
 		render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper>
 				<ChatsSidebar
 					{...defaultProps}
 					chats={[
@@ -1357,7 +1334,7 @@ describe("ChatsSidebar project drops", () => {
 			http.get("/api/experimental/chats/projects", () => HttpResponse.json([])),
 		);
 		render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper>
 				<StatusChange />
 			</Wrapper>,
 		);
@@ -1572,7 +1549,7 @@ describe("ChatsSidebar project drops", () => {
 			http.get("/api/experimental/chats/projects", () => HttpResponse.json([])),
 		);
 		render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper>
 				<ChatsSidebar
 					{...defaultProps}
 					chats={[

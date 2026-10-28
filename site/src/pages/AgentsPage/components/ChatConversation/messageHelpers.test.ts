@@ -54,6 +54,7 @@ const parsed = (
 	toolResults: [],
 	tools: [],
 	blocks: [],
+	partBlockIndices: [],
 	sources: [],
 	hookNotices: [],
 	...overrides,
@@ -262,6 +263,27 @@ describe("deriveMessageDisplayState", () => {
 		});
 
 		expect(state.hasCopyableContent).toBe(true);
+	});
+
+	it("marks assistant answers followed by their citations as copyable", () => {
+		// chatd stores citations before the text they cite; parsing moves
+		// the citation row after the text.
+		const message = buildMessage(
+			[
+				{
+					type: "source",
+					url: "https://go.dev/dl/",
+					title: "Go downloads",
+				},
+				{ type: "text", text: "Go 1.27.1 is the latest release." },
+			],
+			"assistant",
+		);
+
+		const state = getDisplayState(message);
+
+		expect(state.hasCopyableContent).toBe(true);
+		expect(state.needsAssistantBottomSpacer).toBe(false);
 	});
 
 	it("does not mark assistant messages ending with a thinking block as copyable", () => {

@@ -3831,6 +3831,7 @@ export const ChatSkillSources: ChatSkillSource[] = [
 export interface ChatSourcePart {
 	readonly type: "source";
 	readonly url: string;
+	readonly tool_call_id?: string;
 	readonly source_id?: string;
 	readonly title?: string;
 }
@@ -4265,6 +4266,10 @@ export interface ConnectionLogResponse {
 // From codersdk/connectionlog.go
 export interface ConnectionLogSSHInfo {
 	readonly connection_id: string;
+	/**
+	 * ClientSessionID is set by the client and isn't guaranteed to be unique.
+	 */
+	readonly client_session_id?: string;
 	/**
 	 * DisconnectTime is omitted if a disconnect event with the same connection ID
 	 * has not yet been seen.
@@ -5732,7 +5737,7 @@ export type Experiment =
 	| "chat-acp-subagents"
 	| "chat-advisor"
 	| "chat-inline-mcp-servers"
-	| "chat-projects"
+	| "chat-project-sharing"
 	| "chat-stage-metrics"
 	| "chat-virtual-desktop"
 	| "enable-ai-workspace-debug"
@@ -5813,7 +5818,7 @@ export const Experiments: Experiment[] = [
 	"chat-acp-subagents",
 	"chat-advisor",
 	"chat-inline-mcp-servers",
-	"chat-projects",
+	"chat-project-sharing",
 	"chat-stage-metrics",
 	"chat-virtual-desktop",
 	"enable-ai-workspace-debug",
@@ -10828,14 +10833,6 @@ export interface UpdateActiveTemplateVersion {
 export interface UpdateAdvisorConfigRequest {
 	readonly max_uses_per_run: number;
 	readonly max_output_tokens: number;
-	/**
-	 * @deprecated moved to the organization model override endpoint.
-	 */
-	readonly model_config_id?: string;
-	/**
-	 * @deprecated moved to the organization model override endpoint.
-	 */
-	readonly reasoning_effort?: string;
 }
 
 // From codersdk/deployment.go
