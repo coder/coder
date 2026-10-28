@@ -358,6 +358,15 @@ Computer-use subagents always run on the administrator-configured computer-use m
 > Both override layers may change between releases.
 > Admin overrides are available through the API at `/api/v2/organizations/{organization}/chats/model-overrides` and personal overrides at `/api/v2/organizations/{organization}/members/{user}/chats/model-overrides`.
 
+## Set a personal compaction threshold
+
+Open **Agents** > **Settings** > **Compaction** to edit your personal threshold for each model.
+If you have models in more than one organization, select the organization you want to configure.
+Enter a threshold in a model's row, then select **Save** beside that row or press Enter in its threshold field.
+Select **Cancel** beside an edited row to discard that row's unsaved change.
+If you navigate away within Coder with any unsaved threshold, including one in another organization, select **Stay** or **Leave** in the **Unsaved changes** dialog.
+Your browser prompts you when you refresh or close the tab with unsaved changes.
+
 ## User API keys (BYOK)
 
 When [AI Gateway BYOK](../ai-gateway/auth.md#bring-your-own-key-byok) is enabled, developers can supply personal API keys for any enabled AI provider from the Agents settings page.
