@@ -47,6 +47,13 @@ type AskUserQuestionToolProps = {
 	 * card keeps it: its live region must exist before the result streams in.
 	 */
 	announcesQuestion?: boolean;
+	/**
+	 * Shows a one-line progress summary in place of the form. The form state
+	 * stays, so expanding again restores the answers in progress.
+	 */
+	isCollapsed?: boolean;
+	/** Keeps Back, Next, and Submit at the bottom of the scrolling panel. */
+	hasStickyActions?: boolean;
 	onSubmitAnswer?: (message: string) => Promise<void> | void;
 	onStepChange?: () => void;
 };
@@ -166,7 +173,7 @@ const SelectableAnswerOption: React.FC<SelectableAnswerOptionProps> = ({
 		<label
 			htmlFor={id}
 			className={cn(
-				"grid gap-x-3 gap-y-0.5 py-1.5",
+				"grid gap-x-3 gap-y-0.5 py-1",
 				isEnabled ? "cursor-pointer" : "cursor-default",
 			)}
 			style={{ gridTemplateColumns: "auto 1fr" }}
@@ -296,12 +303,7 @@ const QuestionStep: React.FC<QuestionStepProps> = ({
 	const showProgress = isInteractive && questionCount > 1;
 
 	return (
-		<div className="space-y-3">
-			{showProgress && (
-				<p className="text-xs font-medium text-content-secondary">
-					Question {questionIndex + 1} of {questionCount}
-				</p>
-			)}
+		<div className="space-y-2">
 			<div className="flex items-start gap-1.5 text-content-secondary">
 				<MessageCircleQuestionIcon
 					aria-hidden="true"
@@ -316,14 +318,20 @@ const QuestionStep: React.FC<QuestionStepProps> = ({
 					<span className="sr-only" id={questionHeaderId}>
 						{questionHeader}
 					</span>
-					<span aria-hidden="true">Asking: </span>
+					{showProgress ? (
+						<span>
+							Question {questionIndex + 1} out of {questionCount}:{" "}
+						</span>
+					) : (
+						<span aria-hidden="true">Asking: </span>
+					)}
 					<span>{questionText}</span>
 				</p>
 			</div>
-			<div className="rounded-md border border-solid border-border px-3 py-1">
+			<div className="rounded-md border border-solid border-border px-3 py-0.5">
 				<RadioGroup
 					aria-labelledby={`${questionHeaderId} ${questionTextId}`}
-					className="space-y-1"
+					className="space-y-0.5"
 					name={`${questionIdBase}-options`}
 					value={getSelectedValue(answer)}
 					onValueChange={onOptionChange}
@@ -394,6 +402,8 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	asyncToolCallId,
 	isDocked = false,
 	announcesQuestion = true,
+	isCollapsed = false,
+	hasStickyActions = false,
 	onSubmitAnswer,
 	onStepChange,
 }) => {
@@ -405,6 +415,9 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 		() => filteredQuestions.map(getDefaultAnswer),
 	);
 	const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+	// Next confirms every question before the one it opens, so Back does not
+	// lower the answered count.
+	const [answeredQuestionCount, setAnsweredQuestionCount] = useState(0);
 	const [submittedResponseText, setSubmittedResponseText] = useState<
 		string | null
 	>(null);
@@ -580,6 +593,9 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 			return;
 		}
 
+		setAnsweredQuestionCount((count) =>
+			Math.max(count, activeQuestionIndex + 1),
+		);
 		changeQuestion((currentIndex) =>
 			Math.min(currentIndex + 1, filteredQuestions.length - 1),
 		);
@@ -662,9 +678,20 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 		);
 	}
 
+	if (isCollapsed) {
+		return (
+			<div className="w-full">
+				{announcement}
+				<p className="m-0 text-[13px] text-content-secondary">
+					{answeredQuestionCount}/{filteredQuestions.length} questions answered
+				</p>
+			</div>
+		);
+	}
+
 	const content = (
 		<>
-			<div className="space-y-5">
+			<div className="space-y-4">
 				{visibleQuestions.map(({ question, questionIndex }) => {
 					const questionKey = `${question.header}-${question.question}-${questionIndex}`;
 					if (showAnsweredState || isClosed || isDocked) {
@@ -722,7 +749,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 
 			{isDocked && (
 				<p className="mt-3 text-[13px] text-content-secondary">
-					Answer in the Open question panel above the chat input.
+					Answer in the question panel above the chat input.
 				</p>
 			)}
 
@@ -737,7 +764,17 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 			)}
 
 			{isInteractive && (
-				<div className="mt-4 flex items-center gap-2">
+				<div
+					className={cn(
+						"flex items-center gap-2",
+						// Sticky insets honor the scroller's padding, so the
+						// negative offset and margin cover the panel's p-3
+						// bottom padding and pin the row to its border.
+						hasStickyActions
+							? "sticky -bottom-3 -mb-3 bg-surface-primary pt-2 pb-3"
+							: "mt-3",
+					)}
+				>
 					{isWizard && (
 						<Button
 							type="button"

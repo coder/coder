@@ -393,6 +393,33 @@ describe("ChatPageTimeline question dock", () => {
 		);
 	});
 
+	it("keeps the dock's draft through collapse and expand", async () => {
+		const user = userEvent.setup();
+		const onSendAskUserQuestionResponse = vi.fn();
+		renderChatPageTimeline(onSendAskUserQuestionResponse);
+
+		await user.click(
+			within(getQuestionDock()).getByRole("radio", { name: /^Frontend/ }),
+		);
+		await user.click(
+			within(getQuestionDock()).getByRole("button", {
+				name: "Collapse question",
+			}),
+		);
+		await user.click(
+			within(getQuestionDock()).getByRole("button", {
+				name: "Expand question",
+			}),
+		);
+		await user.click(
+			within(getQuestionDock()).getByRole("button", { name: "Submit" }),
+		);
+
+		expect(onSendAskUserQuestionResponse).toHaveBeenCalledExactlyOnceWith(
+			"Answer to ask_user_question call question:\nFrontend",
+		);
+	});
+
 	it("locks the dock's draft while a history edit is open", async () => {
 		const user = userEvent.setup();
 		const onSendAskUserQuestionResponse = vi.fn();

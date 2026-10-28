@@ -625,6 +625,25 @@ export const AsyncQuestionDockFocused: Story = {
 	},
 };
 
+// Collapsing leaves one line with the progress, so the chat stays readable.
+export const AsyncQuestionDockCollapsed: Story = {
+	render: () => (
+		<AsyncQuestionChatPage
+			store={buildAsyncQuestionStore(MockTwoAsyncQuestionsMessages)}
+			onSendAskUserQuestionResponse={fn()}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const dock = within(
+			within(canvasElement).getByRole("region", { name: "Open question" }),
+		);
+		await userEvent.click(dock.getByRole("button", { name: "Next" }));
+		await userEvent.click(
+			dock.getByRole("button", { name: "Collapse question" }),
+		);
+	},
+};
+
 const mockTallQuestion = {
 	header: "Rollout",
 	question: "How should the new billing export reach customers?",
@@ -717,11 +736,13 @@ export const AsyncQuestionDockedNextStepStartsAtTop: Story = {
 		/>
 	),
 	play: async ({ canvasElement }) => {
-		const dock = within(canvasElement).getByRole("region", {
-			name: "Open question",
-		});
-		dock.scrollTop = dock.scrollHeight;
-		await userEvent.click(within(dock).getByRole("button", { name: "Next" }));
+		const dock = within(
+			within(canvasElement).getByRole("region", { name: "Open question" }),
+		);
+		dock
+			.getByRole("radio", { name: /^Other/ })
+			.scrollIntoView({ block: "nearest" });
+		await userEvent.click(dock.getByRole("button", { name: "Next" }));
 	},
 };
 

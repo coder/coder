@@ -700,7 +700,7 @@ type AskUserQuestionRendererProps = Pick<
 > &
 	Pick<
 		React.ComponentProps<typeof AskUserQuestionTool>,
-		"announcesQuestion" | "onStepChange"
+		"announcesQuestion" | "isCollapsed" | "hasStickyActions" | "onStepChange"
 	>;
 
 /**
@@ -721,6 +721,8 @@ export const AskUserQuestionRenderer: React.FC<
 	isDockedAskUserQuestion,
 	previousResponseText,
 	announcesQuestion,
+	isCollapsed,
+	hasStickyActions,
 	onStepChange,
 }) => {
 	const parsedArgs = parseArgs(args);
@@ -754,6 +756,8 @@ export const AskUserQuestionRenderer: React.FC<
 			previousResponseText={previousResponseText}
 			asyncToolCallId={parsedResult?.isAsync ? toolCallId : undefined}
 			announcesQuestion={announcesQuestion}
+			isCollapsed={isCollapsed}
+			hasStickyActions={hasStickyActions}
 			onStepChange={onStepChange}
 		/>
 	);
