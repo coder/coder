@@ -386,14 +386,7 @@ describe("AgentChatInput", () => {
 				mcpServers={mockMCPServers}
 				selectedMCPServerIds={mockSelectedMCPServerIds}
 				onMCPSelectionChange={vi.fn()}
-				workspaceOptions={[
-					{
-						id: MockWorkspace.id,
-						name: MockWorkspace.name,
-						owner_name: MockWorkspace.owner_name,
-						organization_id: MockWorkspace.organization_id,
-					},
-				]}
+				workspaceOptions={[MockWorkspace]}
 				onWorkspaceChange={vi.fn()}
 			/>,
 		);

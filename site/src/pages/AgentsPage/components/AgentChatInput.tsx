@@ -510,10 +510,9 @@ const ToolBadge: React.FC<{
 
 type PlusMenuSubmenu = "workspace" | "mcp";
 
-// Below md, switching between the plus menu's main view and a submenu
-// unmounts the focused control, so its replacement takes focus. This is
-// a callback ref because biome's lint/a11y/noAutofocus rule rejects
-// autoFocus on native buttons.
+// Below md, swapping the plus menu's views unmounts the focused control.
+// A callback ref moves focus to its replacement, because biome's
+// lint/a11y/noAutofocus rule rejects autoFocus on native buttons.
 const focusOnMount = (element: HTMLElement | null) => {
 	element?.focus();
 };
