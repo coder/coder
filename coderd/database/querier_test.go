@@ -11777,66 +11777,61 @@ func TestAIBridgeInterceptionOrganizationColumns(t *testing.T) {
 		})
 	}
 
+	existingOrg := func(t *testing.T) uuid.NullUUID {
+		org := dbgen.Organization(t, db, database.Organization{})
+		return uuid.NullUUID{UUID: org.ID, Valid: true}
+	}
+	missingOrg := func(*testing.T) uuid.NullUUID { return uuid.NullUUID{UUID: uuid.New(), Valid: true} }
+	noOrg := func(*testing.T) uuid.NullUUID { return uuid.NullUUID{} }
+	sourceOf := func(source database.AIBridgeInterceptionOrganizationSource) database.NullAIBridgeInterceptionOrganizationSource {
+		return database.NullAIBridgeInterceptionOrganizationSource{AIBridgeInterceptionOrganizationSource: source, Valid: true}
+	}
+	failsCheck := func(err error) bool {
+		return database.IsCheckViolation(err, database.CheckAibridgeInterceptionsOrganizationSourceCheck)
+	}
+	failsForeignKey := func(err error) bool {
+		return database.IsForeignKeyViolation(err, database.ForeignKeyAibridgeInterceptionsOrganizationID)
+	}
+
+	type testCase struct {
+		name   string
+		orgID  func(t *testing.T) uuid.NullUUID
+		source database.NullAIBridgeInterceptionOrganizationSource
+		// wantErr is nil when the insert must succeed and round-trip.
+		wantErr func(error) bool
+	}
+	var tests []testCase
 	for _, source := range database.AllAIBridgeInterceptionOrganizationSourceValues() {
-		t.Run("RoundTrip/"+string(source), func(t *testing.T) {
+		tests = append(tests, testCase{name: "RoundTrip/" + string(source), orgID: existingOrg, source: sourceOf(source)})
+	}
+	tests = append(tests,
+		testCase{name: "RoundTripNull", orgID: noOrg},
+		testCase{name: "OrganizationWithoutSourceFailsCheck", orgID: existingOrg, wantErr: failsCheck},
+		testCase{name: "SourceWithoutOrganizationFailsCheck", orgID: noOrg, source: sourceOf(database.AibridgeInterceptionOrganizationSourceWorkspace), wantErr: failsCheck},
+		testCase{name: "MissingOrganizationFailsForeignKey", orgID: missingOrg, source: sourceOf(database.AibridgeInterceptionOrganizationSourceWorkspace), wantErr: failsForeignKey},
+	)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
 
-			org := dbgen.Organization(t, db, database.Organization{})
-			wantOrgID := uuid.NullUUID{UUID: org.ID, Valid: true}
-			wantSource := database.NullAIBridgeInterceptionOrganizationSource{AIBridgeInterceptionOrganizationSource: source, Valid: true}
-
-			inserted, err := insert(ctx, t, wantOrgID, wantSource)
+			orgID := tt.orgID(t)
+			inserted, err := insert(ctx, t, orgID, tt.source)
+			if tt.wantErr != nil {
+				require.True(t, tt.wantErr(err), "unexpected error: %v", err)
+				return
+			}
 			require.NoError(t, err)
-			require.Equal(t, wantOrgID, inserted.OrganizationID)
-			require.Equal(t, wantSource, inserted.OrganizationSource)
+			require.Equal(t, orgID, inserted.OrganizationID)
+			require.Equal(t, tt.source, inserted.OrganizationSource)
 
 			got, err := db.GetAIBridgeInterceptionByID(ctx, inserted.ID)
 			require.NoError(t, err)
-			require.Equal(t, wantOrgID, got.OrganizationID)
-			require.Equal(t, wantSource, got.OrganizationSource)
+			require.Equal(t, orgID, got.OrganizationID)
+			require.Equal(t, tt.source, got.OrganizationSource)
 		})
 	}
-
-	t.Run("RoundTripNull", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		inserted, err := insert(ctx, t, uuid.NullUUID{}, database.NullAIBridgeInterceptionOrganizationSource{})
-		require.NoError(t, err)
-
-		got, err := db.GetAIBridgeInterceptionByID(ctx, inserted.ID)
-		require.NoError(t, err)
-		require.False(t, got.OrganizationID.Valid)
-		require.False(t, got.OrganizationSource.Valid)
-	})
-
-	t.Run("HalfSetPairFailsCheck", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		org := dbgen.Organization(t, db, database.Organization{})
-
-		_, err := insert(ctx, t, uuid.NullUUID{UUID: org.ID, Valid: true}, database.NullAIBridgeInterceptionOrganizationSource{})
-		require.True(t, database.IsCheckViolation(err, database.CheckAibridgeInterceptionsOrganizationSourceCheck), "organization without source: %v", err)
-
-		_, err = insert(ctx, t, uuid.NullUUID{}, database.NullAIBridgeInterceptionOrganizationSource{
-			AIBridgeInterceptionOrganizationSource: database.AibridgeInterceptionOrganizationSourceWorkspace,
-			Valid:                                  true,
-		})
-		require.True(t, database.IsCheckViolation(err, database.CheckAibridgeInterceptionsOrganizationSourceCheck), "source without organization: %v", err)
-	})
-
-	t.Run("MissingOrganizationFailsForeignKey", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		_, err := insert(ctx, t, uuid.NullUUID{UUID: uuid.New(), Valid: true}, database.NullAIBridgeInterceptionOrganizationSource{
-			AIBridgeInterceptionOrganizationSource: database.AibridgeInterceptionOrganizationSourceWorkspace,
-			Valid:                                  true,
-		})
-		require.True(t, database.IsForeignKeyViolation(err, database.ForeignKeyAibridgeInterceptionsOrganizationID), "unexpected error: %v", err)
-	})
 
 	t.Run("OrganizationHardDeleteBlocked", func(t *testing.T) {
 		t.Parallel()

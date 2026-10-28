@@ -977,15 +977,13 @@ func interceptionAttribution(in *proto.RecordInterceptionRequest) (workspaceID u
 
 // interceptionOrganization parses the optional organization attribution. It
 // returns both values valid or neither, so an invalid pair never fails the record.
+// It checks only the format. The caller must send an existing organization: a
+// well-formed ID for an unknown organization passes here and fails the foreign
+// key on insert.
 func interceptionOrganization(in *proto.RecordInterceptionRequest) (uuid.NullUUID, database.NullAIBridgeInterceptionOrganizationSource, error) {
 	rawID, rawSource := in.GetOrganizationId(), in.GetOrganizationSource()
-	switch {
-	case rawID == "" && rawSource == "":
+	if rawID == "" && rawSource == "" {
 		return uuid.NullUUID{}, database.NullAIBridgeInterceptionOrganizationSource{}, nil
-	case rawID == "":
-		return uuid.NullUUID{}, database.NullAIBridgeInterceptionOrganizationSource{}, xerrors.New("organization source set without organization ID")
-	case rawSource == "":
-		return uuid.NullUUID{}, database.NullAIBridgeInterceptionOrganizationSource{}, xerrors.New("organization ID set without organization source")
 	}
 
 	id, err := uuid.Parse(rawID)

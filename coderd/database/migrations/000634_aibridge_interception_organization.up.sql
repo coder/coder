@@ -12,5 +12,10 @@ ALTER TABLE aibridge_interceptions
     ADD CONSTRAINT aibridge_interceptions_organization_source_check
         CHECK ((organization_id IS NULL) = (organization_source IS NULL));
 
+-- Supports filtering interceptions by organization, e.g. listing sessions.
+CREATE INDEX idx_aibridge_interceptions_organization_id
+    ON aibridge_interceptions (organization_id)
+    WHERE organization_id IS NOT NULL;
+
 COMMENT ON COLUMN aibridge_interceptions.organization_id IS 'The organization the interception was attributed to. NULL when no organization was resolved.';
 COMMENT ON COLUMN aibridge_interceptions.organization_source IS 'How organization_id was chosen. NULL exactly when organization_id is NULL.';

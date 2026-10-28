@@ -5065,6 +5065,8 @@ CREATE INDEX idx_aibridge_interceptions_initiator_id ON aibridge_interceptions U
 
 CREATE INDEX idx_aibridge_interceptions_model ON aibridge_interceptions USING btree (model);
 
+CREATE INDEX idx_aibridge_interceptions_organization_id ON aibridge_interceptions USING btree (organization_id) WHERE (organization_id IS NOT NULL);
+
 CREATE INDEX idx_aibridge_interceptions_provider ON aibridge_interceptions USING btree (provider);
 
 CREATE INDEX idx_aibridge_interceptions_session_id ON aibridge_interceptions USING btree (session_id) WHERE (ended_at IS NOT NULL);
