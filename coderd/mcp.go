@@ -338,94 +338,6 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	configID := uuid.New()
-	oauth2ClientRegistration := codersdk.MCPServerOAuth2ClientRegistrationManual
-
-	// Validate auth-type-dependent fields.
-	switch req.AuthType {
-	case "oauth2":
-		// When the admin does not provide OAuth2 credentials, attempt
-		// automatic discovery and Dynamic Client Registration (RFC 7591)
-		// using the MCP server URL.  This follows the MCP authorization
-		// spec: discover the authorization server via Protected Resource
-		// Metadata (RFC 9728) and Authorization Server Metadata
-		// (RFC 8414), then register a client dynamically.
-		if req.OAuth2ClientID == "" && req.OAuth2AuthURL == "" && req.OAuth2TokenURL == "" {
-			// Create-only callers cannot read configs. This pre-DCR check reveals nothing
-			// beyond the insert's conflict response, which remains authoritative for races.
-			//nolint:gocritic // Restrict system access to this existence check.
-			_, err := api.Database.GetMCPServerConfigByOrganizationAndSlug(dbauthz.AsSystemRestricted(ctx), database.GetMCPServerConfigByOrganizationAndSlugParams{
-				OrganizationID: organization.ID,
-				Slug:           strings.TrimSpace(req.Slug),
-			})
-			switch {
-			case err == nil:
-				httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-					Message: "MCP server config already exists.",
-				})
-				return
-			case !errors.Is(err, sql.ErrNoRows):
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Failed to create MCP server config.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-
-			result, err := api.registerMCPOAuth2Client(ctx, configID, strings.TrimSpace(req.URL))
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "OAuth2 auto-discovery failed. Provide oauth2_client_id, oauth2_auth_url, and oauth2_token_url manually, or ensure the MCP server supports RFC 9728 (Protected Resource Metadata) and RFC 7591 (Dynamic Client Registration).",
-					Detail:  err.Error(),
-				})
-				return
-			}
-
-			// Determine scopes: use the request value if provided,
-			// otherwise fall back to the discovered value.
-			oauth2Scopes := strings.TrimSpace(req.OAuth2Scopes)
-			if oauth2Scopes == "" {
-				oauth2Scopes = result.scopes
-			}
-
-			oauth2RevocationURL := strings.TrimSpace(req.OAuth2RevocationURL)
-			if oauth2RevocationURL == "" {
-				oauth2RevocationURL = result.revocationURL
-			}
-
-			req.OAuth2ClientID = result.clientID
-			req.OAuth2ClientSecret = result.clientSecret
-			req.OAuth2AuthURL = result.authURL
-			req.OAuth2TokenURL = result.tokenURL
-			req.OAuth2RevocationURL = oauth2RevocationURL
-			if strings.TrimSpace(req.OAuth2Resource) == "" {
-				req.OAuth2Resource = result.resource
-			}
-			req.OAuth2Scopes = oauth2Scopes
-			oauth2ClientRegistration = codersdk.MCPServerOAuth2ClientRegistrationDynamic
-		} else if req.OAuth2ClientID == "" || req.OAuth2AuthURL == "" || req.OAuth2TokenURL == "" {
-			// Partial manual config: all three fields are required together.
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "OAuth2 auth type requires either all of oauth2_client_id, oauth2_auth_url, and oauth2_token_url (manual configuration), or none of them (automatic discovery via RFC 7591).",
-			})
-			return
-		}
-	case "api_key":
-		if strings.TrimSpace(req.APIKeyHeader) == "" || strings.TrimSpace(req.APIKeyValue) == "" {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "API key auth type requires api_key_header and api_key_value.",
-			})
-			return
-		}
-	case "custom_headers":
-		if len(req.CustomHeaders) == 0 {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Custom headers auth type requires at least one custom header.",
-			})
-			return
-		}
-	}
-
 	customHeadersJSON, err := marshalCustomHeaders(req.CustomHeaders)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -435,39 +347,84 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	prev := database.MCPServerConfig{ID: uuid.New(), OrganizationID: organization.ID}
+	change := mcpServerConfigChangeFromCreate(req)
+	w, err := planMCPServerConfigWrite(prev, change, customHeadersJSON)
+	if err != nil {
+		writeInvalidMCPServerAuth(ctx, rw, err)
+		return
+	}
+	var registration *mcpOAuth2Discovery
+	if w.registerFor != "" {
+		// Create-only callers cannot read configs. This pre-DCR check reveals nothing
+		// beyond the insert's conflict response, which remains authoritative for races.
+		//nolint:gocritic // Restrict system access to this existence check.
+		_, err := api.Database.GetMCPServerConfigByOrganizationAndSlug(dbauthz.AsSystemRestricted(ctx), database.GetMCPServerConfigByOrganizationAndSlugParams{
+			OrganizationID: organization.ID,
+			Slug:           w.next.Slug,
+		})
+		switch {
+		case err == nil:
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "MCP server config already exists.",
+			})
+			return
+		case !errors.Is(err, sql.ErrNoRows):
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to create MCP server config.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		registration, err = api.registerMCPOAuth2Client(ctx, prev.ID, w.registerFor)
+		if err != nil {
+			writeMCPOAuth2RegistrationFailed(ctx, rw, err)
+			return
+		}
+	}
+	next, err := w.withRegistration(prev, change, registration)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to create MCP server config.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	inserted, err := api.Database.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-		ID:                       configID,
-		OrganizationID:           organization.ID,
-		DisplayName:              strings.TrimSpace(req.DisplayName),
-		Slug:                     strings.TrimSpace(req.Slug),
-		Description:              strings.TrimSpace(req.Description),
-		IconURL:                  strings.TrimSpace(req.IconURL),
-		Transport:                strings.TrimSpace(req.Transport),
-		Url:                      strings.TrimSpace(req.URL),
-		AuthType:                 strings.TrimSpace(req.AuthType),
-		OAuth2ClientID:           strings.TrimSpace(req.OAuth2ClientID),
-		OAuth2ClientSecret:       strings.TrimSpace(req.OAuth2ClientSecret),
-		OAuth2ClientSecretKeyID:  sql.NullString{},
-		OAuth2AuthURL:            strings.TrimSpace(req.OAuth2AuthURL),
-		OAuth2TokenURL:           strings.TrimSpace(req.OAuth2TokenURL),
-		OAuth2RevocationURL:      strings.TrimSpace(req.OAuth2RevocationURL),
-		OAuth2Resource:           strings.TrimSpace(req.OAuth2Resource),
-		OAuth2Scopes:             strings.TrimSpace(req.OAuth2Scopes),
-		OAuth2ClientRegistration: string(oauth2ClientRegistration),
-		APIKeyHeader:             strings.TrimSpace(req.APIKeyHeader),
-		APIKeyValue:              strings.TrimSpace(req.APIKeyValue),
-		APIKeyValueKeyID:         sql.NullString{},
-		CustomHeaders:            customHeadersJSON,
-		CustomHeadersKeyID:       sql.NullString{},
-		SigningSecret:            strings.TrimSpace(req.SigningSecret),
-		SigningSecretKeyID:       sql.NullString{},
-		ToolAllowList:            coalesceStringSlice(trimStringSlice(req.ToolAllowList)),
-		ToolDenyList:             coalesceStringSlice(trimStringSlice(req.ToolDenyList)),
-		Availability:             strings.TrimSpace(req.Availability),
-		Enabled:                  req.Enabled,
-		ModelIntent:              req.ModelIntent,
-		AllowInPlanMode:          req.AllowInPlanMode,
-		ForwardCoderHeaders:      req.ForwardCoderHeaders,
+		ID:                       next.ID,
+		OrganizationID:           next.OrganizationID,
+		DisplayName:              next.DisplayName,
+		Slug:                     next.Slug,
+		Description:              next.Description,
+		IconURL:                  next.IconURL,
+		Transport:                next.Transport,
+		Url:                      next.Url,
+		AuthType:                 next.AuthType,
+		OAuth2ClientID:           next.OAuth2ClientID,
+		OAuth2ClientSecret:       next.OAuth2ClientSecret,
+		OAuth2ClientSecretKeyID:  next.OAuth2ClientSecretKeyID,
+		OAuth2AuthURL:            next.OAuth2AuthURL,
+		OAuth2TokenURL:           next.OAuth2TokenURL,
+		OAuth2RevocationURL:      next.OAuth2RevocationURL,
+		OAuth2Resource:           next.OAuth2Resource,
+		OAuth2Scopes:             next.OAuth2Scopes,
+		OAuth2ClientRegistration: next.OAuth2ClientRegistration,
+		APIKeyHeader:             next.APIKeyHeader,
+		APIKeyValue:              next.APIKeyValue,
+		APIKeyValueKeyID:         next.APIKeyValueKeyID,
+		CustomHeaders:            next.CustomHeaders,
+		CustomHeadersKeyID:       next.CustomHeadersKeyID,
+		SigningSecret:            next.SigningSecret,
+		SigningSecretKeyID:       next.SigningSecretKeyID,
+		ToolAllowList:            next.ToolAllowList,
+		ToolDenyList:             next.ToolDenyList,
+		Availability:             next.Availability,
+		Enabled:                  next.Enabled,
+		ModelIntent:              next.ModelIntent,
+		AllowInPlanMode:          next.AllowInPlanMode,
+		ForwardCoderHeaders:      next.ForwardCoderHeaders,
 		GroupACL: database.ChatACL{
 			organization.ID.String(): {Permissions: []policy.Action{policy.ActionRead}},
 		},
@@ -565,7 +522,7 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 
 var errUserOIDCRequiresDeploymentPerms = xerrors.New("managing user_oidc MCP server configs requires deployment-level permissions")
 
-var errAPIKeyAuthRequiresHeaderAndValue = xerrors.New("api_key auth type requires api_key_header and api_key_value")
+var errMCPConfigChangedDuringRegistration = xerrors.New("MCP server config changed during OAuth2 client registration")
 
 var errMCPConfigSupersededDuringAuth = xerrors.New("MCP server config superseded during authorization")
 
@@ -580,6 +537,12 @@ func (api *API) authorizeUserOIDCMCPServerConfig(rw http.ResponseWriter, r *http
 		Message: "Managing user_oidc MCP server configs requires deployment-level permissions.",
 	})
 	return false
+}
+
+// touchesUserOIDC reports whether updating c with req changes a user_oidc
+// config or makes c one.
+func touchesUserOIDC(c database.MCPServerConfig, req codersdk.UpdateMCPServerConfigRequest) bool {
+	return c.AuthType == "user_oidc" || (req.AuthType != nil && *req.AuthType == "user_oidc")
 }
 
 // Preserve the param middleware's 404 concealment. Write denial is a 403.
@@ -633,6 +596,12 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Authorize before the client registration below, which reaches the
+	// remote provider. The transaction checks again on the locked row.
+	if touchesUserOIDC(existing, req) && !api.authorizeUserOIDCMCPServerConfig(rw, r) {
+		return
+	}
+
 	// Validated here rather than via a struct tag because an empty
 	// string is a valid value that clears the stored URL.
 	if req.OAuth2RevocationURL != nil {
@@ -674,8 +643,24 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Plan on the unlocked row first, so that the network calls of a
+	// registration do not run while the row is locked.
+	w, err := planMCPServerConfigWrite(existing, req, customHeadersJSON)
+	if err != nil {
+		writeInvalidMCPServerAuth(ctx, rw, err)
+		return
+	}
+	var registration *mcpOAuth2Discovery
+	if w.registerFor != "" {
+		registration, err = api.registerMCPOAuth2Client(ctx, existing.ID, w.registerFor)
+		if err != nil {
+			writeMCPOAuth2RegistrationFailed(ctx, rw, err)
+			return
+		}
+	}
+
 	var updated database.MCPServerConfig
-	err := api.Database.InTx(func(tx database.Store) error {
+	err = api.Database.InTx(func(tx database.Store) error {
 		// Lock and re-fetch the row so omitted fields and the audit baseline
 		// match the row this update replaces, and so grant invalidation
 		// serializes with in-flight OAuth callbacks verifying the config.
@@ -687,18 +672,17 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		existing = current
 		aReq.Old = current
 
-		touchesUserOIDC := existing.AuthType == "user_oidc" ||
-			(req.AuthType != nil && *req.AuthType == "user_oidc")
-		if touchesUserOIDC && !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		if touchesUserOIDC(existing, req) && !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 			return errUserOIDCRequiresDeploymentPerms
 		}
 
-		next := applyMCPServerConfigChange(existing, req, customHeadersJSON)
-		if next.OAuth2ClientRegistration == string(codersdk.MCPServerOAuth2ClientRegistrationDynamic) && changesDynamicOAuth2Client(existing, req) {
-			next.OAuth2ClientRegistration = string(codersdk.MCPServerOAuth2ClientRegistrationManual)
+		w, err := planMCPServerConfigWrite(existing, req, customHeadersJSON)
+		if err != nil {
+			return err
 		}
-		if next.AuthType == "api_key" && (next.APIKeyHeader == "" || next.APIKeyValue == "") {
-			return errAPIKeyAuthRequiresHeaderAndValue
+		next, err := w.withRegistration(existing, req, registration)
+		if err != nil {
+			return err
 		}
 
 		if mcpOAuth2GrantBindingOf(next) != mcpOAuth2GrantBindingOf(existing) {
@@ -748,16 +732,20 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	}, nil)
 	if err != nil {
+		var authErr invalidMCPServerAuthError
 		switch {
 		case errors.Is(err, errUserOIDCRequiresDeploymentPerms):
 			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 				Message: "Managing user_oidc MCP server configs requires deployment-level permissions.",
 			})
 			return
-		case errors.Is(err, errAPIKeyAuthRequiresHeaderAndValue):
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "API key auth type requires api_key_header and api_key_value.",
+		case errors.Is(err, errMCPConfigChangedDuringRegistration):
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "MCP server config changed during OAuth2 client registration. Try again.",
 			})
+			return
+		case errors.As(err, &authErr):
+			writeInvalidMCPServerAuth(ctx, rw, authErr)
 			return
 		case httpapi.Is404Error(err):
 			httpapi.ResourceNotFound(rw)
@@ -889,6 +877,119 @@ func clearUnusedMCPServerAuthFields(c database.MCPServerConfig) database.MCPServ
 	return c
 }
 
+// mcpServerConfigWrite is the result of planning a write to an MCP server
+// config.
+type mcpServerConfigWrite struct {
+	// next is the config to store, without the client that a pending
+	// registration adds.
+	next database.MCPServerConfig
+	// registerFor is the server URL that a new dynamic OAuth2 client must
+	// be registered for, or "" when the write needs no registration.
+	registerFor string
+}
+
+// withRegistration returns the config to store. registration must be the
+// client registered for w.registerFor, or nil when w needs no client.
+func (w mcpServerConfigWrite) withRegistration(prev database.MCPServerConfig, req codersdk.UpdateMCPServerConfigRequest, registration *mcpOAuth2Discovery) (database.MCPServerConfig, error) {
+	var registeredFor string
+	if registration != nil {
+		registeredFor = registration.serverURL
+	}
+	if registeredFor != w.registerFor {
+		return database.MCPServerConfig{}, errMCPConfigChangedDuringRegistration
+	}
+	if registration == nil {
+		return w.next, nil
+	}
+	return applyOAuth2Registration(prev, w.next, req, registration), nil
+}
+
+// invalidMCPServerAuthError reports auth fields that make a config unusable.
+type invalidMCPServerAuthError struct {
+	message string
+}
+
+func (e invalidMCPServerAuthError) Error() string {
+	return e.message
+}
+
+func writeInvalidMCPServerAuth(ctx context.Context, rw http.ResponseWriter, err error) {
+	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		Message: err.Error(),
+	})
+}
+
+func writeMCPOAuth2RegistrationFailed(ctx context.Context, rw http.ResponseWriter, err error) {
+	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		Message: "OAuth2 auto-discovery failed. Set oauth2_client_registration to manual and provide oauth2_client_id, oauth2_auth_url, and oauth2_token_url, or ensure the MCP server supports RFC 9728 (Protected Resource Metadata), RFC 8414 (Authorization Server Metadata), and RFC 7591 (Dynamic Client Registration).",
+		Detail:  err.Error(),
+	})
+}
+
+// planMCPServerConfigWrite applies req to prev and decides whether the
+// result needs a new dynamic OAuth2 client. The client registration
+// method and the auth checks apply only when req sets an auth field, so
+// that a request such as an enabled toggle still works on a config with
+// invalid auth fields.
+func planMCPServerConfigWrite(prev database.MCPServerConfig, req codersdk.UpdateMCPServerConfigRequest, customHeadersJSON string) (mcpServerConfigWrite, error) {
+	next := applyMCPServerConfigChange(prev, req, customHeadersJSON)
+	if !setsMCPServerAuthField(req) {
+		return mcpServerConfigWrite{next: next}, nil
+	}
+
+	if next.AuthType == "oauth2" {
+		switch {
+		case req.OAuth2ClientRegistration != nil:
+			next.OAuth2ClientRegistration = string(*req.OAuth2ClientRegistration)
+		case next.OAuth2ClientID == "" && next.OAuth2AuthURL == "" && next.OAuth2TokenURL == "":
+			next.OAuth2ClientRegistration = string(codersdk.MCPServerOAuth2ClientRegistrationDynamic)
+		case next.OAuth2ClientRegistration == "":
+			next.OAuth2ClientRegistration = string(codersdk.MCPServerOAuth2ClientRegistrationManual)
+		}
+		if next.OAuth2ClientRegistration == string(codersdk.MCPServerOAuth2ClientRegistrationDynamic) && changesDynamicOAuth2Client(prev, req) {
+			return mcpServerConfigWrite{}, invalidMCPServerAuthError{
+				message: "Set oauth2_client_registration to manual to edit the OAuth2 client ID, client secret, auth URL, or token URL.",
+			}
+		}
+	}
+
+	registerFor := oauth2RegistrationKey(next)
+	if registerFor == oauth2RegistrationKey(prev) {
+		registerFor = ""
+	}
+	if registerFor == "" {
+		if err := validateMCPServerConfigAuth(next); err != nil {
+			return mcpServerConfigWrite{}, err
+		}
+	}
+	return mcpServerConfigWrite{next: next, registerFor: registerFor}, nil
+}
+
+func setsMCPServerAuthField(req codersdk.UpdateMCPServerConfigRequest) bool {
+	return req.AuthType != nil ||
+		req.URL != nil ||
+		req.OAuth2ClientRegistration != nil ||
+		req.OAuth2ClientID != nil ||
+		req.OAuth2ClientSecret != nil ||
+		req.OAuth2AuthURL != nil ||
+		req.OAuth2TokenURL != nil ||
+		req.OAuth2RevocationURL != nil ||
+		req.OAuth2Resource != nil ||
+		req.OAuth2Scopes != nil ||
+		req.APIKeyHeader != nil ||
+		req.APIKeyValue != nil ||
+		req.CustomHeaders != nil
+}
+
+// oauth2RegistrationKey returns the server URL that the dynamic OAuth2
+// client of c must be registered for, or "" when c has no dynamic client.
+func oauth2RegistrationKey(c database.MCPServerConfig) string {
+	if c.AuthType != "oauth2" || c.OAuth2ClientRegistration != string(codersdk.MCPServerOAuth2ClientRegistrationDynamic) {
+		return ""
+	}
+	return c.Url
+}
+
 // changesDynamicOAuth2Client reports whether req changes a field that
 // Coder owns for a dynamic OAuth2 client.
 func changesDynamicOAuth2Client(prev database.MCPServerConfig, req codersdk.UpdateMCPServerConfigRequest) bool {
@@ -899,6 +1000,92 @@ func changesDynamicOAuth2Client(prev database.MCPServerConfig, req codersdk.Upda
 		changes(req.OAuth2ClientSecret, prev.OAuth2ClientSecret) ||
 		changes(req.OAuth2AuthURL, prev.OAuth2AuthURL) ||
 		changes(req.OAuth2TokenURL, prev.OAuth2TokenURL)
+}
+
+// validateMCPServerConfigAuth checks that c has the credentials that its
+// auth type needs.
+func validateMCPServerConfigAuth(c database.MCPServerConfig) error {
+	switch c.AuthType {
+	case "oauth2":
+		if c.OAuth2ClientID == "" || c.OAuth2AuthURL == "" || c.OAuth2TokenURL == "" {
+			return invalidMCPServerAuthError{
+				message: "Manual OAuth2 client registration requires oauth2_client_id, oauth2_auth_url, and oauth2_token_url. Set oauth2_client_registration to dynamic for automatic discovery (RFC 7591).",
+			}
+		}
+	case "api_key":
+		if c.APIKeyHeader == "" || c.APIKeyValue == "" {
+			return invalidMCPServerAuthError{
+				message: "API key auth type requires api_key_header and api_key_value.",
+			}
+		}
+	case "custom_headers":
+		if c.CustomHeaders == "" || c.CustomHeaders == "{}" {
+			return invalidMCPServerAuthError{
+				message: "Custom headers auth type requires at least one custom header.",
+			}
+		}
+	}
+	return nil
+}
+
+// applyOAuth2Registration returns next with the client of registration.
+// For the scopes, resource, and revocation URL, the discovered value
+// wins unless req changes the field from prev to a non-empty value.
+func applyOAuth2Registration(prev, next database.MCPServerConfig, req codersdk.UpdateMCPServerConfigRequest, registration *mcpOAuth2Discovery) database.MCPServerConfig {
+	discoveredUnlessOverridden := func(v *string, prevValue, discovered string) string {
+		if v != nil {
+			if trimmed := strings.TrimSpace(*v); trimmed != "" && trimmed != prevValue {
+				return trimmed
+			}
+		}
+		return discovered
+	}
+
+	next.OAuth2ClientID = registration.clientID
+	next.OAuth2ClientSecret = registration.clientSecret
+	next.OAuth2ClientSecretKeyID = sql.NullString{}
+	next.OAuth2AuthURL = registration.authURL
+	next.OAuth2TokenURL = registration.tokenURL
+	next.OAuth2Scopes = discoveredUnlessOverridden(req.OAuth2Scopes, prev.OAuth2Scopes, registration.scopes)
+	next.OAuth2Resource = discoveredUnlessOverridden(req.OAuth2Resource, prev.OAuth2Resource, registration.resource)
+	next.OAuth2RevocationURL = discoveredUnlessOverridden(req.OAuth2RevocationURL, prev.OAuth2RevocationURL, registration.revocationURL)
+	return next
+}
+
+// mcpServerConfigChangeFromCreate returns req as an update that sets
+// every field, so that create plans its write against an empty config.
+func mcpServerConfigChangeFromCreate(req codersdk.CreateMCPServerConfigRequest) codersdk.UpdateMCPServerConfigRequest {
+	change := codersdk.UpdateMCPServerConfigRequest{
+		DisplayName:         &req.DisplayName,
+		Slug:                &req.Slug,
+		Description:         &req.Description,
+		IconURL:             &req.IconURL,
+		Transport:           &req.Transport,
+		URL:                 &req.URL,
+		AuthType:            &req.AuthType,
+		OAuth2ClientID:      &req.OAuth2ClientID,
+		OAuth2ClientSecret:  &req.OAuth2ClientSecret,
+		OAuth2AuthURL:       &req.OAuth2AuthURL,
+		OAuth2TokenURL:      &req.OAuth2TokenURL,
+		OAuth2RevocationURL: &req.OAuth2RevocationURL,
+		OAuth2Resource:      &req.OAuth2Resource,
+		OAuth2Scopes:        &req.OAuth2Scopes,
+		APIKeyHeader:        &req.APIKeyHeader,
+		APIKeyValue:         &req.APIKeyValue,
+		CustomHeaders:       &req.CustomHeaders,
+		ToolAllowList:       &req.ToolAllowList,
+		ToolDenyList:        &req.ToolDenyList,
+		Availability:        &req.Availability,
+		Enabled:             &req.Enabled,
+		ModelIntent:         &req.ModelIntent,
+		AllowInPlanMode:     &req.AllowInPlanMode,
+		ForwardCoderHeaders: &req.ForwardCoderHeaders,
+		SigningSecret:       &req.SigningSecret,
+	}
+	if req.OAuth2ClientRegistration != "" {
+		change.OAuth2ClientRegistration = &req.OAuth2ClientRegistration
+	}
+	return change
 }
 
 // mcpOAuth2GrantBinding holds the config fields that a stored user grant
@@ -1944,6 +2131,7 @@ func withTrailingSlash(path string) string {
 // mcpOAuth2Discovery holds the result of MCP OAuth2 auto-discovery
 // and Dynamic Client Registration.
 type mcpOAuth2Discovery struct {
+	serverURL     string // the MCP server URL the client is registered for
 	clientID      string
 	clientSecret  string
 	authURL       string
@@ -2270,6 +2458,7 @@ func (api *API) registerMCPOAuth2Client(ctx context.Context, configID uuid.UUID,
 			result.revocationURL = ""
 		}
 	}
+	result.serverURL = serverURL
 	return result, nil
 }
 

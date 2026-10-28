@@ -22553,6 +22553,15 @@
 				"oauth2_client_id": {
 					"type": "string"
 				},
+				"oauth2_client_registration": {
+					"description": "OAuth2ClientRegistration selects how Coder gets the OAuth2 client.\nWith \"dynamic\", Coder discovers the authorization server of URL and\nregisters a client (RFC 7591), so the client ID, client secret, auth\nURL, and token URL must be empty. With \"manual\", the client ID, auth\nURL, and token URL are required. When empty, Coder uses \"dynamic\" if\nthose three fields are empty, and \"manual\" otherwise.",
+					"enum": ["manual", "dynamic"],
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.MCPServerOAuth2ClientRegistration"
+						}
+					]
+				},
 				"oauth2_client_secret": {
 					"type": "string"
 				},
@@ -30537,6 +30546,15 @@
 				},
 				"oauth2_client_id": {
 					"type": "string"
+				},
+				"oauth2_client_registration": {
+					"description": "OAuth2ClientRegistration changes how Coder gets the OAuth2 client.\nWhen a request that sets the URL or an auth field omits it, Coder\nuses \"dynamic\" if the resulting config has no client ID, auth URL,\nand token URL, and keeps the stored value otherwise. Coder registers\na new client when the config becomes \"dynamic\" or when the URL of a\n\"dynamic\" config changes. A new client deletes the stored user\ntokens. A \"dynamic\" config rejects changes to the client ID, client\nsecret, auth URL, and token URL unless the request also sets\n\"manual\".",
+					"enum": ["manual", "dynamic"],
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.MCPServerOAuth2ClientRegistration"
+						}
+					]
 				},
 				"oauth2_client_secret": {
 					"type": "string"
