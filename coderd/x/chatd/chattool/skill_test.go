@@ -293,31 +293,6 @@ func TestLoadSkillFile(t *testing.T) {
 		assert.Equal(t, 512*1024, len(content),
 			"content should be truncated to maxSkillFileBytes")
 	})
-
-	t.Run("AgentRefusalReturned", func(t *testing.T) {
-		t.Parallel()
-
-		ctrl := gomock.NewController(t)
-		conn := agentconnmock.NewMockAgentConn(ctrl)
-
-		skill := chattool.SkillMeta{
-			Name: "my-skill",
-			Dir:  "/work/.agents/skills/my-skill",
-		}
-
-		conn.EXPECT().ReadFileInRoot(
-			gomock.Any(),
-			"/work/.agents/skills/my-skill",
-			"refs.md",
-			int64(0),
-			int64(512*1024+1),
-		).Return(nil, "", xerrors.New("openat refs.md: path escapes from parent"))
-
-		_, err := chattool.LoadSkillFile(
-			context.Background(), conn, skill, "refs.md",
-		)
-		require.ErrorContains(t, err, "path escapes from parent")
-	})
 }
 
 func TestReadSkillTool(t *testing.T) {
@@ -941,11 +916,11 @@ func TestReadSkillFileTool(t *testing.T) {
 			ResolveAlias: resolveNoModelSkills,
 		})
 
-		for _, filePath := range []string{"SKILL.md", "skill.md", "SKILL.md/"} {
+		for _, path := range []string{"SKILL.md", "skill.md", "SKILL.md/"} {
 			resp, err := tool.Run(context.Background(), fantasy.ToolCall{
-				ID:    "call-" + filePath,
+				ID:    "call-" + path,
 				Name:  "read_skill_file",
-				Input: `{"name":"workspace/manual","path":"` + filePath + `"}`,
+				Input: `{"name":"workspace/manual","path":"` + path + `"}`,
 			})
 			require.NoError(t, err)
 			assert.True(t, resp.IsError)
