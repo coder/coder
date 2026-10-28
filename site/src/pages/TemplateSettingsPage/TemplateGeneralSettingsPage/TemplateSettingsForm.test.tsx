@@ -15,11 +15,6 @@ const moduleCacheCheckbox = () =>
 		name: /disable terraform module caching/i,
 	});
 
-const requireActiveVersionCheckbox = () =>
-	screen.getByRole("checkbox", {
-		name: /require workspaces automatically update/i,
-	});
-
 const renderForm = (
 	overrides: Partial<Parameters<typeof TemplateSettingsForm>[0]> = {},
 ) => {
@@ -32,6 +27,7 @@ const renderForm = (
 				onCancel={vi.fn()}
 				isSubmitting={false}
 				accessControlEnabled
+				advancedSchedulingEnabled
 				portSharingControlsEnabled
 				canViewPremium
 				{...overrides}
@@ -127,29 +123,11 @@ describe("TemplateSettingsForm", () => {
 		});
 	});
 
-	describe("require_active_version", () => {
-		// The server only stores and enforces this setting with the
-		// access_control entitlement.
-		it("is disabled without access control", () => {
-			renderForm({
-				template: { ...MockTemplate, require_active_version: false },
-				accessControlEnabled: false,
-			});
-			expect(requireActiveVersionCheckbox()).toBeDisabled();
-		});
-
-		it("is enabled with access control", () => {
-			renderForm({
-				template: { ...MockTemplate, require_active_version: false },
-			});
-			expect(requireActiveVersionCheckbox()).toBeEnabled();
-		});
-	});
-
 	describe("Premium notices", () => {
 		it("link to the Premium page for users who can view licenses", () => {
 			renderForm({
 				accessControlEnabled: false,
+				advancedSchedulingEnabled: false,
 				portSharingControlsEnabled: false,
 			});
 
@@ -165,6 +143,7 @@ describe("TemplateSettingsForm", () => {
 		it("omit the link for users who cannot view licenses", () => {
 			renderForm({
 				accessControlEnabled: false,
+				advancedSchedulingEnabled: false,
 				portSharingControlsEnabled: false,
 				canViewPremium: false,
 			});

@@ -10,6 +10,7 @@ const meta: Meta<typeof TemplateSettingsPageView> = {
 	args: {
 		template: MockTemplate,
 		accessControlEnabled: true,
+		advancedSchedulingEnabled: true,
 		canViewPremium: true,
 		onCancel: action("onCancel"),
 	},
@@ -59,14 +60,14 @@ export const SaveTemplateSettingsError: Story = {
 export const NoEntitlements: Story = {
 	args: {
 		accessControlEnabled: false,
-		sharedPortControlsEnabled: false,
+		advancedSchedulingEnabled: false,
 	},
 };
 
 export const NoEntitlementsWithoutLicenseAccess: Story = {
 	args: {
 		accessControlEnabled: false,
-		sharedPortControlsEnabled: false,
+		advancedSchedulingEnabled: false,
 		canViewPremium: false,
 	},
 };
@@ -80,5 +81,6 @@ export const NoEntitlementsExpiredSettings: Story = {
 			require_active_version: true,
 		},
 		accessControlEnabled: false,
+		advancedSchedulingEnabled: false,
 	},
 };

@@ -24,6 +24,8 @@ const TemplateSettingsPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const { entitlements } = useDashboard();
 	const accessControlEnabled = entitlements.features.access_control.enabled;
+	const advancedSchedulingEnabled =
+		entitlements.features.advanced_template_scheduling.enabled;
 	const sharedPortControlsEnabled =
 		entitlements.features.control_shared_ports.enabled;
 
@@ -83,6 +85,7 @@ const TemplateSettingsPage: React.FC = () => {
 					});
 				}}
 				accessControlEnabled={accessControlEnabled}
+				advancedSchedulingEnabled={advancedSchedulingEnabled}
 				sharedPortControlsEnabled={sharedPortControlsEnabled}
 				canViewPremium={permissions.viewAllLicenses}
 			/>
