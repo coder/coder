@@ -93,7 +93,7 @@ describe("AgentSettingsMCPConnectionsPage", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("lists servers that need no sign-in after the OAuth2 servers", async () => {
+	it("adds connected and no-auth servers to the table and offers the rest as cards", async () => {
 		const mockRegistryMCP: TypesGen.MCPServerConfig = {
 			...MockMCPServerConfig,
 			id: "mcp-registry",
@@ -103,12 +103,35 @@ describe("AgentSettingsMCPConnectionsPage", () => {
 		setup(() => [mockRegistryMCP, mockGitHubMCP, mockNotionMCP]);
 		renderPage();
 
-		await screen.findByRole("button", { name: "Connect GitHub" });
-		const names = screen
+		const table = await screen.findByRole("table", {
+			name: `Added connectors in ${MockDefaultOrganization.display_name}`,
+		});
+		const names = within(table)
 			.getAllByRole("row")
 			.slice(1)
 			.map((row) => within(row).getAllByRole("cell")[0]?.textContent);
-		expect(names).toEqual(["GitHub", "Notion", "Registry"]);
+		expect(names).toEqual(["Notion", "Registry"]);
+		expect(
+			within(
+				screen.getByRole("region", { name: "Available connectors" }),
+			).getByRole("button", { name: "Connect GitHub" }),
+		).toBeInTheDocument();
+	});
+
+	it("jumps to the available connectors", async () => {
+		const user = userEvent.setup();
+		const scrollIntoView = vi.spyOn(HTMLElement.prototype, "scrollIntoView");
+		setup(() => [mockGitHubMCP, mockNotionMCP]);
+		renderPage();
+
+		await user.click(
+			await screen.findByRole("button", { name: "View 1 available" }),
+		);
+		const available = screen.getByRole("region", {
+			name: "Available connectors",
+		});
+		expect(scrollIntoView.mock.contexts).toEqual([available]);
+		expect(available).toHaveFocus();
 	});
 
 	it("connects through the organization's popup and refreshes the list when sign-in completes", async () => {
@@ -259,7 +282,7 @@ describe("AgentSettingsMCPConnectionsPage", () => {
 		renderPage({ organizationId: MockOrganization2.id });
 
 		await screen.findByRole("table", {
-			name: `MCP connections in ${MockOrganization2.display_name}`,
+			name: `Added connectors in ${MockOrganization2.display_name}`,
 		});
 		expect(getServers).toHaveBeenCalledWith(MockOrganization2.id);
 		expect(getServers).not.toHaveBeenCalledWith(MockDefaultOrganization.id);
@@ -283,7 +306,7 @@ describe("AgentSettingsMCPConnectionsPage", () => {
 		renderPage({ organizationId: "not-a-member-organization" });
 
 		await screen.findByRole("table", {
-			name: `MCP connections in ${MockDefaultOrganization.display_name}`,
+			name: `Added connectors in ${MockDefaultOrganization.display_name}`,
 		});
 		expect(getServers).toHaveBeenCalledWith(MockDefaultOrganization.id);
 	});

@@ -1,12 +1,13 @@
-import { useId } from "react";
+import { ArrowDownIcon } from "lucide-react";
+import { useId, useRef } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { OrganizationField } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { StatusIndicatorDot } from "#/components/StatusIndicator/StatusIndicator";
 import {
 	Table,
 	TableBody,
@@ -20,11 +21,6 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
 import { MCPServerIcon } from "#/modules/mcpServers/MCPServerIcon";
 import { RetryButton } from "../../components/RetryButton";
 import { SectionHeader } from "../../components/SectionHeader";
@@ -47,53 +43,13 @@ type AgentSettingsMCPConnectionsPageViewProps = {
 	onCancelDisconnect: () => void;
 };
 
-type ConnectionStatusProps = {
-	isConnecting: boolean;
-	isConnected: boolean;
-};
-
-const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
-	isConnecting,
-	isConnected,
-}) => {
-	let variant: "pending" | "success" | "inactive" = "inactive";
-	let label = "Not connected";
-	if (isConnecting) {
-		variant = "pending";
-		label = "Waiting for sign-in";
-	} else if (isConnected) {
-		variant = "success";
-		label = "Connected";
-	}
-
-	return (
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<StatusIndicatorDot
-					role="img"
-					aria-label={label}
-					variant={variant}
-					size="sm"
-				/>
-			</TooltipTrigger>
-			<TooltipContent>{label}</TooltipContent>
-		</Tooltip>
-	);
-};
-
-type ConnectionActionProps = {
+type AddedConnectorActionProps = {
 	server: TypesGen.MCPServerConfig;
-	isConnecting: boolean;
-	isConnectDisabled: boolean;
-	onConnect: (server: TypesGen.MCPServerConfig) => void;
 	onDisconnect: (server: TypesGen.MCPServerConfig) => void;
 };
 
-const ConnectionAction: React.FC<ConnectionActionProps> = ({
+const AddedConnectorAction: React.FC<AddedConnectorActionProps> = ({
 	server,
-	isConnecting,
-	isConnectDisabled,
-	onConnect,
 	onDisconnect,
 }) => {
 	if (server.auth_type !== "oauth2") {
@@ -104,49 +60,27 @@ const ConnectionAction: React.FC<ConnectionActionProps> = ({
 		);
 	}
 
-	if (server.auth_connected) {
-		return (
-			<Button
-				variant="outline"
-				size="sm"
-				aria-label={`Disconnect ${server.display_name}`}
-				onClick={() => onDisconnect(server)}
-			>
-				Disconnect
-			</Button>
-		);
-	}
-
-	const connectLabel = isConnecting ? "Connecting" : "Connect";
 	return (
 		<Button
 			variant="outline"
 			size="sm"
-			aria-label={`${connectLabel} ${server.display_name}`}
-			disabled={isConnectDisabled}
-			onClick={() => onConnect(server)}
+			aria-label={`Disconnect ${server.display_name}`}
+			onClick={() => onDisconnect(server)}
 		>
-			<Spinner loading={isConnecting} className="size-4" />
-			{connectLabel}
+			Disconnect
 		</Button>
 	);
 };
 
-type MCPConnectionRowProps = {
+type AddedConnectorRowProps = {
 	server: TypesGen.MCPServerConfig;
-	connectingServerId: string | null;
-	onConnect: (server: TypesGen.MCPServerConfig) => void;
 	onDisconnect: (server: TypesGen.MCPServerConfig) => void;
 };
 
-const MCPConnectionRow: React.FC<MCPConnectionRowProps> = ({
+const AddedConnectorRow: React.FC<AddedConnectorRowProps> = ({
 	server,
-	connectingServerId,
-	onConnect,
 	onDisconnect,
 }) => {
-	const isConnecting = connectingServerId === server.id;
-
 	return (
 		<TableRow>
 			<TableCell className="w-full max-w-0 @lg:w-auto @lg:max-w-48">
@@ -165,30 +99,65 @@ const MCPConnectionRow: React.FC<MCPConnectionRowProps> = ({
 					<span className="text-content-disabled">No description</span>
 				)}
 			</TableCell>
-			<TableCell className="hidden whitespace-nowrap @2xl:table-cell">
-				{server.auth_type === "oauth2" && (
-					<ConnectionStatus
-						isConnecting={isConnecting}
-						isConnected={server.auth_connected}
-					/>
-				)}
-			</TableCell>
 			<TableCell className="text-right">
-				<ConnectionAction
-					server={server}
-					isConnecting={isConnecting}
-					isConnectDisabled={connectingServerId !== null}
-					onConnect={onConnect}
-					onDisconnect={onDisconnect}
-				/>
+				<AddedConnectorAction server={server} onDisconnect={onDisconnect} />
 			</TableCell>
 		</TableRow>
 	);
 };
 
+type AvailableConnectorCardProps = {
+	server: TypesGen.MCPServerConfig;
+	connectingServerId: string | null;
+	onConnect: (server: TypesGen.MCPServerConfig) => void;
+};
+
+const AvailableConnectorCard: React.FC<AvailableConnectorCardProps> = ({
+	server,
+	connectingServerId,
+	onConnect,
+}) => {
+	const isConnecting = connectingServerId === server.id;
+	const connectLabel = isConnecting ? "Connecting" : "Connect";
+
+	return (
+		<li className="flex min-w-0 flex-col gap-3 rounded-lg border border-solid border-border p-4">
+			<div className="flex min-w-0 items-center gap-3">
+				<MCPServerIcon iconUrl={server.icon_url} className="size-8" />
+				<span
+					className="truncate font-medium text-content-primary"
+					title={server.display_name}
+				>
+					{server.display_name}
+				</span>
+			</div>
+			<p
+				className="m-0 line-clamp-2 text-sm text-content-secondary"
+				title={server.description || undefined}
+			>
+				{server.description || (
+					<span className="text-content-disabled">No description</span>
+				)}
+			</p>
+			<Button
+				variant="outline"
+				size="sm"
+				className="mt-auto self-end"
+				aria-label={`${connectLabel} ${server.display_name}`}
+				disabled={connectingServerId !== null}
+				onClick={() => onConnect(server)}
+			>
+				<Spinner loading={isConnecting} className="size-4" />
+				{connectLabel}
+			</Button>
+		</li>
+	);
+};
+
 /**
- * Rows list the enabled servers, OAuth2 ones first; only those offer Connect
- * or Disconnect.
+ * The table lists the enabled servers a chat can use now: connected OAuth2
+ * servers first, then the ones that need no sign-in. The remaining OAuth2
+ * servers are cards below it, each with Connect.
  * `onDisconnect` should set `disconnectTarget`, which opens the confirmation,
  * and while `connectingServerId` is set, every Connect button is disabled.
  */
@@ -212,22 +181,42 @@ export const AgentSettingsMCPConnectionsPageView: React.FC<
 	onCancelDisconnect,
 }) => {
 	const organizationFieldId = useId();
+	const availableSectionRef = useRef<HTMLElement>(null);
 	const organizationName = organization
 		? organization.display_name || organization.name
 		: "your organization";
-	const emptyMessage = organization
-		? `No MCP servers in ${organizationName}`
-		: "You are not a member of any organization";
 
 	const enabledServers = servers?.filter((server) => server.enabled) ?? [];
-	const rows = [
-		...enabledServers.filter((server) => server.auth_type === "oauth2"),
+	const addedServers = [
+		...enabledServers.filter(
+			(server) => server.auth_type === "oauth2" && server.auth_connected,
+		),
 		...enabledServers.filter((server) => server.auth_type !== "oauth2"),
 	];
+	const availableServers = enabledServers.filter(
+		(server) => server.auth_type === "oauth2" && !server.auth_connected,
+	);
 	const failedFirstLoad = Boolean(error) && servers === undefined;
+	const showCounts = !isLoading && enabledServers.length > 0;
+
+	let emptyMessage = "Connect a server below to add it to chat";
+	if (!organization) {
+		emptyMessage = "You are not a member of any organization";
+	} else if (enabledServers.length === 0) {
+		emptyMessage = `No MCP servers in ${organizationName}`;
+	}
+
+	const showAvailableServers = () => {
+		const section = availableSectionRef.current;
+		if (!section) {
+			return;
+		}
+		section.scrollIntoView({ behavior: "smooth", block: "start" });
+		section.focus({ preventScroll: true });
+	};
 
 	return (
-		<div className="flex flex-col gap-8">
+		<div className="flex flex-col gap-8 @container">
 			<SectionHeader
 				label="MCP connections"
 				description="Sign in to the MCP servers your organization offers. Connected servers appear in the chat's + menu under MCP servers, where you turn them on for each chat."
@@ -257,59 +246,103 @@ export const AgentSettingsMCPConnectionsPageView: React.FC<
 				/>
 			)}
 			{!failedFirstLoad && (
-				<Table
-					aria-label={`MCP connections in ${organizationName}`}
-					// Beside the settings sidebar the table is far narrower than the
-					// viewport, so the columns follow the wrapper, not the screen.
-					wrapperClassName="@container"
+				<section aria-label="Added connectors" className="flex flex-col gap-4">
+					<SectionHeader
+						level="section"
+						label="Added connectors"
+						badge={
+							showCounts && (
+								<Badge size="sm">
+									{addedServers.length} of {enabledServers.length}
+								</Badge>
+							)
+						}
+						description="Servers you've connected, plus ones that need no sign-in. They appear in the chat's + menu."
+						action={
+							showCounts &&
+							availableServers.length > 0 && (
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={showAvailableServers}
+								>
+									View {availableServers.length} available
+									<ArrowDownIcon />
+								</Button>
+							)
+						}
+					/>
+					<Table
+						aria-label={`Added connectors in ${organizationName}`}
+						// Beside the settings sidebar the table is far narrower than the
+						// viewport, so the columns follow the wrapper, not the screen.
+						wrapperClassName="@container"
+					>
+						<TableHeader>
+							<TableRow>
+								<TableHead className="whitespace-nowrap">Name</TableHead>
+								<TableHead className="hidden w-full @lg:table-cell">
+									Description
+								</TableHead>
+								<TableHead>
+									<span className="sr-only">Actions</span>
+								</TableHead>
+							</TableRow>
+						</TableHeader>
+						<TableBody size="lg">
+							{isLoading ? (
+								<TableLoaderSkeleton>
+									<TableRowSkeleton aria-label="Loading MCP servers">
+										<TableCell className="w-full max-w-0 @lg:w-auto @lg:max-w-48">
+											<Skeleton variant="text" className="w-32" />
+										</TableCell>
+										<TableCell className="hidden w-full max-w-0 @lg:table-cell">
+											<Skeleton variant="text" />
+										</TableCell>
+										<TableCell>
+											<Skeleton className="ml-auto h-8 w-24" />
+										</TableCell>
+									</TableRowSkeleton>
+								</TableLoaderSkeleton>
+							) : addedServers.length === 0 ? (
+								<TableEmpty message={emptyMessage} />
+							) : (
+								addedServers.map((server) => (
+									<AddedConnectorRow
+										key={server.id}
+										server={server}
+										onDisconnect={onDisconnect}
+									/>
+								))
+							)}
+						</TableBody>
+					</Table>
+				</section>
+			)}
+			{!isLoading && availableServers.length > 0 && (
+				<section
+					ref={availableSectionRef}
+					aria-label="Available connectors"
+					tabIndex={-1}
+					className="flex scroll-mt-8 flex-col gap-4 outline-none"
 				>
-					<TableHeader>
-						<TableRow>
-							<TableHead className="whitespace-nowrap">Name</TableHead>
-							<TableHead className="hidden w-full @lg:table-cell">
-								Description
-							</TableHead>
-							<TableHead className="hidden whitespace-nowrap @2xl:table-cell">
-								Status
-							</TableHead>
-							<TableHead>
-								<span className="sr-only">Actions</span>
-							</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody size="lg">
-						{isLoading ? (
-							<TableLoaderSkeleton>
-								<TableRowSkeleton aria-label="Loading MCP servers">
-									<TableCell className="w-full max-w-0 @lg:w-auto @lg:max-w-48">
-										<Skeleton variant="text" className="w-32" />
-									</TableCell>
-									<TableCell className="hidden w-full max-w-0 @lg:table-cell">
-										<Skeleton variant="text" />
-									</TableCell>
-									<TableCell className="hidden @2xl:table-cell">
-										<Skeleton variant="text" className="w-24" />
-									</TableCell>
-									<TableCell>
-										<Skeleton className="ml-auto h-8 w-24" />
-									</TableCell>
-								</TableRowSkeleton>
-							</TableLoaderSkeleton>
-						) : rows.length === 0 ? (
-							<TableEmpty message={emptyMessage} />
-						) : (
-							rows.map((server) => (
-								<MCPConnectionRow
-									key={server.id}
-									server={server}
-									connectingServerId={connectingServerId}
-									onConnect={onConnect}
-									onDisconnect={onDisconnect}
-								/>
-							))
-						)}
-					</TableBody>
-				</Table>
+					<SectionHeader
+						level="section"
+						label="Available connectors"
+						badge={<Badge size="sm">{availableServers.length}</Badge>}
+						description="Servers your organization offers. Connect to one to add it to chat."
+					/>
+					<ul className="m-0 grid list-none grid-cols-1 gap-3 p-0 @lg:grid-cols-2 @3xl:grid-cols-3">
+						{availableServers.map((server) => (
+							<AvailableConnectorCard
+								key={server.id}
+								server={server}
+								connectingServerId={connectingServerId}
+								onConnect={onConnect}
+							/>
+						))}
+					</ul>
+				</section>
 			)}
 			<ConfirmDialog
 				open={disconnectTarget !== null}

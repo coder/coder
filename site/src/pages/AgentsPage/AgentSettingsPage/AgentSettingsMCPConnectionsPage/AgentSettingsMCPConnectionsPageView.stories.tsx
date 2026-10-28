@@ -45,12 +45,21 @@ const mockRegistryMCP: TypesGen.MCPServerConfig = {
 	auth_type: "api_key",
 	auth_connected: true,
 };
+const mockWizMCP: TypesGen.MCPServerConfig = {
+	...MockMCPServerConfig,
+	id: "mcp-wiz",
+	display_name: "Wiz",
+	description:
+		"Query Wiz cloud security data with your own Wiz account (requires a Wiz service account with read access to issues, vulnerabilities and inventory)",
+	auth_type: "oauth2",
+};
 const mockServers = [
 	mockCoderMCP,
 	mockGitHubMCP,
 	mockGranolaMCP,
 	mockImageMCP,
 	mockRegistryMCP,
+	mockWizMCP,
 ];
 
 const meta = {
@@ -108,6 +117,18 @@ export const NarrowContainer: Story = {
 			</div>
 		),
 	],
+};
+
+export const AllAdded: Story = {
+	args: {
+		servers: [mockGitHubMCP, mockImageMCP, mockRegistryMCP],
+	},
+};
+
+export const NoneAdded: Story = {
+	args: {
+		servers: [mockCoderMCP, mockGranolaMCP, mockWizMCP],
+	},
 };
 
 export const Loading: Story = {
