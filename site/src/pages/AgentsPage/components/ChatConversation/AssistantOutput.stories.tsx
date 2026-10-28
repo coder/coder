@@ -194,7 +194,11 @@ export const StreamingThinkingHeading: Story = {
 
 /** Text that resumes after Thinking showed keeps the activity row's height. */
 export const ResumedResponseHoldsActivityRow: Story = {
-	args: responseStreamState,
+	// A trailing citation row must not release the held row.
+	args: buildStreamRenderState([
+		{ type: "text", text: "The answer is streaming." },
+		{ type: "source", url: "https://coder.com/docs", title: "Coder docs" },
+	]),
 	render: function ResumedResponseHoldsActivityRowRender(args) {
 		// The row is held only after Thinking has rendered, so the first render is
 		// quiet.
