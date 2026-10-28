@@ -718,7 +718,7 @@ const AgentChatPage: React.FC = () => {
 			workspaceUploads,
 			editedMessageID,
 			composerParts:
-				composerParts ?? editing.chatInputRef.current?.getContentParts() ?? [],
+				composerParts ?? editing.chatInputRef.current?.getContentParts(),
 		});
 	}
 

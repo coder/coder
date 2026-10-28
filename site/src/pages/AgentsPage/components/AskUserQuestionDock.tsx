@@ -47,12 +47,10 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 	}, [questionKey]);
 
 	return (
-		// The stable scrollbar gutter matches the chat input's wrapper, so the
-		// panel lines up with the input where scrollbars take up space.
-		// `hidden` wins over `flex` only through Tailwind preflight's
-		// `[hidden]` rule.
 		<div
+			// `hidden` wins over `flex` only through Tailwind preflight's `[hidden]` rule.
 			hidden={queuedAnswerText !== undefined}
+			// A stable scrollbar gutter, as on the chat input's wrapper, keeps the two aligned.
 			className="flex min-h-0 flex-col overflow-y-auto px-4 scrollbar-gutter-stable scrollbar-thin"
 		>
 			{/* Shrinks before the chat input does, so a long question set never

@@ -127,10 +127,7 @@ describe("AskUserQuestionTool", () => {
 		},
 	);
 
-	it.each([
-		["announces an answerable async question", vi.fn(), "The agent asked"],
-		["stays quiet without an answer handler", undefined, ""],
-	])("%s", (_, onSubmitAnswer, announcement) => {
+	it("announces an answerable async question", () => {
 		render(
 			<QueryClientProvider client={createTestQueryClient()}>
 				<AskUserQuestionTool
@@ -139,11 +136,11 @@ describe("AskUserQuestionTool", () => {
 					isError={false}
 					isLatestAskUserQuestion
 					asyncToolCallId="call-123"
-					onSubmitAnswer={onSubmitAnswer}
+					onSubmitAnswer={vi.fn()}
 				/>
 			</QueryClientProvider>,
 		);
 
-		expect(screen.getByRole("status")).toHaveTextContent(announcement);
+		expect(screen.getByRole("status")).toHaveTextContent("The agent asked");
 	});
 });

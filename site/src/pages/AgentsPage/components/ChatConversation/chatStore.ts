@@ -857,6 +857,8 @@ export const useChatMessages = (store: ChatStore): TypesGen.ChatMessage[] => {
 /**
  * The queue plus the promoted messages that the transcript does not have
  * yet, for callers that must not lose a message while its promote runs.
+ * A selector cannot build this list: useSyncExternalStore needs a stable
+ * snapshot.
  */
 export const useUndeliveredQueuedMessages = (
 	store: ChatStore,

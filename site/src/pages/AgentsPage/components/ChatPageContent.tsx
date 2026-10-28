@@ -83,7 +83,7 @@ import {
 	ACPContext,
 	buildACPSessionDescriptors,
 } from "./ChatElements/tools/ACPContext";
-import { isAsyncAnswerPrompt } from "./ChatElements/tools/asyncAnswer";
+import { asyncAnswerLead } from "./ChatElements/tools/asyncAnswer";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import { ChatMessageScroller } from "./ChatMessageScroller";
 import { getWorkspaceOptionsWithLinkedWorkspace } from "./workspaceOptions";
@@ -460,12 +460,13 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	const messages = useChatMessages(store);
 	// Source the composer's prompt-history cycle from the dedicated /prompts endpoint.
 	const { data: promptsData } = useQuery(chatPromptsQuery(chatId));
-	// An async answer names its call in its first line, so sending it again
-	// would answer that call again.
+	// Sending an async answer again would answer its call again. The history
+	// joins text parts, which drops the line break after the call ID when a
+	// chip followed it, so only the start of the line is matched.
 	const userPromptHistory: readonly string[] =
 		promptsData?.prompts
 			.map((prompt) => prompt.text)
-			.filter((text) => !isAsyncAnswerPrompt(text)) ?? [];
+			.filter((text) => !text.startsWith(asyncAnswerLead)) ?? [];
 
 	const rawUsage = getLatestContextUsage(
 		messages,

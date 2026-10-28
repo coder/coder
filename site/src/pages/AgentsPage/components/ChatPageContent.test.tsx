@@ -34,7 +34,10 @@ import {
 	MockQueuedQuestionAnswer,
 	workingFixtureTime,
 } from "./ChatConversation/storyFixtures";
-import { getAsyncAnswerPrefix } from "./ChatElements/tools/asyncAnswer";
+import {
+	asyncAnswerLead,
+	getAsyncAnswerPrefix,
+} from "./ChatElements/tools/asyncAnswer";
 import { ChatPageInput, ChatPageTimeline } from "./ChatPageContent";
 
 const renderChatPageInput = (
@@ -176,6 +179,8 @@ describe("ChatPageInput", () => {
 		const user = userEvent.setup();
 		vi.spyOn(API.experimental, "getChatPrompts").mockResolvedValue({
 			prompts: [
+				// A chip after the call line drops its line break from the history.
+				{ id: 3, text: `${asyncAnswerLead}call-2:on the rollout plan.` },
 				{ id: 2, text: `${getAsyncAnswerPrefix("call-1")}Frontend` },
 				{ id: 1, text: "Build the settings page" },
 			],
@@ -359,6 +364,7 @@ describe("ChatPageTimeline question dock", () => {
 				region.textContent?.includes("The agent asked a question"),
 			);
 		expect(announcements).toHaveLength(1);
+		// The count alone would pass if the dock announced instead of the card.
 		expect(getQuestionDock().contains(announcements[0])).toBe(false);
 	});
 

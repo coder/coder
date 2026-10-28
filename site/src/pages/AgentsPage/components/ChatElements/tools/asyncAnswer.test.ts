@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-	getAsyncAnswerPrefix,
-	isAsyncAnswerPrompt,
-	parseAsyncAnswer,
-} from "./asyncAnswer";
+import { getAsyncAnswerPrefix, parseAsyncAnswer } from "./asyncAnswer";
 
 describe("parseAsyncAnswer", () => {
 	// Providers choose call IDs, so they may contain colons or spaces.
@@ -37,14 +33,5 @@ describe("parseAsyncAnswer", () => {
 		["a different lead", "Answer to question call toolu_123:\nyes"],
 	])("leaves %s alone", (_, text) => {
 		expect(parseAsyncAnswer(text)).toBeUndefined();
-	});
-});
-
-describe("isAsyncAnswerPrompt", () => {
-	it.each([
-		`${getAsyncAnswerPrefix("toolu_123")}Frontend`,
-		"Answer to ask_user_question call toolu_123:on the rollout plan.",
-	])("matches the answer %j", (text) => {
-		expect(isAsyncAnswerPrompt(text)).toBe(true);
 	});
 });

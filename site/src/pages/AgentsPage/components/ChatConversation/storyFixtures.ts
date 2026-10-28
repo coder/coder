@@ -128,11 +128,7 @@ export const buildQuestionTimelineArgs = (
 	};
 };
 
-/**
- * The question state of a transcript without questions: no latest or open
- * question and no answers. It is derived, not written out, so stories get
- * the shape that the page derives.
- */
+/** Derived, not written out, so stories get the shape that the page derives. */
 export const MockEmptyQuestionState = deriveAskUserQuestionState([], [], []);
 
 /**

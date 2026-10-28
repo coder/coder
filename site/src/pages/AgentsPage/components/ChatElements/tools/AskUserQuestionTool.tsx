@@ -4,7 +4,7 @@ import {
 	MessageCircleQuestionIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useMutation } from "react-query";
 import { Button } from "#/components/Button/Button";
@@ -418,61 +418,40 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	// Next confirms every question before the one it opens, so Back does not
 	// lower the answered count.
 	const [answeredQuestionCount, setAnsweredQuestionCount] = useState(0);
-	const [submittedResponseText, setSubmittedResponseText] = useState<
-		string | null
-	>(null);
-	// Records that the queue or transcript showed the answer while it was
-	// being sent. The send then keeps no local copy, which would bring back
-	// an answer that the user removed from the queue, and no error, which
-	// would describe an answer that the server took.
-	const hasShownAnswerRef = useRef(false);
+	// Set once the queue or transcript shows the answer. After that, the sent
+	// copy would bring back an answer removed from the queue, and a send error
+	// would describe an answer the server took, so neither shows.
+	const [hasShownAnswer, setHasShownAnswer] = useState(false);
 	const submitAnswerMutation = useMutation({
 		mutationFn: async (answerText: string) => {
-			hasShownAnswerRef.current = false;
 			await onSubmitAnswer?.(
 				isAsync
 					? getAsyncAnswerPrefix(asyncToolCallId) + answerText
 					: answerText,
 			);
 		},
-		onSuccess: (_data, answerText) => {
-			if (!hasShownAnswerRef.current) {
-				setSubmittedResponseText(answerText);
-			}
-		},
 	});
-	const { isError: hasSubmitError, reset: resetSubmitAnswer } =
-		submitAnswerMutation;
 	const isRunning = status === "running";
-	const asyncAnswer =
-		previousResponseText === undefined
-			? undefined
-			: parseAsyncAnswer(previousResponseText);
-	const answeredResponseText = isAsync
-		? asyncAnswer?.toolCallId === asyncToolCallId
-			? asyncAnswer.body
-			: undefined
-		: previousResponseText;
-	useEffect(() => {
-		if (answeredResponseText !== undefined) {
-			hasShownAnswerRef.current = true;
-		}
-		if (hasShownAnswerRef.current && hasSubmitError) {
-			resetSubmitAnswer();
-		}
-	}, [answeredResponseText, hasSubmitError, resetSubmitAnswer]);
-	// An async answer can leave the queue without being delivered, so the
-	// local copy only bridges the send until the queue or transcript has it.
-	if (
-		isAsync &&
-		submittedResponseText !== null &&
-		answeredResponseText !== undefined
-	) {
-		setSubmittedResponseText(null);
+
+	let answeredResponseText = previousResponseText;
+	if (isAsync && previousResponseText !== undefined) {
+		const asyncAnswer = parseAsyncAnswer(previousResponseText);
+		answeredResponseText =
+			asyncAnswer?.toolCallId === asyncToolCallId
+				? asyncAnswer.body
+				: undefined;
 	}
+	if (answeredResponseText !== undefined && !hasShownAnswer) {
+		setHasShownAnswer(true);
+	}
+
+	const sentResponseText =
+		submitAnswerMutation.isSuccess && !hasShownAnswer
+			? submitAnswerMutation.variables
+			: undefined;
 	const displayedSubmittedResponseText =
-		answeredResponseText ?? submittedResponseText;
-	const hasSubmittedResponse = displayedSubmittedResponseText != null;
+		answeredResponseText ?? sentResponseText;
+	const hasSubmittedResponse = displayedSubmittedResponseText !== undefined;
 	const showAnsweredState = status === "completed" && hasSubmittedResponse;
 	const showSubmittedResponse = showAnsweredState && isLatestAskUserQuestion;
 	const activeQuestionIndex = Math.min(
@@ -502,12 +481,9 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 		</span>
 	);
 	const isSubmitting = submitAnswerMutation.isPending;
-	// A send can fail after the server took the answer, so the error shows
-	// only until the transcript or queue has an answer.
-	const submitError =
-		answeredResponseText === undefined
-			? getSubmissionErrorMessage(submitAnswerMutation.error)
-			: undefined;
+	const submitError = hasShownAnswer
+		? undefined
+		: getSubmissionErrorMessage(submitAnswerMutation.error);
 	const canAdvanceToNextQuestion = isAnswerValid(currentAnswer);
 	const canSubmitAllAnswers = filteredQuestions.every((_, questionIndex) =>
 		isAnswerValid(answers[questionIndex]),
@@ -618,6 +594,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 			finalizedAnswers,
 		);
 		resetSubmitState();
+		setHasShownAnswer(false);
 		submitAnswerMutation.mutate(answerText);
 	};
 
