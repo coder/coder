@@ -29,6 +29,34 @@ describe("getContextInventory", () => {
 		expect(result.skills).toHaveLength(1);
 		expect(result.issues).toHaveLength(4);
 	});
+	it("keeps ACP harnesses separate from MCP configs, named by slug in their source directory", () => {
+		const result = getContextInventory({
+			dirty: false,
+			resources: [
+				{
+					kind: "acp_harness",
+					source: "claude-code",
+					source_path: "/home/coder/.coder/acp",
+					status: "ok",
+					size_bytes: 120,
+				},
+				{ kind: "acp_harness", source: "codex", status: "ok", size_bytes: 0 },
+				{
+					kind: "acp_harness",
+					source: "broken",
+					status: "invalid",
+					size_bytes: 0,
+					error: "cannot start harness",
+				},
+			],
+		});
+		expect(result.configs).toEqual([]);
+		expect(result.harnesses.map(({ name, dir }) => ({ name, dir }))).toEqual([
+			{ name: "claude-code", dir: "/home/coder/.coder/acp" },
+			{ name: "codex", dir: "" },
+		]);
+		expect(result.issues.map(({ name }) => name)).toEqual(["broken"]);
+	});
 	it("counts zero-tool and failed MCP servers, not configs or tools", () => {
 		const result = getContextInventory({
 			dirty: false,

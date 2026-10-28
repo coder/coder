@@ -1,8 +1,8 @@
 import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
 import { useId, useLayoutEffect, useRef, useState } from "react";
-import { useQuery } from "react-query";
-import { chat, chatCost } from "#/api/queries/chats";
+import { useQuery, useQueryClient } from "react-query";
+import { chat, chatAttachments, chatCost } from "#/api/queries/chats";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import {
@@ -19,7 +19,9 @@ import { getChatCostTreeID } from "./ChatConversation/chatHelpers";
 import { type ChatStore, useChatMessages } from "./ChatConversation/chatStore";
 import {
 	deriveEvictedFileIds,
-	getLoadedAgentAttachments,
+	getEarlierMessageAttachments,
+	getMessageAttachments,
+	partFileIds,
 } from "./ChatConversation/messageHelpers";
 import {
 	ContextResourceGroups,
@@ -33,7 +35,7 @@ import type { AgentContextUsage } from "./ContextUsageIndicator";
 
 type ChatDetailsPanelProps = {
 	chatId: string;
-	/** Gate reads on tab visibility so hidden Details does not fetch chat or cost. */
+	/** Gate reads on tab visibility so hidden Details does not fetch chat, cost, or attachments. */
 	isVisible: boolean;
 	usage: AgentContextUsage | null;
 	onApplyContext?: () => void;
@@ -43,22 +45,9 @@ type ChatDetailsPanelProps = {
 	workspaceStatus?: string;
 	focusRef?: React.RefObject<HTMLDivElement | null>;
 	store: ChatStore;
-} & Pick<
-	EarlierMessagesProps,
-	| "hasMoreMessages"
-	| "isFetchingMoreMessages"
-	| "isHydratingMessages"
-	| "hasFetchMoreError"
-	| "onFetchMoreMessages"
->;
+} & Pick<EarlierMessagesProps, "hasMoreMessages" | "isHydratingMessages">;
 
-type AttachmentProps =
-	| "store"
-	| "hasMoreMessages"
-	| "isFetchingMoreMessages"
-	| "isHydratingMessages"
-	| "hasFetchMoreError"
-	| "onFetchMoreMessages";
+type AttachmentProps = "store" | "hasMoreMessages" | "isHydratingMessages";
 
 export const ChatDetailsPanel: React.FC<ChatDetailsPanelProps> = ({
 	chatId,
@@ -66,12 +55,10 @@ export const ChatDetailsPanel: React.FC<ChatDetailsPanelProps> = ({
 	focusRef,
 	store,
 	hasMoreMessages,
-	isFetchingMoreMessages,
 	isHydratingMessages,
-	hasFetchMoreError,
-	onFetchMoreMessages,
 	...props
 }) => {
+	const queryClient = useQueryClient();
 	const showCost = Boolean(useFeatureVisibility().aibridge);
 	const chatQuery = useQuery({ ...chat(chatId), enabled: isVisible });
 	const chatData = chatQuery.data;
@@ -99,17 +86,62 @@ export const ChatDetailsPanel: React.FC<ChatDetailsPanelProps> = ({
 		);
 	else if (chatQuery.isError) summary = <ErrorAlert error={chatQuery.error} />;
 	const messages = useChatMessages(store);
+	const oldestLoadedMessageId = messages.at(0)?.id;
+	const earlierAttachmentsQuery = useQuery({
+		...chatAttachments(queryClient, chatId, oldestLoadedMessageId),
+		enabled: isVisible && hasMoreMessages,
+	});
+	// The final transcript page clears hasMoreMessages before the store holds
+	// its messages, so the cached list covers them until hydration catches up.
+	const earlierAttachments =
+		(hasMoreMessages || isHydratingMessages) && earlierAttachmentsQuery.data
+			? getEarlierMessageAttachments(earlierAttachmentsQuery.data.attachments)
+			: [];
+	// A retry clears the error of a query with no data, so keep the retried
+	// error until the retry settles, unless older messages have loaded since
+	// and moved the query to a new `beforeId`.
+	const [retriedFailure, setRetriedFailure] = useState<{
+		beforeId: number | undefined;
+		error: unknown;
+	}>();
+	const retriedError =
+		retriedFailure && retriedFailure.beforeId === oldestLoadedMessageId
+			? retriedFailure.error
+			: null;
+	const earlierAttachmentsError =
+		hasMoreMessages && !earlierAttachmentsQuery.data
+			? (earlierAttachmentsQuery.error ?? retriedError)
+			: null;
+	const isLoadingEarlierAttachments =
+		hasMoreMessages &&
+		!earlierAttachmentsQuery.data &&
+		!earlierAttachmentsError;
 	const attachments = (
 		<ChatAttachments
-			attachments={getLoadedAgentAttachments(messages, isHydratingMessages)}
+			// Gating on isHydratingMessages alone would blank the list on every
+			// live message.
+			attachments={
+				isHydratingMessages && messages.length === 0
+					? undefined
+					: [...getMessageAttachments(messages), ...earlierAttachments]
+			}
 			evictedFileIds={deriveEvictedFileIds(
 				messages.map((message) => ({ message })),
 				chatData?.files,
+				earlierAttachments.flatMap(({ file }) => partFileIds(file)),
 			)}
-			hasMoreMessages={hasMoreMessages}
-			isFetchingMoreMessages={isFetchingMoreMessages}
-			hasFetchMoreError={hasFetchMoreError}
-			onFetchMoreMessages={onFetchMoreMessages}
+			isLoadingEarlierAttachments={isLoadingEarlierAttachments}
+			earlierAttachmentsError={earlierAttachmentsError}
+			isRetrying={earlierAttachmentsQuery.isFetching}
+			onRetry={() => {
+				setRetriedFailure({
+					beforeId: oldestLoadedMessageId,
+					error: earlierAttachmentsError,
+				});
+				void earlierAttachmentsQuery
+					.refetch()
+					.finally(() => setRetriedFailure(undefined));
+			}}
 		/>
 	);
 	return (
@@ -240,6 +272,9 @@ const DetailsSections: React.FC<
 			applyHadFocus.current = false;
 		}
 	}, [showApply]);
+	const harnessIssues = inventory.issues.filter(
+		({ resource }) => resource.kind === "acp_harness",
+	);
 	const staleWorkspace =
 		workspaceStatus && !["running", "connected"].includes(workspaceStatus);
 	return (
@@ -395,6 +430,16 @@ const DetailsSections: React.FC<
 						)}
 					/>
 				</DetailsSection>
+				{(inventory.harnesses.length > 0 || harnessIssues.length > 0) && (
+					<DetailsSection
+						title="ACP harnesses"
+						count={`${inventory.harnesses.length} ${inventory.harnesses.length === 1 ? "harness" : "harnesses"}`}
+						warning={harnessIssues.length > 0}
+					>
+						<ContextResourceGroups items={inventory.harnesses} kind="harness" />
+						<ContextResourceIssues items={harnessIssues} />
+					</DetailsSection>
+				)}
 			</div>
 			<div className="border-0 border-t border-solid border-border p-4">
 				{attachments}

@@ -34,6 +34,10 @@ const createMockChatInputHandle = (initialValue = ""): MockChatInputHandle => {
 			focus,
 			getValue,
 			addFileReference: vi.fn(),
+			insertSkill: vi.fn(),
+			removeSkills: vi.fn(),
+			getEditorState: vi.fn(() => ""),
+			restoreEditorState: vi.fn(),
 			getContentParts: vi.fn(() => []),
 		},
 		setValue,
@@ -171,6 +175,18 @@ describe("useConversationEditingState", () => {
 		expect(result.current.editingMessageId).toBeNull();
 		expect(result.current.editorInitialValue).toBe("work in progress");
 		expect(result.current.remountKey).toBe(remountKeyAfterEdit + 1);
+		unmount();
+	});
+
+	it("seeds the composer with the edited message's editor state", () => {
+		const { result, unmount } = renderEditing();
+		const editorState = JSON.stringify({ root: { type: "root" } });
+
+		act(() => {
+			result.current.handleEditUserMessage(7, "", undefined, editorState);
+		});
+
+		expect(result.current.initialEditorState).toBe(editorState);
 		unmount();
 	});
 
@@ -396,6 +412,10 @@ describe("useConversationEditingState", () => {
 			insertText: vi.fn(),
 			getValue: vi.fn().mockReturnValue(""),
 			addFileReference: vi.fn(),
+			insertSkill: vi.fn(),
+			removeSkills: vi.fn(),
+			getEditorState: vi.fn(() => ""),
+			restoreEditorState: vi.fn(),
 			getContentParts: vi.fn().mockReturnValue([]),
 		}; // The hook exposes chatInputRef, so assign the mock to it.
 		result.current.chatInputRef.current = mockInputRef;

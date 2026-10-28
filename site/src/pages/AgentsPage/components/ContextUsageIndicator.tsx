@@ -7,7 +7,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
-import type { ResolvedCompactionThreshold } from "../compactionTriggers";
+import type { ResolvedCompactionThreshold } from "../utils/compactionTriggers";
 import {
 	compactionThresholdLabel,
 	contextUsageLabel,

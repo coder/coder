@@ -101,6 +101,7 @@ import type { AgentContextUsage } from "./ContextUsageIndicator";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { ImageLightbox } from "./ImageLightbox";
 import { MCPServerIconStack } from "./MCPServerIconStack";
+import { ProjectSkillActions } from "./ProjectSkillActions";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 import { WorkspacePill } from "./WorkspacePill";
@@ -154,7 +155,7 @@ type AgentChatInputProps = {
 	onContentChange: (
 		content: string,
 		serializedEditorState: string,
-		hasFileReferences: boolean,
+		hasChips: boolean,
 	) => void;
 	// Model selector.
 	selectedModel: string;
@@ -183,7 +184,12 @@ type AgentChatInputProps = {
 	// Organization ID of the current chat. When set, workspaces from
 	// other organizations are shown as disabled in the picker.
 	chatOrganizationId?: string;
+	// Project of the chat, whose skills the "/" menu offers.
+	chatProjectId?: string;
 	isWorkspaceLoading?: boolean;
+	// Opts in to project action skills above the composer, which also need
+	// a composer the user can send from.
+	showProjectActions?: boolean;
 	// Queued user messages rendered above the textarea.
 	queuedMessages?: readonly ChatQueuedMessage[];
 	onDeleteQueuedMessage?: (id: number) => Promise<void> | void;
@@ -522,7 +528,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	selectedWorkspaceId,
 	onWorkspaceChange,
 	chatOrganizationId,
+	chatProjectId,
 	isWorkspaceLoading,
+	showProjectActions = false,
 	queuedMessages = [],
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
@@ -617,7 +625,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		disconnectMCPServerOAuth2(queryClient),
 	);
 
-	const [hasFileReferences, setHasFileReferences] = useState(false);
+	const [hasChips, setHasChips] = useState(false);
 	const [cycleIndex, setCycleIndex] = useState<number | null>(null);
 	const [cycleSavedDraft, setCycleSavedDraft] = useState<string | null>(null);
 	const cycleHistorySnapshotRef = useRef<readonly string[] | null>(null);
@@ -653,20 +661,18 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	}, [remountKey]);
 
 	const speech = useSpeechRecognition();
-	const [preRecordingValue, setPreRecordingValue] = useState<string>("");
+	// The draft, including skill chips, as it was when recording started.
+	const [preRecordingState, setPreRecordingState] = useState<string | null>(
+		null,
+	);
 
 	useEffect(() => {
-		if (!speech.isRecording) return;
-		const editor = internalRef.current;
-		if (!editor) return;
-		editor.clear();
-		const combined = preRecordingValue
-			? `${preRecordingValue} ${speech.transcript}`
-			: speech.transcript;
-		if (combined) {
-			editor.insertText(combined);
-		}
-	}, [speech.transcript, speech.isRecording, preRecordingValue]);
+		if (!speech.isRecording || preRecordingState === null) return;
+		internalRef.current?.restoreEditorState(
+			preRecordingState,
+			speech.transcript,
+		);
+	}, [speech.transcript, speech.isRecording, preRecordingState]);
 
 	// Forward a stable delegating handle to the parent-supplied inputRef.
 	// Delegates lazily to internalRef.current so methods see the current
@@ -681,6 +687,15 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			focus: () => internalRef.current?.focus(),
 			getValue: () => internalRef.current?.getValue() ?? "",
 			addFileReference: (ref) => internalRef.current?.addFileReference(ref),
+			insertSkill: (source, name) =>
+				internalRef.current?.insertSkill(source, name),
+			removeSkills: (sources) => internalRef.current?.removeSkills(sources),
+			getEditorState: () => internalRef.current?.getEditorState() ?? "",
+			restoreEditorState: (serializedEditorState, appendText) =>
+				internalRef.current?.restoreEditorState(
+					serializedEditorState,
+					appendText,
+				),
 			getContentParts: () => internalRef.current?.getContentParts() ?? [],
 		}),
 		[],
@@ -1073,7 +1088,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const handleContentChange = (
 		content: string,
 		serializedEditorState: string,
-		hasRefs: boolean,
+		hasChipsInEditor: boolean,
 	) => {
 		// Lexical fires onChange synchronously from editor.setValue().
 		// While cycling, compare incoming content to currentCycleValueRef,
@@ -1086,9 +1101,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			resetPromptCycle();
 		}
 		setHasContent(Boolean(content.trim()));
-		setHasFileReferences(hasRefs);
+		setHasChips(hasChipsInEditor);
 		setInvisibleCharCount(countInvisibleCharacters(content));
-		onContentChange(content, serializedEditorState, hasRefs);
+		onContentChange(content, serializedEditorState, hasChipsInEditor);
 	};
 
 	// Re-focus the editor after a send completes (isLoading goes
@@ -1121,10 +1136,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		hasContent ||
 		attachments.length > 0 ||
 		workspaceUploadEntries.length > 0 ||
-		hasFileReferences;
+		hasChips;
 	const isComposerEffectivelyEmpty = !hasDraftContext;
-	const hasSendableContent =
-		hasContent || hasUploadedAttachments || hasFileReferences;
+	const hasSendableContent = hasContent || hasUploadedAttachments || hasChips;
 	const canSend =
 		!isDisabled &&
 		!isReadOnly &&
@@ -1140,7 +1154,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		if (
 			!text &&
 			!hasUploadedAttachments &&
-			!hasFileReferences &&
+			!hasChips &&
 			!isDisabled &&
 			!isReadOnly &&
 			!isLoading &&
@@ -1153,7 +1167,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		}
 
 		if (
-			(!text && !hasUploadedAttachments && !hasFileReferences) ||
+			(!text && !hasUploadedAttachments && !hasChips) ||
 			isDisabled ||
 			isReadOnly ||
 			isLoading ||
@@ -1171,7 +1185,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	};
 	const handleStartRecording = () => {
 		resetPromptCycle();
-		setPreRecordingValue(internalRef.current?.getValue()?.trim() ?? "");
+		setPreRecordingState(internalRef.current?.getEditorState() ?? null);
 		speech.start();
 	};
 
@@ -1183,19 +1197,17 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	};
 
 	const handleCancelRecording = () => {
-		const original = preRecordingValue;
 		speech.cancel();
 		const editor = internalRef.current;
 		if (editor) {
-			editor.clear();
-			if (original) {
-				editor.insertText(original);
+			if (preRecordingState !== null) {
+				editor.restoreEditorState(preRecordingState);
 			}
 			if (!isMobileViewport()) {
 				editor.focus();
 			}
 		}
-		setPreRecordingValue("");
+		setPreRecordingState(null);
 	};
 
 	const handleComposerKeyDown = (e: React.KeyboardEvent) => {
@@ -1303,6 +1315,14 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const draftOccupiesSlot =
 		hasSendableContent || hasActiveUploads || speech.isRecording;
 	const editingHoldsStop = isEditingHistoryMessage && !speech.isRecording;
+	const canShowProjectActions =
+		showProjectActions &&
+		!isReadOnly &&
+		!isReadOnlyView &&
+		!isLoading &&
+		!isDisabled &&
+		hasModelOptions &&
+		!aiGatewayDisabled;
 	const showStopButton =
 		!isReadOnlyView &&
 		isStreaming &&
@@ -1336,6 +1356,13 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				isEditingHistoryMessage && "pt-1",
 			)}
 		>
+			{canShowProjectActions && chatOrganizationId && chatProjectId && (
+				<ProjectSkillActions
+					organizationId={chatOrganizationId}
+					projectId={chatProjectId}
+					onInvoke={(name) => internalRef.current?.insertSkill("project", name)}
+				/>
+			)}
 			{queuedMessages.length > 0 && (
 				<QueuedMessagesList
 					messages={queuedMessages}
@@ -1458,6 +1485,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						disabled={isReadOnly || isLoading}
 						hasWorkspace={hasSkillsWorkspace}
 						organizationId={chatOrganizationId}
+						projectId={chatProjectId}
 						workspaceSkills={workspaceSkills}
 						slashCommands={slashCommands}
 						skillsMenuAnchor={composerElement}

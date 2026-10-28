@@ -163,7 +163,8 @@ export const GroupsPageView: React.FC<GroupsPageViewProps> = ({
 														message={
 															<>
 																Approximate AI spend compared to the group's AI
-																budget for the active period.{" "}
+																budget for the active period.
+																<br />
 																<SpendEstimateDocsLink />
 															</>
 														}

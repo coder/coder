@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, userEvent, within } from "storybook/test";
-import type { ResolvedCompactionThreshold } from "../compactionTriggers";
+import type { ResolvedCompactionThreshold } from "../utils/compactionTriggers";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 
 const modelThreshold = (

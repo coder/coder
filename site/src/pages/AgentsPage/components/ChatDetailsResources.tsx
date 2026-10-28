@@ -1,4 +1,5 @@
 import {
+	BotIcon,
 	FileIcon,
 	FolderIcon,
 	PlugIcon,
@@ -32,22 +33,25 @@ const ResourceMetadata: React.FC<{ resource: ChatContextResource }> = ({
 
 export const ContextResourceGroups: React.FC<{
 	items: readonly ContextResourceItem[];
-	kind: "file" | "skill";
+	kind: "file" | "skill" | "harness";
 }> = ({ items, kind }) => {
-	const Icon = kind === "file" ? FileIcon : ZapIcon;
+	const Icon = { file: FileIcon, skill: ZapIcon, harness: BotIcon }[kind];
 	return (
 		<div className="flex flex-col gap-4">
 			{groupContextResources(items).map(({ dir, items }) => (
 				<div key={dir} className="min-w-0">
-					<div className="mb-2 flex items-start gap-2 text-xs text-content-secondary">
-						<FolderIcon
-							aria-hidden="true"
-							className="mt-0.5 size-3.5 shrink-0"
-						/>
-						<span className="min-w-0 wrap-anywhere">
-							{dir || "Current directory"}
-						</span>
-					</div>
+					{/* Harnesses without a source path have no directory to name. */}
+					{(dir || kind !== "harness") && (
+						<div className="mb-2 flex items-start gap-2 text-xs text-content-secondary">
+							<FolderIcon
+								aria-hidden="true"
+								className="mt-0.5 size-3.5 shrink-0"
+							/>
+							<span className="min-w-0 wrap-anywhere">
+								{dir || "Current directory"}
+							</span>
+						</div>
+					)}
 					<ul className="m-0 ml-1.5 flex list-none flex-col gap-3 border-0 border-l border-solid border-border py-0 pl-4">
 						{items.map(({ resource, name }) => (
 							<li

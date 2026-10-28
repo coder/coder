@@ -1,9 +1,9 @@
+import type { AgentContextUsage } from "../components/ContextUsageIndicator";
 import {
 	compactionThresholdLabel as bindingCompactionThresholdLabel,
 	isCompactionPointBeyondWindow,
 	type ResolvedCompactionThreshold,
-} from "../compactionTriggers";
-import type { AgentContextUsage } from "../components/ContextUsageIndicator";
+} from "./compactionTriggers";
 import { compactionTriggerTokens } from "./modelOptions";
 
 /** Formats context counts consistently in the ring and Details panel. */

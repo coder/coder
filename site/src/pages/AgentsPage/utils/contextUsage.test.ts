@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ResolvedCompactionThreshold } from "../compactionTriggers";
+import type { ResolvedCompactionThreshold } from "./compactionTriggers";
 import {
 	compactionThresholdLabel,
 	compactionThresholdTokens,

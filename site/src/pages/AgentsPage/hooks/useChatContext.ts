@@ -8,9 +8,9 @@ import {
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
-import { resolveChatCompactionThreshold } from "../compactionTriggers";
 import type { AgentContextUsage } from "../components/AgentChatInput";
 import { getLatestContextUsage } from "../components/ChatConversation/chatHelpers";
+import { resolveChatCompactionThreshold } from "../utils/compactionTriggers";
 import { providerInfoByIDFromDescriptors } from "../utils/modelOptions";
 
 type UseChatContextOptions = {

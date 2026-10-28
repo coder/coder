@@ -13,24 +13,32 @@ export function getContextInventory(context: ChatContext | undefined) {
 	const skills: ContextResourceItem[] = [];
 	const configs: ContextResourceItem[] = [];
 	const servers: ContextResourceItem[] = [];
+	const harnesses: ContextResourceItem[] = [];
 	const issues: ContextResourceItem[] = [];
 	for (const resource of context?.resources ?? []) {
 		const source = resource.source.trim();
+		// ACP harnesses are keyed by slug, with their directory in source_path.
+		const isKeyedByName =
+			resource.kind === "mcp_server" || resource.kind === "acp_harness";
 		const name =
 			resource.kind === "skill"
 				? resource.skill_name?.trim() || getPathBasename(source)
-				: resource.kind === "mcp_server"
+				: isKeyedByName
 					? source
 					: getPathBasename(source);
 		const item = {
 			resource,
 			name: name || "Unknown resource",
-			dir: getPathDirname(source),
+			dir:
+				resource.kind === "acp_harness"
+					? (resource.source_path?.trim() ?? "")
+					: getPathDirname(source),
 		};
 		if (resource.kind === "mcp_server") servers.push(item);
 		else if (resource.status !== "ok" || !name) issues.push(item);
 		else if (resource.kind === "instruction_file") files.push(item);
 		else if (resource.kind === "skill") skills.push(item);
+		else if (resource.kind === "acp_harness") harnesses.push(item);
 		else configs.push(item);
 	}
 	return {
@@ -38,6 +46,7 @@ export function getContextInventory(context: ChatContext | undefined) {
 		skills,
 		configs,
 		servers,
+		harnesses,
 		issues,
 		known: context?.resources != null,
 		connectedServers: servers.filter(({ resource }) => resource.status === "ok")

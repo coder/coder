@@ -205,22 +205,24 @@ Here is an example payload for Coder's webhook notification:
 
 The top-level object has these keys:
 
-- `_version`: describes the version of this schema; follows semantic versioning
+- `_version`: describes the version of this schema and follows semantic versioning
 - `msg_id`: the UUID of the notification (matches the ID in the `notification_messages` table)
-- `payload`: contains the specific details of the notification; described below
+- `payload`: contains the specific details of the notification (described below)
 - `title`: the title of the notification message (equivalent to a subject in SMTP delivery)
 - `body`: the body of the notification message (equivalent to the message body in SMTP delivery)
 
 The `payload` object has these keys:
 
-- `_version`: describes the version of this inner schema; follows semantic versioning
+- `_version`: describes the version of this inner schema and follows semantic versioning
 - `notification_name`: name of the event which triggered the notification
 - `user_id`: Coder internal user identifier of the target user (UUID)
 - `user_email`: email address of the target user
 - `user_name`: name of the target user
 - `user_username`: username of the target user
-- `actions`: a list of CTAs (Call-To-Action); these are mainly relevant for SMTP delivery in which they're shown as buttons
-- `labels`: dynamic map of zero or more string key-value pairs; these vary from event to event
+- `actions`: a list of CTAs (Call-To-Action).
+  These are mainly relevant for SMTP delivery in which they're shown as buttons
+- `labels`: dynamic map of zero or more string key-value pairs.
+  These vary from event to event
 
 ## User Preferences
 
@@ -323,8 +325,8 @@ All running replicas act as notifiers to process pending messages._
 - transitions to `leased` when a Coder replica acquires new messages from the database
   - new messages are checked for every `CODER_NOTIFICATIONS_FETCH_INTERVAL` (default: `15s`)
 - if a message is delivered successfully, it transitions to `sent` state
-- if a message encounters a non-retryable error (e.g. misconfiguration), it transitions to `permanent_failure`
-- if a message encounters a retryable error (e.g. temporary server outage), it transitions to `temporary_failure`
+- if a message encounters a non-retryable error (for example, misconfiguration), it transitions to `permanent_failure`
+- if a message encounters a retryable error (for example, temporary server outage), it transitions to `temporary_failure`
   - this message will be retried up to `CODER_NOTIFICATIONS_MAX_SEND_ATTEMPTS` (default: 5)
   - this message will transition back to `pending` state after `CODER_NOTIFICATIONS_RETRY_INTERVAL` (default: 5m) and be retried
   - after `CODER_NOTIFICATIONS_MAX_SEND_ATTEMPTS` is exceeded, it transitions to `permanent_failure`

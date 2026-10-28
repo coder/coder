@@ -44,6 +44,7 @@ provisionersdk/proto/*.go linguist-generated=true
 *.tfplan.dot linguist-generated=true
 site/e2e/google/protobuf/timestampGenerated.ts
 site/e2e/provisionerGenerated.ts linguist-generated=true
+site/src/api/appFamiliesGenerated.ts linguist-generated=true
 site/src/api/countriesGenerated.tsx linguist-generated=true
 site/src/api/rbacresourcesGenerated.tsx linguist-generated=true
 site/src/api/typesGenerated.ts linguist-generated=true

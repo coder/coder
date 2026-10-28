@@ -1,13 +1,16 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "react-query";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { chat } from "#/api/queries/chats";
+import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockChat,
+	MockChatAttachment,
 	MockChatContextClean,
 	MockChatContextDirty,
+	MockChatMessage,
 } from "#/testHelpers/chatEntities";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { ChatDetailsPanel } from "./ChatDetailsPanel";
@@ -31,10 +34,7 @@ const props: React.ComponentProps<typeof ChatDetailsPanel> = {
 	},
 	store: createChatStore(),
 	hasMoreMessages: false,
-	isFetchingMoreMessages: false,
 	isHydratingMessages: false,
-	hasFetchMoreError: false,
-	onFetchMoreMessages: vi.fn(),
 };
 function setup(overrides: Partial<typeof props> = {}) {
 	const client = new QueryClient({
@@ -195,5 +195,86 @@ describe("ChatDetailsPanel", () => {
 			MockChat.id,
 			expect.any(AbortSignal),
 		);
+	});
+});
+
+describe("ChatDetailsPanel attachments", () => {
+	const mockOldestLoadedMessage: TypesGen.ChatMessage = {
+		...MockChatMessage,
+		id: 41,
+	};
+	const mockNewestLoadedMessage: TypesGen.ChatMessage = {
+		...MockChatMessage,
+		id: 42,
+		role: "assistant",
+	};
+	const setupWithMessages = (overrides: Partial<typeof props> = {}) => {
+		const store = createChatStore();
+		store.replaceMessages([mockOldestLoadedMessage, mockNewestLoadedMessage]);
+		return setup({ store, hasMoreMessages: true, ...overrides });
+	};
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it.each([
+		{
+			name: "asks for attachments before the loaded page",
+			isVisible: true,
+			hasMoreMessages: true,
+			calls: [
+				[
+					MockChat.id,
+					{ before_id: mockOldestLoadedMessage.id },
+					expect.any(AbortSignal),
+				],
+			],
+		},
+		{
+			name: "skips the request when all are loaded",
+			isVisible: true,
+			hasMoreMessages: false,
+			calls: [],
+		},
+		{
+			name: "skips the request during hydration",
+			isVisible: true,
+			hasMoreMessages: false,
+			isHydratingMessages: true,
+			calls: [],
+		},
+		{
+			name: "skips the request while hidden",
+			isVisible: false,
+			hasMoreMessages: true,
+			calls: [],
+		},
+	])("$name", ({ isVisible, hasMoreMessages, isHydratingMessages, calls }) => {
+		const getChatAttachments = vi
+			.spyOn(API.experimental, "getChatAttachments")
+			.mockResolvedValue({ attachments: [MockChatAttachment] });
+
+		setupWithMessages({ isVisible, hasMoreMessages, isHydratingMessages });
+
+		expect(getChatAttachments.mock.calls).toEqual(calls);
+	});
+
+	it("retries the earlier attachments after a failure", async () => {
+		const user = userEvent.setup();
+		const getChatAttachments = vi
+			.spyOn(API.experimental, "getChatAttachments")
+			.mockRejectedValueOnce(new Error("attachments unavailable"))
+			.mockResolvedValueOnce({ attachments: [MockChatAttachment] });
+
+		setupWithMessages();
+		await user.click(await screen.findByRole("button", { name: "Retry" }));
+
+		await waitFor(() => expect(getChatAttachments).toHaveBeenCalledTimes(2));
+		expect(getChatAttachments.mock.calls[1]).toEqual([
+			MockChat.id,
+			{ before_id: mockOldestLoadedMessage.id },
+			expect.any(AbortSignal),
+		]);
 	});
 });

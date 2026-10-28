@@ -140,7 +140,7 @@ The template exposes parameters to control the traffic dimensions for SSH connec
 
 Scale testing concurrency can be controlled with the following parameters:
 
-- Enable parallel scenarios - interleave different traffic patterns (SSH, workspace apps, dashboard traffic, etc.)
+- Enable parallel scenarios - interleave different traffic patterns (SSH, workspace apps, dashboard traffic, and so on)
 - Workspace creation concurrency level (_default_: 10)
 - Job concurrency level - generate workspace traffic using multiple jobs (_default_: 0)
 - Cleanup concurrency level
@@ -205,11 +205,11 @@ When scaling down (or performing upgrades), schedule these outside normal workin
 
 ### A note for Kubernetes users
 
-When running on Kubernetes on cloud infrastructure (i.e. not bare metal), many operators choose to employ a _cluster_ autoscaler that adds and removes Kubernetes _nodes_ according to load.
+When running on Kubernetes on cloud infrastructure (that is, not bare metal), many operators choose to employ a _cluster_ autoscaler that adds and removes Kubernetes _nodes_ according to load.
 Coder can coexist with such cluster autoscalers, but we recommend you take steps to prevent the autoscaler from evicting `coderd` pods, as an eviction will cause the same interruptions as described above.
 For example, if you are using the [Kubernetes cluster autoscaler](https://kubernetes.io/docs/reference/labels-annotations-taints/#cluster-autoscaler-kubernetes-io-safe-to-evict), you may wish to set `cluster-autoscaler.kubernetes.io/safe-to-evict: "false"` as an annotation on the `coderd` deployment.
 
 ## Troubleshooting
 
 If a load test fails or if you are experiencing performance issues during day-to-day use, you can leverage Coder's [Prometheus metrics](../../../admin/integrations/prometheus.md) to identify bottlenecks during scale tests.
-Additionally, you can use your existing cloud monitoring stack to measure load, view server logs, etc.
+Additionally, you can use your existing cloud monitoring stack to measure load, view server logs, and so on.
