@@ -48,7 +48,7 @@ func main() {
 			{
 				Name:        "requested-by",
 				Flag:        "requested-by",
-				Description: "GitHub login of the user the release runs on behalf of. Recorded in the tag message.",
+				Description: "GitHub login of the user the release runs on behalf of. Recorded in the tag message and passed to release.yaml.",
 				Value:       serpent.StringOf(&opts.RequestedBy),
 			},
 			{

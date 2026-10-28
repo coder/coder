@@ -66,7 +66,7 @@ func Run(inv *serpent.Invocation, opts releaseOptions) error {
 		outputPrefix = "[DRYRUN] "
 		executor = &dryRunExecutor{w: w}
 	} else {
-		executor = &liveExecutor{}
+		executor = &liveExecutor{requestedBy: opts.RequestedBy, requestedByRunURL: opts.RequestedByRunURL}
 	}
 
 	return runRelease(ctx, inv, executor, ghAvailable, opts)
