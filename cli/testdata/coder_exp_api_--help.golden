@@ -1,0 +1,45 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder exp api [flags] <path>
+
+  Make an authenticated HTTP request to the Coder API and print the response.
+
+  The path is relative to /api/v2/ unless it starts with a slash. Fields are
+  sent as query parameters for GET and HEAD requests and as a JSON object
+  otherwise. The method defaults to GET, or POST when fields or --input are
+  provided, so use -X GET to send fields as query parameters.
+  
+    - Get the authenticated user:
+  
+       $ coder exp api users/me
+  
+    - List workspaces with a query parameter:
+  
+       $ coder exp api -X GET workspaces -f q=owner:me
+  
+    - Send a JSON body from stdin:
+  
+       $ echo '{"name":"new-name"}' | coder exp api -X PATCH workspaces/<id>
+  --input -
+
+OPTIONS:
+  -f, --field string-array
+          Add a string parameter in key=value format. Can be specified multiple
+          times.
+
+  -i, --include bool
+          Print the response status line and headers before the body.
+
+      --input string
+          The file to use as the request body, or - to read from stdin.
+
+  -X, --method string
+          The HTTP method for the request.
+
+  -H, --request-header string-array
+          Add a request header in key:value format. Can be specified multiple
+          times.
+
+———
+Run `coder --help` for a list of global options.
