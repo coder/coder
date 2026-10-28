@@ -96,7 +96,6 @@ type MockSocketHelpers = {
 	emitOpen: () => void;
 	emitData: (event: TypesGen.ChatStreamEvent) => void;
 	emitDataBatch: (events: readonly TypesGen.ChatStreamEvent[]) => void;
-	emitChunk: (chunk: TypesGen.ChatStreamChunk) => void;
 	emitParseError: () => void;
 	emitError: () => void;
 	emitClose: () => void;
@@ -188,16 +187,6 @@ const createMockSocket = (): MockSocket => {
 				sourceEvent: {} as MessageEvent<string>,
 				parseError: undefined,
 				parsedMessage: events as TypesGen.ChatStreamEvent[],
-			};
-			for (const listener of messageListeners) {
-				listener(payload);
-			}
-		},
-		emitChunk: (chunk) => {
-			const payload: OneWayMessageEvent<StreamMessage> = {
-				sourceEvent: {} as MessageEvent<string>,
-				parseError: undefined,
-				parsedMessage: chunk,
 			};
 			for (const listener of messageListeners) {
 				listener(payload);
@@ -3174,121 +3163,6 @@ describe("useChatStore", () => {
 			vi.advanceTimersByTime(1_000);
 		});
 		expect(watchMock).toHaveBeenCalledTimes(2);
-	});
-
-	it("joins chunk messages and keeps the socket open while they arrive", async () => {
-		vi.useFakeTimers({ shouldAdvanceTime: true });
-		immediateAnimationFrame();
-
-		const chatID = "chat-chunked-batch";
-		const watchMock = vi.mocked(watchChat);
-		const sockets = mockWatchChatWithFreshSockets(watchMock);
-		const { result } = renderChunkedStream(chatID);
-		await waitFor(() => {
-			expect(watchMock).toHaveBeenCalledWith(chatID, undefined);
-		});
-		const socket = sockets[0];
-		if (socket === undefined) {
-			throw new Error("watchChat did not return a socket");
-		}
-		act(() => {
-			socket.emitOpen();
-		});
-
-		// Three gaps of 3/4 of the silence timeout take longer in total than
-		// the timeout.
-		const chunks = splitIntoChunks(
-			[messageEvent(chatID, 5, "chunked reply")],
-			3,
-		);
-		for (const chunk of chunks) {
-			await act(async () => {
-				vi.advanceTimersByTime(CHAT_STREAM_SILENCE_TIMEOUT_MS * 0.75);
-				socket.emitChunk(chunk);
-			});
-		}
-
-		expect(watchMock).toHaveBeenCalledTimes(1);
-		expect(result.current.streamError).toBeNull();
-		expect(result.current.messagesByID.get(5)?.content).toEqual([
-			{ type: "text", text: "chunked reply" },
-		]);
-	});
-
-	it("reports a parse error when joined chunks are not valid JSON", async () => {
-		immediateAnimationFrame();
-
-		const chatID = "chat-chunked-invalid";
-		const watchMock = vi.mocked(watchChat);
-		const sockets = mockWatchChatWithFreshSockets(watchMock);
-		const { result } = renderChunkedStream(chatID);
-		await waitFor(() => {
-			expect(watchMock).toHaveBeenCalledWith(chatID, undefined);
-		});
-		const socket = sockets[0];
-		if (socket === undefined) {
-			throw new Error("watchChat did not return a socket");
-		}
-		act(() => {
-			socket.emitOpen();
-			socket.emitChunk({ chunk: "[{", last: false });
-			socket.emitChunk({ chunk: "oops", last: true });
-		});
-
-		expect(result.current.streamError).toEqual({
-			kind: "generic",
-			message: "Failed to parse chat stream update.",
-		});
-	});
-
-	it("discards a partial chunked batch when the socket reconnects", async () => {
-		vi.useFakeTimers({ shouldAdvanceTime: true });
-		immediateAnimationFrame();
-		vi.spyOn(Math, "random").mockReturnValue(0.5);
-
-		const chatID = "chat-chunked-reconnect";
-		const watchMock = vi.mocked(watchChat);
-		const sockets = mockWatchChatWithFreshSockets(watchMock);
-		const { result } = renderChunkedStream(chatID);
-		await waitFor(() => {
-			expect(watchMock).toHaveBeenCalledWith(chatID, undefined);
-		});
-		const socket1 = sockets[0];
-		if (socket1 === undefined) {
-			throw new Error("watchChat did not return a socket");
-		}
-		const [partial] = splitIntoChunks(
-			[messageEvent(chatID, 5, "lost reply")],
-			2,
-		);
-		act(() => {
-			socket1.emitOpen();
-			if (partial !== undefined) {
-				socket1.emitChunk(partial);
-			}
-			socket1.emitClose();
-		});
-		await act(async () => {
-			vi.advanceTimersByTime(1_000);
-		});
-		const socket2 = sockets[1];
-		if (socket2 === undefined) {
-			throw new Error("watchChat did not reconnect");
-		}
-		act(() => {
-			socket2.emitOpen();
-			for (const chunk of splitIntoChunks(
-				[messageEvent(chatID, 6, "replayed reply")],
-				2,
-			)) {
-				socket2.emitChunk(chunk);
-			}
-		});
-
-		expect(result.current.streamError).toBeNull();
-		expect(result.current.messagesByID.get(6)?.content).toEqual([
-			{ type: "text", text: "replayed reply" },
-		]);
 	});
 
 	it("clears stale streamError when a reconnected socket opens", async () => {
