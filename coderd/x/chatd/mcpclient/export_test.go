@@ -12,10 +12,6 @@ import (
 	"github.com/coder/safedial"
 )
 
-// ConvertCallResultForTest exposes convertCallResult for external
-// tests.
-var ConvertCallResultForTest = convertCallResult
-
 // ConnectAllForTest exposes connectAll with an injectable connect
 // timeout and a reaperDone hook that fires after an abandoned
 // connect goroutine has been drained and its late session closed.

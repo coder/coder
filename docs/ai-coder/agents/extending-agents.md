@@ -386,6 +386,13 @@ Every workspace MCP tool call is proxied back through the workspace agent, so a 
 
 Tool names are prefixed with the server name as `serverName__toolName` to avoid collisions between servers and with built-in tools.
 
+### Tool results
+
+A tool result can include an image or a PDF, and the model receives it as a file.
+The model receives at most one image or PDF from each tool result.
+An outdated workspace agent drops embedded resources, such as PDFs, from tool results.
+For the provider and size rules, refer to [Tool results](./platform-controls/mcp-servers.md#tool-results).
+
 ### Timeouts
 
 - **Server connect**:
