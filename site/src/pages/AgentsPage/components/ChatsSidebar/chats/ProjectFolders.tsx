@@ -229,12 +229,26 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 							aria-label={projectLabel}
 							className="flex min-w-0 flex-1 items-center gap-2 py-1 text-[13px] text-content-primary no-underline"
 						>
-							<ChatProjectIcon
-								project={project}
-								expanded={expanded}
-								className="size-4"
-							/>
-							<span className="flex-1 truncate">{project.name}</span>
+							{({ isActive }) => (
+								<>
+									<ChatProjectIcon
+										project={project}
+										expanded={expanded}
+										className="size-4"
+									/>
+									{/* Matches ChatTreeNode's chat title: dimmed at rest, full
+									    strength on hover, while a menu is open, or when selected. */}
+									<span
+										className={cn(
+											"flex-1 truncate",
+											!isActive &&
+												"opacity-85 [@media(hover:hover)]:group-hover:opacity-100 group-data-[state=open]:opacity-100 group-has-data-[state=open]:opacity-100",
+										)}
+									>
+										{project.name}
+									</span>
+								</>
+							)}
 						</NavLink>
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
