@@ -137,7 +137,7 @@ export const LoadError: Story = {
 
 export const Empty: Story = {
 	args: {
-		servers: [mockImageMCP, mockRegistryMCP],
+		servers: [],
 	},
 };
 
@@ -173,11 +173,5 @@ export const Retrying: Story = {
 	args: {
 		error: mockApiError({ message: "Failed to load MCP servers." }),
 		isRetrying: true,
-	},
-};
-
-export const OneServerWithoutSignIn: Story = {
-	args: {
-		servers: [mockCoderMCP, mockGitHubMCP, mockImageMCP],
 	},
 };

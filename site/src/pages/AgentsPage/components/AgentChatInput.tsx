@@ -6,14 +6,12 @@ import {
 	ChevronDownIcon,
 	ChevronRightIcon,
 	InfoIcon,
-	LockIcon,
 	MicIcon,
 	MonitorIcon,
 	PaperclipIcon,
 	PencilIcon,
 	PlugIcon,
 	PlusIcon,
-	ServerIcon,
 	SquareIcon,
 	TriangleAlertIcon,
 	XIcon,
@@ -35,7 +33,6 @@ import {
 	CommandItem,
 	CommandList,
 } from "#/components/Command/Command";
-import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
 	Popover,
 	PopoverContent,
@@ -278,15 +275,12 @@ const BadgePopoverContent: React.FC<PopoverContentProps> = ({
 type ToolBadgeData =
 	| { kind: "workspace"; name: string }
 	| ({ kind: "attached-workspace" } & AttachedWorkspaceInfo)
-	| { kind: "mcp"; server: TypesGen.MCPServerConfig }
 	| { kind: "mcp-group"; servers: readonly TypesGen.MCPServerConfig[] }
 	| { kind: "planning" };
 
 // Non-MCP badges can share a kind, so their keys are position-qualified.
 const badgeKey = (badge: ToolBadgeData, index: number) => {
 	switch (badge.kind) {
-		case "mcp":
-			return badge.server.id;
 		case "mcp-group":
 			return badge.kind;
 		default:
@@ -328,7 +322,12 @@ const MCPGroupBadge: React.FC<MCPGroupBadgeProps> = ({
 	className,
 }) => {
 	const [open, setOpen] = useState(false);
-	const label = `${servers.length} MCPs`;
+	let label = `${servers.length} MCPs`;
+	if (servers.length === 0) {
+		label = "Add MCPs";
+	} else if (servers.length === 1) {
+		label = "1 MCP";
+	}
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
@@ -341,7 +340,11 @@ const MCPGroupBadge: React.FC<MCPGroupBadgeProps> = ({
 						"cursor-pointer border-0 transition-colors hover:bg-surface-tertiary hover:text-content-primary",
 					)}
 				>
-					<MCPServerIconStack servers={servers} />
+					{servers.length === 0 ? (
+						<PlugIcon className="size-3 shrink-0" />
+					) : (
+						<MCPServerIconStack servers={servers} />
+					)}
 					{label}
 					<ChevronDownIcon
 						className={cn("size-3 transition-transform", open && "rotate-180")}
@@ -375,7 +378,6 @@ const MCPServersMenuRowContent: React.FC<{
 const ToolBadge: React.FC<{
 	badge: ToolBadgeData;
 	onRemoveWorkspace?: () => void;
-	onRemoveMcp?: (serverId: string) => void;
 	onRemovePlanning?: () => void;
 	mcpMenu: React.ReactNode;
 	isDisabled: boolean;
@@ -385,7 +387,6 @@ const ToolBadge: React.FC<{
 }> = ({
 	badge,
 	onRemoveWorkspace,
-	onRemoveMcp,
 	onRemovePlanning,
 	mcpMenu,
 	isDisabled,
@@ -467,44 +468,12 @@ const ToolBadge: React.FC<{
 		);
 	}
 
-	if (badge.kind === "mcp-group") {
-		return (
-			<MCPGroupBadge
-				servers={badge.servers}
-				menu={mcpMenu}
-				className={badgeCls}
-			/>
-		);
-	}
-
-	const isForceOn = badge.server.availability === "force_on";
 	return (
-		<span className={badgeCls}>
-			{badge.server.icon_url ? (
-				<ExternalImage
-					src={badge.server.icon_url}
-					alt=""
-					className="size-3 rounded-sm"
-				/>
-			) : (
-				<ServerIcon className="size-3" />
-			)}
-			<span className="truncate">{badge.server.display_name}</span>
-			{isForceOn ? (
-				<>
-					<LockIcon className="size-3 shrink-0" />
-					<span className="sr-only">Always on</span>
-				</>
-			) : (
-				onRemoveMcp && (
-					<BadgeDismissButton
-						onClick={() => onRemoveMcp(badge.server.id)}
-						ariaLabel={`Remove ${badge.server.display_name}`}
-						isDisabled={isDisabled}
-					/>
-				)
-			)}
-		</span>
+		<MCPGroupBadge
+			servers={badge.servers}
+			menu={mcpMenu}
+			className={badgeCls}
+		/>
 	);
 };
 
@@ -741,6 +710,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		? selectedWorkspace.id !== linkedWorkspaceId
 		: false;
 
+	const isReadOnlyView = readOnlyNotice !== undefined;
 	const enabledMcpServers = mcpServers?.filter((s) => s.enabled) ?? [];
 	const activeMcpServers = enabledMcpServers.filter(
 		(s) =>
@@ -775,28 +745,25 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	if (shouldShowSelectedWorkspaceBadge && selectedWorkspace) {
 		allBadges.push({ kind: "workspace", name: selectedWorkspace.name });
 	}
-	if (activeMcpServers.length >= 3) {
+	// Read-only chats cannot add servers, so they show the pill only for
+	// servers already in use.
+	if (
+		activeMcpServers.length > 0 ||
+		(enabledMcpServers.length > 0 && !isReadOnlyView)
+	) {
 		allBadges.push({ kind: "mcp-group", servers: activeMcpServers });
-	} else {
-		for (const server of activeMcpServers) {
-			allBadges.push({ kind: "mcp", server });
-		}
 	}
 
 	const overflowCount = useOverflowCount(badgeContainerRef, allBadges.length);
 	const visibleCount = Math.max(0, allBadges.length - overflowCount);
 	const overflowBadges = allBadges.slice(visibleCount);
 
-	const isReadOnlyView = readOnlyNotice !== undefined;
 	const readOnlyModel = isReadOnlyView
 		? modelOptions.find((option) => option.id === selectedModel)
 		: undefined;
 	const handleRemoveWorkspace = () => onWorkspaceChange?.(null);
 	const removeWorkspaceHandler =
 		onWorkspaceChange && !isReadOnlyView ? handleRemoveWorkspace : undefined;
-	const handleRemoveMcp = isReadOnlyView
-		? undefined
-		: (serverId: string) => handleMcpToggle(serverId, false);
 
 	const closePlusMenuSubmenu = (submenu: PlusMenuSubmenu) => {
 		setLastPlusMenuSubmenu(submenu);
@@ -1826,7 +1793,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 										key={badgeKey(badge, i)}
 										badge={badge}
 										onRemoveWorkspace={removeWorkspaceHandler}
-										onRemoveMcp={handleRemoveMcp}
 										onRemovePlanning={handleDisablePlanMode}
 										mcpMenu={mcpMenuContent}
 										isDisabled={isDisabled}
@@ -1898,7 +1864,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 												key={badgeKey(badge, visibleCount + i)}
 												badge={badge}
 												onRemoveWorkspace={removeWorkspaceHandler}
-												onRemoveMcp={handleRemoveMcp}
 												onRemovePlanning={handleDisablePlanMode}
 												mcpMenu={mcpMenuContent}
 												isDisabled={isDisabled}

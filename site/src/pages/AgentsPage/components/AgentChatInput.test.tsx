@@ -450,30 +450,35 @@ describe("AgentChatInput", () => {
 		await user.click(
 			await screen.findByRole("button", { name: /MCP servers/ }),
 		);
+		const menu = await screen.findByRole("group", { name: "MCP servers" });
+		expect(menu).toHaveTextContent(/Sentry\s*Always on/);
 		expect(
-			await screen.findByRole("group", { name: "MCP servers" }),
-		).toHaveTextContent(/Sentry\s*Always on\s*Disconnected/);
+			within(menu).getByRole("img", { name: "Not connected" }),
+		).toBeInTheDocument();
 	});
 
-	it("keeps two active MCP servers as individual pills", async () => {
+	it("turns a server on from the empty MCP pill", async () => {
 		const user = userEvent.setup();
 		const onMCPSelectionChange = vi.fn();
 		renderInput(
 			<AgentChatInput
 				{...inputProps}
 				mcpServers={[mockLinearMCP, mockGitHubMCP]}
-				selectedMCPServerIds={[mockLinearMCP.id, mockGitHubMCP.id]}
+				selectedMCPServerIds={[]}
 				onMCPSelectionChange={onMCPSelectionChange}
 			/>,
 		);
 
-		await user.click(screen.getByRole("button", { name: "Remove Linear" }));
-		expect(onMCPSelectionChange).toHaveBeenCalledWith([mockGitHubMCP.id]);
+		await user.click(screen.getByRole("button", { name: "Add MCPs" }));
+		await user.click(
+			within(screen.getByRole("dialog")).getByRole("switch", {
+				name: "Enable Linear",
+			}),
+		);
+		expect(onMCPSelectionChange).toHaveBeenCalledWith([mockLinearMCP.id]);
 	});
 
-	it("excludes selected MCP servers that still need OAuth from the group", async () => {
-		const user = userEvent.setup();
-		const onMCPSelectionChange = vi.fn();
+	it("excludes selected MCP servers that still need OAuth from the pill count", () => {
 		renderInput(
 			<AgentChatInput
 				{...inputProps}
@@ -483,15 +488,11 @@ describe("AgentChatInput", () => {
 					mockLinearMCP.id,
 					mockGitHubMCPNeedingAuth.id,
 				]}
-				onMCPSelectionChange={onMCPSelectionChange}
+				onMCPSelectionChange={vi.fn()}
 			/>,
 		);
 
-		await user.click(screen.getByRole("button", { name: "Remove Linear" }));
-		expect(onMCPSelectionChange).toHaveBeenCalledWith([
-			mockSentryMCP.id,
-			mockGitHubMCPNeedingAuth.id,
-		]);
+		expect(screen.getByRole("button", { name: "2 MCPs" })).toBeInTheDocument();
 	});
 
 	it("allows viewing a disabled MCP group without changing its selection", async () => {

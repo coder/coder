@@ -3,11 +3,13 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { Separator } from "#/components/Separator/Separator";
-import {
-	StatusIndicator,
-	StatusIndicatorDot,
-} from "#/components/StatusIndicator/StatusIndicator";
+import { StatusIndicatorDot } from "#/components/StatusIndicator/StatusIndicator";
 import { Switch } from "#/components/Switch/Switch";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import {
 	countMCPServersNeedingSignIn,
 	getMCPMenuServers,
@@ -56,14 +58,18 @@ const MCPServerMenuRow: React.FC<MCPServerMenuRowProps> = ({
 			{isDisconnected ? (
 				<>
 					{isForceOn && <span className="sr-only">Always on</span>}
-					<StatusIndicator
-						variant="warning"
-						size="sm"
-						className="shrink-0 font-normal"
-					>
-						<StatusIndicatorDot />
-						Disconnected
-					</StatusIndicator>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<StatusIndicatorDot
+								role="img"
+								aria-label="Not connected"
+								variant="warning"
+								size="sm"
+								className="shrink-0"
+							/>
+						</TooltipTrigger>
+						<TooltipContent>Not connected</TooltipContent>
+					</Tooltip>
 				</>
 			) : (
 				<Switch

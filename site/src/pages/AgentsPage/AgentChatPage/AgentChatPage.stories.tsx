@@ -1,7 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { hashKey } from "react-query";
 import { Outlet, useNavigate } from "react-router";
-import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import {
+	expect,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import {
 	reactRouterOutlet,
 	reactRouterParameters,
@@ -3426,9 +3433,12 @@ export const RemoveLastMCPServer: Story = {
 			"createChatMessage",
 		).mockResolvedValue({ queued: false });
 
+		await userEvent.click(await canvas.findByRole("button", { name: "1 MCP" }));
+		const menu = await screen.findByRole("dialog");
 		await userEvent.click(
-			await canvas.findByRole("button", { name: "Remove MCP Server" }),
+			within(menu).getByRole("switch", { name: "Disable MCP Server" }),
 		);
+		await userEvent.keyboard("{Escape}");
 		const editor = await canvas.findByTestId("chat-message-input");
 		await userEvent.click(editor);
 		await userEvent.type(editor, "Send without MCP tools");

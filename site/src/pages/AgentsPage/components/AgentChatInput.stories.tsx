@@ -668,7 +668,7 @@ const openMCPSubmenu: Story["play"] = async ({ canvasElement }) => {
 
 // ── MCP stories ────────────────────────────────────────────────
 
-/** Three selected servers collapse into a single "3 MCPs" pill. */
+/** Selected servers share one "N MCPs" pill. */
 export const WithMCPServers: Story = {
 	args: {
 		...mcpDefaults,
@@ -800,7 +800,7 @@ export const MCPSubmenuMobile: Story = {
 	play: openMCPSubmenu,
 };
 
-/** No MCP servers active — shows only "MCP" label with chevron. */
+/** No MCP servers active: the pill reads "Add MCPs". */
 export const WithMCPNoneActive: Story = {
 	args: {
 		...mcpDefaults,
