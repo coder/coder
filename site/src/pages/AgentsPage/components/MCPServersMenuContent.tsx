@@ -117,14 +117,19 @@ export const MCPServersMenuContent: React.FC<MCPServersMenuContentProps> = ({
 				))
 			)}
 			<Separator className="my-1" />
-			<div className="flex items-center justify-between gap-3 px-1 py-0.5">
+			<div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1 py-0.5">
 				<span className="whitespace-nowrap text-xs text-content-secondary">
 					{disconnectedCount === 0
 						? "All connected"
-						: `${disconnectedCount} ${disconnectedCount === 1 ? "server" : "servers"} not connected`}
+						: `${disconnectedCount} not connected`}
 				</span>
 				{onManageConnections && (
-					<Button variant="outline" size="sm" onClick={onManageConnections}>
+					<Button
+						variant="outline"
+						size="sm"
+						className="ml-auto"
+						onClick={onManageConnections}
+					>
 						Manage connections
 						<ArrowRightIcon />
 					</Button>

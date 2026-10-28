@@ -84,7 +84,7 @@ const MCPConnectionRow: React.FC<MCPConnectionRowProps> = ({
 					<span className="text-content-disabled">No description</span>
 				)}
 			</TableCell>
-			<TableCell className="whitespace-nowrap">
+			<TableCell className="hidden whitespace-nowrap sm:table-cell">
 				{isConnecting ? (
 					<StatusIndicator variant="pending" size="sm">
 						<StatusIndicatorDot />
@@ -205,7 +205,9 @@ export const AgentSettingsMCPConnectionsPageView: React.FC<
 						<TableRow>
 							<TableHead className="whitespace-nowrap">Name</TableHead>
 							<TableHead className="w-full">Description</TableHead>
-							<TableHead className="whitespace-nowrap">Status</TableHead>
+							<TableHead className="hidden whitespace-nowrap sm:table-cell">
+								Status
+							</TableHead>
 							<TableHead>
 								<span className="sr-only">Actions</span>
 							</TableHead>
@@ -221,7 +223,7 @@ export const AgentSettingsMCPConnectionsPageView: React.FC<
 									<TableCell className="w-full max-w-0">
 										<Skeleton variant="text" />
 									</TableCell>
-									<TableCell>
+									<TableCell className="hidden sm:table-cell">
 										<Skeleton variant="text" className="w-24" />
 									</TableCell>
 									<TableCell>

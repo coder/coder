@@ -109,7 +109,7 @@ Discovery runs only when a configuration is created, so to add a resource indica
 
 Users connect in **Agents** > **Settings** > **MCP connections**, through a popup that redirects through the OAuth2 provider.
 Connected servers then appear in the chat's **+** menu under **MCP servers**, where users turn each server on or off for that chat.
-A server that a chat used stays in that list after its connection ends and shows as disconnected until the user connects again.
+A server that is on for a chat but not connected, such as one that is on by default or whose connection ended, stays in that list and shows as disconnected until the user connects.
 Tokens are stored per-user and refreshed automatically.
 Changing the server URL, authentication type, `oauth2_client_id`, `oauth2_token_url`, `oauth2_revocation_url`, or `oauth2_resource` deletes every user's stored token, so users must connect again.
 Users can disconnect in **MCP connections** or through the API to remove stored tokens.
