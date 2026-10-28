@@ -28,7 +28,8 @@ nohup "${STATE}/coder" server --http-address "0.0.0.0:${PORT}" --access-url "${U
 echo $! >"${STATE}/coderd.pid"
 
 export PATH="${STATE}:${PATH}"
-uv tool run --from harbor python -m harbor_coder.bootstrap \
+# python resolves to the hash-verified venv from install.sh when it is on PATH.
+python -m harbor_coder.bootstrap \
 	--url "${URL}" --template-dir "${ROOT}/scripts/harbor-coder/template" \
 	--state-dir "${STATE}" --model "${HARBOR_CODER_MODEL:-claude-haiku-4-5}" >"${ENV_FILE}"
 chmod 600 "${ENV_FILE}"

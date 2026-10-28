@@ -53,7 +53,6 @@ env:
   # (coderd/x/chatd/agentadmission.go). Above that, trials queue on Harbor's
   # timeout and score 0 depending on start order.
   HARBOR_CONCURRENCY: "5"
-  HARBOR_VERSION: "0.24.0"
 
 jobs:
   resolve:
@@ -151,15 +150,16 @@ jobs:
         with:
           install-args: "go"
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
-      - run: uv tool install --with-editable ./scripts/harbor-coder "harbor==${HARBOR_VERSION}"
+      - name: Install Harbor from the hash-pinned lock
+        run: |
+          ./scripts/harbor-coder/install.sh "${RUNNER_TEMP}/harbor-venv"
+          echo "${RUNNER_TEMP}/harbor-venv/bin" >> "${GITHUB_PATH}"
 
       - name: Build and serve coderd
         env:
           # A Coder API key for dogfood; the eval's coderd uses dogfood's AI
           # gateway as its model upstream, so no provider key is involved.
-          # TEMPORARY: falls back to the doc-check token until
-          # EVAL_CODER_SESSION_TOKEN exists. Remove before merge.
-          HARBOR_CODER_UPSTREAM_TOKEN: ${{ secrets.EVAL_CODER_SESSION_TOKEN || secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
+          HARBOR_CODER_UPSTREAM_TOKEN: ${{ secrets.EVAL_CODER_SESSION_TOKEN }}
         run: ./scripts/harbor-coder/serve-coderd.sh "${RUNNER_TEMP}/coder.env"
 
       - name: Run Harbor

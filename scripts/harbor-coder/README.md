@@ -37,7 +37,9 @@ block at the top of the workflow.
 ## Local
 
 ```sh
-uv tool install --with-editable scripts/harbor-coder harbor==0.24.0
+# Installs Harbor into .harbor-coder/venv from requirements.lock with
+# --require-hashes, so every dependency (litellm included) is pinned by sha256.
+./scripts/harbor-coder/install.sh && export PATH="$PWD/.harbor-coder/venv/bin:$PATH"
 # dogfood gateway auth; the gateway ignores token scopes, so keep it narrow
 export HARBOR_CODER_UPSTREAM_TOKEN=$(coder tokens create --lifetime 8h --scope user:read_personal)
 export HARBOR_CODER_MODEL=claude-sonnet-5-5
