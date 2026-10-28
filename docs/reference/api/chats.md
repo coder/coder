@@ -4268,10 +4268,6 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
 
 `GET /api/v2/chats/{chat}/stream`
 
-Each message is a JSON array of codersdk.ChatStreamEvent. An empty array is a keepalive.
-An array that encodes to more than 256 KiB arrives as consecutive codersdk.ChatStreamChunk
-objects; concatenating their chunk strings up to the one with last set gives the array.
-
 ### Parameters
 
 | Name       | In    | Type         | Required | Description                                             |
