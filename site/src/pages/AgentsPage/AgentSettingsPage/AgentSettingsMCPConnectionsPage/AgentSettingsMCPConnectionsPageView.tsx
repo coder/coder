@@ -154,7 +154,8 @@ const MCPConnectionRow: React.FC<MCPConnectionRowProps> = ({
 };
 
 /**
- * Rows list the enabled servers; only OAuth2 ones offer Connect or Disconnect.
+ * Rows list the enabled servers, OAuth2 ones first; only those offer Connect
+ * or Disconnect.
  * `onDisconnect` should set `disconnectTarget`, which opens the confirmation,
  * and while `connectingServerId` is set, every Connect button is disabled.
  */
@@ -182,6 +183,10 @@ export const AgentSettingsMCPConnectionsPageView: React.FC<
 		? organization.display_name || organization.name
 		: "your organization";
 	const enabledServers = servers?.filter((server) => server.enabled) ?? [];
+	const rows = [
+		...enabledServers.filter((server) => server.auth_type === "oauth2"),
+		...enabledServers.filter((server) => server.auth_type !== "oauth2"),
+	];
 	let emptyMessage = `No MCP servers in ${organizationName}`;
 	if (error) {
 		emptyMessage = "Failed to load MCP servers";
@@ -260,7 +265,7 @@ export const AgentSettingsMCPConnectionsPageView: React.FC<
 					) : enabledServers.length === 0 ? (
 						<TableEmpty message={emptyMessage} />
 					) : (
-						enabledServers.map((server) => (
+						rows.map((server) => (
 							<MCPConnectionRow
 								key={server.id}
 								server={server}

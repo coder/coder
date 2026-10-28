@@ -93,6 +93,24 @@ describe("AgentSettingsMCPConnectionsPage", () => {
 		vi.restoreAllMocks();
 	});
 
+	it("lists servers that need no sign-in after the OAuth2 servers", async () => {
+		const mockRegistryMCP: TypesGen.MCPServerConfig = {
+			...MockMCPServerConfig,
+			id: "mcp-registry",
+			display_name: "Registry",
+			auth_type: "none",
+		};
+		setup(() => [mockRegistryMCP, mockGitHubMCP, mockNotionMCP]);
+		renderPage();
+
+		await screen.findByRole("button", { name: "Connect GitHub" });
+		const names = screen
+			.getAllByRole("row")
+			.slice(1)
+			.map((row) => within(row).getAllByRole("cell")[0]?.textContent);
+		expect(names).toEqual(["GitHub", "Notion", "Registry"]);
+	});
+
 	it("connects through the organization's popup and refreshes the list when sign-in completes", async () => {
 		const user = userEvent.setup();
 		const getServers = setup(() => [mockGitHubMCP]);
