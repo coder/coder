@@ -4,15 +4,18 @@ import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
+import { chatProjectsKey } from "#/api/queries/chatProjects";
 import { chatEntityKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChat } from "#/testHelpers/chatEntities";
+import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import {
+	MockChatProject,
 	MockDefaultOrganization,
 	MockGroup,
 	MockOrganizationMember,
 	MockOrganizationMember2,
 	MockUserOwner,
+	mockApiError,
 } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
@@ -60,7 +63,7 @@ const defaultProps = {
 const meta: Meta<typeof ChatTopBar> = {
 	title: "pages/AgentsPage/ChatTopBar",
 	component: ChatTopBar,
-	decorators: [withAuthProvider],
+	decorators: [withAuthProvider, withDashboardProvider],
 	beforeEach: () => {
 		onOpenRenameDialog.mockClear();
 		spyOn(API, "checkAuthorization").mockResolvedValue({
@@ -97,7 +100,7 @@ export const SharedChat: Story = {
 	},
 };
 
-/** Viewers of another user's chat get no owner actions menu. */
+/** The share permission must not bring back the share button for viewers. */
 export const SharedChatViewer: Story = {
 	args: {
 		chat: {
@@ -107,6 +110,9 @@ export const SharedChatViewer: Story = {
 			owner_name: "Sharing User",
 			shared: true,
 		},
+	},
+	beforeEach: () => {
+		spyOn(API, "checkAuthorization").mockResolvedValue({ canShareChat: true });
 	},
 };
 
@@ -177,16 +183,18 @@ export const WithOpenPR: Story = {
 	args: {
 		chat: {
 			...MockChat,
-			diff_status: {
-				chat_id: "chat-1",
-				url: "https://github.com/coder/coder/pull/123",
-				pull_request_title: "fix: resolve race condition in workspace builds",
-				pull_request_draft: false,
-				changes_requested: false,
-				additions: 42,
-				deletions: 7,
-				changed_files: 5,
-			},
+			diff_statuses: [
+				{
+					chat_id: "chat-1",
+					url: "https://github.com/coder/coder/pull/123",
+					pull_request_title: "fix: resolve race condition in workspace builds",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 42,
+					deletions: 7,
+					changed_files: 5,
+				},
+			],
 		},
 	},
 };
@@ -195,16 +203,18 @@ export const WithDraftPR: Story = {
 	args: {
 		chat: {
 			...MockChat,
-			diff_status: {
-				chat_id: "chat-1",
-				url: "https://github.com/coder/coder/pull/456",
-				pull_request_title: "feat: add new notification system",
-				pull_request_draft: true,
-				changes_requested: false,
-				additions: 120,
-				deletions: 30,
-				changed_files: 8,
-			},
+			diff_statuses: [
+				{
+					chat_id: "chat-1",
+					url: "https://github.com/coder/coder/pull/456",
+					pull_request_title: "feat: add new notification system",
+					pull_request_draft: true,
+					changes_requested: false,
+					additions: 120,
+					deletions: 30,
+					changed_files: 8,
+				},
+			],
 		},
 	},
 };
@@ -213,17 +223,19 @@ export const WithMergedPR: Story = {
 	args: {
 		chat: {
 			...MockChat,
-			diff_status: {
-				chat_id: "chat-1",
-				url: "https://github.com/coder/coder/pull/789",
-				pull_request_title: "chore: update dependencies",
-				pull_request_state: "merged",
-				pull_request_draft: false,
-				changes_requested: false,
-				additions: 5,
-				deletions: 3,
-				changed_files: 1,
-			},
+			diff_statuses: [
+				{
+					chat_id: "chat-1",
+					url: "https://github.com/coder/coder/pull/789",
+					pull_request_title: "chore: update dependencies",
+					pull_request_state: "merged",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 5,
+					deletions: 3,
+					changed_files: 1,
+				},
+			],
 		},
 	},
 };
@@ -232,17 +244,19 @@ export const WithClosedPR: Story = {
 	args: {
 		chat: {
 			...MockChat,
-			diff_status: {
-				chat_id: "chat-1",
-				url: "https://github.com/coder/coder/pull/101",
-				pull_request_title: "fix: deprecated API cleanup",
-				pull_request_state: "closed",
-				pull_request_draft: false,
-				changes_requested: false,
-				additions: 0,
-				deletions: 50,
-				changed_files: 3,
-			},
+			diff_statuses: [
+				{
+					chat_id: "chat-1",
+					url: "https://github.com/coder/coder/pull/101",
+					pull_request_title: "fix: deprecated API cleanup",
+					pull_request_state: "closed",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 0,
+					deletions: 50,
+					changed_files: 3,
+				},
+			],
 		},
 	},
 };
@@ -266,16 +280,18 @@ export const MobileWithOpenPR: Story = {
 	args: {
 		chat: {
 			...MockChat,
-			diff_status: {
-				chat_id: "chat-1",
-				url: "https://github.com/coder/coder/pull/123",
-				pull_request_title: "fix: resolve race condition in workspace builds",
-				pull_request_draft: false,
-				changes_requested: false,
-				additions: 42,
-				deletions: 7,
-				changed_files: 5,
-			},
+			diff_statuses: [
+				{
+					chat_id: "chat-1",
+					url: "https://github.com/coder/coder/pull/123",
+					pull_request_title: "fix: resolve race condition in workspace builds",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 42,
+					deletions: 7,
+					changed_files: 5,
+				},
+			],
 		},
 	},
 };
@@ -286,16 +302,18 @@ export const MobileWithDraftPR: Story = {
 	args: {
 		chat: {
 			...MockChat,
-			diff_status: {
-				chat_id: "chat-1",
-				url: "https://github.com/coder/coder/pull/456",
-				pull_request_title: "feat: add new notification system",
-				pull_request_draft: true,
-				changes_requested: false,
-				additions: 120,
-				deletions: 30,
-				changed_files: 8,
-			},
+			diff_statuses: [
+				{
+					chat_id: "chat-1",
+					url: "https://github.com/coder/coder/pull/456",
+					pull_request_title: "feat: add new notification system",
+					pull_request_draft: true,
+					changes_requested: false,
+					additions: 120,
+					deletions: 30,
+					changed_files: 8,
+				},
+			],
 		},
 	},
 };
@@ -306,17 +324,19 @@ export const MobileWithMergedPR: Story = {
 	args: {
 		chat: {
 			...MockChat,
-			diff_status: {
-				chat_id: "chat-1",
-				url: "https://github.com/coder/coder/pull/789",
-				pull_request_title: "chore: update dependencies",
-				pull_request_state: "merged",
-				pull_request_draft: false,
-				changes_requested: false,
-				additions: 5,
-				deletions: 3,
-				changed_files: 1,
-			},
+			diff_statuses: [
+				{
+					chat_id: "chat-1",
+					url: "https://github.com/coder/coder/pull/789",
+					pull_request_title: "chore: update dependencies",
+					pull_request_state: "merged",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 5,
+					deletions: 3,
+					changed_files: 1,
+				},
+			],
 		},
 	},
 };
@@ -327,18 +347,100 @@ export const MobileWithClosedPR: Story = {
 	args: {
 		chat: {
 			...MockChat,
-			diff_status: {
-				chat_id: "chat-1",
-				url: "https://github.com/coder/coder/pull/101",
-				pull_request_title: "fix: deprecated API cleanup",
-				pull_request_state: "closed",
-				pull_request_draft: false,
-				changes_requested: false,
-				additions: 0,
-				deletions: 50,
-				changed_files: 3,
-			},
+			diff_statuses: [
+				{
+					chat_id: "chat-1",
+					url: "https://github.com/coder/coder/pull/101",
+					pull_request_title: "fix: deprecated API cleanup",
+					pull_request_state: "closed",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 0,
+					deletions: 50,
+					changed_files: 3,
+				},
+			],
 		},
+	},
+};
+
+const mockPRStatuses = [
+	{
+		...MockChatDiffStatus,
+		git_branch: "feat/one",
+		pull_request_title: "fix: resolve race condition in workspace builds",
+	},
+	{
+		...MockChatDiffStatus,
+		git_branch: "feat/two",
+		url: "https://github.com/coder/coder/pull/456",
+		pr_number: 456,
+		pull_request_title: "feat: add new notification system",
+		pull_request_draft: true,
+	},
+] as const;
+
+export const WithMultiplePRs: Story = {
+	args: {
+		chat: {
+			...MockChat,
+			diff_statuses: mockPRStatuses,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Open the menu so the screenshot captures it.
+		await userEvent.click(canvas.getByRole("button", { name: /2 PRs/ }));
+		await within(document.body).findByRole("menu");
+	},
+};
+
+// Enough long titles to show the menu's width and height limits.
+export const WithManyPRs: Story = {
+	args: {
+		chat: {
+			...MockChat,
+			diff_statuses: Array.from({ length: 15 }, (_, index) => ({
+				...MockChatDiffStatus,
+				git_branch: `refactor/agents-${index + 1}`,
+				url: `https://github.com/coder/coder/pull/${29901 + index}`,
+				pr_number: 29901 + index,
+				pull_request_title: `refactor(site): split the agents page into smaller parts, step ${index + 1}`,
+			})),
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: /15 PRs/ }));
+		await within(document.body).findByRole("menu");
+	},
+};
+
+// Both repositories carry PR #123, so the menu must name each
+// repository to keep the entries apart.
+const mockCrossOriginPRStatuses = [
+	mockPRStatuses[0],
+	{
+		...mockPRStatuses[1],
+		remote_origin: "https://github.com/coder/other-project.git",
+		url: "https://github.com/coder/other-project/pull/123",
+		pr_number: 123,
+		pull_request_title: "fix: resolve race condition in workspace builds",
+	},
+] as const;
+
+export const WithCrossOriginPRs: Story = {
+	args: {
+		chat: {
+			...MockChat,
+			diff_statuses: mockCrossOriginPRStatuses,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Open the menu so the screenshot captures it.
+		await userEvent.click(canvas.getByRole("button", { name: /2 PRs/ }));
+		await within(document.body).findByRole("menu");
 	},
 };
 
@@ -474,6 +576,93 @@ export const ActiveChatArchiveActionsDisabled: Story = {
 	},
 };
 
+const mockBillingProject: TypesGen.ChatProject = {
+	...MockChatProject,
+	id: "chat-project-billing",
+	name: "Billing",
+};
+
+const mockLaunchChat: TypesGen.Chat = {
+	...MockChat,
+	organization_id: MockChatProject.organization_id,
+	project_id: MockChatProject.id,
+};
+
+const openMoveToProjectSubmenu = async (canvasElement: HTMLElement) => {
+	await userEvent.click(
+		within(canvasElement).getByRole("button", { name: "Open agent actions" }),
+	);
+	await userEvent.click(
+		await within(document.body).findByRole("menuitem", {
+			name: "Move to project",
+		}),
+	);
+};
+
+export const MoveToProjectSubmenu: Story = {
+	args: { chat: mockLaunchChat },
+	parameters: {
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject, mockBillingProject] },
+		],
+	},
+	play: ({ canvasElement }) => openMoveToProjectSubmenu(canvasElement),
+};
+
+export const MoveToProjectSubmenuUnfiled: Story = {
+	args: {
+		chat: { ...MockChat, organization_id: MockChatProject.organization_id },
+	},
+	parameters: {
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject, mockBillingProject] },
+		],
+	},
+	play: ({ canvasElement }) => openMoveToProjectSubmenu(canvasElement),
+};
+
+export const MoveToProjectBlocked: Story = {
+	args: { chat: mockLaunchChat, liveChatStatus: "running" },
+	parameters: {
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject, mockBillingProject] },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Open agent actions" }),
+		);
+	},
+};
+
+export const MoveToProjectSubmenuNoProjects: Story = {
+	parameters: {
+		queries: [{ key: chatProjectsKey, data: [] }],
+	},
+	play: ({ canvasElement }) => openMoveToProjectSubmenu(canvasElement),
+};
+
+export const MoveToProjectSubmenuLoading: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+	play: ({ canvasElement }) => openMoveToProjectSubmenu(canvasElement),
+};
+
+export const MoveToProjectSubmenuLoadError: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockRejectedValue(
+			mockApiError({ message: "Failed to load projects." }),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		await openMoveToProjectSubmenu(canvasElement);
+		await within(document.body).findByText("Failed to load projects.");
+	},
+};
+
 export const PreservesArchivedFilterOnMobileBack: Story = {
 	decorators: mobileDecorator,
 	parameters: {
@@ -502,7 +691,6 @@ export const PreservesArchivedFilterOnMobileBack: Story = {
 };
 
 export const ShareChatButton: Story = {
-	decorators: [withDashboardProvider],
 	args: {
 		chat: {
 			...MockChat,

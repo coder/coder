@@ -2,7 +2,9 @@ package cli_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"testing"
 
 	"github.com/google/uuid"
@@ -30,6 +32,7 @@ func TestWorkspaceBuildTemplateVersion(t *testing.T) {
 		stopped     bool
 		sameVersion bool
 		missing     bool
+		byID        bool
 		wantErr     string
 	}{
 		{name: "Stop", command: "stop", startPin: true},
@@ -41,12 +44,20 @@ func TestWorkspaceBuildTemplateVersion(t *testing.T) {
 		{name: "UpdateBoth", command: "update", startPin: true, stopPin: true},
 		{name: "UpdateStopped", command: "update", startPin: true, stopPin: true, stopped: true},
 		{name: "UpdateStopOnlyStopped", command: "update", stopPin: true, stopped: true, wantErr: "already stopped and up-to-date"},
-		{name: "UpdateMissingStart", command: "update", startPin: true, stopPin: true, missing: true},
-		{name: "UpdateMissingStop", command: "update", stopPin: true, missing: true},
+		{name: "StopByID", command: "stop", startPin: true, byID: true},
+		{name: "StartByID", command: "start", startPin: true, byID: true},
+		{name: "UpdateBothByID", command: "update", startPin: true, stopPin: true, byID: true},
+		{name: "StartMissingName", command: "start", startPin: true, missing: true},
+		{name: "UpdateMissingStart", command: "update", startPin: true, stopPin: true, missing: true, byID: true},
+		{name: "UpdateMissingStop", command: "update", stopPin: true, missing: true, byID: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			missingVersion := "missing-version"
+			if tc.byID {
+				missingVersion = uuid.NewString()
+			}
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			owner := coderdtest.CreateFirstUser(t, client)
 			member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
@@ -87,20 +98,26 @@ func TestWorkspaceBuildTemplateVersion(t *testing.T) {
 			startID := version.ID
 			if tc.startPin {
 				name := target.Name
+				if tc.byID {
+					name = target.ID.String()
+				}
 				startID = target.ID
 				if tc.sameVersion {
 					name = version.Name
 					startID = version.ID
 				}
 				if tc.missing {
-					name = uuid.NewString()
+					name = missingVersion
 				}
 				args = append(args, "--template-version", name)
 			}
 			if tc.stopPin {
 				name := stopTarget.Name
+				if tc.byID {
+					name = stopTarget.ID.String()
+				}
 				if tc.missing && !tc.startPin {
-					name = uuid.NewString()
+					name = missingVersion
 				}
 				args = append(args, "--stop-template-version", name)
 			}
@@ -125,7 +142,7 @@ func TestWorkspaceBuildTemplateVersion(t *testing.T) {
 			}
 			if tc.missing {
 				require.Error(t, err)
-				require.Contains(t, err.Error(), "get template version by name")
+				require.ErrorContains(t, err, fmt.Sprintf("not found for template %q", template.Name))
 				after, err := client.Workspace(ctx, workspace.ID)
 				require.NoError(t, err)
 				require.Equal(t, before, after.LatestBuild.BuildNumber)
@@ -386,4 +403,101 @@ func TestUpdateStopTemplateVersionFailedStop(t *testing.T) {
 
 	after := coderdtest.MustWorkspace(t, client, workspace.ID)
 	require.Equal(t, before.LatestBuild.ID, after.LatestBuild.ID)
+}
+
+func TestTemplateVersionNameOrID(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	owner := coderdtest.CreateFirstUser(t, client)
+	member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	createVersion := func(mutators ...func(*codersdk.CreateTemplateVersionRequest)) codersdk.TemplateVersion {
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil, mutators...)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		return version
+	}
+	active := createVersion()
+	template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, active.ID)
+	inTemplate := func(req *codersdk.CreateTemplateVersionRequest) { req.TemplateID = template.ID }
+	target := createVersion(inTemplate)
+	// Named after the active version's ID, so that ID resolves to this
+	// version by name.
+	namedLikeID := createVersion(func(req *codersdk.CreateTemplateVersionRequest) {
+		req.TemplateID = template.ID
+		req.Name = active.ID.String()
+	})
+	otherVersion := createVersion()
+	coderdtest.CreateTemplate(t, client, owner.OrganizationID, otherVersion.ID)
+	// A file whose body decodes as a version of this template that points at
+	// the other template's version.
+	forged, err := json.Marshal(codersdk.TemplateVersion{ID: otherVersion.ID, TemplateID: &template.ID})
+	require.NoError(t, err)
+	forgedFile, err := member.Upload(testutil.Context(t, testutil.WaitShort), codersdk.ContentTypeTar, bytes.NewReader(forged))
+	require.NoError(t, err)
+	// Error formats take the --template-version input and the template name.
+	const (
+		notFound = "template version %q not found for template %q"
+		notOwned = "template version %q does not belong to template %q"
+	)
+
+	for _, command := range []string{"create", "start", "stop"} {
+		for _, tc := range []struct {
+			name    string
+			version string
+			wantID  uuid.UUID
+			wantErr string
+		}{
+			{name: "ID", version: target.ID.String(), wantID: target.ID},
+			{name: "NameBeforeID", version: active.ID.String(), wantID: namedLikeID.ID},
+			{name: "OtherTemplateID", version: otherVersion.ID.String(), wantErr: notOwned},
+			{name: "OtherTemplatePathName", version: "../../../templateversions/" + otherVersion.ID.String(), wantErr: notFound},
+			{name: "ForgedFilePathName", version: "../../../files/" + forgedFile.ID.String(), wantErr: notFound},
+			{name: "ParentSegment", version: "..", wantErr: notFound},
+			{name: "CurrentSegment", version: ".", wantErr: notFound},
+			{name: "MissingID", version: uuid.NewString(), wantErr: notFound},
+			{name: "MissingName", version: "missing-version", wantErr: notFound},
+		} {
+			t.Run(command+"/"+tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				workspaceName := testutil.GetRandomNameHyphenated(t)
+				args := []string{command, workspaceName, "--template-version", tc.version, "-y"}
+				var before codersdk.Workspace
+				if command == "create" {
+					args = append(args, "--template", template.Name)
+				} else {
+					before = coderdtest.CreateWorkspace(t, member, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
+						req.Name = workspaceName
+					})
+					coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, before.LatestBuild.ID)
+				}
+				if command != "stop" {
+					args = append(args, "--use-parameter-defaults")
+				}
+				inv, root := clitest.New(t, args...)
+				clitest.SetupConfig(t, member, root)
+				err := inv.Run()
+
+				if tc.wantErr != "" {
+					require.ErrorContains(t, err, fmt.Sprintf(tc.wantErr, tc.version, template.Name))
+					if command == "create" {
+						_, err := member.WorkspaceByOwnerAndName(ctx, codersdk.Me, workspaceName, codersdk.WorkspaceOptions{})
+						var sdkErr *codersdk.Error
+						require.ErrorAs(t, err, &sdkErr)
+						require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+						return
+					}
+					after := coderdtest.MustWorkspace(t, member, before.ID)
+					require.Equal(t, before.LatestBuild.ID, after.LatestBuild.ID)
+					return
+				}
+				require.NoError(t, err)
+				after, err := member.WorkspaceByOwnerAndName(ctx, codersdk.Me, workspaceName, codersdk.WorkspaceOptions{})
+				require.NoError(t, err)
+				require.Equal(t, template.ID, after.TemplateID)
+				require.Equal(t, tc.wantID, after.LatestBuild.TemplateVersionID)
+			})
+		}
+	}
 }

@@ -1,8 +1,18 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import type { ProviderInfo } from "#/pages/AgentsPage/utils/modelOptions";
+import {
+	bindingCompactionTriggerSource,
+	compactionDisabledThresholdPercent,
+	isCompactionPointBeyondWindow,
+	modelCompactionTrigger,
+	resolveOrganizationCompactionTrigger,
+} from "#/pages/AgentsPage/utils/compactionTriggers";
+import {
+	getModelLabel,
+	type ProviderInfo,
+} from "#/pages/AgentsPage/utils/modelOptions";
 import { DefaultModelSettings } from "#/pages/AISettingsPage/CoderAgentsPage/components/DefaultModelSettings";
-import { OrganizationInstructionsSettings } from "#/pages/AISettingsPage/CoderAgentsPage/components/OrganizationInstructionsSettings";
 import {
 	type MutationCallbacks,
 	SubagentModelOverrideSettings,
@@ -34,18 +44,6 @@ type OrganizationAgentSettingsViewProps = {
 	>;
 	savingContexts: ReadonlySet<TypesGen.ChatModelOverrideContext>;
 	errorContexts: ReadonlySet<TypesGen.ChatModelOverrideContext>;
-	canViewInstructions: boolean;
-	systemPrompt: string | undefined;
-	isSystemPromptLoading: boolean;
-	systemPromptLoadError: unknown;
-	systemPromptRefetchError: unknown;
-	onSaveSystemPrompt: (
-		req: TypesGen.UpdateOrganizationChatSystemPromptRequest,
-		options: MutationCallbacks,
-	) => void;
-	isSavingSystemPrompt: boolean;
-	saveSystemPromptError: unknown;
-	onResetSaveSystemPrompt: () => void;
 };
 
 const settings: readonly {
@@ -87,6 +85,66 @@ const settings: readonly {
 	},
 ];
 
+const formatModelList = (modelNames: readonly string[]) => {
+	const visibleNames = modelNames.slice(0, 3);
+	const remainingCount = modelNames.length - visibleNames.length;
+	return remainingCount > 0
+		? `${visibleNames.join(", ")} and ${remainingCount} more`
+		: visibleNames.join(", ");
+};
+
+type CompactionOverrideAlertProps = {
+	selectedModelID: string;
+	enabledModels: readonly TypesGen.ChatModel[];
+	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
+};
+
+const CompactionOverrideAlert: React.FC<CompactionOverrideAlertProps> = ({
+	selectedModelID,
+	enabledModels,
+	providerInfoByID,
+}) => {
+	const organizationTrigger = resolveOrganizationCompactionTrigger(
+		selectedModelID,
+		enabledModels,
+		providerInfoByID,
+		"organization",
+	);
+	if (!organizationTrigger) {
+		return null;
+	}
+
+	const compactionModel = organizationTrigger.model;
+	const undercutModels = enabledModels.filter(
+		(model) =>
+			bindingCompactionTriggerSource(
+				modelCompactionTrigger(model),
+				organizationTrigger.trigger,
+			) === "organization" &&
+			!isCompactionPointBeyondWindow(
+				organizationTrigger.pointTokens,
+				model.context_limit,
+			),
+	);
+	if (undercutModels.length === 0) {
+		return null;
+	}
+	const offModelsNote = undercutModels.some(
+		(model) =>
+			model.compression_threshold >= compactionDisabledThresholdPercent,
+	)
+		? ", including models with compaction off,"
+		: "";
+
+	return (
+		<Alert severity="warning">
+			<AlertDescription>
+				{`Chats using ${formatModelList(undercutModels.map(getModelLabel))} may compact earlier than their models' thresholds${offModelsNote} because the organization override compacts chats at ${organizationTrigger.trigger.thresholdPercent}% of ${getModelLabel(compactionModel)}'s ${compactionModel.context_limit.toLocaleString("en-US")}-token window. Personal thresholds that trigger compaction sooner still apply first.`}
+			</AlertDescription>
+		</Alert>
+	);
+};
+
 const OrganizationAgentSettingsView: React.FC<
 	OrganizationAgentSettingsViewProps
 > = ({
@@ -107,15 +165,6 @@ const OrganizationAgentSettingsView: React.FC<
 	saveByContext,
 	savingContexts,
 	errorContexts,
-	canViewInstructions,
-	systemPrompt,
-	isSystemPromptLoading,
-	systemPromptLoadError,
-	systemPromptRefetchError,
-	onSaveSystemPrompt,
-	isSavingSystemPrompt,
-	saveSystemPromptError,
-	onResetSaveSystemPrompt,
 }) => {
 	const bannerError =
 		overridesLoadError ?? overridesRefetchError ?? modelsError;
@@ -173,25 +222,23 @@ const OrganizationAgentSettingsView: React.FC<
 							isSaveError={errorContexts.has(setting.context)}
 							saveErrorMessage={`Failed to save ${setting.title.toLowerCase()} override.`}
 							unavailableModelWarning={setting.unavailableModelWarning}
+							renderSelectedModelAlert={
+								setting.context === "compaction"
+									? (selectedModelID) => (
+											<CompactionOverrideAlert
+												selectedModelID={selectedModelID}
+												enabledModels={enabledModels}
+												providerInfoByID={providerInfoByID}
+											/>
+										)
+									: undefined
+							}
 							unsetPlaceholder="Use chat model"
 							disabled={!canEdit}
 						/>
 					);
 				})}
 			</div>
-			{canViewInstructions && (
-				<OrganizationInstructionsSettings
-					systemPrompt={systemPrompt}
-					isLoading={isSystemPromptLoading}
-					loadError={systemPromptLoadError}
-					refetchError={systemPromptRefetchError}
-					canEdit={canEdit}
-					onSave={onSaveSystemPrompt}
-					isSaving={isSavingSystemPrompt}
-					saveError={saveSystemPromptError}
-					onResetSave={onResetSaveSystemPrompt}
-				/>
-			)}
 		</div>
 	);
 };

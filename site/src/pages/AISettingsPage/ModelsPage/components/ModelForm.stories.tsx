@@ -31,9 +31,11 @@ import {
 	MockAzureProviderState,
 	MockDisabledProviderState,
 	MockGoogleProviderState,
+	MockOpenAICompatProviderState,
 	MockOpenAIProviderState,
 	mockClaude,
 	mockGPT5,
+	mockOpenAICompatModel,
 	mockProviderDisabledModel,
 } from "../testFixtures";
 import { ModelForm } from "./ModelForm";
@@ -291,6 +293,38 @@ export const Edit: Story = {
 		await expect(
 			screen.getByRole("menuitem", { name: /delete/i }),
 		).toBeInTheDocument();
+	},
+};
+
+// openai-compat has no bundled icon, so the helper text under the provider
+// select is the only place the form shows the exact type used for pricing.
+export const ShowProviderType: Story = {
+	args: {
+		providerStates: [MockOpenAIProviderState, MockOpenAICompatProviderState],
+		selectedProviderState: MockOpenAICompatProviderState,
+		editingModel: mockOpenAICompatModel,
+		onDeleteModel: fn(async () => undefined),
+		onDuplicate: fn(),
+	},
+};
+
+const mockConfiguredIconProviderState = {
+	...MockOpenAICompatProviderState,
+	providerDescriptor: {
+		...MockOpenAICompatProviderState.providerDescriptor,
+		icon: "/icon/widgets.svg",
+	},
+};
+
+export const ConfiguredProviderIcon: Story = {
+	args: {
+		providerStates: [MockOpenAIProviderState, mockConfiguredIconProviderState],
+		selectedProviderState: mockConfiguredIconProviderState,
+		editingModel: mockOpenAICompatModel,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("combobox", { name: /provider/i }));
 	},
 };
 

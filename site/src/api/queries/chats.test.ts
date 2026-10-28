@@ -14,6 +14,7 @@ import {
 	SUCCESS_STATUSES,
 } from "#/pages/AgentsPage/components/RightPanel/DebugPanel/debugPanelUtils";
 import {
+	MockChatAttachment,
 	MockChatMessage,
 	MockMCPServerConfig,
 } from "#/testHelpers/chatEntities";
@@ -46,6 +47,8 @@ import {
 	chatACLKey,
 	chatAdvisorConfig,
 	chatAdvisorConfigKey,
+	chatAttachments,
+	chatAttachmentsKey,
 	chatCost,
 	chatCostTreeKey,
 	chatDebugRunKey,
@@ -56,6 +59,7 @@ import {
 	chatEntityKey,
 	chatListFamilyKey,
 	chatListKey,
+	chatMessagesForInfiniteScroll,
 	chatMessagesKey,
 	chatModel,
 	chatModelACL,
@@ -97,6 +101,7 @@ import {
 	mcpServerConfigsKey,
 	mergeWatchedChatIntoCaches,
 	mergeWatchedChatSummary,
+	moveChatToProject,
 	openChat,
 	organizationChatModelsKey,
 	patchChatEntity,
@@ -104,6 +109,7 @@ import {
 	pinChat,
 	planModeFieldsForCreateMessage,
 	prependToInfiniteChatsCache,
+	projectChats,
 	projectChatsKey,
 	promoteChatQueuedMessage,
 	proposeChatTitle,
@@ -113,6 +119,7 @@ import {
 	reorderPinnedChat,
 	replaceChatMessagesHistory,
 	resetUnloadedChatEntity,
+	resetUnloadedChatLists,
 	setChatGroupRole,
 	setChatUserRole,
 	shouldInvalidateChatSearches,
@@ -121,7 +128,6 @@ import {
 	toChatListParams,
 	unarchiveChat,
 	unpinChat,
-	updateChatManageAutomations,
 	updateChatModel,
 	updateChatModelACL,
 	updateChatPlanMode,
@@ -142,8 +148,10 @@ vi.mock("#/api/api", () => ({
 			deleteChatQueuedMessage: vi.fn(),
 			getChats: vi.fn(),
 			getChatsByWorkspace: vi.fn(),
+			getChatAttachments: vi.fn(),
 			getChatCost: vi.fn(),
 			getChatDiffContents: vi.fn(),
+			getChatMessages: vi.fn(),
 			createChatMessage: vi.fn(),
 			editChatMessage: vi.fn(),
 			interruptChat: vi.fn(),
@@ -263,6 +271,34 @@ const observeChatWithDeferredFirstFetch = (
 		firstFetch,
 		fetchCount: () => fetchCount,
 		unsubscribe,
+	};
+};
+
+/** resetQueries refetches only observed queries. */
+const observeChatLists = (
+	queryClient: QueryClient,
+	options: { staleTime?: number } = {},
+) => {
+	const observers = [
+		new InfiniteQueryObserver(queryClient, { ...infiniteChats(), ...options }),
+		new InfiniteQueryObserver(queryClient, {
+			...projectChats("project-1"),
+			...options,
+		}),
+	];
+	const unsubscribes = observers.map((observer) =>
+		observer.subscribe(() => {}),
+	);
+	return {
+		chats: () =>
+			observers.map((observer) =>
+				observer.getCurrentResult().data?.pages.flat(),
+			),
+		unsubscribe: () => {
+			for (const unsubscribe of unsubscribes) {
+				unsubscribe();
+			}
+		},
 	};
 };
 
@@ -740,51 +776,6 @@ describe("updateChatPlanMode", () => {
 			queryClient.getQueryState(infiniteChatsTestKey)?.isInvalidated,
 			"chat list should be invalidated when rollback lacks detail cache",
 		).toBe(true);
-	});
-});
-
-describe("updateChatManageAutomations", () => {
-	it("sends the requested value", async () => {
-		const queryClient = createTestQueryClient();
-		vi.mocked(API.experimental.updateChat).mockResolvedValue(undefined);
-		const mutation = updateChatManageAutomations(queryClient);
-
-		await mutation.mutationFn({ chatId: "chat-1", enabled: true });
-		await mutation.mutationFn({ chatId: "chat-1", enabled: false });
-
-		expect(API.experimental.updateChat).toHaveBeenNthCalledWith(1, "chat-1", {
-			manage_automations_enabled: true,
-		});
-		expect(API.experimental.updateChat).toHaveBeenNthCalledWith(2, "chat-1", {
-			manage_automations_enabled: false,
-		});
-	});
-
-	it("updates the caches optimistically and rolls back on error", async () => {
-		const queryClient = createTestQueryClient();
-		const chatId = "chat-1";
-		const chat = makeChat(chatId);
-		seedInfiniteChats(queryClient, [chat]);
-		queryClient.setQueryData(chatEntityKey(chatId), chat);
-
-		const mutation = updateChatManageAutomations(queryClient);
-		const variables = { chatId, enabled: true };
-		const context = await mutation.onMutate(variables);
-
-		expect(readInfiniteChats(queryClient)?.[0].manage_automations_enabled).toBe(
-			true,
-		);
-		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))
-				?.manage_automations_enabled,
-		).toBe(true);
-
-		mutation.onError(new Error("forbidden"), variables, context);
-
-		expect(
-			readInfiniteChats(queryClient)?.[0].manage_automations_enabled,
-		).toBeUndefined();
-		expect(queryClient.getQueryData(chatEntityKey(chatId))).toEqual(chat);
 	});
 });
 
@@ -1563,6 +1554,32 @@ describe("pinChat optimistic update", () => {
 	});
 });
 
+describe("moveChatToProject", () => {
+	it("restores the project when the move fails", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		seedInfiniteChats(queryClient, [
+			makeChat(chatId, { project_id: "project-a" }),
+		]);
+		queryClient.setQueryData(
+			chatEntityKey(chatId),
+			makeChat(chatId, { project_id: "project-a" }),
+		);
+		const mutation = moveChatToProject(queryClient);
+		const variables = { chatId, projectId: null };
+
+		const context = await mutation.onMutate(variables);
+		expect(readInfiniteChats(queryClient)?.[0].project_id).toBeUndefined();
+
+		mutation.onError(new Error("conflict"), variables, context);
+		expect(readInfiniteChats(queryClient)?.[0].project_id).toBe("project-a");
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))
+				?.project_id,
+		).toBe("project-a");
+	});
+});
+
 describe("unpinChat optimistic update", () => {
 	it("optimistically sets pin_order to 0 in the chats list", async () => {
 		const queryClient = createTestQueryClient();
@@ -1703,6 +1720,70 @@ describe("chat cost query factories", () => {
 			chatId,
 			expect.any(AbortSignal),
 		);
+	});
+});
+
+describe("chatAttachments", () => {
+	const mockEarlierAttachment: TypesGen.ChatAttachment = {
+		...MockChatAttachment,
+		message_id: 5,
+	};
+
+	it.each([
+		{
+			name: "seeds an earlier boundary from a later boundary's list",
+			chatId: "chat-1",
+			beforeId: 10,
+			seeded: true,
+		},
+		{
+			name: "fetches a boundary that no cached list covers",
+			chatId: "chat-1",
+			beforeId: 30,
+			seeded: false,
+		},
+		{
+			name: "fetches another chat's boundary",
+			chatId: "chat-2",
+			beforeId: 10,
+			seeded: false,
+		},
+	])("$name", ({ chatId, beforeId, seeded }) => {
+		vi.mocked(API.experimental.getChatAttachments).mockReturnValue(
+			new Promise(() => {}),
+		);
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatAttachmentsKey("chat-1", 20), {
+			attachments: [
+				{ ...MockChatAttachment, message_id: 15 },
+				mockEarlierAttachment,
+			],
+		});
+		const observer = new QueryObserver(
+			queryClient,
+			chatAttachments(queryClient, chatId, beforeId),
+		);
+		const unsubscribe = observer.subscribe(() => {});
+
+		expect(observer.getCurrentResult().data).toEqual(
+			seeded ? { attachments: [mockEarlierAttachment] } : undefined,
+		);
+		expect(API.experimental.getChatAttachments).toHaveBeenCalledTimes(
+			seeded ? 0 : 1,
+		);
+		unsubscribe();
+	});
+
+	it("requests nothing until a boundary exists", () => {
+		const queryClient = createTestQueryClient();
+		const observer = new QueryObserver(
+			queryClient,
+			chatAttachments(queryClient, "chat-1", undefined),
+		);
+		const unsubscribe = observer.subscribe(() => {});
+
+		expect(API.experimental.getChatAttachments).not.toHaveBeenCalled();
+		unsubscribe();
 	});
 });
 
@@ -3753,6 +3834,34 @@ describe("mergeWatchedChatSummary", () => {
 		});
 	});
 
+	it("takes project_id only from project_change events", () => {
+		const cachedChat = makeChat("chat-1", {
+			project_id: "project-a",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		// A move does not change updated_at.
+		const moved = mergeWatchedChatSummary(
+			cachedChat,
+			makeChat("chat-1", {
+				project_id: "project-b",
+				updated_at: "2025-01-01T00:00:00.000Z",
+			}),
+			{ eventKind: "project_change" },
+		);
+		expect(moved.project_id).toBe("project-b");
+
+		const delayedStatus = makeChat("chat-1", {
+			project_id: "project-a",
+			status: "running",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		expect(
+			mergeWatchedChatSummary(moved, delayedStatus, {
+				eventKind: "status_change",
+			}),
+		).toMatchObject({ project_id: "project-b", status: "running" });
+	});
+
 	it("does not let an older summary row revert fields a newer event set", () => {
 		const cachedChat = makeChat("chat-1", {
 			last_model_config_id: "model-a",
@@ -4693,6 +4802,7 @@ describe("semantic cache operations: prefix invalidations", () => {
 			created: false,
 			deleted: false,
 			diff_status_change: false,
+			project_change: false,
 			status_change: true,
 			summary_change: false,
 			title_change: false,
@@ -4772,6 +4882,7 @@ describe("semantic cache operations: prefix invalidations", () => {
 			created: false,
 			deleted: false,
 			diff_status_change: true,
+			project_change: false,
 			status_change: true,
 			summary_change: false,
 			title_change: true,
@@ -4880,6 +4991,62 @@ describe("semantic cache operations: cancellation", () => {
 		await resetUnloadedChatEntity(queryClient, "chat-1");
 
 		expect(resetSpy).not.toHaveBeenCalled();
+	});
+
+	it("resetUnloadedChatLists restarts first fetches of sidebar and project lists", async () => {
+		const queryClient = createTestQueryClient();
+		const staleChat = makeChat("chat-1");
+		const movedChat = makeChat("chat-1", { project_id: "project-1" });
+		const firstFetches = [
+			createDeferred<TypesGen.Chat[]>(),
+			createDeferred<TypesGen.Chat[]>(),
+		];
+		const getChats = vi
+			.mocked(API.experimental.getChats)
+			.mockReturnValueOnce(firstFetches[0].promise)
+			.mockReturnValueOnce(firstFetches[1].promise)
+			.mockResolvedValueOnce([movedChat])
+			.mockResolvedValueOnce([movedChat]);
+		const lists = observeChatLists(queryClient);
+		try {
+			expect(getChats).toHaveBeenCalledTimes(2);
+
+			const reset = resetUnloadedChatLists(queryClient);
+			// Both first responses read the lists before the move.
+			for (const firstFetch of firstFetches) {
+				firstFetch.resolve([staleChat]);
+			}
+			await reset;
+
+			expect(getChats).toHaveBeenCalledTimes(4);
+			expect(lists.chats()).toEqual([[movedChat], [movedChat]]);
+		} finally {
+			lists.unsubscribe();
+		}
+	});
+
+	it("resetUnloadedChatLists keeps loaded lists and sends no request", async () => {
+		const queryClient = createTestQueryClient();
+		// Answers any request, so a refetch fails below instead of timing out.
+		const getChats = vi.mocked(API.experimental.getChats).mockResolvedValue([]);
+		const loadedChats = [makeChat("chat-1")];
+		seedInfiniteChats(queryClient, loadedChats);
+		queryClient.setQueryData<InfiniteData>(projectChatsKey("project-1"), {
+			pages: [loadedChats],
+			pageParams: [0],
+		});
+		// Fresh data keeps the observers from fetching on mount.
+		const lists = observeChatLists(queryClient, {
+			staleTime: Number.POSITIVE_INFINITY,
+		});
+		try {
+			await resetUnloadedChatLists(queryClient);
+
+			expect(getChats).not.toHaveBeenCalled();
+			expect(lists.chats()).toEqual([loadedChats, loadedChats]);
+		} finally {
+			lists.unsubscribe();
+		}
 	});
 
 	it("cancelChatMessages cancels the exact messages entry", async () => {
@@ -5006,6 +5173,155 @@ describe("semantic cache operations: removal and patching", () => {
 		expect(queryClient.getQueryData(chatsByWorkspace(["ws-1"]).queryKey)).toBe(
 			before,
 		);
+	});
+});
+
+describe("chatMessagesForInfiniteScroll", () => {
+	type History = { newestId: number; turnStartId: number | undefined };
+
+	// Serves IDs 1..newestId newest-first, with before_id and after_id as
+	// exclusive bounds.
+	const historyPage = (
+		{ newestId, turnStartId }: History,
+		opts: Parameters<typeof API.experimental.getChatMessages>[1],
+	): TypesGen.ChatMessagesResponse => {
+		const top = (opts?.before_id ?? newestId + 1) - 1;
+		const floor = (opts?.after_id ?? 0) + 1;
+		const bottom = Math.max(floor, top - (opts?.limit ?? 50) + 1);
+		const messages: TypesGen.ChatMessage[] = [];
+		for (let id = top; id >= bottom; id--) {
+			messages.push({ ...MockChatMessage, id });
+		}
+		return {
+			messages,
+			queued_messages: [],
+			has_more: bottom > floor,
+			turn_start_id: turnStartId,
+		};
+	};
+
+	const serveHistory = (history: History) =>
+		vi
+			.mocked(API.experimental.getChatMessages)
+			.mockImplementation(async (_chatId, opts) => historyPage(history, opts));
+
+	const query = chatMessagesForInfiniteScroll("chat-1");
+	const loadNewestPage = () =>
+		query.queryFn({
+			pageParam: undefined,
+			signal: new AbortController().signal,
+		});
+
+	it.each([
+		{ name: "the page starts at its turn prompt", turnStartId: 51 },
+		{ name: "the server omits turn_start_id", turnStartId: undefined },
+	])("makes one request when $name", async ({ turnStartId }) => {
+		const getChatMessages = serveHistory({ newestId: 100, turnStartId });
+
+		const page = await loadNewestPage();
+
+		expect(getChatMessages).toHaveBeenCalledTimes(1);
+		expect(getChatMessages).toHaveBeenCalledWith(
+			"chat-1",
+			{ before_id: undefined, limit: 50 },
+			expect.any(AbortSignal),
+		);
+		expect(page.messages.map((m) => m.id)).toEqual(
+			Array.from({ length: 50 }, (_, i) => 100 - i),
+		);
+	});
+
+	it("extends a mid-turn page back to the turn prompt", async () => {
+		const getChatMessages = serveHistory({ newestId: 300, turnStartId: 10 });
+
+		const page = await loadNewestPage();
+
+		expect(getChatMessages.mock.calls.map(([, opts]) => opts)).toEqual([
+			{ before_id: undefined, limit: 50 },
+			{ after_id: 9, before_id: 251, limit: 200 },
+			{ after_id: 9, before_id: 51, limit: 200 },
+		]);
+		expect(page.messages.map((m) => m.id)).toEqual(
+			Array.from({ length: 291 }, (_, i) => 300 - i),
+		);
+		expect(page.has_more).toBe(true);
+		expect(query.getNextPageParam(page)).toBe(10);
+	});
+
+	it("stops at the per-page cap with the next page cursor mid-turn", async () => {
+		const getChatMessages = serveHistory({ newestId: 2000, turnStartId: 1 });
+
+		const page = await loadNewestPage();
+
+		expect(getChatMessages).toHaveBeenCalledTimes(6);
+		expect(getChatMessages).toHaveBeenLastCalledWith(
+			"chat-1",
+			{ after_id: 0, before_id: 1151, limit: 150 },
+			expect.any(AbortSignal),
+		);
+		expect(page.messages).toHaveLength(1000);
+		expect(query.getNextPageParam(page)).toBe(1001);
+	});
+
+	it.each<{ name: string; fill: () => Promise<unknown> }>([
+		{
+			name: "a fill request fails",
+			fill: () => Promise.reject(new Error("fill failed")),
+		},
+		{
+			name: "a fill response is not a messages page",
+			fill: async () => ({ oops: true }),
+		},
+		{
+			name: "an empty fill response reports has_more",
+			fill: async () => ({ messages: [], queued_messages: [], has_more: true }),
+		},
+	])("keeps the loaded messages when $name", async ({ fill }) => {
+		const history = { newestId: 300, turnStartId: 10 };
+		const getChatMessages = vi
+			.mocked(API.experimental.getChatMessages)
+			.mockReset()
+			.mockResolvedValueOnce(historyPage(history, { limit: 50 }))
+			.mockResolvedValueOnce(
+				historyPage(history, { after_id: 9, before_id: 251, limit: 200 }),
+			)
+			// The client returns the response body unchecked, so a fill can
+			// resolve to anything.
+			.mockImplementationOnce(
+				fill as () => Promise<TypesGen.ChatMessagesResponse>,
+			);
+
+		const page = await loadNewestPage();
+
+		expect(getChatMessages).toHaveBeenCalledTimes(3);
+		expect(page.messages).toHaveLength(250);
+		expect(query.getNextPageParam(page)).toBe(51);
+	});
+
+	it("aborts the page and fill requests when the query is cancelled", async () => {
+		const fillStarted = createDeferred<undefined>();
+		const getChatMessages = vi
+			.mocked(API.experimental.getChatMessages)
+			.mockReset()
+			.mockResolvedValueOnce(
+				historyPage({ newestId: 300, turnStartId: 10 }, { limit: 50 }),
+			)
+			.mockImplementationOnce(
+				(_chatId, _opts, signal) =>
+					new Promise((_resolve, reject) => {
+						signal?.addEventListener("abort", () => reject(signal.reason));
+						fillStarted.resolve(undefined);
+					}),
+			);
+		const queryClient = createTestQueryClient();
+
+		void queryClient.fetchInfiniteQuery(query);
+		await fillStarted.promise;
+		await cancelChatMessages(queryClient, "chat-1");
+
+		expect(
+			getChatMessages.mock.calls.map(([, , signal]) => signal?.aborted),
+		).toEqual([true, true]);
 	});
 });
 

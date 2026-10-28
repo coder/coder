@@ -153,6 +153,21 @@ const OAuth2Fields: React.FC<MCPServerAuthFieldsProps> = ({
 				/>
 			</Field>
 		</div>
+		<div className="grid gap-4 sm:grid-cols-2">
+			<Field
+				label="Resource URL"
+				htmlFor={`${formId}-oauth-resource`}
+				description="Sent to the OAuth2 provider as the RFC 8707 resource parameter. When empty, none is sent unless auto-discovery fills it in while registering the client."
+			>
+				<Input
+					id={`${formId}-oauth-resource`}
+					className="placeholder:text-content-disabled shadow-none"
+					{...form.getFieldProps("oauth2Resource")}
+					placeholder="https://"
+					disabled={disabled}
+				/>
+			</Field>
+		</div>
 	</div>
 );
 

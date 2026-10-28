@@ -46,10 +46,8 @@ func mcpDeploymentValues(t testing.TB) *codersdk.DeploymentValues {
 func newMCPClient(t testing.TB) *codersdk.Client {
 	t.Helper()
 
-	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 	return coderdtest.New(t, &coderdtest.Options{
-		DeploymentValues:    mcpDeploymentValues(t),
-		ChatProviderAPIKeys: &providerKeys,
+		DeploymentValues: mcpDeploymentValues(t),
 	})
 }
 
@@ -306,10 +304,8 @@ func TestMCPServerConfigWrongOrganization(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-		DeploymentValues:    mcpDeploymentValues(t),
-		ChatProviderAPIKeys: &providerKeys,
+		DeploymentValues: mcpDeploymentValues(t),
 	})
 	firstUser := coderdtest.CreateFirstUser(t, client)
 	config := createMCPServerConfig(t, client, firstUser.OrganizationID, "wrong-org", true)
@@ -327,11 +323,9 @@ func TestMCPServerConfigsAudit(t *testing.T) {
 	newAuditedMCPClient := func(t testing.TB) (*codersdk.Client, *audit.MockAuditor) {
 		t.Helper()
 		mAudit := audit.NewMock()
-		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 		client := coderdtest.New(t, &coderdtest.Options{
-			DeploymentValues:    mcpDeploymentValues(t),
-			ChatProviderAPIKeys: &providerKeys,
-			Auditor:             mAudit,
+			DeploymentValues: mcpDeploymentValues(t),
+			Auditor:          mAudit,
 		})
 		return client, mAudit
 	}
@@ -425,15 +419,13 @@ func TestMCPServerConfigsAudit(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		mAudit := audit.NewMock()
-		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 		db, ps := dbtestutil.NewDB(t)
 		store := &staleMCPServerConfigReadStore{Store: db}
 		client := coderdtest.New(t, &coderdtest.Options{
-			DeploymentValues:    mcpDeploymentValues(t),
-			ChatProviderAPIKeys: &providerKeys,
-			Auditor:             mAudit,
-			Database:            store,
-			Pubsub:              ps,
+			DeploymentValues: mcpDeploymentValues(t),
+			Auditor:          mAudit,
+			Database:         store,
+			Pubsub:           ps,
 		})
 		firstUser := coderdtest.CreateFirstUser(t, client)
 		config := createMCPServerConfig(t, client, firstUser.OrganizationID, "audit-delete-stale", true)
@@ -481,15 +473,13 @@ func TestMCPServerConfigsAudit(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		mAudit := audit.NewMock()
-		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 		db, ps := dbtestutil.NewDB(t)
 		store := &failingMCPServerConfigInsertStore{Store: db}
 		client := coderdtest.New(t, &coderdtest.Options{
-			DeploymentValues:    mcpDeploymentValues(t),
-			ChatProviderAPIKeys: &providerKeys,
-			Auditor:             mAudit,
-			Database:            store,
-			Pubsub:              ps,
+			DeploymentValues: mcpDeploymentValues(t),
+			Auditor:          mAudit,
+			Database:         store,
+			Pubsub:           ps,
 		})
 		firstUser := coderdtest.CreateFirstUser(t, client)
 
@@ -721,10 +711,8 @@ func TestMCPServerConfigsScopedKeyFullView(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-		DeploymentValues:    mcpDeploymentValues(t),
-		ChatProviderAPIKeys: &providerKeys,
+		DeploymentValues: mcpDeploymentValues(t),
 	})
 	firstUser := coderdtest.CreateFirstUser(t, adminClient)
 	_ = createMCPServerConfig(t, adminClient, firstUser.OrganizationID, "enabled-server", true)
@@ -766,10 +754,8 @@ func TestMCPServerConfigScopedKeyWithoutPersonalTokenRead(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-		DeploymentValues:    mcpDeploymentValues(t),
-		ChatProviderAPIKeys: &providerKeys,
+		DeploymentValues: mcpDeploymentValues(t),
 	})
 	firstUser := coderdtest.CreateFirstUser(t, adminClient)
 	created, err := adminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
@@ -856,10 +842,8 @@ func TestMCPServerConfigScopedKeyRefreshPersistsRotatedToken(t *testing.T) {
 			}))
 			t.Cleanup(tokenSrv.Close)
 
-			providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 			adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-				DeploymentValues:    mcpDeploymentValues(t),
-				ChatProviderAPIKeys: &providerKeys,
+				DeploymentValues: mcpDeploymentValues(t),
 			})
 			firstUser := coderdtest.CreateFirstUser(t, adminClient)
 			created, err := adminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
@@ -919,11 +903,9 @@ func TestMCPServerConfigACL(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	mAudit := audit.NewMock()
-	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-		DeploymentValues:    mcpDeploymentValues(t),
-		ChatProviderAPIKeys: &providerKeys,
-		Auditor:             mAudit,
+		DeploymentValues: mcpDeploymentValues(t),
+		Auditor:          mAudit,
 	})
 	firstUser := coderdtest.CreateFirstUser(t, adminClient)
 	groupMemberClient, groupMember := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
@@ -1078,14 +1060,12 @@ func TestMCPServerConfigACLConcurrentDelete(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 	db, ps := dbtestutil.NewDB(t)
 	store := &mcpServerConfigDeleteRaceStore{Store: db}
 	adminClient := coderdtest.New(t, &coderdtest.Options{
-		DeploymentValues:    mcpDeploymentValues(t),
-		ChatProviderAPIKeys: &providerKeys,
-		Database:            store,
-		Pubsub:              ps,
+		DeploymentValues: mcpDeploymentValues(t),
+		Database:         store,
+		Pubsub:           ps,
 	})
 	firstUser := coderdtest.CreateFirstUser(t, adminClient)
 	config := createMCPServerConfig(t, adminClient, firstUser.OrganizationID, "acl-delete-race", true)
@@ -1122,6 +1102,7 @@ func TestMCPServerConfigsSecretsNeverLeaked(t *testing.T) {
 		OAuth2AuthURL:       "https://auth.example.com/authorize",
 		OAuth2TokenURL:      "https://auth.example.com/token",
 		OAuth2RevocationURL: "https://auth.example.com/revoke",
+		OAuth2Resource:      "https://mcp.example.com/secrets",
 		OAuth2Scopes:        "read write",
 		APIKeyHeader:        "X-Api-Key",
 		APIKeyValue:         "THIS-IS-A-SECRET-API-KEY",
@@ -1156,6 +1137,7 @@ func TestMCPServerConfigsSecretsNeverLeaked(t *testing.T) {
 
 	// Verify boolean indicators are set correctly.
 	require.True(t, created.HasOAuth2Secret, "HasOAuth2Secret should be true")
+	require.Equal(t, "https://mcp.example.com/secrets", created.OAuth2Resource)
 	require.True(t, created.HasAPIKey, "HasAPIKey should be true")
 	require.True(t, created.HasCustomHeaders, "HasCustomHeaders should be true")
 
@@ -1183,6 +1165,7 @@ func TestMCPServerConfigsSecretsNeverLeaked(t *testing.T) {
 		assert.Empty(t, cfg.OAuth2AuthURL, "member should not see OAuth2AuthURL")
 		assert.Empty(t, cfg.OAuth2TokenURL, "member should not see OAuth2TokenURL")
 		assert.Empty(t, cfg.OAuth2RevocationURL, "member should not see OAuth2RevocationURL")
+		assert.Empty(t, cfg.OAuth2Resource, "member should not see OAuth2Resource")
 		assert.Empty(t, cfg.APIKeyHeader, "member should not see APIKeyHeader")
 		assert.Empty(t, cfg.OAuth2Scopes, "member should not see OAuth2Scopes")
 		assert.Empty(t, cfg.URL, "member should not see URL")
@@ -1197,6 +1180,7 @@ func TestMCPServerConfigsSecretsNeverLeaked(t *testing.T) {
 	assert.Empty(t, memberSingle.OAuth2AuthURL, "member should not see OAuth2AuthURL")
 	assert.Empty(t, memberSingle.OAuth2TokenURL, "member should not see OAuth2TokenURL")
 	assert.Empty(t, memberSingle.OAuth2Scopes, "member should not see OAuth2Scopes")
+	assert.Empty(t, memberSingle.OAuth2Resource, "member should not see OAuth2Resource")
 	assert.Empty(t, memberSingle.APIKeyHeader, "member should not see APIKeyHeader")
 	assert.Empty(t, memberSingle.URL, "member should not see URL")
 	assert.Empty(t, memberSingle.Transport, "member should not see Transport")
@@ -1289,6 +1273,7 @@ func TestMCPServerConfigsUserOIDCClearsFields(t *testing.T) {
 		OAuth2AuthURL:       "https://auth.example.com/authorize",
 		OAuth2TokenURL:      "https://auth.example.com/token",
 		OAuth2RevocationURL: "https://auth.example.com/revoke",
+		OAuth2Resource:      "https://mcp.example.com/v1",
 		OAuth2Scopes:        "read write",
 		Availability:        "default_off",
 		Enabled:             true,
@@ -1356,6 +1341,67 @@ func TestMCPServerConfigsUserOIDCClearsFields(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, newRevocationURL, updated.OAuth2RevocationURL)
 
+	// RFC 8707 resource indicators must be valid absolute URIs without a
+	// fragment, on both create and update. Create rejects them before
+	// auto-discovery so an invalid value causes no client registration.
+	var discoveryRequests atomic.Int64
+	discoveryProbe := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		discoveryRequests.Add(1)
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(discoveryProbe.Close)
+	for _, invalidResource := range []string{
+		"https://mcp.example.com/v1#frag",
+		"/v1/mcp",
+		"https://mcp.example.com/a b",
+		"https://mcp.example.com/mcp?tenant=%zz",
+		"https://mcp.example.com/a[b]",
+		"https://a]b.example.com/mcp",
+		"https://[x]/mcp",
+		"https://[::1][x]/mcp",
+		"https://[fe80::1%25en0]/mcp",
+		"https://user@mcp.example.com/mcp",
+	} {
+		_, err = client.UpdateMCPServerConfig(ctx, created.OrganizationID, created.ID, codersdk.UpdateMCPServerConfigRequest{
+			OAuth2Resource: &invalidResource,
+		})
+		require.ErrorAs(t, err, &sdkErr, invalidResource)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode(), invalidResource)
+		require.Equal(t, "Invalid OAuth2 resource.", sdkErr.Message, invalidResource)
+
+		_, err = client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:    "Invalid Resource",
+			Slug:           "invalid-resource",
+			Transport:      "streamable_http",
+			URL:            discoveryProbe.URL + "/mcp",
+			AuthType:       "oauth2",
+			OAuth2Resource: invalidResource,
+			Availability:   "default_on",
+			Enabled:        true,
+			ToolAllowList:  []string{},
+			ToolDenyList:   []string{},
+		})
+		require.ErrorAs(t, err, &sdkErr, invalidResource)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode(), invalidResource)
+		require.Equal(t, "Invalid OAuth2 resource.", sdkErr.Message, invalidResource)
+	}
+	require.Zero(t, discoveryRequests.Load(), "invalid resource must be rejected before discovery")
+
+	emptyResource := ""
+	updated, err = client.UpdateMCPServerConfig(ctx, created.OrganizationID, created.ID, codersdk.UpdateMCPServerConfigRequest{
+		OAuth2Resource: &emptyResource,
+	})
+	require.NoError(t, err)
+	require.Empty(t, updated.OAuth2Resource)
+
+	newResource := "https://mcp.example.com/v2"
+	paddedResource := " " + newResource + " "
+	updated, err = client.UpdateMCPServerConfig(ctx, created.OrganizationID, created.ID, codersdk.UpdateMCPServerConfigRequest{
+		OAuth2Resource: &paddedResource,
+	})
+	require.NoError(t, err)
+	require.Equal(t, newResource, updated.OAuth2Resource)
+
 	newAuth := "user_oidc"
 	updated, err = client.UpdateMCPServerConfig(ctx, created.OrganizationID, created.ID, codersdk.UpdateMCPServerConfigRequest{
 		AuthType: &newAuth,
@@ -1369,8 +1415,63 @@ func TestMCPServerConfigsUserOIDCClearsFields(t *testing.T) {
 	require.Empty(t, updated.OAuth2AuthURL)
 	require.Empty(t, updated.OAuth2TokenURL)
 	require.Empty(t, updated.OAuth2RevocationURL)
+	require.Empty(t, updated.OAuth2Resource)
 	require.Empty(t, updated.OAuth2Scopes)
 	require.Empty(t, updated.APIKeyHeader)
+}
+
+// TestMCPServerConfigsAuthTypeChangeClearsOAuth2Resource covers the
+// non-OIDC auth types; TestMCPServerConfigsUserOIDCClearsFields covers
+// user_oidc.
+func TestMCPServerConfigsAuthTypeChangeClearsOAuth2Resource(t *testing.T) {
+	t.Parallel()
+
+	client := newMCPClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, client)
+
+	header := "X-Api-Key"
+	value := "api-key-value"
+	customHeaders := map[string]string{"X-Custom": "custom-value"}
+	cases := []struct {
+		authType string
+		req      codersdk.UpdateMCPServerConfigRequest
+	}{
+		{authType: "none"},
+		{authType: "api_key", req: codersdk.UpdateMCPServerConfigRequest{APIKeyHeader: &header, APIKeyValue: &value}},
+		{authType: "custom_headers", req: codersdk.UpdateMCPServerConfigRequest{CustomHeaders: &customHeaders}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.authType, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			slug := "clear-resource-" + strings.ReplaceAll(tc.authType, "_", "-")
+			created, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
+				DisplayName:    "Clear Resource " + tc.authType,
+				Slug:           slug,
+				Transport:      "streamable_http",
+				URL:            "https://mcp.example.com/" + slug,
+				AuthType:       "oauth2",
+				OAuth2ClientID: "cid",
+				OAuth2AuthURL:  "https://auth.example.com/authorize",
+				OAuth2TokenURL: "https://auth.example.com/token",
+				OAuth2Resource: "https://mcp.example.com/" + slug,
+				Availability:   "default_off",
+				Enabled:        true,
+				ToolAllowList:  []string{},
+				ToolDenyList:   []string{},
+			})
+			require.NoError(t, err)
+			require.NotEmpty(t, created.OAuth2Resource)
+
+			req := tc.req
+			req.AuthType = &tc.authType
+			updated, err := client.UpdateMCPServerConfig(ctx, created.OrganizationID, created.ID, req)
+			require.NoError(t, err)
+			require.Equal(t, tc.authType, updated.AuthType)
+			require.Empty(t, updated.OAuth2Resource)
+		})
+	}
 }
 
 func TestMCPServerConfigsAPIKeyRequiresHeaderAndValue(t *testing.T) {
@@ -1482,10 +1583,8 @@ func TestMCPServerConfigsUserOIDCDirect(t *testing.T) {
 func TestMCPServerConfigsUpdateInvalidatesUserGrants(t *testing.T) {
 	t.Parallel()
 
-	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-		DeploymentValues:    mcpDeploymentValues(t),
-		ChatProviderAPIKeys: &providerKeys,
+		DeploymentValues: mcpDeploymentValues(t),
 	})
 	firstUser := coderdtest.CreateFirstUser(t, adminClient)
 	_, member := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
@@ -1609,6 +1708,20 @@ func TestMCPServerConfigsUpdateInvalidatesUserGrants(t *testing.T) {
 		require.False(t, tokenExists(ctx, t, config.ID))
 	})
 
+	t.Run("ResourceChangeDeletesGrants", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		config := newConfig(ctx, t, "grant-resource-change")
+		seedToken(ctx, t, config.ID)
+
+		resource := "https://mcp.example.com/grant-resource-change"
+		_, err := adminClient.UpdateMCPServerConfig(ctx, config.OrganizationID, config.ID, codersdk.UpdateMCPServerConfigRequest{
+			OAuth2Resource: &resource,
+		})
+		require.NoError(t, err)
+		require.False(t, tokenExists(ctx, t, config.ID))
+	})
+
 	t.Run("UnrelatedChangeKeepsGrants", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -1638,10 +1751,8 @@ func TestMCPServerConfigsOAuth2ScopedKeyAuthorization(t *testing.T) {
 	}))
 	t.Cleanup(tokenServer.Close)
 
-	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-		DeploymentValues:    mcpDeploymentValues(t),
-		ChatProviderAPIKeys: &providerKeys,
+		DeploymentValues: mcpDeploymentValues(t),
 	})
 	firstUser := coderdtest.CreateFirstUser(t, adminClient)
 	created, err := adminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
@@ -1734,6 +1845,15 @@ func TestMCPServerConfigsOAuth2CallbackRejectsSupersededRevocationURL(t *testing
 	})
 }
 
+func TestMCPServerConfigsOAuth2CallbackRejectsSupersededResource(t *testing.T) {
+	t.Parallel()
+
+	movedResource := "https://attacker.example.com/mcp"
+	runMCPServerConfigsOAuth2CallbackSupersessionTest(t, "superseded-resource-callback", codersdk.UpdateMCPServerConfigRequest{
+		OAuth2Resource: &movedResource,
+	})
+}
+
 func runMCPServerConfigsOAuth2CallbackSupersessionTest(
 	t *testing.T,
 	slug string,
@@ -1742,10 +1862,8 @@ func runMCPServerConfigsOAuth2CallbackSupersessionTest(
 	t.Helper()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-		DeploymentValues:    mcpDeploymentValues(t),
-		ChatProviderAPIKeys: &providerKeys,
+		DeploymentValues: mcpDeploymentValues(t),
 	})
 	firstUser := coderdtest.CreateFirstUser(t, adminClient)
 	memberClient, member := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
@@ -1958,10 +2076,8 @@ func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 		t.Helper()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 		adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-			DeploymentValues:    mcpDeploymentValues(t),
-			ChatProviderAPIKeys: &providerKeys,
+			DeploymentValues: mcpDeploymentValues(t),
 		})
 		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 		memberClient, member := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
@@ -2081,10 +2197,8 @@ func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 		adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-			DeploymentValues:    mcpDeploymentValues(t),
-			ChatProviderAPIKeys: &providerKeys,
+			DeploymentValues: mcpDeploymentValues(t),
 		})
 		coderdtest.CreateFirstUser(t, adminClient)
 
@@ -2163,10 +2277,8 @@ func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 		t.Cleanup(tokenSrv.Close)
 		t.Cleanup(func() { releaseOnce.Do(func() { close(releaseRefresh) }) })
 
-		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 		adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-			DeploymentValues:    mcpDeploymentValues(t),
-			ChatProviderAPIKeys: &providerKeys,
+			DeploymentValues: mcpDeploymentValues(t),
 		})
 		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 		memberClient, member := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
@@ -2271,10 +2383,8 @@ func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 		adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-			DeploymentValues:    mcpDeploymentValues(t),
-			ChatProviderAPIKeys: &providerKeys,
+			DeploymentValues: mcpDeploymentValues(t),
 		})
 		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 		memberClient, member := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
@@ -2401,10 +2511,8 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		}))
 		t.Cleanup(mcpServer.Close)
 
-		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-			DeploymentValues:    mcpDeploymentValues(t),
-			ChatProviderAPIKeys: &providerKeys,
+			DeploymentValues: mcpDeploymentValues(t),
 		})
 		firstUser := coderdtest.CreateFirstUser(t, client)
 
@@ -2447,8 +2555,10 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		require.Equal(t, authServer.URL+"/token", created.OAuth2TokenURL)
 		require.Equal(t, authServer.URL+"/revoke", created.OAuth2RevocationURL)
 		require.Equal(t, "read write", created.OAuth2Scopes)
+		// The origin-only PRM resource covers the /v1/mcp server URL.
+		require.Equal(t, mcpServer.URL, created.OAuth2Resource)
 
-		// An explicit revocation URL wins over the discovered one.
+		// Explicit values win over the discovered ones.
 		overridden, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 			DisplayName:         "Auto-Discovery Override",
 			Slug:                "auto-discovery-override",
@@ -2456,6 +2566,7 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 			URL:                 mcpServer.URL + "/v1/mcp",
 			AuthType:            "oauth2",
 			OAuth2RevocationURL: "https://override.example.com/revoke",
+			OAuth2Resource:      "https://override.example.com/mcp",
 			Availability:        "default_on",
 			Enabled:             true,
 			ToolAllowList:       []string{},
@@ -2463,16 +2574,15 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, "https://override.example.com/revoke", overridden.OAuth2RevocationURL)
+		require.Equal(t, "https://override.example.com/mcp", overridden.OAuth2Resource)
 	})
 
 	t.Run("CreateOnlyScopeAllowed", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-			DeploymentValues:    mcpDeploymentValues(t),
-			ChatProviderAPIKeys: &providerKeys,
+			DeploymentValues: mcpDeploymentValues(t),
 		})
 		firstUser := coderdtest.CreateFirstUser(t, client)
 
@@ -2969,10 +3079,8 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		}))
 		t.Cleanup(mcpServer.Close)
 
-		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-			DeploymentValues:    mcpDeploymentValues(t),
-			ChatProviderAPIKeys: &providerKeys,
+			DeploymentValues: mcpDeploymentValues(t),
 		})
 		firstUser := coderdtest.CreateFirstUser(t, client)
 
@@ -3062,10 +3170,8 @@ func TestMCPServerConfigsOAuth2AutoDiscoverySSRF(t *testing.T) {
 	}))
 	t.Cleanup(attacker.Close)
 
-	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 	client := coderdtest.New(t, &coderdtest.Options{
-		DeploymentValues:    mcpDeploymentValues(t),
-		ChatProviderAPIKeys: &providerKeys,
+		DeploymentValues: mcpDeploymentValues(t),
 		// Allow only the attacker's address so the initial fetch
 		// succeeds; the canary's address stays blocked.
 		MCPAllowedPrivateCIDRs: []netip.Prefix{
@@ -3098,6 +3204,169 @@ func TestMCPServerConfigsOAuth2AutoDiscoverySSRF(t *testing.T) {
 	for _, config := range configs {
 		require.NotEqual(t, "ssrf-attacker", config.Slug)
 	}
+}
+
+// TestMCPServerOAuth2ResourceIndicator runs the connect and callback flow
+// against an authorization server that, like Dagster+, rejects requests
+// without the expected RFC 8707 resource parameter.
+func TestMCPServerOAuth2ResourceIndicator(t *testing.T) {
+	t.Parallel()
+
+	const resource = "https://mcp.example.com/mcp"
+	invalidTarget := func(w http.ResponseWriter) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":"invalid_target","error_description":"MCP OAuth requests must include resource"}`))
+	}
+	var redeemedCodes sync.Map
+	authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/authorize":
+			if r.URL.Query().Get("resource") != resource {
+				invalidTarget(w)
+				return
+			}
+			redirect, err := url.Parse(r.URL.Query().Get("redirect_uri"))
+			if !assert.NoError(t, err) {
+				http.Error(w, "bad redirect_uri", http.StatusBadRequest)
+				return
+			}
+			q := redirect.Query()
+			q.Set("code", "code-"+r.URL.Query().Get("state"))
+			q.Set("state", r.URL.Query().Get("state"))
+			redirect.RawQuery = q.Encode()
+			http.Redirect(w, r, redirect.String(), http.StatusFound)
+		case "/token":
+			if err := r.ParseForm(); err != nil {
+				invalidTarget(w)
+				return
+			}
+			redeemedCodes.Store(r.PostForm.Get("code"), struct{}{})
+			if r.PostForm.Get("resource") != resource {
+				invalidTarget(w)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"resource-access-token","token_type":"Bearer","expires_in":3600,"refresh_token":"resource-refresh-token"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(authServer.Close)
+
+	adminClient := newMCPClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+	memberClient.HTTPClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+
+	createConfig := func(ctx context.Context, t *testing.T, slug, oauth2Resource string) codersdk.MCPServerConfig {
+		t.Helper()
+		created, err := adminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:    "Resource " + slug,
+			Slug:           slug,
+			Transport:      "streamable_http",
+			URL:            "https://mcp.example.com/mcp",
+			AuthType:       "oauth2",
+			OAuth2ClientID: "resource-client",
+			OAuth2AuthURL:  authServer.URL + "/authorize",
+			OAuth2TokenURL: authServer.URL + "/token",
+			OAuth2Resource: oauth2Resource,
+			Availability:   "default_on",
+			Enabled:        true,
+			ToolAllowList:  []string{},
+			ToolDenyList:   []string{},
+		})
+		require.NoError(t, err)
+		return created
+	}
+
+	connect := func(ctx context.Context, t *testing.T, config codersdk.MCPServerConfig) (*url.URL, []*http.Cookie) {
+		t.Helper()
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, memberClient.MCPServerOAuth2ConnectURL(config.OrganizationID, config.ID), nil)
+		require.NoError(t, err)
+		req.AddCookie(&http.Cookie{Name: codersdk.SessionTokenCookie, Value: memberClient.SessionToken()})
+		res, err := memberClient.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusTemporaryRedirect, res.StatusCode)
+		location, err := res.Location()
+		require.NoError(t, err)
+		return location, res.Cookies()
+	}
+
+	authorize := func(ctx context.Context, t *testing.T, authorizeURL *url.URL) *url.URL {
+		t.Helper()
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, authorizeURL.String(), nil)
+		require.NoError(t, err)
+		res, err := memberClient.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusFound, res.StatusCode, "strict authorization server rejected the authorize request")
+		callbackURL, err := res.Location()
+		require.NoError(t, err)
+		return callbackURL
+	}
+
+	callback := func(ctx context.Context, t *testing.T, callbackURL *url.URL, cookies []*http.Cookie) int {
+		t.Helper()
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, callbackURL.String(), nil)
+		require.NoError(t, err)
+		req.AddCookie(&http.Cookie{Name: codersdk.SessionTokenCookie, Value: memberClient.SessionToken()})
+		for _, c := range cookies {
+			req.AddCookie(&http.Cookie{Name: c.Name, Value: c.Value})
+		}
+		res, err := memberClient.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		return res.StatusCode
+	}
+
+	t.Run("ConfiguredResourceIsSent", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		config := createConfig(ctx, t, "resource-configured", resource)
+		authorizeURL, cookies := connect(ctx, t, config)
+		require.Equal(t, resource, authorizeURL.Query().Get("resource"))
+
+		callbackURL := authorize(ctx, t, authorizeURL)
+		require.Equal(t, http.StatusOK, callback(ctx, t, callbackURL, cookies), "callback must exchange the code for the authorized resource")
+
+		fetched, err := memberClient.MCPServerConfigByID(ctx, config.OrganizationID, config.ID)
+		require.NoError(t, err)
+		require.True(t, fetched.AuthConnected, "callback must store the exchanged token")
+	})
+
+	t.Run("ResourceChangedAfterConnectIsRejected", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		config := createConfig(ctx, t, "resource-changed", resource)
+		authorizeURL, cookies := connect(ctx, t, config)
+		callbackURL := authorize(ctx, t, authorizeURL)
+
+		movedResource := "https://mcp.example.com/moved"
+		_, err := adminClient.UpdateMCPServerConfig(ctx, config.OrganizationID, config.ID, codersdk.UpdateMCPServerConfigRequest{
+			OAuth2Resource: &movedResource,
+		})
+		require.NoError(t, err)
+
+		require.Equal(t, http.StatusConflict, callback(ctx, t, callbackURL, cookies))
+		_, redeemed := redeemedCodes.Load(callbackURL.Query().Get("code"))
+		require.False(t, redeemed, "a code authorized for one resource must not be redeemed for another")
+	})
+
+	t.Run("ManualConfigWithoutResourceSendsNone", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		config := createConfig(ctx, t, "resource-unset", "")
+		authorizeURL, _ := connect(ctx, t, config)
+		require.False(t, authorizeURL.Query().Has("resource"),
+			"manual configs without oauth2_resource must not send a resource parameter")
+	})
 }
 
 // nolint:bodyclose
@@ -3940,10 +4209,8 @@ func TestMCPServerConfigsRevokedGrant(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-		DeploymentValues:    mcpDeploymentValues(t),
-		ChatProviderAPIKeys: &providerKeys,
+		DeploymentValues: mcpDeploymentValues(t),
 	})
 	firstUser := coderdtest.CreateFirstUser(t, adminClient)
 	memberClient, member := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
@@ -4064,10 +4331,8 @@ func TestMCPServerConfigsTransientRefreshFailure(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-		DeploymentValues:    mcpDeploymentValues(t),
-		ChatProviderAPIKeys: &providerKeys,
+		DeploymentValues: mcpDeploymentValues(t),
 	})
 	firstUser := coderdtest.CreateFirstUser(t, adminClient)
 	memberClient, member := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)

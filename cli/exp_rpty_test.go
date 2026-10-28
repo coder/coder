@@ -85,7 +85,7 @@ func TestExpRpty(t *testing.T) {
 				stdout.ExpectMatch(ctx, tc.stdout)
 			}
 			<-cmdDone
-			assertConnLog(t, connLogger, r.Workspace, database.ConnectionTypeReconnectingPty, tc.id)
+			assertConnLog(t, connLogger, r.Workspace, database.ConnectionLogMethodReconnectingPTY, tc.id)
 		})
 	}
 

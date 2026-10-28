@@ -6,29 +6,68 @@ export const asNonEmptyString = (value: unknown): string | undefined => {
 	return next.length > 0 ? next : undefined;
 };
 
+const textBlock = (
+	type: "response" | "thinking",
+	text: string,
+	narration: boolean,
+): RenderBlock =>
+	type === "response" && narration ? { type, text, narration } : { type, text };
+
 /**
  * Append a text or thinking block to a render block list, merging
- * with the previous block when the types match.
+ * with the previous block when the types match. Text never merges
+ * across a provider-executed call or between narration and an answer.
+ * Whitespace-only text extends a matching block but never starts one:
+ * models stream paragraph breaks as separate "\n\n" deltas, and
+ * dropping them joins the paragraphs. Returns `blocks` unchanged when
+ * nothing is appended.
  */
 export const appendTextBlock = (
 	blocks: RenderBlock[],
 	type: "response" | "thinking",
 	text: string,
+	narration = false,
 ): RenderBlock[] => {
+	const last = blocks[blocks.length - 1];
+	const keepsApart =
+		last?.type === "response" &&
+		(last.beforeProviderTool || (last.narration ?? false) !== narration);
+	if (last && last.type === type && !keepsApart) {
+		if (!text) {
+			return blocks;
+		}
+		const nextBlocks = [...blocks];
+		nextBlocks[nextBlocks.length - 1] = textBlock(
+			type,
+			`${last.text}${text}`,
+			narration,
+		);
+		return nextBlocks;
+	}
 	if (!text.trim()) {
 		return blocks;
 	}
-	const nextBlocks = [...blocks];
-	const last = nextBlocks[nextBlocks.length - 1];
-	if (last && last.type === type) {
-		nextBlocks[nextBlocks.length - 1] = {
-			type,
-			text: `${last.text}${text}`,
-		};
-		return nextBlocks;
+	return [...blocks, textBlock(type, text, narration)];
+};
+
+/**
+ * Appends answer text before a trailing block of citations, so citations
+ * follow the text they cite. They arrive while that text streams: persisted
+ * messages store them before it, and a live stream splits it around them.
+ * Returns `blocks` unchanged when nothing is appended.
+ */
+export const appendResponseText = (
+	blocks: RenderBlock[],
+	text: string,
+	narration = false,
+): RenderBlock[] => {
+	const last = blocks[blocks.length - 1];
+	if (last?.type !== "sources") {
+		return appendTextBlock(blocks, "response", text, narration);
 	}
-	nextBlocks.push({ type, text });
-	return nextBlocks;
+	const head = blocks.slice(0, -1);
+	const appended = appendTextBlock(head, "response", text, narration);
+	return appended === head ? blocks : [...appended, last];
 };
 
 type ToolGroupRenderBlock = {

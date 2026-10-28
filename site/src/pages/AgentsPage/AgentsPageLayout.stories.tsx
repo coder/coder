@@ -43,11 +43,11 @@ import {
 	withWebSocket,
 } from "#/testHelpers/storybook";
 import { CoderAgentsPageView } from "../AISettingsPage/CoderAgentsPage/CoderAgentsPageView";
-import AgentChatPage from "./AgentChatPage";
-import AgentCreatePage from "./AgentCreatePage";
-import AgentSettingsCompactionPage from "./AgentSettingsCompactionPage";
-import AgentSettingsGeneralPage from "./AgentSettingsGeneralPage";
-import AgentSettingsLayout from "./AgentSettingsLayout";
+import AgentChatPage from "./AgentChatPage/AgentChatPage";
+import AgentCreatePage from "./AgentCreatePage/AgentCreatePage";
+import AgentSettingsCompactionPage from "./AgentSettingsPage/AgentSettingsCompactionPage/AgentSettingsCompactionPage";
+import AgentSettingsGeneralPage from "./AgentSettingsPage/AgentSettingsGeneralPage/AgentSettingsGeneralPage";
+import AgentSettingsLayout from "./AgentSettingsPage/AgentSettingsLayout";
 import AgentsPageLayout from "./AgentsPageLayout";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import {
@@ -271,6 +271,7 @@ const meta: Meta<typeof AgentsPageLayout> = {
 		localStorage.removeItem(emptyInputStorageKey);
 		// Mocks for the queries AgentsPageLayout runs for the sidebar.
 		spyOn(API.experimental, "getChats").mockResolvedValue([]);
+		spyOn(API.experimental, "getChatProjects").mockResolvedValue([]);
 		spyOn(
 			API.experimental,
 			"getUserChatPersonalModelOverrides",
@@ -1055,7 +1056,6 @@ const debugWorkspaceBuildRouter = (buildId: string) =>
 	});
 
 const projectPageParameters = {
-	experiments: ["chat-projects"],
 	reactRouter: reactRouterParameters({
 		location: { path: `/agents/projects/${MockChatProject.id}` },
 		routing: [agentsRouting, aiSettingsRouting],

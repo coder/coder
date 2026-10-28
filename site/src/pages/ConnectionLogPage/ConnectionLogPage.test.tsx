@@ -7,6 +7,7 @@ import {
 	MockConnectedSSHConnectionLog,
 	MockDisconnectedSSHConnectionLog,
 	MockEntitlementsWithConnectionLog,
+	MockWorkspace,
 } from "#/testHelpers/entities";
 import {
 	renderWithAuth,
@@ -99,7 +100,7 @@ describe("ConnectionLogPage", () => {
 					count_cap: 0,
 				});
 
-			const query = "type:ssh status:ongoing";
+			const query = "method:ssh status:ongoing";
 			await renderPage({ filter: query });
 
 			expect(getConnectionLogsSpy).toHaveBeenCalledWith({
@@ -109,6 +110,62 @@ describe("ConnectionLogPage", () => {
 			});
 		});
 
+		it("sends the selected method to the API", async () => {
+			const getConnectionLogsSpy = vi
+				.spyOn(API, "getConnectionLogs")
+				.mockResolvedValue({
+					connection_logs: [MockConnectedSSHConnectionLog],
+					count: 1,
+					count_cap: 0,
+				});
+			await renderPage();
+
+			const user = userEvent.setup();
+			await user.click(
+				screen.getByRole("button", { name: "Filter by connection method" }),
+			);
+			await user.click(
+				await screen.findByRole("option", { name: "Web Terminal" }),
+			);
+
+			await waitFor(() =>
+				expect(getConnectionLogsSpy).toHaveBeenLastCalledWith({
+					limit: DEFAULT_RECORDS_PER_PAGE,
+					offset: 0,
+					q: "method:reconnecting_pty",
+				}),
+			);
+		});
+
+		it("replaces a deprecated type filter when a method is selected", async () => {
+			const getConnectionLogsSpy = vi
+				.spyOn(API, "getConnectionLogs")
+				.mockResolvedValue({
+					connection_logs: [MockConnectedSSHConnectionLog],
+					count: 1,
+					count_cap: 0,
+				});
+			await renderPage({ filter: "status:ongoing type:ssh" });
+			expect(screen.getByRole("alert")).toHaveTextContent(
+				"The type filter is deprecated",
+			);
+
+			const user = userEvent.setup();
+			await user.click(
+				screen.getByRole("button", { name: "Filter by connection method" }),
+			);
+			await user.click(await screen.findByRole("option", { name: "SSH" }));
+
+			await waitFor(() =>
+				expect(getConnectionLogsSpy).toHaveBeenLastCalledWith({
+					limit: DEFAULT_RECORDS_PER_PAGE,
+					offset: 0,
+					q: "status:ongoing method:ssh",
+				}),
+			);
+			expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+		});
+
 		it("resets page to 1 when filter is changed", async () => {
 			await renderPage({ page: 2 });
 
@@ -116,7 +173,7 @@ describe("ConnectionLogPage", () => {
 			getConnectionLogsSpy.mockClear();
 
 			const filterField = screen.getByLabelText("Filter");
-			const query = "type:ssh status:ongoing";
+			const query = "method:ssh status:ongoing";
 			await userEvent.type(filterField, query);
 
 			await waitFor(() =>
@@ -125,6 +182,60 @@ describe("ConnectionLogPage", () => {
 					offset: 0,
 					q: query,
 				}),
+			);
+		});
+	});
+
+	describe("Client session metadata", () => {
+		const clientSessionId =
+			MockDisconnectedSSHConnectionLog.ssh_info.client_session_id;
+
+		beforeEach(() => {
+			vi.spyOn(API, "getConnectionLogs").mockResolvedValue({
+				connection_logs: [MockDisconnectedSSHConnectionLog],
+				count: 100,
+				count_cap: 0,
+			});
+		});
+
+		it("filters by client session ID and workspace from the first page", async () => {
+			await renderPage({ filter: "method:ssh status:completed", page: 3 });
+			const getConnectionLogsSpy = vi.mocked(API.getConnectionLogs);
+
+			const user = userEvent.setup();
+			await user.click(
+				screen.getByRole("button", { name: "Connection details" }),
+			);
+			await user.click(
+				await screen.findByRole("link", { name: "View related connections" }),
+			);
+
+			await waitFor(() =>
+				expect(getConnectionLogsSpy).toHaveBeenLastCalledWith({
+					limit: DEFAULT_RECORDS_PER_PAGE,
+					offset: 0,
+					q: `client_session_id:${clientSessionId} workspace_id:${MockWorkspace.id}`,
+				}),
+			);
+		});
+
+		it("copies the client session ID", async () => {
+			await renderPage();
+
+			// userEvent.setup() replaces navigator.clipboard, so spy after it.
+			const user = userEvent.setup();
+			const writeText = vi
+				.spyOn(navigator.clipboard, "writeText")
+				.mockResolvedValue();
+			await user.click(
+				screen.getByRole("button", { name: "Connection details" }),
+			);
+			await user.click(
+				await screen.findByRole("button", { name: "Copy client session ID" }),
+			);
+
+			await waitFor(() =>
+				expect(writeText).toHaveBeenCalledWith(clientSessionId),
 			);
 		});
 	});

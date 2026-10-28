@@ -114,6 +114,8 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 	const isLoading = !workspaces;
 	const isEmpty = workspaces && workspaces.length === 0;
 	const hideHeaders = isLoading || isEmpty;
+	const checkableWorkspaces =
+		workspaces?.filter((workspace) => !cantBeChecked(workspace)) ?? [];
 
 	return (
 		<Table>
@@ -130,15 +132,21 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 								)}
 							>
 								<Checkbox
-									disabled={isEmpty}
+									disabled={
+										checkableWorkspaces.length === 0 &&
+										checkedWorkspaces.length === 0
+									}
 									checked={
-										!isEmpty && checkedWorkspaces.length === workspaces.length
+										checkedWorkspaces.length > 0 &&
+										checkableWorkspaces.every((workspace) =>
+											checkedWorkspaces.some((w) => w.id === workspace.id),
+										)
 									}
 									onCheckedChange={(checked) => {
 										if (!checked) {
 											onCheckChange([]);
 										} else {
-											onCheckChange(workspaces);
+											onCheckChange(checkableWorkspaces);
 										}
 									}}
 									aria-label="Select all workspaces"
@@ -226,7 +234,7 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 													<WorkspaceOutdatedTooltip workspace={workspace} />
 												)}
 												{chatsByWorkspace?.[workspace.id] && (
-													<Badge size="xs" variant="info" hover asChild>
+													<Badge size="sm" variant="info" hover asChild>
 														<Link
 															to={`/agents/${chatsByWorkspace[workspace.id]}`}
 															onClick={(e) => e.stopPropagation()}
@@ -853,13 +861,18 @@ const IconAppLink: React.FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
 		agent,
 	});
 
-	// A malformed external app URL can't be opened. Render a non-navigating
-	// icon with an explanatory tooltip instead of a broken link.
-	if (!isAppUrlValid(app)) {
+	// Render a non-navigating icon with an explanatory tooltip instead of a
+	// broken link.
+	const hasInvalidUrl = !isAppUrlValid(app);
+	if (hasInvalidUrl || link.isBlocked) {
 		return (
 			<BaseIconLink
 				key={app.id}
-				label={`${link.label} has an invalid URL`}
+				label={
+					hasInvalidUrl
+						? `${link.label} has an invalid URL`
+						: `${link.label} has an untrusted URL`
+				}
 				onClick={() => {}}
 			>
 				{app.icon ? (

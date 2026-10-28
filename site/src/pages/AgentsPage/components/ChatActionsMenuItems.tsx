@@ -15,7 +15,6 @@ import {
 import { useId, useState } from "react";
 import { useIsMutating, useMutation, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
-import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import {
 	archiveAndDeleteChat,
@@ -44,6 +43,7 @@ import {
 	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { toast } from "#/components/Toaster/toast";
 import { useClipboard } from "#/hooks/useClipboard";
 import {
 	type ArchiveAndDeleteAction,
@@ -55,6 +55,8 @@ import { clearPersistedRightPanelState } from "../utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "../utils/sidebarTabStorage";
 import { ArchiveAndDeleteWorkspaceDialog } from "./ArchiveAndDeleteWorkspaceDialog";
 import { getParentChatID } from "./ChatConversation/chatHelpers";
+import { ChatPRMenuItems } from "./ChatsSidebar/tree/ChatPRMenuItems";
+import { MoveToProjectMenuItems } from "./MoveToProjectMenuItems";
 
 // Backend chatstate permits archive only from W, E0, and E1. Unknown status
 // stays fail-open so the server conflict response remains the backstop.
@@ -108,8 +110,8 @@ export const canManageChat = (
 type ChatActionsMenuItemsProps = {
 	readonly chat: TypesGen.Chat;
 	/**
-	 * See {@link canManageChat}. When false, only the subagents toggle and the
-	 * copy actions render.
+	 * See {@link canManageChat}. When false, only the subagents toggle, the
+	 * copy actions and the PR links render.
 	 */
 	readonly canManage: boolean;
 	readonly hasWorkspace: boolean;
@@ -129,6 +131,8 @@ type ChatActionsMenuItemsProps = {
 	readonly onArchiveAndDeleteWorkspace: () => void;
 	/** When omitted, the "Rename chat" item is hidden. */
 	readonly onOpenRenameDialog?: () => void;
+	/** When omitted or empty, no PR links render. */
+	readonly prStatuses?: readonly TypesGen.ChatDiffStatus[];
 	readonly Item: ItemComponent;
 	readonly Separator: SeparatorComponent;
 	readonly Sub: SubComponent;
@@ -316,6 +320,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	onUnarchiveAgent,
 	onArchiveAndDeleteWorkspace,
 	onOpenRenameDialog,
+	prStatuses,
 	Item,
 	Separator,
 	Sub,
@@ -338,6 +343,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 		? showUnarchiveAction ||
 			(!isArchived &&
 				(Boolean(onOpenRenameDialog) ||
+					showArchiveActions ||
 					showPinAction ||
 					showSubagentsToggle ||
 					showReadToggle))
@@ -379,8 +385,10 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	const copyItems = [
 		<Item
 			key="id"
-			onSelect={() => {
-				void copyToClipboard(chat.id);
+			onSelect={async () => {
+				if (await copyToClipboard(chat.id)) {
+					toast.success("Chat ID copied to clipboard.");
+				}
 			}}
 		>
 			<HashIcon className="size-3.5" />
@@ -391,8 +399,10 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 		copyItems.push(
 			<Item
 				key="branch"
-				onSelect={() => {
-					void copyToClipboard(branch);
+				onSelect={async () => {
+					if (await copyToClipboard(branch)) {
+						toast.success("Branch name copied to clipboard.");
+					}
 				}}
 			>
 				<GitBranchIcon className="size-3.5" />
@@ -412,6 +422,18 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 		) : (
 			copyItems
 		);
+	const prLinks = prStatuses && prStatuses.length > 0 && (
+		<>
+			<Separator />
+			<ChatPRMenuItems
+				prStatuses={prStatuses}
+				Item={Item}
+				Sub={Sub}
+				SubTrigger={SubTrigger}
+				SubContent={SubContent}
+			/>
+		</>
+	);
 
 	if (!canManage) {
 		return (
@@ -419,6 +441,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 				{subagentToggle}
 				{hasActionsAboveCopy && <Separator />}
 				{copyActions}
+				{prLinks}
 			</>
 		);
 	}
@@ -459,12 +482,25 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 							Rename chat
 						</Item>
 					)}
+					{showArchiveActions && (
+						<MoveToProjectMenuItems
+							chat={chat}
+							blocked={isArchiveBlocked}
+							describedBy={archiveBlockedDescribedBy}
+							Item={Item}
+							Separator={Separator}
+							Sub={Sub}
+							SubTrigger={SubTrigger}
+							SubContent={SubContent}
+						/>
+					)}
 					{subagentToggle}
 					{readToggle}
 				</>
 			)}
 			{hasActionsAboveCopy && <Separator />}
 			{copyActions}
+			{prLinks}
 			{showArchiveActions && (
 				<>
 					<Separator />

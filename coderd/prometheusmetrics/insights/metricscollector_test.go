@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"strings"
 	"testing"
@@ -26,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/prometheusmetrics/insights"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspacestats"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -112,10 +114,15 @@ func TestCollectInsights(t *testing.T) {
 			ConnectionCount:           1,
 			ConnectionMedianLatencyMs: 15,
 			// Session counts must be positive, but the exact value is ignored.
-			// Database query approximates it to 60s of usage.
-			SessionCountSsh:       99,
-			SessionCountJetbrains: 47,
-			SessionCountVscode:    34,
+			SessionCounts: map[string]int64{
+				"vscode":          34,
+				"cursor":          2,
+				"jetbrains":       47,
+				"ssh":             99,
+				"zed":             1,
+				"port_forwarding": 1,
+				"future_ide":      1,
+			},
 		},
 	})
 	require.NoError(t, err, "unable to post fake stats")
@@ -210,6 +217,58 @@ func TestCollectInsights(t *testing.T) {
 		diff := cmp.Diff(golden, collected)
 		assert.Empty(t, diff, "template insights are inconsistent with golden files (-golden +collected)")
 	}
+}
+
+// More unregistered apps than the limit fold the least used into overflow.
+func TestCollectInsightsFoldsUnregisteredApps(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	tpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, CreatedBy: user.ID})
+	limit := int(codersdk.TemplateInsightsMaxUnregisteredApps)
+	busy := map[string]int64{}
+	for i := range limit {
+		busy[fmt.Sprintf("app_%02d", i)] = 1
+	}
+	quiet := maps.Clone(busy)
+	quiet["fold_a"], quiet["fold_b"] = 1, 1
+	now := time.Now().Truncate(time.Minute)
+	for i, counts := range []map[string]int64{busy, quiet} {
+		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+			CreatedAt: now.Add(-time.Duration(i+2) * time.Minute), UserID: user.ID, TemplateID: tpl.ID,
+			ConnectionCount: 1, SessionCounts: dbgen.SessionCounts(t, counts),
+		})
+	}
+
+	mc, err := insights.NewMetricsCollector(db, slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), 0, time.Second)
+	require.NoError(t, err)
+	registry := prometheus.NewRegistry()
+	registry.MustRegister(mc)
+	closeFunc, err := mc.Run(testutil.Context(t, testutil.WaitLong))
+	require.NoError(t, err)
+	defer closeFunc()
+
+	bySlug := map[string]float64{}
+	require.Eventually(t, func() bool {
+		metrics, err := registry.Gather()
+		assert.NoError(t, err)
+		for _, metric := range metrics {
+			for _, m := range metric.Metric {
+				for _, label := range m.Label {
+					if metric.GetName() == "coderd_insights_applications_usage_seconds" && label.GetName() == "slug" {
+						bySlug[label.GetValue()] = m.GetGauge().GetValue()
+					}
+				}
+			}
+		}
+		return len(bySlug) > 0
+	}, testutil.WaitMedium, testutil.IntervalFast)
+	require.Len(t, bySlug, limit+1)
+	require.Equal(t, 120.0, bySlug["app_00"])
+	// The folded apps' minutes add up, with no cap.
+	require.Equal(t, 120.0, bySlug["overflow"])
 }
 
 func metricLabelAsString(m *io_prometheus_client.Metric) string {

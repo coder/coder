@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useLocation, useNavigate, useParams } from "react-router";
-import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import {
 	chatProjects,
@@ -12,6 +11,7 @@ import {
 import { userChatProviderConfigs } from "#/api/queries/chats";
 import type { Chat, ChatModel, ChatProject } from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
+import { toast } from "#/components/Toaster/toast";
 import {
 	getDefaultOrganizationId,
 	useDashboard,
@@ -19,7 +19,6 @@ import {
 import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
 import { buildAgentProjectPath } from "../../utils/navigation";
 import { draftStorageKeys } from "../AgentCreateForm";
-import { AUTOMATIONS_PATH } from "../Automations/automationsFlag";
 import { ChatsPanel } from "./chats/ChatsPanel";
 import type { ProjectDialogState } from "./chats/ProjectFolders";
 import { getOrganizationLabels } from "./chats/projectGrouping";
@@ -105,13 +104,11 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		canManageAgentSettings = false,
 		currentUserId,
 	} = props;
-	const { organizations, experiments } = useDashboard();
+	const { organizations } = useDashboard();
 	const initialOrganizationId =
 		getDefaultOrganizationId(organizations) ?? organizations[0]?.id;
 	// The sidebar lists the user's projects across organizations.
-	const chatProjectsEnabled =
-		experiments.includes("chat-projects") &&
-		initialOrganizationId !== undefined;
+	const chatProjectsEnabled = initialOrganizationId !== undefined;
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const location = useLocation();
@@ -264,6 +261,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				organizations={organizations}
 				isProjectsLoading={projectsQuery.isLoading}
 				projectsError={projectsQuery.error}
+				isProjectsLoadError={projectsQuery.isLoadingError}
 				onRetryProjects={() => void projectsQuery.refetch()}
 				onOpenProjectDialog={openProjectDialog}
 				onDeleteProject={openDeleteProjectDialog}
@@ -292,8 +290,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				isChatsActive={
 					!activeChatId &&
 					sidebarView.panel === "chats" &&
-					!sidebarView.projectId &&
-					!location.pathname.startsWith(AUTOMATIONS_PATH)
+					!sidebarView.projectId
 				}
 				location={location}
 				currentUserId={currentUserId}
@@ -347,7 +344,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 						: undefined
 				}
 				confirmLoading={deleteProjectMutation.isPending}
-				info="Chats in this project will be kept and move back to the Chats list."
+				info="Its memories and instructions will be deleted. Chats in it, including chats started by people it is shared with, will be kept and move back to each owner's Chats list."
 			/>
 			{onRenameTitle && (
 				<RenameChatDialog

@@ -1,5 +1,6 @@
 import { cn } from "cn";
 import {
+	BotIcon,
 	FileIcon,
 	FolderIcon,
 	PlugIcon,
@@ -30,6 +31,10 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { formatKiB } from "#/utils/fileSize";
 import { isMobileViewport } from "#/utils/mobile";
+import {
+	compactionThresholdLabel,
+	type ResolvedCompactionThreshold,
+} from "../utils/compactionTriggers";
 import { getPathBasename, getPathDirname } from "../utils/path";
 import { SvgRingProgress } from "./SvgRingProgress";
 
@@ -43,8 +48,7 @@ export type AgentContextUsage = {
 	readonly cacheCreationTokens?: number;
 	// Part of outputTokens, so usedTokens does not add it.
 	readonly reasoningTokens?: number;
-	// Percentage (0-100) at which the context will be compacted.
-	readonly compressionThreshold?: number;
+	readonly compactionThreshold?: ResolvedCompactionThreshold;
 	// Pinned workspace-context state: the resources the chat is built from and
 	// whether they have drifted from the agent's latest snapshot.
 	readonly context?: ChatContext;
@@ -83,6 +87,7 @@ const RESOURCE_KIND_LABELS: Record<ChatContextResourceKind, string> = {
 	skill: "skill",
 	mcp_config: "MCP config",
 	mcp_server: "MCP server",
+	acp_harness: "ACP harness",
 };
 
 const hasFiniteTokenValue = (value: number | undefined): value is number =>
@@ -214,12 +219,35 @@ const HOVER_CLOSE_DELAY_MS = 150;
 // section spans more than one directory.
 const ContextDirLabel: React.FC<{ dir: string }> = ({ dir }) => (
 	<span
-		className="flex items-center gap-1 text-[11px] text-content-secondary"
+		className="flex items-center gap-1 text-xs text-content-secondary"
 		title={dir}
 	>
 		<FolderIcon className="size-3 shrink-0" />
 		<span className="truncate">{dir}</span>
 	</span>
+);
+
+const ContextHarnessSection: React.FC<{
+	groups: readonly DirectoryGroup<{ slug: string; dir: string }>[];
+}> = ({ groups }) => (
+	<div className="flex flex-col gap-1">
+		<span className="font-medium text-content-primary">ACP</span>
+		{groups.map((group) => (
+			<div key={group.dir} className="flex flex-col gap-1">
+				{group.dir !== "" && <ContextDirLabel dir={group.dir} />}
+				<div className="ml-3.5 flex flex-col gap-0.5">
+					{group.items.map((harness) => (
+						<div key={harness.slug} className="flex items-center gap-1.5">
+							<BotIcon className="size-3 shrink-0" />
+							<span className="truncate" title={harness.slug}>
+								{harness.slug}
+							</span>
+						</div>
+					))}
+				</div>
+			</div>
+		))}
+	</div>
 );
 
 export const ContextUsageIndicator: React.FC<{
@@ -276,6 +304,10 @@ export const ContextUsageIndicator: React.FC<{
 	].some(hasFiniteTokenValue);
 	const percentLabel =
 		percentUsed === null ? "--" : `${Math.round(percentUsed)}%`;
+	const compactionLabel =
+		usage.compactionThreshold && contextLimitTokens !== undefined
+			? compactionThresholdLabel(usage.compactionThreshold, contextLimitTokens)
+			: undefined;
 	const clampedPercent = hasPercent
 		? Math.min(Math.max(percentUsed, 0), 100)
 		: 0;
@@ -336,6 +368,15 @@ export const ContextUsageIndicator: React.FC<{
 		// a blank row.
 		.filter((server) => server.name.trim().length > 0);
 	const hasMcp = mcpConfigItems.length > 0 || mcpServerItems.length > 0;
+	const harnessItems = (pinnedResources ?? [])
+		.filter(
+			(resource) => resource.kind === "acp_harness" && resource.status === "ok",
+		)
+		.map((resource) => ({
+			slug: resource.source,
+			dir: resource.source_path ?? "",
+		}))
+		.filter((harness) => harness.slug.trim().length > 0);
 	// Pinned resources the agent could not use (invalid skill, unreadable or
 	// oversize file) are surfaced as issues with their error so the failure is
 	// visible rather than a silent omission.
@@ -356,6 +397,7 @@ export const ContextUsageIndicator: React.FC<{
 		fileItems.length > 0 ||
 		skillItems.length > 0 ||
 		hasMcp ||
+		harnessItems.length > 0 ||
 		issueItems.length > 0;
 
 	const hasResourceIssues = issueItems.length > 0;
@@ -410,13 +452,9 @@ export const ContextUsageIndicator: React.FC<{
 					and tools. Replaced by measured usage after the next response.
 				</div>
 			)}
-			{hasPercent &&
-				usage.compressionThreshold !== undefined &&
-				usage.compressionThreshold > 0 && (
-					<div className="mt-1 text-content-secondary">
-						{`Compacts at ${usage.compressionThreshold}%`}
-					</div>
-				)}
+			{hasPercent && compactionLabel !== undefined && (
+				<div className="mt-1 text-content-secondary">{compactionLabel}</div>
+			)}
 			{hasContextList && (
 				<div className="mt-2 flex flex-col gap-2 text-content-secondary">
 					{fileItems.length > 0 && (
@@ -557,6 +595,9 @@ export const ContextUsageIndicator: React.FC<{
 							</TooltipProvider>
 						</div>
 					)}
+					{harnessItems.length > 0 && (
+						<ContextHarnessSection groups={groupByDirectory(harnessItems)} />
+					)}
 					{issueItems.length > 0 && (
 						<div className="flex flex-col gap-1">
 							<span className="flex items-center gap-1.5 font-medium text-content-warning">
@@ -670,15 +711,13 @@ export const ContextUsageIndicator: React.FC<{
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
-			<PopoverTrigger asChild>
-				<div
-					className="flex"
-					onMouseEnter={handleMouseEnter}
-					onMouseLeave={scheduleClose}
-				>
-					{triggerButton}
-				</div>
-			</PopoverTrigger>
+			<div
+				className="flex"
+				onMouseEnter={handleMouseEnter}
+				onMouseLeave={scheduleClose}
+			>
+				<PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
+			</div>
 			<PopoverContent
 				side="top"
 				className="w-auto max-w-72 px-3 py-2"

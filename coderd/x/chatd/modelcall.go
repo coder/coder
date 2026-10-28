@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"sync/atomic"
 
 	"charm.land/fantasy"
 	"golang.org/x/xerrors"
@@ -72,6 +73,9 @@ type resolvedModelCall struct {
 	resolvedEffort   string
 	route            aiGatewayModelRoute
 	debugEnabled     bool
+	// reasoningRejected reports whether the provider rejected encrypted
+	// reasoning replayed into a call to model.
+	reasoningRejected *atomic.Bool
 }
 
 // stageModel uses the configured provider type rather than
@@ -182,6 +186,8 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 		return resolvedModelCall{}, xerrors.Errorf("create model: %w", err)
 	}
 	model = p.withThinkingDropBlock(model, out.route.Provider.ID, clientCallConfig, spec.chat.ID)
+	out.reasoningRejected = &atomic.Bool{}
+	model = p.withEncryptedReasoningFallback(model, spec.chat.ID, out.reasoningRejected)
 
 	if out.debugEnabled {
 		model = model.WithLanguageModel(chatdebug.WrapModel(model.LanguageModel(), debugSvc, chatdebug.RecorderOptions{
@@ -227,19 +233,13 @@ func (r resolvedModelCall) newCall() fantasy.Call {
 // must not call tools. Streaming avoids the Anthropic SDK's non-streaming
 // duration limit, while the explicit cap prevents adaptive thinking from
 // exhausting fantasy's smaller provider default before producing summary text.
-// The cap gets 50% headroom because the summary must fit reasoning plus
-// summary text in one response; a low configured chat cap could otherwise
-// truncate the summary that replaces pruned history. The headroom stays
-// modest because a cap configured at a provider's output ceiling overshoots
-// it; that residual overshoot is an accepted tradeoff. GenerateCompaction
-// bounds the increased cap by the remaining context window at trigger time.
+// The cap is not raised: the configured cap is the provider ceiling chatd
+// knows, and providers reject a larger one. GenerateCompaction can only
+// lower it, to the remaining context window.
 func compactionSummaryCall(resolved resolvedModelCall) fantasy.Call {
 	call := resolved.newCall()
 	toolChoiceNone := fantasy.ToolChoiceNone
 	call.ToolChoice = &toolChoiceNone
-	if call.MaxOutputTokens != nil {
-		call.MaxOutputTokens = ptr.Ref(*call.MaxOutputTokens * 3 / 2)
-	}
 	return call
 }
 

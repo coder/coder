@@ -9,11 +9,14 @@ import {
 } from "#/vendor/message-scroller";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 
-type EarlierMessagesProps = {
+/**
+ * Paging state for a chat's older messages. A page that any consumer loads
+ * reaches every consumer.
+ */
+export type EarlierMessagesProps = {
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
-	// True while fetched pages have not reached the store yet. Blocks paging
-	// without showing the loader: hydration is not a history request.
+	// True while fetched pages have not reached the store yet.
 	isHydratingMessages: boolean;
 	hasFetchMoreError: boolean;
 	hasTranscriptRows: boolean;
@@ -42,6 +45,8 @@ const EarlierMessages: React.FC<EarlierMessagesProps> = ({
 		isAtHistoryStart &&
 		hasMoreMessages &&
 		!isFetchingMoreMessages &&
+		// Hydration is not a history request, so it blocks paging without
+		// showing the loader.
 		!isHydratingMessages &&
 		!hasFetchMoreError;
 
@@ -115,12 +120,12 @@ export const ChatMessageScroller: React.FC<ChatMessageScrollerProps> = ({
 
 	return (
 		<MessageScroller.Root className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-			<MessageScroller.Viewport className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain scrollbar-gutter-stable scrollbar-thin [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
+			<MessageScroller.Viewport className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain scrollbar-gutter-stable scrollbar-thin">
 				<MessageScroller.Content
 					data-testid="conversation-timeline"
 					aria-busy={earlierMessages.isFetchingMoreMessages || undefined}
 					className={cn(
-						"mx-auto flex w-full flex-col gap-2 px-4 py-6",
+						"mx-auto flex w-full flex-col gap-3 px-4 py-6",
 						chatWidthClass(chatFullWidth),
 					)}
 				>

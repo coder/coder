@@ -386,6 +386,9 @@ func (api *API) postWorkspaceBuildsInternal(
 	if err := validateCreateWorkspaceBuildOnSuccess(createBuild); err != nil {
 		return codersdk.WorkspaceBuild{}, err
 	}
+	if err := api.validateWorkspaceSecretInputs(createBuild.Secrets); err != nil {
+		return codersdk.WorkspaceBuild{}, err
+	}
 
 	var childParameterValuesJSON json.RawMessage
 	if createBuild.OnSuccess != nil {
@@ -411,6 +414,7 @@ func (api *API) postWorkspaceBuildsInternal(
 	builder := wsbuilder.New(workspace, transition, *api.BuildUsageChecker.Load()).
 		Initiator(apiKey.UserID).
 		RichParameterValues(createBuild.RichParameterValues).
+		Secrets(createBuild.Secrets).
 		LogLevel(string(createBuild.LogLevel)).
 		DeploymentValues(api.Options.DeploymentValues).
 		Experiments(api.Experiments).
@@ -591,13 +595,11 @@ func (api *API) postWorkspaceBuildsInternal(
 				slog.F("workspace_build_id", workspaceBuild.ID),
 				slog.F("provisioner_job_id", provisionerJob.ID),
 			)
-			buildResourceInfo := audit.AdditionalFields{
-				WorkspaceName:  workspace.Name,
-				BuildNumber:    strconv.Itoa(int(workspaceBuild.BuildNumber)),
-				BuildReason:    workspaceBuild.Reason,
-				WorkspaceID:    workspace.ID,
-				WorkspaceOwner: workspace.OwnerName,
+			buildResourceInfo, err := audit.WorkspaceBuildFields(ctx, api.Database, workspace, *workspaceBuild)
+			if err != nil {
+				api.Logger.Error(ctx, "failed to list workspace build secrets for audit", slog.Error(err))
 			}
+			buildResourceInfo.WorkspaceOwner = workspace.OwnerName
 			briBytes, err := json.Marshal(buildResourceInfo)
 			if err != nil {
 				api.Logger.Error(ctx, "failed to marshal build resource info for audit", slog.Error(err))
@@ -1551,8 +1553,12 @@ func (api *API) convertWorkspaceBuild(
 			scripts := index.scriptsByAgentID[agent.ID]
 			statuses := index.statusesByAgentID[agent.ID]
 			logSources := index.logSourcesByAgentID[agent.ID]
+			apiScripts, err := convertScripts(scripts)
+			if err != nil {
+				return codersdk.WorkspaceBuild{}, xerrors.Errorf("converting workspace agent scripts: %w", err)
+			}
 			apiAgent, err := db2sdk.WorkspaceAgent(
-				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, db2sdk.Apps(apps, statuses, agent, workspace.OwnerUsername, workspace.WorkspaceTable()), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
+				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, db2sdk.Apps(apps, statuses, agent, workspace.OwnerUsername, workspace.WorkspaceTable()), apiScripts, convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
 				api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 			)
 			if err != nil {
@@ -1706,7 +1712,7 @@ func (api *API) buildTimings(ctx context.Context, build database.WorkspaceBuild)
 			EndedAt:            t.EndedAt,
 			ExitCode:           t.ExitCode,
 			Stage:              codersdk.TimingStage(t.Stage),
-			Status:             string(t.Status),
+			Status:             codersdk.WorkspaceAgentScriptStatus(t.Status),
 			DisplayName:        t.DisplayName,
 			WorkspaceAgentID:   t.WorkspaceAgentID.String(),
 			WorkspaceAgentName: t.WorkspaceAgentName,

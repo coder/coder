@@ -50,11 +50,11 @@ export const HelpPopoverIconTrigger: React.FC<HelpPopoverIconTriggerProps> = ({
 	return (
 		<HelpPopoverTrigger asChild>
 			<button
+				aria-label="More info"
 				{...buttonProps}
 				type="button"
-				aria-label="More info"
 				className={cn(
-					"flex items-center justify-center px-0 py-1",
+					"flex size-6 items-center justify-center p-0",
 					"border-0 border-none bg-transparent cursor-pointer text-inherit",
 					size === "small" ? "[&_svg]:size-3" : "[&_svg]:size-4",
 					hoverEffect &&

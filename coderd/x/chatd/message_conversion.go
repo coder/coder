@@ -24,7 +24,17 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-const interruptedToolResultErrorMessage = "tool call was interrupted before it produced a result"
+const (
+	interruptedToolResultErrorMessage       = "tool call was interrupted before it produced a result"
+	interruptedToolResultReplacementMessage = "tool call was interrupted"
+)
+
+// For these tools, chatloop.ExecuteLocalTools can publish the
+// chattool.WithUserResult projection instead of the model result, so their
+// buffered output must not reach the model on interruption.
+var userOnlyResultToolNames = []string{
+	"acp_wait_agent",
+}
 
 type buildCommitStepMessagesInput struct {
 	modelConfigID          uuid.UUID
@@ -33,6 +43,14 @@ type buildCommitStepMessagesInput struct {
 	logger                 slog.Logger
 	contentVersion         int16
 	hookRewrittenToolCalls map[string]json.RawMessage
+	reasoningProvenance    reasoningProvenance
+}
+
+func stampReasoningProvenance(part *codersdk.ChatMessagePart, provenance reasoningProvenance) {
+	part.ProviderIdentity = provenance.ProviderIdentity
+	part.ProviderModel = provenance.Model
+	part.ProviderCredential = provenance.Credential
+	part.ReasoningEpoch = provenance.Epoch
 }
 
 type stepMessagesForCommit struct {
@@ -50,6 +68,19 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 
 	assistantBlocks, toolResults := splitStepContent(input.step.Content)
 	assistantParts := buildAssistantParts(input.logger, assistantBlocks, toolResults, input.step, input.toolNameToConfigID, input.hookRewrittenToolCalls)
+	stamped := false
+	for i := range assistantParts {
+		if assistantParts[i].Type == codersdk.ChatMessagePartTypeReasoning {
+			stampReasoningProvenance(&assistantParts[i], input.reasoningProvenance)
+			stamped = true
+		}
+	}
+	// Without a stamp, a step that produced no reasoning would lose the
+	// rejection epoch, and the next step would replay the rejected
+	// reasoning again.
+	if !stamped && input.reasoningProvenance.Epoch > 0 && len(assistantParts) > 0 {
+		stampReasoningProvenance(&assistantParts[0], input.reasoningProvenance)
+	}
 
 	messages := make([]chatstate.Message, 0, 1+len(toolResults))
 	if len(assistantParts) > 0 {
@@ -72,7 +103,22 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 		if err != nil {
 			return stepMessagesForCommit{}, xerrors.Errorf("marshal tool result: %w", err)
 		}
-		messages = append(messages, baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, input.modelConfigID, contentVersion, content))
+		userResult, err := chattool.UserResultFromMetadata(toolResult.ClientMetadata)
+		if err != nil {
+			return stepMessagesForCommit{}, err
+		}
+		visibility := database.ChatMessageVisibilityBoth
+		if len(userResult) > 0 {
+			visibility = database.ChatMessageVisibilityModel
+			userPart := part
+			userPart.Result = userResult
+			userContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{userPart})
+			if err != nil {
+				return stepMessagesForCommit{}, xerrors.Errorf("marshal user tool result: %w", err)
+			}
+			messages = append(messages, baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityUser, input.modelConfigID, contentVersion, userContent))
+		}
+		messages = append(messages, baseMessage(database.ChatMessageRoleTool, visibility, input.modelConfigID, contentVersion, content))
 	}
 
 	// Usage sums runtime_ms across rows, so the batch window is billed
@@ -296,7 +342,7 @@ type buildCompactionMessagesInput struct {
 	modelConfigID       uuid.UUID
 	toolCallID          string
 	toolName            string
-	compaction          compactionOutcome
+	compaction          chatloop.CompactionResult
 	contentVersion      int16
 	pendingUserMessages []database.ChatMessage
 }
@@ -336,14 +382,15 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 	if err != nil {
 		return compactionMessagesForCommit{}, xerrors.Errorf("marshal compaction tool call: %w", err)
 	}
-	summaryResult, err := json.Marshal(map[string]any{
-		"summary":                  input.compaction.SummaryReport,
-		"source":                   source,
-		"threshold_percent":        input.compaction.ThresholdPercent,
-		"usage_percent":            input.compaction.UsagePercent,
-		"context_tokens":           input.compaction.ContextTokens,
-		"context_limit_tokens":     input.compaction.ContextLimit,
-		"estimated_context_tokens": input.compaction.EstimatedContextTokens,
+	summaryResult, err := json.Marshal(chatloop.CompactionToolResult{
+		Summary:                   input.compaction.SummaryReport,
+		Source:                    source,
+		ThresholdPercent:          input.compaction.ThresholdPercent,
+		UsagePercent:              input.compaction.UsagePercent,
+		ContextTokens:             input.compaction.ContextTokens,
+		ContextLimitTokens:        input.compaction.ChatContextLimit,
+		EstimatedContextTokens:    input.compaction.EstimatedContextTokens,
+		TriggerContextLimitTokens: input.compaction.TriggerContextLimit,
 	})
 	if err != nil {
 		return compactionMessagesForCommit{}, xerrors.Errorf("marshal compaction result: %w", err)
@@ -501,7 +548,7 @@ func compactionStatusFromHistory(
 	messages []database.ChatMessage,
 	requirement compactionRequirement,
 	thresholdPercent int32,
-	contextLimit int64,
+	triggerContextLimit int64,
 ) compactionStatus {
 	boundaryIndex := latestContextBoundaryIndex(messages)
 	if requirement == compactionRequirementNeeded {
@@ -514,7 +561,8 @@ func compactionStatusFromHistory(
 		// does not carry context usage, and is always preceded by an assistant
 		// message.
 		if assistant, ok := firstUncompressedAssistantAfter(messages, boundaryIndex); ok &&
-			postCompactionAssistantOverLimit(assistant, thresholdPercent, contextLimit) {
+			postCompactionAssistantOverLimit(assistant, thresholdPercent, triggerContextLimit) &&
+			!summaryRecordedUnderOtherTrigger(messages[boundaryIndex], thresholdPercent, triggerContextLimit) {
 			return compactionStatusStillOverLimit
 		}
 		if hasUncompressedMessageAfter(messages, boundaryIndex) {
@@ -526,6 +574,39 @@ func compactionStatusFromHistory(
 		return compactionStatusAfterCompaction
 	}
 	return compactionStatusNotNeeded
+}
+
+// summaryRecordedUnderOtherTrigger reports whether a chat_summarized
+// boundary recorded a trigger other than the current one. A summary made
+// under an older trigger is not a failed compaction under the current one.
+func summaryRecordedUnderOtherTrigger(boundary database.ChatMessage, thresholdPercent int32, triggerContextLimit int64) bool {
+	parts, err := chatprompt.ParseContent(boundary)
+	if err != nil {
+		return false
+	}
+	for _, part := range parts {
+		if part.ToolName != "chat_summarized" || part.Type != codersdk.ChatMessagePartTypeToolResult {
+			continue
+		}
+		// Results written before trigger_context_limit_tokens stored the
+		// trigger's window in context_limit_tokens. A result without these
+		// keys compares equal to the current trigger.
+		const noTriggerContextLimit = -1
+		recorded := chatloop.CompactionToolResult{
+			ThresholdPercent:          thresholdPercent,
+			ContextLimitTokens:        triggerContextLimit,
+			TriggerContextLimitTokens: noTriggerContextLimit,
+		}
+		if err := json.Unmarshal(part.Result, &recorded); err != nil {
+			return false
+		}
+		recordedLimit := recorded.TriggerContextLimitTokens
+		if recordedLimit == noTriggerContextLimit {
+			recordedLimit = recorded.ContextLimitTokens
+		}
+		return recorded.ThresholdPercent != thresholdPercent || recordedLimit != triggerContextLimit
+	}
+	return false
 }
 
 // latestContextBoundaryIndex finds the latest compressed
@@ -598,8 +679,20 @@ func hasUncompressedMessageAfter(messages []database.ChatMessage, index int) boo
 	return false
 }
 
-func postCompactionAssistantOverLimit(msg database.ChatMessage, thresholdPercent int32, contextLimit int64) bool {
-	return shouldCompactPromptUsage(usageFromMessage(msg), contextLimit, thresholdPercent)
+// postCompactionOverLimit reports whether the first assistant usage after the
+// latest boundary reaches trigger's point. A disabled trigger never does.
+func postCompactionOverLimit(messages []database.ChatMessage, trigger compactionTrigger) bool {
+	assistant, ok := firstUncompressedAssistantAfter(messages, latestContextBoundaryIndex(messages))
+	return ok && postCompactionAssistantOverLimit(assistant, trigger.thresholdPercent, trigger.contextLimit)
+}
+
+func postCompactionAssistantOverLimit(msg database.ChatMessage, thresholdPercent int32, triggerContextLimit int64) bool {
+	// Zero means "always compact." Excluding it from this check prevents a
+	// terminal over-limit error after every compaction.
+	if thresholdPercent <= 0 {
+		return false
+	}
+	return shouldCompactPromptUsage(usageFromMessage(msg), triggerContextLimit, thresholdPercent)
 }
 
 func usageFromMessage(msg database.ChatMessage) fantasy.Usage {
@@ -789,6 +882,13 @@ type partialMessageConversionState struct {
 	// modelStreamedAssistant distinguishes streamed content from tool
 	// attachment parts, which must not carry model runtime.
 	modelStreamedAssistant bool
+	// streamedRun accumulates the open text or reasoning run so that a delta
+	// does not copy the run. assistantParts[streamedRunIndex].Text is stale
+	// until closeStreamedRun, so append parts only through appendAssistantPart,
+	// which closes the run first.
+	streamedRun      strings.Builder
+	streamedRunIndex int
+	streamedRunOpen  bool
 }
 
 func (s *partialMessageConversionState) consume(buffered messagepartbuffer.Part) error {
@@ -823,7 +923,7 @@ func (s *partialMessageConversionState) consumeAssistantPart(buffered messagepar
 				part.CompletedAt = &interruptedAt
 			}
 		}
-		s.assistantParts = append(s.assistantParts, part)
+		s.appendAssistantPart(part)
 		return
 	}
 	if part.ToolCallID == "" {
@@ -868,6 +968,49 @@ func (s *partialMessageConversionState) consumeAssistantPart(buffered messagepar
 	call.valid = true
 	call.durable = true
 	s.assistantParts[call.index] = durable
+}
+
+// appendAssistantPart appends part, or appends its text to the open run if part
+// continues it. Text deltas have no block identity, so a text run continues
+// across provider blocks until Narration changes; narration must stay a
+// separate part because the web client shows it in the working block. A
+// reasoning run continues while CreatedAt, which chatloop sets to the block's
+// start time rounded to the microsecond, stays the same, so two blocks that
+// start in the same microsecond merge.
+func (s *partialMessageConversionState) appendAssistantPart(part codersdk.ChatMessagePart) {
+	mergeable := part.Type == codersdk.ChatMessagePartTypeText || part.Type == codersdk.ChatMessagePartTypeReasoning
+	if mergeable && s.streamedRunOpen {
+		prev := s.assistantParts[s.streamedRunIndex]
+		if prev.Type == part.Type && prev.Narration == part.Narration &&
+			(part.Type == codersdk.ChatMessagePartTypeText || sameTime(prev.CreatedAt, part.CreatedAt)) {
+			_, _ = s.streamedRun.WriteString(part.Text)
+			return
+		}
+	}
+	s.closeStreamedRun()
+	s.assistantParts = append(s.assistantParts, part)
+	if !mergeable {
+		return
+	}
+	s.streamedRunIndex = len(s.assistantParts) - 1
+	s.streamedRunOpen = true
+	_, _ = s.streamedRun.WriteString(part.Text)
+}
+
+func (s *partialMessageConversionState) closeStreamedRun() {
+	if !s.streamedRunOpen {
+		return
+	}
+	s.assistantParts[s.streamedRunIndex].Text = s.streamedRun.String()
+	s.streamedRun.Reset()
+	s.streamedRunOpen = false
+}
+
+func sameTime(a, b *time.Time) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.Equal(*b)
 }
 
 func (s *partialMessageConversionState) consumeToolPart(buffered messagepartbuffer.Part) error {
@@ -925,7 +1068,21 @@ func (s *partialMessageConversionState) consumeToolPart(buffered messagepartbuff
 	if err := s.flushAssistant(); err != nil {
 		return err
 	}
-	if err := s.appendToolResult(part); err != nil {
+	visibility := database.ChatMessageVisibilityBoth
+	if slices.Contains(userOnlyResultToolNames, part.ToolName) {
+		if err := s.appendToolResult(part, database.ChatMessageVisibilityUser); err != nil {
+			return err
+		}
+		result, err := json.Marshal(map[string]string{"error": interruptedToolResultReplacementMessage})
+		if err != nil {
+			return xerrors.Errorf("marshal interrupted tool result replacement: %w", err)
+		}
+		part.Result = result
+		part.IsError = true
+		part.IsMedia = false
+		visibility = database.ChatMessageVisibilityModel
+	}
+	if err := s.appendToolResult(part, visibility); err != nil {
 		return err
 	}
 	s.answered[part.ToolCallID] = true
@@ -940,7 +1097,7 @@ func (s *partialMessageConversionState) toolCall(id string) *partialToolCall {
 	call = &partialToolCall{index: len(s.assistantParts), valid: true}
 	s.toolCalls[id] = call
 	s.toolCallOrder = append(s.toolCallOrder, id)
-	s.assistantParts = append(s.assistantParts, codersdk.ChatMessagePart{})
+	s.appendAssistantPart(codersdk.ChatMessagePart{})
 	return call
 }
 
@@ -980,6 +1137,7 @@ func (s *partialMessageConversionState) finalizeToolCallPlaceholders() error {
 }
 
 func (s *partialMessageConversionState) flushAssistant() error {
+	s.closeStreamedRun()
 	if len(s.assistantParts) == 0 {
 		return nil
 	}
@@ -1020,12 +1178,12 @@ func (s *partialMessageConversionState) flushAccumulatedToolResults() error {
 	return nil
 }
 
-func (s *partialMessageConversionState) appendToolResult(part codersdk.ChatMessagePart) error {
+func (s *partialMessageConversionState) appendToolResult(part codersdk.ChatMessagePart, visibility database.ChatMessageVisibility) error {
 	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{part})
 	if err != nil {
 		return xerrors.Errorf("marshal partial tool result: %w", err)
 	}
-	s.messages = append(s.messages, baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, s.input.modelConfigID, s.contentVersion, content))
+	s.messages = append(s.messages, baseMessage(database.ChatMessageRoleTool, visibility, s.input.modelConfigID, s.contentVersion, content))
 	return nil
 }
 
@@ -1047,7 +1205,7 @@ func (s *partialMessageConversionState) appendSyntheticInterruptionResults() err
 		if !s.input.interruptedAt.IsZero() {
 			part.CreatedAt = &s.input.interruptedAt
 		}
-		if err := s.appendToolResult(part); err != nil {
+		if err := s.appendToolResult(part, database.ChatMessageVisibilityBoth); err != nil {
 			return xerrors.Errorf("marshal synthetic interruption message: %w", err)
 		}
 		s.answered[id] = true

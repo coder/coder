@@ -3,7 +3,6 @@ import { ArrowLeftIcon } from "lucide-react";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link, Navigate, useNavigate, useParams } from "react-router";
-import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import {
 	aiProvider,
@@ -18,6 +17,7 @@ import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { Loader } from "#/components/Loader/Loader";
 import { SettingsHeaderTitle } from "#/components/SettingsHeader/SettingsHeader";
 import { Switch } from "#/components/Switch/Switch";
+import { toast } from "#/components/Toaster/toast";
 import { getProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { pageTitle } from "#/utils/page";
 import { ProviderForm } from "../components/ProviderForm";
@@ -156,12 +156,17 @@ const UpdateProviderPageView: React.FC = () => {
 				<div className="flex items-center justify-between w-full">
 					<p className="text-sm text-content-secondary m-0">
 						Add or update models for this provider.{" "}
-						<a
-							href="/ai/settings/models"
+						<Link
+							to={{
+								pathname: "/ai/settings/models",
+								search: new URLSearchParams({
+									provider: provider.id,
+								}).toString(),
+							}}
 							className="text-content-link no-underline hover:underline"
 						>
 							Model settings
-						</a>
+						</Link>
 					</p>
 					<div className="flex items-center gap-2">
 						<Switch

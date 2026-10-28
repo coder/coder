@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { fireEvent, fn, userEvent, waitFor, within } from "storybook/test";
 import { defaultUrlTransform } from "streamdown";
+import { chatFileTextKey } from "#/api/queries/chats";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import { Button } from "#/components/Button/Button";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
@@ -10,9 +11,16 @@ import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
 import {
 	buildLiveStatus,
+	MockAttachmentWorkingMessages,
 	MockCollapsedStepsPreferences,
+	MockLeadInSearchMessages,
 	MockLongTurnPageLoads,
+	MockPageFromAttachedFileMessages,
+	MockPlanAttachmentMessages,
 	MockQuestionCallMessage,
+	MockTextBeforeSecondStepMessage,
+	MockUncitedSearchAnswerMessages,
+	MockWebSearchAnswerMessages,
 	MockWorkingMessages,
 	pinFixtureClock,
 	workingFixtureTime,
@@ -40,7 +48,6 @@ const meta: Meta<typeof ConversationTimeline> = {
 		showDesktopPreviews: false,
 		hasActiveStream: false,
 		isAwaitingFirstStreamChunk: false,
-		automationNames: { names: new Map(), status: "settled" },
 		chatStatus: null,
 		hasMoreMessages: false,
 		parsedMessages: parseMessagesWithMergedTools(MockWorkingMessages),
@@ -74,6 +81,110 @@ export const Expanded: Story = {
 	},
 };
 
+// The answer's lead-in text and search fold into the steps' block, and only its
+// final text shows after the summary.
+export const AnswerWorkFolds: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockWebSearchAnswerMessages),
+	},
+};
+
+export const AnswerWorkFoldsExpanded: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockWebSearchAnswerMessages),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Worked for 15s (3 steps)",
+			}),
+		);
+	},
+};
+
+export const SearchOnlyAnswerFolds: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools([
+			MockWebSearchAnswerMessages[0],
+			...MockWebSearchAnswerMessages.slice(5),
+		]),
+	},
+};
+
+export const UncitedSearchAnswerFoldsExpanded: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockUncitedSearchAnswerMessages,
+		),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Worked for 14s (3 steps)",
+			}),
+		);
+	},
+};
+
+export const LabeledNarrationFolds: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools([
+			MockWorkingMessages[0],
+			{
+				...MockChatMessage,
+				id: 2,
+				role: "assistant",
+				created_at: workingFixtureTime(4),
+				content: [
+					{
+						type: "reasoning",
+						text: "Finding the docs page",
+						created_at: workingFixtureTime(1),
+						completed_at: workingFixtureTime(2),
+					},
+					{ type: "text", text: "Checking the docs.", narration: true },
+					{ type: "text", text: "The docs cover workspace sharing." },
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Worked for 1s" }),
+		);
+	},
+};
+
+export const LeadInBeforeSearchFolds: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockLeadInSearchMessages),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Worked for 2s (1 step)",
+			}),
+		);
+	},
+};
+
+export const TextBetweenStepsFolds: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools([
+			...MockWorkingMessages.slice(0, 3),
+			MockTextBeforeSecondStepMessage,
+			...MockWorkingMessages.slice(4),
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Worked for 12s (2 steps)",
+			}),
+		);
+	},
+};
+
 export const Paginated: Story = {
 	args: {
 		hasMoreMessages: true,
@@ -83,6 +194,23 @@ export const Paginated: Story = {
 		await userEvent.click(
 			within(canvasElement).getByRole("button", {
 				name: "Worked for at least 8s (1 step or more)",
+			}),
+		);
+	},
+};
+
+// The file's block may continue from older history.
+export const PaginatedFromAttachedFile: Story = {
+	args: {
+		hasMoreMessages: true,
+		parsedMessages: parseMessagesWithMergedTools(
+			MockPageFromAttachedFileMessages,
+		),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Worked for at least 11s (1 step or more)",
 			}),
 		);
 	},
@@ -140,6 +268,39 @@ export const PrependIntoExpandedBlockKeepsReadingPosition: Story = {
 
 		await loadOlderFromTop();
 		await canvas.findByText("Run every step");
+	},
+};
+
+export const AttachmentFoldsIntoBlock: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockAttachmentWorkingMessages),
+	},
+};
+
+export const AttachmentFoldsIntoBlockExpanded: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockAttachmentWorkingMessages),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: /Worked for/ }),
+		);
+	},
+};
+
+export const PlanAttachmentHidden: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+			{
+				key: chatFileTextKey("plan-file"),
+				data: "# Plan\n\nShip the attachments panel.",
+			},
+		],
+	},
+	args: {
+		onImplementPlan: fn(),
+		parsedMessages: parseMessagesWithMergedTools(MockPlanAttachmentMessages),
 	},
 };
 
@@ -209,5 +370,12 @@ export const EditingPrecedingMessage: Story = {
 			canvas.getByRole("button", { name: "Worked for 12s (2 steps)" }),
 		);
 		await userEvent.click(canvas.getByRole("button", { name: "Edit prompt" }));
+	},
+};
+
+export const EditingBeforeAnswerWorkFolds: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockWebSearchAnswerMessages),
+		editingMessageId: 1,
 	},
 };

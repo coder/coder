@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "#/components/Toaster/toast";
 
 const CLIPBOARD_TIMEOUT_MS = 1_000;
 export const COPY_FAILED_MESSAGE = "Failed to copy text to clipboard";
@@ -12,7 +12,11 @@ export type UseClipboardInput = Readonly<{
 }>;
 
 export type UseClipboardResult = Readonly<{
-	copyToClipboard: (textToCopy: string) => Promise<void>;
+	/**
+	 * Copies text to the clipboard. Resolves to true when the copy succeeded,
+	 * or to false after `onError` has been called when it failed.
+	 */
+	copyToClipboard: (textToCopy: string) => Promise<boolean>;
 
 	/**
 	 * Reads text from the clipboard. When the asynchronous Clipboard API is
@@ -66,7 +70,7 @@ export const useClipboard = (
 	}, [successToken]);
 
 	const copyToClipboard = useCallback(
-		async (textToCopy: string) => {
+		async (textToCopy: string): Promise<boolean> => {
 			const markSuccess = () => {
 				lastCopiedTextRef.current = textToCopy;
 				// A unique token restarts feedback even when copying the same text.
@@ -79,11 +83,12 @@ export const useClipboard = (
 			try {
 				await navigator.clipboard.writeText(textToCopy);
 				markSuccess();
+				return true;
 			} catch (err) {
 				const fallbackCopySuccessful = simulateClipboardWrite(textToCopy);
 				if (fallbackCopySuccessful) {
 					markSuccess();
-					return;
+					return true;
 				}
 
 				const wrappedErr = new Error(COPY_FAILED_MESSAGE);
@@ -94,6 +99,7 @@ export const useClipboard = (
 				console.error(wrappedErr);
 				setError(wrappedErr);
 				onError(COPY_FAILED_MESSAGE);
+				return false;
 			}
 		},
 		[onError, clearErrorOnSuccess],

@@ -1,27 +1,18 @@
 import { cn } from "cn";
 import { Profiler, useEffect, useRef, useState } from "react";
-import {
-	type UseQueryResult,
-	useMutation,
-	useQuery,
-	useQueryClient,
-} from "react-query";
-import { toast } from "sonner";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
 import {
-	type ChatAutomationNameMap,
-	chatAutomationNameMap,
-} from "#/api/queries/chatAutomations";
-import {
 	chatPromptsQuery,
+	organizationChatModelOverrides,
 	refreshChatContext,
 	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { getWorkspaceAgents } from "#/utils/workspace";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
@@ -35,9 +26,10 @@ import {
 	getChatFileURL,
 	isWorkspaceFileReferencePart,
 } from "../utils/chatAttachments";
+import { resolveChatCompactionThreshold } from "../utils/compactionTriggers";
 import {
 	getProviderForModelOption,
-	resolveCompactionThreshold,
+	providerInfoByIDFromDescriptors,
 } from "../utils/modelOptions";
 import { CHAT_SLASH_COMMANDS } from "../utils/slashCommands";
 import {
@@ -47,7 +39,6 @@ import {
 	isUploadInProgress,
 	type UploadState,
 } from "./AgentChatInput";
-import type { ChatAutomationNames } from "./ChatConversation/AutomationLabel";
 import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
 import type { ChatDetailError } from "./ChatConversation/chatError";
 import { getLatestContextUsage } from "./ChatConversation/chatHelpers";
@@ -57,13 +48,13 @@ import {
 	selectHasStreamState,
 	selectIsAwaitingFirstStreamChunk,
 	selectMessagesByID,
-	selectOrderedMessageIDs,
 	selectQueuedMessages,
 	selectReconnectState,
 	selectRetryState,
 	selectStreamError,
 	selectStreamState,
 	selectSubagentStatusOverrides,
+	useChatMessages,
 	useChatSelector,
 	type useChatStore,
 } from "./ChatConversation/chatStore";
@@ -82,15 +73,15 @@ import {
 	excludeDurableCallResults,
 } from "./ChatConversation/streamState";
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
+import {
+	ACPContext,
+	buildACPSessionDescriptors,
+} from "./ChatElements/tools/ACPContext";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import { ChatMessageScroller } from "./ChatMessageScroller";
 import { getWorkspaceOptionsWithLinkedWorkspace } from "./workspaceOptions";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
-
-const isChatMessage = (
-	message: TypesGen.ChatMessage | undefined,
-): message is TypesGen.ChatMessage => Boolean(message);
 
 // A resolved chat with no context (unpinned) or no resources authoritatively
 // has no workspace skills; only an unresolved chat leaves them unknown.
@@ -119,13 +110,6 @@ export const workspaceSkillsFromChat = (
 	return [...skills.values()];
 };
 
-const toChatAutomationNames = (
-	query: UseQueryResult<ChatAutomationNameMap>,
-): ChatAutomationNames => ({
-	names: query.data ?? new Map(),
-	status: query.isFetching ? "loading" : query.isError ? "error" : "settled",
-});
-
 type ChatPageTimelineProps = {
 	organizationId: string;
 	store: ChatStoreHandle;
@@ -141,6 +125,7 @@ type ChatPageTimelineProps = {
 		messageId: number,
 		text: string,
 		fileBlocks?: readonly TypesGen.ChatMessagePart[],
+		editorState?: string,
 	) => void;
 	editingMessageId?: number | null;
 	onImplementPlan?: () => Promise<void> | void;
@@ -171,7 +156,6 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
 	const messagesByID = useChatSelector(store, selectMessagesByID);
-	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const chatStatus = useChatSelector(store, selectChatStatus);
 	const hasStream = useChatSelector(store, selectHasStreamState);
 	const isAwaitingFirstStreamChunk = useChatSelector(
@@ -204,19 +188,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 		liveStreamState?.toolResults,
 	);
 
-	const messages = orderedMessageIDs
-		.map((messageID) => {
-			const message = messagesByID.get(messageID);
-			if (!message && process.env.NODE_ENV !== "production") {
-				console.warn(
-					`[ChatPageContent] orderedMessageIDs contains ID ${messageID} ` +
-						"not found in messagesByID. This may indicate a store/cache " +
-						"desync bug.",
-				);
-			}
-			return message;
-		})
-		.filter(isChatMessage);
+	const messages = useChatMessages(store);
 	const pendingToolCallIDs = getPendingToolCallIDs(messages, chatStatus);
 	const parsedMessages = parseMessagesWithMergedTools(messages, {
 		pendingToolCallIDs,
@@ -224,69 +196,67 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 	});
 	const { titles: subagentTitles, variants: subagentVariants } =
 		buildSubagentMaps(parsedMessages);
-	const { experiments } = useDashboard();
-	const automationNamesQuery = useQuery(
-		chatAutomationNameMap(organizationId, {
-			enabled:
-				messages.some((message) => message.automation_id !== undefined) &&
-				experiments.includes("chat-automations"),
-		}),
-	);
-	const automationNames = toChatAutomationNames(automationNamesQuery);
+	const acpSessions = buildACPSessionDescriptors([
+		...parsedMessages.flatMap(({ parsed }) => parsed.tools),
+		...streamTools,
+	]);
 	const onRenderProfiler = useOnRenderProfiler();
 
 	return (
-		<Profiler id="AgentChat" onRender={onRenderProfiler}>
-			<ChatMessageScroller
-				hasMoreMessages={hasMoreMessages}
-				isFetchingMoreMessages={isFetchingMoreMessages}
-				isHydratingMessages={isHydratingMessages}
-				hasFetchMoreError={hasFetchMoreError}
-				hasTranscriptRows={parsedMessages.length > 0}
-				onFetchMoreMessages={onFetchMoreMessages}
-			>
-				{/* VNC sessions for completed agents may already be
+		<ACPContext value={acpSessions}>
+			<Profiler id="AgentChat" onRender={onRenderProfiler}>
+				<ChatMessageScroller
+					hasMoreMessages={hasMoreMessages}
+					isFetchingMoreMessages={isFetchingMoreMessages}
+					isHydratingMessages={isHydratingMessages}
+					hasFetchMoreError={hasFetchMoreError}
+					hasTranscriptRows={parsedMessages.length > 0}
+					onFetchMoreMessages={onFetchMoreMessages}
+				>
+					{/* VNC sessions for completed agents may already be
 					   terminated, so inline desktop previews are disabled
 					   via showDesktopPreviews={false} to avoid a perpetual
 					   "disconnected" state. The MonitorIcon variant still
 					   renders correctly. */}
-				<ConversationTimeline
-					hasMoreMessages={hasMoreMessages}
-					chatStatus={chatStatus}
-					organizationId={organizationId}
-					parsedMessages={parsedMessages}
-					automationNames={automationNames}
-					chatFiles={chatFiles}
-					initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
-					streamState={liveStreamState}
-					streamTools={streamTools}
-					liveStatus={liveStatus}
-					subagentStatusOverrides={subagentStatusOverrides}
-					subagentTitles={subagentTitles}
-					subagentVariants={subagentVariants}
-					onEditUserMessage={onEditUserMessage}
-					editingMessageId={editingMessageId}
-					onImplementPlan={onImplementPlan}
-					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
-					isChatCompleted={isChatCompleted}
-					hasActiveStream={hasStream}
-					isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
-					urlTransform={urlTransform}
-					mcpServers={mcpServers}
-					showDesktopPreviews={false}
-				/>
-				<TerminalStatusRow liveStatus={liveStatus} />
-			</ChatMessageScroller>
-			{/* The empty state sits outside the scroller content, which holds
+					<ConversationTimeline
+						hasMoreMessages={hasMoreMessages}
+						chatStatus={chatStatus}
+						organizationId={organizationId}
+						parsedMessages={parsedMessages}
+						chatFiles={chatFiles}
+						initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
+						streamState={liveStreamState}
+						streamTools={streamTools}
+						liveStatus={liveStatus}
+						subagentStatusOverrides={subagentStatusOverrides}
+						subagentTitles={subagentTitles}
+						subagentVariants={subagentVariants}
+						onEditUserMessage={onEditUserMessage}
+						editingMessageId={editingMessageId}
+						onImplementPlan={onImplementPlan}
+						onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+						isChatCompleted={isChatCompleted}
+						hasActiveStream={hasStream}
+						isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
+						urlTransform={urlTransform}
+						mcpServers={mcpServers}
+						showDesktopPreviews={false}
+					/>
+					<TerminalStatusRow liveStatus={liveStatus} />
+				</ChatMessageScroller>
+				{/* The empty state sits outside the scroller content, which holds
 			    transcript rows only. */}
-			<div className={cn("mx-auto w-full px-4", chatWidthClass(chatFullWidth))}>
-				<LiveStreamTailContent
-					isTranscriptEmpty={parsedMessages.length === 0}
-					liveStatus={liveStatus}
-				/>
-				{footer}
-			</div>
-		</Profiler>
+				<div
+					className={cn("mx-auto w-full px-4", chatWidthClass(chatFullWidth))}
+				>
+					<LiveStreamTailContent
+						isTranscriptEmpty={parsedMessages.length === 0}
+						liveStatus={liveStatus}
+					/>
+					{footer}
+				</div>
+			</Profiler>
+		</ACPContext>
 	);
 };
 
@@ -314,13 +284,14 @@ export type SendChatMessageOptions = {
 type ChatPageInputProps = {
 	chat: TypesGen.Chat;
 	store: ChatStoreHandle;
-	models: readonly TypesGen.ChatModel[] | undefined;
+	modelCatalog: TypesGen.OrganizationChatModelsResponse | undefined;
 	onSend: (options: SendChatMessageOptions) => Promise<void> | void;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
 	onInterrupt: () => void;
 	isInputDisabled: boolean;
 	isReadOnly: boolean;
+	readOnlyNotice?: string;
 	isSendPending: boolean;
 	isInterruptPending: boolean;
 	hasModelOptions: boolean;
@@ -337,7 +308,6 @@ type ChatPageInputProps = {
 	unsupportedProviderNames: readonly string[];
 	aiGatewayDisabled?: boolean;
 	onPlanModeToggle: (enabled: boolean) => void;
-	onManageAutomationsToggle?: (enabled: boolean) => void;
 	isModelCatalogLoading: boolean;
 	// Imperative editor handle plus the one-time initial draft,
 	// owned by the conversation component.
@@ -372,13 +342,14 @@ type ChatPageInputProps = {
 export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	chat,
 	store,
-	models,
+	modelCatalog,
 	onSend,
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
 	onInterrupt,
 	isInputDisabled,
 	isReadOnly,
+	readOnlyNotice,
 	isSendPending,
 	isInterruptPending,
 	hasModelOptions,
@@ -395,7 +366,6 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	unsupportedProviderNames,
 	aiGatewayDisabled,
 	onPlanModeToggle,
-	onManageAutomationsToggle,
 	isModelCatalogLoading,
 	inputRef,
 	initialValue,
@@ -431,39 +401,23 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		currentUser.id,
 	);
 	const thresholdsQuery = useQuery(userCompactionThresholds());
-	const compressionThreshold = resolveCompactionThreshold(
-		chat.last_model_config_id,
-		thresholdsQuery.data?.thresholds,
-		models,
+	const modelOverridesQuery = useQuery(
+		organizationChatModelOverrides(organizationId),
 	);
-	const messagesByID = useChatSelector(store, selectMessagesByID);
-	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
+	const compactionThreshold = modelOverridesQuery.isPending
+		? undefined
+		: resolveChatCompactionThreshold(
+				chat.last_model_config_id,
+				thresholdsQuery.data?.thresholds,
+				modelCatalog?.models,
+				providerInfoByIDFromDescriptors(modelCatalog?.providers),
+				modelOverridesQuery,
+			);
 	const hasStreamState = useChatSelector(store, selectHasStreamState);
 	const chatStatus = useChatSelector(store, selectChatStatus);
 	const queuedMessages = useChatSelector(store, selectQueuedMessages);
-	const { experiments } = useDashboard();
-	const automationNamesQuery = useQuery(
-		chatAutomationNameMap(organizationId, {
-			enabled:
-				queuedMessages.some((message) => message.automation_id !== undefined) &&
-				experiments.includes("chat-automations"),
-		}),
-	);
-	const automationNames = toChatAutomationNames(automationNamesQuery);
 
-	const messages = orderedMessageIDs
-		.map((messageID) => {
-			const message = messagesByID.get(messageID);
-			if (!message && process.env.NODE_ENV !== "production") {
-				console.warn(
-					`[ChatPageContent] orderedMessageIDs contains ID ${messageID} ` +
-						"not found in messagesByID. This may indicate a store/cache " +
-						"desync bug.",
-				);
-			}
-			return message;
-		})
-		.filter(isChatMessage);
+	const messages = useChatMessages(store);
 	// Source the composer's prompt-history cycle from the dedicated /prompts endpoint.
 	const { data: promptsData } = useQuery(chatPromptsQuery(chatId));
 	const userPromptHistory: readonly string[] =
@@ -475,7 +429,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	);
 	const latestContextUsage = {
 		...rawUsage,
-		compressionThreshold,
+		compactionThreshold,
 		context: chatContext,
 	};
 	const queryClient = useQueryClient();
@@ -844,7 +798,6 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			remountKey={remountKey}
 			onContentChange={onContentChange}
 			queuedMessages={queuedMessages}
-			automationNames={automationNames}
 			onDeleteQueuedMessage={onDeleteQueuedMessage}
 			onPromoteQueuedMessage={onPromoteQueuedMessage}
 			isEditingHistoryMessage={isEditing}
@@ -852,6 +805,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			userPromptHistory={userPromptHistory}
 			isDisabled={isInputDisabled}
 			isReadOnly={isReadOnly}
+			readOnlyNotice={readOnlyNotice}
 			isLoading={isSendPending}
 			isStreaming={isStreaming}
 			onInterrupt={onInterrupt}
@@ -868,11 +822,11 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			onReasoningEffortChange={onReasoningEffortChange}
 			planModeEnabled={planModeEnabled}
 			onPlanModeToggle={onPlanModeToggle}
-			manageAutomationsEnabled={chat.manage_automations_enabled}
-			onManageAutomationsToggle={onManageAutomationsToggle}
 			isModelCatalogLoading={isModelCatalogLoading}
 			workspaceOptions={workspaceOptions}
 			chatOrganizationId={organizationId}
+			chatProjectId={chat.project_id}
+			showProjectActions
 			selectedWorkspaceId={selectedWorkspaceId}
 			onWorkspaceChange={onWorkspaceChange}
 			isWorkspaceLoading={workspacesQuery.isLoading || isWorkspaceLoading}

@@ -1,10 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useEffect, useState } from "react";
+import { useInfiniteQuery, useQueryClient } from "react-query";
 import { useLocation } from "react-router";
 import {
 	expect,
 	fireEvent,
 	fn,
+	screen,
 	spyOn,
 	userEvent,
 	waitFor,
@@ -13,12 +15,19 @@ import {
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { chatProjectsKey } from "#/api/queries/chatProjects";
-import { userChatProviderConfigsKey } from "#/api/queries/chats";
+import {
+	chatListKey,
+	infiniteChats,
+	toChatListParams,
+	userChatProviderConfigsKey,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
-import { MockChat } from "#/testHelpers/chatEntities";
+import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import {
 	MockChatProject,
+	MockDefaultOrganization,
+	MockOrganization2,
 	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
@@ -28,6 +37,7 @@ import {
 } from "#/testHelpers/storybook";
 import { useAgentsPageKeybindings } from "../../hooks/useAgentsPageKeybindings";
 import { DEFAULT_AGENT_SIDEBAR_FILTERS as defaultSidebarFilters } from "../../utils/agentSidebarFilters";
+import { projectsSectionCollapsedStorageKey } from "../../utils/projectsSectionStorage";
 import { ChatsSidebar } from "./ChatsSidebar";
 
 // Probe element used by the archived-filter preservation story to surface the
@@ -95,6 +105,9 @@ const meta: Meta<typeof ChatsSidebar> = {
 	title: "pages/AgentsPage/ChatsSidebar",
 	component: ChatsSidebar,
 	decorators: [withAuthProvider, withDashboardProvider],
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockResolvedValue([]);
+	},
 	args: {
 		chatErrorReasons: {},
 		modelConfigs: defaultModelConfigs,
@@ -1552,61 +1565,65 @@ export const WithDiffStats: Story = {
 				id: "diff-both",
 				title: "Agent with additions and deletions",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "diff-both",
-					url: "https://github.com/coder/coder/pull/1",
-					pull_request_title: "",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 42,
-					deletions: 7,
-					changed_files: 5,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "diff-both",
+						pr_number: 1,
+						url: "https://github.com/coder/coder/pull/1",
+						additions: 42,
+						deletions: 7,
+						changed_files: 5,
+					},
+				],
 			}),
 			buildChat({
 				id: "diff-add-only",
 				title: "Agent with additions only",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "diff-add-only",
-					url: "https://github.com/coder/coder/pull/2",
-					pull_request_title: "",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 120,
-					deletions: 0,
-					changed_files: 3,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "diff-add-only",
+						pr_number: 2,
+						url: "https://github.com/coder/coder/pull/2",
+						additions: 120,
+						deletions: 0,
+						changed_files: 3,
+					},
+				],
 			}),
 			buildChat({
 				id: "diff-del-only",
 				title: "Agent with deletions only",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "diff-del-only",
-					url: "https://github.com/coder/coder/pull/3",
-					pull_request_title: "",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 0,
-					deletions: 35,
-					changed_files: 2,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "diff-del-only",
+						pr_number: 3,
+						url: "https://github.com/coder/coder/pull/3",
+						additions: 0,
+						deletions: 35,
+						changed_files: 2,
+					},
+				],
 			}),
 			buildChat({
 				id: "diff-none",
 				title: "Agent with no diff changes",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "diff-none",
-					url: "https://github.com/coder/coder/pull/4",
-					pull_request_title: "",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 0,
-					deletions: 0,
-					changed_files: 0,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "diff-none",
+						pr_number: 4,
+						url: "https://github.com/coder/coder/pull/4",
+						additions: 0,
+						deletions: 0,
+						changed_files: 0,
+					},
+				],
 			}),
 		],
 	},
@@ -1628,46 +1645,49 @@ export const WithDiffStatsLight: Story = {
 				id: "diff-both-light",
 				title: "Agent with additions and deletions",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "diff-both-light",
-					url: "https://github.com/coder/coder/pull/1",
-					pull_request_title: "",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 42,
-					deletions: 7,
-					changed_files: 5,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "diff-both-light",
+						pr_number: 1,
+						url: "https://github.com/coder/coder/pull/1",
+						additions: 42,
+						deletions: 7,
+						changed_files: 5,
+					},
+				],
 			}),
 			buildChat({
 				id: "diff-add-only-light",
 				title: "Agent with additions only",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "diff-add-only-light",
-					url: "https://github.com/coder/coder/pull/2",
-					pull_request_title: "",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 120,
-					deletions: 0,
-					changed_files: 3,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "diff-add-only-light",
+						pr_number: 2,
+						url: "https://github.com/coder/coder/pull/2",
+						additions: 120,
+						deletions: 0,
+						changed_files: 3,
+					},
+				],
 			}),
 			buildChat({
 				id: "diff-del-only-light",
 				title: "Agent with deletions only",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "diff-del-only-light",
-					url: "https://github.com/coder/coder/pull/3",
-					pull_request_title: "",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 0,
-					deletions: 35,
-					changed_files: 2,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "diff-del-only-light",
+						pr_number: 3,
+						url: "https://github.com/coder/coder/pull/3",
+						additions: 0,
+						deletions: 35,
+						changed_files: 2,
+					},
+				],
 			}),
 		],
 	},
@@ -1686,80 +1706,123 @@ export const WithPRStateIcons: Story = {
 				id: "pr-open",
 				title: "Open pull request",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "pr-open",
-					url: "https://github.com/coder/coder/pull/100",
-					pull_request_state: "open",
-					pull_request_title: "feat: add new feature",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 50,
-					deletions: 10,
-					changed_files: 4,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "pr-open",
+						pr_number: 100,
+						url: "https://github.com/coder/coder/pull/100",
+						pull_request_title: "feat: add new feature",
+						additions: 50,
+						deletions: 10,
+						changed_files: 4,
+					},
+				],
 			}),
 			buildChat({
 				id: "pr-draft",
 				title: "Draft pull request",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "pr-draft",
-					url: "https://github.com/coder/coder/pull/101",
-					pull_request_state: "open",
-					pull_request_title: "wip: draft changes",
-					pull_request_draft: true,
-					changes_requested: false,
-					additions: 20,
-					deletions: 5,
-					changed_files: 2,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "pr-draft",
+						pr_number: 101,
+						url: "https://github.com/coder/coder/pull/101",
+						pull_request_title: "wip: draft changes",
+						pull_request_draft: true,
+						additions: 20,
+						deletions: 5,
+						changed_files: 2,
+					},
+				],
 			}),
 			buildChat({
 				id: "pr-merged",
 				title: "Merged pull request",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "pr-merged",
-					url: "https://github.com/coder/coder/pull/102",
-					pull_request_state: "merged",
-					pull_request_title: "feat: completed feature",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 200,
-					deletions: 80,
-					changed_files: 12,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "pr-merged",
+						pr_number: 102,
+						url: "https://github.com/coder/coder/pull/102",
+						pull_request_state: "merged",
+						pull_request_title: "feat: completed feature",
+						additions: 200,
+						deletions: 80,
+						changed_files: 12,
+					},
+				],
 			}),
 			buildChat({
 				id: "pr-closed",
 				title: "Closed pull request",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "pr-closed",
-					url: "https://github.com/coder/coder/pull/103",
-					pull_request_state: "closed",
-					pull_request_title: "fix: abandoned approach",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 15,
-					deletions: 3,
-					changed_files: 1,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "pr-closed",
+						pr_number: 103,
+						url: "https://github.com/coder/coder/pull/103",
+						pull_request_state: "closed",
+						pull_request_title: "fix: abandoned approach",
+						additions: 15,
+						deletions: 3,
+						changed_files: 1,
+					},
+				],
 			}),
 			buildChat({
 				id: "pr-no-state",
 				title: "No PR state (branch only)",
 				updated_at: recentTimestamp,
-				diff_status: {
-					chat_id: "pr-no-state",
-					url: "https://github.com/coder/coder/tree/my-branch",
-					pull_request_title: "",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 10,
-					deletions: 2,
-					changed_files: 1,
-				},
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "pr-no-state",
+						git_branch: "my-branch",
+						url: "https://github.com/coder/coder/tree/my-branch",
+						pr_number: undefined,
+						pull_request_state: undefined,
+						pull_request_title: "",
+						additions: 10,
+						deletions: 2,
+						changed_files: 1,
+					},
+				],
+			}),
+			// A newer branch-only push becomes the primary, but the
+			// sole PR still pairs its icon with its own line stats.
+			buildChat({
+				id: "pr-with-newer-branch",
+				title: "PR with a newer branch push",
+				updated_at: recentTimestamp,
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "pr-with-newer-branch",
+						git_branch: "feat/newer-branch",
+						url: "https://github.com/coder/coder/tree/feat/newer-branch",
+						pr_number: undefined,
+						pull_request_state: undefined,
+						pull_request_title: "",
+						additions: 0,
+						deletions: 0,
+						changed_files: 0,
+					},
+					{
+						...MockChatDiffStatus,
+						chat_id: "pr-with-newer-branch",
+						git_branch: "feat/older-pr",
+						pr_number: 104,
+						url: "https://github.com/coder/coder/pull/104",
+						pull_request_title: "feat: sole PR with newer branch",
+						additions: 33,
+						deletions: 4,
+						changed_files: 2,
+					},
+				],
 			}),
 		],
 	},
@@ -1768,6 +1831,146 @@ export const WithPRStateIcons: Story = {
 			location: { path: "/agents" },
 			routing: agentsRouting,
 		}),
+	},
+};
+
+export const WithMultiplePRs: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "multi-pr",
+				title: "Agent with three pull requests",
+				updated_at: recentTimestamp,
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "multi-pr",
+						git_branch: "feat/one",
+						pr_number: 201,
+						url: "https://github.com/coder/coder/pull/201",
+						pull_request_title: "feat: add login page",
+						additions: 50,
+						deletions: 10,
+						changed_files: 4,
+					},
+					{
+						...MockChatDiffStatus,
+						chat_id: "multi-pr",
+						git_branch: "feat/two",
+						pr_number: 202,
+						url: "https://github.com/coder/coder/pull/202",
+						pull_request_title: "fix: correct the login redirect",
+						pull_request_draft: true,
+						additions: 20,
+						deletions: 5,
+						changed_files: 2,
+					},
+					{
+						...MockChatDiffStatus,
+						chat_id: "multi-pr",
+						git_branch: "feat/three",
+						pr_number: 203,
+						url: "https://github.com/coder/coder/pull/203",
+						pull_request_state: "merged",
+						pull_request_title: "feat: add the login tests",
+						additions: 200,
+						deletions: 80,
+						changed_files: 12,
+					},
+				],
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByLabelText("Open actions for Agent with three pull requests"),
+		);
+		// The menus portal to the body, outside the story canvas.
+		const body = within(document.body);
+		await userEvent.click(await body.findByRole("menuitem", { name: "3 PRs" }));
+		await body.findByRole("menuitem", { name: /PR #201/ });
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+};
+
+// Enough PRs to show the submenu's height limit.
+export const WithManyPRs: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "many-prs",
+				title: "Agent with fifteen pull requests",
+				updated_at: recentTimestamp,
+				diff_statuses: Array.from({ length: 15 }, (_, index) => ({
+					...MockChatDiffStatus,
+					chat_id: "many-prs",
+					git_branch: `refactor/agents-${index + 1}`,
+					url: `https://github.com/coder/coder/pull/${29901 + index}`,
+					pr_number: 29901 + index,
+					pull_request_title: `refactor(site): split the agents page into smaller parts, step ${index + 1}`,
+				})),
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByLabelText(
+				"Open actions for Agent with fifteen pull requests",
+			),
+		);
+		const body = within(document.body);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "15 PRs" }),
+		);
+		await body.findByRole("menuitem", { name: /PR #29901/ });
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+};
+
+export const WithOnePRMenuOpen: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "one-pr-menu",
+				title: "Agent with one pull request",
+				updated_at: recentTimestamp,
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "one-pr-menu",
+						pr_number: 301,
+						url: "https://github.com/coder/coder/pull/301",
+						pull_request_title:
+							"fix(site/src/pages/AgentsPage): keep the session alive when the workspace restarts",
+					},
+				],
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByLabelText("Open actions for Agent with one pull request"),
+		);
+		await within(document.body).findByRole("menuitem", { name: /PR #301/ });
 	},
 };
 
@@ -2692,8 +2895,14 @@ export const PreservesArchivedFilterOnSettingsNavigation: Story = {
 	},
 };
 
+const mockLooseChat = buildChat({
+	id: "loose-chat",
+	title: "Loose chat",
+	organization_id: MockChatProject.organization_id,
+});
+
 const mockProjectChats = [
-	buildChat({ id: "loose-chat", title: "Loose chat" }),
+	mockLooseChat,
 	buildChat({
 		id: "project-chat",
 		title: "Project chat",
@@ -2705,7 +2914,6 @@ const mockProjectChats = [
 export const ProjectFolderCollapsed: Story = {
 	args: { chats: mockProjectChats },
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [
 			{
 				key: chatProjectsKey,
@@ -2715,10 +2923,128 @@ export const ProjectFolderCollapsed: Story = {
 	},
 };
 
+const startKeyboardDrag = async (canvasElement: HTMLElement, title: RegExp) => {
+	const row = await within(canvasElement).findByRole("link", {
+		name: title,
+		description: /pick up a chat/i,
+	});
+	row.focus();
+	await userEvent.keyboard("[Space]");
+};
+
+export const ChatDraggedOverProjectFolder: Story = {
+	args: { chats: [mockLooseChat] },
+	parameters: {
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+	},
+	play: async ({ canvasElement }) => {
+		await startKeyboardDrag(canvasElement, /Loose chat/);
+		await userEvent.keyboard("[ArrowUp]");
+	},
+};
+
+/** Reads the cached chat list so the drop moves the chat. */
+export const ChatDroppedOnProjectFolder: Story = {
+	parameters: {
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
+			{
+				key: chatListKey(
+					toChatListParams({ sources: defaultSidebarFilters.sources }),
+				),
+				data: { pages: [mockProjectChats], pageParams: [0] },
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "updateChat").mockResolvedValue(undefined);
+	},
+	render: function ChatDroppedOnProjectFolderRender(args) {
+		// Stories have no API server, so the list must not fetch.
+		const chatsQuery = useInfiniteQuery({
+			...infiniteChats({ sources: defaultSidebarFilters.sources }),
+			enabled: false,
+		});
+		return (
+			<ChatsSidebar {...args} chats={chatsQuery.data?.pages.flat() ?? []} />
+		);
+	},
+	play: async ({ canvasElement }) => {
+		await startKeyboardDrag(canvasElement, /Loose chat/);
+		await userEvent.keyboard("[ArrowUp]");
+		// Space drops on the folder only after the sensor has moved over it.
+		await screen.findByText("Chat Loose chat is over project Launch.");
+		await userEvent.keyboard("[Space]");
+	},
+};
+
+const mockBillingProject: TypesGen.ChatProject = {
+	...MockChatProject,
+	id: "billing-project",
+	name: "Billing",
+};
+
+const mockOtherOrganizationProject: TypesGen.ChatProject = {
+	...MockChatProject,
+	id: "other-organization-project",
+	name: "Research",
+	organization_id: MockOrganization2.id,
+};
+
+export const LooseChatDragMutesUnavailableTargets: Story = {
+	args: { chats: [mockLooseChat] },
+	parameters: {
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [
+					MockChatProject,
+					mockBillingProject,
+					mockOtherOrganizationProject,
+				],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await startKeyboardDrag(canvasElement, /Loose chat/);
+	},
+};
+
+export const ProjectChatDragMutesItsFolder: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "launch-chat",
+				title: "Launch chat",
+				organization_id: MockChatProject.organization_id,
+				project_id: MockChatProject.id,
+			}),
+		],
+	},
+	parameters: {
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [MockChatProject, mockBillingProject],
+			},
+		],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/agents/projects/${MockChatProject.id}`,
+				pathParams: { projectId: MockChatProject.id },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		await startKeyboardDrag(canvasElement, /Launch chat/);
+	},
+};
+
 export const ProjectFolderExpanded: Story = {
 	args: { chats: mockProjectChats },
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [
 			{
 				key: chatProjectsKey,
@@ -2735,10 +3061,28 @@ export const ProjectFolderExpanded: Story = {
 	},
 };
 
+const mockOtherOrganizationLaunchProject: TypesGen.ChatProject = {
+	...MockChatProject,
+	id: "other-organization-launch-project",
+	organization_id: MockOrganization2.id,
+};
+
+export const SameNamedProjects: Story = {
+	args: { chats: mockProjectChats },
+	parameters: {
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [MockChatProject, mockOtherOrganizationLaunchProject],
+			},
+		],
+	},
+};
+
 export const ProjectsSectionCollapsed: Story = {
 	args: { chats: mockProjectChats },
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [
 			{
 				key: chatProjectsKey,
@@ -2746,44 +3090,82 @@ export const ProjectsSectionCollapsed: Story = {
 			},
 		],
 	},
+	beforeEach: () => {
+		const key = projectsSectionCollapsedStorageKey(MockUserOwner.id);
+		localStorage.setItem(key, "true");
+		return () => localStorage.removeItem(key);
+	},
+};
+
+export const ChatDraggedOverCollapsedProjects: Story = {
+	args: { chats: [mockLooseChat] },
+	parameters: {
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+	},
+	beforeEach: () => {
+		const key = projectsSectionCollapsedStorageKey(MockUserOwner.id);
+		localStorage.setItem(key, "true");
+		return () => localStorage.removeItem(key);
+	},
+	play: async ({ canvasElement }) => {
+		await startKeyboardDrag(canvasElement, /Loose chat/);
+		await userEvent.keyboard("[ArrowUp]");
+		await screen.findByText("Chat Loose chat is over Projects.");
+	},
+};
+
+export const ProjectsEmpty: Story = {
+	args: { chats: [buildChat({ id: "loose-chat", title: "Loose chat" })] },
+	parameters: {
+		queries: [{ key: chatProjectsKey, data: [] }],
+	},
+};
+
+export const ProjectActionsWithoutUpdateOrDeletePermission: Story = {
+	args: { chats: mockProjectChats },
+	parameters: {
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [
+					{
+						...MockChatProject,
+						permissions: { update: false, delete: false, share: false },
+					},
+				],
+			},
+		],
+	},
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
-			within(canvasElement).getByRole("button", { name: "Projects" }),
+			await within(canvasElement).findByRole("button", {
+				name: `Open project actions for ${MockChatProject.name}`,
+			}),
 		);
 	},
 };
 
-export const MobileWithAutomations: Story = {
-	args: {
-		chats: sectionHeaderChats,
-	},
+export const ProjectActionsWithoutDeletePermission: Story = {
+	args: { chats: mockProjectChats },
 	parameters: {
-		experiments: ["chat-automations"],
-		viewport: { defaultViewport: "mobile1" },
-		reactRouter: reactRouterParameters({
-			location: { path: "/agents" },
-			routing: agentsRouting,
-		}),
+		queries: [
+			{
+				key: chatProjectsKey,
+				data: [
+					{
+						...MockChatProject,
+						permissions: { update: true, delete: false, share: true },
+					},
+				],
+			},
+		],
 	},
-	decorators: [
-		(Story) => (
-			<div className="h-125 w-90">
-				<Story />
-			</div>
-		),
-	],
-};
-
-export const AutomationsActive: Story = {
-	args: {
-		chats: sectionHeaderChats,
-	},
-	parameters: {
-		experiments: ["chat-automations"],
-		reactRouter: reactRouterParameters({
-			location: { path: "/agents/automations" },
-			routing: agentsRouting,
-		}),
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", {
+				name: `Open project actions for ${MockChatProject.name}`,
+			}),
+		);
 	},
 };
 
@@ -2798,7 +3180,6 @@ export const ProjectChatWithoutLoadedProject: Story = {
 		],
 	},
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [
 			{
 				key: chatProjectsKey,
@@ -2808,9 +3189,18 @@ export const ProjectChatWithoutLoadedProject: Story = {
 	},
 };
 
+export const UnloadedProjectChatDragMutesChats: Story = {
+	args: ProjectChatWithoutLoadedProject.args,
+	parameters: {
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+	},
+	play: async ({ canvasElement }) => {
+		await startKeyboardDrag(canvasElement, /Chat in an unloaded project/);
+	},
+};
+
 export const ProjectsLoading: Story = {
 	args: { chats: mockProjectChats },
-	parameters: { experiments: ["chat-projects"] },
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatProjects").mockReturnValue(
 			new Promise(() => {}),
@@ -2820,7 +3210,6 @@ export const ProjectsLoading: Story = {
 
 export const ProjectsLoadError: Story = {
 	args: { chats: mockProjectChats },
-	parameters: { experiments: ["chat-projects"] },
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatProjects").mockRejectedValue(
 			mockApiError({ message: "Failed to load projects." }),
@@ -2832,6 +3221,30 @@ export const ProjectsLoadError: Story = {
 	},
 };
 
+export const ProjectsEmptyRefetchError: Story = {
+	args: { chats: [buildChat({ id: "loose-chat", title: "Loose chat" })] },
+	parameters: {
+		queries: [{ key: chatProjectsKey, data: [] }],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockRejectedValue(
+			mockApiError({ message: "Failed to refresh projects." }),
+		);
+	},
+	render: function ProjectsEmptyRefetchErrorRender(args) {
+		const queryClient = useQueryClient();
+		// Seeded data never goes stale in Storybook, so refetch explicitly
+		// to fail on top of the cached empty list.
+		useEffect(() => {
+			void queryClient.refetchQueries({ queryKey: chatProjectsKey });
+		}, [queryClient]);
+		return <ChatsSidebar {...args} />;
+	},
+	play: async ({ canvasElement }) => {
+		await within(canvasElement).findByRole("button", { name: "Retry" });
+	},
+};
+
 const mockEmojiProject: TypesGen.ChatProject = {
 	...MockChatProject,
 	icon: "/emojis/1f680.png",
@@ -2840,7 +3253,6 @@ const mockEmojiProject: TypesGen.ChatProject = {
 export const ProjectFolderEmptyWithEmojiIcon: Story = {
 	args: { chats: [buildChat({ id: "loose-chat", title: "Loose chat" })] },
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [{ key: chatProjectsKey, data: [mockEmojiProject] }],
 		reactRouter: reactRouterParameters({
 			location: {
@@ -2849,5 +3261,115 @@ export const ProjectFolderEmptyWithEmojiIcon: Story = {
 			},
 			routing: agentsRouting,
 		}),
+	},
+};
+
+// Only the owner of an unarchived root chat can move it, so the next three
+// menus have no Move to project.
+export const ArchivedChatMenuHasNoMoveToProject: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "archived-no-move",
+				title: "Archived chat",
+				organization_id: MockChatProject.organization_id,
+				archived: true,
+			}),
+		],
+		sidebarFilters: { ...defaultSidebarFilters, archiveStatus: "archived" },
+	},
+	parameters: {
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", {
+				name: "Open actions for Archived chat",
+			}),
+		);
+		await within(document.body).findByRole("menuitem", {
+			name: "Unarchive agent",
+		});
+	},
+};
+
+export const SharedChatMenuHasNoMoveToProject: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "shared-no-move",
+				title: "Shared chat",
+				organization_id: MockChatProject.organization_id,
+				owner_id: "sharing-user",
+				owner_name: "Sharing User",
+				owner_username: "sharing-user",
+				shared: true,
+			}),
+		],
+	},
+	parameters: {
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", {
+				name: "Open actions for Shared chat",
+			}),
+		);
+		await within(document.body).findByRole("menuitem", { name: "Copy ID" });
+	},
+};
+
+export const ChildChatMenuHasNoMoveToProject: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "root-no-move",
+				title: "Root chat",
+				organization_id: MockChatProject.organization_id,
+				children: [
+					buildChat({
+						id: "child-no-move",
+						title: "Child chat",
+						organization_id: MockChatProject.organization_id,
+						parent_chat_id: "root-no-move",
+						root_chat_id: "root-no-move",
+					}),
+				],
+			}),
+		],
+	},
+	parameters: {
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/child-no-move",
+				pathParams: { agentId: "child-no-move" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", {
+				name: "Open actions for Child chat",
+			}),
+		);
+		await within(document.body).findByRole("menuitem", { name: "Copy ID" });
+	},
+};
+
+export const MoveToProjectOffWhileSubagentRuns: Story = {
+	args: IdleParentWithRunningChild.args,
+	parameters: {
+		queries: [{ key: chatProjectsKey, data: [MockChatProject] }],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", {
+				name: "Open actions for Idle parent agent",
+			}),
+		);
+		(await screen.findByRole("menuitem", { name: "Move to project" })).focus();
 	},
 };

@@ -33,8 +33,10 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
+	deploymentValues := coderdtest.DeploymentValues(t)
+	deploymentValues.Experiments = []string{string(codersdk.ExperimentChatACPSubagents)}
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		DeploymentValues:         coderdtest.DeploymentValues(t),
+		DeploymentValues:         deploymentValues,
 		IncludeProvisionerDaemon: true,
 	})
 	db := api.Database
@@ -104,6 +106,8 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	agentsSource := "/home/coder/workspace/AGENTS.md"
 	skillSource := "/home/coder/workspace/.agents/skills/example/SKILL.md"
 	agentsV1Hash := []byte{0x11}
+	harnessSource := "codex"
+	harnessHash := []byte{0x44}
 	agentsV2Hash := []byte{0x22}
 	skillHash := []byte{0x33}
 	instructionResource := func(source, content string, hash []byte) *agentproto.ContextResource {
@@ -164,6 +168,12 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 		AggregateHash: hashA,
 		Resources: []*agentproto.ContextResource{
 			instructionResource(agentsSource, "hello-v1", agentsV1Hash),
+			{
+				Source: harnessSource, ContentHash: harnessHash, Status: agentproto.ContextResource_OK,
+				Body: &agentproto.ContextResource_AcpHarness{
+					AcpHarness: &agentproto.ACPHarnessBody{Slug: harnessSource, DisplayName: "Codex"},
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -177,16 +187,20 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.Nil(t, got.Context.DirtySince)
 
 	// The single-chat GET surfaces the pinned resources.
-	require.Len(t, got.Context.Resources, 1, "GET reports the pinned resources")
-	require.Equal(t, agentsSource, got.Context.Resources[0].Source)
-	require.Equal(t, codersdk.ChatContextResourceKindInstructionFile, got.Context.Resources[0].Kind)
+	require.Len(t, got.Context.Resources, 2, "GET reports the pinned resources")
+	initialResources := resourcesBySource(got.Context.Resources)
+	require.Equal(t, codersdk.ChatContextResourceKindInstructionFile, initialResources[agentsSource].Kind)
+	require.Equal(t, codersdk.ChatContextResourceKindACPHarness, initialResources[harnessSource].Kind)
 
 	// The initial push also copied the agent's resources onto the chat.
 	pinned := pinnedResources(chat.ID)
-	require.Len(t, pinned, 1, "initial hydration copies the agent's resources")
+	require.Len(t, pinned, 2, "initial hydration copies the agent's resources")
 	require.Equal(t, agentsV1Hash, pinned[agentsSource].ContentHash)
 	require.Equal(t, database.WorkspaceAgentContextBodyKindInstructionFile, pinned[agentsSource].BodyKind)
 	require.Equal(t, database.WorkspaceAgentContextResourceStatusOk, pinned[agentsSource].Status)
+	require.Equal(t, harnessHash, pinned[harnessSource].ContentHash)
+	require.Equal(t, database.WorkspaceAgentContextBodyKindAcpHarness, pinned[harnessSource].BodyKind)
+	require.JSONEq(t, `{"slug":"codex","display_name":"Codex"}`, string(pinned[harnessSource].Body))
 	require.Empty(t, pinnedResources(otherChat.ID), "agent-less chat has no pinned resources")
 
 	// The agent refreshes its context and pushes a different hash carrying a
@@ -277,15 +291,17 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.False(t, got.Context.Dirty, "re-push of the pinned hash stays clean")
 }
 
-// TestChatContextMCPSyncFromAgentPush verifies that agent pushes live-sync MCP
-// resources across bound chats without dirtying them, while prompt resources
-// remain pinned until refresh.
-func TestChatContextMCPSyncFromAgentPush(t *testing.T) {
+// TestChatContextLiveSyncFromAgentPush verifies that agent pushes live-sync MCP
+// and ACP resources across bound chats without dirtying them, while prompt
+// resources remain pinned until refresh.
+func TestChatContextLiveSyncFromAgentPush(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
+	deploymentValues := coderdtest.DeploymentValues(t)
+	deploymentValues.Experiments = []string{string(codersdk.ExperimentChatACPSubagents)}
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		DeploymentValues:         coderdtest.DeploymentValues(t),
+		DeploymentValues:         deploymentValues,
 		IncludeProvisionerDaemon: true,
 	})
 	db := api.Database
@@ -363,6 +379,22 @@ func TestChatContextMCPSyncFromAgentPush(t *testing.T) {
 			Status:      agentproto.ContextResource_OK,
 			Body: &agentproto.ContextResource_McpServer{
 				McpServer: &agentproto.MCPServerBody{ServerName: mcpSource, Tools: tools},
+			},
+		}
+	}
+	harnessSource := "codex"
+	harnessDir := "/home/coder/.coder/acp"
+	harnessResource := func(hash []byte, displayName string) *agentproto.ContextResource {
+		return &agentproto.ContextResource{
+			Source:      harnessSource,
+			SourcePath:  new(harnessDir),
+			ContentHash: hash,
+			SizeBytes:   32,
+			Status:      agentproto.ContextResource_OK,
+			Body: &agentproto.ContextResource_AcpHarness{
+				AcpHarness: &agentproto.ACPHarnessBody{
+					Slug: harnessSource, DisplayName: displayName,
+				},
 			},
 		}
 	}
@@ -467,14 +499,80 @@ func TestChatContextMCPSyncFromAgentPush(t *testing.T) {
 		require.NotContains(t, pinned, mcpSource)
 	}
 
-	// Drifted pushes still sync MCP rows while leaving prompt rows pinned.
-	driftedHash := []byte{0x03, 0x04}
+	// ACP discovery follows the initial context push and does not change its
+	// hash. Metadata and probe failures must reach already-pinned chats too.
+	harnessV1 := harnessResource([]byte{0x31}, "Codex")
+	harnessV2 := harnessResource([]byte{0x32}, "Codex Updated")
+	harnessFailed := harnessResource([]byte{0x32}, "Codex Updated")
+	harnessFailed.Status = agentproto.ContextResource_INVALID
+	harnessFailed.Error = "cannot initialize harness"
+	pushVersion := uint64(5)
+	for _, harness := range []*agentproto.ContextResource{harnessV1, harnessV2, harnessFailed} {
+		status := database.WorkspaceAgentContextResourceStatusOk
+		reportedSourcePath := harnessDir
+		if harness.Status == agentproto.ContextResource_INVALID {
+			status = database.WorkspaceAgentContextResourceStatusInvalid
+			reportedSourcePath = ""
+		}
+		resp, err = aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
+			Version:       pushVersion,
+			AggregateHash: hash,
+			Resources:     []*agentproto.ContextResource{instructionResource(), harness},
+		})
+		require.NoError(t, err)
+		require.True(t, resp.GetAccepted())
+
+		got = requireClean(chat.ID, "ACP changes must not dirty the chat")
+		requireClean(secondChat.ID, "ACP changes must not dirty the second chat")
+		body, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(harness.GetAcpHarness())
+		require.NoError(t, err)
+		for _, id := range []uuid.UUID{chat.ID, secondChat.ID} {
+			pinned := pinnedResources(id)
+			require.Len(t, pinned, 2, "ACP row synced onto chat %s", id)
+			require.Equal(t, database.WorkspaceAgentContextBodyKindAcpHarness, pinned[harnessSource].BodyKind)
+			require.Equal(t, harness.ContentHash, pinned[harnessSource].ContentHash)
+			require.Equal(t, harnessDir, pinned[harnessSource].SourcePath)
+			require.Equal(t, status, pinned[harnessSource].Status)
+			require.Equal(t, harness.Error, pinned[harnessSource].Error)
+			require.JSONEq(t, string(body), string(pinned[harnessSource].Body))
+		}
+		require.Empty(t, pinnedResources(otherChat.ID), "agent-less chat stays untouched")
+		require.Contains(t, got.Context.Resources, codersdk.ChatContextResource{
+			Source: harnessSource, SourcePath: reportedSourcePath,
+			Kind:      codersdk.ChatContextResourceKindACPHarness,
+			SizeBytes: 32,
+			Status:    codersdk.ChatContextResourceStatus(status),
+			Error:     harness.Error,
+		})
+		pushVersion++
+	}
+
 	resp, err = aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
-		Version:       5,
+		Version:       8,
+		AggregateHash: hash,
+		Resources:     []*agentproto.ContextResource{instructionResource()},
+	})
+	require.NoError(t, err)
+	require.True(t, resp.GetAccepted())
+	for _, id := range []uuid.UUID{chat.ID, secondChat.ID} {
+		requireClean(id, "harness removal must not dirty the chat")
+		pinned := pinnedResources(id)
+		require.Len(t, pinned, 1, "removed harness deleted from chat %s", id)
+		require.NotContains(t, pinned, harnessSource)
+	}
+
+	// Drifted pushes still sync MCP and ACP rows while leaving prompt rows pinned.
+	driftedHash := []byte{0x03, 0x04}
+	changedInstruction := instructionResource()
+	changedInstruction.ContentHash = []byte{0x12}
+	changedInstruction.GetInstructionFile().Content = []byte("hello-v2")
+	resp, err = aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
+		Version:       9,
 		AggregateHash: driftedHash,
 		Resources: []*agentproto.ContextResource{
-			instructionResource(),
+			changedInstruction,
 			mcpServerResource(toolsV1Hash, "query"),
+			harnessV1,
 		},
 	})
 	require.NoError(t, err)
@@ -485,8 +583,9 @@ func TestChatContextMCPSyncFromAgentPush(t *testing.T) {
 	require.NotNil(t, got.Context)
 	require.True(t, got.Context.Dirty, "drift still marks the chat dirty")
 	pinned := pinnedResources(chat.ID)
-	require.Len(t, pinned, 2)
+	require.Len(t, pinned, 3)
 	require.Equal(t, toolsV1Hash, pinned[mcpSource].ContentHash, "MCP row syncs even on a dirty chat")
+	require.Equal(t, harnessV1.ContentHash, pinned[harnessSource].ContentHash, "ACP row syncs even on a dirty chat")
 	require.Equal(t, agentsHash, pinned[agentsSource].ContentHash, "prompt rows stay pinned while dirty")
 }
 

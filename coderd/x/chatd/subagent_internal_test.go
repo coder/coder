@@ -427,7 +427,8 @@ func TestCreateChildSubagentChatDispatchesUserPromptSubmit(t *testing.T) {
 			http.Error(rw, "hook consumer down", http.StatusInternalServerError)
 		})
 
-		tools := server.subagentTools(ctx, func() database.Chat { return parent }, parent.LastModelConfigID)
+		tools, err := server.subagentTools(ctx, func() database.Chat { return parent }, parent.LastModelConfigID)
+		require.NoError(t, err)
 		tool := findToolByName(tools, spawnAgentToolName)
 		require.NotNil(t, tool)
 		input, err := json.Marshal(spawnAgentArgs{
@@ -471,7 +472,8 @@ func TestCreateChildSubagentChatDispatchesUserPromptSubmit(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		tools := server.subagentTools(ctx, func() database.Chat { return turnSnapshot }, parent.LastModelConfigID)
+		tools, err := server.subagentTools(ctx, func() database.Chat { return turnSnapshot }, parent.LastModelConfigID)
+		require.NoError(t, err)
 		tool := findToolByName(tools, spawnAgentToolName)
 		require.NotNil(t, tool)
 		input, err := json.Marshal(spawnAgentArgs{
@@ -967,32 +969,6 @@ func TestCreateChildSubagentChatInheritsWorkspaceBinding(t *testing.T) {
 	require.Equal(t, database.ChatTitleSourceFallback, childChat.TitleSource)
 }
 
-func TestCreateChildSubagentChatDoesNotInheritManageAutomations(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
-
-	ctx := chatdTestContext(t)
-	user, org, model := seedInternalChatDeps(t, db)
-	parent, err := server.CreateChat(ctx, CreateOptions{
-		OrganizationID:           org.ID,
-		OwnerID:                  user.ID,
-		Title:                    "automations-parent",
-		ModelConfigID:            model.ID,
-		InitialUserContent:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-		ManageAutomationsEnabled: true,
-	})
-	require.NoError(t, err)
-	require.True(t, parent.ManageAutomationsEnabled)
-
-	child, err := server.createChildSubagentChatWithOptions(ctx, parent, "inspect", "", childSubagentChatOptions{})
-	require.NoError(t, err)
-	childChat, err := db.GetChatByID(ctx, child.ID)
-	require.NoError(t, err)
-	require.False(t, childChat.ManageAutomationsEnabled, "sub-agents must never inherit the manage_automations switch")
-}
-
 func TestCreateChildSubagentChatResolvesOrganizationSystemPrompt(t *testing.T) {
 	t.Parallel()
 
@@ -1080,11 +1056,12 @@ func runSubagentTool(
 ) fantasy.ToolResponse {
 	t.Helper()
 
-	tools := server.subagentTools(
+	tools, err := server.subagentTools(
 		ctx,
 		func() database.Chat { return parentChat },
 		currentModelConfigID,
 	)
+	require.NoError(t, err)
 	tool := findToolByName(tools, toolName)
 	require.NotNil(t, tool, "%s tool must be present", toolName)
 
@@ -2498,11 +2475,12 @@ func TestSpawnAgent_ExploreSnapshotsTurnStateParentState(t *testing.T) {
 	turnParent, err := db.GetChatByID(ctx, parent.ID)
 	require.NoError(t, err)
 
-	tools := server.subagentTools(
+	tools, err := server.subagentTools(
 		ctx,
 		func() database.Chat { return turnParent },
 		turnParent.LastModelConfigID,
 	)
+	require.NoError(t, err)
 	tool := findToolByName(tools, spawnAgentToolName)
 	require.NotNil(t, tool, "spawn_agent tool must be present")
 
@@ -2563,7 +2541,8 @@ func TestSpawnAgent_DescriptionListsAllAvailableTypes(t *testing.T) {
 		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-description-all",
 	)
 
-	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
+	tools, err := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
+	require.NoError(t, err)
 	tool := findToolByName(tools, spawnAgentToolName)
 	require.NotNil(t, tool, "spawn_agent tool must be present")
 	description := tool.Info().Description
@@ -2584,7 +2563,8 @@ func TestSpawnAgent_DescriptionSteersGeneralForSubstantialResearch(t *testing.T)
 		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-description-selection-guidance",
 	)
 
-	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
+	tools, err := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
+	require.NoError(t, err)
 	tool := findToolByName(tools, spawnAgentToolName)
 	require.NotNil(t, tool, "spawn_agent tool must be present")
 	description := tool.Info().Description
@@ -2608,7 +2588,8 @@ func TestSpawnAgent_DescriptionIncludesComputerUseWithMissingProviderKey(t *test
 		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-description-missing-key",
 	)
 
-	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
+	tools, err := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
+	require.NoError(t, err)
 	tool := findToolByName(tools, spawnAgentToolName)
 	require.NotNil(t, tool, "spawn_agent tool must be present")
 	description := tool.Info().Description
@@ -2642,7 +2623,8 @@ func TestSpawnAgent_PlanModeDescriptionOmitsComputerUse(t *testing.T) {
 	parentChat, err := db.GetChatByID(ctx, parent.ID)
 	require.NoError(t, err)
 
-	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
+	tools, err := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
+	require.NoError(t, err)
 	tool := findToolByName(tools, spawnAgentToolName)
 	require.NotNil(t, tool, "spawn_agent tool must be present")
 	description := tool.Info().Description
@@ -2760,7 +2742,8 @@ func TestSpawnAgent_ComputerUseAvailabilityUsesConfiguredProvider(t *testing.T) 
 		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-openai-computer-use",
 	)
 
-	ids := availableSubagentTypeIDs(ctx, server, parentChat)
+	ids, err := availableSubagentTypeIDs(ctx, server, parentChat)
+	require.NoError(t, err)
 	require.Contains(t, ids, subagentTypeComputerUse)
 }
 
@@ -2793,7 +2776,8 @@ func TestSpawnAgent_ComputerUseRejectsMissingConfiguredProvider(t *testing.T) {
 		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-openai-missing",
 	)
 
-	ids := availableSubagentTypeIDs(ctx, server, parentChat)
+	ids, err := availableSubagentTypeIDs(ctx, server, parentChat)
+	require.NoError(t, err)
 	require.Contains(t, ids, subagentTypeComputerUse)
 	beforeChats, err := db.GetChats(ctx, database.GetChatsParams{
 		OwnedOnly: true,
@@ -2850,6 +2834,30 @@ func TestSpawnAgent_ComputerUseRejectsInvalidConfiguredProviderWithStableReason(
 		slog.LevelWarn,
 		"computer-use provider config is unavailable",
 	))
+}
+
+type computerUseProviderErrorStore struct {
+	database.Store
+}
+
+func (computerUseProviderErrorStore) GetChatComputerUseProvider(context.Context) (string, error) {
+	return "", sql.ErrConnDone
+}
+
+func TestSpawnAgent_ComputerUseProviderReadErrorFails(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+	server := newInternalTestServer(t, computerUseProviderErrorStore{Store: db}, ps, chatprovider.ProviderAPIKeys{})
+
+	user, org, model := seedInternalChatDeps(t, db)
+	parentChat := createInternalParentChat(
+		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-computer-use-provider-read-error",
+	)
+
+	_, err := availableSubagentTypeIDs(ctx, server, parentChat)
+	require.ErrorIs(t, err, sql.ErrConnDone)
 }
 
 func TestSpawnAgent_ComputerUseRejectsDesktopDisabled(t *testing.T) {
@@ -2935,7 +2943,8 @@ func TestSpawnAgent_NotAvailableForChildChats(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, childChat.ParentChatID.Valid, "child chat must have a parent")
 
-	tools := server.subagentTools(ctx, func() database.Chat { return childChat }, childChat.LastModelConfigID)
+	tools, err := server.subagentTools(ctx, func() database.Chat { return childChat }, childChat.LastModelConfigID)
+	require.NoError(t, err)
 	tool := findToolByName(tools, spawnAgentToolName)
 	require.NotNil(t, tool, "spawn_agent tool must be present")
 
@@ -2972,7 +2981,8 @@ func TestSpawnAgent_NotAvailableForExploreChats(t *testing.T) {
 	currentChat, err := db.GetChatByID(ctx, exploreChat.ID)
 	require.NoError(t, err)
 
-	tools := server.subagentTools(ctx, func() database.Chat { return currentChat }, currentChat.LastModelConfigID)
+	tools, err := server.subagentTools(ctx, func() database.Chat { return currentChat }, currentChat.LastModelConfigID)
+	require.NoError(t, err)
 	tool := findToolByName(tools, spawnAgentToolName)
 	require.NotNil(t, tool, "spawn_agent tool must be present")
 
@@ -3702,7 +3712,7 @@ func TestWaitAgentDoesNotRelayRegularSubagentAttachments(t *testing.T) {
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
 	parent, child := createParentChildChats(ctx, t, server, user, org, model)
-	WaitUntilIdleForTest(server)
+	require.NoError(t, WaitUntilIdleForTest(ctx, server))
 
 	insertedFile := insertLinkedChatFile(
 		ctx,
@@ -3889,7 +3899,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 
 		// signalWake from CreateChat may trigger immediate processing.
 		// Wait for it to settle, then reset chats to the state we need.
-		WaitUntilIdleForTest(server)
+		require.NoError(t, WaitUntilIdleForTest(ctx, server))
 		setChatStatus(ctx, t, db, parent.ID, database.ChatStatusRunning, "")
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
 
@@ -3968,7 +3978,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 
 		// This case should return immediately, so use the shared
 		// real-clock server instead of a mock clock.
-		WaitUntilIdleForTest(server)
+		require.NoError(t, WaitUntilIdleForTest(ctx, server))
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
 
 		gotChat, report, err := server.awaitSubagentCompletion(
@@ -4110,8 +4120,10 @@ func TestUnbilledSubagentToolNamesMatchCatalog(t *testing.T) {
 	user, org, model := seedInternalChatDeps(t, db)
 	parent, _ := createParentChildChats(ctx, t, server, user, org, model)
 
+	tools, err := server.subagentTools(ctx, func() database.Chat { return parent }, parent.LastModelConfigID)
+	require.NoError(t, err)
 	catalog := make(map[string]bool)
-	for _, tool := range server.subagentTools(ctx, func() database.Chat { return parent }, parent.LastModelConfigID) {
+	for _, tool := range tools {
 		catalog[tool.Info().Name] = true
 	}
 	for alias := range subagentToolNameAliases {
@@ -4129,9 +4141,11 @@ func TestWaitAgentToolSchema(t *testing.T) {
 	user, org, model := seedInternalChatDeps(t, db)
 	parent, _ := createParentChildChats(ctx, t, server, user, org, model)
 
-	tool := findToolByName(server.subagentTools(ctx, func() database.Chat {
+	tools, err := server.subagentTools(ctx, func() database.Chat {
 		return parent
-	}, parent.LastModelConfigID), "wait_agent")
+	}, parent.LastModelConfigID)
+	require.NoError(t, err)
+	tool := findToolByName(tools, "wait_agent")
 	require.NotNil(t, tool)
 
 	timeoutSeconds, ok := tool.Info().Parameters["timeout_seconds"].(map[string]any)
@@ -4150,7 +4164,7 @@ func TestWaitAgentTimeoutReturnsInformationalPayload(t *testing.T) {
 	user, org, model := seedInternalChatDeps(t, db)
 	parent, child := createParentChildChats(ctx, t, server, user, org, model)
 
-	WaitUntilIdleForTest(server)
+	require.NoError(t, WaitUntilIdleForTest(ctx, server))
 	setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
 
 	timerTrap := mClock.Trap().NewTimer("chatd", "subagent_await")
@@ -4199,7 +4213,7 @@ func TestWaitAgentErrorStatusReturnsStructuredPayload(t *testing.T) {
 	// An errored, non-archived agent is often recoverable. wait_agent
 	// must surface a structured payload (status, last_error, report)
 	// rather than a bare tool error.
-	WaitUntilIdleForTest(server)
+	require.NoError(t, WaitUntilIdleForTest(ctx, server))
 	setChatStatus(ctx, t, db, child.ID, database.ChatStatusError, "provider overloaded")
 	insertAssistantMessage(t, db, child.ID, model.ID, "partial progress")
 
@@ -4310,7 +4324,7 @@ func TestWaitAgentErrorStatusSurfacesLastErrorDetail(t *testing.T) {
 	// A generic fallback message hides the actionable provider detail
 	// (e.g. an unsupported reasoning effort); wait_agent must surface
 	// the detail so the parent model can self-correct.
-	WaitUntilIdleForTest(server)
+	require.NoError(t, WaitUntilIdleForTest(ctx, server))
 	setChatStatusWithError(ctx, t, db, child.ID, database.ChatStatusError, codersdk.ChatError{
 		Message:   "The chat request failed unexpectedly.",
 		Detail:    "reasoning model `max` not supported",
@@ -4349,7 +4363,7 @@ func TestWaitAgentTimeoutGapCompletesWithError(t *testing.T) {
 	user, org, model := seedInternalChatDeps(t, db)
 	parent, child := createParentChildChats(ctx, t, server, user, org, model)
 
-	WaitUntilIdleForTest(server)
+	require.NoError(t, WaitUntilIdleForTest(ctx, server))
 	setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
 
 	timerTrap := mClock.Trap().NewTimer("chatd", "subagent_await")
@@ -4408,7 +4422,7 @@ func TestWaitAgentTimeoutGapSurfacesLastErrorDetail(t *testing.T) {
 	user, org, model := seedInternalChatDeps(t, db)
 	parent, child := createParentChildChats(ctx, t, server, user, org, model)
 
-	WaitUntilIdleForTest(server)
+	require.NoError(t, WaitUntilIdleForTest(ctx, server))
 	setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
 
 	timerTrap := mClock.Trap().NewTimer("chatd", "subagent_await")
@@ -4469,7 +4483,7 @@ func TestWaitAgentErrorStatusUnrecognizedLastError(t *testing.T) {
 	user, org, model := seedInternalChatDeps(t, db)
 	parent, child := createParentChildChats(ctx, t, server, user, org, model)
 
-	WaitUntilIdleForTest(server)
+	require.NoError(t, WaitUntilIdleForTest(ctx, server))
 	_, err := db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:        child.ID,
 		Status:    database.ChatStatusError,
@@ -4659,7 +4673,7 @@ func TestListAgents(t *testing.T) {
 		parent := newParent(t, ctx, "list-agents-archived")
 		archivedChild := newChild(t, ctx, parent, "archived-child", database.NullChatMode{})
 
-		WaitUntilIdleForTest(server)
+		require.NoError(t, WaitUntilIdleForTest(ctx, server))
 		// SetArchived is only allowed from a waiting/error state, so
 		// settle the family into waiting first. Archiving then marks
 		// the children archived; they must be excluded from

@@ -10,9 +10,12 @@ import {
 	parseMessagesWithMergedTools,
 } from "./messageParsing";
 import {
+	buildLiveStatus,
 	buildStreamRenderState,
+	MockAttachedFileMessages,
 	MockCollapsedStepsPreferences,
 	MockQuestionCallMessage,
+	MockTextBeforeSecondStepMessage,
 	MockWorkingMessages,
 	pinFixtureClock,
 	workingFixtureTime,
@@ -92,6 +95,15 @@ export const RunningBetweenSteps: Story = {
 	play: expandBlock("Working for 12s"),
 };
 
+// The block keeps working while only an attached file follows its last step.
+export const AttachmentFoldsIntoLiveBlock: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockAttachedFileMessages),
+		liveStatus: buildLiveStatus(),
+	},
+	play: expandBlock("Working for 12s"),
+};
+
 // After a tool result the stream reopens empty before the next call streams.
 // That moment is the same block still working, so nothing appears under its
 // summary.
@@ -131,6 +143,74 @@ export const ReasoningBeforeFirstToolFolds: Story = {
 	},
 };
 
+// Once the final step starts its answer, its reasoning stays in the live
+// block and the text streams after it.
+export const AnswerStreamsAfterBlock: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockWorkingMessages.slice(0, 5),
+		),
+		...buildStreamRenderState([
+			{
+				type: "reasoning",
+				text: "Summarizing the inspection",
+				created_at: workingFixtureTime(13),
+			},
+			{ type: "text", text: "The workspace looks healthy." },
+		]),
+	},
+	play: expandBlock("Working for 12s"),
+};
+
+// Text before a web search renders above the live block.
+export const SearchAnswerStreamsAfterBlock: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockWorkingMessages.slice(0, 1),
+		),
+		...buildStreamRenderState([
+			{ type: "text", text: "I'll look up the latest Coder release." },
+			{
+				type: "tool-call",
+				tool_call_id: "search",
+				tool_name: "web_search",
+				provider_executed: true,
+				created_at: workingFixtureTime(1),
+			},
+			{
+				type: "tool-result",
+				tool_call_id: "search",
+				tool_name: "web_search",
+				provider_executed: true,
+			},
+			{ type: "text", text: "The latest Coder release" },
+			{
+				type: "source",
+				url: "https://releases.example.com",
+				title: "Coder releases",
+			},
+			{ type: "text", text: " is v2.30." },
+		]),
+	},
+	play: expandBlock("Working for 12s"),
+};
+
+export const TextBetweenStepsOpensNextBlock: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(
+			MockWorkingMessages.slice(0, 3),
+		),
+		...buildStreamRenderState([
+			{
+				type: "text",
+				text: "The first check passed. Running the trials next.",
+			},
+			...(MockWorkingMessages[3].content ?? []),
+		]),
+	},
+	play: expandBlock("Working for 8s"),
+};
+
 export const RequiresActionCompletesBlock: Story = {
 	args: {
 		chatStatus: "requires_action",
@@ -163,6 +243,29 @@ export const RequiresActionKeepsPendingToolVisible: Story = {
 		chatStatus: "requires_action",
 		parsedMessages: parseMessagesWithMergedTools(
 			[...MockWorkingMessages.slice(0, 3), MockPendingToolMessage],
+			{ pendingToolCallIDs: new Set(["editor"]) },
+		),
+	},
+};
+
+const MockLaterPendingToolMessage: ChatMessage = {
+	...MockPendingToolMessage,
+	id: 6,
+	created_at: workingFixtureTime(14),
+};
+
+// A parked turn has not ended, so it does not fold.
+export const RequiresActionKeepsTextBetweenSteps: Story = {
+	args: {
+		chatStatus: "requires_action",
+		liveStatus: buildLiveStatus(),
+		parsedMessages: parseMessagesWithMergedTools(
+			[
+				...MockWorkingMessages.slice(0, 3),
+				MockTextBeforeSecondStepMessage,
+				MockWorkingMessages[4],
+				MockLaterPendingToolMessage,
+			],
 			{ pendingToolCallIDs: new Set(["editor"]) },
 		),
 	},
