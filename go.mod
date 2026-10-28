@@ -70,7 +70,7 @@ replace github.com/charmbracelet/bubbletea => github.com/coder/bubbletea v1.2.2-
 
 // Trivy has some issues that we're floating patches for, and will hopefully
 // be upstreamed eventually.
-replace github.com/aquasecurity/trivy => github.com/coder/trivy v0.0.0-20261028093031-26543a2bf6f0
+replace github.com/aquasecurity/trivy => github.com/coder/trivy v0.0.0-20261026151418-65abc04915bd
 
 // afero/tarfs has a bug that breaks our usage. A PR has been submitted upstream.
 // https://github.com/spf13/afero/pull/487
@@ -170,7 +170,7 @@ require (
 	github.com/chromedp/cdproto v0.0.0-20250724212937-08a3db8b4327
 	github.com/chromedp/chromedp v0.14.1
 	github.com/cli/safeexec v1.0.1
-	github.com/coder/acp-go-sdk v0.13.5
+	github.com/coder/acp-go-sdk v0.13.6-0.20261028095417-8287202eb7a1
 	github.com/coder/flog v1.1.0
 	github.com/coder/guts v1.7.0
 	github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0

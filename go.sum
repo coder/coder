@@ -311,8 +311,8 @@ github.com/cloudflare/circl v1.6.3 h1:9GPOhQGF9MCYUeXyMYlqTR6a5gTrgR/fBLXvUgtVcg
 github.com/cloudflare/circl v1.6.3/go.mod h1:2eXP6Qfat4O/Yhh8BznvKnJ+uzEoTQ6jVKJRn81BiS4=
 github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2 h1:aBangftG7EVZoUb69Os8IaYg++6uMOdKK83QtkkvJik=
 github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2/go.mod h1:qwXFYgsP6T7XnJtbKlf1HP8AjxZZyzxMmc+Lq5GjlU4=
-github.com/coder/acp-go-sdk v0.13.5 h1:LI9jq5xon7xslaYlnoktvTVyDlE37yIk2daT7N9ASYk=
-github.com/coder/acp-go-sdk v0.13.5/go.mod h1:yKzM/3R9uELp4+nBAwwtkS0aN1FOFjo11CNPy37yFko=
+github.com/coder/acp-go-sdk v0.13.6-0.20261028095417-8287202eb7a1 h1:NWT7/fv7wos+0POdylThQHCftdy9Y75wOV0rpPVKNuA=
+github.com/coder/acp-go-sdk v0.13.6-0.20261028095417-8287202eb7a1/go.mod h1:yKzM/3R9uELp4+nBAwwtkS0aN1FOFjo11CNPy37yFko=
 github.com/coder/aisdk-go v0.0.9 h1:Vzo/k2qwVGLTR10ESDeP2Ecek1SdPfZlEjtTfMveiVo=
 github.com/coder/aisdk-go v0.0.9/go.mod h1:KF6/Vkono0FJJOtWtveh5j7yfNrSctVTpwgweYWSp5M=
 github.com/coder/anthropic-sdk-go v0.0.0-20260428122333-47cab198e449 h1:X4XOtomDcJlr5/bmgcnrZiJeZIS+qixzVn1EWqgCZ4E=
@@ -359,8 +359,8 @@ github.com/coder/terraform-config-inspect v0.0.0-20250107175719-6d06d90c630e h1:
 github.com/coder/terraform-config-inspect v0.0.0-20250107175719-6d06d90c630e/go.mod h1:Gz/z9Hbn+4KSp8A2FBtNszfLSdT2Tn/uAKGuVqqWmDI=
 github.com/coder/terraform-provider-coder/v2 v2.19.0 h1:ShiwZiUZ3wyUt4+ccrdWlUKu+24aDgzMLD6Yf6xKtAw=
 github.com/coder/terraform-provider-coder/v2 v2.19.0/go.mod h1:MWTw/k+oQxySR4/wZIunBxTlFva8hH6t2hLikTpyomU=
-github.com/coder/trivy v0.0.0-20261028093031-26543a2bf6f0 h1:1q0kmaOSSlMYkhQgGwzk+0S2m8qjIviqn6Ty9pC/7LE=
-github.com/coder/trivy v0.0.0-20261028093031-26543a2bf6f0/go.mod h1:+zF17ZBOdhFWwD3+GkLxZ/vkmKLudoOtt+hgnc1TQpA=
+github.com/coder/trivy v0.0.0-20261026151418-65abc04915bd h1:jk0mHRZDV/1Ip+ahmPxuHL1CcXW9gg+2KapjZts7b1o=
+github.com/coder/trivy v0.0.0-20261026151418-65abc04915bd/go.mod h1:+zF17ZBOdhFWwD3+GkLxZ/vkmKLudoOtt+hgnc1TQpA=
 github.com/coder/websocket v1.8.14 h1:9L0p0iKiNOibykf283eHkKUHHrpG7f65OE3BhhO7v9g=
 github.com/coder/websocket v1.8.14/go.mod h1:NX3SzP+inril6yawo5CQXx8+fk145lPDC6pumgx0mVg=
 github.com/coder/wgtunnel v0.2.0 h1:yy9dE9ntoNdx/q98CH9uV2cQk1UEKSwPgITy3Xx+Wiw=
