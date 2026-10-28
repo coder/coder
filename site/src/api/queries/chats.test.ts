@@ -1355,6 +1355,28 @@ describe("unarchiveChat optimistic update", () => {
 		expect(rows?.find((row) => row.id === "chat-2")).toEqual(unrelatedRow);
 	});
 
+	it("restores a project folder list on error", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const folderKey = projectFolderChatsKey(
+			"project-1",
+			toChatListParams({ archived: true }),
+		);
+		queryClient.setQueryData(folderKey, {
+			pages: [[makeChat(chatId, { archived: true })]],
+			pageParams: [0],
+		});
+
+		const mutation = unarchiveChat(queryClient);
+		const context = await mutation.onMutate(chatId);
+		mutation.onError(new Error("server error"), chatId, context);
+
+		expect(
+			queryClient.getQueryData<InfiniteData>(folderKey)?.pages[0]?.[0]
+				?.archived,
+		).toBe(true);
+	});
+
 	it("rolls back both caches on error", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
