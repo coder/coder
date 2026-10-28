@@ -149,6 +149,13 @@ Control which tools from a server are available in chat:
 | `tool_allow_list` | If non-empty, only the listed tool names are exposed. An empty list allows all tools. |
 | `tool_deny_list`  | Listed tool names are always blocked, even if they appear in the allow list.          |
 
+## Tool results
+
+A tool result can include an image or a PDF, and the model receives it as a file.
+The model receives at most one image or PDF from each tool result.
+Models from the Azure OpenAI and Google providers don't receive PDFs.
+If the model can't accept a file's type or size, the model receives a short note in place of the file.
+
 ## Coder identity headers
 
 MCP servers configured with `forward_coder_headers = true` receive Coder identity headers on every outgoing request.
@@ -335,10 +342,6 @@ A subagent chat in plan mode gets none of them.
 | HTTP response body            | 1&nbsp;MiB   |
 | Tool result                   | 256&nbsp;KiB |
 | Time per tool call            | 60&nbsp;s    |
-
-Tool results can include images and PDFs, and the model receives them as files.
-Models from the Azure OpenAI and Google providers don't receive PDFs.
-If the model can't accept a file's type, the model gets a short note in place of the file.
 
 The tool result limit counts images and PDFs at their base64-encoded size.
 A tool result over the limit reaches the model as an error.
