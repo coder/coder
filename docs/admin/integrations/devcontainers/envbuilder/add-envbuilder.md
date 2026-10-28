@@ -2,6 +2,12 @@
 title: Add an Envbuilder template
 ---
 
+> [!WARNING]
+> Envbuilder is in **maintenance mode** with no new features planned.
+>
+> The recommended way to use dev containers in Coder is the built-in [Dev Containers Integration](../integration.md).
+> To find the best approach for your deployment, ask in the [Coder Discord server](https://discord.gg/coder).
+
 A Coder administrator adds an Envbuilder-compatible template to Coder.
 This allows the template to prompt the developer for their dev container repository's URL as a [parameter](../../../templates/extending-templates/parameters/index.md) when they create their workspace.
 Envbuilder clones the repo and builds a container from the `devcontainer.json` specified in the repo.

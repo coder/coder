@@ -1247,11 +1247,76 @@ func TestRecordInterception(t *testing.T) {
 		metadataJSON = `{"key":"value"}`
 	)
 
+	// organizationCase records an interception with the given raw organization
+	// attribution and expects the given values in the insert. Invalid pairs
+	// must be stored as NULL without failing the record.
+	organizationCase := func(name, rawOrgID, rawSource string, wantOrgID uuid.NullUUID, wantSource database.NullAIBridgeInterceptionOrganizationSource) testRecordMethodCase[*proto.RecordInterceptionRequest] {
+		return testRecordMethodCase[*proto.RecordInterceptionRequest]{
+			name: name,
+			request: &proto.RecordInterceptionRequest{
+				Id:                 uuid.NewString(),
+				ApiKeyId:           uuid.NewString(),
+				InitiatorId:        uuid.NewString(),
+				Provider:           "anthropic",
+				Model:              "claude-4-opus",
+				Metadata:           metadataProto,
+				StartedAt:          timestamppb.Now(),
+				OrganizationId:     rawOrgID,
+				OrganizationSource: rawSource,
+			},
+			setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
+				interceptionID, err := uuid.Parse(req.GetId())
+				assert.NoError(t, err, "parse interception UUID")
+				initiatorID, err := uuid.Parse(req.GetInitiatorId())
+				assert.NoError(t, err, "parse interception initiator UUID")
+
+				db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
+					ID:                 interceptionID,
+					APIKeyID:           sql.NullString{String: req.ApiKeyId, Valid: true},
+					InitiatorID:        initiatorID,
+					Provider:           req.GetProvider(),
+					ProviderName:       req.GetProvider(),
+					Model:              req.GetModel(),
+					Metadata:           json.RawMessage(metadataJSON),
+					StartedAt:          req.StartedAt.AsTime().UTC(),
+					CredentialKind:     database.CredentialKindCentralized,
+					OrganizationID:     wantOrgID,
+					OrganizationSource: wantSource,
+				}).Return(database.AIBridgeInterception{
+					ID:                 interceptionID,
+					InitiatorID:        initiatorID,
+					OrganizationID:     wantOrgID,
+					OrganizationSource: wantSource,
+				}, nil)
+			},
+		}
+	}
+
+	orgID := uuid.New()
+	noOrgID := uuid.NullUUID{}
+	noSource := database.NullAIBridgeInterceptionOrganizationSource{}
+	sourceWorkspace := string(database.AibridgeInterceptionOrganizationSourceWorkspace)
+	var organizationCases []testRecordMethodCase[*proto.RecordInterceptionRequest]
+	for _, source := range database.AllAIBridgeInterceptionOrganizationSourceValues() {
+		organizationCases = append(organizationCases, organizationCase(
+			"organization attribution stored/"+string(source), orgID.String(), string(source),
+			uuid.NullUUID{UUID: orgID, Valid: true},
+			database.NullAIBridgeInterceptionOrganizationSource{AIBridgeInterceptionOrganizationSource: source, Valid: true},
+		))
+	}
+	organizationCases = append(organizationCases,
+		organizationCase("absent organization treated as null", "", "", noOrgID, noSource),
+		organizationCase("organization without source dropped", orgID.String(), "", noOrgID, noSource),
+		organizationCase("source without organization dropped", "", sourceWorkspace, noOrgID, noSource),
+		organizationCase("invalid organization ID dropped", "not-a-uuid", sourceWorkspace, noOrgID, noSource),
+		organizationCase("unknown organization source dropped", orgID.String(), "not-a-source", noOrgID, noSource),
+	)
+
 	testRecordMethod(t,
 		func(srv *aibridgedserver.Server, ctx context.Context, req *proto.RecordInterceptionRequest) (*proto.RecordInterceptionResponse, error) {
 			return srv.RecordInterception(ctx, req)
 		},
-		[]testRecordMethodCase[*proto.RecordInterceptionRequest]{
+		append([]testRecordMethodCase[*proto.RecordInterceptionRequest]{
 			{
 				name: "valid interception",
 				request: &proto.RecordInterceptionRequest{
@@ -1784,7 +1849,7 @@ func TestRecordInterception(t *testing.T) {
 					}, nil)
 				},
 			},
-		},
+		}, organizationCases...),
 	)
 }
 
@@ -4283,6 +4348,7 @@ func TestStructuredLogging(t *testing.T) {
 
 	toolCallID := "my-tool-call"
 	sessionID := "some-session-id"
+	organizationID := uuid.UUID{5}
 
 	cases := []testCase{
 		{
@@ -4312,6 +4378,8 @@ func TestStructuredLogging(t *testing.T) {
 					StartedAt:             timestamppb.Now(),
 					CorrelatingToolCallId: new(toolCallID),
 					ClientSessionId:       new(sessionID),
+					OrganizationId:        organizationID.String(),
+					OrganizationSource:    string(database.AibridgeInterceptionOrganizationSourceEffectiveGroup),
 				})
 
 				return err
@@ -4326,6 +4394,8 @@ func TestStructuredLogging(t *testing.T) {
 				"thread_parent_id":         threadParentID.String(),
 				"thread_root_id":           threadRootID.String(),
 				"client_session_id":        sessionID,
+				"organization_id":          organizationID.String(),
+				"organization_source":      "effective_group",
 			},
 		},
 		{
@@ -4375,6 +4445,9 @@ func TestStructuredLogging(t *testing.T) {
 				"initiator_id":    initiatorID.String(),
 				"provider":        "anthropic",
 				"model":           "claude-4-opus",
+				// Organization fields are omitted when no organization was resolved.
+				"organization_id":     nil,
+				"organization_source": nil,
 			},
 		},
 		{

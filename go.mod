@@ -36,7 +36,7 @@ replace github.com/tcnksm/go-httpstat => github.com/coder/go-httpstat v0.0.0-202
 
 // There are a few minor changes we make to Tailscale that we're slowly upstreaming. Compare here:
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
-replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20260826222948-e42b84be7a30
+replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20261027205359-0fde3fc36b30
 
 // This is replaced to include
 // 1. a fix for a data race: c.f. https://github.com/tailscale/wireguard-go/pull/25
@@ -70,7 +70,7 @@ replace github.com/charmbracelet/bubbletea => github.com/coder/bubbletea v1.2.2-
 
 // Trivy has some issues that we're floating patches for, and will hopefully
 // be upstreamed eventually.
-replace github.com/aquasecurity/trivy => github.com/coder/trivy v0.0.0-20260911135535-15b949537506
+replace github.com/aquasecurity/trivy => github.com/coder/trivy v0.0.0-20261026151418-65abc04915bd
 
 // afero/tarfs has a bug that breaks our usage. A PR has been submitted upstream.
 // https://github.com/spf13/afero/pull/487
@@ -119,8 +119,12 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    the search action in the tool call input, and tag web search
 //    sources with the search that found them. Upstream as
 //    charmbracelet/fantasy#435.
-// See: https://github.com/coder/fantasy/commits/90a0be329a07
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261027100932-90a0be329a07
+// 16) coder/fantasy#67, separate OpenAI Responses reasoning summary
+//    parts with a blank line, also before the first part, so each
+//    part's bold title renders on its own line. Upstream as
+//    charmbracelet/fantasy#436.
+// See: https://github.com/coder/fantasy/commits/2e8e2cbf4aea
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261027133624-2e8e2cbf4aea
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
@@ -552,7 +556,7 @@ require (
 	github.com/brianvoe/gofakeit/v7 v7.18.0
 	github.com/coder/aisdk-go v0.0.9
 	github.com/coder/boundary v0.11.0
-	github.com/coder/preview v1.0.10-0.20260915135839-c0dfdeecbd89
+	github.com/coder/preview v1.0.10-0.20261027154125-155f674f1c7b
 	github.com/coder/safedial v0.2.0
 	github.com/danieljoos/wincred v1.2.3
 	github.com/dgraph-io/ristretto/v2 v2.4.0

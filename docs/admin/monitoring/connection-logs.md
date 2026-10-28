@@ -150,6 +150,11 @@ Each `connection_log` entry describes the connection with these fields:
 - `ConnectionMethod`: How the connection was established, with the same values as the API `connection_method` field.
 - `AppNameOrPort`: The name of the connecting application for SSH and reconnecting PTY connections, or the workspace app slug or forwarded port for workspace app and port forwarding connections.
   The value is an empty string when there is nothing to report.
+- `ClientSessionID`: The client session ID for SSH and reconnecting PTY connections, or an empty string.
+  To follow a session across client, `coderd`, and agent logs, refer to [Trace workspace connections](./trace-connections.md).
+- `RxBytes` and `TxBytes`: The bytes the agent received and sent over an SSH or reconnecting PTY connection.
+  They're set only on `disconnected` entries, and are `null` (`<nil>` in human-readable logs) otherwise or for older agents.
+  They aren't in the API or the dashboard.
 
 If your log pipeline reads the `Type` or `SlugOrPort` fields, update it to read `ConnectionMethod` and `AppNameOrPort`, because entries no longer include the old fields.
 For SSH connections from a VS Code or JetBrains family app, `ConnectionMethod` is `ssh` and `AppNameOrPort` holds the app name, such as `vscode`.

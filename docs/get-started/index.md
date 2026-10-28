@@ -343,7 +343,8 @@ When you're ready for other people to use it:
 1. [Create users](../admin/users/index.md#create-a-user) for your teammates, or connect an SSO provider.
 1. Have each teammate launch their own workspace from your template.
 
-   Everyone in the organization can use the template by default; refer to [Workspace management](../user-guides/workspace-management.md).
+   Everyone in the organization can use the template by default.
+   Refer to [Workspace management](../user-guides/workspace-management.md).
 
 ## Learn more
 

@@ -93,7 +93,8 @@ affinity = 10 x (active + 0.5 x deleted) x 0.5^(days_since_last_use / 14)
 - `active_developers`: developers in the organization with an active workspace on the template, excluding unclaimed prebuilt workspaces.
 
 Personal usage carries ten times the weight of organization popularity, and popularity grows logarithmically so heavily used templates do not drown out your own history.
-Each template is scored independently from its own signals; one template's usage never affects another's score.
+Each template is scored independently from its own signals.
+One template's usage never affects another's score.
 The score is internal and only determines ordering and the recommendation.
 The response carries the raw evidence instead: `active_developers`, `your_workspace_count`, and `last_used_by_you` appear on each template when they are non-zero.
 

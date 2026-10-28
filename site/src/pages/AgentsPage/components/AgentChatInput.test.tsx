@@ -25,14 +25,9 @@ import type * as speechRecognition from "../hooks/useSpeechRecognition";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
 
-const dashboard = vi.hoisted(() => ({
-	experiments: ["chat-projects"] as string[],
-}));
-
 vi.mock("#/modules/dashboard/useDashboard", () => ({
 	useDashboard: () => ({
 		organizations: [],
-		experiments: dashboard.experiments,
 	}),
 }));
 
@@ -141,7 +136,6 @@ beforeAll(() => {
 afterEach(() => {
 	vi.unstubAllGlobals();
 	mockedUseSpeechRecognition.mockReset();
-	dashboard.experiments = ["chat-projects"];
 	vi.restoreAllMocks();
 });
 
@@ -277,40 +271,6 @@ describe("AgentChatInput", () => {
 			name: "project-conventions",
 		});
 		expect(getChatProjectSkills).toHaveBeenCalledWith("org-1", "project-1");
-	});
-
-	it("skips the project skills request while the chat-projects experiment is off", async () => {
-		dashboard.experiments = [];
-		const user = userEvent.setup();
-		const getUserSkills = vi
-			.spyOn(API.experimental, "getUserSkills")
-			.mockResolvedValue([]);
-		const getOrganizationSkills = vi
-			.spyOn(API.experimental, "getOrganizationSkills")
-			.mockResolvedValue([]);
-		const getChatProjectSkills = vi
-			.spyOn(API.experimental, "getChatProjectSkills")
-			.mockResolvedValue([]);
-
-		render(
-			<AppProviders queryClient={createTestQueryClient()}>
-				<AgentChatInput
-					{...inputProps}
-					chatOrganizationId="org-1"
-					chatProjectId="project-1"
-				/>
-			</AppProviders>,
-		);
-
-		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
-		await user.paste("/proj");
-		// The skills trigger enables every skills request in the same
-		// render, so the other requests show the trigger activated.
-		await waitFor(() => {
-			expect(getUserSkills).toHaveBeenCalled();
-			expect(getOrganizationSkills).toHaveBeenCalledWith("org-1");
-		});
-		expect(getChatProjectSkills).not.toHaveBeenCalled();
 	});
 
 	it.each([
