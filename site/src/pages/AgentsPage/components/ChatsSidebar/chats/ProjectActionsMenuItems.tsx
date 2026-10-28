@@ -9,6 +9,7 @@ import type {
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { highlightComposerState } from "../../../utils/composerHighlight";
 
 type ProjectActionsMenuItem = typeof DropdownMenuItem | typeof ContextMenuItem;
 type ProjectActionsMenuSeparator =
@@ -20,6 +21,8 @@ type ProjectActionsMenuItemsProps = {
 	readonly Separator: ProjectActionsMenuSeparator;
 	/** Adds a "New chat" item linking here. Omit on the project page itself. */
 	readonly projectPath?: To;
+	/** Called when "New chat" is picked, before navigating. */
+	readonly onNewChat?: () => void;
 	readonly permissions: ChatProjectPermissions;
 	readonly onEdit: () => void;
 	readonly onDelete: () => void;
@@ -33,12 +36,25 @@ export const hasProjectUpdateOrDeleteAction = (
 /** Project actions shared by dropdown and context menus. */
 export const ProjectActionsMenuItems: React.FC<
 	ProjectActionsMenuItemsProps
-> = ({ Item, Separator, projectPath, permissions, onEdit, onDelete }) => (
+> = ({
+	Item,
+	Separator,
+	projectPath,
+	onNewChat,
+	permissions,
+	onEdit,
+	onDelete,
+}) => (
 	<>
 		{projectPath !== undefined && (
 			<>
 				<Item asChild>
-					<Link to={projectPath}>
+					{/* The user may already be on this composer, so ask it to flash. */}
+					<Link
+						to={projectPath}
+						state={highlightComposerState}
+						onClick={onNewChat}
+					>
 						<SquarePenIcon />
 						New chat
 					</Link>

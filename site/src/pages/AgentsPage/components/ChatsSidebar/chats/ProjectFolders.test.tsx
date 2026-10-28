@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -102,6 +102,29 @@ describe("ProjectFolders", () => {
 			projectFoldersElement([], { error: new Error("Projects unavailable") }),
 		);
 		expect(screen.getByRole("button", { name: "New project" })).toHaveFocus();
+	});
+
+	it("returns focus to the menu button on Escape but not after New chat", async () => {
+		const user = userEvent.setup();
+		renderProjectFolders([MockChatProject]);
+		const trigger = screen.getByRole("button", {
+			name: `Open project actions for ${MockChatProject.name}`,
+		});
+		const waitForMenuToClose = async () => {
+			await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+			// The menu restores focus on a timer after it unmounts.
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		};
+
+		await user.click(trigger);
+		await user.keyboard("{Escape}");
+		await waitForMenuToClose();
+		expect(trigger).toHaveFocus();
+
+		await user.click(trigger);
+		await user.click(screen.getByRole("menuitem", { name: "New chat" }));
+		await waitForMenuToClose();
+		expect(trigger).not.toHaveFocus();
 	});
 
 	it("collapses and expands the whole Projects section", async () => {

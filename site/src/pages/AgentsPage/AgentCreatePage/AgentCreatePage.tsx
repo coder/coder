@@ -49,6 +49,7 @@ import {
 	toWorkspaceFileReferencePart,
 } from "../utils/chatInputContent";
 import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
+import { hasHighlightComposerState } from "../utils/composerHighlight";
 import { type DeepLinkState, readDeepLinkState } from "../utils/deepLinkState";
 import { buildAgentChatPath } from "../utils/navigation";
 import {
@@ -169,6 +170,23 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 	};
 	const webPush = useWebpushNotifications();
 	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
+
+	// A "New chat" link asks to flash the composer. Keep the request in local
+	// state and drop it from history, so back navigation and reloads don't
+	// replay it. The link's state holds nothing else.
+	const [composerHighlightKey, setComposerHighlightKey] = useState<string>();
+	const highlightRequested = hasHighlightComposerState(location.state);
+	if (highlightRequested && composerHighlightKey !== location.key) {
+		setComposerHighlightKey(location.key);
+	}
+	useEffect(() => {
+		if (highlightRequested) {
+			navigate(
+				{ pathname: location.pathname, search: location.search },
+				{ replace: true },
+			);
+		}
+	}, [highlightRequested, location.pathname, location.search, navigate]);
 
 	const linkState = readDeepLinkState(location.state);
 	const debugLinkParam = searchParams.get(debugWorkspaceBuildSearchParam);
@@ -430,6 +448,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 			workspacesError={workspacesQuery.error}
 			isWorkspacesLoading={workspacesQuery.isLoading}
 			prefill={prefill}
+			highlightKey={composerHighlightKey}
 		/>
 	);
 

@@ -248,6 +248,9 @@ type AgentChatInputProps = {
 	// personal skills.
 	slashCommands?: readonly ChatSlashCommand[];
 	fillWidth?: boolean;
+	// Each new value flashes a ring around the composer and focuses the
+	// editor, to show where to type.
+	highlightKey?: string;
 };
 
 export type AttachedWorkspaceInfo = {
@@ -572,6 +575,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	aiGatewayDisabled,
 	slashCommands,
 	fillWidth = false,
+	highlightKey,
 }) => {
 	const warningId = useId();
 	const preferencesQuery = useQuery(preferenceSettings());
@@ -593,6 +597,11 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				(providerCount === 0 || modelCount === 0)
 			: modelCount !== undefined && modelCount === 0);
 	const internalRef = useRef<ChatMessageInputRef>(null);
+	useEffect(() => {
+		if (highlightKey !== undefined) {
+			internalRef.current?.focus();
+		}
+	}, [highlightKey]);
 	const [previewImage, setPreviewImage] = useState<string | null>(null);
 	const [previewText, setPreviewText] = useState<string | null>(null);
 	const [previewTextFileName, setPreviewTextFileName] = useState<string | null>(
@@ -1415,6 +1424,14 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				onDragLeave={onAttach ? handleDragLeave : undefined}
 				onDrop={onAttach ? handleDrop : undefined}
 			>
+				{highlightKey !== undefined && (
+					// Keyed so each new request remounts it and replays the flash.
+					<span
+						key={highlightKey}
+						aria-hidden="true"
+						className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 ring-2 ring-content-link animate-composer-highlight"
+					/>
+				)}
 				{warning && (
 					<div
 						id={warningId}

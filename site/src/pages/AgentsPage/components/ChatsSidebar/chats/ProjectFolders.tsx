@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ChevronRightIcon, EllipsisVerticalIcon, PlusIcon } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { NavLink, type To, useLocation } from "react-router";
 import type { Chat, ChatProject, Organization } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -199,6 +199,18 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 	const projectLabel = organizationLabel
 		? `${project.name} (${organizationLabel})`
 		: project.name;
+	// After "New chat", the menu would return focus to its trigger and pull
+	// it out of the composer that was just focused.
+	const newChatPickedRef = useRef(false);
+	const handleNewChat = () => {
+		newChatPickedRef.current = true;
+	};
+	const handleMenuCloseAutoFocus = (event: Event) => {
+		if (newChatPickedRef.current) {
+			newChatPickedRef.current = false;
+			event.preventDefault();
+		}
+	};
 	return (
 		<ChatDropArea
 			target={{
@@ -267,6 +279,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 							</DropdownMenuTrigger>
 							<DropdownMenuContent
 								align="end"
+								onCloseAutoFocus={handleMenuCloseAutoFocus}
 								// Portaled, but React events still bubble to the row's
 								// context-menu trigger and would open a second menu.
 								onContextMenu={(e) => {
@@ -278,6 +291,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 									Item={DropdownMenuItem}
 									Separator={DropdownMenuSeparator}
 									projectPath={projectPath}
+									onNewChat={handleNewChat}
 									permissions={project.permissions}
 									onEdit={onEdit}
 									onDelete={onDelete}
@@ -286,11 +300,12 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 						</DropdownMenu>
 					</div>
 				</ContextMenuTrigger>
-				<ContextMenuContent>
+				<ContextMenuContent onCloseAutoFocus={handleMenuCloseAutoFocus}>
 					<ProjectActionsMenuItems
 						Item={ContextMenuItem}
 						Separator={ContextMenuSeparator}
 						projectPath={projectPath}
+						onNewChat={handleNewChat}
 						permissions={project.permissions}
 						onEdit={onEdit}
 						onDelete={onDelete}
