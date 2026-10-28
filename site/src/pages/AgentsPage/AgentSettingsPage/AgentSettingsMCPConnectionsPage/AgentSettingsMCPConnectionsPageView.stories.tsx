@@ -92,6 +92,13 @@ export const Connecting: Story = {
 	},
 };
 
+export const Mobile: Story = {
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+};
+
 export const Loading: Story = {
 	args: {
 		servers: undefined,
