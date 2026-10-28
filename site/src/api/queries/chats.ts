@@ -2284,6 +2284,36 @@ export const markChatRead = (queryClient: QueryClient) =>
 export const markChatUnread = (queryClient: QueryClient) =>
 	setChatReadState(queryClient, false);
 
+const setListedChatPinOrder = (
+	queryClient: QueryClient,
+	chatId: string,
+	pinOrder: number,
+) =>
+	updateInfiniteChatsCache(queryClient, (chats) =>
+		chats.map((chat) =>
+			chat.id === chatId ? { ...chat, pin_order: pinOrder } : chat,
+		),
+	);
+
+type PinChangeContext = {
+	readonly previousChat?: TypesGen.Chat;
+	readonly previousPinOrder?: number;
+};
+
+const rollBackPinChange =
+	(queryClient: QueryClient) =>
+	(_error: unknown, chatId: string, context: PinChangeContext | undefined) => {
+		// Restore before invalidating so a failed refetch still leaves the
+		// rejected pin state off the screen.
+		if (context?.previousPinOrder !== undefined) {
+			setListedChatPinOrder(queryClient, chatId, context.previousPinOrder);
+		}
+		void invalidateChatListQueries(queryClient);
+		if (context?.previousChat) {
+			patchChatEntity(queryClient, chatId, () => context.previousChat);
+		}
+	};
+
 export const pinChat = (queryClient: QueryClient) => ({
 	mutationFn: (chatId: string) =>
 		API.experimental.updateChat(chatId, { pin_order: 1 }),
@@ -2293,35 +2323,21 @@ export const pinChat = (queryClient: QueryClient) => ({
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatEntityKey(chatId),
 		);
+		const previousPinOrder = findChatInListCaches(
+			queryClient,
+			chatId,
+		)?.pin_order;
 		const optimisticPinOrder = getNextOptimisticPinOrder(queryClient);
-		updateInfiniteChatsCache(queryClient, (chats) =>
-			chats.map((chat) =>
-				chat.id === chatId ? { ...chat, pin_order: optimisticPinOrder } : chat,
-			),
-		);
+		setListedChatPinOrder(queryClient, chatId, optimisticPinOrder);
 		if (previousChat) {
 			queryClient.setQueryData<TypesGen.Chat>(chatEntityKey(chatId), {
 				...previousChat,
 				pin_order: optimisticPinOrder,
 			});
 		}
-		return { previousChat };
+		return { previousChat, previousPinOrder };
 	},
-	onError: (
-		_error: unknown,
-		chatId: string,
-		context:
-			| {
-					previousChat?: TypesGen.Chat;
-			  }
-			| undefined,
-	) => {
-		// Rollback: invalidate to re-fetch the correct state.
-		void invalidateChatListQueries(queryClient);
-		if (context?.previousChat) {
-			patchChatEntity(queryClient, chatId, () => context.previousChat);
-		}
-	},
+	onError: rollBackPinChange(queryClient),
 	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
 		await invalidateChatListQueries(queryClient);
 		await invalidateChatEntity(queryClient, chatId);
@@ -2337,34 +2353,20 @@ export const unpinChat = (queryClient: QueryClient) => ({
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatEntityKey(chatId),
 		);
-		updateInfiniteChatsCache(queryClient, (chats) =>
-			chats.map((chat) =>
-				chat.id === chatId ? { ...chat, pin_order: 0 } : chat,
-			),
-		);
+		const previousPinOrder = findChatInListCaches(
+			queryClient,
+			chatId,
+		)?.pin_order;
+		setListedChatPinOrder(queryClient, chatId, 0);
 		if (previousChat) {
 			queryClient.setQueryData<TypesGen.Chat>(chatEntityKey(chatId), {
 				...previousChat,
 				pin_order: 0,
 			});
 		}
-		return { previousChat };
+		return { previousChat, previousPinOrder };
 	},
-	onError: (
-		_error: unknown,
-		chatId: string,
-		context:
-			| {
-					previousChat?: TypesGen.Chat;
-			  }
-			| undefined,
-	) => {
-		// Rollback: invalidate to re-fetch the correct state.
-		void invalidateChatListQueries(queryClient);
-		if (context?.previousChat) {
-			patchChatEntity(queryClient, chatId, () => context.previousChat);
-		}
-	},
+	onError: rollBackPinChange(queryClient),
 	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
 		await invalidateChatListQueries(queryClient);
 		await invalidateChatEntity(queryClient, chatId);

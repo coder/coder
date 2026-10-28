@@ -3176,7 +3176,7 @@ export const ProjectFolderChatsLoadingNextPage: Story = {
 	// sentinel into view.
 	decorators: [
 		(Story) => (
-			<div style={{ height: 500, width: 360 }}>
+			<div className="h-[500px] w-[360px]">
 				<Story />
 			</div>
 		),

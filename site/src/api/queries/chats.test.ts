@@ -1553,6 +1553,24 @@ describe("pinChat optimistic update", () => {
 			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))?.pin_order,
 		).toBe(5);
 	});
+
+	it("restores the project list on error", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		queryClient.setQueryData(projectChatsKey("project-1"), {
+			pages: [[makeChat(chatId, { project_id: "project-1" })]],
+			pageParams: [0],
+		});
+
+		const mutation = pinChat(queryClient);
+		const context = await mutation.onMutate(chatId);
+		mutation.onError(new Error("server error"), chatId, context);
+
+		expect(
+			queryClient.getQueryData<InfiniteData>(projectChatsKey("project-1"))
+				?.pages[0][0].pin_order,
+		).toBe(0);
+	});
 });
 
 describe("moveChatToProject", () => {
@@ -1610,33 +1628,29 @@ describe("unpinChat optimistic update", () => {
 		).toBe(0);
 	});
 
-	it("rolls back both caches on error", async () => {
+	it("restores the list and entity caches on error", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
-		seedInfiniteChats(queryClient, [makeChat(chatId, { pin_order: 3 })]);
-		queryClient.setQueryData(
-			chatEntityKey(chatId),
-			makeChat(chatId, { pin_order: 3 }),
-		);
-		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+		const chat = makeChat(chatId, { pin_order: 3, project_id: "project-1" });
+		seedInfiniteChats(queryClient, [chat]);
+		queryClient.setQueryData(projectChatsKey("project-1"), {
+			pages: [[chat]],
+			pageParams: [0],
+		});
+		queryClient.setQueryData(chatEntityKey(chatId), chat);
 
 		const mutation = unpinChat(queryClient);
 		const context = await mutation.onMutate(chatId);
-
-		// Verify optimistic update.
 		expect(readInfiniteChats(queryClient)?.[0].pin_order).toBe(0);
-		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))?.pin_order,
-		).toBe(0);
 
-		// Roll back.
+		// Restored without a refetch, which can fail too.
 		mutation.onError(new Error("server error"), chatId, context);
 
-		// The chats list is rolled back via invalidation.
-		expect(invalidateSpy).toHaveBeenCalledWith(
-			expect.objectContaining({ queryKey: chatListFamilyKey }),
-		);
-		// The individual chat cache is restored directly.
+		expect(readInfiniteChats(queryClient)?.[0].pin_order).toBe(3);
+		expect(
+			queryClient.getQueryData<InfiniteData>(projectChatsKey("project-1"))
+				?.pages[0][0].pin_order,
+		).toBe(3);
 		expect(
 			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))?.pin_order,
 		).toBe(3);
