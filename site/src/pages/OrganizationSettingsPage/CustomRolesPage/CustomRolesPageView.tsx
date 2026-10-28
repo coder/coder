@@ -10,7 +10,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { PremiumPageLink } from "#/components/Paywall/PremiumNotice";
+import { PremiumPageLink } from "#/components/Paywall/Paywall";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,

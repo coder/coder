@@ -22,7 +22,7 @@ import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
 import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
-import { PremiumNotice } from "#/components/Paywall/PremiumNotice";
+import { PremiumPageLink } from "#/components/Paywall/Paywall";
 import {
 	Select,
 	SelectContent,
@@ -287,12 +287,15 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 									</span>
 
 									{!advancedSchedulingEnabled && (
-										<PremiumNotice
-											canViewPremium={canViewPremium}
-											className="mt-2"
-										>
-											A Premium license is required to enable.
-										</PremiumNotice>
+										<span className="block mt-2 text-xs text-content-secondary">
+											A Premium license is required to change this setting.
+											{canViewPremium && (
+												<>
+													{" "}
+													<PremiumPageLink />
+												</>
+											)}
+										</span>
 									)}
 								</StackLabelHelperText>
 							</StackLabel>
@@ -406,11 +409,17 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 							className="w-full"
 						/>
 						{!accessControlEnabled && (
-							<PremiumNotice canViewPremium={canViewPremium}>
-								A Premium license is required to enable.
+							<span className="block text-xs text-content-secondary">
 								{template.deprecated &&
-									" You cannot change the message, but you may remove it to mark this template as no longer deprecated."}
-							</PremiumNotice>
+									"You cannot change the message, but you may remove it to mark this template as no longer deprecated. "}
+								A Premium license is required to change this setting.
+								{canViewPremium && (
+									<>
+										{" "}
+										<PremiumPageLink />
+									</>
+								)}
+							</span>
 						)}
 					</div>
 				</FormFields>
@@ -476,9 +485,15 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 							</span>
 						)}
 						{!portSharingControlsEnabled && (
-							<PremiumNotice canViewPremium={canViewPremium}>
-								A Premium license is required to enable.
-							</PremiumNotice>
+							<span className="block text-xs text-content-secondary">
+								A Premium license is required to change this setting.
+								{canViewPremium && (
+									<>
+										{" "}
+										<PremiumPageLink />
+									</>
+								)}
+							</span>
 						)}
 					</div>
 				</FormFields>

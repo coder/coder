@@ -3,6 +3,7 @@ import { ArrowRightIcon, CheckIcon } from "lucide-react";
 import type React from "react";
 import { type LinkProps, Link as RouterLink } from "react-router";
 import { Button } from "#/components/Button/Button";
+import { Link } from "#/components/Link/Link";
 import { Supergraphic } from "#/components/Supergraphic/Supergraphic";
 
 export const PREMIUM_FEATURES = [
@@ -192,6 +193,20 @@ export const PaywallGuidance: React.FC<React.ComponentProps<"p">> = ({
 		>
 			{children}
 		</p>
+	);
+};
+
+/**
+ * A text link to the Premium page. Render it only for users who can view
+ * licenses; the Premium page is not useful to anyone else.
+ */
+export const PremiumPageLink: React.FC<{
+	size?: React.ComponentProps<typeof Link>["size"];
+}> = ({ size = "sm" }) => {
+	return (
+		<Link asChild size={size} showExternalIcon={false}>
+			<RouterLink to={PREMIUM_PAGE_PATH}>Learn about Premium</RouterLink>
+		</Link>
 	);
 };
 
