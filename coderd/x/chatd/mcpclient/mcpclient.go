@@ -10,9 +10,11 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"mime"
 	"net"
 	"net/http"
 	"net/url"
+	"path"
 	"slices"
 	"strings"
 	"sync"
@@ -1076,9 +1078,9 @@ func newServerRedactor(kind connectionKind, srv Server) secretRedactor {
 	}
 	values := []string{srv.URL}
 	if u, err := url.Parse(srv.URL); err == nil {
-		for _, path := range []string{u.EscapedPath(), u.Path} {
-			values = append(values, path)
-			values = append(values, strings.Split(path, "/")...)
+		for _, urlPath := range []string{u.EscapedPath(), u.Path} {
+			values = append(values, urlPath)
+			values = append(values, strings.Split(urlPath, "/")...)
 		}
 	}
 	for _, value := range srv.Headers {
@@ -1170,6 +1172,7 @@ func (r secretRedactor) redactResponse(response fantasy.ToolResponse) fantasy.To
 	response.Content = r.redactString(response.Content)
 	response.Data = r.redactBytes(response.Data)
 	response.MediaType = r.redactString(response.MediaType)
+	response.Filename = r.redactString(response.Filename)
 	response.Metadata = r.redactString(response.Metadata)
 	return response
 }
@@ -1439,6 +1442,7 @@ func convertCallResult(
 						Type:      blobType,
 						Data:      c.Resource.Blob,
 						MediaType: c.Resource.MIMEType,
+						Filename:  resourceFilename(c.Resource.URI, c.Resource.MIMEType),
 						IsError:   result.IsError,
 					}
 					binaryResult = &res
@@ -1488,6 +1492,41 @@ func convertCallResult(
 	resp := fantasy.NewTextResponse(strings.Join(textParts, "\n"))
 	resp.IsError = result.IsError
 	return resp
+}
+
+// resourceFilename returns the last element of an MCP resource URI path,
+// with the canonical extension of mediaType appended when the name's own
+// extension does not map to mediaType, because providers such as OpenAI
+// detect the file type from the extension. It returns "" when the URI does
+// not name a file or mediaType has no known extension.
+func resourceFilename(uri, mediaType string) string {
+	u, err := url.Parse(uri)
+	if err != nil {
+		return ""
+	}
+	name := path.Base(u.Path)
+	// Postgres jsonb rejects NUL, so a name with a control character
+	// could stop the tool result from being saved.
+	if name == "." || name == "/" || strings.ContainsFunc(name, unicode.IsControl) {
+		return ""
+	}
+	baseType, _, err := mime.ParseMediaType(mediaType)
+	if err != nil {
+		return ""
+	}
+	// TypeByExtension adds a charset parameter to text types.
+	if extType, _, err := mime.ParseMediaType(mime.TypeByExtension(path.Ext(name))); err == nil && extType == baseType {
+		return name
+	}
+	ext := ".pdf"
+	if baseType != "application/pdf" {
+		exts, err := mime.ExtensionsByType(baseType)
+		if err != nil || len(exts) == 0 {
+			return ""
+		}
+		ext = exts[0]
+	}
+	return name + ext
 }
 
 // RefreshResult contains the outcome of an OAuth2 token refresh
