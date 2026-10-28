@@ -1,0 +1,267 @@
+# A/B Coder Agents on a PR branch vs main: each arm builds its own coderd,
+# runs Terminal-Bench 2.0 through Harbor with the Coder environment provider
+# (scripts/harbor-coder), and the comparison is posted on the PR.
+#
+# Runs on the self-hosted runner pool: ephemeral KubeVirt microVMs on bare
+# metal, one per job, with Docker inside the VM. The job assumes an IAM role
+# via OIDC and the eval coderd's AI gateway signs requests to Claude Platform
+# on AWS with that role's credentials; no API key and no shared deployment
+# are involved. Repository variables this expects:
+#   EVAL_RUNNER_LABEL             runs-on label of the pool
+#   EVAL_AWS_ROLE_ARN             role to assume; needs bedrock:InvokeModel* on
+#                                 the Claude Platform workspace
+#   EVAL_AWS_REGION               region of the Claude Platform workspace
+#   CLAUDE_PLATFORM_WORKSPACE_ID  Claude Platform workspace id (wrkspc_...)
+#
+# The VM needs Docker and outbound HTTPS. No nested virtualization is
+# required: the qemu-* tasks are excluded.
+#
+# Trigger by commenting `/coder-agents-eval` on a PR (push access required,
+# fork PRs refused since the candidate arm runs the PR's code with the AWS
+# role in scope), or via workflow_dispatch to compare the current ref to main.
+# Trials spend real model tokens, so this never runs automatically.
+
+name: eval/coder-agents
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: PR number to post the comparison on (optional)
+        required: false
+        type: string
+
+permissions: {}
+
+# Non-eval events (every other PR comment) get a group of their own so they
+# cannot replace a queued /coder-agents-eval run, which would cancel it.
+concurrency:
+  group: >-
+    ${{ (github.event_name == 'workflow_dispatch' || startsWith(github.event.comment.body, '/coder-agents-eval'))
+    && format('eval-coder-agents-{0}', github.event.issue.number || github.ref)
+    || format('eval-coder-agents-other-{0}', github.run_id) }}
+  cancel-in-progress: false
+
+env:
+  HARBOR_DATASET: terminal-bench@2.0
+  # qemu-* and build-cython-ext are broken upstream (bit-rotted apt sources
+  # and a git clone in the verifier). The rest are ML training, emulation,
+  # and long compiles that each take 20 to 60 minutes and are not decided by
+  # the system prompt; dropping them cuts an arm from ~3h to ~80 minutes.
+  # crack-7z-hash, break-filter-js-from-html, and vulnerable-secret are
+  # always refused by Anthropic's content policy (cyber), so they score 0 in
+  # every arm and cannot move the comparison.
+  HARBOR_EXCLUDE: >-
+    -x qemu-* -x build-cython-ext
+    -x train-fasttext -x compile-compcert -x install-windows-3.11
+    -x winning-avg-corewars -x extract-moves-from-video -x mcmc-sampling-stan
+    -x regex-chess -x mteb-leaderboard -x caffe-cifar-10
+    -x crack-7z-hash -x break-filter-js-from-html -x vulnerable-secret
+  # Sonnet sits mid-range on Terminal-Bench, leaving headroom in both
+  # directions for a prompt change to move; Opus is near the ceiling.
+  HARBOR_CODER_MODEL: claude-sonnet-5-5
+  HARBOR_ATTEMPTS: "2"
+  # chatd admits at most 5 concurrent root chats without a license
+  # (coderd/x/chatd/agentadmission.go). Above that, trials queue on Harbor's
+  # timeout and score 0 depending on start order.
+  HARBOR_CONCURRENCY: "5"
+
+jobs:
+  resolve:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.issue.pull_request && startsWith(github.event.comment.body, '/coder-agents-eval'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    outputs:
+      candidate_ref: ${{ steps.pr.outputs.sha || github.sha }}
+      candidate_label: ${{ steps.pr.outputs.ref || github.ref_name }}
+      baseline_ref: ${{ steps.base.outputs.sha }}
+      pr_number: ${{ github.event.issue.number || inputs.pr }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Resolve PR
+        id: pr
+        if: github.event_name == 'issue_comment'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.issue.number }}
+          COMMENTER: ${{ github.event.comment.user.login }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+        run: |
+          set -euo pipefail
+          if [[ "$(gh api "/repos/${REPO}/collaborators/${COMMENTER}/permission" --jq .user.permissions.push)" != "true" ]]; then
+            echo "::error::${COMMENTER} does not have push access"; exit 1
+          fi
+          if [[ "$(gh pr view "${PR}" -R "${REPO}" --json isCrossRepository --jq .isCrossRepository)" == "true" ]]; then
+            echo "::error::refusing to run on a fork PR"; exit 1
+          fi
+          echo "sha=$(gh pr view "${PR}" -R "${REPO}" --json headRefOid --jq .headRefOid)" >> "${GITHUB_OUTPUT}"
+          echo "ref=$(gh pr view "${PR}" -R "${REPO}" --json headRefName --jq .headRefName)" >> "${GITHUB_OUTPUT}"
+          gh api -X POST "/repos/${REPO}/issues/comments/${COMMENT_ID}/reactions" -f content=eyes >/dev/null ||
+            echo "::warning::could not react to comment ${COMMENT_ID}"
+
+      # Compare against the commit the candidate branched from, so commits
+      # that landed on main since then are not attributed to the candidate.
+      - name: Resolve baseline
+        id: base
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          CANDIDATE: ${{ steps.pr.outputs.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          sha="$(gh api "/repos/${REPO}/compare/main...${CANDIDATE}" --jq .merge_base_commit.sha)"
+          echo "baseline: ${sha}, candidate: ${CANDIDATE}"
+          echo "sha=${sha}" >> "${GITHUB_OUTPUT}"
+
+  run:
+    name: run (${{ matrix.arm }})
+    needs: resolve
+    runs-on: ${{ vars.EVAL_RUNNER_LABEL }}
+    timeout-minutes: 360
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        arm: [baseline, candidate]
+    steps:
+      - name: Checkout arm ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ matrix.arm == 'baseline' && needs.resolve.outputs.baseline_ref || needs.resolve.outputs.candidate_ref }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      # The harness always comes from the candidate so both arms run the same code.
+      - name: Checkout harness from candidate ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.candidate_ref }}
+          path: .eval-src
+          sparse-checkout: scripts/harbor-coder
+          persist-credentials: false
+      - run: rm -rf scripts/harbor-coder && cp -r .eval-src/scripts/harbor-coder scripts/harbor-coder
+
+      - uses: ./.github/actions/setup-go-paths
+      - uses: ./.github/actions/setup-mise
+        with:
+          install-args: "go"
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - name: Install Harbor from the hash-pinned lock
+        run: |
+          ./scripts/harbor-coder/install.sh "${RUNNER_TEMP}/harbor-venv"
+          echo "${RUNNER_TEMP}/harbor-venv/bin" >> "${GITHUB_PATH}"
+
+      # Exports the role's temporary credentials into the job environment.
+      # coderd's AI gateway picks them up through the default AWS credential
+      # chain when it signs Claude Platform requests.
+      - name: Assume the eval role
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.EVAL_AWS_ROLE_ARN }}
+          aws-region: ${{ vars.EVAL_AWS_REGION }}
+          role-duration-seconds: 14400
+
+      - name: Build and serve coderd
+        env:
+          CLAUDE_PLATFORM_WORKSPACE_ID: ${{ vars.CLAUDE_PLATFORM_WORKSPACE_ID }}
+        run: ./scripts/harbor-coder/serve-coderd.sh "${RUNNER_TEMP}/coder.env"
+
+      - name: Run Harbor
+        env:
+          ARM: ${{ matrix.arm }}
+        run: |
+          set -euo pipefail
+          set -a; . "${RUNNER_TEMP}/coder.env"; set +a
+          export PATH="${HARBOR_CODER_BIN%/*}:${PATH}"
+          # shellcheck disable=SC2086
+          harbor run -d "${HARBOR_DATASET}" ${HARBOR_EXCLUDE} \
+            --agent harbor_coder.agent:CoderAgentsAgent \
+            --env harbor_coder.environment:CoderEnvironment \
+            -k "${HARBOR_ATTEMPTS}" -n "${HARBOR_CONCURRENCY}" -o jobs --job-name "${ARM}"
+          # Harbor exits 0 even when every trial raised.
+          if [[ "$(find "jobs/${ARM}" -name reward.txt -o -name reward.json | wc -l)" -eq 0 ]]; then
+            echo "::error::no trial produced a reward"; exit 1
+          fi
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: harbor-${{ matrix.arm }}
+          path: jobs/
+
+      # Only the log: the rest of .harbor-coder holds the owner password and
+      # session token. A separate artifact keeps the jobs/ layout compare expects.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: coderd-log-${{ matrix.arm }}
+          path: .harbor-coder/coderd.log
+          include-hidden-files: true
+          if-no-files-found: ignore
+
+  compare:
+    needs: [resolve, run]
+    if: always() && needs.resolve.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.candidate_ref }}
+          sparse-checkout: scripts/harbor-coder
+          persist-credentials: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        continue-on-error: true
+        with:
+          pattern: harbor-*
+          path: jobs
+          merge-multiple: true
+      - name: Compare
+        env:
+          LABEL: ${{ needs.resolve.outputs.candidate_label }}
+          RUN_RESULT: ${{ needs.run.result }}
+          BASELINE_SHA: ${{ needs.resolve.outputs.baseline_ref }}
+          CANDIDATE_SHA: ${{ needs.resolve.outputs.candidate_ref }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [[ "${RUN_RESULT}" != "success" ]]; then
+            # A partial table would read as a verdict; the run log has the cause.
+            printf '## Coder Agents eval: %s vs main\n\n**The eval did not complete** (run: %s). See the [run](%s) for the failing arm.\n' \
+              "${LABEL}" "${RUN_RESULT}" "${RUN_URL}" > report.md
+          else
+            mkdir -p jobs/baseline jobs/candidate
+            PYTHONPATH=scripts/harbor-coder python3 -m harbor_coder.compare \
+              --baseline jobs/baseline --candidate jobs/candidate --labels main "${LABEL}" > report.md
+            printf '\n%s, %s, %s attempt(s) per task. Baseline %s (merge base with main), candidate %s. [Run](%s)\n' \
+              "${HARBOR_DATASET}" "${HARBOR_CODER_MODEL}" "${HARBOR_ATTEMPTS}" "${BASELINE_SHA:0:10}" "${CANDIDATE_SHA:0:10}" "${RUN_URL}" >> report.md
+          fi
+          cat report.md >> "${GITHUB_STEP_SUMMARY}"
+      - name: Comment on PR
+        if: needs.resolve.outputs.pr_number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ needs.resolve.outputs.pr_number }}
+        run: gh pr comment "${PR}" -R "${REPO}" --body-file report.md

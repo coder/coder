@@ -1,68 +1,71 @@
 # harbor-coder
 
 A/B Coder Agents between a branch and `main` using
-[Harbor](https://github.com/harbor-framework/harbor) and Terminal-Bench 2.0.
-Run it manually from a dogfood workspace; it is not wired into CI.
+[Harbor](https://github.com/harbor-framework/harbor) and Terminal-Bench.
 
-- `eval.sh`: the whole A/B. Builds coderd from the baseline and from the
-  current checkout, runs Terminal-Bench 2.0 against each with Coder Agents,
-  and prints the comparison.
 - `harbor_coder.environment:CoderEnvironment`: Harbor environment provider
   that runs each trial in a Coder workspace (task image plus the `coder`
   binary, created from `template/`, exec over `coder ssh`).
 - `harbor_coder.agent:CoderAgentsAgent`: Harbor agent that binds a chat to
   that workspace, waits for the turn to finish, and records tokens and cost.
-- `harbor_coder.bootstrap`: first user, AI provider (dogfood's gateway), chat
-  model, template push on a fresh coderd. Called by `serve-coderd.sh`.
-- `harbor_coder.compare`: pass rate per task, cost, and a paired-bootstrap
-  verdict for two job directories.
+- `harbor_coder.bootstrap`: first user, AI provider (Claude Platform on AWS,
+  signed with the host's AWS credentials; no API key), chat model, template
+  push, and one smoke chat turn on a fresh coderd.
+- `harbor_coder.compare`: pass rate per task and cost for two job directories.
 
-The system prompt is Go code, so a prompt change is a branch and the unit of
-comparison is a coderd build. Nothing is injected from outside.
+Comment `/coder-agents-eval` on a PR to run `.github/workflows/eval-coder-agents.yaml`:
+each arm builds its own coderd (main vs the PR), runs `terminal-bench@2.0`
+(74 of 89 tasks: 3 are broken upstream, 9 are 20 to 60 minute ML and
+emulation tasks the prompt cannot affect, and 3 security tasks are always
+refused by Anthropic's content policy) with Coder Agents on
+`claude-sonnet-5-5`, and the comparison is posted on the PR. The baseline is
+the commit the PR branched from, not the `main` tip, so later `main` changes
+are not attributed to the PR. The system prompt is Go code, so a prompt
+change is a branch and the unit of comparison is a build. The verdict calls
+a change better or worse only when a paired bootstrap 95% interval over
+tasks excludes zero.
 
-## Run
+Measured on the 77-task set (before the 3 refused tasks were dropped) at
+concurrency 5 (chatd's unlicensed cap on
+concurrent chats): about $23 and 90 minutes per arm
+([run](https://github.com/coder/coder/actions/runs/40423882171)). One
+`/coder-agents-eval` runs two arms in parallel, so about $47 of model
+spend and two runners for roughly 1.5h. The full 86 tasks on `main`
+scored 73% at two attempts, $31.54 and 3.4h for one arm.
+Dataset, model, attempts, concurrency, and the Harbor version are the `env`
+block at the top of the workflow.
+
+The workflow runs on the self-hosted runner pool (ephemeral KubeVirt microVMs
+on bare metal, one per job, Docker inside the VM) and assumes an IAM role via
+OIDC; coderd's AI gateway signs Claude Platform requests with that role
+through the default AWS credential chain. It expects the repository
+variables `EVAL_RUNNER_LABEL`, `EVAL_AWS_ROLE_ARN`, `EVAL_AWS_REGION`, and
+`CLAUDE_PLATFORM_WORKSPACE_ID`; no secrets.
+
+## Local
 
 ```sh
-# Once: install Harbor into .harbor-coder/venv from requirements.lock with
+# Installs Harbor into .harbor-coder/venv from requirements.lock with
 # --require-hashes, so every dependency (litellm included) is pinned by sha256.
-./scripts/harbor-coder/install.sh
-export PATH="$PWD/.harbor-coder/venv/bin:$PATH"
-
-# Dogfood gateway auth. The gateway ignores token scopes, so keep it narrow.
-export HARBOR_CODER_UPSTREAM_TOKEN=$(coder tokens create --lifetime 8h --scope user:read_personal)
-
-git checkout my-prompt-change
-./scripts/harbor-coder/eval.sh
+./scripts/harbor-coder/install.sh && export PATH="$PWD/.harbor-coder/venv/bin:$PATH"
+# AWS credentials that can invoke models in the Claude Platform workspace,
+# e.g. from `aws sso login` or an assumed role.
+export AWS_REGION=us-east-1 CLAUDE_PLATFORM_WORKSPACE_ID=wrkspc_...
+export HARBOR_CODER_MODEL=claude-sonnet-5-5
+./scripts/harbor-coder/serve-coderd.sh .harbor-coder/env
+set -a; . .harbor-coder/env; set +a; export PATH="$PWD/.harbor-coder:$PATH"
+# add the -x list from HARBOR_EXCLUDE in the workflow to match CI
+harbor run -d terminal-bench@2.0 -x 'qemu-*' -x build-cython-ext \
+  --agent harbor_coder.agent:CoderAgentsAgent --env harbor_coder.environment:CoderEnvironment \
+  -k 2 -n 4 -o jobs --job-name main
 ```
 
-`eval.sh` builds coderd twice: from the branch's merge base with `main`
-(in a temporary git worktree, so later `main` changes are not attributed to
-your branch) and from the current checkout, including uncommitted changes.
-Each arm gets a fresh embedded Postgres and runs 74 of Terminal-Bench 2.0's
-89 tasks: 3 are broken upstream, 9 are 20 to 60 minute ML and emulation
-tasks the prompt cannot affect, and 3 security tasks are always refused by
-Anthropic's content policy. Results land in `jobs/baseline`, `jobs/candidate`,
-and `jobs/report.md`.
-
-`--baseline <ref>` overrides the baseline. `--baseline HEAD` runs the same
-build twice, which is the noise floor; do that once before trusting a small
-delta. Defaults are `claude-sonnet-5-5`, 2 attempts per task, concurrency 5
-(chatd's unlicensed cap on concurrent chats); override with
-`HARBOR_CODER_MODEL`, `HARBOR_ATTEMPTS`, `HARBOR_CONCURRENCY`,
-`HARBOR_DATASET`, `HARBOR_PORT`, `HARBOR_JOBS_DIR`. Measured: about $23 and
-90 minutes per arm at these defaults, so roughly $47 and 3 hours for a full
-A/B; the complete 86 tasks on `main` scored 73% at $31.54 and 3.4h per arm.
-
-`compare` calls a change better or worse only when a paired bootstrap 95%
-interval over tasks excludes zero.
-
-## Notes
-
-- `--agent oracle` in place of the Coder Agents agent validates tasks without
-  spending tokens.
-- Any Harbor registry dataset works if its image has `bash` and `tar`, runs as
-  root, and does not need `no-network` or a GPU.
-- Each Terminal-Bench image is pulled and re-layered per task; a full arm
-  churns ~100GB of Docker disk. `eval.sh` prunes images between arms.
-- `.harbor-coder/` holds the built binary, embedded Postgres, logs, and the
-  venv; it is gitignored.
+Stop the first coderd (`kill $(cat .harbor-coder/coderd.pid)`), check out the
+other branch, rerun `serve-coderd.sh` and Harbor under another `--job-name`, then
+`python -m harbor_coder.compare --baseline jobs/main --candidate jobs/branch`.
+`serve-coderd.sh` refuses to start while something answers on its port, and
+task images are tagged with the `coder` binary's hash, so the second run cannot
+silently reuse the first build.
+`--agent oracle` validates tasks without spending tokens. Any registry dataset
+works if its image has `bash` and `tar`, runs as root, and does not need
+`no-network` or a GPU.
