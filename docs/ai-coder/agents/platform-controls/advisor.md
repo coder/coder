@@ -13,7 +13,8 @@ Useful for planning ambiguity, architectural tradeoffs, debugging strategy after
 ## Configuration
 
 Configure the advisor's runtime limits under **Admin settings** > **AI** > **Coder Agents** > **Deployment settings**.
-Use the **Advisor** card. These limits apply deployment-wide.
+Use the **Advisor** card.
+These limits apply deployment-wide.
 
 | Field             | Default              | Notes                                                                                                                   |
 |-------------------|----------------------|-------------------------------------------------------------------------------------------------------------------------|
@@ -27,7 +28,4 @@ When no override is set, the advisor reuses the root agent's model.
 The advisor is not available in plan mode or to subagents.
 Failed advisor invocations refund the per-turn budget.
 
-The same configuration is available through the API: runtime limits at
-`GET`/`PUT` `/api/v2/chats/config/advisor`, and the advisor
-model override at
-`PUT /api/v2/organizations/{organization}/chats/model-overrides/advisor`.
+The same configuration is available through the API: runtime limits at `GET`/`PUT` `/api/v2/chats/config/advisor`, and the advisor model override at `PUT /api/v2/organizations/{organization}/chats/model-overrides/advisor`.
