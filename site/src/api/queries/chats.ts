@@ -1520,10 +1520,7 @@ export const infiniteChats = (input?: ChatListInput) => {
 export const projectChatsKey = (projectId: string) =>
 	[...chatProjectListFamilyKey, projectId] as const;
 
-/**
- * Nests under projectChatsKey, so whatever refreshes a project's page
- * refreshes its sidebar folder too.
- */
+/** Whatever refreshes a project's page refreshes its sidebar folder too. */
 export const projectFolderChatsKey = (
 	projectId: string,
 	params: ChatListParams,
