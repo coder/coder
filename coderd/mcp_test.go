@@ -46,10 +46,8 @@ func mcpDeploymentValues(t testing.TB) *codersdk.DeploymentValues {
 func newMCPClient(t testing.TB) *codersdk.Client {
 	t.Helper()
 
-	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 	return coderdtest.New(t, &coderdtest.Options{
-		DeploymentValues:    mcpDeploymentValues(t),
-		ChatProviderAPIKeys: &providerKeys,
+		DeploymentValues: mcpDeploymentValues(t),
 	})
 }
 
@@ -306,10 +304,8 @@ func TestMCPServerConfigWrongOrganization(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-		DeploymentValues:    mcpDeploymentValues(t),
-		ChatProviderAPIKeys: &providerKeys,
+		DeploymentValues: mcpDeploymentValues(t),
 	})
 	firstUser := coderdtest.CreateFirstUser(t, client)
 	config := createMCPServerConfig(t, client, firstUser.OrganizationID, "wrong-org", true)
@@ -327,11 +323,9 @@ func TestMCPServerConfigsAudit(t *testing.T) {
 	newAuditedMCPClient := func(t testing.TB) (*codersdk.Client, *audit.MockAuditor) {
 		t.Helper()
 		mAudit := audit.NewMock()
-		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 		client := coderdtest.New(t, &coderdtest.Options{
-			DeploymentValues:    mcpDeploymentValues(t),
-			ChatProviderAPIKeys: &providerKeys,
-			Auditor:             mAudit,
+			DeploymentValues: mcpDeploymentValues(t),
+			Auditor:          mAudit,
 		})
 		return client, mAudit
 	}
@@ -425,15 +419,13 @@ func TestMCPServerConfigsAudit(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		mAudit := audit.NewMock()
-		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 		db, ps := dbtestutil.NewDB(t)
 		store := &staleMCPServerConfigReadStore{Store: db}
 		client := coderdtest.New(t, &coderdtest.Options{
-			DeploymentValues:    mcpDeploymentValues(t),
-			ChatProviderAPIKeys: &providerKeys,
-			Auditor:             mAudit,
-			Database:            store,
-			Pubsub:              ps,
+			DeploymentValues: mcpDeploymentValues(t),
+			Auditor:          mAudit,
+			Database:         store,
+			Pubsub:           ps,
 		})
 		firstUser := coderdtest.CreateFirstUser(t, client)
 		config := createMCPServerConfig(t, client, firstUser.OrganizationID, "audit-delete-stale", true)
@@ -481,15 +473,13 @@ func TestMCPServerConfigsAudit(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		mAudit := audit.NewMock()
-		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 		db, ps := dbtestutil.NewDB(t)
 		store := &failingMCPServerConfigInsertStore{Store: db}
 		client := coderdtest.New(t, &coderdtest.Options{
-			DeploymentValues:    mcpDeploymentValues(t),
-			ChatProviderAPIKeys: &providerKeys,
-			Auditor:             mAudit,
-			Database:            store,
-			Pubsub:              ps,
+			DeploymentValues: mcpDeploymentValues(t),
+			Auditor:          mAudit,
+			Database:         store,
+			Pubsub:           ps,
 		})
 		firstUser := coderdtest.CreateFirstUser(t, client)
 
@@ -721,10 +711,8 @@ func TestMCPServerConfigsScopedKeyFullView(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-		DeploymentValues:    mcpDeploymentValues(t),
-		ChatProviderAPIKeys: &providerKeys,
+		DeploymentValues: mcpDeploymentValues(t),
 	})
 	firstUser := coderdtest.CreateFirstUser(t, adminClient)
 	_ = createMCPServerConfig(t, adminClient, firstUser.OrganizationID, "enabled-server", true)
@@ -766,10 +754,8 @@ func TestMCPServerConfigScopedKeyWithoutPersonalTokenRead(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-		DeploymentValues:    mcpDeploymentValues(t),
-		ChatProviderAPIKeys: &providerKeys,
+		DeploymentValues: mcpDeploymentValues(t),
 	})
 	firstUser := coderdtest.CreateFirstUser(t, adminClient)
 	created, err := adminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
@@ -856,10 +842,8 @@ func TestMCPServerConfigScopedKeyRefreshPersistsRotatedToken(t *testing.T) {
 			}))
 			t.Cleanup(tokenSrv.Close)
 
-			providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 			adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-				DeploymentValues:    mcpDeploymentValues(t),
-				ChatProviderAPIKeys: &providerKeys,
+				DeploymentValues: mcpDeploymentValues(t),
 			})
 			firstUser := coderdtest.CreateFirstUser(t, adminClient)
 			created, err := adminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
@@ -919,11 +903,9 @@ func TestMCPServerConfigACL(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	mAudit := audit.NewMock()
-	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-		DeploymentValues:    mcpDeploymentValues(t),
-		ChatProviderAPIKeys: &providerKeys,
-		Auditor:             mAudit,
+		DeploymentValues: mcpDeploymentValues(t),
+		Auditor:          mAudit,
 	})
 	firstUser := coderdtest.CreateFirstUser(t, adminClient)
 	groupMemberClient, groupMember := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
@@ -1078,14 +1060,12 @@ func TestMCPServerConfigACLConcurrentDelete(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 	db, ps := dbtestutil.NewDB(t)
 	store := &mcpServerConfigDeleteRaceStore{Store: db}
 	adminClient := coderdtest.New(t, &coderdtest.Options{
-		DeploymentValues:    mcpDeploymentValues(t),
-		ChatProviderAPIKeys: &providerKeys,
-		Database:            store,
-		Pubsub:              ps,
+		DeploymentValues: mcpDeploymentValues(t),
+		Database:         store,
+		Pubsub:           ps,
 	})
 	firstUser := coderdtest.CreateFirstUser(t, adminClient)
 	config := createMCPServerConfig(t, adminClient, firstUser.OrganizationID, "acl-delete-race", true)
@@ -1603,10 +1583,8 @@ func TestMCPServerConfigsUserOIDCDirect(t *testing.T) {
 func TestMCPServerConfigsUpdateInvalidatesUserGrants(t *testing.T) {
 	t.Parallel()
 
-	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-		DeploymentValues:    mcpDeploymentValues(t),
-		ChatProviderAPIKeys: &providerKeys,
+		DeploymentValues: mcpDeploymentValues(t),
 	})
 	firstUser := coderdtest.CreateFirstUser(t, adminClient)
 	_, member := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
@@ -1773,10 +1751,8 @@ func TestMCPServerConfigsOAuth2ScopedKeyAuthorization(t *testing.T) {
 	}))
 	t.Cleanup(tokenServer.Close)
 
-	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-		DeploymentValues:    mcpDeploymentValues(t),
-		ChatProviderAPIKeys: &providerKeys,
+		DeploymentValues: mcpDeploymentValues(t),
 	})
 	firstUser := coderdtest.CreateFirstUser(t, adminClient)
 	created, err := adminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
@@ -1886,10 +1862,8 @@ func runMCPServerConfigsOAuth2CallbackSupersessionTest(
 	t.Helper()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-		DeploymentValues:    mcpDeploymentValues(t),
-		ChatProviderAPIKeys: &providerKeys,
+		DeploymentValues: mcpDeploymentValues(t),
 	})
 	firstUser := coderdtest.CreateFirstUser(t, adminClient)
 	memberClient, member := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
@@ -2102,10 +2076,8 @@ func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 		t.Helper()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 		adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-			DeploymentValues:    mcpDeploymentValues(t),
-			ChatProviderAPIKeys: &providerKeys,
+			DeploymentValues: mcpDeploymentValues(t),
 		})
 		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 		memberClient, member := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
@@ -2225,10 +2197,8 @@ func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 		adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-			DeploymentValues:    mcpDeploymentValues(t),
-			ChatProviderAPIKeys: &providerKeys,
+			DeploymentValues: mcpDeploymentValues(t),
 		})
 		coderdtest.CreateFirstUser(t, adminClient)
 
@@ -2307,10 +2277,8 @@ func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 		t.Cleanup(tokenSrv.Close)
 		t.Cleanup(func() { releaseOnce.Do(func() { close(releaseRefresh) }) })
 
-		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 		adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-			DeploymentValues:    mcpDeploymentValues(t),
-			ChatProviderAPIKeys: &providerKeys,
+			DeploymentValues: mcpDeploymentValues(t),
 		})
 		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 		memberClient, member := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
@@ -2415,10 +2383,8 @@ func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 		adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-			DeploymentValues:    mcpDeploymentValues(t),
-			ChatProviderAPIKeys: &providerKeys,
+			DeploymentValues: mcpDeploymentValues(t),
 		})
 		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 		memberClient, member := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
@@ -2545,10 +2511,8 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		}))
 		t.Cleanup(mcpServer.Close)
 
-		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-			DeploymentValues:    mcpDeploymentValues(t),
-			ChatProviderAPIKeys: &providerKeys,
+			DeploymentValues: mcpDeploymentValues(t),
 		})
 		firstUser := coderdtest.CreateFirstUser(t, client)
 
@@ -2617,10 +2581,8 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-			DeploymentValues:    mcpDeploymentValues(t),
-			ChatProviderAPIKeys: &providerKeys,
+			DeploymentValues: mcpDeploymentValues(t),
 		})
 		firstUser := coderdtest.CreateFirstUser(t, client)
 
@@ -3117,10 +3079,8 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		}))
 		t.Cleanup(mcpServer.Close)
 
-		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-			DeploymentValues:    mcpDeploymentValues(t),
-			ChatProviderAPIKeys: &providerKeys,
+			DeploymentValues: mcpDeploymentValues(t),
 		})
 		firstUser := coderdtest.CreateFirstUser(t, client)
 
@@ -3210,10 +3170,8 @@ func TestMCPServerConfigsOAuth2AutoDiscoverySSRF(t *testing.T) {
 	}))
 	t.Cleanup(attacker.Close)
 
-	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 	client := coderdtest.New(t, &coderdtest.Options{
-		DeploymentValues:    mcpDeploymentValues(t),
-		ChatProviderAPIKeys: &providerKeys,
+		DeploymentValues: mcpDeploymentValues(t),
 		// Allow only the attacker's address so the initial fetch
 		// succeeds; the canary's address stays blocked.
 		MCPAllowedPrivateCIDRs: []netip.Prefix{
@@ -4251,10 +4209,8 @@ func TestMCPServerConfigsRevokedGrant(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-		DeploymentValues:    mcpDeploymentValues(t),
-		ChatProviderAPIKeys: &providerKeys,
+		DeploymentValues: mcpDeploymentValues(t),
 	})
 	firstUser := coderdtest.CreateFirstUser(t, adminClient)
 	memberClient, member := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
@@ -4375,10 +4331,8 @@ func TestMCPServerConfigsTransientRefreshFailure(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-		DeploymentValues:    mcpDeploymentValues(t),
-		ChatProviderAPIKeys: &providerKeys,
+		DeploymentValues: mcpDeploymentValues(t),
 	})
 	firstUser := coderdtest.CreateFirstUser(t, adminClient)
 	memberClient, member := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)

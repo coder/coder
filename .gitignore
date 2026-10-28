@@ -59,6 +59,12 @@ build/
 dist/
 out/
 
+# Local state for scripts/harbor-coder (coderd binary, logs, credentials, jobs)
+.harbor-coder/
+/jobs/
+scripts/harbor-coder/**/__pycache__/
+scripts/harbor-coder/*.egg-info/
+
 # Bundle analysis
 site/stats/
 
@@ -67,6 +73,7 @@ site/stats/
 *.tfplan
 *.lock.hcl
 !provisioner/terraform/testdata/resources/.terraform.lock.hcl
+!scripts/harbor-coder/template/.terraform.lock.hcl
 .terraform/
 !coderd/testdata/parameters/modules/.terraform/
 !provisioner/terraform/testdata/modules-source-caching/.terraform/

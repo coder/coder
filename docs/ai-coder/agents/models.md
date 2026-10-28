@@ -36,7 +36,8 @@ Coder Agents route model requests through AI Gateway automatically by using the 
 
 Some provider types work as AI Gateway proxy targets but cannot back Coder Agents.
 GitHub Copilot, for example, authenticates with a per-request token that only an official Copilot client can mint, so the server-side Agents harness cannot use it.
-Configuring such a provider does not unlock Agents; add one of the supported provider types above instead.
+Configuring such a provider does not unlock Agents.
+Add one of the supported provider types above instead.
 
 ### Add a provider
 
@@ -102,9 +103,9 @@ This applies to every model family Bedrock serves, including Anthropic and OpenA
 
 For each provider request, Coder selects credentials in this order:
 
-1. If BYOK is enabled and the user has saved a personal key for the selected provider, Coder uses the user's key.
+1. If BYOK is enabled and the user saved a personal key for the provider, Coder uses it.
 1. Otherwise, Coder uses centralized provider credentials when they are configured.
-1. If neither a usable user key nor centralized credentials are available, the provider is unavailable for that user.
+1. If neither a usable user key nor centralized credentials exist, the provider is unavailable for that user.
 
 ## Models
 
@@ -127,7 +128,8 @@ Create, update, delete, and share permissions control their corresponding action
 Members with model share permission can let members and groups in the selected organization use the model.
 
 Model access lists control which models a member can use in Coder Agents.
-Chat permissions come from the **Coder Agents User** role, which every member except service accounts holds by default; see [Control who can use Coder Agents](./getting-started.md#control-who-can-use-coder-agents).
+Chat permissions come from the **Coder Agents User** role, which every member except service accounts holds by default.
+See [Control who can use Coder Agents](./getting-started.md#control-who-can-use-coder-agents).
 A member without read access to at least one model in the organization can't use the feature.
 New models grant read access to the whole organization by default.
 
@@ -288,7 +290,8 @@ These fields appear dynamically in the admin UI when you select a provider.
 
 ### Prompt caching
 
-Coder Agents adds Anthropic prompt cache breakpoints automatically; there's nothing to configure.
+Coder Agents adds Anthropic prompt cache breakpoints automatically.
+There's nothing to configure.
 Claude models receive them on the Anthropic and AWS Bedrock providers.
 They also receive them on OpenRouter, Vercel AI Gateway, and OpenAI Compatible providers when the model identifier is Anthropic-family, for example `anthropic/claude-haiku-4.5` or `claude-sonnet-4-5`.
 Cached tokens are reported as `cache_read_tokens` in each assistant message's usage and as cache-read input tokens in AI Gateway session usage, where they're priced at the model's cache-read rate.

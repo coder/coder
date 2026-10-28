@@ -224,6 +224,7 @@ These images can then be run without modifying the Security Context Constraints 
    In this example, we will pick both UID and GID `1000680000`.
 
 1. Create a `BuildConfig` referencing the source image you want to customize.
+
    This will automatically kick off a `Build` that will remain pending until step 3.
 
    > For more information, consult the [OpenShift Documentation](https://docs.redhat.com/en/documentation/openshift_container_platform/latest/html/builds_using_buildconfig/understanding-buildconfigs).
