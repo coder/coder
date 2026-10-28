@@ -118,6 +118,37 @@ func BuildAdvisorMessages(
 	return messages
 }
 
+// omitToolCall drops the tool call with toolCallID and every result that
+// answers it. The advisor runs before its own call has a result, so the
+// parent prompt pairs that call with a synthetic "interrupted" error. The
+// advisor can mistake that placeholder for a real failure and report it
+// instead of answering. The question still reaches the advisor as the
+// final user message.
+func omitToolCall(msgs []fantasy.Message, toolCallID string) []fantasy.Message {
+	if toolCallID == "" {
+		return msgs
+	}
+	result := make([]fantasy.Message, 0, len(msgs))
+	for _, msg := range msgs {
+		parts := make([]fantasy.MessagePart, 0, len(msg.Content))
+		for _, part := range msg.Content {
+			if call, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part); ok && call.ToolCallID == toolCallID {
+				continue
+			}
+			if tr, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part); ok && tr.ToolCallID == toolCallID {
+				continue
+			}
+			parts = append(parts, part)
+		}
+		if len(parts) == 0 && len(msg.Content) > 0 {
+			continue
+		}
+		msg.Content = parts
+		result = append(result, msg)
+	}
+	return result
+}
+
 // textualizeToolExchanges rewrites tool activity as inline text notes.
 // Assistant tool-call parts are removed, with their inputs folded into the
 // note rendered for the matching tool result, and tool-role messages become

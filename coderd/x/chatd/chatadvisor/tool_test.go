@@ -62,6 +62,73 @@ func TestAdvisorToolSuccess(t *testing.T) {
 	require.Equal(t, 1, result.RemainingUses)
 }
 
+// The parent prompt answers the advisor's own in-flight call with a
+// synthetic interrupted result, which the advisor can mistake for a real
+// failure. Only that call is omitted; other context stays.
+func TestAdvisorToolOmitsItsOwnPendingCall(t *testing.T) {
+	t.Parallel()
+
+	var prompt []fantasy.Message
+	runtime, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
+		Model: &chattest.FakeModel{
+			ProviderName: "test-provider",
+			ModelName:    "test-model",
+			StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+				prompt = call.Prompt
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "advice"},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				}), nil
+			},
+		},
+		MaxUsesPerRun:   1,
+		MaxOutputTokens: 64,
+		MaxRetries:      1,
+	})
+	require.NoError(t, err)
+
+	pendingCall := toolCallAssistantMessage("call-1", chatadvisor.ToolName, `{"question":"Which approach?"}`)
+	pendingCall.Content = append([]fantasy.MessagePart{fantasy.TextPart{Text: "Asking the advisor."}}, pendingCall.Content...)
+	tool := chatadvisor.Tool(chatadvisor.ToolOptions{
+		Runtime: runtime,
+		GetConversationSnapshot: func() []fantasy.Message {
+			return []fantasy.Message{
+				textMessage(fantasy.MessageRoleUser, "Plan the migration."),
+				toolCallAssistantMessage("call-0", "read_file", `{"path":"schema.sql"}`),
+				toolResultMessage("call-0", "create table users"),
+				pendingCall,
+				{
+					Role: fantasy.MessageRoleTool,
+					Content: []fantasy.MessagePart{fantasy.ToolResultPart{
+						ToolCallID: "call-1",
+						Output: fantasy.ToolResultOutputContentError{
+							Error: xerrors.New("tool call was interrupted and did not receive a result"),
+						},
+					}},
+				},
+			}
+		},
+	})
+
+	resp := runAdvisorTool(t, tool, chatadvisor.AdvisorArgs{Question: "Which approach?"})
+	require.False(t, resp.IsError)
+
+	var texts []string
+	for _, msg := range prompt {
+		if msg.Role != fantasy.MessageRoleSystem {
+			texts = append(texts, singleText(t, msg))
+		}
+	}
+	require.Equal(t, []string{
+		"Plan the migration.",
+		`[The parent agent ran the read_file tool with input {"path":"schema.sql"}. Result: create table users]`,
+		"Asking the advisor.",
+		"Which approach?",
+	}, texts)
+}
+
 func TestAdvisorToolPublishesLiveDeltasWithToolCallID(t *testing.T) {
 	t.Parallel()
 

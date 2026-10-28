@@ -92,7 +92,8 @@ func Tool(opts ToolOptions) fantasy.AgentTool {
 				}
 			}
 
-			result, err := opts.Runtime.RunAdvisor(ctx, question, opts.GetConversationSnapshot(), runOpts)
+			snapshot := omitToolCall(opts.GetConversationSnapshot(), call.ID)
+			result, err := opts.Runtime.RunAdvisor(ctx, question, snapshot, runOpts)
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
