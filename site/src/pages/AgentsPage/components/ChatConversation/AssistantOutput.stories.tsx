@@ -192,11 +192,12 @@ export const StreamingThinkingHeading: Story = {
 	]),
 };
 
-/** Text that resumes after Thinking showed keeps the Thinking row's space. */
-export const ResumedResponseKeepsActivitySpace: Story = {
+/** Text that resumes after Thinking showed keeps the activity row's height. */
+export const ResumedResponseHoldsActivityRow: Story = {
 	args: responseStreamState,
-	render: function ResumedResponseKeepsActivitySpaceRender(args) {
-		// The first render is quiet so Thinking shows; the resumed state follows.
+	render: function ResumedResponseHoldsActivityRowRender(args) {
+		// The row is held only after Thinking has rendered, so the first render is
+		// quiet.
 		const [resumed, setResumed] = useState(false);
 		useEffect(() => setResumed(true), []);
 		return (
@@ -204,7 +205,38 @@ export const ResumedResponseKeepsActivitySpace: Story = {
 				{...args}
 				liveStatus={buildLiveStatus({
 					streamState: args.streamState,
-					hasRecentStreamOutput: resumed,
+					hasRecentOutput: resumed,
+				})}
+			/>
+		);
+	},
+};
+
+const responseThenToolState = buildStreamRenderState([
+	{ type: "text" as const, text: "The answer is streaming." },
+	{
+		type: "tool-call",
+		tool_name: "execute",
+		tool_call_id: "tc-1",
+		args: { command: "ls -la" },
+	},
+]);
+
+/** A tool that starts after the activity row was held releases its height. */
+export const ToolReleasesHeldActivityRow: Story = {
+	args: responseStreamState,
+	render: function ToolReleasesHeldActivityRowRender(args) {
+		const [toolStarted, setToolStarted] = useState(false);
+		useEffect(() => setToolStarted(true), []);
+		if (toolStarted) {
+			return <LiveAssistantOutput {...responseThenToolState} />;
+		}
+		return (
+			<LiveAssistantOutput
+				{...args}
+				liveStatus={buildLiveStatus({
+					streamState: args.streamState,
+					hasRecentOutput: false,
 				})}
 			/>
 		);

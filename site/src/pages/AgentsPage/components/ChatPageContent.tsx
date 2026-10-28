@@ -84,9 +84,8 @@ import { getWorkspaceOptionsWithLinkedWorkspace } from "./workspaceOptions";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
-// Pauses shorter than this read as part of one continuous stream. Once output
-// has been quiet this long, streamed text alone no longer shows that the turn
-// is progressing.
+// Stream output older than this no longer shows that the turn is progressing.
+// The value was chosen by hand, not measured against model token gaps.
 const RECENT_STREAM_OUTPUT_MS = 1_000;
 
 // A resolved chat with no context (unpinned) or no resources authoritatively
@@ -195,7 +194,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 		persistedError: persistedError ?? null,
 		isAwaitingFirstStreamChunk,
 		chatStatus,
-		hasRecentStreamOutput: streamState !== settledStreamState,
+		hasRecentOutput: streamState !== null && streamState !== settledStreamState,
 	});
 	const streamTools = buildStreamTools(
 		liveStreamState?.toolCalls,

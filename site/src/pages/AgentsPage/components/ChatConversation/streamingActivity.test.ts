@@ -80,9 +80,9 @@ describe("shouldShowGenericThinking", () => {
 			true,
 		],
 		[
-			"hides while response text keeps arriving",
+			"hides while response text keeps arriving, past its citation row",
 			liveStatus("streaming"),
-			[response],
+			[response, { type: "sources", sources: [] }],
 			[],
 			false,
 		],

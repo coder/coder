@@ -2,8 +2,17 @@ import type { LiveStatusModel } from "./liveStatusModel";
 import type { MergedTool, RenderBlock } from "./types";
 
 /**
- * Whether the live turn needs the generic Thinking indicator because nothing
- * else on screen shows that the agent is still working. Running tools and the
+ * The last block that shows where output stands. A streamed citation row stays
+ * after the text it cites while that text keeps growing, so it is skipped.
+ */
+export const lastProgressBlock = (
+	blocks: readonly RenderBlock[],
+): RenderBlock | undefined =>
+	blocks.findLast((block) => block.type !== "sources");
+
+/**
+ * Whether the live output needs the generic Thinking indicator because none of
+ * its blocks shows that the agent is still working. Running tools and the
  * trailing reasoning block (BlockList renders it as running) animate on their
  * own. Response text shows progress only while it keeps arriving. Every other
  * block is static.
@@ -26,7 +35,7 @@ export const shouldShowGenericThinking = ({
 	if (tools.some((tool) => tool.status === "running")) {
 		return false;
 	}
-	switch (blocks.at(-1)?.type) {
+	switch (lastProgressBlock(blocks)?.type) {
 		case "thinking":
 			return false;
 		case "response":

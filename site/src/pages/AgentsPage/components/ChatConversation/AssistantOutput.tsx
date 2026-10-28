@@ -6,14 +6,17 @@ import { ToolIcon } from "../ChatElements/tools/ToolIcon";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import type { LiveStatusModel } from "./liveStatusModel";
 import { BlockList, type BlockListProps } from "./MessageBlocks";
-import { shouldShowGenericThinking } from "./streamingActivity";
+import {
+	lastProgressBlock,
+	shouldShowGenericThinking,
+} from "./streamingActivity";
 
 const LiveActivitySlot: React.FC<{ interrupting: boolean }> = ({
 	interrupting,
 }) => (
 	<div
 		data-testid="live-activity-slot"
-		className="flex h-6 items-center gap-2 text-content-secondary"
+		className="flex h-full items-center gap-2 text-content-secondary"
 	>
 		{interrupting ? (
 			<PauseIcon className="size-4 shrink-0 stroke-[1.5]" />
@@ -50,11 +53,11 @@ export const AssistantOutput: React.FC<AssistantOutputProps> = ({
 		(liveStatus.phase === "interrupting" ||
 			shouldShowGenericThinking({ liveStatus, blocks, tools }));
 
-	// Once the activity row has shown under streaming response text, keep its
-	// height while that response stays last. Removing it when text resumes
-	// shrinks the live row, and the anchored transcript jumps for a frame.
+	// Removing the activity row when text resumes shrinks the live row, and the
+	// anchored transcript jumps for a frame.
 	const canHoldActivityRow =
-		liveStatus?.phase === "streaming" && blocks.at(-1)?.type === "response";
+		liveStatus?.phase === "streaming" &&
+		lastProgressBlock(blocks)?.type === "response";
 	const [holdsActivityRow, setHoldsActivityRow] = useState(false);
 	if (showsActivity && canHoldActivityRow && !holdsActivityRow) {
 		setHoldsActivityRow(true);
@@ -64,12 +67,16 @@ export const AssistantOutput: React.FC<AssistantOutputProps> = ({
 	}
 
 	let activityRow: React.ReactNode = null;
-	if (showsActivity) {
+	if (showsActivity || holdsActivityRow) {
 		activityRow = (
-			<LiveActivitySlot interrupting={liveStatus.phase === "interrupting"} />
+			<div className="h-6">
+				{showsActivity && (
+					<LiveActivitySlot
+						interrupting={liveStatus.phase === "interrupting"}
+					/>
+				)}
+			</div>
 		);
-	} else if (holdsActivityRow) {
-		activityRow = <div aria-hidden className="h-6" />;
 	}
 
 	return (
