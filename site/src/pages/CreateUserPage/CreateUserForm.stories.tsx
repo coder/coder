@@ -25,7 +25,6 @@ const meta: Meta<typeof CreateUserForm> = {
 		isLoading: false,
 		showOrganizations: false,
 		serviceAccountsEnabled: true,
-		canViewPremium: true,
 		authMethods: MockAuthMethodsPasswordOnly,
 	},
 };
@@ -82,13 +81,6 @@ export const ServiceAccountRequiresPremium: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByTestId("login-type-input"));
-	},
-};
-
-export const ServiceAccountRequiresPremiumNoLicenseAccess: Story = {
-	args: {
-		serviceAccountsEnabled: false,
-		canViewPremium: false,
 	},
 };
 

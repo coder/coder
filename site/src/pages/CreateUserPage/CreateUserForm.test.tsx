@@ -1,13 +1,10 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { PREMIUM_PAGE_PATH } from "#/components/Paywall/Paywall";
 import { MockAuthMethodsPasswordOnly } from "#/testHelpers/entities";
 import { render } from "#/testHelpers/renderHelpers";
 import { CreateUserForm } from "./CreateUserForm";
 
-const renderForm = (
-	props: Partial<React.ComponentProps<typeof CreateUserForm>> = {},
-) => {
+const renderForm = () => {
 	const onSubmit = vi.fn();
 	render(
 		<CreateUserForm
@@ -17,8 +14,6 @@ const renderForm = (
 			authMethods={MockAuthMethodsPasswordOnly}
 			showOrganizations={false}
 			serviceAccountsEnabled={false}
-			canViewPremium
-			{...props}
 		/>,
 	);
 	return { onSubmit };
@@ -61,17 +56,6 @@ describe("CreateUserForm", () => {
 				login_type: "password",
 				service_account: false,
 			});
-		});
-
-		it("links admins who can view licenses to the Premium page", async () => {
-			renderForm();
-
-			const helper = await screen.findByText(
-				/service accounts require premium/i,
-			);
-			expect(
-				within(helper).getByRole("link", { name: /learn about premium/i }),
-			).toHaveAttribute("href", PREMIUM_PAGE_PATH);
 		});
 	});
 });

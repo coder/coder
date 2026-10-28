@@ -4,21 +4,18 @@ import { ArrowLeftIcon, CheckIcon } from "lucide-react";
 import { Select as SelectPrimitive } from "radix-ui";
 import { useState } from "react";
 import { useQuery } from "react-query";
-import { Link as RouterLink } from "react-router";
+import { Link } from "react-router";
 import * as Yup from "yup";
 import { hasApiFieldErrors, isApiError } from "#/api/errors";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { PremiumBadge } from "#/components/Badge/PresetBadges";
 import { Button } from "#/components/Button/Button";
 import { FormFields, FormFooter } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
 import { Label } from "#/components/Label/Label";
-import { Link } from "#/components/Link/Link";
 import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
-import { PREMIUM_PAGE_PATH } from "#/components/Paywall/Paywall";
 import {
 	Select,
 	SelectContent,
@@ -101,7 +98,6 @@ type CreateUserFormProps = {
 	authMethods: TypesGen.AuthMethods;
 	showOrganizations: boolean;
 	serviceAccountsEnabled: boolean;
-	canViewPremium: boolean;
 	availableRoles?: TypesGen.AssignableRoles[];
 	rolesLoading?: boolean;
 	rolesError?: unknown;
@@ -128,10 +124,10 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = (props) => {
 		return (
 			<div>
 				<Button variant="subtle" asChild className="-ml-3">
-					<RouterLink to="/deployment/users">
+					<Link to="/deployment/users">
 						<ArrowLeftIcon />
 						<span>Back to users</span>
-					</RouterLink>
+					</Link>
 				</Button>
 				<div className="pt-6">
 					<SettingsHeader>
@@ -171,7 +167,6 @@ const CreateUserFormFields: React.FC<CreateUserFormFieldsProps> = ({
 	onCancel,
 	showOrganizations,
 	serviceAccountsEnabled,
-	canViewPremium,
 	availableRoles,
 	rolesLoading,
 	rolesError,
@@ -235,10 +230,10 @@ const CreateUserFormFields: React.FC<CreateUserFormFieldsProps> = ({
 	return (
 		<div>
 			<Button variant="subtle" asChild className="-ml-3">
-				<RouterLink to="/deployment/users">
+				<Link to="/deployment/users">
 					<ArrowLeftIcon />
 					<span>Back to users</span>
-				</RouterLink>
+				</Link>
 			</Button>
 			<div className="pt-6">
 				<SettingsHeader>
@@ -320,7 +315,7 @@ const CreateUserFormFields: React.FC<CreateUserFormFieldsProps> = ({
 													key={key}
 													value={key}
 													disabled={requiresPremium}
-													className="relative flex w-full cursor-default select-none items-start rounded-sm py-1.5 pl-2 pr-8 text-sm text-content-secondary outline-hidden focus:bg-surface-secondary focus:text-content-primary data-disabled:pointer-events-none data-disabled:opacity-50"
+													className="relative flex w-full cursor-default select-none items-start rounded-sm py-1.5 pl-2 pr-8 text-sm text-content-secondary outline-hidden focus:bg-surface-secondary focus:text-content-primary data-disabled:pointer-events-none"
 												>
 													<span className="absolute right-2 top-2 flex items-center justify-center">
 														<SelectPrimitive.ItemIndicator>
@@ -328,14 +323,17 @@ const CreateUserFormFields: React.FC<CreateUserFormFieldsProps> = ({
 														</SelectPrimitive.ItemIndicator>
 													</span>
 													<div className="flex flex-col py-0.5">
-														<span className="flex items-center gap-2">
-															<SelectPrimitive.ItemText>
-																{opt.label}
-															</SelectPrimitive.ItemText>
-															{requiresPremium && <PremiumBadge />}
-														</span>
+														<SelectPrimitive.ItemText
+															className={cn(
+																requiresPremium && "text-content-disabled",
+															)}
+														>
+															{opt.label}
+														</SelectPrimitive.ItemText>
 														<span className="text-xs text-content-secondary whitespace-normal wrap-break-word">
-															{opt.description}
+															{requiresPremium
+																? `Requires a Premium license. ${opt.description}`
+																: opt.description}
 														</span>
 													</div>
 												</SelectPrimitive.Item>
@@ -349,21 +347,6 @@ const CreateUserFormFields: React.FC<CreateUserFormFieldsProps> = ({
 										className="text-xs text-content-secondary"
 									>
 										{loginTypeField.helperText}
-										{!serviceAccountsEnabled && (
-											<>
-												{" "}
-												Service accounts require Premium.{" "}
-												{canViewPremium ? (
-													<Link asChild size="sm" showExternalIcon={false}>
-														<RouterLink to={PREMIUM_PAGE_PATH}>
-															Learn about Premium
-														</RouterLink>
-													</Link>
-												) : (
-													"Contact your deployment administrator for Premium."
-												)}
-											</>
-										)}
 									</span>
 								)}
 							</div>
