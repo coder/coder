@@ -59,7 +59,6 @@ export const Default: Story = {
 			canvas.getByRole("combobox", { name: /authentication method/i }),
 		);
 		await userEvent.click(body.getByRole("option", { name: "OAuth2" }));
-		await expect(canvas.getByLabelText(/client id/i)).toBeInTheDocument();
 		await waitFor(() => {
 			expect(body.queryByRole("option", { name: "OAuth2" })).toBeNull();
 		});
@@ -79,6 +78,20 @@ export const Default: Story = {
 		await expect(canvas.getByLabelText(/^slug/i)).toHaveValue("");
 		await expect(canvas.getByLabelText(/server url/i)).toHaveValue("");
 		await expect(addButton).toBeDisabled();
+	},
+};
+
+export const AutomaticOAuth2Registration: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /authentication/i }),
+		);
+		await userEvent.click(
+			canvas.getByRole("combobox", { name: /authentication method/i }),
+		);
+		await userEvent.click(body.getByRole("option", { name: "OAuth2" }));
 	},
 };
 

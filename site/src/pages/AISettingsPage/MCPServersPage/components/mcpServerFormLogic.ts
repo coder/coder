@@ -19,6 +19,14 @@ export const AUTH_TYPE_LABELS = Object.fromEntries(
 	AUTH_TYPE_OPTIONS.map(({ value, label }) => [value, label]),
 ) as Record<string, string>;
 
+export const OAUTH2_CLIENT_REGISTRATION_OPTIONS = [
+	{ value: "dynamic", label: "Automatic" },
+	{ value: "manual", label: "Manual" },
+] as const satisfies ReadonlyArray<{
+	value: TypesGen.MCPServerOAuth2ClientRegistration;
+	label: string;
+}>;
+
 export const AVAILABILITY_OPTIONS = [
 	{
 		value: "force_on",
@@ -50,6 +58,7 @@ export type MCPServerFormValues = {
 	url: string;
 	transport: string;
 	authType: string;
+	oauth2ClientRegistration: TypesGen.MCPServerOAuth2ClientRegistration;
 	oauth2ClientID: string;
 	oauth2ClientSecret: string;
 	oauth2SecretTouched: boolean;
@@ -93,6 +102,10 @@ export const buildInitialMCPServerFormValues = (
 	url: server?.url ?? "",
 	transport: server?.transport ?? "streamable_http",
 	authType: server?.auth_type ?? "none",
+	oauth2ClientRegistration:
+		server?.auth_type === "oauth2"
+			? (server.oauth2_client_registration ?? "manual")
+			: "dynamic",
 	oauth2ClientID: server?.oauth2_client_id ?? "",
 	oauth2ClientSecret: server?.has_oauth2_secret ? SECRET_PLACEHOLDER : "",
 	oauth2SecretTouched: false,
@@ -130,6 +143,12 @@ const hasAPIKeyCredentials = (values: MCPServerFormValues): boolean => {
 	return values.apiKeyValue.trim() !== "";
 };
 
+const hasRequiredOAuth2Fields = (values: MCPServerFormValues): boolean =>
+	values.oauth2ClientRegistration === "dynamic" ||
+	(values.oauth2ClientID.trim() !== "" &&
+		values.oauth2AuthURL.trim() !== "" &&
+		values.oauth2TokenURL.trim() !== "");
+
 export const canSubmitMCPServerForm = (
 	values: MCPServerFormValues,
 	isDisabled: boolean,
@@ -138,7 +157,8 @@ export const canSubmitMCPServerForm = (
 	values.displayName.trim() !== "" &&
 	values.slug.trim() !== "" &&
 	values.url.trim() !== "" &&
-	(values.authType !== "api_key" || hasAPIKeyCredentials(values));
+	(values.authType !== "api_key" || hasAPIKeyCredentials(values)) &&
+	(values.authType !== "oauth2" || hasRequiredOAuth2Fields(values));
 
 export const buildCreateMCPServerConfigRequest = (
 	values: MCPServerFormValues,
@@ -174,6 +194,18 @@ export const buildCreateMCPServerConfigRequest = (
 	};
 
 	if (values.authType === "oauth2") {
+		const oauth2Request: TypesGen.CreateMCPServerConfigRequest = {
+			...request,
+			oauth2_client_registration: values.oauth2ClientRegistration,
+			oauth2_revocation_url: values.oauth2RevocationURL.trim() || undefined,
+			oauth2_resource: values.oauth2Resource.trim() || undefined,
+			oauth2_scopes: values.oauth2Scopes.trim() || undefined,
+		};
+		// Coder owns the client fields of a dynamic registration and rejects changes to them.
+		if (values.oauth2ClientRegistration === "dynamic") {
+			return oauth2Request;
+		}
+
 		const oauth2ClientSecret =
 			values.oauth2SecretTouched &&
 			values.oauth2ClientSecret !== SECRET_PLACEHOLDER &&
@@ -182,14 +214,11 @@ export const buildCreateMCPServerConfigRequest = (
 				: undefined;
 
 		return {
-			...request,
+			...oauth2Request,
 			oauth2_client_id: values.oauth2ClientID.trim(),
 			oauth2_client_secret: oauth2ClientSecret,
 			oauth2_auth_url: values.oauth2AuthURL.trim() || undefined,
 			oauth2_token_url: values.oauth2TokenURL.trim() || undefined,
-			oauth2_revocation_url: values.oauth2RevocationURL.trim() || undefined,
-			oauth2_resource: values.oauth2Resource.trim() || undefined,
-			oauth2_scopes: values.oauth2Scopes.trim() || undefined,
 		};
 	}
 
@@ -235,6 +264,7 @@ export const buildUpdateMCPServerConfigRequest = (
 		...(values.authType === "oauth2" && {
 			oauth2_revocation_url: values.oauth2RevocationURL.trim(),
 			oauth2_resource: values.oauth2Resource.trim(),
+			oauth2_scopes: values.oauth2Scopes.trim(),
 		}),
 		tool_allow_list: [...(base.tool_allow_list ?? [])],
 		tool_deny_list: [...(base.tool_deny_list ?? [])],
