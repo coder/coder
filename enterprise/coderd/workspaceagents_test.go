@@ -14,6 +14,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -487,21 +488,15 @@ func TestWorkspaceExternalAgentCredentials(t *testing.T) {
 		// Reading a workspace also reads its template, so the read-only
 		// token needs template:read alongside workspace:read.
 		readOnlyClient := scopedMemberClient(codersdk.APIKeyScopeWorkspaceRead, codersdk.APIKeyScopeTemplateRead)
-		accessTokenClient := scopedMemberClient(codersdk.APIKeyScopeCoderWorkspacesAccess)
-		operateTokenClient := scopedMemberClient(codersdk.APIKeyScopeCoderWorkspacesOperate)
+		// The access and operate scopes don't include template:read on this
+		// branch, so add it for the workspace read below. It grants no SSH.
+		accessTokenClient := scopedMemberClient(codersdk.APIKeyScopeCoderWorkspacesAccess, codersdk.APIKeyScopeTemplateRead)
+		operateTokenClient := scopedMemberClient(codersdk.APIKeyScopeCoderWorkspacesOperate, codersdk.APIKeyScopeTemplateRead)
 		createTokenClient := scopedMemberClient(codersdk.APIKeyScopeCoderWorkspacesCreate)
 
 		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: orgID,
 			OwnerID:        member.ID,
-			UserACL: database.WorkspaceACL{
-				useSharee.ID.String(): {
-					Permissions: db2sdk.WorkspaceRoleActions(codersdk.WorkspaceRoleUse),
-				},
-				adminSharee.ID.String(): {
-					Permissions: db2sdk.WorkspaceRoleActions(codersdk.WorkspaceRoleAdmin),
-				},
-			},
 		}).Seed(database.WorkspaceBuild{
 			HasExternalAgent: sql.NullBool{
 				Bool:  true,
@@ -516,6 +511,22 @@ func TestWorkspaceExternalAgentCredentials(t *testing.T) {
 			a[0].Architecture = "amd64"
 			return a
 		}).Do()
+
+		// dbgen.Workspace doesn't persist UserACL on this branch, so set the
+		// shares directly.
+		err := db.UpdateWorkspaceACLByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceACLByIDParams{
+			ID: r.Workspace.ID,
+			UserACL: database.WorkspaceACL{
+				useSharee.ID.String(): {
+					Permissions: db2sdk.WorkspaceRoleActions(codersdk.WorkspaceRoleUse),
+				},
+				adminSharee.ID.String(): {
+					Permissions: db2sdk.WorkspaceRoleActions(codersdk.WorkspaceRoleAdmin),
+				},
+			},
+			GroupACL: database.WorkspaceACL{},
+		})
+		require.NoError(t, err)
 
 		for _, tc := range []struct {
 			name    string
