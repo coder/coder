@@ -255,6 +255,8 @@ const mergeReadFileMessageGroup = (
 			toolResults: group.flatMap((entry) => entry.parsed.toolResults),
 			tools: group.flatMap((entry) => entry.parsed.tools),
 			blocks: group.flatMap((entry) => entry.parsed.blocks),
+			// The merged entry keeps the first message, whose blocks lead the list.
+			partBlockIndices: first.parsed.partBlockIndices,
 			sources: [],
 			hookNotices: [],
 		},

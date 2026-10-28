@@ -67,12 +67,9 @@ import {
 } from "./AgentCreateForm";
 import { serializeMessageDraft } from "./ChatMessageInput/SkillInvocationNode";
 
-const dashboard = vi.hoisted(
-	(): { showOrganizations: boolean; experiments: string[] } => ({
-		showOrganizations: false,
-		experiments: [],
-	}),
-);
+const dashboard = vi.hoisted((): { showOrganizations: boolean } => ({
+	showOrganizations: false,
+}));
 
 vi.mock("#/modules/dashboard/useDashboard", async () => {
 	const { MockDefaultOrganization, MockOrganization2 } = await import(
@@ -82,7 +79,6 @@ vi.mock("#/modules/dashboard/useDashboard", async () => {
 		useDashboard: () => ({
 			organizations: [MockDefaultOrganization, MockOrganization2],
 			showOrganizations: dashboard.showOrganizations,
-			experiments: dashboard.experiments,
 		}),
 	};
 });
@@ -917,14 +913,6 @@ describe("AgentCreateForm project picker", () => {
 		await user().click(await screen.findByRole("option", { name }));
 	};
 
-	beforeEach(() => {
-		dashboard.experiments = ["chat-projects"];
-	});
-
-	afterEach(() => {
-		dashboard.experiments = [];
-	});
-
 	it("creates the chat outside any project by default", async () => {
 		const { onCreateChat } = renderForm(
 			{},
@@ -1148,14 +1136,6 @@ describe("AgentCreateForm project picker", () => {
 });
 
 describe("AgentCreateForm project actions", () => {
-	beforeEach(() => {
-		dashboard.experiments = ["chat-projects"];
-	});
-
-	afterEach(() => {
-		dashboard.experiments = [];
-	});
-
 	it("inserts a project action's skill into the new chat", async () => {
 		const queryClient = createQueryClient();
 		queryClient.setQueryData(chatProjectSkillsKey(MockChatProject.id), [

@@ -104,13 +104,11 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		canManageAgentSettings = false,
 		currentUserId,
 	} = props;
-	const { organizations, experiments } = useDashboard();
+	const { organizations } = useDashboard();
 	const initialOrganizationId =
 		getDefaultOrganizationId(organizations) ?? organizations[0]?.id;
 	// The sidebar lists the user's projects across organizations.
-	const chatProjectsEnabled =
-		experiments.includes("chat-projects") &&
-		initialOrganizationId !== undefined;
+	const chatProjectsEnabled = initialOrganizationId !== undefined;
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const location = useLocation();

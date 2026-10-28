@@ -3143,6 +3143,16 @@ func validWorkspaceTTLMillis(millis *int64, templateDefault time.Duration) (sql.
 		}, nil
 	}
 
+	// Check the bounds before converting to a time.Duration: out of range
+	// values wrap around and can land inside the valid range. The maximum
+	// check compares whole minutes to match the truncation below.
+	if *millis < 0 {
+		return sql.NullInt64{}, errTTLMin
+	}
+	if *millis/time.Minute.Milliseconds() > int64(ttlMaximum/time.Minute) {
+		return sql.NullInt64{}, errTTLMax
+	}
+
 	dur := time.Duration(*millis) * time.Millisecond
 	truncated := dur.Truncate(time.Minute)
 	if truncated < ttlMinimum {

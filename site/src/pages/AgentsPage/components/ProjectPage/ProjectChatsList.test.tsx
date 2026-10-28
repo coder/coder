@@ -93,7 +93,7 @@ const renderList = (
 				<DashboardContext.Provider
 					value={{
 						entitlements: MockEntitlements,
-						experiments: ["chat-projects"],
+						experiments: [],
 						appearance: MockAppearanceConfig,
 						buildInfo: MockBuildInfo,
 						organizations: [MockDefaultOrganization],
