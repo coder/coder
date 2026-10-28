@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import type { Feature } from "#/api/typesGenerated";
 import {
 	MockAgentRuntimeHoursFeature,
@@ -71,6 +71,13 @@ export const LoadError: Story = {
 			message: "Internal error fetching licenses.",
 			detail: "database connection refused",
 		}),
+		onRetryLicenses: fn(),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.queryByText("No licenses yet")).not.toBeInTheDocument();
+		await userEvent.click(canvas.getByRole("button", { name: /retry/i }));
+		await expect(args.onRetryLicenses).toHaveBeenCalledTimes(1);
 	},
 };
 

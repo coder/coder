@@ -34,6 +34,8 @@ type Props = {
 	userLimitLimit?: number;
 	licenses?: GetLicensesResponse[];
 	licensesError?: unknown;
+	isRetryingLicenses?: boolean;
+	onRetryLicenses?: () => void;
 	canViewLicenses: boolean;
 	isRemovingLicense: boolean;
 	isRefreshing: boolean;
@@ -52,6 +54,8 @@ const LicensesSettingsPageView: React.FC<Props> = ({
 	userLimitLimit,
 	licenses,
 	licensesError,
+	isRetryingLicenses = false,
+	onRetryLicenses,
 	canViewLicenses,
 	isRemovingLicense,
 	isRefreshing,
@@ -114,7 +118,23 @@ const LicensesSettingsPageView: React.FC<Props> = ({
 				{isLoading && <Skeleton height={78} />}
 
 				{!isLoading && Boolean(licensesError) && (
-					<ErrorAlert error={licensesError} />
+					<ErrorAlert
+						error={licensesError}
+						actions={
+							onRetryLicenses && (
+								<Button
+									variant="outline"
+									size="sm"
+									type="button"
+									disabled={isRetryingLicenses}
+									onClick={onRetryLicenses}
+								>
+									<Spinner loading={isRetryingLicenses} />
+									Retry
+								</Button>
+							)
+						}
+					/>
 				)}
 
 				{!isLoading && licenses && licenses?.length > 0 && (

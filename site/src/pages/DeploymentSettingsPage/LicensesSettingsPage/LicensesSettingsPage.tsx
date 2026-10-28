@@ -60,6 +60,8 @@ const LicensesSettingsPage: React.FC = () => {
 		data: licensesList,
 		isLoading,
 		error: licensesError,
+		isFetching: isFetchingLicenses,
+		refetch: refetchLicenses,
 	} = useQuery(licenses());
 
 	useEffect(() => {
@@ -93,6 +95,8 @@ const LicensesSettingsPage: React.FC = () => {
 				userLimitLimit={entitlementsQuery.data?.features.user_limit?.limit}
 				licenses={licensesList}
 				licensesError={licensesError}
+				isRetryingLicenses={isFetchingLicenses}
+				onRetryLicenses={() => void refetchLicenses()}
 				canViewLicenses={permissions.viewAllLicenses}
 				isRemovingLicense={isRemovingLicense}
 				removeLicense={(licenseId: number) => removeLicenseApi(licenseId)}
