@@ -1777,30 +1777,6 @@ export const chatAttachments = (
 export const chatArchiveMutationKey = (chatId: string) =>
 	["chats", "archive", chatId] as const;
 
-type ArchiveChangeContext = {
-	previousChat?: TypesGen.Chat;
-	previousProjectLists?: ReadonlyArray<
-		readonly [QueryKey, InfiniteChatsCacheData | undefined]
-	>;
-};
-
-// Project lists filter on archived, and a folder can hold a chat no other
-// cache does, so a failed change restores them instead of waiting on a
-// refetch that may also fail.
-const rollBackArchiveChange = (
-	queryClient: QueryClient,
-	chatId: string,
-	context: ArchiveChangeContext | undefined,
-) => {
-	void invalidateChatListQueries(queryClient);
-	for (const [queryKey, data] of context?.previousProjectLists ?? []) {
-		queryClient.setQueryData(queryKey, data);
-	}
-	if (context?.previousChat) {
-		patchChatEntity(queryClient, chatId, () => context.previousChat);
-	}
-};
-
 export const archiveChat = (queryClient: QueryClient) => ({
 	mutationFn: (chatId: string) =>
 		API.experimental.updateChat(chatId, { archived: true }),
@@ -1810,6 +1786,8 @@ export const archiveChat = (queryClient: QueryClient) => ({
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatEntityKey(chatId),
 		);
+		// Project pages hide archived rows, so a failed archive restores
+		// these lists instead of waiting on a refetch that may also fail.
 		const previousProjectLists =
 			queryClient.getQueriesData<InfiniteChatsCacheData>({
 				queryKey: chatProjectListFamilyKey,
@@ -1836,8 +1814,24 @@ export const archiveChat = (queryClient: QueryClient) => ({
 	onError: (
 		_error: unknown,
 		chatId: string,
-		context: ArchiveChangeContext | undefined,
-	) => rollBackArchiveChange(queryClient, chatId, context),
+		context:
+			| {
+					previousChat?: TypesGen.Chat;
+					previousProjectLists?: ReadonlyArray<
+						readonly [QueryKey, InfiniteChatsCacheData | undefined]
+					>;
+			  }
+			| undefined,
+	) => {
+		// Rollback: invalidate to re-fetch the correct state.
+		void invalidateChatListQueries(queryClient);
+		for (const [queryKey, data] of context?.previousProjectLists ?? []) {
+			queryClient.setQueryData(queryKey, data);
+		}
+		if (context?.previousChat) {
+			patchChatEntity(queryClient, chatId, () => context.previousChat);
+		}
+	},
 	onSuccess: (_data: unknown, chatId: string) => {
 		applyChatArchiveStateToCaches(queryClient, chatId, true);
 		removeChatFromChatsByWorkspace(queryClient, chatId);
@@ -1859,10 +1853,6 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatEntityKey(chatId),
 		);
-		const previousProjectLists =
-			queryClient.getQueriesData<InfiniteChatsCacheData>({
-				queryKey: chatProjectListFamilyKey,
-			});
 		// Reuse patchChatArchiveState so the optimistic snapshot
 		// matches the confirmed onSuccess state.
 		updateInfiniteChatsCache(queryClient, (chats) =>
@@ -1876,13 +1866,30 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 				patchChatArchiveState(previousChat, false),
 			);
 		}
-		return { previousChat, previousProjectLists };
+		return { previousChat };
 	},
 	onError: (
 		_error: unknown,
 		chatId: string,
-		context: ArchiveChangeContext | undefined,
-	) => rollBackArchiveChange(queryClient, chatId, context),
+		context:
+			| {
+					previousChat?: TypesGen.Chat;
+			  }
+			| undefined,
+	) => {
+		// A folder can hold this chat when no entity cache does, and the
+		// refetch may fail too. Only this row is restored, so updates to
+		// other rows made while the request ran survive.
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) =>
+				chat.id === chatId ? patchChatArchiveState(chat, true) : chat,
+			),
+		);
+		void invalidateChatListQueries(queryClient);
+		if (context?.previousChat) {
+			patchChatEntity(queryClient, chatId, () => context.previousChat);
+		}
+	},
 	onSuccess: (_data: unknown, chatId: string) => {
 		applyChatArchiveStateToCaches(queryClient, chatId, false);
 	},

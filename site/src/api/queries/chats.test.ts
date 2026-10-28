@@ -1363,18 +1363,28 @@ describe("unarchiveChat optimistic update", () => {
 			toChatListParams({ archived: true }),
 		);
 		queryClient.setQueryData(folderKey, {
-			pages: [[makeChat(chatId, { archived: true })]],
+			pages: [
+				[
+					makeChat(chatId, { archived: true }),
+					makeChat("chat-2", { archived: true }),
+				],
+			],
 			pageParams: [0],
 		});
 
 		const mutation = unarchiveChat(queryClient);
 		const context = await mutation.onMutate(chatId);
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) =>
+				chat.id === "chat-2" ? { ...chat, title: "Renamed" } : chat,
+			),
+		);
 		mutation.onError(new Error("server error"), chatId, context);
 
-		expect(
-			queryClient.getQueryData<InfiniteData>(folderKey)?.pages[0]?.[0]
-				?.archived,
-		).toBe(true);
+		const [chat, otherChat] =
+			queryClient.getQueryData<InfiniteData>(folderKey)?.pages[0] ?? [];
+		expect(chat?.archived).toBe(true);
+		expect(otherChat?.title).toBe("Renamed");
 	});
 
 	it("rolls back both caches on error", async () => {
