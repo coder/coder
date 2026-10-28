@@ -8,7 +8,6 @@ import {
 	WrenchIcon,
 	ZapIcon,
 } from "lucide-react";
-import { useRef, useState } from "react";
 import type {
 	ChatContext,
 	ChatContextResource,
@@ -30,14 +29,12 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { formatKiB } from "#/utils/fileSize";
-import { isMobileViewport } from "#/utils/mobile";
 import {
 	compactionThresholdLabel,
 	compactionThresholdPercent,
 	type ResolvedCompactionThreshold,
 } from "../utils/compactionTriggers";
 import { getPathBasename, getPathDirname } from "../utils/path";
-import { SvgRingProgress } from "./SvgRingProgress";
 
 export type AgentContextUsage = {
 	readonly usedTokens?: number;
@@ -180,45 +177,6 @@ const groupByDirectory = <T extends { readonly dir: string }>(
 	return order.map((dir) => ({ dir, items: byDir.get(dir) ?? [] }));
 };
 
-const RING_SIZE = 22;
-const RING_STROKE = 2.25;
-
-const GLYPH_HEIGHT = 11;
-const GLYPH_STROKE = 1.75;
-const GLYPH_BAR_LENGTH = 8.1;
-const GLYPH_TOP = (RING_SIZE - GLYPH_HEIGHT) / 2;
-const GLYPH_CX = RING_SIZE / 2;
-
-const ExclamationGlyph: React.FC = () => (
-	<svg
-		width={RING_SIZE}
-		height={RING_SIZE}
-		viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}
-		fill="none"
-		aria-hidden="true"
-	>
-		<line
-			x1={GLYPH_CX}
-			y1={GLYPH_TOP + GLYPH_STROKE / 2}
-			x2={GLYPH_CX}
-			y2={GLYPH_TOP + GLYPH_BAR_LENGTH - GLYPH_STROKE / 2}
-			stroke="currentColor"
-			strokeWidth={GLYPH_STROKE}
-			strokeLinecap="round"
-		/>
-		<circle
-			cx={GLYPH_CX}
-			cy={GLYPH_TOP + GLYPH_HEIGHT - GLYPH_STROKE / 2}
-			r={GLYPH_STROKE / 2}
-			fill="currentColor"
-		/>
-	</svg>
-);
-
-// Delay before the popover closes after the mouse leaves, giving
-// the user time to move into the popover content.
-const HOVER_CLOSE_DELAY_MS = 150;
-
 // Dimmed directory header shown above a group of context resources when a
 // section spans more than one directory.
 const ContextDirLabel: React.FC<{ dir: string }> = ({ dir }) => (
@@ -259,29 +217,6 @@ export const ContextUsageIndicator: React.FC<{
 	onRefreshContext?: () => void;
 	isRefreshingContext?: boolean;
 }> = ({ usage, onRefreshContext, isRefreshingContext }) => {
-	const [open, setOpen] = useState(false);
-	const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-	const cancelClose = () => {
-		if (closeTimerRef.current) {
-			clearTimeout(closeTimerRef.current);
-			closeTimerRef.current = null;
-		}
-	};
-
-	const scheduleClose = () => {
-		cancelClose();
-		closeTimerRef.current = setTimeout(() => {
-			setOpen(false);
-			closeTimerRef.current = null;
-		}, HOVER_CLOSE_DELAY_MS);
-	};
-
-	const handleMouseEnter = () => {
-		cancelClose();
-		setOpen(true);
-	};
-
 	const usedTokens = hasFiniteTokenValue(usage.usedTokens)
 		? usage.usedTokens
 		: undefined;
@@ -462,11 +397,12 @@ export const ContextUsageIndicator: React.FC<{
 							<div
 								className={cn(
 									"h-2 w-[calc(var(--data-percentUsed)*1%)] bg-current rounded-xs",
+									clampedPercent > 0 && "min-w-1",
 									getIndicatorToneClassName(percentUsed, compactionPercent),
 								)}
 							/>
 							{compactionPercent !== undefined && (
-								<div className="absolute top-0 left-[calc(var(--data-compactsAt)*1%)] h-2 w-0.5 -translate-x-1/2 bg-content-primary ring-1 ring-surface-primary" />
+								<div className="absolute top-0 left-[calc(var(--data-compactsAt)*1%)] h-2 w-0.5 -translate-x-1/2 bg-content-primary" />
 							)}
 						</div>
 						<span
@@ -711,64 +647,46 @@ export const ContextUsageIndicator: React.FC<{
 		<button
 			type="button"
 			aria-label={ariaLabel}
-			className="relative inline-flex size-7 shrink-0 items-center justify-center rounded-full border-none bg-transparent p-0 outline-hidden transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
+			className="inline-flex h-7 shrink-0 items-center gap-2 rounded-md border-none bg-transparent px-1 text-xs outline-hidden transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
 		>
-			<SvgRingProgress
-				size={RING_SIZE}
-				strokeWidth={RING_STROKE}
-				percent={clampedPercent}
-				trackClassName="stroke-border"
-				progressClassName="stroke-current"
-				className={toneClassName}
-			/>
-			{needsAttention && (
+			<span
+				aria-hidden="true"
+				className="relative h-2 w-10 rounded-xs bg-surface-tertiary"
+			>
 				<span
-					aria-hidden="true"
 					className={cn(
-						"absolute inset-0 flex items-center justify-center",
+						"block h-full rounded-xs bg-current",
+						clampedPercent > 0 && "min-w-1",
 						toneClassName,
 					)}
-				>
-					<ExclamationGlyph />
-				</span>
+					style={{ width: `${clampedPercent}%` }}
+				/>
+				{compactionPercent !== undefined && (
+					<span
+						className="absolute -top-0.5 h-3 w-0.5 -translate-x-1/2 bg-content-primary"
+						style={{ left: `${compactionPercent}%` }}
+					/>
+				)}
+			</span>
+			<span className="text-content-secondary tabular-nums">
+				{percentLabel}
+			</span>
+			{needsAttention && (
+				<TriangleAlertIcon
+					aria-hidden="true"
+					className={cn("size-3 shrink-0", toneClassName)}
+				/>
 			)}
 		</button>
 	);
 
-	// On mobile, a tap toggles the popover. On desktop, hover opens
-	// it like a dropdown menu and skill descriptions appear as
-	// nested tooltips to the right.
-	if (isMobileViewport()) {
-		return (
-			<Popover>
-				<PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
-				<PopoverContent
-					side="top"
-					className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-auto max-w-72"
-				>
-					{panelContent}
-				</PopoverContent>
-			</Popover>
-		);
-	}
-
 	return (
-		<Popover open={open} onOpenChange={setOpen}>
-			<div
-				className="flex"
-				onMouseEnter={handleMouseEnter}
-				onMouseLeave={scheduleClose}
-			>
-				<PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
-			</div>
+		<Popover>
+			<PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
 			<PopoverContent
 				side="top"
-				className="w-76"
-				onMouseEnter={cancelClose}
-				onMouseLeave={scheduleClose}
-				// Prevent the popover from stealing focus, which would
-				// interfere with the chat input.
-				onOpenAutoFocus={(e) => e.preventDefault()}
+				align="end"
+				className="mobile-full-width-dropdown w-76"
 			>
 				{panelContent}
 			</PopoverContent>
