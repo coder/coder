@@ -243,32 +243,38 @@ export const resolveChatCompactionThreshold = (
 export const formatCompactionPercent = (percent: number) =>
 	percent.toLocaleString("en-US", { maximumFractionDigits: 1 });
 
-/**
- * Converts an organization point against the displayed context window, which
- * may differ from the configured one.
- */
+/** Returns undefined when compaction is off or outside the displayed window. */
+export const compactionThresholdPercent = (
+	compaction: ResolvedCompactionThreshold,
+	contextLimit: number,
+): number | undefined => {
+	if (compaction.source === "organization") {
+		if (isCompactionPointBeyondWindow(compaction.pointTokens, contextLimit)) {
+			return undefined;
+		}
+		return compactionPointAsPercent(compaction.pointTokens, contextLimit);
+	}
+	return compaction.percent < compactionDisabledThresholdPercent
+		? compaction.percent
+		: undefined;
+};
+
+/** Formats the threshold against the displayed window, including override status. */
 export const compactionThresholdLabel = (
 	compaction: ResolvedCompactionThreshold,
 	contextLimit: number,
 ): string | undefined => {
+	const percent = compactionThresholdPercent(compaction, contextLimit);
 	if (compaction.source === "organization") {
-		const percent = compactionPointAsPercent(
-			compaction.pointTokens,
-			contextLimit,
-		);
-		if (
-			percent === undefined ||
-			isCompactionPointBeyondWindow(compaction.pointTokens, contextLimit)
-		) {
-			return undefined;
-		}
-		return `Compacts at ${formatCompactionPercent(percent)}% (organization override)`;
+		return percent === undefined
+			? undefined
+			: `Compacts at ${formatCompactionPercent(percent)}% (organization override)`;
 	}
 	const notLoadedSuffix = compaction.organizationOverrideNotLoaded
 		? " (organization override not loaded)"
 		: "";
-	if (compaction.percent < compactionDisabledThresholdPercent) {
-		return `Compacts at ${formatCompactionPercent(compaction.percent)}%${notLoadedSuffix}`;
+	if (percent !== undefined) {
+		return `Compacts at ${formatCompactionPercent(percent)}%${notLoadedSuffix}`;
 	}
 	if (compaction.organizationOverrideNotLoaded) {
 		return "Compaction off (organization override not loaded)";

@@ -33,6 +33,7 @@ import { formatKiB } from "#/utils/fileSize";
 import { isMobileViewport } from "#/utils/mobile";
 import {
 	compactionThresholdLabel,
+	compactionThresholdPercent,
 	type ResolvedCompactionThreshold,
 } from "../utils/compactionTriggers";
 import { getPathBasename, getPathDirname } from "../utils/path";
@@ -135,14 +136,17 @@ const SectionSize: React.FC<{ bytes: number }> = ({ bytes }) =>
 		</span>
 	) : null;
 
-const getIndicatorToneClassName = (percentUsed: number | null): string => {
+const getIndicatorToneClassName = (
+	percentUsed: number | null,
+	compactionPercent: number | undefined,
+): string => {
 	if (percentUsed === null) {
 		return "text-content-secondary";
 	}
 	if (percentUsed >= 95) {
 		return "text-content-destructive";
 	}
-	if (percentUsed >= 85) {
+	if (percentUsed >= (compactionPercent ?? 100) * 0.9) {
 		return "text-content-warning";
 	}
 	return "text-content-secondary";
@@ -308,6 +312,13 @@ export const ContextUsageIndicator: React.FC<{
 		usage.compactionThreshold && contextLimitTokens !== undefined
 			? compactionThresholdLabel(usage.compactionThreshold, contextLimitTokens)
 			: undefined;
+	const compactionPercent =
+		usage.compactionThreshold && contextLimitTokens !== undefined
+			? compactionThresholdPercent(
+					usage.compactionThreshold,
+					contextLimitTokens,
+				)
+			: undefined;
 	const clampedPercent = hasPercent
 		? Math.min(Math.max(percentUsed, 0), 100)
 		: 0;
@@ -406,7 +417,7 @@ export const ContextUsageIndicator: React.FC<{
 		? "text-content-destructive"
 		: isDirty || hasResourceIssues
 			? "text-content-warning"
-			: getIndicatorToneClassName(percentUsed);
+			: getIndicatorToneClassName(percentUsed, compactionPercent);
 	const fileBytes = sumResourceBytes(pinnedResources ?? [], [
 		"instruction_file",
 	]);
@@ -435,17 +446,49 @@ export const ContextUsageIndicator: React.FC<{
 		ariaLabel = `Context usage.${statusNote}`;
 	}
 
-	let usageLabel = "Context usage will appear after sending a message.";
-	if (hasPercent) {
-		const prefix = usage.estimated ? "Estimated: " : "";
-		usageLabel = `${prefix}${percentLabel} - ${formatTokenCountCompact(usedTokens)} / ${formatTokenCountCompact(contextLimitTokens)} context used`;
-	} else if (hasReportedUsage) {
-		usageLabel = "Context usage unavailable";
-	}
-
 	const panelContent = (
-		<div className="text-xs text-content-primary">
-			{usageLabel}
+		<div className="text-xs text-content-primary p-3">
+			<div className="text-sm font-semibold">Context</div>
+			{hasReportedUsage ? (
+				hasPercent ? (
+					<div className="flex gap-2 items-center pt-2">
+						<div
+							className="flex-1 bg-surface-tertiary rounded-xs h-2 relative"
+							style={{
+								"--data-compactsAt": compactionPercent,
+								"--data-percentUsed": clampedPercent,
+							}}
+						>
+							<div
+								className={cn(
+									"h-2 w-[calc(var(--data-percentUsed)*1%)] bg-current rounded-xs",
+									getIndicatorToneClassName(percentUsed, compactionPercent),
+								)}
+							/>
+							{compactionPercent !== undefined && (
+								<div className="absolute top-0 left-[calc(var(--data-compactsAt)*1%)] h-2 w-0.5 -translate-x-1/2 bg-content-primary ring-1 ring-surface-primary" />
+							)}
+						</div>
+						<span
+							className={getIndicatorToneClassName(
+								percentUsed,
+								compactionPercent,
+							)}
+						>
+							{usage.estimated && "Est:"}
+							{percentLabel}
+						</span>
+						<span className="text-content-secondary">
+							({formatTokenCountCompact(usedTokens)}/
+							{formatTokenCountCompact(contextLimitTokens)})
+						</span>
+					</div>
+				) : (
+					<div>Context usage unavailable.</div>
+				)
+			) : (
+				<div>Context usage will appear after sending a message.</div>
+			)}
 			{hasPercent && usage.estimated && (
 				<div className="mt-1 max-w-64 text-content-secondary">
 					Based on the compacted summary only, excluding other prompt content
@@ -701,7 +744,7 @@ export const ContextUsageIndicator: React.FC<{
 				<PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
 				<PopoverContent
 					side="top"
-					className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-auto max-w-72 px-3 py-2"
+					className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-auto max-w-72"
 				>
 					{panelContent}
 				</PopoverContent>
@@ -720,7 +763,7 @@ export const ContextUsageIndicator: React.FC<{
 			</div>
 			<PopoverContent
 				side="top"
-				className="w-auto max-w-72 px-3 py-2"
+				className="w-76"
 				onMouseEnter={cancelClose}
 				onMouseLeave={scheduleClose}
 				// Prevent the popover from stealing focus, which would

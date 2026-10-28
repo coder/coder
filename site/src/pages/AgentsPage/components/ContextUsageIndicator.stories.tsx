@@ -118,6 +118,102 @@ export const ChatModelCompactionBinding: Story = {
 	},
 };
 
+export const HighUsage: Story = {
+	args: {
+		usage: { usedTokens: 90_000, contextLimitTokens: 100_000 },
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(within(canvasElement).getByRole("button"));
+	},
+};
+
+export const CriticalUsage: Story = {
+	...HighUsage,
+	args: {
+		usage: { usedTokens: 95_000, contextLimitTokens: 100_000 },
+	},
+};
+
+export const OverCapacity: Story = {
+	...HighUsage,
+	args: {
+		usage: { usedTokens: 120_000, contextLimitTokens: 100_000 },
+	},
+};
+
+export const UserCompactionThreshold: Story = {
+	...HighUsage,
+	args: {
+		usage: {
+			usedTokens: 680_000,
+			contextLimitTokens: 1_000_000,
+			compactionThreshold: {
+				percent: 70,
+				source: "user",
+				organizationOverrideNotLoaded: false,
+			},
+		},
+	},
+};
+
+export const BeforeCompactionWarning: Story = {
+	...HighUsage,
+	args: {
+		usage: {
+			...UserCompactionThreshold.args?.usage,
+			usedTokens: 629_000,
+		},
+	},
+};
+
+export const AtCompactionWarning: Story = {
+	...HighUsage,
+	args: {
+		usage: {
+			...UserCompactionThreshold.args?.usage,
+			usedTokens: 630_000,
+		},
+	},
+};
+
+export const BeforeWindowWarning: Story = {
+	...HighUsage,
+	args: {
+		usage: { usedTokens: 89_000, contextLimitTokens: 100_000 },
+	},
+};
+
+export const EstimatedUsage: Story = {
+	...HighUsage,
+	args: {
+		usage: {
+			...ChatModelCompactionBinding.args?.usage,
+			estimated: true,
+		},
+	},
+};
+
+export const ZeroUsage: Story = {
+	...HighUsage,
+	args: {
+		usage: { usedTokens: 0, contextLimitTokens: 100_000 },
+	},
+};
+
+export const OrganizationCompactionAtWindowLimit: Story = {
+	...HighUsage,
+	args: {
+		usage: {
+			usedTokens: 50_000,
+			contextLimitTokens: 100_000,
+			compactionThreshold: {
+				source: "organization",
+				pointTokens: 100_000,
+			},
+		},
+	},
+};
+
 const mockChatContextACPHarnessesWithOtherContext: ChatContext = {
 	...MockChatContextClean,
 	resources: [
