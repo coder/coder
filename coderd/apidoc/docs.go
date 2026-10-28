@@ -5009,7 +5009,6 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/stream": {
             "get": {
-                "description": "Each message is a JSON array of codersdk.ChatStreamEvent. An empty array is a keepalive.\nAn array that encodes to more than 256 KiB arrives as consecutive codersdk.ChatStreamChunk\nobjects; concatenating their chunk strings up to the one with last set gives the array.",
                 "produces": [
                     "application/json"
                 ],
