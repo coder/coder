@@ -28,12 +28,7 @@ type ReleaseExecutor interface {
 }
 
 // liveExecutor performs real operations.
-type liveExecutor struct {
-	// requestedBy and requestedByRunURL are passed to release.yaml
-	// when set, for attribution.
-	requestedBy       string
-	requestedByRunURL string
-}
+type liveExecutor struct{}
 
 func (*liveExecutor) CreateTag(_ context.Context, tag, ref, message string) error {
 	return gitRun("tag", "-a", tag, "-m", message, ref)
@@ -43,19 +38,11 @@ func (*liveExecutor) PushTag(_ context.Context, tag string) error {
 	return gitRun("push", "origin", tag)
 }
 
-func (e *liveExecutor) TriggerWorkflow(_ context.Context, ref, channel, releaseNotes string) error {
+func (*liveExecutor) TriggerWorkflow(_ context.Context, ref, channel, releaseNotes string) error {
 	payload := map[string]string{
 		"dry_run":         "false",
 		"release_channel": channel,
 		"release_notes":   releaseNotes,
-	}
-	// Only send these when set so a manual run of the releaser still
-	// works against release.yaml versions without the inputs.
-	if e.requestedBy != "" {
-		payload["requested_by"] = e.requestedBy
-	}
-	if e.requestedByRunURL != "" {
-		payload["requested_by_run_url"] = e.requestedByRunURL
 	}
 	payloadJSON, err := json.Marshal(payload)
 	if err != nil {

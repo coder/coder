@@ -820,9 +820,6 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, pretty.Sprint(cliui.BoldFmt(), "  Payload fields:"))
 	fmt.Fprintf(w, "    release_channel: %s\n", channel)
-	if opts.RequestedBy != "" {
-		fmt.Fprintf(w, "    requested_by:    %s\n", opts.RequestedBy)
-	}
 	fmt.Fprintf(w, "    dry_run:         false\n")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, pretty.Sprint(cliui.BoldFmt(), "  release_notes:"))

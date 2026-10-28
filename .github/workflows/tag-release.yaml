@@ -122,8 +122,8 @@ jobs:
           DRY_RUN: ${{ inputs.dry_run }}
           ALLOW_OPEN_PRS: ${{ inputs.allow_open_prs }}
           ALLOW_BREAKING_CHANGES: ${{ inputs.allow_breaking_changes }}
-          # The release App dispatches release.yaml, so pass the human who
-          # started this run for attribution.
+          # A bot pushes the tag, so record the human who started this run in
+          # the tag message.
           REQUESTED_BY: ${{ github.actor }}
         run: |
           set -euo pipefail

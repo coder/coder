@@ -17,16 +17,6 @@ on:
         type: boolean
         required: true
         default: false
-      requested_by:
-        description: Set by the Tag release workflow to the user who started it. Ignored on manual runs.
-        type: string
-        required: false
-        default: ""
-      requested_by_run_url:
-        description: Set by the Tag release workflow to its run URL. Ignored on manual runs.
-        type: string
-        required: false
-        default: ""
 
 permissions:
   contents: read
@@ -47,48 +37,11 @@ jobs:
   check-perms:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
-      # tag-release.yaml dispatches this workflow with the release App token,
-      # so the actor is the App's bot. Mint a token only to learn the App's
-      # slug and recognize it, scoped to read-only metadata since it is never
-      # used for API calls.
-      - name: Generate release App token
-        id: release_app_token
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
-        with:
-          app-id: ${{ secrets.RELEASE_APP_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-          permission-metadata: read
-
       - name: Allow only maintainers/admins
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        env:
-          RELEASE_APP_SLUG: ${{ steps.release_app_token.outputs.app-slug }}
-          REQUESTED_BY: ${{ inputs.requested_by }}
-          REQUESTED_BY_RUN_URL: ${{ inputs.requested_by_run_url }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const releaseAppSlug = process.env.RELEASE_APP_SLUG;
-            const {REQUESTED_BY: requestedBy, REQUESTED_BY_RUN_URL: requestedByRunURL} = process.env;
-            if (releaseAppSlug && context.actor === `${releaseAppSlug}[bot]`) {
-              core.info(`Actor ${context.actor} is the release App; tag-release.yaml checked the human actor.`);
-              if (requestedBy) {
-                core.info(`Requested by @${requestedBy}${requestedByRunURL ? ` via ${requestedByRunURL}` : ''}`);
-                await core.summary
-                  .addRaw(`Requested by @${requestedBy}`)
-                  .addRaw(requestedByRunURL ? ` via [Tag release](${requestedByRunURL})` : '')
-                  .addEOL()
-                  .write();
-              }
-              return;
-            }
-
-            // Anyone can type these inputs on a manual run, so they are not
-            // attribution here. The run is attributed to the actor.
-            if (requestedBy || requestedByRunURL) {
-              core.warning('Ignoring requested_by inputs: they are only used when the Tag release workflow dispatches this run.');
-            }
-
             const {data} = await github.rest.repos.getCollaboratorPermissionLevel({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -128,7 +81,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         with:
           egress-policy: audit
 
@@ -232,7 +185,7 @@ jobs:
 
       # Necessary for signing Windows binaries.
       - name: Setup Java
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: "zulu"
           java-version: "11.0"
@@ -756,7 +709,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         with:
           egress-policy: audit
 
@@ -832,7 +785,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         with:
           egress-policy: audit
 
