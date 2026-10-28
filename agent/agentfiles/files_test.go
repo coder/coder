@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -1326,6 +1327,10 @@ func TestReadFileLines(t *testing.T) {
 	err = afero.WriteFile(fs, basicFilePath, []byte("line1\nline2\nline3"), 0o644)
 	require.NoError(t, err)
 
+	trailingNewlineFilePath := filepath.Join(tmpdir, "trailing-newline-file")
+	err = afero.WriteFile(fs, trailingNewlineFilePath, []byte("line1\nline2\n"), 0o644)
+	require.NoError(t, err)
+
 	longLine := string(bytes.Repeat([]byte("x"), 1025))
 	longLineFilePath := filepath.Join(tmpdir, "long-line-file")
 	err = afero.WriteFile(fs, longLineFilePath, []byte(longLine), 0o644)
@@ -1336,16 +1341,18 @@ func TestReadFileLines(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name       string
-		path       string
-		offset     int64
-		limit      int64
-		expSuccess bool
-		expError   string
-		expContent string
-		expTotal   int
-		expRead    int
-		expSize    int64
+		name             string
+		path             string
+		offset           int64
+		limit            int64
+		maxResponseBytes int64
+		maxResponseLines int64
+		expSuccess       bool
+		expError         string
+		expContent       string
+		expTotal         int
+		expRead          int
+		expSize          int64
 		// useCodersdk is set for cases where the handler returns
 		// codersdk.Response (query param validation) instead of ReadFileLinesResponse.
 		useCodersdk bool
@@ -1425,6 +1432,42 @@ func TestReadFileLines(t *testing.T) {
 			expSize:    int64(len("line1\nline2\nline3")),
 		},
 		{
+			name:             "ByteBudgetEndsPage",
+			path:             basicFilePath,
+			maxResponseBytes: 15,
+			expSuccess:       true,
+			expContent:       "1\tline1\n2\tline2",
+			expTotal:         3,
+			expRead:          2,
+			expSize:          int64(len("line1\nline2\nline3")),
+		},
+		{
+			name:             "LimitClampedToMaxResponseLines",
+			path:             basicFilePath,
+			limit:            10,
+			maxResponseLines: 2,
+			expSuccess:       true,
+			expContent:       "1\tline1\n2\tline2",
+			expTotal:         3,
+			expRead:          2,
+			expSize:          int64(len("line1\nline2\nline3")),
+		},
+		{
+			name:       "TrailingNewline",
+			path:       trailingNewlineFilePath,
+			expSuccess: true,
+			expContent: "1\tline1\n2\tline2",
+			expTotal:   2,
+			expRead:    2,
+			expSize:    int64(len("line1\nline2\n")),
+		},
+		{
+			name:             "LineLargerThanByteBudget",
+			path:             basicFilePath,
+			maxResponseBytes: 3,
+			expError:         "line 1 does not fit in max_response_bytes (3)",
+		},
+		{
 			name:     "OffsetBeyondFile",
 			path:     basicFilePath,
 			offset:   100,
@@ -1453,8 +1496,19 @@ func TestReadFileLines(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
+			query := url.Values{}
+			query.Set("path", tt.path)
+			query.Set("offset", fmt.Sprint(tt.offset))
+			query.Set("limit", fmt.Sprint(tt.limit))
+			if tt.maxResponseBytes != 0 {
+				query.Set("max_response_bytes", fmt.Sprint(tt.maxResponseBytes))
+			}
+			if tt.maxResponseLines != 0 {
+				query.Set("max_response_lines", fmt.Sprint(tt.maxResponseLines))
+			}
+
 			w := httptest.NewRecorder()
-			r := httptest.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("/read-file-lines?path=%s&offset=%d&limit=%d", tt.path, tt.offset, tt.limit), nil)
+			r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/read-file-lines?"+query.Encode(), nil)
 			api.Routes().ServeHTTP(w, r)
 
 			if tt.useCodersdk {
