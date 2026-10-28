@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -86,7 +87,7 @@ func TestSkillOwners(t *testing.T) {
 	type skillRow struct {
 		owners
 		name              string
-		enabled           bool
+		enabled, action   bool
 		groupACL, userACL string
 	}
 	insertSkill := func(ctx context.Context, q interface {
@@ -103,9 +104,9 @@ func TestSkillOwners(t *testing.T) {
 			row.userACL = "{}"
 		}
 		_, err := q.ExecContext(ctx, `
-			INSERT INTO skills (id, user_id, organization_id, project_id, name, description, content, enabled, group_acl, user_acl)
-			VALUES ($1, $2, $3, $4, $5, 'desc', 'body', $6, $7::jsonb, $8::jsonb)`,
-			uuid.New(), row.user, row.org, row.project, row.name, row.enabled, row.groupACL, row.userACL)
+			INSERT INTO skills (id, user_id, organization_id, project_id, name, description, content, enabled, action, group_acl, user_acl)
+			VALUES ($1, $2, $3, $4, $5, 'desc', 'body', $6, $7, $8::jsonb, $9::jsonb)`,
+			uuid.New(), row.user, row.org, row.project, row.name, row.enabled, row.action, row.groupACL, row.userACL)
 		return err
 	}
 	countSkills := func(ctx context.Context, column string, id uuid.UUID) int {
@@ -155,6 +156,16 @@ func TestSkillOwners(t *testing.T) {
 		require.True(t, database.IsCheckViolation(err, database.CheckSkillsGroupAclIsObject), err)
 		err = insertSkill(ctx, sqlDB, skillRow{owners: org, userACL: "[]"})
 		require.True(t, database.IsCheckViolation(err, database.CheckSkillsUserAclIsObject), err)
+	})
+
+	t.Run("ActionOnlyOnProjectSkills", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		for _, o := range []owners{{user: valid(newUser())}, {org: valid(newOrg())}} {
+			err := insertSkill(ctx, sqlDB, skillRow{owners: o, action: true})
+			require.True(t, database.IsCheckViolation(err, database.CheckSkillsActionProjectOnly), "owners %+v: %v", o, err)
+		}
+		require.NoError(t, insertSkill(ctx, sqlDB, skillRow{owners: owners{project: valid(newProject())}, action: true}))
 	})
 
 	// TestUserSkillLimit and TestUserSkillLimitConcurrentCreates in coderd
@@ -379,4 +390,126 @@ func TestOrganizationSkillQueries(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, groupSkill.ID, deleted.ID)
+}
+
+func TestProjectSkillQueries(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+	authzDB := dbauthz.New(db, rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	newMember := func(orgRoles ...string) uuid.UUID {
+		user := dbgen.User(t, db, database.User{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID, Roles: orgRoles})
+		return user.ID
+	}
+	var (
+		projectOwner = newMember()
+		orgAdmin     = newMember(rbac.RoleOrgAdmin())
+		otherMember  = newMember()
+		reader       = newMember()
+	)
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: projectOwner})
+	require.NoError(t, db.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
+		ID:       project.ID,
+		UserACL:  database.ChatACL{reader.String(): {Permissions: []policy.Action{policy.ActionRead}}},
+		GroupACL: database.ChatACL{},
+	}))
+
+	// as takes the caller's t and ctx because parallel subtests only start
+	// after this function returns, possibly past the parent ctx deadline,
+	// and must not call FailNow on the parent test.
+	as := func(t *testing.T, ctx context.Context, userID uuid.UUID) context.Context {
+		t.Helper()
+		subject, _, err := httpmw.UserRBACSubject(ctx, db, userID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		return dbauthz.As(ctx, subject)
+	}
+	requireAllowed := func(t *testing.T, allowed bool, err error) {
+		t.Helper()
+		if allowed {
+			require.NoError(t, err)
+			return
+		}
+		require.True(t, dbauthz.IsNotAuthorizedError(err), err)
+	}
+
+	for name, tc := range map[string]struct {
+		user        uuid.UUID
+		read, write bool
+	}{
+		"ProjectOwner": {user: projectOwner, read: true, write: true},
+		"OrgAdmin":     {user: orgAdmin, read: true, write: true},
+		"SharedReader": {user: reader, read: true, write: false},
+		"OtherMember":  {user: otherMember, read: false, write: false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			userCtx := as(t, testutil.Context(t, testutil.WaitLong), tc.user)
+			_, err := authzDB.ListProjectSkillMetadataByProjectID(userCtx, project.ID)
+			requireAllowed(t, tc.read, err)
+
+			skillName := "skill-" + strings.ToLower(name)
+			_, err = authzDB.InsertProjectSkill(userCtx, database.InsertProjectSkillParams{
+				ID: uuid.New(), ProjectID: project.ID, Name: skillName, Description: "desc", Content: "body",
+			})
+			requireAllowed(t, tc.write, err)
+		})
+	}
+
+	ownerCtx := as(t, ctx, projectOwner)
+	skill, err := authzDB.InsertProjectSkill(ownerCtx, database.InsertProjectSkillParams{
+		ID: uuid.New(), ProjectID: project.ID, Name: "owned", Description: "desc", Content: "body",
+	})
+	require.NoError(t, err)
+	require.Equal(t, uuid.NullUUID{UUID: project.ID, Valid: true}, skill.ProjectID)
+
+	otherProject := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: projectOwner})
+	_, err = authzDB.InsertProjectSkill(ownerCtx, database.InsertProjectSkillParams{
+		ID: uuid.New(), ProjectID: otherProject.ID, Name: "other", Description: "desc", Content: "body",
+	})
+	require.NoError(t, err)
+	listed, err := authzDB.ListProjectSkillMetadataByProjectID(as(t, ctx, reader), project.ID)
+	require.NoError(t, err)
+	listedIDs := make([]uuid.UUID, 0, len(listed))
+	for _, row := range listed {
+		require.Equal(t, skill.ProjectID, row.ProjectID)
+		listedIDs = append(listedIDs, row.ID)
+	}
+	require.Contains(t, listedIDs, skill.ID)
+	got, err := authzDB.GetProjectSkillByProjectIDAndName(as(t, ctx, reader), database.GetProjectSkillByProjectIDAndNameParams{ProjectID: project.ID, Name: skill.Name})
+	require.NoError(t, err)
+	require.Equal(t, skill.Content, got.Content)
+	_, err = authzDB.GetProjectSkillByProjectIDAndName(as(t, ctx, reader), database.GetProjectSkillByProjectIDAndNameParams{ProjectID: project.ID, Name: "other"})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	_, err = authzDB.GetProjectSkillByProjectIDAndName(as(t, ctx, otherMember), database.GetProjectSkillByProjectIDAndNameParams{ProjectID: project.ID, Name: skill.Name})
+	require.True(t, dbauthz.IsNotAuthorizedError(err), err)
+	_, err = authzDB.GetProjectSkillByIDForUpdate(as(t, ctx, otherMember), skill.ID)
+	require.True(t, dbauthz.IsNotAuthorizedError(err), err)
+	locked, err := authzDB.GetProjectSkillByIDForUpdate(as(t, ctx, reader), skill.ID)
+	require.NoError(t, err)
+	require.Equal(t, skill.ID, locked.ID)
+
+	_, err = authzDB.UpdateProjectSkillByProjectIDAndName(as(t, ctx, reader), database.UpdateProjectSkillByProjectIDAndNameParams{
+		ProjectID: project.ID, Name: skill.Name, Enabled: sql.NullBool{Bool: false, Valid: true},
+	})
+	require.True(t, dbauthz.IsNotAuthorizedError(err), err)
+	updated, err := authzDB.UpdateProjectSkillByProjectIDAndName(ownerCtx, database.UpdateProjectSkillByProjectIDAndNameParams{
+		ProjectID: project.ID, Name: skill.Name, Enabled: sql.NullBool{Bool: false, Valid: true},
+	})
+	require.NoError(t, err)
+	require.False(t, updated.Enabled)
+	require.Equal(t, skill.Content, updated.Content)
+
+	_, err = authzDB.DeleteProjectSkillByProjectIDAndName(as(t, ctx, reader), database.DeleteProjectSkillByProjectIDAndNameParams{ProjectID: project.ID, Name: skill.Name})
+	require.True(t, dbauthz.IsNotAuthorizedError(err), err)
+	deleted, err := authzDB.DeleteProjectSkillByProjectIDAndName(ownerCtx, database.DeleteProjectSkillByProjectIDAndNameParams{ProjectID: project.ID, Name: skill.Name})
+	require.NoError(t, err)
+	require.Equal(t, skill.ID, deleted.ID)
 }

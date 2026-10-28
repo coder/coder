@@ -1,19 +1,29 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRef, useLayoutEffect, useRef, useState } from "react";
 import { type QueryClient, QueryClientProvider } from "react-query";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
+import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
+import { chatProjectsKey } from "#/api/queries/chatProjects";
 import { organizationSkills } from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import type {
 	AgentChatSendShortcut,
+	ChatMessagePart,
+	ChatProject,
+	ChatSkillSource,
 	SkillMetadata,
 } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
+import { MockChatMessage } from "#/testHelpers/chatEntities";
+import { MockChatProject } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
 import { DEFAULT_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
+import { buildChatInputContent } from "../../utils/chatInputContent";
 import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
+import { getEditableUserMessagePayload } from "../ChatConversation/messageParsing";
 import { ChatMessageInput, type ChatMessageInputRef } from "./ChatMessageInput";
 
 const requiredProps = () => ({
@@ -25,6 +35,19 @@ const requiredProps = () => ({
 	disabled: false,
 	hasWorkspace: false,
 });
+
+const mockSkillPart = (
+	skill_source: ChatSkillSource,
+	skill_name: string,
+): ChatMessagePart => ({ type: "skill-invocation", skill_source, skill_name });
+
+const getRequestContent = (
+	inputRef: React.RefObject<ChatMessageInputRef | null>,
+) =>
+	buildChatInputContent({
+		message: inputRef.current?.getValue() ?? "",
+		composerParts: inputRef.current?.getContentParts() ?? [],
+	}).content;
 
 const renderWithQueryClient = (
 	children: React.ReactNode,
@@ -258,16 +281,37 @@ describe("ChatMessageInput", () => {
 			id: "skill-reviewer",
 			name: "reviewer",
 		};
+		const mockCompactorSkill: SkillMetadata = {
+			...MockSkill,
+			id: "skill-compactor",
+			name: "compactor",
+		};
 
 		const renderWithSkills = ({
 			personal,
 			organization,
+			projectId,
+			projects = projectId ? [{ ...MockChatProject, id: projectId }] : [],
+			staleProject,
+			queryClient = createTestQueryClient(),
 		}: {
 			personal: SkillMetadata[];
 			organization?: SkillMetadata[];
+			projectId?: string;
+			projects?: ChatProject[];
+			// Project skills loaded long ago, so opening the menu refetches.
+			staleProject?: SkillMetadata[];
+			queryClient?: QueryClient;
 		}) => {
-			const queryClient = createTestQueryClient();
 			queryClient.setQueryData(userSkills().queryKey, personal);
+			vi.spyOn(API.experimental, "getChatProjects").mockResolvedValue(projects);
+			if (projectId && staleProject) {
+				queryClient.setQueryData(
+					chatProjectSkillsKey(projectId),
+					staleProject,
+					{ updatedAt: 0 },
+				);
+			}
 			if (organization) {
 				queryClient.setQueryData(
 					organizationSkills(organizationId).queryKey,
@@ -285,6 +329,7 @@ describe("ChatMessageInput", () => {
 					ref={inputRef}
 					aria-label="Chat message input"
 					organizationId={organizationId}
+					projectId={projectId}
 					slashCommands={[COMPACT_SLASH_COMMAND]}
 				/>,
 				queryClient,
@@ -301,17 +346,22 @@ describe("ChatMessageInput", () => {
 			return user;
 		};
 
-		it("inserts the bare trigger of an organization skill chosen with arrow keys", async () => {
+		it("sends an organization skill chosen with arrow keys as a chip between text", async () => {
 			const inputRef = renderWithSkills({
 				personal: [mockReviewerSkill],
 				organization: [
 					{ ...MockSkill, id: "skill-release-notes", name: "release-notes" },
 				],
 			});
-			const user = await pasteTrigger("/");
-			await screen.findByRole("option", { name: /release-notes/ });
+			const user = await pasteTrigger("Draft /");
+			await screen.findByRole("option", { name: /^\/release-notes/ });
 			await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
-			expect(inputRef.current?.getValue()).toBe("/release-notes");
+			await user.keyboard("now");
+			expect(getRequestContent(inputRef)).toEqual([
+				{ type: "text", text: "Draft " },
+				mockSkillPart("org", "release-notes"),
+				{ type: "text", text: " now" },
+			]);
 		});
 
 		it("ignores disabled skills when qualifying triggers", async () => {
@@ -320,27 +370,475 @@ describe("ChatMessageInput", () => {
 				organization: [{ ...mockReviewerSkill, enabled: false }],
 			});
 			const user = await pasteTrigger("/rev");
-			await user.click(await screen.findByRole("option", { name: /reviewer/ }));
-			expect(inputRef.current?.getValue()).toBe("/reviewer");
+			await user.click(
+				await screen.findByRole("option", { name: /^\/reviewer/ }),
+			);
+			expect(getRequestContent(inputRef)).toEqual([
+				mockSkillPart("personal", "reviewer"),
+			]);
+		});
+
+		it("inserts built-in commands as text", async () => {
+			const inputRef = renderWithSkills({ personal: [], organization: [] });
+			const user = await pasteTrigger("/comp");
+			await user.click(
+				await screen.findByRole("option", { name: /^\/compact/ }),
+			);
+			expect(getRequestContent(inputRef)).toEqual([
+				{ type: "text", text: "/compact" },
+			]);
 		});
 
 		it("hides built-in commands when the organization list fails", async () => {
-			// With /compact hidden, Enter picks the qualified personal match.
+			// With /compact hidden, Enter picks the personal match.
 			const inputRef = renderWithSkills({
-				personal: [{ ...MockSkill, id: "skill-compactor", name: "compactor" }],
+				personal: [mockCompactorSkill],
 			});
 			const user = await pasteTrigger("/comp");
 			await screen.findByText(/Could not load organization skills/);
 			await user.keyboard("{Enter}");
-			expect(inputRef.current?.getValue()).toBe("/personal/compactor");
+			expect(getRequestContent(inputRef)).toEqual([
+				mockSkillPart("personal", "compactor"),
+			]);
+		});
+
+		it.each([403, 404])(
+			"offers built-in commands when the project list fails with %i",
+			async (status) => {
+				vi.spyOn(API.experimental, "getChatProjectSkills").mockRejectedValue({
+					isAxiosError: true,
+					response: { status, data: { message: "Project not found." } },
+				});
+				const queryClient = createTestQueryClient();
+				const inputRef = renderWithSkills({
+					personal: [mockCompactorSkill],
+					organization: [],
+					projectId: "project-1",
+					queryClient,
+				});
+				const user = await pasteTrigger("/comp");
+				await waitFor(() => {
+					expect(
+						queryClient.getQueryState(chatProjectSkillsKey("project-1"))
+							?.status,
+					).toBe("error");
+				});
+				await user.keyboard("{Enter}");
+				expect(getRequestContent(inputRef)).toEqual([
+					{ type: "text", text: "/compact" },
+				]);
+			},
+		);
+
+		it("drops loaded project skills when a refetch shows lost access", async () => {
+			vi.spyOn(API.experimental, "getChatProjectSkills").mockRejectedValue({
+				isAxiosError: true,
+				response: { status: 404, data: { message: "Project not found." } },
+			});
+			const queryClient = createTestQueryClient();
+			const inputRef = renderWithSkills({
+				personal: [mockReviewerSkill],
+				organization: [],
+				projectId: "project-1",
+				staleProject: [mockReviewerSkill],
+				queryClient,
+			});
+			const user = await pasteTrigger("/rev");
+			await waitFor(() => {
+				expect(
+					queryClient.getQueryState(chatProjectSkillsKey("project-1"))?.status,
+				).toBe("error");
+			});
+			await user.keyboard("{Enter}");
+			// Without a project reviewer to collide with, Enter picks the
+			// personal one.
+			expect(getRequestContent(inputRef)).toEqual([
+				mockSkillPart("personal", "reviewer"),
+			]);
+		});
+
+		it("drops project skills when the caller's project list lacks the project", async () => {
+			// An administrator role can read the skills of a project that is
+			// not shared with the caller, but chatd does not load them.
+			vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([
+				mockReviewerSkill,
+			]);
+			const queryClient = createTestQueryClient();
+			const inputRef = renderWithSkills({
+				personal: [mockReviewerSkill],
+				organization: [],
+				projectId: "project-1",
+				projects: [],
+				queryClient,
+			});
+			const user = await pasteTrigger("/rev");
+			await waitFor(() => {
+				expect(
+					queryClient.getQueryState(chatProjectSkillsKey("project-1"))?.status,
+				).toBe("success");
+				expect(queryClient.getQueryState(chatProjectsKey)?.status).toBe(
+					"success",
+				);
+			});
+			await user.keyboard("{Enter}");
+			expect(getRequestContent(inputRef)).toEqual([
+				mockSkillPart("personal", "reviewer"),
+			]);
+		});
+
+		it("hides built-in commands when the project list fails transiently", async () => {
+			// Fake timers skip the delays of the query's retries.
+			vi.useFakeTimers({ shouldAdvanceTime: true });
+			try {
+				const getChatProjectSkills = vi
+					.spyOn(API.experimental, "getChatProjectSkills")
+					.mockRejectedValue({
+						isAxiosError: true,
+						response: { status: 500, data: { message: "Internal error." } },
+					});
+				const inputRef = renderWithSkills({
+					personal: [mockCompactorSkill],
+					organization: [],
+					projectId: "project-1",
+				});
+				const user = await pasteTrigger("/comp");
+				await vi.advanceTimersByTimeAsync(10_000);
+				await screen.findByText(/Could not load project skills/);
+				expect(getChatProjectSkills).toHaveBeenCalledTimes(4);
+				// With /compact hidden, Enter picks the personal match.
+				await user.keyboard("{Enter}");
+				expect(getRequestContent(inputRef)).toEqual([
+					mockSkillPart("personal", "compactor"),
+				]);
+			} finally {
+				vi.useRealTimers();
+			}
 		});
 
 		it("keeps triggers qualified when the organization list fails", async () => {
 			const inputRef = renderWithSkills({ personal: [mockReviewerSkill] });
 			const user = await pasteTrigger("/rev");
 			await screen.findByText(/Could not load organization skills/);
-			await user.click(screen.getByRole("option", { name: /reviewer/ }));
-			expect(inputRef.current?.getValue()).toBe("/personal/reviewer");
+			await user.click(
+				screen.getByRole("option", { name: /^\/personal\/reviewer/ }),
+			);
+			expect(getRequestContent(inputRef)).toEqual([
+				mockSkillPart("personal", "reviewer"),
+			]);
+		});
+
+		it("drops the slash trigger when the skill limit rejects a menu pick", async () => {
+			const toastError = vi.spyOn(toast, "error");
+			const inputRef = renderWithSkills({
+				personal: [mockReviewerSkill],
+				organization: [],
+			});
+			await waitFor(() => expect(inputRef.current).not.toBeNull());
+			act(() => {
+				for (let index = 0; index < 8; index++) {
+					inputRef.current?.insertSkill("project", `skill-${index}`);
+				}
+			});
+			const user = await pasteTrigger("/rev");
+			await user.click(await screen.findByRole("option", { name: /reviewer/ }));
+			expect(
+				getRequestContent(inputRef).filter(
+					(part) => part.type === "skill-invocation",
+				),
+			).toHaveLength(8);
+			expect(inputRef.current?.getValue()).not.toContain("/rev");
+			expect(toastError).toHaveBeenCalledWith(
+				"A message can include up to 8 skills.",
+			);
+		});
+	});
+
+	describe("insertSkill", () => {
+		it("focuses the editor and inserts one chip per skill at the cursor", async () => {
+			const user = userEvent.setup();
+			const inputRef = createRef<ChatMessageInputRef>();
+			renderWithQueryClient(
+				<ChatMessageInput
+					{...requiredProps()}
+					ref={inputRef}
+					aria-label="Chat message input"
+				/>,
+			);
+			const textbox = screen.getByRole("textbox", {
+				name: "Chat message input",
+			});
+			await user.click(textbox);
+			await user.paste("Fix the flaky test");
+			textbox.blur();
+
+			inputRef.current?.insertSkill("project", "triage");
+			inputRef.current?.insertSkill("project", "triage");
+			inputRef.current?.insertSkill("personal", "triage");
+
+			await waitFor(() => {
+				expect(getRequestContent(inputRef)).toEqual([
+					{ type: "text", text: "Fix the flaky test" },
+					mockSkillPart("project", "triage"),
+					mockSkillPart("personal", "triage"),
+				]);
+			});
+			expect(textbox).toHaveFocus();
+		});
+
+		it("keeps typing at the caret after arrowing across a chip", async () => {
+			const user = userEvent.setup();
+			const inputRef = createRef<ChatMessageInputRef>();
+			renderWithQueryClient(
+				<ChatMessageInput
+					{...requiredProps()}
+					ref={inputRef}
+					aria-label="Chat message input"
+				/>,
+			);
+			await user.click(
+				screen.getByRole("textbox", { name: "Chat message input" }),
+			);
+			await user.paste("Lead ");
+			act(() => inputRef.current?.insertSkill("project", "triage"));
+			await user.keyboard("tail{ArrowLeft>6/}X{ArrowRight}{ArrowRight}Y");
+
+			await waitFor(() => {
+				expect(getRequestContent(inputRef)).toEqual([
+					{ type: "text", text: "Lead X" },
+					mockSkillPart("project", "triage"),
+					{ type: "text", text: " Ytail" },
+				]);
+			});
+		});
+
+		it("refuses a ninth skill chip and says why", async () => {
+			const toastError = vi.spyOn(toast, "error");
+			const inputRef = createRef<ChatMessageInputRef>();
+			renderWithQueryClient(
+				<ChatMessageInput
+					{...requiredProps()}
+					ref={inputRef}
+					aria-label="Chat message input"
+				/>,
+			);
+			await waitFor(() => expect(inputRef.current).not.toBeNull());
+			act(() => {
+				for (let index = 0; index < 9; index++) {
+					inputRef.current?.insertSkill("project", `skill-${index}`);
+				}
+			});
+
+			await waitFor(() =>
+				expect(
+					getRequestContent(inputRef).filter(
+						(part) => part.type === "skill-invocation",
+					),
+				).toHaveLength(8),
+			);
+			expect(toastError).toHaveBeenCalledWith(
+				"A message can include up to 8 skills.",
+			);
+		});
+
+		it("removes a chip from the keyboard without sending the message", async () => {
+			const user = userEvent.setup();
+			const inputRef = createRef<ChatMessageInputRef>();
+			const props = requiredProps();
+			renderWithQueryClient(
+				<ChatMessageInput
+					{...props}
+					ref={inputRef}
+					aria-label="Chat message input"
+				/>,
+			);
+			await waitFor(() => expect(inputRef.current).not.toBeNull());
+			act(() => inputRef.current?.insertSkill("project", "triage"));
+			await screen.findByRole("button", {
+				name: "Remove skill /project/triage",
+			});
+
+			await user.tab();
+			await user.keyboard("{Enter}");
+			expect(getRequestContent(inputRef)).toEqual([]);
+			expect(props.onEnter).not.toHaveBeenCalled();
+			await waitFor(() =>
+				expect(
+					screen.getByRole("textbox", { name: "Chat message input" }),
+				).toHaveFocus(),
+			);
+		});
+
+		it("copies skill chips as aliases and pastes each available skill once", async () => {
+			// Lexical's clipboard handlers check these jsdom-missing classes.
+			vi.stubGlobal("ClipboardEvent", class ClipboardEvent extends Event {});
+			vi.stubGlobal("DragEvent", class DragEvent extends MouseEvent {});
+			const user = userEvent.setup();
+			const inputRef = createRef<ChatMessageInputRef>();
+			renderWithQueryClient(
+				<ChatMessageInput
+					{...requiredProps()}
+					ref={inputRef}
+					aria-label="Chat message input"
+				/>,
+			);
+			await user.click(
+				screen.getByRole("textbox", { name: "Chat message input" }),
+			);
+			await user.paste("Lead");
+			// Without an organization, organization skills are unavailable.
+			act(() => {
+				inputRef.current?.insertSkill("personal", "triage");
+				inputRef.current?.insertSkill("org", "release-notes");
+			});
+			await user.keyboard("tail{Control>}a{/Control}");
+			const copied = await user.copy();
+			expect(copied?.getData("text/plain")).toBe(
+				"Lead/personal/triage /org/release-notes tail",
+			);
+			act(() => inputRef.current?.clear());
+			await waitFor(() => {
+				expect(getRequestContent(inputRef)).toEqual([]);
+			});
+
+			await user.paste(copied);
+			await user.paste(copied);
+
+			await waitFor(() => {
+				expect(getRequestContent(inputRef)).toEqual([
+					{ type: "text", text: "Lead" },
+					mockSkillPart("personal", "triage"),
+					{
+						type: "text",
+						text: " /org/release-notes tailLead /org/release-notes tail",
+					},
+				]);
+			});
+
+			const mimeType = "application/x-lexical-editor";
+			const payload = JSON.parse(copied?.getData(mimeType) ?? "{}");
+			copied?.setData(
+				mimeType,
+				JSON.stringify({ ...payload, nodes: [{ type: "unregistered" }] }),
+			);
+			act(() => inputRef.current?.clear());
+			await user.paste(copied);
+			await waitFor(() =>
+				expect(getRequestContent(inputRef)).toEqual([
+					{
+						type: "text",
+						text: "Lead/personal/triage /org/release-notes tail",
+					},
+				]),
+			);
+		});
+
+		it("drops pasted skill chips beyond the limit and says why", async () => {
+			vi.stubGlobal("ClipboardEvent", class ClipboardEvent extends Event {});
+			vi.stubGlobal("DragEvent", class DragEvent extends MouseEvent {});
+			const toastError = vi.spyOn(toast, "error");
+			const user = userEvent.setup();
+			const inputRef = createRef<ChatMessageInputRef>();
+			renderWithQueryClient(
+				<ChatMessageInput
+					{...requiredProps()}
+					ref={inputRef}
+					aria-label="Chat message input"
+				/>,
+			);
+			await user.click(
+				screen.getByRole("textbox", { name: "Chat message input" }),
+			);
+			act(() => {
+				for (let index = 0; index < 8; index++) {
+					inputRef.current?.insertSkill("personal", `skill-${index}`);
+				}
+			});
+			await user.keyboard("{Control>}a{/Control}");
+			const copied = await user.copy();
+			act(() => {
+				inputRef.current?.clear();
+				inputRef.current?.insertSkill("personal", "extra");
+			});
+			await user.paste(copied);
+
+			await waitFor(() =>
+				expect(
+					getRequestContent(inputRef).filter(
+						(part) => part.type === "skill-invocation",
+					),
+				).toHaveLength(8),
+			);
+			expect(toastError).toHaveBeenCalledWith(
+				"A message can include up to 8 skills.",
+			);
+		});
+
+		it("restores chips from a saved draft without React errors", async () => {
+			const onChange = vi.fn();
+			const inputRef = createRef<ChatMessageInputRef>();
+			const { unmount } = renderWithQueryClient(
+				<ChatMessageInput
+					{...requiredProps()}
+					ref={inputRef}
+					onChange={onChange}
+					aria-label="Chat message input"
+				/>,
+			);
+			await waitFor(() => {
+				expect(inputRef.current).not.toBeNull();
+			});
+			inputRef.current?.insertSkill("org", "release-notes");
+			await waitFor(() => {
+				expect(onChange).toHaveBeenLastCalledWith(
+					expect.any(String),
+					expect.any(String),
+					true,
+				);
+			});
+			const [, savedEditorState] = onChange.mock.lastCall ?? [];
+			unmount();
+
+			const errorSpy = vi.spyOn(console, "error");
+			const restoredRef = createRef<ChatMessageInputRef>();
+			renderWithQueryClient(
+				<ChatMessageInput
+					{...requiredProps()}
+					ref={restoredRef}
+					initialEditorState={savedEditorState}
+					aria-label="Chat message input"
+				/>,
+			);
+			await waitFor(() => {
+				expect(getRequestContent(restoredRef)).toEqual([
+					mockSkillPart("org", "release-notes"),
+				]);
+			});
+			expect(errorSpy).not.toHaveBeenCalled();
+		});
+
+		it("reopens an edited message with its skill chips in place", async () => {
+			const content: ChatMessagePart[] = [
+				{ type: "text", text: "Use " },
+				mockSkillPart("project", "triage"),
+				{ type: "text", text: " on\nthe diff" },
+			];
+			const { text, editorState } = getEditableUserMessagePayload({
+				...MockChatMessage,
+				content,
+			});
+			const inputRef = createRef<ChatMessageInputRef>();
+			renderWithQueryClient(
+				<ChatMessageInput
+					{...requiredProps()}
+					ref={inputRef}
+					initialValue={text}
+					initialEditorState={editorState}
+					aria-label="Chat message input"
+				/>,
+			);
+			await waitFor(() => {
+				expect(getRequestContent(inputRef)).toEqual(content);
+			});
 		});
 	});
 });

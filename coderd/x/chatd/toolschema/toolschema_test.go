@@ -123,6 +123,127 @@ func TestCaseVariantKeyDecodesCaseInsensitively(t *testing.T) {
 	require.Equal(t, "/secret", args.Path)
 }
 
+func TestValidateUnambiguousComposedSchemas(t *testing.T) {
+	t.Parallel()
+
+	for _, keyword := range []string{"anyOf", "oneOf", "allOf"} {
+		t.Run(keyword, func(t *testing.T) {
+			t.Parallel()
+
+			pathObject := map[string]any{"properties": map[string]any{"path": map[string]any{"type": "string"}}}
+			sessionObject := map[string]any{"properties": map[string]any{"session_id": map[string]any{"type": "string"}}}
+			properties := map[string]any{
+				"target": map[string]any{
+					"properties": map[string]any{"common": pathObject},
+					keyword: []any{
+						map[string]any{"type": "null"},
+						map[string]any{"properties": map[string]any{
+							"path":    map[string]any{"type": "string"},
+							"label":   map[string]any{"type": "string"},
+							"options": pathObject,
+							"targets": map[string]any{"properties": map[string]any{"*": pathObject}},
+						}},
+						map[string]any{keyword: []any{
+							map[string]any{"properties": map[string]any{
+								"session_id": map[string]any{"type": "string"},
+								"LABEL":      map[string]any{"type": "string"},
+								"options":    sessionObject,
+							}},
+							map[string]any{"type": "array", "items": map[string]any{keyword: []any{pathObject, sessionObject}}},
+						}},
+					},
+				},
+			}
+			for _, tt := range []struct {
+				name    string
+				input   string
+				wantErr string
+			}{
+				{
+					name:    "first branch",
+					input:   `{"target":{"PATH":"secret"}}`,
+					wantErr: `input key "target.PATH" differs from schema property "path" only by case`,
+				},
+				{
+					name:    "nested branch",
+					input:   `{"target":{"SESSION_ID":"secret"}}`,
+					wantErr: `input key "target.SESSION_ID" differs from schema property "session_id" only by case`,
+				},
+				{
+					name:    "properties beside branches",
+					input:   `{"target":{"common":{"PATH":"secret"}}}`,
+					wantErr: `input key "target.common.PATH" differs from schema property "path" only by case`,
+				},
+				{
+					name:    "shared property first branch",
+					input:   `{"target":{"options":{"PATH":"secret"}}}`,
+					wantErr: `input key "target.options.PATH" differs from schema property "path" only by case`,
+				},
+				{
+					name:    "shared property second branch",
+					input:   `{"target":{"options":{"SESSION_ID":"secret"}}}`,
+					wantErr: `input key "target.options.SESSION_ID" differs from schema property "session_id" only by case`,
+				},
+				{
+					name:    "array first branch",
+					input:   `{"target":[{"PATH":"secret"}]}`,
+					wantErr: `input key "target[].PATH" differs from schema property "path" only by case`,
+				},
+				{
+					name:    "array second branch",
+					input:   `{"target":[{"SESSION_ID":"secret"}]}`,
+					wantErr: `input key "target[].SESSION_ID" differs from schema property "session_id" only by case`,
+				},
+				{
+					name:    "free-form map value",
+					input:   `{"target":{"targets":{"first":{"PATH":"secret"}}}}`,
+					wantErr: `input key "target.targets.first.PATH" differs from schema property "path" only by case`,
+				},
+				{
+					name:    "duplicate key",
+					input:   `{"target":{"options":{"path":"a","path":"b"}}}`,
+					wantErr: `input repeats the key "target.options.path"`,
+				},
+				{
+					name:    "exact key collides with nested branch",
+					input:   `{"target":{"label":"a"}}`,
+					wantErr: `input key "target.label" differs from schema property "LABEL" only by case`,
+				},
+				{
+					name:    "exact key collides with first branch",
+					input:   `{"target":{"LABEL":"b"}}`,
+					wantErr: `input key "target.LABEL" differs from schema property "label" only by case`,
+				},
+				{
+					name:    "case variants across branches",
+					input:   `{"target":{"label":"a","LABEL":"b"}}`,
+					wantErr: `input key "target.label" differs from schema property "LABEL" only by case`,
+				},
+				{
+					name:    "case variants across branches reversed",
+					input:   `{"target":{"LABEL":"b","label":"a"}}`,
+					wantErr: `input key "target.LABEL" differs from schema property "label" only by case`,
+				},
+				{name: "exact keys across branches", input: `{"target":{"path":"a","session_id":"b","options":{"path":"a","session_id":"b"}}}`},
+				{name: "unknown key", input: `{"target":{"other":"value"}}`},
+				{name: "free-form keys", input: `{"target":{"targets":{"first":{"path":"a"},"FIRST":{"path":"b"}}}}`},
+				{name: "null branch", input: `{"target":null}`},
+			} {
+				t.Run(tt.name, func(t *testing.T) {
+					t.Parallel()
+
+					err := toolschema.ValidateUnambiguous(properties, []byte(tt.input))
+					if tt.wantErr == "" {
+						require.NoError(t, err)
+						return
+					}
+					require.EqualError(t, err, tt.wantErr)
+				})
+			}
+		})
+	}
+}
+
 // freeFormValueTool builds a tool whose input nests a fixed property set
 // inside a free-form map, so the value schema fantasy renders under "*" has
 // to be carried into the map's values.

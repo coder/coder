@@ -1190,7 +1190,7 @@ func TestWorker_RefreshDoesNotReorderPrimary(t *testing.T) {
 		ChatID:          chat.ID,
 		GitBranch:       "new",
 		GitRemoteOrigin: "https://github.com/o/r",
-		StaleAt:         time.Now().Add(-time.Minute),
+		StaleAt:         time.Now().Add(time.Hour),
 		Url:             sql.NullString{},
 	})
 	require.NoError(t, err)
@@ -1201,15 +1201,15 @@ func TestWorker_RefreshDoesNotReorderPrimary(t *testing.T) {
 	require.Equal(t, []string{"old", "new"}, gitBranches(before), "list follows first report")
 	require.Equal(t, "new", db2sdk.PrimaryChatDiffStatus(before).GitBranch)
 
-	// Refresh the old ref only. Both rows are stale, so acquire the
-	// old one explicitly through the sync path.
-	oldRow := before[0]
 	mClock := quartz.NewMock(t)
-	refresher := newTestRefresher(t, mClock)
+	tickDone := make(chan struct{})
+	pub := func(context.Context, uuid.UUID, codersdk.DiffStatusRef) error {
+		close(tickDone)
+		return nil
+	}
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	worker := gitsync.NewWorker(db, refresher, nil, mClock, logger)
-	_, err = worker.RefreshChat(ctx, oldRow, user.ID)
-	require.NoError(t, err)
+	worker := gitsync.NewWorker(db, newTestRefresher(t, mClock), pub, mClock, logger)
+	tickOnce(ctx, t, mClock, worker, tickDone)
 
 	// The refreshed old ref must not steal the primary from the
 	// newer report.
@@ -1242,167 +1242,6 @@ func gitBranches(statuses []database.ChatDiffStatus) []string {
 		branches = append(branches, status.GitBranch)
 	}
 	return branches
-}
-
-func TestRefreshChat_Success(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitShort)
-
-	chatID := uuid.New()
-	ownerID := uuid.New()
-
-	row := database.ChatDiffStatus{
-		ChatID:          chatID,
-		GitBranch:       "feature",
-		GitRemoteOrigin: "https://github.com/owner/repo",
-	}
-
-	ctrl := gomock.NewController(t)
-	store := dbmock.NewMockStore(ctrl)
-
-	upsertedStatus := database.ChatDiffStatus{
-		ChatID:       chatID,
-		Url:          sql.NullString{String: "https://github.com/o/r/pull/1", Valid: true},
-		Additions:    10,
-		Deletions:    3,
-		ChangedFiles: 2,
-	}
-	store.EXPECT().UpsertChatDiffStatus(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, arg database.UpsertChatDiffStatusParams) (database.ChatDiffStatus, error) {
-			assert.Equal(t, chatID, arg.ChatID)
-			return upsertedStatus, nil
-		})
-
-	var publishCalled atomic.Bool
-	pub := func(_ context.Context, id uuid.UUID, _ codersdk.DiffStatusRef) error {
-		assert.Equal(t, chatID, id)
-		publishCalled.Store(true)
-		return nil
-	}
-
-	mClock := quartz.NewMock(t)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	refresher := newTestRefresher(t, mClock)
-	worker := gitsync.NewWorker(store, refresher, pub, mClock, logger)
-
-	result, err := worker.RefreshChat(ctx, row, ownerID)
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	assert.Equal(t, chatID, result.ChatID)
-	assert.Equal(t, upsertedStatus.Url, result.Url)
-	assert.True(t, publishCalled.Load(), "publish should have been called")
-}
-
-func TestRefreshChat_NoPR(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitShort)
-
-	chatID := uuid.New()
-	ownerID := uuid.New()
-
-	row := database.ChatDiffStatus{
-		ChatID:          chatID,
-		GitBranch:       "feature",
-		GitRemoteOrigin: "https://github.com/owner/repo",
-	}
-
-	ctrl := gomock.NewController(t)
-	store := dbmock.NewMockStore(ctrl)
-	// UpsertChatDiffStatus should NOT be called.
-
-	var publishCalled atomic.Bool
-	pub := func(_ context.Context, _ uuid.UUID, _ codersdk.DiffStatusRef) error {
-		publishCalled.Store(true)
-		return nil
-	}
-
-	mClock := quartz.NewMock(t)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-
-	// ResolveBranchPullRequest returns nil → no PR exists yet.
-	refresher := newTestRefresher(t, mClock, withResolveBranchPR(
-		func(context.Context, string, gitprovider.BranchRef) (*gitprovider.PRRef, error) {
-			return nil, nil //nolint:nilnil // Provider contract: nil, nil means no open PR.
-		},
-	))
-	worker := gitsync.NewWorker(store, refresher, pub, mClock, logger)
-
-	result, err := worker.RefreshChat(ctx, row, ownerID)
-	require.NoError(t, err)
-	assert.Nil(t, result, "result should be nil when no PR exists")
-	assert.False(t, publishCalled.Load(), "publish should not be called when no PR exists")
-}
-
-func TestRefreshChat_RefreshError(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitShort)
-
-	chatID := uuid.New()
-	ownerID := uuid.New()
-
-	row := database.ChatDiffStatus{
-		ChatID:          chatID,
-		Url:             sql.NullString{String: "https://github.com/org/repo/pull/1", Valid: true},
-		GitBranch:       "feature",
-		GitRemoteOrigin: "https://github.com/owner/repo",
-	}
-
-	ctrl := gomock.NewController(t)
-	store := dbmock.NewMockStore(ctrl)
-	// UpsertChatDiffStatus should NOT be called.
-
-	// Provider resolver returns nil → "no provider" error.
-	providers := func(context.Context, string) gitprovider.Provider { return nil }
-	tokens := func(context.Context, uuid.UUID, string) (*string, error) {
-		return new("tok"), nil
-	}
-
-	mClock := quartz.NewMock(t)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	refresher := gitsync.NewRefresher(providers, tokens, logger, mClock)
-	worker := gitsync.NewWorker(store, refresher, nil, mClock, logger)
-
-	result, err := worker.RefreshChat(ctx, row, ownerID)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "no provider")
-	assert.Nil(t, result)
-}
-
-func TestRefreshChat_UpsertError(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitShort)
-
-	chatID := uuid.New()
-	ownerID := uuid.New()
-
-	row := database.ChatDiffStatus{
-		ChatID:          chatID,
-		GitBranch:       "feature",
-		GitRemoteOrigin: "https://github.com/owner/repo",
-	}
-
-	ctrl := gomock.NewController(t)
-	store := dbmock.NewMockStore(ctrl)
-
-	store.EXPECT().UpsertChatDiffStatus(gomock.Any(), gomock.Any()).
-		Return(database.ChatDiffStatus{}, xerrors.New("db write error"))
-
-	var publishCalled atomic.Bool
-	pub := func(_ context.Context, _ uuid.UUID, _ codersdk.DiffStatusRef) error {
-		publishCalled.Store(true)
-		return nil
-	}
-
-	mClock := quartz.NewMock(t)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	refresher := newTestRefresher(t, mClock)
-	worker := gitsync.NewWorker(store, refresher, pub, mClock, logger)
-
-	result, err := worker.RefreshChat(ctx, row, ownerID)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "upsert chat diff status")
-	assert.Nil(t, result)
-	assert.False(t, publishCalled.Load(), "publish should not be called when upsert fails")
 }
 
 func TestWorker_NoTokenBackoff(t *testing.T) {

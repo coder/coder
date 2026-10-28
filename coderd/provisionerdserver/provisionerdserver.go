@@ -3834,6 +3834,13 @@ func insertAgentApp(ctx context.Context, db database.Store, agentID uuid.UUID, a
 	}
 	appSlugs[slug] = struct{}{}
 
+	// Don't rely on the provisioner having validated the URL.
+	if app.External && app.Url != "" {
+		if err := provisioner.ValidateExternalURL(app.Url); err != nil {
+			return xerrors.Errorf("invalid external url %q for app %q: %w", app.Url, slug, err)
+		}
+	}
+
 	health := database.WorkspaceAppHealthDisabled
 	healthcheck := app.GetHealthcheck()
 	if healthcheck == nil {

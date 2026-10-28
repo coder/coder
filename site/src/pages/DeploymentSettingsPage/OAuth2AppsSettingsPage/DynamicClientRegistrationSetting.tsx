@@ -33,7 +33,7 @@ export const DynamicClientRegistrationSetting: React.FC<
 							Dynamic Client Registration
 						</h2>
 						{enabled && (
-							<Badge size="sm" variant="green" className="border-0 shadow-none">
+							<Badge size="sm" variant="green">
 								Enabled
 							</Badge>
 						)}

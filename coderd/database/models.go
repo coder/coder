@@ -89,6 +89,67 @@ func AllAIBridgeInterceptionErrorTypeValues() []AIBridgeInterceptionErrorType {
 	}
 }
 
+type AIBridgeInterceptionOrganizationSource string
+
+const (
+	AibridgeInterceptionOrganizationSourceWorkspace      AIBridgeInterceptionOrganizationSource = "workspace"
+	AibridgeInterceptionOrganizationSourceChatd          AIBridgeInterceptionOrganizationSource = "chatd"
+	AibridgeInterceptionOrganizationSourceEffectiveGroup AIBridgeInterceptionOrganizationSource = "effective_group"
+)
+
+func (e *AIBridgeInterceptionOrganizationSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AIBridgeInterceptionOrganizationSource(s)
+	case string:
+		*e = AIBridgeInterceptionOrganizationSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AIBridgeInterceptionOrganizationSource: %T", src)
+	}
+	return nil
+}
+
+type NullAIBridgeInterceptionOrganizationSource struct {
+	AIBridgeInterceptionOrganizationSource AIBridgeInterceptionOrganizationSource `json:"aibridge_interception_organization_source"`
+	Valid                                  bool                                   `json:"valid"` // Valid is true if AIBridgeInterceptionOrganizationSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAIBridgeInterceptionOrganizationSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.AIBridgeInterceptionOrganizationSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AIBridgeInterceptionOrganizationSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAIBridgeInterceptionOrganizationSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AIBridgeInterceptionOrganizationSource), nil
+}
+
+func (e AIBridgeInterceptionOrganizationSource) Valid() bool {
+	switch e {
+	case AibridgeInterceptionOrganizationSourceWorkspace,
+		AibridgeInterceptionOrganizationSourceChatd,
+		AibridgeInterceptionOrganizationSourceEffectiveGroup:
+		return true
+	}
+	return false
+}
+
+func AllAIBridgeInterceptionOrganizationSourceValues() []AIBridgeInterceptionOrganizationSource {
+	return []AIBridgeInterceptionOrganizationSource{
+		AibridgeInterceptionOrganizationSourceWorkspace,
+		AibridgeInterceptionOrganizationSourceChatd,
+		AibridgeInterceptionOrganizationSourceEffectiveGroup,
+	}
+}
+
 type AIModelPriceSource string
 
 const (
@@ -3793,6 +3854,7 @@ const (
 	ResourceTypeChatOrganizationSystemPrompt ResourceType = "chat_organization_system_prompt"
 	ResourceTypeChatProjectInstructions      ResourceType = "chat_project_instructions"
 	ResourceTypeOrganizationSkill            ResourceType = "organization_skill"
+	ResourceTypeChatProjectSkill             ResourceType = "chat_project_skill"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3878,7 +3940,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeChatProjectMemory,
 		ResourceTypeChatOrganizationSystemPrompt,
 		ResourceTypeChatProjectInstructions,
-		ResourceTypeOrganizationSkill:
+		ResourceTypeOrganizationSkill,
+		ResourceTypeChatProjectSkill:
 		return true
 	}
 	return false
@@ -3933,6 +3996,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeChatOrganizationSystemPrompt,
 		ResourceTypeChatProjectInstructions,
 		ResourceTypeOrganizationSkill,
+		ResourceTypeChatProjectSkill,
 	}
 }
 
@@ -4186,6 +4250,7 @@ const (
 	WorkspaceAgentContextBodyKindHook            WorkspaceAgentContextBodyKind = "hook"
 	WorkspaceAgentContextBodyKindSubagent        WorkspaceAgentContextBodyKind = "subagent"
 	WorkspaceAgentContextBodyKindCommand         WorkspaceAgentContextBodyKind = "command"
+	WorkspaceAgentContextBodyKindAcpHarness      WorkspaceAgentContextBodyKind = "acp_harness"
 )
 
 func (e *WorkspaceAgentContextBodyKind) Scan(src interface{}) error {
@@ -4232,7 +4297,8 @@ func (e WorkspaceAgentContextBodyKind) Valid() bool {
 		WorkspaceAgentContextBodyKindPlugin,
 		WorkspaceAgentContextBodyKindHook,
 		WorkspaceAgentContextBodyKindSubagent,
-		WorkspaceAgentContextBodyKindCommand:
+		WorkspaceAgentContextBodyKindCommand,
+		WorkspaceAgentContextBodyKindAcpHarness:
 		return true
 	}
 	return false
@@ -4248,6 +4314,7 @@ func AllWorkspaceAgentContextBodyKindValues() []WorkspaceAgentContextBodyKind {
 		WorkspaceAgentContextBodyKindHook,
 		WorkspaceAgentContextBodyKindSubagent,
 		WorkspaceAgentContextBodyKindCommand,
+		WorkspaceAgentContextBodyKindAcpHarness,
 	}
 }
 
@@ -4996,6 +5063,10 @@ type AIBridgeInterception struct {
 	ErrorMessage sql.NullString `db:"error_message" json:"error_message"`
 	// The workspace in which the agent ran. NULL when no workspace context is available.
 	WorkspaceID uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
+	// The organization the interception was attributed to. NULL when no organization was resolved.
+	OrganizationID uuid.NullUUID `db:"organization_id" json:"organization_id"`
+	// How organization_id was chosen. NULL exactly when organization_id is NULL.
+	OrganizationSource NullAIBridgeInterceptionOrganizationSource `db:"organization_source" json:"organization_source"`
 }
 
 // Audit log of model thinking in intercepted requests in AI Bridge
@@ -5071,6 +5142,22 @@ type AIGatewayKey struct {
 	SecretPrefix    string       `db:"secret_prefix" json:"secret_prefix"`
 	HashedSecret    []byte       `db:"hashed_secret" json:"hashed_secret"`
 	LastHeartbeatAt sql.NullTime `db:"last_heartbeat_at" json:"last_heartbeat_at"`
+}
+
+// AI Governance configuration for one model on one configured AI provider within one organization. The token prices override site-wide prices in ai_model_prices.
+type AIModelConfig struct {
+	ID              uuid.UUID     `db:"id" json:"id"`
+	OrganizationID  uuid.UUID     `db:"organization_id" json:"organization_id"`
+	ProviderID      uuid.UUID     `db:"provider_id" json:"provider_id"`
+	Model           string        `db:"model" json:"model"`
+	InputPrice      sql.NullInt64 `db:"input_price" json:"input_price"`
+	OutputPrice     sql.NullInt64 `db:"output_price" json:"output_price"`
+	CacheReadPrice  sql.NullInt64 `db:"cache_read_price" json:"cache_read_price"`
+	CacheWritePrice sql.NullInt64 `db:"cache_write_price" json:"cache_write_price"`
+	CreatedAt       time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time     `db:"updated_at" json:"updated_at"`
+	// Soft delete flag. Soft-deleted rows are kept for history and do not block a new live row for the same model.
+	Deleted bool `db:"deleted" json:"deleted"`
 }
 
 // Per-model token prices used by AI Bridge to compute interception cost.
@@ -6199,6 +6286,8 @@ type Skill struct {
 	Enabled        bool          `db:"enabled" json:"enabled"`
 	GroupACL       ChatACL       `db:"group_acl" json:"group_acl"`
 	UserACL        ChatACL       `db:"user_acl" json:"user_acl"`
+	Action         bool          `db:"action" json:"action"`
+	ModelInvocable bool          `db:"model_invocable" json:"model_invocable"`
 }
 
 // We keep this separate from replicas in case we need to break the coordinator out into its own service
