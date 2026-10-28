@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -284,6 +285,115 @@ func TestReadFile(t *testing.T) {
 				require.Equal(t, tt.bytes, bytes)
 				require.Equal(t, tt.mimeType, w.Header().Get("Content-Type"))
 				require.Equal(t, http.StatusOK, w.Code)
+			}
+		})
+	}
+}
+
+func TestReadFileInRoot(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks are not reliably supported on Windows")
+	}
+
+	base := t.TempDir()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	osFs := afero.NewOsFs()
+	api := agentfiles.NewAPI(logger, osFs, nil)
+
+	const outsideBytes = "outside-secret-bytes"
+	outsideDir := filepath.Join(base, "outside")
+	outsideFile := filepath.Join(outsideDir, "secret.txt")
+	realSkills := filepath.Join(base, "real-skills")
+	root := filepath.Join(realSkills, "my-skill")
+	siblingDir := filepath.Join(realSkills, "other-skill")
+	linkedSkills := filepath.Join(base, "skills")
+
+	for _, dir := range []string{outsideDir, filepath.Join(root, "roles", "sub"), siblingDir} {
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+	}
+	for name, content := range map[string]string{
+		outsideFile:                                 outsideBytes,
+		filepath.Join(root, "notes.md"):             "notes",
+		filepath.Join(root, "roles", "reviewer.md"): "reviewer",
+		filepath.Join(root, "reviewer.md"):          "decoy",
+		filepath.Join(siblingDir, "other.md"):       "sibling",
+	} {
+		require.NoError(t, os.WriteFile(name, []byte(content), 0o600))
+	}
+	for link, target := range map[string]string{
+		linkedSkills:                                        realSkills,
+		filepath.Join(root, "rel-link.md"):                  "notes.md",
+		filepath.Join(root, "deep"):                         filepath.Join("roles", "sub"),
+		filepath.Join(root, "roles", "sub", "up.md"):        filepath.Join("..", "reviewer.md"),
+		filepath.Join(root, "abs-inside.md"):                filepath.Join(root, "notes.md"),
+		filepath.Join(root, "abs-outside.md"):               outsideFile,
+		filepath.Join(root, "rel-escape.md"):                filepath.Join("..", "..", "outside", "secret.txt"),
+		filepath.Join(root, "outdir"):                       filepath.Join("..", "..", "outside"),
+		filepath.Join(root, "sibling.md"):                   filepath.Join("..", "other-skill", "other.md"),
+		filepath.Join(root, "loop.md"):                      "loop.md",
+		filepath.Join(root, "roles", "sub", "escape-up.md"): filepath.Join("..", "..", "..", "..", "outside", "secret.txt"),
+	} {
+		require.NoError(t, os.Symlink(target, link))
+	}
+
+	tests := []struct {
+		name    string
+		root    string
+		path    string
+		bytes   string
+		errCode int
+		error   string
+	}{
+		{name: "RegularFile", root: root, path: "notes.md", bytes: "notes"},
+		{name: "NestedFile", root: root, path: "roles/reviewer.md", bytes: "reviewer"},
+		{name: "RelativeSymlinkInside", root: root, path: "rel-link.md", bytes: "notes"},
+		// deep -> roles/sub and up.md -> ../reviewer.md resolve against
+		// the real parent, roles/sub, so the read is roles/reviewer.md and
+		// not the decoy at the skill root.
+		{name: "DirectorySymlinkThenDotDot", root: root, path: "deep/up.md", bytes: "reviewer"},
+		{name: "RootUnderSymlinkedAncestor", root: filepath.Join(linkedSkills, "my-skill"), path: "rel-link.md", bytes: "notes"},
+		{name: "AbsoluteSymlinkInside", root: root, path: "abs-inside.md", errCode: http.StatusBadRequest, error: "abs-inside.md"},
+		{name: "AbsoluteSymlinkOutside", root: root, path: "abs-outside.md", errCode: http.StatusBadRequest, error: "abs-outside.md"},
+		{name: "RelativeSymlinkEscapes", root: root, path: "rel-escape.md", errCode: http.StatusBadRequest, error: "rel-escape.md"},
+		{name: "NestedRelativeSymlinkEscapes", root: root, path: "deep/escape-up.md", errCode: http.StatusBadRequest, error: "escape-up.md"},
+		{name: "DirectorySymlinkEscapes", root: root, path: "outdir/secret.txt", errCode: http.StatusBadRequest, error: "outdir/secret.txt"},
+		{name: "SiblingSkill", root: root, path: "sibling.md", errCode: http.StatusBadRequest, error: "sibling.md"},
+		{name: "SymlinkLoop", root: root, path: "loop.md", errCode: http.StatusBadRequest, error: "loop.md"},
+		{name: "AbsolutePath", root: root, path: outsideFile, errCode: http.StatusBadRequest, error: "file path must be relative to root"},
+		{name: "DotDotPath", root: root, path: "../../outside/secret.txt", errCode: http.StatusBadRequest, error: "file path must be relative to root"},
+		{name: "RelativeRoot", root: "real-skills/my-skill", path: "notes.md", errCode: http.StatusBadRequest, error: "root must be absolute"},
+		{name: "NonExistent", root: root, path: "missing.md", errCode: http.StatusNotFound, error: "no such file"},
+		{name: "IsDir", root: root, path: "roles", errCode: http.StatusBadRequest, error: "not a file"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			query := url.Values{"root": {tt.root}, "path": {tt.path}}
+			w := httptest.NewRecorder()
+			r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/read-file?"+query.Encode(), nil)
+			api.Routes().ServeHTTP(w, r)
+
+			body := w.Body.String()
+			require.NotContains(t, body, outsideBytes)
+			if tt.errCode == 0 {
+				require.Equal(t, http.StatusOK, w.Code, body)
+				require.Equal(t, tt.bytes, body)
+				return
+			}
+			require.Equal(t, tt.errCode, w.Code, body)
+			got := &codersdk.Error{}
+			require.NoError(t, json.Unmarshal([]byte(body), got))
+			require.ErrorContains(t, got, tt.error)
+			// A refusal names only the requested path, never a symlink
+			// target.
+			if tt.path != outsideFile {
+				require.NotContains(t, body, outsideDir)
+				require.NotContains(t, body, siblingDir)
 			}
 		})
 	}
