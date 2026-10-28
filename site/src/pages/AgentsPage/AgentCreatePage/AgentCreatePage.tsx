@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
-	Navigate,
 	Link as RouterLink,
 	useLocation,
 	useNavigate,
@@ -96,10 +95,6 @@ const isConflictError = (error: unknown) =>
 
 const AgentCreatePage: React.FC = () => {
 	const { projectId } = useParams<{ projectId?: string }>();
-	const { experiments } = useDashboard();
-	if (projectId !== undefined && !experiments.includes("chat-projects")) {
-		return <Navigate to="/agents" replace />;
-	}
 	// Remount per project so the create mutation's pending and error state do
 	// not carry over. A create still in flight opens its chat on success, as
 	// from /agents; if it fails after the page unmounts, its error and the

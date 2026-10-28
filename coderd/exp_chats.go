@@ -461,7 +461,7 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Param after_id query string false "After ID" format(uuid)
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
-// @Param project_id query string false "Only chats in this project. Requires the chat-projects experiment." format(uuid)
+// @Param project_id query string false "Only chats in this project." format(uuid)
 // @Success 200 {array} codersdk.Chat
 // @Router /api/v2/chats [get]
 func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
@@ -528,12 +528,6 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 
 	projectID := uuid.NullUUID{}
 	if rawProjectID := r.URL.Query().Get("project_id"); rawProjectID != "" {
-		// Ignoring the filter would return every chat as if it were the
-		// project's contents, so reject it like create and update do.
-		if !api.Experiments.Enabled(codersdk.ExperimentChatProjects) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "chat projects experiment is not enabled"})
-			return
-		}
 		parsedProjectID, err := uuid.Parse(rawProjectID)
 		if err != nil || parsedProjectID == uuid.Nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid project_id query parameter."})
@@ -1402,9 +1396,6 @@ func (api *API) createChat(
 		}
 	}
 
-	if req.ProjectID != nil && !api.Experiments.Enabled(codersdk.ExperimentChatProjects) {
-		return database.Chat{}, codersdk.Chat{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{Message: "chat projects experiment is not enabled"})
-	}
 	projectID := uuid.NullUUID{}
 	if req.ProjectID != nil {
 		var status int
@@ -2847,8 +2838,6 @@ func (api *API) updateChat(
 	if req.ProjectID != nil {
 		var refusal string
 		switch {
-		case !api.Experiments.Enabled(codersdk.ExperimentChatProjects):
-			refusal = "chat projects experiment is not enabled"
 		case chat.ParentChatID.Valid:
 			refusal = "Cannot move a child chat."
 		case archived:
@@ -6331,8 +6320,6 @@ func (api *API) getChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	resp.MaxUsesPerRun = max(resp.MaxUsesPerRun, 0)
-	resp.MaxOutputTokens = max(resp.MaxOutputTokens, 0)
 	resp.Enabled = api.Experiments.Enabled(codersdk.ExperimentChatAdvisor)
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
@@ -6348,12 +6335,6 @@ func (api *API) putChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 
 	var req codersdk.UpdateAdvisorConfigRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
-		return
-	}
-	if req.DeprecatedModelConfigID != nil || req.DeprecatedReasoningEffort != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Advisor model settings moved to PUT /api/v2/organizations/{organization}/chats/model-overrides/advisor.",
-		})
 		return
 	}
 	if req.MaxUsesPerRun < 0 {

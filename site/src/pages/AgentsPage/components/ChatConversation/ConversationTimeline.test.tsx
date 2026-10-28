@@ -1,11 +1,17 @@
-import { screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import {
+	fireEvent,
+	screen,
+	waitFor,
+	waitForElementToBeRemoved,
+	within,
+} from "@testing-library/react";
+import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { QueryClientProvider } from "react-query";
 import { defaultUrlTransform } from "streamdown";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { preferenceSettingsKey } from "#/api/queries/users";
-import type { ChatMessage } from "#/api/typesGenerated";
+import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
 import {
 	MockChatAttachment,
 	MockChatMessage,
@@ -24,16 +30,26 @@ import {
 	parseMessagesWithMergedTools,
 } from "./messageParsing";
 import {
+	attachmentStepMessages,
 	buildLiveStatus,
 	buildStreamRenderState,
 	MockCollapsedStepsPreferences,
 	MockLongTurnPageLoads,
+	MockTextBeforeSecondStepMessage,
 	MockWebSearchAnswerMessages,
 	MockWorkingMessages,
 	pinFixtureClock,
 	workingFixtureTime,
 } from "./storyFixtures";
 import { createEmptyStreamState } from "./streamState";
+
+// jsdom cannot lay out a real diagram.
+vi.mock("mermaid", () => ({
+	default: {
+		initialize: vi.fn(),
+		render: vi.fn(async () => ({ svg: "<svg></svg>" })),
+	},
+}));
 
 type TimelineStage = {
 	messages?: ChatMessage[];
@@ -106,6 +122,30 @@ const mockAssistantNote: ChatMessage = {
 	content: [{ type: "text", text: "Looking around first." }],
 };
 
+/** Text between MockWorkingMessages' two steps, in a row of its own. */
+const mockNote: ChatMessage = {
+	...MockChatMessage,
+	id: 4,
+	role: "assistant",
+	created_at: workingFixtureTime(5),
+	content: [{ type: "text", text: "Found the config." }],
+};
+
+// MockWorkingMessages' second step, its result, and the answer, with IDs above
+// mockNote's, as rows persisted after it.
+const mockLiveStep: ChatMessage = { ...MockWorkingMessages[3], id: 5 };
+const mockLiveStepResult: ChatMessage = { ...MockWorkingMessages[4], id: 6 };
+const mockAnswerAfterNote: ChatMessage = { ...MockWorkingMessages[5], id: 7 };
+
+/** MockWorkingMessages' second step, called after text with a link. */
+const mockLinkBeforeSecondStep: ChatMessage = {
+	...MockWorkingMessages[3],
+	content: [
+		{ type: "text", text: "See [the trial plan](https://docs.example.com)." },
+		...(MockWorkingMessages[3].content ?? []),
+	],
+};
+
 const focusCopyCommand = (messageId: number) => {
 	const button = within(
 		screen.getByTestId(`chat-message-message:${messageId}`),
@@ -115,20 +155,20 @@ const focusCopyCommand = (messageId: number) => {
 };
 
 describe("ConversationTimeline working blocks", () => {
-	it("copies the whole message from the answer below its expanded block", async () => {
+	it("copies the whole message from the answer that ends a row folded by its work", async () => {
 		const user = userEvent.setup();
 		const writeText = vi
 			.spyOn(navigator.clipboard, "writeText")
 			.mockResolvedValue();
 		renderTimeline({ messages: MockWebSearchAnswerMessages });
 
+		// The row's lead-in text folds into its search's block, and only the
+		// answer below the block carries the row's actions.
 		await user.click(
-			screen.getByRole("button", { name: "Worked for 15s (3 steps)" }),
-		);
-		await user.click(
-			within(screen.getByTestId("chat-message-message:6")).getByRole("button", {
-				name: "Copy message",
-			}),
+			within(screen.getByTestId("chat-message-message:6:1")).getByRole(
+				"button",
+				{ name: "Copy message" },
+			),
 		);
 
 		expect(writeText).toHaveBeenCalledWith(
@@ -181,14 +221,31 @@ describe("ConversationTimeline working blocks", () => {
 		expect(copyCommand).toHaveFocus();
 	});
 
+	const textSplitTurn = [
+		...MockWorkingMessages.slice(0, 3),
+		MockTextBeforeSecondStepMessage,
+	];
+
 	it.each([
-		["the rest of the turn persists", MockWorkingMessages],
-		["no further messages arrive", MockWorkingMessages.slice(0, 4)],
+		[
+			"the rest of the turn persists",
+			MockWorkingMessages.slice(0, 4),
+			MockWorkingMessages,
+		],
+		[
+			"no further messages arrive",
+			MockWorkingMessages.slice(0, 4),
+			MockWorkingMessages.slice(0, 4),
+		],
+		[
+			"text split the turn's blocks",
+			textSplitTurn,
+			[...textSplitTurn, ...MockWorkingMessages.slice(4)],
+		],
 	])(
-		"keeps focus inside an open block across the live-to-durable handoff when %s",
-		async (_, finalMessages) => {
+		"collapses the open block into its turn's one block, keeping its summary focused, at the turn's end when %s",
+		async (_, messages, finalMessages) => {
 			const user = userEvent.setup();
-			const messages = MockWorkingMessages.slice(0, 4);
 			const { rerenderStage } = renderTimeline({
 				messages,
 				pendingToolCallIDs: getPendingToolCallIDs(messages, "running"),
@@ -196,17 +253,125 @@ describe("ConversationTimeline working blocks", () => {
 				liveStatus: idleLive,
 			});
 
-			await user.click(screen.getByRole("button", { name: "Working for 12s" }));
-			const copyCommand = focusCopyCommand(2);
+			const summary = screen.getByRole("button", { name: /^Working for/ });
+			await user.click(summary);
 
 			rerenderStage({
 				messages: finalMessages,
 				chatStatus: "waiting",
 				liveStatus: idleLive,
 			});
-			expect(copyCommand).toHaveFocus();
+			expect(screen.getByRole("button", { name: /^Worked for/ })).toBe(summary);
+			expect(summary).toHaveFocus();
+			expect(summary).toHaveAttribute("aria-expanded", "false");
 		},
 	);
+
+	const linkSplitTurn = [
+		...MockWorkingMessages.slice(0, 3),
+		mockLinkBeforeSecondStep,
+	];
+	const runningStage = (messages: ChatMessage[]): TimelineStage => ({
+		messages,
+		pendingToolCallIDs: getPendingToolCallIDs(messages, "running"),
+		chatStatus: "running",
+		liveStatus: idleLive,
+	});
+
+	it.each<
+		[string, TimelineStage, (user: UserEvent) => Promise<void>, ChatMessage[]]
+	>([
+		[
+			"a control in an earlier block",
+			runningStage(textSplitTurn),
+			async (user) => {
+				await user.click(screen.getByRole("button", { name: /^Worked for/ }));
+				focusCopyCommand(2);
+			},
+			[...textSplitTurn, ...MockWorkingMessages.slice(4)],
+		],
+		[
+			"a link in text between steps",
+			runningStage(linkSplitTurn),
+			async () => screen.getByRole("link", { name: "the trial plan" }).focus(),
+			[...linkSplitTurn, ...MockWorkingMessages.slice(4)],
+		],
+		[
+			"a control in the turn's last block",
+			runningStage(MockWorkingMessages.slice(0, 4)),
+			async (user) => {
+				await user.click(screen.getByRole("button", { name: /^Working for/ }));
+				focusCopyCommand(4);
+			},
+			MockWorkingMessages,
+		],
+		[
+			"the summary of a block only the stream had",
+			{
+				messages: [...MockWorkingMessages.slice(0, 3), mockNote],
+				chatStatus: "running",
+				...buildStreamRenderState(MockWorkingMessages[3].content ?? []),
+			},
+			async () => screen.getByRole("button", { name: /^Working for/ }).focus(),
+			[
+				...MockWorkingMessages.slice(0, 3),
+				mockNote,
+				mockLiveStep,
+				mockLiveStepResult,
+				mockAnswerAfterNote,
+			],
+		],
+	])(
+		"moves focus from %s to its turn's fold at the turn's end",
+		async (_, running, focus, finalMessages) => {
+			const user = userEvent.setup();
+			const { rerenderStage } = renderTimeline(running);
+			await focus(user);
+
+			rerenderStage({
+				messages: finalMessages,
+				chatStatus: "waiting",
+				liveStatus: idleLive,
+			});
+			expect(screen.getByRole("button", { name: /^Worked for/ })).toHaveFocus();
+		},
+	);
+
+	it("keeps an image the reader opened in a block open as its turn folds", async () => {
+		const user = userEvent.setup();
+		const messages = [
+			MockWorkingMessages[0],
+			...attachmentStepMessages({
+				id: 2,
+				toolCallId: "attach",
+				callAt: 1,
+				toolName: "attach_file",
+				args: { path: "/home/coder/chart.png" },
+				file: {
+					type: "file",
+					media_type: "image/png",
+					name: "chart.png",
+					file_id: "chart-file",
+				},
+				result: { name: "chart.png" },
+			}),
+		];
+		const mockAnswer: ChatMessage = { ...MockWorkingMessages[5], id: 5 };
+		const { rerenderStage } = renderTimeline(runningStage(messages));
+
+		await user.click(screen.getByRole("button", { name: /^Working for/ }));
+		await user.click(screen.getByRole("button", { name: "View chart.png" }));
+		const lightbox = screen.getByRole("dialog", { name: "Image preview" });
+
+		rerenderStage({
+			messages: [...messages, mockAnswer],
+			chatStatus: "waiting",
+			liveStatus: idleLive,
+		});
+		expect(screen.getByRole("dialog", { name: "Image preview" })).toBe(
+			lightbox,
+		);
+	});
 
 	it("keeps focus inside an open live block when its prompt page arrives", async () => {
 		const user = userEvent.setup();
@@ -264,39 +429,55 @@ describe("ConversationTimeline working blocks", () => {
 		expect(summary).toHaveFocus();
 	});
 
-	it("keeps an open live-only block mounted when its prompt page and persisted step arrive together", async () => {
-		const user = userEvent.setup();
-		const mockStep: ChatMessage = { ...MockWorkingMessages[3], id: 3 };
-		const { rerenderStage } = renderTimeline({
-			messages: [mockAssistantNote],
-			hasMoreMessages: true,
-			chatStatus: "running",
-			...buildStreamRenderState(mockStep.content ?? []),
-		});
+	const mockSecondStepParts = MockWorkingMessages[3].content ?? [];
 
-		const summary = screen.getByRole("button", { name: /^Working/ });
-		await user.click(summary);
+	it.each<[string, readonly ChatMessagePart[]]>([
+		["", mockSecondStepParts],
+		[
+			" that started after text",
+			[
+				{
+					type: "reasoning",
+					text: "Planning the inspection",
+					created_at: workingFixtureTime(2),
+					completed_at: workingFixtureTime(3),
+				},
+				{ type: "text", text: "Checking the second step." },
+				...mockSecondStepParts,
+			],
+		],
+	])(
+		"keeps an open live-only block%s mounted when its prompt page and persisted step arrive together",
+		async (_name, content) => {
+			const user = userEvent.setup();
+			const mockStep: ChatMessage = {
+				...MockWorkingMessages[3],
+				id: 3,
+				content,
+			};
+			const { rerenderStage } = renderTimeline({
+				messages: [mockAssistantNote],
+				hasMoreMessages: true,
+				chatStatus: "running",
+				...buildStreamRenderState(content),
+			});
 
-		rerenderStage({
-			messages: [MockWorkingMessages[0], mockAssistantNote, mockStep],
-			pendingToolCallIDs: new Set(["second"]),
-			hasMoreMessages: true,
-			chatStatus: "running",
-			liveStatus: idleLive,
-		});
-		expect(summary).toHaveFocus();
-	});
+			const summary = screen.getByRole("button", { name: /^Working/ });
+			await user.click(summary);
+
+			rerenderStage({
+				messages: [MockWorkingMessages[0], mockAssistantNote, mockStep],
+				pendingToolCallIDs: new Set(["second"]),
+				hasMoreMessages: true,
+				chatStatus: "running",
+				liveStatus: idleLive,
+			});
+			expect(summary).toHaveFocus();
+		},
+	);
 
 	it("keeps an open live block mounted when an older page reveals an earlier block of its turn", async () => {
 		const user = userEvent.setup();
-		const mockNote: ChatMessage = {
-			...MockChatMessage,
-			id: 4,
-			role: "assistant",
-			created_at: workingFixtureTime(5),
-			content: [{ type: "text", text: "Found the config." }],
-		};
-		const mockLiveStep: ChatMessage = { ...MockWorkingMessages[3], id: 5 };
 		const stage = (messages: ChatMessage[]): TimelineStage => ({
 			messages,
 			pendingToolCallIDs: new Set(["second"]),
@@ -339,6 +520,34 @@ const streamingStage = (
 });
 
 describe("ConversationTimeline live working blocks", () => {
+	it("keeps streamed text mounted between the block it closes and the next step's block", () => {
+		const messages = MockWorkingMessages.slice(0, 3);
+		const note: ChatMessagePart = { type: "text", text: "Trials are running." };
+		const { rerenderStage } = renderTimeline({
+			messages,
+			chatStatus: "running",
+			...buildStreamRenderState([note]),
+		});
+
+		const summary = screen.getByRole("button", { name: "Working for 12s" });
+		summary.focus();
+		const liveAssistant = screen.getByTestId("chat-message-live-assistant");
+
+		rerenderStage({
+			messages,
+			chatStatus: "running",
+			...buildStreamRenderState([
+				note,
+				...(MockWorkingMessages[3].content ?? []),
+			]),
+		});
+
+		expect(summary).toHaveFocus();
+		expect(screen.getByTestId("chat-message-live-assistant")).toBe(
+			liveAssistant,
+		);
+	});
+
 	it("keeps an open block mounted from streaming steps through durable completion", async () => {
 		const user = userEvent.setup();
 		const { rerenderStage } = renderTimeline(
@@ -355,7 +564,7 @@ describe("ConversationTimeline live working blocks", () => {
 
 		rerenderStage({
 			messages: MockWorkingMessages,
-			chatStatus: "waiting",
+			chatStatus: "running",
 			streamState: null,
 			streamTools: [],
 			liveStatus: idleLive,
@@ -393,6 +602,41 @@ describe("ConversationTimeline live working blocks", () => {
 		});
 		expect(thinking).toHaveFocus();
 	});
+
+	it.each([
+		["focused", (summary: HTMLElement) => summary.focus()],
+		// fireEvent.click leaves focus alone, as a Safari click does, so this
+		// case tests the toggle alone.
+		["expanded", (summary: HTMLElement) => fireEvent.click(summary)],
+	])(
+		"keeps a block of only reasoning that the reader %s when text follows it",
+		(_, engage) => {
+			const messages = MockWorkingMessages.slice(0, 5);
+			const note: ChatMessagePart = { type: "text", text: "Both passed." };
+			const reasoning: ChatMessagePart = {
+				type: "reasoning",
+				text: "Planning the summary",
+				created_at: workingFixtureTime(13),
+			};
+			const answer: ChatMessagePart = { type: "text", text: "All good." };
+			const { rerenderStage } = renderTimeline({
+				messages,
+				chatStatus: "running",
+				...buildStreamRenderState([note, reasoning]),
+			});
+			const summary = screen.getByRole("button", { name: /^Working for/ });
+			engage(summary);
+
+			rerenderStage({
+				messages,
+				chatStatus: "running",
+				...buildStreamRenderState([note, reasoning, answer]),
+			});
+			expect(screen.getByRole("button", { name: /^Working for/ })).toBe(
+				summary,
+			);
+		},
+	);
 
 	it("keeps the live disclosure mounted while the next step starts", () => {
 		const messages = MockWorkingMessages.slice(0, 5);
@@ -440,10 +684,10 @@ describe("ConversationTimeline live working blocks", () => {
 			liveStatus: idleLive,
 		});
 
-		await user.click(
-			screen.getByRole("button", { name: "Working for at least 12s" }),
-		);
-		const copyCommand = focusCopyCommand(2);
+		const summary = screen.getByRole("button", {
+			name: "Working for at least 12s",
+		});
+		await user.click(summary);
 
 		rerenderStage({
 			messages: MockWorkingMessages.slice(1),
@@ -451,14 +695,81 @@ describe("ConversationTimeline live working blocks", () => {
 			chatStatus: "waiting",
 			liveStatus: idleLive,
 		});
-		expect(copyCommand).toHaveFocus();
+		expect(summary).toHaveFocus();
 
 		rerenderStage({
 			messages: MockWorkingMessages,
 			chatStatus: "waiting",
 			liveStatus: idleLive,
 		});
-		expect(copyCommand).toHaveFocus();
+		expect(summary).toHaveFocus();
+	});
+});
+
+describe("ConversationTimeline lightboxes", () => {
+	it("keeps the open lightbox and its focus return when a text attachment preview loads after it opened", async () => {
+		const user = userEvent.setup();
+		const notesResponse = createDeferred<undefined>();
+		server.use(
+			http.get("/api/v2/chats/files/notes", async () => {
+				await notesResponse.promise;
+				return HttpResponse.text("Release notes");
+			}),
+		);
+		const mockNotesPrompt: ChatMessage = {
+			...MockWorkingMessages[0],
+			content: [
+				{
+					type: "file",
+					media_type: "text/plain",
+					file_id: "notes",
+					name: "notes.txt",
+				},
+				{ type: "file", media_type: "image/png", file_id: "photo" },
+			],
+		};
+		renderTimeline({ messages: [mockNotesPrompt] });
+
+		await user.click(screen.getByRole("button", { name: "View notes.txt" }));
+		const loading = screen.getByText("Loading attachment preview…");
+		const image = screen.getByRole("button", { name: "View Attached image" });
+		await user.click(image);
+		const lightbox = screen.getByRole("dialog", { name: "Image preview" });
+
+		notesResponse.resolve(undefined);
+		await waitForElementToBeRemoved(loading);
+		expect(screen.getByRole("dialog")).toBe(lightbox);
+		await user.keyboard("{Escape}");
+		await waitFor(() => expect(image).toHaveFocus());
+	});
+
+	it("opens a diagram in a Markdown attachment's preview over that preview", async () => {
+		const user = userEvent.setup();
+		server.use(
+			http.get("/api/v2/chats/files/plan", () =>
+				HttpResponse.text("```mermaid\ngraph TD\n  A --> B\n```"),
+			),
+		);
+		const mockPlanPrompt: ChatMessage = {
+			...MockWorkingMessages[0],
+			content: [
+				{
+					type: "file",
+					media_type: "text/markdown",
+					file_id: "plan",
+					name: "plan.md",
+				},
+			],
+		};
+		renderTimeline({ messages: [mockPlanPrompt] });
+
+		await user.click(screen.getByRole("button", { name: "View plan.md" }));
+		await user.click(
+			await screen.findByRole("button", { name: "View diagram full size" }),
+		);
+		expect(
+			screen.getByRole("dialog", { name: "Diagram preview" }),
+		).toHaveFocus();
 	});
 });
 

@@ -23,6 +23,13 @@ const fillAndSubmitForm = async () => {
 };
 
 describe("AccountPage", () => {
+	it("sets a page title that identifies the page", async () => {
+		renderWithAuth(<AccountPage />);
+		await waitFor(() => {
+			expect(document.title).toBe("Account - Settings - Coder");
+		});
+	});
+
 	describe("when it is a success", () => {
 		it("shows the success message", async () => {
 			vi.spyOn(API, "updateProfile").mockImplementationOnce((userId, data) =>
