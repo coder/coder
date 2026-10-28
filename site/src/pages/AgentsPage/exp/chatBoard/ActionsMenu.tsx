@@ -18,7 +18,11 @@ import {
 /** An item runs an action, or opens a sub menu holding `children`. */
 type MenuAction = Readonly<{ label: string; icon: LucideIcon }> &
 	(
-		| Readonly<{ onSelect: () => void; destructive?: boolean }>
+		| Readonly<{
+				onSelect: () => void;
+				destructive?: boolean;
+				disabled?: boolean;
+		  }>
 		| Readonly<{ children: React.ReactNode }>
 	);
 
@@ -74,6 +78,7 @@ export const ActionsMenu: React.FC<ActionsMenuProps> = ({
 						<DropdownMenuItem
 							key={item.label}
 							className={cn(item.destructive && "text-content-destructive")}
+							disabled={item.disabled}
 							onSelect={item.onSelect}
 						>
 							<item.icon className="size-3.5" />

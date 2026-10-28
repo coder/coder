@@ -2,6 +2,7 @@ import { pointerIntersection } from "@dnd-kit/collision";
 import { useDraggable, useDroppable } from "@dnd-kit/react";
 import { cn } from "cn";
 import {
+	ArchiveIcon,
 	BotIcon,
 	CopyIcon,
 	MessageSquarePlusIcon,
@@ -15,6 +16,7 @@ import {
 	DropdownMenuCheckboxItem,
 	DropdownMenuSeparator,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { chatFamilyAllowsArchive } from "../../components/ChatActionsMenuItems";
 import { getChatDisplayConfig } from "../../components/ChatsSidebar/tree/statusConfig";
 import { ActionsMenu } from "./ActionsMenu";
 import type { NoteSlot } from "./boardApi";
@@ -55,6 +57,25 @@ export type ChatOpenHandlers = {
 
 // dnd-kit sets the element on mount; before that there is nothing to
 // place a window beside.
+// The server archives a chat with its subagents and refuses while any of
+// them works, so the item says so instead of failing.
+const archiveAction = (
+	label: string,
+	chats: readonly Chat[],
+	onSelect: () => void,
+) => {
+	const blocked = chats.some(
+		(chat) => !chatFamilyAllowsArchive(chat.status, chat.children),
+	);
+	return {
+		label: blocked ? `${label} (a chat is working)` : label,
+		icon: ArchiveIcon,
+		destructive: true,
+		disabled: blocked,
+		onSelect,
+	};
+};
+
 const rectOf = (element: Element | undefined) =>
 	element?.getBoundingClientRect() ?? new DOMRect();
 
@@ -78,6 +99,9 @@ type BoardCardProps = ChatOpenHandlers & {
 	readonly onCardAssistant: () => void;
 	readonly onNewChat: () => void;
 	readonly onRemoveFromGroup: (chat: Chat) => void;
+	/** Archives every chat on the card and its assistant. */
+	readonly onArchive: () => void;
+	readonly onArchiveChat: (chat: Chat) => void;
 	readonly onAddNote: (text: string) => void;
 	readonly onEditNote: (index: number, text: string) => void;
 	readonly onRemoveNote: (index: number) => void;
@@ -99,6 +123,8 @@ export const BoardCard: React.FC<BoardCardProps> = ({
 	onCardAssistant,
 	onNewChat,
 	onRemoveFromGroup,
+	onArchive,
+	onArchiveChat,
 	onOpen,
 	onPreview,
 	onPreviewEnd,
@@ -250,6 +276,11 @@ export const BoardCard: React.FC<BoardCardProps> = ({
 								icon: PencilIcon,
 								onSelect: () => setRenaming(true),
 							},
+							archiveAction(
+								single ? "Archive chat" : "Archive card",
+								[...card.members, ...(assistant ? [assistant] : [])],
+								onArchive,
+							),
 						]}
 					/>
 				</div>
@@ -291,6 +322,7 @@ export const BoardCard: React.FC<BoardCardProps> = ({
 							open={openChatIds.has(chat.id)}
 							onRename={(title) => onRenameChat(chat, title)}
 							onRemove={() => onRemoveFromGroup(chat)}
+							onArchive={() => onArchiveChat(chat)}
 							onOpen={onOpen}
 							onPreview={onPreview}
 							onPreviewEnd={onPreviewEnd}
@@ -398,6 +430,7 @@ type ChatRowProps = ChatOpenHandlers & {
 	readonly open: boolean;
 	readonly onRename: (title: string) => void;
 	readonly onRemove: () => void;
+	readonly onArchive: () => void;
 };
 
 // Any member can leave, the primary included: the mutation hands the card
@@ -408,6 +441,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 	open: isOpen,
 	onRename,
 	onRemove,
+	onArchive,
 	onOpen,
 	onPreview,
 	onPreviewEnd,
@@ -483,6 +517,7 @@ const ChatRow: React.FC<ChatRowProps> = ({
 							icon: PencilIcon,
 							onSelect: () => setRenaming(true),
 						},
+						archiveAction("Archive chat", [chat], onArchive),
 					]}
 				/>
 			</div>

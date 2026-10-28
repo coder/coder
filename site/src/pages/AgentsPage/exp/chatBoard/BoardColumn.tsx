@@ -65,6 +65,8 @@ type BoardColumnProps = ChatOpenHandlers & {
 	readonly onCardAssistant: (card: BoardCardModel) => void;
 	readonly onNewChatInCard: (card: BoardCardModel) => void;
 	readonly onRemoveFromGroup: (chat: Chat, card: BoardCardModel) => void;
+	readonly onArchiveCard: (card: BoardCardModel) => void;
+	readonly onArchiveChat: (chat: Chat, card: BoardCardModel) => void;
 	readonly onAddNote: (card: BoardCardModel, text: string) => void;
 	readonly onEditNote: (
 		card: BoardCardModel,
@@ -92,6 +94,8 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
 	onCardAssistant,
 	onNewChatInCard,
 	onRemoveFromGroup,
+	onArchiveCard,
+	onArchiveChat,
 	onOpen,
 	onPreview,
 	onPreviewEnd,
@@ -238,6 +242,8 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
 							onCardAssistant={() => onCardAssistant(card)}
 							onNewChat={() => onNewChatInCard(card)}
 							onRemoveFromGroup={(chat) => onRemoveFromGroup(chat, card)}
+							onArchive={() => onArchiveCard(card)}
+							onArchiveChat={(chat) => onArchiveChat(chat, card)}
 							onOpen={onOpen}
 							onPreview={onPreview}
 							onPreviewEnd={onPreviewEnd}

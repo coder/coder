@@ -16,9 +16,11 @@ import { useNavigate } from "react-router";
 import { getErrorMessage } from "#/api/errors";
 import { chatProjects } from "#/api/queries/chatProjects";
 import {
+	archiveChat,
 	chatSearch,
 	createChat,
 	moveChatToProject,
+	unarchiveChat,
 	updateChatTitle,
 } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
@@ -51,6 +53,7 @@ import {
 	effortCounts,
 	moveCardToProject,
 	type Plan,
+	removeFromGroup,
 	renameEffort,
 } from "./boardApi";
 import {
@@ -108,6 +111,9 @@ const PREVIEW_OPEN_MS = 450;
 const PREVIEW_CLOSE_MS = 300;
 
 const SEARCH_DEBOUNCE_MS = 300;
+
+// Matches the board's other undo toasts.
+const ARCHIVE_UNDO_MS = 10_000;
 
 /** A preview change waiting for its delay: open beside an anchor, or close. */
 type PendingPreview =
@@ -177,6 +183,22 @@ const ChatBoardPage: React.FC = () => {
 			toast.error(getErrorMessage(error, "Failed to rename chat.")),
 	});
 	const createMutation = useMutation(createChat(queryClient));
+	const archiveOptions = archiveChat(queryClient);
+	const archiveMutation = useMutation({
+		...archiveOptions,
+		onError: (error, chatId, context) => {
+			archiveOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to archive chat."));
+		},
+	});
+	const unarchiveOptions = unarchiveChat(queryClient);
+	const unarchiveMutation = useMutation({
+		...unarchiveOptions,
+		onError: (error, chatId, context) => {
+			unarchiveOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to unarchive chat."));
+		},
+	});
 	const projectMoveOptions = moveChatToProject(queryClient);
 	const projectMutation = useMutation({
 		...projectMoveOptions,
@@ -397,6 +419,41 @@ const ChatBoardPage: React.FC = () => {
 			setPendingPreview(null);
 			setWindows((prev) => toFront(dropPreview(prev), windowCentered(chatId)));
 		});
+	const archiveChatsAndOfferUndo = async (
+		chats: readonly Chat[],
+		message: string,
+	) => {
+		const results = await Promise.allSettled(
+			chats.map((chat) => archiveMutation.mutateAsync(chat.id)),
+		);
+		const archived = chats.filter((_, i) => results[i]?.status === "fulfilled");
+		if (archived.length === 0) return;
+		toast(message, {
+			duration: ARCHIVE_UNDO_MS,
+			action: {
+				label: "Undo",
+				onClick: () => {
+					for (const chat of archived) unarchiveMutation.mutate(chat.id);
+				},
+			},
+		});
+	};
+	const archiveCard = (card: BoardCardModel) => {
+		const assistant = cardAssistants.get(card.id);
+		void archiveChatsAndOfferUndo(
+			[...card.members, ...(assistant ? [assistant] : [])],
+			`Archived "${card.title}"`,
+		);
+	};
+	// A group's card data lives on its primary, so the chat first leaves the
+	// group, which hands that data to the next chat, and is archived after.
+	const archiveCardChat = async (chat: Chat, card: BoardCardModel) => {
+		if (card.members.length > 1) {
+			const plan = removeFromGroup(boardState, chat.id);
+			if (plan && !(await run({ ...plan, undo: undefined }))) return;
+		}
+		await archiveChatsAndOfferUndo([chat], `Archived "${chat.title}"`);
+	};
 	const openCardAssistant = (card: BoardCardModel) =>
 		void showAssistant(card.id, (tools) => cardAssistantSpec(card, tools));
 	const openLaneAssistant = (lane: Readonly<{ key: string; name: string }>) => {
@@ -548,6 +605,8 @@ const ChatBoardPage: React.FC = () => {
 										onFilterEffort={(effort) =>
 											updateStorage({ effortFilter: effort })
 										}
+										onArchiveCard={archiveCard}
+										onArchiveChat={archiveCardChat}
 										onOpen={openChat}
 										onPreview={previewChat}
 										onPreviewEnd={endPreview}
@@ -571,6 +630,8 @@ const ChatBoardPage: React.FC = () => {
 						onCardAssistant={openCardAssistant}
 						onNewChat={openDraft}
 						onFilterEffort={(effort) => updateStorage({ effortFilter: effort })}
+						onArchiveCard={archiveCard}
+						onArchiveChat={archiveCardChat}
 						onOpen={openChat}
 						onPreview={previewChat}
 						onPreviewEnd={endPreview}
