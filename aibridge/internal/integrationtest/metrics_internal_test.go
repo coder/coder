@@ -10,6 +10,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	promtest "github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/sjson"
 
@@ -362,17 +363,17 @@ func TestMetrics_TokenUseCount(t *testing.T) {
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			_, _ = io.ReadAll(resp.Body)
 
-			// metrics are updated asynchronously
-			require.Eventually(t, func() bool {
-				return promtest.ToFloat64(m.TokenUseCount.WithLabelValues(
-					tc.expectProvider, tc.expectModel, "input", defaultActorID, string(aibclient.Unknown))) > 0
+			// Token usage is recorded asynchronously, possibly in several
+			// records, and each series is updated separately. Some expected
+			// values are zero, so the poll waits for every series to reach its
+			// expected value.
+			require.EventuallyWithT(t, func(c *assert.CollectT) {
+				for label, expected := range tc.expectedLabels {
+					assert.Equal(c, expected, promtest.ToFloat64(m.TokenUseCount.WithLabelValues(
+						tc.expectProvider, tc.expectModel, label, defaultActorID, string(aibclient.Unknown),
+					)), "metric label %q mismatch", label)
+				}
 			}, testutil.WaitMedium, testutil.IntervalFast)
-
-			for label, expected := range tc.expectedLabels {
-				require.Equal(t, expected, promtest.ToFloat64(m.TokenUseCount.WithLabelValues(
-					tc.expectProvider, tc.expectModel, label, defaultActorID, string(aibclient.Unknown),
-				)), "metric label %q mismatch", label)
-			}
 		})
 	}
 }

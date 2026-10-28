@@ -43,7 +43,6 @@ afterEach(() => {
 });
 
 const mockChatPageAPI = (messages: ChatMessage[] = []) => {
-	vi.spyOn(API, "getExperiments").mockResolvedValue(["chat-projects"]);
 	vi.spyOn(apiModule, "watchChat").mockImplementation(
 		() =>
 			new OneWayWebSocket({

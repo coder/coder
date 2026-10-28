@@ -18,7 +18,6 @@ import type { Workspace } from "#/api/typesGenerated";
 import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
 import {
 	MockDropdownParameter,
-	MockOutdatedRunningWorkspaceRequireActiveVersion,
 	MockOutdatedStoppedWorkspaceRequireActiveVersion,
 	MockPermissions,
 	MockPreviewParameter,
@@ -159,56 +158,6 @@ export const StartWorkspace: Story = {
 		await waitFor(() =>
 			expect(screen.getByText("would have started")).toBeInTheDocument(),
 		);
-	},
-};
-
-export const RequireActiveVersionBlocked: Story = {
-	parameters: {
-		reactRouter: workspaceRouterParameters(
-			MockOutdatedStoppedWorkspaceRequireActiveVersion,
-		),
-		queries: workspaceQueries(
-			MockOutdatedStoppedWorkspaceRequireActiveVersion,
-			{ updateWorkspaceVersion: false },
-		),
-		webSocket: filledWebSocketParams(),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() =>
-			expect(
-				canvas.getByText(/requires automatic updates/),
-			).toBeInTheDocument(),
-		);
-		const submitButton = canvas.getByRole("button", {
-			name: "Update and start",
-		});
-		expect(submitButton).toBeDisabled();
-	},
-};
-
-export const RequireActiveVersionBlockedRunning: Story = {
-	parameters: {
-		reactRouter: workspaceRouterParameters(
-			MockOutdatedRunningWorkspaceRequireActiveVersion,
-		),
-		queries: workspaceQueries(
-			MockOutdatedRunningWorkspaceRequireActiveVersion,
-			{ updateWorkspaceVersion: false },
-		),
-		webSocket: filledWebSocketParams(),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() =>
-			expect(
-				canvas.getByText(/requires automatic updates/),
-			).toBeInTheDocument(),
-		);
-		const submitButton = canvas.getByRole("button", {
-			name: "Update and restart",
-		});
-		expect(submitButton).toBeDisabled();
 	},
 };
 
