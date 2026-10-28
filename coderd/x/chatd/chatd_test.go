@@ -9560,11 +9560,9 @@ func TestAsyncAskUserQuestionWebPush(t *testing.T) {
 
 	const questionBody = "Question: Which database should we use?"
 	// runTurn runs a turn whose first step asks a question and waits until
-	// the turn settles in wantStatus after at least wantPushes pushes. It
-	// returns the chat, the model call count, and every push sent.
+	// the turn settles in wantStatus after at least wantPushes pushes.
 	runTurn := func(t *testing.T, failResultCommit bool, wantStatus database.ChatStatus, wantPushes int32) (database.Chat, int32, []codersdk.WebpushMessage) {
 		db, ps := dbtestutil.NewDB(t)
-		ctx := testutil.Context(t, testutil.WaitLong)
 
 		var streamCalls atomic.Int32
 		openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
@@ -9602,6 +9600,7 @@ func TestAsyncAskUserQuestionWebPush(t *testing.T) {
 		})
 
 		user, org, model := seedChatDependencies(t, db)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
 
 		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
@@ -9647,9 +9646,8 @@ func TestAsyncAskUserQuestionWebPush(t *testing.T) {
 		t.Parallel()
 
 		_, _, pushes := runTurn(t, true, database.ChatStatusError, 1)
-		for _, push := range pushes {
-			require.NotEqual(t, questionBody, push.Body)
-		}
+		require.Len(t, pushes, 1)
+		require.Equal(t, "The chat request failed unexpectedly.", pushes[0].Body)
 	})
 }
 

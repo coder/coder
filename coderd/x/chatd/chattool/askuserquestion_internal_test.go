@@ -150,10 +150,9 @@ func TestAskUserQuestionToolRun(t *testing.T) {
 		`{"label":"Frontend","description":"Build the UI first."}]}]}`
 
 	tests := []struct {
-		name  string
-		async bool
-		input string
-		// wantAsked is the question AsyncQuestion reads from the result.
+		name      string
+		async     bool
+		input     string
 		wantAsked string
 		wantError bool
 	}{
