@@ -18,6 +18,7 @@ import { chatProjectsKey } from "#/api/queries/chatProjects";
 import {
 	chatListKey,
 	infiniteChats,
+	infiniteProjectFolderChats,
 	projectFolderChatsKey,
 	toChatListParams,
 	userChatProviderConfigsKey,
@@ -3172,8 +3173,8 @@ const mockFullPageOfProjectChats = Array.from({ length: 50 }, (_, index) =>
 
 export const ProjectFolderChatsLoadingNextPage: Story = {
 	args: { chats: [mockLooseChat] },
-	// The sidebar fills its parent, so it needs a height to scroll the
-	// sentinel into view.
+	// The sidebar fills its parent, so it needs a height for the folder's
+	// end to scroll into view.
 	decorators: [
 		(Story) => (
 			<div className="h-[500px] w-[360px]">
@@ -3200,14 +3201,25 @@ export const ProjectFolderChatsLoadingNextPage: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getChats").mockReturnValue(new Promise(() => {}));
 	},
+	render: function ProjectFolderChatsLoadingNextPageRender(args) {
+		const { fetchNextPage } = useInfiniteQuery({
+			...infiniteProjectFolderChats(
+				MockChatProject.id,
+				getSidebarChatListInput(defaultSidebarFilters),
+			),
+			enabled: false,
+		});
+		// Pixel's browser does not report the sentinel's intersection, so
+		// start the next page here instead of by scrolling.
+		useEffect(() => {
+			void fetchNextPage();
+		}, [fetchNextPage]);
+		return <ChatsSidebar {...args} />;
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const rows = await canvas.findAllByRole("link", {
-			name: /^Project chat \d+/,
-		});
-		// Scrolling the folder's last row into view reveals the sentinel.
-		rows.at(-1)?.scrollIntoView({ block: "start" });
-		await canvas.findByTitle("Loading spinner");
+		const spinner = await canvas.findByTitle("Loading spinner");
+		spinner.scrollIntoView({ block: "end" });
 	},
 };
 
