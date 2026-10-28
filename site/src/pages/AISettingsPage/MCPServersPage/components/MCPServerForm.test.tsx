@@ -1,5 +1,6 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { UpdateMCPServerConfigRequest } from "#/api/typesGenerated";
 import { render } from "#/testHelpers/renderHelpers";
 import { MockCoderMCPServer } from "../testFixtures";
 import { MCPServerForm } from "./MCPServerForm";
@@ -161,4 +162,41 @@ it("clears a stored OAuth2 resource URL on update", async () => {
 			expect.objectContaining({ oauth2_resource: "" }),
 		);
 	});
+});
+
+it("registers an OAuth2 client automatically when a server switches to OAuth2", async () => {
+	const user = userEvent.setup();
+	const onUpdateServer = vi.fn(
+		async (_id: string, _req: UpdateMCPServerConfigRequest) => undefined,
+	);
+	const mockNoAuthServer = { ...MockCoderMCPServer, auth_type: "none" };
+	render(
+		<MCPServerForm
+			server={mockNoAuthServer}
+			listPath="/servers"
+			isSaving={false}
+			isDeleting={false}
+			canSelectUserOIDC
+			onUpdateServer={onUpdateServer}
+			onCancel={vi.fn()}
+		/>,
+	);
+	await user.click(screen.getByRole("button", { name: /authentication/i }));
+	await user.click(
+		screen.getByRole("combobox", { name: /authentication method/i }),
+	);
+	await user.click(screen.getByRole("option", { name: "OAuth2" }));
+	await user.click(screen.getByRole("button", { name: "Update server" }));
+	await waitFor(() => {
+		expect(onUpdateServer).toHaveBeenCalledWith(
+			mockNoAuthServer.id,
+			expect.objectContaining({
+				auth_type: "oauth2",
+				oauth2_client_registration: "dynamic",
+			}),
+		);
+	});
+	expect(onUpdateServer.mock.calls[0]?.[1]).not.toHaveProperty(
+		"oauth2_client_id",
+	);
 });
