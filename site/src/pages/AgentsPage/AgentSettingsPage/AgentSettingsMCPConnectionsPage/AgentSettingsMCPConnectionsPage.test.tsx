@@ -103,6 +103,50 @@ describe("AgentSettingsMCPConnectionsPage", () => {
 		iframe.remove();
 	});
 
+	it("confirms a sign-in that finishes after the organization changes", async () => {
+		const user = userEvent.setup();
+		setup((organizationId) =>
+			organizationId === MockDefaultOrganization.id
+				? [mockGitHubMCP]
+				: [mockNotionMCP],
+		);
+		const iframe = document.createElement("iframe");
+		document.body.appendChild(iframe);
+		const popup = iframe.contentWindow;
+		vi.spyOn(window, "open").mockReturnValue(popup);
+		const toastSuccess = vi.spyOn(toast, "success");
+		renderPage();
+
+		await user.click(
+			await screen.findByRole("button", { name: "Connect GitHub" }),
+		);
+		await user.click(
+			screen.getByRole("combobox", {
+				name: `Organization ${MockDefaultOrganization.display_name}`,
+			}),
+		);
+		await user.click(
+			screen.getByRole("option", {
+				name: new RegExp(MockOrganization2.display_name),
+			}),
+		);
+		await screen.findByRole("button", { name: "Disconnect Notion" });
+
+		act(() => {
+			window.dispatchEvent(
+				new MessageEvent("message", {
+					data: { type: "mcp-oauth2-complete", serverID: mockGitHubMCP.id },
+					origin: location.origin,
+					source: popup,
+				}),
+			);
+		});
+		await waitFor(() =>
+			expect(toastSuccess).toHaveBeenCalledWith("Connected GitHub."),
+		);
+		iframe.remove();
+	});
+
 	it("disconnects after confirmation", async () => {
 		const user = userEvent.setup();
 		setup(() => [mockNotionMCP]);

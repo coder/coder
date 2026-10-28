@@ -3389,7 +3389,9 @@ export const mcpServerConfigACLAvailable = (
 	enabled: organization !== "" && id !== "",
 });
 
-const invalidateMCPServerConfigQueries = async (queryClient: QueryClient) => {
+export const invalidateMCPServerConfigQueries = async (
+	queryClient: QueryClient,
+) => {
 	await queryClient.invalidateQueries({ queryKey: mcpServersKey });
 };
 

@@ -4,8 +4,8 @@ import { useLocation } from "react-router";
 import { getErrorMessage } from "#/api/errors";
 import {
 	disconnectMCPServerOAuth2,
+	invalidateMCPServerConfigQueries,
 	mcpServerConfigs,
-	mcpServerConfigsKey,
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
@@ -53,16 +53,13 @@ const AgentSettingsMCPConnectionsPage: React.FC = () => {
 
 	const { connectingServerId, connect } = useMCPOAuthFlow({
 		organizationId,
+		// A sign-in can finish after the picker leaves its organization,
+		// so every organization's list refreshes.
 		onAuthComplete: () => {
-			void queryClient.invalidateQueries({
-				queryKey: mcpServerConfigsKey(organizationId),
-			});
+			void invalidateMCPServerConfigQueries(queryClient);
 		},
-		onFlowSuccess: (serverId) => {
-			const server = servers?.find(({ id }) => id === serverId);
-			if (server) {
-				toast.success(`Connected ${server.display_name}.`);
-			}
+		onFlowSuccess: (server) => {
+			toast.success(`Connected ${server.display_name}.`);
 		},
 	});
 
@@ -106,7 +103,7 @@ const AgentSettingsMCPConnectionsPage: React.FC = () => {
 				void serversQuery.refetch();
 			}}
 			connectingServerId={connectingServerId}
-			onConnect={(server) => connect(server.id)}
+			onConnect={connect}
 			onDisconnect={setDisconnectTarget}
 			disconnectTarget={disconnectTarget}
 			isDisconnecting={disconnectMutation.isPending}
