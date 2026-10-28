@@ -19,7 +19,6 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useWindowSize } from "#/hooks/useWindowSize";
-import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import { useTheme } from "#/theme/context";
 import { AIGovernanceUsersConsumption } from "./AIGovernanceUsersConsumptionChart";
 import { LicenseCard } from "./LicenseCard";
@@ -149,11 +148,25 @@ const LicensesSettingsPageView: React.FC<Props> = ({
 				)}
 
 				{!isLoading && canViewLicenses && licenses?.length === 0 && (
-					<PremiumPaywall
-						source="licenses"
-						message="Premium features"
-						description="You don't have any licenses. Add a Premium license to unlock high availability, RBAC, quotas, audit logs, and more."
-						canViewPremium
+					<EmptyState
+						className="rounded-lg border border-solid border-border"
+						message="No licenses yet"
+						description="Add a license to unlock high availability, RBAC, quotas, and more. Don't have one? Start a free trial."
+						cta={
+							<div className="flex flex-row gap-2">
+								<Button asChild>
+									<RouterLink to="/deployment/licenses/add">
+										<PlusIcon />
+										Add a license
+									</RouterLink>
+								</Button>
+								<Button variant="outline" asChild>
+									<RouterLink to="/deployment/premium">
+										Start a trial
+									</RouterLink>
+								</Button>
+							</div>
+						}
 					/>
 				)}
 

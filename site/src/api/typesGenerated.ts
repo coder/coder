@@ -8345,7 +8345,6 @@ export type PremiumFunnelSource =
 	| "groups"
 	| "idp_org_sync"
 	| "idp_sync"
-	| "licenses"
 	| "multiple_organizations"
 	| "observability"
 	| "provisioner_keys"
@@ -8368,7 +8367,6 @@ export const PremiumFunnelSources: PremiumFunnelSource[] = [
 	"groups",
 	"idp_org_sync",
 	"idp_sync",
-	"licenses",
 	"multiple_organizations",
 	"observability",
 	"provisioner_keys",

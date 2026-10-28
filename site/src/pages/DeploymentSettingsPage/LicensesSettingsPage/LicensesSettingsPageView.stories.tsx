@@ -44,6 +44,17 @@ export const Empty: Story = {
 	args: {
 		licenses: [],
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("No licenses yet");
+		const addLinks = canvas.getAllByRole("link", { name: /add a license/i });
+		for (const link of addLinks) {
+			await expect(link).toHaveAttribute("href", "/deployment/licenses/add");
+		}
+		await expect(
+			canvas.getByRole("link", { name: /start a trial/i }),
+		).toHaveAttribute("href", "/deployment/premium");
+	},
 };
 
 export const NoLicensePermission: Story = {
