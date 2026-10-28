@@ -207,7 +207,7 @@ describe("UserCompactionThresholdSettings", () => {
 		await user.click(screen.getByRole("link", { name: "General settings" }));
 		expect(router.state.location.pathname).toBe("/compaction");
 		await user.click(await screen.findByRole("button", { name: "Stay" }));
-		await user.click(screen.getByRole("combobox"));
+		await user.click(await screen.findByRole("combobox"));
 		await user.click(
 			screen.getByRole("option", {
 				name: new RegExp(`${MockDefaultOrganization.display_name}$`),
