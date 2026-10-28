@@ -10,19 +10,25 @@ import {
 	MockUserMember,
 	MockUserOwner,
 } from "#/testHelpers/entities";
+import { buildAgentProjectPath } from "../../../utils/navigation";
 import { projectsSectionCollapsedStorageKey } from "../../../utils/projectsSectionStorage";
 import { ProjectFolders } from "./ProjectFolders";
 
 type ProjectFoldersOptions = {
 	readonly error?: unknown;
 	readonly currentUserId?: string;
+	readonly route?: string;
 };
 
 const projectFoldersElement = (
 	projects: readonly ChatProject[],
-	{ error, currentUserId = MockUserOwner.id }: ProjectFoldersOptions = {},
+	{
+		error,
+		currentUserId = MockUserOwner.id,
+		route = "/agents",
+	}: ProjectFoldersOptions = {},
 ) => (
-	<MemoryRouter>
+	<MemoryRouter initialEntries={[route]}>
 		<ProjectFolders
 			currentUserId={currentUserId}
 			projects={projects}
@@ -104,28 +110,42 @@ describe("ProjectFolders", () => {
 		expect(screen.getByRole("button", { name: "New project" })).toHaveFocus();
 	});
 
-	it("returns focus to the menu button on Escape but not after New chat", async () => {
-		const user = userEvent.setup();
-		renderProjectFolders([MockChatProject]);
-		const trigger = screen.getByRole("button", {
-			name: `Open project actions for ${MockChatProject.name}`,
-		});
-		const waitForMenuToClose = async () => {
-			await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
-			// The menu restores focus on a timer after it unmounts.
-			await new Promise((resolve) => setTimeout(resolve, 50));
-		};
+	it.each([
+		{
+			page: "the project's page",
+			route: buildAgentProjectPath({ projectId: MockChatProject.id }),
+			focusReturns: false,
+		},
+		{ page: "another page", route: "/agents", focusReturns: true },
+	])(
+		"after New chat from $page, focus returns to the menu button: $focusReturns",
+		async ({ route, focusReturns }) => {
+			const user = userEvent.setup();
+			renderProjectFolders([MockChatProject], { route });
+			const trigger = screen.getByRole("button", {
+				name: `Open project actions for ${MockChatProject.name}`,
+			});
+			const waitForMenuToClose = async () => {
+				await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+				// The menu restores focus on a timer after it unmounts.
+				await new Promise((resolve) => setTimeout(resolve, 50));
+			};
 
-		await user.click(trigger);
-		await user.keyboard("{Escape}");
-		await waitForMenuToClose();
-		expect(trigger).toHaveFocus();
+			await user.click(trigger);
+			await user.keyboard("{Escape}");
+			await waitForMenuToClose();
+			expect(trigger).toHaveFocus();
 
-		await user.click(trigger);
-		await user.click(screen.getByRole("menuitem", { name: "New chat" }));
-		await waitForMenuToClose();
-		expect(trigger).not.toHaveFocus();
-	});
+			await user.click(trigger);
+			await user.click(screen.getByRole("menuitem", { name: "New chat" }));
+			await waitForMenuToClose();
+			if (focusReturns) {
+				expect(trigger).toHaveFocus();
+			} else {
+				expect(trigger).not.toHaveFocus();
+			}
+		},
+	);
 
 	it("collapses and expands the whole Projects section", async () => {
 		const user = userEvent.setup();

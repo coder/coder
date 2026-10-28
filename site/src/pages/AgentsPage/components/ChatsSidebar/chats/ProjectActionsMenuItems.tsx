@@ -21,8 +21,11 @@ type ProjectActionsMenuItemsProps = {
 	readonly Separator: ProjectActionsMenuSeparator;
 	/** Adds a "New chat" item linking here. Omit on the project page itself. */
 	readonly projectPath?: To;
-	/** Called when "New chat" is picked, before navigating. */
-	readonly onNewChat?: () => void;
+	/**
+	 * Pass when projectPath is the current page. The page then won't visibly
+	 * change, so "New chat" asks the composer to flash and calls this first.
+	 */
+	readonly onNewChatInPlace?: () => void;
 	readonly permissions: ChatProjectPermissions;
 	readonly onEdit: () => void;
 	readonly onDelete: () => void;
@@ -40,7 +43,7 @@ export const ProjectActionsMenuItems: React.FC<
 	Item,
 	Separator,
 	projectPath,
-	onNewChat,
+	onNewChatInPlace,
 	permissions,
 	onEdit,
 	onDelete,
@@ -49,11 +52,10 @@ export const ProjectActionsMenuItems: React.FC<
 		{projectPath !== undefined && (
 			<>
 				<Item asChild>
-					{/* The user may already be on this composer, so ask it to flash. */}
 					<Link
 						to={projectPath}
-						state={highlightComposerState}
-						onClick={onNewChat}
+						state={onNewChatInPlace ? highlightComposerState : undefined}
+						onClick={onNewChatInPlace}
 					>
 						<SquarePenIcon />
 						New chat

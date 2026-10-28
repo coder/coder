@@ -1,7 +1,7 @@
 import { cn } from "cn";
 import { ChevronRightIcon, EllipsisVerticalIcon, PlusIcon } from "lucide-react";
 import { useRef, useState } from "react";
-import { NavLink, type To, useLocation } from "react-router";
+import { NavLink, type To, useLocation, useMatch } from "react-router";
 import type { Chat, ChatProject, Organization } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -192,15 +192,14 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 	onDelete,
 	emptyMessage,
 }) => {
-	const projectPath: To = {
-		pathname: buildAgentProjectPath({ projectId: project.id }),
-		search: locationSearch,
-	};
+	const projectPathname = buildAgentProjectPath({ projectId: project.id });
+	const projectPath: To = { pathname: projectPathname, search: locationSearch };
+	const isOnProjectPage = useMatch(projectPathname) !== null;
 	const projectLabel = organizationLabel
 		? `${project.name} (${organizationLabel})`
 		: project.name;
-	// After "New chat", the menu would return focus to its trigger and pull
-	// it out of the composer that was just focused.
+	// After an in-place "New chat", the menu would return focus to its
+	// trigger and pull it out of the composer that was just focused.
 	const newChatPickedRef = useRef(false);
 	const handleNewChat = () => {
 		newChatPickedRef.current = true;
@@ -291,7 +290,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 									Item={DropdownMenuItem}
 									Separator={DropdownMenuSeparator}
 									projectPath={projectPath}
-									onNewChat={handleNewChat}
+									onNewChatInPlace={isOnProjectPage ? handleNewChat : undefined}
 									permissions={project.permissions}
 									onEdit={onEdit}
 									onDelete={onDelete}
@@ -305,7 +304,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 						Item={ContextMenuItem}
 						Separator={ContextMenuSeparator}
 						projectPath={projectPath}
-						onNewChat={handleNewChat}
+						onNewChatInPlace={isOnProjectPage ? handleNewChat : undefined}
 						permissions={project.permissions}
 						onEdit={onEdit}
 						onDelete={onDelete}
