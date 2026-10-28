@@ -259,7 +259,8 @@ func bestEffortSkillFiles(
 
 // LoadSkillFile reads a supporting file from a skill's directory.
 // The relativePath is validated to prevent directory traversal and
-// access to hidden files.
+// access to hidden files, and the file must resolve, through any
+// symlinks, to a path inside the resolved skill directory.
 func LoadSkillFile(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
@@ -272,8 +273,26 @@ func LoadSkillFile(
 
 	fullPath := path.Join(skill.Dir, relativePath)
 
+	resolvedDir, err := conn.ResolvePath(ctx, skill.Dir)
+	if err != nil {
+		return "", xerrors.Errorf("resolve skill directory: %w", err)
+	}
+	resolvedPath, err := conn.ResolvePath(ctx, fullPath)
+	if err != nil {
+		return "", xerrors.Errorf("resolve skill file path: %w", err)
+	}
+	// The resolved target is not echoed so a symlink cannot be used to
+	// probe paths outside the skill directory.
+	if !isWithinSkillDir(resolvedDir, resolvedPath) {
+		return "", xerrors.Errorf(
+			"path %q resolves outside the skill directory", relativePath,
+		)
+	}
+
+	// Read the resolved path so the bytes come from the path that
+	// passed the containment check.
 	reader, _, err := conn.ReadFile(
-		ctx, fullPath, 0, maxSkillFileBytes+1,
+		ctx, resolvedPath, 0, maxSkillFileBytes+1,
 	)
 	if err != nil {
 		return "", xerrors.Errorf(
@@ -293,6 +312,24 @@ func LoadSkillFile(
 	}
 
 	return string(raw), nil
+}
+
+// isWithinSkillDir reports whether target is strictly inside dir. Both
+// are paths the workspace agent resolved, so they are OS-native: a path
+// that does not start with "/" is a Windows path and its backslashes are
+// compared as forward slashes.
+func isWithinSkillDir(dir, target string) bool {
+	dir = slashSkillPath(dir)
+	target = slashSkillPath(target)
+	prefix := strings.TrimSuffix(dir, "/") + "/"
+	return target != dir && strings.HasPrefix(target, prefix)
+}
+
+func slashSkillPath(p string) string {
+	if !strings.HasPrefix(p, "/") {
+		p = strings.ReplaceAll(p, `\`, "/")
+	}
+	return path.Clean(p)
 }
 
 // validateSkillFilePath rejects paths that could escape the skill

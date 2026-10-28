@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"path"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -46,6 +47,14 @@ func responseDir(t *testing.T, resp fantasy.ToolResponse) string {
 	}
 	require.NoError(t, json.Unmarshal([]byte(resp.Content), &payload))
 	return payload.Dir
+}
+
+// expectResolvePathIdentity makes the workspace report every path as
+// already resolved, as it does when no symlinks are involved.
+func expectResolvePathIdentity(conn *agentconnmock.MockAgentConn) {
+	conn.EXPECT().ResolvePath(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, p string) (string, error) { return p, nil },
+	).AnyTimes()
 }
 
 func TestFormatResolvedSkillIndex(t *testing.T) {
@@ -169,6 +178,7 @@ func TestLoadSkillFile(t *testing.T) {
 			Dir:  "/work/.agents/skills/my-skill",
 		}
 
+		expectResolvePathIdentity(conn)
 		conn.EXPECT().ReadFile(
 			gomock.Any(),
 			"/work/.agents/skills/my-skill/roles/reviewer.md",
@@ -273,6 +283,7 @@ func TestLoadSkillFile(t *testing.T) {
 		// Build a file that exceeds maxSkillFileBytes (512KB).
 		bigContent := strings.Repeat("x", 512*1024+100)
 
+		expectResolvePathIdentity(conn)
 		conn.EXPECT().ReadFile(
 			gomock.Any(),
 			"/work/.agents/skills/my-skill/large.txt",
@@ -290,6 +301,131 @@ func TestLoadSkillFile(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 512*1024, len(content),
 			"content should be truncated to maxSkillFileBytes")
+	})
+
+	t.Run("ResolvedPathContainment", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			posixDir   = "/work/.agents/skills/my-skill"
+			windowsDir = `C:\Users\coder\.agents\skills\my-skill`
+		)
+		errResolve := xerrors.New("agent unreachable")
+
+		tests := []struct {
+			name         string
+			dir          string
+			relPath      string
+			resolvedDir  string
+			dirErr       error
+			resolvedFile string
+			fileErr      error
+			// wantRead is the path read from the workspace; empty means
+			// the file must not be read.
+			wantRead string
+			wantErr  string
+		}{
+			{
+				name:         "SymlinkEscapeRefused",
+				dir:          posixDir,
+				relPath:      "refs.md",
+				resolvedDir:  posixDir,
+				resolvedFile: "/etc/passwd",
+				wantErr:      "outside the skill directory",
+			},
+			{
+				name:         "SiblingSkillPrefixRefused",
+				dir:          posixDir,
+				relPath:      "x.md",
+				resolvedDir:  posixDir,
+				resolvedFile: "/work/.agents/skills/my-skill-other/x.md",
+				wantErr:      "outside the skill directory",
+			},
+			{
+				name:         "InSkillSymlinkReadsTarget",
+				dir:          posixDir,
+				relPath:      "latest.md",
+				resolvedDir:  posixDir,
+				resolvedFile: posixDir + "/notes.md",
+				wantRead:     posixDir + "/notes.md",
+			},
+			{
+				name:         "SymlinkedAncestorAllowed",
+				dir:          "/home/coder/.coder/skills/my-skill",
+				relPath:      "roles/r.md",
+				resolvedDir:  "/home/coder/real-skills/my-skill",
+				resolvedFile: "/home/coder/real-skills/my-skill/roles/r.md",
+				wantRead:     "/home/coder/real-skills/my-skill/roles/r.md",
+			},
+			{
+				name:    "ResolveDirectoryError",
+				dir:     posixDir,
+				relPath: "notes.md",
+				dirErr:  errResolve,
+				wantErr: "resolve skill directory",
+			},
+			{
+				name:        "ResolveFileError",
+				dir:         posixDir,
+				relPath:     "notes.md",
+				resolvedDir: posixDir,
+				fileErr:     errResolve,
+				wantErr:     "resolve skill file path",
+			},
+			{
+				name:         "WindowsInsideAllowed",
+				dir:          windowsDir,
+				relPath:      "roles/r.md",
+				resolvedDir:  windowsDir,
+				resolvedFile: windowsDir + `\roles\r.md`,
+				wantRead:     windowsDir + `\roles\r.md`,
+			},
+			{
+				name:         "WindowsOutsideRefused",
+				dir:          windowsDir,
+				relPath:      "roles/r.md",
+				resolvedDir:  windowsDir,
+				resolvedFile: `C:\Windows\win.ini`,
+				wantErr:      "outside the skill directory",
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctrl := gomock.NewController(t)
+				conn := agentconnmock.NewMockAgentConn(ctrl)
+
+				conn.EXPECT().ResolvePath(gomock.Any(), tc.dir).
+					Return(tc.resolvedDir, tc.dirErr)
+				if tc.dirErr == nil {
+					conn.EXPECT().ResolvePath(gomock.Any(), path.Join(tc.dir, tc.relPath)).
+						Return(tc.resolvedFile, tc.fileErr)
+				}
+				if tc.wantRead != "" {
+					conn.EXPECT().ReadFile(
+						gomock.Any(), tc.wantRead, int64(0), int64(512*1024+1),
+					).Return(io.NopCloser(strings.NewReader("in-skill content")), "text/markdown", nil)
+				}
+
+				content, err := chattool.LoadSkillFile(
+					context.Background(), conn,
+					chattool.SkillMeta{Name: "my-skill", Dir: tc.dir},
+					tc.relPath,
+				)
+				if tc.wantErr != "" {
+					require.ErrorContains(t, err, tc.wantErr)
+					if tc.resolvedFile != "" {
+						assert.NotContains(t, err.Error(), tc.resolvedFile,
+							"the error must not reveal the symlink target")
+					}
+					return
+				}
+				require.NoError(t, err)
+				assert.Equal(t, "in-skill content", content)
+			})
+		}
 	})
 }
 
@@ -785,6 +921,7 @@ func TestReadSkillFileTool(t *testing.T) {
 			Dir:  "/work/.agents/skills/my-skill",
 		}}
 
+		expectResolvePathIdentity(conn)
 		conn.EXPECT().ReadFile(
 			gomock.Any(),
 			"/work/.agents/skills/my-skill/roles/reviewer.md",
@@ -871,6 +1008,7 @@ func TestReadSkillFileTool(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		conn := agentconnmock.NewMockAgentConn(ctrl)
+		expectResolvePathIdentity(conn)
 		conn.EXPECT().ReadFile(
 			gomock.Any(),
 			"/work/.agents/skills/manual/scripts/run.sh",
@@ -912,11 +1050,11 @@ func TestReadSkillFileTool(t *testing.T) {
 			ResolveAlias: resolveNoModelSkills,
 		})
 
-		for _, path := range []string{"SKILL.md", "skill.md", "SKILL.md/"} {
+		for _, filePath := range []string{"SKILL.md", "skill.md", "SKILL.md/"} {
 			resp, err := tool.Run(context.Background(), fantasy.ToolCall{
-				ID:    "call-" + path,
+				ID:    "call-" + filePath,
 				Name:  "read_skill_file",
-				Input: `{"name":"workspace/manual","path":"` + path + `"}`,
+				Input: `{"name":"workspace/manual","path":"` + filePath + `"}`,
 			})
 			require.NoError(t, err)
 			assert.True(t, resp.IsError)
@@ -930,6 +1068,7 @@ func TestReadSkillFileTool(t *testing.T) {
 		const content = "---\nname: example\ndescription: example\ndisable-model-invocation: true\n---\nCodeword.\n"
 		ctrl := gomock.NewController(t)
 		conn := agentconnmock.NewMockAgentConn(ctrl)
+		expectResolvePathIdentity(conn)
 		conn.EXPECT().ReadFile(
 			gomock.Any(),
 			"/work/.agents/skills/auto-helper/example-skill.md",
@@ -964,6 +1103,7 @@ func TestReadSkillFileTool(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		conn := agentconnmock.NewMockAgentConn(ctrl)
+		expectResolvePathIdentity(conn)
 		conn.EXPECT().ReadFile(
 			gomock.Any(),
 			"/work/.agents/skills/manual/scripts/run.sh",
@@ -1009,6 +1149,37 @@ func TestReadSkillFileTool(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
 		assert.Contains(t, resp.Content, "not supported for personal skills")
+	})
+
+	t.Run("SymlinkEscapeRejected", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		conn := agentconnmock.NewMockAgentConn(ctrl)
+		conn.EXPECT().ResolvePath(gomock.Any(), "/work/.agents/skills/my-skill").
+			Return("/work/.agents/skills/my-skill", nil)
+		conn.EXPECT().ResolvePath(gomock.Any(), "/work/.agents/skills/my-skill/refs.md").
+			Return("/etc/passwd", nil)
+
+		skills := []chattool.SkillMeta{{
+			Name: "my-skill",
+			Dir:  "/work/.agents/skills/my-skill",
+		}}
+		tool := chattool.ReadSkillFile(chattool.ReadSkillOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return conn, nil
+			},
+			GetSkills: func() []chattool.SkillMeta { return skills },
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "read_skill_file",
+			Input: `{"name":"my-skill","path":"refs.md"}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Contains(t, resp.Content, "outside the skill directory")
 	})
 
 	t.Run("TraversalRejected", func(t *testing.T) {
