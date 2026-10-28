@@ -385,8 +385,10 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	const copyItems = [
 		<Item
 			key="id"
-			onSelect={() => {
-				void copyToClipboard(chat.id);
+			onSelect={async () => {
+				if (await copyToClipboard(chat.id)) {
+					toast.success("Chat ID copied to clipboard.");
+				}
 			}}
 		>
 			<HashIcon className="size-3.5" />
@@ -397,8 +399,10 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 		copyItems.push(
 			<Item
 				key="branch"
-				onSelect={() => {
-					void copyToClipboard(branch);
+				onSelect={async () => {
+					if (await copyToClipboard(branch)) {
+						toast.success("Branch name copied to clipboard.");
+					}
 				}}
 			>
 				<GitBranchIcon className="size-3.5" />

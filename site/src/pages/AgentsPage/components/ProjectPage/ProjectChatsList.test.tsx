@@ -224,6 +224,7 @@ describe("ProjectChatsList", () => {
 			const writeText = vi
 				.spyOn(navigator.clipboard, "writeText")
 				.mockResolvedValue();
+			const successToast = vi.spyOn(toast, "success");
 			vi.spyOn(API.experimental, "getChats").mockResolvedValue([
 				{ ...mockProjectChat, owner_id: owner.id },
 			]);
@@ -241,46 +242,58 @@ describe("ProjectChatsList", () => {
 			await waitFor(() => {
 				expect(writeText).toHaveBeenCalledWith(MockChat.id);
 			});
+			await waitFor(() => {
+				expect(successToast).toHaveBeenCalledWith(
+					"Chat ID copied to clipboard.",
+				);
+			});
 		},
 	);
 
 	it.each([
-		["Copy ID", MockChat.id],
-		["Copy branch", "feature/project-chat"],
-	])("copies %s from a project chat's submenu", async (label, value) => {
-		const user = userEvent.setup();
-		const writeText = vi
-			.spyOn(navigator.clipboard, "writeText")
-			.mockResolvedValue();
-		vi.spyOn(API.experimental, "getChats").mockResolvedValue([
-			{
-				...mockProjectChat,
-				diff_status: {
-					chat_id: MockChat.id,
-					pull_request_title: "",
-					pull_request_draft: false,
-					changes_requested: false,
-					additions: 0,
-					deletions: 0,
-					changed_files: 0,
-					head_branch: "feature/project-chat",
+		["Copy ID", MockChat.id, "Chat ID copied to clipboard."],
+		["Copy branch", "feature/project-chat", "Branch name copied to clipboard."],
+	])(
+		"copies %s from a project chat's submenu",
+		async (label, value, message) => {
+			const user = userEvent.setup();
+			const writeText = vi
+				.spyOn(navigator.clipboard, "writeText")
+				.mockResolvedValue();
+			const successToast = vi.spyOn(toast, "success");
+			vi.spyOn(API.experimental, "getChats").mockResolvedValue([
+				{
+					...mockProjectChat,
+					diff_status: {
+						chat_id: MockChat.id,
+						pull_request_title: "",
+						pull_request_draft: false,
+						changes_requested: false,
+						additions: 0,
+						deletions: 0,
+						changed_files: 0,
+						head_branch: "feature/project-chat",
+					},
 				},
-			},
-		]);
-		renderList();
+			]);
+			renderList();
 
-		await user.click(
-			await screen.findByRole("button", {
-				name: `Open chat actions for ${MockChat.title}`,
-			}),
-		);
-		await user.click(await screen.findByRole("menuitem", { name: "Copy" }));
-		fireEvent.click(await screen.findByRole("menuitem", { name: label }));
+			await user.click(
+				await screen.findByRole("button", {
+					name: `Open chat actions for ${MockChat.title}`,
+				}),
+			);
+			await user.click(await screen.findByRole("menuitem", { name: "Copy" }));
+			fireEvent.click(await screen.findByRole("menuitem", { name: label }));
 
-		await waitFor(() => {
-			expect(writeText).toHaveBeenCalledWith(value);
-		});
-	});
+			await waitFor(() => {
+				expect(writeText).toHaveBeenCalledWith(value);
+			});
+			await waitFor(() => {
+				expect(successToast).toHaveBeenCalledWith(message);
+			});
+		},
+	);
 
 	it.each([false, true])(
 		"archives and deletes a project chat workspace (confirmation: %s)",
