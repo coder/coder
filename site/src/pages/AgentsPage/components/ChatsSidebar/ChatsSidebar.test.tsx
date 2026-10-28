@@ -8,7 +8,6 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { useState } from "react";
 import { QueryClientProvider } from "react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -703,44 +702,6 @@ describe("ChatsSidebar section switcher", () => {
 			expect(screen.getByTestId("location-pathname").textContent).toBe(
 				pathname,
 			);
-		});
-	});
-});
-
-describe("ChatsSidebar search dialog", () => {
-	const SidebarWithSearchState: React.FC = () => {
-		const [open, setOpen] = useState(false);
-		return (
-			<ChatsSidebar
-				{...defaultProps}
-				isSearchDialogOpen={open}
-				onSearchDialogOpenChange={setOpen}
-			/>
-		);
-	};
-
-	it("returns focus to the search button when dismissed", async () => {
-		const user = userEvent.setup();
-		render(
-			<Wrapper>
-				<SidebarWithSearchState />
-			</Wrapper>,
-		);
-
-		const [searchButton] = screen.getAllByRole("button", {
-			name: "Search chats",
-		});
-		searchButton.focus();
-		await user.keyboard("{Enter}");
-		await waitFor(() => {
-			expect(
-				screen.getByRole("combobox", { name: "Search chats" }),
-			).toHaveFocus();
-		});
-
-		await user.keyboard("{Escape}");
-		await waitFor(() => {
-			expect(searchButton).toHaveFocus();
 		});
 	});
 });

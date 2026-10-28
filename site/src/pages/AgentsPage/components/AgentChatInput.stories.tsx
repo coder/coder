@@ -91,14 +91,6 @@ const getEditor = (canvasElement: HTMLElement) =>
 
 export const Default: Story = {};
 
-export const ComposerFocusedWithKeyboard: Story = {
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		canvas.getByRole("button", { name: "More options" }).focus();
-		await userEvent.tab({ shift: true });
-	},
-};
-
 export const PromptHistoryCycling: Story = {
 	args: {
 		userPromptHistory: promptHistory,

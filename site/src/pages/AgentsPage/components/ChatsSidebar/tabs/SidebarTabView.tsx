@@ -247,14 +247,7 @@ export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
 					)}
 					<div
 						ref={tabScrollRef}
-						className="-m-0.5 flex w-[calc(100%+0.25rem)] min-w-0 items-center gap-1 overflow-x-auto p-0.5 scroll-px-9 scrollbar-none [&::-webkit-scrollbar]:hidden"
-						onFocus={(event) => {
-							let pill: Element | null = event.target;
-							while (pill && pill.parentElement !== event.currentTarget) {
-								pill = pill.parentElement;
-							}
-							pill?.scrollIntoView({ block: "nearest", inline: "nearest" });
-						}}
+						className="-m-0.5 flex w-[calc(100%+0.25rem)] min-w-0 items-center gap-1 overflow-x-auto p-0.5 scrollbar-none [&::-webkit-scrollbar]:hidden"
 					>
 						{tabs.map((tab) => {
 							const isActive = effectiveTabId === tab.id;
