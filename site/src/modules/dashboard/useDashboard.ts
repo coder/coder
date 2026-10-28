@@ -21,8 +21,9 @@ export const getDefaultOrganizationId = (
 ): string | undefined => organizations.find((org) => org.is_default)?.id;
 
 /**
- * The organizations the user is a member of. The dashboard lists every
- * organization the user can read, but chats only run in member ones.
+ * Keeps the dashboard organizations the user belongs to, in dashboard order.
+ * The dashboard lists every organization the user can read, but chats only
+ * run in member ones.
  */
 export const getMemberOrganizations = (
 	organizations: DashboardValue["organizations"],

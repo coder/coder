@@ -99,7 +99,7 @@ export const Mobile: Story = {
 	},
 };
 
-// Between the @lg and @2xl container widths: Description shows, Status does not.
+// Between the @lg and @2xl container widths.
 export const NarrowContainer: Story = {
 	decorators: [
 		(Story) => (
@@ -114,6 +114,17 @@ export const Loading: Story = {
 	args: {
 		servers: undefined,
 		isLoading: true,
+	},
+};
+
+export const LoadingMobile: Story = {
+	args: {
+		servers: undefined,
+		isLoading: true,
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
 	},
 };
 

@@ -99,6 +99,7 @@ export const MCPServersMenuContent: React.FC<MCPServersMenuContentProps> = ({
 }) => {
 	const rows = getMCPMenuServers(servers, selectedServerIds);
 	const disconnectedCount = countMCPServersNeedingSignIn(servers);
+	const serverNoun = disconnectedCount === 1 ? "server" : "servers";
 
 	return (
 		<div role="group" aria-label="MCP servers" className="flex flex-col">
@@ -121,7 +122,7 @@ export const MCPServersMenuContent: React.FC<MCPServersMenuContentProps> = ({
 				<span className="whitespace-nowrap text-xs text-content-secondary">
 					{disconnectedCount === 0
 						? "All connected"
-						: `${disconnectedCount} ${disconnectedCount === 1 ? "server" : "servers"} not connected`}
+						: `${disconnectedCount} ${serverNoun} not connected`}
 				</span>
 				{onManageConnections && (
 					<Button
