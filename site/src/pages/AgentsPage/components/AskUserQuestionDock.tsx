@@ -46,9 +46,8 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 			    pushes the input off a short screen. */}
 			<section
 				key={questionKey}
-				// When a newer question replaces the focused section, the region takes
-				// the focus, so screen readers announce "Open question" and Tab reaches
-				// the form instead of starting over from the page body.
+				// A section that replaces a focused one takes the focus, so screen
+				// readers announce "Open question" and Tab reaches the new form.
 				ref={(section: HTMLElement) => {
 					if (hadFocusRef.current && document.activeElement === document.body) {
 						section.focus({ preventScroll: true });
