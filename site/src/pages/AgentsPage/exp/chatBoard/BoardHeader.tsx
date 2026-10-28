@@ -36,6 +36,8 @@ type BoardHeaderProps = {
 	readonly effortFilter: string | null;
 	readonly onFilterEffort: (name: string | null) => void;
 	readonly onRenameEffort: (from: string, to: string) => void;
+	/** Shown before the board assistant; see ProjectRepair. */
+	readonly projectRepair?: React.ReactNode;
 };
 
 export const BoardHeader: React.FC<BoardHeaderProps> = ({
@@ -50,31 +52,38 @@ export const BoardHeader: React.FC<BoardHeaderProps> = ({
 	effortFilter,
 	onFilterEffort,
 	onRenameEffort,
+	projectRepair,
 }) => (
-	<div className="flex h-12 shrink-0 items-center gap-3 border-b border-border pr-4 pl-3">
-		<Button
-			variant="subtle"
-			size="icon"
-			aria-label="Exit board"
-			className="size-7 text-content-secondary [&>svg]:size-3.5! [&>svg]:p-0"
-			onClick={onExit}
-		>
-			<ChevronLeftIcon />
-		</Button>
-		<h1 className="m-0 text-sm font-medium tracking-[-0.01em] text-content-primary">
-			Board
-		</h1>
+	// The back arrow is centered on the column dots' axis and the title starts
+	// on the column names' axis; BoardLane's header uses the same two.
+	<div className="flex h-12 shrink-0 items-center gap-3 border-b border-border pr-4 pl-[18px]">
+		<div className="flex items-center">
+			<Button
+				variant="subtle"
+				size="icon"
+				aria-label="Exit board"
+				className="size-6 min-w-0 text-content-secondary [&>svg]:size-3.5! [&>svg]:p-0"
+				onClick={onExit}
+			>
+				<ChevronLeftIcon />
+			</Button>
+			<h1 className="m-0 text-sm font-medium tracking-[-0.01em] text-content-primary">
+				Board
+			</h1>
+		</div>
 		{chatCount !== undefined && cardCount !== undefined && (
 			<span className="pl-1 text-[11px] text-content-secondary/70">
 				{chatCount} chats · {cardCount} cards
 			</span>
 		)}
+		<div className="ml-auto" />
+		{projectRepair}
 		<Button
 			variant="subtle"
 			size="icon"
 			aria-label="Board assistant"
 			title="Board assistant"
-			className="ml-auto size-7 text-content-secondary [&>svg]:size-3.5! [&>svg]:p-0"
+			className="size-7 text-content-secondary [&>svg]:size-3.5! [&>svg]:p-0"
 			disabled={!chatCount}
 			onClick={onBoardAssistant}
 		>

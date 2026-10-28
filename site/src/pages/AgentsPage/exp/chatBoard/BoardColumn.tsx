@@ -40,6 +40,8 @@ const columnHeader = cva(
 
 type BoardColumnProps = ChatOpenHandlers & {
 	readonly column: BoardColumnModel;
+	/** The project lane this copy of the column is drawn in. */
+	readonly lane: string;
 	/** Assistant chat by card id, for the cards that have one. */
 	readonly assistants: ReadonlyMap<string, Chat>;
 	readonly openChatIds: ReadonlySet<string>;
@@ -74,6 +76,7 @@ type BoardColumnProps = ChatOpenHandlers & {
 
 export const BoardColumn: React.FC<BoardColumnProps> = ({
 	column,
+	lane,
 	assistants,
 	openChatIds,
 	dropTarget,
@@ -96,21 +99,23 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
 	onEditNote,
 	onRemoveNote,
 }) => {
-	const dropData: DropData = { type: "column", name: column.name };
+	const dropData: DropData = { type: "column", name: column.name, lane };
 	const { ref: setNodeRef } = useDroppable({
-		id: `column:${column.name}`,
+		id: `column:${lane}:${column.name}`,
 		data: dropData,
 		collisionDetector: pointerIntersection,
 	});
 	const dragData: DragData = { type: "column", name: column.name };
 	// The header is both the draggable element and its handle.
 	const { ref: setHeaderRefs, isDragging } = useDraggable({
-		id: `column-drag:${column.name}`,
+		id: `column-drag:${lane}:${column.name}`,
 		data: dragData,
 	});
 	const isInbox = column.name === INBOX_COLUMN;
 	const insertBefore =
-		dropTarget?.kind === "insert" && dropTarget.column === column.name
+		dropTarget?.kind === "insert" &&
+		dropTarget.column === column.name &&
+		dropTarget.lane === lane
 			? dropTarget.beforeCardId
 			: undefined;
 	// A note dropped on a card (not on one of its notes) is appended; the
@@ -219,6 +224,7 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
 						<InsertionLine visible={insertBefore === card.id} />
 						<BoardCard
 							card={card}
+							lane={lane}
 							assistant={assistants.get(card.id)}
 							openChatIds={openChatIds}
 							isDropTarget={dropTargetId === card.id}

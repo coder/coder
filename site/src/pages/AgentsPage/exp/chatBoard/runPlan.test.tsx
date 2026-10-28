@@ -7,7 +7,11 @@ import {
 } from "react-query";
 import { afterEach, describe, expect, it, type MockInstance, vi } from "vitest";
 import { API } from "#/api/api";
-import { infiniteChats, updateChatTitle } from "#/api/queries/chats";
+import {
+	infiniteChats,
+	moveChatToProject,
+	updateChatTitle,
+} from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import { MockChat } from "#/testHelpers/chatEntities";
@@ -59,6 +63,7 @@ const stateOf = (
 		emptyColumns: [],
 		windows: [],
 		effortFilter: null,
+		collapsedLanes: [],
 		...storage,
 	};
 	return {
@@ -89,10 +94,13 @@ const renderDeps = () => {
 				...updateChatTitle(queryClient),
 				scope: boardWriteScope,
 			});
+			const projects = useMutation(moveChatToProject(queryClient));
 			return {
 				write: (chatId, map, after) =>
 					labels.mutateAsync({ chatId, labels: map, after }),
 				rename: (chatId, title) => titles.mutateAsync({ chatId, title }),
+				moveProject: (chatId, projectId) =>
+					projects.mutateAsync({ chatId, projectId }),
 				updateStorage,
 			};
 		},
@@ -212,6 +220,108 @@ describe("runPlan", () => {
 		expect(spy).toHaveBeenCalledTimes(1);
 		expect(toast.error).toHaveBeenCalledWith("too many labels");
 		expect(toast).not.toHaveBeenCalled();
+	});
+
+	it("sends no label write after a failed move and moves the landed chats back", async () => {
+		const spy = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockImplementation((chatId, req) =>
+				chatId === "b" && req.project_id
+					? Promise.reject(new Error("chat is busy"))
+					: Promise.resolve(),
+			);
+		const a = chat("a", addCommentLabels({}, "keep me", 1));
+		const b = chat("b");
+		const { queryClient, deps } = renderDeps();
+
+		const pending = runPlan(
+			{
+				projectMoves: [
+					{ chat: a, projectId: "p" },
+					{ chat: b, projectId: "p" },
+				],
+				receiver: { chat: b, labels: addCommentLabels({}, "keep me", 1) },
+				writes: [{ chat: a, labels: {} }],
+			},
+			deps,
+		);
+
+		await expect(pending).resolves.toBe(false);
+		await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+		// The receiver never got the note, so the source keeps it.
+		expect(spy.mock.calls).toEqual([
+			["a", { project_id: "p" }],
+			["b", { project_id: "p" }],
+			["a", { project_id: "00000000-0000-0000-0000-000000000000" }],
+		]);
+	});
+
+	it("resolves false on a failed move when the drop needs no label write", async () => {
+		vi.spyOn(API.experimental, "updateChat").mockRejectedValue(
+			new Error("chat is busy"),
+		);
+		const { deps } = renderDeps();
+
+		await expect(
+			runPlan(
+				{ projectMoves: [{ chat: chat("a"), projectId: "p" }], writes: [] },
+				deps,
+			),
+		).resolves.toBe(false);
+	});
+
+	it("observes a failed move while its label writes wait behind an earlier write", async () => {
+		const earlier: Deferred<void> = createDeferred();
+		vi.spyOn(API.experimental, "updateChat").mockImplementation(
+			(chatId, req) => {
+				if (chatId === "z") return earlier.promise;
+				return req.project_id
+					? Promise.reject(new Error("chat is busy"))
+					: Promise.resolve();
+			},
+		);
+		const a = chat("a");
+		const { queryClient, deps } = renderDeps();
+
+		const first = runPlan({ writes: [{ chat: chat("z"), labels: {} }] }, deps);
+		await expect(
+			runPlan(
+				{
+					projectMoves: [{ chat: a, projectId: "p" }],
+					writes: [{ chat: a, labels: { "board/column": "Doing" } }],
+				},
+				deps,
+			),
+		).resolves.toBe(false);
+		earlier.resolve();
+		await first;
+		await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+	});
+
+	it("undoes project moves before restoring labels", async () => {
+		const spy = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		const a = chat("a", { "board/column": "Done" });
+		const { queryClient, deps } = renderDeps();
+
+		await runPlan(
+			{
+				projectMoves: [{ chat: a, projectId: "p" }],
+				writes: [{ chat: a, labels: { "board/column": "Doing" } }],
+				undo: "Moved",
+			},
+			deps,
+		);
+		spy.mockClear();
+		lastUndo()();
+
+		await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+		expect(spy.mock.calls).toEqual([
+			// The nil UUID takes the chat back out of the project.
+			["a", { project_id: "00000000-0000-0000-0000-000000000000" }],
+			["a", { labels: { "board/column": "Done" } }],
+		]);
 	});
 
 	it("reports a failed undo of a plan without a receiver with a toast only", async () => {

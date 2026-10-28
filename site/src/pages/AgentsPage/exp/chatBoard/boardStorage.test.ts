@@ -29,6 +29,7 @@ describe("boardStorage", () => {
 			emptyColumns: [],
 			windows: [],
 			effortFilter: null,
+			collapsedLanes: [],
 		});
 	});
 
@@ -66,6 +67,7 @@ describe("boardStorage", () => {
 			emptyColumns: [],
 			windows: [pinned, { ...pinned, chatId: "hidden", minimized: true }],
 			effortFilter: null,
+			collapsedLanes: [],
 		});
 	});
 
@@ -80,6 +82,7 @@ describe("boardStorage", () => {
 			emptyColumns: ["Later"],
 			windows: [pinned],
 			effortFilter: "Q3",
+			collapsedLanes: [],
 		};
 		saveBoardStorage(USER, next);
 		expect(readBoardStorage(USER)).toEqual(next);
@@ -91,12 +94,14 @@ describe("boardStorage", () => {
 			emptyColumns: [],
 			windows: [pinned],
 			effortFilter: null,
+			collapsedLanes: [],
 		});
 		expect(readBoardStorage("user-b")).toEqual({
 			columnOrder: [],
 			emptyColumns: [],
 			windows: [],
 			effortFilter: null,
+			collapsedLanes: [],
 		});
 	});
 });

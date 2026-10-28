@@ -122,6 +122,7 @@ const createAssistant = async ({
 			: `${built.snapshot}\n\n${WORKSPACE_INSTRUCTION}`;
 		const chat = await create({
 			organization_id: built.organizationId,
+			project_id: built.projectId,
 			content: [{ type: "text", text }],
 			system_prompt: built.systemPrompt,
 			workspace_id: workspace?.id,

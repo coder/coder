@@ -4,10 +4,12 @@ import { cardAccent } from "./cardColor";
 
 type DragGhostProps = {
 	readonly drag: DragData;
+	/** Why this drag cannot land in another lane, when it cannot. */
+	readonly hint?: string;
 };
 
 /** Compact stand-in rendered in the DragOverlay while a card, chat, column, or note moves. */
-export const DragGhost: React.FC<DragGhostProps> = ({ drag }) => {
+export const DragGhost: React.FC<DragGhostProps> = ({ drag, hint }) => {
 	if (drag.type === "note") {
 		return (
 			<div className="w-[276px] cursor-grabbing truncate rounded-md border border-content-link bg-surface-primary px-3 py-1.5 text-xs text-content-primary shadow-lg">
@@ -38,6 +40,7 @@ export const DragGhost: React.FC<DragGhostProps> = ({ drag }) => {
 				{title}
 			</div>
 			{detail && <div className="text-xs text-content-secondary">{detail}</div>}
+			{hint && <div className="text-xs text-content-secondary">{hint}</div>}
 		</div>
 	);
 };
