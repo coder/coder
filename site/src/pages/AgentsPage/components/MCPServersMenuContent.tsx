@@ -54,14 +54,17 @@ const MCPServerMenuRow: React.FC<MCPServerMenuRowProps> = ({
 				<LockIcon className="size-3 shrink-0 text-content-secondary" />
 			)}
 			{isDisconnected ? (
-				<StatusIndicator
-					variant="warning"
-					size="sm"
-					className="shrink-0 font-normal"
-				>
-					<StatusIndicatorDot />
-					Disconnected
-				</StatusIndicator>
+				<>
+					{isForceOn && <span className="sr-only">Always on</span>}
+					<StatusIndicator
+						variant="warning"
+						size="sm"
+						className="shrink-0 font-normal"
+					>
+						<StatusIndicatorDot />
+						Disconnected
+					</StatusIndicator>
+				</>
 			) : (
 				<Switch
 					size="sm"

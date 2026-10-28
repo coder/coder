@@ -434,6 +434,27 @@ describe("AgentChatInput", () => {
 		]);
 	});
 
+	it("announces a disconnected always-on server as always on", async () => {
+		const user = userEvent.setup();
+		const disconnectedSentry = { ...mockSentryMCP, auth_connected: false };
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				mcpServers={[disconnectedSentry, mockLinearMCP]}
+				selectedMCPServerIds={[disconnectedSentry.id, mockLinearMCP.id]}
+				onMCPSelectionChange={vi.fn()}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "More options" }));
+		await user.click(
+			await screen.findByRole("button", { name: /MCP servers/ }),
+		);
+		expect(
+			await screen.findByRole("group", { name: "MCP servers" }),
+		).toHaveTextContent(/Sentry\s*Always on\s*Disconnected/);
+	});
+
 	it("keeps two active MCP servers as individual pills", async () => {
 		const user = userEvent.setup();
 		const onMCPSelectionChange = vi.fn();
