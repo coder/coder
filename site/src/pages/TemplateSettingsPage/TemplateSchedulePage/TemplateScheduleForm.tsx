@@ -14,6 +14,7 @@ import {
 } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
 import { Label } from "#/components/Label/Label";
+import { PremiumPageLink } from "#/components/Paywall/Paywall";
 import {
 	Select,
 	SelectContent,
@@ -69,6 +70,8 @@ type TemplateScheduleFormProps = {
 	isSubmitting: boolean;
 	error?: unknown;
 	allowAdvancedScheduling: boolean;
+	/** Shows Premium page links in Premium notices. */
+	canViewPremium: boolean;
 	// Helpful to show field errors on Storybook
 	initialTouched?: FormikTouched<UpdateTemplateMeta>;
 };
@@ -79,6 +82,7 @@ export const TemplateScheduleForm: React.FC<TemplateScheduleFormProps> = ({
 	onCancel,
 	error,
 	allowAdvancedScheduling,
+	canViewPremium,
 	isSubmitting,
 	initialTouched,
 }) => {
@@ -474,20 +478,26 @@ export const TemplateScheduleForm: React.FC<TemplateScheduleFormProps> = ({
 						/>
 						<Label htmlFor="allow-user-autostop">
 							<StackLabel>
-								Allow users to customize autostop duration for workspaces.
+								<span className="flex flex-row gap-2 items-center">
+									Allow users to customize autostop duration for workspaces.
+									{!allowAdvancedScheduling && <PremiumBadge />}
+								</span>
 								<StackLabelHelperText>
 									By default, workspaces will inherit the Autostop timer from
 									this template. Enabling this option allows users to set custom
 									Autostop timers on their workspaces or turn off the timer.
-								</StackLabelHelperText>
-								{!allowAdvancedScheduling && (
-									<div className="flex gap-4 items-center mt-4">
-										<PremiumBadge />
-										<span className="text-xs text-content-secondary">
-											Premium license required to change this setting.
+									{!allowAdvancedScheduling && (
+										<span className="block mt-2 text-xs text-content-secondary">
+											A Premium license is required to change this setting.
+											{canViewPremium && (
+												<>
+													{" "}
+													<PremiumPageLink />
+												</>
+											)}
 										</span>
-									</div>
-								)}
+									)}
+								</StackLabelHelperText>
 							</StackLabel>
 						</Label>
 					</div>
@@ -514,14 +524,20 @@ export const TemplateScheduleForm: React.FC<TemplateScheduleFormProps> = ({
 						/>
 						<Label htmlFor="allow_user_autostart">
 							<StackLabel>
-								Allow users to automatically start workspaces on a schedule.
+								<span className="flex flex-row gap-2 items-center">
+									Allow users to automatically start workspaces on a schedule.
+									{!allowAdvancedScheduling && <PremiumBadge />}
+								</span>
 								{!allowAdvancedScheduling && (
-									<div className="flex gap-4 items-center">
-										<PremiumBadge />
-										<span className="text-xs text-content-secondary">
-											Premium license required to change this setting.
-										</span>
-									</div>
+									<StackLabelHelperText>
+										A Premium license is required to change this setting.
+										{canViewPremium && (
+											<>
+												{" "}
+												<PremiumPageLink />
+											</>
+										)}
+									</StackLabelHelperText>
 								)}
 							</StackLabel>
 						</Label>
