@@ -440,10 +440,10 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	const isViewingArchived = sidebarFilters.archiveStatus === "archived";
 	const chatsHeadingLabel = isViewingArchived ? "Archived chats" : "Chats";
 	const emptyStateMessage = hasAppliedResultFilters
-		? "No agents match these filters"
+		? "No chats match these filters"
 		: isViewingArchived
-			? "No archived agents"
-			: "No agents yet";
+			? "No archived chats"
+			: "No chats yet";
 	// Without projects the header stays pinned above the scrolling list, as
 	// before; with projects it scrolls below the folders.
 	const chatsHeader = (
