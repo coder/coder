@@ -1,0 +1,295 @@
+---
+# Keeps the Terraform binary bundled with Coder up to date on main and on every
+# actively supported release branch.
+#
+# Once a week the workflow looks up the newest stable Terraform release on
+# releases.hashicorp.com and opens (or refreshes) one pull request per branch
+# that is behind:
+#   - main moves to the newest stable release, including minor bumps.
+#   - Release branches move to the newest patch of the Terraform minor they
+#     already ship. A minor bump on a release branch also raises
+#     maxTerraformVersion for customers on that release, so it only happens
+#     when a manual run sets release-minor-bumps.
+#
+# Release branches are the set the backport workflow targets: the latest three
+# release/2.X branches plus the ESR branches listed in
+# scripts/release_channels/esr_versions.txt.
+#
+# The bump is done by scripts/update_terraform_version.sh, which takes every
+# checksum from HashiCorp's GPG-verified SHA256SUMS and regenerates the
+# Terraform fixture fingerprint. The copy of the script on main is used for
+# every branch, so release branches don't need to carry it.
+#
+# Nothing is merged automatically. Each target branch has one bot branch
+# (bot/terraform-bump/<branch>) that is force-pushed when a newer release
+# appears, so there is at most one open bump PR per branch. If someone already
+# opened a PR bumping the same branch to the same version by hand, the workflow
+# leaves it alone.
+name: terraform-version-bump
+
+on:
+  schedule:
+    # 09:00 UTC every Monday.
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Terraform version to bump to, e.g. 1.17.1 (default: newest stable release)"
+        required: false
+        type: string
+      branches:
+        description: "Space-separated branches to bump (default: main plus supported release branches)"
+        required: false
+        type: string
+      release-minor-bumps:
+        description: "Allow release branches to move to a newer Terraform minor version"
+        required: false
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: terraform-version-bump
+
+jobs:
+  plan:
+    name: Find branches to bump
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Need all refs to discover release branches.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Plan bumps
+        id: plan
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_BRANCHES: ${{ inputs.branches }}
+          RELEASE_MINOR_BUMPS: ${{ inputs.release-minor-bumps }}
+          ESR_VERSIONS_FILE: scripts/release_channels/esr_versions.txt
+        run: |
+          set -euo pipefail
+
+          semver_re='^[0-9]+\.[0-9]+\.[0-9]+$'
+
+          # Stable releases only; alpha, beta and rc builds are skipped.
+          releases="$(
+            curl -fsSL --retry 3 https://releases.hashicorp.com/terraform/index.json |
+              jq -r '.versions | keys[]' |
+              grep -E "$semver_re" |
+              sort -V
+          )"
+          latest="$(tail -n 1 <<<"$releases")"
+          if [ -n "$INPUT_VERSION" ]; then
+            latest="${INPUT_VERSION#v}"
+            if ! grep -qxF "$latest" <<<"$releases"; then
+              echo "::error::Terraform $latest is not a stable release."
+              exit 1
+            fi
+          fi
+          echo "Newest Terraform release: $latest"
+
+          if [ -n "$INPUT_BRANCHES" ]; then
+            branches="$(tr -s '[:space:]' '\n' <<<"$INPUT_BRANCHES" | sed '/^$/d')"
+          else
+            # Same branch set as .github/workflows/backport.yaml: the latest 3
+            # release/2.X branches (mainline, stable, security) plus the
+            # active ESR branches.
+            top3="$(
+              git branch -r |
+                grep -E '^\s*origin/release/2\.[0-9]+$' |
+                sed 's|.*origin/||' |
+                sort -t. -k2 -n -r |
+                head -3
+            )"
+            esr=""
+            if [ -f "$ESR_VERSIONS_FILE" ]; then
+              esr="$(grep -vE '^\s*(#|$)' "$ESR_VERSIONS_FILE" | sed 's|^|release/|')"
+            fi
+            branches="$(printf 'main\n%s\n%s\n' "$top3" "$esr" | sed '/^$/d' | sort -u)"
+          fi
+
+          matrix='[]'
+          while read -r branch; do
+            if ! git show-ref --verify --quiet "refs/remotes/origin/${branch}"; then
+              echo "::warning::Branch ${branch} not found, skipping."
+              continue
+            fi
+            current="$(
+              git show "origin/${branch}:provisioner/terraform/install.go" |
+                sed -nE 's/^[[:space:]]*TerraformVersion[[:space:]]*=[[:space:]]*version\.Must\(version\.NewVersion\("([0-9.]+)"\)\).*/\1/p'
+            )"
+            if [ -z "$current" ]; then
+              echo "::warning::Could not read TerraformVersion on ${branch}, skipping."
+              continue
+            fi
+
+            target="$latest"
+            if [ "$branch" != main ] && [ "$RELEASE_MINOR_BUMPS" != true ] && [ "${target%.*}" != "${current%.*}" ]; then
+              # Stay on the minor the release already ships.
+              minor_re="^${current%.*}"
+              minor_re="${minor_re//./\\.}\.[0-9]+$"
+              target="$(grep -E "$minor_re" <<<"$releases" | tail -n 1 || true)"
+            fi
+
+            if [ -z "$target" ] || [ "$target" = "$current" ] ||
+              [ "$(printf '%s\n%s\n' "$current" "$target" | sort -V | tail -n 1)" != "$target" ]; then
+              echo "${branch}: Terraform ${current} is up to date."
+              continue
+            fi
+
+            echo "${branch}: Terraform ${current} -> ${target}"
+            matrix="$(jq -c --arg b "$branch" --arg c "$current" --arg t "$target" \
+              '. + [{branch: $b, current: $c, target: $t}]' <<<"$matrix")"
+          done <<<"$branches"
+
+          echo "matrix=${matrix}" >>"$GITHUB_OUTPUT"
+
+  bump:
+    name: Bump ${{ matrix.branch }} to Terraform ${{ matrix.target }}
+    needs: plan
+    if: needs.plan.outputs.matrix != '[]'
+    runs-on: ubuntu-latest
+    # Writes go through cdrci's token below, so the job token only reads.
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    env:
+      BASE_BRANCH: ${{ matrix.branch }}
+      CURRENT_VERSION: ${{ matrix.current }}
+      TARGET_VERSION: ${{ matrix.target }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      # The bump script always comes from the ref this workflow runs on, so
+      # release branches don't need their own copy.
+      - name: Checkout bump script
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: tools
+          persist-credentials: false
+          sparse-checkout: scripts/update_terraform_version.sh
+          sparse-checkout-cone-mode: false
+
+      - name: Checkout ${{ matrix.branch }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ matrix.branch }}
+          path: target
+          persist-credentials: false
+
+      - name: Bump Terraform
+        working-directory: target
+        run: ../tools/scripts/update_terraform_version.sh "$TARGET_VERSION"
+
+      - name: Open or update the bump pull request
+        working-directory: target
+        env:
+          # Use cdrci's token instead of the default GITHUB_TOKEN: PRs opened
+          # with GITHUB_TOKEN do not trigger workflow runs, so the bump would
+          # arrive without CI signal.
+          GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet; then
+            echo "::warning::The bump script made no changes on ${BASE_BRANCH}."
+            exit 0
+          fi
+
+          head_branch="bot/terraform-bump/${BASE_BRANCH}"
+          title="chore: bump bundled terraform to ${TARGET_VERSION}"
+          if [ "$BASE_BRANCH" != main ]; then
+            title="${title} (${BASE_BRANCH})"
+          fi
+
+          # Leave hand-made PRs alone: skip if another open PR against this
+          # branch already bumps Terraform to the same version.
+          version_re="${TARGET_VERSION//./\\.}"
+          # REST, not `gh pr`: those go through GraphQL, which needs a read:org
+          # scope that cdrci's token lacks.
+          duplicate="$(
+            gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls?state=open&base=${BASE_BRANCH}&per_page=100" |
+              jq -r --arg head "$head_branch" --arg re "terraform to ${version_re}([^0-9.]|$)" \
+                '.[] | select(.head.ref != $head) | select(.title | ascii_downcase | test($re)) | .html_url' |
+              head -n 1
+          )"
+          if [ -n "$duplicate" ]; then
+            echo "${duplicate} already bumps ${BASE_BRANCH} to Terraform ${TARGET_VERSION}; nothing to do."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$head_branch"
+          git add -A
+          git commit -m "$title"
+
+          # persist-credentials is disabled on checkout, so authenticate the
+          # push explicitly.
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          # Only push when the result differs from what the bot branch already
+          # has, so an unchanged PR doesn't rerun CI every week.
+          if git fetch --quiet origin "refs/heads/${head_branch}" 2>/dev/null &&
+            [ "$(git rev-parse 'FETCH_HEAD^{tree}')" = "$(git rev-parse 'HEAD^{tree}')" ]; then
+            echo "${head_branch} is already up to date."
+          else
+            # Force-push: the branch is rebuilt from the tip of ${BASE_BRANCH}
+            # for the newest release, so previous contents are always stale.
+            git push --force origin "HEAD:refs/heads/${head_branch}"
+          fi
+
+          {
+            echo "Bumps the bundled Terraform on \`${BASE_BRANCH}\` from ${CURRENT_VERSION} to [${TARGET_VERSION}](https://github.com/hashicorp/terraform/releases/tag/v${TARGET_VERSION})."
+            echo
+            if [ "${CURRENT_VERSION%.*}" != "${TARGET_VERSION%.*}" ]; then
+              echo "> [!IMPORTANT]"
+              echo "> This is a minor Terraform upgrade, so \`maxTerraformVersion\` moves to ${TARGET_VERSION%.*}.9. Check the [Terraform changelog](https://github.com/hashicorp/terraform/blob/v${TARGET_VERSION}/CHANGELOG.md) for behavior changes before merging."
+              echo
+            fi
+            echo "Generated by \`scripts/update_terraform_version.sh\`. Checksums come from HashiCorp's \`terraform_${TARGET_VERSION}_SHA256SUMS\`, verified against HashiCorp's release signing key, and the Terraform fixture fingerprint was regenerated with the new binary."
+            echo
+            echo '```'
+            git diff --stat HEAD~1 HEAD
+            echo '```'
+            echo
+            echo "Opened automatically by the [terraform-version-bump workflow](${RUN_URL}). It is never merged automatically."
+          } >"${RUNNER_TEMP}/body.md"
+
+          owner="${GITHUB_REPOSITORY%%/*}"
+          pr_number="$(gh api "repos/${GITHUB_REPOSITORY}/pulls?state=open&base=${BASE_BRANCH}&head=${owner}:${head_branch}" --jq '.[0].number // empty')"
+          if [ -n "$pr_number" ]; then
+            gh api --method PATCH "repos/${GITHUB_REPOSITORY}/pulls/${pr_number}" \
+              -f title="$title" \
+              -f body="$(cat "${RUNNER_TEMP}/body.md")" \
+              --silent
+            echo "Updated existing PR #${pr_number}."
+          else
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/pulls" \
+              -f title="$title" \
+              -f head="$head_branch" \
+              -f base="$BASE_BRANCH" \
+              -f body="$(cat "${RUNNER_TEMP}/body.md")" \
+              --jq '.html_url'
+          fi
