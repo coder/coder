@@ -937,6 +937,13 @@
 									]
 								}
 							]
+						},
+						{
+							"title": "Nix(OS)",
+							"description": "Define reproducible environments with Nix flakes, with or without NixOS.",
+							"path": "./admin/integrations/nix.md",
+							"icon_path": "./images/icons/nix.svg",
+							"state": ["early access"]
 						}
 					]
 				},
@@ -1006,6 +1013,11 @@
 							"description": "Monitor SSH, app, and agent connections to your workspaces with the connection log.",
 							"path": "./admin/monitoring/connection-logs.md",
 							"state": ["premium"]
+						},
+						{
+							"title": "Trace workspace connections",
+							"description": "Correlate client, coderd, and agent logs by session ID for SSH, IDE, and web terminal connections.",
+							"path": "./admin/monitoring/trace-connections.md"
 						},
 						{
 							"title": "Notifications",
@@ -1174,6 +1186,12 @@
 							"title": "Chat sharing",
 							"description": "Give other users and groups read-only access to a Coder Agents conversation with chat sharing.",
 							"path": "./ai-coder/agents/chat-sharing.md"
+						},
+						{
+							"title": "Projects",
+							"description": "Group Coder Agents chats into projects with shared instructions, skills, and memory.",
+							"path": "./ai-coder/agents/projects.md",
+							"state": ["early access"]
 						},
 						{
 							"title": "Conversation search syntax",

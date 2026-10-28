@@ -103,25 +103,18 @@ func TestLatestAssistantText(t *testing.T) {
 	})
 }
 
-func TestBuildTurnEnvironmentClampsRequestedReasoningEffortToMax(t *testing.T) {
+func TestBuildTurnEnvironmentSplitsPendingUserRowsFromCompactionPrompt(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := chatdTestContext(t)
 	user := dbgen.User(t, db, database.User{})
 	org := dbgen.Organization(t, db, database.Organization{})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{
-		UserID:         user.ID,
-		OrganizationID: org.ID,
-	})
-	provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
-		Type: database.AIProviderTypeOpenai,
-	}, "test-key")
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{Type: database.AIProviderTypeOpenai}, "test-key")
 	modelConfigRaw, err := json.Marshal(codersdk.ChatModelCallConfig{
 		ProviderOptions: &codersdk.ChatModelProviderOptions{
-			OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
-				User: new("turn-options-sentinel"),
-			},
+			OpenAI: &codersdk.ChatModelOpenAIProviderOptions{User: new("turn-options-sentinel")},
 		},
 		ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
 			Default: new(codersdk.ChatModelReasoningEffortLow),
@@ -137,85 +130,6 @@ func TestBuildTurnEnvironmentClampsRequestedReasoningEffortToMax(t *testing.T) {
 	}, func(p *database.InsertChatModelConfigParams) {
 		p.Enabled = true
 	})
-
-	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		LastModelConfigID: modelConfig.ID,
-		Title:             "clamp reasoning effort",
-		ClientType:        database.ChatClientTypeApi,
-		InitialMessages: []chatstate.Message{
-			{
-				Role:          database.ChatMessageRoleUser,
-				Content:       mustMarshalText(t, "hello"),
-				Visibility:    database.ChatMessageVisibilityBoth,
-				ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-				ReasoningEffort: database.NullChatReasoningEffort{
-					ChatReasoningEffort: database.ChatReasoningEffortHigh,
-					Valid:               true,
-				},
-				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
-				ContentVersion: chatprompt.CurrentContentVersion,
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	server := newInternalTestServer(
-		t,
-		db,
-		ps,
-		chatprovider.ProviderAPIKeys{},
-		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
-	)
-	prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
-		Chat:            created.Chat,
-		Messages:        created.InitialMessages,
-		TurnExperiments: &turnExperimentDecisions{},
-	})
-	require.NoError(t, err)
-	t.Cleanup(prepared.Close)
-
-	providerOptions, ok := prepared.CallTemplate.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
-	require.True(t, ok, "%T", prepared.CallTemplate.ProviderOptions[fantasyopenai.Name])
-	require.NotNil(t, providerOptions.ReasoningEffort)
-	require.Equal(t, fantasyopenai.ReasoningEffortMedium, *providerOptions.ReasoningEffort)
-	require.NotNil(t, prepared.Compaction.Options.ToolDefinitions)
-	require.Equal(t,
-		chatloop.BuildToolDefinitions(prepared.Tools, prepared.ActiveTools, prepared.ProviderTools),
-		prepared.Compaction.Options.ToolDefinitions,
-	)
-
-	require.NotNil(t, providerOptions.User)
-	require.Equal(t, "turn-options-sentinel", *providerOptions.User)
-	require.NotNil(t, prepared.CallTemplate.MaxOutputTokens)
-	require.Equal(t, defaultChatMaxOutputTokens, *prepared.CallTemplate.MaxOutputTokens)
-
-	require.NotNil(t, prepared.Compaction)
-	summaryCall := prepared.Compaction.Options.SummaryCall
-	require.Equal(t, prepared.CallTemplate.ProviderOptions, summaryCall.ProviderOptions)
-	require.NotNil(t, summaryCall.ToolChoice)
-	require.Equal(t, fantasy.ToolChoiceNone, *summaryCall.ToolChoice)
-	require.NotNil(t, summaryCall.MaxOutputTokens)
-	require.Equal(t, *prepared.CallTemplate.MaxOutputTokens, *summaryCall.MaxOutputTokens)
-}
-
-func TestBuildTurnEnvironmentSplitsPendingUserRowsFromCompactionPrompt(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := chatdTestContext(t)
-	user := dbgen.User(t, db, database.User{})
-	org := dbgen.Organization(t, db, database.Organization{})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
-	provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{Type: database.AIProviderTypeOpenai}, "test-key")
-	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Model:          "gpt-4o-mini",
-		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
-		OrganizationID: org.ID,
-	}, func(p *database.InsertChatModelConfigParams) {
-		p.Enabled = true
-	})
 	message := func(role database.ChatMessageRole, text string) chatstate.Message {
 		return chatstate.Message{
 			Role:           role,
@@ -226,6 +140,8 @@ func TestBuildTurnEnvironmentSplitsPendingUserRowsFromCompactionPrompt(t *testin
 			ContentVersion: chatprompt.CurrentContentVersion,
 		}
 	}
+	unanswered := message(database.ChatMessageRoleUser, "unanswered")
+	unanswered.ReasoningEffort = database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffortHigh, Valid: true}
 	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
@@ -235,7 +151,7 @@ func TestBuildTurnEnvironmentSplitsPendingUserRowsFromCompactionPrompt(t *testin
 		InitialMessages: []chatstate.Message{
 			message(database.ChatMessageRoleUser, "first"),
 			message(database.ChatMessageRoleAssistant, "answered"),
-			message(database.ChatMessageRoleUser, "unanswered"),
+			unanswered,
 		},
 	})
 	require.NoError(t, err)
@@ -257,6 +173,17 @@ func TestBuildTurnEnvironmentSplitsPendingUserRowsFromCompactionPrompt(t *testin
 	// boundary, so the summarizer input must stop before it.
 	require.Equal(t, fantasy.MessageRoleUser, env.Prompt[len(env.Prompt)-1].Role)
 	require.Equal(t, env.Prompt[:len(env.Prompt)-1], env.Compaction.Options.Messages)
+
+	providerOptions, ok := env.CallTemplate.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
+	require.True(t, ok, "%T", env.CallTemplate.ProviderOptions[fantasyopenai.Name])
+	require.Equal(t, new(fantasyopenai.ReasoningEffortMedium), providerOptions.ReasoningEffort)
+	require.Equal(t, new("turn-options-sentinel"), providerOptions.User)
+	require.Equal(t, new(defaultChatMaxOutputTokens), env.CallTemplate.MaxOutputTokens)
+	require.NotNil(t, env.Compaction.Options.ToolDefinitions)
+	require.Equal(t, chatloop.BuildToolDefinitions(env.Tools, env.ActiveTools, env.ProviderTools), env.Compaction.Options.ToolDefinitions)
+	wantSummaryCall := env.CallTemplate
+	wantSummaryCall.ToolChoice = new(fantasy.ToolChoiceNone)
+	require.Equal(t, wantSummaryCall, env.Compaction.Options.SummaryCall)
 }
 
 func TestBuildTurnEnvironmentReplacesUnsupportedToolMedia(t *testing.T) {
@@ -483,18 +410,16 @@ func TestBuildTurnEnvironmentMemory(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name               string
-		project            bool
-		subagent           bool
-		experimentsEnabled bool
-		wantMemoryBlock    bool
-		wantMemoryTools    bool
-		intro              string
+		name            string
+		project         bool
+		subagent        bool
+		wantMemoryBlock bool
+		wantMemoryTools bool
+		intro           string
 	}{
-		{name: "Project", project: true, experimentsEnabled: true, wantMemoryBlock: true, wantMemoryTools: true, intro: `project "platform"`},
-		{name: "NoProject", experimentsEnabled: true},
-		{name: "ExperimentDisabled"},
-		{name: "Subagent", experimentsEnabled: true, subagent: true},
+		{name: "Project", project: true, wantMemoryBlock: true, wantMemoryTools: true, intro: `project "platform"`},
+		{name: "NoProject"},
+		{name: "Subagent", subagent: true},
 	}
 
 	for _, tt := range tests {
@@ -532,9 +457,6 @@ func TestBuildTurnEnvironmentMemory(t *testing.T) {
 			require.NoError(t, err)
 
 			serverOpts := []internalTestServerOpt{withInternalTestServerTransportFactory(&aibridgeTestFactory{})}
-			if !tt.experimentsEnabled {
-				serverOpts = append(serverOpts, withInternalTestServerExperiments([]codersdk.Experiment{}))
-			}
 			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, serverOpts...)
 			prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{Chat: created.Chat, Messages: created.InitialMessages})
 			require.NoError(t, err)

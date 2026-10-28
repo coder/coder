@@ -112,3 +112,19 @@ func TestShouldBump(t *testing.T) {
 		})
 	}
 }
+
+func TestIsAllowedAppStatusURI(t *testing.T) {
+	t.Parallel()
+
+	for uri, allowed := range map[string]bool{
+		"https://example.com/pr/1":         true,
+		"HTTP://localhost:3000":            true,
+		"file:///home/coder/main.go":       true,
+		"javascript:alert(1)":              false,
+		"vscode://coder.coder-remote/open": false,
+		"https://example.com/\x01":         false,
+		"n/a":                              false,
+	} {
+		require.Equal(t, allowed, isAllowedAppStatusURI(uri), uri)
+	}
+}
