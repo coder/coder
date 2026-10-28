@@ -60,6 +60,11 @@ Cards and groups
 - I can give a card a color, shown as a stripe and a light wash behind the
   title, to tell cards apart at a glance.
 - After an accidental drop I can undo the regrouping from the confirmation.
+- I can archive a card from its menu, which archives its chats and its
+  assistant, or one chat of a group from that chat's menu, which first
+  hands the card to the remaining chats. Both are off while a chat or one
+  of its subagents works, since the server refuses, and the confirmation
+  offers Undo. An undone group chat comes back as a card of its own.
 
 Notes
 

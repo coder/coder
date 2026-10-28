@@ -53,6 +53,8 @@ const renderColumn = (name: string) => {
 				onAddNote={noop}
 				onEditNote={noop}
 				onRemoveNote={noop}
+				onArchiveCard={noop}
+				onArchiveChat={noop}
 			/>
 		</DragDropProvider>,
 	);

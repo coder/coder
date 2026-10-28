@@ -34,6 +34,8 @@ const renderCard = (chats: readonly Chat[], assistant?: Chat) => {
 		onAddNote: vi.fn(),
 		onEditNote: vi.fn(),
 		onRemoveNote: vi.fn(),
+		onArchive: vi.fn(),
+		onArchiveChat: vi.fn(),
 	} satisfies Partial<React.ComponentProps<typeof BoardCard>>;
 	// The board's sensors: dnd-kit's defaults have no activation distance, so
 	// a pointerdown on the header would start a drag and swallow the click.
@@ -97,6 +99,33 @@ describe("BoardCard", () => {
 		);
 
 		expect(onCardAssistant).toHaveBeenCalledTimes(1);
+	});
+
+	it("archives the card from its menu, and a group row's chat from its own, unless a chat works", async () => {
+		const user = userEvent.setup();
+		const { onArchive, onArchiveChat } = renderCard([
+			chat("p", { "board/title": "Epic" }),
+			{ ...chat("m", { "board/group": "p" }), status: "running" },
+		]);
+
+		await user.click(screen.getByRole("button", { name: "Actions for Epic" }));
+		expect(
+			await screen.findByRole("menuitem", {
+				name: "Archive card (a chat is working)",
+			}),
+		).toHaveAttribute("aria-disabled", "true");
+		await user.keyboard("{Escape}");
+
+		await user.click(
+			screen.getByRole("button", { name: "Actions for Chat p" }),
+		);
+		await user.click(
+			await screen.findByRole("menuitem", { name: "Archive chat" }),
+		);
+		expect(onArchiveChat).toHaveBeenCalledWith(
+			expect.objectContaining({ id: "p" }),
+		);
+		expect(onArchive).not.toHaveBeenCalled();
 	});
 
 	it("starts a new chat in the card from the actions menu", async () => {
