@@ -1718,8 +1718,6 @@ func TestSSH(t *testing.T) {
 	t.Run("SSHHost", func(t *testing.T) {
 		t.Parallel()
 
-		// The format arguments are the owner and the workspace name. The
-		// agent is named "dev".
 		testCases := []struct {
 			name, hostnameFormat string
 			flags                []string
@@ -1727,21 +1725,12 @@ func TestSSH(t *testing.T) {
 			{"Prefix", "coder.dummy.com--%s--%s", []string{"--ssh-host-prefix", "coder.dummy.com--"}},
 			{"Suffix", "%s--%s.coder", []string{"--hostname-suffix", "coder"}},
 			{"Both", "%s--%s.coder", []string{"--hostname-suffix", "coder", "--ssh-host-prefix", "coder.dummy.com--"}},
-			// The VS Code, JetBrains Gateway and Toolbox plugins write their
-			// own Host entries in this form.
-			{"PrefixWithAgent", "coder.dummy.com--%s--%s.dev", []string{"--ssh-host-prefix", "coder.dummy.com--"}},
-			// coder config-ssh entries and the dashboard use this form.
-			{"SuffixWithAgent", "dev.%[2]s.%[1]s.coder", []string{"--hostname-suffix", "coder"}},
-			{"PrefixAgentWorkspaceOwner", "coder.dev.%[2]s.%[1]s", []string{"--ssh-host-prefix", "coder."}},
 		}
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				client, workspace, agentToken := setupWorkspaceForAgent(t, func(a []*proto.Agent) []*proto.Agent {
-					a[0].Name = "dev"
-					return a
-				})
+				client, workspace, agentToken := setupWorkspaceForAgent(t)
 				_, _ = tGoContext(t, func(ctx context.Context) {
 					// Run this async so the SSH command has to wait for
 					// the build and agent to connect!
@@ -1806,6 +1795,88 @@ func TestSSH(t *testing.T) {
 			})
 		}
 	})
+}
+
+// Keep agent-hostname coverage separate so changed-test stress does not
+// repeat every unrelated SSH scenario.
+func TestSSH_AgentHostnames(t *testing.T) {
+	t.Parallel()
+
+	client, workspace, agentToken := setupWorkspaceForAgent(t, func(agents []*proto.Agent) []*proto.Agent {
+		agents[0].Name = "dev"
+		return agents
+	})
+	_, _ = tGoContext(t, func(ctx context.Context) {
+		_ = agenttest.New(t, client.URL, agentToken)
+		<-ctx.Done()
+	})
+	user, err := client.User(testutil.Context(t, testutil.WaitLong), codersdk.Me)
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		name, hostnameFormat string
+		flags                []string
+	}{
+		// The IDE plugins write their own Host entries in this form.
+		{"PrefixWithAgent", "coder.dummy.com--%s--%s.dev", []string{"--ssh-host-prefix", "coder.dummy.com--"}},
+		// config-ssh and the dashboard use agent.workspace.owner hostnames.
+		{"SuffixWithAgent", "dev.%[2]s.%[1]s.coder", []string{"--hostname-suffix", "coder"}},
+		{"PrefixAgentWorkspaceOwner", "coder.dev.%[2]s.%[1]s", []string{"--ssh-host-prefix", "coder."}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			clientOutput, clientInput := io.Pipe()
+			serverOutput, serverInput := io.Pipe()
+			defer func() {
+				for _, closer := range []io.Closer{clientOutput, clientInput, serverOutput, serverInput} {
+					_ = closer.Close()
+				}
+			}()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			args := []string{"ssh", "--stdio"}
+			args = append(args, tc.flags...)
+			args = append(args, fmt.Sprintf(tc.hostnameFormat, user.Username, workspace.Name))
+			inv, root := clitest.New(t, args...)
+			clitest.SetupConfig(t, client, root)
+			inv.Stdin = clientOutput
+			inv.Stdout = serverInput
+			inv.Stderr = io.Discard
+
+			cmdDone := tGo(t, func() {
+				err := inv.WithContext(ctx).Run()
+				// Unblock the SSH handshake if hostname resolution fails.
+				_ = clientInput.CloseWithError(err)
+				_ = serverInput.CloseWithError(err)
+				assert.NoError(t, err)
+			})
+
+			conn, channels, requests, err := ssh.NewClientConn(&testutil.ReaderWriterConn{
+				Reader: serverOutput,
+				Writer: clientInput,
+			}, "", &ssh.ClientConfig{
+				// #nosec
+				HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+			})
+			require.NoError(t, err)
+			defer conn.Close()
+
+			sshClient := ssh.NewClient(conn, channels, requests)
+			session, err := sshClient.NewSession()
+			require.NoError(t, err)
+			defer session.Close()
+
+			command := "sh -c exit"
+			if runtime.GOOS == "windows" {
+				command = "cmd.exe /c exit"
+			}
+			require.NoError(t, session.Run(command))
+			require.NoError(t, sshClient.Close())
+			_ = clientOutput.Close()
+			<-cmdDone
+		})
+	}
 }
 
 func TestSSH_Stdio(t *testing.T) {
