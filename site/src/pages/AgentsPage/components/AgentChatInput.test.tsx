@@ -24,7 +24,10 @@ import {
 	renderWithRouter,
 } from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
-import { mobileViewportMediaQuery } from "#/utils/mobile";
+import {
+	belowMdViewportMediaQuery,
+	mobileViewportMediaQuery,
+} from "#/utils/mobile";
 import type * as speechRecognition from "../hooks/useSpeechRecognition";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
@@ -49,12 +52,13 @@ const mockedUseSpeechRecognition = vi.mocked(useSpeechRecognition);
 // implementation rather than a previous stub.
 const originalMatchMedia = window.matchMedia;
 
-const stubViewport = (isMobile: boolean) => {
+const stubViewport = (
+	matches: boolean,
+	mediaQuery = mobileViewportMediaQuery,
+) => {
 	vi.stubGlobal("matchMedia", (query: string) => {
 		const result = originalMatchMedia(query);
-		return query === mobileViewportMediaQuery
-			? { ...result, matches: isMobile }
-			: result;
+		return query === mediaQuery ? { ...result, matches } : result;
 	});
 };
 
@@ -371,6 +375,26 @@ describe("AgentChatInput", () => {
 			mockSentryMCP.id,
 			mockGitHubMCP.id,
 		]);
+	});
+
+	it("keeps keyboard focus in the menu through the phone MCP servers submenu", async () => {
+		const user = userEvent.setup();
+		stubViewport(true, belowMdViewportMediaQuery);
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				mcpServers={mockMCPServers}
+				selectedMCPServerIds={mockSelectedMCPServerIds}
+				onMCPSelectionChange={vi.fn()}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "More options" }));
+		(await screen.findByRole("button", { name: /MCP servers/ })).focus();
+		await user.keyboard("{Enter}");
+		expect(await screen.findByRole("button", { name: "Back" })).toHaveFocus();
+		await user.keyboard("{Enter}");
+		expect(screen.getByRole("button", { name: /MCP servers/ })).toHaveFocus();
 	});
 
 	it("enables an unselected MCP server from the MCP servers submenu", async () => {

@@ -508,6 +508,14 @@ const ToolBadge: React.FC<{
 	);
 };
 
+type PlusMenuSubmenu = "workspace" | "mcp";
+
+// Switching between the plus menu's main view and a phone submenu
+// unmounts the focused control, so its replacement takes focus.
+const focusOnMount = (element: HTMLElement | null) => {
+	element?.focus();
+};
+
 export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	onSend,
 	placeholder = "Type a message...",
@@ -605,9 +613,12 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		string | null
 	>(null);
 	const [plusMenuOpen, setPlusMenuOpen] = useState(false);
-	const [plusMenuView, setPlusMenuView] = useState<
-		"main" | "workspace" | "mcp"
-	>("main");
+	const [plusMenuView, setPlusMenuView] = useState<"main" | PlusMenuSubmenu>(
+		"main",
+	);
+	// The submenu that Back closed, so the main view focuses its row.
+	const [lastPlusMenuSubmenu, setLastPlusMenuSubmenu] =
+		useState<PlusMenuSubmenu | null>(null);
 	const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
 	const [mcpMenuOpen, setMcpMenuOpen] = useState(false);
 	const navigate = useNavigate();
@@ -773,6 +784,11 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const handleRemoveMcp = isReadOnlyView
 		? undefined
 		: (serverId: string) => handleMcpToggle(serverId, false);
+
+	const closePlusMenuSubmenu = (submenu: PlusMenuSubmenu) => {
+		setLastPlusMenuSubmenu(submenu);
+		setPlusMenuView("main");
+	};
 
 	const handleManageConnections = () => {
 		setMcpMenuOpen(false);
@@ -1524,6 +1540,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 							open={plusMenuOpen}
 							onOpenChange={(open) => {
 								setPlusMenuOpen(open);
+								setLastPlusMenuSubmenu(null);
 								if (!open) {
 									setPlusMenuView("main");
 									setMcpMenuOpen(false);
@@ -1559,7 +1576,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 									<div className="p-0">
 										<button
 											type="button"
-											onClick={() => setPlusMenuView("main")}
+											ref={focusOnMount}
+											onClick={() => closePlusMenuSubmenu("mcp")}
 											className="flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
 										>
 											<ArrowLeftIcon className="size-3.5 shrink-0" />
@@ -1572,7 +1590,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 									<div className="p-0">
 										<button
 											type="button"
-											onClick={() => setPlusMenuView("main")}
+											ref={focusOnMount}
+											onClick={() => closePlusMenuSubmenu("workspace")}
 											className="flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
 										>
 											<ArrowLeftIcon className="size-3.5 shrink-0" />
@@ -1625,6 +1644,11 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 												<button
 													type="button"
 													disabled={!canUseWorkspacePicker}
+													ref={
+														lastPlusMenuSubmenu === "workspace"
+															? focusOnMount
+															: undefined
+													}
 													onClick={() => setPlusMenuView("workspace")}
 													className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
 												>
@@ -1679,6 +1703,11 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 											(isBelowMdViewport() ? (
 												<button
 													type="button"
+													ref={
+														lastPlusMenuSubmenu === "mcp"
+															? focusOnMount
+															: undefined
+													}
 													onClick={() => setPlusMenuView("mcp")}
 													className="flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
 												>
