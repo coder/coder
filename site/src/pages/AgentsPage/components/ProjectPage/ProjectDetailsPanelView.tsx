@@ -149,16 +149,23 @@ export const ProjectDetailsPanelView: React.FC<
 					) : (
 						<>
 							{instructions.instructions === "" ? (
-								<div className="flex justify-center rounded-lg border border-dashed border-border px-4 py-6">
+								<div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border px-4 py-6 text-center">
 									{onEditInstructions ? (
-										<Button
-											size="sm"
-											variant="outline"
-											aria-label="Create instructions"
-											onClick={onEditInstructions}
-										>
-											Create
-										</Button>
+										<>
+											<p className="m-0 text-sm text-content-secondary">
+												Share conventions, context, and preferences with every
+												chat in this project. Unlike skills, which load only
+												when needed, instructions are always included.
+											</p>
+											<Button
+												size="sm"
+												variant="outline"
+												aria-label="Create instructions"
+												onClick={onEditInstructions}
+											>
+												Create
+											</Button>
+										</>
 									) : (
 										<p className="m-0 text-sm text-content-secondary">
 											No instructions
