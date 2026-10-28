@@ -88,7 +88,8 @@ function extractBlocks(css: string, selector: string): string[] {
 			blocks.push(
 				block.replace(
 					/@apply\s+([\w-]+);/g,
-					(_, utility: string) => extractBlock(css, `@utility ${utility}`) ?? "",
+					(_, utility: string) =>
+						extractBlock(css, `@utility ${utility}`) ?? "",
 				),
 			);
 		}
@@ -230,8 +231,7 @@ describe("theme CSS variables", () => {
 				metas
 					.find(
 						(meta) =>
-							meta.getAttribute("media") ===
-							`{{ .${scheme}ThemeColorMedia }}`,
+							meta.getAttribute("media") === `{{ .${scheme}ThemeColorMedia }}`,
 					)
 					?.getAttribute("content");
 
