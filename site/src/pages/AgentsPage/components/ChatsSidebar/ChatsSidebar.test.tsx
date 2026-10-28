@@ -690,6 +690,44 @@ describe("ChatsSidebar section switcher", () => {
 	});
 });
 
+describe("ChatsSidebar search dialog", () => {
+	const SidebarWithSearchState: React.FC = () => {
+		const [open, setOpen] = useState(false);
+		return (
+			<ChatsSidebar
+				{...defaultProps}
+				isSearchDialogOpen={open}
+				onSearchDialogOpenChange={setOpen}
+			/>
+		);
+	};
+
+	it("returns focus to the search button when dismissed", async () => {
+		const user = userEvent.setup();
+		render(
+			<Wrapper>
+				<SidebarWithSearchState />
+			</Wrapper>,
+		);
+
+		const [searchButton] = screen.getAllByRole("button", {
+			name: "Search chats",
+		});
+		searchButton.focus();
+		await user.keyboard("{Enter}");
+		await waitFor(() => {
+			expect(
+				screen.getByRole("combobox", { name: "Search chats" }),
+			).toHaveFocus();
+		});
+
+		await user.keyboard("{Escape}");
+		await waitFor(() => {
+			expect(searchButton).toHaveFocus();
+		});
+	});
+});
+
 describe("ChatsSidebar sections", () => {
 	it("renders another user's shared chats in Shared with you regardless of pin order", () => {
 		render(
