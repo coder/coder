@@ -52,6 +52,28 @@ const setup = (
 		.mockImplementation(async (organizationId) => getServers(organizationId));
 };
 
+// An iframe's window stands in for the sign-in popup that
+// window.open returns.
+const stubSignInPopup = () => {
+	const iframe = document.createElement("iframe");
+	document.body.appendChild(iframe);
+	const popup = iframe.contentWindow;
+	const open = vi.spyOn(window, "open").mockReturnValue(popup);
+	return { popup, open, removePopup: () => iframe.remove() };
+};
+
+const completeSignIn = (popup: Window | null, serverID: string) => {
+	act(() => {
+		window.dispatchEvent(
+			new MessageEvent("message", {
+				data: { type: "mcp-oauth2-complete", serverID },
+				origin: location.origin,
+				source: popup,
+			}),
+		);
+	});
+};
+
 const renderPage = (state?: { organizationId: string }) =>
 	renderWithAuth(<AgentSettingsMCPConnectionsPage />, {
 		path: "/agents/settings/mcp-connections",
@@ -74,10 +96,7 @@ describe("AgentSettingsMCPConnectionsPage", () => {
 	it("connects through the organization's popup and refreshes the list when sign-in completes", async () => {
 		const user = userEvent.setup();
 		const getServers = setup(() => [mockGitHubMCP]);
-		const iframe = document.createElement("iframe");
-		document.body.appendChild(iframe);
-		const popup = iframe.contentWindow;
-		const open = vi.spyOn(window, "open").mockReturnValue(popup);
+		const { popup, open, removePopup } = stubSignInPopup();
 		renderPage();
 
 		await user.click(
@@ -90,17 +109,9 @@ describe("AgentSettingsMCPConnectionsPage", () => {
 		);
 
 		getServers.mockResolvedValue([{ ...mockGitHubMCP, auth_connected: true }]);
-		act(() => {
-			window.dispatchEvent(
-				new MessageEvent("message", {
-					data: { type: "mcp-oauth2-complete", serverID: mockGitHubMCP.id },
-					origin: location.origin,
-					source: popup,
-				}),
-			);
-		});
+		completeSignIn(popup, mockGitHubMCP.id);
 		await waitFor(() => expect(getServers).toHaveBeenCalledTimes(2));
-		iframe.remove();
+		removePopup();
 	});
 
 	it("confirms a sign-in that finishes after the organization changes", async () => {
@@ -110,10 +121,7 @@ describe("AgentSettingsMCPConnectionsPage", () => {
 				? [mockGitHubMCP]
 				: [mockNotionMCP],
 		);
-		const iframe = document.createElement("iframe");
-		document.body.appendChild(iframe);
-		const popup = iframe.contentWindow;
-		vi.spyOn(window, "open").mockReturnValue(popup);
+		const { popup, removePopup } = stubSignInPopup();
 		const toastSuccess = vi.spyOn(toast, "success");
 		renderPage();
 
@@ -132,19 +140,11 @@ describe("AgentSettingsMCPConnectionsPage", () => {
 		);
 		await screen.findByRole("button", { name: "Disconnect Notion" });
 
-		act(() => {
-			window.dispatchEvent(
-				new MessageEvent("message", {
-					data: { type: "mcp-oauth2-complete", serverID: mockGitHubMCP.id },
-					origin: location.origin,
-					source: popup,
-				}),
-			);
-		});
+		completeSignIn(popup, mockGitHubMCP.id);
 		await waitFor(() =>
 			expect(toastSuccess).toHaveBeenCalledWith("Connected GitHub."),
 		);
-		iframe.remove();
+		removePopup();
 	});
 
 	it("disconnects after confirmation", async () => {

@@ -17,7 +17,7 @@ import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
-import { MockChatProject } from "#/testHelpers/entities";
+import { MockChatProject, MockWorkspace } from "#/testHelpers/entities";
 import { createMockFile } from "#/testHelpers/files";
 import {
 	createTestQueryClient,
@@ -377,7 +377,7 @@ describe("AgentChatInput", () => {
 		]);
 	});
 
-	it("keeps keyboard focus in the menu through the phone MCP servers submenu", async () => {
+	it("keeps keyboard focus in the menu through the below-md submenus", async () => {
 		const user = userEvent.setup();
 		stubViewport(true, belowMdViewportMediaQuery);
 		renderInput(
@@ -386,6 +386,15 @@ describe("AgentChatInput", () => {
 				mcpServers={mockMCPServers}
 				selectedMCPServerIds={mockSelectedMCPServerIds}
 				onMCPSelectionChange={vi.fn()}
+				workspaceOptions={[
+					{
+						id: MockWorkspace.id,
+						name: MockWorkspace.name,
+						owner_name: MockWorkspace.owner_name,
+						organization_id: MockWorkspace.organization_id,
+					},
+				]}
+				onWorkspaceChange={vi.fn()}
 			/>,
 		);
 
@@ -395,6 +404,14 @@ describe("AgentChatInput", () => {
 		expect(await screen.findByRole("button", { name: "Back" })).toHaveFocus();
 		await user.keyboard("{Enter}");
 		expect(screen.getByRole("button", { name: /MCP servers/ })).toHaveFocus();
+
+		screen.getByRole("button", { name: "Attach workspace" }).focus();
+		await user.keyboard("{Enter}");
+		expect(await screen.findByRole("button", { name: "Back" })).toHaveFocus();
+		await user.keyboard("{Enter}");
+		expect(
+			screen.getByRole("button", { name: "Attach workspace" }),
+		).toHaveFocus();
 	});
 
 	it("enables an unselected MCP server from the MCP servers submenu", async () => {

@@ -1,13 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { MCPServerConfig } from "#/api/typesGenerated";
 import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import { useMCPOAuthFlow } from "./useMCPOAuthFlow";
-
-const mockGitHubMCP: MCPServerConfig = {
-	...MockMCPServerConfig,
-	id: "mcp-github",
-};
 
 const dispatchComplete = (
 	serverID: string,
@@ -58,17 +52,17 @@ describe("useMCPOAuthFlow", () => {
 		const open = vi.spyOn(window, "open").mockReturnValue(popup);
 		const { result, onAuthComplete, onFlowSuccess } = renderFlow();
 
-		act(() => result.current.connect(mockGitHubMCP));
+		act(() => result.current.connect(MockMCPServerConfig));
 		expect(open).toHaveBeenCalledWith(
-			"/api/v2/organizations/org-1/mcp-servers/mcp-github/oauth2/connect",
+			`/api/v2/organizations/org-1/mcp-servers/${MockMCPServerConfig.id}/oauth2/connect`,
 			"_blank",
 			"width=900,height=600",
 		);
-		expect(result.current.connectingServerId).toBe("mcp-github");
+		expect(result.current.connectingServerId).toBe(MockMCPServerConfig.id);
 
-		dispatchComplete("mcp-github", popup);
-		expect(onAuthComplete).toHaveBeenCalledWith("mcp-github");
-		expect(onFlowSuccess).toHaveBeenCalledWith(mockGitHubMCP);
+		dispatchComplete(MockMCPServerConfig.id, popup);
+		expect(onAuthComplete).toHaveBeenCalledWith(MockMCPServerConfig.id);
+		expect(onFlowSuccess).toHaveBeenCalledWith(MockMCPServerConfig);
 		expect(result.current.connectingServerId).toBeNull();
 	});
 
@@ -76,7 +70,7 @@ describe("useMCPOAuthFlow", () => {
 		vi.spyOn(window, "open").mockReturnValue(null);
 		const { result } = renderFlow();
 
-		act(() => result.current.connect(mockGitHubMCP));
+		act(() => result.current.connect(MockMCPServerConfig));
 		expect(result.current.connectingServerId).toBeNull();
 	});
 
@@ -93,7 +87,7 @@ describe("useMCPOAuthFlow", () => {
 		vi.spyOn(window, "open").mockReturnValue(popup);
 		const { result, onAuthComplete, onFlowSuccess } = renderFlow();
 
-		act(() => result.current.connect(mockGitHubMCP));
+		act(() => result.current.connect(MockMCPServerConfig));
 		dispatchComplete("mcp-linear", popup);
 		expect(onAuthComplete).toHaveBeenCalledWith("mcp-linear");
 		expect(onFlowSuccess).not.toHaveBeenCalled();
@@ -104,12 +98,12 @@ describe("useMCPOAuthFlow", () => {
 		vi.spyOn(window, "open").mockReturnValue(popup);
 		const { result, onFlowSuccess } = renderFlow();
 
-		act(() => result.current.connect(mockGitHubMCP));
+		act(() => result.current.connect(MockMCPServerConfig));
 		closePopup();
 		await waitFor(() => expect(result.current.connectingServerId).toBeNull(), {
 			timeout: 2_000,
 		});
-		dispatchComplete("mcp-github", popup);
-		expect(onFlowSuccess).toHaveBeenCalledWith(mockGitHubMCP);
+		dispatchComplete(MockMCPServerConfig.id, popup);
+		expect(onFlowSuccess).toHaveBeenCalledWith(MockMCPServerConfig);
 	});
 });

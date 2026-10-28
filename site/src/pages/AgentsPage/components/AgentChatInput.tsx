@@ -510,11 +510,25 @@ const ToolBadge: React.FC<{
 
 type PlusMenuSubmenu = "workspace" | "mcp";
 
-// Switching between the plus menu's main view and a phone submenu
-// unmounts the focused control, so its replacement takes focus.
+// Below md, switching between the plus menu's main view and a submenu
+// unmounts the focused control, so its replacement takes focus. This is
+// a callback ref because biome's lint/a11y/noAutofocus rule rejects
+// autoFocus on native buttons.
 const focusOnMount = (element: HTMLElement | null) => {
 	element?.focus();
 };
+
+const PlusMenuBackButton: React.FC<{ onBack: () => void }> = ({ onBack }) => (
+	<button
+		ref={focusOnMount}
+		type="button"
+		onClick={onBack}
+		className="flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
+	>
+		<ArrowLeftIcon className="size-3.5 shrink-0" />
+		<span>Back</span>
+	</button>
+);
 
 export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	onSend,
@@ -789,6 +803,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		setLastPlusMenuSubmenu(submenu);
 		setPlusMenuView("main");
 	};
+	const plusMenuRowRef = (submenu: PlusMenuSubmenu) =>
+		lastPlusMenuSubmenu === submenu ? focusOnMount : undefined;
 
 	const handleManageConnections = () => {
 		setMcpMenuOpen(false);
@@ -1574,29 +1590,17 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 							>
 								{plusMenuView === "mcp" ? (
 									<div className="p-0">
-										<button
-											type="button"
-											ref={focusOnMount}
-											onClick={() => closePlusMenuSubmenu("mcp")}
-											className="flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
-										>
-											<ArrowLeftIcon className="size-3.5 shrink-0" />
-											<span>Back</span>
-										</button>
+										<PlusMenuBackButton
+											onBack={() => closePlusMenuSubmenu("mcp")}
+										/>
 										<Separator className="my-1" />
 										{mcpMenuContent}
 									</div>
 								) : plusMenuView === "workspace" ? (
 									<div className="p-0">
-										<button
-											type="button"
-											ref={focusOnMount}
-											onClick={() => closePlusMenuSubmenu("workspace")}
-											className="flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
-										>
-											<ArrowLeftIcon className="size-3.5 shrink-0" />
-											<span>Back</span>
-										</button>
+										<PlusMenuBackButton
+											onBack={() => closePlusMenuSubmenu("workspace")}
+										/>
 										<Separator className="my-1" />
 										<WorkspacePickerList
 											workspaceOptions={workspaceOptions}
@@ -1644,11 +1648,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 												<button
 													type="button"
 													disabled={!canUseWorkspacePicker}
-													ref={
-														lastPlusMenuSubmenu === "workspace"
-															? focusOnMount
-															: undefined
-													}
+													ref={plusMenuRowRef("workspace")}
 													onClick={() => setPlusMenuView("workspace")}
 													className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
 												>
@@ -1703,11 +1703,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 											(isBelowMdViewport() ? (
 												<button
 													type="button"
-													ref={
-														lastPlusMenuSubmenu === "mcp"
-															? focusOnMount
-															: undefined
-													}
+													ref={plusMenuRowRef("mcp")}
 													onClick={() => setPlusMenuView("mcp")}
 													className="flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
 												>
