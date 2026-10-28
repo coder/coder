@@ -89,11 +89,9 @@ type generationDebug struct {
 
 // generationOutcome describes a completed generation outcome.
 type generationOutcome struct {
-	Chat      database.Chat
-	Kind      runnerActionKind
-	LastError string
-	// AsyncQuestion is a question that the committed step asked without
-	// ending the turn.
+	Chat          database.Chat
+	Kind          runnerActionKind
+	LastError     string
 	AsyncQuestion string
 }
 
