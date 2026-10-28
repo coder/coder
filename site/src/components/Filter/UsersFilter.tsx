@@ -13,8 +13,6 @@ const userFilterQuery = {
 	all: "",
 };
 
-type StatusFilterMenu = UseFilterMenuResult;
-
 const PRESET_FILTERS = [
 	{ query: userFilterQuery.active, name: "Active users" },
 	{ query: userFilterQuery.serviceAccount, name: "Service accounts" },
@@ -25,7 +23,7 @@ type UsersFilterProps = {
 	filter: ReturnType<typeof useFilter>;
 	error?: unknown;
 	menus?: {
-		status?: StatusFilterMenu;
+		status?: UseFilterMenuResult;
 	};
 };
 
@@ -49,7 +47,7 @@ export const UsersFilter: React.FC<UsersFilterProps> = ({
 	);
 };
 
-const StatusMenu = (menu: StatusFilterMenu) => {
+const StatusMenu = (menu: UseFilterMenuResult) => {
 	return (
 		<SelectFilter
 			label="Select a status"
