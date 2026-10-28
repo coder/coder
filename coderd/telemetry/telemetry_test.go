@@ -2,6 +2,7 @@ package telemetry_test
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -23,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/boundaryusage"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -2072,4 +2074,134 @@ func TestCollectAgentsAdvisor(t *testing.T) {
 		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
 		require.Empty(t, payload.Overrides)
 	})
+}
+
+func TestConvertWorkspaceBuild_AgentRelay(t *testing.T) {
+	t.Parallel()
+
+	hash := func(s string) string {
+		return fmt.Sprintf("%x", sha256.Sum256([]byte(s)))
+	}
+
+	tests := []struct {
+		name   string
+		params map[string]string
+		want   *telemetry.WorkspaceBuildAgentRelay
+	}{
+		{
+			name:   "NoParameters",
+			params: nil,
+			want:   nil,
+		},
+		{
+			name: "NotRelay",
+			params: map[string]string{
+				"region":           "us-east",
+				"agent_relay_pool": "pool",
+			},
+			want: nil,
+		},
+		{
+			name: "ClaudeCode",
+			params: map[string]string{
+				"agent_relay_session_id":                  "session-1",
+				"agent_relay_pool":                        "claude-pool",
+				"agent_relay_attempt":                     "2",
+				"agent_relay_client_platform":             "claude_in_slack",
+				"agent_relay_claude_code_lock_to_account": "true",
+			},
+			want: &telemetry.WorkspaceBuildAgentRelay{
+				Provider:       telemetry.AgentRelayProviderClaudeCode,
+				ClientPlatform: "claude_in_slack",
+				SessionIDHash:  hash("session-1"),
+				PoolHash:       hash("claude-pool"),
+				Attempt:        2,
+			},
+		},
+		{
+			// Rebuilds keep persistent parameters only, so the ephemeral
+			// Claude Code parameter is missing.
+			name: "ClaudeCodeFromClientPlatform",
+			params: map[string]string{
+				"agent_relay_session_id":      "session-1",
+				"agent_relay_client_platform": "web_claude_ai",
+			},
+			want: &telemetry.WorkspaceBuildAgentRelay{
+				Provider:       telemetry.AgentRelayProviderClaudeCode,
+				ClientPlatform: "web_claude_ai",
+				SessionIDHash:  hash("session-1"),
+			},
+		},
+		{
+			name: "Cursor",
+			params: map[string]string{
+				"agent_relay_session_id":       "session-2",
+				"agent_relay_pool":             "cursor-pool",
+				"agent_relay_cursor_pool_name": "cursor-pool",
+			},
+			want: &telemetry.WorkspaceBuildAgentRelay{
+				Provider:      telemetry.AgentRelayProviderCursor,
+				SessionIDHash: hash("session-2"),
+				PoolHash:      hash("cursor-pool"),
+			},
+		},
+		{
+			name: "UnknownProvider",
+			params: map[string]string{
+				"agent_relay_session_id": "session-3",
+				"agent_relay_attempt":    "not-a-number",
+			},
+			want: &telemetry.WorkspaceBuildAgentRelay{
+				Provider:      telemetry.AgentRelayProviderUnknown,
+				SessionIDHash: hash("session-3"),
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := telemetry.ConvertWorkspaceBuild(database.WorkspaceBuild{}, tt.params)
+			require.Equal(t, tt.want, got.AgentRelay)
+		})
+	}
+}
+
+func TestTelemetry_WorkspaceBuildAgentRelay(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+
+	relayBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+	}).Params(
+		database.WorkspaceBuildParameter{Name: "agent_relay_session_id", Value: "session-1"},
+		database.WorkspaceBuildParameter{Name: "agent_relay_pool", Value: "pool"},
+		database.WorkspaceBuildParameter{Name: "agent_relay_cursor_pool_name", Value: "pool"},
+		database.WorkspaceBuildParameter{Name: "region", Value: "us-east"},
+	).Do()
+	plainBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+	}).Params(
+		database.WorkspaceBuildParameter{Name: "region", Value: "us-east"},
+	).Do()
+
+	_, snapshot := collectSnapshot(ctx, t, db, nil)
+
+	builds := make(map[uuid.UUID]telemetry.WorkspaceBuild, len(snapshot.WorkspaceBuilds))
+	for _, build := range snapshot.WorkspaceBuilds {
+		builds[build.ID] = build
+	}
+	require.Contains(t, builds, relayBuild.Build.ID)
+	require.Equal(t, &telemetry.WorkspaceBuildAgentRelay{
+		Provider:      telemetry.AgentRelayProviderCursor,
+		SessionIDHash: fmt.Sprintf("%x", sha256.Sum256([]byte("session-1"))),
+		PoolHash:      fmt.Sprintf("%x", sha256.Sum256([]byte("pool"))),
+	}, builds[relayBuild.Build.ID].AgentRelay)
+	require.Contains(t, builds, plainBuild.Build.ID)
+	require.Nil(t, builds[plainBuild.Build.ID].AgentRelay)
 }

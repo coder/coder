@@ -40244,6 +40244,46 @@ func (q *sqlQuerier) GetWorkspaceBuildParameters(ctx context.Context, workspaceB
 	return items, nil
 }
 
+const getWorkspaceBuildParametersByBuildIDsAndNamePrefix = `-- name: GetWorkspaceBuildParametersByBuildIDsAndNamePrefix :many
+SELECT
+    workspace_build_id, name, value
+FROM
+    workspace_build_parameters
+WHERE
+    workspace_build_id = ANY($1 :: uuid[])
+    AND starts_with(name, $2 :: text)
+`
+
+type GetWorkspaceBuildParametersByBuildIDsAndNamePrefixParams struct {
+	WorkspaceBuildIds []uuid.UUID `db:"workspace_build_ids" json:"workspace_build_ids"`
+	NamePrefix        string      `db:"name_prefix" json:"name_prefix"`
+}
+
+// starts_with is used instead of LIKE so an underscore in the prefix is
+// matched literally rather than as a wildcard.
+func (q *sqlQuerier) GetWorkspaceBuildParametersByBuildIDsAndNamePrefix(ctx context.Context, arg GetWorkspaceBuildParametersByBuildIDsAndNamePrefixParams) ([]WorkspaceBuildParameter, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceBuildParametersByBuildIDsAndNamePrefix, pq.Array(arg.WorkspaceBuildIds), arg.NamePrefix)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceBuildParameter
+	for rows.Next() {
+		var i WorkspaceBuildParameter
+		if err := rows.Scan(&i.WorkspaceBuildID, &i.Name, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertWorkspaceBuildParameters = `-- name: InsertWorkspaceBuildParameters :exec
 INSERT INTO
     workspace_build_parameters (workspace_build_id, name, value)
