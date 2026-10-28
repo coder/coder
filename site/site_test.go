@@ -242,6 +242,8 @@ func TestInjectionTheme(t *testing.T) {
 		unauthed   bool
 		mode       codersdk.ThemeMode
 		preference string
+		light      string
+		dark       string
 		want       string
 	}{
 		{name: "Unauthenticated", unauthed: true, want: dark},
@@ -250,7 +252,8 @@ func TestInjectionTheme(t *testing.T) {
 		{name: "SingleUnknown", mode: codersdk.ThemeModeSingle, preference: "auto", want: dark},
 		{name: "LegacyLight", preference: "light", want: light},
 		{name: "LegacyAuto", preference: "auto-tritan", want: follow},
-		{name: "Sync", mode: codersdk.ThemeModeSync, preference: "light", want: follow},
+		{name: "Sync", mode: codersdk.ThemeModeSync, preference: "light", light: "light-tritan", dark: "dark-tritan", want: follow},
+		{name: "SyncBothDark", mode: codersdk.ThemeModeSync, preference: "light", light: "dark-protan-deuter", dark: "dark", want: dark},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -278,6 +281,16 @@ func TestInjectionTheme(t *testing.T) {
 				_, err = db.UpdateUserThemeMode(ctx, database.UpdateUserThemeModeParams{
 					UserID:    user.ID,
 					ThemeMode: string(tt.mode),
+				})
+				require.NoError(t, err)
+				_, err = db.UpdateUserThemeLight(ctx, database.UpdateUserThemeLightParams{
+					UserID:     user.ID,
+					ThemeLight: tt.light,
+				})
+				require.NoError(t, err)
+				_, err = db.UpdateUserThemeDark(ctx, database.UpdateUserThemeDarkParams{
+					UserID:    user.ID,
+					ThemeDark: tt.dark,
 				})
 				require.NoError(t, err)
 				_, token := dbgen.APIKey(t, db, database.APIKey{

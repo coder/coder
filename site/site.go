@@ -772,19 +772,26 @@ func applicationNameOrDefault(cfg codersdk.AppearanceConfig) string {
 
 // themeClass returns the base theme class that ThemeProvider applies for
 // these settings (see site/src/theme/themeMode.ts). It returns "" when the
-// theme follows the OS color scheme, which the server cannot know.
+// class depends on the OS color scheme, which the server cannot know.
 func themeClass(s codersdk.UserAppearanceSettings) string {
 	// Theme names are "<scheme>" or "<scheme>-<palette>".
-	scheme, _, _ := strings.Cut(s.ThemePreference, "-")
-	switch {
-	case s.ThemeMode == codersdk.ThemeModeSync,
-		s.ThemeMode != codersdk.ThemeModeSingle && scheme == "auto":
-		return ""
-	case scheme == "light":
-		return "light"
-	default:
-		return "dark"
+	scheme := func(name, fallback string) string {
+		prefix, _, _ := strings.Cut(name, "-")
+		if prefix == "light" || prefix == "dark" {
+			return prefix
+		}
+		return fallback
 	}
+	preference, _, _ := strings.Cut(s.ThemePreference, "-")
+	if s.ThemeMode == codersdk.ThemeModeSync ||
+		(s.ThemeMode != codersdk.ThemeModeSingle && preference == "auto") {
+		// The OS color scheme picks the light or dark slot.
+		if light := scheme(s.ThemeLight, "light"); light == scheme(s.ThemeDark, "dark") {
+			return light
+		}
+		return ""
+	}
+	return scheme(s.ThemePreference, "dark")
 }
 
 // LightThemeColorMedia and DarkThemeColorMedia are the media queries of the
