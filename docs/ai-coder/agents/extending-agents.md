@@ -253,7 +253,7 @@ Ask an organization admin to change an organization skill.
 
 Project skills let the people who work in a chat project share skills with every chat in that project.
 Chats outside the project never receive them.
-Chat projects are in [early access](../../reference/feature-stages.md#early-access-features).
+[Chat projects](./projects.md) are in [early access](../../reference/feature-stages.md#early-access-features).
 
 Project skills use the same single-file `SKILL.md` format and the same 64&nbsp;KB limit as personal skills, so they cannot include supporting files.
 Each project can have up to 100 skills, and skills that are turned off count toward that limit.
