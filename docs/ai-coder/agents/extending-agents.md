@@ -328,6 +328,45 @@ The list of available skills in the agent's system prompt shortens a description
 The stored description keeps the full text.
 The `read_skill` result returns the skill body without the frontmatter, so it doesn't include the description.
 
+## Connect to MCP servers
+
+Organization admins register MCP servers for each organization.
+Refer to [MCP servers](./platform-controls/mcp-servers.md) for how admins add and configure them.
+A chat offers its organization's servers in the chat's **+** menu, under **MCP servers**.
+A server that uses OAuth2 needs your own account before a chat can use it.
+
+To connect your account to a server:
+
+1. Open the **Agents** page and go to **Settings** > **MCP connections**.
+
+   In a chat, you can instead select **Manage connections** at the bottom of the **MCP servers** list, which opens the page for the chat's organization.
+
+1. If you belong to more than one organization, choose the chat's organization in the organization picker.
+
+   A server that you connect in one organization doesn't appear in the chats of another organization.
+
+1. Select **Connect** next to the server.
+
+1. Sign in to the provider in the popup.
+
+   When the sign-in finishes, the row shows **Disconnect**, and the server appears in the chat's **MCP servers** list.
+
+Connecting a server doesn't turn it on in any chat.
+Servers that don't use OAuth2 need no connection, so the page lists their names below the table, and chats offer them without one.
+
+To disconnect a server, select **Disconnect** next to it, then select **Disconnect** in the confirmation dialog.
+Coder deletes your stored token for that server.
+
+### Turn a server on or off in a chat
+
+In a chat, open the **+** menu and select **MCP servers**.
+Use the switch next to a server to turn it on or off for that chat.
+The change applies from the next message you send.
+A server with the `force_on` policy shows a lock and stays on in every chat.
+A server that is on for the chat but not connected shows `Disconnected` instead of a switch until you connect it.
+This happens to a server that is on by default, and to a server that was on when its connection ended.
+The footer of the list counts the OAuth2 servers that you haven't connected.
+
 ## Workspace MCP tools
 
 Workspace templates can expose custom [MCP](https://modelcontextprotocol.io/introduction) tools by placing a `.mcp.json` file in the workspace working directory.

@@ -45,11 +45,11 @@ The add and update views always show the target organization, as a read-only fie
 
 #### Availability policies
 
-| Policy        | Behavior                                                                          |
-|---------------|-----------------------------------------------------------------------------------|
-| `force_on`    | Injected into every chat whose owner has ACL access to the server. No opting out. |
-| `default_on`  | Pre-selected in new chats. Users can opt out.                                     |
-| `default_off` | Available in the server list but users must opt in.                               |
+| Policy        | Behavior                                                                                                |
+|---------------|---------------------------------------------------------------------------------------------------------|
+| `force_on`    | Injected into every chat whose owner has ACL access to the server. No opting out.                       |
+| `default_on`  | Pre-selected in new chats. Users can opt out.                                                           |
+| `default_off` | Available in the server list but users must opt in. An OAuth2 server is listed after the user connects. |
 
 ## Authentication
 
@@ -107,9 +107,8 @@ When none matches, it uses the server URL with the scheme and host lowercased an
 Explicit `oauth2_revocation_url` and `oauth2_resource` values in the request take precedence over the discovered values.
 Discovery runs only when a configuration is created, so to add a resource indicator to an existing configuration, set `oauth2_resource` on it or re-create the server.
 
-Users connect in **Agents** > **Settings** > **MCP connections**, through a popup that redirects through the OAuth2 provider.
-Connected servers then appear in the chat's **+** menu under **MCP servers**, where users turn each server on or off for that chat.
-A server that is on for a chat but not connected, such as one that is on by default or whose connection ended, stays in that list and shows as disconnected until the user connects.
+Users connect their own accounts in **Agents** > **Settings** > **MCP connections**, through a popup that redirects through the OAuth2 provider.
+Refer to [Connect to MCP servers](../extending-agents.md#connect-to-mcp-servers) for the steps users follow.
 Tokens are stored per-user and refreshed automatically.
 Changing the server URL, authentication type, `oauth2_client_id`, `oauth2_token_url`, `oauth2_revocation_url`, or `oauth2_resource` deletes every user's stored token, so users must connect again.
 Users can disconnect in **MCP connections** or through the API to remove stored tokens.
