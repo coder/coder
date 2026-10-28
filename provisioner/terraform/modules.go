@@ -108,8 +108,8 @@ func GetModulesArchive(root fs.FS) ([]byte, []string, error) {
 // the `.terraform.lock.hcl` that init produced, stored under
 // importedLockFileDir and keyed by this provisioner's platform. Workspace
 // builds on the same platform restore it with restoreImportedLockFile so
-// Terraform can trust the local provider cache instead of querying the
-// registry on each init.
+// Terraform can verify cached providers against it instead of fetching
+// provider checksums and signatures on each init.
 func GetModulesArchiveWithLimit(root fs.FS, maxArchiveSize int64) ([]byte, []string, error) {
 	lockFileContent, err := fs.ReadFile(root, terraformLockFileName)
 	if err != nil && !xerrors.Is(err, fs.ErrNotExist) {
