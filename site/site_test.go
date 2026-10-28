@@ -228,9 +228,15 @@ func TestInjectionUserAppearance(t *testing.T) {
 	}, got)
 }
 
-func TestInjectionThemeClass(t *testing.T) {
+func TestInjectionTheme(t *testing.T) {
 	t.Parallel()
 
+	// Rendered as "<html class>|<light theme-color media>|<dark theme-color media>".
+	const (
+		dark   = "dark|not all|all"
+		light  = "light|all|not all"
+		follow = "|(prefers-color-scheme: light)|(prefers-color-scheme: dark)"
+	)
 	tests := []struct {
 		name       string
 		unauthed   bool
@@ -238,13 +244,13 @@ func TestInjectionThemeClass(t *testing.T) {
 		preference string
 		want       string
 	}{
-		{name: "Unauthenticated", unauthed: true, want: "dark"},
-		{name: "SingleDark", mode: codersdk.ThemeModeSingle, preference: "dark-tritan", want: "dark"},
-		{name: "SingleLight", mode: codersdk.ThemeModeSingle, preference: "light-protan-deuter", want: "light"},
-		{name: "SingleUnknown", mode: codersdk.ThemeModeSingle, preference: "auto", want: "dark"},
-		{name: "LegacyLight", preference: "light", want: "light"},
-		{name: "LegacyAuto", preference: "auto-tritan", want: ""},
-		{name: "Sync", mode: codersdk.ThemeModeSync, preference: "light", want: ""},
+		{name: "Unauthenticated", unauthed: true, want: dark},
+		{name: "SingleDark", mode: codersdk.ThemeModeSingle, preference: "dark-tritan", want: dark},
+		{name: "SingleLight", mode: codersdk.ThemeModeSingle, preference: "light-protan-deuter", want: light},
+		{name: "SingleUnknown", mode: codersdk.ThemeModeSingle, preference: "auto", want: dark},
+		{name: "LegacyLight", preference: "light", want: light},
+		{name: "LegacyAuto", preference: "auto-tritan", want: follow},
+		{name: "Sync", mode: codersdk.ThemeModeSync, preference: "light", want: follow},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -255,7 +261,7 @@ func TestInjectionThemeClass(t *testing.T) {
 				Telemetry: telemetry.NewNoop(),
 				Database:  db,
 				SiteFS: fstest.MapFS{
-					"index.html": &fstest.MapFile{Data: []byte("{{ .ThemeClass }}")},
+					"index.html": &fstest.MapFile{Data: []byte("{{ .ThemeClass }}|{{ .LightThemeColorMedia }}|{{ .DarkThemeColorMedia }}")},
 				},
 			})
 			require.NoError(t, err)

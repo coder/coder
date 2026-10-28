@@ -787,6 +787,24 @@ func themeClass(s codersdk.UserAppearanceSettings) string {
 	}
 }
 
+// LightThemeColorMedia and DarkThemeColorMedia are the media queries of the
+// light and dark theme-color metas in index.html. A pinned theme enables only
+// its own meta, and a theme that follows the OS leaves the choice to the OS.
+func (s htmlState) LightThemeColorMedia() string { return s.themeColorMedia("light") }
+
+func (s htmlState) DarkThemeColorMedia() string { return s.themeColorMedia("dark") }
+
+func (s htmlState) themeColorMedia(scheme string) string {
+	switch s.ThemeClass {
+	case "":
+		return "(prefers-color-scheme: " + scheme + ")"
+	case scheme:
+		return "all"
+	default:
+		return "not all"
+	}
+}
+
 // OnlyFiles returns a new fs.FS that only contains files. If a directory is
 // requested, os.ErrNotExist is returned. This prevents directory listings from
 // being served.
