@@ -746,7 +746,8 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 	parent := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: modelConfig.ID})
 	// Children load inline MCP servers from the root chat; this one does not allow sub-agents.
 	dbgen.ChatMCPServer(t, db, database.ChatMCPServer{ChatID: parent.ID, Slug: "inline", Url: echoURL})
-	advisorConfig, err := json.Marshal(codersdk.AdvisorConfig{Enabled: true, MaxUsesPerRun: 3, MaxOutputTokens: 1024})
+	// A stored enabled=false must not remove the advisor from root chats.
+	advisorConfig, err := json.Marshal(codersdk.AdvisorConfig{Enabled: false, MaxUsesPerRun: 3, MaxOutputTokens: 1024})
 	require.NoError(t, err)
 	require.NoError(t, db.UpsertChatAdvisorConfig(ctx, string(advisorConfig)))
 

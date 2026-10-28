@@ -154,6 +154,7 @@ export const SetAndUnset: Story = {
 		const exploreSection = canvas.getByRole("form", {
 			name: "Explore subagent",
 		});
+		await expect(canvas.getByRole("form", { name: "Advisor" })).toBeVisible();
 
 		await userEvent.click(
 			within(exploreSection).getByRole("combobox", {
