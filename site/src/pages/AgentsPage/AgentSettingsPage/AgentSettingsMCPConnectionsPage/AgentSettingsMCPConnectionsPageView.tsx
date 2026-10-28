@@ -118,7 +118,7 @@ const MCPConnectionRow: React.FC<MCPConnectionRowProps> = ({
 			</TableCell>
 			<TableCell className="text-right">
 				{!needsSignIn ? (
-					<span className="whitespace-nowrap text-sm text-content-secondary">
+					<span className="whitespace-nowrap text-content-secondary">
 						No auth required
 					</span>
 				) : server.auth_connected ? (
