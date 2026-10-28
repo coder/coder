@@ -80,7 +80,7 @@ Efforts
 
 Projects
 
-- With chat projects enabled, the board has a lane per project I can use and
+- When I can use at least one project, the board has a lane per project and
   one for chats in no project. Each lane holds its own row of the board's
   columns. A lane's header collapses it, links to the project page and
   opens the lane's assistant. A card's lane is its primary chat's project.

@@ -27,7 +27,6 @@ import { Loader } from "#/components/Loader/Loader";
 import { toast } from "#/components/Toaster/toast";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { pageTitle } from "#/utils/page";
 import { isActiveChatStatus } from "../../components/ChatConversation/chatStore";
 import { buildChatSearchQuery } from "../../components/ChatsSidebar/dialogs/searchQuery";
@@ -115,11 +114,7 @@ const ChatBoardPage: React.FC = () => {
 	const [search, setSearch] = useState("");
 	const debouncedSearch = useDebouncedValue(search.trim(), SEARCH_DEBOUNCE_MS);
 	const [activeDrag, setActiveDrag] = useState<DragData | null>(null);
-	const { experiments } = useDashboard();
-	const projectsQuery = useQuery({
-		...chatProjects(),
-		enabled: experiments.includes("chat-projects"),
-	});
+	const projectsQuery = useQuery(chatProjects());
 	const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
 	const [pendingPreview, setPendingPreview] = useState<PendingPreview | null>(
 		null,
