@@ -358,10 +358,15 @@ const MCPGroupBadge: React.FC<MCPGroupBadgeProps> = ({
 	);
 };
 
-const MCPServersMenuRowContent: React.FC<{
+type MCPServersMenuRowContentProps = {
 	activeCount: number;
 	isOpen?: boolean;
-}> = ({ activeCount, isOpen }) => (
+};
+
+const MCPServersMenuRowContent: React.FC<MCPServersMenuRowContentProps> = ({
+	activeCount,
+	isOpen,
+}) => (
 	<>
 		<PlugIcon className="size-3.5 shrink-0" />
 		<span>MCP servers</span>
@@ -486,16 +491,28 @@ const focusOnMount = (element: HTMLElement | null) => {
 	element?.focus();
 };
 
-const PlusMenuBackButton: React.FC<{ onBack: () => void }> = ({ onBack }) => (
-	<button
-		ref={focusOnMount}
-		type="button"
-		onClick={onBack}
-		className="flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
-	>
-		<ArrowLeftIcon className="size-3.5 shrink-0" />
-		<span>Back</span>
-	</button>
+type PlusMenuSubmenuPanelProps = {
+	onBack: () => void;
+	children: React.ReactNode;
+};
+
+const PlusMenuSubmenuPanel: React.FC<PlusMenuSubmenuPanelProps> = ({
+	onBack,
+	children,
+}) => (
+	<div className="p-0">
+		<button
+			ref={focusOnMount}
+			type="button"
+			onClick={onBack}
+			className="flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
+		>
+			<ArrowLeftIcon className="size-3.5 shrink-0" />
+			<span>Back</span>
+		</button>
+		<Separator className="my-1" />
+		{children}
+	</div>
 );
 
 export const AgentChatInput: React.FC<AgentChatInputProps> = ({
@@ -792,6 +809,29 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			onManageConnections={isReadOnlyView ? undefined : handleManageConnections}
 		/>
 	);
+
+	let plusMenuSubmenuPanel: React.ReactNode = null;
+	if (plusMenuView === "mcp") {
+		plusMenuSubmenuPanel = (
+			<PlusMenuSubmenuPanel onBack={() => closePlusMenuSubmenu("mcp")}>
+				{mcpMenuContent}
+			</PlusMenuSubmenuPanel>
+		);
+	} else if (plusMenuView === "workspace") {
+		plusMenuSubmenuPanel = (
+			<PlusMenuSubmenuPanel onBack={() => closePlusMenuSubmenu("workspace")}>
+				<WorkspacePickerList
+					workspaceOptions={workspaceOptions}
+					selectedWorkspaceId={selectedWorkspaceId}
+					chatOrganizationId={chatOrganizationId}
+					onSelect={(id) => {
+						onWorkspaceChange?.(id);
+						setPlusMenuOpen(false);
+					}}
+				/>
+			</PlusMenuSubmenuPanel>
+		);
+	}
 
 	const handlePlanModeToggle = () => {
 		onPlanModeToggle(!planModeEnabled);
@@ -1554,30 +1594,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 								align="start"
 								className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-auto min-w-[200px] p-1"
 							>
-								{plusMenuView === "mcp" ? (
-									<div className="p-0">
-										<PlusMenuBackButton
-											onBack={() => closePlusMenuSubmenu("mcp")}
-										/>
-										<Separator className="my-1" />
-										{mcpMenuContent}
-									</div>
-								) : plusMenuView === "workspace" ? (
-									<div className="p-0">
-										<PlusMenuBackButton
-											onBack={() => closePlusMenuSubmenu("workspace")}
-										/>
-										<Separator className="my-1" />
-										<WorkspacePickerList
-											workspaceOptions={workspaceOptions}
-											selectedWorkspaceId={selectedWorkspaceId}
-											chatOrganizationId={chatOrganizationId}
-											onSelect={(id) => {
-												onWorkspaceChange?.(id);
-												setPlusMenuOpen(false);
-											}}
-										/>
-									</div>
+								{plusMenuView !== "main" ? (
+									plusMenuSubmenuPanel
 								) : (
 									<>
 										{onAttach && (
@@ -1663,46 +1681,47 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 												</Popover>
 											))}
 										{enabledMcpServers.length > 0 && (
-											<Separator className="my-1" />
-										)}
-										{enabledMcpServers.length > 0 &&
-											(isBelowMdViewport() ? (
-												<button
-													type="button"
-													ref={plusMenuRowRef("mcp")}
-													onClick={() => setPlusMenuView("mcp")}
-													className="flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
-												>
-													<MCPServersMenuRowContent
-														activeCount={activeMcpServers.length}
-													/>
-												</button>
-											) : (
-												<Popover
-													open={mcpMenuOpen}
-													onOpenChange={setMcpMenuOpen}
-												>
-													<PopoverTrigger asChild>
-														<button
-															type="button"
-															className="flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
-														>
-															<MCPServersMenuRowContent
-																activeCount={activeMcpServers.length}
-																isOpen={mcpMenuOpen}
-															/>
-														</button>
-													</PopoverTrigger>
-													<PopoverContent
-														side="right"
-														align="end"
-														sideOffset={8}
-														className="w-72 p-1"
+											<>
+												<Separator className="my-1" />
+												{isBelowMdViewport() ? (
+													<button
+														type="button"
+														ref={plusMenuRowRef("mcp")}
+														onClick={() => setPlusMenuView("mcp")}
+														className="flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
 													>
-														{mcpMenuContent}
-													</PopoverContent>
-												</Popover>
-											))}
+														<MCPServersMenuRowContent
+															activeCount={activeMcpServers.length}
+														/>
+													</button>
+												) : (
+													<Popover
+														open={mcpMenuOpen}
+														onOpenChange={setMcpMenuOpen}
+													>
+														<PopoverTrigger asChild>
+															<button
+																type="button"
+																className="flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
+															>
+																<MCPServersMenuRowContent
+																	activeCount={activeMcpServers.length}
+																	isOpen={mcpMenuOpen}
+																/>
+															</button>
+														</PopoverTrigger>
+														<PopoverContent
+															side="right"
+															align="end"
+															sideOffset={8}
+															className="w-72 p-1"
+														>
+															{mcpMenuContent}
+														</PopoverContent>
+													</Popover>
+												)}
+											</>
+										)}
 									</>
 								)}
 							</PopoverContent>

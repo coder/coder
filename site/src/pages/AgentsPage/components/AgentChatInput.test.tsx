@@ -130,7 +130,6 @@ const mockNotionMCP: TypesGen.MCPServerConfig = {
 const mockMCPServers = [mockSentryMCP, mockLinearMCP, mockGitHubMCP];
 const mockSelectedMCPServerIds = mockMCPServers.map((server) => server.id);
 
-// The input navigates to the MCP connections settings page.
 const renderInput = (children: React.ReactNode) => {
 	return render(<AppProviders>{children}</AppProviders>, {
 		wrapper: MemoryRouter,
@@ -436,12 +435,15 @@ describe("AgentChatInput", () => {
 
 	it("announces a disconnected always-on server as always on", async () => {
 		const user = userEvent.setup();
-		const disconnectedSentry = { ...mockSentryMCP, auth_connected: false };
+		const mockDisconnectedSentryMCP = {
+			...mockSentryMCP,
+			auth_connected: false,
+		};
 		renderInput(
 			<AgentChatInput
 				{...inputProps}
-				mcpServers={[disconnectedSentry, mockLinearMCP]}
-				selectedMCPServerIds={[disconnectedSentry.id, mockLinearMCP.id]}
+				mcpServers={[mockDisconnectedSentryMCP, mockLinearMCP]}
+				selectedMCPServerIds={[mockDisconnectedSentryMCP.id, mockLinearMCP.id]}
 				onMCPSelectionChange={vi.fn()}
 			/>,
 		);

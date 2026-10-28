@@ -441,6 +441,9 @@ export const OrganizationScopedMCPServers: Story = {
 			);
 		});
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: /MCP servers/ }),
+		);
 		expect(
 			(await body.findAllByText("Default organization MCP")).length,
 		).toBeGreaterThan(0);
@@ -460,6 +463,9 @@ export const OrganizationScopedMCPServers: Story = {
 			);
 		});
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: /MCP servers/ }),
+		);
 		expect(
 			(await body.findAllByText("Second organization MCP")).length,
 		).toBeGreaterThan(0);

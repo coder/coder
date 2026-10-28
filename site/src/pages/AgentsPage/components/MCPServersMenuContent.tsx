@@ -85,7 +85,6 @@ const MCPServerMenuRow: React.FC<MCPServerMenuRowProps> = ({
 };
 
 type MCPServersMenuContentProps = {
-	/** Enabled servers of the chat's organization, in display order. */
 	servers: readonly TypesGen.MCPServerConfig[];
 	selectedServerIds: readonly string[] | undefined;
 	isDisabled: boolean;
