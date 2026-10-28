@@ -92,6 +92,14 @@ func (s *server) Init(
 		return provisionersdk.InitErrorf("extract template archive: %s", err)
 	}
 
+	restored, err := restoreImportedLockFile(sess.Files)
+	if err != nil {
+		return provisionersdk.InitErrorf("restore imported lock file: %s", err)
+	}
+	if restored {
+		s.logger.Debug(ctx, "using lock file captured during template import", slog.F("platform", terraformPlatform()))
+	}
+
 	err = CleanStaleTerraformPlugins(sess.Context(), s.cachePath, afero.NewOsFs(), time.Now(), s.logger)
 	if err != nil {
 		return provisionersdk.InitErrorf("unable to clean stale Terraform plugins: %s", err)

@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -1620,7 +1621,11 @@ func TestProvision_LockFileCached(t *testing.T) {
 		}`,
 	})
 
-	ctx, api := setupProvisioner(t, nil)
+	// An empty CLI config keeps a developer's ~/.terraformrc, such as
+	// dev_overrides for coder/coder, from changing how init installs providers.
+	cliConfigPath := filepath.Join(t.TempDir(), "empty.tfrc")
+	require.NoError(t, os.WriteFile(cliConfigPath, nil, 0o600))
+	ctx, api := setupProvisioner(t, &provisionerServeOptions{cliConfigPath: cliConfigPath})
 
 	// Import: no module archive is available yet, so init must resolve the
 	// provider and write a fresh lock file.
@@ -1633,7 +1638,9 @@ func TestProvision_LockFileCached(t *testing.T) {
 	require.NotContains(t, importLog.String(), "Reusing previous version from the dependency lock file")
 	require.NotEmpty(t, importResp.ModuleFiles, "expected the lock file to be archived even without modules")
 
-	lockFile := readTarFile(t, importResp.ModuleFiles, ".terraform.lock.hcl")
+	// The lock file is keyed by platform so builds on a different platform
+	// ignore it.
+	lockFile := readTarFile(t, importResp.ModuleFiles, ".terraform/coder/lockfiles/"+runtime.GOOS+"_"+runtime.GOARCH+".lock.hcl")
 	require.Contains(t, string(lockFile), `provider "registry.terraform.io/coder/coder"`)
 
 	// Build: stream the archive the same way provisionerd does for cached
