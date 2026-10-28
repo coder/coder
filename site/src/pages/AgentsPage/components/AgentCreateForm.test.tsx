@@ -837,24 +837,26 @@ describe("AgentCreateForm prefill", () => {
 		render(
 			<StrictMode>
 				<AppProviders queryClient={createTestQueryClient()}>
-					<AgentCreateForm
-						onCreateChat={onCreateChat}
-						isCreating={false}
-						createError={undefined}
-						canCreateChat
-						canConfigureAgentSetup={false}
-						workspaceCount={0}
-						workspaceOptions={[]}
-						workspacesError={undefined}
-						isWorkspacesLoading={false}
-						prefill={{
-							message: "Why did this build fail?",
-							attachment: {
-								name: "workspace-build-logs.txt",
-								text: "Error: exit status 1\n",
-							},
-						}}
-					/>
+					<MemoryRouter>
+						<AgentCreateForm
+							onCreateChat={onCreateChat}
+							isCreating={false}
+							createError={undefined}
+							canCreateChat
+							canConfigureAgentSetup={false}
+							workspaceCount={0}
+							workspaceOptions={[]}
+							workspacesError={undefined}
+							isWorkspacesLoading={false}
+							prefill={{
+								message: "Why did this build fail?",
+								attachment: {
+									name: "workspace-build-logs.txt",
+									text: "Error: exit status 1\n",
+								},
+							}}
+						/>
+					</MemoryRouter>
 				</AppProviders>
 			</StrictMode>,
 		);
