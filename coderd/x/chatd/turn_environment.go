@@ -686,38 +686,6 @@ func (p *Server) buildTurnEnvironment(
 		memoryIndex = chattool.FormatMemoryGuidance(memoryProjectName)
 	}
 
-	prompt = buildSystemPrompt(
-		prompt,
-		subagentInstruction,
-		instruction,
-		initialResolvedSkills,
-		memoryIndex,
-		projectInstructions,
-		resolvedUserPrompt,
-		systemPromptBehaviorContext{
-			planMode:             currentPlanMode,
-			chatMode:             chat.Mode,
-			planModeInstructions: planModeInstructions,
-			isRootChat:           isRootChat,
-		},
-	)
-	if advisorRuntime != nil {
-		prompt = chatprompt.InsertSystem(prompt, chatadvisor.ParentGuidanceBlock)
-	}
-	prompt = renderPlanPathPrompt(prompt, planPathBlock)
-	compactionPromptMessages := prompt
-	pendingUserRows := promptRows[pendingRowsStart:]
-	if len(pendingUserRows) == 0 || len(pendingPrompt) == 0 {
-		pendingUserRows = nil
-	}
-	// Full slice expression: appending the tail must not share the
-	// head's backing array with the summarizer input.
-	prompt = append(prompt[:len(prompt):len(prompt)], pendingPrompt...)
-	if pendingUserRows == nil {
-		compactionPromptMessages = prompt
-	}
-	setAdvisorPromptSnapshot(prompt)
-
 	storeChatAttachment := p.newStoreChatAttachmentFunc(&workspaceCtx)
 	tools := []fantasy.AgentTool{
 		chattool.ReadFile(chattool.ReadFileOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
@@ -760,6 +728,43 @@ func (p *Server) buildTurnEnvironment(
 			return turnEnvironment{}, err
 		}
 	}
+
+	acpSubagentsAvailable := !isExploreSubagent && slices.ContainsFunc(tools, func(tool fantasy.AgentTool) bool {
+		_, ok := tool.(acpSpawnTool)
+		return ok
+	})
+	prompt = buildSystemPrompt(
+		prompt,
+		subagentInstruction,
+		instruction,
+		initialResolvedSkills,
+		memoryIndex,
+		projectInstructions,
+		resolvedUserPrompt,
+		systemPromptBehaviorContext{
+			planMode:              currentPlanMode,
+			chatMode:              chat.Mode,
+			planModeInstructions:  planModeInstructions,
+			isRootChat:            isRootChat,
+			acpSubagentsAvailable: acpSubagentsAvailable,
+		},
+	)
+	if advisorRuntime != nil {
+		prompt = chatprompt.InsertSystem(prompt, chatadvisor.ParentGuidanceBlock)
+	}
+	prompt = renderPlanPathPrompt(prompt, planPathBlock)
+	compactionPromptMessages := prompt
+	pendingUserRows := promptRows[pendingRowsStart:]
+	if len(pendingUserRows) == 0 || len(pendingPrompt) == 0 {
+		pendingUserRows = nil
+	}
+	// Full slice expression: appending the tail must not share the
+	// head's backing array with the summarizer input.
+	prompt = append(prompt[:len(prompt):len(prompt)], pendingPrompt...)
+	if pendingUserRows == nil {
+		compactionPromptMessages = prompt
+	}
+	setAdvisorPromptSnapshot(prompt)
 
 	skillOpts := chattool.ReadSkillOptions{
 		GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
@@ -2147,10 +2152,11 @@ func stopAfterBehaviorTools(
 }
 
 type systemPromptBehaviorContext struct {
-	planMode             database.NullChatPlanMode
-	chatMode             database.NullChatMode
-	planModeInstructions string
-	isRootChat           bool
+	acpSubagentsAvailable bool
+	planMode              database.NullChatPlanMode
+	chatMode              database.NullChatMode
+	planModeInstructions  string
+	isRootChat            bool
 }
 
 // workspaceSkillsForResolution returns the workspace skills the model may
@@ -2191,7 +2197,7 @@ func mergeTurnSkills(
 
 // buildSystemPrompt applies system-level prompt injections in a fixed
 // order: subagent instruction, chat instruction, skill index, memory index,
-// project instructions, user prompt, then mode overlay prompts. Project
+// ACP guidance, project instructions, user prompt, then mode overlays. Project
 // instructions precede the user prompt so personal instructions keep the
 // last word.
 func buildSystemPrompt(
@@ -2215,6 +2221,9 @@ func buildSystemPrompt(
 	}
 	if memoryIndex != "" {
 		prompt = chatprompt.InsertSystem(prompt, memoryIndex)
+	}
+	if behaviorContext.acpSubagentsAvailable {
+		prompt = chatprompt.InsertSystem(prompt, acpSubagentPromptBlock)
 	}
 	if projectInstructions != "" {
 		prompt = chatprompt.InsertSystem(prompt, projectInstructions)
