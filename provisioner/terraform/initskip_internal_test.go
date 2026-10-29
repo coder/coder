@@ -67,8 +67,7 @@ func fakeCache(t *testing.T, providers ...lockedProvider) string {
 	for _, p := range providers {
 		dir := cachedProviderDir(cache, p)
 		require.NoError(t, os.MkdirAll(dir, 0o755))
-		// The plugin binary must be executable, like a real provider.
-		//nolint:gosec
+		//nolint:gosec // G306: a fake provider binary needs the executable bit, like a real one.
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "terraform-provider-x_v"+p.Version), []byte("#!/bin/sh\n"), 0o755))
 	}
 	return cache
