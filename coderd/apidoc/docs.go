@@ -7044,6 +7044,7 @@ const docTemplate = `{
         },
         "/api/v2/notifications/custom": {
             "post": {
+                "description": "Sends a custom notification with your own title and message to yourself.\nSystem users can't send custom notifications.",
                 "consumes": [
                     "application/json"
                 ],
@@ -7057,7 +7058,7 @@ const docTemplate = `{
                 "operationId": "send-a-custom-notification",
                 "parameters": [
                     {
-                        "description": "Provide a non-empty title or message",
+                        "description": "Custom notification content. ` + "`" + `content.title` + "`" + ` and ` + "`" + `content.message` + "`" + ` are required, up to 120 and 2000 bytes.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -7098,6 +7099,7 @@ const docTemplate = `{
         },
         "/api/v2/notifications/dispatch-methods": {
             "get": {
+                "description": "Returns the delivery methods this deployment supports for notifications, and the default method.\nThe inbox method isn't listed, because it's an implicit delivery target.",
                 "produces": [
                     "application/json"
                 ],
@@ -7126,6 +7128,7 @@ const docTemplate = `{
         },
         "/api/v2/notifications/inbox": {
             "get": {
+                "description": "Returns up to 25 of your inbox notifications, newest first, with your ` + "`" + `unread_count` + "`" + `.\nUse ` + "`" + `starting_before` + "`" + ` to page through older notifications.",
                 "produces": [
                     "application/json"
                 ],
@@ -7137,26 +7140,26 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Comma-separated list of target IDs to filter notifications",
+                        "description": "Comma-separated list of target IDs. Returns only notifications that have all of these targets.",
                         "name": "targets",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Comma-separated list of template IDs to filter notifications",
+                        "description": "Comma-separated list of notification template IDs. Returns only notifications from these templates.",
                         "name": "templates",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Filter notifications by read status. Possible values: read, unread, all",
+                        "description": "Filter by read status: ` + "`" + `all` + "`" + `, ` + "`" + `read` + "`" + `, or ` + "`" + `unread` + "`" + `. The default is ` + "`" + `all` + "`" + `.",
                         "name": "read_status",
                         "in": "query"
                     },
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "ID of the last notification from the current page. Notifications returned will be older than the associated one",
+                        "description": "ID of the last notification on the previous page. Returns the notifications created before it. If no notification has this ID, returns the first page.",
                         "name": "starting_before",
                         "in": "query"
                     }
@@ -7178,6 +7181,7 @@ const docTemplate = `{
         },
         "/api/v2/notifications/inbox/mark-all-as-read": {
             "put": {
+                "description": "Marks all of your unread inbox notifications as read.",
                 "tags": [
                     "Notifications"
                 ],
@@ -7197,6 +7201,7 @@ const docTemplate = `{
         },
         "/api/v2/notifications/inbox/watch": {
             "get": {
+                "description": "Streams your new inbox notifications over a WebSocket as they arrive.\nEach message is a JSON object with the ` + "`" + `notification` + "`" + ` and your current ` + "`" + `unread_count` + "`" + `.\nUse the query parameters to filter which notifications you receive.",
                 "produces": [
                     "application/json"
                 ],
@@ -7208,19 +7213,19 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Comma-separated list of target IDs to filter notifications",
+                        "description": "Comma-separated list of target IDs. Sends only notifications that have all of these targets.",
                         "name": "targets",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Comma-separated list of template IDs to filter notifications",
+                        "description": "Comma-separated list of notification template IDs. Sends only notifications from these templates.",
                         "name": "templates",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Filter notifications by read status. Possible values: read, unread, all",
+                        "description": "Filter by read status: ` + "`" + `all` + "`" + `, ` + "`" + `read` + "`" + `, or ` + "`" + `unread` + "`" + `. The default is ` + "`" + `all` + "`" + `.",
                         "name": "read_status",
                         "in": "query"
                     },
@@ -7230,7 +7235,7 @@ const docTemplate = `{
                             "markdown"
                         ],
                         "type": "string",
-                        "description": "Define the output format for notifications title and body.",
+                        "description": "Format of the notification ` + "`" + `title` + "`" + ` and ` + "`" + `content` + "`" + `: ` + "`" + `markdown` + "`" + ` or ` + "`" + `plaintext` + "`" + `. The default is ` + "`" + `markdown` + "`" + `.",
                         "name": "format",
                         "in": "query"
                     }
@@ -7252,6 +7257,7 @@ const docTemplate = `{
         },
         "/api/v2/notifications/inbox/{id}/read-status": {
             "put": {
+                "description": "Marks one of your inbox notifications as read or unread by setting ` + "`" + `is_read` + "`" + ` in the request body.\nReturns the updated notification and your ` + "`" + `unread_count` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -7263,7 +7269,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "id of the notification",
+                        "description": "Notification ID.",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -7286,6 +7292,7 @@ const docTemplate = `{
         },
         "/api/v2/notifications/settings": {
             "get": {
+                "description": "Returns the deployment-wide notification settings, which hold the ` + "`" + `notifier_paused` + "`" + ` flag.\nAny authenticated user can read them.",
                 "produces": [
                     "application/json"
                 ],
@@ -7309,6 +7316,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Updates the deployment-wide notification settings, for example to pause or resume the notifier with ` + "`" + `notifier_paused` + "`" + `.\nReturns ` + "`" + `304 Not Modified` + "`" + ` when the settings are unchanged.\nRequires permission to update deployment configuration, which the Owner role has.",
                 "consumes": [
                     "application/json"
                 ],
@@ -7322,7 +7330,7 @@ const docTemplate = `{
                 "operationId": "update-notifications-settings",
                 "parameters": [
                     {
-                        "description": "Notifications settings request",
+                        "description": "Notification settings to apply. Set ` + "`" + `notifier_paused` + "`" + ` to ` + "`" + `true` + "`" + ` to pause delivery.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -7351,6 +7359,7 @@ const docTemplate = `{
         },
         "/api/v2/notifications/templates/custom": {
             "get": {
+                "description": "Returns the templates for custom notifications, which you send with ` + "`" + `POST /api/v2/notifications/custom` + "`" + `.\nAny authenticated user can read them.",
                 "produces": [
                     "application/json"
                 ],
@@ -7385,6 +7394,7 @@ const docTemplate = `{
         },
         "/api/v2/notifications/templates/system": {
             "get": {
+                "description": "Returns the notification templates that Coder sends for system events, such as workspace and account changes.\nAny authenticated user can read them.",
                 "produces": [
                     "application/json"
                 ],
@@ -7453,6 +7463,7 @@ const docTemplate = `{
         },
         "/api/v2/notifications/test": {
             "post": {
+                "description": "Sends a test notification to you, to check that the deployment delivers notifications.\nRequires permission to update deployment configuration, which the Owner role has.",
                 "tags": [
                     "Notifications"
                 ],
@@ -14673,6 +14684,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/notifications/preferences": {
             "get": {
+                "description": "Returns the per-template notification preferences a user has set, including whether each template is disabled.\nYou can read your own preferences, and the Owner role can read any user's.",
                 "produces": [
                     "application/json"
                 ],
@@ -14684,7 +14696,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14708,6 +14720,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Turns notification templates on or off for a user, using a map of template IDs to a disabled flag, and returns all of their preferences.\nYou can update your own preferences, and the Owner role can update any user's.",
                 "consumes": [
                     "application/json"
                 ],
@@ -14721,7 +14734,7 @@ const docTemplate = `{
                 "operationId": "update-user-notification-preferences",
                 "parameters": [
                     {
-                        "description": "Preferences",
+                        "description": "Map of notification template IDs to a disabled flag, in ` + "`" + `template_disabled_map` + "`" + `. Set a template to ` + "`" + `true` + "`" + ` to turn it off.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -14731,7 +14744,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
