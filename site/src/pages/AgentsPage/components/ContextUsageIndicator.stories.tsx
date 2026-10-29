@@ -1,11 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn, userEvent, within } from "storybook/test";
+import { fn, screen, userEvent, within } from "storybook/test";
 import type { ChatContext } from "#/api/typesGenerated";
 import {
 	MockChatContextACPHarnesses,
 	MockChatContextACPHarnessIssue,
 	MockChatContextClean,
 	MockChatContextDirty,
+	MockChatContextResourceFailures,
 } from "#/testHelpers/chatEntities";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 
@@ -271,6 +272,7 @@ export const ACPHarnesses: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		await userEvent.click(within(canvasElement).getByRole("button"));
+		await userEvent.click(screen.getByRole("button", { name: /^ACP/ }));
 	},
 };
 
@@ -304,7 +306,7 @@ export const ACPHarnessesWithoutSourcePath: Story = {
 	},
 };
 
-// A pinned resource issue flags the indicator and appears under Issues.
+// A failed skill appears inside its section alongside available skills.
 export const ResourceIssue: Story = {
 	args: {
 		usage: {
@@ -316,6 +318,7 @@ export const ResourceIssue: Story = {
 	play: async ({ canvasElement }) => {
 		const button = within(canvasElement).getByRole("button");
 		await userEvent.click(button);
+		await userEvent.click(screen.getByRole("button", { name: /Skills/ }));
 	},
 };
 
@@ -373,6 +376,10 @@ export const MultipleContextRoots: Story = {
 	play: async ({ canvasElement }) => {
 		const button = within(canvasElement).getByRole("button");
 		await userEvent.click(button);
+		await userEvent.click(
+			screen.getByRole("button", { name: /Context files/ }),
+		);
+		await userEvent.click(screen.getByRole("button", { name: /Skills/ }));
 	},
 };
 
@@ -405,6 +412,7 @@ export const MultipleMcpConfigs: Story = {
 	play: async ({ canvasElement }) => {
 		const button = within(canvasElement).getByRole("button");
 		await userEvent.click(button);
+		await userEvent.click(screen.getByRole("button", { name: /MCP/ }));
 	},
 };
 
@@ -481,5 +489,33 @@ export const SnapshotError: Story = {
 	play: async ({ canvasElement }) => {
 		const button = within(canvasElement).getByRole("button");
 		await userEvent.click(button);
+	},
+};
+
+export const ExpandedResources: Story = {
+	...NoUsageWithContext,
+	play: async ({ canvasElement }) => {
+		await userEvent.click(within(canvasElement).getByRole("button"));
+		const dialog = screen.getByRole("dialog");
+		for (const name of [/Context files/, /Skills/, /MCP/]) {
+			await userEvent.click(within(dialog).getByRole("button", { name }));
+		}
+	},
+};
+
+export const ResourceFailuresOnly: Story = {
+	args: { usage: { context: MockChatContextResourceFailures } },
+	play: async ({ canvasElement }) => {
+		await userEvent.click(within(canvasElement).getByRole("button"));
+	},
+};
+
+export const ResourceFailuresOnlyExpanded: Story = {
+	...ResourceFailuresOnly,
+	play: async ({ canvasElement }) => {
+		await userEvent.click(within(canvasElement).getByRole("button"));
+		for (const name of [/Context files/, /Skills/, /MCP Servers/, /^ACP/]) {
+			await userEvent.click(screen.getByRole("button", { name }));
+		}
 	},
 };
