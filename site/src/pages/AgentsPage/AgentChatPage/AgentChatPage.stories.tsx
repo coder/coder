@@ -1004,6 +1004,21 @@ export const CompactionHintSurvivesOverrideFetchError: Story = {
 	},
 };
 
+export const ComposerFocusedWithKeyboard: Story = {
+	parameters: {
+		queries: buildQueries(MockChat, {
+			messages: [],
+			queued_messages: [],
+			has_more: false,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		(await canvas.findByRole("button", { name: "More options" })).focus();
+		await userEvent.tab({ shift: true });
+	},
+};
+
 /** Multi-turn conversation with rich markdown rendering: headings, tables,
  *  ordered/unordered lists, nested lists, code blocks, blockquotes,
  *  horizontal rules, inline formatting, links, images, and task lists. */
