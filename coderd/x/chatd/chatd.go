@@ -1858,44 +1858,6 @@ func (p *Server) resolveUserProviderAPIKeysForProvider(
 	return keys, nil
 }
 
-func (p *Server) resolveUserProviderAPIKeysForProviderType(
-	ctx context.Context,
-	ownerID uuid.UUID,
-	providerType string,
-) (chatprovider.ProviderAPIKeys, error) {
-	keys, _, err := p.resolveUserProviderAPIKeysAndProviderForProviderType(ctx, ownerID, providerType)
-	return keys, err
-}
-
-func (p *Server) resolveUserProviderAPIKeysAndProviderForProviderType(
-	ctx context.Context,
-	ownerID uuid.UUID,
-	providerType string,
-) (chatprovider.ProviderAPIKeys, *database.AIProvider, error) {
-	providers, err := p.db.GetAIProviders(ctx, database.GetAIProvidersParams{})
-	if err != nil {
-		return chatprovider.ProviderAPIKeys{}, nil, xerrors.Errorf("get enabled AI providers: %w", err)
-	}
-	normalizedProviderType := chatprovider.NormalizeProvider(providerType)
-	for _, provider := range providers {
-		if chatprovider.NormalizeProvider(string(provider.Type)) != normalizedProviderType {
-			continue
-		}
-		keys, err := p.resolveUserProviderAPIKeysForProvider(ctx, ownerID, provider)
-		if err != nil {
-			return chatprovider.ProviderAPIKeys{}, nil, err
-		}
-		if userCanUseProviderKeys(keys, normalizedProviderType) {
-			return keys, &provider, nil
-		}
-	}
-	keys, err := p.resolveUserProviderAPIKeys(ctx, ownerID, uuid.Nil)
-	if err != nil {
-		return chatprovider.ProviderAPIKeys{}, nil, err
-	}
-	return keys, nil, nil
-}
-
 func (p *Server) resolveUserProviderAPIKeys(
 	ctx context.Context,
 	ownerID uuid.UUID,

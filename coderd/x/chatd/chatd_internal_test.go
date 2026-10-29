@@ -30,6 +30,7 @@ import (
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
@@ -423,112 +424,58 @@ func TestGenerateAndStoreChatSummary_UsesTitleGenerationModel(t *testing.T) {
 	require.True(t, fetched.Summary.Valid)
 }
 
-func TestComputerUseProviderAndModelFromConfig(t *testing.T) {
+func TestComputerUseProviderForAIProviderType(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
-		rawProvider  string
-		wantProvider codersdk.ChatComputerUseProvider
-		wantErr      string
+		providerType database.AIProviderType
+		want         codersdk.ChatComputerUseProvider
 	}{
-		{
-			name:         "DefaultAnthropic",
-			rawProvider:  "",
-			wantProvider: codersdk.ChatComputerUseProviderAnthropic,
-		},
-		{
-			name:         "OpenAI",
-			rawProvider:  " openai ",
-			wantProvider: codersdk.ChatComputerUseProviderOpenAI,
-		},
-		{
-			name:        "Unknown",
-			rawProvider: "bogus",
-			wantErr:     `unknown computer-use provider "bogus" configured in agents_computer_use_provider`,
-		},
+		{providerType: database.AIProviderTypeAnthropic, want: codersdk.ChatComputerUseProviderAnthropic},
+		{providerType: database.AIProviderTypeOpenai, want: codersdk.ChatComputerUseProviderOpenAI},
+		{providerType: database.AIProviderTypeAzure},
+		{providerType: database.AIProviderTypeBedrock},
+		{providerType: database.AIProviderTypeGoogle},
+		{providerType: database.AIProviderTypeOpenaiCompat},
+		{providerType: database.AIProviderTypeOpenrouter},
+		{providerType: database.AIProviderTypeVercel},
+		{providerType: database.AIProviderTypeCopilot},
 	}
-
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(string(tt.providerType), func(t *testing.T) {
 			t.Parallel()
-
-			ctrl := gomock.NewController(t)
-			db := dbmock.NewMockStore(ctrl)
-			server := &Server{db: db}
-
-			db.EXPECT().GetChatComputerUseProvider(gomock.Any()).DoAndReturn(
-				func(ctx context.Context) (string, error) {
-					_, ok := dbauthz.ActorFromContext(ctx)
-					require.True(t, ok, "config reads must have an actor")
-					return tt.rawProvider, nil
-				},
-			)
-
-			provider, modelProvider, modelName, err := server.computerUseProviderAndModelFromConfig(context.Background())
-			if tt.wantErr != "" {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.wantErr)
-				return
-			}
-			require.NoError(t, err)
-			require.Equal(t, tt.wantProvider, provider)
-
-			wantModelProvider, wantModelName, ok := chattool.DefaultComputerUseModel(tt.wantProvider)
-			require.True(t, ok)
-			require.Equal(t, wantModelProvider, modelProvider)
-			require.Equal(t, wantModelName, modelName)
+			got, ok := computerUseProviderForAIProviderType(string(tt.providerType))
+			require.Equal(t, tt.want != "", ok)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }
 
-func TestResolveUserProviderAPIKeysAndProviderForProviderTypeProviderMatch(t *testing.T) {
+func TestRequireResponsesAPI(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	ownerID := uuid.New()
-	providerID := uuid.New()
+	t.Run("Unset", func(t *testing.T) {
+		t.Parallel()
+		got, err := requireResponsesAPI(nil, "gpt-test")
+		require.NoError(t, err)
+		require.True(t, *got.UseResponsesAPI)
+	})
 
-	db.EXPECT().GetAIProviders(gomock.Any(), database.GetAIProvidersParams{}).Return([]database.AIProvider{
-		{ID: uuid.New(), Type: database.AIProviderTypeAnthropic, Enabled: true},
-		{ID: providerID, Type: database.AIProviderTypeOpenai, Enabled: true},
-	}, nil)
-	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{
-		ProviderID: providerID,
-		APIKey:     "test-key",
-	}}, nil)
+	t.Run("KeepsOtherFieldsWithoutMutating", func(t *testing.T) {
+		t.Parallel()
+		config := &codersdk.ChatModelOpenAIConfig{ReasoningModel: ptr.Ref(true)}
+		got, err := requireResponsesAPI(config, "gpt-test")
+		require.NoError(t, err)
+		require.True(t, *got.UseResponsesAPI)
+		require.True(t, *got.ReasoningModel)
+		require.Nil(t, config.UseResponsesAPI)
+	})
 
-	server := &Server{db: db}
-	keys, aiProvider, err := server.resolveUserProviderAPIKeysAndProviderForProviderType(
-		ctx,
-		ownerID,
-		string(codersdk.ChatComputerUseProviderOpenAI),
-	)
-	require.NoError(t, err)
-	require.Equal(t, "test-key", keys.APIKey(string(codersdk.ChatComputerUseProviderOpenAI)))
-	require.NotNil(t, aiProvider)
-	require.Equal(t, providerID, aiProvider.ID)
-	require.Equal(t, database.AIProviderTypeOpenai, aiProvider.Type)
-}
-
-func TestResolveModelRouteForProviderTypeAIGatewayRequiresProvider(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-
-	db.EXPECT().GetAIProviders(gomock.Any(), database.GetAIProvidersParams{}).Return(nil, nil)
-
-	server := &Server{db: db}
-	_, err := server.resolveModelRouteForProviderType(
-		ctx,
-		uuid.New(),
-		string(codersdk.ChatComputerUseProviderOpenAI),
-	)
-	require.ErrorContains(t, err, "AI Gateway routing requires a usable AI provider")
+	t.Run("ExplicitlyDisabled", func(t *testing.T) {
+		t.Parallel()
+		_, err := requireResponsesAPI(&codersdk.ChatModelOpenAIConfig{UseResponsesAPI: ptr.Ref(false)}, "gpt-test")
+		require.ErrorContains(t, err, `model "gpt-test" disables the OpenAI Responses API, which computer use requires`)
+	})
 }
 
 func TestAppendComputerUseProviderTool(t *testing.T) {
