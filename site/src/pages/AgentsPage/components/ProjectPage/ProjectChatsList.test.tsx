@@ -442,7 +442,7 @@ describe("ProjectChatsList", () => {
 		expect(outletContext.navigateAfterArchive).not.toHaveBeenCalled();
 	});
 
-	it.each(["dropdown", "context"])(
+	it.each(["dropdown", "context", "right-clicked dropdown"])(
 		"archives a chat from its project row's %s menu",
 		async (menu) => {
 			const user = userEvent.setup();
@@ -451,17 +451,21 @@ describe("ProjectChatsList", () => {
 
 			const outletContext = renderList();
 
-			if (menu === "dropdown") {
-				await user.click(
-					await screen.findByRole("button", {
-						name: "Open chat actions for Chat 0",
-					}),
-				);
-			} else {
+			if (menu === "context") {
 				await user.pointer({
 					target: await screen.findByRole("link", { name: /Chat 0/ }),
 					keys: "[MouseRight]",
 				});
+			} else {
+				const button = await screen.findByRole("button", {
+					name: "Open chat actions for Chat 0",
+				});
+				if (menu === "right-clicked dropdown") {
+					// Must not open the row's context menu, which would block
+					// the click below.
+					await user.pointer({ target: button, keys: "[MouseRight]" });
+				}
+				await user.click(button);
 			}
 			await user.click(
 				await screen.findByRole("menuitem", { name: "Archive agent" }),

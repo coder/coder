@@ -15,6 +15,7 @@ import type { Chat, User } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
+import { preventRowContextMenuProps } from "#/components/ContextMenu/ContextMenu";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { toast } from "#/components/Toaster/toast";
 import { formatCostMicros } from "#/utils/currency";
@@ -26,7 +27,6 @@ import {
 	ChatActionsMenu,
 	canManageChat,
 	chatFamilyAllowsArchive,
-	preventRowContextMenuProps,
 } from "../ChatActionsMenuItems";
 import { getChatCostTreeID } from "../ChatConversation/chatHelpers";
 import { ChatPRStateIcon } from "../ChatDiffStats";

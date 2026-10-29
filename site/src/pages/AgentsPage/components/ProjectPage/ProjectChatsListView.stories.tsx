@@ -137,18 +137,6 @@ export const RowContextMenuOpen: Story = {
 	},
 };
 
-/** A right-click on the menu button must not also open the row's menu. */
-export const RowActionsRightClicked: Story = {
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const button = canvas.getByRole("button", {
-			name: `Open chat actions for ${chats[0].title}`,
-		});
-		await userEvent.pointer({ target: button, keys: "[MouseRight]" });
-		await userEvent.click(button);
-	},
-};
-
 export const CopySubmenuOpen: Story = {
 	play: async ({ canvasElement }) => {
 		await userEvent.click(

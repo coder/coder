@@ -91,26 +91,6 @@ type SubContentComponent =
 	| typeof DropdownMenuSubContent
 	| typeof ContextMenuSubContent;
 
-const stopRightClick = (event: React.MouseEvent) => {
-	if (event.button === 2) {
-		event.preventDefault();
-		event.stopPropagation();
-	}
-};
-
-/**
- * Spread on a menu button inside a row that has its own context menu, so a
- * right-click on the button does not also open the row's context menu.
- */
-export const preventRowContextMenuProps = {
-	onContextMenuCapture: (event: React.MouseEvent) => {
-		event.preventDefault();
-		event.stopPropagation();
-	},
-	onMouseDownCapture: stopRightClick,
-	onPointerDownCapture: stopRightClick,
-};
-
 /**
  * Pin, rename, and archive write to the chat record itself, so from a shared
  * chat they would change the owner's sidebar and title. Sharing only grants

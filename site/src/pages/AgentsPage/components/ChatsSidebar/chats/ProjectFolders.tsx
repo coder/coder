@@ -11,6 +11,7 @@ import {
 	ContextMenuItem,
 	ContextMenuSeparator,
 	ContextMenuTrigger,
+	preventRowContextMenuProps,
 } from "#/components/ContextMenu/ContextMenu";
 import {
 	DropdownMenu,
@@ -25,7 +26,6 @@ import {
 	getPersistedProjectsSectionExpanded,
 	savePersistedProjectsSectionExpanded,
 } from "../../../utils/projectsSectionStorage";
-import { preventRowContextMenuProps } from "../../ChatActionsMenuItems";
 import { ChatProjectIcon } from "../../ChatProjectIcon";
 import { DraggableChatTreeNode } from "../tree/DraggableChatTreeNode";
 import { ChatDropArea } from "./ChatDropArea";

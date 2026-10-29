@@ -21,6 +21,7 @@ import {
 } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import { preventRowContextMenuProps } from "#/components/ContextMenu/ContextMenu";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { toast } from "#/components/Toaster/toast";
 import { shortRelativeTime } from "#/utils/time";
@@ -30,7 +31,6 @@ import {
 	ChatActionsMenu,
 	canManageChat,
 	chatFamilyAllowsArchive,
-	preventRowContextMenuProps,
 } from "../../ChatActionsMenuItems";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
 import { ChatDiffStats } from "../../ChatDiffStats";
