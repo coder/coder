@@ -16,6 +16,8 @@ import (
 )
 
 // @Summary Get prebuilds settings
+// @Description Returns the deployment-wide prebuilds settings, which hold the `reconciliation_paused` flag.
+// @Description Requires a Premium license.
 // @ID get-prebuilds-settings
 // @Security CoderSessionToken
 // @Produce json
@@ -47,12 +49,15 @@ func (api *API) prebuildsSettings(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Update prebuilds settings
+// @Description Updates the deployment-wide prebuilds settings, for example to pause or resume prebuild reconciliation with `reconciliation_paused`.
+// @Description Returns `304 Not Modified` when the settings are unchanged.
+// @Description Requires a Premium license and permission to update deployment configuration, which the Owner role has.
 // @ID update-prebuilds-settings
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Prebuilds
-// @Param request body codersdk.PrebuildsSettings true "Prebuilds settings request"
+// @Param request body codersdk.PrebuildsSettings true "Prebuilds settings to apply. Set `reconciliation_paused` to `true` to pause prebuild reconciliation for all templates."
 // @Success 200 {object} codersdk.PrebuildsSettings
 // @Success 304
 // @Router /api/v2/prebuilds/settings [put]

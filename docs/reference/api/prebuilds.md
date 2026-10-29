@@ -18,6 +18,9 @@ curl -X GET http://coder-server:8080/api/v2/prebuilds/settings \
 
 `GET /api/v2/prebuilds/settings`
 
+Returns the deployment-wide prebuilds settings, which hold the `reconciliation_paused` flag.
+Requires a Premium license.
+
 ### Example responses
 
 > 200 Response
@@ -50,6 +53,10 @@ curl -X PUT http://coder-server:8080/api/v2/prebuilds/settings \
 
 `PUT /api/v2/prebuilds/settings`
 
+Updates the deployment-wide prebuilds settings, for example to pause or resume prebuild reconciliation with `reconciliation_paused`.
+Returns `304 Not Modified` when the settings are unchanged.
+Requires a Premium license and permission to update deployment configuration, which the Owner role has.
+
 > Body parameter
 
 ```json
@@ -60,9 +67,9 @@ curl -X PUT http://coder-server:8080/api/v2/prebuilds/settings \
 
 ### Parameters
 
-| Name   | In   | Type                                                               | Required | Description                |
-|--------|------|--------------------------------------------------------------------|----------|----------------------------|
-| `body` | body | [codersdk.PrebuildsSettings](schemas.md#codersdkprebuildssettings) | true     | Prebuilds settings request |
+| Name   | In   | Type                                                               | Required | Description                                                                                                            |
+|--------|------|--------------------------------------------------------------------|----------|------------------------------------------------------------------------------------------------------------------------|
+| `body` | body | [codersdk.PrebuildsSettings](schemas.md#codersdkprebuildssettings) | true     | Prebuilds settings to apply. Set `reconciliation_paused` to `true` to pause prebuild reconciliation for all templates. |
 
 ### Example responses
 
