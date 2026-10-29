@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ArchiveIcon, TriangleAlertIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
@@ -28,15 +28,16 @@ import {
 import type { ChatDetailError } from "../components/ChatConversation/chatError";
 import {
 	selectChatStatus,
+	useChatMessages,
 	useChatSelector,
 	type useChatStore,
 } from "../components/ChatConversation/chatStore";
 
 import { QueuedForCapacityCallout } from "../components/ChatConversation/QueuedForCapacityCallout";
+import { ChatDetailsPanel } from "../components/ChatDetailsPanel";
 import { DesktopPanelContext } from "../components/ChatElements/tools/DesktopPanelContext";
 import type { SendChatMessageOptions } from "../components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "../components/ChatPageContent";
-import { ChatSummaryPanel } from "../components/ChatSummaryPanel";
 import { getEffectiveTabId } from "../components/ChatsSidebar/tabs/getEffectiveTabId";
 import { SidebarTabView } from "../components/ChatsSidebar/tabs/SidebarTabView";
 import { ChatTopBar } from "../components/ChatTopBar";
@@ -50,6 +51,7 @@ import { getWorkspaceStatus, StatusIcon } from "../components/StatusIcon";
 import { TerminalPanel } from "../components/TerminalPanel";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { TerminalClientSessionContext } from "../context/TerminalClientSessionContext";
+import { useChatContext } from "../hooks/useChatContext";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import {
 	getPersistedDefaultTerminalHidden,
@@ -325,6 +327,23 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	const agentId = chat.id;
 	const organizationId = chat.organization_id;
 	const isArchived = chat.archived;
+	const isOtherUserReadOnly = !isArchived && currentUser.id !== chat.owner_id;
+	const contextMessages = useChatMessages(store);
+	const contextState = useChatContext({
+		chat,
+		messages: contextMessages,
+		modelCatalog,
+		selectedModelId: effectiveSelectedModel,
+		isReadOnly: currentUser.id !== chat.owner_id,
+	});
+	const detailsRef = useRef<HTMLDivElement>(null);
+	const panelRef = useRef<HTMLDivElement>(null);
+	const panelToggleRef = useRef<HTMLButtonElement>(null);
+	const conversationRef = useRef<HTMLDivElement>(null);
+	const restorePanelFocus = useRef(false);
+	const panelOpenerRef = useRef<HTMLElement | null>(null);
+	const [detailsFocusRequest, setDetailsFocusRequest] = useState(0);
+	const handledFocusRequest = useRef(0);
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chat.status;
 
@@ -366,6 +385,33 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	// chat. It regenerates when this view remounts (switching chats or
 	// reloading), independent of any terminal's reconnection token.
 	const [clientSessionId] = useState(generateConnectionSessionId);
+
+	useEffect(() => {
+		if (
+			detailsFocusRequest === handledFocusRequest.current ||
+			!showSidebarPanel ||
+			sidebarTabId !== "summary"
+		)
+			return;
+		handledFocusRequest.current = detailsFocusRequest;
+		detailsRef.current?.focus();
+		detailsRef.current?.scrollIntoView({ block: "nearest" });
+	}, [detailsFocusRequest, showSidebarPanel, sidebarTabId]);
+	useEffect(() => {
+		if (
+			!showSidebarPanel &&
+			(restorePanelFocus.current ||
+				panelRef.current?.contains(document.activeElement))
+		) {
+			restorePanelFocus.current = false;
+			const opener = panelOpenerRef.current;
+			if (opener?.isConnected) opener.focus();
+			if (!opener?.isConnected || document.activeElement !== opener) {
+				if (panelToggleRef.current) panelToggleRef.current.focus();
+				else conversationRef.current?.focus();
+			}
+		}
+	}, [showSidebarPanel]);
 
 	const setSidebarTabId = (tabId: string) => {
 		setSidebarTabIdState(tabId);
@@ -457,7 +503,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	// new tab can never be added to one without the other going out of
 	// sync. Desktop is ordered before terminals so terminals are rightmost.
 	const builtInSidebarTabConfigs = [
-		{ id: "summary", label: "Summary" },
+		{ id: "summary", label: "Details" },
 		{ id: "git", label: "Git" },
 		...(isSingletonTabShown("debug") ? [{ id: "debug", label: "Debug" }] : []),
 		...(isSingletonTabShown("browser")
@@ -503,6 +549,23 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		setSidebarTabId(tabId);
 	};
 
+	const handleOpenDetails = (opener: HTMLButtonElement | null) => {
+		panelOpenerRef.current = opener;
+		activateRightPanelTab("summary");
+		setDetailsFocusRequest((request) => request + 1);
+	};
+	const handleCloseSidebar = () => {
+		restorePanelFocus.current = Boolean(
+			panelRef.current?.contains(document.activeElement),
+		);
+		onSetShowSidebarPanel(false);
+	};
+	const handleToggleSidebar = () => {
+		if (!showSidebarPanel && document.activeElement instanceof HTMLElement) {
+			panelOpenerRef.current = document.activeElement;
+		}
+		onSetShowSidebarPanel(!showSidebarPanel);
+	};
 	const showSingletonTab = (tabId: SingletonRightPanelTabId) => {
 		setVisibleSingletonTabsState((currentTabIds) =>
 			currentTabIds.includes(tabId) ? currentTabIds : [...currentTabIds, tabId],
@@ -645,8 +708,20 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		switch (tabId) {
 			case "summary":
 				return (
-					<ChatSummaryPanel
+					<ChatDetailsPanel
+						key={agentId}
 						chatId={agentId}
+						focusRef={detailsRef}
+						usage={contextState.contextUsage}
+						onApplyContext={contextState.onApplyContext}
+						isApplyingContext={contextState.isApplyingContext}
+						applyError={contextState.applyContextError}
+						applySuccess={contextState.applyContextSuccess}
+						workspaceStatus={
+							workspace && workspace.latest_build.status !== "running"
+								? workspace.latest_build.status
+								: workspaceAgent?.status
+						}
 						isVisible={shouldShowSidebar && effectiveSidebarTabId === "summary"}
 						store={store}
 						hasMoreMessages={hasMoreMessages}
@@ -791,7 +866,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	const chatOwnerLabel =
 		chat.owner_name?.trim() ||
 		(chatOwnerUsername ? `@${chatOwnerUsername}` : "another user");
-	const isOtherUserReadOnly = !isArchived && currentUser.id !== chat.owner_id;
 	const readOnlyNotice = isOtherUserReadOnly
 		? `This chat is owned by ${chatOwnerLabel}. It is read-only.`
 		: undefined;
@@ -825,6 +899,10 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 					>
 						<div
 							data-testid="agents-chat-panel"
+							ref={conversationRef}
+							role="region"
+							aria-label="Chat conversation"
+							tabIndex={-1}
 							className={cn(
 								"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden sm:min-w-(--agents-chat-panel-min-width,0px)",
 								visualExpanded && "hidden",
@@ -836,10 +914,10 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 								<ChatTopBar
 									chat={chat}
 									liveChatStatus={liveChatStatus}
+									panelToggleRef={panelToggleRef}
 									panel={{
 										showSidebarPanel,
-										onToggleSidebar: () =>
-											onSetShowSidebarPanel(!showSidebarPanel),
+										onToggleSidebar: handleToggleSidebar,
 									}}
 								/>
 								{modelCatalogError != null && (
@@ -916,9 +994,10 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 							{!isArchived && (
 								<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
 									<ChatPageInput
-										chat={chat}
+										chat={contextState.observedChat}
 										store={store}
-										modelCatalog={modelCatalog}
+										contextUsage={contextState.contextUsage}
+										onOpenDetails={handleOpenDetails}
 										onSend={editing.handleSendFromInput}
 										onDeleteQueuedMessage={handleDeleteQueuedMessage}
 										onPromoteQueuedMessage={handlePromoteQueuedMessage}
@@ -970,35 +1049,37 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 							isOpen={shouldShowSidebar}
 							isExpanded={showSidebarPanel && isRightPanelExpanded}
 							onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
-							onClose={() => onSetShowSidebarPanel(false)}
+							onClose={handleCloseSidebar}
 							onVisualExpandedChange={setDragVisualExpanded}
 						>
-							<SidebarTabView
-								effectiveTabId={effectiveSidebarTabId}
-								onActiveTabChange={handleActiveTabChange}
-								tabs={sidebarTabs}
-								addTabControl={
-									<RightPanelAddTabControl
-										workspace={workspace}
-										agent={workspaceAgent}
-										host={wildcardHostname}
-										isRunning={workspace?.latest_build.status === "running"}
-										supportedSingletonTabs={supportedSingletonTabs}
-										visibleSingletonTabs={shownSingletonTabs}
-										onToggleSingletonTab={handleToggleSingletonTab}
-										onNewTerminal={handleAddTerminalTab}
-										onOpenWorkspaceApp={handleOpenWorkspaceAppTab}
-										onOpenCommandApp={handleOpenCommandAppTab}
-										onOpenPort={handleOpenPortTab}
-									/>
-								}
-								onClose={() => onSetShowSidebarPanel(false)}
-								isExpanded={visualExpanded}
-								onToggleExpanded={() =>
-									setIsRightPanelExpanded((prev) => !prev)
-								}
-								chatTitle={chat.title}
-							/>
+							<div ref={panelRef} className="flex h-full min-h-0 flex-col">
+								<SidebarTabView
+									effectiveTabId={effectiveSidebarTabId}
+									onActiveTabChange={handleActiveTabChange}
+									tabs={sidebarTabs}
+									addTabControl={
+										<RightPanelAddTabControl
+											workspace={workspace}
+											agent={workspaceAgent}
+											host={wildcardHostname}
+											isRunning={workspace?.latest_build.status === "running"}
+											supportedSingletonTabs={supportedSingletonTabs}
+											visibleSingletonTabs={shownSingletonTabs}
+											onToggleSingletonTab={handleToggleSingletonTab}
+											onNewTerminal={handleAddTerminalTab}
+											onOpenWorkspaceApp={handleOpenWorkspaceAppTab}
+											onOpenCommandApp={handleOpenCommandAppTab}
+											onOpenPort={handleOpenPortTab}
+										/>
+									}
+									onClose={handleCloseSidebar}
+									isExpanded={visualExpanded}
+									onToggleExpanded={() =>
+										setIsRightPanelExpanded((prev) => !prev)
+									}
+									chatTitle={chat.title}
+								/>
+							</div>
 						</RightPanel>
 					</div>
 				</DesktopPanelContext>

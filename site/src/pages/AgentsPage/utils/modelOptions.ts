@@ -337,6 +337,43 @@ export const getProviderForModelOption = (
 
 export { formatProviderLabel } from "#/utils/aiProviders";
 
+/** Match chatloop normalization without inventing a value for missing settings. */
+function normalizeCompactionThreshold(
+	threshold: number | undefined,
+): number | undefined {
+	if (threshold === undefined || !Number.isFinite(threshold)) {
+		return undefined;
+	}
+	return threshold < 0 || threshold > 100 ? 70 : threshold;
+}
+
+/**
+ * Token count at which compaction triggers for the given context window and
+ * threshold, or undefined when the window is unknown or compaction is
+ * disabled (100%).
+ */
+export function compactionTriggerTokens(
+	contextLimit: number | undefined,
+	thresholdPercent: number | undefined,
+): number | undefined {
+	const threshold = normalizeCompactionThreshold(thresholdPercent);
+	if (
+		contextLimit === undefined ||
+		!Number.isFinite(contextLimit) ||
+		contextLimit <= 0 ||
+		threshold === undefined ||
+		threshold === 100
+	) {
+		return undefined;
+	}
+	// The backend skips zero usage and compares (tokens / window) * 100.
+	// Preserve that operation order at floating-point integer boundaries.
+	const candidate = Math.max(1, Math.ceil((contextLimit * threshold) / 100));
+	return (candidate / contextLimit) * 100 >= threshold
+		? candidate
+		: candidate + 1;
+}
+
 export const getModelSelectorPlaceholder = (
 	modelOptions: readonly ModelSelectorOption[],
 	isModelCatalogLoading: boolean,
