@@ -3,38 +3,53 @@ import { ToolCall } from "./ToolCall";
 import { ToolResultImage } from "./ToolResultImage";
 import type { ToolStatus } from "./utils";
 
+const computerActionLabel = (action: string, isRunning: boolean): string => {
+	if (action === "" || action === "screenshot") {
+		return isRunning ? "Taking screenshot…" : "Screenshot";
+	}
+	const words = action.replaceAll("_", " ");
+	const label = words.charAt(0).toUpperCase() + words.slice(1);
+	return isRunning ? `${label}…` : label;
+};
+
 /**
- * Renders screenshots returned by Anthropic's computer use tool.
- * When the result contains base64 image data, the actual image is
- * displayed instead of raw JSON. Clicking the image opens it in an
- * in-app lightbox overlay rather than a new tab so that it works
- * correctly in PWA / standalone mode on iOS.
+ * Renders a computer use tool call: the screenshot it returned, or the
+ * text output of a desktop action such as a click. When the result
+ * contains base64 image data, the actual image is displayed instead of
+ * raw JSON. Clicking the image opens it in an in-app lightbox overlay
+ * rather than a new tab so that it works correctly in PWA / standalone
+ * mode on iOS.
  */
 export const ComputerTool: React.FC<{
+	action: string;
 	imageData: string;
 	mimeType: string;
 	text: string;
 	status: ToolStatus;
 	isError: boolean;
 	errorMessage?: string;
-}> = ({ imageData, mimeType, text, status, isError, errorMessage }) => {
+}> = ({ action, imageData, mimeType, text, status, isError, errorMessage }) => {
 	const isRunning = status === "running";
 	const hasImage = imageData.length > 0;
 	const hasText = text.length > 0;
 	const hasContent = hasImage || hasText;
+	const isScreenshot = action === "" || action === "screenshot";
 
 	return (
 		<ToolCall.Root
 			className="w-full"
 			status={status}
 			isError={isError}
-			errorMessage={errorMessage || "Failed to take screenshot"}
+			errorMessage={
+				errorMessage ||
+				(isScreenshot ? "Failed to take screenshot" : "Computer action failed")
+			}
 			hasContent={hasContent}
 			defaultExpanded={hasImage}
 		>
 			<ToolCall.Header
 				iconName="computer"
-				label={isRunning ? "Taking screenshot…" : "Screenshot"}
+				label={computerActionLabel(action, isRunning)}
 			/>
 			<ToolCall.Content>
 				{hasImage ? (
