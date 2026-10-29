@@ -692,6 +692,10 @@ func validateInterceptionCursor(ctx context.Context, db database.Store, cursorID
 }
 
 // @Summary Get group AI budget
+// @Description Returns the AI budget of a group, which is the spend limit that applies to each of its members.
+// @Description Returns `404` if the group has no budget.
+// @Description Requires permission to read the group, which members have for their own groups and the Owner, Auditor, Template Admin, User Admin, Organization Admin, Organization Auditor, Organization User Admin, and Organization Template Admin roles have for the groups in their scope.
+// @Description Requires a Premium license.
 // @ID get-group-ai-budget
 // @Security CoderSessionToken
 // @Produce json
@@ -734,13 +738,16 @@ func validAISpendLimit(ctx context.Context, rw http.ResponseWriter, spendLimitMi
 }
 
 // @Summary Upsert group AI budget
+// @Description Creates or replaces the AI budget of a group, which is the spend limit that applies to each of its members.
+// @Description Requires permission to update the group, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+// @Description Requires a Premium license.
 // @ID upsert-group-ai-budget
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Enterprise
 // @Param group path string true "Group ID" format(uuid)
-// @Param request body codersdk.UpsertGroupAIBudgetRequest true "Upsert group AI budget request"
+// @Param request body codersdk.UpsertGroupAIBudgetRequest true "AI budget for the group. `spend_limit_micros` is the limit per member for each budget period, in millionths of a dollar, from `0` to `1000000000000`."
 // @Success 200 {object} codersdk.GroupAIBudget
 // @Router /api/v2/groups/{group}/ai/budget [put]
 func (api *API) upsertGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
@@ -795,6 +802,10 @@ func (api *API) upsertGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Delete group AI budget
+// @Description Deletes the AI budget of a group, so the group no longer sets a spend limit for its members.
+// @Description Returns `404` if the group has no budget.
+// @Description Requires permission to update the group, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+// @Description Requires a Premium license.
 // @ID delete-group-ai-budget
 // @Security CoderSessionToken
 // @Tags Enterprise
@@ -832,11 +843,15 @@ func (api *API) deleteGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get user AI budget override
+// @Description Returns the AI budget override of a user, which replaces the budgets of their groups.
+// @Description Returns `404` if the user has no override.
+// @Description Requires permission to read the user, which you have for yourself and which the Owner, Auditor, Template Admin, User Admin, Organization Admin, and Organization User Admin roles have for all users.
+// @Description Requires a Premium license.
 // @ID get-user-ai-budget-override
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param user path string true "User ID, username, or me"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Success 200 {object} codersdk.UserAIBudgetOverride
 // @Router /api/v2/users/{user}/ai/budget/override [get]
 func (api *API) userAIBudgetOverride(rw http.ResponseWriter, r *http.Request) {
@@ -858,13 +873,17 @@ func (api *API) userAIBudgetOverride(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Upsert user AI budget override
+// @Description Creates or replaces the AI budget override of a user, which sets their spend limit instead of the budgets of their groups and attributes their spend to the group in `group_id`.
+// @Description The user must be a member of that group, and you can't set an override for a system user.
+// @Description Requires permission to update both the user and the group, which the Owner and User Admin roles have.
+// @Description Requires a Premium license.
 // @ID upsert-user-ai-budget-override
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Enterprise
-// @Param user path string true "User ID, username, or me"
-// @Param request body codersdk.UpsertUserAIBudgetOverrideRequest true "Upsert user AI budget override request"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
+// @Param request body codersdk.UpsertUserAIBudgetOverrideRequest true "AI budget override for the user. `group_id` is the group that the user's spend is attributed to. `spend_limit_micros` is the user's limit for each budget period, in millionths of a dollar, from `0` to `1000000000000`."
 // @Success 200 {object} codersdk.UserAIBudgetOverride
 // @Router /api/v2/users/{user}/ai/budget/override [put]
 func (api *API) upsertUserAIBudgetOverride(rw http.ResponseWriter, r *http.Request) {
@@ -966,10 +985,14 @@ func (api *API) upsertUserAIBudgetOverride(rw http.ResponseWriter, r *http.Reque
 }
 
 // @Summary Delete user AI budget override
+// @Description Deletes the AI budget override of a user, which returns them to the budget of their effective group.
+// @Description Returns `404` if the user has no override.
+// @Description Requires permission to update both the user and the group the override attributes spend to, which the Owner and User Admin roles have.
+// @Description Requires a Premium license.
 // @ID delete-user-ai-budget-override
 // @Security CoderSessionToken
 // @Tags Enterprise
-// @Param user path string true "User ID, username, or me"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Success 204
 // @Router /api/v2/users/{user}/ai/budget/override [delete]
 func (api *API) deleteUserAIBudgetOverride(rw http.ResponseWriter, r *http.Request) {
@@ -1031,11 +1054,14 @@ func (api *API) currentAIBudgetWindow() (budget.PeriodWindow, error) {
 }
 
 // @Summary Get user AI spend
+// @Description Returns a user's AI spend for the current budget period, with the budget that applies to them and the group their spend is attributed to.
+// @Description Requires permission to read the user, which you have for yourself and which the Owner, Auditor, Template Admin, User Admin, Organization Admin, and Organization User Admin roles have for all users.
+// @Description Requires a Premium license.
 // @ID get-user-ai-spend
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param user path string true "User ID, username, or me"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Success 200 {object} codersdk.UserAISpendStatus
 // @Router /api/v2/users/{user}/ai/spend [get]
 func (api *API) userAISpendStatus(rw http.ResponseWriter, r *http.Request) {
@@ -1106,7 +1132,7 @@ func (api *API) userAISpendStatus(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
 // @Param group_ids query string true "Comma-separated list of group IDs (maximum 100)"
 // @Success 200 {object} codersdk.OrganizationGroupsAISpend
 // @Router /api/v2/organizations/{organization}/groups/ai/spend [get]
@@ -1287,13 +1313,13 @@ func (api *API) aiSpendPeriod(ctx context.Context, rw http.ResponseWriter, r *ht
 // @Security CoderSessionToken
 // @Produce text/csv
 // @Tags Enterprise
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
 // @Param period_start query string false "Inclusive lower bound (RFC3339)" format(date-time)
 // @Param period_end query string false "Exclusive upper bound (RFC3339)" format(date-time)
-// @Param user_id query string false "User ID" format(uuid)
-// @Param group_id query string false "Effective group ID" format(uuid)
-// @Param provider_name query string false "Configured provider name"
-// @Param model query string false "Model name"
+// @Param user_id query string false "Only include spend by this user. Accepts a user ID." format(uuid)
+// @Param group_id query string false "Only include spend attributed to this group." format(uuid)
+// @Param provider_name query string false "Only include spend through the AI provider with this configured name."
+// @Param model query string false "Only include spend on this model."
 // @Success 200
 // @Router /api/v2/organizations/{organization}/ai/spend/export [get]
 func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Request) {
@@ -1566,8 +1592,8 @@ func (api *API) groupAISpend(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID" format(uuid)
-// @Param groupName path string true "Group name"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
+// @Param groupName path string true "Group name in the organization. Matching is case-insensitive."
 // @Param user_ids query string true "Comma-separated list of user IDs (maximum 100)"
 // @Success 200 {object} codersdk.GroupMembersAISpend
 // @Router /api/v2/organizations/{organization}/groups/{groupName}/members/ai/spend [get]

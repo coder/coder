@@ -2205,6 +2205,7 @@ const docTemplate = `{
         },
         "/api/v2/agent-firewall/sessions/{id}": {
             "get": {
+                "description": "Returns an Agent Firewall session, with its workspace ID, the workspace owner's ID, the name of the confined process, and when the session started.\nRequires permission to read Agent Firewall logs, which the Owner and Auditor roles have.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -2217,7 +2218,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Agent firewall session ID",
+                        "description": "Agent Firewall session ID.",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -2240,6 +2241,7 @@ const docTemplate = `{
         },
         "/api/v2/agent-firewall/sessions/{id}/logs": {
             "get": {
+                "description": "Returns the logs for an Agent Firewall session in ascending sequence order.\nUse ` + "`" + `seq_after` + "`" + ` and ` + "`" + `seq_before` + "`" + ` to fetch a range of sequence numbers, and ` + "`" + `limit` + "`" + ` to change the number of logs returned, which defaults to ` + "`" + `100` + "`" + `.\nRequires permission to read Agent Firewall logs, which the Owner and Auditor roles have.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -2252,7 +2254,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Agent firewall session ID",
+                        "description": "Agent Firewall session ID.",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -2322,6 +2324,7 @@ const docTemplate = `{
         },
         "/api/v2/ai-gateway/keys": {
             "get": {
+                "description": "Lists the AI Gateway keys, oldest first.\nEach key has its name, key prefix, creation time, and the time of its last heartbeat from a standalone AI Gateway replica, but never the secret.\nRequires permission to read AI Gateway keys, which only the Owner role has.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -2348,6 +2351,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Creates an AI Gateway key that a standalone AI Gateway replica uses to authenticate to ` + "`" + `/api/v2/ai-gateway/serve` + "`" + `.\nThe response contains the secret in ` + "`" + `key` + "`" + `, which you can't retrieve again, so store it when you create it.\nRequires permission to create AI Gateway keys, which only the Owner role has.\nRequires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2361,7 +2365,7 @@ const docTemplate = `{
                 "operationId": "create-ai-gateway-key",
                 "parameters": [
                     {
-                        "description": "Create AI Gateway key request",
+                        "description": "AI Gateway key to create. ` + "`" + `name` + "`" + ` must be unique, 64 characters or fewer, and made of lowercase letters, numbers, and non-consecutive hyphens, and it can't start or end with a hyphen.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -2387,6 +2391,7 @@ const docTemplate = `{
         },
         "/api/v2/ai-gateway/keys/{key}": {
             "delete": {
+                "description": "Deletes an AI Gateway key.\nA standalone AI Gateway replica that authenticates with the key is disconnected at its next heartbeat check, which runs every 60 seconds.\nRequires permission to delete AI Gateway keys, which only the Owner role has.\nRequires a Premium license.",
                 "tags": [
                     "Enterprise"
                 ],
@@ -2396,7 +2401,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Key ID",
+                        "description": "AI Gateway key ID.",
                         "name": "key",
                         "in": "path",
                         "required": true
@@ -2487,6 +2492,7 @@ const docTemplate = `{
         },
         "/api/v2/ai-gateway/serve": {
             "get": {
+                "description": "Upgrades the connection to a WebSocket that carries the AI Gateway DRPC services from ` + "`" + `coderd` + "`" + ` to a standalone AI Gateway replica.\nThe replica calls this, not you, and authenticates with an AI Gateway key in the ` + "`" + `X-Coder-AI-Governance-Gateway-Key` + "`" + ` header instead of a session token.\nCoder closes the connection when the key is deleted or the license no longer includes AI Governance.\nRequires a Premium license.",
                 "tags": [
                     "Enterprise"
                 ],
@@ -6324,6 +6330,7 @@ const docTemplate = `{
         },
         "/api/v2/groups/{group}/ai/budget": {
             "get": {
+                "description": "Returns the AI budget of a group, which is the spend limit that applies to each of its members.\nReturns ` + "`" + `404` + "`" + ` if the group has no budget.\nRequires permission to read the group, which members have for their own groups and the Owner, Auditor, Template Admin, User Admin, Organization Admin, Organization Auditor, Organization User Admin, and Organization Template Admin roles have for the groups in their scope.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -6357,6 +6364,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Creates or replaces the AI budget of a group, which is the spend limit that applies to each of its members.\nRequires permission to update the group, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.\nRequires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -6378,7 +6386,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Upsert group AI budget request",
+                        "description": "AI budget for the group. ` + "`" + `spend_limit_micros` + "`" + ` is the limit per member for each budget period, in millionths of a dollar, from ` + "`" + `0` + "`" + ` to ` + "`" + `1000000000000` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -6402,6 +6410,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Deletes the AI budget of a group, so the group no longer sets a spend limit for its members.\nReturns ` + "`" + `404` + "`" + ` if the group has no budget.\nRequires permission to update the group, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.\nRequires a Premium license.",
                 "tags": [
                     "Enterprise"
                 ],
@@ -8013,7 +8022,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -8035,26 +8044,26 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "User ID",
+                        "description": "Only include spend by this user. Accepts a user ID.",
                         "name": "user_id",
                         "in": "query"
                     },
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Effective group ID",
+                        "description": "Only include spend attributed to this group.",
                         "name": "group_id",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Configured provider name",
+                        "description": "Only include spend through the AI provider with this configured name.",
                         "name": "provider_name",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Model name",
+                        "description": "Only include spend on this model.",
                         "name": "model",
                         "in": "query"
                     }
@@ -8722,7 +8731,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -8874,14 +8883,14 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Group name",
+                        "description": "Group name in the organization. Matching is case-insensitive.",
                         "name": "groupName",
                         "in": "path",
                         "required": true
@@ -13990,6 +13999,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/ai/budget/override": {
             "get": {
+                "description": "Returns the AI budget override of a user, which replaces the budgets of their groups.\nReturns ` + "`" + `404` + "`" + ` if the user has no override.\nRequires permission to read the user, which you have for yourself and which the Owner, Auditor, Template Admin, User Admin, Organization Admin, and Organization User Admin roles have for all users.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -14001,7 +14011,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, username, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14022,6 +14032,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Creates or replaces the AI budget override of a user, which sets their spend limit instead of the budgets of their groups and attributes their spend to the group in ` + "`" + `group_id` + "`" + `.\nThe user must be a member of that group, and you can't set an override for a system user.\nRequires permission to update both the user and the group, which the Owner and User Admin roles have.\nRequires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -14036,13 +14047,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, username, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Upsert user AI budget override request",
+                        "description": "AI budget override for the user. ` + "`" + `group_id` + "`" + ` is the group that the user's spend is attributed to. ` + "`" + `spend_limit_micros` + "`" + ` is the user's limit for each budget period, in millionths of a dollar, from ` + "`" + `0` + "`" + ` to ` + "`" + `1000000000000` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -14066,6 +14077,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Deletes the AI budget override of a user, which returns them to the budget of their effective group.\nReturns ` + "`" + `404` + "`" + ` if the user has no override.\nRequires permission to update both the user and the group the override attributes spend to, which the Owner and User Admin roles have.\nRequires a Premium license.",
                 "tags": [
                     "Enterprise"
                 ],
@@ -14074,7 +14086,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, username, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14094,6 +14106,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/ai/spend": {
             "get": {
+                "description": "Returns a user's AI spend for the current budget period, with the budget that applies to them and the group their spend is attributed to.\nRequires permission to read the user, which you have for yourself and which the Owner, Auditor, Template Admin, User Admin, Organization Admin, and Organization User Admin roles have for all users.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -14105,7 +14118,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, username, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true

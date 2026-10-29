@@ -102,11 +102,15 @@ curl -X GET http://coder-server:8080/api/v2/agent-firewall/sessions/{id} \
 
 `GET /api/v2/agent-firewall/sessions/{id}`
 
+Returns an Agent Firewall session, with its workspace ID, the workspace owner's ID, the name of the confined process, and when the session started.
+Requires permission to read Agent Firewall logs, which the Owner and Auditor roles have.
+Requires a Premium license.
+
 ### Parameters
 
-| Name | In   | Type         | Required | Description               |
-|------|------|--------------|----------|---------------------------|
-| `id` | path | string(uuid) | true     | Agent firewall session ID |
+| Name | In   | Type         | Required | Description                |
+|------|------|--------------|----------|----------------------------|
+| `id` | path | string(uuid) | true     | Agent Firewall session ID. |
 
 ### Example responses
 
@@ -143,11 +147,16 @@ curl -X GET http://coder-server:8080/api/v2/agent-firewall/sessions/{id}/logs \
 
 `GET /api/v2/agent-firewall/sessions/{id}/logs`
 
+Returns the logs for an Agent Firewall session in ascending sequence order.
+Use `seq_after` and `seq_before` to fetch a range of sequence numbers, and `limit` to change the number of logs returned, which defaults to `100`.
+Requires permission to read Agent Firewall logs, which the Owner and Auditor roles have.
+Requires a Premium license.
+
 ### Parameters
 
 | Name         | In    | Type         | Required | Description                                    |
 |--------------|-------|--------------|----------|------------------------------------------------|
-| `id`         | path  | string(uuid) | true     | Agent firewall session ID                      |
+| `id`         | path  | string(uuid) | true     | Agent Firewall session ID.                     |
 | `seq_after`  | query | integer      | false    | Inclusive lower bound on sequence number       |
 | `seq_before` | query | integer      | false    | Exclusive upper bound on sequence number       |
 | `limit`      | query | integer      | false    | Maximum number of logs to return (default 100) |
@@ -195,6 +204,11 @@ curl -X GET http://coder-server:8080/api/v2/ai-gateway/keys \
 ```
 
 `GET /api/v2/ai-gateway/keys`
+
+Lists the AI Gateway keys, oldest first.
+Each key has its name, key prefix, creation time, and the time of its last heartbeat from a standalone AI Gateway replica, but never the secret.
+Requires permission to read AI Gateway keys, which only the Owner role has.
+Requires a Premium license.
 
 ### Example responses
 
@@ -247,6 +261,11 @@ curl -X POST http://coder-server:8080/api/v2/ai-gateway/keys \
 
 `POST /api/v2/ai-gateway/keys`
 
+Creates an AI Gateway key that a standalone AI Gateway replica uses to authenticate to `/api/v2/ai-gateway/serve`.
+The response contains the secret in `key`, which you can't retrieve again, so store it when you create it.
+Requires permission to create AI Gateway keys, which only the Owner role has.
+Requires a Premium license.
+
 > Body parameter
 
 ```json
@@ -257,9 +276,9 @@ curl -X POST http://coder-server:8080/api/v2/ai-gateway/keys \
 
 ### Parameters
 
-| Name   | In   | Type                                                                               | Required | Description                   |
-|--------|------|------------------------------------------------------------------------------------|----------|-------------------------------|
-| `body` | body | [codersdk.CreateAIGatewayKeyRequest](schemas.md#codersdkcreateaigatewaykeyrequest) | true     | Create AI Gateway key request |
+| Name   | In   | Type                                                                               | Required | Description                                                                                                                                                                            |
+|--------|------|------------------------------------------------------------------------------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `body` | body | [codersdk.CreateAIGatewayKeyRequest](schemas.md#codersdkcreateaigatewaykeyrequest) | true     | AI Gateway key to create. `name` must be unique, 64 characters or fewer, and made of lowercase letters, numbers, and non-consecutive hyphens, and it can't start or end with a hyphen. |
 
 ### Example responses
 
@@ -295,11 +314,16 @@ curl -X DELETE http://coder-server:8080/api/v2/ai-gateway/keys/{key} \
 
 `DELETE /api/v2/ai-gateway/keys/{key}`
 
+Deletes an AI Gateway key.
+A standalone AI Gateway replica that authenticates with the key is disconnected at its next heartbeat check, which runs every 60 seconds.
+Requires permission to delete AI Gateway keys, which only the Owner role has.
+Requires a Premium license.
+
 ### Parameters
 
-| Name  | In   | Type         | Required | Description |
-|-------|------|--------------|----------|-------------|
-| `key` | path | string(uuid) | true     | Key ID      |
+| Name  | In   | Type         | Required | Description        |
+|-------|------|--------------|----------|--------------------|
+| `key` | path | string(uuid) | true     | AI Gateway key ID. |
 
 ### Responses
 
@@ -320,6 +344,11 @@ curl -X GET http://coder-server:8080/api/v2/ai-gateway/serve \
 ```
 
 `GET /api/v2/ai-gateway/serve`
+
+Upgrades the connection to a WebSocket that carries the AI Gateway DRPC services from `coderd` to a standalone AI Gateway replica.
+The replica calls this, not you, and authenticates with an AI Gateway key in the `X-Coder-AI-Governance-Gateway-Key` header instead of a session token.
+Coder closes the connection when the key is deleted or the license no longer includes AI Governance.
+Requires a Premium license.
 
 ### Responses
 
@@ -987,6 +1016,11 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group}/ai/budget \
 
 `GET /api/v2/groups/{group}/ai/budget`
 
+Returns the AI budget of a group, which is the spend limit that applies to each of its members.
+Returns `404` if the group has no budget.
+Requires permission to read the group, which members have for their own groups and the Owner, Auditor, Template Admin, User Admin, Organization Admin, Organization Auditor, Organization User Admin, and Organization Template Admin roles have for the groups in their scope.
+Requires a Premium license.
+
 ### Parameters
 
 | Name    | In   | Type         | Required | Description |
@@ -1028,6 +1062,10 @@ curl -X PUT http://coder-server:8080/api/v2/groups/{group}/ai/budget \
 
 `PUT /api/v2/groups/{group}/ai/budget`
 
+Creates or replaces the AI budget of a group, which is the spend limit that applies to each of its members.
+Requires permission to update the group, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+Requires a Premium license.
+
 > Body parameter
 
 ```json
@@ -1038,10 +1076,10 @@ curl -X PUT http://coder-server:8080/api/v2/groups/{group}/ai/budget \
 
 ### Parameters
 
-| Name    | In   | Type                                                                                 | Required | Description                    |
-|---------|------|--------------------------------------------------------------------------------------|----------|--------------------------------|
-| `group` | path | string(uuid)                                                                         | true     | Group ID                       |
-| `body`  | body | [codersdk.UpsertGroupAIBudgetRequest](schemas.md#codersdkupsertgroupaibudgetrequest) | true     | Upsert group AI budget request |
+| Name    | In   | Type                                                                                 | Required | Description                                                                                                                                           |
+|---------|------|--------------------------------------------------------------------------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `group` | path | string(uuid)                                                                         | true     | Group ID                                                                                                                                              |
+| `body`  | body | [codersdk.UpsertGroupAIBudgetRequest](schemas.md#codersdkupsertgroupaibudgetrequest) | true     | AI budget for the group. `spend_limit_micros` is the limit per member for each budget period, in millionths of a dollar, from `0` to `1000000000000`. |
 
 ### Example responses
 
@@ -1075,6 +1113,11 @@ curl -X DELETE http://coder-server:8080/api/v2/groups/{group}/ai/budget \
 ```
 
 `DELETE /api/v2/groups/{group}/ai/budget`
+
+Deletes the AI budget of a group, so the group no longer sets a spend limit for its members.
+Returns `404` if the group has no budget.
+Requires permission to update the group, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
+Requires a Premium license.
 
 ### Parameters
 
@@ -2016,15 +2059,15 @@ Requires organization-level administrator permissions.
 
 ### Parameters
 
-| Name            | In    | Type              | Required | Description                     |
-|-----------------|-------|-------------------|----------|---------------------------------|
-| `organization`  | path  | string(uuid)      | true     | Organization ID                 |
-| `period_start`  | query | string(date-time) | false    | Inclusive lower bound (RFC3339) |
-| `period_end`    | query | string(date-time) | false    | Exclusive upper bound (RFC3339) |
-| `user_id`       | query | string(uuid)      | false    | User ID                         |
-| `group_id`      | query | string(uuid)      | false    | Effective group ID              |
-| `provider_name` | query | string            | false    | Configured provider name        |
-| `model`         | query | string            | false    | Model name                      |
+| Name            | In    | Type              | Required | Description                                                           |
+|-----------------|-------|-------------------|----------|-----------------------------------------------------------------------|
+| `organization`  | path  | string(uuid)      | true     | Organization ID, name, or `default` for the default organization.     |
+| `period_start`  | query | string(date-time) | false    | Inclusive lower bound (RFC3339)                                       |
+| `period_end`    | query | string(date-time) | false    | Exclusive upper bound (RFC3339)                                       |
+| `user_id`       | query | string(uuid)      | false    | Only include spend by this user. Accepts a user ID.                   |
+| `group_id`      | query | string(uuid)      | false    | Only include spend attributed to this group.                          |
+| `provider_name` | query | string            | false    | Only include spend through the AI provider with this configured name. |
+| `model`         | query | string            | false    | Only include spend on this model.                                     |
 
 ### Responses
 
@@ -2231,10 +2274,10 @@ Unknown or unreadable group IDs are silently omitted.
 
 ### Parameters
 
-| Name           | In    | Type         | Required | Description                                     |
-|----------------|-------|--------------|----------|-------------------------------------------------|
-| `organization` | path  | string(uuid) | true     | Organization ID                                 |
-| `group_ids`    | query | string       | true     | Comma-separated list of group IDs (maximum 100) |
+| Name           | In    | Type         | Required | Description                                                       |
+|----------------|-------|--------------|----------|-------------------------------------------------------------------|
+| `organization` | path  | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
+| `group_ids`    | query | string       | true     | Comma-separated list of group IDs (maximum 100)                   |
 
 ### Example responses
 
@@ -2403,11 +2446,11 @@ User IDs that are not members of the group, or that the caller has no read acces
 
 ### Parameters
 
-| Name           | In    | Type         | Required | Description                                    |
-|----------------|-------|--------------|----------|------------------------------------------------|
-| `organization` | path  | string(uuid) | true     | Organization ID                                |
-| `groupName`    | path  | string       | true     | Group name                                     |
-| `user_ids`     | query | string       | true     | Comma-separated list of user IDs (maximum 100) |
+| Name           | In    | Type         | Required | Description                                                       |
+|----------------|-------|--------------|----------|-------------------------------------------------------------------|
+| `organization` | path  | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
+| `groupName`    | path  | string       | true     | Group name in the organization. Matching is case-insensitive.     |
+| `user_ids`     | query | string       | true     | Comma-separated list of user IDs (maximum 100)                    |
 
 ### Example responses
 
@@ -4225,11 +4268,16 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/ai/budget/override \
 
 `GET /api/v2/users/{user}/ai/budget/override`
 
+Returns the AI budget override of a user, which replaces the budgets of their groups.
+Returns `404` if the user has no override.
+Requires permission to read the user, which you have for yourself and which the Owner, Auditor, Template Admin, User Admin, Organization Admin, and Organization User Admin roles have for all users.
+Requires a Premium license.
+
 ### Parameters
 
-| Name   | In   | Type   | Required | Description              |
-|--------|------|--------|----------|--------------------------|
-| `user` | path | string | true     | User ID, username, or me |
+| Name   | In   | Type   | Required | Description                                            |
+|--------|------|--------|----------|--------------------------------------------------------|
+| `user` | path | string | true     | User ID, username, or `me` for the authenticated user. |
 
 ### Example responses
 
@@ -4267,6 +4315,11 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/ai/budget/override \
 
 `PUT /api/v2/users/{user}/ai/budget/override`
 
+Creates or replaces the AI budget override of a user, which sets their spend limit instead of the budgets of their groups and attributes their spend to the group in `group_id`.
+The user must be a member of that group, and you can't set an override for a system user.
+Requires permission to update both the user and the group, which the Owner and User Admin roles have.
+Requires a Premium license.
+
 > Body parameter
 
 ```json
@@ -4278,10 +4331,10 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/ai/budget/override \
 
 ### Parameters
 
-| Name   | In   | Type                                                                                               | Required | Description                            |
-|--------|------|----------------------------------------------------------------------------------------------------|----------|----------------------------------------|
-| `user` | path | string                                                                                             | true     | User ID, username, or me               |
-| `body` | body | [codersdk.UpsertUserAIBudgetOverrideRequest](schemas.md#codersdkupsertuseraibudgetoverriderequest) | true     | Upsert user AI budget override request |
+| Name   | In   | Type                                                                                               | Required | Description                                                                                                                                                                                                               |
+|--------|------|----------------------------------------------------------------------------------------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `user` | path | string                                                                                             | true     | User ID, username, or `me` for the authenticated user.                                                                                                                                                                    |
+| `body` | body | [codersdk.UpsertUserAIBudgetOverrideRequest](schemas.md#codersdkupsertuseraibudgetoverriderequest) | true     | AI budget override for the user. `group_id` is the group that the user's spend is attributed to. `spend_limit_micros` is the user's limit for each budget period, in millionths of a dollar, from `0` to `1000000000000`. |
 
 ### Example responses
 
@@ -4317,11 +4370,16 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user}/ai/budget/override \
 
 `DELETE /api/v2/users/{user}/ai/budget/override`
 
+Deletes the AI budget override of a user, which returns them to the budget of their effective group.
+Returns `404` if the user has no override.
+Requires permission to update both the user and the group the override attributes spend to, which the Owner and User Admin roles have.
+Requires a Premium license.
+
 ### Parameters
 
-| Name   | In   | Type   | Required | Description              |
-|--------|------|--------|----------|--------------------------|
-| `user` | path | string | true     | User ID, username, or me |
+| Name   | In   | Type   | Required | Description                                            |
+|--------|------|--------|----------|--------------------------------------------------------|
+| `user` | path | string | true     | User ID, username, or `me` for the authenticated user. |
 
 ### Responses
 
@@ -4344,11 +4402,15 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/ai/spend \
 
 `GET /api/v2/users/{user}/ai/spend`
 
+Returns a user's AI spend for the current budget period, with the budget that applies to them and the group their spend is attributed to.
+Requires permission to read the user, which you have for yourself and which the Owner, Auditor, Template Admin, User Admin, Organization Admin, and Organization User Admin roles have for all users.
+Requires a Premium license.
+
 ### Parameters
 
-| Name   | In   | Type   | Required | Description              |
-|--------|------|--------|----------|--------------------------|
-| `user` | path | string | true     | User ID, username, or me |
+| Name   | In   | Type   | Required | Description                                            |
+|--------|------|--------|----------|--------------------------------------------------------|
+| `user` | path | string | true     | User ID, username, or `me` for the authenticated user. |
 
 ### Example responses
 
