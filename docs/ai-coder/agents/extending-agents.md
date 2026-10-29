@@ -160,7 +160,6 @@ A skill with its frontmatter missing, unparsable, not kebab-case, or not matchin
 All paths are resolved relative to the skill directory.
 It also rejects a path that leaves the skill directory at any step, including through a symlink.
 Relative symlinks that never leave the skill directory still work, but absolute symlinks are rejected.
-If the skill directory itself is replaced with a symlink, `read_skill_file` rejects every read from it.
 
 ## Personal skills
 
