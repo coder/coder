@@ -19087,6 +19087,7 @@ const docTemplate = `{
         },
         "/scim/v2/ServiceProviderConfig": {
             "get": {
+                "description": "Returns the SCIM service provider configuration, which lists the SCIM features Coder supports.\nThe identity provider's SCIM client calls this with the SCIM API key from ` + "`" + `CODER_SCIM_AUTH_HEADER` + "`" + ` in the ` + "`" + `Authorization` + "`" + ` header, not a session token.\nRequires a Premium license, and returns ` + "`" + `404` + "`" + ` when no SCIM API key is configured.",
                 "produces": [
                     "application/scim+json"
                 ],
@@ -19104,6 +19105,7 @@ const docTemplate = `{
         },
         "/scim/v2/Users": {
             "get": {
+                "description": "Always returns an empty user list, so the identity provider's SCIM client creates each user with ` + "`" + `POST /scim/v2/Users` + "`" + ` instead of importing existing users.\nThe identity provider's SCIM client calls this with the SCIM API key from ` + "`" + `CODER_SCIM_AUTH_HEADER` + "`" + ` in the ` + "`" + `Authorization` + "`" + ` header, not a session token.\nRequires a Premium license, and returns ` + "`" + `404` + "`" + ` when no SCIM API key is configured.",
                 "produces": [
                     "application/scim+json"
                 ],
@@ -19124,6 +19126,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Creates a user with the OIDC login type from a SCIM user, or returns the existing user when one already has the same email or username.\nThe request needs ` + "`" + `active` + "`" + ` and a primary entry in ` + "`" + `emails` + "`" + `, and a matching suspended user becomes dormant when ` + "`" + `active` + "`" + ` is ` + "`" + `true` + "`" + `.\nThe identity provider's SCIM client calls this with the SCIM API key from ` + "`" + `CODER_SCIM_AUTH_HEADER` + "`" + ` in the ` + "`" + `Authorization` + "`" + ` header, not a session token.\nRequires a Premium license, and returns ` + "`" + `404` + "`" + ` when no SCIM API key is configured.",
                 "produces": [
                     "application/json"
                 ],
@@ -19134,7 +19137,7 @@ const docTemplate = `{
                 "operationId": "scim-create-new-user",
                 "parameters": [
                     {
-                        "description": "New user",
+                        "description": "SCIM user to create. Requires ` + "`" + `active` + "`" + ` and a primary entry in ` + "`" + `emails` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -19160,6 +19163,7 @@ const docTemplate = `{
         },
         "/scim/v2/Users/{id}": {
             "get": {
+                "description": "Always returns ` + "`" + `404` + "`" + `, so the identity provider's SCIM client creates the user with ` + "`" + `POST /scim/v2/Users` + "`" + ` instead of reading it.\nThe identity provider's SCIM client calls this with the SCIM API key from ` + "`" + `CODER_SCIM_AUTH_HEADER` + "`" + ` in the ` + "`" + `Authorization` + "`" + ` header, not a session token.\nRequires a Premium license, and returns ` + "`" + `404` + "`" + ` when no SCIM API key is configured.",
                 "produces": [
                     "application/scim+json"
                 ],
@@ -19172,7 +19176,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "User ID",
+                        "description": "ID of the Coder user, which is the ` + "`" + `id` + "`" + ` that ` + "`" + `POST /scim/v2/Users` + "`" + ` returned.",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -19190,6 +19194,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Suspends or reactivates a user according to ` + "`" + `active` + "`" + `, which is required, and ignores the other SCIM attributes.\nReturns ` + "`" + `400` + "`" + ` when ` + "`" + `userName` + "`" + ` is set and differs from the user's current username, and a reactivated suspended user becomes dormant until they next log in.\nThe identity provider's SCIM client calls this with the SCIM API key from ` + "`" + `CODER_SCIM_AUTH_HEADER` + "`" + ` in the ` + "`" + `Authorization` + "`" + ` header, not a session token.\nRequires a Premium license, and returns ` + "`" + `404` + "`" + ` when no SCIM API key is configured.",
                 "produces": [
                     "application/scim+json"
                 ],
@@ -19202,13 +19207,13 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "User ID",
+                        "description": "ID of the Coder user, which is the ` + "`" + `id` + "`" + ` that ` + "`" + `POST /scim/v2/Users` + "`" + ` returned.",
                         "name": "id",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Replace user request",
+                        "description": "SCIM user to apply. Requires ` + "`" + `active` + "`" + `, and ` + "`" + `userName` + "`" + `, if set, must match the current username.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -19232,6 +19237,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Suspends or reactivates a user according to ` + "`" + `active` + "`" + `, which is required, and ignores the other SCIM attributes.\nA reactivated suspended user becomes dormant until they next log in.\nThe identity provider's SCIM client calls this with the SCIM API key from ` + "`" + `CODER_SCIM_AUTH_HEADER` + "`" + ` in the ` + "`" + `Authorization` + "`" + ` header, not a session token.\nRequires a Premium license, and returns ` + "`" + `404` + "`" + ` when no SCIM API key is configured.",
                 "produces": [
                     "application/scim+json"
                 ],
@@ -19244,13 +19250,13 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "User ID",
+                        "description": "ID of the Coder user, which is the ` + "`" + `id` + "`" + ` that ` + "`" + `POST /scim/v2/Users` + "`" + ` returned.",
                         "name": "id",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Update user request",
+                        "description": "SCIM user to apply. Requires ` + "`" + `active` + "`" + `, and Coder ignores the other attributes.",
                         "name": "request",
                         "in": "body",
                         "required": true,
