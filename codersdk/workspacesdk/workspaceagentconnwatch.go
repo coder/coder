@@ -15,6 +15,7 @@ import (
 type WatchErrorCode int
 
 const (
+	// Codes start at 1 so a zero Code means no code was set.
 	WatchErrorTooManyAgents WatchErrorCode = iota + 1
 	WatchErrorNameNotFound
 	WatchErrorNoAgents
