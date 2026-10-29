@@ -48,6 +48,77 @@ voice or product names:
 - [Grammarly](https://app.grammarly.com/)
 - [Hemingway Editor](https://hemingwayapp.com/)
 
+## Feature states
+
+A feature state, such as `premium`, `beta`, or `early access`, marks a page in
+the sidebar and under the page title.
+Set it with the `state` key on the page's route in the YAML sidebar sources
+under [`docs/manifest/`](../docs/manifest/), not in the page title or H1.
+
+A state on a route applies to that route and to every route beneath it.
+Follow these rules:
+
+1. Put the state on the highest route it applies to.
+   For a Premium feature with several pages, set `state: [premium]` on the
+   feature's top-level route only.
+2. Do not repeat an ancestor's state on a descendant.
+   The descendant inherits it.
+3. Add a state to a descendant only when the descendant has a state that its
+   ancestors lack, such as an early access subfeature inside a Premium feature.
+   List only the new state; the inherited one still applies.
+
+`make lint/docs-manifest` fails when a route repeats a state that an ancestor
+already sets, and names the file, the route, and the ancestor.
+Include files count: an ancestor in another file still counts as an ancestor.
+
+### Example
+
+A Premium feature with an early access subfeature:
+
+```yaml
+# docs/manifest/admin/widgets.yml
+title: Widgets
+description: Manage widgets across your deployment.
+path: ./admin/widgets/index.md
+state: [premium]
+children:
+  - title: Widget setup
+    description: Enable and configure widgets.
+    path: ./admin/widgets/setup.md
+  - title: Widget sync
+    description: Sync widgets between deployments.
+    path: ./admin/widgets/sync.md
+    state: [early access]
+```
+
+`Widget setup` sets no state and inherits Premium.
+`Widget sync` sets only `early access` and inherits Premium as well.
+Do not write `state: [premium, early access]` on `Widget sync`, because the lint
+rejects the repeated `premium`.
+
+The docs site shows each page as follows:
+
+| Route          | Own `state`      | Sidebar pill | Pills under the page title |
+|----------------|------------------|--------------|----------------------------|
+| `Widgets`      | `[premium]`      | Premium      | Premium                    |
+| `Widget setup` | none             | none         | Premium                    |
+| `Widget sync`  | `[early access]` | Early access | Premium, Early access      |
+
+The sidebar shows a pill on the route that sets a state and on any descendant
+whose state differs, so a section reads as Premium once instead of on every
+entry.
+The pills under a page title show the page's full state: its own states plus
+every state it inherits.
+
+Inherited pills under the page title require the docs-engine change that adds
+state inheritance.
+Until the docs site runs that version, a page shows only the states set on its
+own route.
+
+Refer to the feature states rule in the
+[content guidelines](../docs/.style/content-guidelines.md#structural-rules)
+for the canonical rule.
+
 ## How to format text
 
 Below summarizes the text-formatting conventions you should follow.
