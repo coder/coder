@@ -5,6 +5,7 @@ import {
 	MotionConfig,
 	motion,
 	type Transition,
+	useMotionValue,
 } from "motion/react";
 import { createContext, useContext, useState } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -207,11 +208,22 @@ export const WorkingBlockPeek: React.FC<WorkingBlockPeekProps> = ({
 	// track carries it up and dissolves before it reaches the summary row.
 	const topFade =
 		fadedRow && shown.length > 2 ? TOP_FADE + ROW_PITCH : TOP_FADE;
-	// The rail ends in the newest row's branch, like the icon's last item, so
-	// between steps it does not run on past the rows.
 	const newest = shown.at(-1);
-	const railInset =
-		branches && newest ? ROW_HEIGHT / 2 + branchGeometry.rise - 1 : 0;
+	// The rail ends 1px inside the newest row's branch, like the icon's last
+	// item, so between steps it does not run on past the rows. It rides the
+	// rows' track, so the end arrives with the newest row as it slides in.
+	const railHeight =
+		branches && newest
+			? Math.max(
+					0,
+					newestSlot * ROW_PITCH +
+						branchGeometry.rowCenter -
+						branchGeometry.rise +
+						1,
+				)
+			: (newestSlot + 2) * ROW_PITCH;
+	// Drives the rows' track and the rail, so they move as one.
+	const trackY = useMotionValue(trackOffset);
 	const branchModeOf = (item: PeekItem) => {
 		if (!branches) {
 			return "off";
@@ -237,18 +249,24 @@ export const WorkingBlockPeek: React.FC<WorkingBlockPeekProps> = ({
 					animate={{ "--peek-top": `${topFade}px` }}
 					transition={slide}
 				>
-					<motion.div
+					{/* Clips the rail to where the expanded block's rail runs: from the
+					    gap under the summary row to the bottom of the rows. */}
+					<div
 						aria-hidden
-						className="pointer-events-none absolute top-0 left-0 w-px bg-border"
+						data-peek-rail-clip=""
+						className="pointer-events-none absolute inset-0 overflow-hidden"
 						style={
 							fadedRow
 								? { maskImage: railMask, WebkitMaskImage: railMask }
 								: undefined
 						}
-						initial={false}
-						animate={{ bottom: railInset }}
-						transition={slide}
-					/>
+					>
+						<motion.span
+							data-peek-rail=""
+							className="absolute top-0 left-0 w-px bg-border"
+							style={{ y: trackY, height: railHeight }}
+						/>
+					</div>
 					<motion.div
 						data-peek-window=""
 						className="relative overflow-hidden"
@@ -263,7 +281,7 @@ export const WorkingBlockPeek: React.FC<WorkingBlockPeekProps> = ({
 					>
 						<motion.div
 							className="absolute right-0"
-							style={{ top: RAIL_GAP, left: ROW_INSET }}
+							style={{ top: RAIL_GAP, left: ROW_INSET, y: trackY }}
 							initial={false}
 							animate={{ y: trackOffset }}
 							transition={slide}
