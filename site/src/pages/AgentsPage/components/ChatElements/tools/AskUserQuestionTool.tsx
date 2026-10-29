@@ -12,6 +12,7 @@ import { useMutation } from "react-query";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
+import { Response } from "../Response";
 import { getAnswerBody, getAsyncAnswerPrefix } from "./asyncAnswer";
 import {
 	type FormDraft,
@@ -182,9 +183,9 @@ const QuestionOption: React.FC<QuestionOptionProps> = ({
 			<span className="text-[13px] font-medium text-content-primary">
 				{label}
 			</span>
-			<p className="col-start-2 m-0 whitespace-pre-wrap text-[13px] text-content-secondary">
+			<Response className="col-start-2 text-content-secondary">
 				{description}
-			</p>
+			</Response>
 		</label>
 	);
 };
@@ -242,7 +243,7 @@ type QuestionStepProps = {
 	/** Off while the panel header above the form shows the label. */
 	showsLabel: boolean;
 	isEnabled: boolean;
-	questionTextRef: React.Ref<HTMLParagraphElement>;
+	questionTextRef: React.Ref<HTMLDivElement>;
 	onOptionChange: (value: string) => void;
 	onOtherSelect: () => void;
 	onOtherTextChange: (text: string) => void;
@@ -276,14 +277,14 @@ const QuestionStep: React.FC<QuestionStepProps> = ({
 					{getQuestionLabel(question, questionIndex, questionCount)}
 				</p>
 			)}
-			<p
+			<Response
 				ref={questionTextRef}
 				id={questionTextId}
 				tabIndex={-1}
-				className="m-0 mt-1 whitespace-pre-wrap text-[15px] font-semibold leading-snug text-content-primary focus:outline-hidden"
+				className="mt-1 text-[15px] font-medium focus:outline-hidden"
 			>
 				{getQuestionText(question)}
-			</p>
+			</Response>
 			<RadioGroup
 				aria-labelledby={
 					showsLabel ? `${questionLabelId} ${questionTextId}` : questionTextId
@@ -365,10 +366,14 @@ const AskedQuestions: React.FC<AskedQuestionsProps> = ({ questions }) => {
 						aria-hidden="true"
 						className="mt-0.5 size-4 shrink-0"
 					/>
-					<p className="m-0 min-w-0 flex-1 whitespace-pre-wrap text-[13px]">
-						<span aria-hidden="true">Asked: </span>
-						<span>{getQuestionText(question)}</span>
-					</p>
+					<div className="flex min-w-0 flex-1 gap-1 text-[13px]">
+						<span aria-hidden="true" className="leading-relaxed">
+							Asked:
+						</span>
+						<Response className="min-w-0 flex-1 text-content-secondary">
+							{getQuestionText(question)}
+						</Response>
+					</div>
 				</div>
 			))}
 		</div>
@@ -410,7 +415,7 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 	hasStickyActions = false,
 }) => {
 	const idPrefix = useId();
-	const questionTextRef = useRef<HTMLParagraphElement>(null);
+	const questionTextRef = useRef<HTMLDivElement>(null);
 	const filteredQuestions = questions.map(filterQuestionOptions);
 	const [formDraft, setFormDraft] = useState<FormDraft>(
 		() =>

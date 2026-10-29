@@ -1,9 +1,12 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDeferred } from "#/testHelpers/deferred";
-import { createTestQueryClient } from "#/testHelpers/renderHelpers";
+import {
+	createTestQueryClient,
+	renderComponent,
+} from "#/testHelpers/renderHelpers";
 import { AskUserQuestionTool } from "./AskUserQuestionTool";
 import { getAsyncAnswerPrefix } from "./asyncAnswer";
 
@@ -40,7 +43,7 @@ describe("AskUserQuestionTool", () => {
 			.fn()
 			.mockRejectedValue(new Error("Failed to send."));
 
-		render(
+		renderComponent(
 			<QueryClientProvider client={createTestQueryClient()}>
 				<AskUserQuestionTool
 					questions={questions}
@@ -63,9 +66,40 @@ describe("AskUserQuestionTool", () => {
 		expect(onSubmitAnswer).toHaveBeenNthCalledWith(2, "Single migration");
 	});
 
+	it("renders Markdown in the question and its options", () => {
+		renderComponent(
+			<QueryClientProvider client={createTestQueryClient()}>
+				<AskUserQuestionTool
+					questions={[
+						{
+							header: "Release",
+							question:
+								"### Which release?\n\n| PR | Kind |\n|---|---|\n| #1 | **breaking** |",
+							options: [
+								{ label: "Hold", description: "Hold **#2** for `v3`." },
+							],
+						},
+					]}
+					status="completed"
+					isError={false}
+					isChatCompleted
+					isLatestAskUserQuestion
+					onSubmitAnswer={vi.fn()}
+				/>
+			</QueryClientProvider>,
+		);
+
+		expect(
+			screen.getByRole("heading", { name: "Which release?" }),
+		).toBeInTheDocument();
+		expect(screen.getByRole("table")).toBeInTheDocument();
+		expect(screen.getByText("v3").tagName).toBe("CODE");
+		expect(document.body).not.toHaveTextContent("**");
+	});
+
 	it("moves focus to the new question on Next and Back", async () => {
 		const user = userEvent.setup();
-		render(
+		renderComponent(
 			<QueryClientProvider client={createTestQueryClient()}>
 				<AskUserQuestionTool
 					questions={mockTwoQuestions}
@@ -80,19 +114,21 @@ describe("AskUserQuestionTool", () => {
 
 		await user.click(screen.getByRole("button", { name: "Next" }));
 		expect(
-			screen.getByText("How should the change ship?").closest("p"),
+			screen
+				.getByText("How should the change ship?")
+				.closest('[tabindex="-1"]'),
 		).toHaveFocus();
 		await user.click(screen.getByRole("button", { name: "Back" }));
 		expect(
 			screen
 				.getByText("How should we structure the database migration?")
-				.closest("p"),
+				.closest('[tabindex="-1"]'),
 		).toHaveFocus();
 	});
 
 	it("selects Other from its field, but not when Tab passes through it", async () => {
 		const user = userEvent.setup();
-		render(
+		renderComponent(
 			<QueryClientProvider client={createTestQueryClient()}>
 				<AskUserQuestionTool
 					questions={questions}
@@ -116,7 +152,7 @@ describe("AskUserQuestionTool", () => {
 	it("sends a skipped question as Skipped", async () => {
 		const user = userEvent.setup();
 		const onSubmitAnswer = vi.fn();
-		render(
+		renderComponent(
 			<QueryClientProvider client={createTestQueryClient()}>
 				<AskUserQuestionTool
 					questions={mockTwoQuestions}
@@ -140,7 +176,7 @@ describe("AskUserQuestionTool", () => {
 	it("sends at once when the last question is skipped", async () => {
 		const user = userEvent.setup();
 		const onSubmitAnswer = vi.fn();
-		render(
+		renderComponent(
 			<QueryClientProvider client={createTestQueryClient()}>
 				<AskUserQuestionTool
 					questions={questions}
@@ -174,7 +210,7 @@ describe("AskUserQuestionTool", () => {
 				/>
 			</QueryClientProvider>
 		);
-		const firstRender = render(<DraftQuestion />);
+		const firstRender = renderComponent(<DraftQuestion />);
 		await user.type(
 			screen.getByRole("textbox", { name: /other response/i }),
 			"Two migrations",
@@ -182,7 +218,7 @@ describe("AskUserQuestionTool", () => {
 		await user.click(screen.getByRole("button", { name: "Next" }));
 		firstRender.unmount();
 
-		const secondRender = render(<DraftQuestion />);
+		const secondRender = renderComponent(<DraftQuestion />);
 		const backButton = screen.getByRole("button", { name: "Back" });
 		expect(backButton).toBeEnabled();
 		await user.click(backButton);
@@ -192,7 +228,7 @@ describe("AskUserQuestionTool", () => {
 		await user.click(screen.getByRole("button", { name: "Next" }));
 		await user.click(screen.getByRole("button", { name: "Submit" }));
 		secondRender.unmount();
-		render(<DraftQuestion />);
+		renderComponent(<DraftQuestion />);
 
 		expect(onSubmitAnswer).toHaveBeenCalledExactlyOnceWith(
 			"1. Implementation Approach: Other: Two migrations\n2. Rollout: Feature flag",
@@ -222,7 +258,7 @@ describe("AskUserQuestionTool", () => {
 				/>
 			</QueryClientProvider>
 		);
-		const { rerender } = render(<DraftQuestion />);
+		const { rerender } = renderComponent(<DraftQuestion />);
 		await user.type(
 			screen.getByRole("textbox", { name: /other response/i }),
 			"Later",
@@ -262,7 +298,7 @@ describe("AskUserQuestionTool", () => {
 					/>
 				</QueryClientProvider>
 			);
-			const { rerender } = render(<AsyncQuestion />);
+			const { rerender } = renderComponent(<AsyncQuestion />);
 
 			await user.click(screen.getByRole("button", { name: "Submit" }));
 			rerender(<AsyncQuestion previousResponseText={answer} />);
@@ -276,7 +312,7 @@ describe("AskUserQuestionTool", () => {
 	);
 
 	it("announces an answerable async question", () => {
-		render(
+		renderComponent(
 			<QueryClientProvider client={createTestQueryClient()}>
 				<AskUserQuestionTool
 					questions={questions}
