@@ -3782,7 +3782,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "x-example": "attachment; filename=\"image.png\"",
-                        "description": "Attachment disposition carrying the file name, with the filename as a quoted string.",
+                        "description": "Attachment disposition carrying the filename as a quoted string.",
                         "name": "Content-Disposition",
                         "in": "header",
                         "required": true
