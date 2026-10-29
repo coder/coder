@@ -516,26 +516,70 @@ func TestComputerUseTool_Run_AnthropicStepResults(t *testing.T) {
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
 		gomock.InOrder(
 			expectActionOutput(mockConn, "left_click", "left_click action performed"),
-			expectActionOutput(mockConn, "cursor_position", "x=10,y=20"),
 			expectActionOutput(mockConn, "type", "type action performed"),
 			expectScreenshot(mockConn),
+			expectActionOutput(mockConn, "cursor_position", "x=10,y=20"),
 		)
 
 		tool := newAnthropicComputerUseTool(t, toolsetAnthropicModel, mockConn)
-		observeStep(t, tool, "computer", "read_file", "computer", "computer")
+		observeStep(t, tool, "computer", "read_file", "computer")
 
 		resp, err := tool.Run(context.Background(), anthropicComputerUseCall(`{"action":"left_click","coordinate":[100,200]}`))
 		require.NoError(t, err)
 		assert.Equal(t, fantasy.NewTextResponse("left_click action performed"), resp)
 
-		resp, err = tool.Run(context.Background(), anthropicComputerUseCall(`{"action":"cursor_position"}`))
-		require.NoError(t, err)
-		assert.Equal(t, fantasy.NewTextResponse("x=10,y=20"), resp)
-
 		resp, err = tool.Run(context.Background(), anthropicComputerUseCall(`{"action":"type","text":"hello"}`))
 		require.NoError(t, err)
 		assert.Equal(t, "image", resp.Type)
 		assert.False(t, resp.IsError)
+
+		// cursor_position answers with the position even as the last
+		// call of a step.
+		observeStep(t, tool, "computer")
+		resp, err = tool.Run(context.Background(), anthropicComputerUseCall(`{"action":"cursor_position"}`))
+		require.NoError(t, err)
+		assert.Equal(t, fantasy.NewTextResponse("x=10,y=20"), resp)
+	})
+
+	t.Run("ToolsetWait", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		// A wait before the step's last call takes no screenshot. The
+		// screenshot is answered so a regression fails on the result
+		// instead of stalling the tool goroutine.
+		expectScreenshot(mockConn).Do(func(context.Context, workspacesdk.DesktopAction) {
+			t.Error("wait before the last call should not take a screenshot")
+		}).AnyTimes()
+		mClock := quartz.NewMock(t)
+		trap := mClock.Trap().NewTimer("computeruse", "wait")
+		defer trap.Close()
+		geometry := workspacesdk.DefaultDesktopGeometry()
+		tool := chattool.NewComputerUseTool(
+			codersdk.ChatComputerUseProviderAnthropic,
+			toolsetAnthropicModel,
+			geometry.DeclaredWidth,
+			geometry.DeclaredHeight,
+			func(_ context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+			nil,
+			mClock,
+			slogtest.Make(t, nil),
+		)
+		observeStep(t, tool, "computer", "computer")
+
+		respCh := make(chan fantasy.ToolResponse, 1)
+		go func() {
+			resp, err := tool.Run(ctx, anthropicComputerUseCall(`{"action":"wait","duration":1}`))
+			assert.NoError(t, err)
+			respCh <- resp
+		}()
+		trap.MustWait(ctx).MustRelease(ctx)
+		mClock.Advance(time.Second).MustWait(ctx)
+		assert.Equal(t, fantasy.NewTextResponse("wait action performed"), testutil.RequireReceive(ctx, t, respCh))
 	})
 
 	t.Run("Computer20251124", func(t *testing.T) {
