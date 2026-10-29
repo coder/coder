@@ -5197,13 +5197,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query as space-separated ` + "`" + `key:value` + "`" + ` terms. Available keys are: organization (ID or name), workspace_owner (username or ` + "`" + `me` + "`" + `), workspace_owner_email, username (or ` + "`" + `me` + "`" + `), user_email, connected_after and connected_before (RFC 3339 timestamps), workspace_id, connection_id, client_session_id (32 hexadecimal characters), status (` + "`" + `ongoing` + "`" + ` or ` + "`" + `completed` + "`" + `), method (` + "`" + `ssh` + "`" + `, ` + "`" + `reconnecting_pty` + "`" + `, ` + "`" + `workspace_app` + "`" + `, ` + "`" + `port_forwarding` + "`" + `, or ` + "`" + `tunnel` + "`" + `), type (` + "`" + `ssh` + "`" + `, ` + "`" + `vscode` + "`" + `, ` + "`" + `jetbrains` + "`" + `, ` + "`" + `reconnecting_pty` + "`" + `, ` + "`" + `workspace_app` + "`" + `, ` + "`" + `port_forwarding` + "`" + `, or ` + "`" + `tunnel` + "`" + `, which can't be combined with method or app), and app (repeat to match any of several apps). Unknown keys return an error.",
+                        "description": "Search query as space-separated ` + "`" + `key:value` + "`" + ` terms. Available keys are: ` + "`" + `organization` + "`" + ` (ID or name), ` + "`" + `workspace_owner` + "`" + ` (username or ` + "`" + `me` + "`" + `), ` + "`" + `workspace_owner_email` + "`" + `, ` + "`" + `username` + "`" + ` (or ` + "`" + `me` + "`" + `), ` + "`" + `user_email` + "`" + `, ` + "`" + `connected_after` + "`" + ` and ` + "`" + `connected_before` + "`" + ` (RFC 3339 timestamps), ` + "`" + `workspace_id` + "`" + `, ` + "`" + `connection_id` + "`" + `, ` + "`" + `client_session_id` + "`" + ` (32 hexadecimal characters), ` + "`" + `status` + "`" + ` (` + "`" + `ongoing` + "`" + ` or ` + "`" + `completed` + "`" + `), ` + "`" + `method` + "`" + ` (` + "`" + `ssh` + "`" + `, ` + "`" + `reconnecting_pty` + "`" + `, ` + "`" + `workspace_app` + "`" + `, ` + "`" + `port_forwarding` + "`" + `, or ` + "`" + `tunnel` + "`" + `), ` + "`" + `type` + "`" + ` (` + "`" + `ssh` + "`" + `, ` + "`" + `vscode` + "`" + `, ` + "`" + `jetbrains` + "`" + `, ` + "`" + `reconnecting_pty` + "`" + `, ` + "`" + `workspace_app` + "`" + `, ` + "`" + `port_forwarding` + "`" + `, or ` + "`" + `tunnel` + "`" + `, which can't be combined with ` + "`" + `method` + "`" + ` or ` + "`" + `app` + "`" + `), and ` + "`" + `app` + "`" + ` (repeat to match any of several apps). Unknown keys return an error.",
                         "name": "q",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Maximum number of results to return. When omitted or ` + "`" + `0` + "`" + `, returns ` + "`" + `100` + "`" + ` results.",
+                        "description": "Maximum number of results to return. A value of ` + "`" + `0` + "`" + ` returns up to ` + "`" + `100` + "`" + ` results.",
                         "name": "limit",
                         "in": "query",
                         "required": true
@@ -10961,7 +10961,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
-                "description": "Sets whose workspaces can be shared in an organization: ` + "`" + `none` + "`" + `, ` + "`" + `everyone` + "`" + `, or ` + "`" + `service_accounts` + "`" + `.\nChoosing ` + "`" + `none` + "`" + ` or ` + "`" + `service_accounts` + "`" + ` also removes existing workspace shares in the organization, which are all of them for ` + "`" + `none` + "`" + `, and those on workspaces not owned by service accounts for ` + "`" + `service_accounts` + "`" + `.\nRequires permission to update the organization, which the Owner and Organization Admin roles have.",
+                "description": "Sets whose workspaces can be shared in an organization: ` + "`" + `none` + "`" + `, ` + "`" + `everyone` + "`" + `, or ` + "`" + `service_accounts` + "`" + `.\nChoosing ` + "`" + `none` + "`" + ` removes every workspace share in the organization.\nChoosing ` + "`" + `service_accounts` + "`" + ` removes the shares on workspaces that service accounts don't own.\nRequires permission to update the organization, which the Owner and Organization Admin roles have.",
                 "consumes": [
                     "application/json"
                 ],
@@ -10983,7 +10983,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Workspace sharing settings to apply. Set ` + "`" + `shareable_workspace_owners` + "`" + `, because ` + "`" + `sharing_disabled` + "`" + ` is deprecated and applies only when it is empty.",
+                        "description": "Workspace sharing settings to apply. Set ` + "`" + `shareable_workspace_owners` + "`" + `. The deprecated ` + "`" + `sharing_disabled` + "`" + ` applies only when ` + "`" + `shareable_workspace_owners` + "`" + ` is empty.",
                         "name": "request",
                         "in": "body",
                         "required": true,

@@ -29,8 +29,8 @@ const connectionLogCountCap = 2000
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param q query string false "Search query as space-separated `key:value` terms. Available keys are: organization (ID or name), workspace_owner (username or `me`), workspace_owner_email, username (or `me`), user_email, connected_after and connected_before (RFC 3339 timestamps), workspace_id, connection_id, client_session_id (32 hexadecimal characters), status (`ongoing` or `completed`), method (`ssh`, `reconnecting_pty`, `workspace_app`, `port_forwarding`, or `tunnel`), type (`ssh`, `vscode`, `jetbrains`, `reconnecting_pty`, `workspace_app`, `port_forwarding`, or `tunnel`, which can't be combined with method or app), and app (repeat to match any of several apps). Unknown keys return an error."
-// @Param limit query int true "Maximum number of results to return. When omitted or `0`, returns `100` results."
+// @Param q query string false "Search query as space-separated `key:value` terms. Available keys are: `organization` (ID or name), `workspace_owner` (username or `me`), `workspace_owner_email`, `username` (or `me`), `user_email`, `connected_after` and `connected_before` (RFC 3339 timestamps), `workspace_id`, `connection_id`, `client_session_id` (32 hexadecimal characters), `status` (`ongoing` or `completed`), `method` (`ssh`, `reconnecting_pty`, `workspace_app`, `port_forwarding`, or `tunnel`), `type` (`ssh`, `vscode`, `jetbrains`, `reconnecting_pty`, `workspace_app`, `port_forwarding`, or `tunnel`, which can't be combined with `method` or `app`), and `app` (repeat to match any of several apps). Unknown keys return an error."
+// @Param limit query int true "Maximum number of results to return. A value of `0` returns up to `100` results."
 // @Param offset query int false "Number of results to skip, for paging through results with `limit`."
 // @Success 200 {object} codersdk.ConnectionLogResponse
 // @Router /api/v2/connectionlog [get]
