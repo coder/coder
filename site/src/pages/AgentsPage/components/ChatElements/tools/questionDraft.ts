@@ -1,4 +1,6 @@
+import isEqual from "lodash/isEqual";
 import { asRecord } from "../runtimeTypeUtils";
+import type { AskUserQuestion } from "./AskUserQuestionTool";
 import { parseJSON } from "./utils";
 
 /** One question's unsent answer. */
@@ -15,8 +17,6 @@ export type FormDraft = {
 	questionIndex: number;
 	answeredQuestionCount: number;
 };
-
-type DraftQuestion = { readonly options: readonly unknown[] };
 
 const storageKeyPrefix = "agents.ask-user-question-draft.";
 
@@ -53,17 +53,21 @@ const isQuestionDraft = (
 /** Returns undefined for a malformed draft or one saved for other questions. */
 export const readFormDraft = (
 	draftKey: string,
-	questions: readonly DraftQuestion[],
+	questions: readonly AskUserQuestion[],
 ): FormDraft | undefined => {
 	const raw = localStorage.getItem(storageKeyPrefix + draftKey);
 	const stored = raw === null ? null : asRecord(parseJSON(raw));
 	if (!stored) {
 		return undefined;
 	}
-	const { questionsJSON, drafts, questionIndex, answeredQuestionCount } =
-		stored;
+	const {
+		questions: savedQuestions,
+		drafts,
+		questionIndex,
+		answeredQuestionCount,
+	} = stored;
 	if (
-		questionsJSON !== JSON.stringify(questions) ||
+		!isEqual(savedQuestions, questions) ||
 		!Array.isArray(drafts) ||
 		drafts.length !== questions.length ||
 		!drafts.every((draft: unknown, index) =>
@@ -77,17 +81,19 @@ export const readFormDraft = (
 	return { drafts, questionIndex, answeredQuestionCount };
 };
 
+/** Saves the draft with the questions it answers, which a read must match. */
 export const saveFormDraft = (
 	draftKey: string,
-	questions: readonly DraftQuestion[],
+	questions: readonly AskUserQuestion[],
 	formDraft: FormDraft,
 ): void => {
 	localStorage.setItem(
 		storageKeyPrefix + draftKey,
-		JSON.stringify({ questionsJSON: JSON.stringify(questions), ...formDraft }),
+		JSON.stringify({ questions, ...formDraft }),
 	);
 };
 
+/** Removes the saved draft, if any. */
 export const removeFormDraft = (draftKey: string): void => {
 	localStorage.removeItem(storageKeyPrefix + draftKey);
 };

@@ -6,7 +6,7 @@ import {
 	MessageCircleQuestionIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useMutation } from "react-query";
 import { Button } from "#/components/Button/Button";
@@ -81,7 +81,7 @@ const filterQuestionOptions = (question: AskUserQuestion): AskUserQuestion => ({
 });
 
 const getOptionLabel = (question: AskUserQuestion, optionIndex: number) =>
-	question.options[optionIndex]?.label || `Option ${optionIndex + 1}`;
+	question.options[optionIndex].label || `Option ${optionIndex + 1}`;
 
 const getDefaultDraft = (question: AskUserQuestion): QuestionDraft => ({
 	selection: question.options.length > 0 ? 0 : undefined,
@@ -239,6 +239,7 @@ type QuestionStepProps = {
 	questionCount: number;
 	idPrefix: string;
 	draft: QuestionDraft;
+	/** Off while the panel header above the form shows the label. */
 	showsLabel: boolean;
 	isEnabled: boolean;
 	questionTextRef: React.Ref<HTMLParagraphElement>;
@@ -262,11 +263,15 @@ const QuestionStep: React.FC<QuestionStepProps> = ({
 }) => {
 	const questionIdBase = `${idPrefix}-question-${questionIndex}`;
 	const questionTextId = `${questionIdBase}-text`;
+	const questionLabelId = `${questionIdBase}-label`;
 
 	return (
 		<div>
 			{showsLabel && (
-				<p className="m-0 flex items-center gap-1.5 text-xs text-content-secondary">
+				<p
+					id={questionLabelId}
+					className="m-0 flex items-center gap-1.5 text-xs text-content-secondary"
+				>
 					<MessageCircleQuestionIcon aria-hidden="true" className="size-3.5" />
 					{getQuestionLabel(question, questionIndex, questionCount)}
 				</p>
@@ -280,7 +285,9 @@ const QuestionStep: React.FC<QuestionStepProps> = ({
 				{getQuestionText(question)}
 			</p>
 			<RadioGroup
-				aria-labelledby={questionTextId}
+				aria-labelledby={
+					showsLabel ? `${questionLabelId} ${questionTextId}` : questionTextId
+				}
 				className="mt-2 gap-0"
 				name={`${questionIdBase}-options`}
 				value={getSelectedValue(draft)}
@@ -438,6 +445,13 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 	if (answerBody !== undefined && !hasShownAnswer) {
 		setHasShownAnswer(true);
 	}
+	// An answer can arrive without this form's send, for example as a chat
+	// message, so the saved draft goes once the form shows any answer.
+	useEffect(() => {
+		if (hasShownAnswer && draftKey !== undefined) {
+			removeFormDraft(draftKey);
+		}
+	}, [hasShownAnswer, draftKey]);
 
 	const sentResponseText =
 		submitAnswerMutation.isSuccess && !hasShownAnswer
@@ -473,7 +487,7 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 					question,
 					questionIndex,
 				}));
-	const headerQuestionIndex =
+	const panelQuestionIndex =
 		visibleQuestions.length === 1 ? activeQuestionIndex : undefined;
 
 	const resetSubmitState = () => {
@@ -487,7 +501,7 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 		}
 	};
 
-	const withDraft = (
+	const draftsWithChange = (
 		questionIndex: number,
 		change: Partial<QuestionDraft>,
 	): QuestionDraft[] =>
@@ -501,7 +515,7 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 	) => {
 		updateFormDraft({
 			...formDraft,
-			drafts: withDraft(questionIndex, change),
+			drafts: draftsWithChange(questionIndex, change),
 		});
 		resetSubmitState();
 	};
@@ -512,7 +526,7 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 		value: string,
 	) => {
 		if (value === OTHER_OPTION_VALUE) {
-			changeDraft(questionIndex, { selection: "other" });
+			selectOther(questionIndex);
 			return;
 		}
 
@@ -545,10 +559,7 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 	const advance = (nextDrafts: QuestionDraft[]) => {
 		changeQuestion({
 			drafts: nextDrafts,
-			questionIndex: Math.min(
-				activeQuestionIndex + 1,
-				filteredQuestions.length - 1,
-			),
+			questionIndex: activeQuestionIndex + 1,
 			// Next confirms every question before the one it opens, so Back
 			// does not lower the answered count.
 			answeredQuestionCount: Math.max(
@@ -559,11 +570,7 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 	};
 
 	const submit = (finalDrafts: QuestionDraft[]) => {
-		if (
-			!onSubmitAnswer ||
-			!isInteractive ||
-			!finalDrafts.every(isDraftAnswered)
-		) {
+		if (!isInteractive || !finalDrafts.every(isDraftAnswered)) {
 			return;
 		}
 
@@ -577,12 +584,12 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 	const handleBack = () => {
 		changeQuestion({
 			...formDraft,
-			questionIndex: Math.max(activeQuestionIndex - 1, 0),
+			questionIndex: activeQuestionIndex - 1,
 		});
 	};
 
 	const handleSkip = () => {
-		const nextDrafts = withDraft(activeQuestionIndex, {
+		const nextDrafts = draftsWithChange(activeQuestionIndex, {
 			selection: "skipped",
 		});
 		if (isWizard && !isFinalQuestion) {
@@ -610,14 +617,14 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 		submit(drafts);
 	};
 
-	const header = onToggleCollapsed && (
+	const panelHeader = onToggleCollapsed && (
 		<QuestionPanelHeader
 			label={
-				headerQuestionIndex === undefined
+				panelQuestionIndex === undefined
 					? "Questions"
 					: getQuestionLabel(
-							filteredQuestions[headerQuestionIndex],
-							headerQuestionIndex,
+							filteredQuestions[panelQuestionIndex],
+							panelQuestionIndex,
 							filteredQuestions.length,
 						)
 			}
@@ -631,8 +638,8 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 		/>
 	);
 
-	if (header && isCollapsed) {
-		return header;
+	if (panelHeader && isCollapsed) {
+		return panelHeader;
 	}
 
 	const content = (
@@ -649,7 +656,7 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 							questionCount={filteredQuestions.length}
 							idPrefix={idPrefix}
 							draft={drafts[questionIndex]}
-							showsLabel={!header || headerQuestionIndex === undefined}
+							showsLabel={!panelHeader || panelQuestionIndex === undefined}
 							isEnabled={isInteractive && !isSubmitting}
 							questionTextRef={questionTextRef}
 							onOptionChange={(value) => {
@@ -755,9 +762,9 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 		content
 	);
 
-	return header ? (
+	return panelHeader ? (
 		<>
-			{header}
+			{panelHeader}
 			<div className="px-3 pb-3">{body}</div>
 		</>
 	) : (

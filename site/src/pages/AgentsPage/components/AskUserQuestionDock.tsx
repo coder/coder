@@ -25,9 +25,8 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 	const [chatFullWidth] = useChatFullWidth();
 	const scrollerRef = useRef<HTMLDivElement>(null);
 	const hadFocusRef = useRef(false);
-	// Providers can reuse a call ID, so the start time tells the calls apart.
-	// Keying the section by it gives a newer question a fresh form that starts
-	// scrolled to the top.
+	// Keying the scroller by call gives a newer question a fresh form that
+	// starts scrolled to the top.
 	const questionKey = getDraftKey(question.id, question.startedAt);
 	// Keyed by question, so a newer question always opens expanded.
 	const [collapsedQuestionKey, setCollapsedQuestionKey] = useState<
@@ -37,16 +36,16 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 
 	return (
 		<div
+			key={questionKey}
 			// `hidden` wins over `flex` only through Tailwind preflight's `[hidden]` rule.
 			hidden={queuedAnswerText !== undefined}
 			ref={scrollerRef}
 			// A stable scrollbar gutter, as on the chat input's wrapper, keeps the two aligned.
 			className="flex max-h-[60vh] min-h-0 flex-col overflow-y-auto px-4 scrollbar-gutter-stable scrollbar-thin"
 		>
-			{/* The panel grows with the question and scrolls only past its max
-			    height. It shrinks before the chat input does. */}
+			{/* Shrinks before the chat input does, so a long question set never
+			    pushes the input off a short screen. */}
 			<section
-				key={questionKey}
 				// A section that replaces a focused one takes the focus, so screen
 				// readers announce "Open question" and Tab reaches the new form.
 				ref={(section: HTMLElement) => {

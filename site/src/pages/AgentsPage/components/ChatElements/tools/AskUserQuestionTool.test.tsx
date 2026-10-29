@@ -20,7 +20,7 @@ const questions = [
 	},
 ];
 
-const twoQuestions = [
+const mockTwoQuestions = [
 	...questions,
 	{
 		header: "Rollout",
@@ -68,7 +68,7 @@ describe("AskUserQuestionTool", () => {
 		render(
 			<QueryClientProvider client={createTestQueryClient()}>
 				<AskUserQuestionTool
-					questions={twoQuestions}
+					questions={mockTwoQuestions}
 					status="completed"
 					isError={false}
 					isChatCompleted
@@ -119,7 +119,7 @@ describe("AskUserQuestionTool", () => {
 		render(
 			<QueryClientProvider client={createTestQueryClient()}>
 				<AskUserQuestionTool
-					questions={twoQuestions}
+					questions={mockTwoQuestions}
 					status="completed"
 					isError={false}
 					isChatCompleted
@@ -137,13 +137,34 @@ describe("AskUserQuestionTool", () => {
 		);
 	});
 
+	it("sends at once when the last question is skipped", async () => {
+		const user = userEvent.setup();
+		const onSubmitAnswer = vi.fn();
+		render(
+			<QueryClientProvider client={createTestQueryClient()}>
+				<AskUserQuestionTool
+					questions={questions}
+					status="completed"
+					isError={false}
+					isChatCompleted
+					isLatestAskUserQuestion
+					onSubmitAnswer={onSubmitAnswer}
+				/>
+			</QueryClientProvider>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Skip" }));
+
+		expect(onSubmitAnswer).toHaveBeenCalledExactlyOnceWith("Skipped");
+	});
+
 	it("restores an unsent draft and drops it once the answer sends", async () => {
 		const user = userEvent.setup();
 		const onSubmitAnswer = vi.fn();
 		const DraftQuestion: React.FC = () => (
 			<QueryClientProvider client={createTestQueryClient()}>
 				<AskUserQuestionTool
-					questions={twoQuestions}
+					questions={mockTwoQuestions}
 					status="completed"
 					isError={false}
 					isChatCompleted
@@ -162,7 +183,9 @@ describe("AskUserQuestionTool", () => {
 		firstRender.unmount();
 
 		const secondRender = render(<DraftQuestion />);
-		await user.click(screen.getByRole("button", { name: "Back" }));
+		const backButton = screen.getByRole("button", { name: "Back" });
+		expect(backButton).toBeEnabled();
+		await user.click(backButton);
 		expect(
 			screen.getByRole("textbox", { name: /other response/i }),
 		).toHaveValue("Two migrations");
