@@ -31636,7 +31636,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "default": {
-                    "description": "Default is a JSON value that matches Type.",
+                    "description": "Default is the variable's default as a JSON string, number, or boolean,\nmatching the variable's type.",
                     "type": "object"
                 },
                 "description": {

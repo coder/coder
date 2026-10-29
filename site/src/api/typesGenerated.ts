@@ -10424,7 +10424,8 @@ export interface TemplateBuilderModuleVariable {
 	readonly type: TemplateBuilderVariableType;
 	readonly description: string;
 	/**
-	 * Default is a JSON value that matches Type.
+	 * Default is the variable's default as a JSON string, number, or boolean,
+	 * matching the variable's type.
 	 */
 	readonly default?: Record<string, string>;
 	readonly required: boolean;

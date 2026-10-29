@@ -15824,14 +15824,14 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name          | Type                                                                         | Required | Restrictions | Description                                |
-|---------------|------------------------------------------------------------------------------|----------|--------------|--------------------------------------------|
-| `default`     | object                                                                       | false    |              | Default is a JSON value that matches Type. |
-| `description` | string                                                                       | false    |              |                                            |
-| `name`        | string                                                                       | false    |              |                                            |
-| `required`    | boolean                                                                      | false    |              |                                            |
-| `sensitive`   | boolean                                                                      | false    |              |                                            |
-| `type`        | [codersdk.TemplateBuilderVariableType](#codersdktemplatebuildervariabletype) | false    |              |                                            |
+| Name          | Type                                                                         | Required | Restrictions | Description                                                                                           |
+|---------------|------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------|
+| `default`     | object                                                                       | false    |              | Default is the variable's default as a JSON string, number, or boolean, matching the variable's type. |
+| `description` | string                                                                       | false    |              |                                                                                                       |
+| `name`        | string                                                                       | false    |              |                                                                                                       |
+| `required`    | boolean                                                                      | false    |              |                                                                                                       |
+| `sensitive`   | boolean                                                                      | false    |              |                                                                                                       |
+| `type`        | [codersdk.TemplateBuilderVariableType](#codersdktemplatebuildervariabletype) | false    |              |                                                                                                       |
 
 ## codersdk.TemplateBuilderModulesResponse
 
