@@ -24,8 +24,10 @@ const storageKeyPrefix = "agents.ask-user-question-draft.";
  * Names one ask_user_question call. Providers can reuse a call ID, so the
  * start time tells the calls apart.
  */
-export const getDraftKey = (toolCallId: string, startedAt?: string): string =>
-	`${toolCallId}:${startedAt ?? ""}`;
+export const getQuestionCallKey = (
+	toolCallId: string,
+	startedAt?: string,
+): string => `${toolCallId}:${startedAt ?? ""}`;
 
 const isIntegerInRange = (value: unknown, max: number): value is number =>
 	typeof value === "number" &&

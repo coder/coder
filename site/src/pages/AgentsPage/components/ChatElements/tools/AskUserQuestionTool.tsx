@@ -15,7 +15,7 @@ import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import { getAnswerBody, getAsyncAnswerPrefix } from "./asyncAnswer";
 import {
 	type FormDraft,
-	getDraftKey,
+	getQuestionCallKey,
 	type QuestionDraft,
 	readFormDraft,
 	removeFormDraft,
@@ -603,9 +603,6 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 
 	const handleFormSubmit = (event: React.FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
-		if (!isInteractive) {
-			return;
-		}
 
 		if (isWizard && !isFinalQuestion) {
 			if (canAdvanceToNextQuestion) {
@@ -804,12 +801,6 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 		Boolean(onSubmitAnswer);
 	const isClosed =
 		isAsync && isCompleted && !isLatestAskUserQuestion && !isAnswered;
-	// A closed question cannot take its draft any more.
-	useEffect(() => {
-		if (isClosed && toolCallId !== undefined) {
-			removeFormDraft(getDraftKey(toolCallId, startedAt));
-		}
-	}, [isClosed, toolCallId, startedAt]);
 
 	// The agent keeps working, so the question needs its own announcement.
 	// Screen readers announce only changes to a live region that already
@@ -885,7 +876,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 					draftKey={
 						toolCallId === undefined
 							? undefined
-							: getDraftKey(toolCallId, startedAt)
+							: getQuestionCallKey(toolCallId, startedAt)
 					}
 					showSubmittedAnswer={isLatestAskUserQuestion}
 					onSubmitAnswer={isAnswerable ? onSubmitAnswer : undefined}

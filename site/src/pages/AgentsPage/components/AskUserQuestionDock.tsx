@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import type { MergedTool } from "./ChatConversation/types";
 import { AskUserQuestionForm } from "./ChatElements/tools/AskUserQuestionTool";
-import { getDraftKey } from "./ChatElements/tools/questionDraft";
+import { getQuestionCallKey } from "./ChatElements/tools/questionDraft";
 import { getAskUserQuestions } from "./ChatElements/tools/Tool";
 
 type AskUserQuestionDockProps = {
@@ -27,7 +27,7 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 	const hadFocusRef = useRef(false);
 	// Keying the scroller by call gives a newer question a fresh form that
 	// starts scrolled to the top.
-	const questionKey = getDraftKey(question.id, question.startedAt);
+	const questionKey = getQuestionCallKey(question.id, question.startedAt);
 	// Keyed by question, so a newer question always opens expanded.
 	const [collapsedQuestionKey, setCollapsedQuestionKey] = useState<
 		string | undefined
