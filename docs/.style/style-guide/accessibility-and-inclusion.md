@@ -392,8 +392,9 @@ Banning them burdens writers without a matching gain for readers familiar with t
 
 </details>
 
-*Enforced by `Coder.LatinAbbreviations` (planned) at `suggestion` level, for `e.g.`, `i.e.`, and `etc.` only.
-The rule suggests the English form and never blocks either form.*
+*Enforced by `Coder.LatinAbbreviations` at `suggestion` level, for `e.g.`, `i.e.`, and `etc.` only.
+The rule suggests the English form and never blocks either form.
+It checks paragraphs, list items, headings, and blockquotes, and skips table cells and code.*
 
 ## Page title and sidebar title
 

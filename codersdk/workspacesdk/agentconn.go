@@ -91,7 +91,13 @@ const (
 // AgentConn represents a connection to a workspace agent.
 // @typescript-ignore AgentConn
 type AgentConn interface {
+	AgentID() uuid.UUID
 	ListACPHarnesses(ctx context.Context) ([]ACPHarness, error)
+	CreateACPSession(ctx context.Context, req ACPCreateSessionRequest) (ACPSession, error)
+	ReadACPSession(ctx context.Context, id ACPSessionID, opts ACPReadOptions) (ACPSessionResponse, error)
+	SendACPMessage(ctx context.Context, id ACPSessionID, req ACPMessageRequest) (ACPMessageResponse, error)
+	InterruptACPSession(ctx context.Context, id ACPSessionID) (ACPSession, error)
+	WatchACPSession(ctx context.Context, logger slog.Logger, id ACPSessionID, opts ACPReadOptions) (<-chan ACPEvent, io.Closer, error)
 	TailnetConn() *tailnet.Conn
 	SetExtraHeaders(h http.Header)
 
@@ -121,6 +127,7 @@ type AgentConn interface {
 	LS(ctx context.Context, path string, req LSRequest) (LSResponse, error)
 	ResolvePath(ctx context.Context, path string) (string, error)
 	ReadFile(ctx context.Context, path string, offset, limit int64) (io.ReadCloser, string, error)
+	ReadFileInRoot(ctx context.Context, root, path string, offset, limit int64) (io.ReadCloser, string, error)
 	ReadFileLines(ctx context.Context, path string, offset, limit int64, limits ReadFileLinesLimits) (ReadFileLinesResponse, error)
 	WriteFile(ctx context.Context, path string, reader io.Reader) error
 	UploadChatFile(ctx context.Context, req UploadChatFileRequest) (AgentUploadChatFileResponse, error)
@@ -148,6 +155,10 @@ type agentConn struct {
 	opts         AgentConnOptions
 	headersMu    sync.RWMutex
 	extraHeaders http.Header
+}
+
+func (c *agentConn) AgentID() uuid.UUID {
+	return c.opts.AgentID
 }
 
 func (c *agentConn) TailnetConn() *tailnet.Conn {
@@ -1234,12 +1245,33 @@ func (c *agentConn) ReadFile(ctx context.Context, path string, offset, limit int
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	//nolint:bodyclose // we want to return the body so the caller can stream.
-	res, err := c.apiRequest(ctx, http.MethodGet, agentAPIPath("/api/v0/read-file", neturl.Values{
+	return c.readFileRequest(ctx, "", path, offset, limit)
+}
+
+// ReadFileInRoot reads from a file at path, relative to the absolute
+// directory root, returning a file reader and the mime type. The agent
+// refuses a root that is a symlink, and a path that leaves root,
+// through symlinks included. Agents that predate root support reject
+// the request.
+func (c *agentConn) ReadFileInRoot(ctx context.Context, root, path string, offset, limit int64) (io.ReadCloser, string, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	return c.readFileRequest(ctx, root, path, offset, limit)
+}
+
+func (c *agentConn) readFileRequest(ctx context.Context, root, path string, offset, limit int64) (io.ReadCloser, string, error) {
+	query := neturl.Values{
 		"path":   []string{path},
 		"offset": []string{strconv.FormatInt(offset, 10)},
 		"limit":  []string{strconv.FormatInt(limit, 10)},
-	}), nil)
+	}
+	if root != "" {
+		query.Set("root", root)
+	}
+
+	//nolint:bodyclose // we want to return the body so the caller can stream.
+	res, err := c.apiRequest(ctx, http.MethodGet, agentAPIPath("/api/v0/read-file", query), nil)
 	if err != nil {
 		return nil, "", xerrors.Errorf("do request: %w", err)
 	}

@@ -2,8 +2,14 @@
 title: Configure a template for Dev Containers
 ---
 
+> [!TIP]
+> Nix flakes are an alternate way to handle dependency management.
+> With Nix flakes, developers and template administrators define environments and manage dependencies at a much deeper level, without requiring a container runtime.
+>
+> To use them in Coder with or without NixOS, consult the [Nix(OS)](../nix.md) page.
+
 This guide covers the Dev Containers Integration, which uses Docker.
-For environments without Docker, see [Envbuilder](./envbuilder/index.md) as an alternative.
+For environments without Docker, see [Envbuilder](./envbuilder/index.md) (maintenance mode ⚠️) as an alternative.
 
 To enable Dev Containers in workspaces, configure your template with the Dev Containers modules and configurations outlined in this doc.
 
@@ -168,7 +174,7 @@ This changes how Coder handles the sub-agent:
 ### Interaction with devcontainer.json customizations
 
 Terraform-defined resources and [`devcontainer.json` customizations](../../../user-guides/devcontainers/customizing-dev-containers.md) work together with some limitations.
-The `displayApps` settings from `devcontainer.json` are applied to terraform-managed dev containers, so you can control built-in app visibility (e.g., hide VS Code Insiders) via `devcontainer.json` even when using Terraform resources.
+The `displayApps` settings from `devcontainer.json` are applied to terraform-managed dev containers, so you can control built-in app visibility (for example, hide VS Code Insiders) via `devcontainer.json` even when using Terraform resources.
 
 However, custom `apps` defined in `devcontainer.json` are **not applied** to terraform-managed dev containers.
 If you need custom apps, define them as `coder_app` resources in Terraform instead.

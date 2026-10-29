@@ -4,10 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"math/rand/v2"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
@@ -15,11 +18,52 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
+	"github.com/coder/quartz"
+)
+
+// Bursts of builds for one owner and organization (for example, mass
+// autostarts) make concurrent quota commits conflict under SERIALIZABLE
+// isolation. These builds are not interactive, so we trade latency for
+// success. commitQuotaMaxRetries counts retries after the first attempt; 10
+// retries with full jitter over min(cap, base*2^n) bound the total backoff to
+// 11.15s, which rides out a burst without stalling a build for long.
+const (
+	commitQuotaMaxRetries  = 10
+	commitQuotaBackoffBase = 50 * time.Millisecond
+	commitQuotaBackoffCap  = 2 * time.Second
 )
 
 type committer struct {
 	Log      slog.Logger
 	Database database.Store
+	Clock    quartz.Clock
+
+	// jitter picks the backoff from [0, maxBackoff]. Defaults to a uniform
+	// random duration.
+	jitter func(maxBackoff time.Duration) time.Duration
+}
+
+func fullJitter(maxBackoff time.Duration) time.Duration {
+	// #nosec G404 - backoff jitter does not need a cryptographic source.
+	return time.Duration(rand.Int64N(int64(maxBackoff) + 1))
+}
+
+// commitQuotaBackoff waits before retry number attempt (starting at 1), or
+// returns the context error if ctx is done first.
+func (c *committer) commitQuotaBackoff(ctx context.Context, attempt int) error {
+	maxBackoff := min(commitQuotaBackoffCap, commitQuotaBackoffBase<<(attempt-1))
+	jitter := c.jitter
+	if jitter == nil {
+		jitter = fullJitter
+	}
+	timer := c.Clock.NewTimer(jitter(maxBackoff), "CommitQuota", "backoff")
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return xerrors.Errorf("wait to retry quota commit: %w", ctx.Err())
+	case <-timer.C:
+		return nil
+	}
 }
 
 func (c *committer) CommitQuota(
@@ -45,7 +89,15 @@ func (c *committer) CommitQuota(
 		budget   int64
 		permit   bool
 	)
+	logger := c.Log.With(
+		slog.F("job_id", jobID),
+		slog.F("owner_id", workspace.OwnerID),
+		slog.F("organization_id", workspace.OrganizationID),
+	)
 	err = c.Database.InTx(func(s database.Store) error {
+		// Reset results so a rolled back attempt cannot leak into the response.
+		consumed, budget, permit = 0, 0, false
+
 		var err error
 		consumed, err = s.GetQuotaConsumedForUser(ctx, database.GetQuotaConsumedForUserParams{
 			OwnerID:        workspace.OwnerID,
@@ -104,10 +156,18 @@ func (c *committer) CommitQuota(
 		consumed = newConsumed
 		return nil
 	}, &database.TxOptions{
-		Isolation:    sql.LevelSerializable,
-		TxIdentifier: "commit_quota",
+		Isolation:         sql.LevelSerializable,
+		TxIdentifier:      "commit_quota",
+		SerialMaxAttempts: commitQuotaMaxRetries + 1,
+		BeforeSerialRetry: func(attempt int) error {
+			logger.Debug(ctx, "quota commit hit serialization failure, retrying", slog.F("attempt", attempt))
+			return c.commitQuotaBackoff(ctx, attempt)
+		},
 	})
 	if err != nil {
+		if database.IsSerializedError(err) {
+			logger.Warn(ctx, "quota commit retries exhausted", slog.Error(err))
+		}
 		return nil, err
 	}
 

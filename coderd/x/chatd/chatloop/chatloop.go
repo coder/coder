@@ -295,6 +295,7 @@ type ProviderTool struct {
 type stepResult struct {
 	content              []fantasy.Content
 	usage                fantasy.Usage
+	responseBytes        int
 	providerMetadata     fantasy.ProviderMetadata
 	providerResponseID   string
 	finishReason         fantasy.FinishReason
@@ -400,6 +401,8 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (_ As
 	}()
 
 	result, processErr := processStepStream(attempt.stream, opts.Clock, publishMessagePart)
+	// Observe before error handling so failed or rejected responses are still counted.
+	opts.Metrics.ResponseSizeBytes.WithLabelValues(provider, modelName).Observe(float64(result.responseBytes))
 	if err := attempt.finish(processErr); err != nil {
 		wrappedErr := wrapProviderStreamError(errorProvider, err)
 		classified := chaterror.Classify(wrappedErr).WithProvider(errorProvider)
@@ -649,6 +652,13 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Pers
 		publishToolAttachments(ctx, opts.Logger, tr, completedAt, publishMessagePart)
 		ssePart := chatprompt.PartFromContentWithLogger(ctx, opts.Logger, tr)
 		ssePart.CreatedAt = &completedAt
+		userResult, projectionErr := chattool.UserResultFromMetadata(tr.ClientMetadata)
+		if projectionErr != nil {
+			return PersistedStep{}, projectionErr
+		}
+		if len(userResult) > 0 {
+			ssePart.Result = userResult
+		}
 		publishMessagePart(codersdk.ChatMessageRoleTool, ssePart)
 		result.content = append(result.content, tr)
 	}
@@ -930,8 +940,8 @@ func guardedStream(
 				switch part.Type {
 				case fantasy.StreamPartTypeError:
 					finishTTFT(part.Error)
-				case fantasy.StreamPartTypeWarnings, fantasy.StreamPartTypeFinish:
-					// Neither is model output, so the window stays open.
+				case fantasy.StreamPartTypeWarnings, fantasy.StreamPartTypeKeepalive, fantasy.StreamPartTypeFinish:
+					// None is model output, so the window stays open.
 				default:
 					// Start markers such as text_start count as output.
 					finishTTFT(nil)
@@ -972,6 +982,11 @@ func processStepStream(
 	var startedToolInputIDs []string
 
 	for part := range stream {
+		// Counts Delta on every part type. This relies on providers keeping
+		// summary data, such as ToolCall input, out of Delta. Only
+		// TestGenerateAssistant_ResponseSizeBytesByPartType checks this, so
+		// update it when adding new part types.
+		result.responseBytes += len(part.Delta)
 		switch part.Type {
 		case fantasy.StreamPartTypeTextStart:
 			// OpenAI labels narration when the text starts, so every delta
@@ -1099,6 +1114,7 @@ func processStepStream(
 				ID:               part.ID,
 				URL:              part.URL,
 				Title:            part.Title,
+				ToolCallID:       part.SourceToolCallID,
 				ProviderMetadata: part.ProviderMetadata,
 			}
 			result.content = append(result.content, sourceContent)
@@ -1118,6 +1134,9 @@ func processStepStream(
 					ToolName:         part.ToolCallName,
 					ProviderExecuted: part.ProviderExecuted,
 					ProviderMetadata: part.ProviderMetadata,
+				}
+				if err := providerToolResultError(part.ProviderMetadata); err != nil {
+					tr.Result = fantasy.ToolResultOutputContentError{Error: err}
 				}
 				result.content = append(result.content, tr)
 
@@ -1982,4 +2001,17 @@ func positiveInt64(value int64) (int64, bool) {
 		return 0, false
 	}
 	return value, true
+}
+
+// providerToolResultError returns the failure a provider reported for a
+// provider-executed web search, or nil. Anthropic reports an error code and
+// OpenAI a failed item status, both only in the result's metadata.
+func providerToolResultError(metadata fantasy.ProviderMetadata) error {
+	if meta, ok := metadata[fantasyanthropic.Name].(*fantasyanthropic.WebSearchResultMetadata); ok && meta != nil && meta.ErrorCode != "" {
+		return xerrors.Errorf("web search failed: %s", meta.ErrorCode)
+	}
+	if meta, ok := metadata[fantasyopenai.Name].(*fantasyopenai.WebSearchCallMetadata); ok && meta != nil && meta.Status == "failed" {
+		return xerrors.New("web search failed")
+	}
+	return nil
 }

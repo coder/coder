@@ -78,7 +78,7 @@ resource "coder_agent" "main" {
 }
 ```
 
-A catch-all variation of this approach is dynamically provisioning a cloud service account (e.g [GCP](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/google_service_account_key#private_key)) for each workspace and then making the relevant secrets available via the cloud's secret management system.
+A catch-all variation of this approach is dynamically provisioning a cloud service account (for example, [GCP](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/google_service_account_key#private_key)) for each workspace and then making the relevant secrets available via the cloud's secret management system.
 
 <a id="displaying-secrets"></a>
 

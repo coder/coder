@@ -8,10 +8,13 @@ For more details, visit the [official JetBrains documentation](https://www.jetbr
 
 ## Install the Coder provider for Toolbox
 
-1. Install [JetBrains Toolbox](https://www.jetbrains.com/toolbox-app/) version 2.6.0.40632 or later.
+These instructions use Coder plugin version 0.9.5 or later, which requires JetBrains Toolbox version 3.9.0 or later.
+
+1. Install [JetBrains Toolbox](https://www.jetbrains.com/toolbox-app/) version 3.9.0 or later.
 1. Open the Toolbox App.
 1. From the switcher drop-down, select **Manage Providers**.
-1. In the **Providers** window, under the Available node, locate the **Coder** provider and select **Install**.
+1. In the **Providers** window, select the **Coder** provider.
+1. Select **Install** or update an existing installation to version 0.9.5 or later.
 
 ![Install the Coder provider in JetBrains Toolbox](../../../images/user-guides/jetbrains/toolbox/install.png)
 
@@ -21,7 +24,11 @@ For more details, visit the [official JetBrains documentation](https://www.jetbr
 1. Enter the URL address and select **Sign In**.
    ![JetBrains Toolbox Coder provider URL](../../../images/user-guides/jetbrains/toolbox/login-url.png)
 1. Authenticate to Coder adding a token for the session and select **Connect**.
-   ![JetBrains Toolbox Coder provider token](../../../images/user-guides/jetbrains/toolbox/login-token.png) After the authentication is completed, you are connected to your development environment and can open and work on projects.
+
+   ![JetBrains Toolbox Coder provider token](../../../images/user-guides/jetbrains/toolbox/login-token.png)
+
+   After the authentication is completed, you are connected to your development environment and can open and work on projects.
+
    ![JetBrains Toolbox Coder Workspaces](../../../images/user-guides/jetbrains/toolbox/workspaces.png)
 
 ## Use URI parameters
@@ -42,7 +49,7 @@ Optional parameters:
 
 - `agent_id`: ID of the agent (only required if workspace has multiple agents)
 - `folder`: Specific project folder path to open
-- `ide_product_code`: Specific IDE product code (e.g., "IU" for IntelliJ IDEA Ultimate)
+- `ide_product_code`: Specific IDE product code (for example, "IU" for IntelliJ IDEA Ultimate)
 - `ide_build_number`: Specific build number of the JetBrains IDE
 
 For more details, see the [coder-jetbrains-toolbox repository](https://github.com/coder/coder-jetbrains-toolbox#connect-to-a-coder-workspace-via-jetbrains-toolbox-uri).
@@ -69,11 +76,22 @@ If you encounter issues connecting to your Coder workspace via JetBrains Toolbox
 1. Hit the back button at the top.
 1. Retry the same operation
 
-### Capture Debug Logs
+### Capture debug logs
 
 1. Access logs via **Toolbox App Menu > About > Show log files**.
 2. Locate the log file named `jetbrains-toolbox.log` and attach it to your support ticket.
-3. If you need to capture logs for a specific workspace, you can also generate a ZIP file using the Workspace action menu, available either on the main Workspaces page in Coder view or within the individual workspace view, under the option labeled **Collect logs**.
+
+After sign-in, Coder's main page lists environments, each representing a workspace and agent pair.
+For a workspace diagnostic archive, select **Collect logs** from the environment's action menu on that page or in the individual environment view.
+With Coder plugin version 0.9.5 or later, the archive also includes a nested `coder-support.zip`.
+The bundle contains Coder deployment, workspace, and agent diagnostics, plus local CLI SSH logs when available.
+For the requirements, collection procedure, and archive contents, refer to [Generate from your IDE](../../../support/support-bundle.md#generate-from-your-ide), under **JetBrains Toolbox**.
+
+> [!NOTE]
+> The general **Settings** > **About** > **Collect logs and diagnostic data** action does not generate a Coder support bundle.
+
+With Coder plugin version 0.9.4 or earlier, use the log-collection instructions on this page and [generate a Coder support bundle separately with the CLI](../../../support/support-bundle.md#generate-with-the-cli).
+Upgrading Toolbox alone doesn't add bundle collection to those plugin versions.
 
 ## Additional Resources
 

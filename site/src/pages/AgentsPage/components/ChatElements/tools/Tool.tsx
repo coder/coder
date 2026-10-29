@@ -3,11 +3,14 @@ import { cn } from "cn";
 import { memo } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useTheme } from "#/theme/context";
+import type { SourceLink } from "../../ChatConversation/types";
+import { ACPTool } from "./ACPTool";
 import { AdvisorTool, type AdvisorToolResultType } from "./AdvisorTool";
 import {
 	type AskUserQuestion,
 	AskUserQuestionTool,
 } from "./AskUserQuestionTool";
+import { ACPToolNames, isACPToolName } from "./acpToolNames";
 import { ChatClearedTool } from "./ChatClearedTool";
 import { ChatSummarizedTool } from "./ChatSummarizedTool";
 import { ComputerTool } from "./ComputerTool";
@@ -53,14 +56,20 @@ import {
 	isSubagentSuccessStatus,
 	mapSubagentStatusToToolStatus,
 	parseArgs,
+	parseArray,
 	parseEditFilesArgs,
 	parseMediaToolResult,
 	parseServerEditDiffText,
 	parseServerEditResults,
+	parseStringList,
 	type ToolStatus,
 } from "./utils";
+import {
+	getWebSearchAction,
+	getWebSearchState,
+	WebSearchTool,
+} from "./WebSearchTool";
 import { WorkspaceLifecycleTool } from "./WorkspaceLifecycleTool";
-
 import { WriteFileTool } from "./WriteFileTool";
 
 type ToolProps = Omit<React.ComponentProps<"div">, "children"> & {
@@ -101,12 +110,16 @@ type ToolProps = Omit<React.ComponentProps<"div">, "children"> & {
 	hookRewritten?: boolean;
 	shellToolDisplayMode: TypesGen.AgentDisplayMode;
 	codeDiffDisplayMode: TypesGen.AgentDisplayMode;
+	/** True when the model provider ran the tool, not the chat server. */
+	providerExecuted?: boolean;
+	/** Pages a provider-executed web search returned. */
+	foundPages?: readonly SourceLink[];
 };
 
 // Props passed to each tool-specific renderer function. Each renderer
 // only computes the expensive values it needs from the raw args/result.
 type ToolRendererProps = {
-	organizationId?: string;
+	organizationId: string;
 	name: string;
 	status: ToolStatus;
 	args: unknown;
@@ -126,12 +139,14 @@ type ToolRendererProps = {
 	isLatestAskUserQuestion?: boolean;
 	previousResponseText?: string;
 	mcpServerConfigId?: string;
-	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	mcpServers: readonly TypesGen.MCPServerConfig[];
 	modelIntent?: string;
 	parsedCommands?: readonly string[][];
 	startedAt?: string;
 	shellToolDisplayMode: TypesGen.AgentDisplayMode;
 	codeDiffDisplayMode: TypesGen.AgentDisplayMode;
+	providerExecuted?: boolean;
+	foundPages?: readonly SourceLink[];
 };
 
 // ---------------------------------------------------------------------------
@@ -1032,37 +1047,6 @@ const GenericToolRenderer: React.FC<ToolRendererProps> = ({
 	);
 };
 
-const parseArray = <T,>(
-	value: unknown,
-	parseItem: (item: unknown) => T | null,
-): T[] | null => {
-	let array = value;
-	if (typeof array === "string") {
-		try {
-			array = JSON.parse(array);
-		} catch {
-			return null;
-		}
-	}
-	if (!Array.isArray(array)) {
-		return null;
-	}
-	const items: T[] = [];
-	for (const item of array) {
-		const parsed = parseItem(item);
-		if (parsed === null) {
-			return null;
-		}
-		items.push(parsed);
-	}
-	return items;
-};
-
-const parseStringList = (value: unknown): string[] | null =>
-	parseArray(value, (item) =>
-		typeof item === "string" ? item.trim() : null,
-	)?.filter(Boolean) ?? null;
-
 const parseFindToolsMatches = (value: unknown): FindToolsMatch[] | null =>
 	parseArray(value, (item) => {
 		const record = asRecord(item);
@@ -1168,11 +1152,34 @@ const WorkspaceLifecycleRenderer: React.FC<ToolRendererProps> = ({
 	);
 };
 
+// A client dynamic tool can also be named web_search, so only
+// provider-executed calls get the web search row.
+const WebSearchRenderer: React.FC<ToolRendererProps> = (props) =>
+	props.providerExecuted ? (
+		<WebSearchTool
+			action={getWebSearchAction(props.args)}
+			state={getWebSearchState(props)}
+			foundPages={props.foundPages ?? []}
+			errorMessage={asString(asRecord(props.result)?.error)}
+		/>
+	) : (
+		<GenericToolRenderer {...props} />
+	);
+
 // ---------------------------------------------------------------------------
 // Renderer lookup map for tool names and specialized renderers.
 // ---------------------------------------------------------------------------
 
+const ACPToolRenderer: React.FC<ToolRendererProps> = (props) => {
+	if (!isACPToolName(props.name)) return null;
+	return <ACPTool {...props} name={props.name} ToolComponent={Tool} />;
+};
+
 export const toolRenderers: Record<string, React.FC<ToolRendererProps>> = {
+	[ACPToolNames.SpawnAgent]: ACPToolRenderer,
+	[ACPToolNames.MessageAgent]: ACPToolRenderer,
+	[ACPToolNames.WaitAgent]: ACPToolRenderer,
+	[ACPToolNames.InterruptAgent]: ACPToolRenderer,
 	find_tools: FindToolsRenderer,
 	execute: ExecuteRenderer,
 	process_output: ProcessOutputRenderer,
@@ -1195,6 +1202,7 @@ export const toolRenderers: Record<string, React.FC<ToolRendererProps>> = {
 	propose_plan: ProposePlanRenderer,
 	advisor: AdvisorRenderer,
 	computer: ComputerRenderer,
+	web_search: WebSearchRenderer,
 };
 
 // Exported so tests can assert cross-cutting affordances across every
@@ -1234,6 +1242,8 @@ export const Tool = memo(
 		hookRewritten = false,
 		shellToolDisplayMode,
 		codeDiffDisplayMode,
+		providerExecuted,
+		foundPages,
 		ref,
 		...props
 	}: ToolProps) => {
@@ -1284,6 +1294,8 @@ export const Tool = memo(
 						startedAt={startedAt}
 						shellToolDisplayMode={shellToolDisplayMode}
 						codeDiffDisplayMode={codeDiffDisplayMode}
+						providerExecuted={providerExecuted}
+						foundPages={foundPages}
 					/>
 				</ToolCall.PolicyProvider>
 			</div>

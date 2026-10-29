@@ -1,7 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { hashKey } from "react-query";
 import { Outlet, useNavigate } from "react-router";
-import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import {
+	expect,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import {
 	reactRouterOutlet,
 	reactRouterParameters,
@@ -759,13 +766,13 @@ const EVERY_TOOL_ASSISTANT_TURN = {
 		{
 			type: "tool-call",
 			tool_call_id: "every-generic",
-			tool_name: "web_search",
+			tool_name: "search_docs",
 			args: { query: "OAuth2 token rotation strategies" },
 		},
 		{
 			type: "tool-result",
 			tool_call_id: "every-generic",
-			tool_name: "web_search",
+			tool_name: "search_docs",
 			result: {
 				results: [
 					{
@@ -3426,9 +3433,12 @@ export const RemoveLastMCPServer: Story = {
 			"createChatMessage",
 		).mockResolvedValue({ queued: false });
 
+		await userEvent.click(await canvas.findByRole("button", { name: "1 MCP" }));
+		const menu = await screen.findByRole("dialog");
 		await userEvent.click(
-			await canvas.findByRole("button", { name: "Remove MCP Server" }),
+			within(menu).getByRole("switch", { name: "Disable MCP Server" }),
 		);
+		await userEvent.keyboard("{Escape}");
 		const editor = await canvas.findByTestId("chat-message-input");
 		await userEvent.click(editor);
 		await userEvent.type(editor, "Send without MCP tools");
@@ -3495,6 +3505,9 @@ export const EditAppliesMCPServerSelection: Story = {
 			await canvas.findByRole("button", { name: "Edit message" }),
 		);
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: /MCP servers/ }),
+		);
 		await userEvent.click(
 			await body.findByRole("switch", {
 				name: `Enable ${MockMCPServerConfig.display_name}`,

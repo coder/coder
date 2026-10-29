@@ -20,7 +20,9 @@ const baseArgs: AgentSettingsCompactionPageViewProps = {
 			context_limit: 1_000_000,
 		},
 	],
-	providerTypeByID: new Map<string, string>([["prov-openai", "openai"]]),
+	providerInfoByID: new Map([
+		["prov-openai", { provider: "openai", displayName: "OpenAI", icon: "" }],
+	]),
 	organizations: [MockDefaultOrganization],
 	compactionTriggersByOrganizationID: new Map(),
 	compactionTriggerLoadErrors: [],
