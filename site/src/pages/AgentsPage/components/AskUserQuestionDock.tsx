@@ -3,10 +3,6 @@ import { useId, useRef } from "react";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import type { MergedTool } from "./ChatConversation/types";
 import { AskUserQuestionForm } from "./ChatElements/tools/AskUserQuestionTool";
-import {
-	getAsyncAnswerBody,
-	getAsyncAnswerPrefix,
-} from "./ChatElements/tools/asyncAnswer";
 import { getAskUserQuestions } from "./ChatElements/tools/Tool";
 
 type AskUserQuestionDockProps = {
@@ -28,10 +24,6 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 	const [chatFullWidth] = useChatFullWidth();
 	const labelId = useId();
 	const sectionRef = useRef<HTMLElement>(null);
-
-	const submitAnswer = async (answerText: string) => {
-		await onSubmitAnswer?.(getAsyncAnswerPrefix(question.id) + answerText);
-	};
 
 	return (
 		<div
@@ -58,12 +50,10 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 				</p>
 				<AskUserQuestionForm
 					questions={getAskUserQuestions(question.args, question.result)}
-					previousResponseText={getAsyncAnswerBody(
-						queuedAnswerText,
-						question.id,
-					)}
-					showsSubmittedAnswer
-					onSubmitAnswer={onSubmitAnswer ? submitAnswer : undefined}
+					previousResponseText={queuedAnswerText}
+					asyncToolCallId={question.id}
+					showSubmittedAnswer
+					onSubmitAnswer={onSubmitAnswer}
 					onStepChange={() => {
 						if (sectionRef.current) {
 							sectionRef.current.scrollTop = 0;

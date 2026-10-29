@@ -10,7 +10,7 @@ import { useMutation } from "react-query";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
-import { getAsyncAnswerBody, getAsyncAnswerPrefix } from "./asyncAnswer";
+import { getAnswerBody, getAsyncAnswerPrefix } from "./asyncAnswer";
 import { ToolCall } from "./ToolCall";
 import type { ToolStatus } from "./utils";
 
@@ -378,7 +378,7 @@ const AnsweredQuestionText: React.FC<AnsweredQuestionTextProps> = ({
 };
 
 type AskedQuestionsProps = {
-	questions: readonly AskUserQuestion[];
+	questions: AskUserQuestion[];
 	idPrefix: string;
 };
 
@@ -402,11 +402,13 @@ const AskedQuestions: React.FC<AskedQuestionsProps> = ({
 
 type AskUserQuestionFormProps = {
 	questions: AskUserQuestion[];
-	/** The delivered or queued answer, without an async answer's prefix line. */
+	/** The delivered or queued answer message. */
 	previousResponseText?: string;
-	showsSubmittedAnswer?: boolean;
+	/** Set for async questions; their answer names this call. */
+	asyncToolCallId?: string;
+	showSubmittedAnswer: boolean;
 	/** Unset while the question cannot be answered. */
-	onSubmitAnswer?: (answerText: string) => Promise<void> | void;
+	onSubmitAnswer?: (message: string) => Promise<void> | void;
 	onStepChange?: () => void;
 };
 
@@ -414,7 +416,8 @@ type AskUserQuestionFormProps = {
 export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 	questions,
 	previousResponseText,
-	showsSubmittedAnswer = false,
+	asyncToolCallId,
+	showSubmittedAnswer,
 	onSubmitAnswer,
 	onStepChange,
 }) => {
@@ -431,11 +434,16 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 	const [hasShownAnswer, setHasShownAnswer] = useState(false);
 	const submitAnswerMutation = useMutation({
 		mutationFn: async (answerText: string) => {
-			await onSubmitAnswer?.(answerText);
+			await onSubmitAnswer?.(
+				asyncToolCallId === undefined
+					? answerText
+					: getAsyncAnswerPrefix(asyncToolCallId) + answerText,
+			);
 		},
 	});
 
-	if (previousResponseText !== undefined && !hasShownAnswer) {
+	const answerBody = getAnswerBody(previousResponseText, asyncToolCallId);
+	if (answerBody !== undefined && !hasShownAnswer) {
 		setHasShownAnswer(true);
 	}
 
@@ -443,8 +451,7 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 		submitAnswerMutation.isSuccess && !hasShownAnswer
 			? submitAnswerMutation.variables
 			: undefined;
-	const displayedSubmittedResponseText =
-		previousResponseText ?? sentResponseText;
+	const displayedSubmittedResponseText = answerBody ?? sentResponseText;
 	const hasSubmittedResponse = displayedSubmittedResponseText !== undefined;
 	const activeQuestionIndex = Math.min(
 		currentQuestionIndex,
@@ -612,7 +619,7 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 				</div>
 			)}
 
-			{showsSubmittedAnswer && hasSubmittedResponse && (
+			{showSubmittedAnswer && hasSubmittedResponse && (
 				<div className="mt-4 rounded-md border border-solid border-border bg-surface-secondary px-3 py-2">
 					<p className="text-xs font-medium text-content-secondary">
 						Submitted answer
@@ -680,6 +687,7 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 	);
 };
 
+/** Shows an ask_user_question call in the transcript. */
 export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	questions,
 	status,
@@ -697,10 +705,8 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	const isRunning = status === "running";
 	const isCompleted = status === "completed";
 
-	const answeredResponseText = isAsync
-		? getAsyncAnswerBody(previousResponseText, asyncToolCallId)
-		: previousResponseText;
-	const isAnswered = answeredResponseText !== undefined;
+	const isAnswered =
+		getAnswerBody(previousResponseText, asyncToolCallId) !== undefined;
 	const isAnswerable =
 		(isAsync || isChatCompleted) &&
 		isCompleted &&
@@ -710,17 +716,26 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 		isAsync && isCompleted && !isLatestAskUserQuestion && !isAnswered;
 
 	// The agent keeps working, so the question needs its own announcement.
+	// Screen readers announce only changes to a live region that already
+	// exists, so the region renders before the result streams in.
 	const announcement = (
 		<span role="status" className="sr-only">
 			{isAsync && isAnswerable && !isAnswered && "The agent asked a question."}
 		</span>
 	);
-
-	const submitAnswer = async (answerText: string) => {
-		await onSubmitAnswer?.(
-			isAsync ? getAsyncAnswerPrefix(asyncToolCallId) + answerText : answerText,
-		);
-	};
+	const runningHeader = (
+		<ToolCall.Root
+			status={status}
+			hasContent={false}
+			role="status"
+			aria-live="polite"
+		>
+			<ToolCall.Header
+				iconName="ask_user_question"
+				label="Asking for clarification..."
+			/>
+		</ToolCall.Root>
+	);
 
 	if (isError) {
 		return (
@@ -745,17 +760,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 			<div className="w-full">
 				{announcement}
 				{isRunning ? (
-					<ToolCall.Root
-						status={status}
-						hasContent={false}
-						role="status"
-						aria-live="polite"
-					>
-						<ToolCall.Header
-							iconName="ask_user_question"
-							label="Asking for clarification..."
-						/>
-					</ToolCall.Root>
+					runningHeader
 				) : (
 					<p className="text-[13px] italic text-content-secondary">
 						No questions available.
@@ -766,35 +771,23 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	}
 
 	let notice: string | undefined;
-	if (isClosed) {
-		notice = "This question is closed.";
-	}
 	if (isDocked) {
 		notice = "Answer in the Open question panel above the chat input.";
+	} else if (isClosed) {
+		notice = "This question is closed.";
 	}
 
 	return (
 		<div className="w-full">
 			{announcement}
-			{isRunning && (
-				<ToolCall.Root
-					status={status}
-					hasContent={false}
-					role="status"
-					aria-live="polite"
-				>
-					<ToolCall.Header
-						iconName="ask_user_question"
-						label="Asking for clarification..."
-					/>
-				</ToolCall.Root>
-			)}
+			{isRunning && runningHeader}
 			{notice === undefined ? (
 				<AskUserQuestionForm
 					questions={questions}
-					previousResponseText={answeredResponseText}
-					showsSubmittedAnswer={isLatestAskUserQuestion}
-					onSubmitAnswer={isAnswerable ? submitAnswer : undefined}
+					previousResponseText={previousResponseText}
+					asyncToolCallId={asyncToolCallId}
+					showSubmittedAnswer={isLatestAskUserQuestion}
+					onSubmitAnswer={isAnswerable ? onSubmitAnswer : undefined}
 				/>
 			) : (
 				<>
