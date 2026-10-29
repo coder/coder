@@ -73,10 +73,10 @@ export const useDragSelect = <T>({
 	}, [cancelDrag]);
 
 	const getHandleProps = (
-		index: number,
+		id: string,
 	): { onPointerDown: React.PointerEventHandler<HTMLElement> } => ({
 		onPointerDown: (event) => {
-			const item = items[index];
+			const item = items.find((item) => getId(item) === id);
 			if (
 				event.button !== 0 ||
 				event.pointerType !== "mouse" ||
@@ -90,7 +90,6 @@ export const useDragSelect = <T>({
 			event.preventDefault();
 			event.currentTarget.focus({ preventScroll: true });
 			cancelDrag();
-			const id = getId(item);
 			dragRef.current = {
 				anchorId: id,
 				pointerId: event.pointerId,
@@ -102,19 +101,21 @@ export const useDragSelect = <T>({
 	});
 
 	const getRowProps = (
-		index: number,
+		id: string,
 	): { onPointerEnter: React.PointerEventHandler } => ({
 		onPointerEnter: (event) => {
 			const drag = dragRef.current;
 			if (!drag || event.pointerId !== drag.pointerId) {
 				return;
 			}
-			const anchor = items.findIndex((item) => getId(item) === drag.anchorId);
-			if ((event.buttons & 1) === 0 || anchor === -1) {
+			if (
+				(event.buttons & 1) === 0 ||
+				!items.some((item) => getId(item) === drag.anchorId)
+			) {
 				cancelDrag();
 				return;
 			}
-			if (index !== anchor) {
+			if (id !== drag.anchorId) {
 				drag.moved = true;
 			}
 			if (!drag.moved) {
@@ -122,15 +123,22 @@ export const useDragSelect = <T>({
 			}
 
 			const ids = new Set(drag.initialIds);
-			const [start, end] = anchor < index ? [anchor, index] : [index, anchor];
-			for (const item of items.slice(start, end + 1)) {
-				if (!isSelectable(item)) {
-					continue;
+			const endpoints = new Set([drag.anchorId, id]);
+			let inRange = false;
+			for (const item of items) {
+				const itemId = getId(item);
+				if (endpoints.delete(itemId)) {
+					inRange = true;
 				}
-				if (drag.select) {
-					ids.add(getId(item));
-				} else {
-					ids.delete(getId(item));
+				if (inRange && isSelectable(item)) {
+					if (drag.select) {
+						ids.add(itemId);
+					} else {
+						ids.delete(itemId);
+					}
+				}
+				if (endpoints.size === 0) {
+					break;
 				}
 			}
 			onChange(items.filter((item) => ids.has(getId(item))));

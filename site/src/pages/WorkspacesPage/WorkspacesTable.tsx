@@ -193,7 +193,7 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 						</TableCell>
 					</TableRow>
 				)}
-				{workspaces?.map((workspace, index) => {
+				{workspaces?.map((workspace) => {
 					const checked = checkedWorkspaces.some((w) => w.id === workspace.id);
 					const activeOrg = dashboard.organizations.find(
 						(o) => o.id === workspace.organization_id,
@@ -206,7 +206,7 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 							workspacePageLink={workspacePageLink}
 							key={workspace.id}
 							checked={checked}
-							{...dragSelect.getRowProps(index)}
+							{...dragSelect.getRowProps(workspace.id)}
 						>
 							<TableCell>
 								<div className="flex items-center gap-5">
@@ -217,7 +217,7 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 										onClick={(e) => {
 											e.stopPropagation();
 										}}
-										{...dragSelect.getHandleProps(index)}
+										{...dragSelect.getHandleProps(workspace.id)}
 										onCheckedChange={(checked) => {
 											if (checked) {
 												onCheckChange([...checkedWorkspaces, workspace]);

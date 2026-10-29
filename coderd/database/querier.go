@@ -732,7 +732,8 @@ type sqlcQuerier interface {
 	// and organization_members, so the implicit "Everyone" group
 	// (group_id == organization_id) is included. Returns no rows when the user has
 	// no budgeted groups. Callers should treat sql.ErrNoRows as "no group budget".
-	GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (GetHighestGroupAIBudgetByUserRow, error)
+	// When organization_id is set, only groups in that organization count.
+	GetHighestGroupAIBudgetByUser(ctx context.Context, arg GetHighestGroupAIBudgetByUserParams) (GetHighestGroupAIBudgetByUserRow, error)
 	GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (InboxNotification, error)
 	// Fetches inbox notifications for a user filtered by templates and targets
 	// param user_id: The user ID
@@ -1002,6 +1003,11 @@ type sqlcQuerier interface {
 	// expired gauge can recover to zero.
 	GetUsageEventsStats(ctx context.Context, now time.Time) (GetUsageEventsStatsRow, error)
 	GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (UserAIBudgetOverride, error)
+	// Returns the user's AI budget override with the organization of its group, for
+	// budget resolution. An override whose group is in a deleted organization is
+	// never returned. When organization_id is set, returns the override only if its
+	// group belongs to that organization.
+	GetUserAIBudgetOverrideWithOrganization(ctx context.Context, arg GetUserAIBudgetOverrideWithOrganizationParams) (GetUserAIBudgetOverrideWithOrganizationRow, error)
 	GetUserAIProviderKeyByProviderID(ctx context.Context, arg GetUserAIProviderKeyByProviderIDParams) (UserAIProviderKey, error)
 	// GetUserAIProviderKeys is used by dbcrypt key rotation. Request paths should use
 	// user-scoped lookups instead of this bulk accessor.
@@ -1035,8 +1041,9 @@ type sqlcQuerier interface {
 	// Returns the "Everyone" group (id == organization_id) to attribute a user's
 	// spend to when no override or budgeted group applies. Prefers the default org,
 	// then the earliest organization membership. Returns no rows when the user has
-	// no organization membership.
-	GetUserEveryoneFallbackGroup(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
+	// no organization membership. When organization_id is set, returns that
+	// organization's Everyone group only if the user is a member of it.
+	GetUserEveryoneFallbackGroup(ctx context.Context, arg GetUserEveryoneFallbackGroupParams) (uuid.UUID, error)
 	GetUserForChatSyntheticAPIKeyByID(ctx context.Context, id uuid.UUID) (User, error)
 	// GetUserLatencyInsights returns the median and 95th percentile connection
 	// latency that users have experienced. The result can be filtered on
