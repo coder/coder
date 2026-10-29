@@ -3535,9 +3535,9 @@ Authenticate with the key in the `Coder-Provisioner-Daemon-Key` header instead o
 
 ### Parameters
 
-| Name             | In   | Type   | Required | Description                                                                                                                                                   |
-|------------------|------|--------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `provisionerkey` | path | string | true     | Name of the provisioner key. The response describes the key in the `Coder-Provisioner-Daemon-Key` header, so Coder doesn't use this value to look the key up. |
+| Name             | In   | Type   | Required | Description                                                                                                      |
+|------------------|------|--------|----------|------------------------------------------------------------------------------------------------------------------|
+| `provisionerkey` | path | string | true     | Provisioner key name. Coder ignores this value and returns the key in the `Coder-Provisioner-Daemon-Key` header. |
 
 ### Example responses
 
@@ -4592,7 +4592,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceproxies \
 `GET /api/v2/workspaceproxies`
 
 Returns the primary region and every workspace proxy, each with its health status, under `regions`.
-Returns only the proxies you can read, which every member can.
+Every member can read workspace proxies.
 Requires a Premium license.
 
 ### Example responses
@@ -4692,7 +4692,8 @@ curl -X POST http://coder-server:8080/api/v2/workspaceproxies \
 `POST /api/v2/workspaceproxies`
 
 Creates a workspace proxy and returns it along with a token that the proxy uses to authenticate to Coder.
-Set `name` (not `primary`), and optionally `display_name` and `icon`. Save the token, because the response is the only time you receive it unless you regenerate it.
+Set `name` (not `primary`), and optionally `display_name` and `icon`.
+Save the token from the response, because Coder doesn't show it again unless you regenerate it.
 Requires permission to create workspace proxies, which the Owner role has.
 Requires a Premium license.
 

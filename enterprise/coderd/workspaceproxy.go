@@ -318,7 +318,8 @@ func (api *API) workspaceProxy(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Create workspace proxy
 // @Description Creates a workspace proxy and returns it along with a token that the proxy uses to authenticate to Coder.
-// @Description Set `name` (not `primary`), and optionally `display_name` and `icon`. Save the token, because the response is the only time you receive it unless you regenerate it.
+// @Description Set `name` (not `primary`), and optionally `display_name` and `icon`.
+// @Description Save the token from the response, because Coder doesn't show it again unless you regenerate it.
 // @Description Requires permission to create workspace proxies, which the Owner role has.
 // @Description Requires a Premium license.
 // @ID create-workspace-proxy
@@ -428,7 +429,7 @@ func validateProxyURL(u string) error {
 
 // @Summary Get workspace proxies
 // @Description Returns the primary region and every workspace proxy, each with its health status, under `regions`.
-// @Description Returns only the proxies you can read, which every member can.
+// @Description Every member can read workspace proxies.
 // @Description Requires a Premium license.
 // @ID get-workspace-proxies
 // @Security CoderSessionToken

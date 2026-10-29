@@ -11400,7 +11400,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Name of the provisioner key. The response describes the key in the ` + "`" + `Coder-Provisioner-Daemon-Key` + "`" + ` header, so Coder doesn't use this value to look the key up.",
+                        "description": "Provisioner key name. Coder ignores this value and returns the key in the ` + "`" + `Coder-Provisioner-Daemon-Key` + "`" + ` header.",
                         "name": "provisionerkey",
                         "in": "path",
                         "required": true
@@ -17215,7 +17215,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaceproxies": {
             "get": {
-                "description": "Returns the primary region and every workspace proxy, each with its health status, under ` + "`" + `regions` + "`" + `.\nReturns only the proxies you can read, which every member can.\nRequires a Premium license.",
+                "description": "Returns the primary region and every workspace proxy, each with its health status, under ` + "`" + `regions` + "`" + `.\nEvery member can read workspace proxies.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -17242,7 +17242,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
-                "description": "Creates a workspace proxy and returns it along with a token that the proxy uses to authenticate to Coder.\nSet ` + "`" + `name` + "`" + ` (not ` + "`" + `primary` + "`" + `), and optionally ` + "`" + `display_name` + "`" + ` and ` + "`" + `icon` + "`" + `. Save the token, because the response is the only time you receive it unless you regenerate it.\nRequires permission to create workspace proxies, which the Owner role has.\nRequires a Premium license.",
+                "description": "Creates a workspace proxy and returns it along with a token that the proxy uses to authenticate to Coder.\nSet ` + "`" + `name` + "`" + ` (not ` + "`" + `primary` + "`" + `), and optionally ` + "`" + `display_name` + "`" + ` and ` + "`" + `icon` + "`" + `.\nSave the token from the response, because Coder doesn't show it again unless you regenerate it.\nRequires permission to create workspace proxies, which the Owner role has.\nRequires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],

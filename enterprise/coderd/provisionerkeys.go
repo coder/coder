@@ -246,7 +246,7 @@ func (api *API) deleteProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderProvisionerKey
 // @Produce json
 // @Tags Enterprise
-// @Param provisionerkey path string true "Name of the provisioner key. The response describes the key in the `Coder-Provisioner-Daemon-Key` header, so Coder doesn't use this value to look the key up."
+// @Param provisionerkey path string true "Provisioner key name. Coder ignores this value and returns the key in the `Coder-Provisioner-Daemon-Key` header."
 // @Success 200 {object} codersdk.ProvisionerKey
 // @Router /api/v2/provisionerkeys/{provisionerkey} [get]
 func (*API) fetchProvisionerKey(rw http.ResponseWriter, r *http.Request) {
