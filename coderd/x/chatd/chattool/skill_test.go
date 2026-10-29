@@ -948,7 +948,8 @@ func TestReadSkillFileTool(t *testing.T) {
 			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
 				return conn, nil
 			},
-			GetSkills: func() []chattool.SkillMeta { return skills },
+			GetSkills:    func() []chattool.SkillMeta { return skills },
+			ResolveAlias: lookupSkills(skillSource(skillspkg.SourceWorkspace, "my-skill")),
 		})
 
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
@@ -989,6 +990,7 @@ func TestReadSkillFileTool(t *testing.T) {
 				tool := chattool.ReadSkillFile(chattool.ReadSkillOptions{
 					GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) { return conn, nil },
 					GetSkills:        func() []chattool.SkillMeta { return skills },
+					ResolveAlias:     lookupSkills(skillSource(skillspkg.SourceWorkspace, "my-skill")),
 				})
 
 				resp, err := tool.Run(context.Background(), fantasy.ToolCall{
