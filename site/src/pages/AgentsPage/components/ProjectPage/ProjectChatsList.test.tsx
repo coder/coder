@@ -442,29 +442,56 @@ describe("ProjectChatsList", () => {
 		expect(outletContext.navigateAfterArchive).not.toHaveBeenCalled();
 	});
 
-	it("archives a chat from its project row", async () => {
+	it.each(["dropdown", "context"])(
+		"archives a chat from its project row's %s menu",
+		async (menu) => {
+			const user = userEvent.setup();
+			vi.spyOn(API.experimental, "getChats").mockResolvedValue(buildChats(1));
+			vi.spyOn(API.experimental, "updateChat").mockResolvedValue(undefined);
+
+			const outletContext = renderList();
+
+			if (menu === "dropdown") {
+				await user.click(
+					await screen.findByRole("button", {
+						name: "Open chat actions for Chat 0",
+					}),
+				);
+			} else {
+				await user.pointer({
+					target: await screen.findByRole("link", { name: /Chat 0/ }),
+					keys: "[MouseRight]",
+				});
+			}
+			await user.click(
+				await screen.findByRole("menuitem", { name: "Archive agent" }),
+			);
+
+			await waitFor(() => {
+				expect(API.experimental.updateChat).toHaveBeenCalledWith("chat-0", {
+					archived: true,
+				});
+				expect(outletContext.clearChatErrorReason).toHaveBeenCalledWith(
+					"chat-0",
+				);
+			});
+			expect(outletContext.navigateAfterArchive).not.toHaveBeenCalled();
+		},
+	);
+
+	it("opens one menu when the row's menu button is right-clicked", async () => {
 		const user = userEvent.setup();
 		vi.spyOn(API.experimental, "getChats").mockResolvedValue(buildChats(1));
-		vi.spyOn(API.experimental, "updateChat").mockResolvedValue(undefined);
 
-		const outletContext = renderList();
+		renderList();
 
-		await user.click(
-			await screen.findByRole("button", {
-				name: "Open chat actions for Chat 0",
-			}),
-		);
-		await user.click(
-			await screen.findByRole("menuitem", { name: "Archive agent" }),
-		);
-
-		await waitFor(() => {
-			expect(API.experimental.updateChat).toHaveBeenCalledWith("chat-0", {
-				archived: true,
-			});
-			expect(outletContext.clearChatErrorReason).toHaveBeenCalledWith("chat-0");
+		const button = await screen.findByRole("button", {
+			name: "Open chat actions for Chat 0",
 		});
-		expect(outletContext.navigateAfterArchive).not.toHaveBeenCalled();
+		await user.pointer({ target: button, keys: "[MouseRight]" });
+		await user.click(button);
+
+		expect(await screen.findAllByRole("menu")).toHaveLength(1);
 	});
 
 	it("moves a chat to another project from its row menu", async () => {
