@@ -1,17 +1,11 @@
 import { cn } from "cn";
-import {
-	ChevronLeftIcon,
-	ChevronRightIcon,
-	InfoIcon,
-	PencilIcon,
-} from "lucide-react";
+import { InfoIcon } from "lucide-react";
 import { memo, useState } from "react";
 import { useQuery } from "react-query";
 import type { UrlTransform } from "streamdown";
 import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { AlertTitle } from "#/components/Alert/Alert";
-import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { MessageScroller, useMessageScroller } from "#/vendor/message-scroller";
 import { ConversationItem } from "../ChatElements/Conversation";
 import { Message, MessageContent } from "../ChatElements/Message";
@@ -34,14 +28,17 @@ import {
 	type LiveStatusModel,
 	shouldRenderLiveAssistant,
 } from "./liveStatusModel";
-import { MessageActionBar, MessageActionButton } from "./MessageActionBar";
+import {
+	AssistantMessageActions,
+	MessageActionBar,
+	UserMessageActions,
+} from "./MessageActionBar";
 import {
 	buildDisplayMessages,
 	deriveEvictedFileIds,
 	deriveMessageDisplayState,
 	type MessageAttachment,
 } from "./messageHelpers";
-import { getEditableUserMessagePayload } from "./messageParsing";
 import { TurnAttachments } from "./TurnAttachments";
 import { assignTimelineRows } from "./timelineRows";
 import type {
@@ -108,122 +105,6 @@ const LifecycleHookNotice: React.FC<{
 		</div>
 	</TimelineNotice>
 );
-
-type UserMessageActionsProps = {
-	message: TypesGen.ChatMessage;
-	copyText?: string;
-	onEditUserMessage?: ConversationTimelineProps["onEditUserMessage"];
-	prevUserMessageKey?: string;
-	nextUserMessageKey?: string;
-	onJumpToUserMessage?: (messageKey: string) => void;
-};
-
-const UserMessageActions: React.FC<UserMessageActionsProps> = ({
-	message,
-	copyText,
-	onEditUserMessage,
-	prevUserMessageKey,
-	nextUserMessageKey,
-	onJumpToUserMessage,
-}) => {
-	const canJump =
-		onJumpToUserMessage !== undefined &&
-		(prevUserMessageKey !== undefined || nextUserMessageKey !== undefined);
-	const hasHoverActions = onEditUserMessage !== undefined || canJump;
-	if (!hasHoverActions && copyText === undefined) {
-		return null;
-	}
-
-	return (
-		<MessageActionBar className="w-full justify-end">
-			{hasHoverActions && (
-				<div className="flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100">
-					{onEditUserMessage && (
-						<MessageActionButton
-							label="Edit message"
-							icon={<PencilIcon />}
-							onClick={() => {
-								const { text, fileBlocks, editorState } =
-									getEditableUserMessagePayload(message);
-								onEditUserMessage(message.id, text, fileBlocks, editorState);
-							}}
-						/>
-					)}
-					{canJump && (
-						<>
-							<MessageActionButton
-								label="Jump to previous user message"
-								icon={<ChevronLeftIcon />}
-								disabled={prevUserMessageKey === undefined}
-								onClick={() => {
-									if (prevUserMessageKey !== undefined) {
-										onJumpToUserMessage(prevUserMessageKey);
-									}
-								}}
-							/>
-							<MessageActionButton
-								label="Jump to next user message"
-								icon={<ChevronRightIcon />}
-								disabled={nextUserMessageKey === undefined}
-								onClick={() => {
-									if (nextUserMessageKey !== undefined) {
-										onJumpToUserMessage(nextUserMessageKey);
-									}
-								}}
-							/>
-						</>
-					)}
-				</div>
-			)}
-			{copyText !== undefined && (
-				<CopyButton
-					text={copyText}
-					label="Copy message"
-					className="size-6"
-					tooltipSide="bottom"
-				/>
-			)}
-		</MessageActionBar>
-	);
-};
-
-type AssistantMessageActionsProps = {
-	copyText?: string;
-	turnAttachments?: readonly MessageAttachment[];
-	/**
-	 * With no buttons to show, still take the bar's height, so the message
-	 * keeps its spacing to the next one.
-	 */
-	keepsSpacing: boolean;
-};
-
-const AssistantMessageActions: React.FC<AssistantMessageActionsProps> = ({
-	copyText,
-	turnAttachments,
-	keepsSpacing,
-}) => {
-	const hasActions = copyText !== undefined || turnAttachments !== undefined;
-	if (!hasActions && keepsSpacing) {
-		return <div className="min-h-6" data-testid="assistant-bottom-spacer" />;
-	}
-	if (!hasActions) {
-		return null;
-	}
-
-	return (
-		<MessageActionBar>
-			{copyText !== undefined && (
-				<CopyButton
-					text={copyText}
-					label="Copy message"
-					className="size-6"
-					tooltipSide="bottom"
-				/>
-			)}
-			{turnAttachments && <TurnAttachments attachments={turnAttachments} />}
-		</MessageActionBar>
-	);
-};
 
 const ChatMessageItem = memo<{
 	organizationId: string;

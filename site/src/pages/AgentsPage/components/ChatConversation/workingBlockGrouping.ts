@@ -332,7 +332,6 @@ export type TurnAttachmentsOptions = {
 	isCompacting: boolean;
 };
 
-/** Each turn's assistant rows. A turn starts at each user message. */
 const splitIntoTurns = (
 	rows: readonly TimelineRow[],
 ): TimelineMessageRow[][] => {
@@ -352,10 +351,6 @@ const splitIntoTurns = (
 	return turns;
 };
 
-/**
- * A context clear (`chat_cleared`) or summary (`chat_summarized`) is not part
- * of the turn's answer, and collapsed steps hide attachment-only rows.
- */
 const canHostPill = (
 	row: TimelineMessageRow,
 	hidesAttachmentRows: boolean,
@@ -371,8 +366,8 @@ const canHostPill = (
 
 /**
  * A running chat can still add files or text to its newest turn, even after
- * an answer. An answer followed by a compaction or context clear is final:
- * chatd resumes only an unanswered turn after a compaction.
+ * an answer, so the pill waits for the chat to stop unless a compaction or
+ * context clear follows the answer.
  */
 const hasNewestTurnEnded = (
 	turnRows: readonly TimelineMessageRow[],
