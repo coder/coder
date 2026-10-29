@@ -41,6 +41,7 @@ import (
 )
 
 // @Summary Get workspace build
+// @Description Returns one workspace build, including its transition, status, template version, and resources.
 // @ID get-workspace-build
 // @Security CoderSessionToken
 // @Produce json
@@ -108,15 +109,17 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get workspace builds by workspace ID
+// @Description Returns the builds of a workspace, newest build first.
+// @Description Use `since` to return only recent builds, and `limit` with `offset` or `after_id` to page through them.
 // @ID get-workspace-builds-by-workspace-id
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Builds
 // @Param workspace path string true "Workspace ID" format(uuid)
-// @Param after_id query string false "After ID" format(uuid)
-// @Param limit query int false "Page limit"
-// @Param offset query int false "Page offset"
-// @Param since query string false "Since timestamp" format(date-time)
+// @Param after_id query string false "ID of a build. Returns only the builds with a higher build number than that build." format(uuid)
+// @Param limit query int false "Maximum number of results to return. The default, `0`, returns all results."
+// @Param offset query int false "Number of results to skip, for paging through results with `limit`."
+// @Param since query string false "Returns only builds created after this RFC 3339 timestamp." format(date-time)
 // @Success 200 {array} codersdk.WorkspaceBuild
 // @Router /api/v2/workspaces/{workspace}/builds [get]
 func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
@@ -228,13 +231,15 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get workspace build by user, workspace name, and build number
+// @Description Returns one workspace build, found by the workspace's owner, the workspace name, and the build number.
+// @Description Use it when you know the workspace name but not its ID.
 // @ID get-workspace-build-by-user-workspace-name-and-build-number
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Builds
-// @Param user path string true "User ID, name, or me"
-// @Param workspacename path string true "Workspace name"
-// @Param buildnumber path string true "Build number" format(number)
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
+// @Param workspacename path string true "Name of the workspace, owned by `user`."
+// @Param buildnumber path string true "Number of the build within the workspace." format(number)
 // @Success 200 {object} codersdk.WorkspaceBuild
 // @Router /api/v2/users/{user}/workspace/{workspacename}/builds/{buildnumber} [get]
 func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Request) {
@@ -324,13 +329,18 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 // https://docs.microsoft.com/en-us/azure/virtual-machines/windows/instance-metadata-service?tabs=linux#tabgroup_14
 //
 // @Summary Create workspace build
+// @Description Starts, stops, or deletes a workspace by queuing a build with the given `transition`: `start` starts it, `stop` stops it, and `delete` deletes it.
+// @Description Use it to change a workspace's state, or set `template_version_id` to move the workspace to another template version.
+// @Description A `start` build also clears the workspace's dormant status, and `orphan` is allowed only with `delete`.
+// @Description Requires permission to start, stop, or delete the workspace, which its owner and the Owner and Organization Admin roles have.
+// @Description Setting `state` or `orphan` also requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
 // @ID create-workspace-build
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Builds
 // @Param workspace path string true "Workspace ID" format(uuid)
-// @Param request body codersdk.CreateWorkspaceBuildRequest true "Create workspace build request"
+// @Param request body codersdk.CreateWorkspaceBuildRequest true "Build to queue. `transition` is required."
 // @Success 201 {object} codersdk.WorkspaceBuild
 // @Router /api/v2/workspaces/{workspace}/builds [post]
 func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
@@ -840,6 +850,9 @@ func (api *API) postWorkspaceBuildDebugEvent(rw http.ResponseWriter, r *http.Req
 }
 
 // @Summary Cancel workspace build
+// @Description Cancels a workspace build that is still pending or running by marking its provisioner job as canceled.
+// @Description Fails if the build's job already completed or was already canceled.
+// @Description You can cancel a build if the template allows users to cancel workspace jobs, if you have the Owner role, or if you set `expect_status` to `pending`.
 // @ID cancel-workspace-build
 // @Security CoderSessionToken
 // @Produce json
@@ -1000,6 +1013,7 @@ func verifyUserCanCancelWorkspaceBuilds(ctx context.Context, store database.Stor
 }
 
 // @Summary Get build parameters for workspace build
+// @Description Returns the rich parameter names and values that a workspace build used.
 // @ID get-build-parameters-for-workspace-build
 // @Security CoderSessionToken
 // @Produce json
@@ -1024,14 +1038,17 @@ func (api *API) workspaceBuildParameters(rw http.ResponseWriter, r *http.Request
 }
 
 // @Summary Get workspace build logs
+// @Description Returns the provisioner logs of a workspace build, oldest first.
+// @Description Set `follow` to upgrade the connection to a WebSocket that sends each log as a JSON `ProvisionerJobLog` message, first the existing logs and then new logs as they arrive, and closes when the build's job finishes.
+// @Description Without `follow`, the response is a JSON array of logs, or plain text when `format` is `text`.
 // @ID get-workspace-build-logs
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Builds
 // @Param workspacebuild path string true "Workspace build ID"
-// @Param before query int false "Before log id"
-// @Param after query int false "After log id"
-// @Param follow query bool false "Follow log stream"
+// @Param before query int false "Has no effect. The server ignores this parameter."
+// @Param after query int false "ID of the last log you already have. Returns only the logs with a higher ID."
+// @Param follow query bool false "Streams new logs over a WebSocket until the build's job finishes. The server checks only that the parameter is present, so any value turns streaming on, including `false`."
 // @Param format query string false "Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true." Enums(json,text)
 // @Success 200 {array} codersdk.ProvisionerJobLog
 // @Router /api/v2/workspacebuilds/{workspacebuild}/logs [get]
@@ -1051,6 +1068,8 @@ func (api *API) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get provisioner state for workspace build
+// @Description Returns the provisioner state that the build saved, as raw JSON.
+// @Description Requires permission to update the workspace's template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
 // @ID get-provisioner-state-for-workspace-build
 // @Security CoderSessionToken
 // @Produce json
@@ -1082,12 +1101,15 @@ func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Update workspace build state
+// @Description Replaces the provisioner state that a build saved, without queuing a new build.
+// @Description Use it for state-only migrations.
+// @Description Requires permission to update the workspace's template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
 // @ID update-workspace-build-state
 // @Security CoderSessionToken
 // @Accept json
 // @Tags Builds
 // @Param workspacebuild path string true "Workspace build ID" format(uuid)
-// @Param request body codersdk.UpdateWorkspaceBuildStateRequest true "Request body"
+// @Param request body codersdk.UpdateWorkspaceBuildStateRequest true "New provisioner state for the build, in the `state` field."
 // @Success 204
 // @Router /api/v2/workspacebuilds/{workspacebuild}/state [put]
 func (api *API) workspaceBuildUpdateState(rw http.ResponseWriter, r *http.Request) {
@@ -1139,6 +1161,8 @@ func (api *API) workspaceBuildUpdateState(rw http.ResponseWriter, r *http.Reques
 }
 
 // @Summary Get workspace build timings by ID
+// @Description Returns how long each stage of a workspace build took.
+// @Description The response lists the provisioner stage timings, the workspace agent script timings, and the agent connection timings.
 // @ID get-workspace-build-timings-by-id
 // @Security CoderSessionToken
 // @Produce json

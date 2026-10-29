@@ -18,13 +18,16 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
 
 `GET /api/v2/users/{user}/workspace/{workspacename}/builds/{buildnumber}`
 
+Returns one workspace build, found by the workspace's owner, the workspace name, and the build number.
+Use it when you know the workspace name but not its ID.
+
 ### Parameters
 
-| Name            | In   | Type           | Required | Description          |
-|-----------------|------|----------------|----------|----------------------|
-| `user`          | path | string         | true     | User ID, name, or me |
-| `workspacename` | path | string         | true     | Workspace name       |
-| `buildnumber`   | path | string(number) | true     | Build number         |
+| Name            | In   | Type           | Required | Description                                            |
+|-----------------|------|----------------|----------|--------------------------------------------------------|
+| `user`          | path | string         | true     | User ID, username, or `me` for the authenticated user. |
+| `workspacename` | path | string         | true     | Name of the workspace, owned by `user`.                |
+| `buildnumber`   | path | string(number) | true     | Number of the build within the workspace.              |
 
 ### Example responses
 
@@ -282,6 +285,8 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
 ```
 
 `GET /api/v2/workspacebuilds/{workspacebuild}`
+
+Returns one workspace build, including its transition, status, template version, and resources.
 
 ### Parameters
 
@@ -546,6 +551,10 @@ curl -X PATCH http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/c
 
 `PATCH /api/v2/workspacebuilds/{workspacebuild}/cancel`
 
+Cancels a workspace build that is still pending or running by marking its provisioner job as canceled.
+Fails if the build's job already completed or was already canceled.
+You can cancel a build if the template allows users to cancel workspace jobs, if you have the Owner role, or if you set `expect_status` to `pending`.
+
 ### Parameters
 
 | Name             | In    | Type   | Required | Description                                                                                                                                                                              |
@@ -597,15 +606,19 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/log
 
 `GET /api/v2/workspacebuilds/{workspacebuild}/logs`
 
+Returns the provisioner logs of a workspace build, oldest first.
+Set `follow` to upgrade the connection to a WebSocket that sends each log as a JSON `ProvisionerJobLog` message, first the existing logs and then new logs as they arrive, and closes when the build's job finishes.
+Without `follow`, the response is a JSON array of logs, or plain text when `format` is `text`.
+
 ### Parameters
 
-| Name             | In    | Type    | Required | Description                                                                                                                                 |
-|------------------|-------|---------|----------|---------------------------------------------------------------------------------------------------------------------------------------------|
-| `workspacebuild` | path  | string  | true     | Workspace build ID                                                                                                                          |
-| `before`         | query | integer | false    | Before log id                                                                                                                               |
-| `after`          | query | integer | false    | After log id                                                                                                                                |
-| `follow`         | query | boolean | false    | Follow log stream                                                                                                                           |
-| `format`         | query | string  | false    | Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true. |
+| Name             | In    | Type    | Required | Description                                                                                                                                                                 |
+|------------------|-------|---------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `workspacebuild` | path  | string  | true     | Workspace build ID                                                                                                                                                          |
+| `before`         | query | integer | false    | Has no effect. The server ignores this parameter.                                                                                                                           |
+| `after`          | query | integer | false    | ID of the last log you already have. Returns only the logs with a higher ID.                                                                                                |
+| `follow`         | query | boolean | false    | Streams new logs over a WebSocket until the build's job finishes. The server checks only that the parameter is present, so any value turns streaming on, including `false`. |
+| `format`         | query | string  | false    | Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true.                                 |
 
 #### Enumerated Values
 
@@ -672,6 +685,8 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/par
 
 `GET /api/v2/workspacebuilds/{workspacebuild}/parameters`
 
+Returns the rich parameter names and values that a workspace build used.
+
 ### Parameters
 
 | Name             | In   | Type   | Required | Description        |
@@ -721,6 +736,10 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
 ```
 
 `GET /api/v2/workspacebuilds/{workspacebuild}/resources`
+
+Returns the resources, with their agents, of a completed workspace build.
+Fails with a `400` while the build's job is still running.
+Use `/api/v2/workspacebuilds/{workspacebuild}` instead, whose response includes the build's `resources`.
 
 ### Parameters
 
@@ -1132,6 +1151,9 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
 
 `GET /api/v2/workspacebuilds/{workspacebuild}/state`
 
+Returns the provisioner state that the build saved, as raw JSON.
+Requires permission to update the workspace's template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+
 ### Parameters
 
 | Name             | In   | Type   | Required | Description        |
@@ -1395,6 +1417,10 @@ curl -X PUT http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
 
 `PUT /api/v2/workspacebuilds/{workspacebuild}/state`
 
+Replaces the provisioner state that a build saved, without queuing a new build.
+Use it for state-only migrations.
+Requires permission to update the workspace's template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+
 > Body parameter
 
 ```json
@@ -1407,10 +1433,10 @@ curl -X PUT http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
 
 ### Parameters
 
-| Name             | In   | Type                                                                                             | Required | Description        |
-|------------------|------|--------------------------------------------------------------------------------------------------|----------|--------------------|
-| `workspacebuild` | path | string(uuid)                                                                                     | true     | Workspace build ID |
-| `body`           | body | [codersdk.UpdateWorkspaceBuildStateRequest](schemas.md#codersdkupdateworkspacebuildstaterequest) | true     | Request body       |
+| Name             | In   | Type                                                                                             | Required | Description                                                |
+|------------------|------|--------------------------------------------------------------------------------------------------|----------|------------------------------------------------------------|
+| `workspacebuild` | path | string(uuid)                                                                                     | true     | Workspace build ID                                         |
+| `body`           | body | [codersdk.UpdateWorkspaceBuildStateRequest](schemas.md#codersdkupdateworkspacebuildstaterequest) | true     | New provisioner state for the build, in the `state` field. |
 
 ### Responses
 
@@ -1432,6 +1458,9 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/tim
 ```
 
 `GET /api/v2/workspacebuilds/{workspacebuild}/timings`
+
+Returns how long each stage of a workspace build took.
+The response lists the provisioner stage timings, the workspace agent script timings, and the agent connection timings.
 
 ### Parameters
 
@@ -1501,15 +1530,18 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
 
 `GET /api/v2/workspaces/{workspace}/builds`
 
+Returns the builds of a workspace, newest build first.
+Use `since` to return only recent builds, and `limit` with `offset` or `after_id` to page through them.
+
 ### Parameters
 
-| Name        | In    | Type              | Required | Description     |
-|-------------|-------|-------------------|----------|-----------------|
-| `workspace` | path  | string(uuid)      | true     | Workspace ID    |
-| `after_id`  | query | string(uuid)      | false    | After ID        |
-| `limit`     | query | integer           | false    | Page limit      |
-| `offset`    | query | integer           | false    | Page offset     |
-| `since`     | query | string(date-time) | false    | Since timestamp |
+| Name        | In    | Type              | Required | Description                                                                        |
+|-------------|-------|-------------------|----------|------------------------------------------------------------------------------------|
+| `workspace` | path  | string(uuid)      | true     | Workspace ID                                                                       |
+| `after_id`  | query | string(uuid)      | false    | ID of a build. Returns only the builds with a higher build number than that build. |
+| `limit`     | query | integer           | false    | Maximum number of results to return. The default, `0`, returns all results.        |
+| `offset`    | query | integer           | false    | Number of results to skip, for paging through results with `limit`.                |
+| `since`     | query | string(date-time) | false    | Returns only builds created after this RFC 3339 timestamp.                         |
 
 ### Example responses
 
@@ -1974,6 +2006,12 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
 
 `POST /api/v2/workspaces/{workspace}/builds`
 
+Starts, stops, or deletes a workspace by queuing a build with the given `transition`: `start` starts it, `stop` stops it, and `delete` deletes it.
+Use it to change a workspace's state, or set `template_version_id` to move the workspace to another template version.
+A `start` build also clears the workspace's dormant status, and `orphan` is allowed only with `delete`.
+Requires permission to start, stop, or delete the workspace, which its owner and the Owner and Organization Admin roles have.
+Setting `state` or `orphan` also requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+
 > Body parameter
 
 ```json
@@ -2019,10 +2057,10 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
 
 ### Parameters
 
-| Name        | In   | Type                                                                                   | Required | Description                    |
-|-------------|------|----------------------------------------------------------------------------------------|----------|--------------------------------|
-| `workspace` | path | string(uuid)                                                                           | true     | Workspace ID                   |
-| `body`      | body | [codersdk.CreateWorkspaceBuildRequest](schemas.md#codersdkcreateworkspacebuildrequest) | true     | Create workspace build request |
+| Name        | In   | Type                                                                                   | Required | Description                               |
+|-------------|------|----------------------------------------------------------------------------------------|----------|-------------------------------------------|
+| `workspace` | path | string(uuid)                                                                           | true     | Workspace ID                              |
+| `body`      | body | [codersdk.CreateWorkspaceBuildRequest](schemas.md#codersdkcreateworkspacebuildrequest) | true     | Build to queue. `transition` is required. |
 
 ### Example responses
 
