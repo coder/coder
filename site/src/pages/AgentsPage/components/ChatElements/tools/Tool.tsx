@@ -232,14 +232,10 @@ export const getAskUserQuestions = (
 	const questionsFromArgs = parsedArgs
 		? parseAskUserQuestions(parsedArgs.questions)
 		: null;
-	const questionsFromResult = parseAskUserQuestionResult(result);
 	if (questionsFromArgs && questionsFromArgs.length > 0) {
 		return questionsFromArgs;
 	}
-	if (questionsFromResult && questionsFromResult.length > 0) {
-		return questionsFromResult;
-	}
-	return questionsFromArgs ?? questionsFromResult ?? [];
+	return parseAskUserQuestionResult(result) ?? [];
 };
 
 const ExecuteRenderer: React.FC<ToolRendererProps> = ({
