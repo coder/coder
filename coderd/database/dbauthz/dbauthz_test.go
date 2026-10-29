@@ -7141,6 +7141,38 @@ func (s *MethodTestSuite) TestOrganizationSkills() {
 		dbm.EXPECT().UpdateOrganizationSkillACLByID(gomock.Any(), arg).Return(updated, nil).AnyTimes()
 		check.Args(arg).Asserts(skill, policy.ActionShare).Returns(updated)
 	}))
+	s.Run("UpdateOrganizationMembersCanDisableSkills", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		org := testutil.Fake(s.T(), faker, database.Organization{})
+		arg := database.UpdateOrganizationMembersCanDisableSkillsParams{ID: org.ID, MembersCanDisableSkills: true, UpdatedAt: dbtime.Now()}
+		updated := org
+		updated.MembersCanDisableSkills = true
+		dbm.EXPECT().UpdateOrganizationMembersCanDisableSkills(gomock.Any(), arg).Return(updated, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceOrganizationSkill.InOrg(org.ID), policy.ActionUpdate).Returns(updated)
+	}))
+	s.Run("GetOrganizationSkillMemberPreferences", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetOrganizationSkillMemberPreferencesParams{OrganizationID: uuid.New(), UserID: uuid.New()}
+		row := database.GetOrganizationSkillMemberPreferencesRow{
+			MembersCanDisableSkills: true,
+			DisabledSkillIDs:        []uuid.UUID{uuid.New()},
+		}
+		dbm.EXPECT().GetOrganizationSkillMemberPreferences(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceUserObject(arg.UserID), policy.ActionReadPersonal).Returns(row)
+	}))
+	s.Run("UpsertOrganizationMemberSkillSettings", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.UpsertOrganizationMemberSkillSettingsParams{OrganizationID: uuid.New(), UserID: uuid.New(), AllSkillsDisabled: true}
+		dbm.EXPECT().UpsertOrganizationMemberSkillSettings(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceUserObject(arg.UserID), policy.ActionUpdatePersonal).Returns()
+	}))
+	s.Run("InsertOrganizationMemberDisabledSkill", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertOrganizationMemberDisabledSkillParams{OrganizationID: uuid.New(), UserID: uuid.New(), SkillID: uuid.New()}
+		dbm.EXPECT().InsertOrganizationMemberDisabledSkill(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceUserObject(arg.UserID), policy.ActionUpdatePersonal).Returns()
+	}))
+	s.Run("DeleteOrganizationMemberDisabledSkill", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.DeleteOrganizationMemberDisabledSkillParams{OrganizationID: uuid.New(), UserID: uuid.New(), SkillID: uuid.New()}
+		dbm.EXPECT().DeleteOrganizationMemberDisabledSkill(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceUserObject(arg.UserID), policy.ActionUpdatePersonal).Returns()
+	}))
 }
 
 func (s *MethodTestSuite) TestProjectSkills() {

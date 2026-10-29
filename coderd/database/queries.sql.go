@@ -23616,7 +23616,7 @@ func (q *sqlQuerier) UpdateMemberRoles(ctx context.Context, arg UpdateMemberRole
 
 const getDefaultOrganization = `-- name: GetDefaultOrganization :one
 SELECT
-    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles, members_can_disable_skills
 FROM
     organizations
 WHERE
@@ -23640,13 +23640,14 @@ func (q *sqlQuerier) GetDefaultOrganization(ctx context.Context) (Organization, 
 		&i.Deleted,
 		&i.ShareableWorkspaceOwners,
 		pq.Array(&i.DefaultOrgMemberRoles),
+		&i.MembersCanDisableSkills,
 	)
 	return i, err
 }
 
 const getOrganizationByID = `-- name: GetOrganizationByID :one
 SELECT
-    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles, members_can_disable_skills
 FROM
     organizations
 WHERE
@@ -23668,13 +23669,14 @@ func (q *sqlQuerier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (Org
 		&i.Deleted,
 		&i.ShareableWorkspaceOwners,
 		pq.Array(&i.DefaultOrgMemberRoles),
+		&i.MembersCanDisableSkills,
 	)
 	return i, err
 }
 
 const getOrganizationByName = `-- name: GetOrganizationByName :one
 SELECT
-    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles, members_can_disable_skills
 FROM
     organizations
 WHERE
@@ -23705,6 +23707,7 @@ func (q *sqlQuerier) GetOrganizationByName(ctx context.Context, arg GetOrganizat
 		&i.Deleted,
 		&i.ShareableWorkspaceOwners,
 		pq.Array(&i.DefaultOrgMemberRoles),
+		&i.MembersCanDisableSkills,
 	)
 	return i, err
 }
@@ -23775,7 +23778,7 @@ func (q *sqlQuerier) GetOrganizationResourceCountByID(ctx context.Context, organ
 
 const getOrganizations = `-- name: GetOrganizations :many
 SELECT
-    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles, members_can_disable_skills
 FROM
     organizations
 WHERE
@@ -23821,6 +23824,7 @@ func (q *sqlQuerier) GetOrganizations(ctx context.Context, arg GetOrganizationsP
 			&i.Deleted,
 			&i.ShareableWorkspaceOwners,
 			pq.Array(&i.DefaultOrgMemberRoles),
+			&i.MembersCanDisableSkills,
 		); err != nil {
 			return nil, err
 		}
@@ -23837,7 +23841,7 @@ func (q *sqlQuerier) GetOrganizations(ctx context.Context, arg GetOrganizationsP
 
 const getOrganizationsByUserID = `-- name: GetOrganizationsByUserID :many
 SELECT
-    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles, members_can_disable_skills
 FROM
     organizations
 WHERE
@@ -23884,6 +23888,7 @@ func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, arg GetOrgani
 			&i.Deleted,
 			&i.ShareableWorkspaceOwners,
 			pq.Array(&i.DefaultOrgMemberRoles),
+			&i.MembersCanDisableSkills,
 		); err != nil {
 			return nil, err
 		}
@@ -23903,7 +23908,7 @@ INSERT INTO
     organizations (id, "name", display_name, description, icon, created_at, updated_at, is_default, default_org_member_roles)
 VALUES
     -- If no organizations exist, and this is the first, make it the default.
-    ($1, $2, $3, $4, $5, $6, $7, (SELECT TRUE FROM organizations LIMIT 1) IS NULL, $8) RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles
+    ($1, $2, $3, $4, $5, $6, $7, (SELECT TRUE FROM organizations LIMIT 1) IS NULL, $8) RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles, members_can_disable_skills
 `
 
 type InsertOrganizationParams struct {
@@ -23941,6 +23946,7 @@ func (q *sqlQuerier) InsertOrganization(ctx context.Context, arg InsertOrganizat
 		&i.Deleted,
 		&i.ShareableWorkspaceOwners,
 		pq.Array(&i.DefaultOrgMemberRoles),
+		&i.MembersCanDisableSkills,
 	)
 	return i, err
 }
@@ -23957,7 +23963,7 @@ SET
     default_org_member_roles = $6
 WHERE
     id = $7
-RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles
+RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles, members_can_disable_skills
 `
 
 type UpdateOrganizationParams struct {
@@ -23993,6 +23999,7 @@ func (q *sqlQuerier) UpdateOrganization(ctx context.Context, arg UpdateOrganizat
 		&i.Deleted,
 		&i.ShareableWorkspaceOwners,
 		pq.Array(&i.DefaultOrgMemberRoles),
+		&i.MembersCanDisableSkills,
 	)
 	return i, err
 }
@@ -24017,6 +24024,43 @@ func (q *sqlQuerier) UpdateOrganizationDeletedByID(ctx context.Context, arg Upda
 	return err
 }
 
+const updateOrganizationMembersCanDisableSkills = `-- name: UpdateOrganizationMembersCanDisableSkills :one
+UPDATE
+    organizations
+SET
+    members_can_disable_skills = $1,
+    updated_at = $2
+WHERE
+    id = $3
+RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles, members_can_disable_skills
+`
+
+type UpdateOrganizationMembersCanDisableSkillsParams struct {
+	MembersCanDisableSkills bool      `db:"members_can_disable_skills" json:"members_can_disable_skills"`
+	UpdatedAt               time.Time `db:"updated_at" json:"updated_at"`
+	ID                      uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateOrganizationMembersCanDisableSkills(ctx context.Context, arg UpdateOrganizationMembersCanDisableSkillsParams) (Organization, error) {
+	row := q.db.QueryRowContext(ctx, updateOrganizationMembersCanDisableSkills, arg.MembersCanDisableSkills, arg.UpdatedAt, arg.ID)
+	var i Organization
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsDefault,
+		&i.DisplayName,
+		&i.Icon,
+		&i.Deleted,
+		&i.ShareableWorkspaceOwners,
+		pq.Array(&i.DefaultOrgMemberRoles),
+		&i.MembersCanDisableSkills,
+	)
+	return i, err
+}
+
 const updateOrganizationWorkspaceSharingSettings = `-- name: UpdateOrganizationWorkspaceSharingSettings :one
 UPDATE
     organizations
@@ -24025,7 +24069,7 @@ SET
     updated_at = $2
 WHERE
     id = $3
-RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles
+RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles, members_can_disable_skills
 `
 
 type UpdateOrganizationWorkspaceSharingSettingsParams struct {
@@ -24049,6 +24093,7 @@ func (q *sqlQuerier) UpdateOrganizationWorkspaceSharingSettings(ctx context.Cont
 		&i.Deleted,
 		&i.ShareableWorkspaceOwners,
 		pq.Array(&i.DefaultOrgMemberRoles),
+		&i.MembersCanDisableSkills,
 	)
 	return i, err
 }
@@ -28971,6 +29016,24 @@ func (q *sqlQuerier) UpsertWebpushVAPIDKeys(ctx context.Context, arg UpsertWebpu
 	return err
 }
 
+const deleteOrganizationMemberDisabledSkill = `-- name: DeleteOrganizationMemberDisabledSkill :exec
+DELETE FROM organization_member_disabled_skills
+WHERE organization_id = $1::uuid
+    AND user_id = $2::uuid
+    AND skill_id = $3::uuid
+`
+
+type DeleteOrganizationMemberDisabledSkillParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	SkillID        uuid.UUID `db:"skill_id" json:"skill_id"`
+}
+
+func (q *sqlQuerier) DeleteOrganizationMemberDisabledSkill(ctx context.Context, arg DeleteOrganizationMemberDisabledSkillParams) error {
+	_, err := q.db.ExecContext(ctx, deleteOrganizationMemberDisabledSkill, arg.OrganizationID, arg.UserID, arg.SkillID)
+	return err
+}
+
 const deleteOrganizationSkillByOrganizationIDAndName = `-- name: DeleteOrganizationSkillByOrganizationIDAndName :one
 DELETE FROM skills
 WHERE organization_id = $1::uuid AND name = $2
@@ -29132,6 +29195,42 @@ func (q *sqlQuerier) GetOrganizationSkillByOrganizationIDAndName(ctx context.Con
 	return i, err
 }
 
+const getOrganizationSkillMemberPreferences = `-- name: GetOrganizationSkillMemberPreferences :one
+SELECT
+    organizations.members_can_disable_skills,
+    COALESCE(s.all_skills_disabled, false)::boolean AS all_skills_disabled,
+    ARRAY(
+        SELECT skill_id
+        FROM organization_member_disabled_skills
+        WHERE organization_id = $1::uuid AND user_id = $2::uuid
+        ORDER BY skill_id
+    )::uuid[] AS disabled_skill_ids
+FROM organizations
+LEFT JOIN organization_member_skill_settings s
+    ON s.organization_id = organizations.id AND s.user_id = $2::uuid
+WHERE organizations.id = $1::uuid
+`
+
+type GetOrganizationSkillMemberPreferencesParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+type GetOrganizationSkillMemberPreferencesRow struct {
+	MembersCanDisableSkills bool        `db:"members_can_disable_skills" json:"members_can_disable_skills"`
+	AllSkillsDisabled       bool        `db:"all_skills_disabled" json:"all_skills_disabled"`
+	DisabledSkillIDs        []uuid.UUID `db:"disabled_skill_ids" json:"disabled_skill_ids"`
+}
+
+// Returns the organization's member opt-out setting and the member's stored
+// choices. Members without stored choices get the defaults.
+func (q *sqlQuerier) GetOrganizationSkillMemberPreferences(ctx context.Context, arg GetOrganizationSkillMemberPreferencesParams) (GetOrganizationSkillMemberPreferencesRow, error) {
+	row := q.db.QueryRowContext(ctx, getOrganizationSkillMemberPreferences, arg.OrganizationID, arg.UserID)
+	var i GetOrganizationSkillMemberPreferencesRow
+	err := row.Scan(&i.MembersCanDisableSkills, &i.AllSkillsDisabled, pq.Array(&i.DisabledSkillIDs))
+	return i, err
+}
+
 const getProjectSkillByIDForUpdate = `-- name: GetProjectSkillByIDForUpdate :one
 SELECT id, user_id, name, description, content, created_at, updated_at, organization_id, project_id, enabled, group_acl, user_acl, action, model_invocable
 FROM skills
@@ -29225,6 +29324,26 @@ func (q *sqlQuerier) GetUserSkillByUserIDAndName(ctx context.Context, arg GetUse
 		&i.ModelInvocable,
 	)
 	return i, err
+}
+
+const insertOrganizationMemberDisabledSkill = `-- name: InsertOrganizationMemberDisabledSkill :exec
+INSERT INTO organization_member_disabled_skills (organization_id, user_id, skill_id)
+SELECT $1::uuid, $2::uuid, skills.id
+FROM skills
+WHERE skills.id = $3::uuid AND skills.organization_id = $1::uuid
+ON CONFLICT DO NOTHING
+`
+
+type InsertOrganizationMemberDisabledSkillParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	SkillID        uuid.UUID `db:"skill_id" json:"skill_id"`
+}
+
+// Stores nothing unless the skill belongs to the organization.
+func (q *sqlQuerier) InsertOrganizationMemberDisabledSkill(ctx context.Context, arg InsertOrganizationMemberDisabledSkillParams) error {
+	_, err := q.db.ExecContext(ctx, insertOrganizationMemberDisabledSkill, arg.OrganizationID, arg.UserID, arg.SkillID)
+	return err
 }
 
 const insertOrganizationSkill = `-- name: InsertOrganizationSkill :one
@@ -29715,6 +29834,24 @@ func (q *sqlQuerier) UpdateUserSkillByUserIDAndName(ctx context.Context, arg Upd
 		&i.ModelInvocable,
 	)
 	return i, err
+}
+
+const upsertOrganizationMemberSkillSettings = `-- name: UpsertOrganizationMemberSkillSettings :exec
+INSERT INTO organization_member_skill_settings (organization_id, user_id, all_skills_disabled)
+VALUES ($1::uuid, $2::uuid, $3::boolean)
+ON CONFLICT (organization_id, user_id) DO UPDATE
+SET all_skills_disabled = EXCLUDED.all_skills_disabled
+`
+
+type UpsertOrganizationMemberSkillSettingsParams struct {
+	OrganizationID    uuid.UUID `db:"organization_id" json:"organization_id"`
+	UserID            uuid.UUID `db:"user_id" json:"user_id"`
+	AllSkillsDisabled bool      `db:"all_skills_disabled" json:"all_skills_disabled"`
+}
+
+func (q *sqlQuerier) UpsertOrganizationMemberSkillSettings(ctx context.Context, arg UpsertOrganizationMemberSkillSettingsParams) error {
+	_, err := q.db.ExecContext(ctx, upsertOrganizationMemberSkillSettings, arg.OrganizationID, arg.UserID, arg.AllSkillsDisabled)
+	return err
 }
 
 const cleanTailnetCoordinators = `-- name: CleanTailnetCoordinators :exec

@@ -522,7 +522,7 @@ func (p *Server) buildTurnEnvironment(
 		if err != nil {
 			return err
 		}
-		orgSkills, err = p.fetchOrganizationSkillMetadata(ctx, orgSkillReader, chat.OrganizationID)
+		orgSkills, err = p.fetchOrganizationSkillMetadata(ctx, orgSkillReader, chat.OwnerID, chat.OrganizationID)
 		return err
 	})
 	g2.Go(func() error {
@@ -770,7 +770,7 @@ func (p *Server) buildTurnEnvironment(
 		LoadStoredSkillBody: func(ctx context.Context, skill skillspkg.Skill) (skillspkg.ParsedSkill, error) {
 			switch skill.Source {
 			case skillspkg.SourceOrganization:
-				return p.loadOrganizationSkillBody(ctx, orgSkillReader, chat.OrganizationID, skill.Name, skillLoaderModel)
+				return p.loadOrganizationSkillBody(ctx, orgSkillReader, chat.OwnerID, chat.OrganizationID, skill.Name, skillLoaderModel)
 			case skillspkg.SourceProject:
 				return p.loadProjectSkillBody(ctx, usableProjectID.UUID, skill.Name, skillLoaderModel)
 			default:
@@ -2385,17 +2385,26 @@ func (p *Server) chatOwnerSubject(ctx context.Context, ownerID uuid.UUID) (rbac.
 func (p *Server) fetchOrganizationSkillMetadata(
 	ctx context.Context,
 	owner rbac.Subject,
+	ownerID uuid.UUID,
 	organizationID uuid.UUID,
 ) ([]skillspkg.Skill, error) {
 	//nolint:gocritic // Org skill ACLs are evaluated against the chat owner.
-	rows, err := p.db.ListOrganizationSkillMetadataByOrganizationID(dbauthz.As(ctx, owner), organizationID)
+	ownerCtx := dbauthz.As(ctx, owner)
+	rows, err := p.db.ListOrganizationSkillMetadataByOrganizationID(ownerCtx, organizationID)
 	if err != nil {
 		return nil, xerrors.Errorf("list organization skill metadata: %w", err)
+	}
+	prefs, err := p.db.GetOrganizationSkillMemberPreferences(ownerCtx, database.GetOrganizationSkillMemberPreferencesParams{
+		OrganizationID: organizationID,
+		UserID:         ownerID,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get organization skill member preferences: %w", err)
 	}
 
 	organizationSkills := make([]skillspkg.Skill, 0, len(rows))
 	for _, row := range rows {
-		if skillLoaderModel.hides(row.Enabled, row.ModelInvocable) {
+		if skillLoaderModel.hides(row.Enabled, row.ModelInvocable) || prefs.Excludes(row.ID) {
 			continue
 		}
 		organizationSkills = append(organizationSkills, skillspkg.Skill{
@@ -2410,13 +2419,15 @@ func (p *Server) fetchOrganizationSkillMetadata(
 func (p *Server) loadOrganizationSkillBody(
 	ctx context.Context,
 	owner rbac.Subject,
+	ownerID uuid.UUID,
 	organizationID uuid.UUID,
 	name string,
 	loader skillLoader,
 ) (skillspkg.ParsedSkill, error) {
 	//nolint:gocritic // Org skill ACLs are evaluated against the chat owner.
+	ownerCtx := dbauthz.As(ctx, owner)
 	row, err := p.db.GetOrganizationSkillByOrganizationIDAndName(
-		dbauthz.As(ctx, owner),
+		ownerCtx,
 		database.GetOrganizationSkillByOrganizationIDAndNameParams{
 			OrganizationID: organizationID,
 			Name:           name,
@@ -2435,6 +2446,18 @@ func (p *Server) loadOrganizationSkillBody(
 		return skillspkg.ParsedSkill{}, xerrors.Errorf("load organization skill body: %w", err)
 	}
 	if loader.hides(row.Enabled, row.ModelInvocable) {
+		return skillspkg.ParsedSkill{}, skillspkg.ErrSkillNotFound
+	}
+	// Re-check at load time so an opt-out made mid-chat applies to the
+	// next load.
+	prefs, err := p.db.GetOrganizationSkillMemberPreferences(ownerCtx, database.GetOrganizationSkillMemberPreferencesParams{
+		OrganizationID: organizationID,
+		UserID:         ownerID,
+	})
+	if err != nil {
+		return skillspkg.ParsedSkill{}, xerrors.Errorf("get organization skill member preferences: %w", err)
+	}
+	if prefs.Excludes(row.ID) {
 		return skillspkg.ParsedSkill{}, skillspkg.ErrSkillNotFound
 	}
 

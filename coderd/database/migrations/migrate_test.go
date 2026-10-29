@@ -1637,15 +1637,14 @@ func testMigration000595RemoveTaskPermissions(t *testing.T, sqlDB *sql.DB, next 
 func testMigration000587RemoveAgentsAccessRole(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
 	const migrationVersion = 587
 
+	ctx := testutil.Context(t, testutil.WaitLong)
 	db := database.New(sqlDB)
 	user := dbgen.User(t, db, database.User{
 		RBACRoles: []string{"auditor", "agents-access"},
 	})
-	org := dbgen.Organization(t, db, database.Organization{
-		DefaultOrgMemberRoles: []string{"organization-workspace-access", "agents-access"},
-	})
+	orgID := insertMigrationTestOrganization(ctx, t, sqlDB, []string{"organization-workspace-access", "agents-access"})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
-		OrganizationID: org.ID,
+		OrganizationID: orgID,
 		UserID:         user.ID,
 		Roles:          []string{"organization-auditor", "agents-access"},
 	})
@@ -1654,13 +1653,12 @@ func testMigration000587RemoveAgentsAccessRole(t *testing.T, sqlDB *sql.DB, next
 	require.NoError(t, err)
 	require.EqualValues(t, migrationVersion, version)
 
-	ctx := testutil.Context(t, testutil.WaitLong)
 	var siteRoles, orgRoles, defaultRoles pq.StringArray
 	err = sqlDB.QueryRowContext(ctx, "SELECT rbac_roles FROM users WHERE id = $1", user.ID).Scan(&siteRoles)
 	require.NoError(t, err)
-	err = sqlDB.QueryRowContext(ctx, "SELECT roles FROM organization_members WHERE organization_id = $1 AND user_id = $2", org.ID, user.ID).Scan(&orgRoles)
+	err = sqlDB.QueryRowContext(ctx, "SELECT roles FROM organization_members WHERE organization_id = $1 AND user_id = $2", orgID, user.ID).Scan(&orgRoles)
 	require.NoError(t, err)
-	err = sqlDB.QueryRowContext(ctx, "SELECT default_org_member_roles FROM organizations WHERE id = $1", org.ID).Scan(&defaultRoles)
+	err = sqlDB.QueryRowContext(ctx, "SELECT default_org_member_roles FROM organizations WHERE id = $1", orgID).Scan(&defaultRoles)
 	require.NoError(t, err)
 
 	require.Equal(t, []string{"auditor"}, []string(siteRoles))
@@ -1684,11 +1682,7 @@ func testMigration000602RestoreAgentsAccessDefaultRole(t *testing.T, sqlDB *sql.
 	}
 	orgIDs := make([]uuid.UUID, len(orgs))
 	for i, o := range orgs {
-		org := dbgen.Organization(t, db, database.Organization{})
-		// dbgen replaces an empty slice with the current defaults.
-		_, err := sqlDB.ExecContext(ctx, "UPDATE organizations SET default_org_member_roles = $1 WHERE id = $2", pq.StringArray(o.defaults), org.ID)
-		require.NoError(t, err)
-		orgIDs[i] = org.ID
+		orgIDs[i] = insertMigrationTestOrganization(ctx, t, sqlDB, o.defaults)
 	}
 
 	member := dbgen.User(t, db, database.User{})
@@ -4486,7 +4480,9 @@ func testMigration000625TemplateVersionScriptOrderUsage(t *testing.T, sqlDB *sql
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db := database.New(sqlDB)
-	org, err := db.GetDefaultOrganization(ctx)
+	// Avoid GetDefaultOrganization: it reads columns added by later migrations.
+	var orgID uuid.UUID
+	err := sqlDB.QueryRowContext(ctx, `SELECT id FROM organizations WHERE is_default`).Scan(&orgID)
 	require.NoError(t, err)
 	user := dbgen.User(t, db, database.User{})
 	// GIVEN: An existing template version and a user-secrets telemetry lock.
@@ -4494,7 +4490,7 @@ func testMigration000625TemplateVersionScriptOrderUsage(t *testing.T, sqlDB *sql
 	legacyID := uuid.New()
 	err = db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
 		ID:             legacyID,
-		OrganizationID: org.ID,
+		OrganizationID: orgID,
 		CreatedBy:      user.ID,
 		JobID:          uuid.New(),
 		Name:           testutil.GetRandomName(t),
@@ -4531,7 +4527,7 @@ func testMigration000625TemplateVersionScriptOrderUsage(t *testing.T, sqlDB *sql
 
 	// An older provisioner omits the counts, so new rows also default to zero.
 	newVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-		OrganizationID: org.ID,
+		OrganizationID: orgID,
 		CreatedBy:      user.ID,
 	})
 	require.Zero(t, newVersion.ScriptOrderDataSourceCount)
@@ -4668,6 +4664,21 @@ func TestMigration000627WorkspaceAgentScriptTimingSkippedCanceled(t *testing.T) 
 	_, err = sqlDB.ExecContext(ctx, string(upSQL))
 	require.NoError(t, err)
 	require.Equal(t, []string{"ok", "exit_failure", "timed_out", "pipes_left_open", "skipped", "canceled"}, enumValues())
+}
+
+// insertMigrationTestOrganization inserts an organization with raw SQL for
+// tests that run at an older schema version. dbgen.Organization reads back
+// every column of the current schema, so it fails before a later migration
+// adds a column to organizations.
+func insertMigrationTestOrganization(ctx context.Context, t *testing.T, sqlDB *sql.DB, defaultOrgMemberRoles []string) uuid.UUID {
+	t.Helper()
+	id := uuid.New()
+	_, err := sqlDB.ExecContext(ctx,
+		`INSERT INTO organizations (id, name, display_name, description, created_at, updated_at, default_org_member_roles) VALUES ($1, $2, $2, '', NOW(), NOW(), $3)`,
+		id, "org-"+id.String(), pq.StringArray(defaultOrgMemberRoles),
+	)
+	require.NoError(t, err)
+	return id
 }
 
 func testMigration000635ChatModelOverrideComputerUse(t *testing.T, sqlDB *sql.DB, next migrationStepper) {

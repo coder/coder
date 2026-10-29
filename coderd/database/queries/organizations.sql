@@ -135,6 +135,16 @@ WHERE
     id = @id
 RETURNING *;
 
+-- name: UpdateOrganizationMembersCanDisableSkills :one
+UPDATE
+    organizations
+SET
+    members_can_disable_skills = @members_can_disable_skills,
+    updated_at = @updated_at
+WHERE
+    id = @id
+RETURNING *;
+
 -- name: UpdateOrganizationDeletedByID :exec
 UPDATE organizations
 SET
