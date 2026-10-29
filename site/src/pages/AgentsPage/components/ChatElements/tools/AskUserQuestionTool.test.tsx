@@ -83,11 +83,11 @@ describe("AskUserQuestionTool", () => {
 
 		await user.click(screen.getByRole("button", { name: "Next" }));
 		expect(document.activeElement).toHaveTextContent(
-			"How should the change ship?",
+			/^How should the change ship\?$/,
 		);
 		await user.click(screen.getByRole("button", { name: "Back" }));
 		expect(document.activeElement).toHaveTextContent(
-			"How should we structure the database migration?",
+			/^How should we structure the database migration\?$/,
 		);
 	});
 
