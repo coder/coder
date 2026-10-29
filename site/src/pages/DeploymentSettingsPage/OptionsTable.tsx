@@ -48,14 +48,14 @@ const OptionsTable: React.FC<OptionsTableProps> = ({
 					return (
 						<TableRow key={option.flag} className={`option-${option.flag}`}>
 							<TableCell>
-								<div className="flex items-center gap-2">
-									<OptionName>{option.name}</OptionName>
-									{showPremiumNotice && <PremiumBadge />}
-								</div>
+								<OptionName>{option.name}</OptionName>
 								{showPremiumNotice && (
-									<span className="block text-xs text-content-secondary">
-										Requires a Premium license to take effect.
-									</span>
+									<div className="flex items-center gap-2 py-1">
+										<PremiumBadge />
+										<span className="text-sm font-normal">
+											Requires a Premium license to take effect.
+										</span>
+									</div>
 								)}
 								<OptionDescription>{option.description}</OptionDescription>
 								<div className="pt-2 flex flex-wrap gap-2">
