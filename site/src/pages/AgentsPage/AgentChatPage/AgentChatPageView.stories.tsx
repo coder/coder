@@ -47,6 +47,7 @@ import { MessageScroller } from "#/vendor/message-scroller";
 import type { ChatDetailError } from "../components/ChatConversation/chatError";
 import { createChatStore } from "../components/ChatConversation/chatStore";
 import { buildLongConversation } from "../components/ChatConversation/storyFixtures";
+import { OVERVIEW_CARD_OPEN_KEY } from "../hooks/useOverviewCard";
 import { visibleSingletonTabsStorageKeyPrefix } from "../utils/rightPanelTabStorage";
 import type { SingletonRightPanelTabId } from "../utils/rightPanelTabs";
 import { lastActiveSidebarTabStorageKeyPrefix } from "../utils/sidebarTabStorage";
@@ -885,6 +886,128 @@ export const EmbeddedViewport: Story = {
 		),
 	],
 	render: () => <StoryAgentChatPageView store={embeddedViewportStore} />,
+};
+
+const overviewCardStore = buildStoreWithMessages(
+	buildLongConversation(AGENT_ID, 12),
+);
+
+const mockOverviewCardChat: Partial<TypesGen.Chat> = {
+	diff_statuses: [
+		{
+			...MockChatDiffStatus,
+			chat_id: AGENT_ID,
+			additions: 42,
+			deletions: 7,
+		},
+	],
+	children: [
+		buildChat({
+			id: "overview-sub-1",
+			title: "Find the flaky queue test",
+			status: "running",
+			parent_chat_id: AGENT_ID,
+		}),
+	],
+};
+
+const mockOverviewCardGitWatcher: React.ComponentProps<
+	typeof AgentChatPageView
+>["gitWatcher"] = {
+	...buildGitWatcher(),
+	repositories: new Map([
+		[
+			"/home/coder/coder",
+			{
+				repo_root: "/home/coder/coder",
+				branch: "ci/queue-only-jobs",
+				unified_diff: [
+					"diff --git a/ci.yaml b/ci.yaml",
+					"--- a/ci.yaml",
+					"+++ b/ci.yaml",
+					"@@ -1,3 +1,4 @@",
+					"-jobs: all",
+					"+jobs: changed",
+					"+queue: true",
+				].join("\n"),
+			},
+		],
+	]),
+};
+
+// The chat widths are a 1920px, a 1440px, and a 1280px window less the
+// 320px left sidebar.
+const overviewCardFrame =
+	(chatWidth: number): Decorator =>
+	(Story) => (
+		<div style={{ display: "flex", height: 640, width: chatWidth }}>
+			<Story />
+		</div>
+	);
+
+/** Stores the card as open, as a click on the toggle does, for one story. */
+const openOverviewCard = () => {
+	localStorage.setItem(OVERVIEW_CARD_OPEN_KEY, "true");
+	return () => localStorage.removeItem(OVERVIEW_CARD_OPEN_KEY);
+};
+
+/** A wide chat: the card opens in the margin and the transcript stays put. */
+export const OverviewCardBesideTranscript: Story = {
+	decorators: [overviewCardFrame(1600)],
+	beforeEach: openOverviewCard,
+	render: () => (
+		<StoryAgentChatPageView
+			store={overviewCardStore}
+			chat={mockOverviewCardChat}
+			gitWatcher={mockOverviewCardGitWatcher}
+		/>
+	),
+};
+
+/** A mid-width chat: the transcript and composer move left to clear the card. */
+export const OverviewCardMovesTranscript: Story = {
+	decorators: [overviewCardFrame(1120)],
+	beforeEach: openOverviewCard,
+	render: () => (
+		<StoryAgentChatPageView
+			store={overviewCardStore}
+			chat={mockOverviewCardChat}
+			gitWatcher={mockOverviewCardGitWatcher}
+		/>
+	),
+};
+
+/** An open card on a narrow chat: no card and no toggle. */
+export const OverviewCardHiddenWhenNarrow: Story = {
+	decorators: [overviewCardFrame(960)],
+	beforeEach: openOverviewCard,
+	render: () => (
+		<StoryAgentChatPageView
+			store={overviewCardStore}
+			chat={mockOverviewCardChat}
+			gitWatcher={mockOverviewCardGitWatcher}
+		/>
+	),
+};
+
+/** An open card with a full-width transcript: no card and no toggle. */
+export const OverviewCardHiddenInFullWidth: Story = {
+	decorators: [overviewCardFrame(1600)],
+	beforeEach: () => {
+		const close = openOverviewCard();
+		localStorage.setItem("agents.chat-full-width", "true");
+		return () => {
+			close();
+			localStorage.removeItem("agents.chat-full-width");
+		};
+	},
+	render: () => (
+		<StoryAgentChatPageView
+			store={overviewCardStore}
+			chat={mockOverviewCardChat}
+			gitWatcher={mockOverviewCardGitWatcher}
+		/>
+	),
 };
 
 const otherUserActionMessages: TypesGen.ChatMessage[] = [

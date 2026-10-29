@@ -5,6 +5,7 @@ import {
 	ChevronRightIcon,
 	EllipsisVerticalIcon,
 	GitPullRequestArrowIcon,
+	ListIcon,
 	PanelLeftIcon,
 	PanelRightCloseIcon,
 	PanelRightOpenIcon,
@@ -41,6 +42,7 @@ import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
 import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
+import type { OverviewCardState } from "../hooks/useOverviewCard";
 import { prNumber } from "../utils/pullRequest";
 import { clearPersistedRightPanelState } from "../utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "../utils/sidebarTabStorage";
@@ -50,6 +52,7 @@ import {
 	chatFamilyAllowsArchive,
 } from "./ChatActionsMenuItems";
 import { getParentChatID } from "./ChatConversation/chatHelpers";
+import { overviewToggleClassName } from "./ChatOverviewCard";
 import { ChatSharingPopoverContent } from "./ChatSharingPopover";
 import { useEmbedContext } from "./EmbedContext";
 import { PrStateIcon } from "./GitPanel/GitPanel";
@@ -69,6 +72,11 @@ type ChatTopBarProps = {
 	chat?: TypesGen.Chat;
 	liveChatStatus?: TypesGen.ChatStatus | null;
 	panel: SidebarPanelState;
+	/**
+	 * The overview card toggle. Absent while the card cannot exist (right
+	 * panel open, full-width chat, embed). Below 66rem it renders hidden.
+	 */
+	overview?: OverviewCardState;
 };
 
 const ChatSharingTopBarButton: React.FC<ChatSharingTopBarButtonProps> = ({
@@ -112,6 +120,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 	chat,
 	liveChatStatus,
 	panel,
+	overview,
 }) => {
 	const { isEmbedded } = useEmbedContext();
 	const { user: currentUser } = useAuthenticated();
@@ -365,6 +374,22 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 						chatId={chat.id}
 						organizationId={chat.organization_id}
 					/>
+				)}
+				{overview && (
+					<Button
+						variant="subtle"
+						size="icon"
+						onClick={overview.toggle}
+						className={cn(
+							"size-7 text-content-secondary hover:text-content-primary",
+							overview.isOpen && "bg-surface-secondary text-content-primary",
+							overviewToggleClassName,
+						)}
+						aria-label="Toggle overview"
+						aria-expanded={overview.isOpen}
+					>
+						<ListIcon className="size-4" />
+					</Button>
 				)}
 				{!isEmbedded && (
 					<Button
