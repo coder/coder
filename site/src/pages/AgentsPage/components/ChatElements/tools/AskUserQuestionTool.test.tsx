@@ -203,6 +203,37 @@ describe("AskUserQuestionTool", () => {
 		).toHaveValue("");
 	});
 
+	it("drops a saved draft once the question shows an answer", async () => {
+		const user = userEvent.setup();
+		const queryClient = createTestQueryClient();
+		const DraftQuestion: React.FC<{ previousResponseText?: string }> = ({
+			previousResponseText,
+		}) => (
+			<QueryClientProvider client={queryClient}>
+				<AskUserQuestionTool
+					questions={questions}
+					status="completed"
+					isError={false}
+					isChatCompleted
+					isLatestAskUserQuestion
+					toolCallId="call-answered"
+					previousResponseText={previousResponseText}
+					onSubmitAnswer={vi.fn()}
+				/>
+			</QueryClientProvider>
+		);
+		const { rerender } = render(<DraftQuestion />);
+		await user.type(
+			screen.getByRole("textbox", { name: /other response/i }),
+			"Later",
+		);
+		expect(localStorage).toHaveLength(1);
+
+		rerender(<DraftQuestion previousResponseText="Single migration" />);
+
+		expect(localStorage).toHaveLength(0);
+	});
+
 	it.each([
 		{ removal: "after its send resolves", isSendPending: false },
 		{ removal: "while its send is pending", isSendPending: true },

@@ -53,9 +53,8 @@ describe("readFormDraft", () => {
 		},
 	])("ignores a draft with $name", ({ raw, read }) => {
 		saveFormDraft("call-1", mockQuestions, mockFormDraft);
-		const storageKey = localStorage.key(0);
-		if (raw !== undefined && storageKey !== null) {
-			localStorage.setItem(storageKey, raw);
+		if (raw !== undefined) {
+			localStorage.setItem("agents.ask-user-question-draft.call-1", raw);
 		}
 
 		expect(readFormDraft("call-1", read)).toBeUndefined();

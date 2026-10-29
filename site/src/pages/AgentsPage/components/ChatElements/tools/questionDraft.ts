@@ -70,7 +70,7 @@ export const readFormDraft = (
 		!isEqual(savedQuestions, questions) ||
 		!Array.isArray(drafts) ||
 		drafts.length !== questions.length ||
-		!drafts.every((draft: unknown, index) =>
+		!drafts.every((draft: unknown, index): draft is QuestionDraft =>
 			isQuestionDraft(draft, questions[index].options.length),
 		) ||
 		!isIntegerInRange(questionIndex, questions.length - 1) ||

@@ -380,7 +380,7 @@ type AskUserQuestionFormProps = {
 	/** An answer that the queue or the transcript already shows. */
 	previousResponseText?: string;
 	asyncToolCallId?: string;
-	/** Saves the unsent answers in the browser under this key until a send succeeds. */
+	/** Saves the unsent answers under this key until the form shows an answer. */
 	draftKey?: string;
 	showSubmittedAnswer: boolean;
 	/** The form is read-only without it, and once it shows an answer. */
@@ -570,7 +570,7 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 	};
 
 	const submit = (finalDrafts: QuestionDraft[]) => {
-		if (!isInteractive || !finalDrafts.every(isDraftAnswered)) {
+		if (!finalDrafts.every(isDraftAnswered)) {
 			return;
 		}
 
@@ -804,6 +804,12 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 		Boolean(onSubmitAnswer);
 	const isClosed =
 		isAsync && isCompleted && !isLatestAskUserQuestion && !isAnswered;
+	// A closed question cannot take its draft any more.
+	useEffect(() => {
+		if (isClosed && toolCallId !== undefined) {
+			removeFormDraft(getDraftKey(toolCallId, startedAt));
+		}
+	}, [isClosed, toolCallId, startedAt]);
 
 	// The agent keeps working, so the question needs its own announcement.
 	// Screen readers announce only changes to a live region that already

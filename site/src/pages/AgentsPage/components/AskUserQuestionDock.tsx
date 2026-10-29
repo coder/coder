@@ -41,7 +41,7 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 			hidden={queuedAnswerText !== undefined}
 			ref={scrollerRef}
 			// A stable scrollbar gutter, as on the chat input's wrapper, keeps the two aligned.
-			className="flex max-h-[60vh] min-h-0 flex-col overflow-y-auto px-4 scrollbar-gutter-stable scrollbar-thin"
+			className="flex max-h-[60vh] min-h-0 scroll-pb-14 flex-col overflow-y-auto px-4 scrollbar-gutter-stable scrollbar-thin"
 		>
 			{/* Shrinks before the chat input does, so a long question set never
 			    pushes the input off a short screen. */}
