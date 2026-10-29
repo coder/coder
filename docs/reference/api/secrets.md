@@ -18,11 +18,14 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/secrets \
 
 `GET /api/v2/users/{user}/secrets`
 
+Returns the metadata of a user's secrets, without their values.
+You can read only your own secrets, because no built-in role grants access to other users' secrets.
+
 ### Parameters
 
-| Name   | In   | Type   | Required | Description              |
-|--------|------|--------|----------|--------------------------|
-| `user` | path | string | true     | User ID, username, or me |
+| Name   | In   | Type   | Required | Description                                            |
+|--------|------|--------|----------|--------------------------------------------------------|
+| `user` | path | string | true     | User ID, username, or `me` for the authenticated user. |
 
 ### Example responses
 
@@ -81,6 +84,10 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/secrets \
 
 `POST /api/v2/users/{user}/secrets`
 
+Creates a secret for a user and returns its metadata without its value.
+An enabled secret is injected into the user's workspaces as the environment variable `env_name`, the file `file_path`, or both, so it needs at least one of them.
+Each user can store up to 50 secrets, 200 KiB in total.
+
 > Body parameter
 
 ```json
@@ -96,10 +103,10 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/secrets \
 
 ### Parameters
 
-| Name   | In   | Type                                                                           | Required | Description              |
-|--------|------|--------------------------------------------------------------------------------|----------|--------------------------|
-| `user` | path | string                                                                         | true     | User ID, username, or me |
-| `body` | body | [codersdk.CreateUserSecretRequest](schemas.md#codersdkcreateusersecretrequest) | true     | Create secret request    |
+| Name   | In   | Type                                                                           | Required | Description                                                                                                       |
+|--------|------|--------------------------------------------------------------------------------|----------|-------------------------------------------------------------------------------------------------------------------|
+| `user` | path | string                                                                         | true     | User ID, username, or `me` for the authenticated user.                                                            |
+| `body` | body | [codersdk.CreateUserSecretRequest](schemas.md#codersdkcreateusersecretrequest) | true     | Secret to create. `name` and `value` are required, and `value` can be up to 24 KiB. `enabled` defaults to `true`. |
 
 ### Example responses
 
@@ -142,6 +149,11 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/secrets/batch \
 
 `POST /api/v2/users/{user}/secrets/batch`
 
+Creates several secrets at once from the contents of a secrets file, and returns their metadata without the values.
+Set `format` to `env`, `json`, or `yaml`, and `content` to the file's text.
+The file can hold up to 50 secrets, and the import is atomic, so if any entry is invalid none are created.
+A key that isn't a valid environment variable name is imported with no `env_name` and with `enabled` set to `false`.
+
 > Body parameter
 
 ```json
@@ -153,10 +165,10 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/secrets/batch \
 
 ### Parameters
 
-| Name   | In   | Type                                                                             | Required | Description              |
-|--------|------|----------------------------------------------------------------------------------|----------|--------------------------|
-| `user` | path | string                                                                           | true     | User ID, username, or me |
-| `body` | body | [codersdk.ImportUserSecretsRequest](schemas.md#codersdkimportusersecretsrequest) | true     | Import secrets request   |
+| Name   | In   | Type                                                                             | Required | Description                                                                                                  |
+|--------|------|----------------------------------------------------------------------------------|----------|--------------------------------------------------------------------------------------------------------------|
+| `user` | path | string                                                                           | true     | User ID, username, or `me` for the authenticated user.                                                       |
+| `body` | body | [codersdk.ImportUserSecretsRequest](schemas.md#codersdkimportusersecretsrequest) | true     | Secrets file to import. `format` is `env`, `json`, or `yaml`, and `content` is the file's text, up to 1 MiB. |
 
 ### Example responses
 
@@ -217,12 +229,14 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/secrets/{name} \
 
 `GET /api/v2/users/{user}/secrets/{name}`
 
+Returns the metadata of one of a user's secrets by name, without its value.
+
 ### Parameters
 
-| Name   | In   | Type   | Required | Description              |
-|--------|------|--------|----------|--------------------------|
-| `user` | path | string | true     | User ID, username, or me |
-| `name` | path | string | true     | Secret name              |
+| Name   | In   | Type   | Required | Description                                            |
+|--------|------|--------|----------|--------------------------------------------------------|
+| `user` | path | string | true     | User ID, username, or `me` for the authenticated user. |
+| `name` | path | string | true     | Name of the secret, as set when it was created.        |
 
 ### Example responses
 
@@ -261,12 +275,14 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user}/secrets/{name} \
 
 `DELETE /api/v2/users/{user}/secrets/{name}`
 
+Deletes one of a user's secrets by name.
+
 ### Parameters
 
-| Name   | In   | Type   | Required | Description              |
-|--------|------|--------|----------|--------------------------|
-| `user` | path | string | true     | User ID, username, or me |
-| `name` | path | string | true     | Secret name              |
+| Name   | In   | Type   | Required | Description                                            |
+|--------|------|--------|----------|--------------------------------------------------------|
+| `user` | path | string | true     | User ID, username, or `me` for the authenticated user. |
+| `name` | path | string | true     | Name of the secret, as set when it was created.        |
 
 ### Responses
 
@@ -290,6 +306,9 @@ curl -X PATCH http://coder-server:8080/api/v2/users/{user}/secrets/{name} \
 
 `PATCH /api/v2/users/{user}/secrets/{name}`
 
+Updates the fields you send on one of a user's secrets and returns its metadata.
+Send at least one field, and keep an `env_name` or `file_path` on a secret that stays enabled.
+
 > Body parameter
 
 ```json
@@ -304,11 +323,11 @@ curl -X PATCH http://coder-server:8080/api/v2/users/{user}/secrets/{name} \
 
 ### Parameters
 
-| Name   | In   | Type                                                                           | Required | Description              |
-|--------|------|--------------------------------------------------------------------------------|----------|--------------------------|
-| `user` | path | string                                                                         | true     | User ID, username, or me |
-| `name` | path | string                                                                         | true     | Secret name              |
-| `body` | body | [codersdk.UpdateUserSecretRequest](schemas.md#codersdkupdateusersecretrequest) | true     | Update secret request    |
+| Name   | In   | Type                                                                           | Required | Description                                                                      |
+|--------|------|--------------------------------------------------------------------------------|----------|----------------------------------------------------------------------------------|
+| `user` | path | string                                                                         | true     | User ID, username, or `me` for the authenticated user.                           |
+| `name` | path | string                                                                         | true     | Name of the secret, as set when it was created.                                  |
+| `body` | body | [codersdk.UpdateUserSecretRequest](schemas.md#codersdkupdateusersecretrequest) | true     | Fields to change. Send at least one field, and fields you omit stay as they are. |
 
 ### Example responses
 

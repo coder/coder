@@ -134,13 +134,16 @@ func (api *API) userSecretsCapabilities(rw http.ResponseWriter, r *http.Request)
 }
 
 // @Summary Create a new user secret
+// @Description Creates a secret for a user and returns its metadata without its value.
+// @Description An enabled secret is injected into the user's workspaces as the environment variable `env_name`, the file `file_path`, or both, so it needs at least one of them.
+// @Description Each user can store up to 50 secrets, 200 KiB in total.
 // @ID create-a-new-user-secret
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Secrets
-// @Param user path string true "User ID, username, or me"
-// @Param request body codersdk.CreateUserSecretRequest true "Create secret request"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
+// @Param request body codersdk.CreateUserSecretRequest true "Secret to create. `name` and `value` are required, and `value` can be up to 24 KiB. `enabled` defaults to `true`."
 // @Success 201 {object} codersdk.UserSecret
 // @Failure 400 {object} codersdk.Response
 // @Failure 409 {object} codersdk.Response
@@ -214,13 +217,17 @@ func (api *API) postUserSecret(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Import user secrets from a file
+// @Description Creates several secrets at once from the contents of a secrets file, and returns their metadata without the values.
+// @Description Set `format` to `env`, `json`, or `yaml`, and `content` to the file's text.
+// @Description The file can hold up to 50 secrets, and the import is atomic, so if any entry is invalid none are created.
+// @Description A key that isn't a valid environment variable name is imported with no `env_name` and with `enabled` set to `false`.
 // @ID import-user-secrets-from-a-file
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Secrets
-// @Param user path string true "User ID, username, or me"
-// @Param request body codersdk.ImportUserSecretsRequest true "Import secrets request"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
+// @Param request body codersdk.ImportUserSecretsRequest true "Secrets file to import. `format` is `env`, `json`, or `yaml`, and `content` is the file's text, up to 1 MiB."
 // @Success 201 {array} codersdk.UserSecret
 // @Failure 400 {object} codersdk.Response
 // @Failure 409 {object} codersdk.Response
@@ -351,11 +358,13 @@ func (api *API) postUserSecretsBatch(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary List user secrets
+// @Description Returns the metadata of a user's secrets, without their values.
+// @Description You can read only your own secrets, because no built-in role grants access to other users' secrets.
 // @ID list-user-secrets
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Secrets
-// @Param user path string true "User ID, username, or me"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Success 200 {array} codersdk.UserSecret
 // @Router /api/v2/users/{user}/secrets [get]
 func (api *API) getUserSecrets(rw http.ResponseWriter, r *http.Request) { //nolint:revive // Method name matches route.
@@ -375,12 +384,13 @@ func (api *API) getUserSecrets(rw http.ResponseWriter, r *http.Request) { //noli
 }
 
 // @Summary Get a user secret by name
+// @Description Returns the metadata of one of a user's secrets by name, without its value.
 // @ID get-a-user-secret-by-name
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Secrets
-// @Param user path string true "User ID, username, or me"
-// @Param name path string true "Secret name"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
+// @Param name path string true "Name of the secret, as set when it was created."
 // @Success 200 {object} codersdk.UserSecret
 // @Router /api/v2/users/{user}/secrets/{name} [get]
 func (api *API) getUserSecret(rw http.ResponseWriter, r *http.Request) { //nolint:revive // Method name matches route.
@@ -408,14 +418,16 @@ func (api *API) getUserSecret(rw http.ResponseWriter, r *http.Request) { //nolin
 }
 
 // @Summary Update a user secret
+// @Description Updates the fields you send on one of a user's secrets and returns its metadata.
+// @Description Send at least one field, and keep an `env_name` or `file_path` on a secret that stays enabled.
 // @ID update-a-user-secret
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Secrets
-// @Param user path string true "User ID, username, or me"
-// @Param name path string true "Secret name"
-// @Param request body codersdk.UpdateUserSecretRequest true "Update secret request"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
+// @Param name path string true "Name of the secret, as set when it was created."
+// @Param request body codersdk.UpdateUserSecretRequest true "Fields to change. Send at least one field, and fields you omit stay as they are."
 // @Success 200 {object} codersdk.UserSecret
 // @Failure 400 {object} codersdk.Response
 // @Failure 409 {object} codersdk.Response
@@ -577,11 +589,12 @@ func (api *API) patchUserSecret(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Delete a user secret
+// @Description Deletes one of a user's secrets by name.
 // @ID delete-a-user-secret
 // @Security CoderSessionToken
 // @Tags Secrets
-// @Param user path string true "User ID, username, or me"
-// @Param name path string true "Secret name"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
+// @Param name path string true "Name of the secret, as set when it was created."
 // @Success 204
 // @Router /api/v2/users/{user}/secrets/{name} [delete]
 func (api *API) deleteUserSecret(rw http.ResponseWriter, r *http.Request) {
