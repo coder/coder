@@ -1334,7 +1334,7 @@ func TestWorker_NotImplementedBackoff(t *testing.T) {
 	}
 	tokens := func(context.Context, uuid.UUID, string) (*string, error) {
 		t.Error("token resolution should not be attempted for an unimplemented provider")
-		return nil, nil
+		return nil, xerrors.New("unexpected token resolution")
 	}
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})

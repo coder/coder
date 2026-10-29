@@ -255,7 +255,9 @@ func TestRefresher_BranchNoPRYet(t *testing.T) {
 func TestRefresher_NoProviderForOrigin(t *testing.T) {
 	t.Parallel()
 
-	providers := func(_ context.Context, _ string) (gitprovider.Provider, error) { return nil, nil }
+	providers := func(_ context.Context, _ string) (gitprovider.Provider, error) {
+		return nil, nil //nolint:nilnil // ProviderResolver contract: nil, nil means no config matches the origin.
+	}
 	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
 		return new("test-token"), nil
 	}
@@ -280,6 +282,37 @@ func TestRefresher_NoProviderForOrigin(t *testing.T) {
 	assert.Nil(t, res.Params)
 	require.Error(t, res.Error)
 	assert.Contains(t, res.Error.Error(), "no provider")
+}
+
+func TestRefresher_ProviderResolutionFails(t *testing.T) {
+	t.Parallel()
+
+	resolveErr := xerrors.New("construct git provider \"gl\"")
+	providers := func(_ context.Context, _ string) (gitprovider.Provider, error) { return nil, resolveErr }
+	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
+		t.Error("token resolution should not be attempted when the provider cannot be resolved")
+		return nil, xerrors.New("unexpected token resolution")
+	}
+
+	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal())
+
+	row := database.ChatDiffStatus{
+		ChatID:          uuid.New(),
+		Url:             sql.NullString{String: "https://example.com/pr/1", Valid: true},
+		GitRemoteOrigin: "https://example.com/org/repo",
+		GitBranch:       "feature",
+	}
+
+	results, err := r.Refresh(context.Background(), []gitsync.RefreshRequest{
+		{Row: row, OwnerID: uuid.New()},
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	res := results[0]
+
+	assert.Nil(t, res.Params)
+	require.ErrorIs(t, res.Error, resolveErr)
+	assert.NotErrorIs(t, res.Error, gitsync.ErrProviderUnimplemented)
 }
 
 func TestRefresher_TokenResolutionFails(t *testing.T) {

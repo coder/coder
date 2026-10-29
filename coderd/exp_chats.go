@@ -4738,7 +4738,6 @@ func (api *API) resolveExternalAuth(ctx context.Context, origin string) (provide
 		if extAuth.Regex == nil || !extAuth.Regex.MatchString(origin) {
 			continue
 		}
-		normalizedType := strings.ToLower(strings.TrimSpace(extAuth.Type))
 		p, gitErr := extAuth.Git()
 		if gitErr != nil {
 			api.Logger.Warn(ctx, "failed to construct git provider",
@@ -4756,12 +4755,12 @@ func (api *API) resolveExternalAuth(ctx context.Context, origin string) (provide
 			// types and for git types Coder has not implemented.
 			// Only the latter is worth reporting, and only if no
 			// later config matches with a working provider.
-			if codersdk.EnhancedExternalAuthProvider(normalizedType).Git() {
+			if codersdk.EnhancedExternalAuthProvider(strings.ToLower(extAuth.Type)).Git() {
 				unimplemented = true
 			}
 			continue
 		}
-		return normalizedType, p, nil
+		return strings.ToLower(strings.TrimSpace(extAuth.Type)), p, nil
 	}
 	if constructErr != nil {
 		return "", nil, constructErr
@@ -4773,8 +4772,8 @@ func (api *API) resolveExternalAuth(ctx context.Context, origin string) (provide
 }
 
 // resolveGitProvider finds the external auth config matching the
-// given remote origin URL and returns its git provider. Returns
-// nil if no matching git provider is configured.
+// given remote origin URL and returns its git provider. Errors
+// follow resolveExternalAuth.
 func (api *API) resolveGitProvider(ctx context.Context, origin string) (gitprovider.Provider, error) {
 	_, gp, err := api.resolveExternalAuth(ctx, origin)
 	return gp, err

@@ -897,6 +897,13 @@ func TestResolveExternalAuthProviderErrors(t *testing.T) {
 			origin:  origin,
 		},
 		{
+			// Config.Git() does not trim the type, so a padded type is
+			// not a git provider and must not be reported as one.
+			name:    "padded type is not treated as a git type",
+			configs: []*externalauth.Config{newConfig("gh", "github ", `github\.com`)},
+			origin:  "https://github.com/owner/repo",
+		},
+		{
 			// A provider that failed to build is a deployment
 			// misconfiguration the operator can fix, so it must not
 			// be reported as an unimplemented git type.
