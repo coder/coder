@@ -70,6 +70,22 @@ WHERE
 GROUP BY
     user_id;
 
+-- name: LockOrganizationMembersByUserIDsForShare :many
+-- Locks the listed users' membership rows with FOR KEY SHARE for the rest of
+-- the current transaction. FOR KEY SHARE conflicts with DELETE, so a member
+-- cannot be removed until the transaction ends, and a removal committed
+-- earlier is observed as a missing row.
+SELECT
+    user_id
+FROM
+    organization_members
+WHERE
+    organization_id = @organization_id
+    AND user_id = ANY(@user_ids :: uuid [ ])
+ORDER BY
+    user_id
+FOR KEY SHARE;
+
 -- name: UpdateMemberRoles :one
 UPDATE
 	organization_members

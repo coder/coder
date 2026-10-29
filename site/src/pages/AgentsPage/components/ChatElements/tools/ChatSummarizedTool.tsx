@@ -1,5 +1,4 @@
 import type React from "react";
-import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Response } from "../Response";
 import { ToolCall } from "./ToolCall";
 import type { ToolStatus } from "./utils";
@@ -40,17 +39,15 @@ export const ChatSummarizedTool: React.FC<{
 				}
 			/>
 			<ToolCall.Content>
-				<ScrollArea
-					className="mt-1.5 rounded-md border border-solid border-border-default"
+				<ToolCall.Scrollable
+					className="mt-1.5 rounded-md border border-solid border-border"
 					viewportClassName="max-h-64"
-					viewportTabIndex={0}
-					viewportAriaLabel="Conversation summary"
-					scrollBarClassName="w-1.5"
+					ariaLabel="Conversation summary"
 				>
 					<div className="px-3 py-2">
 						<Response>{summary}</Response>
 					</div>
-				</ScrollArea>
+				</ToolCall.Scrollable>
 			</ToolCall.Content>
 		</ToolCall.Root>
 	);

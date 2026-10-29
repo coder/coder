@@ -19,6 +19,56 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
+const renderWebSearch = (
+	props: Partial<React.ComponentProps<typeof Tool>> = {},
+) =>
+	renderComponent(
+		<QueryClientProvider client={createTestQueryClient()}>
+			<Tool
+				name="web_search"
+				providerExecuted
+				status="completed"
+				result={{}}
+				organizationId="organization-id"
+				mcpServers={[]}
+				isError={false}
+				subagentTitles={new Map()}
+				subagentVariants={new Map()}
+				shellToolDisplayMode="auto"
+				codeDiffDisplayMode="auto"
+				{...props}
+			/>
+		</QueryClientProvider>,
+	);
+
+// Labels and pills are visual states covered by the web search stories.
+describe("Tool web search rows", () => {
+	it("uses the generic row for a client tool named web_search", () => {
+		renderWebSearch({
+			providerExecuted: false,
+			args: { query: "coder templates" },
+		});
+		expect(screen.getByRole("button")).toHaveAccessibleName("web_search");
+	});
+
+	it("links found pages only for http and https URLs", async () => {
+		renderWebSearch({
+			args: { type: "search", queries: ["coder"] },
+			foundPages: [
+				{ url: "https://coder.com/docs/ai", title: "" },
+				{ url: "http://coder.com/", title: "Coder" },
+				{ url: "ftp://example.com/release.txt", title: "" },
+				{ url: "data:text/html,unsafe", title: "" },
+			],
+		});
+		await userEvent.click(screen.getByRole("button", { expanded: false }));
+
+		expect(
+			screen.getAllByRole("link").map((link) => link.getAttribute("href")),
+		).toEqual(["https://coder.com/docs/ai", "http://coder.com/"]);
+	});
+});
+
 describe("Tool workspace lifecycle rows", () => {
 	it.each(
 		[
@@ -71,6 +121,13 @@ describe("Tool workspace lifecycle rows", () => {
 							name={name}
 							status={status}
 							result={isRunning ? undefined : { build_id: buildId }}
+							organizationId="organization-id"
+							mcpServers={[]}
+							isError={false}
+							subagentTitles={new Map()}
+							subagentVariants={new Map()}
+							shellToolDisplayMode="auto"
+							codeDiffDisplayMode="auto"
 						/>
 					</ChatWorkspaceContext>
 				</QueryClientProvider>,
@@ -98,24 +155,26 @@ describe("Tool workspace lifecycle rows", () => {
 	);
 });
 
-describe("Tool manage_automations label", () => {
-	it.each([
-		"constructor",
-		"toString",
-		"__proto__",
-		"hasOwnProperty",
-		"unknown_action",
-	])("falls back to the generic label for action %s", (action) => {
+describe("Tool generic rows", () => {
+	it("falls back to the tool name when the model intent is whitespace", () => {
 		renderComponent(
-			<Tool
-				name="manage_automations"
-				status="error"
-				isError
-				args={{ action }}
-				result={{ error: "unknown action" }}
-			/>,
+			<QueryClientProvider client={createTestQueryClient()}>
+				<Tool
+					name="custom_tool"
+					organizationId="organization-id"
+					mcpServers={[]}
+					status="completed"
+					args={{ query: "value" }}
+					isError={false}
+					modelIntent="   "
+					subagentTitles={new Map()}
+					subagentVariants={new Map()}
+					shellToolDisplayMode="auto"
+					codeDiffDisplayMode="auto"
+				/>
+			</QueryClientProvider>,
 		);
 
-		screen.getByText("Manage automations");
+		expect(screen.getByRole("button")).toHaveAccessibleName("custom_tool");
 	});
 });

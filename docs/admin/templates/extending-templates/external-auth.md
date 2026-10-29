@@ -27,7 +27,7 @@ This screencast shows a developer being prompted to authenticate with an externa
 
 ### Require git authentication in templates
 
-If your template requires git authentication (e.g. running `git clone` in the
+If your template requires git authentication (for example, running `git clone` in the
 [startup_script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script)),
 you can require users authenticate via git prior to creating a workspace:
 

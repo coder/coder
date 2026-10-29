@@ -4,6 +4,7 @@ import {
 	CHAT_SOURCE_ORDER,
 	CHAT_STATUS_FILTER_ORDER,
 	CHAT_STATUS_GROUP_ORDER,
+	type ChatListInput,
 	type ChatListPRStatusFilter,
 	canonicalizeChatListPRStatuses,
 } from "#/api/queries/chats";
@@ -95,6 +96,20 @@ const writeSidebarFilters = (
 		searchParams.set("source", filters.sources.join(","));
 	}
 };
+
+/** Selecting every chat status sends no status filter. */
+export const getSidebarChatListInput = (
+	filters: AgentSidebarFilters,
+): ChatListInput => ({
+	archived: filters.archiveStatus === "archived",
+	prStatuses: filters.prStatuses,
+	statuses:
+		filters.chatStatuses.length === AGENT_CHAT_STATUS_ORDER.length
+			? undefined
+			: filters.chatStatuses,
+	chatStatus: filters.unread ? "unread" : undefined,
+	sources: filters.sources,
+});
 
 export const getAgentSidebarFilters = (
 	searchParams: URLSearchParams,

@@ -1,8 +1,22 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import { ChatComputerUseProviders } from "#/api/typesGenerated";
+import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import type { ProviderInfo } from "#/pages/AgentsPage/utils/modelOptions";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
+import { normalizeProvider } from "#/modules/aiModels/helpers";
+import { isKnownComputerUseModel } from "#/modules/aiModels/knownModels/catalog";
+import {
+	bindingCompactionTriggerSource,
+	compactionDisabledThresholdPercent,
+	isCompactionPointBeyondWindow,
+	modelCompactionTrigger,
+	resolveOrganizationCompactionTrigger,
+} from "#/pages/AgentsPage/utils/compactionTriggers";
+import {
+	getModelLabel,
+	type ProviderInfo,
+} from "#/pages/AgentsPage/utils/modelOptions";
 import { DefaultModelSettings } from "#/pages/AISettingsPage/CoderAgentsPage/components/DefaultModelSettings";
-import { OrganizationInstructionsSettings } from "#/pages/AISettingsPage/CoderAgentsPage/components/OrganizationInstructionsSettings";
 import {
 	type MutationCallbacks,
 	SubagentModelOverrideSettings,
@@ -28,30 +42,20 @@ type OrganizationAgentSettingsViewProps = {
 	modelsError: unknown;
 	canEdit: boolean;
 	showAdvisor: boolean;
+	showComputerUse: boolean;
 	saveByContext: ReadonlyMap<
 		TypesGen.ChatModelOverrideContext,
 		SaveModelOverride
 	>;
 	savingContexts: ReadonlySet<TypesGen.ChatModelOverrideContext>;
 	errorContexts: ReadonlySet<TypesGen.ChatModelOverrideContext>;
-	canViewInstructions: boolean;
-	systemPrompt: string | undefined;
-	isSystemPromptLoading: boolean;
-	systemPromptLoadError: unknown;
-	systemPromptRefetchError: unknown;
-	onSaveSystemPrompt: (
-		req: TypesGen.UpdateOrganizationChatSystemPromptRequest,
-		options: MutationCallbacks,
-	) => void;
-	isSavingSystemPrompt: boolean;
-	saveSystemPromptError: unknown;
-	onResetSaveSystemPrompt: () => void;
 };
 
 const settings: readonly {
 	context: TypesGen.ChatModelOverrideContext;
 	title: string;
 	description: string;
+	unsetPlaceholder?: string;
 	unavailableModelWarning?: string;
 }[] = [
 	{
@@ -85,7 +89,156 @@ const settings: readonly {
 		title: "Advisor",
 		description: "Used by the advisor for strategic guidance.",
 	},
+	{
+		context: "computer_use",
+		title: "Computer use",
+		description:
+			"Used by the computer use subagent to operate the virtual desktop. Only Anthropic and OpenAI models are supported.",
+		unsetPlaceholder: "Use default model",
+		// This row lists only Anthropic and OpenAI models, so a saved model can
+		// be unavailable here while it stays enabled.
+		unavailableModelWarning:
+			"The saved model is no longer available for computer use and will be ignored until you choose a new override.",
+	},
 ];
+
+const getProviderType = (
+	model: TypesGen.ChatModel,
+	providerInfoByID: ReadonlyMap<string, ProviderInfo>,
+) => providerInfoByID.get(model.ai_provider_id)?.provider ?? "";
+
+// The API rejects computer use overrides for other provider types.
+const filterComputerUseProviderModels = (
+	models: readonly TypesGen.ChatModel[],
+	providerInfoByID: ReadonlyMap<string, ProviderInfo>,
+) =>
+	models.filter((model) => {
+		const providerType = normalizeProvider(
+			getProviderType(model, providerInfoByID),
+		);
+		return ChatComputerUseProviders.some(
+			(provider) => provider === providerType,
+		);
+	});
+
+// Computer use falls back to the organization default model when the override
+// is unset or missing from computerUseProviderModels, so the warning follows
+// that model instead.
+const isUnverifiedComputerUseModel = (
+	selectedModelID: string,
+	defaultModelID: string | undefined,
+	computerUseProviderModels: readonly TypesGen.ChatModel[],
+	enabledModels: readonly TypesGen.ChatModel[],
+	providerInfoByID: ReadonlyMap<string, ProviderInfo>,
+) => {
+	const effectiveModel =
+		computerUseProviderModels.find((model) => model.id === selectedModelID) ??
+		enabledModels.find((model) => model.id === defaultModelID);
+	if (effectiveModel === undefined) {
+		return false;
+	}
+	const providerType = getProviderType(effectiveModel, providerInfoByID);
+	return (
+		!isKnownComputerUseModel(providerType, effectiveModel.model) ||
+		// The OpenAI computer tool exists only on the Responses API.
+		(normalizeProvider(providerType) === "openai" &&
+			effectiveModel.model_config?.openai_config?.use_responses_api === false)
+	);
+};
+
+const formatModelList = (modelNames: readonly string[]) => {
+	const visibleNames = modelNames.slice(0, 3);
+	const remainingCount = modelNames.length - visibleNames.length;
+	return remainingCount > 0
+		? `${visibleNames.join(", ")} and ${remainingCount} more`
+		: visibleNames.join(", ");
+};
+
+type CompactionOverrideAlertProps = {
+	selectedModelID: string;
+	enabledModels: readonly TypesGen.ChatModel[];
+	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
+};
+
+const CompactionOverrideAlert: React.FC<CompactionOverrideAlertProps> = ({
+	selectedModelID,
+	enabledModels,
+	providerInfoByID,
+}) => {
+	const organizationTrigger = resolveOrganizationCompactionTrigger(
+		selectedModelID,
+		enabledModels,
+		providerInfoByID,
+		"organization",
+	);
+	if (!organizationTrigger) {
+		return null;
+	}
+
+	const compactionModel = organizationTrigger.model;
+	const undercutModels = enabledModels.filter(
+		(model) =>
+			bindingCompactionTriggerSource(
+				modelCompactionTrigger(model),
+				organizationTrigger.trigger,
+			) === "organization" &&
+			!isCompactionPointBeyondWindow(
+				organizationTrigger.pointTokens,
+				model.context_limit,
+			),
+	);
+	if (undercutModels.length === 0) {
+		return null;
+	}
+	const offModelsNote = undercutModels.some(
+		(model) =>
+			model.compression_threshold >= compactionDisabledThresholdPercent,
+	)
+		? ", including models with compaction off,"
+		: "";
+
+	return (
+		<Alert severity="warning">
+			<AlertDescription>
+				{`Chats using ${formatModelList(undercutModels.map(getModelLabel))} may compact earlier than their models' thresholds${offModelsNote} because the organization override compacts chats at ${organizationTrigger.trigger.thresholdPercent}% of ${getModelLabel(compactionModel)}'s ${compactionModel.context_limit.toLocaleString("en-US")}-token window. Personal thresholds that trigger compaction sooner still apply first.`}
+			</AlertDescription>
+		</Alert>
+	);
+};
+
+type ComputerUseModelWarningProps = {
+	selectedModelID: string;
+	defaultModelID: string | undefined;
+	computerUseProviderModels: readonly TypesGen.ChatModel[];
+	enabledModels: readonly TypesGen.ChatModel[];
+	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
+};
+
+const ComputerUseModelWarning: React.FC<ComputerUseModelWarningProps> = ({
+	selectedModelID,
+	defaultModelID,
+	computerUseProviderModels,
+	enabledModels,
+	providerInfoByID,
+}) => {
+	if (
+		!isUnverifiedComputerUseModel(
+			selectedModelID,
+			defaultModelID,
+			computerUseProviderModels,
+			enabledModels,
+			providerInfoByID,
+		)
+	) {
+		return null;
+	}
+
+	return (
+		<InfoTooltip type="warning" ariaLabel="Computer use model warning">
+			Make sure that the selected model supports computer use.
+		</InfoTooltip>
+	);
+};
 
 const OrganizationAgentSettingsView: React.FC<
 	OrganizationAgentSettingsViewProps
@@ -104,29 +257,29 @@ const OrganizationAgentSettingsView: React.FC<
 	modelsError,
 	canEdit,
 	showAdvisor,
+	showComputerUse,
 	saveByContext,
 	savingContexts,
 	errorContexts,
-	canViewInstructions,
-	systemPrompt,
-	isSystemPromptLoading,
-	systemPromptLoadError,
-	systemPromptRefetchError,
-	onSaveSystemPrompt,
-	isSavingSystemPrompt,
-	saveSystemPromptError,
-	onResetSaveSystemPrompt,
 }) => {
 	const bannerError =
 		overridesLoadError ?? overridesRefetchError ?? modelsError;
+
 	// The default row only needs the model catalog, so a failed initial
 	// overrides load removes just the override rows.
 	const visibleSettings =
 		overridesLoadError == null
 			? settings.filter(
-					(setting) => setting.context !== "advisor" || showAdvisor,
+					(setting) =>
+						(setting.context !== "advisor" || showAdvisor) &&
+						(setting.context !== "computer_use" || showComputerUse),
 				)
 			: [];
+
+	const computerUseProviderModels = filterComputerUseProviderModels(
+		enabledModels,
+		providerInfoByID,
+	);
 
 	return (
 		<div className="flex flex-col gap-6">
@@ -158,13 +311,17 @@ const OrganizationAgentSettingsView: React.FC<
 					if (!onSave) {
 						return null;
 					}
+
+					const isComputerUse = setting.context === "computer_use";
 					return (
 						<SubagentModelOverrideSettings
 							key={setting.context}
 							title={setting.title}
 							description={setting.description}
 							modelOverrideData={overrides === undefined ? undefined : saved}
-							enabledModels={enabledModels}
+							enabledModels={
+								isComputerUse ? computerUseProviderModels : enabledModels
+							}
 							providerInfoByID={providerInfoByID}
 							modelsError={modelsError}
 							isLoading={isModelsLoading || isOverridesLoading}
@@ -173,25 +330,36 @@ const OrganizationAgentSettingsView: React.FC<
 							isSaveError={errorContexts.has(setting.context)}
 							saveErrorMessage={`Failed to save ${setting.title.toLowerCase()} override.`}
 							unavailableModelWarning={setting.unavailableModelWarning}
-							unsetPlaceholder="Use chat model"
+							renderSelectedModelAlert={
+								setting.context === "compaction"
+									? (selectedModelID) => (
+											<CompactionOverrideAlert
+												selectedModelID={selectedModelID}
+												enabledModels={enabledModels}
+												providerInfoByID={providerInfoByID}
+											/>
+										)
+									: undefined
+							}
+							renderSelectorAdornment={
+								isComputerUse && overrides !== undefined
+									? (selectedModelID) => (
+											<ComputerUseModelWarning
+												selectedModelID={selectedModelID}
+												defaultModelID={defaultModelID}
+												computerUseProviderModels={computerUseProviderModels}
+												enabledModels={enabledModels}
+												providerInfoByID={providerInfoByID}
+											/>
+										)
+									: undefined
+							}
+							unsetPlaceholder={setting.unsetPlaceholder ?? "Use chat model"}
 							disabled={!canEdit}
 						/>
 					);
 				})}
 			</div>
-			{canViewInstructions && (
-				<OrganizationInstructionsSettings
-					systemPrompt={systemPrompt}
-					isLoading={isSystemPromptLoading}
-					loadError={systemPromptLoadError}
-					refetchError={systemPromptRefetchError}
-					canEdit={canEdit}
-					onSave={onSaveSystemPrompt}
-					isSaving={isSavingSystemPrompt}
-					saveError={saveSystemPromptError}
-					onResetSave={onResetSaveSystemPrompt}
-				/>
-			)}
 		</div>
 	);
 };

@@ -3,27 +3,31 @@ description: Delegate development work to coding agents in your deployment with 
 path: ./ai-coder/agents/index.md
 children:
   - title: Getting started
-    description: Enable Coder Agents, prepare your deployment, and run your first Coder Agent
+    description: Enable Coder Agents, prepare your deployment, and run your first Coder Agent.
     path: ./ai-coder/agents/getting-started.md
   - title: Architecture
     description: Learn how the Coder Agents control-plane agent communicates with your workspaces.
     path: ./ai-coder/agents/architecture.md
   - include: ai-coder/agents/platform-controls.yml
   - title: Extending agents
-    description: Extend Coder Agents with custom skills and MCP tools defined in your workspace templates.
+    description: Extend Coder Agents with custom skills, MCP tools, and ACP subagents in your workspaces.
     path: ./ai-coder/agents/extending-agents.md
+  - title: ACP subagents
+    description: Configure external coding agents in your workspace and delegate Coder Agents tasks to them through ACP.
+    path: ./ai-coder/agents/acp-subagents.md
+    state: [early access]
   - title: Models
     description: Configure the LLM providers and models that power Coder Agents from Admin settings.
     path: ./ai-coder/agents/models.md
   - title: Tools
-    description: How Coder Agents uses tool calls to select templates and create workspaces
+    description: How Coder Agents uses tool calls to select templates and create workspaces.
     path: ./ai-coder/agents/tools.md
   - title: Chat sharing
     description: Give other users and groups read-only access to a Coder Agents conversation with chat sharing.
     path: ./ai-coder/agents/chat-sharing.md
-  - title: Automations
-    description: Send saved prompts to Coder Agents chats from webhooks and schedules, and let agents manage their own automations.
-    path: ./ai-coder/agents/automations.md
+  - title: Projects
+    description: Group Coder Agents chats into projects with shared instructions, skills, and memory.
+    path: ./ai-coder/agents/projects.md
     state: [early access]
   - title: Conversation search syntax
     description: Filter Coder Agents conversations by title, status, and linked pull requests with search syntax.

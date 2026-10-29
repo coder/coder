@@ -164,11 +164,11 @@ const BracketConnector: React.FC<BracketConnectorProps> = ({
 				: "grid-rows-[2rem_auto]",
 		)}
 	>
-		<div className="row-start-1 col-start-2 border-0 border-b border-l border-solid rounded-bl-lg">
+		<div className="row-start-1 col-start-2 border-0 border-b border-l border-solid border-border-control rounded-bl-lg">
 			{/* top rounded line */}
 		</div>
 		{!hideBottomLine && (
-			<div className="row-start-2 col-start-2 border-0 border-t border-l border-solid rounded-tl-lg -mt-px">
+			<div className="row-start-2 col-start-2 border-0 border-t border-l border-solid border-border-control rounded-tl-lg -mt-px">
 				{/* bottom rounded line */}
 			</div>
 		)}
@@ -200,10 +200,7 @@ type ToolCallBlockProps = {
 	tool: string;
 	serverURL: string;
 	input: string;
-	inputTokens: number;
-	outputTokens: number;
 	timestamp: Date;
-	tokenUsageMetadata?: Record<string, unknown>;
 	expandedByDefault?: boolean;
 	/** The active query, used to bold matches in the tool name and input. */
 	highlight: string;
@@ -213,10 +210,7 @@ const ToolCallBlock: React.FC<ToolCallBlockProps> = ({
 	tool,
 	serverURL,
 	input,
-	inputTokens,
-	outputTokens,
 	timestamp,
-	tokenUsageMetadata,
 	expandedByDefault = false,
 	highlight,
 }) => {
@@ -225,14 +219,14 @@ const ToolCallBlock: React.FC<ToolCallBlockProps> = ({
 	const isOpen = userToggled ?? expandedByDefault;
 
 	return (
-		<BracketConnector contentClassName="mt-2 mr-4 border border-solid rounded-md overflow-x-auto">
+		<BracketConnector contentClassName="mt-2 mr-4 border border-solid border-border-control rounded-md overflow-x-auto">
 			<div className="flex items-center">
 				<CollapseButton
 					isOpen={isOpen}
 					onClick={() => setUserToggled((prev) => !(prev ?? expandedByDefault))}
 				>
 					<span className="text-sm font-normal">Tool call</span>
-					<Badge size="xs" className="font-mono ml-1">
+					<Badge size="sm" className="font-mono ml-1">
 						<HighlightText text={tool} highlight={highlight} />
 					</Badge>
 				</CollapseButton>
@@ -243,9 +237,6 @@ const ToolCallBlock: React.FC<ToolCallBlockProps> = ({
 						className="mt-2 ml-5 mr-4 lg:w-1/2 overflow-x-auto"
 						timestamp={timestamp}
 						serverURL={serverURL}
-						inputTokens={inputTokens}
-						outputTokens={outputTokens}
-						tokenUsageMetadata={tokenUsageMetadata}
 					/>
 					<pre className="flex gap-4 bg-surface-secondary rounded-md m-4 p-4 text-sm font-mono text-content-primary overflow-x-auto m-0">
 						<span>
@@ -299,9 +290,6 @@ const AgenticActionItem: React.FC<AgenticActionItemProps> = ({
 					tool={tool_call.tool}
 					serverURL={tool_call.server_url}
 					input={tool_call.input}
-					inputTokens={action.token_usage.input_tokens}
-					outputTokens={action.token_usage.output_tokens}
-					tokenUsageMetadata={tool_call.metadata}
 					timestamp={new Date(tool_call.created_at)}
 					expandedByDefault={(matchedToolCallIds?.size ?? 0) > 0}
 					highlight={highlight}
@@ -359,21 +347,7 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 
 	return (
 		<>
-			<div className="border border-solid rounded-md flex flex-col items-start w-full lg:w-auto lg:flex-row gap-6 p-2">
-				{/* left column: avatar and username */}
-				<div className="flex flex-row items-center gap-1">
-					<Avatar
-						src={initiator.avatar_url}
-						fallback={initiator.name ?? initiator.username}
-						size="sm"
-						className="shrink-0"
-					/>
-					<span className="text-sm text-content-secondary font-normal py-1">
-						{initiator.username}
-					</span>
-				</div>
-
-				{/* center column: prompt */}
+			<div className="border border-solid border-border-control rounded-md flex flex-col items-start w-full lg:w-auto lg:flex-row gap-6 p-2">
 				<div className="flex flex-col gap-1 mb-2 min-w-0 flex-1 w-full">
 					{thread.prompt && (
 						<>
@@ -416,21 +390,37 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 						</>
 					)}
 				</div>
-				{/* right column: details */}
-				<PromptTable
-					className="lg:max-w-64 shrink-0 w-full lg:w-auto"
-					timestamp={new Date(thread.started_at)}
-					model={thread.model}
-					inputTokens={thread.token_usage.input_tokens}
-					outputTokens={thread.token_usage.output_tokens}
-					tokenUsageMetadata={thread.token_usage.metadata}
-				/>
+				<div className="flex flex-col gap-1 lg:max-w-64 min-w-0 shrink-0 w-full lg:w-auto">
+					<div className="flex items-center gap-1">
+						<Avatar
+							src={initiator.avatar_url}
+							fallback={initiator.name ?? initiator.username}
+							size="sm"
+							className="shrink-0"
+						/>
+						<span className="min-w-0 break-all text-sm text-content-secondary font-normal py-1">
+							{initiator.username}
+						</span>
+					</div>
+					<PromptTable
+						timestamp={new Date(thread.started_at)}
+						model={thread.model}
+						pricedModel={thread.priced_model}
+						inputTokens={thread.token_usage.input_tokens}
+						outputTokens={thread.token_usage.output_tokens}
+						cacheReadTokens={thread.token_usage.cache_read_input_tokens}
+						cacheWriteTokens={thread.token_usage.cache_write_input_tokens}
+						costMicros={thread.token_usage.cost_micros}
+						hasUnpricedUsage={thread.token_usage.has_unpriced_usage}
+						tokenUsageMetadata={thread.token_usage.metadata}
+					/>
+				</div>
 			</div>
 
 			{hasAgenticLoop ? (
 				<BracketConnector
 					firstRowHeight="60px"
-					contentClassName="border border-dashed rounded-md my-4"
+					contentClassName="border border-dashed border-border-control rounded-md my-4"
 				>
 					{/* Agentic loop */}
 					<div className="flex flex-col lg:flex-row lg:items-center justify-between">
@@ -455,7 +445,7 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 					{agenticLoopOpen && (
 						<>
 							{/* the little top rounded line above the thinking block */}
-							<div className="border-0 border-t border-r border-solid rounded-tr-lg w-[calc(1rem+1px)] h-[20px]">
+							<div className="border-0 border-t border-r border-solid border-border-control rounded-tr-lg w-[calc(1rem+1px)] h-[20px]">
 								{/* we need the 1px extra to line up with the left border on the other lines */}
 							</div>
 
@@ -584,12 +574,12 @@ export const SessionTimeline: React.FC<SessionTimelineProps> = ({
 				</div>
 
 				{/* row 2: vertical line */}
-				<div className="row-start-2 col-start-3 border-0 border-l border-solid">
+				<div className="row-start-2 col-start-3 border-0 border-l border-solid border-border-control">
 					{/* vertical line */}
 				</div>
 
 				{/* row 3: sized intentionally to create the visual space above the timeline border */}
-				<div className="row-start-3 col-start-3 border-0 border-l border-t border-solid h-6">
+				<div className="row-start-3 col-start-3 border-0 border-l border-t border-solid border-border-control h-6">
 					{/* vertical line */}
 				</div>
 
@@ -631,7 +621,7 @@ export const SessionTimeline: React.FC<SessionTimelineProps> = ({
 				<div className="row-start-4 col-start-2 border-0 border-t border-dashed border-surface-green">
 					{/* horizontal border */}
 				</div>
-				<div className="row-start-4 col-start-3 border-0 border-l border-solid">
+				<div className="row-start-4 col-start-3 border-0 border-l border-solid border-border-control">
 					{/* vertical line */}
 				</div>
 				<div className="row-start-4 col-start-4 border-0 border-t border-dashed border-surface-green">
@@ -713,7 +703,7 @@ export const SessionTimeline: React.FC<SessionTimelineProps> = ({
 				<div className="row-start-6 col-start-2 border-0 border-b border-dashed border-surface-green">
 					{/* horizontal line */}
 				</div>
-				<div className="row-start-6 col-start-3 border-0 border-l border-solid">
+				<div className="row-start-6 col-start-3 border-0 border-l border-solid border-border-control">
 					{/* vertical line */}
 				</div>
 				<div className="row-start-6 col-start-4 col-span-2 border-0 border-b border-dashed border-surface-green">
@@ -730,7 +720,7 @@ export const SessionTimeline: React.FC<SessionTimelineProps> = ({
 				{!hasNextPage && !isFetchingNextPage && (
 					<>
 						{/* row 7: sized intentionally to create the visual space below the timeline border */}
-						<div className="row-start-7 col-start-3 border-0 border-l border-t border-solid h-4">
+						<div className="row-start-7 col-start-3 border-0 border-l border-t border-solid border-border-control h-4">
 							{/* vertical line */}
 						</div>
 

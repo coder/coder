@@ -132,21 +132,6 @@ func (mr *MockStoreMockRecorder) ActivityBumpWorkspace(ctx, arg any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ActivityBumpWorkspace", reflect.TypeOf((*MockStore)(nil).ActivityBumpWorkspace), ctx, arg)
 }
 
-// AdvanceChatAutomationScheduleCursor mocks base method.
-func (m *MockStore) AdvanceChatAutomationScheduleCursor(ctx context.Context, arg database.AdvanceChatAutomationScheduleCursorParams) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AdvanceChatAutomationScheduleCursor", ctx, arg)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// AdvanceChatAutomationScheduleCursor indicates an expected call of AdvanceChatAutomationScheduleCursor.
-func (mr *MockStoreMockRecorder) AdvanceChatAutomationScheduleCursor(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AdvanceChatAutomationScheduleCursor", reflect.TypeOf((*MockStore)(nil).AdvanceChatAutomationScheduleCursor), ctx, arg)
-}
-
 // AllUserIDs mocks base method.
 func (m *MockStore) AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()
@@ -437,19 +422,32 @@ func (mr *MockStoreMockRecorder) ClearChatDiffStatusPR(ctx, arg any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearChatDiffStatusPR", reflect.TypeOf((*MockStore)(nil).ClearChatDiffStatusPR), ctx, arg)
 }
 
-// ConsumeChatAutomationWebhookByID mocks base method.
-func (m *MockStore) ConsumeChatAutomationWebhookByID(ctx context.Context, arg database.ConsumeChatAutomationWebhookByIDParams) (int64, error) {
+// ClearWorkspaceSecretsBeforeBuild mocks base method.
+func (m *MockStore) ClearWorkspaceSecretsBeforeBuild(ctx context.Context, arg database.ClearWorkspaceSecretsBeforeBuildParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ConsumeChatAutomationWebhookByID", ctx, arg)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret := m.ctrl.Call(m, "ClearWorkspaceSecretsBeforeBuild", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
-// ConsumeChatAutomationWebhookByID indicates an expected call of ConsumeChatAutomationWebhookByID.
-func (mr *MockStoreMockRecorder) ConsumeChatAutomationWebhookByID(ctx, arg any) *gomock.Call {
+// ClearWorkspaceSecretsBeforeBuild indicates an expected call of ClearWorkspaceSecretsBeforeBuild.
+func (mr *MockStoreMockRecorder) ClearWorkspaceSecretsBeforeBuild(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConsumeChatAutomationWebhookByID", reflect.TypeOf((*MockStore)(nil).ConsumeChatAutomationWebhookByID), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearWorkspaceSecretsBeforeBuild", reflect.TypeOf((*MockStore)(nil).ClearWorkspaceSecretsBeforeBuild), ctx, arg)
+}
+
+// ClearWorkspaceSecretsByWorkspaceID mocks base method.
+func (m *MockStore) ClearWorkspaceSecretsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClearWorkspaceSecretsByWorkspaceID", ctx, workspaceID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ClearWorkspaceSecretsByWorkspaceID indicates an expected call of ClearWorkspaceSecretsByWorkspaceID.
+func (mr *MockStoreMockRecorder) ClearWorkspaceSecretsByWorkspaceID(ctx, workspaceID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearWorkspaceSecretsByWorkspaceID", reflect.TypeOf((*MockStore)(nil).ClearWorkspaceSecretsByWorkspaceID), ctx, workspaceID)
 }
 
 // CountAIBridgeSessions mocks base method.
@@ -525,21 +523,6 @@ func (m *MockStore) CountAuthorizedConnectionLogs(ctx context.Context, arg datab
 func (mr *MockStoreMockRecorder) CountAuthorizedConnectionLogs(ctx, arg, prepared any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountAuthorizedConnectionLogs", reflect.TypeOf((*MockStore)(nil).CountAuthorizedConnectionLogs), ctx, arg, prepared)
-}
-
-// CountChatAutomationsByOwnerID mocks base method.
-func (m *MockStore) CountChatAutomationsByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CountChatAutomationsByOwnerID", ctx, ownerID)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// CountChatAutomationsByOwnerID indicates an expected call of CountChatAutomationsByOwnerID.
-func (mr *MockStoreMockRecorder) CountChatAutomationsByOwnerID(ctx, ownerID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountChatAutomationsByOwnerID", reflect.TypeOf((*MockStore)(nil).CountChatAutomationsByOwnerID), ctx, ownerID)
 }
 
 // CountChatCapacityActiveByPool mocks base method.
@@ -894,20 +877,6 @@ func (mr *MockStoreMockRecorder) DeleteApplicationConnectAPIKeysByUserID(ctx, us
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteApplicationConnectAPIKeysByUserID", reflect.TypeOf((*MockStore)(nil).DeleteApplicationConnectAPIKeysByUserID), ctx, userID)
 }
 
-// DeleteChatAutomationByID mocks base method.
-func (m *MockStore) DeleteChatAutomationByID(ctx context.Context, id uuid.UUID) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteChatAutomationByID", ctx, id)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteChatAutomationByID indicates an expected call of DeleteChatAutomationByID.
-func (mr *MockStoreMockRecorder) DeleteChatAutomationByID(ctx, id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatAutomationByID", reflect.TypeOf((*MockStore)(nil).DeleteChatAutomationByID), ctx, id)
-}
-
 // DeleteChatContextResourcesByChatID mocks base method.
 func (m *MockStore) DeleteChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -1007,6 +976,20 @@ func (m *MockStore) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) err
 func (mr *MockStoreMockRecorder) DeleteChatProjectByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatProjectByID", reflect.TypeOf((*MockStore)(nil).DeleteChatProjectByID), ctx, id)
+}
+
+// DeleteChatProjectInstructionsByProjectID mocks base method.
+func (m *MockStore) DeleteChatProjectInstructionsByProjectID(ctx context.Context, projectID uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteChatProjectInstructionsByProjectID", ctx, projectID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteChatProjectInstructionsByProjectID indicates an expected call of DeleteChatProjectInstructionsByProjectID.
+func (mr *MockStoreMockRecorder) DeleteChatProjectInstructionsByProjectID(ctx, projectID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatProjectInstructionsByProjectID", reflect.TypeOf((*MockStore)(nil).DeleteChatProjectInstructionsByProjectID), ctx, projectID)
 }
 
 // DeleteChatProjectMemoryByID mocks base method.
@@ -1530,6 +1513,21 @@ func (mr *MockStoreMockRecorder) DeleteOldWorkspaceBuildOrchestrations(ctx, arg 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldWorkspaceBuildOrchestrations", reflect.TypeOf((*MockStore)(nil).DeleteOldWorkspaceBuildOrchestrations), ctx, arg)
 }
 
+// DeleteOrganizationAIProviderModelConfig mocks base method.
+func (m *MockStore) DeleteOrganizationAIProviderModelConfig(ctx context.Context, arg database.DeleteOrganizationAIProviderModelConfigParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOrganizationAIProviderModelConfig", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteOrganizationAIProviderModelConfig indicates an expected call of DeleteOrganizationAIProviderModelConfig.
+func (mr *MockStoreMockRecorder) DeleteOrganizationAIProviderModelConfig(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOrganizationAIProviderModelConfig", reflect.TypeOf((*MockStore)(nil).DeleteOrganizationAIProviderModelConfig), ctx, arg)
+}
+
 // DeleteOrganizationMember mocks base method.
 func (m *MockStore) DeleteOrganizationMember(ctx context.Context, arg database.DeleteOrganizationMemberParams) error {
 	m.ctrl.T.Helper()
@@ -1542,6 +1540,50 @@ func (m *MockStore) DeleteOrganizationMember(ctx context.Context, arg database.D
 func (mr *MockStoreMockRecorder) DeleteOrganizationMember(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOrganizationMember", reflect.TypeOf((*MockStore)(nil).DeleteOrganizationMember), ctx, arg)
+}
+
+// DeleteOrganizationMemberDisabledSkill mocks base method.
+func (m *MockStore) DeleteOrganizationMemberDisabledSkill(ctx context.Context, arg database.DeleteOrganizationMemberDisabledSkillParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOrganizationMemberDisabledSkill", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteOrganizationMemberDisabledSkill indicates an expected call of DeleteOrganizationMemberDisabledSkill.
+func (mr *MockStoreMockRecorder) DeleteOrganizationMemberDisabledSkill(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOrganizationMemberDisabledSkill", reflect.TypeOf((*MockStore)(nil).DeleteOrganizationMemberDisabledSkill), ctx, arg)
+}
+
+// DeleteOrganizationSkillByOrganizationIDAndName mocks base method.
+func (m *MockStore) DeleteOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg database.DeleteOrganizationSkillByOrganizationIDAndNameParams) (database.Skill, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOrganizationSkillByOrganizationIDAndName", ctx, arg)
+	ret0, _ := ret[0].(database.Skill)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteOrganizationSkillByOrganizationIDAndName indicates an expected call of DeleteOrganizationSkillByOrganizationIDAndName.
+func (mr *MockStoreMockRecorder) DeleteOrganizationSkillByOrganizationIDAndName(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOrganizationSkillByOrganizationIDAndName", reflect.TypeOf((*MockStore)(nil).DeleteOrganizationSkillByOrganizationIDAndName), ctx, arg)
+}
+
+// DeleteProjectSkillByProjectIDAndName mocks base method.
+func (m *MockStore) DeleteProjectSkillByProjectIDAndName(ctx context.Context, arg database.DeleteProjectSkillByProjectIDAndNameParams) (database.Skill, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteProjectSkillByProjectIDAndName", ctx, arg)
+	ret0, _ := ret[0].(database.Skill)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteProjectSkillByProjectIDAndName indicates an expected call of DeleteProjectSkillByProjectIDAndName.
+func (mr *MockStoreMockRecorder) DeleteProjectSkillByProjectIDAndName(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteProjectSkillByProjectIDAndName", reflect.TypeOf((*MockStore)(nil).DeleteProjectSkillByProjectIDAndName), ctx, arg)
 }
 
 // DeleteProvisionerKey mocks base method.
@@ -1733,10 +1775,10 @@ func (mr *MockStoreMockRecorder) DeleteUserSecretByUserIDAndName(ctx, arg any) *
 }
 
 // DeleteUserSkillByUserIDAndName mocks base method.
-func (m *MockStore) DeleteUserSkillByUserIDAndName(ctx context.Context, arg database.DeleteUserSkillByUserIDAndNameParams) (database.UserSkill, error) {
+func (m *MockStore) DeleteUserSkillByUserIDAndName(ctx context.Context, arg database.DeleteUserSkillByUserIDAndNameParams) (database.Skill, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteUserSkillByUserIDAndName", ctx, arg)
-	ret0, _ := ret[0].(database.UserSkill)
+	ret0, _ := ret[0].(database.Skill)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1991,21 +2033,6 @@ func (mr *MockStoreMockRecorder) FetchVolumesResourceMonitorsUpdatedAfter(ctx, u
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchVolumesResourceMonitorsUpdatedAfter", reflect.TypeOf((*MockStore)(nil).FetchVolumesResourceMonitorsUpdatedAfter), ctx, updatedAt)
 }
 
-// FinalizeStaleChatDebugRows mocks base method.
-func (m *MockStore) FinalizeStaleChatDebugRows(ctx context.Context, arg database.FinalizeStaleChatDebugRowsParams) (database.FinalizeStaleChatDebugRowsRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FinalizeStaleChatDebugRows", ctx, arg)
-	ret0, _ := ret[0].(database.FinalizeStaleChatDebugRowsRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FinalizeStaleChatDebugRows indicates an expected call of FinalizeStaleChatDebugRows.
-func (mr *MockStoreMockRecorder) FinalizeStaleChatDebugRows(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FinalizeStaleChatDebugRows", reflect.TypeOf((*MockStore)(nil).FinalizeStaleChatDebugRows), ctx, arg)
-}
-
 // FindMatchingPresetID mocks base method.
 func (m *MockStore) FindMatchingPresetID(ctx context.Context, arg database.FindMatchingPresetIDParams) (uuid.UUID, error) {
 	m.ctrl.T.Helper()
@@ -2156,19 +2183,19 @@ func (mr *MockStoreMockRecorder) GetAIGatewayKeyByHashedSecret(ctx, hashedSecret
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIGatewayKeyByHashedSecret", reflect.TypeOf((*MockStore)(nil).GetAIGatewayKeyByHashedSecret), ctx, hashedSecret)
 }
 
-// GetAIModelPriceByProviderModel mocks base method.
-func (m *MockStore) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error) {
+// GetAIModelPriceForProvider mocks base method.
+func (m *MockStore) GetAIModelPriceForProvider(ctx context.Context, arg database.GetAIModelPriceForProviderParams) (database.GetAIModelPriceForProviderRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAIModelPriceByProviderModel", ctx, arg)
-	ret0, _ := ret[0].(database.AIModelPrice)
+	ret := m.ctrl.Call(m, "GetAIModelPriceForProvider", ctx, arg)
+	ret0, _ := ret[0].(database.GetAIModelPriceForProviderRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetAIModelPriceByProviderModel indicates an expected call of GetAIModelPriceByProviderModel.
-func (mr *MockStoreMockRecorder) GetAIModelPriceByProviderModel(ctx, arg any) *gomock.Call {
+// GetAIModelPriceForProvider indicates an expected call of GetAIModelPriceForProvider.
+func (mr *MockStoreMockRecorder) GetAIModelPriceForProvider(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIModelPriceByProviderModel", reflect.TypeOf((*MockStore)(nil).GetAIModelPriceByProviderModel), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIModelPriceForProvider", reflect.TypeOf((*MockStore)(nil).GetAIModelPriceForProvider), ctx, arg)
 }
 
 // GetAIModelPrices mocks base method.
@@ -2726,6 +2753,21 @@ func (mr *MockStoreMockRecorder) GetAuthorizedMCPServerConfigs(ctx, organization
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedMCPServerConfigs", reflect.TypeOf((*MockStore)(nil).GetAuthorizedMCPServerConfigs), ctx, organizationID, prepared)
 }
 
+// GetAuthorizedOrganizationSkillMetadata mocks base method.
+func (m *MockStore) GetAuthorizedOrganizationSkillMetadata(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.ListOrganizationSkillMetadataByOrganizationIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAuthorizedOrganizationSkillMetadata", ctx, organizationID, prepared)
+	ret0, _ := ret[0].([]database.ListOrganizationSkillMetadataByOrganizationIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAuthorizedOrganizationSkillMetadata indicates an expected call of GetAuthorizedOrganizationSkillMetadata.
+func (mr *MockStoreMockRecorder) GetAuthorizedOrganizationSkillMetadata(ctx, organizationID, prepared any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedOrganizationSkillMetadata", reflect.TypeOf((*MockStore)(nil).GetAuthorizedOrganizationSkillMetadata), ctx, organizationID, prepared)
+}
+
 // GetAuthorizedTemplates mocks base method.
 func (m *MockStore) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.Template, error) {
 	m.ctrl.T.Helper()
@@ -2891,66 +2933,6 @@ func (mr *MockStoreMockRecorder) GetChatAutoArchiveDays(ctx, defaultAutoArchiveD
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatAutoArchiveDays", reflect.TypeOf((*MockStore)(nil).GetChatAutoArchiveDays), ctx, defaultAutoArchiveDays)
 }
 
-// GetChatAutomationByID mocks base method.
-func (m *MockStore) GetChatAutomationByID(ctx context.Context, id uuid.UUID) (database.ChatAutomation, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatAutomationByID", ctx, id)
-	ret0, _ := ret[0].(database.ChatAutomation)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetChatAutomationByID indicates an expected call of GetChatAutomationByID.
-func (mr *MockStoreMockRecorder) GetChatAutomationByID(ctx, id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatAutomationByID", reflect.TypeOf((*MockStore)(nil).GetChatAutomationByID), ctx, id)
-}
-
-// GetChatAutomationsByIDsForUpdate mocks base method.
-func (m *MockStore) GetChatAutomationsByIDsForUpdate(ctx context.Context, ids []uuid.UUID) ([]database.ChatAutomation, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatAutomationsByIDsForUpdate", ctx, ids)
-	ret0, _ := ret[0].([]database.ChatAutomation)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetChatAutomationsByIDsForUpdate indicates an expected call of GetChatAutomationsByIDsForUpdate.
-func (mr *MockStoreMockRecorder) GetChatAutomationsByIDsForUpdate(ctx, ids any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatAutomationsByIDsForUpdate", reflect.TypeOf((*MockStore)(nil).GetChatAutomationsByIDsForUpdate), ctx, ids)
-}
-
-// GetChatAutomationsByOrganizationID mocks base method.
-func (m *MockStore) GetChatAutomationsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.ChatAutomation, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatAutomationsByOrganizationID", ctx, organizationID)
-	ret0, _ := ret[0].([]database.ChatAutomation)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetChatAutomationsByOrganizationID indicates an expected call of GetChatAutomationsByOrganizationID.
-func (mr *MockStoreMockRecorder) GetChatAutomationsByOrganizationID(ctx, organizationID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatAutomationsByOrganizationID", reflect.TypeOf((*MockStore)(nil).GetChatAutomationsByOrganizationID), ctx, organizationID)
-}
-
-// GetChatAutomationsByOrganizationIDAndOwnerID mocks base method.
-func (m *MockStore) GetChatAutomationsByOrganizationIDAndOwnerID(ctx context.Context, arg database.GetChatAutomationsByOrganizationIDAndOwnerIDParams) ([]database.ChatAutomation, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatAutomationsByOrganizationIDAndOwnerID", ctx, arg)
-	ret0, _ := ret[0].([]database.ChatAutomation)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetChatAutomationsByOrganizationIDAndOwnerID indicates an expected call of GetChatAutomationsByOrganizationIDAndOwnerID.
-func (mr *MockStoreMockRecorder) GetChatAutomationsByOrganizationIDAndOwnerID(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatAutomationsByOrganizationIDAndOwnerID", reflect.TypeOf((*MockStore)(nil).GetChatAutomationsByOrganizationIDAndOwnerID), ctx, arg)
-}
-
 // GetChatByID mocks base method.
 func (m *MockStore) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
 	m.ctrl.T.Helper()
@@ -2994,21 +2976,6 @@ func (m *MockStore) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (dat
 func (mr *MockStoreMockRecorder) GetChatByIDForUpdate(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatByIDForUpdate", reflect.TypeOf((*MockStore)(nil).GetChatByIDForUpdate), ctx, id)
-}
-
-// GetChatComputerUseProvider mocks base method.
-func (m *MockStore) GetChatComputerUseProvider(ctx context.Context) (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatComputerUseProvider", ctx)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetChatComputerUseProvider indicates an expected call of GetChatComputerUseProvider.
-func (mr *MockStoreMockRecorder) GetChatComputerUseProvider(ctx any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatComputerUseProvider", reflect.TypeOf((*MockStore)(nil).GetChatComputerUseProvider), ctx)
 }
 
 // GetChatDebugLoggingAllowUsers mocks base method.
@@ -3311,6 +3278,21 @@ func (mr *MockStoreMockRecorder) GetChatMessageByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessageByID", reflect.TypeOf((*MockStore)(nil).GetChatMessageByID), ctx, id)
 }
 
+// GetChatMessageByIDForStream mocks base method.
+func (m *MockStore) GetChatMessageByIDForStream(ctx context.Context, id int64) (database.ChatMessage, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatMessageByIDForStream", ctx, id)
+	ret0, _ := ret[0].(database.ChatMessage)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatMessageByIDForStream indicates an expected call of GetChatMessageByIDForStream.
+func (mr *MockStoreMockRecorder) GetChatMessageByIDForStream(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessageByIDForStream", reflect.TypeOf((*MockStore)(nil).GetChatMessageByIDForStream), ctx, id)
+}
+
 // GetChatMessageSummariesPerChat mocks base method.
 func (m *MockStore) GetChatMessageSummariesPerChat(ctx context.Context, createdAfter time.Time) ([]database.GetChatMessageSummariesPerChatRow, error) {
 	m.ctrl.T.Helper()
@@ -3399,6 +3381,21 @@ func (m *MockStore) GetChatMessagesForPromptByChatID(ctx context.Context, chatID
 func (mr *MockStoreMockRecorder) GetChatMessagesForPromptByChatID(ctx, chatID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessagesForPromptByChatID", reflect.TypeOf((*MockStore)(nil).GetChatMessagesForPromptByChatID), ctx, chatID)
+}
+
+// GetChatMessagesWithFilePartsByChatID mocks base method.
+func (m *MockStore) GetChatMessagesWithFilePartsByChatID(ctx context.Context, arg database.GetChatMessagesWithFilePartsByChatIDParams) ([]database.ChatMessage, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatMessagesWithFilePartsByChatID", ctx, arg)
+	ret0, _ := ret[0].([]database.ChatMessage)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatMessagesWithFilePartsByChatID indicates an expected call of GetChatMessagesWithFilePartsByChatID.
+func (mr *MockStoreMockRecorder) GetChatMessagesWithFilePartsByChatID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessagesWithFilePartsByChatID", reflect.TypeOf((*MockStore)(nil).GetChatMessagesWithFilePartsByChatID), ctx, arg)
 }
 
 // GetChatModelConfigByID mocks base method.
@@ -3566,6 +3563,36 @@ func (mr *MockStoreMockRecorder) GetChatProjectByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectByID", reflect.TypeOf((*MockStore)(nil).GetChatProjectByID), ctx, id)
 }
 
+// GetChatProjectByIDForUpdate mocks base method.
+func (m *MockStore) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ChatProject, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatProjectByIDForUpdate", ctx, id)
+	ret0, _ := ret[0].(database.ChatProject)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatProjectByIDForUpdate indicates an expected call of GetChatProjectByIDForUpdate.
+func (mr *MockStoreMockRecorder) GetChatProjectByIDForUpdate(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectByIDForUpdate", reflect.TypeOf((*MockStore)(nil).GetChatProjectByIDForUpdate), ctx, id)
+}
+
+// GetChatProjectInstructionsByProjectID mocks base method.
+func (m *MockStore) GetChatProjectInstructionsByProjectID(ctx context.Context, projectID uuid.UUID) (database.GetChatProjectInstructionsByProjectIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatProjectInstructionsByProjectID", ctx, projectID)
+	ret0, _ := ret[0].(database.GetChatProjectInstructionsByProjectIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatProjectInstructionsByProjectID indicates an expected call of GetChatProjectInstructionsByProjectID.
+func (mr *MockStoreMockRecorder) GetChatProjectInstructionsByProjectID(ctx, projectID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectInstructionsByProjectID", reflect.TypeOf((*MockStore)(nil).GetChatProjectInstructionsByProjectID), ctx, projectID)
+}
+
 // GetChatProjectMemoriesByProjectID mocks base method.
 func (m *MockStore) GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.GetChatProjectMemoriesByProjectIDRow, error) {
 	m.ctrl.T.Helper()
@@ -3611,19 +3638,19 @@ func (mr *MockStoreMockRecorder) GetChatProjectMemoryByName(ctx, arg any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectMemoryByName", reflect.TypeOf((*MockStore)(nil).GetChatProjectMemoryByName), ctx, arg)
 }
 
-// GetChatProjectsByOwnerID mocks base method.
-func (m *MockStore) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.ChatProject, error) {
+// GetChatProjectsOwnedOrSharedWithUserID mocks base method.
+func (m *MockStore) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, userID uuid.UUID) ([]database.ChatProject, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatProjectsByOwnerID", ctx, ownerID)
+	ret := m.ctrl.Call(m, "GetChatProjectsOwnedOrSharedWithUserID", ctx, userID)
 	ret0, _ := ret[0].([]database.ChatProject)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetChatProjectsByOwnerID indicates an expected call of GetChatProjectsByOwnerID.
-func (mr *MockStoreMockRecorder) GetChatProjectsByOwnerID(ctx, ownerID any) *gomock.Call {
+// GetChatProjectsOwnedOrSharedWithUserID indicates an expected call of GetChatProjectsOwnedOrSharedWithUserID.
+func (mr *MockStoreMockRecorder) GetChatProjectsOwnedOrSharedWithUserID(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectsByOwnerID", reflect.TypeOf((*MockStore)(nil).GetChatProjectsByOwnerID), ctx, ownerID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectsOwnedOrSharedWithUserID", reflect.TypeOf((*MockStore)(nil).GetChatProjectsOwnedOrSharedWithUserID), ctx, userID)
 }
 
 // GetChatQueuedForCapacity mocks base method.
@@ -3684,21 +3711,6 @@ func (m *MockStore) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID)
 func (mr *MockStoreMockRecorder) GetChatQueuedMessages(ctx, chatID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatQueuedMessages", reflect.TypeOf((*MockStore)(nil).GetChatQueuedMessages), ctx, chatID)
-}
-
-// GetChatQueuedMessagesByAutomationBelowGeneration mocks base method.
-func (m *MockStore) GetChatQueuedMessagesByAutomationBelowGeneration(ctx context.Context, arg database.GetChatQueuedMessagesByAutomationBelowGenerationParams) ([]database.GetChatQueuedMessagesByAutomationBelowGenerationRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatQueuedMessagesByAutomationBelowGeneration", ctx, arg)
-	ret0, _ := ret[0].([]database.GetChatQueuedMessagesByAutomationBelowGenerationRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetChatQueuedMessagesByAutomationBelowGeneration indicates an expected call of GetChatQueuedMessagesByAutomationBelowGeneration.
-func (mr *MockStoreMockRecorder) GetChatQueuedMessagesByAutomationBelowGeneration(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatQueuedMessagesByAutomationBelowGeneration", reflect.TypeOf((*MockStore)(nil).GetChatQueuedMessagesByAutomationBelowGeneration), ctx, arg)
 }
 
 // GetChatQueuedMessagesByPosition mocks base method.
@@ -3789,6 +3801,21 @@ func (m *MockStore) GetChatSystemPromptConfig(ctx context.Context) (database.Get
 func (mr *MockStoreMockRecorder) GetChatSystemPromptConfig(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatSystemPromptConfig", reflect.TypeOf((*MockStore)(nil).GetChatSystemPromptConfig), ctx)
+}
+
+// GetChatTurnStartID mocks base method.
+func (m *MockStore) GetChatTurnStartID(ctx context.Context, arg database.GetChatTurnStartIDParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatTurnStartID", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatTurnStartID indicates an expected call of GetChatTurnStartID.
+func (mr *MockStoreMockRecorder) GetChatTurnStartID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatTurnStartID", reflect.TypeOf((*MockStore)(nil).GetChatTurnStartID), ctx, arg)
 }
 
 // GetChatUserModelOverride mocks base method.
@@ -4194,21 +4221,6 @@ func (m *MockStore) GetDeploymentWorkspaceStats(ctx context.Context) (database.G
 func (mr *MockStoreMockRecorder) GetDeploymentWorkspaceStats(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDeploymentWorkspaceStats", reflect.TypeOf((*MockStore)(nil).GetDeploymentWorkspaceStats), ctx)
-}
-
-// GetDueChatAutomationSchedules mocks base method.
-func (m *MockStore) GetDueChatAutomationSchedules(ctx context.Context, arg database.GetDueChatAutomationSchedulesParams) ([]database.ChatAutomation, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetDueChatAutomationSchedules", ctx, arg)
-	ret0, _ := ret[0].([]database.ChatAutomation)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetDueChatAutomationSchedules indicates an expected call of GetDueChatAutomationSchedules.
-func (mr *MockStoreMockRecorder) GetDueChatAutomationSchedules(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDueChatAutomationSchedules", reflect.TypeOf((*MockStore)(nil).GetDueChatAutomationSchedules), ctx, arg)
 }
 
 // GetEligibleProvisionerDaemonsByProvisionerJobIDs mocks base method.
@@ -4647,18 +4659,18 @@ func (mr *MockStoreMockRecorder) GetHealthSettings(ctx any) *gomock.Call {
 }
 
 // GetHighestGroupAIBudgetByUser mocks base method.
-func (m *MockStore) GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (database.GetHighestGroupAIBudgetByUserRow, error) {
+func (m *MockStore) GetHighestGroupAIBudgetByUser(ctx context.Context, arg database.GetHighestGroupAIBudgetByUserParams) (database.GetHighestGroupAIBudgetByUserRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetHighestGroupAIBudgetByUser", ctx, userID)
+	ret := m.ctrl.Call(m, "GetHighestGroupAIBudgetByUser", ctx, arg)
 	ret0, _ := ret[0].(database.GetHighestGroupAIBudgetByUserRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetHighestGroupAIBudgetByUser indicates an expected call of GetHighestGroupAIBudgetByUser.
-func (mr *MockStoreMockRecorder) GetHighestGroupAIBudgetByUser(ctx, userID any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetHighestGroupAIBudgetByUser(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHighestGroupAIBudgetByUser", reflect.TypeOf((*MockStore)(nil).GetHighestGroupAIBudgetByUser), ctx, userID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHighestGroupAIBudgetByUser", reflect.TypeOf((*MockStore)(nil).GetHighestGroupAIBudgetByUser), ctx, arg)
 }
 
 // GetInboxNotificationByID mocks base method.
@@ -5291,6 +5303,21 @@ func (mr *MockStoreMockRecorder) GetOldUnlinkedChatFileIDs(ctx, arg any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOldUnlinkedChatFileIDs", reflect.TypeOf((*MockStore)(nil).GetOldUnlinkedChatFileIDs), ctx, arg)
 }
 
+// GetOrganizationAIProviderModelConfig mocks base method.
+func (m *MockStore) GetOrganizationAIProviderModelConfig(ctx context.Context, arg database.GetOrganizationAIProviderModelConfigParams) (database.AIModelConfig, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOrganizationAIProviderModelConfig", ctx, arg)
+	ret0, _ := ret[0].(database.AIModelConfig)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOrganizationAIProviderModelConfig indicates an expected call of GetOrganizationAIProviderModelConfig.
+func (mr *MockStoreMockRecorder) GetOrganizationAIProviderModelConfig(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrganizationAIProviderModelConfig", reflect.TypeOf((*MockStore)(nil).GetOrganizationAIProviderModelConfig), ctx, arg)
+}
+
 // GetOrganizationByID mocks base method.
 func (m *MockStore) GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error) {
 	m.ctrl.T.Helper()
@@ -5364,6 +5391,51 @@ func (m *MockStore) GetOrganizationResourceCountByID(ctx context.Context, organi
 func (mr *MockStoreMockRecorder) GetOrganizationResourceCountByID(ctx, organizationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrganizationResourceCountByID", reflect.TypeOf((*MockStore)(nil).GetOrganizationResourceCountByID), ctx, organizationID)
+}
+
+// GetOrganizationSkillByIDForUpdate mocks base method.
+func (m *MockStore) GetOrganizationSkillByIDForUpdate(ctx context.Context, id uuid.UUID) (database.Skill, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOrganizationSkillByIDForUpdate", ctx, id)
+	ret0, _ := ret[0].(database.Skill)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOrganizationSkillByIDForUpdate indicates an expected call of GetOrganizationSkillByIDForUpdate.
+func (mr *MockStoreMockRecorder) GetOrganizationSkillByIDForUpdate(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrganizationSkillByIDForUpdate", reflect.TypeOf((*MockStore)(nil).GetOrganizationSkillByIDForUpdate), ctx, id)
+}
+
+// GetOrganizationSkillByOrganizationIDAndName mocks base method.
+func (m *MockStore) GetOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg database.GetOrganizationSkillByOrganizationIDAndNameParams) (database.Skill, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOrganizationSkillByOrganizationIDAndName", ctx, arg)
+	ret0, _ := ret[0].(database.Skill)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOrganizationSkillByOrganizationIDAndName indicates an expected call of GetOrganizationSkillByOrganizationIDAndName.
+func (mr *MockStoreMockRecorder) GetOrganizationSkillByOrganizationIDAndName(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrganizationSkillByOrganizationIDAndName", reflect.TypeOf((*MockStore)(nil).GetOrganizationSkillByOrganizationIDAndName), ctx, arg)
+}
+
+// GetOrganizationSkillMemberPreferences mocks base method.
+func (m *MockStore) GetOrganizationSkillMemberPreferences(ctx context.Context, arg database.GetOrganizationSkillMemberPreferencesParams) (database.GetOrganizationSkillMemberPreferencesRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOrganizationSkillMemberPreferences", ctx, arg)
+	ret0, _ := ret[0].(database.GetOrganizationSkillMemberPreferencesRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOrganizationSkillMemberPreferences indicates an expected call of GetOrganizationSkillMemberPreferences.
+func (mr *MockStoreMockRecorder) GetOrganizationSkillMemberPreferences(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrganizationSkillMemberPreferences", reflect.TypeOf((*MockStore)(nil).GetOrganizationSkillMemberPreferences), ctx, arg)
 }
 
 // GetOrganizations mocks base method.
@@ -5589,6 +5661,36 @@ func (m *MockStore) GetPreviousTemplateVersion(ctx context.Context, arg database
 func (mr *MockStoreMockRecorder) GetPreviousTemplateVersion(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPreviousTemplateVersion", reflect.TypeOf((*MockStore)(nil).GetPreviousTemplateVersion), ctx, arg)
+}
+
+// GetProjectSkillByIDForUpdate mocks base method.
+func (m *MockStore) GetProjectSkillByIDForUpdate(ctx context.Context, id uuid.UUID) (database.Skill, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetProjectSkillByIDForUpdate", ctx, id)
+	ret0, _ := ret[0].(database.Skill)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetProjectSkillByIDForUpdate indicates an expected call of GetProjectSkillByIDForUpdate.
+func (mr *MockStoreMockRecorder) GetProjectSkillByIDForUpdate(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProjectSkillByIDForUpdate", reflect.TypeOf((*MockStore)(nil).GetProjectSkillByIDForUpdate), ctx, id)
+}
+
+// GetProjectSkillByProjectIDAndName mocks base method.
+func (m *MockStore) GetProjectSkillByProjectIDAndName(ctx context.Context, arg database.GetProjectSkillByProjectIDAndNameParams) (database.Skill, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetProjectSkillByProjectIDAndName", ctx, arg)
+	ret0, _ := ret[0].(database.Skill)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetProjectSkillByProjectIDAndName indicates an expected call of GetProjectSkillByProjectIDAndName.
+func (mr *MockStoreMockRecorder) GetProjectSkillByProjectIDAndName(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProjectSkillByProjectIDAndName", reflect.TypeOf((*MockStore)(nil).GetProjectSkillByProjectIDAndName), ctx, arg)
 }
 
 // GetProvisionerDaemons mocks base method.
@@ -5934,6 +6036,21 @@ func (m *MockStore) GetRuntimeConfig(ctx context.Context, key string) (string, e
 func (mr *MockStoreMockRecorder) GetRuntimeConfig(ctx, key any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRuntimeConfig", reflect.TypeOf((*MockStore)(nil).GetRuntimeConfig), ctx, key)
+}
+
+// GetScriptOrderTelemetrySummary mocks base method.
+func (m *MockStore) GetScriptOrderTelemetrySummary(ctx context.Context) (database.GetScriptOrderTelemetrySummaryRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetScriptOrderTelemetrySummary", ctx)
+	ret0, _ := ret[0].(database.GetScriptOrderTelemetrySummaryRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetScriptOrderTelemetrySummary indicates an expected call of GetScriptOrderTelemetrySummary.
+func (mr *MockStoreMockRecorder) GetScriptOrderTelemetrySummary(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetScriptOrderTelemetrySummary", reflect.TypeOf((*MockStore)(nil).GetScriptOrderTelemetrySummary), ctx)
 }
 
 // GetStaleChats mocks base method.
@@ -6521,6 +6638,21 @@ func (mr *MockStoreMockRecorder) GetUserAIBudgetOverride(ctx, userID any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserAIBudgetOverride", reflect.TypeOf((*MockStore)(nil).GetUserAIBudgetOverride), ctx, userID)
 }
 
+// GetUserAIBudgetOverrideWithOrganization mocks base method.
+func (m *MockStore) GetUserAIBudgetOverrideWithOrganization(ctx context.Context, arg database.GetUserAIBudgetOverrideWithOrganizationParams) (database.GetUserAIBudgetOverrideWithOrganizationRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserAIBudgetOverrideWithOrganization", ctx, arg)
+	ret0, _ := ret[0].(database.GetUserAIBudgetOverrideWithOrganizationRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserAIBudgetOverrideWithOrganization indicates an expected call of GetUserAIBudgetOverrideWithOrganization.
+func (mr *MockStoreMockRecorder) GetUserAIBudgetOverrideWithOrganization(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserAIBudgetOverrideWithOrganization", reflect.TypeOf((*MockStore)(nil).GetUserAIBudgetOverrideWithOrganization), ctx, arg)
+}
+
 // GetUserAIProviderKeyByProviderID mocks base method.
 func (m *MockStore) GetUserAIProviderKeyByProviderID(ctx context.Context, arg database.GetUserAIProviderKeyByProviderIDParams) (database.UserAIProviderKey, error) {
 	m.ctrl.T.Helper()
@@ -6762,18 +6894,18 @@ func (mr *MockStoreMockRecorder) GetUserCount(ctx, includeSystem any) *gomock.Ca
 }
 
 // GetUserEveryoneFallbackGroup mocks base method.
-func (m *MockStore) GetUserEveryoneFallbackGroup(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
+func (m *MockStore) GetUserEveryoneFallbackGroup(ctx context.Context, arg database.GetUserEveryoneFallbackGroupParams) (uuid.UUID, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUserEveryoneFallbackGroup", ctx, userID)
+	ret := m.ctrl.Call(m, "GetUserEveryoneFallbackGroup", ctx, arg)
 	ret0, _ := ret[0].(uuid.UUID)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetUserEveryoneFallbackGroup indicates an expected call of GetUserEveryoneFallbackGroup.
-func (mr *MockStoreMockRecorder) GetUserEveryoneFallbackGroup(ctx, userID any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetUserEveryoneFallbackGroup(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserEveryoneFallbackGroup", reflect.TypeOf((*MockStore)(nil).GetUserEveryoneFallbackGroup), ctx, userID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserEveryoneFallbackGroup", reflect.TypeOf((*MockStore)(nil).GetUserEveryoneFallbackGroup), ctx, arg)
 }
 
 // GetUserForChatSyntheticAPIKeyByID mocks base method.
@@ -6942,10 +7074,10 @@ func (mr *MockStoreMockRecorder) GetUserShellToolDisplayMode(ctx, userID any) *g
 }
 
 // GetUserSkillByUserIDAndName mocks base method.
-func (m *MockStore) GetUserSkillByUserIDAndName(ctx context.Context, arg database.GetUserSkillByUserIDAndNameParams) (database.UserSkill, error) {
+func (m *MockStore) GetUserSkillByUserIDAndName(ctx context.Context, arg database.GetUserSkillByUserIDAndNameParams) (database.Skill, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetUserSkillByUserIDAndName", ctx, arg)
-	ret0, _ := ret[0].(database.UserSkill)
+	ret0, _ := ret[0].(database.Skill)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -6984,21 +7116,6 @@ func (m *MockStore) GetUserThinkingDisplayMode(ctx context.Context, userID uuid.
 func (mr *MockStoreMockRecorder) GetUserThinkingDisplayMode(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserThinkingDisplayMode", reflect.TypeOf((*MockStore)(nil).GetUserThinkingDisplayMode), ctx, userID)
-}
-
-// GetUserWorkspaceBuildParameters mocks base method.
-func (m *MockStore) GetUserWorkspaceBuildParameters(ctx context.Context, arg database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUserWorkspaceBuildParameters", ctx, arg)
-	ret0, _ := ret[0].([]database.GetUserWorkspaceBuildParametersRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetUserWorkspaceBuildParameters indicates an expected call of GetUserWorkspaceBuildParameters.
-func (mr *MockStoreMockRecorder) GetUserWorkspaceBuildParameters(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserWorkspaceBuildParameters", reflect.TypeOf((*MockStore)(nil).GetUserWorkspaceBuildParameters), ctx, arg)
 }
 
 // GetUsers mocks base method.
@@ -7886,6 +8003,36 @@ func (mr *MockStoreMockRecorder) GetWorkspaceResourcesCreatedAfter(ctx, createdA
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceResourcesCreatedAfter", reflect.TypeOf((*MockStore)(nil).GetWorkspaceResourcesCreatedAfter), ctx, createdAt)
 }
 
+// GetWorkspaceSecrets mocks base method.
+func (m *MockStore) GetWorkspaceSecrets(ctx context.Context, arg database.GetWorkspaceSecretsParams) ([]database.WorkspaceSecret, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceSecrets", ctx, arg)
+	ret0, _ := ret[0].([]database.WorkspaceSecret)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceSecrets indicates an expected call of GetWorkspaceSecrets.
+func (mr *MockStoreMockRecorder) GetWorkspaceSecrets(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceSecrets", reflect.TypeOf((*MockStore)(nil).GetWorkspaceSecrets), ctx, arg)
+}
+
+// GetWorkspaceSecretsHistory mocks base method.
+func (m *MockStore) GetWorkspaceSecretsHistory(ctx context.Context, arg database.GetWorkspaceSecretsHistoryParams) ([]database.GetWorkspaceSecretsHistoryRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceSecretsHistory", ctx, arg)
+	ret0, _ := ret[0].([]database.GetWorkspaceSecretsHistoryRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceSecretsHistory indicates an expected call of GetWorkspaceSecretsHistory.
+func (mr *MockStoreMockRecorder) GetWorkspaceSecretsHistory(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceSecretsHistory", reflect.TypeOf((*MockStore)(nil).GetWorkspaceSecretsHistory), ctx, arg)
+}
+
 // GetWorkspaceUniqueOwnerCountByTemplateIDs mocks base method.
 func (m *MockStore) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Context, templateIds []uuid.UUID) ([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow, error) {
 	m.ctrl.T.Helper()
@@ -8272,21 +8419,6 @@ func (m *MockStore) InsertChat(ctx context.Context, arg database.InsertChatParam
 func (mr *MockStoreMockRecorder) InsertChat(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChat", reflect.TypeOf((*MockStore)(nil).InsertChat), ctx, arg)
-}
-
-// InsertChatAutomation mocks base method.
-func (m *MockStore) InsertChatAutomation(ctx context.Context, arg database.InsertChatAutomationParams) (database.ChatAutomation, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertChatAutomation", ctx, arg)
-	ret0, _ := ret[0].(database.ChatAutomation)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// InsertChatAutomation indicates an expected call of InsertChatAutomation.
-func (mr *MockStoreMockRecorder) InsertChatAutomation(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatAutomation", reflect.TypeOf((*MockStore)(nil).InsertChatAutomation), ctx, arg)
 }
 
 // InsertChatDebugRun mocks base method.
@@ -8735,6 +8867,35 @@ func (mr *MockStoreMockRecorder) InsertOrganizationMember(ctx, arg any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOrganizationMember", reflect.TypeOf((*MockStore)(nil).InsertOrganizationMember), ctx, arg)
 }
 
+// InsertOrganizationMemberDisabledSkill mocks base method.
+func (m *MockStore) InsertOrganizationMemberDisabledSkill(ctx context.Context, arg database.InsertOrganizationMemberDisabledSkillParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertOrganizationMemberDisabledSkill", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertOrganizationMemberDisabledSkill indicates an expected call of InsertOrganizationMemberDisabledSkill.
+func (mr *MockStoreMockRecorder) InsertOrganizationMemberDisabledSkill(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOrganizationMemberDisabledSkill", reflect.TypeOf((*MockStore)(nil).InsertOrganizationMemberDisabledSkill), ctx, arg)
+}
+
+// InsertOrganizationSkill mocks base method.
+func (m *MockStore) InsertOrganizationSkill(ctx context.Context, arg database.InsertOrganizationSkillParams) (database.Skill, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertOrganizationSkill", ctx, arg)
+	ret0, _ := ret[0].(database.Skill)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertOrganizationSkill indicates an expected call of InsertOrganizationSkill.
+func (mr *MockStoreMockRecorder) InsertOrganizationSkill(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOrganizationSkill", reflect.TypeOf((*MockStore)(nil).InsertOrganizationSkill), ctx, arg)
+}
+
 // InsertPreset mocks base method.
 func (m *MockStore) InsertPreset(ctx context.Context, arg database.InsertPresetParams) (database.TemplateVersionPreset, error) {
 	m.ctrl.T.Helper()
@@ -8778,6 +8939,21 @@ func (m *MockStore) InsertPresetPrebuildSchedule(ctx context.Context, arg databa
 func (mr *MockStoreMockRecorder) InsertPresetPrebuildSchedule(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertPresetPrebuildSchedule", reflect.TypeOf((*MockStore)(nil).InsertPresetPrebuildSchedule), ctx, arg)
+}
+
+// InsertProjectSkill mocks base method.
+func (m *MockStore) InsertProjectSkill(ctx context.Context, arg database.InsertProjectSkillParams) (database.Skill, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertProjectSkill", ctx, arg)
+	ret0, _ := ret[0].(database.Skill)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertProjectSkill indicates an expected call of InsertProjectSkill.
+func (mr *MockStoreMockRecorder) InsertProjectSkill(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertProjectSkill", reflect.TypeOf((*MockStore)(nil).InsertProjectSkill), ctx, arg)
 }
 
 // InsertProvisionerJob mocks base method.
@@ -9030,10 +9206,10 @@ func (mr *MockStoreMockRecorder) InsertUserLink(ctx, arg any) *gomock.Call {
 }
 
 // InsertUserSkill mocks base method.
-func (m *MockStore) InsertUserSkill(ctx context.Context, arg database.InsertUserSkillParams) (database.UserSkill, error) {
+func (m *MockStore) InsertUserSkill(ctx context.Context, arg database.InsertUserSkillParams) (database.Skill, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertUserSkill", ctx, arg)
-	ret0, _ := ret[0].(database.UserSkill)
+	ret0, _ := ret[0].(database.Skill)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -9339,6 +9515,21 @@ func (mr *MockStoreMockRecorder) InsertWorkspaceResourceMetadata(ctx, arg any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceResourceMetadata", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceResourceMetadata), ctx, arg)
 }
 
+// InsertWorkspaceSecret mocks base method.
+func (m *MockStore) InsertWorkspaceSecret(ctx context.Context, arg database.InsertWorkspaceSecretParams) (database.WorkspaceSecret, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertWorkspaceSecret", ctx, arg)
+	ret0, _ := ret[0].(database.WorkspaceSecret)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertWorkspaceSecret indicates an expected call of InsertWorkspaceSecret.
+func (mr *MockStoreMockRecorder) InsertWorkspaceSecret(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceSecret", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceSecret), ctx, arg)
+}
+
 // IsChatHeartbeatStale mocks base method.
 func (m *MockStore) IsChatHeartbeatStale(ctx context.Context, arg database.IsChatHeartbeatStaleParams) (bool, error) {
 	m.ctrl.T.Helper()
@@ -9352,6 +9543,21 @@ func (m *MockStore) IsChatHeartbeatStale(ctx context.Context, arg database.IsCha
 func (mr *MockStoreMockRecorder) IsChatHeartbeatStale(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsChatHeartbeatStale", reflect.TypeOf((*MockStore)(nil).IsChatHeartbeatStale), ctx, arg)
+}
+
+// IsChatProjectUsableByUserID mocks base method.
+func (m *MockStore) IsChatProjectUsableByUserID(ctx context.Context, arg database.IsChatProjectUsableByUserIDParams) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsChatProjectUsableByUserID", ctx, arg)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// IsChatProjectUsableByUserID indicates an expected call of IsChatProjectUsableByUserID.
+func (mr *MockStoreMockRecorder) IsChatProjectUsableByUserID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsChatProjectUsableByUserID", reflect.TypeOf((*MockStore)(nil).IsChatProjectUsableByUserID), ctx, arg)
 }
 
 // LinkChatFiles mocks base method.
@@ -9549,6 +9755,21 @@ func (mr *MockStoreMockRecorder) ListAIGatewayKeys(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAIGatewayKeys", reflect.TypeOf((*MockStore)(nil).ListAIGatewayKeys), ctx)
 }
 
+// ListActiveWorkspaceSecrets mocks base method.
+func (m *MockStore) ListActiveWorkspaceSecrets(ctx context.Context, workspaceBuildID uuid.UUID) ([]database.WorkspaceSecret, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListActiveWorkspaceSecrets", ctx, workspaceBuildID)
+	ret0, _ := ret[0].([]database.WorkspaceSecret)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListActiveWorkspaceSecrets indicates an expected call of ListActiveWorkspaceSecrets.
+func (mr *MockStoreMockRecorder) ListActiveWorkspaceSecrets(ctx, workspaceBuildID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListActiveWorkspaceSecrets", reflect.TypeOf((*MockStore)(nil).ListActiveWorkspaceSecrets), ctx, workspaceBuildID)
+}
+
 // ListAuthorizedAIBridgeClients mocks base method.
 func (m *MockStore) ListAuthorizedAIBridgeClients(ctx context.Context, arg database.ListAIBridgeClientsParams, prepared rbac.PreparedAuthorized) ([]string, error) {
 	m.ctrl.T.Helper()
@@ -9652,6 +9873,36 @@ func (m *MockStore) ListOrganizationAISpendUsers(ctx context.Context, arg databa
 func (mr *MockStoreMockRecorder) ListOrganizationAISpendUsers(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListOrganizationAISpendUsers", reflect.TypeOf((*MockStore)(nil).ListOrganizationAISpendUsers), ctx, arg)
+}
+
+// ListOrganizationSkillMetadataByOrganizationID mocks base method.
+func (m *MockStore) ListOrganizationSkillMetadataByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.ListOrganizationSkillMetadataByOrganizationIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListOrganizationSkillMetadataByOrganizationID", ctx, organizationID)
+	ret0, _ := ret[0].([]database.ListOrganizationSkillMetadataByOrganizationIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListOrganizationSkillMetadataByOrganizationID indicates an expected call of ListOrganizationSkillMetadataByOrganizationID.
+func (mr *MockStoreMockRecorder) ListOrganizationSkillMetadataByOrganizationID(ctx, organizationID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListOrganizationSkillMetadataByOrganizationID", reflect.TypeOf((*MockStore)(nil).ListOrganizationSkillMetadataByOrganizationID), ctx, organizationID)
+}
+
+// ListProjectSkillMetadataByProjectID mocks base method.
+func (m *MockStore) ListProjectSkillMetadataByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.ListProjectSkillMetadataByProjectIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListProjectSkillMetadataByProjectID", ctx, projectID)
+	ret0, _ := ret[0].([]database.ListProjectSkillMetadataByProjectIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListProjectSkillMetadataByProjectID indicates an expected call of ListProjectSkillMetadataByProjectID.
+func (mr *MockStoreMockRecorder) ListProjectSkillMetadataByProjectID(ctx, projectID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListProjectSkillMetadataByProjectID", reflect.TypeOf((*MockStore)(nil).ListProjectSkillMetadataByProjectID), ctx, projectID)
 }
 
 // ListProvisionerKeysByOrganization mocks base method.
@@ -9817,6 +10068,21 @@ func (m *MockStore) LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, 
 func (mr *MockStoreMockRecorder) LockChatByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockChatByID", reflect.TypeOf((*MockStore)(nil).LockChatByID), ctx, id)
+}
+
+// LockOrganizationMembersByUserIDsForShare mocks base method.
+func (m *MockStore) LockOrganizationMembersByUserIDsForShare(ctx context.Context, arg database.LockOrganizationMembersByUserIDsForShareParams) ([]uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LockOrganizationMembersByUserIDsForShare", ctx, arg)
+	ret0, _ := ret[0].([]uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// LockOrganizationMembersByUserIDsForShare indicates an expected call of LockOrganizationMembersByUserIDsForShare.
+func (mr *MockStoreMockRecorder) LockOrganizationMembersByUserIDsForShare(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockOrganizationMembersByUserIDsForShare", reflect.TypeOf((*MockStore)(nil).LockOrganizationMembersByUserIDsForShare), ctx, arg)
 }
 
 // LockProvisionerKeyByIDForShare mocks base method.
@@ -10242,47 +10508,19 @@ func (mr *MockStoreMockRecorder) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, wor
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SoftDeleteWorkspaceAgentsByWorkspaceID", reflect.TypeOf((*MockStore)(nil).SoftDeleteWorkspaceAgentsByWorkspaceID), ctx, workspaceID)
 }
 
-// SyncAgentChatsContextMCPResources mocks base method.
-func (m *MockStore) SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {
+// SyncAgentChatsContextLiveResources mocks base method.
+func (m *MockStore) SyncAgentChatsContextLiveResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SyncAgentChatsContextMCPResources", ctx, agentID)
+	ret := m.ctrl.Call(m, "SyncAgentChatsContextLiveResources", ctx, agentID)
 	ret0, _ := ret[0].([]uuid.UUID)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// SyncAgentChatsContextMCPResources indicates an expected call of SyncAgentChatsContextMCPResources.
-func (mr *MockStoreMockRecorder) SyncAgentChatsContextMCPResources(ctx, agentID any) *gomock.Call {
+// SyncAgentChatsContextLiveResources indicates an expected call of SyncAgentChatsContextLiveResources.
+func (mr *MockStoreMockRecorder) SyncAgentChatsContextLiveResources(ctx, agentID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SyncAgentChatsContextMCPResources", reflect.TypeOf((*MockStore)(nil).SyncAgentChatsContextMCPResources), ctx, agentID)
-}
-
-// TouchChatDebugRunUpdatedAt mocks base method.
-func (m *MockStore) TouchChatDebugRunUpdatedAt(ctx context.Context, arg database.TouchChatDebugRunUpdatedAtParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "TouchChatDebugRunUpdatedAt", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// TouchChatDebugRunUpdatedAt indicates an expected call of TouchChatDebugRunUpdatedAt.
-func (mr *MockStoreMockRecorder) TouchChatDebugRunUpdatedAt(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TouchChatDebugRunUpdatedAt", reflect.TypeOf((*MockStore)(nil).TouchChatDebugRunUpdatedAt), ctx, arg)
-}
-
-// TouchChatDebugStepAndRun mocks base method.
-func (m *MockStore) TouchChatDebugStepAndRun(ctx context.Context, arg database.TouchChatDebugStepAndRunParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "TouchChatDebugStepAndRun", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// TouchChatDebugStepAndRun indicates an expected call of TouchChatDebugStepAndRun.
-func (mr *MockStoreMockRecorder) TouchChatDebugStepAndRun(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TouchChatDebugStepAndRun", reflect.TypeOf((*MockStore)(nil).TouchChatDebugStepAndRun), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SyncAgentChatsContextLiveResources", reflect.TypeOf((*MockStore)(nil).SyncAgentChatsContextLiveResources), ctx, agentID)
 }
 
 // TryAcquireLock mocks base method.
@@ -10459,51 +10697,6 @@ func (mr *MockStoreMockRecorder) UpdateChatACLByID(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatACLByID", reflect.TypeOf((*MockStore)(nil).UpdateChatACLByID), ctx, arg)
 }
 
-// UpdateChatAutomationByID mocks base method.
-func (m *MockStore) UpdateChatAutomationByID(ctx context.Context, arg database.UpdateChatAutomationByIDParams) (database.ChatAutomation, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateChatAutomationByID", ctx, arg)
-	ret0, _ := ret[0].(database.ChatAutomation)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateChatAutomationByID indicates an expected call of UpdateChatAutomationByID.
-func (mr *MockStoreMockRecorder) UpdateChatAutomationByID(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatAutomationByID", reflect.TypeOf((*MockStore)(nil).UpdateChatAutomationByID), ctx, arg)
-}
-
-// UpdateChatAutomationIDByID mocks base method.
-func (m *MockStore) UpdateChatAutomationIDByID(ctx context.Context, arg database.UpdateChatAutomationIDByIDParams) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateChatAutomationIDByID", ctx, arg)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateChatAutomationIDByID indicates an expected call of UpdateChatAutomationIDByID.
-func (mr *MockStoreMockRecorder) UpdateChatAutomationIDByID(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatAutomationIDByID", reflect.TypeOf((*MockStore)(nil).UpdateChatAutomationIDByID), ctx, arg)
-}
-
-// UpdateChatAutomationWebhookSecretByID mocks base method.
-func (m *MockStore) UpdateChatAutomationWebhookSecretByID(ctx context.Context, arg database.UpdateChatAutomationWebhookSecretByIDParams) (database.ChatAutomation, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateChatAutomationWebhookSecretByID", ctx, arg)
-	ret0, _ := ret[0].(database.ChatAutomation)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateChatAutomationWebhookSecretByID indicates an expected call of UpdateChatAutomationWebhookSecretByID.
-func (mr *MockStoreMockRecorder) UpdateChatAutomationWebhookSecretByID(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatAutomationWebhookSecretByID", reflect.TypeOf((*MockStore)(nil).UpdateChatAutomationWebhookSecretByID), ctx, arg)
-}
-
 // UpdateChatBuildAgentBinding mocks base method.
 func (m *MockStore) UpdateChatBuildAgentBinding(ctx context.Context, arg database.UpdateChatBuildAgentBindingParams) (database.Chat, error) {
 	m.ctrl.T.Helper()
@@ -10667,21 +10860,6 @@ func (mr *MockStoreMockRecorder) UpdateChatMCPServerIDs(ctx, arg any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatMCPServerIDs", reflect.TypeOf((*MockStore)(nil).UpdateChatMCPServerIDs), ctx, arg)
 }
 
-// UpdateChatManageAutomationsEnabledByID mocks base method.
-func (m *MockStore) UpdateChatManageAutomationsEnabledByID(ctx context.Context, arg database.UpdateChatManageAutomationsEnabledByIDParams) (database.Chat, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateChatManageAutomationsEnabledByID", ctx, arg)
-	ret0, _ := ret[0].(database.Chat)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateChatManageAutomationsEnabledByID indicates an expected call of UpdateChatManageAutomationsEnabledByID.
-func (mr *MockStoreMockRecorder) UpdateChatManageAutomationsEnabledByID(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatManageAutomationsEnabledByID", reflect.TypeOf((*MockStore)(nil).UpdateChatManageAutomationsEnabledByID), ctx, arg)
-}
-
 // UpdateChatModelConfig mocks base method.
 func (m *MockStore) UpdateChatModelConfig(ctx context.Context, arg database.UpdateChatModelConfigParams) (database.ChatModelConfig, error) {
 	m.ctrl.T.Helper()
@@ -10741,6 +10919,20 @@ func (mr *MockStoreMockRecorder) UpdateChatPlanModeByID(ctx, arg any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatPlanModeByID", reflect.TypeOf((*MockStore)(nil).UpdateChatPlanModeByID), ctx, arg)
 }
 
+// UpdateChatProjectACLByID mocks base method.
+func (m *MockStore) UpdateChatProjectACLByID(ctx context.Context, arg database.UpdateChatProjectACLByIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatProjectACLByID", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateChatProjectACLByID indicates an expected call of UpdateChatProjectACLByID.
+func (mr *MockStoreMockRecorder) UpdateChatProjectACLByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatProjectACLByID", reflect.TypeOf((*MockStore)(nil).UpdateChatProjectACLByID), ctx, arg)
+}
+
 // UpdateChatProjectByID mocks base method.
 func (m *MockStore) UpdateChatProjectByID(ctx context.Context, arg database.UpdateChatProjectByIDParams) (database.ChatProject, error) {
 	m.ctrl.T.Helper()
@@ -10754,6 +10946,20 @@ func (m *MockStore) UpdateChatProjectByID(ctx context.Context, arg database.Upda
 func (mr *MockStoreMockRecorder) UpdateChatProjectByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatProjectByID", reflect.TypeOf((*MockStore)(nil).UpdateChatProjectByID), ctx, arg)
+}
+
+// UpdateChatProjectIDByID mocks base method.
+func (m *MockStore) UpdateChatProjectIDByID(ctx context.Context, arg database.UpdateChatProjectIDByIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatProjectIDByID", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateChatProjectIDByID indicates an expected call of UpdateChatProjectIDByID.
+func (mr *MockStoreMockRecorder) UpdateChatProjectIDByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatProjectIDByID", reflect.TypeOf((*MockStore)(nil).UpdateChatProjectIDByID), ctx, arg)
 }
 
 // UpdateChatRetryState mocks base method.
@@ -10918,6 +11124,21 @@ func (m *MockStore) UpdateEncryptedUserAIProviderKey(ctx context.Context, arg da
 func (mr *MockStoreMockRecorder) UpdateEncryptedUserAIProviderKey(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateEncryptedUserAIProviderKey", reflect.TypeOf((*MockStore)(nil).UpdateEncryptedUserAIProviderKey), ctx, arg)
+}
+
+// UpdateEncryptedWorkspaceSecretValue mocks base method.
+func (m *MockStore) UpdateEncryptedWorkspaceSecretValue(ctx context.Context, arg database.UpdateEncryptedWorkspaceSecretValueParams) (database.WorkspaceSecret, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateEncryptedWorkspaceSecretValue", ctx, arg)
+	ret0, _ := ret[0].(database.WorkspaceSecret)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateEncryptedWorkspaceSecretValue indicates an expected call of UpdateEncryptedWorkspaceSecretValue.
+func (mr *MockStoreMockRecorder) UpdateEncryptedWorkspaceSecretValue(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateEncryptedWorkspaceSecretValue", reflect.TypeOf((*MockStore)(nil).UpdateEncryptedWorkspaceSecretValue), ctx, arg)
 }
 
 // UpdateExternalAuthLink mocks base method.
@@ -11141,6 +11362,51 @@ func (mr *MockStoreMockRecorder) UpdateOrganizationDeletedByID(ctx, arg any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOrganizationDeletedByID", reflect.TypeOf((*MockStore)(nil).UpdateOrganizationDeletedByID), ctx, arg)
 }
 
+// UpdateOrganizationMembersCanDisableSkills mocks base method.
+func (m *MockStore) UpdateOrganizationMembersCanDisableSkills(ctx context.Context, arg database.UpdateOrganizationMembersCanDisableSkillsParams) (database.Organization, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateOrganizationMembersCanDisableSkills", ctx, arg)
+	ret0, _ := ret[0].(database.Organization)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateOrganizationMembersCanDisableSkills indicates an expected call of UpdateOrganizationMembersCanDisableSkills.
+func (mr *MockStoreMockRecorder) UpdateOrganizationMembersCanDisableSkills(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOrganizationMembersCanDisableSkills", reflect.TypeOf((*MockStore)(nil).UpdateOrganizationMembersCanDisableSkills), ctx, arg)
+}
+
+// UpdateOrganizationSkillACLByID mocks base method.
+func (m *MockStore) UpdateOrganizationSkillACLByID(ctx context.Context, arg database.UpdateOrganizationSkillACLByIDParams) (database.Skill, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateOrganizationSkillACLByID", ctx, arg)
+	ret0, _ := ret[0].(database.Skill)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateOrganizationSkillACLByID indicates an expected call of UpdateOrganizationSkillACLByID.
+func (mr *MockStoreMockRecorder) UpdateOrganizationSkillACLByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOrganizationSkillACLByID", reflect.TypeOf((*MockStore)(nil).UpdateOrganizationSkillACLByID), ctx, arg)
+}
+
+// UpdateOrganizationSkillByOrganizationIDAndName mocks base method.
+func (m *MockStore) UpdateOrganizationSkillByOrganizationIDAndName(ctx context.Context, arg database.UpdateOrganizationSkillByOrganizationIDAndNameParams) (database.Skill, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateOrganizationSkillByOrganizationIDAndName", ctx, arg)
+	ret0, _ := ret[0].(database.Skill)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateOrganizationSkillByOrganizationIDAndName indicates an expected call of UpdateOrganizationSkillByOrganizationIDAndName.
+func (mr *MockStoreMockRecorder) UpdateOrganizationSkillByOrganizationIDAndName(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOrganizationSkillByOrganizationIDAndName", reflect.TypeOf((*MockStore)(nil).UpdateOrganizationSkillByOrganizationIDAndName), ctx, arg)
+}
+
 // UpdateOrganizationWorkspaceSharingSettings mocks base method.
 func (m *MockStore) UpdateOrganizationWorkspaceSharingSettings(ctx context.Context, arg database.UpdateOrganizationWorkspaceSharingSettingsParams) (database.Organization, error) {
 	m.ctrl.T.Helper()
@@ -11198,6 +11464,21 @@ func (m *MockStore) UpdatePresetsLastInvalidatedAt(ctx context.Context, arg data
 func (mr *MockStoreMockRecorder) UpdatePresetsLastInvalidatedAt(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePresetsLastInvalidatedAt", reflect.TypeOf((*MockStore)(nil).UpdatePresetsLastInvalidatedAt), ctx, arg)
+}
+
+// UpdateProjectSkillByProjectIDAndName mocks base method.
+func (m *MockStore) UpdateProjectSkillByProjectIDAndName(ctx context.Context, arg database.UpdateProjectSkillByProjectIDAndNameParams) (database.Skill, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateProjectSkillByProjectIDAndName", ctx, arg)
+	ret0, _ := ret[0].(database.Skill)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateProjectSkillByProjectIDAndName indicates an expected call of UpdateProjectSkillByProjectIDAndName.
+func (mr *MockStoreMockRecorder) UpdateProjectSkillByProjectIDAndName(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateProjectSkillByProjectIDAndName", reflect.TypeOf((*MockStore)(nil).UpdateProjectSkillByProjectIDAndName), ctx, arg)
 }
 
 // UpdateProvisionerDaemonLastSeenAt mocks base method.
@@ -11466,6 +11747,20 @@ func (m *MockStore) UpdateTemplateVersionFlagsByJobID(ctx context.Context, arg d
 func (mr *MockStoreMockRecorder) UpdateTemplateVersionFlagsByJobID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTemplateVersionFlagsByJobID", reflect.TypeOf((*MockStore)(nil).UpdateTemplateVersionFlagsByJobID), ctx, arg)
+}
+
+// UpdateTemplateVersionScriptOrderUsageByJobID mocks base method.
+func (m *MockStore) UpdateTemplateVersionScriptOrderUsageByJobID(ctx context.Context, arg database.UpdateTemplateVersionScriptOrderUsageByJobIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateTemplateVersionScriptOrderUsageByJobID", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateTemplateVersionScriptOrderUsageByJobID indicates an expected call of UpdateTemplateVersionScriptOrderUsageByJobID.
+func (mr *MockStoreMockRecorder) UpdateTemplateVersionScriptOrderUsageByJobID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTemplateVersionScriptOrderUsageByJobID", reflect.TypeOf((*MockStore)(nil).UpdateTemplateVersionScriptOrderUsageByJobID), ctx, arg)
 }
 
 // UpdateTemplateWorkspacesLastUsedAt mocks base method.
@@ -11808,10 +12103,10 @@ func (mr *MockStoreMockRecorder) UpdateUserShellToolDisplayMode(ctx, arg any) *g
 }
 
 // UpdateUserSkillByUserIDAndName mocks base method.
-func (m *MockStore) UpdateUserSkillByUserIDAndName(ctx context.Context, arg database.UpdateUserSkillByUserIDAndNameParams) (database.UserSkill, error) {
+func (m *MockStore) UpdateUserSkillByUserIDAndName(ctx context.Context, arg database.UpdateUserSkillByUserIDAndNameParams) (database.Skill, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateUserSkillByUserIDAndName", ctx, arg)
-	ret0, _ := ret[0].(database.UserSkill)
+	ret0, _ := ret[0].(database.Skill)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -12469,20 +12764,6 @@ func (mr *MockStoreMockRecorder) UpsertChatAutoArchiveDays(ctx, autoArchiveDays 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatAutoArchiveDays", reflect.TypeOf((*MockStore)(nil).UpsertChatAutoArchiveDays), ctx, autoArchiveDays)
 }
 
-// UpsertChatComputerUseProvider mocks base method.
-func (m *MockStore) UpsertChatComputerUseProvider(ctx context.Context, provider string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertChatComputerUseProvider", ctx, provider)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpsertChatComputerUseProvider indicates an expected call of UpsertChatComputerUseProvider.
-func (mr *MockStoreMockRecorder) UpsertChatComputerUseProvider(ctx, provider any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatComputerUseProvider", reflect.TypeOf((*MockStore)(nil).UpsertChatComputerUseProvider), ctx, provider)
-}
-
 // UpsertChatDebugLoggingAllowUsers mocks base method.
 func (m *MockStore) UpsertChatDebugLoggingAllowUsers(ctx context.Context, allowUsers bool) error {
 	m.ctrl.T.Helper()
@@ -12653,6 +12934,21 @@ func (m *MockStore) UpsertChatPlanModeInstructions(ctx context.Context, value st
 func (mr *MockStoreMockRecorder) UpsertChatPlanModeInstructions(ctx, value any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatPlanModeInstructions", reflect.TypeOf((*MockStore)(nil).UpsertChatPlanModeInstructions), ctx, value)
+}
+
+// UpsertChatProjectInstructions mocks base method.
+func (m *MockStore) UpsertChatProjectInstructions(ctx context.Context, arg database.UpsertChatProjectInstructionsParams) (database.ChatProjectInstruction, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertChatProjectInstructions", ctx, arg)
+	ret0, _ := ret[0].(database.ChatProjectInstruction)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertChatProjectInstructions indicates an expected call of UpsertChatProjectInstructions.
+func (mr *MockStoreMockRecorder) UpsertChatProjectInstructions(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatProjectInstructions", reflect.TypeOf((*MockStore)(nil).UpsertChatProjectInstructions), ctx, arg)
 }
 
 // UpsertChatRetentionDays mocks base method.
@@ -12879,6 +13175,34 @@ func (m *MockStore) UpsertOAuth2GithubDefaultEligible(ctx context.Context, eligi
 func (mr *MockStoreMockRecorder) UpsertOAuth2GithubDefaultEligible(ctx, eligible any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertOAuth2GithubDefaultEligible", reflect.TypeOf((*MockStore)(nil).UpsertOAuth2GithubDefaultEligible), ctx, eligible)
+}
+
+// UpsertOrganizationAIProviderModelConfig mocks base method.
+func (m *MockStore) UpsertOrganizationAIProviderModelConfig(ctx context.Context, arg database.UpsertOrganizationAIProviderModelConfigParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertOrganizationAIProviderModelConfig", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertOrganizationAIProviderModelConfig indicates an expected call of UpsertOrganizationAIProviderModelConfig.
+func (mr *MockStoreMockRecorder) UpsertOrganizationAIProviderModelConfig(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertOrganizationAIProviderModelConfig", reflect.TypeOf((*MockStore)(nil).UpsertOrganizationAIProviderModelConfig), ctx, arg)
+}
+
+// UpsertOrganizationMemberSkillSettings mocks base method.
+func (m *MockStore) UpsertOrganizationMemberSkillSettings(ctx context.Context, arg database.UpsertOrganizationMemberSkillSettingsParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertOrganizationMemberSkillSettings", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertOrganizationMemberSkillSettings indicates an expected call of UpsertOrganizationMemberSkillSettings.
+func (mr *MockStoreMockRecorder) UpsertOrganizationMemberSkillSettings(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertOrganizationMemberSkillSettings", reflect.TypeOf((*MockStore)(nil).UpsertOrganizationMemberSkillSettings), ctx, arg)
 }
 
 // UpsertPrebuildsSettings mocks base method.

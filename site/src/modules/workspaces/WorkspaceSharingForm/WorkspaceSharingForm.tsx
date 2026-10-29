@@ -41,12 +41,14 @@ import { getGroupSubtitle } from "#/modules/groups";
 
 type RoleSelectProps = {
 	value: WorkspaceRole;
+	memberOrGroupName: string;
 	disabled?: boolean;
 	onValueChange: (value: WorkspaceRole) => void;
 };
 
 const RoleSelect: React.FC<RoleSelectProps> = ({
 	value,
+	memberOrGroupName,
 	disabled,
 	onValueChange,
 }) => {
@@ -58,7 +60,10 @@ const RoleSelect: React.FC<RoleSelectProps> = ({
 
 	return (
 		<Select value={value} onValueChange={onValueChange} disabled={disabled}>
-			<SelectTrigger className="w-40 h-auto">
+			<SelectTrigger
+				className="w-40 h-auto"
+				aria-label={`Role for ${memberOrGroupName}`}
+			>
 				<SelectValue>
 					<span className="bg-surface-secondary rounded-md px-3 py-0.5 inline-block">
 						{roleLabels[value]}
@@ -128,7 +133,7 @@ export const RoleSelectField: React.FC<RoleSelectFieldProps> = ({
 			onValueChange={(val: WorkspaceRole) => onChange(val)}
 			disabled={disabled}
 		>
-			<SelectTrigger className="w-40">
+			<SelectTrigger className="w-40" aria-label="Role">
 				<SelectValue />
 			</SelectTrigger>
 			<SelectContent>
@@ -142,7 +147,7 @@ export const RoleSelectField: React.FC<RoleSelectFieldProps> = ({
 type WorkspaceSharingFormProps = {
 	organizationId: string;
 	workspaceACL: WorkspaceACL | undefined;
-	canUpdatePermissions: boolean;
+	canShareWorkspace: boolean;
 	error: unknown;
 	onUpdateUser: (user: WorkspaceUser, role: WorkspaceRole) => void;
 	updatingUserId: WorkspaceUser["id"] | undefined;
@@ -158,7 +163,7 @@ type WorkspaceSharingFormProps = {
 export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 	organizationId,
 	workspaceACL,
-	canUpdatePermissions,
+	canShareWorkspace,
 	error,
 	updatingUserId,
 	onUpdateUser,
@@ -256,9 +261,10 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 								/>
 							</TableCell>
 							<TableCell className="py-2 w-[40%]">
-								{canUpdatePermissions ? (
+								{canShareWorkspace ? (
 									<RoleSelect
 										value={group.role}
+										memberOrGroupName={group.display_name || group.name}
 										disabled={updatingGroupId === group.id}
 										onValueChange={(value) => onUpdateGroup(group, value)}
 									/>
@@ -268,7 +274,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 							</TableCell>
 
 							<TableCell className="py-2 w-[10%]">
-								{canUpdatePermissions && (
+								{canShareWorkspace && (
 									<DropdownMenu>
 										<DropdownMenuTrigger asChild>
 											<Button
@@ -304,9 +310,10 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 								/>
 							</TableCell>
 							<TableCell className="py-2 w-[40%]">
-								{canUpdatePermissions ? (
+								{canShareWorkspace ? (
 									<RoleSelect
 										value={user.role}
+										memberOrGroupName={user.username}
 										disabled={updatingUserId === user.id}
 										onValueChange={(value) => onUpdateUser(user, value)}
 									/>
@@ -316,7 +323,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 							</TableCell>
 
 							<TableCell className="py-2 w-[10%]">
-								{canUpdatePermissions && (
+								{canShareWorkspace && (
 									<DropdownMenu>
 										<DropdownMenuTrigger asChild>
 											<Button
@@ -350,7 +357,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 		return (
 			<div className="flex flex-col gap-4">
 				{Boolean(error) && <ErrorAlert error={error} />}
-				{canUpdatePermissions && addMemberForm}
+				{canShareWorkspace && addMemberForm}
 				{showRestartWarning && (
 					<Alert severity="warning">
 						Workspace restart required for the removal to take effect.
@@ -369,7 +376,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 	return (
 		<div className="flex flex-col gap-4">
 			{Boolean(error) && <ErrorAlert error={error} />}
-			{canUpdatePermissions && addMemberForm}
+			{canShareWorkspace && addMemberForm}
 			{showRestartWarning && (
 				<Alert severity="warning">
 					Workspace restart required for the removal to take effect.

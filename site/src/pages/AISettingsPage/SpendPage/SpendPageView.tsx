@@ -33,6 +33,7 @@ type SpendPageViewProps = {
 	onPeriodChange: (value: DateTimeRangeValue) => void;
 	filterMenus: SpendFilterMenus | undefined;
 	reportQuery: SpendReportQuery;
+	providers?: readonly TypesGen.AIBridgeProvider[];
 };
 
 export const SpendPageView: React.FC<SpendPageViewProps> = ({
@@ -87,6 +88,7 @@ const SpendPageContent: React.FC<SpendPageContentProps> = ({
 	onPeriodChange,
 	filterMenus,
 	reportQuery,
+	providers,
 }) => {
 	if (isOrganizationsLoading) {
 		return <Loader />;
@@ -113,6 +115,7 @@ const SpendPageContent: React.FC<SpendPageContentProps> = ({
 				{refetchErrorAlert}
 				<OrganizationAutocomplete
 					value={null}
+					ariaLabel="Organization"
 					options={organizations}
 					required
 					triggerClassName="w-60"
@@ -143,7 +146,7 @@ const SpendPageContent: React.FC<SpendPageContentProps> = ({
 				minDate={minDate}
 				onPeriodChange={onPeriodChange}
 			/>
-			<SpendUsersTable reportQuery={reportQuery} />
+			<SpendUsersTable reportQuery={reportQuery} providers={providers} />
 		</>
 	);
 };

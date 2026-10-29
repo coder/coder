@@ -171,6 +171,27 @@ describe("form util functions", () => {
 		});
 	});
 
+	describe("nameValidator with a custom limit", () => {
+		const schema = nameValidator("Name", { maxLength: 255 });
+
+		it.each([1, 32, 33, 255])("allows a %i-character name", (length) => {
+			expect(schema.validateSync("a".repeat(length))).toBe("a".repeat(length));
+		});
+
+		it("rejects a 256-character name", () => {
+			expect(() => schema.validateSync("a".repeat(256))).toThrow(
+				"Name cannot be longer than 255 characters",
+			);
+		});
+
+		it.each(["", "test group", "test_group", "東京", "-group", "group-"])(
+			"rejects invalid name %j",
+			(name) => {
+				expect(() => schema.validateSync(name)).toThrow();
+			},
+		);
+	});
+
 	describe("nameValidator", () => {
 		it("allows a 1-letter name", () => {
 			const validate = () => nameSchema.validateSync("a");

@@ -36,7 +36,7 @@ type workspaceToolContract struct {
 //
 // The MCP versions differ only by the coder_workspace_ name prefix and
 // an extra workspace argument. Coder Agents additionally exposes
-// model_intent for its UI and plan-turn guidance on write_file.
+// plan-turn guidance on write_file.
 func TestWorkspaceToolsGolden(t *testing.T) {
 	t.Parallel()
 
@@ -65,8 +65,6 @@ func TestWorkspaceToolsGolden(t *testing.T) {
 	tests := []struct {
 		mcpName string
 		agents  fantasy.AgentTool
-		// agentsOnly lists Coder Agents arguments the MCP tool omits.
-		agentsOnly []string
 		// ignoreArgDescriptions lists arguments whose descriptions
 		// legitimately differ between surfaces.
 		ignoreArgDescriptions []string
@@ -83,16 +81,8 @@ func TestWorkspaceToolsGolden(t *testing.T) {
 			descriptionPrefix:     true,
 		},
 		{mcpName: toolsdk.ToolNameWorkspaceEditFiles, agents: chattool.EditFiles(chattool.EditFilesOptions{})},
-		{
-			mcpName:    toolsdk.ToolNameWorkspaceExecute,
-			agents:     chattool.Execute(chattool.ExecuteOptions{}),
-			agentsOnly: []string{"model_intent"},
-		},
-		{
-			mcpName:    toolsdk.ToolNameWorkspaceProcessOutput,
-			agents:     chattool.ProcessOutput(chattool.ProcessToolOptions{}),
-			agentsOnly: []string{"model_intent"},
-		},
+		{mcpName: toolsdk.ToolNameWorkspaceExecute, agents: chattool.Execute(chattool.ExecuteOptions{})},
+		{mcpName: toolsdk.ToolNameWorkspaceProcessOutput, agents: chattool.ProcessOutput(chattool.ProcessToolOptions{})},
 		{mcpName: toolsdk.ToolNameWorkspaceProcessList, agents: chattool.ProcessList(chattool.ProcessToolOptions{})},
 		{mcpName: toolsdk.ToolNameWorkspaceProcessSignal, agents: chattool.ProcessSignal(chattool.ProcessToolOptions{})},
 	}
@@ -124,7 +114,7 @@ func TestWorkspaceToolsGolden(t *testing.T) {
 				return func(name string) bool { return slices.Contains(names, name) }
 			}
 			agents := newWorkspaceToolContract(t, renamer, agentsDescription,
-				info.Parameters, info.Required, omit(tt.agentsOnly...), tt.ignoreArgDescriptions)
+				info.Parameters, info.Required, omit(), tt.ignoreArgDescriptions)
 			mcp := newWorkspaceToolContract(t, renamer, mcpDescription,
 				mcpTool.Schema.Properties, mcpTool.Schema.Required, omit("workspace"), tt.ignoreArgDescriptions)
 

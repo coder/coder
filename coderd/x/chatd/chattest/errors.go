@@ -11,6 +11,7 @@ import (
 type ErrorResponse struct {
 	StatusCode int
 	Type       string
+	Code       string
 	Message    string
 }
 
@@ -19,15 +20,31 @@ type ErrorResponse struct {
 func writeErrorResponse(t testing.TB, w http.ResponseWriter, errResp *ErrorResponse) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(errResp.StatusCode)
-	body := map[string]interface{}{
-		"error": map[string]interface{}{
-			"type":    errResp.Type,
-			"message": errResp.Message,
-		},
+	errorBody := map[string]interface{}{
+		"type":    errResp.Type,
+		"message": errResp.Message,
 	}
+	if errResp.Code != "" {
+		errorBody["code"] = errResp.Code
+	}
+	body := map[string]interface{}{"error": errorBody}
 	if err := json.NewEncoder(w).Encode(body); err != nil {
 		t.Errorf("writeErrorResponse: failed to encode error response: %v", err)
 	}
+}
+
+func responseShapeError(stream, hasStreaming, hasNonStreaming bool) string {
+	switch {
+	case hasStreaming && hasNonStreaming:
+		return "handler returned both streaming and non-streaming responses"
+	case !hasStreaming && !hasNonStreaming:
+		return "handler returned empty response"
+	case stream && !hasStreaming:
+		return "handler returned non-streaming response for streaming request"
+	case !stream && !hasNonStreaming:
+		return "handler returned streaming response for non-streaming request"
+	}
+	return ""
 }
 
 // OpenAIErrorResponse returns an OpenAIResponse that causes the

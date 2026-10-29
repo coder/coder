@@ -115,7 +115,7 @@ export const InlinePromptInput: React.FC<{
 
 	return (
 		<div className="px-2 py-1.5">
-			<div className="rounded-lg border border-border-default/80 bg-surface-secondary/45 p-1 shadow-xs has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40">
+			<div className="rounded-lg border border-border/80 bg-surface-secondary/45 p-1 shadow-xs has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40">
 				<textarea
 					ref={textareaRef}
 					className="w-full resize-none border-none bg-transparent px-3 py-2 font-sans text-sm leading-5 text-content-primary placeholder:text-content-secondary outline-hidden ring-0 focus:outline-hidden focus:ring-0"
@@ -209,11 +209,18 @@ export const CommentableDiffViewer: React.FC<CommentableDiffViewerProps> = ({
 		range: SelectedLineRange;
 	} | null>(null);
 
-	const activeCommentBoxRef = useRef<CommentBoxState | null>(null);
+	// CodeView ignores same-version updates to existing items. Callers supply
+	// a new parsedFiles array when diff content changes.
+	const [version, setVersion] = useState(0);
+	const [prevParsedFiles, setPrevParsedFiles] = useState(parsedFiles);
+	if (prevParsedFiles !== parsedFiles) {
+		setPrevParsedFiles(parsedFiles);
+		setVersion((v) => v + 1);
+	}
 
 	const updateCommentBox = (box: CommentBoxState | null) => {
-		activeCommentBoxRef.current = box;
 		setActiveCommentBox(box);
+		setVersion((v) => v + 1);
 	};
 
 	// ---------------------------------------------------------------
@@ -285,12 +292,11 @@ export const CommentableDiffViewer: React.FC<CommentableDiffViewerProps> = ({
 	};
 
 	const handleSubmitComment = (text: string) => {
-		const box = activeCommentBoxRef.current;
-		if (!box) return;
-		const { startLine, endLine, side } = contentRangeForBox(box);
+		if (!activeCommentBox) return;
+		const { startLine, endLine, side } = contentRangeForBox(activeCommentBox);
 		const content = extractDiffContent(
 			parsedFiles,
-			box.fileName,
+			activeCommentBox.fileName,
 			startLine,
 			endLine,
 			side,
@@ -298,7 +304,7 @@ export const CommentableDiffViewer: React.FC<CommentableDiffViewerProps> = ({
 		// Single imperative call: chip inserted atomically
 		// in one Lexical update. No rAF hack needed.
 		chatInputRef.current?.addFileReference({
-			fileName: box.fileName,
+			fileName: activeCommentBox.fileName,
 			startLine,
 			endLine,
 			content,
@@ -329,6 +335,7 @@ export const CommentableDiffViewer: React.FC<CommentableDiffViewerProps> = ({
 		<DiffViewer
 			{...diffViewerProps}
 			parsedFiles={parsedFiles}
+			version={version}
 			onLineNumberClick={handleLineNumberClick}
 			onLineSelected={handleLineSelected}
 			onLineSelectionChange={handleLineSelectionChange}

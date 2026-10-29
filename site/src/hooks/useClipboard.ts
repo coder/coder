@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "#/components/Toaster/toast";
 
 const CLIPBOARD_TIMEOUT_MS = 1_000;
 export const COPY_FAILED_MESSAGE = "Failed to copy text to clipboard";
@@ -12,7 +12,11 @@ export type UseClipboardInput = Readonly<{
 }>;
 
 export type UseClipboardResult = Readonly<{
-	copyToClipboard: (textToCopy: string) => Promise<void>;
+	/**
+	 * Copies text to the clipboard. Resolves to true when the copy succeeded,
+	 * or to false after `onError` has been called when it failed.
+	 */
+	copyToClipboard: (textToCopy: string) => Promise<boolean>;
 
 	/**
 	 * Reads text from the clipboard. When the asynchronous Clipboard API is
@@ -48,36 +52,43 @@ export const useClipboard = (
 ): UseClipboardResult => {
 	const { onError = toast.error, clearErrorOnSuccess = true } = input;
 
-	const [showCopiedSuccess, setShowCopiedSuccess] = useState(false);
+	const [successToken, setSuccessToken] = useState<symbol>();
 	const [error, setError] = useState<Error>();
-	const timeoutIdRef = useRef<number | undefined>(undefined);
 	const lastCopiedTextRef = useRef("");
 
 	useEffect(() => {
-		return () => window.clearTimeout(timeoutIdRef.current);
-	}, []);
+		if (successToken === undefined) {
+			return;
+		}
+
+		const timeoutId = window.setTimeout(() => {
+			setSuccessToken((current) =>
+				current === successToken ? undefined : current,
+			);
+		}, CLIPBOARD_TIMEOUT_MS);
+		return () => window.clearTimeout(timeoutId);
+	}, [successToken]);
 
 	const copyToClipboard = useCallback(
-		async (textToCopy: string) => {
+		async (textToCopy: string): Promise<boolean> => {
 			const markSuccess = () => {
 				lastCopiedTextRef.current = textToCopy;
-				setShowCopiedSuccess(true);
+				// A unique token restarts feedback even when copying the same text.
+				setSuccessToken(Symbol());
 				if (clearErrorOnSuccess) {
 					setError(undefined);
 				}
-				timeoutIdRef.current = window.setTimeout(() => {
-					setShowCopiedSuccess(false);
-				}, CLIPBOARD_TIMEOUT_MS);
 			};
 
 			try {
 				await navigator.clipboard.writeText(textToCopy);
 				markSuccess();
+				return true;
 			} catch (err) {
 				const fallbackCopySuccessful = simulateClipboardWrite(textToCopy);
 				if (fallbackCopySuccessful) {
 					markSuccess();
-					return;
+					return true;
 				}
 
 				const wrappedErr = new Error(COPY_FAILED_MESSAGE);
@@ -88,6 +99,7 @@ export const useClipboard = (
 				console.error(wrappedErr);
 				setError(wrappedErr);
 				onError(COPY_FAILED_MESSAGE);
+				return false;
 			}
 		},
 		[onError, clearErrorOnSuccess],
@@ -108,7 +120,12 @@ export const useClipboard = (
 		return lastCopiedTextRef.current;
 	}, []);
 
-	return { showCopiedSuccess, error, copyToClipboard, readFromClipboard };
+	return {
+		showCopiedSuccess: successToken !== undefined,
+		error,
+		copyToClipboard,
+		readFromClipboard,
+	};
 };
 
 /**

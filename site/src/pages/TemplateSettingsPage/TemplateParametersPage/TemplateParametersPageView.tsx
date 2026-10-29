@@ -108,7 +108,7 @@ export const TemplateParametersPageView: React.FC<
 					<Link
 						className="self-start text-xs"
 						href={docs(
-							"/admin/templates/extending-templates/dynamic-parameters",
+							"/admin/templates/extending-templates/parameters/compatibility-mode",
 						)}
 					>
 						Learn more

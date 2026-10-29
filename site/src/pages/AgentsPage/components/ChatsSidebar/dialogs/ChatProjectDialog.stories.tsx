@@ -1,35 +1,66 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useState } from "react";
 import { fn, userEvent, within } from "storybook/test";
-import { MockChatProject, mockApiError } from "#/testHelpers/entities";
+import {
+	MockChatProject,
+	MockDefaultOrganization,
+	MockOrganization2,
+	mockApiError,
+} from "#/testHelpers/entities";
 import { ChatProjectDialog } from "./ChatProjectDialog";
 
-const meta: Meta<typeof ChatProjectDialog> = {
+const meta = {
 	title: "pages/AgentsPage/ChatProjectDialog",
 	component: ChatProjectDialog,
 	args: {
 		open: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		initialOrganizationId: MockDefaultOrganization.id,
 		onOpenChange: fn(),
 		isSubmitting: false,
 		error: undefined,
 		onSubmit: fn(),
 	},
-};
+} satisfies Meta<typeof ChatProjectDialog>;
 
 export default meta;
-type Story = StoryObj<typeof ChatProjectDialog>;
+type Story = StoryObj<typeof meta>;
 
-export const NewProject: Story = {};
+export const Default: Story = {};
 
-export const EditProject: Story = {
+export const OpenOrganizationDropdown: Story = {
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			await body.findByRole("combobox", { name: /Organization/ }),
+		);
+	},
+};
+
+export const SingleOrganization: Story = {
 	args: {
-		project: { ...MockChatProject, icon: "/emojis/1f680.png" },
+		organizations: [MockOrganization2],
+		initialOrganizationId: MockOrganization2.id,
+	},
+};
+
+export const UnavailableOrganizations: Story = {
+	args: {
+		organizations: [],
+		initialOrganizationId: undefined,
+	},
+};
+
+export const UnavailableSelection: Story = {
+	args: {
+		organizations: [MockOrganization2],
 	},
 };
 
 export const NameRequired: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
-		await userEvent.click(body.getByLabelText(/Name/));
+		await userEvent.click(body.getByLabelText(/Project name/));
 		await userEvent.tab();
 	},
 };
@@ -37,7 +68,10 @@ export const NameRequired: Story = {
 export const InvalidName: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
-		await userEvent.type(body.getByLabelText(/Name/), "x".repeat(65));
+		await userEvent.type(
+			await body.findByRole("textbox", { name: /Project name/ }),
+			"x".repeat(65),
+		);
 	},
 };
 
@@ -59,17 +93,56 @@ export const NameFieldError: Story = {
 };
 
 export const Submitting: Story = {
-	args: {
-		project: MockChatProject,
-		isSubmitting: true,
+	render: function Render(args) {
+		const [isSubmitting, setIsSubmitting] = useState(false);
+		return (
+			<ChatProjectDialog
+				{...args}
+				isSubmitting={isSubmitting}
+				onSubmit={() => setIsSubmitting(true)}
+			/>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.type(
+			await body.findByRole("textbox", { name: /Project name/ }),
+			MockChatProject.name,
+		);
+		await userEvent.click(body.getByRole("button", { name: "Create project" }));
 	},
 };
 
-export const SaveError: Story = {
+export const MutationError: Story = {
 	args: {
-		error: mockApiError({
-			message:
-				"You can have at most 100 chat projects. Delete a project to create another.",
-		}),
+		error: new Error(
+			"You do not have permission to create a project in this organization.",
+		),
 	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.type(
+			await body.findByRole("textbox", { name: /Project name/ }),
+			MockChatProject.name,
+		);
+		await userEvent.type(
+			body.getByRole("textbox", { name: "Description" }),
+			MockChatProject.description,
+		);
+	},
+};
+
+export const Edit: Story = {
+	args: {
+		project: MockChatProject,
+	},
+};
+
+export const Narrow: Story = {
+	globals: { viewport: { value: "iphone12", isRotated: false } },
+};
+
+export const NarrowOpenOrganizationDropdown: Story = {
+	...OpenOrganizationDropdown,
+	globals: Narrow.globals,
 };

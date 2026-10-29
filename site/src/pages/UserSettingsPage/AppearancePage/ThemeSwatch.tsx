@@ -32,18 +32,17 @@ export const ThemeSwatch: React.FC<ThemeSwatchProps> = ({
 	return (
 		<Tooltip delayDuration={1000}>
 			<TooltipTrigger asChild>
+				{/* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- Hover preview only; the radio handles keyboard focus. */}
 				<label
 					className={cn(
 						"inline-flex rounded-full size-8 p-0 border-2 border-solid cursor-pointer",
 						"transition-[outline] outline-solid outline-2 outline-offset-2",
 						selected ? "outline-content-link" : "outline-transparent",
-						"border-border-default",
+						"border-surface-invert-secondary",
 						"has-[input:focus-visible]:outline-content-link has-[input:focus-visible]:outline-offset-2",
 					)}
 					onMouseEnter={onPreview}
 					onMouseLeave={onPreviewEnd}
-					onFocus={onPreview}
-					onBlur={onPreviewEnd}
 				>
 					<input
 						type="radio"
@@ -51,6 +50,8 @@ export const ThemeSwatch: React.FC<ThemeSwatchProps> = ({
 						value={theme}
 						checked={selected}
 						onChange={onSelect}
+						onFocus={onPreview}
+						onBlur={onPreviewEnd}
 						aria-label={copy.title}
 						className="sr-only"
 					/>

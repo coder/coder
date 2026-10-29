@@ -1,7 +1,9 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import { getAttachmentHref } from "../../utils/chatAttachments";
 import { asRecord } from "../ChatElements/runtimeTypeUtils";
 import { shouldRenderTool } from "../ChatElements/tools/toolVisibility";
 import type {
+	MergedTool,
 	ParsedMessageContent,
 	ParsedMessageEntry,
 	RenderBlock,
@@ -9,7 +11,8 @@ import type {
 
 export type UserInlineRenderBlock =
 	| Extract<RenderBlock, { type: "response" }>
-	| Extract<RenderBlock, { type: "file-reference" }>;
+	| Extract<RenderBlock, { type: "file-reference" }>
+	| Extract<RenderBlock, { type: "skill-invocation" }>;
 
 type FileRenderBlock = Extract<RenderBlock, { type: "file" }>;
 type WorkspaceFileReferenceBlock = Extract<
@@ -43,7 +46,9 @@ type HiddenTimelineEntryReason =
 const isUserInlineRenderBlock = (
 	block: RenderBlock,
 ): block is UserInlineRenderBlock =>
-	block.type === "response" || block.type === "file-reference";
+	block.type === "response" ||
+	block.type === "file-reference" ||
+	block.type === "skill-invocation";
 
 const isFileRenderBlock = (block: RenderBlock): block is FileRenderBlock =>
 	block.type === "file";
@@ -53,11 +58,12 @@ const isWorkspaceFileReferenceBlock = (
 ): block is WorkspaceFileReferenceBlock =>
 	block.type === "workspace-file-reference";
 
+const isProviderToolResult = (part: TypesGen.ChatMessagePart): boolean =>
+	part.type === "tool-result" && part.provider_executed === true;
+
 const isProviderToolResultOnlyMessage = (
 	parts: readonly TypesGen.ChatMessagePart[],
-): boolean =>
-	parts.length > 0 &&
-	parts.every((part) => part.type === "tool-result" && part.provider_executed);
+): boolean => parts.length > 0 && parts.every(isProviderToolResult);
 
 const isMetadataOnlyMessage = (
 	parts: readonly TypesGen.ChatMessagePart[],
@@ -65,8 +71,11 @@ const isMetadataOnlyMessage = (
 	parts.length > 0 &&
 	parts.every((part) => part.type === "context-file" || part.type === "skill");
 
-const getRenderableContentState = (parsed: ParsedMessageContent) => {
-	const visibleTools = parsed.tools.filter((tool) =>
+export const getVisibleContent = (
+	blocks: readonly RenderBlock[],
+	tools: readonly MergedTool[],
+) => {
+	const visibleTools = tools.filter((tool) =>
 		shouldRenderTool({
 			name: tool.name,
 			status: tool.status,
@@ -77,10 +86,19 @@ const getRenderableContentState = (parsed: ParsedMessageContent) => {
 	const visibleToolIds = new Set(visibleTools.map((tool) => tool.id));
 	// Workspace file references render as chips from the display
 	// state, not as standalone timeline blocks.
-	const visibleBlocks = parsed.blocks.filter(
+	const visibleBlocks = blocks.filter(
 		(block) =>
 			block.type !== "workspace-file-reference" &&
 			(block.type !== "tool" || visibleToolIds.has(block.id)),
+	);
+
+	return { visibleBlocks, visibleTools };
+};
+
+const getRenderableContentState = (parsed: ParsedMessageContent) => {
+	const { visibleBlocks, visibleTools } = getVisibleContent(
+		parsed.blocks,
+		parsed.tools,
 	);
 	const hasRenderableContent =
 		visibleBlocks.length > 0 ||
@@ -90,9 +108,12 @@ const getRenderableContentState = (parsed: ParsedMessageContent) => {
 	const hasThinkingOnlyContent =
 		visibleBlocks.length > 0 &&
 		visibleBlocks.every((block) => block.type === "thinking");
-	const endsWithResponseBlock =
-		visibleBlocks.length > 0 &&
-		visibleBlocks[visibleBlocks.length - 1].type === "response";
+	// The answer's citation row renders after the text it cites, so it
+	// does not stop the message from ending with text.
+	const lastNonSourceBlock = visibleBlocks.findLast(
+		(block) => block.type !== "sources",
+	);
+	const endsWithResponseBlock = lastNonSourceBlock?.type === "response";
 
 	return {
 		hasRenderableContent,
@@ -144,13 +165,13 @@ export const deriveMessageDisplayState = ({
 	parsed,
 	hideActions,
 	hasActiveStream,
-	isAwaitingFirstStreamChunk = false,
+	isAwaitingFirstStreamChunk,
 }: {
 	message: TypesGen.ChatMessage;
 	parsed: ParsedMessageContent;
 	hideActions: boolean;
 	hasActiveStream: boolean;
-	isAwaitingFirstStreamChunk?: boolean;
+	isAwaitingFirstStreamChunk: boolean;
 }): MessageDisplayState => {
 	const isUser = message.role === "user";
 	const userInlineContent = isUser
@@ -234,6 +255,8 @@ const mergeReadFileMessageGroup = (
 			toolResults: group.flatMap((entry) => entry.parsed.toolResults),
 			tools: group.flatMap((entry) => entry.parsed.tools),
 			blocks: group.flatMap((entry) => entry.parsed.blocks),
+			// The merged entry keeps the first message, whose blocks lead the list.
+			partBlockIndices: first.parsed.partBlockIndices,
 			sources: [],
 			hookNotices: [],
 		},
@@ -297,7 +320,7 @@ const NO_FILE_IDS: ReadonlySet<string> = new Set();
  * Chat files a message part references, in the order the server linked
  * them. A wait_agent result stores its recording before its thumbnail.
  */
-const partFileIds = (part: TypesGen.ChatMessagePart): string[] => {
+export const partFileIds = (part: TypesGen.ChatMessagePart): string[] => {
 	switch (part.type) {
 		case "file":
 			return part.file_id ? [part.file_id] : [];
@@ -318,11 +341,13 @@ const partFileIds = (part: TypesGen.ChatMessagePart): string[] => {
  * lists the attachments that remain. An attachment referenced before the
  * newest remaining one but absent from the record has been evicted. Later
  * references are newer than the record, so a message that lands before the
- * next chat refetch is never mistaken for an evicted one.
+ * next chat refetch is never mistaken for an evicted one. `earlierFileIds`
+ * predate the record, so one the record lacks has been evicted.
  */
 export const deriveEvictedFileIds = (
-	entries: readonly ParsedMessageEntry[],
+	entries: readonly Pick<ParsedMessageEntry, "message">[],
 	chatFiles: readonly TypesGen.ChatFileMetadata[] | undefined,
+	earlierFileIds: readonly string[] = [],
 ): ReadonlySet<string> => {
 	if (!chatFiles) {
 		return NO_FILE_IDS;
@@ -335,8 +360,62 @@ export const deriveEvictedFileIds = (
 		linkedFileIds.has(fileId),
 	);
 	return new Set(
-		referencedFileIds
-			.slice(0, Math.max(newestLinkedIndex, 0))
-			.filter((fileId) => !linkedFileIds.has(fileId)),
+		[
+			...earlierFileIds,
+			...referencedFileIds.slice(0, Math.max(newestLinkedIndex, 0)),
+		].filter((fileId) => !linkedFileIds.has(fileId)),
 	);
 };
+
+/** A downloadable file in a chat message, keyed by message and part. */
+export type MessageAttachment = {
+	key: string;
+	role: TypesGen.ChatMessageRole;
+	file: TypesGen.ChatFilePart;
+	href: string;
+};
+
+const toMessageAttachments = (
+	messageId: number,
+	partIndex: number,
+	role: TypesGen.ChatMessageRole,
+	file: TypesGen.ChatFilePart,
+): MessageAttachment[] => {
+	const href = getAttachmentHref(file);
+	return href ? [{ key: `${messageId}:${partIndex}`, role, file, href }] : [];
+};
+
+/**
+ * Downloadable files the user uploaded and the agent attached, newest first.
+ */
+export const getMessageAttachments = (
+	messages: readonly TypesGen.ChatMessage[],
+): MessageAttachment[] =>
+	messages
+		.filter(
+			(message) => message.role === "user" || message.role === "assistant",
+		)
+		.flatMap((message) =>
+			(message.content ?? []).flatMap((part, partIndex) =>
+				part.type === "file"
+					? toMessageAttachments(message.id, partIndex, message.role, part)
+					: [],
+			),
+		)
+		.reverse();
+
+/**
+ * The server's attachments from messages before the loaded ones, newest
+ * first, keyed like loaded attachments.
+ */
+export const getEarlierMessageAttachments = (
+	attachments: readonly TypesGen.ChatAttachment[],
+): MessageAttachment[] =>
+	attachments.flatMap((attachment) =>
+		toMessageAttachments(
+			attachment.message_id,
+			attachment.part_index,
+			attachment.role,
+			attachment.file,
+		),
+	);

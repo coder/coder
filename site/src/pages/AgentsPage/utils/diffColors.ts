@@ -1,7 +1,7 @@
 import type { ChangeTypes } from "@pierre/diffs";
 
 /** Maps a diff change type to a Tailwind text-color class. */
-export function changeColor(type?: ChangeTypes): string | undefined {
+export function changeColor(type: ChangeTypes): string | undefined {
 	switch (type) {
 		case "new":
 			return "text-git-added";

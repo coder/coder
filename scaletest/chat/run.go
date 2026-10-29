@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"io"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -104,6 +105,16 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	modelConfigID := r.cfg.ModelConfigID
 	logger = logger.With(slog.F("workspace_id", workspaceID))
 	logger.Info(ctx, "starting chat runner")
+
+	// Stagger runner starts so the initial turns do not all begin at once.
+	if delay := jitterDelay(r.cfg.StartJitter); delay > 0 {
+		logger.Info(ctx, "applying start jitter", slog.F("delay", delay))
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(delay):
+		}
+	}
 
 	r.resetConversation(time.Now(), markTurnStartReady)
 
@@ -282,6 +293,15 @@ func (r *Runner) handleStatusEvent(ctx context.Context, chatID uuid.UUID, logger
 		}
 
 		nextTurn := r.result.turnsCompleted + 1
+		// Apply message jitter before turnStartTime is reset so the
+		// client-side delay is excluded from follow-up latency metrics.
+		if delay := jitterDelay(r.cfg.MessageJitter); delay > 0 {
+			select {
+			case <-ctx.Done():
+				return false, xerrors.Errorf("wait message jitter for turn %d: %w", nextTurn, ctx.Err())
+			case <-time.After(delay):
+			}
+		}
 		r.currentPhase = phaseFollowUp
 		r.turnStartTime = time.Now()
 		r.lastStreamError = ""
@@ -377,6 +397,16 @@ func (r *Runner) handleErrorEvent(ctx context.Context, logger slog.Logger, event
 		return
 	}
 	logger.Warn(ctx, "chat stream error event")
+}
+
+// jitterDelay returns a random delay in [0, maxDelay). It returns 0 when
+// maxDelay is not positive.
+func jitterDelay(maxDelay time.Duration) time.Duration {
+	if maxDelay <= 0 {
+		return 0
+	}
+	//nolint:gosec // Load-shaping jitter, not used for crypto.
+	return time.Duration(rand.Int63n(int64(maxDelay)))
 }
 
 func (r *Runner) Cleanup(ctx context.Context, id string, logs io.Writer) error {

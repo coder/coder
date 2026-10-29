@@ -74,6 +74,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/idpsync"
+	"github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/coderd/metricscache"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/oauth2provider"
@@ -103,7 +104,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
@@ -273,9 +273,9 @@ type Options struct {
 	ChatStreamPartsDialer chatd.StreamPartsDialer
 	// Nil keeps the default chat agent caps active.
 	ChatAgentCapacityUnlock chatd.AgentCapacityUnlock
-	// ChatProviderAPIKeys supplies fallback provider keys for chat execution.
-	// Test harnesses use this to route chat models to local providers.
-	ChatProviderAPIKeys *chatprovider.ProviderAPIKeys
+	// ChatInternalMCPServers supplies in-process MCP servers for chats.
+	// Servers must be ready when New starts the chat worker.
+	ChatInternalMCPServers []chatd.InternalMCPServer
 	// ChatWorkerDisabled skips starting the chat daemon's background
 	// worker.
 	ChatWorkerDisabled bool
@@ -751,6 +751,7 @@ func New(options *Options) *API {
 		options.AgentInactiveDisconnectTimeout,
 		options.WorkspaceAppAuditSessionTimeout,
 		options.AppSigningKeyCache,
+		options.PrometheusRegistry,
 	)
 
 	f := appearance.NewDefaultFetcher(options.Database, api.DeploymentValues.DocsURL.String())
@@ -900,10 +901,6 @@ func New(options *Options) *API {
 				options.Logger.Named("mcp-user-oidc"),
 			)
 		}
-		providerAPIKeys := chatprovider.ProviderAPIKeys{}
-		if options.ChatProviderAPIKeys != nil {
-			providerAPIKeys = *options.ChatProviderAPIKeys
-		}
 
 		// AI Gateway is mandatory for chat. When the bridge is disabled
 		// the chat daemon stays nil and chat HTTP handlers return a
@@ -942,7 +939,6 @@ func New(options *Options) *API {
 				ReplicaID:                      api.ID,
 				StreamPartsDialer:              options.ChatStreamPartsDialer,
 				MaxChatsPerAcquire:             int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
-				ProviderAPIKeys:                providerAPIKeys,
 				AllowBYOK:                      options.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
 				AllowBYOKSet:                   true,
 				AIBridgeTransportFactory:       &api.AIBridgeTransportFactory,
@@ -951,12 +947,12 @@ func New(options *Options) *API {
 				DisableCallerSuppliedTools:     options.DeploymentValues.DisableChatCallerSuppliedTools.Value(),
 				Experiments:                    experiments,
 				ExperimentEvaluator:            api.ExperimentEvaluator,
-				Authorizer:                     options.Authorizer,
 				AgentConn:                      api.agentProvider.AgentConn,
 				AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
 				CreateWorkspace:                api.chatCreateWorkspace,
 				StartWorkspace:                 api.chatStartWorkspace,
 				StopWorkspace:                  api.chatStopWorkspace,
+				RenderTemplateParameters:       api.chatRenderTemplateParameters,
 				WebpushDispatcher:              options.WebPushDispatcher,
 				HookDispatcher:                 hookDispatcher,
 				UsageTracker:                   options.WorkspaceUsageTracker,
@@ -965,6 +961,7 @@ func New(options *Options) *API {
 				AgentCapacityUnlock:            options.ChatAgentCapacityUnlock,
 				OIDCTokenSource:                oidcMCPSrc,
 				MCPHTTPClient:                  api.mcpHTTPClient,
+				InternalMCPServers:             options.ChatInternalMCPServers,
 				NotificationsEnqueuer:          options.NotificationsEnqueuer,
 				Auditor:                        &api.Auditor,
 				Limits:                         api.chatLimits,
@@ -1105,7 +1102,7 @@ func New(options *Options) *API {
 	// and in the build info response and the AI bridge config, so a runtime
 	// toggle would have to update all three.
 	oauth2ProviderEnabled := api.DeploymentValues.OAuth2.Provider.Enable.Value()
-	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+	apiKeyConfig := httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
 		ActivateDormantUser:           ActivateDormantUser(options.Logger, &api.Auditor, options.Database),
 		OAuth2Configs:                 oauthConfigs,
@@ -1116,7 +1113,8 @@ func New(options *Options) *API {
 		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 		Logger:                        options.Logger,
 		AccessURL:                     options.AccessURL,
-	})
+	}
+	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(apiKeyConfig)
 	// Same as above but it redirects to the login page.
 	apiKeyMiddlewareRedirect := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
@@ -1340,14 +1338,6 @@ func New(options *Options) *API {
 		clients.Delete("/clients/{client_id}", api.deleteOAuth2ClientConfiguration()) // Delete client
 	})
 
-	// Webhook callers authenticate with the automation's secret, not with a
-	// Coder session, so this route has no API key middleware. It lives
-	// outside the /api/experimental group because that group's rate limiter
-	// keys unauthenticated callers by path, which gives every automation id
-	// a fresh bucket; this limiter keys by caller alone.
-	r.With(httpmw.RateLimitByEndpointKey(options.APIRateLimit, time.Minute, "chat-automation-events")).
-		Post("/api/experimental/chat-automations/{automation}/events", api.postChatAutomationEvent)
-
 	// Experimental routes are not guaranteed to be stable and may change at any time.
 	r.Route("/api/experimental", func(r chi.Router) {
 		api.ExperimentalHandler = r
@@ -1377,40 +1367,77 @@ func New(options *Options) *API {
 				r.Delete("/", api.deleteUserSkill)
 			})
 		})
-		api.registerExperimentalChatRoutes(r, apiKeyMiddleware)
-		r.Route("/organizations/{organization}/chat-automations", func(r chi.Router) {
+		r.Route("/organizations/{organization}/skills", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				api.requireChatAutomations,
 				httpmw.ExtractOrganizationParam(options.Database),
 			)
-			r.Get("/", api.listChatAutomations)
-			r.Post("/", api.postChatAutomation)
-			r.Post("/schedule-preview", api.postChatAutomationSchedulePreview)
-			r.Route("/{automation}", func(r chi.Router) {
-				r.Get("/", api.chatAutomation)
-				r.Patch("/", api.patchChatAutomation)
-				r.Delete("/", api.deleteChatAutomation)
-				r.Post("/secret/rotate", api.postChatAutomationSecretRotate)
-				r.Post("/runs", api.postChatAutomationRun)
+			r.Get("/", api.getOrganizationSkills)
+			r.Post("/", api.postOrganizationSkill)
+			r.Route("/{skillName}", func(r chi.Router) {
+				r.With(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize,
+					policy.ActionRead)).Get("/", api.getOrganizationSkill)
+				// PATCH returns the skill's content, so it requires read like GET.
+				// Readers reach the handlers, where the database wrapper denies
+				// the mutation with 403 rather than concealing the skill.
+				r.With(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize,
+					policy.ActionRead)).Patch("/", api.patchOrganizationSkill)
+				r.With(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize,
+					policy.ActionRead, policy.ActionDelete)).Delete("/", api.deleteOrganizationSkill)
+				r.Route("/acl", func(r chi.Router) {
+					r.Use(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize, policy.ActionShare))
+					r.Get("/", api.getOrganizationSkillACL)
+					r.Patch("/", api.patchOrganizationSkillACL)
+					r.Get("/available", api.getOrganizationSkillACLAvailable)
+				})
 			})
 		})
+		api.registerExperimentalChatRoutes(r, apiKeyMiddleware)
 		r.Route("/organizations/{organization}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
 				httpmw.ExtractOrganizationParam(options.Database),
 			)
 			api.registerExperimentalOrganizationChatRoutes(r)
+			// These stay outside /skills, where {skillName} would capture them.
+			r.Route("/skill-settings", func(r chi.Router) {
+				r.Get("/", api.getOrganizationSkillSettings)
+				r.Put("/", api.putOrganizationSkillSettings)
+			})
+			r.Route("/members/{user}/skill-preferences", func(r chi.Router) {
+				r.Use(httpmw.ExtractOrganizationMemberParam(options.Database))
+				r.Get("/", api.getOrganizationSkillPreferences)
+				r.Patch("/", api.patchOrganizationSkillPreferences)
+			})
 		})
 
 		r.Route("/mcp", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
 			// Providers pin the redirect URI when a session is established,
 			// so the callback URL cannot change for existing sessions without
 			// breaking token refresh and forcing a re-auth.
-			r.Get("/servers/{mcpServer}/oauth2/callback", api.mcpServerOAuth2Callback)
+			r.With(apiKeyMiddleware).Get("/servers/{mcpServer}/oauth2/callback", api.mcpServerOAuth2Callback)
 			// MCP HTTP transport endpoint with mandatory authentication.
 			r.Route("/http", func(r chi.Router) {
+				r.Use(func(next http.Handler) http.Handler {
+					cfg := apiKeyConfig
+					cfg.ResourceURI = options.AccessURL.JoinPath(mcp.MCPEndpoint).String()
+					cfg.ResourceMetadataURL = options.AccessURL.JoinPath("/.well-known/oauth-protected-resource", mcp.MCPEndpoint).String()
+					canonical := httpmw.ExtractAPIKeyMW(cfg)(next)
+					cfg.ResourceMetadataURL = options.AccessURL.JoinPath("/.well-known/oauth-protected-resource", mcp.MCPEndpoint+"/").String()
+					trailingSlash := httpmw.ExtractAPIKeyMW(cfg)(next)
+					return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+						// Routing normalizes slashes, but OAuth resource identity
+						// must not admit aliases or arbitrary descendant paths.
+						switch r.URL.EscapedPath() {
+						case mcp.MCPEndpoint:
+							canonical.ServeHTTP(rw, r)
+						case mcp.MCPEndpoint + "/":
+							trailingSlash.ServeHTTP(rw, r)
+						default:
+							httpapi.RouteNotFound(rw)
+						}
+					})
+				})
 				r.Use(
 					httpmw.RequireOAuth2Provider(oauth2ProviderEnabled),
 					httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentMCPServerHTTP),
@@ -1454,7 +1481,6 @@ func New(options *Options) *API {
 			r.Get("/regions", api.regions)
 		})
 		r.Route("/derp-map", func(r chi.Router) {
-			// r.Use(apiKeyMiddleware)
 			r.Get("/", api.derpMapUpdates)
 		})
 		r.Route("/deployment", func(r chi.Router) {
@@ -1735,7 +1761,6 @@ func New(options *Options) *API {
 						r.Post("/convert-login", api.postConvertLoginType)
 						r.Delete("/", api.deleteUser)
 						r.Get("/", api.userByName)
-						r.Get("/autofill-parameters", api.userAutofillParameters)
 						r.Get("/login-type", api.userLoginType)
 						r.Put("/profile", api.putUserProfile)
 						r.Route("/status", func(r chi.Router) {
@@ -1920,6 +1945,7 @@ func New(options *Options) *API {
 			r.Get("/logs", api.workspaceBuildLogs)
 			r.Get("/parameters", api.workspaceBuildParameters)
 			r.Get("/resources", api.workspaceBuildResourcesDeprecated)
+			r.Get("/secrets", api.workspaceBuildSecrets)
 			r.Get("/state", api.workspaceBuildState)
 			r.Put("/state", api.workspaceBuildUpdateState)
 			r.Get("/timings", api.workspaceBuildTimings)

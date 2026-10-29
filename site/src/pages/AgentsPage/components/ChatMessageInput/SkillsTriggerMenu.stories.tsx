@@ -2,11 +2,11 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent } from "storybook/test";
 import { MockSkills } from "#/testHelpers/skills";
-import { filterSkillsByQuery } from "../../utils/personalSkills";
+import { resolveSkillTriggers } from "../../utils/skillAliases";
+import { filterSkillsByQuery } from "../../utils/skills";
 import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
 import {
 	createCommandMenuItem,
-	createSkillMenuItem,
 	type SkillMetadata,
 	SkillsTriggerMenu,
 } from "./SkillsTriggerMenu";
@@ -23,13 +23,33 @@ const mockWorkspaceSkills: SkillMetadata[] = [
 	},
 ];
 
-const mockPersonalSkillItems = MockSkills.map((skill) =>
-	createSkillMenuItem("personal", skill),
-);
+const mockOrganizationSkills: SkillMetadata[] = [
+	{
+		name: "release-notes",
+		description: "Write release notes in the organization style.",
+	},
+];
+
+const mockProjectSkills: SkillMetadata[] = [
+	{
+		name: "project-conventions",
+		description: "Follow the conventions of this project.",
+	},
+];
+
+const mockPersonalSkillItems = resolveSkillTriggers([
+	{ source: "personal", skills: MockSkills },
+]);
 const compactCommandItem = createCommandMenuItem(COMPACT_SLASH_COMMAND);
-const mockWorkspaceSkillItems = mockWorkspaceSkills.map((skill) =>
-	createSkillMenuItem("workspace", skill),
-);
+const mockOrganizationSkillItems = resolveSkillTriggers([
+	{ source: "org", skills: mockOrganizationSkills },
+]);
+const mockProjectSkillItems = resolveSkillTriggers([
+	{ source: "project", skills: mockProjectSkills },
+]);
+const mockWorkspaceSkillItems = resolveSkillTriggers([
+	{ source: "workspace", skills: mockWorkspaceSkills },
+]);
 
 // Provides the composer-box element the menu anchors to, since the
 // menu is pinned above its anchor at the anchor's width.
@@ -57,13 +77,26 @@ const meta: Meta<typeof SkillsTriggerMenu> = {
 		open: true,
 		anchor: null,
 		query: "",
+		commands: [],
 		personalSkills: mockPersonalSkillItems,
+		organizationSkills: [],
+		projectSkills: [],
 		workspaceSkills: [],
+		organizationSkillsEnabled: false,
+		projectSkillsEnabled: false,
 		workspaceSkillsEnabled: false,
+		isPersonalLoading: false,
+		isPersonalError: false,
+		isOrganizationLoading: false,
+		isOrganizationError: false,
+		isProjectLoading: false,
+		isProjectError: false,
+		isWorkspaceLoading: false,
 		onSelectedIndexChange: fn(),
 		selectedIndex: 0,
 		onSelect: fn(),
 		onClose: fn(),
+		onEscapeKeyDown: fn(),
 	},
 	render: (args) => <MenuStoryHarness {...args} />,
 	decorators: [
@@ -78,12 +111,28 @@ const meta: Meta<typeof SkillsTriggerMenu> = {
 export default meta;
 type Story = StoryObj<typeof SkillsTriggerMenu>;
 
-export const PersonalOnly: Story = {};
-
-export const BothGroups: Story = {
+export const AllSkillGroups: Story = {
 	args: {
+		organizationSkills: mockOrganizationSkillItems,
+		projectSkills: mockProjectSkillItems,
 		workspaceSkills: mockWorkspaceSkillItems,
+		organizationSkillsEnabled: true,
+		projectSkillsEnabled: true,
 		workspaceSkillsEnabled: true,
+	},
+};
+
+export const OrganizationError: Story = {
+	args: {
+		organizationSkillsEnabled: true,
+		isOrganizationError: true,
+	},
+};
+
+export const ProjectError: Story = {
+	args: {
+		projectSkillsEnabled: true,
+		isProjectError: true,
 	},
 };
 
@@ -94,19 +143,35 @@ export const Loading: Story = {
 	},
 };
 
+export const OrganizationLoading: Story = {
+	args: {
+		personalSkills: [],
+		organizationSkillsEnabled: true,
+		isOrganizationLoading: true,
+	},
+};
+
+export const ProjectLoading: Story = {
+	args: {
+		personalSkills: [],
+		projectSkillsEnabled: true,
+		isProjectLoading: true,
+	},
+};
+
 export const WorkspaceLoading: Story = {
 	args: {
 		personalSkills: [],
-		workspaceSkills: [],
 		workspaceSkillsEnabled: true,
 		isWorkspaceLoading: true,
 	},
 };
 
-export const EmptyWithWorkspace: Story = {
+export const EmptyWithAllSources: Story = {
 	args: {
 		personalSkills: [],
-		workspaceSkills: [],
+		organizationSkillsEnabled: true,
+		projectSkillsEnabled: true,
 		workspaceSkillsEnabled: true,
 	},
 };
@@ -127,12 +192,15 @@ export const Filtered: Story = {
 	},
 };
 
-const manyPersonalSkillItems = Array.from({ length: 30 }, (_, index) =>
-	createSkillMenuItem("personal", {
-		name: `skill-${String(index).padStart(2, "0")}`,
-		description: "",
-	}),
-);
+const manyPersonalSkillItems = resolveSkillTriggers([
+	{
+		source: "personal",
+		skills: Array.from({ length: 30 }, (_, index) => ({
+			name: `skill-${String(index).padStart(2, "0")}`,
+			description: "",
+		})),
+	},
+]);
 
 // cmdk scrolls the controlled highlight into view only at mount, so the
 // selection must move after mount to exercise the menu's own scrolling.
@@ -178,14 +246,6 @@ export const SelectsByClick: Story = {
 	},
 };
 
-// Built-in commands render in a separate "Commands" group above
-// personal skills and stay selectable alongside them.
-export const WithCommands: Story = {
-	args: {
-		commands: [compactCommandItem],
-	},
-};
-
 // With no skills configured, the menu still opens to offer the
 // built-in commands without any skills group or empty message.
 export const CommandsOnly: Story = {
@@ -195,6 +255,8 @@ export const CommandsOnly: Story = {
 	},
 };
 
+// Built-in commands render in a separate "Commands" group above
+// personal skills and stay selectable alongside them.
 export const SelectsCommandByClick: Story = {
 	args: {
 		commands: [compactCommandItem],

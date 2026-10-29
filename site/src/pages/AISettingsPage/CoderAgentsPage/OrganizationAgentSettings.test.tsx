@@ -4,10 +4,7 @@ import escapeRegExp from "lodash/escapeRegExp";
 import type { QueryClient } from "react-query";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
-import {
-	organizationChatModelsKey,
-	organizationChatSystemPrompt,
-} from "#/api/queries/chats";
+import { organizationChatModelsKey } from "#/api/queries/chats";
 import type {
 	ChatModel,
 	OrganizationChatModelsResponse,
@@ -15,6 +12,7 @@ import type {
 import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
+	MockComputerUseChatModel,
 } from "#/testHelpers/chatModels";
 import { MockDefaultOrganization } from "#/testHelpers/entities";
 import { render } from "#/testHelpers/renderHelpers";
@@ -45,33 +43,26 @@ const mockChatModelsResponse: OrganizationChatModelsResponse = {
 	unsupported_providers: [],
 };
 
-const renderSettings = ({
-	canEdit = true,
-	canViewInstructions = false,
-}: {
-	canEdit?: boolean;
-	canViewInstructions?: boolean;
-} = {}) =>
+const renderSettings = ({ showComputerUse = false } = {}) =>
 	render(
 		<OrganizationAgentSettings
 			organization={MockDefaultOrganization}
-			canEdit={canEdit}
-			canViewInstructions={canViewInstructions}
+			canEdit
 			showAdvisor
+			showComputerUse={showComputerUse}
 		/>,
 	);
 
 const selectModel = async (
 	user: ReturnType<typeof userEvent.setup>,
-	from: ChatModel,
+	currentLabel: string,
 	to: ChatModel,
+	sectionName = "Default model",
 ) => {
-	const defaultSection = await screen.findByRole("form", {
-		name: "Default model",
-	});
+	const section = await screen.findByRole("form", { name: sectionName });
 	await user.click(
-		await within(defaultSection).findByRole("combobox", {
-			name: `Default model, ${from.display_name}`,
+		await within(section).findByRole("combobox", {
+			name: `${sectionName}, ${currentLabel}`,
 		}),
 	);
 	await user.click(
@@ -79,14 +70,16 @@ const selectModel = async (
 			name: new RegExp(`^${escapeRegExp(to.display_name)}(\\s*\\(.+\\))?$`),
 		}),
 	);
-	return defaultSection;
+	return section;
 };
 
+const mockEmptyOverrides = () =>
+	vi
+		.spyOn(API.experimental, "getOrganizationChatModelOverrides")
+		.mockResolvedValue({ overrides: [] });
+
 const mockOverridesAndUpdate = () => {
-	vi.spyOn(
-		API.experimental,
-		"getOrganizationChatModelOverrides",
-	).mockResolvedValue({ overrides: [] });
+	mockEmptyOverrides();
 	return vi
 		.spyOn(API.experimental, "updateChatModel")
 		.mockResolvedValue({ ...mockAlternateModel, is_default: true });
@@ -132,7 +125,7 @@ describe("OrganizationAgentSettings", () => {
 
 		const defaultSection = await selectModel(
 			user,
-			mockDefaultModel,
+			mockDefaultModel.display_name,
 			mockAlternateModel,
 		);
 		await user.click(
@@ -153,7 +146,7 @@ describe("OrganizationAgentSettings", () => {
 			...mockThirdModel,
 			is_default: true,
 		});
-		await selectModel(user, mockAlternateModel, mockThirdModel);
+		await selectModel(user, mockAlternateModel.display_name, mockThirdModel);
 		await user.click(
 			await within(defaultSection).findByRole("button", { name: "Save" }),
 		);
@@ -179,7 +172,7 @@ describe("OrganizationAgentSettings", () => {
 
 		const defaultSection = await selectModel(
 			user,
-			mockDefaultModel,
+			mockDefaultModel.display_name,
 			mockAlternateModel,
 		);
 		await user.click(
@@ -209,7 +202,7 @@ describe("OrganizationAgentSettings", () => {
 
 		const defaultSection = await selectModel(
 			user,
-			mockDefaultModel,
+			mockDefaultModel.display_name,
 			mockAlternateModel,
 		);
 		await refetchCatalog(queryClient);
@@ -247,7 +240,7 @@ describe("OrganizationAgentSettings", () => {
 
 		const defaultSection = await selectModel(
 			user,
-			mockDefaultModel,
+			mockDefaultModel.display_name,
 			mockAlternateModel,
 		);
 		await refetchCatalog(queryClient);
@@ -274,10 +267,10 @@ describe("OrganizationAgentSettings", () => {
 
 		const defaultSection = await selectModel(
 			user,
-			mockDefaultModel,
+			mockDefaultModel.display_name,
 			mockAlternateModel,
 		);
-		await selectModel(user, mockAlternateModel, mockDefaultModel);
+		await selectModel(user, mockAlternateModel.display_name, mockDefaultModel);
 		await refetchCatalog(queryClient);
 
 		await expectSelectedModel(defaultSection, mockThirdModel);
@@ -308,7 +301,7 @@ describe("OrganizationAgentSettings", () => {
 
 		const defaultSection = await selectModel(
 			user,
-			mockDefaultModel,
+			mockDefaultModel.display_name,
 			mockAlternateModel,
 		);
 		await refetchCatalog(queryClient);
@@ -316,96 +309,52 @@ describe("OrganizationAgentSettings", () => {
 
 		await expectSelectedModel(defaultSection, mockThirdModel);
 	});
+});
 
-	describe("organization instructions", () => {
-		const mockModelsAndInstructions = (systemPrompt: string) => {
-			vi.spyOn(API.experimental, "getChatModels").mockResolvedValue(
-				mockChatModelsResponse,
-			);
-			mockOverridesAndUpdate();
-			vi.spyOn(
-				API.experimental,
-				"getOrganizationChatSystemPrompt",
-			).mockResolvedValue({ system_prompt: systemPrompt });
-			return vi
-				.spyOn(API.experimental, "updateOrganizationChatSystemPrompt")
-				.mockResolvedValue();
-		};
+const mockComputerUseModel: ChatModel = {
+	...MockComputerUseChatModel,
+	organization_id: MockDefaultOrganization.id,
+};
 
-		it("saves the instructions for the selected organization", async () => {
-			const updateSystemPrompt = mockModelsAndInstructions("Old guidance.");
-			const user = userEvent.setup();
-			renderSettings({ canViewInstructions: true });
-
-			const form = await screen.findByRole("form", {
-				name: "Organization instructions",
-			});
-			const textarea = within(form).getByRole("textbox", {
-				name: "Organization instructions",
-			});
-			await waitFor(() => expect(textarea).toHaveValue("Old guidance."));
-			await user.clear(textarea);
-			await user.type(textarea, "Use the team templates.");
-			await user.click(within(form).getByRole("button", { name: "Save" }));
-
-			await waitFor(() => {
-				expect(updateSystemPrompt).toHaveBeenCalledWith(
-					MockDefaultOrganization.id,
-					{ system_prompt: "Use the team templates." },
-				);
-			});
+describe("OrganizationAgentSettings computer use model", () => {
+	it("saves the computer use override", async () => {
+		vi.spyOn(API.experimental, "getChatModels").mockResolvedValue({
+			...mockChatModelsResponse,
+			models: [...mockChatModelsResponse.models, mockComputerUseModel],
+			providers: [
+				MockChatModelProviderDescriptor,
+				{
+					...MockChatModelProviderDescriptor,
+					id: MockComputerUseChatModel.ai_provider_id,
+					type: "anthropic",
+					display_name: "Anthropic",
+				},
+			],
 		});
-
-		it("keeps the instructions read-only for viewers", async () => {
-			mockModelsAndInstructions("Org guidance.");
-			const user = userEvent.setup();
-			renderSettings({ canEdit: false, canViewInstructions: true });
-
-			const form = await screen.findByRole("form", {
-				name: "Organization instructions",
+		mockEmptyOverrides();
+		const updateOverride = vi
+			.spyOn(API.experimental, "updateOrganizationChatModelOverride")
+			.mockResolvedValue({
+				context: "computer_use",
+				model_config_id: mockComputerUseModel.id,
 			});
-			const textarea = within(form).getByRole("textbox", {
-				name: "Organization instructions",
-			});
-			await waitFor(() => expect(textarea).toHaveValue("Org guidance."));
-			await user.type(textarea, " Edited.");
+		const user = userEvent.setup();
+		renderSettings({ showComputerUse: true });
 
-			expect(textarea).toHaveValue("Org guidance.");
-		});
+		const section = await selectModel(
+			user,
+			"Use default model",
+			mockComputerUseModel,
+			"Computer use",
+		);
+		await user.click(within(section).getByRole("button", { name: "Save" }));
 
-		it("keeps an unsaved edit when a background refetch fails", async () => {
-			const updateSystemPrompt = mockModelsAndInstructions("Org guidance.");
-			const getSystemPrompt = vi.mocked(
-				API.experimental.getOrganizationChatSystemPrompt,
-			);
-			const user = userEvent.setup();
-			const { queryClient } = renderSettings({ canViewInstructions: true });
-
-			const form = await screen.findByRole("form", {
-				name: "Organization instructions",
-			});
-			const textarea = within(form).getByRole("textbox", {
-				name: "Organization instructions",
-			});
-			await waitFor(() => expect(textarea).toHaveValue("Org guidance."));
-			await user.type(textarea, " Edited.");
-
-			getSystemPrompt.mockRejectedValue(new Error("prompt unavailable"));
-			const { queryKey } = organizationChatSystemPrompt(
+		await waitFor(() => {
+			expect(updateOverride).toHaveBeenCalledWith(
 				MockDefaultOrganization.id,
+				"computer_use",
+				{ model_config_id: mockComputerUseModel.id },
 			);
-			await act(() => queryClient.invalidateQueries({ queryKey }));
-			await waitFor(() =>
-				expect(queryClient.getQueryState(queryKey)?.status).toBe("error"),
-			);
-
-			await user.click(within(form).getByRole("button", { name: "Save" }));
-			await waitFor(() => {
-				expect(updateSystemPrompt).toHaveBeenCalledWith(
-					MockDefaultOrganization.id,
-					{ system_prompt: "Org guidance. Edited." },
-				);
-			});
 		});
 	});
 });

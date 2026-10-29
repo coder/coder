@@ -56,9 +56,7 @@ chats_expanded AS (
         updated_chats.context_error,
         updated_chats.compaction_requested_at,
         updated_chats.title_source,
-        updated_chats.title_updated_at,
-        updated_chats.automation_id,
-        updated_chats.manage_automations_enabled
+        updated_chats.title_updated_at
     FROM
         updated_chats
     LEFT JOIN chats root ON root.id = COALESCE(updated_chats.root_chat_id, updated_chats.parent_chat_id)
@@ -127,9 +125,7 @@ chats_expanded AS (
         updated_chats.context_error,
         updated_chats.compaction_requested_at,
         updated_chats.title_source,
-        updated_chats.title_updated_at,
-        updated_chats.automation_id,
-        updated_chats.manage_automations_enabled
+        updated_chats.title_updated_at
     FROM
         updated_chats
     LEFT JOIN chats root ON root.id = COALESCE(updated_chats.root_chat_id, updated_chats.parent_chat_id)
@@ -405,6 +401,16 @@ WHERE
     id = @id::bigint
     AND deleted = false;
 
+-- name: GetChatMessageByIDForStream :one
+-- Includes deleted rows so the stream can resolve which chat a deleted cursor
+-- belongs to.
+SELECT
+    *
+FROM
+    chat_messages
+WHERE
+    id = @id::bigint;
+
 -- name: GetChatMessagesByChatID :many
 -- Ordered by id to match the @after_id cursor. created_at is the transaction
 -- start time, so it can disagree with append order when a transaction takes the
@@ -529,6 +535,36 @@ ORDER BY
     cm.id DESC
 LIMIT
     COALESCE(NULLIF(@limit_val::int, 0), 500);
+
+-- name: GetChatMessagesWithFilePartsByChatID :many
+-- Returns the user-visible user and assistant messages in a chat that hold
+-- at least one file part, newest first, optionally only those before
+-- @before_id. Backs the attachments endpoint so a client can list every
+-- attachment without paging through the transcript.
+SELECT * FROM chat_messages
+WHERE chat_id = @chat_id::uuid
+    AND CASE WHEN @before_id::bigint > 0 THEN id < @before_id::bigint ELSE true END
+    AND deleted = false
+    AND visibility IN ('user', 'both')
+    AND role IN ('user', 'assistant')
+    AND content @> '[{"type": "file"}]'::jsonb
+ORDER BY id DESC;
+
+-- name: GetChatTurnStartID :one
+SELECT
+    id
+FROM
+    chat_messages
+WHERE
+    chat_id = @chat_id::uuid
+    AND id <= @message_id::bigint
+    AND deleted = false
+    AND role = 'user'
+    AND visibility IN ('user', 'both')
+ORDER BY
+    id DESC
+LIMIT
+    1;
 
 -- name: GetChatMessagesForPromptByChatID :many
 -- The compaction boundary and final ordering must use the same key so tool
@@ -787,32 +823,17 @@ WHERE
                         OR (cm.search_tsv_config IS NULL AND cm.search_tsv @@ websearch_to_tsquery('simple', @search))
                     )
             )
-            -- Skip an explicit pr_number lookup unless the search is a valid bigint.
+            -- Digits only, so LIKE sees no metacharacters; a per-chat PK probe.
             OR CASE
-                WHEN @search ~ '^[0-9]{1,18}$' THEN EXISTS (
+                WHEN @search ~ '^[0-9]+$' THEN EXISTS (
                     SELECT 1
                     FROM chat_diff_statuses cds
                     WHERE cds.chat_id = chats_expanded.id
                         AND cds.pr_number IS NOT NULL
-                        AND cds.pr_number = @search::bigint
+                        AND cds.pr_number::text LIKE @search || '%'
                 )
                 ELSE false
             END
-        )
-        ELSE true
-    END
-    -- Filter to chats an automation created or sent messages to. Served
-    -- by chats_automation_idx and chat_messages_automation_idx.
-    AND CASE
-        WHEN @automation_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
-            chats_expanded.automation_id = @automation_id::uuid
-            OR EXISTS (
-                SELECT 1
-                FROM chat_messages cm
-                WHERE cm.chat_id = chats_expanded.id
-                    AND cm.automation_id = @automation_id::uuid
-                    AND cm.deleted = false
-            )
         )
         ELSE true
     END
@@ -885,8 +906,7 @@ INSERT INTO chats (
     mcp_server_ids,
     labels,
     dynamic_tools,
-    client_type,
-    manage_automations_enabled
+    client_type
 ) VALUES (
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
     @organization_id::uuid,
@@ -906,8 +926,7 @@ INSERT INTO chats (
     COALESCE(@mcp_server_ids::uuid[], '{}'::uuid[]),
     COALESCE(sqlc.narg('labels')::jsonb, '{}'::jsonb),
     sqlc.narg('dynamic_tools')::jsonb,
-    @client_type::chat_client_type,
-    @manage_automations_enabled::boolean
+    @client_type::chat_client_type
 )
 RETURNING *
 ),
@@ -962,9 +981,7 @@ chats_expanded AS (
         inserted_chat.context_error,
         inserted_chat.compaction_requested_at,
         inserted_chat.title_source,
-        inserted_chat.title_updated_at,
-        inserted_chat.automation_id,
-        inserted_chat.manage_automations_enabled
+        inserted_chat.title_updated_at
     FROM
         inserted_chat
     LEFT JOIN chats root ON root.id = COALESCE(inserted_chat.root_chat_id, inserted_chat.parent_chat_id)
@@ -1043,9 +1060,7 @@ inserted AS (
         compressed,
         runtime_ms,
         provider_response_id,
-        queued_message_id,
-        automation_id,
-        input_id
+        queued_message_id
     )
     SELECT
         allocated.id,
@@ -1068,9 +1083,7 @@ inserted AS (
         NULLIF((@runtime_ms::bigint[])[allocated.ord], 0),
         NULLIF((@provider_response_id::text[])[allocated.ord], ''),
         -- Queue ids start at 1, so 0 is a safe "not promoted" sentinel.
-        NULLIF((@queued_message_id::bigint[])[allocated.ord], 0),
-        NULLIF((@automation_id::uuid[])[allocated.ord], '00000000-0000-0000-0000-000000000000'::uuid),
-        NULLIF((@input_id::uuid[])[allocated.ord], '00000000-0000-0000-0000-000000000000'::uuid)
+        NULLIF((@queued_message_id::bigint[])[allocated.ord], 0)
     FROM allocated
     RETURNING *
 )
@@ -1148,9 +1161,7 @@ chats_expanded AS (
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
         updated_chat.title_source,
-        updated_chat.title_updated_at,
-        updated_chat.automation_id,
-        updated_chat.manage_automations_enabled
+        updated_chat.title_updated_at
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -1221,9 +1232,7 @@ chats_expanded AS (
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
         updated_chat.title_source,
-        updated_chat.title_updated_at,
-        updated_chat.automation_id,
-        updated_chat.manage_automations_enabled
+        updated_chat.title_updated_at
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -1232,78 +1241,16 @@ chats_expanded AS (
 SELECT *
 FROM chats_expanded;
 
--- name: UpdateChatManageAutomationsEnabledByID :one
-WITH updated_chat AS (
+-- name: UpdateChatProjectIDByID :exec
+-- Sets the project of one chat. A NULL project_id removes the chat from
+-- its project.
 UPDATE
     chats
 SET
     -- NOTE: updated_at is intentionally NOT touched here to avoid changing list ordering.
-    manage_automations_enabled = @manage_automations_enabled::boolean
+    project_id = sqlc.narg('project_id')::uuid
 WHERE
-    id = @id::uuid
-RETURNING *
-),
-chats_expanded AS (
-    SELECT
-        updated_chat.id,
-        updated_chat.owner_id,
-        updated_chat.workspace_id,
-        updated_chat.title,
-        updated_chat.status,
-        updated_chat.worker_id,
-        updated_chat.started_at,
-        updated_chat.heartbeat_at,
-        updated_chat.created_at,
-        updated_chat.updated_at,
-        updated_chat.parent_chat_id,
-        updated_chat.root_chat_id,
-        updated_chat.last_model_config_id,
-        updated_chat.last_reasoning_effort,
-        updated_chat.archived,
-        updated_chat.last_error,
-        updated_chat.mode,
-        updated_chat.mcp_server_ids,
-        updated_chat.labels,
-        updated_chat.build_id,
-        updated_chat.agent_id,
-        updated_chat.pin_order,
-        updated_chat.last_read_message_id,
-        updated_chat.dynamic_tools,
-        updated_chat.organization_id,
-        updated_chat.project_id,
-        updated_chat.plan_mode,
-        updated_chat.client_type,
-        updated_chat.last_turn_summary,
-        updated_chat.summary,
-        updated_chat.summary_generated_at,
-        updated_chat.snapshot_version,
-        updated_chat.history_version,
-        updated_chat.queue_version,
-        updated_chat.generation_attempt,
-        updated_chat.retry_state,
-        updated_chat.retry_state_version,
-        updated_chat.runner_id,
-        updated_chat.requires_action_deadline_at,
-        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
-        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
-        owner.username AS owner_username,
-        owner.name AS owner_name,
-        updated_chat.context_aggregate_hash,
-        updated_chat.context_dirty_since,
-        updated_chat.context_dirty_resources,
-        updated_chat.context_error,
-        updated_chat.compaction_requested_at,
-        updated_chat.title_source,
-        updated_chat.title_updated_at,
-        updated_chat.automation_id,
-        updated_chat.manage_automations_enabled
-    FROM
-        updated_chat
-    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
-    JOIN visible_users owner ON owner.id = updated_chat.owner_id
-)
-SELECT *
-FROM chats_expanded;
+    id = @id::uuid;
 
 -- name: UpdateChatLastModelConfigByID :one
 WITH updated_chat AS (
@@ -1367,9 +1314,7 @@ chats_expanded AS (
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
         updated_chat.title_source,
-        updated_chat.title_updated_at,
-        updated_chat.automation_id,
-        updated_chat.manage_automations_enabled
+        updated_chat.title_updated_at
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -1440,9 +1385,7 @@ chats_expanded AS (
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
         updated_chat.title_source,
-        updated_chat.title_updated_at,
-        updated_chat.automation_id,
-        updated_chat.manage_automations_enabled
+        updated_chat.title_updated_at
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -1533,9 +1476,7 @@ chats_expanded AS (
         result_chat.context_error,
         result_chat.compaction_requested_at,
         result_chat.title_source,
-        result_chat.title_updated_at,
-        result_chat.automation_id,
-        result_chat.manage_automations_enabled
+        result_chat.title_updated_at
     FROM
         result_chat
     LEFT JOIN chats root ON root.id = COALESCE(result_chat.root_chat_id, result_chat.parent_chat_id)
@@ -1605,9 +1546,7 @@ chats_expanded AS (
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
         updated_chat.title_source,
-        updated_chat.title_updated_at,
-        updated_chat.automation_id,
-        updated_chat.manage_automations_enabled
+        updated_chat.title_updated_at
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -1643,16 +1582,6 @@ SET
 WHERE
     id = @id::uuid
     AND history_version = @expected_history_version::bigint;
-
--- name: UpdateChatAutomationIDByID :execrows
--- Marks a chat as created by an automation. The mark is set once, when the
--- automation creates the chat, and never changes afterwards.
-UPDATE chats
-SET
-    automation_id = @automation_id::uuid
-WHERE
-    id = @id::uuid
-    AND automation_id IS NULL;
 
 -- name: UpdateChatMCPServerIDs :one
 WITH updated_chat AS (
@@ -1716,9 +1645,7 @@ chats_expanded AS (
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
         updated_chat.title_source,
-        updated_chat.title_updated_at,
-        updated_chat.automation_id,
-        updated_chat.manage_automations_enabled
+        updated_chat.title_updated_at
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -1800,15 +1727,15 @@ WHERE agent_id = @agent_id::uuid
     AND context_dirty_since IS NULL
 RETURNING id, owner_id;
 
--- name: SyncAgentChatsContextMCPResources :many
--- MCP resources bypass context drift and are live-synced on each push.
+-- name: SyncAgentChatsContextLiveResources :many
+-- MCP and ACP resources bypass context drift and are live-synced on each push.
 -- Changed chats are locked in ID order so concurrent clear-then-copy re-pins
 -- cannot interleave with the replacement.
-WITH agent_mcp AS (
+WITH agent_live AS (
     SELECT source, body_kind, body, content_hash, size_bytes, status, error, source_path
     FROM workspace_agent_context_resources
     WHERE workspace_agent_id = @agent_id::uuid
-        AND body_kind IN ('mcp_config', 'mcp_server')
+        AND body_kind IN ('mcp_config', 'mcp_server', 'acp_harness')
 ),
 changed AS (
     SELECT chats.id
@@ -1818,7 +1745,7 @@ changed AS (
         AND chats.context_aggregate_hash IS NOT NULL
         AND (
             EXISTS (
-                SELECT 1 FROM agent_mcp m
+                SELECT 1 FROM agent_live m
                 WHERE NOT EXISTS (
                     SELECT 1 FROM chat_context_resources ccr
                     WHERE ccr.chat_id = chats.id
@@ -1832,9 +1759,9 @@ changed AS (
             OR EXISTS (
                 SELECT 1 FROM chat_context_resources ccr
                 WHERE ccr.chat_id = chats.id
-                    AND ccr.body_kind IN ('mcp_config', 'mcp_server')
+                    AND ccr.body_kind IN ('mcp_config', 'mcp_server', 'acp_harness')
                     AND NOT EXISTS (
-                        SELECT 1 FROM agent_mcp m
+                        SELECT 1 FROM agent_live m
                         WHERE m.source = ccr.source
                             AND m.body_kind = ccr.body_kind
                             AND m.content_hash = ccr.content_hash
@@ -1854,8 +1781,8 @@ deleted AS (
     DELETE FROM chat_context_resources
     USING locked
     WHERE chat_context_resources.chat_id = locked.id
-        AND chat_context_resources.body_kind IN ('mcp_config', 'mcp_server')
-        AND chat_context_resources.source NOT IN (SELECT source FROM agent_mcp)
+        AND chat_context_resources.body_kind IN ('mcp_config', 'mcp_server', 'acp_harness')
+        AND chat_context_resources.source NOT IN (SELECT source FROM agent_live)
 ),
 upserted AS (
     INSERT INTO chat_context_resources (
@@ -1865,7 +1792,7 @@ upserted AS (
         locked.id, m.source, m.body_kind, m.body, m.content_hash,
         m.size_bytes, m.status, m.error, m.source_path
     FROM locked
-    CROSS JOIN agent_mcp m
+    CROSS JOIN agent_live m
     ON CONFLICT (chat_id, source) DO UPDATE SET
         body_kind = EXCLUDED.body_kind,
         body = EXCLUDED.body,
@@ -2022,9 +1949,7 @@ chats_expanded AS (
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
         updated_chat.title_source,
-        updated_chat.title_updated_at,
-        updated_chat.automation_id,
-        updated_chat.manage_automations_enabled
+        updated_chat.title_updated_at
     FROM
         updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
@@ -2333,9 +2258,7 @@ chats_expanded AS (
         locked_chat.context_error,
         locked_chat.compaction_requested_at,
         locked_chat.title_source,
-        locked_chat.title_updated_at,
-        locked_chat.automation_id,
-        locked_chat.manage_automations_enabled
+        locked_chat.title_updated_at
     FROM
         locked_chat
     LEFT JOIN chats root ON root.id = COALESCE(locked_chat.root_chat_id, locked_chat.parent_chat_id)
@@ -2402,9 +2325,7 @@ chats_expanded AS (
         shared_chat.context_error,
         shared_chat.compaction_requested_at,
         shared_chat.title_source,
-        shared_chat.title_updated_at,
-        shared_chat.automation_id,
-        shared_chat.manage_automations_enabled
+        shared_chat.title_updated_at
     FROM
         shared_chat
     LEFT JOIN chats root ON root.id = COALESCE(shared_chat.root_chat_id, shared_chat.parent_chat_id)
@@ -2850,9 +2771,7 @@ chats_expanded AS (
         bumped_chat.context_error,
         bumped_chat.compaction_requested_at,
         bumped_chat.title_source,
-        bumped_chat.title_updated_at,
-        bumped_chat.automation_id,
-        bumped_chat.manage_automations_enabled
+        bumped_chat.title_updated_at
     FROM bumped_chat
     LEFT JOIN chats root ON root.id = COALESCE(bumped_chat.root_chat_id, bumped_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = bumped_chat.owner_id
@@ -2946,9 +2865,7 @@ chats_expanded AS (
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
         updated_chat.title_source,
-        updated_chat.title_updated_at,
-        updated_chat.automation_id,
-        updated_chat.manage_automations_enabled
+        updated_chat.title_updated_at
     FROM updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
@@ -3018,9 +2935,7 @@ chats_expanded AS (
         updated_chat.context_error,
         updated_chat.compaction_requested_at,
         updated_chat.title_source,
-        updated_chat.title_updated_at,
-        updated_chat.automation_id,
-        updated_chat.manage_automations_enabled
+        updated_chat.title_updated_at
     FROM updated_chat
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
@@ -3044,36 +2959,16 @@ SELECT NOW()::timestamptz AS now;
 -- name: InsertChatQueuedMessageWithCreator :one
 -- Inserts a queued message that carries a position (from the default
 -- sequence) and an explicit created_by reference. Use this when the
--- queued-message creator differs from the chat owner. The automation
--- provenance columns are all NULL for ordinary messages and all set for
--- automation messages.
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by, automation_id, input_id, queue_generation)
+-- queued-message creator differs from the chat owner.
+INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by)
 VALUES (
     @chat_id::uuid,
     @content::jsonb,
     sqlc.narg('model_config_id')::uuid,
     sqlc.narg('reasoning_effort')::chat_reasoning_effort,
-    @created_by::uuid,
-    sqlc.narg('automation_id')::uuid,
-    sqlc.narg('input_id')::uuid,
-    sqlc.narg('queue_generation')::bigint
+    @created_by::uuid
 )
 RETURNING *;
-
--- name: GetChatQueuedMessagesByAutomationBelowGeneration :many
--- Returns the queued messages an automation delivered before its queue
--- generation reached cutoff, across all chats.
-SELECT
-    id,
-    chat_id
-FROM
-    chat_queued_messages
-WHERE
-    automation_id = @automation_id::uuid
-    AND queue_generation < @cutoff::bigint
-ORDER BY
-    chat_id,
-    id;
 
 -- name: GetChatQueuedMessagesByPosition :many
 -- Returns queued messages in state-machine order (position ASC, id ASC).

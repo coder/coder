@@ -1,6 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import type { ChatContext } from "#/api/typesGenerated";
 import {
+	MockChatContextACPHarnesses,
+	MockChatContextACPHarnessIssue,
 	MockChatContextClean,
 	MockChatContextDirty,
 } from "#/testHelpers/chatEntities";
@@ -17,6 +20,163 @@ const meta: Meta<typeof ContextUsageIndicator> = {
 export default meta;
 type Story = StoryObj<typeof ContextUsageIndicator>;
 
+export const OrganizationCompactionPointUsesReportedLimit: Story = {
+	args: {
+		usage: {
+			usedTokens: 64_000,
+			contextLimitTokens: 200_000,
+			compactionThreshold: {
+				source: "organization",
+				pointTokens: 32_000,
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(
+			canvas.getByRole("button", { name: /Context usage 32%/i }),
+		);
+	},
+};
+
+export const OrganizationCompactionPointBeyondReportedLimit: Story = {
+	args: {
+		usage: {
+			usedTokens: 5_200,
+			contextLimitTokens: 10_000,
+			compactionThreshold: {
+				source: "organization",
+				pointTokens: 16_000,
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(
+			canvas.getByRole("button", { name: /Context usage 52%/i }),
+		);
+	},
+};
+
+export const ChatModelCompactionDisabled: Story = {
+	args: {
+		usage: {
+			usedTokens: 64_000,
+			contextLimitTokens: 128_000,
+			compactionThreshold: {
+				percent: 100,
+				source: "user",
+				organizationOverrideNotLoaded: false,
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(
+			canvas.getByRole("button", { name: /Context usage 50%/i }),
+		);
+	},
+};
+
+export const ChatModelCompactionDisabledOrganizationOverrideNotLoaded: Story = {
+	args: {
+		usage: {
+			usedTokens: 64_000,
+			contextLimitTokens: 128_000,
+			compactionThreshold: {
+				percent: 100,
+				source: "user",
+				organizationOverrideNotLoaded: true,
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(
+			canvas.getByRole("button", { name: /Context usage 50%/i }),
+		);
+	},
+};
+
+export const ChatModelCompactionBinding: Story = {
+	args: {
+		usage: {
+			usedTokens: 64_000,
+			contextLimitTokens: 128_000,
+			compactionThreshold: {
+				percent: 80,
+				source: "model",
+				organizationOverrideNotLoaded: false,
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(
+			canvas.getByRole("button", { name: /Context usage 50%/i }),
+		);
+	},
+};
+
+const mockChatContextACPHarnessesWithOtherContext: ChatContext = {
+	...MockChatContextClean,
+	resources: [
+		...(MockChatContextClean.resources ?? []),
+		...(MockChatContextACPHarnesses.resources ?? []),
+	],
+};
+
+const mockChatContextACPHarnessesWithoutSourcePath: ChatContext = {
+	...MockChatContextACPHarnesses,
+	resources: MockChatContextACPHarnesses.resources?.map((resource) => ({
+		...resource,
+		source_path: undefined,
+	})),
+};
+
+export const ACPHarnesses: Story = {
+	args: {
+		usage: {
+			usedTokens: 12_000,
+			contextLimitTokens: 200_000,
+			context: MockChatContextACPHarnesses,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(within(canvasElement).getByRole("button"));
+	},
+};
+
+export const ACPHarnessesWithOtherContext: Story = {
+	...ACPHarnesses,
+	args: {
+		usage: {
+			...ACPHarnesses.args?.usage,
+			context: mockChatContextACPHarnessesWithOtherContext,
+		},
+	},
+};
+
+export const ACPHarnessIssue: Story = {
+	...ACPHarnesses,
+	args: {
+		usage: {
+			...ACPHarnesses.args?.usage,
+			context: MockChatContextACPHarnessIssue,
+		},
+	},
+};
+
+export const ACPHarnessesWithoutSourcePath: Story = {
+	...ACPHarnesses,
+	args: {
+		usage: {
+			...ACPHarnesses.args?.usage,
+			context: mockChatContextACPHarnessesWithoutSourcePath,
+		},
+	},
+};
+
 // A pinned resource issue flags the ring and appears under Issues.
 export const ResourceIssue: Story = {
 	args: {
@@ -29,6 +189,9 @@ export const ResourceIssue: Story = {
 	play: async ({ canvasElement }) => {
 		const button = within(canvasElement).getByRole("button");
 		await userEvent.hover(button);
+		await waitFor(() =>
+			expect(button).toHaveAttribute("aria-expanded", "true"),
+		);
 	},
 };
 
@@ -156,7 +319,7 @@ export const Dirty: Story = {
 // so the popover explains when the numbers will appear.
 export const NoUsage: Story = {
 	args: {
-		usage: null,
+		usage: {},
 	},
 	play: async ({ canvasElement }) => {
 		const button = within(canvasElement).getByRole("button");

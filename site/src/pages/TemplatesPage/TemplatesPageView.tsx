@@ -89,7 +89,7 @@ const CompatibilityModeAlert: React.FC<{ templates: readonly Template[] }> = ({
 				settings.{" "}
 				<Link
 					href={docs(
-						"/admin/templates/extending-templates/dynamic-parameters#upgrade-from-parameter-compatibility-mode",
+						"/admin/templates/extending-templates/parameters/compatibility-mode#upgrade-from-parameter-compatibility-mode",
 					)}
 					target="_blank"
 					rel="noreferrer"
@@ -181,6 +181,8 @@ const TemplateRow: React.FC<TemplateRowProps> = ({
 	);
 	const navigate = useNavigate();
 
+	const organizationLabel =
+		template.organization_display_name || template.organization_name;
 	const developerCount = formatTemplateActiveDevelopersLabel(
 		template.active_user_count,
 	);
@@ -202,11 +204,7 @@ const TemplateRow: React.FC<TemplateRowProps> = ({
 						<span className="flex flex-row items-center gap-2">
 							{template.display_name || template.name}
 							{canUpdateTemplate && template.use_classic_parameter_flow && (
-								<Badge
-									variant="warning"
-									size="sm"
-									className="border-0 shadow-none"
-								>
+								<Badge variant="warning" size="sm">
 									<TriangleAlertIcon aria-hidden="true" />
 									Compatibility mode
 								</Badge>
@@ -228,9 +226,15 @@ const TemplateRow: React.FC<TemplateRowProps> = ({
 			<TableCell className="text-content-secondary">
 				{showOrganizations ? (
 					<AvatarData
-						title={template.organization_display_name}
+						title={organizationLabel}
 						subtitle={`Used by ${developerCount}`}
-						avatar={<Avatar variant="icon" src={template.organization_icon} />}
+						avatar={
+							<Avatar
+								variant="icon"
+								src={template.organization_icon}
+								fallback={organizationLabel}
+							/>
+						}
 					/>
 				) : (
 					developerCount

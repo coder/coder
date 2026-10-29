@@ -171,7 +171,7 @@ export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
 			<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary">
 				<div
 					role="tablist"
-					className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-4 py-1.5 lg:px-3 lg:py-1"
+					className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border px-4 py-1.5 lg:px-3 lg:py-1"
 				>
 					{onClose && (
 						<Button
@@ -213,7 +213,7 @@ export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
 		<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary">
 			<div
 				role="tablist"
-				className="relative flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-4 py-1.5 lg:px-3 lg:py-1"
+				className="relative flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border px-4 py-1.5 lg:px-3 lg:py-1"
 			>
 				{onClose && (
 					<Button

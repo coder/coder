@@ -1,7 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChatModel } from "#/testHelpers/chatModels";
+import {
+	MockChatModel,
+	MockCompactionChatModel,
+	MockComputerUseChatModel,
+} from "#/testHelpers/chatModels";
 import { mockApiError } from "#/testHelpers/entities";
 import OrganizationAgentSettingsView from "./OrganizationAgentSettingsView";
 
@@ -16,6 +20,30 @@ const alternateModel: TypesGen.ChatModel = {
 	model: "model-two",
 	display_name: "Model Two",
 };
+const mockGoogleModel: TypesGen.ChatModel = {
+	...MockChatModel,
+	id: "model-gemini",
+	ai_provider_id: "provider-google",
+	model: "gemini-3.8-flash",
+	display_name: "Gemini Flash",
+};
+const mockTinyModelWithCompactionOff: TypesGen.ChatModel = {
+	...MockChatModel,
+	id: "tiny-model",
+	model: "tiny",
+	display_name: "Tiny Model",
+	context_limit: 8_000,
+	compression_threshold: 100,
+};
+const mockWarningModels = [
+	MockCompactionChatModel,
+	model,
+	{ ...alternateModel, compression_threshold: 100 },
+	mockTinyModelWithCompactionOff,
+];
+const mockWarningOverrides: readonly TypesGen.ChatModelOverrideResponse[] = [
+	{ context: "compaction", model_config_id: model.id },
+];
 const saveGeneralOverride = fn();
 const saveExploreOverride = fn();
 const overrides: readonly TypesGen.ChatModelOverrideResponse[] = [
@@ -31,6 +59,7 @@ const saveByContext = new Map<
 	["title_generation", fn()],
 	["compaction", fn()],
 	["advisor", fn()],
+	["computer_use", fn()],
 ]);
 
 const meta: Meta<typeof OrganizationAgentSettingsView> = {
@@ -56,19 +85,10 @@ const meta: Meta<typeof OrganizationAgentSettingsView> = {
 		modelsError: null,
 		canEdit: true,
 		showAdvisor: true,
+		showComputerUse: false,
 		saveByContext,
 		savingContexts: new Set(),
 		errorContexts: new Set(),
-		canViewInstructions: true,
-		systemPrompt:
-			"Use the platform team's templates and run make lint before opening a pull request.",
-		isSystemPromptLoading: false,
-		systemPromptLoadError: null,
-		systemPromptRefetchError: null,
-		onSaveSystemPrompt: fn(),
-		isSavingSystemPrompt: false,
-		saveSystemPromptError: null,
-		onResetSaveSystemPrompt: fn(),
 	},
 };
 export default meta;
@@ -172,6 +192,62 @@ export const SetAndUnset: Story = {
 		});
 	},
 };
+
+export const CompactionTriggerWarning: Story = {
+	args: {
+		overrides: mockWarningOverrides,
+		enabledModels: mockWarningModels,
+		// Unavailable to this viewer; the admin alert must still warn because it
+		// ignores per-user provider access.
+		providerInfoByID: new Map([
+			[
+				model.ai_provider_id,
+				{
+					provider: "openai",
+					displayName: "OpenAI",
+					icon: "",
+					available: false,
+				},
+			],
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const section = within(
+			within(canvasElement).getByRole("form", { name: "Compaction" }),
+		);
+
+		await userEvent.click(
+			section.getByRole("combobox", { name: /Model One/i }),
+		);
+		await userEvent.click(
+			await screen.findByRole("option", { name: /Compact Mini/i }),
+		);
+	},
+};
+
+export const CompactionTriggerWarningWithoutCompactionOff: Story = {
+	args: {
+		overrides: mockWarningOverrides,
+		enabledModels: [MockCompactionChatModel, model, alternateModel],
+	},
+	play: CompactionTriggerWarning.play,
+};
+
+export const CompactionTriggerWarningManyModels: Story = {
+	args: {
+		overrides: mockWarningOverrides,
+		enabledModels: [
+			MockCompactionChatModel,
+			model,
+			alternateModel,
+			{ ...MockChatModel, id: "model-3", display_name: "Model Three" },
+			{ ...MockChatModel, id: "model-4", display_name: "Model Four" },
+			{ ...MockChatModel, id: "model-5", display_name: "Model Five" },
+		],
+	},
+	play: CompactionTriggerWarning.play,
+};
+
 export const AdvisorDisabled: Story = {
 	args: { showAdvisor: false },
 	play: async ({ canvasElement }) => {
@@ -180,6 +256,129 @@ export const AdvisorDisabled: Story = {
 		).not.toBeInTheDocument();
 	},
 };
+
+const computerUseArgs = {
+	showComputerUse: true,
+	enabledModels: [
+		model,
+		alternateModel,
+		MockComputerUseChatModel,
+		mockGoogleModel,
+	],
+	providerInfoByID: new Map([
+		[
+			model.ai_provider_id,
+			{ provider: "openai", displayName: "OpenAI", icon: "" },
+		],
+		[
+			MockComputerUseChatModel.ai_provider_id,
+			{ provider: "anthropic", displayName: "Anthropic", icon: "" },
+		],
+		[
+			mockGoogleModel.ai_provider_id,
+			{ provider: "google", displayName: "Google", icon: "" },
+		],
+	]),
+};
+const mockUnverifiedComputerUseOverrides: readonly TypesGen.ChatModelOverrideResponse[] =
+	[...overrides, { context: "computer_use", model_config_id: model.id }];
+
+// The gpt-5 model behind model-1 is not on the curated computer use list.
+export const ComputerUseUnverifiedModel: Story = {
+	args: { ...computerUseArgs, overrides: mockUnverifiedComputerUseOverrides },
+	play: async ({ canvasElement }) => {
+		within(canvasElement)
+			.getByRole("button", { name: "Computer use model warning" })
+			.focus();
+	},
+};
+
+export const ComputerUseVerifiedModel: Story = {
+	args: {
+		...computerUseArgs,
+		overrides: [
+			...overrides,
+			{ context: "computer_use", model_config_id: MockComputerUseChatModel.id },
+		],
+	},
+};
+
+export const ComputerUseUnverifiedDefaultModel: Story = {
+	args: computerUseArgs,
+	play: ComputerUseUnverifiedModel.play,
+};
+
+const mockResponsesAPIDisabledModel: TypesGen.ChatModel = {
+	...MockChatModel,
+	id: "model-gpt-5-4",
+	model: "gpt-5.4",
+	display_name: "GPT-5.4",
+	model_config: { openai_config: { use_responses_api: false } },
+};
+
+// gpt-5.4 is on the curated list, but OpenAI computer use needs the Responses
+// API.
+export const ComputerUseResponsesAPIDisabled: Story = {
+	args: {
+		...computerUseArgs,
+		enabledModels: [
+			...computerUseArgs.enabledModels,
+			mockResponsesAPIDisabledModel,
+		],
+		overrides: [
+			...overrides,
+			{
+				context: "computer_use",
+				model_config_id: mockResponsesAPIDisabledModel.id,
+			},
+		],
+	},
+	play: ComputerUseUnverifiedModel.play,
+};
+
+export const ComputerUseNoDefaultModel: Story = {
+	args: { ...computerUseArgs, defaultModelID: undefined },
+};
+
+export const ComputerUseModelOptions: Story = {
+	args: computerUseArgs,
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("combobox", { name: /^Computer use,/ }),
+		);
+	},
+};
+
+export const ComputerUseNoProviderModels: Story = {
+	args: { ...computerUseArgs, enabledModels: [mockGoogleModel] },
+};
+
+export const ComputerUseUnavailableSavedModel: Story = {
+	args: {
+		...computerUseArgs,
+		overrides: [
+			...overrides,
+			{ context: "computer_use", model_config_id: "model-gone" },
+		],
+	},
+};
+
+export const ComputerUseOverridesLoading: Story = {
+	args: { ...computerUseArgs, isOverridesLoading: true, overrides: undefined },
+};
+
+export const ComputerUseSaveError: Story = {
+	args: { ...computerUseArgs, errorContexts: new Set(["computer_use"]) },
+};
+
+export const ComputerUseReadOnly: Story = {
+	args: {
+		...computerUseArgs,
+		canEdit: false,
+		overrides: mockUnverifiedComputerUseOverrides,
+	},
+};
+
 export const ReadOnly: Story = {
 	args: { canEdit: false },
 	play: async ({ canvasElement }) => {
@@ -278,46 +477,4 @@ export const NoModels: Story = {
 			);
 		});
 	},
-};
-
-export const InstructionsLoading: Story = {
-	args: { systemPrompt: undefined, isSystemPromptLoading: true },
-};
-
-export const InstructionsLoadError: Story = {
-	args: {
-		systemPrompt: undefined,
-		systemPromptLoadError: mockApiError({
-			message: "Failed to load organization instructions.",
-		}),
-	},
-};
-
-export const InstructionsRefetchError: Story = {
-	args: {
-		systemPromptRefetchError: mockApiError({
-			message: "Internal error fetching organization chat system prompt.",
-		}),
-	},
-};
-
-export const InstructionsSaveError: Story = {
-	args: {
-		saveSystemPromptError: mockApiError({
-			message: "System prompt exceeds the maximum length.",
-		}),
-	},
-	// The error follows a failed save of an edit, so the field is dirty.
-	play: async ({ canvasElement }) => {
-		await userEvent.type(
-			within(canvasElement).getByRole("textbox", {
-				name: "Organization instructions",
-			}),
-			" Keep pull requests small.",
-		);
-	},
-};
-
-export const ReadOnlyInstructions: Story = {
-	args: { canEdit: false },
 };

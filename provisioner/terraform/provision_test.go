@@ -152,6 +152,373 @@ func sendGraph(sess proto.DRPCProvisioner_SessionClient, source proto.GraphSourc
 	}}})
 }
 
+//nolint:paralleltest // Avoid "text file busy"; see explanation below.
+func TestGraphProcessesScriptOrdersOnlyForStart(t *testing.T) {
+	// This test and its subtests must run serially. Each subtest writes and
+	// immediately executes a temporary shell script that mocks Terraform.
+	// Another test forking while the script is open for writing can leave a
+	// writable file descriptor in its child even after os.WriteFile returns,
+	// causing execution to fail with "text file busy".
+
+	const selfDependencyPlanJSON = `{
+		"format_version":"1.2",
+		"terraform_version":"1.15.0",
+		"planned_values":{"root_module":{"resources":[
+			{"address":"coder_script.dependent","mode":"managed","type":"coder_script","name":"dependent","values":{"run_on_start":true}}
+		]}},
+		"prior_state":{
+			"format_version":"1.0",
+			"terraform_version":"1.15.0",
+			"values":{"root_module":{"resources":[
+				{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","values":{"rule":[{"run":["coder_script.dependent"],"after":["coder_script.dependent"]}]}}
+			]}}
+		},
+		"configuration":{"root_module":{"resources":[
+			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","schema_version":0}
+		]}}
+	}`
+	// The optional script is declared with count = 0, so its selector is valid
+	// even though it has no planned instances.
+	const declaredEmptySelectionPlanJSON = `{
+		"format_version":"1.2",
+		"terraform_version":"1.15.0",
+		"planned_values":{"root_module":{"resources":[
+			{"address":"coder_script.prerequisite","mode":"managed","type":"coder_script","name":"prerequisite","values":{"run_on_start":true}}
+		]}},
+		"prior_state":{
+			"format_version":"1.0",
+			"terraform_version":"1.15.0",
+			"values":{"root_module":{"resources":[
+				{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","values":{"rule":[{"run":["coder_script.optional"],"after":["coder_script.prerequisite"]}]}}
+			]}}
+		},
+		"configuration":{"root_module":{"resources":[
+			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","schema_version":0},
+			{"address":"coder_script.optional","mode":"managed","type":"coder_script","name":"optional","schema_version":0,"count_expression":{"constant_value":0}}
+		]}}
+	}`
+	const noDeclarationPlanJSON = `{
+		"format_version":"1.2",
+		"terraform_version":"1.15.0",
+		"planned_values":{"root_module":{}},
+		"configuration":{"root_module":{}}
+	}`
+	// The run selector fixes the inferred phase to start. The module selector also
+	// contains a stop script, which is filtered and reported as a warning.
+	const phaseWarningPlanJSON = `{
+		"format_version":"1.2",
+		"terraform_version":"1.15.0",
+		"planned_values":{"root_module":{
+			"resources":[
+				{"address":"coder_script.dependent","mode":"managed","type":"coder_script","name":"dependent","values":{"run_on_start":true}}
+			],
+			"child_modules":[{
+				"address":"module.bootstrap",
+				"resources":[
+					{"address":"module.bootstrap.coder_script.start","mode":"managed","type":"coder_script","name":"start","values":{"run_on_start":true}},
+					{"address":"module.bootstrap.coder_script.stop","mode":"managed","type":"coder_script","name":"stop","values":{"run_on_stop":true}}
+				]
+			}]
+		}},
+		"prior_state":{
+			"format_version":"1.0",
+			"terraform_version":"1.15.0",
+			"values":{"root_module":{"resources":[
+				{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","values":{"rule":[{"run":["coder_script.dependent"],"after":["module.bootstrap"]}]}}
+			]}}
+		},
+		"configuration":{"root_module":{
+			"resources":[
+				{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","schema_version":0}
+			],
+			"module_calls":{
+				"bootstrap":{"source":"./bootstrap","module":{"resources":[]}}
+			}
+		}}
+	}`
+	// The Graph RPC still requires valid DOT, but plan-time script-order
+	// validation does not use graph relationships. An empty graph keeps the
+	// fixture minimal.
+	const graphDOT = `digraph {}`
+
+	tests := []struct {
+		name            string
+		transition      proto.WorkspaceTransition
+		planJSON        string
+		errorContains   string
+		warningContains string
+	}{
+		{
+			name:          "StartRejectsSelfDependency",
+			transition:    proto.WorkspaceTransition_START,
+			planJSON:      selfDependencyPlanJSON,
+			errorContains: "depend on itself",
+		},
+		{
+			name:       "StopDoesNotValidateSelfDependency",
+			transition: proto.WorkspaceTransition_STOP,
+			planJSON:   selfDependencyPlanJSON,
+		},
+		{
+			name:       "DestroyDoesNotValidateSelfDependency",
+			transition: proto.WorkspaceTransition_DESTROY,
+			planJSON:   selfDependencyPlanJSON,
+		},
+		{
+			name:       "StartWithDeclaredEmptySelection",
+			transition: proto.WorkspaceTransition_START,
+			planJSON:   declaredEmptySelectionPlanJSON,
+		},
+		{
+			name:       "StartWithoutDeclaration",
+			transition: proto.WorkspaceTransition_START,
+			planJSON:   noDeclarationPlanJSON,
+		},
+		{
+			name:            "StartPhaseWarning",
+			transition:      proto.WorkspaceTransition_START,
+			planJSON:        phaseWarningPlanJSON,
+			warningContains: `inferred phase "start"`,
+		},
+	}
+	for _, test := range tests {
+		//nolint:paralleltest // Avoid the script descriptor race above.
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			planPath := filepath.Join(dir, "plan.json")
+			graphPath := filepath.Join(dir, "graph.dot")
+			graphArgsPath := filepath.Join(dir, "graph-args")
+			require.NoError(t, os.WriteFile(planPath, []byte(test.planJSON), 0o600))
+			require.NoError(t, os.WriteFile(graphPath, []byte(graphDOT), 0o600))
+
+			binaryPath := filepath.Join(dir, "terraform")
+			binary := fmt.Sprintf(`#!/bin/sh
+case "$1" in
+version)
+	printf '%%s\n' '{"terraform_version":"1.15.0","platform":"linux_amd64","provider_selections":{}}'
+	;;
+show)
+	cat %q
+	;;
+graph)
+	printf '%%s\n' "$*" >> %q
+	cat %q
+	;;
+init)
+	exit 0
+	;;
+*)
+	exit 1
+	;;
+esac
+`, planPath, graphArgsPath, graphPath)
+			// #nosec G306 - The test Terraform shim must be executable.
+			require.NoError(t, os.WriteFile(binaryPath, []byte(binary), 0o700))
+
+			ctx, api := setupProvisioner(t, &provisionerServeOptions{
+				binaryPath: binaryPath,
+			})
+			sess := configure(ctx, t, api, &proto.Config{})
+			init := sendInitAndGetResp(t, sess, testutil.CreateTar(t, nil))
+			require.Empty(t, init.Error)
+			require.NoError(t, sess.Send(&proto.Request{
+				Type: &proto.Request_Graph{Graph: &proto.GraphRequest{
+					Metadata: &proto.Metadata{WorkspaceTransition: test.transition},
+					Source:   proto.GraphSource_SOURCE_PLAN,
+				}},
+			}))
+			logs, response := readProvisionLog(t, sess)
+			graph := response.GetGraph()
+			require.NotNil(t, graph)
+			if test.errorContains == "" {
+				require.Empty(t, graph.Error)
+			} else {
+				require.Contains(t, graph.Error, test.errorContains)
+			}
+			if test.warningContains != "" {
+				require.Contains(t, logs, test.warningContains)
+				require.Contains(t, logs, "module.bootstrap")
+			}
+
+			graphArgs, err := os.ReadFile(graphArgsPath)
+			require.NoError(t, err)
+			require.Equal(t, "graph -type=plan\n", string(graphArgs))
+		})
+	}
+}
+
+//nolint:paralleltest // Avoid "text file busy"; see explanation below.
+func TestGraphResolvesAppliedScriptOrders(t *testing.T) {
+	// This test and its subtests must run serially. Each subtest writes and
+	// immediately executes a temporary shell script that mocks Terraform.
+	// Another test forking while the script is open for writing can leave a
+	// writable file descriptor in its child even after os.WriteFile returns,
+	// causing execution to fail with "text file busy".
+
+	// Terraform records the script order data source in prior state when it is
+	// read during planning. The plan fixture reproduces that shape so this test
+	// can verify that the plan configuration is cached for state graph
+	// conversion.
+	// The fixture was generated by Terraform 1.16.2 with terraform-provider-coder
+	// at e851c57.
+	planJSON, err := os.ReadFile("testdata/script-order-plan.json")
+	require.NoError(t, err)
+	const stateJSON = `{
+		"format_version":"1.0",
+		"terraform_version":"1.15.0",
+		"values":{"root_module":{"resources":[
+			{"address":"docker_container.workspace","mode":"managed","type":"docker_container","name":"workspace","values":{}},
+			{"address":"coder_agent.main","mode":"managed","type":"coder_agent","name":"main","values":{"arch":"amd64","id":"agent-id"}},
+			{"address":"coder_script.prerequisite","mode":"managed","type":"coder_script","name":"prerequisite","values":{"agent_id":"agent-id","run_on_start":true}},
+			{"address":"coder_script.dependent","mode":"managed","type":"coder_script","name":"dependent","values":{"agent_id":"agent-id","run_on_start":true}},
+			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","values":{"rule":[{"run":["coder_script.dependent"],"after":["coder_script.prerequisite"]}]}}
+		]}}
+	}`
+	// Keep both scripts bound to agent-id while changing the applied agent's ID.
+	mismatchedAgentStateJSON := strings.Replace(
+		stateJSON, `"id":"agent-id"`, `"id":"other-agent-id"`, 1,
+	)
+	const graphDOT = `digraph {
+		"[root] docker_container.workspace" [label = "docker_container.workspace"]
+		"[root] coder_agent.main (expand)" [label = "coder_agent.main"]
+		"[root] docker_container.workspace" -> "[root] coder_agent.main (expand)"
+	}`
+
+	tests := []struct {
+		name          string
+		stateJSON     string
+		transition    proto.WorkspaceTransition
+		planFirst     bool
+		wantGraphCall bool
+		errorContains string
+	}{
+		{
+			// State JSON omits configuration, so the preceding plan must
+			// supply it for script-order conversion.
+			name:          "StateGraphUsesCachedPlanConfiguration",
+			stateJSON:     stateJSON,
+			transition:    proto.WorkspaceTransition_START,
+			planFirst:     true,
+			wantGraphCall: true,
+		},
+		{
+			name:          "MissingPlanConfiguration",
+			stateJSON:     stateJSON,
+			transition:    proto.WorkspaceTransition_START,
+			errorContains: "state graph requires a preceding successful plan",
+		},
+		{
+			name:          "AgentBindingError",
+			stateJSON:     mismatchedAgentStateJSON,
+			transition:    proto.WorkspaceTransition_START,
+			planFirst:     true,
+			wantGraphCall: true,
+			errorContains: "does not match any workspace agent or devcontainer subagent",
+		},
+		{
+			// STOP uses ordinary conversion and must not require a cached plan
+			// configuration for script ordering.
+			name:          "StopSkipsScriptOrderConversion",
+			stateJSON:     stateJSON,
+			transition:    proto.WorkspaceTransition_STOP,
+			wantGraphCall: true,
+		},
+	}
+	for _, test := range tests {
+		//nolint:paralleltest // Avoid the script descriptor race above.
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			planPath := filepath.Join(dir, "plan.json")
+			statePath := filepath.Join(dir, "state.json")
+			graphPath := filepath.Join(dir, "graph.dot")
+			showArgsPath := filepath.Join(dir, "show-args")
+			graphArgsPath := filepath.Join(dir, "graph-args")
+			require.NoError(t, os.WriteFile(planPath, planJSON, 0o600))
+			require.NoError(t, os.WriteFile(statePath, []byte(test.stateJSON), 0o600))
+			require.NoError(t, os.WriteFile(graphPath, []byte(graphDOT), 0o600))
+
+			binaryPath := filepath.Join(dir, "terraform")
+			binary := fmt.Sprintf(`#!/bin/sh
+case "$1" in
+version)
+	printf '%%s\n' '{"terraform_version":"1.15.0","platform":"linux_amd64","provider_selections":{}}'
+	;;
+show)
+	printf '%%s\n' "$*" >> %q
+	if [ "$#" -eq 3 ]; then
+		cat %q
+	else
+		cat %q
+	fi
+	;;
+graph)
+	printf '%%s\n' "$*" >> %q
+	cat %q
+	;;
+plan|init)
+	exit 0
+	;;
+*)
+	exit 1
+	;;
+esac
+`, showArgsPath, statePath, planPath, graphArgsPath, graphPath)
+			// #nosec G306 - The test Terraform shim must be executable.
+			require.NoError(t, os.WriteFile(binaryPath, []byte(binary), 0o700))
+
+			ctx, api := setupProvisioner(t, &provisionerServeOptions{
+				binaryPath: binaryPath,
+			})
+			sess := configure(ctx, t, api, &proto.Config{})
+			init := sendInitAndGetResp(t, sess, testutil.CreateTar(t, nil))
+			require.Empty(t, init.Error)
+			if test.planFirst {
+				require.NoError(t, sendPlan(sess, test.transition))
+				_, response := readProvisionLog(t, sess)
+				plan := response.GetPlan()
+				require.NotNil(t, plan)
+				require.Empty(t, plan.Error)
+			}
+
+			require.NoError(t, sess.Send(&proto.Request{
+				Type: &proto.Request_Graph{Graph: &proto.GraphRequest{
+					Metadata: &proto.Metadata{
+						WorkspaceTransition: test.transition,
+					},
+					Source: proto.GraphSource_SOURCE_STATE,
+				}},
+			}))
+			_, response := readProvisionLog(t, sess)
+			graph := response.GetGraph()
+			require.NotNil(t, graph)
+			if test.errorContains == "" {
+				require.Empty(t, graph.Error)
+			} else {
+				require.Contains(t, graph.Error, test.errorContains)
+			}
+			showArgs, err := os.ReadFile(showArgsPath)
+			require.NoError(t, err)
+			commands := strings.Split(strings.TrimSpace(string(showArgs)), "\n")
+			if test.planFirst {
+				require.Len(t, commands, 2)
+				require.Contains(t, commands[0], "terraform.tfplan")
+				require.Equal(t, "show -json -no-color", commands[1])
+			} else {
+				require.Equal(t, []string{"show -json -no-color"}, commands)
+			}
+
+			if test.wantGraphCall {
+				graphArgs, err := os.ReadFile(graphArgsPath)
+				require.NoError(t, err)
+				require.Equal(t, "graph -type=plan\n", string(graphArgs))
+			} else {
+				_, err := os.Stat(graphArgsPath)
+				require.ErrorIs(t, err, os.ErrNotExist)
+			}
+		})
+	}
+}
+
 // below we exec fake_cancel.sh, which causes the kernel to execute it, and if more than
 // one process tries to do this simultaneously, it can cause "text file busy"
 // nolint: paralleltest

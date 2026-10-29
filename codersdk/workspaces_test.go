@@ -16,8 +16,56 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/wsrelated"
 	"github.com/coder/coder/v2/testutil"
 )
+
+func TestWorkspacePathSegments(t *testing.T) {
+	t.Parallel()
+
+	for _, identifier := range []string{
+		codersdk.Me, "alice", "legacy_name", uuid.NewString(),
+		"me/keys/tokens?", "me/keys/tokens#", "../users/me", "me%2fkeys",
+		"me%252fkeys", `me\keys`, "", ".", "..",
+	} {
+		t.Run(identifier, func(t *testing.T) {
+			t.Parallel()
+			valid := identifier == codersdk.Me || identifier == "alice" || identifier == "legacy_name"
+			if _, err := uuid.Parse(identifier); err == nil {
+				valid = true
+			}
+			origin, err := url.Parse("https://coder.example.com")
+			require.NoError(t, err)
+			var calls int
+			client := codersdk.New(origin, codersdk.WithHTTPClient(&http.Client{
+				Transport: testutil.RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					calls++
+					assert.Equal(t, origin.Host, req.URL.Host)
+					assert.Empty(t, req.URL.Fragment)
+					if req.Method == http.MethodPost {
+						assert.Equal(t, "/api/v2/users/"+identifier+"/workspaces", req.URL.Path)
+						assert.Empty(t, req.URL.RawQuery)
+					} else {
+						assert.Equal(t, "/api/v2/users/"+identifier+"/workspace/legacy_name", req.URL.Path)
+						assert.Equal(t, "include_deleted=false", req.URL.RawQuery)
+					}
+					return nil, xerrors.New("request reached transport")
+				}),
+			}))
+			_, createErr := client.CreateUserWorkspace(t.Context(), identifier, codersdk.CreateWorkspaceRequest{})
+			_, lookupErr := client.WorkspaceByOwnerAndName(t.Context(), identifier, "legacy_name", codersdk.WorkspaceOptions{})
+			if valid {
+				require.ErrorContains(t, createErr, "request reached transport")
+				require.ErrorContains(t, lookupErr, "request reached transport")
+				require.Equal(t, 2, calls)
+			} else {
+				require.ErrorContains(t, createErr, "invalid user")
+				require.ErrorContains(t, lookupErr, "invalid workspace owner")
+				require.Zero(t, calls)
+			}
+		})
+	}
+}
 
 func TestResolveWorkspace(t *testing.T) {
 	t.Parallel()
@@ -293,20 +341,70 @@ func TestResolveWorkspace(t *testing.T) {
 	t.Run("InvalidIdentifier", func(t *testing.T) {
 		t.Parallel()
 
-		var hits atomic.Int64
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			hits.Add(1)
-			t.Errorf("unexpected HTTP request for invalid identifier: %s", req.URL.Path)
-		}))
-		defer srv.Close()
+		for _, identifier := range []string{
+			"a/b/c", "me?/workspace", "me#/workspace", "me%3f/workspace",
+			"../workspace", "./workspace", "workspace?after=1", "workspace#fragment",
+			"%2e%2e", "me%252fkeys/workspace", `me\keys/workspace`, "..", ".", "", "/workspace", "me/",
+		} {
+			t.Run(identifier, func(t *testing.T) {
+				t.Parallel()
+				var hits atomic.Int64
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+					hits.Add(1)
+					t.Errorf("unexpected HTTP request for invalid identifier: %s", req.URL.Path)
+				}))
+				t.Cleanup(srv.Close)
+				u, err := url.Parse(srv.URL)
+				require.NoError(t, err)
+				client := codersdk.New(u)
+				_, err = client.ResolveWorkspace(t.Context(), identifier)
+				require.ErrorContains(t, err, "invalid workspace")
+				require.EqualValues(t, 0, hits.Load(), "invalid identifiers should fail before any HTTP request")
+			})
+		}
+	})
 
-		u, err := url.Parse(srv.URL)
-		require.NoError(t, err)
-		client := codersdk.New(u)
+	t.Run("ForwardsOptions", func(t *testing.T) {
+		t.Parallel()
 
-		_, err = client.ResolveWorkspace(t.Context(), "a/b/c")
-		require.Error(t, err)
-		require.ErrorContains(t, err, "invalid workspace identifier: \"a/b/c\"")
-		require.EqualValues(t, 0, hits.Load(), "invalid identifiers should fail before any HTTP request")
+		// Options must be applied in order on both lookup paths, just
+		// as they are by Client.Workspace.
+		firstConfig := wsrelated.Config{Template: true}
+		lastConfig := wsrelated.Config{LatestBuild: &wsrelated.LatestBuild{}}
+		opts := []codersdk.WorkspaceOptions{
+			{IncludeDeleted: true, IncludeRelated: &firstConfig},
+			{IncludeRelated: &lastConfig},
+		}
+
+		tests := []struct {
+			name       string
+			identifier string
+			path       string
+		}{
+			{name: "ByUUID", identifier: uuid.NewString(), path: "/api/v2/workspaces/{workspace}"},
+			{name: "ByName", identifier: "my-workspace", path: "/api/v2/users/{user}/workspace/{workspace}"},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				r := chi.NewRouter()
+				r.Get(tt.path, func(w http.ResponseWriter, req *http.Request) {
+					assert.Equal(t, "true", req.URL.Query().Get("include_deleted"))
+					assert.Equal(t, lastConfig.QueryParam(), req.URL.Query().Get("include_related"))
+					w.Header().Set("Content-Type", "application/json")
+					_ = json.NewEncoder(w).Encode(codersdk.Workspace{})
+				})
+				srv := httptest.NewServer(r)
+				defer srv.Close()
+
+				u, err := url.Parse(srv.URL)
+				require.NoError(t, err)
+				client := codersdk.New(u)
+
+				_, err = client.ResolveWorkspace(t.Context(), tt.identifier, opts...)
+				require.NoError(t, err)
+			})
+		}
 	})
 }

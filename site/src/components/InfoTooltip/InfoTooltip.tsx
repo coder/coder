@@ -5,6 +5,7 @@ import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
+	type TooltipSide,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 
@@ -16,6 +17,7 @@ type InfoTooltipProps = {
 	type?: InfoTooltipType;
 	size?: InfoTooltipSize;
 	ariaLabel?: string;
+	side?: TooltipSide;
 	children: React.ReactNode;
 };
 
@@ -25,7 +27,7 @@ const typeIcon: Record<InfoTooltipType, typeof InfoIcon> = {
 };
 
 const typeIconColor: Record<InfoTooltipType, string> = {
-	info: "text-content-secondary",
+	info: "text-content-secondary hover:text-content-primary",
 	warning: "text-content-warning",
 };
 
@@ -39,6 +41,7 @@ export const InfoTooltip: React.FC<InfoTooltipProps> = ({
 	type = "info",
 	size = "medium",
 	ariaLabel = "More info",
+	side = "right",
 }) => {
 	const Icon = typeIcon[type];
 
@@ -51,14 +54,14 @@ export const InfoTooltip: React.FC<InfoTooltipProps> = ({
 					className={cn(
 						"flex items-center justify-center p-0",
 						"border-0 border-none bg-transparent cursor-default",
-						"opacity-75 hover:opacity-100 transition-opacity",
+						"transition-colors",
 						sizeClasses[size],
 						typeIconColor[type],
 					)}
 				>
 					<Icon />
 				</TooltipTrigger>
-				<TooltipContent side="right" align="center" className="max-w-xs">
+				<TooltipContent side={side} align="center" className="max-w-xs">
 					{children}
 				</TooltipContent>
 			</Tooltip>

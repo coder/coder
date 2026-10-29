@@ -138,7 +138,10 @@ export const GroupsPageView: React.FC<GroupsPageViewProps> = ({
 				<div className="flex flex-col gap-4">
 					<GroupsFilter {...filterProps} />
 
-					<PaginationContainer query={groupsQuery} paginationUnitLabel="groups">
+					<PaginationContainer
+						query={groupsQuery}
+						paginationUnitLabel={{ singular: "group", plural: "groups" }}
+					>
 						<Table aria-label="Groups">
 							<TableHeader>
 								<TableRow>
@@ -160,7 +163,8 @@ export const GroupsPageView: React.FC<GroupsPageViewProps> = ({
 														message={
 															<>
 																Approximate AI spend compared to the group's AI
-																budget for the active period.{" "}
+																budget for the active period.
+																<br />
 																<SpendEstimateDocsLink />
 															</>
 														}

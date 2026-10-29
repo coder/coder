@@ -123,6 +123,47 @@ Actions: `login`, `logout`, `register`, `create`, `write`, `delete`
 </tbody>
 </table>
 
+### AuditableChatProjectInstructions
+
+Actions: `write`, `delete`
+
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>instructions</code></td><td>Yes</td></tr>
+<tr><td><code>organization_id</code></td><td>No</td></tr>
+<tr><td><code>project_id</code></td><td>No</td></tr>
+<tr><td><code>project_name</code></td><td>No</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+<tr><td><code>updated_by</code></td><td>No</td></tr>
+</tbody>
+</table>
+
+### AuditableChatProjectSkill
+
+Actions: `create`, `write`, `delete`
+
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>action</code></td><td>Yes</td></tr>
+<tr><td><code>content</code></td><td>Yes</td></tr>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>description</code></td><td>Yes</td></tr>
+<tr><td><code>enabled</code></td><td>Yes</td></tr>
+<tr><td><code>group_acl</code></td><td>Yes</td></tr>
+<tr><td><code>id</code></td><td>Yes</td></tr>
+<tr><td><code>model_invocable</code></td><td>Yes</td></tr>
+<tr><td><code>name</code></td><td>Yes</td></tr>
+<tr><td><code>organization_id</code></td><td>Yes</td></tr>
+<tr><td><code>project_id</code></td><td>Yes</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+<tr><td><code>user_acl</code></td><td>Yes</td></tr>
+<tr><td><code>user_id</code></td><td>Yes</td></tr>
+</tbody>
+</table>
+
 ### Group
 
 Actions: `create`, `write`, `delete`
@@ -172,6 +213,30 @@ Actions: `write`, `delete`
 </tbody>
 </table>
 
+### AuditableOrganizationSkill
+
+Actions: `create`, `write`, `delete`
+
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>action</code></td><td>Yes</td></tr>
+<tr><td><code>content</code></td><td>Yes</td></tr>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>description</code></td><td>Yes</td></tr>
+<tr><td><code>enabled</code></td><td>Yes</td></tr>
+<tr><td><code>group_acl</code></td><td>Yes</td></tr>
+<tr><td><code>id</code></td><td>Yes</td></tr>
+<tr><td><code>model_invocable</code></td><td>Yes</td></tr>
+<tr><td><code>name</code></td><td>Yes</td></tr>
+<tr><td><code>organization_id</code></td><td>Yes</td></tr>
+<tr><td><code>project_id</code></td><td>Yes</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+<tr><td><code>user_acl</code></td><td>Yes</td></tr>
+<tr><td><code>user_id</code></td><td>Yes</td></tr>
+</tbody>
+</table>
+
 ### AuditableUserAIBudgetOverride
 
 Actions: `write`, `delete`
@@ -199,7 +264,6 @@ Actions: `create`, `write`
 <tbody>
 <tr><td><code>agent_id</code></td><td>No</td></tr>
 <tr><td><code>archived</code></td><td>Yes</td></tr>
-<tr><td><code>automation_id</code></td><td>Yes</td></tr>
 <tr><td><code>build_id</code></td><td>No</td></tr>
 <tr><td><code>client_type</code></td><td>No</td></tr>
 <tr><td><code>compaction_requested_at</code></td><td>No</td></tr>
@@ -220,7 +284,6 @@ Actions: `create`, `write`
 <tr><td><code>last_read_message_id</code></td><td>No</td></tr>
 <tr><td><code>last_reasoning_effort</code></td><td>No</td></tr>
 <tr><td><code>last_turn_summary</code></td><td>No</td></tr>
-<tr><td><code>manage_automations_enabled</code></td><td>Yes</td></tr>
 <tr><td><code>mcp_server_ids</code></td><td>Yes</td></tr>
 <tr><td><code>mode</code></td><td>Yes</td></tr>
 <tr><td><code>organization_id</code></td><td>No</td></tr>
@@ -249,40 +312,6 @@ Actions: `create`, `write`
 <tr><td><code>user_acl</code></td><td>Yes</td></tr>
 <tr><td><code>worker_id</code></td><td>No</td></tr>
 <tr><td><code>workspace_id</code></td><td>Yes</td></tr>
-</tbody>
-</table>
-
-### ChatAutomation
-
-Actions: `create`, `write`, `delete`
-
-<table width="100%">
-<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
-<tbody>
-<tr><td><code>created_at</code></td><td>No</td></tr>
-<tr><td><code>created_by_chat_id</code></td><td>Yes</td></tr>
-<tr><td><code>enabled</code></td><td>Yes</td></tr>
-<tr><td><code>id</code></td><td>Yes</td></tr>
-<tr><td><code>kind</code></td><td>Yes</td></tr>
-<tr><td><code>name</code></td><td>Yes</td></tr>
-<tr><td><code>new_chat_model_config_id</code></td><td>Yes</td></tr>
-<tr><td><code>organization_id</code></td><td>Yes</td></tr>
-<tr><td><code>owner_id</code></td><td>Yes</td></tr>
-<tr><td><code>prompt</code></td><td>Yes</td></tr>
-<tr><td><code>queue_generation</code></td><td>No</td></tr>
-<tr><td><code>reasoning_effort</code></td><td>Yes</td></tr>
-<tr><td><code>schedule_cron</code></td><td>Yes</td></tr>
-<tr><td><code>schedule_next_run_at</code></td><td>No</td></tr>
-<tr><td><code>schedule_revision</code></td><td>No</td></tr>
-<tr><td><code>schedule_time_zone</code></td><td>Yes</td></tr>
-<tr><td><code>target_chat_id</code></td><td>Yes</td></tr>
-<tr><td><code>target_mode</code></td><td>Yes</td></tr>
-<tr><td><code>updated_at</code></td><td>No</td></tr>
-<tr><td><code>webhook_consumed_at</code></td><td>Yes</td></tr>
-<tr><td><code>webhook_secret_hash</code></td><td>Yes</td></tr>
-<tr><td><code>webhook_secret_version</code></td><td>Yes</td></tr>
-<tr><td><code>webhook_use</code></td><td>Yes</td></tr>
-<tr><td><code>when_busy</code></td><td>Yes</td></tr>
 </tbody>
 </table>
 
@@ -340,7 +369,6 @@ Actions: `write`
 <tr><td><code>chat_auto_archive_days</code></td><td>Yes</td></tr>
 <tr><td><code>chat_debug_retention_days</code></td><td>Yes</td></tr>
 <tr><td><code>chat_retention_days</code></td><td>Yes</td></tr>
-<tr><td><code>computer_use_provider</code></td><td>Yes</td></tr>
 <tr><td><code>debug_logging_allow_users</code></td><td>Yes</td></tr>
 <tr><td><code>id</code></td><td>No</td></tr>
 <tr><td><code>personal_model_overrides_enabled</code></td><td>Yes</td></tr>
@@ -371,12 +399,14 @@ Actions: `create`, `write`, `delete`
 <tbody>
 <tr><td><code>created_at</code></td><td>No</td></tr>
 <tr><td><code>description</code></td><td>Yes</td></tr>
+<tr><td><code>group_acl</code></td><td>Yes</td></tr>
 <tr><td><code>icon</code></td><td>Yes</td></tr>
 <tr><td><code>id</code></td><td>Yes</td></tr>
 <tr><td><code>name</code></td><td>Yes</td></tr>
 <tr><td><code>organization_id</code></td><td>Yes</td></tr>
 <tr><td><code>owner_id</code></td><td>Yes</td></tr>
 <tr><td><code>updated_at</code></td><td>No</td></tr>
+<tr><td><code>user_acl</code></td><td>Yes</td></tr>
 </tbody>
 </table>
 
@@ -515,6 +545,7 @@ Actions: `create`, `write`, `delete`
 <tr><td><code>oauth2_client_id</code></td><td>Yes</td></tr>
 <tr><td><code>oauth2_client_secret</code></td><td>Yes</td></tr>
 <tr><td><code>oauth2_client_secret_key_id</code></td><td>No</td></tr>
+<tr><td><code>oauth2_resource</code></td><td>Yes</td></tr>
 <tr><td><code>oauth2_revocation_url</code></td><td>Yes</td></tr>
 <tr><td><code>oauth2_scopes</code></td><td>Yes</td></tr>
 <tr><td><code>oauth2_token_url</code></td><td>Yes</td></tr>
@@ -631,6 +662,7 @@ Actions: `create`, `write`, `delete`
 <tr><td><code>icon</code></td><td>Yes</td></tr>
 <tr><td><code>id</code></td><td>No</td></tr>
 <tr><td><code>is_default</code></td><td>Yes</td></tr>
+<tr><td><code>members_can_disable_skills</code></td><td>Yes</td></tr>
 <tr><td><code>name</code></td><td>Yes</td></tr>
 <tr><td><code>shareable_workspace_owners</code></td><td>Yes</td></tr>
 <tr><td><code>updated_at</code></td><td>Yes</td></tr>
@@ -665,6 +697,30 @@ Actions: `create`, `write`, `delete`
 <tbody>
 <tr><td><code>field</code></td><td>Yes</td></tr>
 <tr><td><code>mapping</code></td><td>Yes</td></tr>
+</tbody>
+</table>
+
+### Skill
+
+Actions: `create`, `write`, `delete`
+
+<table width="100%">
+<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
+<tbody>
+<tr><td><code>action</code></td><td>Yes</td></tr>
+<tr><td><code>content</code></td><td>Yes</td></tr>
+<tr><td><code>created_at</code></td><td>No</td></tr>
+<tr><td><code>description</code></td><td>Yes</td></tr>
+<tr><td><code>enabled</code></td><td>Yes</td></tr>
+<tr><td><code>group_acl</code></td><td>Yes</td></tr>
+<tr><td><code>id</code></td><td>Yes</td></tr>
+<tr><td><code>model_invocable</code></td><td>Yes</td></tr>
+<tr><td><code>name</code></td><td>Yes</td></tr>
+<tr><td><code>organization_id</code></td><td>Yes</td></tr>
+<tr><td><code>project_id</code></td><td>Yes</td></tr>
+<tr><td><code>updated_at</code></td><td>No</td></tr>
+<tr><td><code>user_acl</code></td><td>Yes</td></tr>
+<tr><td><code>user_id</code></td><td>Yes</td></tr>
 </tbody>
 </table>
 
@@ -739,6 +795,8 @@ Actions: `create`, `write`
 <tr><td><code>name</code></td><td>Yes</td></tr>
 <tr><td><code>organization_id</code></td><td>No</td></tr>
 <tr><td><code>readme</code></td><td>Yes</td></tr>
+<tr><td><code>script_order_data_source_count</code></td><td>No</td></tr>
+<tr><td><code>script_order_rule_count</code></td><td>No</td></tr>
 <tr><td><code>source_example_id</code></td><td>No</td></tr>
 <tr><td><code>template_id</code></td><td>Yes</td></tr>
 <tr><td><code>updated_at</code></td><td>No</td></tr>
@@ -793,23 +851,6 @@ Actions: `create`, `write`, `delete`
 <tr><td><code>user_id</code></td><td>Yes</td></tr>
 <tr><td><code>value</code></td><td>Yes</td></tr>
 <tr><td><code>value_key_id</code></td><td>No</td></tr>
-</tbody>
-</table>
-
-### UserSkill
-
-Actions: `create`, `write`, `delete`
-
-<table width="100%">
-<thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
-<tbody>
-<tr><td><code>content</code></td><td>Yes</td></tr>
-<tr><td><code>created_at</code></td><td>No</td></tr>
-<tr><td><code>description</code></td><td>Yes</td></tr>
-<tr><td><code>id</code></td><td>Yes</td></tr>
-<tr><td><code>name</code></td><td>Yes</td></tr>
-<tr><td><code>updated_at</code></td><td>No</td></tr>
-<tr><td><code>user_id</code></td><td>Yes</td></tr>
 </tbody>
 </table>
 

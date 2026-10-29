@@ -1,6 +1,9 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ReconnectSchedule } from "#/utils/reconnectingWebSocket";
 
+/** A URL shown as a pill, either a found page or an answer citation. */
+export type SourceLink = { url: string; title: string };
+
 export type ParsedToolCall = {
 	id: string;
 	name: string;
@@ -9,6 +12,9 @@ export type ParsedToolCall = {
 	mcpServerConfigId?: string;
 	hookRewritten?: boolean;
 	startedAt?: string;
+	providerExecuted?: boolean;
+	/** Pages a provider-executed web search returned, from tagged source parts. */
+	foundPages?: SourceLink[];
 };
 
 export type ParsedToolResult = {
@@ -38,12 +44,21 @@ export type MergedTool = {
 	killedBySignal?: "kill" | "terminate";
 	/** When the model emitted the call, from the tool-call part's created_at. */
 	startedAt?: string;
+	providerExecuted?: boolean;
+	foundPages?: readonly SourceLink[];
 };
 
 export type RenderBlock =
 	| {
 			type: "response";
 			text: string;
+			/**
+			 * A provider-executed call, such as web search, followed this text,
+			 * so later text starts a new block.
+			 */
+			beforeProviderTool?: boolean;
+			/** The model labeled this text as commentary on its work. */
+			narration?: boolean;
 	  }
 	| {
 			type: "thinking";
@@ -56,6 +71,7 @@ export type RenderBlock =
 	| TypesGen.ChatFilePart
 	| TypesGen.ChatFileReferencePart
 	| TypesGen.ChatWorkspaceFileReferencePart
+	| TypesGen.ChatSkillInvocationPart
 	| {
 			type: "sources";
 			sources: Array<{ url: string; title: string }>;
@@ -68,6 +84,11 @@ export type ParsedMessageContent = {
 	toolResults: ParsedToolResult[];
 	tools: MergedTool[];
 	blocks: RenderBlock[];
+	/**
+	 * After each content part, the index of the newest block, or -1 while there
+	 * is none, so a part that renders nothing maps to the block before it.
+	 */
+	partBlockIndices: number[];
 	sources: Array<{ url: string; title: string }>;
 	hookNotices: string[];
 };
@@ -99,6 +120,8 @@ type StreamToolCall = {
 	mcpServerConfigId?: string;
 	modelIntent?: string;
 	startedAt?: string;
+	providerExecuted?: boolean;
+	foundPages?: readonly SourceLink[];
 };
 
 type StreamToolResult = {
@@ -120,4 +143,10 @@ export type StreamState = {
 	toolCalls: Record<string, StreamToolCall>;
 	toolResults: Record<string, StreamToolResult>;
 	sources: Array<{ url: string; title: string }>;
+	startedAt?: string;
+	/**
+	 * Set by a provider-executed result, so a search counts as a step even
+	 * before or without citations.
+	 */
+	providerToolRan?: boolean;
 };

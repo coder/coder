@@ -9,18 +9,18 @@ import {
 	waitFor,
 	within,
 } from "storybook/test";
+import { defaultUrlTransform } from "streamdown";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
-import {
-	MockChatAutomation,
-	MockChatFileMetadata,
-} from "#/testHelpers/chatEntities";
+import { MockChatFileMetadata } from "#/testHelpers/chatEntities";
 import { MockUserPreferenceSettings } from "#/testHelpers/entities";
+import { MockPngBase64 } from "#/testHelpers/files";
 import { MessageScroller } from "#/vendor/message-scroller";
 import { getChatFileURL } from "../../utils/chatAttachments";
 import { ChatMessageScroller } from "../ChatMessageScroller";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
+import { buildLiveStatus } from "./storyFixtures";
 import type { ParsedMessageEntry } from "./types";
 
 // The timeline renders scroller items, so every story needs the scroller
@@ -48,10 +48,6 @@ const withMessageScroller: Decorator = (Story, { parameters }) => {
 		</div>
 	);
 };
-
-// 1×1 solid coral (#FF6B6B) PNG encoded as base64.
-const TEST_PNG_B64 =
-	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4n539HwAHFwLVF8kc1wAAAABJRU5ErkJggg==";
 
 const buildMessages = (messages: TypesGen.ChatMessage[]) =>
 	parseMessagesWithMergedTools(messages);
@@ -334,6 +330,7 @@ const buildParsedReadFileEntry = ({
 				},
 			],
 			blocks: [{ type: "tool", id: toolId }],
+			partBlockIndices: [0],
 			sources: [],
 			hookNotices: [],
 		},
@@ -436,14 +433,28 @@ const defaultArgs: Omit<
 	"parsedMessages"
 > = {
 	organizationId: "organization-id",
+	urlTransform: defaultUrlTransform,
+	mcpServers: [],
+	streamTools: [],
+	liveStatus: buildLiveStatus(),
+	subagentStatusOverrides: new Map(),
 	subagentTitles: new Map(),
-	automationNames: { names: new Map(), status: "settled" },
+	subagentVariants: new Map(),
+	isChatCompleted: true,
+	showDesktopPreviews: false,
+	hasActiveStream: false,
+	isAwaitingFirstStreamChunk: false,
+	chatStatus: null,
+	hasMoreMessages: false,
 };
 
 const meta: Meta<typeof ConversationTimeline> = {
 	title: "pages/AgentsPage/ChatConversation/ConversationTimeline",
 	component: ConversationTimeline,
 	decorators: [withMessageScroller],
+	parameters: {
+		queries: [{ key: preferenceSettingsKey, data: MockUserPreferenceSettings }],
+	},
 	beforeEach: () => {
 		attachmentFetchCounts = new Map();
 		mockAttachmentFetch();
@@ -787,28 +798,6 @@ export const UserMessageBubbleAlignment: Story = {
 	},
 };
 
-export const AutomationUserMessages: Story = {
-	args: {
-		...buildStoryArgs(
-			{
-				...buildUserMessage({ id: 1, text: "Check the nightly build." }),
-				automation_id: MockChatAutomation.id,
-				input_id: "0b6c4e2a-1f3d-4b5c-8a9e-7d6c5b4a3f2e",
-			},
-			buildUserMessage({ id: 2, text: "Thanks, anything else?" }),
-			{
-				...buildUserMessage({ id: 3, text: "Summarize open issues." }),
-				automation_id: "3e9d8c7b-6a5f-4e3d-8c2b-1a0f9e8d7c6b",
-				input_id: "9a8b7c6d-5e4f-4a3b-9c2d-1e0f2a3b4c5d",
-			},
-		),
-		automationNames: {
-			names: new Map([[MockChatAutomation.id, MockChatAutomation.name]]),
-			status: "settled",
-		},
-	},
-};
-
 /** Regression guard: a single image attachment must not be duplicated. */
 export const UserMessageWithSingleImage: Story = {
 	args: {
@@ -823,7 +812,7 @@ export const UserMessageWithSingleImage: Story = {
 					{
 						type: "file",
 						media_type: "image/png",
-						data: TEST_PNG_B64,
+						data: MockPngBase64,
 					},
 				],
 			},
@@ -856,17 +845,17 @@ export const UserMessageWithMultipleImages: Story = {
 					{
 						type: "file",
 						media_type: "image/png",
-						data: TEST_PNG_B64,
+						data: MockPngBase64,
 					},
 					{
 						type: "file",
 						media_type: "image/jpeg",
-						data: TEST_PNG_B64,
+						data: MockPngBase64,
 					},
 					{
 						type: "file",
 						media_type: "image/webp",
-						data: TEST_PNG_B64,
+						data: MockPngBase64,
 					},
 				],
 			},
@@ -1288,7 +1277,7 @@ export const UserMessageWithMixedAttachments: Story = {
 		buildUserMessage({
 			text: "Here is a screenshot and some context",
 			files: [
-				buildInlineAttachmentPart("image/png", TEST_PNG_B64),
+				buildInlineAttachmentPart("image/png", MockPngBase64),
 				buildTextAttachmentPart("storybook-test-text"),
 			],
 		}),
@@ -1324,7 +1313,7 @@ export const AssistantMessageWithImage: Story = {
 					{
 						type: "file",
 						media_type: "image/png",
-						data: TEST_PNG_B64,
+						data: MockPngBase64,
 						name: "generated-image.png",
 					},
 				],
@@ -1337,7 +1326,7 @@ export const AssistantMessageWithImage: Story = {
 		expect(images).toHaveLength(1);
 		expect(images[0]).toHaveAttribute(
 			"src",
-			`data:image/png;base64,${TEST_PNG_B64}`,
+			`data:image/png;base64,${MockPngBase64}`,
 		);
 		expect(
 			canvas.queryByRole("link", { name: "Download generated-image.png" }),
@@ -1434,7 +1423,7 @@ export const UserMessageWithImagesAndFileRefs: Story = {
 					{
 						type: "file",
 						media_type: "image/png",
-						data: TEST_PNG_B64,
+						data: MockPngBase64,
 					},
 					{
 						type: "file-reference",
@@ -1478,6 +1467,40 @@ export const UserMessageWithInlineFileRef: Story = {
 					{
 						type: "text",
 						text: "Sure, I'll update that component.",
+					},
+				],
+			},
+		]),
+	},
+};
+
+export const UserMessageWithSkillChips: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{ type: "text", text: "Use " },
+					{
+						type: "skill-invocation",
+						skill_source: "project",
+						skill_name: "triage",
+					},
+					{ type: "text", text: " on the flaky test." },
+				],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "user",
+				content: [
+					{
+						type: "skill-invocation",
+						skill_source: "personal",
+						skill_name: "release-notes",
 					},
 				],
 			},
@@ -1684,6 +1707,7 @@ export const UserMessageCopyButton: Story = {
 		expect(args.onEditUserMessage).toHaveBeenCalledWith(
 			1,
 			"Can you fix this bug?",
+			undefined,
 			undefined,
 		);
 
@@ -1893,9 +1917,78 @@ export const SourcesOnlyAssistantSpacing: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: /^2 sources$/ }));
+	},
+};
+
+/**
+ * A provider-executed OpenAI web search lists its found pages, tagged with
+ * the call ID, in its own row. The untagged citation goes to the answer's
+ * source row.
+ */
+export const ProviderWebSearchWithCitations: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "What is new in Coder?" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						tool_call_id: "ws_1",
+						tool_name: "web_search",
+						args: {
+							type: "search",
+							queries: JSON.stringify(["coder release notes"]),
+						},
+						provider_executed: true,
+					},
+					{
+						type: "source",
+						tool_call_id: "ws_1",
+						url: "https://coder.com/changelog",
+					},
+					{
+						type: "source",
+						tool_call_id: "ws_1",
+						url: "https://github.com/coder/coder/releases",
+					},
+					{
+						type: "source",
+						tool_call_id: "ws_1",
+						url: "https://coder.com/blog",
+					},
+					{
+						type: "tool-result",
+						tool_call_id: "ws_1",
+						tool_name: "web_search",
+						provider_executed: true,
+						result: {},
+					},
+					{ type: "text", text: "The latest release adds Coder Agents." },
+					{
+						type: "source",
+						url: "https://coder.com/changelog",
+						title: "Coder changelog",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
 		await userEvent.click(
-			canvas.getByRole("button", { name: /searched 2 results/i }),
+			canvas.getByRole("button", { name: /searched for coder release notes/i }),
 		);
+		await userEvent.click(canvas.getByRole("button", { name: /^1 source$/ }));
 	},
 };
 
@@ -2020,6 +2113,7 @@ export const ToolDisplayModesFromPreferences: Story = {
 						{ type: "tool", id: "execute-tool" },
 						{ type: "tool", id: "edit-tool" },
 					],
+					partBlockIndices: [],
 					sources: [],
 					hookNotices: [],
 				},

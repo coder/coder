@@ -1,19 +1,14 @@
-import type { UseMutateFunction } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
-import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
-import {
-	getOrganizationLabel,
-	OrganizationAutocomplete,
-} from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { AdvisorSettings } from "#/pages/AgentsPage/components/AdvisorSettings";
-import { VirtualDesktopSettings } from "#/pages/AgentsPage/components/VirtualDesktopSettings";
+import { OrganizationSettingsSection } from "#/pages/AISettingsPage/components/OrganizationSettingsSection";
+import { SettingsSection } from "#/pages/AISettingsPage/components/SettingsSection";
 import {
 	AdminPersonalModelOverridesSettings,
 	type SavePersonalModelOverridesAdminSetting,
@@ -49,17 +44,6 @@ export type CoderAgentsPageViewProps = {
 	isSavingAdvisorConfig: boolean;
 	isSaveAdvisorConfigError: boolean;
 	saveAdvisorConfigError: unknown;
-	showVirtualDesktopSettings: boolean;
-	computerUseProviderData: TypesGen.ChatComputerUseProviderResponse | undefined;
-	isLoadingComputerUseProvider: boolean;
-	onSaveComputerUseProvider: UseMutateFunction<
-		void,
-		Error,
-		TypesGen.UpdateChatComputerUseProviderRequest,
-		unknown
-	>;
-	isSavingComputerUseProvider: boolean;
-	computerUseProviderSaveError: Error | null;
 };
 
 export const CoderAgentsPageView: React.FC<CoderAgentsPageViewProps> = ({
@@ -88,12 +72,6 @@ export const CoderAgentsPageView: React.FC<CoderAgentsPageViewProps> = ({
 	isSavingAdvisorConfig,
 	isSaveAdvisorConfigError,
 	saveAdvisorConfigError,
-	showVirtualDesktopSettings,
-	computerUseProviderData,
-	isLoadingComputerUseProvider,
-	onSaveComputerUseProvider,
-	isSavingComputerUseProvider,
-	computerUseProviderSaveError,
 }) => {
 	return (
 		<div className="flex max-w-4xl flex-col gap-10">
@@ -108,47 +86,14 @@ export const CoderAgentsPageView: React.FC<CoderAgentsPageViewProps> = ({
 			{isOrganizationAccessLoading ? (
 				<Loader label="Loading organization settings" />
 			) : organization ? (
-				<section
-					aria-labelledby="organization-agent-settings"
-					className="flex flex-col gap-6"
+				<OrganizationSettingsSection
+					title="Organization settings"
+					description="Choose model and reasoning defaults for each Coder Agents context."
+					organization={organization}
+					organizations={organizations}
+					onSelectOrganization={onSelectOrganization}
+					requestedOrganizationDenied={requestedOrganizationDenied}
 				>
-					<div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-						<div>
-							<h2
-								id="organization-agent-settings"
-								className="m-0 text-xl font-semibold"
-							>
-								Organization settings
-							</h2>
-							<p className="mt-1 mb-0 text-sm text-content-secondary">
-								Choose model and reasoning defaults for each Coder Agents
-								context.
-							</p>
-						</div>
-						{organizations.length > 1 && (
-							<OrganizationAutocomplete
-								value={organization}
-								ariaLabel={`Organization ${getOrganizationLabel(
-									organization,
-									organizations,
-								)}`}
-								options={organizations}
-								triggerClassName="w-60"
-								optionsTabbable
-								onChange={(nextOrganization) => {
-									if (nextOrganization) {
-										onSelectOrganization(nextOrganization);
-									}
-								}}
-							/>
-						)}
-					</div>
-					{requestedOrganizationDenied && (
-						<Alert severity="warning">
-							The requested organization is not available. Showing settings for{" "}
-							{organization.display_name || organization.name} instead.
-						</Alert>
-					)}
 					{organizationAccessError != null && (
 						<ErrorAlert error={organizationAccessError} />
 					)}
@@ -156,28 +101,16 @@ export const CoderAgentsPageView: React.FC<CoderAgentsPageViewProps> = ({
 						<ErrorAlert error={organizationPermissionsError} />
 					)}
 					{organizationSettings}
-				</section>
+				</OrganizationSettingsSection>
 			) : organizationAccessError != null ? (
 				<ErrorAlert error={organizationAccessError} />
 			) : null}
 
 			{canEditDeploymentConfig && (
-				<section
-					aria-labelledby="deployment-agent-settings"
-					className="flex flex-col gap-6"
+				<SettingsSection
+					title="Deployment settings"
+					description="Configure Coder Agents capabilities that apply to every organization."
 				>
-					<div>
-						<h2
-							id="deployment-agent-settings"
-							className="m-0 text-xl font-semibold"
-						>
-							Deployment settings
-						</h2>
-						<p className="mt-1 mb-0 text-sm text-content-secondary">
-							Configure Coder Agents capabilities that apply to every
-							organization.
-						</p>
-					</div>
 					<div className="flex flex-col gap-6 rounded-lg border border-solid border-border px-6 py-7">
 						<AdminPersonalModelOverridesSettings
 							adminSettings={adminOverridesData}
@@ -188,15 +121,6 @@ export const CoderAgentsPageView: React.FC<CoderAgentsPageViewProps> = ({
 							isSavingAdminSetting={isSavingAdminOverrides}
 							isSaveAdminSettingError={isSaveAdminOverridesError}
 						/>
-						{showVirtualDesktopSettings && (
-							<VirtualDesktopSettings
-								computerUseProviderData={computerUseProviderData}
-								isLoadingComputerUseProvider={isLoadingComputerUseProvider}
-								onSaveComputerUseProvider={onSaveComputerUseProvider}
-								isSavingComputerUseProvider={isSavingComputerUseProvider}
-								computerUseProviderSaveError={computerUseProviderSaveError}
-							/>
-						)}
 						{showAdvisorSettings && (
 							<AdvisorSettings
 								advisorConfigData={advisorConfigData}
@@ -210,7 +134,7 @@ export const CoderAgentsPageView: React.FC<CoderAgentsPageViewProps> = ({
 							/>
 						)}
 					</div>
-				</section>
+				</SettingsSection>
 			)}
 		</div>
 	);

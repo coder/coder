@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -118,11 +117,8 @@ type AnthropicDeltaBlock struct {
 
 // anthropicServer is a test server that mocks the Anthropic API.
 type anthropicServer struct {
-	mu      sync.Mutex
 	t       testing.TB
-	server  *httptest.Server
 	handler AnthropicHandler
-	request *AnthropicRequest
 }
 
 // NewAnthropic creates a new Anthropic test server with a handler function.
@@ -140,13 +136,9 @@ func NewAnthropic(t testing.TB, handler AnthropicHandler) string {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /v1/messages", s.handleMessages)
 
-	s.server = httptest.NewServer(mux)
-
-	t.Cleanup(func() {
-		s.server.Close()
-	})
-
-	return s.server.URL
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	return server.URL
 }
 
 func (s *anthropicServer) handleMessages(w http.ResponseWriter, r *http.Request) {
@@ -157,10 +149,6 @@ func (s *anthropicServer) handleMessages(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	req.Request = r // Embed the original http.Request
-
-	s.mu.Lock()
-	s.request = &req
-	s.mu.Unlock()
 
 	resp := s.handler(&req)
 	s.writeResponse(w, &req, resp)
@@ -175,19 +163,9 @@ func (s *anthropicServer) writeResponse(w http.ResponseWriter, req *AnthropicReq
 	hasStreaming := resp.StreamingChunks != nil
 	hasNonStreaming := resp.Response != nil
 
-	switch {
-	case hasStreaming && hasNonStreaming:
-		http.Error(w, "handler returned both streaming and non-streaming responses", http.StatusInternalServerError)
-		return
-	case !hasStreaming && !hasNonStreaming:
-		http.Error(w, "handler returned empty response", http.StatusInternalServerError)
-		return
-	case req.Stream && !hasStreaming:
-		http.Error(w, "handler returned non-streaming response for streaming request", http.StatusInternalServerError)
-		return
-	case !req.Stream && !hasNonStreaming:
-		http.Error(w, "handler returned streaming response for non-streaming request", http.StatusInternalServerError)
-		return
+	switch msg := responseShapeError(req.Stream, hasStreaming, hasNonStreaming); {
+	case msg != "":
+		http.Error(w, msg, http.StatusInternalServerError)
 	case hasStreaming:
 		s.writeStreamingResponse(w, resp.StreamingChunks)
 	default:

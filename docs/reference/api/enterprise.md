@@ -487,7 +487,10 @@ curl -X GET http://coder-server:8080/api/v2/connectionlog?limit=0 \
   "connection_logs": [
     {
       "agent_name": "string",
+      "app_display_name": "string",
+      "app_name": "string",
       "connect_time": "2019-08-24T14:15:22Z",
+      "connection_method": "ssh",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "ip": "string",
       "organization": {
@@ -497,12 +500,13 @@ curl -X GET http://coder-server:8080/api/v2/connectionlog?limit=0 \
         "name": "string"
       },
       "ssh_info": {
+        "client_session_id": "string",
         "connection_id": "d3547de1-d1f2-4344-b4c2-17169b7526f9",
         "disconnect_reason": "string",
         "disconnect_time": "2019-08-24T14:15:22Z",
         "exit_code": 0
       },
-      "type": "ssh",
+      "type": "string",
       "web_info": {
         "slug_or_port": "string",
         "status_code": 0,
