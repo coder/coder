@@ -5,7 +5,7 @@ import { parseJSON } from "./utils";
 
 /** One question's unsent answer. */
 export type QuestionDraft = {
-	/** An option's index, the "Other" field, or a skipped question. */
+	/** An option's index, the "Other" field, a skipped question, or none yet. */
 	selection: number | "other" | "skipped" | undefined;
 	/** Kept while another option is selected, so switching back restores it. */
 	otherText: string;

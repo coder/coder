@@ -41,10 +41,10 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 			hidden={queuedAnswerText !== undefined}
 			ref={scrollerRef}
 			// A stable scrollbar gutter, as on the chat input's wrapper, keeps the two aligned.
+			// The scroller shrinks before the chat input does, so a long question
+			// set never pushes the input off a short screen.
 			className="flex max-h-[60vh] min-h-0 scroll-pb-14 flex-col overflow-y-auto px-4 scrollbar-gutter-stable scrollbar-thin"
 		>
-			{/* Shrinks before the chat input does, so a long question set never
-			    pushes the input off a short screen. */}
 			<section
 				// A section that replaces a focused one takes the focus, so screen
 				// readers announce "Open question" and Tab reaches the new form.
