@@ -1,3 +1,4 @@
+import { Link as RouterLink } from "react-router";
 import type { SerpentOption } from "#/api/typesGenerated";
 import { BadgeGroup } from "#/components/Badge/Badge";
 import {
@@ -5,6 +6,8 @@ import {
 	EnabledBadge,
 	PremiumBadge,
 } from "#/components/Badge/PresetBadges";
+import { Link } from "#/components/Link/Link";
+import { PREMIUM_PAGE_PATH } from "#/components/Paywall/Paywall";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -22,11 +25,13 @@ type NetworkSettingsPageViewProps = {
 	options: SerpentOption[];
 	/** When false, options that need a license move to their own Premium section. */
 	hasLicense: boolean;
+	/** Whether the user can open the Premium page linked from the Premium section. */
+	canViewPremium: boolean;
 };
 
 export const NetworkSettingsPageView: React.FC<
 	NetworkSettingsPageViewProps
-> = ({ options, hasLicense }) => {
+> = ({ options, hasLicense, canViewPremium }) => {
 	const networkingOptions = options.filter((o) =>
 		deploymentGroupHasParent(o.group, "Networking"),
 	);
@@ -67,11 +72,17 @@ export const NetworkSettingsPageView: React.FC<
 							</BadgeGroup>
 						</SettingsHeaderTitle>
 						<SettingsHeaderDescription>
-							These settings require a Premium license to take effect.{" "}
-							<SettingsHeaderDocsLink
-								href={docs("/install/prepare/licensing")}
-								context="about Premium licensing"
-							/>
+							These settings require a Premium license to take effect.
+							{canViewPremium && (
+								<>
+									{" "}
+									<Link asChild showExternalIcon={false}>
+										<RouterLink to={PREMIUM_PAGE_PATH}>
+											Learn more about Premium
+										</RouterLink>
+									</Link>
+								</>
+							)}
 						</SettingsHeaderDescription>
 					</SettingsHeader>
 

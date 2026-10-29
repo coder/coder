@@ -14,6 +14,7 @@ const meta: Meta<typeof NetworkSettingsPageView> = {
 	component: NetworkSettingsPageView,
 	args: {
 		hasLicense: true,
+		canViewPremium: true,
 		options: [
 			{
 				name: "DERP Server Enable",
