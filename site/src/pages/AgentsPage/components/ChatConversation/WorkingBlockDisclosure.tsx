@@ -1,8 +1,15 @@
 import { ListTreeIcon } from "lucide-react";
-import { Component } from "react";
+import { AnimatePresence, animate, motion, usePresence } from "motion/react";
+import { Component, useEffect, useRef, useState } from "react";
 import { useTime } from "#/hooks/useTime";
 import { humanDurationShort } from "#/utils/time";
+import { useMessageScrollerLayoutSync } from "#/vendor/message-scroller";
 import { ToolCall } from "../ChatElements/tools/ToolCall";
+import {
+	slide,
+	WorkingBlockPeek,
+	type WorkingBlockPeekProps,
+} from "./WorkingBlockPeek";
 import type { WorkingBlock } from "./workingBlockGrouping";
 
 /**
@@ -156,7 +163,65 @@ type WorkingBlockDisclosureProps = {
 	block: WorkingBlock;
 	expanded: boolean;
 	onExpandedChange: (expanded: boolean) => void;
+	/** PROTOTYPE: previews a collapsed live block's newest steps. */
+	peek?: Omit<WorkingBlockPeekProps, "onExpand">;
 	children: React.ReactNode;
+};
+
+/** A block this young formed in front of the reader, so its peek grows in. */
+const FRESH_BLOCK_MS = 5000;
+
+const fold = { duration: 0.5, ease: [0.4, 0, 0.2, 1] } as const;
+
+/**
+ * Grows the peek in with the shared slide, and folds it away when the block
+ * completes. The fold writes each frame's height itself and reconciles the
+ * scroll position in the same frame: the scroller's resize pass waits for the
+ * next frame, so a fold it corrects late lets the browser clamp an anchored
+ * prompt for a frame.
+ */
+const PeekPresence: React.FC<{ children: React.ReactNode }> = ({
+	children,
+}) => {
+	const [isPresent, safeToRemove] = usePresence();
+	const foldRef = useRef<HTMLDivElement>(null);
+	const syncLayout = useMessageScrollerLayoutSync();
+
+	// The fold is an animation driven outside React.
+	useEffect(() => {
+		const element = foldRef.current;
+		if (isPresent) {
+			return;
+		}
+		if (!element) {
+			safeToRemove();
+			return;
+		}
+		const from = element.offsetHeight;
+		const controls = animate(from, 0, {
+			...fold,
+			onUpdate: (height) => {
+				element.style.height = `${height}px`;
+				element.style.opacity = String(from > 0 ? height / from : 0);
+				syncLayout();
+			},
+			onComplete: safeToRemove,
+		});
+		return () => controls.stop();
+	}, [isPresent, safeToRemove, syncLayout]);
+
+	return (
+		<div ref={foldRef} className="overflow-hidden">
+			<motion.div
+				className="overflow-hidden"
+				initial={{ height: 0, opacity: 0 }}
+				animate={{ height: "auto", opacity: 1 }}
+				transition={slide}
+			>
+				{children}
+			</motion.div>
+		</div>
+	);
 };
 
 /**
@@ -166,8 +231,21 @@ export const WorkingBlockDisclosure: React.FC<WorkingBlockDisclosureProps> = ({
 	block,
 	expanded,
 	onExpandedChange,
+	peek,
 	children,
 }) => {
+	// A page that loads mid-turn, or a reader collapsing the block, shows the
+	// peek at once; only a block that just formed grows it in.
+	const [peekGrowsIn] = useState(
+		() =>
+			block.startedAt === undefined ||
+			Date.now() - block.startedAt < FRESH_BLOCK_MS,
+	);
+	const [hasExpanded, setHasExpanded] = useState(expanded);
+	if (expanded && !hasExpanded) {
+		setHasExpanded(true);
+	}
+
 	return (
 		<ToolCall.Root
 			status={block.isLive ? "running" : "completed"}
@@ -187,6 +265,20 @@ export const WorkingBlockDisclosure: React.FC<WorkingBlockDisclosureProps> = ({
 				)}
 				<ToolCall.Chevron />
 			</ToolCall.HeaderButton>
+			{/* Unmounted while expanded, so the expanded rows replace the peek in
+			    the same frame; it folds away only when the block completes. */}
+			{peek && !expanded && (
+				<AnimatePresence initial={peekGrowsIn && !hasExpanded}>
+					{block.isLive && (
+						<PeekPresence key="peek">
+							<WorkingBlockPeek
+								{...peek}
+								onExpand={() => onExpandedChange(true)}
+							/>
+						</PeekPresence>
+					)}
+				</AnimatePresence>
+			)}
 			<ToolCall.Content>
 				<WorkingBlockContent memberIds={block.memberIds}>
 					{children}

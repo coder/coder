@@ -50,6 +50,7 @@ import type {
 } from "./types";
 import { UserMessageContent } from "./UserMessageContent";
 import { WorkingBlockDisclosure } from "./WorkingBlockDisclosure";
+import { collectPeekItems } from "./WorkingBlockPeek";
 import {
 	getBlockTurnAttachments,
 	getExpansionKeys,
@@ -402,6 +403,11 @@ type ConversationTimelineProps = {
 	showDesktopPreviews: boolean;
 	hasActiveStream: boolean;
 	isAwaitingFirstStreamChunk: boolean;
+	/**
+	 * PROTOTYPE: previews a collapsed live block's newest steps. Defaults to
+	 * the agents.workingBlockPeek localStorage key being "on".
+	 */
+	workingBlockPeek?: boolean;
 };
 
 export const ConversationTimeline = memo<ConversationTimelineProps>(
@@ -428,7 +434,11 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		showDesktopPreviews,
 		hasActiveStream,
 		isAwaitingFirstStreamChunk,
+		workingBlockPeek,
 	}) => {
+		const peekEnabled =
+			workingBlockPeek ??
+			localStorage.getItem("agents.workingBlockPeek") === "on";
 		const { scrollToMessage } = useMessageScroller();
 		const preferences = useQuery(preferenceSettings());
 		const [expandedBlocks, setExpandedBlocks] = useState<
@@ -676,6 +686,28 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 							const isAfterEditingMessage =
 								firstRow.type === "message" &&
 								afterEditingMessageIds.has(firstRow.entry.message.id);
+							// The same slice content the expanded block renders.
+							const peekItems =
+								peekEnabled && block.isLive && !expanded
+									? collectPeekItems(
+											block.slices.map(({ rowIndex, pieceRange }) => {
+												const row = renderRows[rowIndex];
+												const source =
+													row.type === "live"
+														? { blocks: liveBlocks, tools: liveTools }
+														: row.entry.parsed;
+												return {
+													...getSliceContent(source.blocks, source.tools, {
+														pieceRange,
+														hideAttachments: true,
+													}),
+													isStreaming:
+														row.type === "live" &&
+														liveStatus.phase === "streaming",
+												};
+											}),
+										)
+									: [];
 
 							const blockAttachments = getBlockTurnAttachments(
 								block,
@@ -697,6 +729,17 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 									<WorkingBlockDisclosure
 										block={block}
 										expanded={expanded}
+										peek={
+											peekEnabled
+												? {
+														items: peekItems,
+														organizationId,
+														mcpServers,
+														subagentTitles,
+														subagentVariants,
+													}
+												: undefined
+										}
 										onExpandedChange={(value) => {
 											keepBlock(block.liveKey);
 											setExpandedBlocks((previous) => {
