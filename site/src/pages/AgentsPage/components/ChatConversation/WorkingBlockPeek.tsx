@@ -11,7 +11,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { useMessageScrollerUserLayoutIntent } from "#/vendor/message-scroller";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { Tool } from "../ChatElements/tools/Tool";
-import { ToolCall, branchGeometry } from "../ChatElements/tools/ToolCall";
+import { branchGeometry, ToolCall } from "../ChatElements/tools/ToolCall";
 import { ReasoningDisclosure } from "./MessageText";
 import { getVisibleContent } from "./messageHelpers";
 import type { MergedTool, RenderBlock } from "./types";
