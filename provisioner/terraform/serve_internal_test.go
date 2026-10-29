@@ -97,74 +97,75 @@ func Test_absoluteBinaryPath(t *testing.T) {
 	}
 }
 
-func Test_terraformVersionCached(t *testing.T) {
+func Test_terraformVersion(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("Dummy terraform executable on Windows requires sh which isn't very practical.")
 	}
 
-	// The stub records every invocation so the test can prove that only the
-	// first version lookup spawns a process.
-	tempDir := t.TempDir()
-	counterPath := filepath.Join(tempDir, "calls")
-	binaryPath := filepath.Join(tempDir, "terraform")
-	script := fmt.Sprintf(`#!/bin/sh
-	echo x >> %q
-	cat <<-EOF
-	{
-		"terraform_version": "1.9.0",
-		"platform": "linux_amd64",
-		"provider_selections": {},
-		"terraform_outdated": false
-	}
-	EOF`, counterPath)
-	// #nosec
-	require.NoError(t, os.WriteFile(binaryPath, []byte(script), 0o770))
+	// Only the first successful lookup spawns a process; later calls reuse it.
+	t.Run("Cached", func(t *testing.T) {
+		t.Parallel()
 
-	srv := &server{binaryPath: binaryPath}
-	ctx := testutil.Context(t, testutil.WaitShort)
+		// The stub records every invocation so the test can count them.
+		tempDir := t.TempDir()
+		counterPath := filepath.Join(tempDir, "calls")
+		binaryPath := filepath.Join(tempDir, "terraform")
+		script := fmt.Sprintf(`#!/bin/sh
+		echo x >> %q
+		cat <<-EOF
+		{
+			"terraform_version": "1.9.0",
+			"platform": "linux_amd64",
+			"provider_selections": {},
+			"terraform_outdated": false
+		}
+		EOF`, counterPath)
+		// #nosec
+		require.NoError(t, os.WriteFile(binaryPath, []byte(script), 0o770))
 
-	first, err := srv.terraformVersion(ctx)
-	require.NoError(t, err)
-	require.Equal(t, "1.9.0", first.String())
+		srv := &server{binaryPath: binaryPath}
+		ctx := testutil.Context(t, testutil.WaitShort)
 
-	for range 5 {
-		again, err := srv.terraformVersion(ctx)
+		first, err := srv.terraformVersion(ctx)
 		require.NoError(t, err)
-		require.Same(t, first, again)
-	}
+		require.Equal(t, "1.9.0", first.String())
 
-	calls, err := os.ReadFile(counterPath)
-	require.NoError(t, err)
-	require.Equal(t, 1, strings.Count(string(calls), "x"), "terraform version should be resolved once")
-}
+		for range 5 {
+			again, err := srv.terraformVersion(ctx)
+			require.NoError(t, err)
+			require.Same(t, first, again)
+		}
 
-// A failed lookup must not be cached, so a transient failure such as a
-// canceled context does not break every later stage.
-func Test_terraformVersionFailureNotCached(t *testing.T) {
-	t.Parallel()
-	if runtime.GOOS == "windows" {
-		t.Skip("Dummy terraform executable on Windows requires sh which isn't very practical.")
-	}
+		calls, err := os.ReadFile(counterPath)
+		require.NoError(t, err)
+		require.Equal(t, 1, strings.Count(string(calls), "x"), "terraform version should be resolved once")
+	})
 
-	// The stub fails until the ready file exists.
-	tempDir := t.TempDir()
-	readyPath := filepath.Join(tempDir, "ready")
-	binaryPath := filepath.Join(tempDir, "terraform")
-	script := fmt.Sprintf(`#!/bin/sh
-	[ -f %q ] || exit 1
-	echo '{"terraform_version": "1.9.0", "platform": "linux_amd64"}'`, readyPath)
-	// #nosec
-	require.NoError(t, os.WriteFile(binaryPath, []byte(script), 0o770))
+	// A failed lookup is not cached, so a transient failure such as a
+	// canceled context does not break every later stage.
+	t.Run("NotCached", func(t *testing.T) {
+		t.Parallel()
 
-	srv := &server{binaryPath: binaryPath}
-	ctx := testutil.Context(t, testutil.WaitShort)
+		// The stub fails until the ready file exists.
+		tempDir := t.TempDir()
+		readyPath := filepath.Join(tempDir, "ready")
+		binaryPath := filepath.Join(tempDir, "terraform")
+		script := fmt.Sprintf(`#!/bin/sh
+		[ -f %q ] || exit 1
+		echo '{"terraform_version": "1.9.0", "platform": "linux_amd64"}'`, readyPath)
+		// #nosec
+		require.NoError(t, os.WriteFile(binaryPath, []byte(script), 0o770))
 
-	_, err := srv.terraformVersion(ctx)
-	require.Error(t, err)
+		srv := &server{binaryPath: binaryPath}
+		ctx := testutil.Context(t, testutil.WaitShort)
 
-	require.NoError(t, os.WriteFile(readyPath, nil, 0o600))
-	v, err := srv.terraformVersion(ctx)
-	require.NoError(t, err)
-	require.Equal(t, "1.9.0", v.String())
+		_, err := srv.terraformVersion(ctx)
+		require.Error(t, err)
+
+		require.NoError(t, os.WriteFile(readyPath, nil, 0o600))
+		v, err := srv.terraformVersion(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "1.9.0", v.String())
+	})
 }
