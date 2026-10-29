@@ -737,7 +737,7 @@ func (api *API) templateVersionDryRunLogs(rw http.ResponseWriter, r *http.Reques
 // @Summary Cancel template version dry-run by job ID
 // @Description Cancels a dry-run job that hasn't completed.
 // @Description The call returns `400` if the job has already completed or been canceled.
-// @Description Requires permission to update workspaces owned by the user who started the dry run, which the Owner and Organization Admin roles have.
+// @Description Requires permission to update both the template and workspaces owned by the user who started the dry run, which the Owner and Organization Admin roles have.
 // @ID cancel-template-version-dry-run-by-job-id
 // @Security CoderSessionToken
 // @Produce json

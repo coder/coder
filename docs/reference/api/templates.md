@@ -1186,7 +1186,7 @@ Updates a template's settings, such as its name, display name, description, icon
 Send only the fields you want to change, because omitted fields keep their current values.
 Requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
 Without a Premium license, the server ignores `autostop_requirement`, `autostart_requirement`, `allow_user_autostart`, `allow_user_autostop`, `failure_ttl_ms`, `time_til_dormant_ms`, `time_til_dormant_autodelete_ms`, `update_workspace_last_used_at`, `update_workspace_dormant_at`, `require_active_version`, and a non-empty `deprecation_message`.
-Without a Premium license, changing `max_port_share_level` returns a validation error.
+Without a Premium license, setting `max_port_share_level` to anything other than `public` returns a validation error.
 
 > Body parameter
 
@@ -2347,7 +2347,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
 
 Cancels a dry-run job that hasn't completed.
 The call returns `400` if the job has already completed or been canceled.
-Requires permission to update workspaces owned by the user who started the dry run, which the Owner and Organization Admin roles have.
+Requires permission to update both the template and workspaces owned by the user who started the dry run, which the Owner and Organization Admin roles have.
 
 ### Parameters
 

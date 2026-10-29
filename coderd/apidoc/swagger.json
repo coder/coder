@@ -10745,7 +10745,7 @@
 				]
 			},
 			"patch": {
-				"description": "Updates a template's settings, such as its name, display name, description, icon, and workspace lifecycle policies.\nSend only the fields you want to change, because omitted fields keep their current values.\nRequires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.\nWithout a Premium license, the server ignores `autostop_requirement`, `autostart_requirement`, `allow_user_autostart`, `allow_user_autostop`, `failure_ttl_ms`, `time_til_dormant_ms`, `time_til_dormant_autodelete_ms`, `update_workspace_last_used_at`, `update_workspace_dormant_at`, `require_active_version`, and a non-empty `deprecation_message`.\nWithout a Premium license, changing `max_port_share_level` returns a validation error.",
+				"description": "Updates a template's settings, such as its name, display name, description, icon, and workspace lifecycle policies.\nSend only the fields you want to change, because omitted fields keep their current values.\nRequires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.\nWithout a Premium license, the server ignores `autostop_requirement`, `autostart_requirement`, `allow_user_autostart`, `allow_user_autostop`, `failure_ttl_ms`, `time_til_dormant_ms`, `time_til_dormant_autodelete_ms`, `update_workspace_last_used_at`, `update_workspace_dormant_at`, `require_active_version`, and a non-empty `deprecation_message`.\nWithout a Premium license, setting `max_port_share_level` to anything other than `public` returns a validation error.",
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
@@ -11356,7 +11356,7 @@
 		},
 		"/api/v2/templateversions/{templateversion}/dry-run/{jobID}/cancel": {
 			"patch": {
-				"description": "Cancels a dry-run job that hasn't completed.\nThe call returns `400` if the job has already completed or been canceled.\nRequires permission to update workspaces owned by the user who started the dry run, which the Owner and Organization Admin roles have.",
+				"description": "Cancels a dry-run job that hasn't completed.\nThe call returns `400` if the job has already completed or been canceled.\nRequires permission to update both the template and workspaces owned by the user who started the dry run, which the Owner and Organization Admin roles have.",
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Cancel template version dry-run by job ID",

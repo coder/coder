@@ -664,7 +664,7 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 // @Description Send only the fields you want to change, because omitted fields keep their current values.
 // @Description Requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
 // @Description Without a Premium license, the server ignores `autostop_requirement`, `autostart_requirement`, `allow_user_autostart`, `allow_user_autostop`, `failure_ttl_ms`, `time_til_dormant_ms`, `time_til_dormant_autodelete_ms`, `update_workspace_last_used_at`, `update_workspace_dormant_at`, `require_active_version`, and a non-empty `deprecation_message`.
-// @Description Without a Premium license, changing `max_port_share_level` returns a validation error.
+// @Description Without a Premium license, setting `max_port_share_level` to anything other than `public` returns a validation error.
 // @ID update-template-settings-by-id
 // @Security CoderSessionToken
 // @Accept json
