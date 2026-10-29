@@ -18,11 +18,14 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/port-share \
 
 `GET /api/v2/workspaces/{workspace}/port-share`
 
+Returns the ports that a workspace's agents share, ordered by port number, with each port's share level and protocol.
+Requires permission to read the workspace, which the workspace owner and the Owner role have.
+
 ### Parameters
 
-| Name        | In   | Type         | Required | Description  |
-|-------------|------|--------------|----------|--------------|
-| `workspace` | path | string(uuid) | true     | Workspace ID |
+| Name        | In   | Type         | Required | Description   |
+|-------------|------|--------------|----------|---------------|
+| `workspace` | path | string(uuid) | true     | Workspace ID. |
 
 ### Example responses
 
@@ -64,6 +67,10 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/port-share \
 
 `POST /api/v2/workspaces/{workspace}/port-share`
 
+Shares a port on one of a workspace's agents at the given `share_level`, or updates the share if the port is already shared.
+The `port` must be from 9 to 65535, the `share_level` is `authenticated`, `organization`, or `public`, and the `protocol` is `http` or `https`.
+Requires permission to update the workspace, which the workspace owner and the Owner role have, and with a Premium license the template's `max_port_share_level` limits the levels you can set.
+
 > Body parameter
 
 ```json
@@ -77,10 +84,10 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/port-share \
 
 ### Parameters
 
-| Name        | In   | Type                                                                                                     | Required | Description                       |
-|-------------|------|----------------------------------------------------------------------------------------------------------|----------|-----------------------------------|
-| `workspace` | path | string(uuid)                                                                                             | true     | Workspace ID                      |
-| `body`      | body | [codersdk.UpsertWorkspaceAgentPortShareRequest](schemas.md#codersdkupsertworkspaceagentportsharerequest) | true     | Upsert port sharing level request |
+| Name        | In   | Type                                                                                                     | Required | Description                                                                                                                                                        |
+|-------------|------|----------------------------------------------------------------------------------------------------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `workspace` | path | string(uuid)                                                                                             | true     | Workspace ID.                                                                                                                                                      |
+| `body`      | body | [codersdk.UpsertWorkspaceAgentPortShareRequest](schemas.md#codersdkupsertworkspaceagentportsharerequest) | true     | Port share to create or update. `agent_name` must name an agent in the workspace's latest build, and `port`, `share_level`, and `protocol` are as described above. |
 
 ### Example responses
 
@@ -117,6 +124,10 @@ curl -X DELETE http://coder-server:8080/api/v2/workspaces/{workspace}/port-share
 
 `DELETE /api/v2/workspaces/{workspace}/port-share`
 
+Stops sharing a port on one of a workspace's agents.
+Returns `404` if the port isn't shared.
+Requires permission to update the workspace, which the workspace owner and the Owner role have.
+
 > Body parameter
 
 ```json
@@ -128,10 +139,10 @@ curl -X DELETE http://coder-server:8080/api/v2/workspaces/{workspace}/port-share
 
 ### Parameters
 
-| Name        | In   | Type                                                                                                     | Required | Description                       |
-|-------------|------|----------------------------------------------------------------------------------------------------------|----------|-----------------------------------|
-| `workspace` | path | string(uuid)                                                                                             | true     | Workspace ID                      |
-| `body`      | body | [codersdk.DeleteWorkspaceAgentPortShareRequest](schemas.md#codersdkdeleteworkspaceagentportsharerequest) | true     | Delete port sharing level request |
+| Name        | In   | Type                                                                                                     | Required | Description                                                  |
+|-------------|------|----------------------------------------------------------------------------------------------------------|----------|--------------------------------------------------------------|
+| `workspace` | path | string(uuid)                                                                                             | true     | Workspace ID.                                                |
+| `body`      | body | [codersdk.DeleteWorkspaceAgentPortShareRequest](schemas.md#codersdkdeleteworkspaceagentportsharerequest) | true     | Port share to delete, identified by `agent_name` and `port`. |
 
 ### Responses
 

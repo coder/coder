@@ -18254,6 +18254,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/port-share": {
             "get": {
+                "description": "Returns the ports that a workspace's agents share, ordered by port number, with each port's share level and protocol.\nRequires permission to read the workspace, which the workspace owner and the Owner role have.",
                 "produces": [
                     "application/json"
                 ],
@@ -18266,7 +18267,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Workspace ID",
+                        "description": "Workspace ID.",
                         "name": "workspace",
                         "in": "path",
                         "required": true
@@ -18287,6 +18288,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Shares a port on one of a workspace's agents at the given ` + "`" + `share_level` + "`" + `, or updates the share if the port is already shared.\nThe ` + "`" + `port` + "`" + ` must be from 9 to 65535, the ` + "`" + `share_level` + "`" + ` is ` + "`" + `authenticated` + "`" + `, ` + "`" + `organization` + "`" + `, or ` + "`" + `public` + "`" + `, and the ` + "`" + `protocol` + "`" + ` is ` + "`" + `http` + "`" + ` or ` + "`" + `https` + "`" + `.\nRequires permission to update the workspace, which the workspace owner and the Owner role have, and with a Premium license the template's ` + "`" + `max_port_share_level` + "`" + ` limits the levels you can set.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18302,13 +18304,13 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Workspace ID",
+                        "description": "Workspace ID.",
                         "name": "workspace",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Upsert port sharing level request",
+                        "description": "Port share to create or update. ` + "`" + `agent_name` + "`" + ` must name an agent in the workspace's latest build, and ` + "`" + `port` + "`" + `, ` + "`" + `share_level` + "`" + `, and ` + "`" + `protocol` + "`" + ` are as described above.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -18332,6 +18334,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Stops sharing a port on one of a workspace's agents.\nReturns ` + "`" + `404` + "`" + ` if the port isn't shared.\nRequires permission to update the workspace, which the workspace owner and the Owner role have.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18344,13 +18347,13 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Workspace ID",
+                        "description": "Workspace ID.",
                         "name": "workspace",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Delete port sharing level request",
+                        "description": "Port share to delete, identified by ` + "`" + `agent_name` + "`" + ` and ` + "`" + `port` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
