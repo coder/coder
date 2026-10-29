@@ -111,6 +111,7 @@ const (
 )
 
 var (
+	errChatHasNoWorkspace      = xerrors.New("this tool requires a workspace and this chat does not have one. Use the create_workspace tool to create one")
 	errChatHasNoWorkspaceAgent = xerrors.New("workspace has no running agent: the workspace is likely stopped. Use the start_workspace tool to start it")
 	errChatWorkspaceDeleted    = xerrors.New("the chat's workspace was deleted (for example by dormancy cleanup) and cannot execute tools. Use the create_workspace tool to create a new one")
 	errChatAgentDisconnected   = xerrors.New(
@@ -181,6 +182,7 @@ type Server struct {
 	disableCallerSuppliedTools     bool
 	oidcTokenSource                mcpclient.UserOIDCTokenSource
 	mcpHTTPClient                  *http.Client
+	internalMCPServers             []InternalMCPServer
 	debugSvc                       *chatdebug.Service
 	debugSvcFactory                func() *chatdebug.Service
 	debugSvcReady                  atomic.Bool
@@ -659,7 +661,18 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	}
 
 	chatID := uuid.New()
-	contentParts := opts.InitialUserContent
+	// The new chat has no pinned workspace context yet, so it is resolved
+	// without a workspace and cannot invoke workspace skills.
+	contentParts, err := p.resolveSkillInvocations(ctx, database.Chat{
+		ID:             chatID,
+		OwnerID:        opts.OwnerID,
+		OrganizationID: opts.OrganizationID,
+		ProjectID:      opts.ProjectID,
+		RootChatID:     opts.RootChatID,
+	}, opts.InitialUserContent)
+	if err != nil {
+		return database.Chat{}, err
+	}
 	// The prompt-submit hook fires with the first SendMessage when the
 	// chat is created without an initial user message.
 	if p.hooks.Enabled() && len(contentParts) > 0 {
@@ -1008,39 +1021,6 @@ func (e *ToolResultStatusConflictError) Error() string {
 
 const manualTitleMessageWindowLimit = 50
 
-// generatedChatTitle carries the title produced by the detached
-// automatic title-generation goroutine. maybeGenerateChatTitle stores
-// the generated title here so tests can observe it without a database
-// read; the title_change pubsub event it publishes remains the source of
-// truth for clients.
-type generatedChatTitle struct {
-	mu    sync.RWMutex
-	title string
-}
-
-func (t *generatedChatTitle) Store(title string) {
-	if t == nil || title == "" {
-		return
-	}
-
-	t.mu.Lock()
-	t.title = title
-	t.mu.Unlock()
-}
-
-func (t *generatedChatTitle) Load() (string, bool) {
-	if t == nil {
-		return "", false
-	}
-
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if t.title == "" {
-		return "", false
-	}
-	return t.title, true
-}
-
 // RenameChatTitle persists a user-supplied chat title. An unchanged
 // title is still written when its source is not yet user.
 func (p *Server) RenameChatTitle(
@@ -1134,7 +1114,7 @@ func (p *Server) generateManualTitleCandidate(
 	titleCtx := ctx
 	finishDebugRun := func(error) {}
 	if resolved.debugEnabled {
-		titleCtx, finishDebugRun = p.prepareManualTitleDebugRun(
+		titleCtx, finishDebugRun = prepareManualTitleDebugRun(
 			ctx,
 			p.debugService(),
 			chat,
@@ -1159,17 +1139,13 @@ func (p *Server) generateManualTitleCandidate(
 	return title, nil
 }
 
-func (p *Server) prepareManualTitleDebugRun(
+func prepareManualTitleDebugRun(
 	ctx context.Context,
 	debugSvc *chatdebug.Service,
 	chat database.Chat,
 	resolved resolvedModelCall,
 	messages []database.ChatMessage,
 ) (context.Context, func(error)) {
-	titleCtx := ctx
-	finishDebugRun := func(error) {}
-	modelConfig := resolved.dbConfig
-
 	var historyTipMessageID int64
 	if len(messages) > 0 {
 		historyTipMessageID = messages[len(messages)-1].ID
@@ -1192,75 +1168,16 @@ func (p *Server) prepareManualTitleDebugRun(
 		chatdebug.TruncateLabel(firstUserLabel, chatdebug.MaxLabelLength),
 	)
 
-	createRunCtx, createRunCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-	debugRun, createRunErr := debugSvc.CreateRun(createRunCtx, chatdebug.CreateRunParams{
+	return debugSvc.StartRun(ctx, chatdebug.CreateRunParams{
 		ChatID:              chat.ID,
-		ModelConfigID:       modelConfig.ID,
+		ModelConfigID:       resolved.dbConfig.ID,
 		Provider:            string(resolved.route.Provider.Type),
-		Model:               modelConfig.Model,
+		Model:               resolved.dbConfig.Model,
 		Kind:                chatdebug.KindTitleGeneration,
 		Status:              chatdebug.StatusInProgress,
 		HistoryTipMessageID: historyTipMessageID,
 		TriggerMessageID:    0,
-		Summary:             seedSummary,
-	})
-	createRunCancel()
-	if createRunErr != nil {
-		p.logger.Warn(ctx, "failed to create manual title debug run",
-			slog.F("chat_id", chat.ID),
-			slog.F("model", modelConfig.Model),
-			slog.Error(createRunErr),
-		)
-		return titleCtx, finishDebugRun
-	}
-
-	runContext := chatdebugRunContext(debugRun)
-	titleCtx = chatdebug.ContextWithRun(titleCtx, &runContext)
-	finishDebugRun = func(generateErr error) {
-		if finalizeErr := debugSvc.FinalizeRun(ctx, chatdebug.FinalizeRunParams{
-			RunID:       debugRun.ID,
-			ChatID:      debugRun.ChatID,
-			Status:      chatdebug.ClassifyError(generateErr),
-			SeedSummary: seedSummary,
-		}); finalizeErr != nil {
-			p.logger.Warn(ctx, "failed to finalize manual title debug run",
-				slog.F("chat_id", chat.ID),
-				slog.F("run_id", debugRun.ID),
-				slog.Error(finalizeErr),
-			)
-		}
-	}
-
-	return titleCtx, finishDebugRun
-}
-
-func chatdebugRunContext(run database.ChatDebugRun) chatdebug.RunContext {
-	runContext := chatdebug.RunContext{
-		RunID:  run.ID,
-		ChatID: run.ChatID,
-	}
-	if run.RootChatID.Valid {
-		runContext.RootChatID = run.RootChatID.UUID
-	}
-	if run.ParentChatID.Valid {
-		runContext.ParentChatID = run.ParentChatID.UUID
-	}
-	if run.ModelConfigID.Valid {
-		runContext.ModelConfigID = run.ModelConfigID.UUID
-	}
-	if run.TriggerMessageID.Valid {
-		runContext.TriggerMessageID = run.TriggerMessageID.Int64
-	}
-	if run.HistoryTipMessageID.Valid {
-		runContext.HistoryTipMessageID = run.HistoryTipMessageID.Int64
-	}
-	if run.Provider.Valid {
-		runContext.Provider = run.Provider.String
-	}
-	if run.Model.Valid {
-		runContext.Model = run.Model.String
-	}
-	return runContext
+	}, seedSummary, debugFinalizeTimeout)
 }
 
 func deriveChatDebugSeed(messages []database.ChatMessage) (
@@ -1352,6 +1269,9 @@ type Config struct {
 	// using user_oidc will then send no Authorization header.
 	OIDCTokenSource mcpclient.UserOIDCTokenSource
 	MCPHTTPClient   *http.Client
+	// InternalMCPServers are MCP servers that coderd code serves to chats
+	// in process. Slugs must be unique and not empty.
+	InternalMCPServers []InternalMCPServer
 
 	NotificationsEnqueuer notifications.Enqueuer
 	Auditor               *atomic.Pointer[audit.Auditor]
@@ -1365,6 +1285,9 @@ type Config struct {
 func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 	if cfg.ExperimentEvaluator == nil {
 		return nil, xerrors.New("chatd: experiment evaluator is required")
+	}
+	if err := validateInternalMCPServers(cfg.InternalMCPServers); err != nil {
+		return nil, xerrors.Errorf("chatd: %w", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -1449,19 +1372,14 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 		disableCallerSuppliedTools:     cfg.DisableCallerSuppliedTools,
 		oidcTokenSource:                cfg.OIDCTokenSource,
 		mcpHTTPClient:                  mcpHTTPClient,
+		internalMCPServers:             cfg.InternalMCPServers,
 		debugSvcFactory: func() *chatdebug.Service {
-			debugSvc := chatdebug.NewService(
+			return chatdebug.NewService(
 				cfg.Database,
 				cfg.Logger.Named("chatdebug"),
 				ps,
 				chatdebug.WithAlwaysEnable(cfg.AlwaysEnableDebugLogs),
 			)
-			// Debug runs do not heartbeat during model streams; their
-			// updated_at is only touched on step/run completion. Use a
-			// longer stale window so long-running turns are not falsely
-			// finalized as stale while still executing.
-			debugSvc.SetStaleAfter(inFlightChatStaleAfter * 3)
-			return debugSvc
 		},
 		aibridgeTransportFactory: cfg.AIBridgeTransportFactory,
 		experiments:              cfg.Experiments,
@@ -1853,25 +1771,15 @@ func (p *Server) aiProviderConfigFromKeys(provider database.AIProvider, keys []d
 			break
 		}
 	}
-	region := ""
-	supportsAmbientCredentials := false
-	if settings.Bedrock != nil {
-		region = strings.TrimSpace(settings.Bedrock.Region)
-	}
-	if cp := settings.ClaudePlatformAWS; cp != nil {
-		region = strings.TrimSpace(cp.Region)
-		supportsAmbientCredentials = true
-	}
 	return chatprovider.ConfiguredProvider{
 		ProviderID:                 provider.ID,
 		Provider:                   string(provider.Type),
 		APIKey:                     apiKey,
 		BaseURL:                    provider.BaseUrl,
-		Region:                     region,
 		CentralAPIKeyEnabled:       true,
 		AllowUserAPIKey:            p.allowBYOK,
 		AllowCentralAPIKeyFallback: true,
-		SupportsAmbientCredentials: supportsAmbientCredentials,
+		SupportsAmbientCredentials: settings.ClaudePlatformAWS != nil,
 	}, nil
 }
 
@@ -2938,7 +2846,7 @@ func (p *Server) refreshExpiredMCPTokens(
 	logger slog.Logger,
 	configs []database.MCPServerConfig,
 	tokens []database.MCPServerUserToken,
-) []database.MCPServerUserToken {
+) ([]database.MCPServerUserToken, error) {
 	configsByID := make(map[uuid.UUID]database.MCPServerConfig, len(configs))
 	for _, cfg := range configs {
 		configsByID[cfg.ID] = cfg
@@ -2965,23 +2873,23 @@ func (p *Server) refreshExpiredMCPTokens(
 		eg.Go(func() error {
 			refreshed, err := p.refreshMCPTokenIfNeeded(ctx, logger, cfg, tok)
 			if err != nil {
-				logger.Warn(ctx, "failed to refresh MCP oauth2 token",
-					slog.F("server_slug", cfg.Slug),
-					slog.Error(err),
-				)
-				return nil
+				return err
 			}
 			result[i] = refreshed
 			return nil
 		})
 	}
-	_ = eg.Wait()
+	if err := eg.Wait(); err != nil {
+		return nil, err
+	}
 
-	return result
+	return result, nil
 }
 
 // refreshMCPTokenIfNeeded delegates to mcpclient.RefreshOAuth2Token
 // and persists the result to the database when a refresh occurs.
+// A transient refresh failure is logged and keeps the current token,
+// so every returned error is a database error.
 // The logger should carry chat-scoped fields so log lines can be
 // correlated with specific chat requests.
 func (p *Server) refreshMCPTokenIfNeeded(
@@ -2993,9 +2901,13 @@ func (p *Server) refreshMCPTokenIfNeeded(
 	result, err := mcpclient.RefreshOAuth2Token(ctx, p.mcpHTTPClient, cfg, tok)
 	if err != nil {
 		if mcpclient.IsPermanentRefreshError(err) {
-			return p.markMCPTokenRefreshFailure(ctx, logger, cfg, tok, err), nil
+			return p.markMCPTokenRefreshFailure(ctx, logger, cfg, tok, err)
 		}
-		return tok, err
+		logger.Warn(ctx, "failed to refresh MCP oauth2 token",
+			slog.F("server_slug", cfg.Slug),
+			slog.Error(err),
+		)
+		return tok, nil
 	}
 
 	if !result.Refreshed {
@@ -3041,29 +2953,14 @@ func (p *Server) refreshMCPTokenIfNeeded(
 				return current, nil
 			}
 			if !xerrors.Is(readErr, sql.ErrNoRows) {
-				logger.Warn(ctx, "failed to load MCP oauth2 token after refresh conflict",
-					slog.F("server_slug", cfg.Slug),
-					slog.Error(readErr),
-				)
+				return database.MCPServerUserToken{}, xerrors.Errorf("get MCP oauth2 token after refresh conflict: %w", readErr)
 			}
 			tok.AccessToken = ""
 			tok.RefreshToken = ""
 			tok.Expiry = sql.NullTime{}
 			return tok, nil
 		}
-
-		// The provider may have rotated the refresh token,
-		// invalidating the old one. Use the new token
-		// in-memory so at least this connection succeeds.
-		logger.Warn(ctx, "failed to persist refreshed MCP oauth2 token, using in-memory",
-			slog.F("server_slug", cfg.Slug),
-			slog.Error(err),
-		)
-		tok.AccessToken = result.AccessToken
-		tok.RefreshToken = result.RefreshToken
-		tok.TokenType = result.TokenType
-		tok.Expiry = expiry
-		return tok, nil
+		return database.MCPServerUserToken{}, xerrors.Errorf("persist refreshed MCP oauth2 token: %w", err)
 	}
 
 	return updated, nil
@@ -3071,17 +2968,14 @@ func (p *Server) refreshMCPTokenIfNeeded(
 
 // markMCPTokenRefreshFailure persists a permanent refresh failure
 // (e.g. the upstream grant was revoked) so the dead token is never
-// attached again and the UI can prompt the user to reconnect. It
-// always returns a token with cleared auth material, even when
-// persistence fails, so the current request does not send a stale
-// bearer token.
+// attached again and the UI can prompt the user to reconnect.
 func (p *Server) markMCPTokenRefreshFailure(
 	ctx context.Context,
 	logger slog.Logger,
 	cfg database.MCPServerConfig,
 	tok database.MCPServerUserToken,
 	refreshErr error,
-) database.MCPServerUserToken {
+) (database.MCPServerUserToken, error) {
 	logger.Warn(ctx, "mcp oauth2 grant permanently unusable, marking token for reconnect",
 		slog.F("server_slug", cfg.Slug),
 		slog.F("user_id", tok.UserID),
@@ -3099,7 +2993,7 @@ func (p *Server) markMCPTokenRefreshFailure(
 		},
 	)
 	if err == nil {
-		return marked
+		return marked, nil
 	}
 
 	if xerrors.Is(err, sql.ErrNoRows) {
@@ -3114,18 +3008,16 @@ func (p *Server) markMCPTokenRefreshFailure(
 			},
 		)
 		if readErr == nil {
-			return current
+			return current, nil
 		}
-		err = readErr
+		if !xerrors.Is(readErr, sql.ErrNoRows) {
+			return database.MCPServerUserToken{}, xerrors.Errorf("get MCP oauth2 token after refresh failure conflict: %w", readErr)
+		}
+		tok.AccessToken = ""
+		tok.RefreshToken = ""
+		tok.Expiry = sql.NullTime{}
+		tok.OauthRefreshFailureReason = mcpclient.RefreshFailureReason(refreshErr)
+		return tok, nil
 	}
-
-	logger.Warn(ctx, "failed to persist MCP oauth2 refresh failure",
-		slog.F("server_slug", cfg.Slug),
-		slog.Error(err),
-	)
-	tok.AccessToken = ""
-	tok.RefreshToken = ""
-	tok.Expiry = sql.NullTime{}
-	tok.OauthRefreshFailureReason = mcpclient.RefreshFailureReason(refreshErr)
-	return tok
+	return database.MCPServerUserToken{}, xerrors.Errorf("mark MCP oauth2 token refresh failure: %w", err)
 }

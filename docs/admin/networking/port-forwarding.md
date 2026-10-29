@@ -16,7 +16,7 @@ There are four ways to forward ports in Coder:
 
 Coder Desktop and `coder port-forward` are generally more performant than:
 
-1. The Dashboard which proxies traffic through the Coder control plane versus peer-to-peer which is possible with the Coder CLI and Coder Desktop
+1. The Dashboard, which proxies traffic through the Coder control plane instead of peer-to-peer like the Coder CLI and Coder Desktop
 1. `sshd` which does double encryption of traffic with both Wireguard and SSH
 
 ## Coder Desktop
@@ -205,57 +205,62 @@ In other words, CORS behavior through the dashboard is not currently configurabl
 #### Allowed by default
 
 <table class="tg">
+<caption>
+Which requests between forwarded apps the dashboard allows by default.
+Columns are the origin: the user, workspace, and app that sends the request.
+Rows are the destination: the user, workspace, and app that receives it.
+</caption>
 <thead>
   <tr>
-    <th class="tg-0pky" rowspan="2"></th>
-    <th class="tg-0pky" rowspan="3"></th>
-    <th class="tg-0pky">From</th>
-    <th class="tg-0pky" colspan="3">Alice</th>
-    <th class="tg-0pky">Bob</th>
+    <th class="tg-0pky" scope="row" colspan="3">From user</th>
+    <th class="tg-0pky" scope="col" colspan="3">Alice</th>
+    <th class="tg-0pky" scope="col">Bob</th>
   </tr>
   <tr>
-    <th class="tg-0pky" rowspan="2"></th>
-    <th class="tg-0pky">Workspace 1</th>
-    <th class="tg-0pky" colspan="2">Workspace 2</th>
-    <th class="tg-0pky">Workspace 3</th>
+    <th class="tg-0pky" scope="row" colspan="3">From workspace</th>
+    <th class="tg-0pky" scope="col">Workspace 1</th>
+    <th class="tg-0pky" scope="col" colspan="2">Workspace 2</th>
+    <th class="tg-0pky" scope="col">Workspace 3</th>
   </tr>
   <tr>
-    <th class="tg-0pky">To</th>
-    <th class="tg-0pky">App A</th>
-    <th class="tg-0pky">App B</th>
-    <th class="tg-0pky">App C</th>
-    <th class="tg-0pky">App D</th>
+    <th class="tg-0pky" scope="col">To user</th>
+    <th class="tg-0pky" scope="col">To workspace</th>
+    <th class="tg-0pky" scope="col">To app</th>
+    <th class="tg-0pky" scope="col">App A</th>
+    <th class="tg-0pky" scope="col">App B</th>
+    <th class="tg-0pky" scope="col">App C</th>
+    <th class="tg-0pky" scope="col">App D</th>
   </tr>
 </thead>
 <tbody>
   <tr>
-    <td class="tg-0pky" rowspan="3">Alice</td>
-    <td class="tg-0pky" rowspan="2">Workspace 1</td>
-    <td class="tg-0pky">App A</td>
+    <th class="tg-0pky" scope="row" rowspan="3">Alice</th>
+    <th class="tg-0pky" scope="row" rowspan="2">Workspace 1</th>
+    <th class="tg-0pky" scope="row">App A</th>
     <td class="tg-0pky">✅</td>
     <td class="tg-0pky">✅<span style="font-weight:400;font-style:normal">*</span></td>
     <td class="tg-0pky">✅<span style="font-weight:400;font-style:normal">*</span></td>
     <td class="tg-0pky">❌</td>
   </tr>
   <tr>
-    <td class="tg-0pky">App B</td>
+    <th class="tg-0pky" scope="row">App B</th>
     <td class="tg-0pky">✅*</td>
     <td class="tg-0pky">✅</td>
     <td class="tg-0pky">✅<span style="font-weight:400;font-style:normal">*</span></td>
     <td class="tg-0pky">❌</td>
   </tr>
   <tr>
-    <td class="tg-0pky">Workspace 2</td>
-    <td class="tg-0pky">App C</td>
+    <th class="tg-0pky" scope="row">Workspace 2</th>
+    <th class="tg-0pky" scope="row">App C</th>
     <td class="tg-0pky">✅<span style="font-weight:400;font-style:normal">*</span></td>
     <td class="tg-0pky">✅<span style="font-weight:400;font-style:normal">*</span></td>
     <td class="tg-0pky">✅</td>
     <td class="tg-0pky">❌</td>
   </tr>
   <tr>
-    <td class="tg-0pky">Bob</td>
-    <td class="tg-0pky">Workspace 3</td>
-    <td class="tg-0pky">App D</td>
+    <th class="tg-0pky" scope="row">Bob</th>
+    <th class="tg-0pky" scope="row">Workspace 3</th>
+    <th class="tg-0pky" scope="row">App D</th>
     <td class="tg-0pky">❌</td>
     <td class="tg-0pky">❌</td>
     <td class="tg-0pky">❌</td>

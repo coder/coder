@@ -6,6 +6,8 @@ export const MockSkill: SkillMetadata = {
 	name: "skill",
 	description: "",
 	enabled: true,
+	action: false,
+	model_invocable: true,
 	created_at: MOCK_TIMESTAMP,
 	updated_at: MOCK_TIMESTAMP,
 };

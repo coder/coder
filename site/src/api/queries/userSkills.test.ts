@@ -26,6 +26,8 @@ const makeSkill = (name: string, overrides: Partial<Skill> = {}): Skill => ({
 	name,
 	description: `${name} description`,
 	enabled: true,
+	action: false,
+	model_invocable: true,
 	content: `---\nname: ${name}\n---\nBody\n`,
 	created_at: "2026-05-21T00:00:00Z",
 	updated_at: "2026-05-21T00:00:00Z",
@@ -37,6 +39,8 @@ const toMetadata = (skill: Skill): SkillMetadata => ({
 	name: skill.name,
 	description: skill.description,
 	enabled: skill.enabled,
+	action: skill.action,
+	model_invocable: skill.model_invocable,
 	created_at: skill.created_at,
 	updated_at: skill.updated_at,
 });

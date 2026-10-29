@@ -1,3 +1,7 @@
+---
+review-personas: [structure, language]
+---
+
 # Formatting
 
 Coder documentation uses bold for UI elements, italics for emphasis, and code font for identifiers.
@@ -429,8 +433,12 @@ A table that forces columns so narrow that words split across lines reads worse 
 If a table needs many columns to capture the data, reconsider whether a table is the right structure.
 A definition list or a sequence of subsections may serve the reader better.
 
-*Documentation-only.
-No Vale rule.*
+Give every header cell text that names its column or row, including the top-left corner cell of a matrix.
+A screen reader announces an empty header cell as a column or row with no name, and a cell holding only `&nbsp;` or `<br>` is still empty.
+For a matrix corner, name what the row headers hold, such as `Permission`.
+
+*Enforced by `scripts/docshtmlcheck` (`empty-table-header`) for header cells with no text.
+The rest of the section is documentation-only.*
 
 ### Links
 

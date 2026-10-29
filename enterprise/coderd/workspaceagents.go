@@ -10,6 +10,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -36,6 +37,14 @@ func (api *API) workspaceExternalAgentCredentials(rw http.ResponseWriter, r *htt
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
 	agentName := chi.URLParam(r, "agent")
+
+	// The agent token lets the holder act as the workspace agent, so
+	// require the same permission as connecting to the workspace rather
+	// than read access alone.
+	if !api.Authorize(r, policy.ActionSSH, workspace) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
 
 	build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
 	if err != nil {

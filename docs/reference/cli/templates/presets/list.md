@@ -18,15 +18,15 @@ coder templates presets list [flags] <template>
 
 ### --template-version
 
-|      |                     |
-|------|---------------------|
-| Type | <code>string</code> |
+| Property | Value               |
+|----------|---------------------|
+| Type     | <code>string</code> |
 
 Specify a template version to list presets for. Defaults to the active version.
 
 ### -O, --org
 
-|             |                                  |
+| Property    | Value                            |
 |-------------|----------------------------------|
 | Type        | <code>string</code>              |
 | Environment | <code>$CODER_ORGANIZATION</code> |
@@ -35,18 +35,18 @@ Select which organization (uuid or name) to use.
 
 ### -c, --column
 
-|         |                                                                                   |
-|---------|-----------------------------------------------------------------------------------|
-| Type    | <code>[name\|description\|parameters\|default\|desired prebuild instances]</code> |
-| Default | <code>name,description,parameters,default,desired prebuild instances</code>       |
+| Property | Value                                                                             |
+|----------|-----------------------------------------------------------------------------------|
+| Type     | <code>[name\|description\|parameters\|default\|desired prebuild instances]</code> |
+| Default  | <code>name,description,parameters,default,desired prebuild instances</code>       |
 
 Columns to display in table output.
 
 ### -o, --output
 
-|         |                          |
-|---------|--------------------------|
-| Type    | <code>table\|json</code> |
-| Default | <code>table</code>       |
+| Property | Value                    |
+|----------|--------------------------|
+| Type     | <code>table\|json</code> |
+| Default  | <code>table</code>       |
 
 Output format.

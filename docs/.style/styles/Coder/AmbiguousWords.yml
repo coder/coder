@@ -1,0 +1,34 @@
+# Coder.AmbiguousWords - flag words that carry two meanings, so the reader
+# doesn't have to guess which one the sentence intends.
+# Refer to word-choice.md#choose-words-that-have-one-meaning for the policy.
+#
+# The rule flags the `ensure` family, `should`, `since`, and `may`. Each token
+# is its own pattern, so the message names the replacement.
+#
+# The capitalized `May` is the month when a day or a year follows it ("May 5,
+# 2026", "May 2026"), so the rule flags `May` only when no digit follows.
+# Vale compiles lookaheads with a backtracking engine, so the `(?!...)` below
+# works even though it isn't valid in RE2. The lowercase pattern is
+# case-sensitive on purpose: `ignorecase: false` keeps `may` and `May` apart.
+#
+# Vale skips code spans and fenced code blocks, so identifiers and quoted
+# commands stay untouched.
+#
+# Level: suggestion. The rule lands with a standing backlog (the baseline is in
+# the PR that enabled it), and the right replacement depends on the sentence.
+# Promote it to warning once the backlog is clean.
+extends: substitution
+message: "Use '%s' instead of '%s'; the word has more than one meaning. Refer to word-choice.md#choose-words-that-have-one-meaning."
+link: https://github.com/coder/coder/blob/main/docs/.style/style-guide/word-choice.md#choose-words-that-have-one-meaning
+level: suggestion
+ignorecase: false
+nonword: false
+swap:
+  '\b[Ee]nsure\b': "make sure"
+  '\b[Ee]nsures\b': "makes sure"
+  '\b[Ee]nsured\b': "made sure"
+  '\b[Ee]nsuring\b': "making sure"
+  '\b[Ss]hould\b': "must, recommend"
+  '\b[Ss]ince\b': "because, after"
+  '\bmay\b': "might, can"
+  '\bMay\b(?!,?\s+\d)': "might, can"

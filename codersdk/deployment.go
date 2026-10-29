@@ -1670,7 +1670,7 @@ communicating directly.`,
 			Name: "Telemetry",
 			YAML: "telemetry",
 			Description: `Telemetry is critical to our ability to improve Coder. We strip all personal
- information before sending data to our servers. Please only disable telemetry
+ information before sending data to our servers. Only disable telemetry
  when required by your organization's security policy.`,
 		}
 		deploymentGroupProvisioning = serpent.Group{
@@ -5508,13 +5508,14 @@ const (
 	ExperimentWorkspaceCapableLicensing Experiment = "workspace-capable-licensing" // Counts only users holding the workspace-create permission toward the license seat limit.
 	ExperimentAIGatewaySeatExclusion    Experiment = "ai-gateway-seat-exclusion"   // Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.
 	ExperimentAIGatewayReverseProxy     Experiment = "ai-gateway-reverse-proxy"    // Uses stateless reverse proxy routing when MCP injection is not configured.
-	ExperimentChatProjects              Experiment = "chat-projects"               // Enables organization-scoped projects that group agent chats.
+	ExperimentChatProjectSharing        Experiment = "chat-project-sharing"        // Enables sharing agent chat projects with other users and groups.
 	ExperimentChatAdvisor               Experiment = "chat-advisor"                // Enables the advisor tool for root agent chats.
 	ExperimentChatVirtualDesktop        Experiment = "chat-virtual-desktop"        // Enables virtual desktop and computer use provider for agents.
 	ExperimentAgentLifecycleHooks       Experiment = "agent-lifecycle-hooks"       // Enables chat lifecycle hook webhooks for agent chats.
 	ExperimentChatInlineMCPServers      Experiment = "chat-inline-mcp-servers"     // Enables inline MCP servers declared on POST /chats.
 	ExperimentEnableAIWorkspaceDebug    Experiment = "enable-ai-workspace-debug"   // Enables debugging failed workspace builds with Coder Agents.
 	ExperimentChatStageMetrics          Experiment = "chat-stage-metrics"          // Exposes chat lifecycle stage durations as Prometheus metrics.
+	ExperimentChatACPSubagents          Experiment = "chat-acp-subagents"          // Enables workspace-local ACP subagent tools in root chats.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5539,8 +5540,8 @@ func (e Experiment) DisplayName() string {
 		return "AI Gateway Seat Exclusion"
 	case ExperimentAIGatewayReverseProxy:
 		return "AI Gateway Reverse Proxy"
-	case ExperimentChatProjects:
-		return "Chat Projects"
+	case ExperimentChatProjectSharing:
+		return "Chat Project Sharing"
 	case ExperimentChatAdvisor:
 		return "Chat Advisor"
 	case ExperimentChatVirtualDesktop:
@@ -5551,6 +5552,8 @@ func (e Experiment) DisplayName() string {
 		return "Chat Inline MCP Servers"
 	case ExperimentEnableAIWorkspaceDebug:
 		return "AI Workspace Debugging"
+	case ExperimentChatACPSubagents:
+		return "Chat ACP Subagents"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5571,13 +5574,14 @@ var ExperimentsKnown = Experiments{
 	ExperimentWorkspaceCapableLicensing,
 	ExperimentAIGatewaySeatExclusion,
 	ExperimentAIGatewayReverseProxy,
-	ExperimentChatProjects,
+	ExperimentChatProjectSharing,
 	ExperimentChatAdvisor,
 	ExperimentChatVirtualDesktop,
 	ExperimentAgentLifecycleHooks,
 	ExperimentChatInlineMCPServers,
 	ExperimentEnableAIWorkspaceDebug,
 	ExperimentChatStageMetrics,
+	ExperimentChatACPSubagents,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
@@ -5586,6 +5590,7 @@ var ExperimentsKnown = Experiments{
 // not be included here and will be essentially hidden.
 var ExperimentsSafe = Experiments{
 	ExperimentChatStageMetrics,
+	ExperimentChatProjectSharing,
 }
 
 // ExperimentsUserScoped lists the experiments that accept runtime rules
