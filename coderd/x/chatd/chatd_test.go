@@ -479,6 +479,7 @@ func TestMessageFileLinking(t *testing.T) {
 	fileSend := insertFile("send.png")
 	fileQueued := insertFile("queued.png")
 	fileEdit := insertFile("edit.png")
+	fileQueuedEdit := insertFile("queued-edit.png")
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -561,6 +562,18 @@ func TestMessageFileLinking(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, queuedResult.Queued)
 	require.Contains(t, linkedFileIDs(chat.ID), fileQueued)
+
+	require.NotNil(t, queuedResult.QueuedMessage)
+	err = replica.EditQueuedMessage(ctx, chatd.EditQueuedMessageOptions{
+		ChatID:          chat.ID,
+		QueuedMessageID: queuedResult.QueuedMessage.ID,
+		Content: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("queued edit attachment"),
+			codersdk.ChatMessageFile(fileQueuedEdit, "image/png", "queued-edit.png"),
+		},
+	})
+	require.NoError(t, err)
+	require.Contains(t, linkedFileIDs(chat.ID), fileQueuedEdit)
 }
 
 func TestMessageFileLinkingCapRollsBack(t *testing.T) {
