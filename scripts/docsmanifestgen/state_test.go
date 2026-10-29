@@ -52,6 +52,13 @@ func TestRepeatedStates(t *testing.T) {
 			want: []string{`home.yml: Home > A: state "premium"`},
 		},
 		{
+			name: "StateListedTwiceOnOneRoute",
+			files: map[string]string{
+				"home.yml": "title: Home\npath: ./index.md\nstate: [beta, beta]\n",
+			},
+			want: []string{`home.yml: Home: state "beta" is listed more than once`},
+		},
+		{
 			name: "IncludedFileRepeatsAncestor",
 			files: map[string]string{
 				"home.yml":       "title: Home\npath: ./index.md\nstate: [premium]\nchildren:\n  - include: home/sub.yml\n",
