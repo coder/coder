@@ -161,7 +161,9 @@ const getShellCommandLine = ({
 	const commandDisplay = summary || command;
 	let commandLabel = isBackgrounded
 		? `Started ${commandDisplay} in the background`
-		: `Ran ${commandDisplay}`;
+		: isRunning
+			? `Running ${commandDisplay}`
+			: `Ran ${commandDisplay}`;
 	if (!isRunning && isError) {
 		commandLabel = `Failed to run ${commandDisplay}`;
 	}
