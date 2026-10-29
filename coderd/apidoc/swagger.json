@@ -4784,7 +4784,7 @@
 		},
 		"/api/v2/debug/health": {
 			"get": {
-				"description": "Returns the deployment's healthcheck report, with a result for each section such as the access URL, DERP, the database, websockets, and workspace proxies.\nReturns a cached report while it's newer than the healthcheck refresh interval, and sections that you dismissed in the health settings are marked as dismissed.\nRequires permission to read debug information, which the Owner role has.",
+				"description": "Returns the deployment's healthcheck report, with a result for each section such as the access URL, DERP, the database, websockets, and workspace proxies.\nReturns a cached report while it's newer than the healthcheck refresh interval.\nRequires permission to read debug information, which the Owner role has.",
 				"produces": ["application/json"],
 				"tags": ["Debug"],
 				"summary": "Debug Info Deployment Health",

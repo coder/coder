@@ -60,7 +60,7 @@ func (api *API) debugTailnet(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Debug Info Deployment Health
 // @Description Returns the deployment's healthcheck report, with a result for each section such as the access URL, DERP, the database, websockets, and workspace proxies.
-// @Description Returns a cached report while it's newer than the healthcheck refresh interval, and sections that you dismissed in the health settings are marked as dismissed.
+// @Description Returns a cached report while it's newer than the healthcheck refresh interval.
 // @Description Requires permission to read debug information, which the Owner role has.
 // @ID debug-info-deployment-health
 // @Security CoderSessionToken

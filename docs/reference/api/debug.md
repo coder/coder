@@ -42,7 +42,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
 `GET /api/v2/debug/health`
 
 Returns the deployment's healthcheck report, with a result for each section such as the access URL, DERP, the database, websockets, and workspace proxies.
-Returns a cached report while it's newer than the healthcheck refresh interval, and sections that you dismissed in the health settings are marked as dismissed.
+Returns a cached report while it's newer than the healthcheck refresh interval.
 Requires permission to read debug information, which the Owner role has.
 
 ### Parameters
