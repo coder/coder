@@ -8,7 +8,6 @@ import {
 } from "motion/react";
 import { createContext, useContext, useState } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
-import { useMessageScrollerUserLayoutIntent } from "#/vendor/message-scroller";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { Tool } from "../ChatElements/tools/Tool";
 import { branchGeometry, ToolCall } from "../ChatElements/tools/ToolCall";
@@ -215,7 +214,6 @@ export const WorkingBlockPeek: React.FC<WorkingBlockPeekProps> = ({
 		return item === newest ? "always" : "running";
 	};
 
-	const userLayoutIntent = useMessageScrollerUserLayoutIntent();
 	if (shown.length === 0) {
 		return null;
 	}
@@ -224,10 +222,7 @@ export const WorkingBlockPeek: React.FC<WorkingBlockPeekProps> = ({
 		<MotionConfig reducedMotion="user">
 			{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- A mouse shortcut; the summary row expands the block from the keyboard. */}
 			<div
-				onClick={(event) => {
-					userLayoutIntent(event.currentTarget, { revealEnd: true });
-					onExpand();
-				}}
+				onClick={onExpand}
 				className="ml-2 flex cursor-pointer flex-col hover:[&_.text-content-secondary]:text-content-primary"
 				style={{ marginTop: RAIL_GAP }}
 			>

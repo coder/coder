@@ -87,12 +87,15 @@ type BlockRowProps = {
 	expandedHeight: number;
 	defaultExpanded?: boolean;
 	width?: number;
+	/** A live block, collapsed to its summary and a peek at its last step. */
+	live?: boolean;
 };
 
 const BlockRow: React.FC<BlockRowProps> = ({
 	expandedHeight,
 	defaultExpanded = false,
 	width,
+	live = false,
 }) => {
 	const [expanded, setExpanded] = useState(defaultExpanded);
 	return (
@@ -104,6 +107,23 @@ const BlockRow: React.FC<BlockRowProps> = ({
 			<ControlledDisclosure
 				expanded={expanded}
 				onExpandedChange={setExpanded}
+				{...(live && {
+					block: { ...MockWorkingBlock, isLive: true, endedAt: undefined },
+					peek: {
+						items: [
+							{
+								kind: "thinking",
+								key: "thinking:start:0",
+								text: "**Reading the config**\n\nCheck the defaults first.",
+								isStreaming: false,
+							},
+						],
+						organizationId: "organization-id",
+						mcpServers: [],
+						subagentTitles: new Map(),
+						subagentVariants: new Map(),
+					},
+				})}
 			/>
 		</MessageScroller.Item>
 	);
@@ -143,18 +163,25 @@ const RevealTranscript: React.FC<RevealTranscriptProps> = ({
 describe("WorkingBlockDisclosure in a MessageScroller", () => {
 	setupMessageScrollerLayout();
 
-	it("scrolls to the end of a block that expands past the view", async () => {
-		const user = userEvent.setup();
-		renderTranscript([
-			history,
-			<BlockRow key="block" expandedHeight={300} />,
-			row("answer", 100),
-		]);
+	it.each([
+		["its summary", false, () => summaryButton()],
+		// The peek unmounts as the block expands.
+		["its peek", true, () => screen.getByText(/reading the config/i)],
+	])(
+		"scrolls to the end of a block that expands past the view from %s",
+		async (_name, live, target) => {
+			const user = userEvent.setup();
+			renderTranscript([
+				history,
+				<BlockRow key="block" expandedHeight={300} live={live} />,
+				row("answer", 100),
+			]);
 
-		await user.click(summaryButton());
+			await user.click(target());
 
-		expect(await visibleRowsAfterLayout()).toEqual(["history-9", "block"]);
-	});
+			expect(await visibleRowsAfterLayout()).toEqual(["history-9", "block"]);
+		},
+	);
 
 	it("scrolls a block taller than the view only until its summary reaches the top", async () => {
 		const user = userEvent.setup();

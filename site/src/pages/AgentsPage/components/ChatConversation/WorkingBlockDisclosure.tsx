@@ -10,7 +10,10 @@ import {
 } from "react";
 import { useTime } from "#/hooks/useTime";
 import { humanDurationShort } from "#/utils/time";
-import { useMessageScrollerLayoutSync } from "#/vendor/message-scroller";
+import {
+	useMessageScrollerLayoutSync,
+	useMessageScrollerUserLayoutIntent,
+} from "#/vendor/message-scroller";
 import { ToolCall } from "../ChatElements/tools/ToolCall";
 import {
 	PeekVariantsContext,
@@ -273,9 +276,20 @@ export const WorkingBlockDisclosure: React.FC<WorkingBlockDisclosureProps> = ({
 	if (expanded && !hasExpanded) {
 		setHasExpanded(true);
 	}
+	const rootRef = useRef<HTMLDivElement>(null);
+	const userLayoutIntent = useMessageScrollerUserLayoutIntent();
+	// The scroller reveals the end of the item holding the toggled element.
+	// The peek unmounts as the block expands, so the root stands in for it.
+	const expandFromPeek = () => {
+		if (rootRef.current) {
+			userLayoutIntent(rootRef.current, { revealEnd: true });
+		}
+		onExpandedChange(true);
+	};
 
 	return (
 		<ToolCall.Root
+			ref={rootRef}
 			status={block.isLive ? "running" : "completed"}
 			hasContent
 			expanded={expanded}
@@ -299,10 +313,7 @@ export const WorkingBlockDisclosure: React.FC<WorkingBlockDisclosureProps> = ({
 				<AnimatePresence initial={peekGrowsIn && !hasExpanded}>
 					{peek.items.length > 0 && (
 						<PeekPresence key="peek">
-							<WorkingBlockPeek
-								{...peek}
-								onExpand={() => onExpandedChange(true)}
-							/>
+							<WorkingBlockPeek {...peek} onExpand={expandFromPeek} />
 						</PeekPresence>
 					)}
 				</AnimatePresence>
