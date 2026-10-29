@@ -49,7 +49,7 @@ The **activity bump** duration can be configured at the template level and is vi
 ### What counts as workspace activity?
 
 A workspace is considered "active" when Coder detects one or more active sessions with your workspace.
-Coder specifically tracks these session types:
+Coder tracks these kinds of activity:
 
 - **VSCode sessions**:
   Using code-server or VS Code with a remote extension
@@ -59,21 +59,64 @@ Coder specifically tracks these session types:
   Using the web terminal (including reconnecting to the web terminal)
 - **SSH sessions**:
   Connecting via `coder ssh` or SSH config integration
-- **AI agent task status**:
-  When a coding agent reports "working" status, the workspace deadline is extended
+- **App status reports**:
+  When a workspace app, such as a coding agent, reports that it is working, or that it stopped working, the workspace deadline is extended
+- **Coder Agents chats**:
+  When a chat runs a tool in the workspace or uploads a file to it
 
-Activity is only detected when there is at least one active session.
 An open session will keep your workspace marked as active and prevent automatic shutdown.
+
+Coder also counts any connection to the workspace through Coder as activity, even without one of the sessions above.
+For example, a port forward or a workspace app in the browser keeps the workspace active while it sends traffic.
 
 The following actions do **not** count as workspace activity:
 
 - Viewing workspace details in the dashboard
 - Viewing or editing workspace settings
 - Viewing build logs or audit logs
-- Accessing ports through direct URLs without an active session
-- Background agent statistics reporting (note: AI agent _task status_ reporting is different and does count as activity, see above)
+- The agent's periodic statistics report by itself, with no open connections (note: app _status_ reports are different and do count as activity, see above)
 
 To avoid unexpected cloud costs, close your connections, this includes IDE windows, SSH sessions, and others, when you finish using your workspace.
+
+### See why the deadline changed
+
+Coder records the last change to the autostop deadline and when it happened.
+Coder does not keep a history of earlier changes.
+
+To view it:
+
+1. Open the workspace.
+1. If the header shows only the schedule icon, select the icon.
+
+   The header hides the **Stop in** time while the workspace is in use.
+
+1. Hover over or focus the **Stop in** time, or **Required to stop soon** when a required stop is near.
+
+The tooltip explains the last change:
+
+| Change                              | Example message                                                                           |
+|-------------------------------------|-------------------------------------------------------------------------------------------|
+| A user started the build            | alice started this build 1&nbsp;hour ago.                                                 |
+| Activity extended the deadline      | Activity from VS Code, Cursor, SSH, and 2 more extended this deadline 2&nbsp;minutes ago. |
+| A user changed the deadline         | alice changed this deadline 5&nbsp;minutes ago.                                           |
+| A user turned off autostop          | alice turned off autostop 5&nbsp;minutes ago.                                             |
+| A template admin changed a schedule | A schedule change by alice on the Docker template set this deadline 5&nbsp;minutes ago.   |
+| Coder does not know the cause       | This deadline last changed 5&nbsp;minutes ago.                                            |
+
+For changes a user made, the message names that user.
+If Coder does not know who made the change, the message says "A user" or leaves out the name.
+
+Activity messages name up to three sources of the most recent activity that extended the deadline, and count the rest, for example "and 2 more".
+A name that several sources share appears once.
+Other sessions can also keep the workspace running without appearing in the message.
+Each name is a kind of activity, such as SSH, and can stand for several connections.
+A chat appears as "Coder Agents", and a chat file upload appears as "Coder Agents file upload".
+A workspace app that reports its status appears under its display name, or its slug if it has no display name.
+A connection through Coder without one of the sessions above appears as "Open connection".
+
+The tooltip shows no explanation when Coder has no record of the change, or when an automatic build set the deadline.
+
+In the API, this explanation is the `deadline_change` field of the [workspace build](../reference/api/builds.md).
 
 ### Keep a workspace running without a connection
 

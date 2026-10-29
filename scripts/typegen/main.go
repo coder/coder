@@ -48,6 +48,7 @@ var dbEnumsTemplate string
 // databaseEnums lists the database enums codersdk mirrors under the same name.
 var databaseEnums = []string{
 	"ConnectionLogMethod",
+	"WorkspaceBuildDeadlineReason",
 }
 
 func usage() {

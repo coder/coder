@@ -1,8 +1,15 @@
 import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
-import type { Workspace } from "#/api/typesGenerated";
+import type {
+	Template,
+	Workspace,
+	WorkspaceBuildDeadlineChange,
+	WorkspaceBuildDeadlineSource,
+	WorkspaceBuildDeadlineSourceType,
+} from "#/api/typesGenerated";
 import * as Mocks from "#/testHelpers/entities";
 import {
+	deadlineChangeMessage,
 	deadlineExtensionMax,
 	deadlineExtensionMin,
 	extractTimezone,
@@ -74,6 +81,149 @@ describe("util/schedule", () => {
 			const minDeadline = dayjs();
 			// you can only subtract 2 hours even though the min is 2:40 less
 			expect(getMaxDeadlineChange(deadline, minDeadline)).toEqual(2);
+		});
+	});
+
+	describe("deadlineChangeMessage", () => {
+		beforeEach(() => {
+			vi.useFakeTimers({ now: new Date("2025-07-15T14:30:00.000Z") });
+		});
+
+		afterEach(() => {
+			vi.useRealTimers();
+		});
+
+		const mockUnattributedChange = {
+			changed_at: "2025-07-15T14:28:00.000Z",
+			changed_by: null,
+			sources: [],
+		};
+		const mockAttributedChange = {
+			...mockUnattributedChange,
+			changed_by: {
+				id: Mocks.MockUserOwner.id,
+				username: Mocks.MockUserOwner.username,
+			},
+		};
+		const mockSources: WorkspaceBuildDeadlineSource[] = [
+			{
+				type: "app",
+				method: "ssh",
+				app_name: "vscodium",
+				display_name: "VSCodium",
+			},
+			{
+				type: "app",
+				method: "ssh",
+				app_name: "codium",
+				display_name: "VSCodium",
+			},
+			{
+				type: "app",
+				method: "ssh",
+				app_name: "cursor",
+				display_name: "Cursor",
+			},
+			{ type: "app", method: "ssh", app_name: "ssh", display_name: "SSH" },
+			{ type: "connection", display_name: "Open connection" },
+		];
+		// A source type from a newer server.
+		const mockFutureSource: WorkspaceBuildDeadlineSource = {
+			type: "future" as WorkspaceBuildDeadlineSourceType,
+			display_name: "Future",
+		};
+
+		it.each<[WorkspaceBuildDeadlineChange, string | undefined, Template?]>([
+			[
+				{
+					...mockUnattributedChange,
+					reason: "activity",
+					sources: mockSources.slice(0, 3),
+				},
+				"Activity from VSCodium and Cursor extended this deadline 2 minutes ago.",
+			],
+			[
+				{ ...mockUnattributedChange, reason: "activity", sources: mockSources },
+				"Activity from VSCodium, Cursor, SSH, and 1 more extended this deadline 2 minutes ago.",
+			],
+			[
+				{ ...mockAttributedChange, reason: "user_changed" },
+				"TestUser changed this deadline 2 minutes ago.",
+			],
+			[
+				{ ...mockUnattributedChange, reason: "user_changed" },
+				"A user changed this deadline 2 minutes ago.",
+			],
+			[
+				{ ...mockAttributedChange, reason: "autostop_disabled" },
+				"TestUser turned off autostop 2 minutes ago.",
+			],
+			[
+				{ ...mockUnattributedChange, reason: "autostop_disabled" },
+				"A user turned off autostop 2 minutes ago.",
+			],
+			[
+				{ ...mockAttributedChange, reason: "template_schedule" },
+				"A schedule change by TestUser on the Test Template template set this deadline 2 minutes ago.",
+			],
+			[
+				{ ...mockUnattributedChange, reason: "template_schedule" },
+				"A schedule change on the test-template template set this deadline 2 minutes ago.",
+				{ ...Mocks.MockTemplate, display_name: "" },
+			],
+			[
+				{
+					...mockUnattributedChange,
+					reason: "activity",
+					sources: [mockFutureSource, ...mockSources.slice(0, 1)],
+				},
+				"Activity from VSCodium extended this deadline 2 minutes ago.",
+			],
+			[
+				{ ...mockAttributedChange, reason: "build" },
+				"TestUser started this build 2 minutes ago.",
+			],
+			[{ ...mockUnattributedChange, reason: "build" }, undefined],
+			[
+				{ ...mockUnattributedChange, reason: "unknown" },
+				"This deadline last changed 2 minutes ago.",
+			],
+			[
+				{ ...mockUnattributedChange, reason: "unknown", changed_at: null },
+				undefined,
+			],
+			[
+				{
+					...mockUnattributedChange,
+					reason: "future" as WorkspaceBuildDeadlineChange["reason"],
+				},
+				"This deadline last changed 2 minutes ago.",
+			],
+			[
+				{ ...mockUnattributedChange, reason: "activity" },
+				"Activity extended this deadline 2 minutes ago.",
+			],
+		])("explains %j", (change, expected, template = Mocks.MockTemplate) => {
+			expect(deadlineChangeMessage(change, template)).toBe(expected);
+		});
+
+		it.each<[WorkspaceBuildDeadlineChange, string]>([
+			[
+				{ ...mockUnattributedChange, reason: "activity", sources: mockSources },
+				"Activity from VSCodium, Cursor, SSH, and 1 more extended the autostop deadline 2 minutes ago.",
+			],
+			[
+				{ ...mockUnattributedChange, reason: "unknown" },
+				"The autostop deadline last changed 2 minutes ago.",
+			],
+		])("names the deadline in %j", (change, expected) => {
+			expect(
+				deadlineChangeMessage(
+					change,
+					Mocks.MockTemplate,
+					"the autostop deadline",
+				),
+			).toBe(expected);
 		});
 	});
 

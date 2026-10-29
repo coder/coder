@@ -25,6 +25,66 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
+func TestWorkspaceBuildDeadlineChange(t *testing.T) {
+	t.Parallel()
+
+	agentID, appID, actorID := uuid.New(), uuid.New(), uuid.New()
+	changedAt := dbtime.Now()
+	for _, tc := range []struct {
+		name     string
+		build    database.WorkspaceBuild
+		expected string
+	}{
+		{
+			name:     "UnknownSnapshot",
+			build:    database.WorkspaceBuild{DeadlineReason: database.WorkspaceBuildDeadlineReasonUnknown},
+			expected: `{"reason":"unknown","changed_at":null,"changed_by":null,"sources":[]}`,
+		},
+		{
+			name: "UserChange",
+			build: database.WorkspaceBuild{
+				DeadlineReason:             database.WorkspaceBuildDeadlineReasonUserChanged,
+				DeadlineChangedAt:          sql.NullTime{Time: changedAt, Valid: true},
+				DeadlineChangedBy:          uuid.NullUUID{UUID: actorID, Valid: true},
+				DeadlineChangedByUsername:  "actor",
+				DeadlineChangedByName:      "Actor Name",
+				DeadlineChangedByAvatarUrl: "/avatar.png",
+			},
+			expected: fmt.Sprintf(`{"reason":"user_changed","changed_at":%q,"changed_by":{"id":%q,"username":"actor","name":"Actor Name","avatar_url":"/avatar.png"},"sources":[]}`, changedAt.Format(time.RFC3339Nano), actorID),
+		},
+		{
+			name: "ActivitySources",
+			build: database.WorkspaceBuild{
+				DeadlineReason:    database.WorkspaceBuildDeadlineReasonActivity,
+				DeadlineChangedAt: sql.NullTime{Time: changedAt, Valid: true},
+				DeadlineSources: database.WorkspaceBuildDeadlineSources{
+					{Type: codersdk.WorkspaceBuildDeadlineSourceTypeApp, Method: codersdk.ConnectionLogMethodSSH, AppName: "codium", AgentID: agentID},
+					{Type: codersdk.WorkspaceBuildDeadlineSourceTypeApp, Method: codersdk.ConnectionLogMethodSSH, AppName: "overflow", AgentID: agentID},
+					{Type: codersdk.WorkspaceBuildDeadlineSourceTypeApp, Method: codersdk.ConnectionLogMethodWorkspaceApp, AppID: appID, AgentID: agentID, DisplayName: "Original label"},
+					{Type: codersdk.WorkspaceBuildDeadlineSourceTypeConnection, AgentID: agentID},
+					{Type: codersdk.WorkspaceBuildDeadlineSourceTypeChatHeartbeat},
+					{Type: codersdk.WorkspaceBuildDeadlineSourceTypeChatWorkspaceUpload},
+				},
+			},
+			expected: fmt.Sprintf(`{"reason":"activity","changed_at":%q,"changed_by":null,"sources":[
+				{"type":"app","method":"ssh","app_name":"codium","agent_id":%q,"display_name":"VSCodium"},
+				{"type":"app","method":"ssh","app_name":"overflow","agent_id":%q,"display_name":"Other apps"},
+				{"type":"app","method":"workspace_app","app_id":%q,"agent_id":%q,"display_name":"Original label"},
+				{"type":"connection","agent_id":%q,"display_name":"Open connection"},
+				{"type":"chat_heartbeat","display_name":"Coder Agents"},
+				{"type":"chat_workspace_upload","display_name":"Coder Agents file upload"}
+			]}`, changedAt.Format(time.RFC3339Nano), agentID, agentID, appID, agentID, agentID),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			encoded, err := json.Marshal(db2sdk.WorkspaceBuildDeadlineChange(tc.build))
+			require.NoError(t, err)
+			require.JSONEq(t, tc.expected, string(encoded))
+		})
+	}
+}
+
 func TestGroupMemberAISpend(t *testing.T) {
 	t.Parallel()
 

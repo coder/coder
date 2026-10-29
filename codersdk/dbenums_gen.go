@@ -19,3 +19,23 @@ func (e ConnectionLogMethod) Valid() bool {
 	}
 	return false
 }
+
+// WorkspaceBuildDeadlineReason mirrors database.WorkspaceBuildDeadlineReason.
+type WorkspaceBuildDeadlineReason string
+
+const (
+	WorkspaceBuildDeadlineReasonUnknown          WorkspaceBuildDeadlineReason = "unknown"
+	WorkspaceBuildDeadlineReasonBuild            WorkspaceBuildDeadlineReason = "build"
+	WorkspaceBuildDeadlineReasonActivity         WorkspaceBuildDeadlineReason = "activity"
+	WorkspaceBuildDeadlineReasonUserChanged      WorkspaceBuildDeadlineReason = "user_changed"
+	WorkspaceBuildDeadlineReasonAutostopDisabled WorkspaceBuildDeadlineReason = "autostop_disabled"
+	WorkspaceBuildDeadlineReasonTemplateSchedule WorkspaceBuildDeadlineReason = "template_schedule"
+)
+
+func (e WorkspaceBuildDeadlineReason) Valid() bool {
+	switch e {
+	case WorkspaceBuildDeadlineReasonUnknown, WorkspaceBuildDeadlineReasonBuild, WorkspaceBuildDeadlineReasonActivity, WorkspaceBuildDeadlineReasonUserChanged, WorkspaceBuildDeadlineReasonAutostopDisabled, WorkspaceBuildDeadlineReasonTemplateSchedule:
+		return true
+	}
+	return false
+}
