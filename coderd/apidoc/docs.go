@@ -22390,6 +22390,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "data": {
+                    "description": "Data holds an inline file's bytes, which JSON carries as a base64 string.",
                     "type": "string",
                     "format": "byte"
                 },
@@ -22441,14 +22442,11 @@ const docTemplate = `{
                     "description": "ProviderExecuted indicates the tool call was executed by\nthe provider (e.g. Anthropic computer use).",
                     "type": "boolean"
                 },
-                "provider_metadata": {
-                    "description": "ProviderMetadata holds provider-specific response metadata\n(e.g. Anthropic cache control hints) as raw JSON. Internal\nonly: stripped by db2sdk before API responses.",
-                    "type": "object"
-                },
                 "reasoning_delta": {
                     "type": "string"
                 },
                 "result": {
+                    "description": "Result is the tool output, which can be any JSON value.",
                     "type": "object"
                 },
                 "result_delta": {
@@ -25194,6 +25192,7 @@ const docTemplate = `{
                     }
                 },
                 "state": {
+                    "description": "ProvisionerState overrides the provisioner state for this build. JSON\ncarries it as a base64 string.",
                     "type": "string",
                     "format": "byte"
                 },
@@ -31637,6 +31636,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "default": {
+                    "description": "Default is a JSON value that matches Type.",
                     "type": "object"
                 },
                 "description": {
@@ -32366,6 +32366,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "output": {
+                    "description": "Output is the tool output, which can be any JSON value.",
                     "type": "object"
                 },
                 "tool_call_id": {
@@ -33278,6 +33279,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "state": {
+                    "description": "State is the provisioner state, which JSON carries as a base64 string.",
                     "type": "string",
                     "format": "byte"
                 }

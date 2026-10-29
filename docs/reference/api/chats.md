@@ -2966,7 +2966,6 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": {},
           "reasoning_delta": "string",
           "result": {},
           "result_delta": "string",
@@ -3041,7 +3040,6 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": {},
           "reasoning_delta": "string",
           "result": {},
           "result_delta": "string",
@@ -3192,7 +3190,6 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
           ]
         ],
         "provider_executed": true,
-        "provider_metadata": {},
         "reasoning_delta": "string",
         "result": {},
         "result_delta": "string",
@@ -3266,7 +3263,6 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": {},
           "reasoning_delta": "string",
           "result": {},
           "result_delta": "string",
@@ -3341,7 +3337,6 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
           ]
         ],
         "provider_executed": true,
-        "provider_metadata": {},
         "reasoning_delta": "string",
         "result": {},
         "result_delta": "string",
@@ -3477,7 +3472,6 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
           ]
         ],
         "provider_executed": true,
-        "provider_metadata": {},
         "reasoning_delta": "string",
         "result": {},
         "result_delta": "string",
@@ -3551,7 +3545,6 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": {},
           "reasoning_delta": "string",
           "result": {},
           "result_delta": "string",
@@ -4138,7 +4131,6 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": {},
           "reasoning_delta": "string",
           "result": {},
           "result_delta": "string",
@@ -4211,7 +4203,6 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
           ]
         ],
         "provider_executed": true,
-        "provider_metadata": {},
         "reasoning_delta": "string",
         "result": {},
         "result_delta": "string",
@@ -4271,7 +4262,6 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
               ]
             ],
             "provider_executed": true,
-            "provider_metadata": {},
             "reasoning_delta": "string",
             "result": {},
             "result_delta": "string",
@@ -4358,7 +4348,7 @@ Status Code **200**
 | `»»» context_file_skill_meta_file` | string                                                                           | false    |              | Context file skill meta file is the basename of the skill meta file (e.g. "SKILL.md") at the time of persistence. Internal only: restored on subsequent turns so the read_skill tool uses the correct filename even when the agent configured a non-default value.                                                                                                                                         |
 | `»»» context_file_truncated`       | boolean                                                                          | false    |              | Context file truncated indicates the file exceeded the 64KiB instruction file limit and was truncated.                                                                                                                                                                                                                                                                                                     |
 | `»»» created_at`                   | string(date-time)                                                                | false    |              | Created at is the timestamp this part carries. The semantics depend on the part type: for tool-call and tool-result parts it is the time the call was emitted or the result was produced (tool duration is the result's created_at minus the call's created_at); for reasoning parts it is the time reasoning started streaming.                                                                           |
-| `»»» data`                         | string(byte)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» data`                         | string(byte)                                                                     | false    |              | Data holds an inline file's bytes, which JSON carries as a base64 string.                                                                                                                                                                                                                                                                                                                                  |
 | `»»» end_line`                     | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» file_id`                      | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» file_name`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -4371,9 +4361,8 @@ Status Code **200**
 | `»»» narration`                    | boolean                                                                          | false    |              | Narration marks assistant text that the model labeled as commentary on its work rather than its answer. Only providers that label their output set it.                                                                                                                                                                                                                                                     |
 | `»»» parsed_commands`              | array                                                                            | false    |              | Parsed commands holds parsed programs from an execute tool call's shell command, one entry per simple command in source order. Each entry is [program] or [program, arg] where arg is the first non-flag positional argument. Program names are normalized to their base name (e.g. /usr/bin/go becomes go). Only populated when ToolName is "execute" and the command parses successfully; nil otherwise. |
 | `»»» provider_executed`            | boolean                                                                          | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                                                                                                      |
-| `»»» provider_metadata`            | object                                                                           | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                                                                                                                                                      |
 | `»»» reasoning_delta`              | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `»»» result`                       | object                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» result`                       | object                                                                           | false    |              | Result is the tool output, which can be any JSON value.                                                                                                                                                                                                                                                                                                                                                    |
 | `»»» result_delta`                 | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» result_reset`                 | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» skill_description`            | string                                                                           | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                                                                                                                                                          |
