@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+	act,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { StrictMode } from "react";
@@ -15,12 +21,17 @@ import {
 } from "vitest";
 import { AppProviders } from "#/App";
 import { API } from "#/api/api";
+import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
+import { chatProjectsKey } from "#/api/queries/chatProjects";
 import {
 	mcpServerConfigsKey,
 	organizationChatModelsKey,
 	userChatPersonalModelOverrides,
+	userChatPersonalModelOverridesKey,
 } from "#/api/queries/chats";
+import { organizationSkillsKey } from "#/api/queries/organizationSkills";
 import { permittedOrganizationsKey } from "#/api/queries/organizations";
+import { userSkillsKey } from "#/api/queries/userSkills";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
@@ -33,6 +44,7 @@ import {
 } from "#/testHelpers/chatModels";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
+	MockChatProject,
 	MockDefaultOrganization,
 	MockOrganization2,
 	MockUserPreferenceSettings,
@@ -41,6 +53,7 @@ import {
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
+import { MockSkill } from "#/testHelpers/skills";
 import { persistedAttachmentsStorageKey } from "../hooks/useFileAttachments";
 import { readAgentAttachmentText } from "../utils/fileAttachmentLimits";
 import { mcpSelectionStorageKey } from "../utils/mcpSelection";
@@ -52,8 +65,11 @@ import {
 	selectedOrganizationIdStorageKey,
 	selectedWorkspaceIdStorageKey,
 } from "./AgentCreateForm";
+import { serializeMessageDraft } from "./ChatMessageInput/SkillInvocationNode";
 
-const dashboard = vi.hoisted(() => ({ showOrganizations: false }));
+const dashboard = vi.hoisted((): { showOrganizations: boolean } => ({
+	showOrganizations: false,
+}));
 
 vi.mock("#/modules/dashboard/useDashboard", async () => {
 	const { MockDefaultOrganization, MockOrganization2 } = await import(
@@ -288,6 +304,27 @@ describe("AgentCreateForm workspace file uploads", () => {
 
 		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
 		expect(submittedOptions(onCreateChat).uploadWorkspaceFiles).toBeUndefined();
+	});
+
+	it("submits a skill chosen from the slash menu as a composer part", async () => {
+		const queryClient = createQueryClient();
+		queryClient.setQueryData(userSkillsKey(), [MockSkill]);
+		queryClient.setQueryData(
+			organizationSkillsKey(MockDefaultOrganization.id),
+			[],
+		);
+		const { onCreateChat } = renderForm({}, { queryClient });
+
+		await typeMessage("/");
+		await user().click(await screen.findByRole("option", { name: /skill/ }));
+		await clickSend();
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).composerParts).toContainEqual({
+			type: "skill-invocation",
+			source: "personal",
+			name: MockSkill.name,
+		});
 	});
 
 	it("rejects workspace files when no workspace is selected", async () => {
@@ -664,6 +701,9 @@ describe("AgentCreateForm organization lock", () => {
 		);
 		await user().click(screen.getByRole("button", { name: "More options" }));
 		await user().click(
+			await screen.findByRole("button", { name: /MCP servers/ }),
+		);
+		await user().click(
 			await screen.findByRole("switch", { name: "Enable Notion" }),
 		);
 
@@ -797,24 +837,26 @@ describe("AgentCreateForm prefill", () => {
 		render(
 			<StrictMode>
 				<AppProviders queryClient={createTestQueryClient()}>
-					<AgentCreateForm
-						onCreateChat={onCreateChat}
-						isCreating={false}
-						createError={undefined}
-						canCreateChat
-						canConfigureAgentSetup={false}
-						workspaceCount={0}
-						workspaceOptions={[]}
-						workspacesError={undefined}
-						isWorkspacesLoading={false}
-						prefill={{
-							message: "Why did this build fail?",
-							attachment: {
-								name: "workspace-build-logs.txt",
-								text: "Error: exit status 1\n",
-							},
-						}}
-					/>
+					<MemoryRouter>
+						<AgentCreateForm
+							onCreateChat={onCreateChat}
+							isCreating={false}
+							createError={undefined}
+							canCreateChat
+							canConfigureAgentSetup={false}
+							workspaceCount={0}
+							workspaceOptions={[]}
+							workspacesError={undefined}
+							isWorkspacesLoading={false}
+							prefill={{
+								message: "Why did this build fail?",
+								attachment: {
+									name: "workspace-build-logs.txt",
+									text: "Error: exit status 1\n",
+								},
+							}}
+						/>
+					</MemoryRouter>
 				</AppProviders>
 			</StrictMode>,
 		);
@@ -846,5 +888,274 @@ describe("AgentCreateForm prefill", () => {
 		expect(localStorage.getItem(persistedAttachmentsStorageKey)).toBe(
 			userDraftAttachments,
 		);
+	});
+});
+
+describe("AgentCreateForm project picker", () => {
+	const otherOrganizationProject: TypesGen.ChatProject = {
+		...MockChatProject,
+		id: "chat-project-org-2",
+		organization_id: MockOrganization2.id,
+		name: "Elsewhere",
+	};
+
+	const createProjectQueryClient = () => {
+		const queryClient = createQueryClient();
+		queryClient.setQueryData(chatProjectsKey, [
+			MockChatProject,
+			otherOrganizationProject,
+		]);
+		return queryClient;
+	};
+
+	const pickProject = async (name: string) => {
+		await user().click(
+			await screen.findByRole("button", { name: /^Project:/ }),
+		);
+		await user().click(await screen.findByRole("option", { name }));
+	};
+
+	it("creates the chat outside any project by default", async () => {
+		const { onCreateChat } = renderForm(
+			{},
+			{ queryClient: createProjectQueryClient() },
+		);
+
+		await screen.findByRole("button", { name: "Project: No project" });
+		await submitMessage("no project here");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).projectId).toBeUndefined();
+	});
+
+	it("creates the chat in the picked project", async () => {
+		const { onCreateChat } = renderForm(
+			{},
+			{ queryClient: createProjectQueryClient() },
+		);
+
+		await pickProject(MockChatProject.name);
+		await submitMessage("file this under launch");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).projectId).toBe(MockChatProject.id);
+	});
+
+	it("drops organization skill chips when the organization is revoked", async () => {
+		dashboard.showOrganizations = true;
+		localStorage.setItem(
+			selectedOrganizationIdStorageKey,
+			MockOrganization2.id,
+		);
+		const queryClient = createQueryClient();
+		queryClient.setQueryData(
+			organizationChatModelsKey(MockOrganization2.id),
+			mockModelCatalog,
+		);
+		queryClient.setQueryData(
+			userChatPersonalModelOverridesKey(MockOrganization2.id, "me"),
+			mockPersonalModelOverrides,
+		);
+		queryClient.setQueryData(mcpServerConfigsKey(MockOrganization2.id), []);
+		queryClient.setQueryData(userSkillsKey(), [
+			{ ...MockSkill, name: "notes" },
+		]);
+		queryClient.setQueryData(organizationSkillsKey(MockOrganization2.id), [
+			{ ...MockSkill, name: "review" },
+		]);
+		const { onCreateChat } = renderForm({}, { queryClient });
+
+		await user().click(screen.getByRole("textbox", { name: "Chat message" }));
+		for (const name of ["review", "notes"]) {
+			await user().paste("/");
+			await user().click(
+				await screen.findByRole("option", { name: new RegExp(name) }),
+			);
+		}
+		act(() =>
+			queryClient.setQueryData(
+				permittedOrganizationsKey({
+					object: { resource_type: "chat", owner_id: "me" },
+					action: "create",
+				}),
+				[MockDefaultOrganization],
+			),
+		);
+		await submitMessage("organization revoked");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		const options = submittedOptions(onCreateChat);
+		expect(options.organizationId).toBe(MockDefaultOrganization.id);
+		expect(
+			options.composerParts?.filter((part) => part.type === "skill-invocation"),
+		).toEqual([
+			{ type: "skill-invocation", source: "personal", name: "notes" },
+		]);
+	});
+
+	it("drops project skill chips from a restored draft without a project", async () => {
+		localStorage.setItem(
+			draftStorageKeys(undefined).text,
+			serializeMessageDraft([
+				{
+					type: "skill-invocation",
+					skill_source: "project",
+					skill_name: "triage",
+				},
+				{ type: "text", text: " carry on" },
+			]),
+		);
+		const { onCreateChat } = renderForm(
+			{},
+			{ queryClient: createProjectQueryClient() },
+		);
+
+		await clickSend();
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).composerParts).toEqual([
+			{ type: "text", text: " carry on" },
+		]);
+	});
+
+	it("drops project skill chips when a refetch removes the picked project", async () => {
+		const queryClient = createProjectQueryClient();
+		queryClient.setQueryData(userSkillsKey(), []);
+		queryClient.setQueryData(
+			organizationSkillsKey(MockDefaultOrganization.id),
+			[],
+		);
+		queryClient.setQueryData(chatProjectSkillsKey(MockChatProject.id), [
+			{ ...MockSkill, name: "triage" },
+		]);
+		const { onCreateChat } = renderForm({}, { queryClient });
+
+		await pickProject(MockChatProject.name);
+		await typeMessage("/");
+		await user().click(await screen.findByRole("option", { name: /triage/ }));
+		act(() =>
+			queryClient.setQueryData(chatProjectsKey, [otherOrganizationProject]),
+		);
+		await screen.findByRole("button", { name: "Project: No project" });
+		await submitMessage("the project is gone");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).composerParts).not.toContainEqual(
+			expect.objectContaining({ type: "skill-invocation" }),
+		);
+	});
+
+	it("clears the picked project when the organization changes", async () => {
+		dashboard.showOrganizations = true;
+		const queryClient = createProjectQueryClient();
+		queryClient.setQueryData(
+			organizationChatModelsKey(MockOrganization2.id),
+			mockModelCatalog,
+		);
+		queryClient.setQueryData(
+			userChatPersonalModelOverrides(MockOrganization2.id).queryKey,
+			mockPersonalModelOverrides,
+		);
+		queryClient.setQueryData(mcpServerConfigsKey(MockOrganization2.id), []);
+		const { onCreateChat } = renderForm({}, { queryClient });
+
+		await pickProject(MockChatProject.name);
+		const switchOrganization = async (name: string) => {
+			await user().click(
+				screen.getByRole("button", { name: /^Organization:/ }),
+			);
+			await user().click(await screen.findByRole("option", { name }));
+		};
+		await switchOrganization(MockOrganization2.display_name);
+		await switchOrganization(MockDefaultOrganization.display_name);
+		await submitMessage("back in the first organization");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat)).toMatchObject({
+			organizationId: MockDefaultOrganization.id,
+			projectId: undefined,
+		});
+	});
+
+	it.each([
+		{ list: "refetches", isListLoaded: true, refetchFails: false },
+		{ list: "fails to refetch", isListLoaded: true, refetchFails: true },
+		{ list: "never loads", isListLoaded: false, refetchFails: true },
+	])(
+		"selects a project created from the picker when the list $list",
+		async ({ isListLoaded, refetchFails }) => {
+			const createdProject: TypesGen.ChatProject = {
+				...MockChatProject,
+				id: "chat-project-new",
+				name: "Fresh start",
+			};
+			const createChatProject = vi
+				.spyOn(API.experimental, "createChatProject")
+				.mockResolvedValue(createdProject);
+			const getChatProjects = vi.spyOn(API.experimental, "getChatProjects");
+			if (refetchFails) {
+				getChatProjects.mockRejectedValue(new Error("Network down"));
+			} else {
+				getChatProjects.mockResolvedValue([MockChatProject, createdProject]);
+			}
+			const { onCreateChat } = renderForm(
+				{},
+				{
+					queryClient: isListLoaded
+						? createProjectQueryClient()
+						: createQueryClient(),
+				},
+			);
+
+			await user().click(
+				await screen.findByRole("button", { name: /^Project:/ }),
+			);
+			await user().click(
+				await screen.findByRole("button", { name: "New project" }),
+			);
+			await user().type(
+				await screen.findByRole("textbox", { name: /Project name/ }),
+				createdProject.name,
+			);
+			await user().click(
+				screen.getByRole("button", { name: "Create project" }),
+			);
+			// The modal hides the composer until it closes.
+			await screen.findByRole("button", {
+				name: `Project: ${createdProject.name}`,
+			});
+			await submitMessage("start fresh");
+
+			await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+			expect(createChatProject).toHaveBeenCalledWith(
+				MockDefaultOrganization.id,
+				expect.objectContaining({ name: createdProject.name }),
+			);
+			expect(getChatProjects).toHaveBeenCalled();
+			expect(submittedOptions(onCreateChat).projectId).toBe(createdProject.id);
+		},
+	);
+});
+
+describe("AgentCreateForm project actions", () => {
+	it("inserts a project action's skill into the new chat", async () => {
+		const queryClient = createQueryClient();
+		queryClient.setQueryData(chatProjectSkillsKey(MockChatProject.id), [
+			{ ...MockSkill, name: "triage", action: true },
+		]);
+		const { onCreateChat } = renderForm(
+			{ project: MockChatProject },
+			{ queryClient },
+		);
+
+		await user().click(await screen.findByRole("button", { name: "triage" }));
+		await clickSend();
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).composerParts).toContainEqual({
+			type: "skill-invocation",
+			source: "project",
+			name: "triage",
+		});
 	});
 });

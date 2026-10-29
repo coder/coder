@@ -29,3 +29,8 @@ children:
     path: ./admin/integrations/vault.md
   - include: admin/integrations/oauth2-provider.yml
   - include: admin/integrations/devcontainers.yml
+  - title: Nix(OS)
+    description: Define reproducible environments with Nix flakes, with or without NixOS.
+    path: ./admin/integrations/nix.md
+    icon_path: ./images/icons/nix.svg
+    state: [early access]

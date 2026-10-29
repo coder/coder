@@ -2,7 +2,8 @@
 title: OAuth2 provider scopes
 ---
 
-An access token is bounded by the scope negotiated when the user authorized it, on top of that user's own permissions. A token can never do more than its user can.
+An access token is bounded by the scope negotiated when the user authorized it, on top of that user's own permissions.
+A token can never do more than its user can.
 
 A grant also never exceeds the session that authorizes it: that session must hold every requested scope and an allow list of `*:*`, which every browser session has.
 Refer to ["invalid_scope" returned to your callback](./troubleshooting.md#invalid_scope-returned-to-your-callback).
@@ -32,10 +33,12 @@ When [updating an application](../../../reference/api/enterprise.md#update-oauth
 Dynamic Client Registration keeps only the names this deployment offers, both on `POST /oauth2/register` and on `PUT /oauth2/clients/{client_id}`, and returns the stored list in the response.
 A non-empty `scope` that keeps no offered name is rejected with `400 invalid_client_metadata` and the request is not stored.
 An update that resends the stored `scope` unchanged keeps it as stored.
-An allowlist set through the web UI or the management API is stored as given; a name it holds that this deployment does not offer fails at authorization, as described under ["invalid_scope" returned to your callback](./troubleshooting.md#invalid_scope-returned-to-your-callback).
+An allowlist set through the web UI or the management API is stored as given.
+A name it holds that this deployment does not offer fails at authorization, as described under ["invalid_scope" returned to your callback](./troubleshooting.md#invalid_scope-returned-to-your-callback).
 
 Use caution when narrowing the scope allowlist of a self-registered application.
-Many clients request every scope Coder advertises in `scopes_supported` rather than selecting specific scopes; MCP clients that rely on discovery commonly work this way.
+Many clients request every scope Coder advertises in `scopes_supported` rather than selecting specific scopes.
+MCP clients that rely on discovery commonly work this way.
 The allowlist is stored on the application and does not affect that advertised list, so the client continues requesting the full set.
 Coder rejects requests that exceed the allowlist rather than trimming their scopes, so every new authorization attempt fails with `invalid_scope`.
 Previously issued tokens retain their scopes.
@@ -45,7 +48,8 @@ An allowlist set by an administrator also does not hold against the client: the 
 The web UI warns before saving a narrower allowlist, and the application page indicates whether the application was self-registered or created by an administrator.
 
 The consent page states the scope being granted before the user approves it.
-A refresh keeps the scope originally granted; a refresh that names a narrower `scope` applies it to the access token it mints, leaving the grant itself unchanged.
+A refresh keeps the scope originally granted.
+A refresh that names a narrower `scope` applies it to the access token it mints, leaving the grant itself unchanged.
 
 ## Learn more
 

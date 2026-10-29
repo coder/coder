@@ -367,6 +367,6 @@ func TestCliTemplateCreate(t *testing.T) {
 
 		err := inv.Run()
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "your deployment appears to be an AGPL deployment, so you cannot set enterprise-only flags")
+		require.Contains(t, err.Error(), "your deployment appears to be an AGPL deployment, so you cannot set flags that require a license")
 	})
 }

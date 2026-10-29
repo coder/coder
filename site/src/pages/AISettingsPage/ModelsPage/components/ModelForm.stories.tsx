@@ -308,6 +308,26 @@ export const ShowProviderType: Story = {
 	},
 };
 
+const mockConfiguredIconProviderState = {
+	...MockOpenAICompatProviderState,
+	providerDescriptor: {
+		...MockOpenAICompatProviderState.providerDescriptor,
+		icon: "/icon/widgets.svg",
+	},
+};
+
+export const ConfiguredProviderIcon: Story = {
+	args: {
+		providerStates: [MockOpenAIProviderState, mockConfiguredIconProviderState],
+		selectedProviderState: mockConfiguredIconProviderState,
+		editingModel: mockOpenAICompatModel,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("combobox", { name: /provider/i }));
+	},
+};
+
 export const ShareOnlyAccess: Story = {
 	args: {
 		editingModel: mockGPT5,

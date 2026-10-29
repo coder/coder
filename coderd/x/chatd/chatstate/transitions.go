@@ -418,6 +418,38 @@ func (tx *Tx) SetArchived(input SetArchivedInput) (SetArchivedResult, error) {
 	return SetArchivedResult{}, nil
 }
 
+// SetProjectInput configures [Tx.SetProject]. A NULL ProjectID removes
+// the chat from its project.
+type SetProjectInput struct {
+	ProjectID uuid.NullUUID
+}
+
+// SetProjectResult is returned by [Tx.SetProject].
+type SetProjectResult struct {
+	// Chat is the row after the move.
+	Chat database.Chat
+}
+
+// SetProject sets or clears the chat's project. Like SetArchived, it runs
+// only from W, E0 and E1, so no step of the chat runs during a move.
+func (tx *Tx) SetProject(input SetProjectInput) (SetProjectResult, error) {
+	chat, _, err := tx.requireFromAllowed(TransitionSetProject)
+	if err != nil {
+		return SetProjectResult{}, err
+	}
+	if input.ProjectID == chat.ProjectID {
+		return SetProjectResult{Chat: chat}, nil
+	}
+	if err := tx.store.UpdateChatProjectIDByID(tx.ctx, database.UpdateChatProjectIDByIDParams{
+		ID:        chat.ID,
+		ProjectID: input.ProjectID,
+	}); err != nil {
+		return SetProjectResult{}, xerrors.Errorf("update project: %w", err)
+	}
+	chat.ProjectID = input.ProjectID
+	return SetProjectResult{Chat: chat}, nil
+}
+
 // BusyBehavior controls how SendMessage behaves when the chat is
 // currently busy (R*/I*/A*) or errored with a non-empty queue (E1).
 // From W and E0 the two behaviors are equivalent.
@@ -1535,11 +1567,12 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 	if err != nil {
 		return FinishInterruptionResult{}, xerrors.Errorf("insert interruption partial messages: %w", err)
 	}
-	pendingAll, err := pendingAllToolCallIDs(tx.ctx, tx.store, chat)
+	// Any outstanding call, dynamic or not, would leave invalid LLM history.
+	outstanding, err := outstandingToolCalls(tx.ctx, tx.store, chat, false)
 	if err != nil {
 		return FinishInterruptionResult{}, err
 	}
-	if len(pendingAll) > 0 {
+	if len(outstanding) > 0 {
 		return FinishInterruptionResult{}, newTransitionError(
 			TransitionFinishInterruption, from,
 			"outstanding tool calls remain after partial commit",

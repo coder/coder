@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,6 +9,8 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/aibridge/prices/providers"
@@ -101,35 +104,12 @@ func (api *API) upsertAIModelPrices(rw http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(rw, r.Body, codersdk.MaxAIModelPricesBytes)
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
-			httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
-				Message: "Request body too large.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to read request body.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	// Decoding a price into *int64 loses whether its key was there at all, so
-	// decode the entries as raw keys too. An absent key is not the same as an
-	// explicit null.
-	var rawReq struct {
-		Prices []map[string]json.RawMessage `json:"prices"`
-	}
-	if err := json.Unmarshal(body, &rawReq); err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Request body must be valid JSON.",
-			Detail:  err.Error(),
-		})
+		writeAIModelPricesBodyReadError(ctx, rw, err)
 		return
 	}
 	var req codersdk.UpsertAIModelPricesRequest
-	if err := json.Unmarshal(body, &req); err != nil {
+	priceKeys, err := decodeAIModelPricesBody(body, &req)
+	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Request body must be valid JSON.",
 			Detail:  err.Error(),
@@ -138,8 +118,8 @@ func (api *API) upsertAIModelPrices(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate the whole request before writing anything, so a single bad
-	// entry cannot leave the table half-updated.
-	validations := validateAIModelPrices(req.Prices, rawReq.Prices)
+	// price cannot leave the table half-updated.
+	validations := validateAIModelPrices(req.Prices, priceKeys)
 	if len(validations) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid AI model prices.",
@@ -185,6 +165,42 @@ func (api *API) upsertAIModelPrices(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// writeAIModelPricesBodyReadError writes the response for a request body that
+// could not be read: 413 when it is over the size limit, 400 otherwise.
+func writeAIModelPricesBodyReadError(ctx context.Context, rw http.ResponseWriter, err error) {
+	if maxBytesErr, ok := errors.AsType[*http.MaxBytesError](err); ok {
+		httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
+			Message: "Request body too large.",
+			Detail:  maxBytesErr.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		Message: "Failed to read request body.",
+		Detail:  err.Error(),
+	})
+}
+
+// aiModelPriceKeys holds the JSON keys present in one model price, so that
+// validation can tell {"input_price": null} (price unknown) apart from {}
+// (price left out). Decoding into *int64 gives nil for both.
+type aiModelPriceKeys map[string]json.RawMessage
+
+// decodeAIModelPricesBody decodes a site-wide upsert body into req, and returns
+// the keys present in each element of its prices array, in the same order.
+func decodeAIModelPricesBody(body []byte, req *codersdk.UpsertAIModelPricesRequest) ([]aiModelPriceKeys, error) {
+	if err := json.Unmarshal(body, req); err != nil {
+		return nil, xerrors.Errorf("decode prices: %w", err)
+	}
+	var keys struct {
+		Prices []aiModelPriceKeys `json:"prices"`
+	}
+	if err := json.Unmarshal(body, &keys); err != nil {
+		return nil, xerrors.Errorf("decode price keys: %w", err)
+	}
+	return keys.Prices, nil
+}
+
 // modelKey identifies a priced model.
 type modelKey struct {
 	provider string
@@ -194,7 +210,7 @@ type modelKey struct {
 // validateAIModelPrices reports every problem with the requested prices: a
 // supported provider, a model, all four price keys, non-negative prices with
 // at least one set, and no repeated model.
-func validateAIModelPrices(requested []codersdk.AIModelPriceUpsert, raw []map[string]json.RawMessage) []codersdk.ValidationError {
+func validateAIModelPrices(requested []codersdk.AIModelPriceUpsert, keys []aiModelPriceKeys) []codersdk.ValidationError {
 	if len(requested) == 0 {
 		return []codersdk.ValidationError{{
 			Field:  "prices",
@@ -228,62 +244,12 @@ func validateAIModelPrices(requested []codersdk.AIModelPriceUpsert, raw []map[st
 				Detail: "Model is required.",
 			})
 		}
-		named := []struct {
-			name  string
-			value *int64
-		}{
-			{"input_price", price.InputPrice},
-			{"output_price", price.OutputPrice},
-			{"cache_read_price", price.CacheReadPrice},
-			{"cache_write_price", price.CacheWritePrice},
-		}
-		// raw and requested are decoded from the same body, so this index
-		// always exists. Bounds-check it anyway rather than risk a panic.
-		var rawEntry map[string]json.RawMessage
-		if i < len(raw) {
-			rawEntry = raw[i]
-		}
-
-		var present, populated int
-		for _, p := range named {
-			if _, ok := rawEntry[p.name]; ok {
-				present++
-			}
-			if p.value == nil {
-				continue
-			}
-			populated++
-			if *p.value < 0 {
-				validations = append(validations, codersdk.ValidationError{
-					Field:  field + "." + p.name,
-					Detail: "Price must not be negative.",
-				})
-			}
-		}
-
-		// An entry sets all four columns, so an absent key would clear that
-		// price rather than leave it alone.
-		if present > 0 && present < len(named) {
-			for _, p := range named {
-				if _, ok := rawEntry[p.name]; ok {
-					continue
-				}
-				validations = append(validations, codersdk.ValidationError{
-					Field:  field + "." + p.name,
-					Detail: "Price is required. Use 'null' for a price that is not known.",
-				})
-			}
-		}
-
-		// An all-null entry creates a row that computes zero cost, so the model
-		// stops counting as unpriced without being priced. The price book skips
-		// such models rather than seeding a row for them.
-		if populated == 0 {
-			validations = append(validations, codersdk.ValidationError{
-				Field:  field,
-				Detail: "At least one price must be set. Use 0 to declare a model free of charge.",
-			})
-		}
+		validations = append(validations, validateAIModelPriceValues(field, keysAt(keys, i), aiModelTokenPrices{
+			Input:      price.InputPrice,
+			Output:     price.OutputPrice,
+			CacheRead:  price.CacheReadPrice,
+			CacheWrite: price.CacheWritePrice,
+		})...)
 
 		key := modelKey{provider: price.Provider, model: price.Model}
 		if _, duplicate := seen[key]; duplicate {
@@ -293,6 +259,85 @@ func validateAIModelPrices(requested []codersdk.AIModelPriceUpsert, raw []map[st
 			})
 		}
 		seen[key] = struct{}{}
+	}
+
+	return validations
+}
+
+// keysAt returns the keys present in the i-th requested price. Both are
+// decoded from the same body, so the index always exists. It is
+// bounds-checked anyway rather than risk a panic.
+func keysAt(keys []aiModelPriceKeys, i int) aiModelPriceKeys {
+	if i < len(keys) {
+		return keys[i]
+	}
+	return nil
+}
+
+// aiModelTokenPrices holds the four token prices of one model price. Fields are
+// set by name, so prices cannot be passed in the wrong order.
+type aiModelTokenPrices struct {
+	Input      *int64
+	Output     *int64
+	CacheRead  *int64
+	CacheWrite *int64
+}
+
+// validateAIModelPriceValues reports problems with the four prices of one
+// model price: every price key present, no negative price, and at least one
+// price set. field is where the model price sits in the request, such as
+// "prices[0]", and prefixes each reported field.
+func validateAIModelPriceValues(field string, keys aiModelPriceKeys, prices aiModelTokenPrices) []codersdk.ValidationError {
+	named := []struct {
+		name  string
+		value *int64
+	}{
+		{"input_price", prices.Input},
+		{"output_price", prices.Output},
+		{"cache_read_price", prices.CacheRead},
+		{"cache_write_price", prices.CacheWrite},
+	}
+
+	var validations []codersdk.ValidationError
+	var present, populated int
+	for _, p := range named {
+		if _, ok := keys[p.name]; ok {
+			present++
+		}
+		if p.value == nil {
+			continue
+		}
+		populated++
+		if *p.value < 0 {
+			validations = append(validations, codersdk.ValidationError{
+				Field:  field + "." + p.name,
+				Detail: "Price must not be negative.",
+			})
+		}
+	}
+
+	// An upsert sets all four columns, so an absent key would clear that
+	// price rather than leave it alone.
+	if present > 0 && present < len(named) {
+		for _, p := range named {
+			if _, ok := keys[p.name]; ok {
+				continue
+			}
+			validations = append(validations, codersdk.ValidationError{
+				Field:  field + "." + p.name,
+				Detail: "Price is required. Use 'null' for a price that is not known.",
+			})
+		}
+	}
+
+	// An all-null price creates a row that computes zero cost, so the model
+	// stops counting as unpriced without being priced. The price book skips
+	// such models rather than seeding a row for them.
+	if populated == 0 {
+		validations = append(validations, codersdk.ValidationError{
+			Field:  field,
+			Detail: "At least one price must be set. Use 0 to declare a model free of charge.",
+		})
 	}
 
 	return validations

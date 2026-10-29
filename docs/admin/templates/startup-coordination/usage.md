@@ -2,20 +2,25 @@
 title: Workspace startup coordination usage
 ---
 
-> [!NOTE]
-> This feature is experimental and may change without notice in future releases.
+For dependencies between whole startup or shutdown scripts, use [declarative script ordering](../extending-templates/script-ordering.md) instead of `coder exp sync`.
 
-Startup coordination is built around the concept of **units**. You declare units in your Coder workspace template using the `coder exp sync` command in `coder_script` resources. When the Coder agent starts, it keeps an in-memory directed acyclic graph (DAG) of all units of which it is aware. When you need to synchronize with another unit, you can use `coder exp sync start $UNIT_NAME` to block until all dependencies of that unit have been marked complete.
+> [!NOTE]
+> The `coder exp sync` commands are experimental and might change without notice.
+
+Startup coordination is built around the concept of **units**.
+You declare units in your Coder workspace template using the `coder exp sync` command in `coder_script` resources.
+When the Coder agent starts, it keeps an in-memory directed acyclic graph (DAG) of all units of which it is aware.
+When you need to synchronize with another unit, you can use `coder exp sync start $UNIT_NAME` to block until all dependencies of that unit have been marked complete.
 
 ## What is a unit?
 
-A **unit** is a named phase of work, typically corresponding to a script or initialization
-task.
+A **unit** is a named phase of work, typically corresponding to a script or initialization task.
 
 - Units **may** declare dependencies on other units, creating an explicit ordering for workspace initialization.
 - Units **must** be registered before they can be marked as complete.
 - Units **may** be marked as dependencies before they are registered.
-- Units **must not** declare cyclic dependencies. Attempting to create a cyclic dependency will result in an error.
+- Units **must not** declare cyclic dependencies.
+  Attempting to create a cyclic dependency will result in an error.
 
 ## Requirements
 
@@ -33,8 +38,7 @@ To use startup dependencies in your templates, you must:
 
 #### Single Dependency
 
-Here's a simple example of a script that depends on another unit completing
-first:
+Here's a simple example of a script that depends on another unit completing first:
 
 ```sh
 #!/bin/bash
@@ -53,13 +57,11 @@ echo "Running after git-clone completes"
 coder exp sync complete "$UNIT_NAME"
 ```
 
-This script will wait until the `git-clone` unit completes before starting its
-own work.
+This script will wait until the `git-clone` unit completes before starting its own work.
 
 #### Multiple Dependencies
 
-If your unit depends on multiple other units, you can declare all dependencies
-before starting:
+If your unit depends on multiple other units, you can declare all dependencies before starting:
 
 ```sh
 #!/bin/bash
@@ -125,8 +127,8 @@ Once you're satisfied, [promote the new template version](../../../reference/cli
 
 ### Handle missing CLI gracefully
 
-Not all workspaces will have the Coder CLI available in `$PATH`. Check for availability of the Coder CLI before using
-sync commands:
+Not all workspaces will have the Coder CLI available in `$PATH`.
+Check for availability of the Coder CLI before using sync commands:
 
 ```sh
 if command -v coder > /dev/null 2>&1; then
@@ -138,8 +140,8 @@ fi
 
 ### Complete units that start successfully
 
-Units **must** call `coder exp sync complete` to unblock dependent units. Use `trap` to ensure
-completion even if your script exits early or encounters errors:
+Units **must** call `coder exp sync complete` to unblock dependent units.
+Use `trap` to ensure completion even if your script exits early or encounters errors:
 
 ```sh
 
@@ -165,8 +167,8 @@ Names should explain what the unit does, not its position in a sequence:
 
 ### Prefix a unique name to your units
 
-When using `coder exp sync` in modules, note that unit names like `git-clone` might be common. Prefix the name of your module to your units to
-ensure that your unit does not conflict with others.
+When using `coder exp sync` in modules, note that unit names like `git-clone` might be common.
+Prefix the name of your module to your units to ensure that your unit does not conflict with others.
 
 - Good: `<module>.git-clone`, `<module>.claude`
 - Bad: `git-clone`, `claude`
@@ -204,7 +206,7 @@ coder exp sync want "unit-b" "unit-a"
 Look for these patterns in existing templates:
 
 - `sleep` commands used to order scripts
-- Using files to coordinate startup between scripts (e.g. `touch /tmp/startup-complete`)
+- Using files to coordinate startup between scripts (for example, `touch /tmp/startup-complete`)
 - Scripts that fail intermittently on startup
 - Comments like "must run after X" or "wait for Y"
 
@@ -232,5 +234,6 @@ coder exp sync start "long-operation" --timeout 10m
 
 ### Is state stored between restarts?
 
-No. Sync state is kept in-memory only and resets on workspace restart.
+No.
+Sync state is kept in-memory only and resets on workspace restart.
 This is intentional to ensure clean initialization on every start.
