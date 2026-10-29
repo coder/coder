@@ -1515,10 +1515,6 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatDesktopEnabled(gomock.Any()).Return(false, nil).AnyTimes()
 		check.Args().Asserts()
 	}))
-	s.Run("GetChatComputerUseProvider", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().GetChatComputerUseProvider(gomock.Any()).Return("anthropic", nil).AnyTimes()
-		check.Args().Asserts()
-	}))
 	s.Run("GetChatOrganizationModelOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		orgID := uuid.New()
 		arg := database.GetChatOrganizationModelOverrideParams{OrganizationID: orgID, Context: "general"}
@@ -2088,10 +2084,6 @@ func (s *MethodTestSuite) TestChats() {
 	s.Run("UpsertChatDesktopEnabled", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().UpsertChatDesktopEnabled(gomock.Any(), false).Return(nil).AnyTimes()
 		check.Args(false).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
-	}))
-	s.Run("UpsertChatComputerUseProvider", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().UpsertChatComputerUseProvider(gomock.Any(), "anthropic").Return(nil).AnyTimes()
-		check.Args("anthropic").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
 	s.Run("UpsertChatOrganizationModelOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		orgID := uuid.New()
@@ -7149,6 +7141,38 @@ func (s *MethodTestSuite) TestOrganizationSkills() {
 		dbm.EXPECT().UpdateOrganizationSkillACLByID(gomock.Any(), arg).Return(updated, nil).AnyTimes()
 		check.Args(arg).Asserts(skill, policy.ActionShare).Returns(updated)
 	}))
+	s.Run("UpdateOrganizationMembersCanDisableSkills", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		org := testutil.Fake(s.T(), faker, database.Organization{})
+		arg := database.UpdateOrganizationMembersCanDisableSkillsParams{ID: org.ID, MembersCanDisableSkills: true, UpdatedAt: dbtime.Now()}
+		updated := org
+		updated.MembersCanDisableSkills = true
+		dbm.EXPECT().UpdateOrganizationMembersCanDisableSkills(gomock.Any(), arg).Return(updated, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceOrganizationSkill.InOrg(org.ID), policy.ActionUpdate).Returns(updated)
+	}))
+	s.Run("GetOrganizationSkillMemberPreferences", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetOrganizationSkillMemberPreferencesParams{OrganizationID: uuid.New(), UserID: uuid.New()}
+		row := database.GetOrganizationSkillMemberPreferencesRow{
+			MembersCanDisableSkills: true,
+			DisabledSkillIDs:        []uuid.UUID{uuid.New()},
+		}
+		dbm.EXPECT().GetOrganizationSkillMemberPreferences(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceUserObject(arg.UserID), policy.ActionReadPersonal).Returns(row)
+	}))
+	s.Run("UpsertOrganizationMemberSkillSettings", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.UpsertOrganizationMemberSkillSettingsParams{OrganizationID: uuid.New(), UserID: uuid.New(), AllSkillsDisabled: true}
+		dbm.EXPECT().UpsertOrganizationMemberSkillSettings(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceUserObject(arg.UserID), policy.ActionUpdatePersonal).Returns()
+	}))
+	s.Run("InsertOrganizationMemberDisabledSkill", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertOrganizationMemberDisabledSkillParams{OrganizationID: uuid.New(), UserID: uuid.New(), SkillID: uuid.New()}
+		dbm.EXPECT().InsertOrganizationMemberDisabledSkill(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceUserObject(arg.UserID), policy.ActionUpdatePersonal).Returns()
+	}))
+	s.Run("DeleteOrganizationMemberDisabledSkill", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.DeleteOrganizationMemberDisabledSkillParams{OrganizationID: uuid.New(), UserID: uuid.New(), SkillID: uuid.New()}
+		dbm.EXPECT().DeleteOrganizationMemberDisabledSkill(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceUserObject(arg.UserID), policy.ActionUpdatePersonal).Returns()
+	}))
 }
 
 func (s *MethodTestSuite) TestProjectSkills() {
@@ -7744,15 +7768,25 @@ func (s *MethodTestSuite) TestAIBridge() {
 	s.Run("GetHighestGroupAIBudgetByUser", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		user := testutil.Fake(s.T(), faker, database.User{})
 		row := testutil.Fake(s.T(), faker, database.GetHighestGroupAIBudgetByUserRow{})
-		dbm.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), user.ID).Return(row, nil).AnyTimes()
-		check.Args(user.ID).Asserts(user, policy.ActionRead).Returns(row)
+		arg := database.GetHighestGroupAIBudgetByUserParams{UserID: user.ID, OrganizationID: uuid.NullUUID{UUID: uuid.New(), Valid: true}}
+		dbm.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(user, policy.ActionRead).Returns(row)
 	}))
 
 	s.Run("GetUserEveryoneFallbackGroup", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		user := testutil.Fake(s.T(), faker, database.User{})
 		group := testutil.Fake(s.T(), faker, database.Group{})
-		dbm.EXPECT().GetUserEveryoneFallbackGroup(gomock.Any(), user.ID).Return(group.ID, nil).AnyTimes()
-		check.Args(user.ID).Asserts(user, policy.ActionRead).Returns(group.ID)
+		arg := database.GetUserEveryoneFallbackGroupParams{UserID: user.ID, OrganizationID: uuid.NullUUID{UUID: group.OrganizationID, Valid: true}}
+		dbm.EXPECT().GetUserEveryoneFallbackGroup(gomock.Any(), arg).Return(group.ID, nil).AnyTimes()
+		check.Args(arg).Asserts(user, policy.ActionRead).Returns(group.ID)
+	}))
+
+	s.Run("GetUserAIBudgetOverrideWithOrganization", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		row := testutil.Fake(s.T(), faker, database.GetUserAIBudgetOverrideWithOrganizationRow{UserID: user.ID})
+		arg := database.GetUserAIBudgetOverrideWithOrganizationParams{UserID: user.ID, OrganizationID: uuid.NullUUID{UUID: row.OrganizationID, Valid: true}}
+		dbm.EXPECT().GetUserAIBudgetOverrideWithOrganization(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(user, policy.ActionRead).Returns(row)
 	}))
 
 	s.Run("UpsertUserAIBudgetOverride", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

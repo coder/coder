@@ -34,6 +34,8 @@ import (
 	experimentrules "github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/experiments/experimentstest"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
@@ -96,12 +98,6 @@ type internalTestServerOpt func(*internalTestServerConfig)
 func withInternalTestServerClock(clk quartz.Clock) internalTestServerOpt {
 	return func(cfg *internalTestServerConfig) {
 		cfg.clock = clk
-	}
-}
-
-func withInternalTestServerLogger(logger slog.Logger) internalTestServerOpt {
-	return func(cfg *internalTestServerConfig) {
-		cfg.logger = logger
 	}
 }
 
@@ -210,35 +206,6 @@ func (subscribeFailingPubsub) Subscribe(_ string, _ pubsub.Listener) (func(), er
 
 func (subscribeFailingPubsub) SubscribeWithErr(_ string, _ pubsub.ListenerWithErr) (func(), error) {
 	return nil, xerrors.New("subscribe disabled")
-}
-
-type subagentTestLogSink struct {
-	mu      sync.Mutex
-	entries []slog.SinkEntry
-}
-
-func (s *subagentTestLogSink) LogEntry(_ context.Context, entry slog.SinkEntry) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.entries = append(s.entries, entry)
-}
-
-func (*subagentTestLogSink) Sync() {}
-
-func (s *subagentTestLogSink) entriesAtLevelWithMessage(
-	level slog.Level,
-	message string,
-) []slog.SinkEntry {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	entries := make([]slog.SinkEntry, 0, len(s.entries))
-	for _, entry := range s.entries {
-		if entry.Level == level && entry.Message == message {
-			entries = append(entries, entry)
-		}
-	}
-	return entries
 }
 
 // seedInternalChatDeps inserts an OpenAI provider and model config
@@ -553,20 +520,6 @@ func TestResolveUserProviderAPIKeys_AIProvider(t *testing.T) {
 		keys, err := server.resolveUserProviderAPIKeys(ctx, user.ID, provider.ID)
 		require.NoError(t, err)
 		require.Equal(t, "provider-api-key", keys.APIKey("openai"))
-	})
-
-	t.Run("ProviderTypeUsesAIProvider", func(t *testing.T) {
-		t.Parallel()
-
-		db, ps := dbtestutil.NewDB(t)
-		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
-		ctx := chatdTestContext(t)
-		user, _, _ := seedInternalChatDeps(t, db)
-		insertInternalAIProvider(t, db, database.AIProviderTypeAzure, "provider-api-key", true)
-
-		keys, err := server.resolveUserProviderAPIKeysForProviderType(ctx, user.ID, "azure")
-		require.NoError(t, err)
-		require.Equal(t, "provider-api-key", keys.APIKey("azure"))
 	})
 
 	t.Run("BedrockUsesAmbientAuth", func(t *testing.T) {
@@ -2694,7 +2647,7 @@ func TestSpawnAgent_InvalidTypeAndCredentialErrorAreDistinct(t *testing.T) {
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
 	ctx := chatdTestContext(t)
-	user, org, model := seedInternalChatDeps(t, db)
+	user, org, model := seedComputerUseDeps(t, db, database.AIProviderTypeAnthropic, "", "claude-opus-5")
 	parentChat := createInternalParentChat(
 		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-invalid-type",
 	)
@@ -2709,7 +2662,9 @@ func TestSpawnAgent_InvalidTypeAndCredentialErrorAreDistinct(t *testing.T) {
 		spawnAgentArgs{Type: "invalid", Prompt: "delegate work"},
 	)
 	require.True(t, invalidResp.IsError)
-	require.Contains(t, invalidResp.Content, "type must be one of: general, explore, computer_use")
+	// computer_use is unavailable without credentials, so it is not offered.
+	require.Contains(t, invalidResp.Content, "type must be one of: general, explore")
+	require.NotContains(t, invalidResp.Content, subagentTypeComputerUse)
 
 	credentialResp := runSubagentTool(
 		ctx,
@@ -2721,42 +2676,21 @@ func TestSpawnAgent_InvalidTypeAndCredentialErrorAreDistinct(t *testing.T) {
 		spawnAgentArgs{Type: subagentTypeComputerUse, Prompt: "open browser"},
 	)
 	require.True(t, credentialResp.IsError)
-	require.Contains(t, credentialResp.Content, "API key")
-	require.Contains(t, credentialResp.Content, "computer-use")
-	require.Contains(t, credentialResp.Content, "anthropic")
+	require.Contains(t, credentialResp.Content, `type "computer_use" is unavailable because no computer use model is configured and credentials for AI provider`)
+	require.Contains(t, credentialResp.Content, `model "claude-opus-5"`)
 }
 
-func TestSpawnAgent_ComputerUseAvailabilityUsesConfiguredProvider(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := chatdTestContext(t)
-	require.NoError(t, db.UpsertChatComputerUseProvider(
-		ctx,
-		string(codersdk.ChatComputerUseProviderOpenAI),
-	))
-	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
-
-	user, org, model := seedInternalChatDeps(t, db)
-	parentChat := createInternalParentChat(
-		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-openai-computer-use",
-	)
-
-	ids, err := availableSubagentTypeIDs(ctx, server, parentChat)
-	require.NoError(t, err)
-	require.Contains(t, ids, subagentTypeComputerUse)
-}
-
-func TestSpawnAgent_ComputerUseRejectsMissingConfiguredProvider(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := chatdTestContext(t)
-	require.NoError(t, db.UpsertChatComputerUseProvider(
-		ctx,
-		string(codersdk.ChatComputerUseProviderOpenAI),
-	))
-	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+// seedComputerUseDeps creates a user and organization whose default chat model
+// uses a new AI provider of providerType. An empty apiKey leaves the provider
+// without credentials.
+func seedComputerUseDeps(
+	t *testing.T,
+	db database.Store,
+	providerType database.AIProviderType,
+	apiKey string,
+	model string,
+) (database.User, database.Organization, database.ChatModelConfig) {
+	t.Helper()
 
 	user := dbgen.User(t, db, database.User{})
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -2764,100 +2698,217 @@ func TestSpawnAgent_ComputerUseRejectsMissingConfiguredProvider(t *testing.T) {
 		UserID:         user.ID,
 		OrganizationID: org.ID,
 	})
-	model := insertInternalChatModelConfigForProvider(
-		t,
-		db,
-		org.ID,
-		string(codersdk.ChatComputerUseProviderOpenAI),
-		"gpt-4o-mini",
-		true,
-	)
+	provider := insertInternalAIProvider(t, db, providerType, apiKey, true)
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		Model:          model,
+		DisplayName:    model,
+		IsDefault:      true,
+		OrganizationID: org.ID,
+	})
+	return user, org, modelConfig
+}
+
+func TestResolveComputerUseModel(t *testing.T) {
+	t.Parallel()
+
+	t.Run("DefaultModel", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+		ctx := chatdTestContext(t)
+		user, org, model := seedInternalChatDeps(t, db)
+
+		got, reason, err := server.resolveComputerUseModel(ctx, user.ID, org.ID)
+		require.NoError(t, err)
+		require.Empty(t, reason)
+		require.Equal(t, model.ID, got.config.ID)
+		require.Equal(t, codersdk.ChatComputerUseProviderOpenAI, got.provider)
+		require.Nil(t, got.reasoningEffort)
+	})
+
+	t.Run("Override", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+		user, org, _ := seedInternalChatDeps(t, db)
+		insertEnabledAnthropicProvider(t, db, user.ID)
+		override := insertInternalChatModelConfigForProvider(t, db, org.ID, "anthropic", "claude-opus-5", true)
+		upsertInternalChatOrganizationModelOverride(t, db, org.ID, codersdk.ChatModelOverrideContextComputerUse, override.ID.String()+":high")
+
+		ctx := chatdTestContext(t)
+		got, reason, err := server.resolveComputerUseModel(ctx, user.ID, org.ID)
+		require.NoError(t, err)
+		require.Empty(t, reason)
+		require.Equal(t, override.ID, got.config.ID)
+		require.Equal(t, codersdk.ChatComputerUseProviderAnthropic, got.provider)
+		require.Equal(t, ptr.Ref("high"), got.reasoningEffort)
+	})
+
+	t.Run("DisabledOverrideFallsBackToDefault", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+		user, org, model := seedInternalChatDeps(t, db)
+		insertEnabledAnthropicProvider(t, db, user.ID)
+		disabled := insertInternalChatModelConfigForProvider(t, db, org.ID, "anthropic", "claude-opus-5", false)
+		upsertInternalChatOrganizationModelOverride(t, db, org.ID, codersdk.ChatModelOverrideContextComputerUse, disabled.ID.String()+":high")
+
+		ctx := chatdTestContext(t)
+		got, reason, err := server.resolveComputerUseModel(ctx, user.ID, org.ID)
+		require.NoError(t, err)
+		require.Empty(t, reason)
+		require.Equal(t, model.ID, got.config.ID)
+		require.Equal(t, codersdk.ChatComputerUseProviderOpenAI, got.provider)
+		require.Nil(t, got.reasoningEffort)
+	})
+
+	t.Run("UnsupportedDefaultProviderType", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+		user, org, _ := seedComputerUseDeps(t, db, database.AIProviderTypeGoogle, "test-key", "gemini-test")
+
+		ctx := chatdTestContext(t)
+		_, reason, err := server.resolveComputerUseModel(ctx, user.ID, org.ID)
+		require.NoError(t, err)
+		require.Contains(t, reason, `model "gemini-test" uses AI provider`)
+		require.Contains(t, reason, `of type "google"; computer use requires an Anthropic or OpenAI AI provider`)
+	})
+
+	t.Run("UnsupportedOverrideProviderTypeFallsBackToDefault", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+		user, org, model := seedInternalChatDeps(t, db)
+		insertInternalAIProvider(t, db, database.AIProviderTypeOpenrouter, "test-key", true)
+		// The override API rejects this model, but the model API can move a
+		// saved override's model to such a provider.
+		override := insertInternalChatModelConfigForProvider(t, db, org.ID, "openrouter", "openai/gpt-test", true)
+		upsertInternalChatOrganizationModelOverride(t, db, org.ID, codersdk.ChatModelOverrideContextComputerUse, override.ID.String()+":high")
+
+		ctx := chatdTestContext(t)
+		got, reason, err := server.resolveComputerUseModel(ctx, user.ID, org.ID)
+		require.NoError(t, err)
+		require.Empty(t, reason)
+		require.Equal(t, model.ID, got.config.ID)
+		require.Equal(t, codersdk.ChatComputerUseProviderOpenAI, got.provider)
+		require.Nil(t, got.reasoningEffort)
+	})
+
+	t.Run("MissingCredentials", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+		user, org, _ := seedComputerUseDeps(t, db, database.AIProviderTypeAnthropic, "", "claude-opus-5")
+
+		ctx := chatdTestContext(t)
+		_, reason, err := server.resolveComputerUseModel(ctx, user.ID, org.ID)
+		require.NoError(t, err)
+		require.Contains(t, reason, `credentials for AI provider`)
+		require.Contains(t, reason, `used by model "claude-opus-5", are not configured`)
+	})
+
+	t.Run("NoDefaultModel", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		ctx := chatdTestContext(t)
+		_, reason, err := server.resolveComputerUseModel(ctx, user.ID, org.ID)
+		require.NoError(t, err)
+		require.Equal(t, `type "computer_use" is unavailable because no computer use model is configured and the organization has no default chat model available to the chat owner`, reason)
+	})
+
+	t.Run("UnavailableOverrideWithoutDefaultModel", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		insertEnabledAnthropicProvider(t, db, user.ID)
+		disabled := insertInternalChatModelConfigForProvider(t, db, org.ID, "anthropic", "claude-opus-5", false)
+		upsertInternalChatOrganizationModelOverride(t, db, org.ID, codersdk.ChatModelOverrideContextComputerUse, disabled.ID.String())
+
+		ctx := chatdTestContext(t)
+		_, reason, err := server.resolveComputerUseModel(ctx, user.ID, org.ID)
+		require.NoError(t, err)
+		require.Equal(t, `type "computer_use" is unavailable because the configured computer use model cannot be used and the organization has no default chat model available to the chat owner`, reason)
+	})
+
+	t.Run("UnsupportedOverrideProviderTypeWithUnsupportedDefault", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+		user, org, _ := seedComputerUseDeps(t, db, database.AIProviderTypeGoogle, "test-key", "gemini-test")
+		insertInternalAIProvider(t, db, database.AIProviderTypeOpenrouter, "test-key", true)
+		override := insertInternalChatModelConfigForProvider(t, db, org.ID, "openrouter", "openai/gpt-test", true)
+		upsertInternalChatOrganizationModelOverride(t, db, org.ID, codersdk.ChatModelOverrideContextComputerUse, override.ID.String())
+
+		ctx := chatdTestContext(t)
+		_, reason, err := server.resolveComputerUseModel(ctx, user.ID, org.ID)
+		require.NoError(t, err)
+		require.Contains(t, reason, `type "computer_use" is unavailable because the configured computer use model cannot be used and model "gemini-test" uses AI provider`)
+	})
+
+	t.Run("DefaultModelFollowsOwnerModelACL", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		authzDB := dbauthz.New(db, rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), nil)
+		server := newInternalTestServer(t, authzDB, ps, chatprovider.ProviderAPIKeys{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		member := dbgen.User(t, db, database.User{})
+		outsider := dbgen.User(t, db, database.User{})
+		for _, user := range []database.User{member, outsider} {
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+		}
+		team := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: member.ID, GroupID: team.ID})
+		provider := insertInternalAIProvider(t, db, database.AIProviderTypeAnthropic, "test-key", true)
+		model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+			Model:          "claude-opus-5",
+			IsDefault:      true,
+			OrganizationID: org.ID,
+			GroupACL:       database.ChatACL{team.ID.String(): {Permissions: []policy.Action{policy.ActionRead}}},
+			UserACL:        database.ChatACL{},
+		})
+
+		ctx := chatdTestContext(t)
+		got, reason, err := server.resolveComputerUseModel(ctx, member.ID, org.ID)
+		require.NoError(t, err)
+		require.Empty(t, reason)
+		require.Equal(t, model.ID, got.config.ID)
+
+		_, reason, err = server.resolveComputerUseModel(ctx, outsider.ID, org.ID)
+		require.NoError(t, err)
+		require.Equal(t, `type "computer_use" is unavailable because no computer use model is configured and the organization has no default chat model available to the chat owner`, reason)
+	})
+}
+
+func TestSpawnAgent_ComputerUseUnavailableReasonListsModel(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	ctx := chatdTestContext(t)
+	user, org, model := seedComputerUseDeps(t, db, database.AIProviderTypeGoogle, "test-key", "gemini-test")
 	parentChat := createInternalParentChat(
-		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-openai-missing",
+		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-unsupported-computer-use",
 	)
 
 	ids, err := availableSubagentTypeIDs(ctx, server, parentChat)
 	require.NoError(t, err)
-	require.Contains(t, ids, subagentTypeComputerUse)
-	beforeChats, err := db.GetChats(ctx, database.GetChatsParams{
-		OwnedOnly: true,
-		ViewerID:  user.ID,
-		AfterID:   uuid.Nil,
-		OffsetOpt: 0,
-		LimitOpt:  100,
-	})
-	require.NoError(t, err)
+	require.NotContains(t, ids, subagentTypeComputerUse)
 
 	resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
 		Type:   subagentTypeComputerUse,
 		Prompt: "open the browser",
 	})
 	require.True(t, resp.IsError)
-	require.Contains(t, resp.Content, "API key")
-	require.Contains(t, resp.Content, "computer-use")
-	require.Contains(t, resp.Content, "openai")
-	afterChats, err := db.GetChats(ctx, database.GetChatsParams{
-		OwnedOnly: true,
-		ViewerID:  user.ID,
-		AfterID:   uuid.Nil,
-		OffsetOpt: 0,
-		LimitOpt:  100,
-	})
-	require.NoError(t, err)
-	require.Len(t, afterChats, len(beforeChats))
-}
-
-func TestSpawnAgent_ComputerUseRejectsInvalidConfiguredProviderWithStableReason(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := chatdTestContext(t)
-	require.NoError(t, db.UpsertChatComputerUseProvider(ctx, "bogus"))
-	logSink := &subagentTestLogSink{}
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(logSink)
-	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerLogger(logger))
-
-	user, org, model := seedInternalChatDeps(t, db)
-	parentChat := createInternalParentChat(
-		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-invalid-computer-use-provider",
-	)
-
-	resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
-		Type:   subagentTypeComputerUse,
-		Prompt: "open the browser",
-	})
-	require.True(t, resp.IsError)
-	require.Contains(t, resp.Content, `type "computer_use" is unavailable because its provider configuration could not be loaded`)
-	require.NotContains(t, resp.Content, "bogus")
-	require.NotContains(t, resp.Content, "agents_computer_use_provider")
-	require.NotEmpty(t, logSink.entriesAtLevelWithMessage(
-		slog.LevelWarn,
-		"computer-use provider config is unavailable",
-	))
-}
-
-type computerUseProviderErrorStore struct {
-	database.Store
-}
-
-func (computerUseProviderErrorStore) GetChatComputerUseProvider(context.Context) (string, error) {
-	return "", sql.ErrConnDone
-}
-
-func TestSpawnAgent_ComputerUseProviderReadErrorFails(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := chatdTestContext(t)
-	server := newInternalTestServer(t, computerUseProviderErrorStore{Store: db}, ps, chatprovider.ProviderAPIKeys{})
-
-	user, org, model := seedInternalChatDeps(t, db)
-	parentChat := createInternalParentChat(
-		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-computer-use-provider-read-error",
-	)
-
-	_, err := availableSubagentTypeIDs(ctx, server, parentChat)
-	require.ErrorIs(t, err, sql.ErrConnDone)
+	require.Contains(t, resp.Content, `model "gemini-test" uses AI provider`)
 }
 
 func TestSpawnAgent_ComputerUseRejectsDesktopDisabled(t *testing.T) {
@@ -3146,7 +3197,7 @@ func TestSubagentLifecycleToolErrorsIncludePersistedSubagentType(t *testing.T) {
 	}
 }
 
-func TestSpawnAgent_ComputerUseUsesComputerUseModelNotParent(t *testing.T) {
+func TestSpawnAgent_ComputerUseRunsOnSelectedModel(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -3155,11 +3206,9 @@ func TestSpawnAgent_ComputerUseUsesComputerUseModelNotParent(t *testing.T) {
 	ctx := chatdTestContext(t)
 	user, org, model := seedInternalChatDeps(t, db)
 	insertEnabledAnthropicProvider(t, db, user.ID)
+	computerUseModel := insertInternalChatModelConfigForProvider(t, db, org.ID, "anthropic", "claude-opus-5", true)
+	upsertInternalChatOrganizationModelOverride(t, db, org.ID, codersdk.ChatModelOverrideContextComputerUse, computerUseModel.ID.String()+":high")
 	workspace, build, agent := seedWorkspaceBinding(t, db, user.ID)
-
-	seedProvider, err := db.GetAIProviderByID(ctx, model.AIProviderID.UUID)
-	require.NoError(t, err)
-	require.Equal(t, "openai", string(seedProvider.Type), "seed helper must create an OpenAI model")
 
 	parent, err := server.CreateChat(ctx, CreateOptions{
 		OrganizationID:     org.ID,
@@ -3198,12 +3247,9 @@ func TestSpawnAgent_ComputerUseUsesComputerUseModelNotParent(t *testing.T) {
 	require.Equal(t, parentChat.AgentID, childChat.AgentID)
 	require.True(t, childChat.Mode.Valid)
 	assert.Equal(t, database.ChatModeComputerUse, childChat.Mode.ChatMode)
-	computerUseModelProvider, computerUseModelName, ok := chattool.DefaultComputerUseModel(codersdk.ChatComputerUseProviderAnthropic)
-	require.True(t, ok)
-	assert.NotEqual(t, string(seedProvider.Type), computerUseModelProvider,
-		"computer use model provider must differ from parent model provider")
-	assert.Equal(t, "anthropic", computerUseModelProvider)
-	assert.NotEmpty(t, computerUseModelName)
+	require.Equal(t, computerUseModel.ID, childChat.LastModelConfigID)
+	require.NotEqual(t, parentChat.LastModelConfigID, childChat.LastModelConfigID)
+	require.Equal(t, database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffortHigh, Valid: true}, childChat.LastReasoningEffort)
 }
 
 func TestSpawnAgent_ComputerUseInheritsMCPServerIDs(t *testing.T) {
