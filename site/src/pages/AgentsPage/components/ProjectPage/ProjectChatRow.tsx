@@ -127,7 +127,7 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 		},
 	});
 
-	const menuProps = {
+	const sharedMenuItemProps = {
 		chat,
 		canManage,
 		hasWorkspace: Boolean(workspaceId),
@@ -183,7 +183,7 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 					)}
 				/>
 				{actions && (
-					<ChatActionsMenu {...menuProps}>
+					<ChatActionsMenu {...sharedMenuItemProps}>
 						<Button
 							variant="subtle"
 							size="icon"
@@ -203,7 +203,7 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 		return row;
 	}
 	return (
-		<ChatActionsMenu {...menuProps} variant="context">
+		<ChatActionsMenu {...sharedMenuItemProps} variant="context">
 			{row}
 		</ChatActionsMenu>
 	);
