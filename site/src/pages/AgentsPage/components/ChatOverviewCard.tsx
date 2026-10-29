@@ -37,7 +37,12 @@ import {
 	getPRIconConfig,
 } from "./ChatsSidebar/tree/statusConfig";
 import { DiffStatBadge } from "./DiffViewer/DiffStats";
-import { computeRepoStats, repoLabel } from "./GitPanel/GitPanel";
+import {
+	computeRepoStats,
+	type GitView,
+	repoLabel,
+	viewIdFor,
+} from "./GitPanel/GitPanel";
 
 /** Rows a list section shows before it folds the rest behind a toggle. */
 const OVERVIEW_MAX_LIST_ROWS = 3;
@@ -47,8 +52,10 @@ const OVERVIEW_MAX_LIST_ROWS = 3;
  */
 const OVERVIEW_MAX_SUBAGENT_ROWS = 5;
 
-/** The right panel tabs that the overview card can open. */
-export type OverviewTabId = "summary" | "git";
+/** Where a card row leads: a right panel tab, and for Git its view. */
+export type OverviewTarget =
+	| { tabId: "summary" }
+	| { tabId: "git"; view: GitView };
 
 type OverviewSubagent = Pick<Chat, "id" | "title" | "status">;
 
@@ -109,7 +116,7 @@ type ChatOverviewCardProps = {
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
 	hasMoreMessages: boolean;
 	isHydratingMessages: boolean;
-	onOpenTab: (tabId: OverviewTabId) => void;
+	onOpenTab: (target: OverviewTarget) => void;
 };
 
 /**
@@ -204,13 +211,13 @@ type ChatOverviewCardViewProps = {
 	overview: ChatOverview;
 	/** Cost or messages are still loading, so an empty card is not final. */
 	isLoading?: boolean;
-	onOpenTab: (tabId: OverviewTabId) => void;
+	onOpenTab: (target: OverviewTarget) => void;
 	className?: string;
 };
 
 /**
  * Leaves out empty sections. A row calls `onOpenTab` with the right panel
- * tab that holds its details.
+ * tab, and for Git the view, that holds its details.
  */
 export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 	overview,
@@ -264,7 +271,7 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 								formatCostMicros(cost.total_cost_micros)
 							)
 						}
-						onClick={() => onOpenTab("summary")}
+						onClick={() => onOpenTab({ tabId: "summary" })}
 					/>
 				</div>
 			)}
@@ -290,7 +297,12 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 										/>
 									)
 								}
-								onClick={() => onOpenTab("git")}
+								onClick={() =>
+									onOpenTab({
+										tabId: "git",
+										view: { type: "local", repoRoot: repo.root },
+									})
+								}
 							/>
 						)}
 					/>
@@ -316,7 +328,12 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 											deletions={status.deletions}
 										/>
 									}
-									onClick={() => onOpenTab("git")}
+									onClick={() =>
+										onOpenTab({
+											tabId: "git",
+											view: { type: "remote", refId: viewIdFor(status) },
+										})
+									}
 								/>
 							);
 						}}
@@ -355,7 +372,7 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 								key={attachment.key}
 								icon={FileIcon}
 								label={getAttachmentDisplayName(attachment.file)}
-								onClick={() => onOpenTab("summary")}
+								onClick={() => onOpenTab({ tabId: "summary" })}
 							/>
 						)}
 					/>

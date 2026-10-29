@@ -48,6 +48,8 @@ type SidebarTabViewProps = {
 	/** Called when the user switches tabs. */
 	onActiveTabChange: (tabId: string) => void;
 	addTabControl?: React.ReactNode;
+	/** Each new object moves keyboard focus to the active tab. */
+	focusRequest?: object;
 };
 
 const TAB_SCROLL_AMOUNT = 120;
@@ -147,7 +149,14 @@ export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
 	effectiveTabId,
 	onActiveTabChange,
 	addTabControl,
+	focusRequest,
 }) => {
+	const activeTabRef = useRef<HTMLButtonElement>(null);
+	useEffect(() => {
+		if (focusRequest) {
+			activeTabRef.current?.focus();
+		}
+	}, [focusRequest]);
 	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
 		useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
 	const tabIdPrefix = useId();
@@ -255,6 +264,7 @@ export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
 							const isCloseable = onClose !== undefined;
 							const tabButton = (
 								<Button
+									ref={isActive ? activeTabRef : undefined}
 									id={`${tabIdPrefix}-tab-${tab.id}`}
 									role="tab"
 									aria-selected={isActive}

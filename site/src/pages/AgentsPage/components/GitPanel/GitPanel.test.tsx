@@ -18,7 +18,7 @@ import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import themes, { DEFAULT_THEME } from "#/theme";
 import type { ChatMessageInputRef } from "../AgentChatInput";
-import { GitPanel } from "./GitPanel";
+import { GitPanel, viewIdFor } from "./GitPanel";
 
 vi.mock("../DiffViewer/LocalDiffPanel", () => ({
 	LocalDiffPanel: () => null,
@@ -429,5 +429,81 @@ describe("GitPanel per-ref views", () => {
 		expect(itemNames).toContain("Branchcoder/coder · feature/shared");
 		expect(itemNames).toContain("Branchcoder/other-project · feature/shared");
 		expect(new Set(itemNames).size).toBe(itemNames.length);
+	});
+});
+
+describe("GitPanel view requests", () => {
+	const mockFirstRef = {
+		...MockChatDiffStatus,
+		git_branch: "feat/first",
+		pr_number: 23020,
+		url: "https://github.com/coder/coder/pull/23020",
+	};
+	const mockPrimaryRef = {
+		...MockChatDiffStatus,
+		git_branch: "fix/second",
+		pr_number: 23021,
+		url: "https://github.com/coder/coder/pull/23021",
+	};
+	const refs = {
+		remoteDiffStats: [mockFirstRef, mockPrimaryRef],
+		primaryDiffStatus: mockPrimaryRef,
+	};
+
+	it("switches a mounted panel to the requested ref", () => {
+		vi.spyOn(API.experimental, "getChatDiffContents").mockResolvedValue(
+			mockDiffContents,
+		);
+		const { rerenderPanel } = renderPanel(refs);
+
+		rerenderPanel({
+			...refs,
+			viewRequest: { type: "remote", refId: viewIdFor(mockFirstRef) },
+		});
+
+		expect(screen.getByRole("link", { name: "View PR" })).toHaveAttribute(
+			"href",
+			mockFirstRef.url,
+		);
+	});
+
+	it("opens on the requested repo when the request comes before mount", async () => {
+		const user = userEvent.setup();
+		const input = mockComposer();
+		const otherRoot = "/workspace/another-repo";
+		renderPanel({
+			repositories: new Map([
+				[otherRoot, { ...repo, repo_root: otherRoot }],
+				[repoRoot, repo],
+			]),
+			chatInputRef: { current: input },
+			viewRequest: { type: "local", repoRoot },
+		});
+
+		await user.click(screen.getByRole("button", { name: "Commit" }));
+
+		expect(input.insertText).toHaveBeenCalledWith(commitPrompt);
+	});
+
+	it("falls back to the primary ref when the requested ref is gone", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "getChatDiffContents").mockResolvedValue(
+			mockDiffContents,
+		);
+		const { rerenderPanel } = renderPanel(refs);
+		await user.click(screen.getByRole("button", { name: "Switch git view" }));
+		await user.click(
+			within(await screen.findByRole("menu")).getByText("PR #23020"),
+		);
+
+		rerenderPanel({
+			...refs,
+			viewRequest: { type: "remote", refId: "remote:gone:branch" },
+		});
+
+		expect(screen.getByRole("link", { name: "View PR" })).toHaveAttribute(
+			"href",
+			mockPrimaryRef.url,
+		);
 	});
 });

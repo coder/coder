@@ -7,8 +7,9 @@ import {
 	type ChatOverview,
 	ChatOverviewCardView,
 	getOverviewCost,
-	type OverviewTabId,
+	type OverviewTarget,
 } from "./ChatOverviewCard";
+import { viewIdFor } from "./GitPanel/GitPanel";
 
 const mockChatOverview: ChatOverview = {
 	cost: { total_cost_micros: 1_250_000, unpriced_request_count: 0 },
@@ -39,7 +40,7 @@ const mockChatOverview: ChatOverview = {
 };
 
 const renderCard = (overview = mockChatOverview) => {
-	const onOpenTab = vi.fn<(tabId: OverviewTabId) => void>();
+	const onOpenTab = vi.fn<(target: OverviewTarget) => void>();
 	const { router } = render(
 		<ChatOverviewCardView overview={overview} onOpenTab={onOpenTab} />,
 	);
@@ -56,19 +57,31 @@ const withSubagentStatuses = (statuses: ChatStatus[]): ChatOverview => ({
 });
 
 describe("ChatOverviewCardView", () => {
-	it.each<{ name: RegExp; tab: OverviewTabId }>([
-		{ name: /Cost/, tab: "summary" },
-		{ name: /ci\/queue-only-jobs/, tab: "git" },
-		{ name: /#123 Queue jobs/, tab: "git" },
-		{ name: /plan\.html/, tab: "summary" },
-	])("opens the $tab tab from the row named $name", async ({ name, tab }) => {
-		const user = userEvent.setup();
-		const { onOpenTab } = renderCard();
+	it.each<{ name: RegExp; target: OverviewTarget }>([
+		{ name: /Cost/, target: { tabId: "summary" } },
+		{
+			name: /ci\/queue-only-jobs/,
+			target: { tabId: "git", view: { type: "local", repoRoot: "/repo" } },
+		},
+		{
+			name: /#123 Queue jobs/,
+			target: {
+				tabId: "git",
+				view: { type: "remote", refId: viewIdFor(MockChatDiffStatus) },
+			},
+		},
+		{ name: /plan\.html/, target: { tabId: "summary" } },
+	])(
+		"opens $target.tabId from the row named $name",
+		async ({ name, target }) => {
+			const user = userEvent.setup();
+			const { onOpenTab } = renderCard();
 
-		await user.click(screen.getByRole("button", { name }));
+			await user.click(screen.getByRole("button", { name }));
 
-		expect(onOpenTab).toHaveBeenCalledExactlyOnceWith(tab);
-	});
+			expect(onOpenTab).toHaveBeenCalledExactlyOnceWith(target);
+		},
+	);
 
 	it("opens the child chat from a subagent row", async () => {
 		const user = userEvent.setup();

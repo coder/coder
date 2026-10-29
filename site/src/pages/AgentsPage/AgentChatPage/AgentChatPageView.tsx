@@ -34,7 +34,10 @@ import {
 
 import { QueuedForCapacityCallout } from "../components/ChatConversation/QueuedForCapacityCallout";
 import { DesktopPanelContext } from "../components/ChatElements/tools/DesktopPanelContext";
-import { ChatOverviewCard } from "../components/ChatOverviewCard";
+import {
+	ChatOverviewCard,
+	type OverviewTarget,
+} from "../components/ChatOverviewCard";
 import type { SendChatMessageOptions } from "../components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "../components/ChatPageContent";
 import { ChatSummaryPanel } from "../components/ChatSummaryPanel";
@@ -339,6 +342,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	const [isOverviewOpen, setIsOverviewOpen] = useState(
 		getPersistedOverviewCardOpen,
 	);
+	const [overviewTarget, setOverviewTarget] = useState<OverviewTarget>();
 	const toggleOverview = () => {
 		savePersistedOverviewCardOpen(!isOverviewOpen);
 		setIsOverviewOpen(!isOverviewOpen);
@@ -519,6 +523,13 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		setSidebarTabId(tabId);
 	};
 
+	// A card row unmounts the card, so the panel takes focus and, for Git,
+	// opens the row's view.
+	const openOverviewTarget = (target: OverviewTarget) => {
+		setOverviewTarget(target);
+		activateRightPanelTab(target.tabId);
+	};
+
 	const showSingletonTab = (tabId: SingletonRightPanelTabId) => {
 		setVisibleSingletonTabsState((currentTabIds) =>
 			currentTabIds.includes(tabId) ? currentTabIds : [...currentTabIds, tabId],
@@ -684,6 +695,9 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 						remoteDiffStats={chat.diff_statuses}
 						primaryDiffStatus={chat.diff_status}
 						chatInputRef={editing.chatInputRef}
+						viewRequest={
+							overviewTarget?.tabId === "git" ? overviewTarget.view : undefined
+						}
 					/>
 				);
 			case "browser":
@@ -900,7 +914,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										repositories={gitWatcher.repositories}
 										hasMoreMessages={hasMoreMessages}
 										isHydratingMessages={isHydratingMessages}
-										onOpenTab={activateRightPanelTab}
+										onOpenTab={openOverviewTarget}
 									/>
 								)}
 							</div>
@@ -1029,6 +1043,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									setIsRightPanelExpanded((prev) => !prev)
 								}
 								chatTitle={chat.title}
+								focusRequest={overviewTarget}
 							/>
 						</RightPanel>
 					</div>

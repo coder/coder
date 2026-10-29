@@ -50,13 +50,16 @@ import {
 import { LocalDiffPanel } from "../DiffViewer/LocalDiffPanel";
 import { RemoteDiffPanel } from "../DiffViewer/RemoteDiffPanel";
 
-type GitView =
+/** A Git panel view: a tracked ref's diff, or a repo's local changes. */
+export type GitView =
 	| { type: "remote"; refId: string }
 	| { type: "local"; repoRoot: string };
 
-// The view id for a tracked ref. Rows without origin and branch
-// share the empty-key id.
-const viewIdFor = (status: ChatDiffStatus): string =>
+/**
+ * The view id for a tracked ref. Rows without origin and branch share the
+ * empty-key id.
+ */
+export const viewIdFor = (status: ChatDiffStatus): string =>
 	`remote:${status.remote_origin ?? ""}:${status.git_branch ?? ""}`;
 
 // A keyless row predates the keyed schema and the API cannot select
@@ -156,6 +159,12 @@ type GitPanelProps = {
 	 * file and then reverts it.
 	 */
 	everDirty: ReadonlySet<string>;
+	/**
+	 * A view to show. Each new object switches the view once, mounted or
+	 * not, and the user can switch away after. A view that no longer exists
+	 * falls back like any other stale view.
+	 */
+	viewRequest?: GitView;
 };
 
 /** The last path segment of `repoRoot`, or `repoRoot` when it has none. */
@@ -305,6 +314,7 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 	primaryDiffStatus,
 	chatInputRef,
 	everDirty,
+	viewRequest,
 }) => {
 	const showRemoteTab = (remoteDiffStats?.length ?? 0) > 0;
 	const hasGitContext = repositories.size > 0 || showRemoteTab;
@@ -319,11 +329,21 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 		? viewIdFor(primaryDiffStatus)
 		: "remote";
 	const [view, setView] = useState<GitView>(() => {
+		if (viewRequest) {
+			return viewRequest;
+		}
 		if (!showRemoteTab && localRepos.length > 0) {
 			return { type: "local", repoRoot: localRepos[0] };
 		}
 		return { type: "remote", refId: primaryRefId };
 	});
+	const [appliedViewRequest, setAppliedViewRequest] = useState(viewRequest);
+	if (viewRequest !== appliedViewRequest) {
+		setAppliedViewRequest(viewRequest);
+		if (viewRequest) {
+			setView(viewRequest);
+		}
+	}
 
 	const [diffStyle, setDiffStyle] = useState<DiffStyle>(loadDiffStyle);
 
