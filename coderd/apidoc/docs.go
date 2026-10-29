@@ -7099,7 +7099,7 @@ const docTemplate = `{
         },
         "/api/v2/notifications/dispatch-methods": {
             "get": {
-                "description": "Returns the delivery methods this deployment supports for notifications, and the default method.\nThe inbox method isn't listed, because it's an implicit delivery target.",
+                "description": "Returns the available notification delivery methods and the default method this deployment uses.\nThe inbox method isn't listed, because it's an implicit delivery target.",
                 "produces": [
                     "application/json"
                 ],

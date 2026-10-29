@@ -176,7 +176,7 @@ func (api *API) customNotificationTemplates(rw http.ResponseWriter, r *http.Requ
 }
 
 // @Summary Get notification dispatch methods
-// @Description Returns the delivery methods this deployment supports for notifications, and the default method.
+// @Description Returns the available notification delivery methods and the default method this deployment uses.
 // @Description The inbox method isn't listed, because it's an implicit delivery target.
 // @ID get-notification-dispatch-methods
 // @Security CoderSessionToken

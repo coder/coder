@@ -80,7 +80,7 @@ curl -X GET http://coder-server:8080/api/v2/notifications/dispatch-methods \
 
 `GET /api/v2/notifications/dispatch-methods`
 
-Returns the delivery methods this deployment supports for notifications, and the default method.
+Returns the available notification delivery methods and the default method this deployment uses.
 The inbox method isn't listed, because it's an implicit delivery target.
 
 ### Example responses
