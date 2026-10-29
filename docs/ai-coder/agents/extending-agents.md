@@ -213,6 +213,8 @@ A [custom role](../../admin/users/groups-roles.md#custom-roles) can grant the sa
 Auditors get a read-only view of the page.
 Coder records organization skill changes, including permission changes, in the audit log.
 
+To let members turn off organization skills for their own chats, refer to [Let members turn off organization skills](./platform-controls/organizations.md#let-members-turn-off-organization-skills).
+
 ### Control who can use an organization skill
 
 Each organization skill has a list of the groups and members who can use it.
@@ -247,8 +249,20 @@ To read a skill, open its row menu and select **View**, which shows its name, de
 To save its `SKILL.md` content as a file, select **Download** instead.
 To save all of the listed skills of the selected organization in one archive, select **Export all**.
 
-This section is read-only.
+You can't change the content of an organization skill here.
 Ask an organization admin to change an organization skill.
+
+### Turn off organization skills for your chats
+
+When an administrator [lets members turn off organization skills](./platform-controls/organizations.md#let-members-turn-off-organization-skills), the **From your organizations** section shows two kinds of switches:
+
+- **Use organization skills in my chats** turns every skill of the selected organization off or on for your chats.
+  While it's off, none of the organization's skills load, including skills added later, and Coder keeps your choices for individual skills.
+- The switch in each skill's **Enabled** column turns that skill off or on for your chats.
+  These switches are unavailable while **Use organization skills in my chats** is off.
+
+When the organization doesn't let members turn off organization skills, the section is read-only.
+An organization stays in the picker after you turn off all of its skills, so you can turn them back on.
 
 ## Project skills
 
@@ -275,25 +289,32 @@ It is experimental and might change.
 
 Personal, organization, and project skills are stored in Coder, not in the workspace.
 At each step, a chat loads the personal skills of the chat owner that are turned on, and the organization skills of the chat's organization that are turned on and that the chat owner can use.
+When the organization [lets members turn off organization skills](./platform-controls/organizations.md#let-members-turn-off-organization-skills), the chat skips the organization skills that the chat owner turned off, or every organization skill when the chat owner turned them all off.
+While that setting is off, the chat owner's choices have no effect.
 A chat in a project also loads the project's skills that are turned on, as long as the chat owner owns the project or the project is shared with them.
 Workspace skills come from the chat's pinned context snapshot.
 
 Because stored skills are read again at each step, a change takes effect on the chat's next step.
 For example, when an administrator turns off an organization skill or removes someone's access, the chat stops listing that skill on its next step.
+The same happens when you turn off an organization skill for your chats.
 
 The `/` menu in the chat composer lists skills in four groups: **Personal skills**, **Organization skills**, **Project skills**, and **Workspace skills**.
 The **Project skills** group appears only in chats that belong to a project.
 The **Organization skills** group shows the skills of the chat's organization that are turned on and that you can use.
 For site owners, organization admins, and auditors, the group lists every organization skill that is turned on.
+The group leaves out the organization skills that you turned off for your chats.
 
 ### Turn a skill on or off
 
 Personal, organization, and project skills each have an **Enabled** column in their skills table.
 If you can edit the skill, the column shows a switch that turns the skill on or off.
 Otherwise, the column shows a check mark for a skill that is turned on and an X for a skill that is turned off.
-For example, auditors on the **Skills** admin page and everyone in the **From your organizations** section see these icons instead of a switch.
+For example, auditors on the **Skills** admin page see these icons instead of a switch.
+In the **From your organizations** section, the column shows these icons unless the organization lets members turn off organization skills.
+In that case, the column shows a switch that turns the skill off or on for your chats only, without changing it for anyone else.
 A skill that is turned off stays stored, but it is hidden from the `/` menu and from the list of skills the agent can choose from.
 If the agent asks for a skill that is turned off, `read_skill` reports that the skill was not found.
+The same applies to an organization skill that the chat owner turned off for their chats.
 When a chat has no skills left to load, the agent doesn't get the `read_skill` tool at all.
 A chat that has only workspace skills that set `disable-model-invocation: true` still gets `read_skill` and `read_skill_file`.
 

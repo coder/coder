@@ -368,6 +368,13 @@ const organizationSkillPath = (organizationId: string, name: string) =>
 	`${organizationSkillsPath(organizationId)}/${encodeURIComponent(name)}`;
 const organizationSkillACLPath = (organizationId: string, name: string) =>
 	`${organizationSkillPath(organizationId, name)}/acl`;
+const organizationSkillSettingsPath = (organizationId: string) =>
+	`/api/experimental/organizations/${encodeURIComponent(organizationId)}/skill-settings`;
+const organizationSkillPreferencesPath = (
+	organizationId: string,
+	user: string,
+) =>
+	`/api/experimental/organizations/${encodeURIComponent(organizationId)}/members/${encodeURIComponent(user)}/skill-preferences`;
 const chatProjectSkillsPath = (organizationId: string, projectId: string) =>
 	`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}/skills`;
 const chatProjectSkillPath = (
@@ -4076,6 +4083,50 @@ class ExperimentalApiMethods {
 		req: TypesGen.UpdateOrganizationSkillACLRequest,
 	): Promise<void> => {
 		await this.axios.patch(organizationSkillACLPath(organizationId, name), req);
+	};
+
+	getOrganizationSkillSettings = async (
+		organizationId: string,
+	): Promise<TypesGen.OrganizationSkillSettings> => {
+		const response = await this.axios.get<TypesGen.OrganizationSkillSettings>(
+			organizationSkillSettingsPath(organizationId),
+		);
+		return response.data;
+	};
+
+	updateOrganizationSkillSettings = async (
+		organizationId: string,
+		req: TypesGen.UpdateOrganizationSkillSettingsRequest,
+	): Promise<TypesGen.OrganizationSkillSettings> => {
+		const response = await this.axios.put<TypesGen.OrganizationSkillSettings>(
+			organizationSkillSettingsPath(organizationId),
+			req,
+		);
+		return response.data;
+	};
+
+	getOrganizationSkillPreferences = async (
+		organizationId: string,
+		user = "me",
+	): Promise<TypesGen.OrganizationSkillPreferences> => {
+		const response =
+			await this.axios.get<TypesGen.OrganizationSkillPreferences>(
+				organizationSkillPreferencesPath(organizationId, user),
+			);
+		return response.data;
+	};
+
+	updateOrganizationSkillPreferences = async (
+		organizationId: string,
+		req: TypesGen.UpdateOrganizationSkillPreferencesRequest,
+		user = "me",
+	): Promise<TypesGen.OrganizationSkillPreferences> => {
+		const response =
+			await this.axios.patch<TypesGen.OrganizationSkillPreferences>(
+				organizationSkillPreferencesPath(organizationId, user),
+				req,
+			);
+		return response.data;
 	};
 
 	getUserChatCompactionThresholds =
