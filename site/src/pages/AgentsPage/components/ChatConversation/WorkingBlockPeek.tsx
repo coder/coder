@@ -6,12 +6,12 @@ import {
 	motion,
 	type Transition,
 } from "motion/react";
-import { useState } from "react";
+import { createContext, useContext, useState } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useMessageScrollerUserLayoutIntent } from "#/vendor/message-scroller";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { Tool } from "../ChatElements/tools/Tool";
-import { ToolCall } from "../ChatElements/tools/ToolCall";
+import { ToolCall, branchGeometry } from "../ChatElements/tools/ToolCall";
 import { ReasoningDisclosure } from "./MessageText";
 import { getVisibleContent } from "./messageHelpers";
 import type { MergedTool, RenderBlock } from "./types";
@@ -70,7 +70,6 @@ export const collectPeekItems = (
 	return [...byKey.values()];
 };
 
-const PEEK_ROWS = 2;
 const ROW_HEIGHT = 24;
 const ROW_GAP = 8;
 const ROW_PITCH = ROW_HEIGHT + ROW_GAP;
@@ -87,7 +86,23 @@ const rowsHeight = (count: number) =>
 const EDGE = 12;
 /** The gap between the summary row and the rail, as the expanded block has. */
 const RAIL_GAP = 6;
-const edgeMask = `linear-gradient(to bottom, transparent, #000 ${EDGE}px, #000 calc(100% - ${EDGE}px), transparent)`;
+const ROW_INSET = branchGeometry.railOffset;
+/** `--peek-top` is the top fade's height, animated on the container. */
+const edgeMask = `linear-gradient(to bottom, transparent, #000 var(--peek-top), #000 calc(100% - ${EDGE}px), transparent)`;
+const railMask = `linear-gradient(to bottom, transparent, #000 calc(var(--peek-top) - ${RAIL_GAP}px))`;
+
+/** PROTOTYPE: the variants under review, both on outside the stories. */
+export type PeekVariants = {
+	/** A third, older row sits half faded at the top: there is more above. */
+	fadedRow: boolean;
+	/** Running rows branch off the rail, like the summary row's icon. */
+	branches: boolean;
+};
+
+export const PeekVariantsContext = createContext<PeekVariants>({
+	fadedRow: true,
+	branches: true,
+});
 
 /**
  * Every moving part shares one curve that lands, so rows and the window
@@ -104,6 +119,9 @@ type ToolContext = {
 	subagentTitles: Map<string, string>;
 	subagentVariants: Map<string, SubagentVariant>;
 };
+
+const isRunning = (item: PeekItem) =>
+	item.kind === "tool" ? item.tool.status === "running" : item.isStreaming;
 
 const PeekRow: React.FC<{ item: PeekItem } & ToolContext> = ({
 	item,
@@ -164,7 +182,8 @@ export const WorkingBlockPeek: React.FC<WorkingBlockPeekProps> = ({
 	onExpand,
 	...ctx
 }) => {
-	const shown = items.slice(-PEEK_ROWS);
+	const { fadedRow, branches } = useContext(PeekVariantsContext);
+	const shown = items.slice(fadedRow ? -3 : -2);
 
 	// Slots are handed out in arrival order and never reused, so a row keeps
 	// its slot from the moment it appears until it has faded out above.
@@ -184,6 +203,16 @@ export const WorkingBlockPeek: React.FC<WorkingBlockPeekProps> = ({
 	// The window follows the newest row, so it always shows.
 	const newestSlot = Math.max(0, ...shown.map(slotOf));
 	const trackOffset = -(newestSlot - (shown.length - 1)) * ROW_PITCH;
+	// With a faded row, the top fade spans it, so the oldest row dims as the
+	// track carries it up and dissolves before it reaches the summary row.
+	const topFade = fadedRow && shown.length > 2 ? EDGE + ROW_PITCH : EDGE;
+	// A running newest row ends the rail in its branch, like the icon's last
+	// item; otherwise the rail runs past the rows.
+	const newest = shown.at(-1);
+	const railInset =
+		branches && newest && isRunning(newest)
+			? EDGE + ROW_HEIGHT / 2 + branchGeometry.rise - 1
+			: 0;
 
 	const userLayoutIntent = useMessageScrollerUserLayoutIntent();
 	if (shown.length === 0) {
@@ -198,48 +227,74 @@ export const WorkingBlockPeek: React.FC<WorkingBlockPeekProps> = ({
 					userLayoutIntent(event.currentTarget, { revealEnd: true });
 					onExpand();
 				}}
-				className="ml-2 flex cursor-pointer flex-col border-0 border-l border-solid border-border pl-4 hover:[&_.text-content-secondary]:text-content-primary"
+				className="ml-2 flex cursor-pointer flex-col hover:[&_.text-content-secondary]:text-content-primary"
 				style={{ marginTop: RAIL_GAP }}
 			>
 				<motion.div
-					data-peek-window=""
-					className="relative overflow-hidden"
-					style={{
-						marginTop: -RAIL_GAP,
-						maskImage: edgeMask,
-						WebkitMaskImage: edgeMask,
-					}}
+					className="relative flex flex-col"
 					initial={false}
-					animate={{ height: rowsHeight(shown.length) + 2 * EDGE }}
+					animate={{ "--peek-top": `${topFade}px` }}
 					transition={slide}
 				>
 					<motion.div
-						className="absolute inset-x-0"
-						style={{ top: EDGE }}
+						aria-hidden
+						className="pointer-events-none absolute top-0 left-0 w-px bg-border"
+						style={
+							fadedRow
+								? { maskImage: railMask, WebkitMaskImage: railMask }
+								: undefined
+						}
 						initial={false}
-						animate={{ y: trackOffset }}
+						animate={{ bottom: railInset }}
+						transition={slide}
+					/>
+					<motion.div
+						data-peek-window=""
+						className="relative overflow-hidden"
+						style={{
+							marginTop: -RAIL_GAP,
+							maskImage: edgeMask,
+							WebkitMaskImage: edgeMask,
+						}}
+						initial={false}
+						animate={{ height: rowsHeight(shown.length) + 2 * EDGE }}
 						transition={slide}
 					>
-						<ToolCall.SummaryProvider>
-							<AnimatePresence initial={false}>
-								{shown.map((item) => (
-									<motion.div
-										key={item.key}
-										data-peek-row={item.key}
-										className="absolute inset-x-0 h-6 overflow-hidden"
-										style={{ top: slotOf(item) * ROW_PITCH }}
-										// Stays mounted until the track has carried it past
-										// the top edge.
-										exit={{
-											opacity: 0,
-											transition: { delay: slide.duration, duration: 0 },
-										}}
-									>
-										<PeekRow item={item} {...ctx} />
-									</motion.div>
-								))}
-							</AnimatePresence>
-						</ToolCall.SummaryProvider>
+						<motion.div
+							className="absolute right-0"
+							style={{ top: EDGE, left: ROW_INSET }}
+							initial={false}
+							animate={{ y: trackOffset }}
+							transition={slide}
+						>
+							<ToolCall.SummaryProvider>
+								<ToolCall.BranchProvider enabled={branches}>
+									<AnimatePresence initial={false}>
+										{shown.map((item) => (
+											<motion.div
+												key={item.key}
+												data-peek-row={item.key}
+												className="absolute inset-x-0 h-6"
+												style={{
+													top: slotOf(item) * ROW_PITCH,
+													// Clips like overflow-hidden, but leaves room on
+													// the left for the row's branch to reach the rail.
+													clipPath: `inset(0 0 0 -${ROW_INSET + 4}px)`,
+												}}
+												// Stays mounted until the track has carried it past
+												// the top edge.
+												exit={{
+													opacity: 0,
+													transition: { delay: slide.duration, duration: 0 },
+												}}
+											>
+												<PeekRow item={item} {...ctx} />
+											</motion.div>
+										))}
+									</AnimatePresence>
+								</ToolCall.BranchProvider>
+							</ToolCall.SummaryProvider>
+						</motion.div>
 					</motion.div>
 				</motion.div>
 			</div>

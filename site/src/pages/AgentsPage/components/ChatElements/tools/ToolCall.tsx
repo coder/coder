@@ -69,6 +69,31 @@ const SummaryProvider: React.FC<{ children: React.ReactNode }> = ({
 	</ToolCallSummaryContext.Provider>
 );
 
+/**
+ * PROTOTYPE: running rows inside draw a branch to the working block's rail,
+ * like the working block icon's branches.
+ */
+const ToolCallBranchContext = createContext(false);
+
+/**
+ * PROTOTYPE: the rail runs `railOffset` left of the rows (the working block's
+ * 1px border and 16px padding), and a branch rises `rise` above the header
+ * row's center, so a rail ending inside it reads as one stroke.
+ */
+export const branchGeometry = { railOffset: 17, rise: 16 } as const;
+
+/** Half the 24px header row: where a branch turns into the row. */
+const HEADER_CENTER = 12;
+
+const BranchProvider: React.FC<{
+	enabled: boolean;
+	children: React.ReactNode;
+}> = ({ enabled, children }) => (
+	<ToolCallBranchContext.Provider value={enabled}>
+		{children}
+	</ToolCallBranchContext.Provider>
+);
+
 // Some renderer branches render no `ToolCall.Header`, so emitting the
 // badge here rather than in the header keeps attribution on those cards.
 const PolicyProvider: React.FC<{
@@ -168,6 +193,7 @@ const Root: React.FC<ToolCallRootProps> = ({
 				: "collapsed";
 	const view = controlledView ?? uncontrolledView;
 	const summary = useContext(ToolCallSummaryContext);
+	const branch = useContext(ToolCallBranchContext);
 	const expanded = view !== "collapsed";
 	const collapsible = hasContent && !summary;
 	const active = status === "running";
@@ -198,8 +224,26 @@ const Root: React.FC<ToolCallRootProps> = ({
 				view,
 			}}
 		>
-			<div className={className} {...divProps}>
-				{children}
+			<div className={cn(branch && "relative", className)} {...divProps}>
+				{branch && (
+					// It retracts toward the rail when the row stops running.
+					<span
+						aria-hidden
+						className="pointer-events-none absolute rounded-bl-md border-0 border-b border-l border-solid border-border transition-[clip-path] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none"
+						style={{
+							left: -branchGeometry.railOffset,
+							top: HEADER_CENTER - branchGeometry.rise,
+							height: branchGeometry.rise,
+							// Stops short of the row's icon.
+							width: branchGeometry.railOffset - 3,
+							clipPath: active ? "inset(0 0 0 0)" : "inset(0 100% 0 0)",
+						}}
+					/>
+				)}
+				{/* Nested rows, such as a sub-agent's tools, sit off the rail. */}
+				<ToolCallBranchContext.Provider value={false}>
+					{children}
+				</ToolCallBranchContext.Provider>
 			</div>
 		</ToolCallContext.Provider>
 	);
@@ -527,6 +571,7 @@ export const ToolCall = {
 	Root,
 	PolicyProvider,
 	SummaryProvider,
+	BranchProvider,
 	HeaderRow,
 	HeaderButton,
 	LeadingIcon,

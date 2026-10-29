@@ -1,11 +1,19 @@
 import { ListTreeIcon } from "lucide-react";
 import { AnimatePresence, animate, motion, usePresence } from "motion/react";
-import { Component, useEffect, useEffectEvent, useRef, useState } from "react";
+import {
+	Component,
+	useContext,
+	useEffect,
+	useEffectEvent,
+	useRef,
+	useState,
+} from "react";
 import { useTime } from "#/hooks/useTime";
 import { humanDurationShort } from "#/utils/time";
 import { useMessageScrollerLayoutSync } from "#/vendor/message-scroller";
 import { ToolCall } from "../ChatElements/tools/ToolCall";
 import {
+	PeekVariantsContext,
 	slide,
 	WorkingBlockPeek,
 	type WorkingBlockPeekProps,
@@ -109,6 +117,8 @@ const getScrollParent = (element: HTMLElement): HTMLElement | null => {
 
 type WorkingBlockContentProps = {
 	memberIds: readonly number[];
+	/** PROTOTYPE: running rows branch off the rail. */
+	branches: boolean;
 	children: React.ReactNode;
 };
 
@@ -161,7 +171,9 @@ class WorkingBlockContent extends Component<WorkingBlockContentProps> {
 				}}
 				className="mt-1.5 flex flex-col gap-2 border-0 border-l border-solid border-border ml-2 pl-4"
 			>
-				{this.props.children}
+				<ToolCall.BranchProvider enabled={this.props.branches}>
+					{this.props.children}
+				</ToolCall.BranchProvider>
 			</div>
 		);
 	}
@@ -249,6 +261,7 @@ export const WorkingBlockDisclosure: React.FC<WorkingBlockDisclosureProps> = ({
 	peek,
 	children,
 }) => {
+	const { branches } = useContext(PeekVariantsContext);
 	// A page that loads mid-turn, or a reader collapsing the block, shows the
 	// peek at once; only a block that just formed grows it in.
 	const [peekGrowsIn] = useState(
@@ -295,7 +308,10 @@ export const WorkingBlockDisclosure: React.FC<WorkingBlockDisclosureProps> = ({
 				</AnimatePresence>
 			)}
 			<ToolCall.Content>
-				<WorkingBlockContent memberIds={block.memberIds}>
+				<WorkingBlockContent
+					memberIds={block.memberIds}
+					branches={peek !== undefined && branches && block.isLive}
+				>
 					{children}
 				</WorkingBlockContent>
 			</ToolCall.Content>

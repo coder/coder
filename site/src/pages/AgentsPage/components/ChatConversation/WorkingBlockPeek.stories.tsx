@@ -7,7 +7,7 @@ import {
 	RotateCcwIcon,
 	StepForwardIcon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { defaultUrlTransform } from "streamdown";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -26,6 +26,7 @@ import {
 	MockCollapsedStepsPreferences,
 	pinFixtureClock,
 } from "./storyFixtures";
+import { type PeekVariants, PeekVariantsContext } from "./WorkingBlockPeek";
 
 const LinearMCPServer: TypesGen.MCPServerConfig = {
 	...MockMCPServerConfig,
@@ -417,6 +418,8 @@ const simulate = (times: readonly number[]): SimState =>
 type TimelinePaneProps = {
 	state: SimState;
 	peek: boolean;
+	/** The peek variants to render; the defaults when unset. */
+	variants?: PeekVariants;
 	title?: string;
 	height: number;
 };
@@ -424,9 +427,11 @@ type TimelinePaneProps = {
 const TimelinePane: React.FC<TimelinePaneProps> = ({
 	state,
 	peek,
+	variants,
 	title,
 	height,
 }) => {
+	const defaultVariants = useContext(PeekVariantsContext);
 	const parsedMessages = parseMessagesWithMergedTools(state.messages, {
 		pendingToolCallIDs: new Set(state.pending),
 	});
@@ -452,34 +457,36 @@ const TimelinePane: React.FC<TimelinePaneProps> = ({
 				style={{ height }}
 			>
 				<MessageScroller.Provider autoScroll defaultScrollPosition="end">
-					<ChatMessageScroller
-						hasMoreMessages={false}
-						isFetchingMoreMessages={false}
-						isHydratingMessages={false}
-						hasFetchMoreError={false}
-						hasTranscriptRows
-						onFetchMoreMessages={async () => {}}
-					>
-						<ConversationTimeline
+					<PeekVariantsContext.Provider value={variants ?? defaultVariants}>
+						<ChatMessageScroller
 							hasMoreMessages={false}
-							chatStatus={state.status}
-							organizationId="organization-id"
-							parsedMessages={parsedMessages}
-							streamState={live.streamState}
-							streamTools={live.streamTools}
-							liveStatus={live.liveStatus}
-							subagentStatusOverrides={new Map()}
-							subagentTitles={subagentTitles}
-							subagentVariants={new Map()}
-							isChatCompleted={state.status !== "running"}
-							urlTransform={defaultUrlTransform}
-							mcpServers={[LinearMCPServer]}
-							showDesktopPreviews={false}
-							hasActiveStream={state.stream !== null}
-							isAwaitingFirstStreamChunk={false}
-							workingBlockPeek={peek}
-						/>
-					</ChatMessageScroller>
+							isFetchingMoreMessages={false}
+							isHydratingMessages={false}
+							hasFetchMoreError={false}
+							hasTranscriptRows
+							onFetchMoreMessages={async () => {}}
+						>
+							<ConversationTimeline
+								hasMoreMessages={false}
+								chatStatus={state.status}
+								organizationId="organization-id"
+								parsedMessages={parsedMessages}
+								streamState={live.streamState}
+								streamTools={live.streamTools}
+								liveStatus={live.liveStatus}
+								subagentStatusOverrides={new Map()}
+								subagentTitles={subagentTitles}
+								subagentVariants={new Map()}
+								isChatCompleted={state.status !== "running"}
+								urlTransform={defaultUrlTransform}
+								mcpServers={[LinearMCPServer]}
+								showDesktopPreviews={false}
+								hasActiveStream={state.stream !== null}
+								isAwaitingFirstStreamChunk={false}
+								workingBlockPeek={peek}
+							/>
+						</ChatMessageScroller>
+					</PeekVariantsContext.Provider>
 				</MessageScroller.Provider>
 			</div>
 		</div>
@@ -492,12 +499,57 @@ type DemoArgs = {
 	compare: boolean;
 	/** Off renders today's collapsed block, for side-by-side measurements. */
 	peek: boolean;
+	fadedRow: boolean;
+	branches: boolean;
+	/** Four panes: the plain peek, each variant alone, and both together. */
+	variantGrid: boolean;
 	/** A short pane makes the turn outgrow it, so the view follows the end. */
 	paneHeight: number;
 };
 
+type Pane = {
+	key: string;
+	title?: string;
+	peek: boolean;
+	variants: PeekVariants;
+};
+
+const variantPanes: readonly Pane[] = [
+	{
+		key: "plain",
+		title: "Peek",
+		peek: true,
+		variants: { fadedRow: false, branches: false },
+	},
+	{
+		key: "faded",
+		title: "Faded row",
+		peek: true,
+		variants: { fadedRow: true, branches: false },
+	},
+	{
+		key: "branches",
+		title: "Branches",
+		peek: true,
+		variants: { fadedRow: false, branches: true },
+	},
+	{
+		key: "both",
+		title: "Both",
+		peek: true,
+		variants: { fadedRow: true, branches: true },
+	},
+];
+
 /** Replays the script in real time, looping, with transport controls. */
-const LiveDemo: React.FC<DemoArgs> = ({ compare, peek, paneHeight }) => {
+const LiveDemo: React.FC<DemoArgs> = ({
+	compare,
+	peek,
+	fadedRow,
+	branches,
+	variantGrid,
+	paneHeight,
+}) => {
 	const [run, setRun] = useState(0);
 	const [times, setTimes] = useState<number[]>(() => [Date.now()]);
 	const [playing, setPlaying] = useState(true);
@@ -523,6 +575,15 @@ const LiveDemo: React.FC<DemoArgs> = ({ compare, peek, paneHeight }) => {
 
 	const state = simulate(times);
 	const event = script[index];
+	const variants = { fadedRow, branches };
+	let panes: readonly Pane[] = [
+		{ key: "peek", title: compare ? "With peek" : undefined, peek, variants },
+	];
+	if (variantGrid) {
+		panes = variantPanes;
+	} else if (compare) {
+		panes = [{ key: "today", title: "Today", peek: false, variants }, ...panes];
+	}
 
 	return (
 		<div className="flex max-w-5xl flex-col gap-3 p-4">
@@ -569,23 +630,17 @@ const LiveDemo: React.FC<DemoArgs> = ({ compare, peek, paneHeight }) => {
 					{`Event ${index + 1} of ${script.length}: ${event.type}`}
 				</span>
 			</div>
-			<div className="flex gap-4">
-				{compare && (
+			<div className={variantGrid ? "grid grid-cols-2 gap-4" : "flex gap-4"}>
+				{panes.map((pane) => (
 					<TimelinePane
-						key={`today-${run}`}
+						key={`${pane.key}-${run}`}
 						state={state}
-						peek={false}
-						title="Today"
+						peek={pane.peek}
+						variants={pane.variants}
+						title={pane.title}
 						height={paneHeight}
 					/>
-				)}
-				<TimelinePane
-					key={`peek-${run}`}
-					state={state}
-					peek={peek}
-					title={compare ? "With peek" : undefined}
-					height={paneHeight}
-				/>
+				))}
 			</div>
 		</div>
 	);
@@ -625,7 +680,14 @@ const meta: Meta<DemoArgs> = {
 			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
 		],
 	},
-	args: { compare: false, peek: true, paneHeight: 560 },
+	args: {
+		compare: false,
+		peek: true,
+		fadedRow: true,
+		branches: true,
+		variantGrid: false,
+		paneHeight: 560,
+	},
 	render: (args) => <LiveDemo {...args} />,
 };
 export default meta;
@@ -634,6 +696,11 @@ type Story = StoryObj<DemoArgs>;
 export const Live: Story = {};
 
 export const LiveCompare: Story = { args: { compare: true } };
+
+/** The plain peek, the faded row, the branches, and both, in lockstep. */
+export const LiveVariants: Story = {
+	args: { variantGrid: true, paneHeight: 400 },
+};
 
 /** The turn outgrows the pane, so the scroller follows its end. */
 export const LiveFollowingEnd: Story = { args: { paneHeight: 240 } };
