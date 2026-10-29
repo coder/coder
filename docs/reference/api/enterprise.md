@@ -2565,11 +2565,21 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 `GET /api/v2/organizations/{organization}/provisionerdaemons/serve`
 
+Upgrades the connection to a WebSocket that an external provisioner daemon uses to receive and run provisioner jobs, and `coder provisioner start` connects here.
+Authenticate with a provisioner key in the `Coder-Provisioner-Daemon-Key` header, with the deployment's pre-shared key in the `Coder-Provisioner-Daemon-PSK` header, or with a session token.
+Send `provisioner` (`echo` or `terraform`, repeatable) to say which provisioners the daemon runs, and optionally `name`, `version`, and `tag` (`key=value`, repeatable) to set the daemon's name, protocol version, and tags.
+A provisioner key sets the daemon's tags, so you can't send `tag` with one, and the key's organization applies instead of the organization in the path.
+A pre-shared key works only for the default organization.
+With a session token, any user can start a daemon with the tag `scope=user`, which runs only that user's jobs.
+Starting any other daemon with a session token requires permission to create provisioner daemons in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+The WebSocket carries a multiplexed dRPC connection, which the daemon uses to take jobs and report their results.
+Requires a Premium license.
+
 ### Parameters
 
-| Name           | In   | Type         | Required | Description     |
-|----------------|------|--------------|----------|-----------------|
-| `organization` | path | string(uuid) | true     | Organization ID |
+| Name           | In   | Type         | Required | Description                                                       |
+|----------------|------|--------------|----------|-------------------------------------------------------------------|
+| `organization` | path | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Responses
 
@@ -2592,11 +2602,16 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 `GET /api/v2/organizations/{organization}/provisionerkeys`
 
+Returns the provisioner keys in an organization, oldest first, without their secrets.
+The list leaves out the reserved `built-in`, `user-auth`, and `psk` keys, and returns only the keys you can read.
+Requires permission to read provisioner daemons in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires a Premium license.
+
 ### Parameters
 
-| Name           | In   | Type   | Required | Description     |
-|----------------|------|--------|----------|-----------------|
-| `organization` | path | string | true     | Organization ID |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -2652,11 +2667,17 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/provis
 
 `POST /api/v2/organizations/{organization}/provisionerkeys`
 
+Creates a provisioner key for an organization, which an external provisioner daemon uses to authenticate when it connects.
+Set `name` (at most 64 characters, unique in the organization, and not `built-in`, `user-auth`, or `psk`) and optionally `tags`.
+The response holds the key secret, which Coder stores only as a hash, so save it when you create the key.
+Requires permission to create provisioner daemons in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires a Premium license.
+
 ### Parameters
 
-| Name           | In   | Type   | Required | Description     |
-|----------------|------|--------|----------|-----------------|
-| `organization` | path | string | true     | Organization ID |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -2689,11 +2710,17 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 `GET /api/v2/organizations/{organization}/provisionerkeys/daemons`
 
+Returns each provisioner key in an organization, including the reserved `user-auth` key, with the provisioner daemons that connected with it and were seen recently.
+Use it to check which external provisioner daemons are connected.
+Returns only the keys you can read.
+Requires permission to read provisioner daemons in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires a Premium license.
+
 ### Parameters
 
-| Name           | In   | Type   | Required | Description     |
-|----------------|------|--------|----------|-----------------|
-| `organization` | path | string | true     | Organization ID |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -2813,12 +2840,17 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/prov
 
 `DELETE /api/v2/organizations/{organization}/provisionerkeys/{provisionerkey}`
 
+Deletes a provisioner key, and daemons that authenticated with it lose their connection.
+You can't delete the reserved `built-in`, `user-auth`, and `psk` keys.
+Requires permission to delete provisioner daemons in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+Requires a Premium license.
+
 ### Parameters
 
-| Name             | In   | Type   | Required | Description          |
-|------------------|------|--------|----------|----------------------|
-| `organization`   | path | string | true     | Organization ID      |
-| `provisionerkey` | path | string | true     | Provisioner key name |
+| Name             | In   | Type   | Required | Description                                                       |
+|------------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization`   | path | string | true     | Organization ID, name, or `default` for the default organization. |
+| `provisionerkey` | path | string | true     | Name of the provisioner key to delete.                            |
 
 ### Responses
 
@@ -3498,11 +3530,14 @@ curl -X GET http://coder-server:8080/api/v2/provisionerkeys/{provisionerkey} \
 
 `GET /api/v2/provisionerkeys/{provisionerkey}`
 
+Returns the details of the provisioner key that you authenticate with, without its secret.
+Authenticate with the key in the `Coder-Provisioner-Daemon-Key` header instead of a session token, and the response describes that key.
+
 ### Parameters
 
-| Name             | In   | Type   | Required | Description     |
-|------------------|------|--------|----------|-----------------|
-| `provisionerkey` | path | string | true     | Provisioner Key |
+| Name             | In   | Type   | Required | Description                                                                                                                                                   |
+|------------------|------|--------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `provisionerkey` | path | string | true     | Name of the provisioner key. The response describes the key in the `Coder-Provisioner-Daemon-Key` header, so Coder doesn't use this value to look the key up. |
 
 ### Example responses
 
@@ -3541,6 +3576,9 @@ curl -X GET http://coder-server:8080/api/v2/replicas \
 ```
 
 `GET /api/v2/replicas`
+
+Returns the Coder replicas that are active in the deployment, with each replica's hostname, relay address, database latency, and any error.
+Requires permission to read replicas, which the Owner role has.
 
 ### Example responses
 
@@ -4553,6 +4591,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaceproxies \
 
 `GET /api/v2/workspaceproxies`
 
+Returns the primary region and every workspace proxy, each with its health status, under `regions`.
+Returns only the proxies you can read, which every member can.
+Requires a Premium license.
+
 ### Example responses
 
 > 200 Response
@@ -4649,6 +4691,11 @@ curl -X POST http://coder-server:8080/api/v2/workspaceproxies \
 
 `POST /api/v2/workspaceproxies`
 
+Creates a workspace proxy and returns it along with a token that the proxy uses to authenticate to Coder.
+Set `name` (not `primary`), and optionally `display_name` and `icon`. Save the token, because the response is the only time you receive it unless you regenerate it.
+Requires permission to create workspace proxies, which the Owner role has.
+Requires a Premium license.
+
 > Body parameter
 
 ```json
@@ -4661,9 +4708,9 @@ curl -X POST http://coder-server:8080/api/v2/workspaceproxies \
 
 ### Parameters
 
-| Name   | In   | Type                                                                                   | Required | Description                    |
-|--------|------|----------------------------------------------------------------------------------------|----------|--------------------------------|
-| `body` | body | [codersdk.CreateWorkspaceProxyRequest](schemas.md#codersdkcreateworkspaceproxyrequest) | true     | Create workspace proxy request |
+| Name   | In   | Type                                                                                   | Required | Description                |
+|--------|------|----------------------------------------------------------------------------------------|----------|----------------------------|
+| `body` | body | [codersdk.CreateWorkspaceProxyRequest](schemas.md#codersdkcreateworkspaceproxyrequest) | true     | Workspace proxy to create. |
 
 ### Example responses
 
@@ -4720,11 +4767,14 @@ curl -X GET http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy} \
 
 `GET /api/v2/workspaceproxies/{workspaceproxy}`
 
+Returns a workspace proxy, including its health status.
+Requires a Premium license.
+
 ### Parameters
 
-| Name             | In   | Type         | Required | Description      |
-|------------------|------|--------------|----------|------------------|
-| `workspaceproxy` | path | string(uuid) | true     | Proxy ID or name |
+| Name             | In   | Type         | Required | Description                                                              |
+|------------------|------|--------------|----------|--------------------------------------------------------------------------|
+| `workspaceproxy` | path | string(uuid) | true     | Workspace proxy ID or name, or `primary` for the built-in primary proxy. |
 
 ### Example responses
 
@@ -4781,11 +4831,16 @@ curl -X DELETE http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy}
 
 `DELETE /api/v2/workspaceproxies/{workspaceproxy}`
 
+Deletes a workspace proxy, so Coder stops offering it as a region.
+You can't delete the primary proxy.
+Requires permission to delete workspace proxies, which the Owner role has.
+Requires a Premium license.
+
 ### Parameters
 
-| Name             | In   | Type         | Required | Description      |
-|------------------|------|--------------|----------|------------------|
-| `workspaceproxy` | path | string(uuid) | true     | Proxy ID or name |
+| Name             | In   | Type         | Required | Description                                                              |
+|------------------|------|--------------|----------|--------------------------------------------------------------------------|
+| `workspaceproxy` | path | string(uuid) | true     | Workspace proxy ID or name, or `primary` for the built-in primary proxy. |
 
 ### Example responses
 
@@ -4826,6 +4881,12 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy} 
 
 `PATCH /api/v2/workspaceproxies/{workspaceproxy}`
 
+Updates a workspace proxy's `name`, `display_name`, and `icon`, and returns the proxy.
+Set `regenerate_token` to `true` to issue a new token, which the response returns and which invalidates the old one.
+For the primary proxy, you can change only `display_name` and `icon`.
+Requires permission to update workspace proxies, which the Owner role has.
+Requires a Premium license.
+
 > Body parameter
 
 ```json
@@ -4840,10 +4901,10 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy} 
 
 ### Parameters
 
-| Name             | In   | Type                                                                   | Required | Description                    |
-|------------------|------|------------------------------------------------------------------------|----------|--------------------------------|
-| `workspaceproxy` | path | string(uuid)                                                           | true     | Proxy ID or name               |
-| `body`           | body | [codersdk.PatchWorkspaceProxy](schemas.md#codersdkpatchworkspaceproxy) | true     | Update workspace proxy request |
+| Name             | In   | Type                                                                   | Required | Description                                                                              |
+|------------------|------|------------------------------------------------------------------------|----------|------------------------------------------------------------------------------------------|
+| `workspaceproxy` | path | string(uuid)                                                           | true     | Workspace proxy ID or name, or `primary` for the built-in primary proxy.                 |
+| `body`           | body | [codersdk.PatchWorkspaceProxy](schemas.md#codersdkpatchworkspaceproxy) | true     | Workspace proxy fields to update. Set `regenerate_token` to `true` to issue a new token. |
 
 ### Example responses
 

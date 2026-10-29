@@ -19,11 +19,16 @@ import (
 )
 
 // @Summary Create provisioner key
+// @Description Creates a provisioner key for an organization, which an external provisioner daemon uses to authenticate when it connects.
+// @Description Set `name` (at most 64 characters, unique in the organization, and not `built-in`, `user-auth`, or `psk`) and optionally `tags`.
+// @Description The response holds the key secret, which Coder stores only as a hash, so save it when you create the key.
+// @Description Requires permission to create provisioner daemons in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+// @Description Requires a Premium license.
 // @ID create-provisioner-key
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Success 201 {object} codersdk.CreateProvisionerKeyResponse
 // @Router /api/v2/organizations/{organization}/provisionerkeys [post]
 func (api *API) postProvisionerKey(rw http.ResponseWriter, r *http.Request) {
@@ -100,11 +105,15 @@ func (api *API) postProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary List provisioner key
+// @Description Returns the provisioner keys in an organization, oldest first, without their secrets.
+// @Description The list leaves out the reserved `built-in`, `user-auth`, and `psk` keys, and returns only the keys you can read.
+// @Description Requires permission to read provisioner daemons in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+// @Description Requires a Premium license.
 // @ID list-provisioner-key
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Success 200 {object} []codersdk.ProvisionerKey
 // @Router /api/v2/organizations/{organization}/provisionerkeys [get]
 func (api *API) provisionerKeys(rw http.ResponseWriter, r *http.Request) {
@@ -121,11 +130,16 @@ func (api *API) provisionerKeys(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary List provisioner key daemons
+// @Description Returns each provisioner key in an organization, including the reserved `user-auth` key, with the provisioner daemons that connected with it and were seen recently.
+// @Description Use it to check which external provisioner daemons are connected.
+// @Description Returns only the keys you can read.
+// @Description Requires permission to read provisioner daemons in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+// @Description Requires a Premium license.
 // @ID list-provisioner-key-daemons
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Success 200 {object} []codersdk.ProvisionerKeyDaemons
 // @Router /api/v2/organizations/{organization}/provisionerkeys/daemons [get]
 func (api *API) provisionerKeyDaemons(rw http.ResponseWriter, r *http.Request) {
@@ -187,11 +201,15 @@ func (api *API) provisionerKeyDaemons(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Delete provisioner key
+// @Description Deletes a provisioner key, and daemons that authenticated with it lose their connection.
+// @Description You can't delete the reserved `built-in`, `user-auth`, and `psk` keys.
+// @Description Requires permission to delete provisioner daemons in the organization, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
+// @Description Requires a Premium license.
 // @ID delete-provisioner-key
 // @Security CoderSessionToken
 // @Tags Enterprise
-// @Param organization path string true "Organization ID"
-// @Param provisionerkey path string true "Provisioner key name"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
+// @Param provisionerkey path string true "Name of the provisioner key to delete."
 // @Success 204
 // @Router /api/v2/organizations/{organization}/provisionerkeys/{provisionerkey} [delete]
 func (api *API) deleteProvisionerKey(rw http.ResponseWriter, r *http.Request) {
@@ -222,11 +240,13 @@ func (api *API) deleteProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Fetch provisioner key details
+// @Description Returns the details of the provisioner key that you authenticate with, without its secret.
+// @Description Authenticate with the key in the `Coder-Provisioner-Daemon-Key` header instead of a session token, and the response describes that key.
 // @ID fetch-provisioner-key-details
 // @Security CoderProvisionerKey
 // @Produce json
 // @Tags Enterprise
-// @Param provisionerkey path string true "Provisioner Key"
+// @Param provisionerkey path string true "Name of the provisioner key. The response describes the key in the `Coder-Provisioner-Daemon-Key` header, so Coder doesn't use this value to look the key up."
 // @Success 200 {object} codersdk.ProvisionerKey
 // @Router /api/v2/provisionerkeys/{provisionerkey} [get]
 func (*API) fetchProvisionerKey(rw http.ResponseWriter, r *http.Request) {
