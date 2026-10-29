@@ -70,7 +70,7 @@ func (api *API) postOAuth2ProviderApp() http.HandlerFunc {
 // @Produce json
 // @Tags Enterprise
 // @Param app path string true "OAuth2 application ID."
-// @Param request body codersdk.PutOAuth2ProviderAppRequest true "New settings for the OAuth2 application. Omit `redirect_uris` to keep the stored redirect URIs, and omit `scope` to keep the scope allowlist. Omitting `icon` clears it."
+// @Param request body codersdk.PutOAuth2ProviderAppRequest true "New settings for the OAuth2 application. Omit both `redirect_uris` and `callback_url` to keep the stored redirect URIs, and omit `scope` to keep the scope allowlist. Omitting `icon` clears it."
 // @Success 200 {object} codersdk.OAuth2ProviderApp
 // @Router /api/v2/oauth2-provider/apps/{app} [put]
 func (api *API) putOAuth2ProviderApp() http.HandlerFunc {
@@ -92,7 +92,7 @@ func (api *API) deleteOAuth2ProviderApp() http.HandlerFunc {
 }
 
 // @Summary Get OAuth2 application secrets.
-// @Description Returns the secrets of an OAuth2 application, each with its ID, last-used time, and last six characters, but never the full secret.
+// @Description Returns the secrets of an OAuth2 application, each with its ID, last-used time, and last 6 characters, but never the full secret.
 // @Description Requires permission to read OAuth2 application secrets, which the Owner role has.
 // @Description Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
 // @ID get-oauth2-application-secrets
@@ -130,7 +130,7 @@ func (api *API) postOAuth2ProviderAppSecret() http.HandlerFunc {
 // @Security CoderSessionToken
 // @Tags Enterprise
 // @Param app path string true "OAuth2 application ID."
-// @Param secretID path string true "OAuth2 application secret ID."
+// @Param secretID path string true "ID of the OAuth2 application secret."
 // @Success 204
 // @Router /api/v2/oauth2-provider/apps/{app}/secrets/{secretID} [delete]
 func (api *API) deleteOAuth2ProviderAppSecret() http.HandlerFunc {
@@ -138,13 +138,13 @@ func (api *API) deleteOAuth2ProviderAppSecret() http.HandlerFunc {
 }
 
 // @Summary OAuth2 authorization request (GET - show authorization page).
-// @Description Shows the consent page where a signed-in user approves an OAuth2 application's request for access to their Coder account (RFC 6749 section 4.1.1).
+// @Description Shows the consent page where a signed-in user approves an OAuth2 client's request for access to their Coder account (RFC 6749 section 4.1.1).
 // @Description The OAuth2 client sends the user's browser here, and a browser without a session goes to the login page first.
 // @Description Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
 // @ID oauth2-authorization-request-get
 // @Security CoderSessionToken
 // @Tags Enterprise
-// @Param client_id query string true "Client ID of the OAuth2 application requesting access, which is the application ID."
+// @Param client_id query string true "Client ID of the requesting OAuth2 client, which is the ID of its application."
 // @Param state query string false "A random unguessable string, echoed back on the callback"
 // @Param response_type query string true "Response type. Only `code` is supported." Enums(code)
 // @Param redirect_uri query string false "Redirect here after authorization"
@@ -162,14 +162,14 @@ func (api *API) getOAuth2ProviderAppAuthorize() http.HandlerFunc {
 }
 
 // @Summary OAuth2 authorization request (POST - process authorization).
-// @Description Records the user's approval and redirects the browser to the application's registered callback with a single-use authorization code that expires after 10 minutes (RFC 6749 section 4.1.2).
-// @Description The consent page submits this with the same query parameters as the `GET` request, and it needs the user's session.
+// @Description Records the user's approval and redirects the browser to the client's registered callback with a single-use authorization code that expires after 10 minutes (RFC 6749 section 4.1.2).
+// @Description The consent page submits the same query parameters as the `GET` request, and the route needs the user's session.
 // @Description Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
 // @ID oauth2-authorization-request-post
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param client_id query string true "Client ID of the OAuth2 application requesting access, which is the application ID."
+// @Param client_id query string true "Client ID of the requesting OAuth2 client, which is the ID of its application."
 // @Param state query string false "A random unguessable string, echoed back on the callback"
 // @Param response_type query string true "Response type. Only `code` is supported." Enums(code)
 // @Param redirect_uri query string false "Redirect here after authorization"
@@ -187,8 +187,7 @@ func (api *API) postOAuth2ProviderAppAuthorize() http.HandlerFunc {
 
 // @Summary OAuth2 token exchange.
 // @Description Exchanges an authorization code or a refresh token for an access token and a new refresh token (RFC 6749 sections 4.1.3 and 6).
-// @Description The OAuth2 client calls this with its client credentials, as form fields or HTTP Basic, and it doesn't require a session token.
-// @Description A public client sends no secret and proves possession with `code_verifier`.
+// @Description Doesn't require a session token, because the OAuth2 client authenticates with its client credentials, as form fields or HTTP Basic, or with `code_verifier` when it is a public client.
 // @Description Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
 // @ID oauth2-token-exchange
 // @Produce json
@@ -209,8 +208,7 @@ func (api *API) postOAuth2ProviderAppToken() http.HandlerFunc {
 
 // @Summary Delete OAuth2 application tokens.
 // @Description Revokes the signed-in user's authorization codes and tokens for one OAuth2 application, so the application loses that user's access.
-// @Description This isn't part of the OAuth2 specification, and it uses the user's session token instead of client credentials.
-// @Description To revoke one token as the OAuth2 client, use `POST /oauth2/revoke`.
+// @Description Authenticates with the user's session token instead of client credentials, so to revoke one token as the OAuth2 client, use `POST /oauth2/revoke`.
 // @Description Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
 // @ID delete-oauth2-application-tokens
 // @Security CoderSessionToken
@@ -224,8 +222,7 @@ func (api *API) deleteOAuth2ProviderAppTokens() http.HandlerFunc {
 
 // @Summary Revoke OAuth2 tokens (RFC 7009).
 // @Description Revokes an access token or a refresh token that was issued to the calling OAuth2 client (RFC 7009).
-// @Description The OAuth2 client calls this with its client credentials, as form fields or HTTP Basic, and it doesn't require a session token.
-// @Description It returns `200` even when the token is unknown or belongs to another client.
+// @Description Doesn't require a session token, because the OAuth2 client authenticates with its client credentials, as form fields or HTTP Basic, and a `200` response doesn't confirm that the token existed or belonged to the client.
 // @Description Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
 // @ID oauth2-token-revocation
 // @Accept x-www-form-urlencoded
@@ -273,7 +270,7 @@ func (api *API) oauth2ProtectedResourceMetadata() http.HandlerFunc {
 
 // @Summary OAuth2 dynamic client registration (RFC 7591)
 // @Description Registers a new OAuth2 client and returns its `client_id`, its `client_secret` when it is confidential, and a registration access token you use to manage the client later (RFC 7591).
-// @Description The OAuth2 client calls this and it doesn't require a session token, but it returns `403` unless an Owner has enabled dynamic client registration in the OAuth2 provider settings.
+// @Description Doesn't require a session token, but returns `403` unless an Owner has enabled dynamic client registration in the OAuth2 provider settings.
 // @Description Returns `404` unless the OAuth2 provider is enabled with `--oauth2-provider-enable`.
 // @ID oauth2-dynamic-client-registration
 // @Accept json
@@ -288,7 +285,7 @@ func (api *API) postOAuth2ClientRegistration() http.HandlerFunc {
 }
 
 // @Summary Get OAuth2 provider settings.
-// @Description Returns the deployment-wide OAuth2 provider settings, which currently hold whether dynamic client registration is enabled.
+// @Description Returns the OAuth2 provider settings for the deployment, such as whether dynamic client registration is enabled.
 // @Description Requires permission to read the deployment configuration, which the Owner and Auditor roles have.
 // @Description Works while the OAuth2 provider is disabled.
 // @ID get-oauth2-provider-settings
@@ -314,7 +311,7 @@ func (api *API) oauth2ProviderSettings(rw http.ResponseWriter, r *http.Request) 
 }
 
 // @Summary Update OAuth2 provider settings.
-// @Description Updates the deployment-wide OAuth2 provider settings, such as whether `POST /oauth2/register` accepts new clients, and returns the resulting values.
+// @Description Updates the OAuth2 provider settings for the deployment, such as whether `POST /oauth2/register` accepts new clients, and returns the resulting values.
 // @Description Requires permission to update the deployment configuration, which the Owner role has.
 // @Description Works while the OAuth2 provider is disabled.
 // @ID update-oauth2-provider-settings
