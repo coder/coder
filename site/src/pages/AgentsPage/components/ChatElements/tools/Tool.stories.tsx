@@ -2012,6 +2012,19 @@ export const ComputerActionHalted: Story = {
 			error: "Not executed: an earlier computer action in this turn failed.",
 		},
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = canvas.getByRole("button", { name: /^Type/ });
+		await userEvent.click(toggle);
+	},
+};
+
+export const ComputerActionRunning: Story = {
+	args: {
+		name: "computer",
+		status: "running",
+		args: { action: "type", text: "hello" },
+	},
 };
 
 export const ComputerPromotedAttachmentArrayResult: Story = {

@@ -1,24 +1,12 @@
 import type React from "react";
 import { ToolCall } from "./ToolCall";
 import { ToolResultImage } from "./ToolResultImage";
-import type { ToolStatus } from "./utils";
-
-const computerActionLabel = (action: string, isRunning: boolean): string => {
-	if (action === "" || action === "screenshot") {
-		return isRunning ? "Taking screenshot…" : "Screenshot";
-	}
-	const words = action.replaceAll("_", " ");
-	const label = words.charAt(0).toUpperCase() + words.slice(1);
-	return isRunning ? `${label}…` : label;
-};
+import { humanizeMCPToolName, type ToolStatus } from "./utils";
 
 /**
- * Renders a computer use tool call: the screenshot it returned, or the
- * text output of a desktop action such as a click. When the result
- * contains base64 image data, the actual image is displayed instead of
- * raw JSON. Clicking the image opens it in an in-app lightbox overlay
- * rather than a new tab so that it works correctly in PWA / standalone
- * mode on iOS.
+ * Shows the screenshot or the text output of a computer use call.
+ * Clicking the image opens an in-app lightbox rather than a new tab,
+ * so it works in PWA / standalone mode on iOS.
  */
 export const ComputerTool: React.FC<{
 	action: string;
@@ -30,10 +18,16 @@ export const ComputerTool: React.FC<{
 	errorMessage?: string;
 }> = ({ action, imageData, mimeType, text, status, isError, errorMessage }) => {
 	const isRunning = status === "running";
+	const isScreenshot = action === "" || action === "screenshot";
+	const errorDetail = isError ? errorMessage?.trim() : undefined;
 	const hasImage = imageData.length > 0;
 	const hasText = text.length > 0;
-	const hasContent = hasImage || hasText;
-	const isScreenshot = action === "" || action === "screenshot";
+	const hasContent = hasImage || hasText || Boolean(errorDetail);
+
+	let label = isRunning ? "Taking screenshot…" : "Screenshot";
+	if (!isScreenshot) {
+		label = isRunning ? "Using the computer…" : humanizeMCPToolName("", action);
+	}
 
 	return (
 		<ToolCall.Root
@@ -47,11 +41,13 @@ export const ComputerTool: React.FC<{
 			hasContent={hasContent}
 			defaultExpanded={hasImage}
 		>
-			<ToolCall.Header
-				iconName="computer"
-				label={computerActionLabel(action, isRunning)}
-			/>
+			<ToolCall.Header iconName="computer" label={label} />
 			<ToolCall.Content>
+				{errorDetail && (
+					<pre className="m-0 mt-1.5 whitespace-pre-wrap break-all border-0 bg-transparent p-0 font-mono text-xs leading-5 text-content-destructive">
+						{errorDetail}
+					</pre>
+				)}
 				{hasImage ? (
 					<ToolResultImage
 						data={imageData}

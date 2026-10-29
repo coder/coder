@@ -80,9 +80,7 @@ export const findKnownModelByCanonicalId = (
 };
 
 /**
- * Canonical identifiers verified to accept chatd's computer use tool
- * (Anthropic computer_toolset_20260801 or computer_20251124, picked per
- * model, and the OpenAI Responses computer tool).
+ * Canonical identifiers verified to accept chatd's computer use tool.
  */
 export const knownComputerUseModels: readonly {
 	readonly provider: ChatComputerUseProvider;

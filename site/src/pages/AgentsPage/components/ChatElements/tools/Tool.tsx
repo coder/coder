@@ -817,8 +817,9 @@ const ComputerRenderer: React.FC<ToolRendererProps> = ({
 	result,
 	isError,
 }) => {
-	const action = asString(asRecord(args)?.action);
-	let errorMessage = "";
+	const action = asString(parseArgs(args)?.action);
+	// Failed and halted desktop actions persist as {"error": ...}.
+	const errorMessage = asString(asRecord(result)?.error);
 	let imageData = "";
 	let mimeType = "image/png";
 	let text = "";
@@ -851,9 +852,8 @@ const ComputerRenderer: React.FC<ToolRendererProps> = ({
 			imageData = asString(rec.data);
 			mimeType = asString(rec.mime_type) || "image/png";
 			// Desktop actions that return no screenshot persist their text
-			// output as {"output": ...} and failures as {"error": ...}.
+			// output as {"output": ...}.
 			text = asString(rec.text) || asString(rec.output);
-			errorMessage = asString(rec.error);
 			attachmentFileId = asString(rec.attachment_file_id);
 			attachmentName = asString(rec.attachment_name);
 		}
