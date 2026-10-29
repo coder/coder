@@ -219,7 +219,7 @@ func TestACPValidation(t *testing.T) {
 		`null`, `{} {}`,
 	} {
 		call := fantasy.ToolCallContent{ToolName: tools[1].Info().Name, Input: input}
-		allowed, _, rejected := partitionAmbiguousToolCalls(prepared, []fantasy.ToolCallContent{call})
+		allowed, _, rejected := partitionInvalidToolCalls(prepared, []fantasy.ToolCallContent{call})
 		if len(rejected) > 0 {
 			require.Empty(t, allowed)
 			continue
@@ -245,7 +245,7 @@ func TestACPValidation(t *testing.T) {
 		`{"prompt":"task","working_directory":"/work","agent":{"harness_id":"test","harness_id":"other"}}`,
 	} {
 		call := fantasy.ToolCallContent{ToolName: tools[0].Info().Name, Input: input}
-		allowed, _, rejected := partitionAmbiguousToolCalls(prepared, []fantasy.ToolCallContent{call})
+		allowed, _, rejected := partitionInvalidToolCalls(prepared, []fantasy.ToolCallContent{call})
 		require.Empty(t, allowed, input)
 		require.Len(t, rejected, 1, input)
 		result := rejected[0].Result.(fantasy.ToolResultOutputContentError)
