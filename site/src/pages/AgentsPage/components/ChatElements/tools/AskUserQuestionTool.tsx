@@ -1,5 +1,7 @@
 import { cn } from "cn";
 import {
+	ChevronDownIcon,
+	ChevronUpIcon,
 	LoaderIcon,
 	MessageCircleQuestionIcon,
 	TriangleAlertIcon,
@@ -11,6 +13,13 @@ import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import { getAnswerBody, getAsyncAnswerPrefix } from "./asyncAnswer";
+import {
+	type FormDraft,
+	type QuestionDraft,
+	readFormDraft,
+	removeFormDraft,
+	saveFormDraft,
+} from "./questionDraft";
 import { ToolCall } from "./ToolCall";
 import type { ToolStatus } from "./utils";
 
@@ -20,17 +29,6 @@ export type AskUserQuestion = {
 	options: Array<{ label: string; description: string }>;
 };
 
-type QuestionAnswer =
-	| {
-			kind: "option";
-			label: string;
-			optionIndex: number;
-	  }
-	| {
-			kind: "other";
-			text: string;
-	  };
-
 type AskUserQuestionToolProps = {
 	questions: AskUserQuestion[];
 	status: ToolStatus;
@@ -39,6 +37,7 @@ type AskUserQuestionToolProps = {
 	isChatCompleted?: boolean;
 	isLatestAskUserQuestion?: boolean;
 	previousResponseText?: string;
+	toolCallId?: string;
 	/** Set for async questions; their answer names this call. */
 	asyncToolCallId?: string;
 	isDocked?: boolean;
@@ -51,6 +50,20 @@ const getQuestionHeader = (
 	question: AskUserQuestion,
 	questionIndex: number,
 ): string => question.header || `Question ${questionIndex + 1}`;
+
+const getQuestionLabel = (
+	question: AskUserQuestion,
+	questionIndex: number,
+	questionCount: number,
+): string => {
+	const parts = [
+		questionCount > 1
+			? `Question ${questionIndex + 1} of ${questionCount}`
+			: undefined,
+		question.header || undefined,
+	].filter((part) => part !== undefined);
+	return parts.length > 0 ? parts.join(" · ") : "Question";
+};
 
 const getQuestionText = (question: AskUserQuestion): string =>
 	question.question || "No question provided.";
@@ -67,65 +80,56 @@ const filterQuestionOptions = (question: AskUserQuestion): AskUserQuestion => ({
 	),
 });
 
-const getDefaultAnswer = (
-	question: AskUserQuestion,
-): QuestionAnswer | undefined => {
-	const firstOption = question.options[0];
-	if (!firstOption) {
-		return undefined;
-	}
+const getOptionLabel = (question: AskUserQuestion, optionIndex: number) =>
+	question.options[optionIndex]?.label || `Option ${optionIndex + 1}`;
 
-	return {
-		kind: "option",
-		label: firstOption.label || "Option 1",
-		optionIndex: 0,
-	};
-};
+const getDefaultDraft = (question: AskUserQuestion): QuestionDraft => ({
+	selection: question.options.length > 0 ? 0 : undefined,
+	otherText: "",
+});
 
-const formatAnswer = (answer: QuestionAnswer): string =>
-	answer.kind === "other"
-		? `Other: ${answer.text.trim()}`
-		: answer.label || `Option ${answer.optionIndex + 1}`;
-
-const isAnswerValid = (
-	answer: QuestionAnswer | undefined,
-): answer is QuestionAnswer => {
-	if (!answer) {
+const isDraftAnswered = (draft: QuestionDraft | undefined): boolean => {
+	if (draft?.selection === undefined) {
 		return false;
 	}
-
-	if (answer.kind === "other") {
-		return answer.text.trim().length > 0;
+	if (draft.selection === "other") {
+		return draft.otherText.trim().length > 0;
 	}
-
-	return answer.label.trim().length > 0;
+	return true;
 };
 
-const getSelectedValue = (
-	answer: QuestionAnswer | undefined,
-): string | undefined => {
-	if (!answer) {
-		return undefined;
+const formatAnswer = (
+	question: AskUserQuestion,
+	draft: QuestionDraft,
+): string => {
+	if (draft.selection === "other") {
+		return `Other: ${draft.otherText.trim()}`;
 	}
-
-	if (answer.kind === "other") {
-		return OTHER_OPTION_VALUE;
+	if (draft.selection === "skipped") {
+		return "Skipped";
 	}
+	return getOptionLabel(question, draft.selection ?? 0);
+};
 
-	return `option-${answer.optionIndex}`;
+const getSelectedValue = (draft: QuestionDraft | undefined): string => {
+	if (typeof draft?.selection === "number") {
+		return `option-${draft.selection}`;
+	}
+	// An empty value keeps the radio group controlled with nothing selected.
+	return draft?.selection === "other" ? OTHER_OPTION_VALUE : "";
 };
 
 const formatOutgoingMessage = (
 	questions: AskUserQuestion[],
-	answers: readonly QuestionAnswer[],
+	drafts: readonly QuestionDraft[],
 ): string => {
 	if (questions.length === 1) {
-		return formatAnswer(answers[0]);
+		return formatAnswer(questions[0], drafts[0]);
 	}
 
 	return questions
 		.map((question, questionIndex) => {
-			return `${questionIndex + 1}. ${getQuestionHeader(question, questionIndex)}: ${formatAnswer(answers[questionIndex])}`;
+			return `${questionIndex + 1}. ${getQuestionHeader(question, questionIndex)}: ${formatAnswer(question, drafts[questionIndex])}`;
 		})
 		.join("\n");
 };
@@ -142,33 +146,28 @@ const getSubmissionErrorMessage = (error: unknown): string | undefined => {
 	return "Failed to submit your answer.";
 };
 
-type SelectableAnswerOptionProps = {
+type QuestionOptionProps = {
 	id: string;
 	value: string;
 	label: string;
 	description: string;
-	isInteractive: boolean;
-	isSubmitting: boolean;
+	isEnabled: boolean;
 };
 
-const SelectableAnswerOption: React.FC<SelectableAnswerOptionProps> = ({
+const QuestionOption: React.FC<QuestionOptionProps> = ({
 	id,
 	value,
 	label,
 	description,
-	isInteractive,
-	isSubmitting,
+	isEnabled,
 }) => {
-	const isEnabled = isInteractive && !isSubmitting;
-
 	return (
 		<label
 			htmlFor={id}
 			className={cn(
-				"grid gap-x-3 gap-y-0.5 py-1",
+				"grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 py-1.5",
 				isEnabled ? "cursor-pointer" : "cursor-default",
 			)}
-			style={{ gridTemplateColumns: "auto 1fr" }}
 		>
 			<RadioGroupItem
 				className="self-center"
@@ -186,92 +185,73 @@ const SelectableAnswerOption: React.FC<SelectableAnswerOptionProps> = ({
 	);
 };
 
-type QuestionOptionProps = {
-	questionIdBase: string;
-	option: AskUserQuestion["options"][number];
-	optionIndex: number;
-	isInteractive: boolean;
-	isSubmitting: boolean;
-};
-
-const QuestionOption: React.FC<QuestionOptionProps> = ({
-	questionIdBase,
-	option,
-	optionIndex,
-	isInteractive,
-	isSubmitting,
-}) => {
-	return (
-		<SelectableAnswerOption
-			id={`${questionIdBase}-option-${optionIndex}`}
-			value={`option-${optionIndex}`}
-			label={option.label || `Option ${optionIndex + 1}`}
-			description={option.description || "No description provided."}
-			isInteractive={isInteractive}
-			isSubmitting={isSubmitting}
-		/>
-	);
-};
-
 type OtherQuestionOptionProps = {
+	id: string;
 	questionHeader: string;
-	questionIdBase: string;
-	optionIndex: number;
-	answer: QuestionAnswer | undefined;
-	isInteractive: boolean;
-	isSubmitting: boolean;
+	otherText: string;
+	isEnabled: boolean;
+	onSelect: () => void;
 	onTextChange: (text: string) => void;
 };
 
+/**
+ * Clicking the field or typing in it selects "Other". Tabbing through it
+ * does not, so a keyboard user's choice survives the way to Submit.
+ */
 const OtherQuestionOption: React.FC<OtherQuestionOptionProps> = ({
+	id,
 	questionHeader,
-	questionIdBase,
-	optionIndex,
-	answer,
-	isInteractive,
-	isSubmitting,
+	otherText,
+	isEnabled,
+	onSelect,
 	onTextChange,
 }) => {
-	const isOtherSelected = answer?.kind === "other";
-
 	return (
-		<div className="space-y-2">
-			<SelectableAnswerOption
-				id={`${questionIdBase}-option-${optionIndex}`}
+		<div className="grid grid-cols-[auto_1fr] items-center gap-x-3 py-1.5">
+			<RadioGroupItem
+				aria-label="Other"
+				disabled={!isEnabled}
+				id={id}
 				value={OTHER_OPTION_VALUE}
-				label="Other"
-				description="Share a different answer."
-				isInteractive={isInteractive}
-				isSubmitting={isSubmitting}
 			/>
-			{isOtherSelected && (
-				<div className="pl-7">
-					<Input
-						autoFocus={isInteractive}
-						aria-label={`Other response for ${questionHeader}`}
-						disabled={!isInteractive || isSubmitting}
-						placeholder="Describe another answer"
-						value={answer.text}
-						onChange={(event) => {
-							onTextChange(event.currentTarget.value);
-						}}
-					/>
-				</div>
-			)}
+			<Input
+				aria-label={`Other response for ${questionHeader}`}
+				className="h-8 text-[13px]"
+				disabled={!isEnabled}
+				placeholder="Other: type your own answer"
+				value={otherText}
+				onClick={onSelect}
+				onChange={(event) => {
+					onTextChange(event.currentTarget.value);
+				}}
+			/>
 		</div>
 	);
 };
+
+type QuestionLabelProps = {
+	label: string;
+};
+
+const QuestionLabel: React.FC<QuestionLabelProps> = ({ label }) => (
+	<p className="m-0 flex items-center gap-1.5 text-xs font-medium text-content-secondary">
+		<MessageCircleQuestionIcon aria-hidden="true" className="size-3.5" />
+		{label}
+	</p>
+);
 
 type QuestionStepProps = {
 	question: AskUserQuestion;
 	questionIndex: number;
 	questionCount: number;
 	idPrefix: string;
-	answer: QuestionAnswer | undefined;
-	isInteractive: boolean;
-	isSubmitting: boolean;
+	draft: QuestionDraft | undefined;
+	/** Unset when a header above the form already shows the label. */
+	showsLabel: boolean;
+	isEnabled: boolean;
 	questionTextRef: React.Ref<HTMLParagraphElement>;
 	onOptionChange: (value: string) => void;
+	onOtherSelect: () => void;
 	onOtherTextChange: (text: string) => void;
 };
 
@@ -280,77 +260,58 @@ const QuestionStep: React.FC<QuestionStepProps> = ({
 	questionIndex,
 	questionCount,
 	idPrefix,
-	answer,
-	isInteractive,
-	isSubmitting,
+	draft,
+	showsLabel,
+	isEnabled,
 	questionTextRef,
 	onOptionChange,
+	onOtherSelect,
 	onOtherTextChange,
 }) => {
-	const questionHeader = getQuestionHeader(question, questionIndex);
-	const questionText = getQuestionText(question);
 	const questionIdBase = `${idPrefix}-question-${questionIndex}`;
-	const questionHeaderId = `${questionIdBase}-header`;
 	const questionTextId = `${questionIdBase}-text`;
-	const showProgress = isInteractive && questionCount > 1;
 
 	return (
-		<div className="space-y-2">
-			<div className="flex items-start gap-1.5 text-content-secondary">
-				<MessageCircleQuestionIcon
-					aria-hidden="true"
-					className="mt-0.5 size-4 shrink-0"
+		<div>
+			{showsLabel && (
+				<QuestionLabel
+					label={getQuestionLabel(question, questionIndex, questionCount)}
 				/>
-				<p
-					ref={questionTextRef}
-					id={questionTextId}
-					tabIndex={-1}
-					className="m-0 min-w-0 flex-1 whitespace-pre-wrap text-[13px]"
-				>
-					<span className="sr-only" id={questionHeaderId}>
-						{questionHeader}
-					</span>
-					{showProgress ? (
-						<span>
-							Question {questionIndex + 1} out of {questionCount}:{" "}
-						</span>
-					) : (
-						<span aria-hidden="true">Asking: </span>
-					)}
-					<span>{questionText}</span>
-				</p>
-			</div>
-			<div className="rounded-md border border-solid border-border px-3 py-0.5">
-				<RadioGroup
-					aria-labelledby={`${questionHeaderId} ${questionTextId}`}
-					className="space-y-0.5"
-					name={`${questionIdBase}-options`}
-					value={getSelectedValue(answer)}
-					onValueChange={onOptionChange}
-				>
-					{question.options.map((option, optionIndex) => {
-						return (
-							<QuestionOption
-								key={`${option.label}-${option.description}-${optionIndex}`}
-								questionIdBase={questionIdBase}
-								option={option}
-								optionIndex={optionIndex}
-								isInteractive={isInteractive}
-								isSubmitting={isSubmitting}
-							/>
-						);
-					})}
-					<OtherQuestionOption
-						questionHeader={questionHeader}
-						questionIdBase={questionIdBase}
-						optionIndex={question.options.length}
-						answer={answer}
-						isInteractive={isInteractive}
-						isSubmitting={isSubmitting}
-						onTextChange={onOtherTextChange}
+			)}
+			<p
+				ref={questionTextRef}
+				id={questionTextId}
+				tabIndex={-1}
+				className="m-0 mt-1 whitespace-pre-wrap text-[15px] font-semibold leading-snug text-content-primary focus:outline-hidden"
+			>
+				{getQuestionText(question)}
+			</p>
+			<RadioGroup
+				aria-labelledby={questionTextId}
+				className="mt-2 gap-0"
+				name={`${questionIdBase}-options`}
+				value={getSelectedValue(draft)}
+				onValueChange={onOptionChange}
+			>
+				{question.options.map((option, optionIndex) => (
+					<QuestionOption
+						key={`${option.label}-${option.description}-${optionIndex}`}
+						id={`${questionIdBase}-option-${optionIndex}`}
+						value={`option-${optionIndex}`}
+						label={getOptionLabel(question, optionIndex)}
+						description={option.description || "No description provided."}
+						isEnabled={isEnabled}
 					/>
-				</RadioGroup>
-			</div>
+				))}
+				<OtherQuestionOption
+					id={`${questionIdBase}-option-other`}
+					questionHeader={getQuestionHeader(question, questionIndex)}
+					otherText={draft?.otherText ?? ""}
+					isEnabled={isEnabled}
+					onSelect={onOtherSelect}
+					onTextChange={onOtherTextChange}
+				/>
+			</RadioGroup>
 		</div>
 	);
 };
@@ -386,11 +347,17 @@ type AskUserQuestionFormProps = {
 	/** An answer that the queue or the transcript already shows. */
 	previousResponseText?: string;
 	asyncToolCallId?: string;
+	/** Saves the unsent answers in the browser under this key until a send succeeds. */
+	draftKey?: string;
 	showSubmittedAnswer: boolean;
 	/** The form is read-only without it, and once it shows an answer. */
 	onSubmitAnswer?: (message: string) => Promise<void> | void;
 	onStepChange?: () => void;
-	/** Swaps the form for a progress line and keeps its state for expanding. */
+	/**
+	 * Turns the question label into a header that collapses the form. A
+	 * collapsed form shows only the header and keeps its state for expanding.
+	 */
+	onToggleCollapsed?: () => void;
 	isCollapsed?: boolean;
 	hasStickyActions?: boolean;
 };
@@ -404,22 +371,27 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 	questions,
 	previousResponseText,
 	asyncToolCallId,
+	draftKey,
 	showSubmittedAnswer,
 	onSubmitAnswer,
 	onStepChange,
+	onToggleCollapsed,
 	isCollapsed = false,
 	hasStickyActions = false,
 }) => {
 	const idPrefix = useId();
 	const questionTextRef = useRef<HTMLParagraphElement>(null);
 	const filteredQuestions = questions.map(filterQuestionOptions);
-	const [answers, setAnswers] = useState<Array<QuestionAnswer | undefined>>(
-		() => filteredQuestions.map(getDefaultAnswer),
+	const [formDraft, setFormDraft] = useState<FormDraft>(
+		() =>
+			(draftKey === undefined
+				? undefined
+				: readFormDraft(draftKey, filteredQuestions)) ?? {
+				drafts: filteredQuestions.map(getDefaultDraft),
+				questionIndex: 0,
+				answeredQuestionCount: 0,
+			},
 	);
-	const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-	// Next confirms every question before the one it opens, so Back does not
-	// lower the answered count.
-	const [answeredQuestionCount, setAnsweredQuestionCount] = useState(0);
 	// Set once the queue or transcript shows the answer. After that, the sent
 	// copy would bring back an answer removed from the queue, and a send error
 	// would describe an answer the server took, so neither shows.
@@ -431,6 +403,11 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 					? answerText
 					: getAsyncAnswerPrefix(asyncToolCallId) + answerText,
 			);
+		},
+		onSuccess: () => {
+			if (draftKey !== undefined) {
+				removeFormDraft(draftKey);
+			}
 		},
 	});
 
@@ -445,19 +422,19 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 			: undefined;
 	const displayedSubmittedResponseText = answerBody ?? sentResponseText;
 	const hasSubmittedResponse = displayedSubmittedResponseText !== undefined;
+	const { drafts, answeredQuestionCount } = formDraft;
 	const activeQuestionIndex = Math.min(
-		currentQuestionIndex,
+		formDraft.questionIndex,
 		Math.max(filteredQuestions.length - 1, 0),
 	);
-	const currentAnswer = answers[activeQuestionIndex];
 	const isInteractive = Boolean(onSubmitAnswer) && !hasSubmittedResponse;
 	const isSubmitting = submitAnswerMutation.isPending;
 	const submitError = hasShownAnswer
 		? undefined
 		: getSubmissionErrorMessage(submitAnswerMutation.error);
-	const canAdvanceToNextQuestion = isAnswerValid(currentAnswer);
+	const canAdvanceToNextQuestion = isDraftAnswered(drafts[activeQuestionIndex]);
 	const canSubmitAllAnswers = filteredQuestions.every((_, questionIndex) =>
-		isAnswerValid(answers[questionIndex]),
+		isDraftAnswered(drafts[questionIndex]),
 	);
 	const isWizard = filteredQuestions.length > 1;
 	const isFinalQuestion = activeQuestionIndex >= filteredQuestions.length - 1;
@@ -473,19 +450,36 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 					question,
 					questionIndex,
 				}));
+	// The header shows the label only while one question is on screen.
+	const headerQuestionIndex =
+		visibleQuestions.length === 1 ? activeQuestionIndex : undefined;
 
 	const resetSubmitState = () => {
 		submitAnswerMutation.reset();
 	};
 
-	const setAnswerAtIndex = (
+	const updateFormDraft = (nextFormDraft: FormDraft) => {
+		setFormDraft(nextFormDraft);
+		if (draftKey !== undefined) {
+			saveFormDraft(draftKey, filteredQuestions, nextFormDraft);
+		}
+	};
+
+	const withDraft = (
 		questionIndex: number,
-		nextAnswer: QuestionAnswer | undefined,
+		change: Partial<QuestionDraft>,
+	): QuestionDraft[] =>
+		drafts.map((draft, index) =>
+			index === questionIndex ? { ...draft, ...change } : draft,
+		);
+
+	const changeDraft = (
+		questionIndex: number,
+		change: Partial<QuestionDraft>,
 	) => {
-		setAnswers((currentAnswers) => {
-			const nextAnswers = [...currentAnswers];
-			nextAnswers[questionIndex] = nextAnswer;
-			return nextAnswers;
+		updateFormDraft({
+			...formDraft,
+			drafts: withDraft(questionIndex, change),
 		});
 		resetSubmitState();
 	};
@@ -496,77 +490,80 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 		value: string,
 	) => {
 		if (value === OTHER_OPTION_VALUE) {
-			const previousAnswer = answers[questionIndex];
-			setAnswerAtIndex(
-				questionIndex,
-				previousAnswer?.kind === "other"
-					? previousAnswer
-					: { kind: "other", text: "" },
-			);
+			changeDraft(questionIndex, { selection: "other" });
 			return;
 		}
 
 		const optionIndex = Number.parseInt(value.replace("option-", ""), 10);
-		const option = question.options[optionIndex];
-		if (!option) {
+		if (!question.options[optionIndex]) {
 			return;
 		}
 
-		setAnswerAtIndex(questionIndex, {
-			kind: "option",
-			label: option.label || `Option ${optionIndex + 1}`,
-			optionIndex,
-		});
+		changeDraft(questionIndex, { selection: optionIndex });
 	};
 
 	// Focus moves to the new question, since Back or Next can end up out of
 	// view or disabled. flushSync renders that step first, and onStepChange
 	// runs last so that the focus cannot undo the scroll position it sets.
-	const changeQuestion = (getIndex: (currentIndex: number) => number) => {
+	const changeQuestion = (nextFormDraft: FormDraft) => {
 		flushSync(() => {
-			setCurrentQuestionIndex(getIndex);
+			updateFormDraft(nextFormDraft);
 		});
 		resetSubmitState();
 		questionTextRef.current?.focus();
 		onStepChange?.();
 	};
 
-	const handleBack = () => {
-		changeQuestion((currentIndex) => Math.max(currentIndex - 1, 0));
-	};
-
-	const handleNext = () => {
-		if (!canAdvanceToNextQuestion) {
-			return;
-		}
-
-		setAnsweredQuestionCount((count) =>
-			Math.max(count, activeQuestionIndex + 1),
-		);
-		changeQuestion((currentIndex) =>
-			Math.min(currentIndex + 1, filteredQuestions.length - 1),
-		);
-	};
-
-	const handleSubmit = () => {
-		if (!onSubmitAnswer || !isInteractive || !canSubmitAllAnswers) {
-			return;
-		}
-
-		const finalizedAnswers = filteredQuestions.map((_, questionIndex) => {
-			return answers[questionIndex];
+	const advance = (nextDrafts: QuestionDraft[]) => {
+		changeQuestion({
+			drafts: nextDrafts,
+			questionIndex: Math.min(
+				activeQuestionIndex + 1,
+				filteredQuestions.length - 1,
+			),
+			// Next confirms every question before the one it opens, so Back
+			// does not lower the answered count.
+			answeredQuestionCount: Math.max(
+				answeredQuestionCount,
+				activeQuestionIndex + 1,
+			),
 		});
-		if (!finalizedAnswers.every(isAnswerValid)) {
+	};
+
+	const submit = (finalDrafts: QuestionDraft[]) => {
+		if (
+			!onSubmitAnswer ||
+			!isInteractive ||
+			!finalDrafts.every((draft) => isDraftAnswered(draft))
+		) {
 			return;
 		}
 
-		const answerText = formatOutgoingMessage(
-			filteredQuestions,
-			finalizedAnswers,
-		);
 		resetSubmitState();
 		setHasShownAnswer(false);
-		submitAnswerMutation.mutate(answerText);
+		submitAnswerMutation.mutate(
+			formatOutgoingMessage(filteredQuestions, finalDrafts),
+		);
+	};
+
+	const handleBack = () => {
+		changeQuestion({
+			...formDraft,
+			questionIndex: Math.max(activeQuestionIndex - 1, 0),
+		});
+	};
+
+	const handleSkip = () => {
+		const nextDrafts = withDraft(activeQuestionIndex, {
+			selection: "skipped",
+		});
+		if (isWizard && !isFinalQuestion) {
+			advance(nextDrafts);
+			return;
+		}
+
+		updateFormDraft({ ...formDraft, drafts: nextDrafts });
+		submit(nextDrafts);
 	};
 
 	const handleFormSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -576,19 +573,50 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 		}
 
 		if (isWizard && !isFinalQuestion) {
-			handleNext();
+			if (canAdvanceToNextQuestion) {
+				advance(drafts);
+			}
 			return;
 		}
 
-		handleSubmit();
+		submit(drafts);
 	};
 
-	if (isCollapsed) {
-		return (
-			<p className="m-0 text-[13px] text-content-secondary">
-				{answeredQuestionCount}/{filteredQuestions.length} questions answered
-			</p>
-		);
+	const header = onToggleCollapsed && (
+		<button
+			type="button"
+			aria-expanded={!isCollapsed}
+			className="flex w-full cursor-pointer appearance-none items-center gap-1.5 border-0 bg-transparent px-3 py-2.5 text-left font-sans text-xs font-medium text-content-secondary hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link"
+			onClick={onToggleCollapsed}
+		>
+			<MessageCircleQuestionIcon
+				aria-hidden="true"
+				className="size-3.5 shrink-0"
+			/>
+			<span className="min-w-0 flex-1 truncate">
+				{headerQuestionIndex === undefined
+					? "Questions"
+					: getQuestionLabel(
+							filteredQuestions[headerQuestionIndex],
+							headerQuestionIndex,
+							filteredQuestions.length,
+						)}
+			</span>
+			{isCollapsed && isWizard && (
+				<span className="shrink-0">
+					{answeredQuestionCount}/{filteredQuestions.length} answered
+				</span>
+			)}
+			{isCollapsed ? (
+				<ChevronUpIcon aria-hidden="true" className="size-4 shrink-0" />
+			) : (
+				<ChevronDownIcon aria-hidden="true" className="size-4 shrink-0" />
+			)}
+		</button>
+	);
+
+	if (header && isCollapsed) {
+		return header;
 	}
 
 	const content = (
@@ -596,7 +624,7 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 			{hasSubmittedResponse ? (
 				<AskedQuestions questions={filteredQuestions} />
 			) : (
-				<div className="space-y-4">
+				<div className="space-y-5">
 					{visibleQuestions.map(({ question, questionIndex }) => (
 						<QuestionStep
 							key={getQuestionKey(question, questionIndex)}
@@ -604,17 +632,22 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 							questionIndex={questionIndex}
 							questionCount={filteredQuestions.length}
 							idPrefix={idPrefix}
-							answer={answers[questionIndex]}
-							isInteractive={isInteractive}
-							isSubmitting={isSubmitting}
+							draft={drafts[questionIndex]}
+							showsLabel={!header || headerQuestionIndex === undefined}
+							isEnabled={isInteractive && !isSubmitting}
 							questionTextRef={questionTextRef}
 							onOptionChange={(value) => {
 								handleOptionChange(questionIndex, question, value);
 							}}
+							onOtherSelect={() => {
+								if (drafts[questionIndex]?.selection !== "other") {
+									changeDraft(questionIndex, { selection: "other" });
+								}
+							}}
 							onOtherTextChange={(text) => {
-								setAnswerAtIndex(questionIndex, {
-									kind: "other",
-									text,
+								changeDraft(questionIndex, {
+									selection: "other",
+									otherText: text,
 								});
 							}}
 						/>
@@ -647,11 +680,10 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 				<div
 					className={cn(
 						"flex items-center gap-2",
-						// Sticky insets honor the scroller's padding, so the
-						// negative offset and margin cover the panel's p-3
-						// bottom padding and pin the row to its border.
+						// The negative margin covers the body's bottom padding, so
+						// the row keeps its background down to the panel's border.
 						hasStickyActions
-							? "sticky -bottom-3 -mb-3 bg-surface-primary pt-2 pb-3"
+							? "sticky bottom-0 -mb-3 bg-surface-primary pt-3 pb-3"
 							: "mt-3",
 					)}
 				>
@@ -688,15 +720,33 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 							{isSubmitting ? "Submitting..." : "Submit"}
 						</Button>
 					)}
+					<Button
+						type="button"
+						size="sm"
+						variant="subtle"
+						onClick={handleSkip}
+						disabled={isSubmitting}
+					>
+						Skip
+					</Button>
 				</div>
 			)}
 		</>
 	);
 
-	return isInteractive ? (
+	const body = isInteractive ? (
 		<form onSubmit={handleFormSubmit}>{content}</form>
 	) : (
 		content
+	);
+
+	return header ? (
+		<>
+			{header}
+			<div className="px-3 pb-3">{body}</div>
+		</>
+	) : (
+		body
 	);
 };
 
@@ -713,6 +763,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	isChatCompleted = false,
 	isLatestAskUserQuestion = false,
 	previousResponseText,
+	toolCallId,
 	asyncToolCallId,
 	isDocked = false,
 	onSubmitAnswer,
@@ -802,6 +853,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 					questions={questions}
 					previousResponseText={previousResponseText}
 					asyncToolCallId={asyncToolCallId}
+					draftKey={toolCallId}
 					showSubmittedAnswer={isLatestAskUserQuestion}
 					onSubmitAnswer={isAnswerable ? onSubmitAnswer : undefined}
 				/>

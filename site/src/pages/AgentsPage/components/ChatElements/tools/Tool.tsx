@@ -715,6 +715,7 @@ const AskUserQuestionRenderer: React.FC<ToolRendererProps> = ({
 			isLatestAskUserQuestion={isLatestAskUserQuestion}
 			isDocked={isDockedAskUserQuestion}
 			previousResponseText={previousResponseText}
+			toolCallId={toolCallId}
 			asyncToolCallId={
 				isAsyncAskUserQuestionResult(result) ? toolCallId : undefined
 			}

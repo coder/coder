@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDeferred } from "#/testHelpers/deferred";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { AskUserQuestionTool } from "./AskUserQuestionTool";
@@ -19,6 +19,19 @@ const questions = [
 		],
 	},
 ];
+
+const twoQuestions = [
+	...questions,
+	{
+		header: "Rollout",
+		question: "How should the change ship?",
+		options: [{ label: "Feature flag", description: "Ship it dark first." }],
+	},
+];
+
+afterEach(() => {
+	localStorage.clear();
+});
 
 describe("AskUserQuestionTool", () => {
 	it("allows retrying the same answer after submission fails", async () => {
@@ -55,16 +68,7 @@ describe("AskUserQuestionTool", () => {
 		render(
 			<QueryClientProvider client={createTestQueryClient()}>
 				<AskUserQuestionTool
-					questions={[
-						...questions,
-						{
-							header: "Rollout",
-							question: "How should the change ship?",
-							options: [
-								{ label: "Feature flag", description: "Ship it dark first." },
-							],
-						},
-					]}
+					questions={twoQuestions}
 					status="completed"
 					isError={false}
 					isChatCompleted
@@ -84,6 +88,76 @@ describe("AskUserQuestionTool", () => {
 				.getByText("How should we structure the database migration?")
 				.closest("p"),
 		).toHaveFocus();
+	});
+
+	it("sends a skipped question as Skipped", async () => {
+		const user = userEvent.setup();
+		const onSubmitAnswer = vi.fn();
+		render(
+			<QueryClientProvider client={createTestQueryClient()}>
+				<AskUserQuestionTool
+					questions={twoQuestions}
+					status="completed"
+					isError={false}
+					isChatCompleted
+					isLatestAskUserQuestion
+					onSubmitAnswer={onSubmitAnswer}
+				/>
+			</QueryClientProvider>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Skip" }));
+		await user.click(screen.getByRole("button", { name: "Submit" }));
+
+		expect(onSubmitAnswer).toHaveBeenCalledExactlyOnceWith(
+			"1. Implementation Approach: Skipped\n2. Rollout: Feature flag",
+		);
+	});
+
+	it("restores an unsent draft and drops it once the answer sends", async () => {
+		const user = userEvent.setup();
+		const onSubmitAnswer = vi.fn();
+		const DraftQuestion: React.FC = () => (
+			<QueryClientProvider client={createTestQueryClient()}>
+				<AskUserQuestionTool
+					questions={twoQuestions}
+					status="completed"
+					isError={false}
+					isChatCompleted
+					isLatestAskUserQuestion
+					toolCallId="call-draft"
+					onSubmitAnswer={onSubmitAnswer}
+				/>
+			</QueryClientProvider>
+		);
+		const firstRender = render(<DraftQuestion />);
+		await user.type(
+			screen.getByRole("textbox", { name: /other response/i }),
+			"Two migrations",
+		);
+		await user.click(screen.getByRole("button", { name: "Next" }));
+		firstRender.unmount();
+
+		const secondRender = render(<DraftQuestion />);
+		expect(screen.getByText("How should the change ship?")).toBeVisible();
+		await user.click(screen.getByRole("button", { name: "Back" }));
+		expect(
+			screen.getByRole("textbox", { name: /other response/i }),
+		).toHaveValue("Two migrations");
+		await user.click(screen.getByRole("button", { name: "Next" }));
+		await user.click(screen.getByRole("button", { name: "Submit" }));
+		secondRender.unmount();
+		render(<DraftQuestion />);
+
+		expect(onSubmitAnswer).toHaveBeenCalledExactlyOnceWith(
+			"1. Implementation Approach: Other: Two migrations\n2. Rollout: Feature flag",
+		);
+		expect(
+			screen.getByText("How should we structure the database migration?"),
+		).toBeVisible();
+		expect(
+			screen.getByRole("textbox", { name: /other response/i }),
+		).toHaveValue("");
 	});
 
 	it.each([

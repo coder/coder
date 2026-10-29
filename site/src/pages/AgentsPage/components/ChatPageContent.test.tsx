@@ -128,6 +128,7 @@ beforeEach(() => {
 
 afterEach(() => {
 	vi.restoreAllMocks();
+	localStorage.clear();
 	Reflect.deleteProperty(Range.prototype, "getBoundingClientRect");
 });
 
@@ -408,12 +409,15 @@ describe("ChatPageTimeline question dock", () => {
 		);
 		await user.click(
 			within(getQuestionDock()).getByRole("button", {
-				name: "Collapse question",
+				name: "Scope",
+				expanded: true,
 			}),
 		);
+		expect(within(getQuestionDock()).queryByRole("radio")).toBeNull();
 		await user.click(
 			within(getQuestionDock()).getByRole("button", {
-				name: "Expand question",
+				name: "Scope",
+				expanded: false,
 			}),
 		);
 		await user.click(

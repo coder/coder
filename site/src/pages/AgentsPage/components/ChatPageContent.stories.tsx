@@ -69,6 +69,11 @@ const StoryChatPageTimeline: React.FC<{
 const meta = {
 	title: "pages/AgentsPage/ChatPageContent",
 	decorators: [withAuthProvider, withDashboardProvider],
+	// The question dock saves its draft in localStorage, so one story's
+	// answers would otherwise show in the next story's dock.
+	beforeEach: () => {
+		localStorage.clear();
+	},
 	parameters: {
 		user: MockUserOwner,
 		queries: [
@@ -639,7 +644,7 @@ export const AsyncQuestionDockCollapsed: Story = {
 		);
 		await userEvent.click(dock.getByRole("button", { name: "Next" }));
 		await userEvent.click(
-			dock.getByRole("button", { name: "Collapse question" }),
+			dock.getByRole("button", { name: /^Question 2 of 2/, expanded: true }),
 		);
 	},
 };

@@ -40,6 +40,7 @@ const outletContext: Partial<AgentsPageOutletContext> = {
 afterEach(() => {
 	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
+	localStorage.clear();
 });
 
 const mockChatPageAPI = (messages: ChatMessage[] = []) => {

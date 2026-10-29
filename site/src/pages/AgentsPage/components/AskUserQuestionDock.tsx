@@ -1,7 +1,5 @@
 import { cn } from "cn";
-import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import { useRef, useState } from "react";
-import { Button } from "#/components/Button/Button";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import type { MergedTool } from "./ChatConversation/types";
 import { AskUserQuestionForm } from "./ChatElements/tools/AskUserQuestionTool";
@@ -40,11 +38,12 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 		<div
 			// `hidden` wins over `flex` only through Tailwind preflight's `[hidden]` rule.
 			hidden={queuedAnswerText !== undefined}
+			ref={scrollerRef}
 			// A stable scrollbar gutter, as on the chat input's wrapper, keeps the two aligned.
-			className="flex min-h-0 flex-col overflow-y-auto px-4 scrollbar-gutter-stable scrollbar-thin"
+			className="flex max-h-[60vh] min-h-0 flex-col overflow-y-auto px-4 scrollbar-gutter-stable scrollbar-thin"
 		>
-			{/* Shrinks before the chat input does, so a long question set never
-			    pushes the input off a short screen. */}
+			{/* The panel grows to show the whole question. Only on a short screen
+			    does it scroll, and it shrinks before the chat input does. */}
 			<section
 				key={questionKey}
 				// A section that replaces a focused one takes the focus, so screen
@@ -62,43 +61,28 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 				aria-label="Open question"
 				tabIndex={-1}
 				className={cn(
-					"mx-auto mb-2 flex max-h-[50vh] w-full overflow-hidden rounded-lg border border-solid border-border bg-surface-primary shadow-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
+					"mx-auto mb-2 w-full shrink-0 rounded-lg border border-solid border-border bg-surface-primary shadow-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
 					chatWidthClass(chatFullWidth),
 				)}
 			>
-				<div
-					ref={scrollerRef}
-					className="min-w-0 flex-1 overflow-y-auto py-3 pr-1 pl-3 scrollbar-thin"
-				>
-					<AskUserQuestionForm
-						questions={getAskUserQuestions(question.args, question.result)}
-						previousResponseText={queuedAnswerText}
-						asyncToolCallId={question.id}
-						showSubmittedAnswer
-						onSubmitAnswer={onSubmitAnswer}
-						isCollapsed={isCollapsed}
-						hasStickyActions
-						onStepChange={() => {
-							if (scrollerRef.current) {
-								scrollerRef.current.scrollTop = 0;
-							}
-						}}
-					/>
-				</div>
-				{/* Outside the scroller, so it stays in place while the form scrolls. */}
-				<Button
-					type="button"
-					size="icon"
-					variant="subtle"
-					className="m-1.5 shrink-0"
-					aria-expanded={!isCollapsed}
-					aria-label={isCollapsed ? "Expand question" : "Collapse question"}
-					onClick={() => {
+				<AskUserQuestionForm
+					questions={getAskUserQuestions(question.args, question.result)}
+					previousResponseText={queuedAnswerText}
+					asyncToolCallId={question.id}
+					draftKey={questionKey}
+					showSubmittedAnswer
+					onSubmitAnswer={onSubmitAnswer}
+					isCollapsed={isCollapsed}
+					onToggleCollapsed={() => {
 						setCollapsedQuestionKey(isCollapsed ? undefined : questionKey);
 					}}
-				>
-					{isCollapsed ? <ChevronUpIcon /> : <ChevronDownIcon />}
-				</Button>
+					hasStickyActions
+					onStepChange={() => {
+						if (scrollerRef.current) {
+							scrollerRef.current.scrollTop = 0;
+						}
+					}}
+				/>
 			</section>
 		</div>
 	);
