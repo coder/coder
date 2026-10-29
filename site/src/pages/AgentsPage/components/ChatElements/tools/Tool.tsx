@@ -215,11 +215,6 @@ const getWorkspaceQuotaTitle = (
 	return asString(rec.title).trim() || "Workspace quota reached";
 };
 
-const parseAskUserQuestionResult = (
-	result: unknown,
-): AskUserQuestion[] | null =>
-	parseAskUserQuestions(findAskUserQuestionResultRecord(result)?.questions);
-
 /**
  * Reads the questions from the call's raw args, or from its result when the
  * args have none.
@@ -228,14 +223,14 @@ export const getAskUserQuestions = (
 	args: unknown,
 	result: unknown,
 ): AskUserQuestion[] => {
-	const parsedArgs = parseArgs(args);
-	const questionsFromArgs = parsedArgs
-		? parseAskUserQuestions(parsedArgs.questions)
-		: null;
+	const questionsFromArgs = parseAskUserQuestions(parseArgs(args)?.questions);
 	if (questionsFromArgs && questionsFromArgs.length > 0) {
 		return questionsFromArgs;
 	}
-	return parseAskUserQuestionResult(result) ?? [];
+	return (
+		parseAskUserQuestions(findAskUserQuestionResultRecord(result)?.questions) ??
+		[]
+	);
 };
 
 const ExecuteRenderer: React.FC<ToolRendererProps> = ({

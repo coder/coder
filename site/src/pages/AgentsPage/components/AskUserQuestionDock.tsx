@@ -5,10 +5,6 @@ import { Button } from "#/components/Button/Button";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import type { MergedTool } from "./ChatConversation/types";
 import { AskUserQuestionForm } from "./ChatElements/tools/AskUserQuestionTool";
-import {
-	getAsyncAnswerBody,
-	getAsyncAnswerPrefix,
-} from "./ChatElements/tools/asyncAnswer";
 import { getAskUserQuestions } from "./ChatElements/tools/Tool";
 
 type AskUserQuestionDockProps = {
@@ -39,10 +35,6 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 		string | undefined
 	>();
 	const isCollapsed = collapsedQuestionKey === questionKey;
-
-	const submitAnswer = async (answerText: string) => {
-		await onSubmitAnswer?.(getAsyncAnswerPrefix(question.id) + answerText);
-	};
 
 	return (
 		<div
@@ -80,12 +72,10 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 				>
 					<AskUserQuestionForm
 						questions={getAskUserQuestions(question.args, question.result)}
-						previousResponseText={getAsyncAnswerBody(
-							queuedAnswerText,
-							question.id,
-						)}
-						showsSubmittedAnswer
-						onSubmitAnswer={onSubmitAnswer ? submitAnswer : undefined}
+						previousResponseText={queuedAnswerText}
+						asyncToolCallId={question.id}
+						showSubmittedAnswer
+						onSubmitAnswer={onSubmitAnswer}
 						isCollapsed={isCollapsed}
 						hasStickyActions
 						onStepChange={() => {

@@ -29,14 +29,18 @@ export const parseAsyncAnswer = (text: string): AsyncAnswer | undefined => {
 	return { toolCallId: match[1], body: text.slice(match[0].length) };
 };
 
-/** Returns the text after the prefix line when the text answers the call. */
-export const getAsyncAnswerBody = (
+/**
+ * Returns an async answer without its prefix line, and a blocking answer (no
+ * call ID) unchanged. Returns undefined when there is no text or the text
+ * does not answer the async call.
+ */
+export const getAnswerBody = (
 	text: string | undefined,
-	toolCallId: string,
+	asyncToolCallId: string | undefined,
 ): string | undefined => {
-	if (text === undefined) {
-		return undefined;
+	if (text === undefined || asyncToolCallId === undefined) {
+		return text;
 	}
 	const answer = parseAsyncAnswer(text);
-	return answer?.toolCallId === toolCallId ? answer.body : undefined;
+	return answer?.toolCallId === asyncToolCallId ? answer.body : undefined;
 };
