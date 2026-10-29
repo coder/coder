@@ -738,8 +738,8 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
 `GET /api/v2/workspacebuilds/{workspacebuild}/resources`
 
 Returns the resources, with their agents, of a completed workspace build.
-Fails with a `400` while the build's job is still running.
-Use `/api/v2/workspacebuilds/{workspacebuild}` instead, whose response includes the build's `resources`.
+Fails with a `400` until the build's job completes.
+Use `/api/v2/workspacebuilds/{workspacebuild}` instead, which returns the build's `resources`.
 
 ### Parameters
 
@@ -2009,7 +2009,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
 Starts, stops, or deletes a workspace by queuing a build with the given `transition`: `start` starts it, `stop` stops it, and `delete` deletes it.
 Use it to change a workspace's state, or set `template_version_id` to move the workspace to another template version.
 A `start` build also clears the workspace's dormant status, and `orphan` is allowed only with `delete`.
-Requires permission to start, stop, or delete the workspace, which its owner and the Owner and Organization Admin roles have.
+Requires permission to start, stop, or delete the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.
 Setting `state` or `orphan` also requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
 
 > Body parameter

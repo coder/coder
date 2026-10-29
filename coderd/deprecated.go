@@ -62,8 +62,8 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 
 // @Summary Removed: Get workspace resources for workspace build
 // @Description Returns the resources, with their agents, of a completed workspace build.
-// @Description Fails with a `400` while the build's job is still running.
-// @Description Use `/api/v2/workspacebuilds/{workspacebuild}` instead, whose response includes the build's `resources`.
+// @Description Fails with a `400` until the build's job completes.
+// @Description Use `/api/v2/workspacebuilds/{workspacebuild}` instead, which returns the build's `resources`.
 // @ID removed-get-workspace-resources-for-workspace-build
 // @Security CoderSessionToken
 // @Produce json

@@ -332,7 +332,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 // @Description Starts, stops, or deletes a workspace by queuing a build with the given `transition`: `start` starts it, `stop` stops it, and `delete` deletes it.
 // @Description Use it to change a workspace's state, or set `template_version_id` to move the workspace to another template version.
 // @Description A `start` build also clears the workspace's dormant status, and `orphan` is allowed only with `delete`.
-// @Description Requires permission to start, stop, or delete the workspace, which its owner and the Owner and Organization Admin roles have.
+// @Description Requires permission to start, stop, or delete the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.
 // @Description Setting `state` or `orphan` also requires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.
 // @ID create-workspace-build
 // @Security CoderSessionToken
