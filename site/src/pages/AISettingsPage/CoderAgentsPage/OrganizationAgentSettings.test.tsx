@@ -48,7 +48,6 @@ const renderSettings = ({ showComputerUse = false } = {}) =>
 		<OrganizationAgentSettings
 			organization={MockDefaultOrganization}
 			canEdit
-			showAdvisor
 			showComputerUse={showComputerUse}
 		/>,
 	);

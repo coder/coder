@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { MockAdvisorConfig } from "#/testHelpers/chatEntities";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
@@ -22,12 +23,7 @@ const defaultArgs: CoderAgentsPageViewProps = {
 	onSaveAdminOverrides: fn(),
 	isSavingAdminOverrides: false,
 	isSaveAdminOverridesError: false,
-	showAdvisorSettings: true,
-	advisorConfigData: {
-		enabled: true,
-		max_uses_per_run: 5,
-		max_output_tokens: 2048,
-	},
+	advisorConfigData: MockAdvisorConfig,
 	isAdvisorConfigLoading: false,
 	isAdvisorConfigFetching: false,
 	isAdvisorConfigLoadError: false,
@@ -74,14 +70,6 @@ export const Default: Story = {
 				expect.anything(),
 			);
 		});
-	},
-};
-
-export const WithoutAdvisor: Story = {
-	args: { showAdvisorSettings: false },
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.queryByText("Advisor")).not.toBeInTheDocument();
 	},
 };
 

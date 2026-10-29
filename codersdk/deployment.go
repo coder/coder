@@ -5508,7 +5508,6 @@ const (
 	ExperimentAIGatewaySeatExclusion    Experiment = "ai-gateway-seat-exclusion"   // Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.
 	ExperimentAIGatewayReverseProxy     Experiment = "ai-gateway-reverse-proxy"    // Uses stateless reverse proxy routing when MCP injection is not configured.
 	ExperimentChatProjectSharing        Experiment = "chat-project-sharing"        // Enables sharing agent chat projects with other users and groups.
-	ExperimentChatAdvisor               Experiment = "chat-advisor"                // Enables the advisor tool for root agent chats.
 	ExperimentChatVirtualDesktop        Experiment = "chat-virtual-desktop"        // Enables virtual desktop and computer use for agents.
 	ExperimentAgentLifecycleHooks       Experiment = "agent-lifecycle-hooks"       // Enables chat lifecycle hook webhooks for agent chats.
 	ExperimentChatInlineMCPServers      Experiment = "chat-inline-mcp-servers"     // Enables inline MCP servers declared on POST /chats.
@@ -5539,8 +5538,6 @@ func (e Experiment) DisplayName() string {
 		return "AI Gateway Reverse Proxy"
 	case ExperimentChatProjectSharing:
 		return "Chat Project Sharing"
-	case ExperimentChatAdvisor:
-		return "Chat Advisor"
 	case ExperimentChatVirtualDesktop:
 		return "Chat Virtual Desktop"
 	case ExperimentAgentLifecycleHooks:
@@ -5571,7 +5568,6 @@ var ExperimentsKnown = Experiments{
 	ExperimentAIGatewaySeatExclusion,
 	ExperimentAIGatewayReverseProxy,
 	ExperimentChatProjectSharing,
-	ExperimentChatAdvisor,
 	ExperimentChatVirtualDesktop,
 	ExperimentAgentLifecycleHooks,
 	ExperimentChatInlineMCPServers,

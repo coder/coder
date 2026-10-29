@@ -1373,16 +1373,12 @@ type UpdateUserChatCompactionThresholdRequest struct {
 }
 
 // AdvisorConfig is the deployment-wide runtime configuration for the
-// experimental chat advisor.
-//
-// EXPERIMENTAL: this type is experimental and is subject to change.
+// chat advisor.
 type AdvisorConfig struct {
-	// Enabled reflects whether the chat-advisor experiment is active.
-	// The experiment flag is the sole gate; this field is read-only and
-	// always matches the experiment state regardless of the stored DB value.
+	// Enabled is always true and cannot be changed.
 	Enabled bool `json:"enabled"`
 	// MaxUsesPerRun caps how many times the advisor can be invoked per
-	// chat run. 0 means unlimited.
+	// chat turn. 0 means unlimited.
 	MaxUsesPerRun int `json:"max_uses_per_run"`
 	// MaxOutputTokens caps the advisor model response tokens. 0 means
 	// use the runtime default.
@@ -3065,8 +3061,8 @@ func (c *Client) GetUserChatCustomPrompt(ctx context.Context) (UserChatCustomPro
 }
 
 // GetChatAdvisorConfig returns the deployment-wide advisor configuration.
-func (c *ExperimentalClient) GetChatAdvisorConfig(ctx context.Context) (AdvisorConfig, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/advisor", nil)
+func (c *Client) GetChatAdvisorConfig(ctx context.Context) (AdvisorConfig, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/chats/config/advisor", nil)
 	if err != nil {
 		return AdvisorConfig{}, err
 	}
@@ -3079,8 +3075,8 @@ func (c *ExperimentalClient) GetChatAdvisorConfig(ctx context.Context) (AdvisorC
 }
 
 // UpdateChatAdvisorConfig updates the deployment-wide advisor configuration.
-func (c *ExperimentalClient) UpdateChatAdvisorConfig(ctx context.Context, req UpdateAdvisorConfigRequest) error {
-	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/advisor", req)
+func (c *Client) UpdateChatAdvisorConfig(ctx context.Context, req UpdateAdvisorConfigRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/v2/chats/config/advisor", req)
 	if err != nil {
 		return err
 	}
