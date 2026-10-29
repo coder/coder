@@ -135,7 +135,6 @@ Use `secret_env` to keep the secret out of configuration files and Helm values.
 | Field                  | Required | Description                                                                                                                                                                                                                              |
 |------------------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `cursor_pool_name`     | Yes      | The pool name that workers register under in Cursor and that developers select. It's separate from `name`, which only labels the pool in Agent Relay.                                                                                    |
-| `repo_url`             | No       | Scopes the pool to one repository, such as `https://github.com/example-org/example-repo`. The URL path must include the owner and repository. Omit it for a pool that serves any repository.                                             |
 | `dispatch_deadline`    | No       | The longest time from claim to a ready workspace, as a duration such as `10m`. Defaults to `10m`, with a maximum of `15m`. `0` turns off the deadline, but Agent Relay still deletes a workspace that is building after 15&nbsp;minutes. |
 | `idle_release_timeout` | No       | How many seconds the worker waits for a follow-up after the agent finishes a turn. Defaults to `600`. Agent Relay logs a warning at startup for values below `300`.                                                                      |
 
@@ -143,7 +142,6 @@ Agent Relay refuses to start if:
 
 - More than four pools share one API key.
 - Two pools that share an API key use the same `cursor_pool_name`.
-- A `repo_url` doesn't include the owner and repository in its path.
 - A `dispatch_deadline` is longer than 15&nbsp;minutes.
 
 ### Reserved template parameter names

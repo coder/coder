@@ -16,23 +16,27 @@ Provider-specific steps live on the [Claude Code](./claude-code.md) and [Cursor]
 
 You need:
 
-- A Coder deployment with a Premium license, on version 2.37 or later.
-  Agent Relay refuses to start against versions earlier than v2.37.
-- `kubectl` and `helm` access to a Kubernetes cluster, or another runtime that can run a container.
+- A Coder deployment with a Premium license, on version 2.39 or later.
+- Somewhere to run the Agent Relay container: a Kubernetes cluster that you can reach with `kubectl` and `helm`, or a Docker host.
 - The [Coder CLI](../../install/cli.md), signed in as an `owner`.
 - An account with the provider you want to serve.
   Refer to the requirements on the [Claude Code](./claude-code.md#requirements) or [Cursor](./cursor.md#requirements) page.
 
 ## Plan your deployment
 
-- **Run one relay per set of pools.**
-  Two relays that serve the same pools both claim the same sessions and contend over the same workspaces.
-- **Run one relay per organization to isolate organizations.**
-  Give each relay its own service account and its own provider pools.
+Choose one of these layouts:
+
+- **One relay per deployment.**
+  One relay serves every organization and both providers with a single service account.
+- **One relay per organization.**
+  Each relay has its own service account and its own provider credentials, which isolates organizations from each other.
   For example, a deployment with three organizations runs three relays.
-- **Plan provisioner capacity per pool.**
-  Every pool you add can start more builds at once.
-  Refer to [Provision capacity for Agent Relay](#step-2-provision-capacity-for-agent-relay).
+
+In either layout, never give two relays the same provider credentials.
+Both relays claim the same sessions and compete over the same workspaces.
+
+Plan provisioner capacity for each pool, because every pool you add can start more builds at once.
+Refer to [Provision capacity for Agent Relay](#step-2-provision-capacity-for-agent-relay).
 
 ## Step 1: Create a service account
 
@@ -153,20 +157,21 @@ We also recommend that you:
 - **Use a dedicated template.**
   Relay workspaces are ephemeral and machine-driven.
   A separate template keeps quotas, access control, and activity policy for people from interfering.
-- **Do not put relay templates under a quota.**
-  Coder enforces quota during the build.
-  A relay build that exceeds the session owner's quota fails, and Agent Relay deletes the workspace.
-  Failed builds also consume the owner's quota, which can block their other workspaces.
+- **Use quotas to control spend.**
+  Relay builds count against the session owner's [quota](../../admin/users/quotas.md), the same as any other workspace.
+  Coder enforces quota during the build, so a build that exceeds the owner's quota fails and Agent Relay deletes the workspace.
+  Cursor shows the build error in the developer's chat.
+  Claude Code doesn't show it, so the reason appears only in Agent Relay's logs.
 - **Keep builds fast.**
   Pre-pull images, avoid persistent volumes, and bake the provider CLI into the image with `install_cli = false`.
 - **Own your workspace image.**
   `ghcr.io/coder/agent-relay-workspace:latest` is a reference image: `codercom/enterprise-base:ubuntu` with both provider CLIs, rebuilt weekly.
-  Fork it and add your own tooling.
+  Use it as the base of your own image and add your tooling.
 - **Restrict workspace egress.**
   Agent sessions run unattended.
   Allow only the hosts on the provider page and the internal services that sessions need.
-- **Provide Git credentials in the template.**
-  Coder and Agent Relay don't supply Git credentials to relay workspaces.
+- **Configure Git credentials in the template.**
+  Coder can supply each session owner's Git credentials through [external authentication](../../admin/external-auth.md), but the template must declare the provider.
   Refer to the source control section on each provider page.
 
 ## Step 4: Configure provider pools
@@ -268,7 +273,7 @@ Agent Relay release binaries for running as a `systemd` service aren't published
 ## Step 6: Verify the deployment
 
 Agent Relay fails fast at startup.
-An invalid token, an unlicensed deployment, a Coder version earlier than v2.37, or a missing organization permission stops the daemon with an explicit message.
+An invalid token, an unlicensed deployment, an unsupported Coder version, or a missing organization permission stops the daemon with an explicit message.
 
 1. Read the daemon's logs:
 
