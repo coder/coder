@@ -13,10 +13,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/aisdk-go"
 	mcpserver "github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
+	"github.com/coder/coder/v2/codersdk/toolsdk/tooldef"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -251,9 +251,9 @@ func TestRegisterSDKTool(t *testing.T) {
 		Value string `json:"value"`
 	}
 	tool := toolsdk.Tool[arguments, response]{
-		Tool: aisdk.Tool{
+		Tool: tooldef.Tool{
 			Name: "test_typed_tool",
-			Schema: aisdk.Schema{
+			Schema: tooldef.Schema{
 				Properties: map[string]any{
 					"fail":  map[string]any{"type": "boolean"},
 					"value": map[string]any{"type": "string"},
