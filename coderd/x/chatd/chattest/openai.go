@@ -304,7 +304,7 @@ func (s *openAIServer) handleResponses(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Prompt != nil {
-		if errResp := s.rejectUnstoredItemReference(&req); errResp != nil {
+		if errResp := s.rejectUnstoredItemReference(req); errResp != nil {
 			writeErrorResponse(s.t, w, errResp)
 			return
 		}
