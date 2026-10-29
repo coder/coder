@@ -18,15 +18,19 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 `GET /api/v2/organizations/{organization}/provisionerdaemons`
 
+Returns the provisioner daemons in an organization, including each daemon's status and its current and previous provisioner job.
+Use the `ids`, `status`, and `tags` query parameters to narrow the list.
+Requires permission to read provisioner jobs in the organization, which the Owner, Organization Admin, and Organization Template Admin roles have, and returns `404` without it.
+
 ### Parameters
 
-| Name           | In    | Type         | Required | Description                                                                          |
-|----------------|-------|--------------|----------|--------------------------------------------------------------------------------------|
-| `organization` | path  | string(uuid) | true     | Organization ID                                                                      |
-| `limit`        | query | integer      | false    | Page limit                                                                           |
-| `ids`          | query | array(uuid)  | false    | Filter results by job IDs                                                            |
-| `status`       | query | string       | false    | Filter results by status                                                             |
-| `tags`         | query | string       | false    | Provisioner tags to filter by (JSON of the form `{'tag1':'value1','tag2':'value2'}`) |
+| Name           | In    | Type         | Required | Description                                                                            |
+|----------------|-------|--------------|----------|----------------------------------------------------------------------------------------|
+| `organization` | path  | string(uuid) | true     | Organization ID, name, or `default` for the default organization.                      |
+| `limit`        | query | integer      | false    | Maximum number of results to return. The default is `50`, and `0` returns all results. |
+| `ids`          | query | array(uuid)  | false    | Filter results by job IDs                                                              |
+| `status`       | query | string       | false    | Filter results by status                                                               |
+| `tags`         | query | string       | false    | Provisioner tags to filter by (JSON of the form `{'tag1':'value1','tag2':'value2'}`)   |
 
 #### Enumerated Values
 
