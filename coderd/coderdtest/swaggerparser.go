@@ -6,7 +6,6 @@ import (
 	"go/token"
 	"net/http"
 	"regexp"
-	"slices"
 	"strings"
 	"testing"
 
@@ -337,14 +336,6 @@ var urlParameterRegexp = regexp.MustCompile(`{[^{}]*}`)
 
 func assertPathParametersDefined(t *testing.T, comment SwaggerComment) {
 	matches := urlParameterRegexp.FindAllString(comment.router, -1)
-
-	// Every documented path parameter must appear in the route.
-	for _, p := range comment.parameters {
-		if p.kind == "path" && !slices.Contains(matches, "{"+p.name+"}") {
-			assert.Failf(t, "Unexpected @Param annotation", "Path parameter %q is not in router %s", p.name, comment.router)
-		}
-	}
-
 	if matches == nil {
 		return // router does not require any parameters
 	}

@@ -56,9 +56,10 @@ func TestChatModelPathParametersFormatted(t *testing.T) {
 	}
 }
 
-// TestSwaggerParametersValid guards against parameter keywords that
-// Swagger 2.0 rejects: "example" on a non-body parameter, and "format" on an
-// array parameter, which swag applies to the array instead of its items.
+// TestSwaggerParametersValid guards against parameter annotations that
+// produce a wrong spec. Swagger 2.0 does not allow "example" on non-body
+// parameters, swag writes format(...) on an array parameter to the array
+// rather than its items, and a path parameter must appear in its route.
 func TestSwaggerParametersValid(t *testing.T) {
 	t.Parallel()
 
@@ -83,7 +84,10 @@ func TestSwaggerParametersValid(t *testing.T) {
 					assert.Nil(t, parameter.Example, "%s %s: %s parameter %q must not have an example; use extensions(x-example=...)", method, path, parameter.In, parameter.Name)
 				}
 				if parameter.Type == "array" {
-					assert.Empty(t, parameter.Format, "%s %s: array parameter %q must not have a format", method, path, parameter.Name)
+					assert.Empty(t, parameter.Format, "%s %s: array parameter %q must not have a format; swag cannot set an item format, so state it in the description", method, path, parameter.Name)
+				}
+				if parameter.In == "path" {
+					assert.Contains(t, path, "{"+parameter.Name+"}", "%s %s: path parameter %q is not in the route", method, path, parameter.Name)
 				}
 			}
 		}
