@@ -30,9 +30,9 @@ export const parseAsyncAnswer = (text: string): AsyncAnswer | undefined => {
 };
 
 /**
- * Returns an async answer without its prefix line, and a blocking answer (no
- * call ID) unchanged. Returns undefined when there is no text or the text
- * does not answer the async call.
+ * Returns the answer to the async call without its prefix line, or the text
+ * unchanged when asyncToolCallId is unset. Returns undefined when there is no
+ * text or the text does not answer the async call.
  */
 export const getAnswerBody = (
 	text: string | undefined,
