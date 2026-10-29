@@ -17,6 +17,9 @@ import (
 // AssignableSiteRoles returns all site wide roles that can be assigned.
 //
 // @Summary Get site member roles
+// @Description Returns the site-wide roles, built-in and custom, that you can assign to users.
+// @Description Each role has an `assignable` field that tells you whether you can assign it.
+// @Description Requires permission to read role assignments, which the Owner and User Admin roles have.
 // @ID get-site-member-roles
 // @Security CoderSessionToken
 // @Produce json
@@ -52,11 +55,14 @@ func (api *API) AssignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 // assignableOrgRoles returns all org wide roles that can be assigned.
 //
 // @Summary Get member roles by organization
+// @Description Returns the roles that apply in an organization, built-in and custom.
+// @Description Each role has an `assignable` field that tells you whether you can assign it.
+// @Description Requires permission to read the organization's assignable roles, which every organization member has.
 // @ID get-member-roles-by-organization
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Members
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
 // @Success 200 {array} codersdk.AssignableRoles
 // @Router /api/v2/organizations/{organization}/members/roles [get]
 func (api *API) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {

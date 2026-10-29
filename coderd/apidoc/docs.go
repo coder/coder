@@ -9338,6 +9338,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/members": {
             "get": {
+                "description": "Returns the members of an organization with their user data, without paging.\nReturns only the members you can read.\nUse ` + "`" + `/api/v2/organizations/{organization}/paginated-members` + "`" + ` instead.",
                 "produces": [
                     "application/json"
                 ],
@@ -9350,7 +9351,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -9376,6 +9377,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/members/roles": {
             "get": {
+                "description": "Returns the roles that apply in an organization, built-in and custom.\nEach role has an ` + "`" + `assignable` + "`" + ` field that tells you whether you can assign it.\nRequires permission to read the organization's assignable roles, which every organization member has.",
                 "produces": [
                     "application/json"
                 ],
@@ -9388,7 +9390,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -9412,6 +9414,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Replaces the display name and permissions of an existing custom role, identified by ` + "`" + `name` + "`" + ` in the request body.\nPermissions that aren't valid are dropped without an error, and the same restrictions as on creating a role apply.\nRequires permission to update custom organization roles, which the Owner and Organization Admin roles have, and a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -9427,13 +9430,13 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Update role request",
+                        "description": "Custom role definition. The ` + "`" + `name` + "`" + ` selects the role to update, and the other fields replace its current values.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -9460,6 +9463,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Creates a custom role in an organization with the given organization permissions.\nThe name can't match a built-in role, and the request can't include site, user, or organization member permissions.\nRequires permission to create custom organization roles, which the Owner and Organization Admin roles have, and a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -9475,13 +9479,13 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Insert role request",
+                        "description": "Custom role to create. Include only organization permissions.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -9510,6 +9514,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/members/roles/{roleName}": {
             "delete": {
+                "description": "Deletes a custom role from an organization.\nRequires permission to delete custom organization roles, which the Owner and Organization Admin roles have, and a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -9522,14 +9527,14 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Role name",
+                        "description": "Name of the custom organization role to delete.",
                         "name": "roleName",
                         "in": "path",
                         "required": true
@@ -9555,6 +9560,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/members/{user}": {
             "get": {
+                "description": "Returns one organization member with their user data, such as username, email, status, and roles.\nReturns only a member you can read.",
                 "produces": [
                     "application/json"
                 ],
@@ -9566,14 +9572,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -9594,6 +9600,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Adds an existing user to an organization with no roles beyond the organization's defaults.\nFails for an OIDC user while organization sync is enabled, because the identity provider controls that user's organizations.\nRequires permission to read the user and to create organization members, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -9605,14 +9612,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -9633,6 +9640,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Removes a user from an organization.\nYou can't remove yourself.\nRequires permission to delete organization members, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.",
                 "tags": [
                     "Members"
                 ],
@@ -9641,14 +9649,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -9774,6 +9782,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/members/{user}/roles": {
             "put": {
+                "description": "Replaces an organization member's roles with the roles in the request body.\nYou can't change your own roles, and you can't change the roles of an OIDC user while organization role sync is enabled.\nRequires permission to assign organization roles, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.",
                 "consumes": [
                     "application/json"
                 ],
@@ -9788,20 +9797,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Update roles request",
+                        "description": "Names of the roles to assign to the member. These replace the member's current roles.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -10048,6 +10057,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/paginated-members": {
             "get": {
+                "description": "Returns a page of the organization's members with their user data, ordered by username, along with the total count of matching members.\nUse ` + "`" + `q` + "`" + ` to filter the members and ` + "`" + `limit` + "`" + ` with ` + "`" + `offset` + "`" + ` or ` + "`" + `after_id` + "`" + ` to page through them.\nRequires permission to read all of the organization's members, which the Owner, Auditor, Template Admin, User Admin, Organization Admin, Organization Auditor, Organization User Admin, and Organization Template Admin roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -10059,33 +10069,33 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Member search query",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `name` + "`" + `, ` + "`" + `username` + "`" + `, ` + "`" + `email` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `service_account` + "`" + `, ` + "`" + `role` + "`" + `, ` + "`" + `last_seen_after` + "`" + `, ` + "`" + `last_seen_before` + "`" + `, ` + "`" + `created_after` + "`" + `, ` + "`" + `created_before` + "`" + `, ` + "`" + `github_com_user_id` + "`" + `, and ` + "`" + `login_type` + "`" + `. Text without a key matches the username, name, or email.",
                         "name": "q",
                         "in": "query"
                     },
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "After ID",
+                        "description": "User ID of the last member on the previous page. Returns the members after it, which pages faster than ` + "`" + `offset` + "`" + `.",
                         "name": "after_id",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page limit, if 0 returns all members",
+                        "description": "Maximum number of results to return. The default, ` + "`" + `0` + "`" + `, returns all results.",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page offset",
+                        "description": "Number of results to skip, for paging through results with ` + "`" + `limit` + "`" + `.",
                         "name": "offset",
                         "in": "query"
                     }
@@ -13738,6 +13748,7 @@ const docTemplate = `{
         },
         "/api/v2/users/roles": {
             "get": {
+                "description": "Returns the site-wide roles, built-in and custom, that you can assign to users.\nEach role has an ` + "`" + `assignable` + "`" + ` field that tells you whether you can assign it.\nRequires permission to read role assignments, which the Owner and User Admin roles have.",
                 "produces": [
                     "application/json"
                 ],
