@@ -161,7 +161,7 @@ func TestAuthorization(t *testing.T) {
 			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
 				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
 				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
-				expectSiteWideEveryoneFallback(db, user.ID, everyoneOrgID)
+				expectSiteWideEveryoneBudgetFallback(db, user.ID, everyoneOrgID)
 			},
 		},
 	}
@@ -275,7 +275,7 @@ func TestAuthorization_Delegated(t *testing.T) {
 			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
 				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
 				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
-				expectSiteWideEveryoneFallback(db, user.ID, everyoneOrgID)
+				expectSiteWideEveryoneBudgetFallback(db, user.ID, everyoneOrgID)
 			},
 		},
 		{
@@ -310,7 +310,7 @@ func TestAuthorization_Delegated(t *testing.T) {
 				apiKey.HashedSecret = []byte("not-the-real-hash")
 				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
 				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
-				expectSiteWideEveryoneFallback(db, user.ID, everyoneOrgID)
+				expectSiteWideEveryoneBudgetFallback(db, user.ID, everyoneOrgID)
 			},
 		},
 		{
@@ -517,7 +517,7 @@ func TestAuthorization_WorkspaceAttribution(t *testing.T) {
 				db.EXPECT().GetWorkspaceByID(gomock.Any(), workspaceID).Return(database.Workspace{ID: workspaceID, OrganizationID: orgID}, nil)
 				db.EXPECT().GetOrganizationsByUserID(gomock.Any(), gomock.Any()).Return([]database.Organization{{ID: orgID}}, nil)
 			} else if tt.wantErr == nil {
-				expectSiteWideEveryoneFallback(db, user.ID, orgID)
+				expectSiteWideEveryoneBudgetFallback(db, user.ID, orgID)
 			}
 
 			srv, err := aibridgedserver.NewServer(t.Context(), aibridgedserver.Options{
@@ -4260,11 +4260,11 @@ func siteWideFallbackParams(userID uuid.UUID) database.GetUserEveryoneFallbackGr
 	return database.GetUserEveryoneFallbackGroupParams{UserID: userID, OrganizationID: uuid.NullUUID{}}
 }
 
-// expectSiteWideEveryoneFallback mocks the site-wide effective group lookups
+// expectSiteWideEveryoneBudgetFallback mocks the site-wide effective group lookups
 // IsAuthorized makes for a request without a workspace: no override, no group
 // budget, and the Everyone group of orgID. The Everyone group's ID equals its
 // organization's ID.
-func expectSiteWideEveryoneFallback(db *dbmock.MockStore, userID, orgID uuid.UUID) {
+func expectSiteWideEveryoneBudgetFallback(db *dbmock.MockStore, userID, orgID uuid.UUID) {
 	db.EXPECT().GetUserAIBudgetOverrideWithOrganization(gomock.Any(), siteWideOverrideParams(userID)).
 		Return(database.GetUserAIBudgetOverrideWithOrganizationRow{}, sql.ErrNoRows)
 	db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), siteWideHighestParams(userID)).
