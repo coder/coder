@@ -100,16 +100,18 @@ func TestSDKFieldsFormatted(t *testing.T) {
 	}
 }
 
-// TestSwaggerEnumsNotNarrowed guards against an `enums:"..."` struct tag
-// narrowing a named enum type, which makes the spec list fewer values than the
-// API can return or a value the type does not have, and against enum lists in
-// the spec that repeat a value.
+// An enums tag must list exactly the values of its named type: fewer hides
+// values the API returns, extra ones document values it never sends.
+// Swagger 2.0 also requires enum items to be unique.
 func TestSwaggerEnumsNotNarrowed(t *testing.T) {
 	t.Parallel()
 
 	// Fields that omit a value of their type on purpose. The ACL role fields
-	// omit the "" deleted sentinel, which only update requests send. Keep this
-	// list as small as possible.
+	// omit the "" deleted sentinel, which only update requests send.
+	// CreateWorkspaceBuildOnSuccessRequest.transition and
+	// UpdateUserAppearanceSettingsRequest.theme_mode are request fields whose
+	// validate oneof tag accepts only some values. APIKey.scope is deprecated
+	// and lists only the legacy scopes. Keep this list as small as possible.
 	allowedSubsets := map[string]bool{
 		"codersdk.APIKey.scope":                                    true,
 		"codersdk.ChatGroup.role":                                  true,
@@ -166,8 +168,6 @@ func TestSwaggerEnumsNotNarrowed(t *testing.T) {
 	}
 
 	seenSubsets := map[string]bool{}
-	// assertEnumMatchesType checks an enum list written next to a reference to
-	// a named enum type against the values of that type.
 	assertEnumMatchesType := func(key, ref string, inline []any) {
 		t.Helper()
 		if ref == "" || len(inline) == 0 {
@@ -177,13 +177,13 @@ func TestSwaggerEnumsNotNarrowed(t *testing.T) {
 		have := enumStrings(inline)
 		want := enumStrings(named)
 		for _, v := range have {
-			assert.Truef(t, slices.Contains(want, v), "%s lists %q, which type %s does not have", key, v, ref)
+			assert.Truef(t, slices.Contains(want, v), "%s lists %q, which type %s does not have; remove it from the field's enums or oneof tag, or add the constant to the type if the API returns it", key, v, ref)
 		}
 		if slices.Equal(have, want) {
 			return
 		}
 		seenSubsets[key] = true
-		assert.Truef(t, allowedSubsets[key], "%s lists %v but its type %s lists %v; remove the enums tag so the spec lists every value, or add it to allowedSubsets if the subset is intentional", key, inline, ref, named)
+		assert.Truef(t, allowedSubsets[key], "%s lists %v but its type %s lists %v; remove the value-narrowing enums or oneof tag so the spec lists every value, or add the field to allowedSubsets if the subset is intentional", key, inline, ref, named)
 	}
 
 	for defName, def := range swagger.Definitions {
