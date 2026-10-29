@@ -2,9 +2,9 @@
 title: Configure ACP subagents
 ---
 
-As a developer, you can use ACP subagents to delegate parts of a Coder Agents task to external coding agents in your workspace.
+As a developer, you can use ACP (Agent Client Protocol) subagents to delegate parts of a Coder Agents task to external coding agents in your workspace.
 A harness, such as Codex or Claude Code, is a program that runs an external coding agent.
-An ACP adapter launches the harness and connects it to Coder through the [Agent Client Protocol (ACP)](https://agentclientprotocol.com/).
+An ACP adapter launches the harness and connects it to Coder through the [Agent Client Protocol](https://agentclientprotocol.com/).
 
 ## Prerequisites
 
@@ -18,7 +18,7 @@ They aren't available in plan mode or to Coder Agents subagents.
 ## Configure a harness
 
 Configure harnesses inside the workspace where you want the subagents to run.
-This example uses Claude Code.
+This example uses Claude Code, but the steps for other harnesses are similar.
 Visit the [ACP registry](https://agentclientprotocol.com/registry) to explore other available harnesses.
 
 1. Install the harness and its ACP adapter in your workspace.
