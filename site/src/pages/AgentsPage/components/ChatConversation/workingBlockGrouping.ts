@@ -428,7 +428,7 @@ const sliceEndsRow = (
 };
 
 /**
- * A pill row that ends inside a collapsed block renders nothing below the
+ * A pill row that ends inside a working block renders nothing below the
  * block, so the block shows the row's pill.
  */
 export const getBlockTurnAttachments = (
