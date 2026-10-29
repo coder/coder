@@ -589,6 +589,19 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				? askUserQuestionResponseTextByToolId
 				: undefined;
 
+		// PROTOTYPE: a reply after the live block takes over from its peek. A
+		// whole live row is a status row, such as a retry, not a reply.
+		const lastReplyIndex = layout.items.findLastIndex((item) => {
+			if (item.type !== "slice") {
+				return false;
+			}
+			const row = renderRows[item.slice.rowIndex];
+			if (row.type === "live") {
+				return item.slice.pieceRange !== undefined;
+			}
+			return !(collapseSteps && isAgentAttachmentOnlyRow(row));
+		});
+
 		const renderSlice = (
 			slice: RowSlice,
 			{ inWorkingBlock }: { inWorkingBlock: boolean },
@@ -667,7 +680,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		return (
 			<FileProbeProvider evictedFileIds={evictedFileIds}>
 				<LightboxHost>
-					{layout.items.map((item) => {
+					{layout.items.map((item, itemIndex) => {
 						if (item.type === "block") {
 							const { block } = item;
 							const itemKey = getItemKey(block);
@@ -684,9 +697,15 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 							const isAfterEditingMessage =
 								firstRow.type === "message" &&
 								afterEditingMessageIds.has(firstRow.entry.message.id);
-							// The same slice content the expanded block renders.
+							// The same slice content the expanded block renders. A block of
+							// only reasoning has no peek: text after it dissolves the block
+							// into a reasoning row, and the peek's height would vanish at once.
 							const peekItems =
-								peekEnabled && block.isLive && !expanded
+								peekEnabled &&
+								block.isLive &&
+								!expanded &&
+								block.stepCount > 0 &&
+								lastReplyIndex < itemIndex
 									? collectPeekItems(
 											block.slices.map(({ rowIndex, pieceRange }) => {
 												const row = renderRows[rowIndex];

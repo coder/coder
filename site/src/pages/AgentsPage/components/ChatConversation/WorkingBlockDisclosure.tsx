@@ -1,6 +1,6 @@
 import { ListTreeIcon } from "lucide-react";
 import { AnimatePresence, animate, motion, usePresence } from "motion/react";
-import { Component, useEffect, useRef, useState } from "react";
+import { Component, useEffect, useEffectEvent, useRef, useState } from "react";
 import { useTime } from "#/hooks/useTime";
 import { humanDurationShort } from "#/utils/time";
 import { useMessageScrollerLayoutSync } from "#/vendor/message-scroller";
@@ -55,21 +55,29 @@ export const formatLiveElapsed = (ms: number): string => {
 	return `${seconds}s`;
 };
 
-type LiveLabelProps = { block: WorkingBlock };
+type LiveLabelProps = {
+	block: WorkingBlock;
+	/** PROTOTYPE: counts the steps, which the peek hides past its newest two. */
+	showSteps: boolean;
+};
 
-const LiveLabel: React.FC<LiveLabelProps> = ({ block }) => {
+const LiveLabel: React.FC<LiveLabelProps> = ({ block, showSteps }) => {
 	// Only the live block subscribes to a clock; completed blocks render a
 	// fixed label, so long transcripts never tick.
 	const now = useTime(() => Date.now());
+	const steps =
+		showSteps && block.stepCount > 0
+			? ` (${countLabel(block, block.stepCount, "step")})`
+			: "";
 
 	if (block.startedAt === undefined) {
-		return <ToolCall.Label>Working</ToolCall.Label>;
+		return <ToolCall.Label>{`Working${steps}`}</ToolCall.Label>;
 	}
 
 	const elapsed = formatLiveElapsed(now - block.startedAt);
 	return (
 		<ToolCall.Label className="tabular-nums">
-			{`Working for ${atLeast(block)}${elapsed}`}
+			{`Working for ${atLeast(block)}${elapsed}${steps}`}
 		</ToolCall.Label>
 	);
 };
@@ -163,7 +171,10 @@ type WorkingBlockDisclosureProps = {
 	block: WorkingBlock;
 	expanded: boolean;
 	onExpandedChange: (expanded: boolean) => void;
-	/** PROTOTYPE: previews a collapsed live block's newest steps. */
+	/**
+	 * PROTOTYPE: previews a collapsed live block's newest steps. The peek
+	 * folds away when its items empty.
+	 */
 	peek?: Omit<WorkingBlockPeekProps, "onExpand">;
 	children: React.ReactNode;
 };
@@ -186,6 +197,10 @@ const PeekPresence: React.FC<{ children: React.ReactNode }> = ({
 	const [isPresent, safeToRemove] = usePresence();
 	const foldRef = useRef<HTMLDivElement>(null);
 	const syncLayout = useMessageScrollerLayoutSync();
+	// A reply streaming in re-renders the folding peek, so the fold runs once
+	// per exit instead of restarting whenever these callbacks change.
+	const onFoldFrame = useEffectEvent(() => syncLayout());
+	const onFoldEnd = useEffectEvent(() => safeToRemove?.());
 
 	// The fold is an animation driven outside React.
 	useEffect(() => {
@@ -194,7 +209,7 @@ const PeekPresence: React.FC<{ children: React.ReactNode }> = ({
 			return;
 		}
 		if (!element) {
-			safeToRemove();
+			onFoldEnd();
 			return;
 		}
 		const from = element.offsetHeight;
@@ -203,12 +218,12 @@ const PeekPresence: React.FC<{ children: React.ReactNode }> = ({
 			onUpdate: (height) => {
 				element.style.height = `${height}px`;
 				element.style.opacity = String(from > 0 ? height / from : 0);
-				syncLayout();
+				onFoldFrame();
 			},
-			onComplete: safeToRemove,
+			onComplete: () => onFoldEnd(),
 		});
 		return () => controls.stop();
-	}, [isPresent, safeToRemove, syncLayout]);
+	}, [isPresent]);
 
 	return (
 		<div ref={foldRef} className="overflow-hidden">
@@ -259,17 +274,17 @@ export const WorkingBlockDisclosure: React.FC<WorkingBlockDisclosureProps> = ({
 					<ListTreeIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
 				</ToolCall.LeadingIcon>
 				{block.isLive ? (
-					<LiveLabel block={block} />
+					<LiveLabel block={block} showSteps={peek !== undefined} />
 				) : (
 					<ToolCall.Label>{getCompletedWorkingLabel(block)}</ToolCall.Label>
 				)}
 				<ToolCall.Chevron />
 			</ToolCall.HeaderButton>
 			{/* Unmounted while expanded, so the expanded rows replace the peek in
-			    the same frame; it folds away only when the block completes. */}
+			    the same frame; otherwise it folds away. */}
 			{peek && !expanded && (
 				<AnimatePresence initial={peekGrowsIn && !hasExpanded}>
-					{block.isLive && (
+					{peek.items.length > 0 && (
 						<PeekPresence key="peek">
 							<WorkingBlockPeek
 								{...peek}

@@ -81,15 +81,17 @@ const rowsHeight = (count: number) =>
 /**
  * The window reaches this far past its rows at both edges and fades out
  * across that band, so a row dissolves as it slides past an edge while rows
- * at rest stay at full contrast. The top band sits in the gap above and the
- * empty bottom of the line above it, short of that line's glyphs.
+ * at rest stay at full contrast. The top band starts at the summary row's
+ * bottom edge, below its glyphs, so a leaving row never shows under them.
  */
 const EDGE = 12;
+/** The gap between the summary row and the rail, as the expanded block has. */
+const RAIL_GAP = 6;
 const edgeMask = `linear-gradient(to bottom, transparent, #000 ${EDGE}px, #000 calc(100% - ${EDGE}px), transparent)`;
 
 /**
- * Every moving part shares one curve that lands, so rows, the window, and
- * the count arrive together without a creeping tail.
+ * Every moving part shares one curve that lands, so rows and the window
+ * arrive together without a creeping tail.
  */
 export const slide = {
 	duration: 0.3,
@@ -146,23 +148,6 @@ const PeekRow: React.FC<{ item: PeekItem } & ToolContext> = ({
 	);
 };
 
-/** Rolls the old number up and out as the new one rolls in. */
-const RollingCount: React.FC<{ value: number }> = ({ value }) => (
-	<span className="relative inline-flex overflow-hidden tabular-nums">
-		<AnimatePresence initial={false} mode="popLayout">
-			<motion.span
-				key={value}
-				initial={{ y: "80%", opacity: 0 }}
-				animate={{ y: 0, opacity: 1 }}
-				exit={{ y: "-80%", opacity: 0 }}
-				transition={slide}
-			>
-				{value}
-			</motion.span>
-		</AnimatePresence>
-	</span>
-);
-
 export type WorkingBlockPeekProps = ToolContext & {
 	items: readonly PeekItem[];
 	onExpand: () => void;
@@ -180,11 +165,6 @@ export const WorkingBlockPeek: React.FC<WorkingBlockPeekProps> = ({
 	...ctx
 }) => {
 	const shown = items.slice(-PEEK_ROWS);
-	const hidden = items.slice(0, items.length - shown.length);
-	const hiddenSteps = hidden.filter((item) => item.kind === "tool");
-	const hiddenRunning = hiddenSteps.filter(
-		(item) => item.kind === "tool" && item.tool.status === "running",
-	).length;
 
 	// Slots are handed out in arrival order and never reused, so a row keeps
 	// its slot from the moment it appears until it has faded out above.
@@ -212,47 +192,20 @@ export const WorkingBlockPeek: React.FC<WorkingBlockPeekProps> = ({
 
 	return (
 		<MotionConfig reducedMotion="user">
-			{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- A mouse shortcut; the summary and earlier-steps buttons expand the block from the keyboard. */}
+			{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- A mouse shortcut; the summary row expands the block from the keyboard. */}
 			<div
 				onClick={(event) => {
 					userLayoutIntent(event.currentTarget, { revealEnd: true });
 					onExpand();
 				}}
-				className="ml-2 cursor-pointer border-0 border-l border-solid border-border pt-1.5 pl-4 hover:[&_.text-content-secondary]:text-content-primary"
+				className="ml-2 flex cursor-pointer flex-col border-0 border-l border-solid border-border pl-4 hover:[&_.text-content-secondary]:text-content-primary"
+				style={{ marginTop: RAIL_GAP }}
 			>
-				<AnimatePresence initial={false}>
-					{hiddenSteps.length > 0 && (
-						<motion.div
-							key="earlier"
-							className="overflow-hidden"
-							initial={{ height: 0, marginBottom: 0, opacity: 0 }}
-							animate={{
-								height: ROW_HEIGHT,
-								marginBottom: ROW_GAP,
-								opacity: 1,
-							}}
-							exit={{ height: 0, marginBottom: 0, opacity: 0 }}
-							transition={slide}
-						>
-							<button
-								type="button"
-								aria-label={`Show ${hiddenSteps.length} earlier ${hiddenSteps.length === 1 ? "step" : "steps"}`}
-								className="m-0 flex h-6 cursor-pointer items-center gap-1 border-0 bg-transparent p-0 font-[inherit] text-xs text-content-secondary transition-colors"
-							>
-								<RollingCount value={hiddenSteps.length} />
-								<span>
-									earlier {hiddenSteps.length === 1 ? "step" : "steps"}
-									{hiddenRunning > 0 && `, ${hiddenRunning} still running`}
-								</span>
-							</button>
-						</motion.div>
-					)}
-				</AnimatePresence>
 				<motion.div
 					data-peek-window=""
 					className="relative overflow-hidden"
 					style={{
-						marginTop: -EDGE,
+						marginTop: -RAIL_GAP,
 						maskImage: edgeMask,
 						WebkitMaskImage: edgeMask,
 					}}

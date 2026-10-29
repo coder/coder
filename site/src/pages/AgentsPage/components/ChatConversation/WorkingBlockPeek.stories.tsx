@@ -81,6 +81,16 @@ const script: readonly SimEvent[] = [
 	},
 	{
 		type: "stream",
+		ms: 250,
+		parts: [{ type: "text", text: "Picking up from " }],
+	},
+	{
+		type: "stream",
+		ms: 500,
+		parts: [{ type: "text", text: "the ledger." }],
+	},
+	{
+		type: "stream",
 		ms: 600,
 		parts: [call("read", "read_file", { path: "/home/coder/ledger.md" })],
 	},
@@ -124,6 +134,23 @@ const script: readonly SimEvent[] = [
 				"Confirm the issue still matches what the agent fixed.",
 			),
 		],
+	},
+	// A reply between steps: the block so far completes, and the next tool
+	// opens a new block after the text.
+	{
+		type: "stream",
+		ms: 300,
+		parts: [{ type: "text", text: "The relay agent finished. " }],
+	},
+	{
+		type: "stream",
+		ms: 300,
+		parts: [{ type: "text", text: "I'll confirm its issue still matches, " }],
+	},
+	{
+		type: "stream",
+		ms: 800,
+		parts: [{ type: "text", text: "then run the tests." }],
 	},
 	{
 		type: "stream",
@@ -620,18 +647,24 @@ const staticFrame = (index: number): Story => ({
 	),
 });
 
-/** The first thought, before any tool. */
+/** The first thought, before any tool, has no peek. */
 export const FirstStep = staticFrame(
 	eventIndex((event) => event.type === "stream"),
 );
 
-/** A long sub-agent wait, with one earlier step folded away. */
+/** A long sub-agent wait; the header counts the step the peek hides. */
 export const WaitingOnSubagent = staticFrame(persistOf("wait"));
+
+/** A reply between steps folds the peek while the block stays live. */
+export const ReplyBetweenSteps = staticFrame(persistOf("issue") - 2);
+
+/** The step after a reply opens a new block, which peeks again. */
+export const StepAfterReply = staticFrame(persistOf("issue"));
 
 /** Two tools run at once, the case from the report. */
 export const ParallelTools = staticFrame(persistOf("poll"));
 
-/** The answer streams after the block while the peek still shows its steps. */
+/** The answer streams after the block, which has folded its peek. */
 export const AnswerStreaming = staticFrame(script.length - 2);
 
 /** The turn ended, so the block folds to its summary. */
