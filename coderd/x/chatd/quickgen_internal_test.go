@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	"charm.land/fantasy/object"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
@@ -37,6 +38,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func Test_extractManualTitleTurns(t *testing.T) {
@@ -1193,7 +1195,7 @@ func TestGenerateStructuredTitleWithUsage_DropsRejectedTemperature(t *testing.T)
 	t.Parallel()
 
 	var sawTemperature []bool
-	model := &chattest.FakeModel{
+	model := newQuickgenParamTestModel(&Server{clock: quartz.NewMock(t)}, uuid.New(), &chattest.FakeModel{
 		GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
 			sawTemperature = append(sawTemperature, call.Temperature != nil)
 			if call.Temperature != nil {
@@ -1203,7 +1205,7 @@ func TestGenerateStructuredTitleWithUsage_DropsRejectedTemperature(t *testing.T)
 				Object: map[string]any{"title": "Failed workspace logs"},
 			}, nil
 		},
-	}
+	})
 
 	title, _, err := generateStructuredTitleWithUsage(
 		t.Context(),
@@ -1219,14 +1221,27 @@ func TestGenerateStructuredTitleWithUsage_DropsRejectedTemperature(t *testing.T)
 		"generation should retry without temperature after the model rejects it")
 }
 
+// newQuickgenParamTestModel wraps lm the way resolveModelCall does, so
+// models wrapped through the same server share learned rejections.
+func newQuickgenParamTestModel(server *Server, providerID uuid.UUID, lm *chattest.FakeModel) fantasy.LanguageModel {
+	lm.ProviderName = fantasyanthropic.Name
+	lm.ModelName = "claude-opus-5-5"
+	return server.withQuickgenParamFallback(chatprovider.NewModel(lm, nil), providerID).LanguageModel()
+}
+
 // Mirrors Claude Opus 5.5, which rejects both the forced tool_choice of
 // tool-mode object generation and the temperature parameter.
-func TestGenerateStructuredTitleWithUsage_FallsBackToTextWhenToolChoiceRejected(t *testing.T) {
+func TestGenerateStructuredTitleWithUsage_RemembersRejectedParams(t *testing.T) {
 	t.Parallel()
 
-	var textCallTemperatures []bool
-	model := &chattest.FakeModel{
-		GenerateObjectFn: func(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+	type request struct {
+		toolMode    bool
+		temperature bool
+	}
+	var requests []request
+	lm := &chattest.FakeModel{
+		GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+			requests = append(requests, request{toolMode: true, temperature: call.Temperature != nil})
 			return nil, &fantasy.ProviderError{
 				Title:      "bad request",
 				Message:    `tool_choice: type "tool" and "any" are not supported for this model.`,
@@ -1234,7 +1249,7 @@ func TestGenerateStructuredTitleWithUsage_FallsBackToTextWhenToolChoiceRejected(
 			}
 		},
 		GenerateFn: func(_ context.Context, call fantasy.Call) (*fantasy.Response, error) {
-			textCallTemperatures = append(textCallTemperatures, call.Temperature != nil)
+			requests = append(requests, request{temperature: call.Temperature != nil})
 			if call.Temperature != nil {
 				return nil, newTemperatureRejectedError()
 			}
@@ -1243,19 +1258,36 @@ func TestGenerateStructuredTitleWithUsage_FallsBackToTextWhenToolChoiceRejected(
 			}, nil
 		},
 	}
+	clock := quartz.NewMock(t)
+	server := &Server{clock: clock}
+	providerID := uuid.New()
+	// Each job resolves its own model, as title generation does per turn.
+	runJob := func(providerID uuid.UUID) []request {
+		requests = nil
+		title, _, err := generateStructuredTitleWithUsage(
+			t.Context(),
+			newQuickgenParamTestModel(server, providerID, lm),
+			titleObjectCall(resolvedModelCall{}),
+			codersdk.DefaultChatMaxGenerationRetries,
+			titleGenerationPrompt,
+			"summarize failed workspace build logs",
+		)
+		require.NoError(t, err)
+		require.Equal(t, "Failed workspace logs", title)
+		return requests
+	}
 
-	title, _, err := generateStructuredTitleWithUsage(
-		t.Context(),
-		model,
-		titleObjectCall(resolvedModelCall{}),
-		codersdk.DefaultChatMaxGenerationRetries,
-		titleGenerationPrompt,
-		"summarize failed workspace build logs",
-	)
-	require.NoError(t, err)
-	require.Equal(t, "Failed workspace logs", title)
-	require.Equal(t, []bool{true, false}, textCallTemperatures,
-		"text-mode generation should also retry without a rejected temperature")
+	learning := []request{{toolMode: true, temperature: true}, {temperature: true}, {}}
+	require.Equal(t, learning, runJob(providerID),
+		"the first job should learn each rejected parameter once")
+	require.Equal(t, []request{{}}, runJob(providerID),
+		"later jobs should skip parameters the model already rejected")
+	require.Equal(t, learning, runJob(uuid.New()),
+		"rejections should not apply to a different provider")
+
+	clock.Advance(quickgenParamRejectionTTL).MustWait(t.Context())
+	require.Equal(t, learning, runJob(providerID),
+		"expired rejections should be learned again")
 }
 
 // Budget thinking would reject the forced tool_choice of tool-mode generation,
@@ -1305,7 +1337,7 @@ func TestQuickgenCallsKeepBudgetThinkingOff(t *testing.T) {
 					fantasyanthropic.Name: &fantasyanthropic.ProviderOptions{Effort: &effort},
 				}})
 				call.Prompt = fantasy.Prompt{fantasy.NewUserMessage("fix the login bug")}
-				_, err = generateObject[generatedTitle](t.Context(), model, call)
+				_, err = object.Generate[generatedTitle](t.Context(), model, call)
 				require.Error(t, err)
 
 				req := testutil.RequireReceive(t.Context(), t, requests)
@@ -1462,7 +1494,7 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 		t.Parallel()
 
 		var sawTemperature []bool
-		model := &chattest.FakeModel{
+		model := newQuickgenParamTestModel(&Server{clock: quartz.NewMock(t)}, uuid.New(), &chattest.FakeModel{
 			GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
 				sawTemperature = append(sawTemperature, call.Temperature != nil)
 				if call.Temperature != nil {
@@ -1472,7 +1504,7 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 					Object: map[string]any{"label": "Submitted PR"},
 				}, nil
 			},
-		}
+		})
 
 		label, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelObjectCall(resolvedModelCall{}), codersdk.DefaultChatMaxGenerationRetries, turnStatusLabelPrompt, "done")
 		require.NoError(t, err)

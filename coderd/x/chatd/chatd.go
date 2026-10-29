@@ -208,6 +208,9 @@ type Server struct {
 	// thinkingDropBlock holds the thinkingDropBlockKey of each provider and
 	// model that accepted Anthropic's thinking drop_block control.
 	thinkingDropBlock sync.Map
+	// quickgenParamRejections records when each provider and model last
+	// rejected a quickgen parameter. See quickgenParamModel.
+	quickgenParamRejections sync.Map
 
 	// Configuration
 	inFlightChatStaleAfter time.Duration
