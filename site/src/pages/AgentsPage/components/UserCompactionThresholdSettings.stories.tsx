@@ -17,7 +17,7 @@ import {
 import {
 	compactionOverrideWindowPercent,
 	type OrganizationCompactionTrigger,
-} from "../compactionTriggers";
+} from "../utils/compactionTriggers";
 import { UserCompactionThresholdSettings } from "./UserCompactionThresholdSettings";
 
 const modelsOrganization = {
@@ -92,9 +92,12 @@ const meta = {
 	decorators: [withAuthProvider, withDashboardProvider],
 	args: {
 		models: mockModels,
-		providerTypeByID: new Map<string, string>([
-			["provider-1", "openai"],
-			["provider-anthropic", "anthropic"],
+		providerInfoByID: new Map([
+			["provider-1", { provider: "openai", displayName: "OpenAI", icon: "" }],
+			[
+				"provider-anthropic",
+				{ provider: "anthropic", displayName: "Anthropic", icon: "" },
+			],
 		]),
 		organizations: [modelsOrganization],
 		compactionTriggersByOrganizationID: new Map(),
@@ -148,6 +151,21 @@ export const ContextWindowTracksDraft: Story = {
 export const UnknownContextWindow: Story = {
 	args: {
 		models: [{ ...mockModels[0], context_limit: 0 }],
+	},
+};
+
+export const ConfiguredProviderIcon: Story = {
+	args: {
+		providerInfoByID: new Map([
+			[
+				"provider-1",
+				{
+					provider: "openai",
+					displayName: "DeepSeek",
+					icon: "/icon/widgets.svg",
+				},
+			],
+		]),
 	},
 };
 

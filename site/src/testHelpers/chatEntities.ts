@@ -1,5 +1,7 @@
 import type {
+	AdvisorConfig,
 	Chat,
+	ChatAttachment,
 	ChatContext,
 	ChatContextResource,
 	ChatCost,
@@ -105,6 +107,46 @@ export const MockChatContextDirty: ChatContext = {
 	resources: MockChatContextResources,
 };
 
+export const MockChatContextACPHarnesses: ChatContext = {
+	dirty: false,
+	resources: [
+		{
+			source: "claude-code",
+			source_path: "/home/coder/.coder/acp",
+			kind: "acp_harness",
+			size_bytes: 120,
+			status: "ok",
+		},
+		{
+			source: "codex",
+			source_path: "/home/coder/.coder/acp",
+			kind: "acp_harness",
+			size_bytes: 96,
+			status: "ok",
+		},
+	],
+};
+
+export const MockChatContextACPHarnessIssue: ChatContext = {
+	dirty: false,
+	resources: [
+		...(MockChatContextACPHarnesses.resources ?? []),
+		{
+			source: "broken",
+			kind: "acp_harness",
+			size_bytes: 0,
+			status: "invalid",
+			error: "cannot start harness",
+		},
+	],
+};
+
+export const MockAdvisorConfig: AdvisorConfig = {
+	enabled: true,
+	max_uses_per_run: 5,
+	max_output_tokens: 2048,
+};
+
 export const MockMCPServerConfig: MCPServerConfig = {
 	id: "mcp-1",
 	organization_id: "00000000-0000-4000-8000-000000000001",
@@ -147,6 +189,18 @@ export const MockChatFileMetadata: ChatFileMetadata = {
 	mime_type: "text/plain",
 	size_bytes: 128,
 	created_at: MOCK_TIMESTAMP,
+};
+
+export const MockChatAttachment: ChatAttachment = {
+	message_id: MockChatMessage.id,
+	part_index: 0,
+	role: "user",
+	file: {
+		type: "file",
+		media_type: MockChatFileMetadata.mime_type,
+		name: MockChatFileMetadata.name,
+		file_id: MockChatFileMetadata.id,
+	},
 };
 
 export const MockChatCompactionMessage: ChatMessage = {

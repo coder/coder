@@ -18,10 +18,6 @@ type Story = StoryObj<typeof Badge>;
 export const Default: Story = {
 	render: () => (
 		<BadgeGroup>
-			<Badge size="xs">
-				<DatabaseIcon />
-				Text
-			</Badge>
 			<Badge size="sm">
 				<DatabaseIcon />
 				Text
@@ -37,10 +33,6 @@ export const Default: Story = {
 export const Outline: Story = {
 	render: () => (
 		<BadgeGroup>
-			<Badge variant="outline" size="xs">
-				<DatabaseIcon />
-				Status
-			</Badge>
 			<Badge variant="outline" size="sm">
 				<DatabaseIcon />
 				Status
@@ -56,9 +48,6 @@ export const Outline: Story = {
 export const Dashed: Story = {
 	render: () => (
 		<BadgeGroup>
-			<Badge variant="dashed" size="xs">
-				owner:
-			</Badge>
 			<Badge variant="dashed" size="sm">
 				owner:
 			</Badge>
@@ -72,10 +61,6 @@ export const Dashed: Story = {
 export const Warning: Story = {
 	render: () => (
 		<BadgeGroup>
-			<Badge variant="warning" size="xs">
-				Warning
-				<TriangleAlertIcon />
-			</Badge>
 			<Badge variant="warning" size="sm">
 				<TriangleAlertIcon />
 				Warning
@@ -91,10 +76,6 @@ export const Warning: Story = {
 export const Destructive: Story = {
 	render: () => (
 		<BadgeGroup>
-			<Badge variant="destructive" size="xs">
-				Destructive
-				<TriangleAlertIcon />
-			</Badge>
 			<Badge variant="destructive" size="sm">
 				<TriangleAlertIcon />
 				Destructive
@@ -110,9 +91,6 @@ export const Destructive: Story = {
 export const Info: Story = {
 	render: () => (
 		<BadgeGroup>
-			<Badge variant="info" size="xs">
-				Info
-			</Badge>
 			<Badge variant="info" size="sm">
 				Info
 			</Badge>
@@ -126,9 +104,6 @@ export const Info: Story = {
 export const Green: Story = {
 	render: () => (
 		<BadgeGroup>
-			<Badge variant="green" size="xs">
-				Green
-			</Badge>
 			<Badge variant="green" size="sm">
 				Green
 			</Badge>
@@ -142,9 +117,6 @@ export const Green: Story = {
 export const Purple: Story = {
 	render: () => (
 		<BadgeGroup>
-			<Badge variant="purple" size="xs">
-				Purple
-			</Badge>
 			<Badge variant="purple" size="sm">
 				Purple
 			</Badge>
@@ -158,9 +130,6 @@ export const Purple: Story = {
 export const Magenta: Story = {
 	render: () => (
 		<BadgeGroup>
-			<Badge variant="magenta" size="xs">
-				Magenta
-			</Badge>
 			<Badge variant="magenta" size="sm">
 				Magenta
 			</Badge>

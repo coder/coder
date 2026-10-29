@@ -1,5 +1,11 @@
 import { useEffect } from "react";
 
+// Static files are served with immutable caching (ShouldCacheFile in
+// site/site.go), so a browser that has fetched a URL never refetches it.
+// Bump this when manifest.json or apple-touch-icon.png changes, and bump the
+// icon URLs in manifest.json when an icon changes.
+const pwaAssetVersion = "5";
+
 /**
  * Points the document's manifest at the Agents app and injects PWA-related
  * <head> tags while the Agents page is mounted (apple-touch-icon,
@@ -17,13 +23,13 @@ export function useAgentsPWA() {
 		const prevManifestHref = manifest?.getAttribute("href") ?? "";
 
 		if (manifest) {
-			manifest.setAttribute("href", "/manifest.json");
+			manifest.setAttribute("href", `/manifest.json?v=${pwaAssetVersion}`);
 		}
 
 		// -- Injected elements --------------------------------------------------
 		const appleTouchIcon = document.createElement("link");
 		appleTouchIcon.rel = "apple-touch-icon";
-		appleTouchIcon.href = "/apple-touch-icon.png";
+		appleTouchIcon.href = `/apple-touch-icon.png?v=${pwaAssetVersion}`;
 
 		const mobileWebAppCapable = document.createElement("meta");
 		mobileWebAppCapable.name = "mobile-web-app-capable";

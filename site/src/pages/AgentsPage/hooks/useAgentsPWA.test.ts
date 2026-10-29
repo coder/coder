@@ -16,7 +16,7 @@ describe("useAgentsPWA", () => {
 		const { unmount } = renderHook(() => useAgentsPWA());
 
 		expect(document.querySelectorAll('link[rel="manifest"]')).toHaveLength(1);
-		expect(manifest.getAttribute("href")).toBe("/manifest.json");
+		expect(manifest.getAttribute("href")).toBe("/manifest.json?v=5");
 
 		unmount();
 

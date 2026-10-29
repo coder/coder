@@ -12,10 +12,10 @@ import (
 	"github.com/coder/coder/v2/provisioner/terraform/tfaddr"
 )
 
-// TODO(PLAT-554): Measure query performance with representative large
-// Terraform graphs, then tune these limits.
+// Reference parsing allocates more per operation than indexed graph traversal,
+// so give it a smaller cumulative budget.
 const (
-	maxReferenceLookups = 1_000_000
+	maxReferenceLookups = 100_000
 	maxNodeVisits       = 1_000_000
 	maxTraversedEdges   = 1_000_000
 )

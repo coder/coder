@@ -220,6 +220,24 @@ describe("parseMessageContent", () => {
 		expect(result.blocks).toEqual([{ type: "response", text: "Hello" }]);
 	});
 
+	it("keeps skill invocations between the text around them", () => {
+		const skillPart = {
+			type: "skill-invocation",
+			skill_source: "project",
+			skill_name: "triage",
+		} as const;
+		const result = parseMessageContent([
+			{ type: "text", text: "Use " },
+			skillPart,
+			{ type: "text", text: " now" },
+		]);
+		expect(result.blocks).toEqual([
+			{ type: "response", text: "Use " },
+			skillPart,
+			{ type: "response", text: " now" },
+		]);
+	});
+
 	it("merges multiple text blocks into a single response block", () => {
 		const result = parseMessageContent([
 			{ type: "text", text: "Line one" },
@@ -511,7 +529,7 @@ describe("parseMessageContent", () => {
 		const result = parseMessageContent([
 			{
 				type: "tool-call",
-				tool_name: "web_search",
+				tool_name: "code_execution",
 				tool_call_id: "tc-1",
 				provider_executed: true,
 			},
@@ -524,7 +542,7 @@ describe("parseMessageContent", () => {
 		const result = parseMessageContent([
 			{
 				type: "tool-result",
-				tool_name: "web_search",
+				tool_name: "code_execution",
 				tool_call_id: "tc-1",
 				provider_executed: true,
 				result: { output: "results" },
@@ -532,6 +550,153 @@ describe("parseMessageContent", () => {
 		]);
 		expect(result.toolResults).toEqual([]);
 		expect(result.blocks.some((b) => b.type === "tool")).toBe(false);
+	});
+
+	it("groups each search's found pages under it and puts citations after the text", () => {
+		// Stored order: chatd saves a citation when it arrives, before the
+		// text that was streaming.
+		const [entry] = parseMessagesWithMergedTools([
+			{
+				id: 1,
+				chat_id: "chat-1",
+				created_at: "2026-04-21T00:00:00.000Z",
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						tool_name: "web_search",
+						tool_call_id: "ws-1",
+						args: { type: "search", queries: JSON.stringify(["go release"]) },
+						provider_executed: true,
+					},
+					{ type: "source", tool_call_id: "ws-1", url: "https://go.dev/dl/" },
+					{
+						type: "tool-result",
+						tool_name: "web_search",
+						tool_call_id: "ws-1",
+						provider_executed: true,
+						result: {},
+					},
+					{
+						type: "tool-call",
+						tool_name: "web_search",
+						tool_call_id: "srvtoolu-2",
+						args: { query: "go 1.27 notes" },
+						provider_executed: true,
+					},
+					{
+						type: "source",
+						tool_call_id: "srvtoolu-2",
+						url: "https://go.dev/doc/go1.27",
+						title: "Go 1.27",
+					},
+					{
+						type: "tool-result",
+						tool_name: "web_search",
+						tool_call_id: "srvtoolu-2",
+						provider_executed: true,
+						result: {},
+					},
+					{
+						type: "source",
+						url: "https://go.dev/doc/go1.27",
+						title: "Go 1.27 Release Notes",
+					},
+					{ type: "text", text: "Go 1.27 is out." },
+				],
+			},
+		]);
+		expect(
+			entry.parsed.tools.map(({ id, status, foundPages }) => ({
+				id,
+				status,
+				foundPages,
+			})),
+		).toEqual([
+			{
+				id: "ws-1",
+				status: "completed",
+				foundPages: [{ url: "https://go.dev/dl/", title: "" }],
+			},
+			{
+				id: "srvtoolu-2",
+				status: "completed",
+				foundPages: [{ url: "https://go.dev/doc/go1.27", title: "Go 1.27" }],
+			},
+		]);
+		const citations = [
+			{ url: "https://go.dev/doc/go1.27", title: "Go 1.27 Release Notes" },
+		];
+		expect(entry.parsed.blocks).toEqual([
+			{ type: "tool", id: "ws-1" },
+			{ type: "tool", id: "srvtoolu-2" },
+			{ type: "response", text: "Go 1.27 is out." },
+			{ type: "sources", sources: citations },
+		]);
+		expect(entry.parsed.sources).toEqual(citations);
+	});
+
+	it("keeps narration apart from the answer whose citation sits between them", () => {
+		// OpenAI ends the narration, then cites while the answer streams.
+		const result = parseMessageContent([
+			{ type: "text", text: "Checking the release notes.", narration: true },
+			{ type: "source", url: "https://go.dev/doc/go1.27", title: "Go 1.27" },
+			{ type: "text", text: "Go 1.27 is out." },
+		]);
+		expect(result.blocks).toEqual([
+			{
+				type: "response",
+				text: "Checking the release notes.",
+				narration: true,
+			},
+			{ type: "response", text: "Go 1.27 is out." },
+			{
+				type: "sources",
+				sources: [{ url: "https://go.dev/doc/go1.27", title: "Go 1.27" }],
+			},
+		]);
+	});
+
+	it("puts a tagged source without a matching call in the source row", () => {
+		const result = parseMessageContent([
+			{
+				type: "source",
+				tool_call_id: "missing",
+				url: "https://example.com",
+				title: "Example",
+			},
+		]);
+		expect(result.sources).toEqual([
+			{ url: "https://example.com", title: "Example" },
+		]);
+	});
+
+	it("leaves a web_search call without a result completed but resultless after the turn", () => {
+		const [entry] = parseMessagesWithMergedTools([
+			{
+				id: 1,
+				chat_id: "chat-1",
+				created_at: "2026-04-21T00:00:00.000Z",
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						tool_name: "web_search",
+						tool_call_id: "ws-1",
+						args: { query: "coder" },
+						provider_executed: true,
+					},
+				],
+			},
+		]);
+		expect(entry.parsed.tools).toEqual([
+			expect.objectContaining({
+				id: "ws-1",
+				result: undefined,
+				status: "completed",
+				providerExecuted: true,
+			}),
+		]);
 	});
 
 	it("parses a source part into a sources block", () => {

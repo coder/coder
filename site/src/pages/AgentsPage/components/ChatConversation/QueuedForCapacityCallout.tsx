@@ -1,21 +1,28 @@
 import { Link as RouterLink } from "react-router";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Link } from "#/components/Link/Link";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { docs } from "#/utils/docs";
 
 const concurrencyDocsUrl = docs(
 	"/ai-coder/agents/platform-controls#concurrent-agents",
 );
 
-type QueuedForCapacityCalloutProps = {
-	hasLicense: boolean;
-	canManageLicenses: boolean;
-	agentHoursHardLimit?: number;
-};
+export const QueuedForCapacityCallout: React.FC = () => {
+	const { entitlements } = useDashboard();
+	const { permissions } = useAuthenticated();
+	const hasLicense = entitlements.has_license;
+	const canManageLicenses = permissions.viewAllLicenses;
+	const runtimeHours = entitlements.features.agent_runtime_hours;
+	const agentHoursHardLimit =
+		runtimeHours.enabled &&
+		runtimeHours.hard_limit !== undefined &&
+		runtimeHours.actual !== undefined &&
+		runtimeHours.actual >= runtimeHours.hard_limit
+			? runtimeHours.hard_limit
+			: undefined;
 
-export const QueuedForCapacityCallout: React.FC<
-	QueuedForCapacityCalloutProps
-> = ({ hasLicense, canManageLicenses, agentHoursHardLimit }) => {
 	let limitMessage =
 		"Your team has reached the Community license limit for active agents.";
 	if (hasLicense) {
