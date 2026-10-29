@@ -73,7 +73,7 @@
     {
       "name": "enable_ai_gateway",
       "type": "bool",
-      "description": "Use AI Gateway for Claude Code. https://coder.com/docs/ai-coder/ai-gateway",
+      "description": "Use AI Gateway for Claude Code. https://coder.com/docs/ai-coder/ai-governance/ai-gateway",
       "default": false,
       "required": false,
       "sensitive": false,

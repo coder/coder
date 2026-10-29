@@ -81,7 +81,7 @@ export const AIBudgetUncapped: Story = {
 		).toHaveAttribute(
 			"href",
 			expect.stringContaining(
-				"/ai-coder/ai-gateway/cost-controls#effective-group-resolution",
+				"/ai-coder/ai-governance/ai-gateway/cost-controls#effective-group-resolution",
 			),
 		);
 	},

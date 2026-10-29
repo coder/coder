@@ -369,7 +369,7 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 											</p>
 											<Link
 												href={docs(
-													"/ai-coder/ai-gateway/audit#human-vs-agent-attribution",
+													"/ai-coder/ai-governance/ai-gateway/audit#human-vs-agent-attribution",
 												)}
 												target="_blank"
 												className="text-sm"

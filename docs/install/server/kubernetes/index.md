@@ -185,9 +185,9 @@ helm upgrade coder coder-v2/coder \
 
 ## Standalone AI gateway chart
 
-Coder also publishes a chart, `oci://ghcr.io/coder/chart/coder-ai-gateway`, that runs [AI Gateway](../../../ai-coder/ai-gateway/index.md) as its own Deployment alongside the control plane.
+Coder also publishes a chart, `oci://ghcr.io/coder/chart/coder-ai-gateway`, that runs [AI Gateway](../../../ai-coder/ai-governance/ai-gateway/index.md) as its own Deployment alongside the control plane.
 Use it when you want to scale AI traffic independently of `coderd`.
-For installation and configuration, refer to [Deploy AI Gateway as a standalone service](../../../ai-coder/ai-gateway/standalone.md) and the [AI Gateway Helm chart README](../../../../helm/ai-gateway/README.md).
+For installation and configuration, refer to [Deploy AI Gateway as a standalone service](../../../ai-coder/ai-governance/ai-gateway/standalone.md) and the [AI Gateway Helm chart README](../../../../helm/ai-gateway/README.md).
 
 ## Coder Observability Chart
 

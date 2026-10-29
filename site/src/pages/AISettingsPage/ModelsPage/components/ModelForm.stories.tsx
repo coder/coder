@@ -675,7 +675,7 @@ export const CostEstimateFieldsAreImmutable: Story = {
 		).toHaveAttribute(
 			"href",
 			expect.stringContaining(
-				"/ai-coder/ai-gateway/cost-controls#configure-model-prices",
+				"/ai-coder/ai-governance/ai-gateway/cost-controls#configure-model-prices",
 			),
 		);
 
