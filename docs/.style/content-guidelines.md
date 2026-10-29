@@ -264,6 +264,7 @@ These govern *how* content enters the docs, for both humans and the doc-check ag
   The sidebar shows the state pill on the ancestor and on descendants whose state differs.
   Every page shows its full state, including inherited states, as a pill under the title.
   Inherited pills render only on a docs site built with the docs-engine change that adds state inheritance.
+  For a worked example, refer to [Feature states](https://github.com/coder/coder/blob/main/contributing/documentation.md#feature-states) in the contributor guide.
   Do not add a feature-state suffix to the page title or H1.
 - **Moving or renaming a page requires link updates and a redirect.**
   If a page changes its position in the directory structure:
