@@ -171,7 +171,7 @@ class WorkingBlockContent extends Component<WorkingBlockContentProps> {
 				}}
 				className="mt-1.5 flex flex-col gap-2 border-0 border-l border-solid border-border ml-2 pl-4"
 			>
-				<ToolCall.BranchProvider enabled={this.props.branches}>
+				<ToolCall.BranchProvider mode={this.props.branches ? "running" : "off"}>
 					{this.props.children}
 				</ToolCall.BranchProvider>
 			</div>

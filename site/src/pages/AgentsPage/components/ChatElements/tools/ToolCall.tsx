@@ -70,10 +70,13 @@ const SummaryProvider: React.FC<{ children: React.ReactNode }> = ({
 );
 
 /**
- * PROTOTYPE: running rows inside draw a branch to the working block's rail,
- * like the working block icon's branches.
+ * PROTOTYPE: rows inside draw a branch to the working block's rail, like the
+ * working block icon's branches: while running, or always for the newest row
+ * of a live peek, where the rail ends.
  */
-const ToolCallBranchContext = createContext(false);
+type BranchMode = "off" | "running" | "always";
+
+const ToolCallBranchContext = createContext<BranchMode>("off");
 
 /**
  * PROTOTYPE: the rail runs `railOffset` left of the rows (the working block's
@@ -86,10 +89,10 @@ export const branchGeometry = { railOffset: 17, rise: 16 } as const;
 const HEADER_CENTER = 12;
 
 const BranchProvider: React.FC<{
-	enabled: boolean;
+	mode: BranchMode;
 	children: React.ReactNode;
-}> = ({ enabled, children }) => (
-	<ToolCallBranchContext.Provider value={enabled}>
+}> = ({ mode, children }) => (
+	<ToolCallBranchContext.Provider value={mode}>
 		{children}
 	</ToolCallBranchContext.Provider>
 );
@@ -193,10 +196,13 @@ const Root: React.FC<ToolCallRootProps> = ({
 				: "collapsed";
 	const view = controlledView ?? uncontrolledView;
 	const summary = useContext(ToolCallSummaryContext);
-	const branch = useContext(ToolCallBranchContext);
+	const branchMode = useContext(ToolCallBranchContext);
+	const branch = branchMode !== "off";
 	const expanded = view !== "collapsed";
 	const collapsible = hasContent && !summary;
 	const active = status === "running";
+	const showsBranch =
+		branchMode === "always" || (branchMode === "running" && active);
 	const failed = status !== "running" && (isError || status === "error");
 	const userLayoutIntent = useMessageScrollerUserLayoutIntent();
 	const onToggle = (event: React.MouseEvent<HTMLElement>) => {
@@ -226,7 +232,7 @@ const Root: React.FC<ToolCallRootProps> = ({
 		>
 			<div className={cn(branch && "relative", className)} {...divProps}>
 				{branch && (
-					// It retracts toward the rail when the row stops running.
+					// It retracts toward the rail when the row stops branching.
 					<span
 						aria-hidden
 						className="pointer-events-none absolute rounded-bl-md border-0 border-b border-l border-solid border-border transition-[clip-path] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none"
@@ -236,12 +242,12 @@ const Root: React.FC<ToolCallRootProps> = ({
 							height: branchGeometry.rise,
 							// Stops short of the row's icon.
 							width: branchGeometry.railOffset - 3,
-							clipPath: active ? "inset(0 0 0 0)" : "inset(0 100% 0 0)",
+							clipPath: showsBranch ? "inset(0 0 0 0)" : "inset(0 100% 0 0)",
 						}}
 					/>
 				)}
 				{/* Nested rows, such as a sub-agent's tools, sit off the rail. */}
-				<ToolCallBranchContext.Provider value={false}>
+				<ToolCallBranchContext.Provider value="off">
 					{children}
 				</ToolCallBranchContext.Provider>
 			</div>

@@ -120,9 +120,6 @@ type ToolContext = {
 	subagentVariants: Map<string, SubagentVariant>;
 };
 
-const isRunning = (item: PeekItem) =>
-	item.kind === "tool" ? item.tool.status === "running" : item.isStreaming;
-
 const PeekRow: React.FC<{ item: PeekItem } & ToolContext> = ({
 	item,
 	organizationId,
@@ -206,13 +203,17 @@ export const WorkingBlockPeek: React.FC<WorkingBlockPeekProps> = ({
 	// With a faded row, the top fade spans it, so the oldest row dims as the
 	// track carries it up and dissolves before it reaches the summary row.
 	const topFade = fadedRow && shown.length > 2 ? EDGE + ROW_PITCH : EDGE;
-	// A running newest row ends the rail in its branch, like the icon's last
-	// item; otherwise the rail runs past the rows.
+	// The rail ends in the newest row's branch, like the icon's last item, so
+	// between steps it does not run on past the rows.
 	const newest = shown.at(-1);
 	const railInset =
-		branches && newest && isRunning(newest)
-			? EDGE + ROW_HEIGHT / 2 + branchGeometry.rise - 1
-			: 0;
+		branches && newest ? EDGE + ROW_HEIGHT / 2 + branchGeometry.rise - 1 : 0;
+	const branchModeOf = (item: PeekItem) => {
+		if (!branches) {
+			return "off";
+		}
+		return item === newest ? "always" : "running";
+	};
 
 	const userLayoutIntent = useMessageScrollerUserLayoutIntent();
 	if (shown.length === 0) {
@@ -268,31 +269,31 @@ export const WorkingBlockPeek: React.FC<WorkingBlockPeekProps> = ({
 							transition={slide}
 						>
 							<ToolCall.SummaryProvider>
-								<ToolCall.BranchProvider enabled={branches}>
-									<AnimatePresence initial={false}>
-										{shown.map((item) => (
-											<motion.div
-												key={item.key}
-												data-peek-row={item.key}
-												className="absolute inset-x-0 h-6"
-												style={{
-													top: slotOf(item) * ROW_PITCH,
-													// Clips like overflow-hidden, but leaves room on
-													// the left for the row's branch to reach the rail.
-													clipPath: `inset(0 0 0 -${ROW_INSET + 4}px)`,
-												}}
-												// Stays mounted until the track has carried it past
-												// the top edge.
-												exit={{
-													opacity: 0,
-													transition: { delay: slide.duration, duration: 0 },
-												}}
-											>
+								<AnimatePresence initial={false}>
+									{shown.map((item) => (
+										<motion.div
+											key={item.key}
+											data-peek-row={item.key}
+											className="absolute inset-x-0 h-6"
+											style={{
+												top: slotOf(item) * ROW_PITCH,
+												// Clips like overflow-hidden, but leaves room on
+												// the left for the row's branch to reach the rail.
+												clipPath: `inset(0 0 0 -${ROW_INSET + 4}px)`,
+											}}
+											// Stays mounted until the track has carried it past
+											// the top edge.
+											exit={{
+												opacity: 0,
+												transition: { delay: slide.duration, duration: 0 },
+											}}
+										>
+											<ToolCall.BranchProvider mode={branchModeOf(item)}>
 												<PeekRow item={item} {...ctx} />
-											</motion.div>
-										))}
-									</AnimatePresence>
-								</ToolCall.BranchProvider>
+											</ToolCall.BranchProvider>
+										</motion.div>
+									))}
+								</AnimatePresence>
 							</ToolCall.SummaryProvider>
 						</motion.div>
 					</motion.div>
