@@ -15,12 +15,12 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// TestMigration000634QueuedMessagesConcurrentTraffic runs migration 000634
+// TestMigration000635QueuedMessagesConcurrentTraffic runs migration 000635
 // in both directions while other connections use chats and
 // chat_queued_messages the way chatd does. Each case blocks the migration
 // on an open application transaction, waits until pg_blocking_pids shows
 // the migration waiting on it, then lets the application continue.
-func TestMigration000634QueuedMessagesConcurrentTraffic(t *testing.T) {
+func TestMigration000635QueuedMessagesConcurrentTraffic(t *testing.T) {
 	t.Parallel()
 
 	// Every chatstate transition reads the queue. New readers must not
@@ -29,8 +29,8 @@ func TestMigration000634QueuedMessagesConcurrentTraffic(t *testing.T) {
 	t.Run("UpReadQueueWhileMigrationWaits", func(t *testing.T) {
 		t.Parallel()
 		sqlDB := testSQLDB(t)
-		stepTo(t, sqlDB, 633)
-		migrationSQL, err := os.ReadFile("000634_chat_queued_messages_editing_since.up.sql")
+		stepTo(t, sqlDB, 634)
+		migrationSQL, err := os.ReadFile("000635_chat_queued_messages_editing_since.up.sql")
 		require.NoError(t, err)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -159,14 +159,14 @@ func TestMigration000634QueuedMessagesConcurrentTraffic(t *testing.T) {
 	})
 }
 
-// setupEditingSinceDown steps a new database to 000634, seeds a paused
+// setupEditingSinceDown steps a new database to 000635, seeds a paused
 // chat with one queued message, and returns the down migration with the
 // chat and owner IDs.
 func setupEditingSinceDown(t *testing.T) (ctx context.Context, sqlDB *sql.DB, migrationSQL []byte, chatID, userID uuid.UUID) {
 	t.Helper()
 	sqlDB = testSQLDB(t)
-	stepTo(t, sqlDB, 634)
-	migrationSQL, err := os.ReadFile("000634_chat_queued_messages_editing_since.down.sql")
+	stepTo(t, sqlDB, 635)
+	migrationSQL, err := os.ReadFile("000635_chat_queued_messages_editing_since.down.sql")
 	require.NoError(t, err)
 
 	ctx = testutil.Context(t, testutil.WaitLong)
