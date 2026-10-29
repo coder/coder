@@ -405,9 +405,9 @@ func (p *Server) createChildSubagentChatWithOptions(
 		titleSource = database.ChatTitleSourceFallback
 	}
 
-	workspaceAwareness := workspaceDetachedNoCreateAwareness
+	workspaceAwareness := savedWorkspaceDetachedNoCreateAwareness
 	if parent.WorkspaceID.Valid {
-		workspaceAwareness = workspaceAttachedAwareness
+		workspaceAwareness = savedWorkspaceAttachedAwareness
 	}
 	workspaceAwarenessContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
 		codersdk.ChatMessageText(workspaceAwareness),
