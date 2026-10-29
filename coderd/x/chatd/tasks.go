@@ -325,12 +325,9 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 
 	canceled := s.cancelUnresolvedToolCalls(ctx, chat, cancelable, toolCallIDs)
 
-	var (
-		committed        database.Chat
-		promotedQueuedAt time.Time
-	)
-	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		chat, err := loadChatForTask(ctx, store, input, database.ChatStatusInterrupting, taskFenceOptions{requireHistory: true})
+	var promotedQueuedAt time.Time
+	committed, err := machine.UpdateReturning(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		chat, err := loadLockedChatForTask(tx, input, database.ChatStatusInterrupting, taskFenceOptions{requireHistory: true})
 		if err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
@@ -351,10 +348,6 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 			return xerrors.Errorf("finish interruption: %w", err)
 		}
 		promotedQueuedAt = finishResult.PromotedQueuedAt
-		committed, err = store.GetChatByID(ctx, input.ChatID)
-		if err != nil {
-			return xerrors.Errorf("load committed chat: %w", err)
-		}
 		return nil
 	})
 	if err != nil {
@@ -474,9 +467,8 @@ func (s *taskStarter) cancelRequiresAction(
 	input chatWorkerTaskStartInput,
 	reason string,
 ) error {
-	var committed database.Chat
-	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		chat, err := loadChatForTask(ctx, store, input, database.ChatStatusRequiresAction, taskFenceOptions{requireHistory: true})
+	committed, err := machine.UpdateReturning(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		chat, err := loadLockedChatForTask(tx, input, database.ChatStatusRequiresAction, taskFenceOptions{requireHistory: true})
 		if err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
@@ -492,10 +484,6 @@ func (s *taskStarter) cancelRequiresAction(
 		if _, err := tx.CancelRequiresAction(chatstate.CancelRequiresActionInput{Reason: reason}); err != nil {
 			return xerrors.Errorf("cancel requires action: %w", err)
 		}
-		committed, err = store.GetChatByID(ctx, input.ChatID)
-		if err != nil {
-			return xerrors.Errorf("load committed chat: %w", err)
-		}
 		return nil
 	})
 	if err != nil {
@@ -510,13 +498,9 @@ func (s *taskStarter) cancelRequiresAction(
 func (s *taskStarter) StartAbandon(ctx context.Context, input chatWorkerTaskStartInput) error {
 	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
 	mismatch := false
-	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		chat, err := store.GetChatByID(ctx, input.ChatID)
+	err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		chat, _, err := tx.Current()
 		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				mismatch = true
-				return errors.Join(errTaskExpectedExit, xerrors.Errorf("load chat: %w", err))
-			}
 			return xerrors.Errorf("load chat: %w", err)
 		}
 		if !ownedByTask(chat, input) {
@@ -642,6 +626,25 @@ func loadChatForTask(
 		if errors.Is(err, sql.ErrNoRows) {
 			return database.Chat{}, errors.Join(errTaskExpectedExit, xerrors.Errorf("load chat: %w", err))
 		}
+		return database.Chat{}, xerrors.Errorf("load chat: %w", err)
+	}
+	if err := verifyTaskFence(chat, input, status, opts); err != nil {
+		return database.Chat{}, xerrors.Errorf("verifyTaskFence: %w", err)
+	}
+	return chat, nil
+}
+
+// loadLockedChatForTask is loadChatForTask for [chatstate.ChatMachine.Update]
+// callbacks: it fences against the row the transition lock returned instead
+// of reading the chat again while the lock is held.
+func loadLockedChatForTask(
+	tx *chatstate.Tx,
+	input chatWorkerTaskStartInput,
+	status database.ChatStatus,
+	opts taskFenceOptions,
+) (database.Chat, error) {
+	chat, _, err := tx.Current()
+	if err != nil {
 		return database.Chat{}, xerrors.Errorf("load chat: %w", err)
 	}
 	if err := verifyTaskFence(chat, input, status, opts); err != nil {
