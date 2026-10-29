@@ -58,7 +58,7 @@ type ChatRef struct {
 	WorkspaceID  *uuid.UUID `json:"workspace_id,omitempty"`
 	TurnID       *uuid.UUID `json:"turn_id,omitempty"`
 	ParentChatID *uuid.UUID `json:"parent_chat_id,omitempty"`
-	// RootChatID identifies the user-facing root of the chat tree.
+	// Identifies the user-facing root of the chat tree.
 	RootChatID *uuid.UUID `json:"root_chat_id,omitempty"`
 }
 

@@ -48,24 +48,22 @@ type AIBudgetLimit struct {
 // budget.
 type UserAIBudgetSummary struct {
 	UserID uuid.UUID `json:"user_id" format:"uuid"`
-	// EffectiveGroupID is the group the spend is attributed to, falling back to
-	// the Everyone group when no budget applies. Null only when the user has no
-	// organization membership.
+	// The group the spend is attributed to, falling back to the Everyone group
+	// when no budget applies. Null only when the user has no organization
+	// membership.
 	EffectiveGroupID *uuid.UUID `json:"effective_group_id" format:"uuid"`
-	// EffectiveBudget is the spend limit that applies to the user, whether it
-	// came from a group budget or a user override. Null when no budget
-	// applies, leaving the user's spend unlimited.
+	// The spend limit that applies to the user, whether it came from a group
+	// budget or a user override. Null when no budget applies, leaving the user's
+	// spend unlimited.
 	EffectiveBudget *AIBudgetLimit `json:"effective_budget"`
 }
 
 // AISpendPeriodWindow is the [Start, End) window over which AI spend is
 // aggregated.
 type AISpendPeriodWindow struct {
-	// PeriodStart is the inclusive lower bound of the current budget
-	// period.
+	// The inclusive lower bound of the current budget period.
 	PeriodStart time.Time `json:"period_start" format:"date-time"`
-	// PeriodEnd is the exclusive upper bound of the current budget
-	// period.
+	// The exclusive upper bound of the current budget period.
 	PeriodEnd time.Time `json:"period_end" format:"date-time"`
 }
 
@@ -74,8 +72,7 @@ type AISpendPeriodWindow struct {
 type UserAISpendStatus struct {
 	UserAIBudgetSummary
 	AISpendPeriodWindow
-	// CurrentSpendMicros is the user's spend on their effective group over
-	// the current budget period.
+	// The user's spend on their effective group over the current budget period.
 	CurrentSpendMicros int64 `json:"current_spend_micros"`
 }
 
@@ -90,15 +87,14 @@ type OrganizationGroupsAISpend struct {
 // within the active budget period.
 type OrganizationGroupAISpend struct {
 	GroupID uuid.UUID `json:"group_id" format:"uuid"`
-	// SpendLimitMicros is the group's configured AI spend budget per member.
-	// Null when the group has no configured budget.
+	// The group's configured AI spend budget per member. Null when the group has
+	// no configured budget.
 	SpendLimitMicros *int64 `json:"spend_limit_micros"`
-	// TotalSpendLimitMicros is the currently configured combined budget of the
-	// members attributed to this group, with each member's override replacing
-	// their share. Null when the group has no budget, and zero when no members
-	// are attributed to it.
+	// The currently configured combined budget of the members attributed to this
+	// group, with each member's override replacing their share. Null when the
+	// group has no budget, and zero when no members are attributed to it.
 	TotalSpendLimitMicros *int64 `json:"total_spend_limit_micros"`
-	// CurrentSpendMicros is the group's spend over the current budget period.
+	// The group's spend over the current budget period.
 	CurrentSpendMicros int64 `json:"current_spend_micros"`
 }
 
@@ -120,22 +116,22 @@ type GroupMembersAISpend struct {
 // group in the current budget period.
 type GroupMemberAISpend struct {
 	UserID uuid.UUID `json:"user_id" format:"uuid"`
-	// EffectiveGroupID is the user's effective budget group within the queried
-	// group's organization, falling back to the Everyone group when no budget
-	// applies. Null when the effective group belongs to a different organization
-	// than the queried group.
+	// The user's effective budget group within the queried group's organization,
+	// falling back to the Everyone group when no budget applies. Null when the
+	// effective group belongs to a different organization than the queried group.
 	EffectiveGroupID *uuid.UUID `json:"effective_group_id" format:"uuid"`
-	// EffectiveBudget is the spend limit that currently applies to the user.
-	// Null when no budget applies or the effective group belongs to a different
-	// organization than the queried group.
+	// The spend limit that currently applies to the user. Null when no budget
+	// applies or the effective group belongs to a different organization than the
+	// queried group.
 	EffectiveBudget *AIBudgetLimit `json:"effective_budget"`
-	// GroupBudget is the budget when the queried group is this user's
-	// effective budget source. When populated, it matches EffectiveBudget. Null
-	// when the user's budget resolves to another group or no budget applies.
-	// Deprecated: Use EffectiveBudget instead.
+	// The budget when the queried group is this user's effective budget source.
+	// When populated, it matches `effective_budget`. Null when the user's budget
+	// resolves to another group or no budget applies.
+	//
+	// Deprecated: Use `effective_budget` instead.
 	GroupBudget *AIBudgetLimit `json:"group_budget"`
-	// GroupSpendMicros is the user's spend attributed to the queried group
-	// over the current budget period.
+	// The user's spend attributed to the queried group over the current budget
+	// period.
 	GroupSpendMicros int64 `json:"group_spend_micros"`
 }
 
@@ -150,10 +146,9 @@ type AIBridgeSession struct {
 	EndedAt           *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
 	Threads           int64                            `json:"threads"`
 	TokenUsageSummary AIBridgeSessionTokenUsageSummary `json:"token_usage_summary"`
-	// NetworkCalls summarizes the Agent Firewall network requests made during the
-	// session. A nil value means the session did not pass through Agent
-	// Firewall, so network call monitoring was not active, which the UI
-	// surfaces as "Disabled".
+	// Summarizes the Agent Firewall network requests made during the session. A
+	// nil value means the session did not pass through Agent Firewall, so network
+	// call monitoring was not active, which the UI surfaces as "Disabled".
 	NetworkCalls *AIBridgeSessionNetworkCallSummary `json:"network_calls,omitempty"`
 	LastPrompt   *string                            `json:"last_prompt,omitempty"`
 	LastActiveAt time.Time                          `json:"last_active_at" format:"date-time"`
@@ -201,21 +196,20 @@ type AIBridgeSessionThreadsResponse struct {
 	StartedAt         time.Time                        `json:"started_at" format:"date-time"`
 	EndedAt           *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
 	TokenUsageSummary AIBridgeSessionThreadsTokenUsage `json:"token_usage_summary"`
-	// NetworkCalls summarizes the Agent Firewall network calls made during the
-	// session. A nil value means the session did not pass through Agent
-	// Firewall, so network call monitoring was not active, which the UI
-	// surfaces as "Disabled".
+	// Summarizes the Agent Firewall network calls made during the session. A nil
+	// value means the session did not pass through Agent Firewall, so network call
+	// monitoring was not active, which the UI surfaces as "Disabled".
 	NetworkCalls *AIBridgeSessionNetworkCallSummary `json:"network_calls,omitempty"`
-	// NetworkTopDomains lists the most contacted destination hosts, ordered by
-	// call count descending. NetworkDomainCount is the total number of distinct
-	// domains, used to render a "+N more" overflow beyond the listed domains.
+	// Lists the most contacted destination hosts, ordered by call count
+	// descending. `network_domain_count` is the total number of distinct domains,
+	// used to render a "+N more" overflow beyond the listed domains.
 	NetworkTopDomains  []AIBridgeSessionNetworkDomain `json:"network_top_domains,omitempty"`
 	NetworkDomainCount int64                          `json:"network_domain_count,omitempty"`
-	// NetworkCallLogs is the chronological list of individual network calls made
-	// during the session, holding the earliest calls up to a server-side cap.
-	// NetworkCalls remains authoritative for whole-session totals, so a shorter
-	// list than NetworkCalls.Total means the list was truncated. Empty when the
-	// session did not pass through Agent Firewall.
+	// The chronological list of individual network calls made during the session,
+	// holding the earliest calls up to a server-side cap. `network_calls` remains
+	// authoritative for whole-session totals, so a shorter list than
+	// `network_calls.total` means the list was truncated. Empty when the session
+	// did not pass through Agent Firewall.
 	NetworkCallLogs []AgentFirewallLog `json:"network_call_logs,omitempty"`
 	Threads         []AIBridgeThread   `json:"threads"`
 }
@@ -228,11 +222,9 @@ type AIBridgeSessionThreadsTokenUsage struct {
 	CacheReadInputTokens  int64          `json:"cache_read_input_tokens"`
 	CacheWriteInputTokens int64          `json:"cache_write_input_tokens"`
 	Metadata              map[string]any `json:"metadata"`
-	// CostMicros is the summed cost of the priced usage, in micro-units
-	// (1000000 is $1.00).
+	// The summed cost of the priced usage, in micro-units (1000000 is $1.00).
 	CostMicros int64 `json:"cost_micros"`
-	// HasUnpricedUsage reports that some usage has no cost, so CostMicros
-	// is a lower bound.
+	// Reports that some usage has no cost, so `cost_micros` is a lower bound.
 	HasUnpricedUsage bool `json:"has_unpriced_usage"`
 }
 
@@ -241,8 +233,8 @@ type AIBridgeSessionThreadsTokenUsage struct {
 // tokens, so 1000000 is $1.00 per million tokens. A nil price means the
 // price is not known and was treated as zero.
 type AIBridgePricedModel struct {
-	// Model is the priced model, either the requested model or the model
-	// reported by the provider.
+	// The priced model, either the requested model or the model reported by the
+	// provider.
 	Model           string `json:"model"`
 	InputPrice      *int64 `json:"input_price"`
 	OutputPrice     *int64 `json:"output_price"`
@@ -274,30 +266,28 @@ type AIBridgeThread struct {
 	StartedAt      time.Time                        `json:"started_at" format:"date-time"`
 	EndedAt        *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
 	TokenUsage     AIBridgeSessionThreadsTokenUsage `json:"token_usage"`
-	// PricedModel is the model and prices used for the root interception
-	// (the prompt). Other requests in the thread may use different models
-	// and prices, see agentic_actions[].priced_model. Nil when the root
-	// interception was not priced.
+	// The model and prices used for the root interception (the prompt). Other
+	// requests in the thread may use different models and prices, see
+	// agentic_actions[].priced_model. Nil when the root interception was not
+	// priced.
 	PricedModel *AIBridgePricedModel `json:"priced_model,omitempty"`
-	// Attribution contains attribution data from the root interception.
-	// Unknown attribution is serialized as an empty object.
+	// Contains attribution data from the root interception. Unknown attribution is
+	// serialized as an empty object.
 	Attribution    AIBridgeAttribution     `json:"attribution"`
 	AgenticActions []AIBridgeAgenticAction `json:"agentic_actions"`
-	// ErrorType is the categorized terminal upstream error from the root
-	// interception, or nil when the interception succeeded. See the
-	// aibridge_interception_error_type enum for possible values.
+	// The categorized terminal upstream error from the root interception, or nil
+	// when the interception succeeded. See the aibridge_interception_error_type
+	// enum for possible values.
 	ErrorType *string `json:"error_type,omitempty"`
-	// ErrorMessage is the raw terminal upstream error message from the root
-	// interception. Nil when the interception succeeded.
+	// The raw terminal upstream error message from the root interception. Nil when
+	// the interception succeeded.
 	ErrorMessage *string `json:"error_message,omitempty"`
-	// AgentFirewallSessionID links this thread to an agent firewall
-	// confinement session. Nil when the request did not pass through
-	// the agent firewall.
+	// Links this thread to an agent firewall confinement session. Nil when the
+	// request did not pass through the agent firewall.
 	AgentFirewallSessionID *uuid.UUID `json:"agent_firewall_session_id,omitempty" format:"uuid"`
-	// AgentFirewallSequenceNumber is the firewall sequence number from
-	// the root interception. Used to determine the position of this
-	// LLM request in the firewall event stream. Nil when the request
-	// did not pass through the agent firewall.
+	// The firewall sequence number from the root interception. Used to determine
+	// the position of this LLM request in the firewall event stream. Nil when the
+	// request did not pass through the agent firewall.
 	AgentFirewallSequenceNumber *int32 `json:"agent_firewall_sequence_number,omitempty"`
 }
 
@@ -307,12 +297,11 @@ type AIBridgeThread struct {
 type AIBridgeAgenticAction struct {
 	InterceptionID uuid.UUID `json:"interception_id" format:"uuid"`
 	Model          string    `json:"model"`
-	// Attribution contains attribution data from this interception.
-	// Unknown attribution is serialized as an empty object.
+	// Contains attribution data from this interception. Unknown attribution is
+	// serialized as an empty object.
 	Attribution AIBridgeAttribution              `json:"attribution"`
 	TokenUsage  AIBridgeSessionThreadsTokenUsage `json:"token_usage"`
-	// PricedModel is the model and prices used for this interception. Nil
-	// when it was not priced.
+	// The model and prices used for this interception. Nil when it was not priced.
 	PricedModel *AIBridgePricedModel   `json:"priced_model,omitempty"`
 	Thinking    []AIBridgeModelThought `json:"thinking"`
 	ToolCalls   []AIBridgeToolCall     `json:"tool_calls"`
@@ -343,24 +332,23 @@ type AIBridgeListSessionsFilter struct {
 	// Limit defaults to 100, max is 1000.
 	Pagination Pagination `json:"pagination,omitempty"`
 
-	// Initiator is a user ID, username, or "me".
+	// A user ID, username, or "me".
 	Initiator     string    `json:"initiator,omitempty"`
 	StartedBefore time.Time `json:"started_before,omitempty" format:"date-time"`
 	StartedAfter  time.Time `json:"started_after,omitempty" format:"date-time"`
-	// Provider matches the runtime provider type column (openai,
-	// anthropic, copilot). The runtime type collapses the configured
-	// ai_provider_type: azure, google, openai-compat, openrouter, and
-	// vercel route through openai; bedrock routes through anthropic.
-	// Retained for backward compatibility; new clients should prefer
-	// ProviderName, which scopes to a specific configured row.
+	// Matches the runtime provider type column (openai, anthropic, copilot). The
+	// runtime type collapses the configured ai_provider_type: azure, google,
+	// openai-compat, openrouter, and vercel route through openai. bedrock routes
+	// through anthropic. Retained for backward compatibility. New clients should
+	// prefer `provider_name`, which scopes to a specific configured row.
 	Provider     string `json:"provider,omitempty"`
 	ProviderName string `json:"provider_name,omitempty"`
 	Model        string `json:"model,omitempty"`
 	Client       string `json:"client,omitempty"`
 	SessionID    string `json:"session_id,omitempty"`
 
-	// AfterSessionID is a cursor for pagination. It is the session ID of the
-	// last session in the previous page.
+	// A cursor for pagination. It is the session ID of the last session in the
+	// previous page.
 	AfterSessionID string `json:"after_session_id,omitempty"`
 
 	FilterQuery string `json:"q,omitempty"`
@@ -522,16 +510,15 @@ func (c *Client) AIBridgeListProviders(ctx context.Context) ([]AIBridgeProvider,
 // report. Zero values apply no filter: the period falls back to the current
 // budget period on the server, and an empty dimension matches all usage.
 type OrganizationAISpendFilter struct {
-	// PeriodStart and PeriodEnd bound the [PeriodStart, PeriodEnd) window and
-	// must be supplied together.
+	// The lower bound of the `[period_start, period_end)` window. `period_start`
+	// and `period_end` must be supplied together.
 	PeriodStart time.Time `json:"period_start,omitempty" format:"date-time"`
 	PeriodEnd   time.Time `json:"period_end,omitempty" format:"date-time"`
-	// ProviderName matches the configured provider name recorded on the
-	// intercepted request.
+	// Matches the configured provider name recorded on the intercepted request.
 	ProviderName string `json:"provider_name,omitempty"`
 	Model        string `json:"model,omitempty"`
-	// Client matches the client recorded on the intercepted request. Unknown
-	// matches usage without a recorded client.
+	// Matches the client recorded on the intercepted request. Unknown matches
+	// usage without a recorded client.
 	Client string `json:"client,omitempty"`
 }
 
@@ -565,28 +552,26 @@ type OrganizationAISpendUser struct {
 	Username  string    `json:"username"`
 	Name      string    `json:"name"`
 	AvatarURL string    `json:"avatar_url"`
-	// CostMicros is the user's priced spend over the period.
+	// The user's priced spend over the period.
 	CostMicros int64 `json:"cost_micros"`
-	// UnpricedUsageCount is the number of the user's token usage records that
-	// carry no cost because their model had no price when they were recorded.
+	// The number of the user's token usage records that carry no cost because
+	// their model had no price when they were recorded.
 	UnpricedUsageCount int64 `json:"unpriced_usage_count"`
-	// Providers are the configured provider names the user spent through,
-	// sorted.
+	// The configured provider names the user spent through, sorted.
 	Providers []string `json:"providers"`
-	// Clients are the clients the user spent through, sorted. Usage without a
-	// recorded client is reported as Unknown.
+	// The clients the user spent through, sorted. Usage without a recorded client
+	// is reported as Unknown.
 	Clients []string `json:"clients"`
-	// Models are the models the user spent through, sorted.
+	// The models the user spent through, sorted.
 	Models []string `json:"models"`
 }
 
 // OrganizationAISpendTotals aggregates every user matching the report's
 // filter, not only the returned page.
 type OrganizationAISpendTotals struct {
-	// CostMicros is the priced spend of every matching user.
+	// The priced spend of every matching user.
 	CostMicros int64 `json:"cost_micros"`
-	// UnpricedUsageCount is the number of token usage records without a cost
-	// across every matching user.
+	// The number of token usage records without a cost across every matching user.
 	UnpricedUsageCount int64 `json:"unpriced_usage_count"`
 }
 
@@ -595,14 +580,14 @@ type OrganizationAISpendTotals struct {
 // matching user, not only the returned page.
 type OrganizationAISpendReport struct {
 	AISpendPeriodWindow
-	// RetentionStart is the oldest instant for which token usage is still
-	// retained. An explicit period must not start before it. Omitted when the
-	// deployment does not purge AI Gateway data.
+	// The oldest instant for which token usage is still retained. An explicit
+	// period must not start before it. Omitted when the deployment does not purge
+	// AI Gateway data.
 	RetentionStart *time.Time `json:"retention_start,omitempty" format:"date-time"`
-	// Count is the number of users with token usage matching the filter.
+	// The number of users with token usage matching the filter.
 	Count  int64                     `json:"count"`
 	Totals OrganizationAISpendTotals `json:"totals"`
-	// Users is the requested page, most expensive first.
+	// The requested page, most expensive first.
 	Users []OrganizationAISpendUser `json:"users"`
 }
 
@@ -723,7 +708,7 @@ type GroupAIBudget struct {
 }
 
 type UpsertGroupAIBudgetRequest struct {
-	// SpendLimitMicros must not exceed MaxAISpendLimitMicros.
+	// Must not exceed MaxAISpendLimitMicros.
 	SpendLimitMicros int64 `json:"spend_limit_micros" validate:"gte=0"`
 }
 
@@ -789,10 +774,10 @@ type UserAIBudgetOverride struct {
 }
 
 type UpsertUserAIBudgetOverrideRequest struct {
-	// GroupID is the group the user's spend is attributed to. The user must
-	// be a member of this group.
+	// The group the user's spend is attributed to. The user must be a member of
+	// this group.
 	GroupID uuid.UUID `json:"group_id" format:"uuid" validate:"required"`
-	// SpendLimitMicros must not exceed MaxAISpendLimitMicros.
+	// Must not exceed MaxAISpendLimitMicros.
 	SpendLimitMicros int64 `json:"spend_limit_micros" validate:"gte=0"`
 }
 

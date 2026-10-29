@@ -232,7 +232,7 @@ type SCIMUser struct {
 		Type    string `json:"type"`
 		Display string `json:"display"`
 	} `json:"emails"`
-	// Active is a ptr to prevent the empty value from being interpreted as false.
+	// A ptr to prevent the empty value from being interpreted as false.
 	Active *bool         `json:"active"`
 	Groups []interface{} `json:"groups"`
 	Meta   struct {

@@ -61,9 +61,8 @@ type PaginatedGroup struct {
 	Name           string    `json:"name"`
 	DisplayName    string    `json:"display_name"`
 	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
-	// TotalMemberCount is the number of members in the group, shown even when
-	// the caller cannot read individual members. The roster itself is not
-	// returned by this endpoint.
+	// The number of members in the group, shown even when the caller cannot read
+	// individual members. The roster itself is not returned by this endpoint.
 	TotalMemberCount        int         `json:"total_member_count"`
 	AvatarURL               string      `json:"avatar_url" format:"uri"`
 	QuotaAllowance          int         `json:"quota_allowance"`

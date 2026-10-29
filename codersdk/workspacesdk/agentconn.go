@@ -880,7 +880,7 @@ type DesktopAction struct {
 	Duration        *int    `json:"duration,omitempty"`
 	ScrollAmount    *int    `json:"scroll_amount,omitempty"`
 	ScrollDirection *string `json:"scroll_direction,omitempty"`
-	// ScaledWidth and ScaledHeight carry the declared model-facing desktop
+	// Along with `scaled_height`, carries the declared model-facing desktop
 	// geometry used for screenshot sizing and coordinate mapping.
 	ScaledWidth  *int `json:"scaled_width,omitempty"`
 	ScaledHeight *int `json:"scaled_height,omitempty"`
@@ -1058,9 +1058,8 @@ type StartProcessRequest struct {
 	WorkDir    string            `json:"workdir,omitempty"`
 	Env        map[string]string `json:"env,omitempty"`
 	Background bool              `json:"background,omitempty"`
-	// TimeoutMs is the wait timeout in milliseconds after the process
-	// starts; see ProcessOutputOptions.TimeoutFromStartProcess. Not allowed
-	// with Background.
+	// The wait timeout in milliseconds after the process starts. See
+	// ProcessOutputOptions.TimeoutFromStartProcess. Not allowed with `background`.
 	TimeoutMs int64 `json:"timeout_ms,omitempty"`
 }
 
@@ -1330,11 +1329,11 @@ type UploadChatFileRequest struct {
 
 // AgentUploadChatFileResponse is the response from uploading to a workspace agent.
 type AgentUploadChatFileResponse struct {
-	// Path is the absolute path where the file was written on the workspace.
+	// The absolute path where the file was written on the workspace.
 	Path string `json:"path"`
-	// Name is the final basename after sanitization and collision suffixing.
+	// The final basename after sanitization and collision suffixing.
 	Name string `json:"name"`
-	// Size is the number of bytes written to the workspace.
+	// The number of bytes written to the workspace.
 	Size int64 `json:"size"`
 }
 
@@ -1426,9 +1425,9 @@ type FileEdits struct {
 
 type FileEditRequest struct {
 	Files []FileEdits `json:"files"`
-	// IncludeDiff asks the agent to compute a unified diff per file
-	// and return it in FileEditResponse.Files[i].Diff. When false
-	// (default) the agent skips diff computation and Files is nil.
+	// Asks the agent to compute a unified diff per file and return it in
+	// FileEditResponse.Files[i].Diff. When false (default) the agent skips diff
+	// computation and Files is nil.
 	IncludeDiff bool `json:"include_diff,omitempty"`
 }
 
@@ -1457,15 +1456,15 @@ type FileEditResult struct {
 // MCPToolInfo describes a single tool discovered from an MCP
 // server configured in the workspace's .mcp.json file.
 type MCPToolInfo struct {
-	// ServerName is the key from .mcp.json (e.g. "github").
+	// The key from .mcp.json (e.g. "github").
 	ServerName string `json:"server_name"`
-	// Name is the prefixed tool name: "serverName__toolName".
+	// The prefixed tool name: "serverName__toolName".
 	Name string `json:"name"`
-	// Description is the tool's human-readable description.
+	// The tool's human-readable description.
 	Description string `json:"description"`
-	// Schema is the JSON Schema for the tool's input parameters.
+	// The JSON Schema for the tool's input parameters.
 	Schema map[string]any `json:"schema"`
-	// Required lists required parameter names.
+	// Lists required parameter names.
 	Required []string `json:"required"`
 }
 
@@ -1479,9 +1478,9 @@ type ContextConfigResponse struct {
 // CallMCPToolRequest is the request body for proxying an MCP
 // tool call through the workspace agent.
 type CallMCPToolRequest struct {
-	// ToolName is the prefixed tool name (e.g. "github__create_issue").
+	// The prefixed tool name (e.g. "github__create_issue").
 	ToolName string `json:"tool_name"`
-	// Arguments is the tool input as key-value pairs.
+	// The tool input as key-value pairs.
 	Arguments map[string]any `json:"arguments"`
 }
 

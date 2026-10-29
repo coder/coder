@@ -20,14 +20,13 @@ export interface AIBridgeAgenticAction {
 	readonly interception_id: string;
 	readonly model: string;
 	/**
-	 * Attribution contains attribution data from this interception.
-	 * Unknown attribution is serialized as an empty object.
+	 * Contains attribution data from this interception. Unknown attribution is
+	 * serialized as an empty object.
 	 */
 	readonly attribution: AIBridgeAttribution;
 	readonly token_usage: AIBridgeSessionThreadsTokenUsage;
 	/**
-	 * PricedModel is the model and prices used for this interception. Nil
-	 * when it was not priced.
+	 * The model and prices used for this interception. Nil when it was not priced.
 	 */
 	readonly priced_model?: AIBridgePricedModel;
 	readonly thinking: readonly AIBridgeModelThought[];
@@ -53,8 +52,8 @@ export interface AIBridgeConfig {
 	readonly rate_limit: number;
 	readonly structured_logging: boolean;
 	/**
-	 * StructuredLoggingSource selects which process emits the records that
-	 * StructuredLogging enables. See AIStructuredLoggingSource.
+	 * Selects which process emits the records that `structured_logging` enables.
+	 * See AIStructuredLoggingSource.
 	 */
 	readonly structured_logging_source?: string;
 	readonly send_actor_headers: boolean;
@@ -77,16 +76,15 @@ export interface AIBridgeConfig {
 	readonly circuit_breaker_timeout: number;
 	readonly circuit_breaker_max_requests: number;
 	/**
-	 * APIDumpDir is the base directory under which each provider's
-	 * request/response dumps are written, in a subdirectory named after
-	 * the provider. Empty disables dumping.
+	 * The base directory under which each provider's request/response dumps are
+	 * written, in a subdirectory named after the provider. Empty disables dumping.
 	 */
 	readonly api_dump_dir: string;
 	/**
-	 * DisableContentRecording stops user prompts, tool calls and model
-	 * reasoning from being recorded, including tool names and their arguments.
-	 * Interceptions and token usage are still recorded, so cost controls,
-	 * budget enforcement and spend reporting are unaffected.
+	 * Stops user prompts, tool calls and model reasoning from being recorded,
+	 * including tool names and their arguments. Interceptions and token usage are
+	 * still recorded, so cost controls, budget enforcement and spend reporting are
+	 * unaffected.
 	 */
 	readonly disable_content_recording: boolean;
 }
@@ -115,8 +113,8 @@ export interface AIBridgeModelThought {
  */
 export interface AIBridgePricedModel {
 	/**
-	 * Model is the priced model, either the requested model or the model
-	 * reported by the provider.
+	 * The priced model, either the requested model or the model reported by the
+	 * provider.
 	 */
 	readonly model: string;
 	readonly input_price: number | null;
@@ -168,10 +166,9 @@ export interface AIBridgeSession {
 	readonly threads: number;
 	readonly token_usage_summary: AIBridgeSessionTokenUsageSummary;
 	/**
-	 * NetworkCalls summarizes the Agent Firewall network requests made during the
-	 * session. A nil value means the session did not pass through Agent
-	 * Firewall, so network call monitoring was not active, which the UI
-	 * surfaces as "Disabled".
+	 * Summarizes the Agent Firewall network requests made during the session. A
+	 * nil value means the session did not pass through Agent Firewall, so network
+	 * call monitoring was not active, which the UI surfaces as "Disabled".
 	 */
 	readonly network_calls?: AIBridgeSessionNetworkCallSummary;
 	readonly last_prompt?: string;
@@ -219,25 +216,24 @@ export interface AIBridgeSessionThreadsResponse {
 	readonly ended_at?: string;
 	readonly token_usage_summary: AIBridgeSessionThreadsTokenUsage;
 	/**
-	 * NetworkCalls summarizes the Agent Firewall network calls made during the
-	 * session. A nil value means the session did not pass through Agent
-	 * Firewall, so network call monitoring was not active, which the UI
-	 * surfaces as "Disabled".
+	 * Summarizes the Agent Firewall network calls made during the session. A nil
+	 * value means the session did not pass through Agent Firewall, so network call
+	 * monitoring was not active, which the UI surfaces as "Disabled".
 	 */
 	readonly network_calls?: AIBridgeSessionNetworkCallSummary;
 	/**
-	 * NetworkTopDomains lists the most contacted destination hosts, ordered by
-	 * call count descending. NetworkDomainCount is the total number of distinct
-	 * domains, used to render a "+N more" overflow beyond the listed domains.
+	 * Lists the most contacted destination hosts, ordered by call count
+	 * descending. `network_domain_count` is the total number of distinct domains,
+	 * used to render a "+N more" overflow beyond the listed domains.
 	 */
 	readonly network_top_domains?: readonly AIBridgeSessionNetworkDomain[];
 	readonly network_domain_count?: number;
 	/**
-	 * NetworkCallLogs is the chronological list of individual network calls made
-	 * during the session, holding the earliest calls up to a server-side cap.
-	 * NetworkCalls remains authoritative for whole-session totals, so a shorter
-	 * list than NetworkCalls.Total means the list was truncated. Empty when the
-	 * session did not pass through Agent Firewall.
+	 * The chronological list of individual network calls made during the session,
+	 * holding the earliest calls up to a server-side cap. `network_calls` remains
+	 * authoritative for whole-session totals, so a shorter list than
+	 * `network_calls.total` means the list was truncated. Empty when the session
+	 * did not pass through Agent Firewall.
 	 */
 	readonly network_call_logs?: readonly AgentFirewallLog[];
 	readonly threads: readonly AIBridgeThread[];
@@ -256,13 +252,11 @@ export interface AIBridgeSessionThreadsTokenUsage {
 	// empty interface{} type, falling back to unknown
 	readonly metadata: Record<string, unknown>;
 	/**
-	 * CostMicros is the summed cost of the priced usage, in micro-units
-	 * (1000000 is $1.00).
+	 * The summed cost of the priced usage, in micro-units (1000000 is $1.00).
 	 */
 	readonly cost_micros: number;
 	/**
-	 * HasUnpricedUsage reports that some usage has no cost, so CostMicros
-	 * is a lower bound.
+	 * Reports that some usage has no cost, so `cost_micros` is a lower bound.
 	 */
 	readonly has_unpriced_usage: boolean;
 }
@@ -291,40 +285,38 @@ export interface AIBridgeThread {
 	readonly ended_at?: string;
 	readonly token_usage: AIBridgeSessionThreadsTokenUsage;
 	/**
-	 * PricedModel is the model and prices used for the root interception
-	 * (the prompt). Other requests in the thread may use different models
-	 * and prices, see agentic_actions[].priced_model. Nil when the root
-	 * interception was not priced.
+	 * The model and prices used for the root interception (the prompt). Other
+	 * requests in the thread may use different models and prices, see
+	 * agentic_actions[].priced_model. Nil when the root interception was not
+	 * priced.
 	 */
 	readonly priced_model?: AIBridgePricedModel;
 	/**
-	 * Attribution contains attribution data from the root interception.
-	 * Unknown attribution is serialized as an empty object.
+	 * Contains attribution data from the root interception. Unknown attribution is
+	 * serialized as an empty object.
 	 */
 	readonly attribution: AIBridgeAttribution;
 	readonly agentic_actions: readonly AIBridgeAgenticAction[];
 	/**
-	 * ErrorType is the categorized terminal upstream error from the root
-	 * interception, or nil when the interception succeeded. See the
-	 * aibridge_interception_error_type enum for possible values.
+	 * The categorized terminal upstream error from the root interception, or nil
+	 * when the interception succeeded. See the aibridge_interception_error_type
+	 * enum for possible values.
 	 */
 	readonly error_type?: string;
 	/**
-	 * ErrorMessage is the raw terminal upstream error message from the root
-	 * interception. Nil when the interception succeeded.
+	 * The raw terminal upstream error message from the root interception. Nil when
+	 * the interception succeeded.
 	 */
 	readonly error_message?: string;
 	/**
-	 * AgentFirewallSessionID links this thread to an agent firewall
-	 * confinement session. Nil when the request did not pass through
-	 * the agent firewall.
+	 * Links this thread to an agent firewall confinement session. Nil when the
+	 * request did not pass through the agent firewall.
 	 */
 	readonly agent_firewall_session_id?: string;
 	/**
-	 * AgentFirewallSequenceNumber is the firewall sequence number from
-	 * the root interception. Used to determine the position of this
-	 * LLM request in the firewall event stream. Nil when the request
-	 * did not pass through the agent firewall.
+	 * The firewall sequence number from the root interception. Used to determine
+	 * the position of this LLM request in the firewall event stream. Nil when the
+	 * request did not pass through the agent firewall.
 	 */
 	readonly agent_firewall_sequence_number?: number;
 }
@@ -463,7 +455,7 @@ export interface AIProvider {
 	readonly created_at: string;
 	readonly updated_at: string;
 	/**
-	 * Status carries runtime routing status; nil when empty.
+	 * The runtime routing status, or nil when empty.
 	 */
 	readonly status?: AIProviderStatus;
 }
@@ -487,55 +479,52 @@ export const AIProviderBedrockProtocols: AIProviderBedrockProtocol[] = [
  */
 export interface AIProviderBedrockSettings {
 	/**
-	 * Region is the AWS region used to construct the Bedrock endpoint
-	 * URL when BaseURL is not set on the parent provider.
+	 * The AWS region used to construct the Bedrock endpoint URL when BaseURL is
+	 * not set on the parent provider.
 	 */
 	readonly region?: string;
 	/**
-	 * Model is the AWS Bedrock model identifier used for primary
-	 * requests.
+	 * The AWS Bedrock model identifier used for primary requests.
 	 */
 	readonly model?: string;
 	/**
-	 * SmallFastModel is the AWS Bedrock model identifier used for
-	 * background tasks (e.g. Claude Code's haiku-class model).
+	 * The AWS Bedrock model identifier used for background tasks (e.g. Claude
+	 * Code's haiku-class model).
 	 */
 	readonly small_fast_model?: string;
 	/**
-	 * AccessKey is the AWS access key ID used to authenticate against
-	 * Bedrock. Write-only.
+	 * The AWS access key ID used to authenticate against Bedrock. Write-only.
 	 */
 	readonly access_key?: string;
 	/**
-	 * AccessKeySecret is the AWS secret access key paired with
-	 * AccessKey. Write-only.
+	 * The AWS secret access key paired with `access_key`. Write-only.
 	 */
 	readonly access_key_secret?: string;
 	/**
-	 * RoleARN, when set, is the IAM role assumed via STS before calling
-	 * Bedrock. The base identity (static keys or the AWS environment, e.g.
-	 * IRSA / EKS Pod Identity / EC2 Instance Profile) signs the AssumeRole
-	 * call, and the resulting temporary credentials sign Bedrock requests.
+	 * The IAM role assumed via STS before calling Bedrock, when set. The base
+	 * identity (static keys or the AWS environment, e.g. IRSA / EKS Pod Identity /
+	 * EC2 Instance Profile) signs the AssumeRole call, and the resulting temporary
+	 * credentials sign Bedrock requests.
 	 */
 	readonly role_arn?: string;
 	/**
-	 * ExternalID is the STS external ID sent on the AssumeRole call when
-	 * RoleARN is set. The server generates and owns it: create and update
-	 * reject any client-supplied value that differs from the stored one (an
-	 * update may echo the stored value back).
+	 * The STS external ID sent on the AssumeRole call when `role_arn` is set. The
+	 * server generates and owns it: create and update reject any client-supplied
+	 * value that differs from the stored one (an update may echo the stored value
+	 * back).
 	 */
 	readonly external_id?: string;
 	/**
-	 * Protocol selects the Bedrock wire protocol. An empty value resolves to
+	 * Selects the Bedrock wire protocol. An empty value resolves to
 	 * AIProviderBedrockProtocolInvokeModel, so existing rows keep the legacy
 	 * behavior.
 	 */
 	readonly protocol?: AIProviderBedrockProtocol;
 	/**
-	 * ResolvedModel and ResolvedSmallFastModel are the model IDs behind the
-	 * configured identifiers, which differ from them only for application
-	 * inference profile ARNs. The server resolves those through AWS when the
-	 * provider is written and owns the values; a client cannot set them.
+	 * Along with `resolved_small_fast_model`, the model IDs behind the configured
+	 * identifiers, which differ from them only for application inference profile
+	 * ARNs. The server resolves those through AWS when the provider is written and
+	 * owns the values. A client cannot set them.
 	 */
 	readonly resolved_model?: string;
 	readonly resolved_small_fast_model?: string;
@@ -560,13 +549,13 @@ export const AIProviderBedrockSettingsVersion = 1;
  */
 export interface AIProviderClaudePlatformAWSSettings {
 	/**
-	 * Region selects the default regional endpoint and SigV4 signing scope.
-	 * Required even when BaseURL points at a proxy.
+	 * Selects the default regional endpoint and SigV4 signing scope. Required even
+	 * when BaseURL points at a proxy.
 	 */
 	readonly region: string;
 	/**
-	 * WorkspaceID is sent as the anthropic-workspace-id header on every
-	 * request. Required regardless of the credential used.
+	 * Sent as the anthropic-workspace-id header on every request. Required
+	 * regardless of the credential used.
 	 */
 	readonly workspace_id: string;
 }
@@ -696,13 +685,11 @@ export const AIProviderTypes: AIProviderType[] = [
  */
 export interface AISpendPeriodWindow {
 	/**
-	 * PeriodStart is the inclusive lower bound of the current budget
-	 * period.
+	 * The inclusive lower bound of the current budget period.
 	 */
 	readonly period_start: string;
 	/**
-	 * PeriodEnd is the exclusive upper bound of the current budget
-	 * period.
+	 * The exclusive upper bound of the current budget period.
 	 */
 	readonly period_end: string;
 }
@@ -1295,7 +1282,8 @@ export interface APIKeyWithOwner extends APIKey {
  */
 export interface AccessURLReport extends BaseReport {
 	/**
-	 * Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
+	 * Deprecated and left for backward compatibility purposes. Use `severity`
+	 * instead.
 	 */
 	readonly healthy: boolean;
 	readonly access_url: string;
@@ -1323,19 +1311,18 @@ export const Addons: Addon[] = ["ai_governance"];
  */
 export interface AdvisorConfig {
 	/**
-	 * Enabled reflects whether the chat-advisor experiment is active.
-	 * The experiment flag is the sole gate; this field is read-only and
-	 * always matches the experiment state regardless of the stored DB value.
+	 * Reflects whether the chat-advisor experiment is active. The experiment flag
+	 * is the sole gate. This field is read-only and always matches the experiment
+	 * state regardless of the stored DB value.
 	 */
 	readonly enabled: boolean;
 	/**
-	 * MaxUsesPerRun caps how many times the advisor can be invoked per
-	 * chat run. 0 means unlimited.
+	 * Caps how many times the advisor can be invoked per chat run. 0 means
+	 * unlimited.
 	 */
 	readonly max_uses_per_run: number;
 	/**
-	 * MaxOutputTokens caps the advisor model response tokens. 0 means
-	 * use the runtime default.
+	 * Caps the advisor model response tokens. 0 means use the runtime default.
 	 */
 	readonly max_output_tokens: number;
 }
@@ -1402,17 +1389,17 @@ export interface AgentFirewallSession {
  */
 export interface AgentFirewallSessionLogsParams {
 	/**
-	 * SeqAfter is an inclusive lower bound on sequence_number.
-	 * Only logs with sequence_number >= SeqAfter are returned.
+	 * An inclusive lower bound on sequence_number. Only logs with `sequence_number
+	 * >= seq_after` are returned.
 	 */
 	readonly seq_after?: number;
 	/**
-	 * SeqBefore is an exclusive upper bound on sequence_number.
-	 * Only logs with sequence_number < SeqBefore are returned.
+	 * An exclusive upper bound on sequence_number. Only logs with `sequence_number
+	 * < seq_before` are returned.
 	 */
 	readonly seq_before?: number;
 	/**
-	 * Limit caps the number of returned rows. Defaults to 100.
+	 * The maximum number of rows returned. Defaults to 100.
 	 */
 	readonly limit?: number;
 }
@@ -1437,7 +1424,7 @@ export interface AgentHookChatRef {
 	readonly turn_id?: string;
 	readonly parent_chat_id?: string;
 	/**
-	 * RootChatID identifies the user-facing root of the chat tree.
+	 * Identifies the user-facing root of the chat tree.
 	 */
 	readonly root_chat_id?: string;
 }
@@ -1650,11 +1637,11 @@ export interface AgentScriptTiming {
 export interface AgentStatsReportResponse {
 	readonly num_comms: number;
 	/**
-	 * RxBytes is the number of received bytes.
+	 * The number of received bytes.
 	 */
 	readonly rx_bytes: number;
 	/**
-	 * TxBytes is the number of transmitted bytes.
+	 * The number of transmitted bytes.
 	 */
 	readonly tx_bytes: number;
 }
@@ -1706,7 +1693,7 @@ export const AppFamilyNames: AppFamilyName[] = [
 // From codersdk/deployment.go
 export interface AppHostResponse {
 	/**
-	 * Host is the externally accessible URL for the Coder instance.
+	 * The externally accessible URL for the Coder instance.
 	 */
 	readonly host: string;
 }
@@ -1750,7 +1737,7 @@ export interface ArchiveTemplateVersionsResponse {
 export interface AssignableRoles extends Role {
 	readonly assignable: boolean;
 	/**
-	 * BuiltIn roles are immutable
+	 * Built-in roles are immutable.
 	 */
 	readonly built_in: boolean;
 }
@@ -1809,7 +1796,7 @@ export interface AuditLog {
 	readonly resource_type: ResourceType;
 	readonly resource_id: string;
 	/**
-	 * ResourceTarget is the name of the resource.
+	 * The name of the resource.
 	 */
 	readonly resource_target: string;
 	readonly resource_icon: string;
@@ -1864,13 +1851,14 @@ export interface AuthMethods {
  */
 export interface AuthorizationCheck {
 	/**
-	 * Object can represent a "set" of objects, such as: all workspaces in an organization, all workspaces owned by me, and all workspaces across the entire product.
-	 * When defining an object, use the most specific language when possible to
-	 * produce the smallest set. Meaning to set as many fields on 'Object' as
-	 * you can. Example, if you want to check if you can update all workspaces
-	 * owned by 'me', try to also add an 'OrganizationID' to the settings.
-	 * Omitting the 'OrganizationID' could produce the incorrect value, as
-	 * workspaces have both `user` and `organization` owners.
+	 * Can represent a "set" of objects, such as: all workspaces in an
+	 * organization, all workspaces owned by me, and all workspaces across the
+	 * entire product. When defining an object, use the most specific language when
+	 * possible to produce the smallest set. Meaning to set as many fields on
+	 * `object` as you can. Example, if you want to check if you can update all
+	 * workspaces owned by 'me', try to also add an 'OrganizationID' to the
+	 * settings. Omitting the 'OrganizationID' could produce the incorrect value,
+	 * as workspaces have both `user` and `organization` owners.
 	 */
 	readonly object: AuthorizationObject;
 	readonly action: RBACAction;
@@ -1886,29 +1874,30 @@ export interface AuthorizationCheck {
  */
 export interface AuthorizationObject {
 	/**
-	 * ResourceType is the name of the resource.
-	 * `./coderd/rbac/object.go` has the list of valid resource types.
+	 * The name of the resource. `./coderd/rbac/object.go` has the list of valid
+	 * resource types.
 	 */
 	readonly resource_type: RBACResource;
 	/**
-	 * OwnerID (optional) adds the set constraint to all resources owned by a given user.
+	 * Optional. Adds the set constraint to all resources owned by a given user.
 	 */
 	readonly owner_id?: string;
 	/**
-	 * OrganizationID (optional) adds the set constraint to all resources owned by a given organization.
+	 * Optional. Adds the set constraint to all resources owned by a given
+	 * organization.
 	 */
 	readonly organization_id?: string;
 	/**
-	 * ResourceID (optional) reduces the set to a singular resource. This assigns
-	 * a resource ID to the resource type, eg: a single workspace.
-	 * The rbac library will not fetch the resource from the database, so if you
-	 * are using this option, you should also set the owner ID and organization ID
-	 * if possible. Be as specific as possible using all the fields relevant.
+	 * Optional. Reduces the set to a singular resource. This assigns a resource ID
+	 * to the resource type, eg: a single workspace. The rbac library will not
+	 * fetch the resource from the database, so if you are using this option, you
+	 * should also set the owner ID and organization ID if possible. Be as specific
+	 * as possible using all the fields relevant.
 	 */
 	readonly resource_id?: string;
 	/**
-	 * AnyOrgOwner (optional) will disregard the org_owner when checking for permissions.
-	 * This cannot be set to true if the OrganizationID is set.
+	 * Optional. Disregards the org_owner when checking for permissions. This
+	 * cannot be set to true if the `organization_id` is set.
 	 */
 	readonly any_org?: boolean;
 }
@@ -1921,11 +1910,10 @@ export interface AuthorizationObject {
  */
 export interface AuthorizationRequest {
 	/**
-	 * Checks is a map keyed with an arbitrary string to a permission check.
-	 * The key can be any string that is helpful to the caller, and allows
-	 * multiple permission checks to be run in a single request.
-	 * The key ensures that each permission check has the same key in the
-	 * response.
+	 * A map keyed with an arbitrary string to a permission check. The key can be
+	 * any string that is helpful to the caller, and allows multiple permission
+	 * checks to be run in a single request. The key ensures that each permission
+	 * check has the same key in the response.
 	 */
 	readonly checks: Record<string, AuthorizationCheck>;
 }
@@ -1971,50 +1959,47 @@ export interface BaseReport {
  */
 export interface BuildInfoResponse {
 	/**
-	 * ExternalURL references the current Coder version.
-	 * For production builds, this will link directly to a release. For development builds, this will link to a commit.
+	 * References the current Coder version. For production builds, this will link
+	 * directly to a release. For development builds, this will link to a commit.
 	 */
 	readonly external_url: string;
 	/**
-	 * Version returns the semantic version of the build.
+	 * Returns the semantic version of the build.
 	 */
 	readonly version: string;
 	/**
-	 * DashboardURL is the URL to hit the deployment's dashboard.
-	 * For external workspace proxies, this is the coderd they are connected
-	 * to.
+	 * The URL to hit the deployment's dashboard. For external workspace proxies,
+	 * this is the coderd they are connected to.
 	 */
 	readonly dashboard_url: string;
 	/**
-	 * Telemetry is a boolean that indicates whether telemetry is enabled.
+	 * A boolean that indicates whether telemetry is enabled.
 	 */
 	readonly telemetry: boolean;
 	/**
-	 * OAuth2Provider reports whether the OAuth 2.1 authorization server is
-	 * enabled. The dashboard uses it to show or hide OAuth2 navigation.
+	 * Whether the OAuth 2.1 authorization server is enabled. The dashboard uses it
+	 * to show or hide OAuth2 navigation.
 	 */
 	readonly oauth2_provider: boolean;
 	readonly workspace_proxy: boolean;
 	/**
-	 * AgentAPIVersion is the current version of the Agent API (back versions
-	 * MAY still be supported).
+	 * The current version of the Agent API (back versions MAY still be supported).
 	 */
 	readonly agent_api_version: string;
 	/**
-	 * ProvisionerAPIVersion is the current version of the Provisioner API
+	 * The current version of the Provisioner API
 	 */
 	readonly provisioner_api_version: string;
 	/**
-	 * UpgradeMessage is the message displayed to users when an outdated client
-	 * is detected.
+	 * The message displayed to users when an outdated client is detected.
 	 */
 	readonly upgrade_message: string;
 	/**
-	 * DeploymentID is the unique identifier for this deployment.
+	 * The unique identifier for this deployment.
 	 */
 	readonly deployment_id: string;
 	/**
-	 * WebPushPublicKey is the public key for push notifications via Web Push.
+	 * The public key for push notifications via Web Push.
 	 */
 	readonly webpush_public_key?: string;
 }
@@ -2073,7 +2058,7 @@ export const CORSBehaviors: CORSBehavior[] = ["passthru", "simple"];
 // From codersdk/workspacebuilds.go
 export interface CancelWorkspaceBuildParams {
 	/**
-	 * ExpectStatus ensures the build is in the expected status before canceling.
+	 * Ensures the build is in the expected status before canceling.
 	 */
 	readonly expect_status?: CancelWorkspaceBuildStatus;
 }
@@ -2126,14 +2111,13 @@ export interface Chat {
 	readonly last_reasoning_effort?: string;
 	readonly title: string;
 	/**
-	 * TitleSource is where Title came from. A title write applies only when
-	 * the current source ranks the same as or lower than the incoming one,
-	 * in the order fallback, generated, user.
+	 * Where `title` came from. A title write applies only when the current source
+	 * ranks the same as or lower than the incoming one, in the order fallback,
+	 * generated, user.
 	 */
 	readonly title_source: ChatTitleSource;
 	/**
-	 * TitleUpdatedAt orders title changes. Title writes do not change
-	 * UpdatedAt.
+	 * Orders title changes. Title writes do not change `updated_at`.
 	 */
 	readonly title_updated_at: string;
 	readonly status: ChatStatus;
@@ -2141,26 +2125,24 @@ export interface Chat {
 	readonly last_error?: ChatError;
 	readonly last_turn_summary: string | null;
 	/**
-	 * Summary is the persisted whole-chat summary, generated in the background.
-	 * It is nil until the first summary has been produced.
+	 * The persisted whole-chat summary, generated in the background. It is nil
+	 * until the first summary has been produced.
 	 */
 	readonly summary: string | null;
 	/**
-	 * DiffStatus is the primary pull request. It is the ref with the
-	 * most recent git report.
+	 * The primary pull request. It is the ref with the most recent git report.
 	 */
 	readonly diff_status?: ChatDiffStatus;
 	/**
-	 * DiffStatuses lists every ref the chat tracks. The order is
-	 * stable and follows the first report of each ref. DiffStatus
-	 * marks the primary.
+	 * Lists every ref the chat tracks. The order is stable and follows the first
+	 * report of each ref. `diff_status` marks the primary.
 	 */
 	readonly diff_statuses?: readonly ChatDiffStatus[];
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly archived: boolean;
 	/**
-	 * Shared is true when this chat's root chat has explicit user or group ACL entries.
+	 * True when this chat's root chat has explicit user or group ACL entries.
 	 */
 	readonly shared: boolean;
 	readonly pin_order: number;
@@ -2168,36 +2150,33 @@ export interface Chat {
 	readonly labels: Record<string, string>;
 	readonly files?: readonly ChatFileMetadata[];
 	/**
-	 * HasUnread is true when assistant messages exist beyond
-	 * the owner's read cursor, which updates on stream
-	 * connect and disconnect and via UpdateChatRequest.Read.
+	 * True when assistant messages exist beyond the owner's read cursor, which
+	 * updates on stream connect and disconnect and via UpdateChatRequest.Read.
 	 */
 	readonly has_unread: boolean;
 	/**
-	 * Context reports the chat's pinned workspace-context state and
-	 * whether it has drifted from the agent's latest pushed snapshot.
-	 * Nil when the chat has no pinned context yet.
+	 * Reports the chat's pinned workspace-context state and whether it has drifted
+	 * from the agent's latest pushed snapshot. Nil when the chat has no pinned
+	 * context yet.
 	 */
 	readonly context?: ChatContext;
 	/**
-	 * QueuedForCapacity reports that the chat is waiting for a concurrent
-	 * agent slot. Single-chat reads derive it; list responses leave it false.
+	 * Reports that the chat is waiting for a concurrent agent slot. Single-chat
+	 * reads derive it, and list responses leave it false.
 	 */
 	readonly queued_for_capacity?: boolean;
 	readonly warnings?: readonly string[];
 	readonly client_type: ChatClientType;
 	/**
-	 * InlineMCPServers lists the inline MCP servers declared on the chat,
-	 * without headers. Only the single-chat GET sets it.
-	 * Experimental.
+	 * Lists the inline MCP servers declared on the chat, without headers. Only the
+	 * single-chat GET sets it. Experimental.
 	 */
 	readonly inline_mcp_servers?: readonly InlineMCPServer[];
 	/**
-	 * Children holds child (subagent) chats nested under this root
-	 * chat. Always initialized to an empty slice so the JSON field
-	 * is present as []. Child chats cannot create their own
-	 * subagents, so nesting depth is capped at 1 and this slice is
-	 * always empty for child chats.
+	 * Holds child (subagent) chats nested under this root chat. Always initialized
+	 * to an empty slice so the JSON field is present as []. Child chats cannot
+	 * create their own subagents, so nesting depth is capped at 1 and this slice
+	 * is always empty for child chats.
 	 */
 	readonly children: readonly Chat[];
 }
@@ -2226,8 +2205,8 @@ export interface ChatACPTranscriptMessage {
 export interface ChatAttachment {
 	readonly message_id: number;
 	/**
-	 * PartIndex is the file part's position in the message content the
-	 * messages endpoint returns.
+	 * The file part's position in the message content the messages endpoint
+	 * returns.
 	 */
 	readonly part_index: number;
 	readonly role: ChatAttachmentRole;
@@ -2244,7 +2223,7 @@ export interface ChatAttachmentFile {
 	readonly media_type: string;
 	readonly name?: string;
 	/**
-	 * Data holds an inline file's bytes, which JSON carries as a base64 string.
+	 * Holds an inline file's bytes, which JSON carries as a base64 string.
 	 */
 	readonly data?: string;
 	/**
@@ -2347,32 +2326,30 @@ export interface ChatConfig {
 	readonly hook_allow_insecure: boolean;
 	readonly stream_silence_timeout: number;
 	/**
-	 * MaxStepsPerTurn is the maximum number of steps in a chat turn.
+	 * The maximum number of steps in a chat turn.
 	 */
 	readonly max_steps_per_turn: number;
 	/**
-	 * MaxGenerationRetries is the maximum number of consecutive retries
-	 * after a model generation fails with a transient error.
+	 * The maximum number of consecutive retries after a model generation fails
+	 * with a transient error.
 	 */
 	readonly max_generation_retries: number;
 	/**
-	 * MaxQueuedMessagesPerChat is the maximum number of messages that can
-	 * be queued in a chat.
+	 * The maximum number of messages that can be queued in a chat.
 	 */
 	readonly max_queued_messages_per_chat: number;
 	/**
-	 * MaxAttachmentsPerChat is the maximum number of files linked to a
-	 * chat.
+	 * The maximum number of files linked to a chat.
 	 */
 	readonly max_attachments_per_chat: number;
 	/**
-	 * MaxPromptBytes is the maximum size in bytes of the deployment system
-	 * prompt, the plan mode instructions, and each user's custom prompt.
+	 * The maximum size in bytes of the deployment system prompt, the plan mode
+	 * instructions, and each user's custom prompt.
 	 */
 	readonly max_prompt_bytes: number;
 	/**
-	 * MaxConcurrentRecordingUploads is the maximum number of virtual
-	 * desktop recordings that each Coder server stores at the same time.
+	 * The maximum number of virtual desktop recordings that each Coder server
+	 * stores at the same time.
 	 */
 	readonly max_concurrent_recording_uploads: number;
 	/**
@@ -2390,24 +2367,23 @@ export interface ChatConfig {
  */
 export interface ChatContext {
 	/**
-	 * Dirty is true when the agent's latest snapshot hash differs from the
-	 * chat's pinned hash.
+	 * True when the agent's latest snapshot hash differs from the chat's pinned
+	 * hash.
 	 */
 	readonly dirty: boolean;
 	/**
-	 * DirtySince is when drift was first detected; nil when not dirty.
+	 * When drift was first detected, or nil when not dirty.
 	 */
 	readonly dirty_since?: string;
 	/**
-	 * Error is the snapshot-level error copied from the pinned snapshot
-	 * (empty when healthy).
+	 * The snapshot-level error copied from the pinned snapshot, or empty when
+	 * healthy.
 	 */
 	readonly error?: string;
 	/**
-	 * Resources is the chat's pinned workspace-context inventory,
-	 * metadata only (no bodies). It is populated only on the single-chat
-	 * GET response; list and watch
-	 * payloads leave it nil to stay lightweight.
+	 * The chat's pinned workspace-context inventory, metadata only (no bodies). It
+	 * is populated only on the single-chat GET response. List and watch payloads
+	 * leave it nil to stay lightweight.
 	 */
 	readonly resources?: readonly ChatContextResource[];
 }
@@ -2416,19 +2392,18 @@ export interface ChatContext {
 export interface ChatContextFilePart {
 	readonly type: "context-file";
 	/**
-	 * ContextFilePath is the absolute path of a file loaded into
-	 * the LLM context (e.g. an AGENTS.md instruction file).
+	 * The absolute path of a file loaded into the LLM context (e.g. an AGENTS.md
+	 * instruction file).
 	 */
 	readonly context_file_path: string;
 	/**
-	 * ContextFileTruncated indicates the file exceeded the 64KiB
-	 * instruction file limit and was truncated.
+	 * Indicates the file exceeded the 64KiB instruction file limit and was
+	 * truncated.
 	 */
 	readonly context_file_truncated?: boolean;
 	/**
-	 * ContextFileAgentID is the workspace agent that provided
-	 * this context file. Used to detect when the agent changes
-	 * (e.g. workspace rebuilt) so instruction files can be
+	 * The workspace agent that provided this context file. Used to detect when the
+	 * agent changes (e.g. workspace rebuilt) so instruction files can be
 	 * re-persisted with fresh content.
 	 */
 	readonly context_file_agent_id?: string;
@@ -2442,40 +2417,40 @@ export interface ChatContextFilePart {
  */
 export interface ChatContextResource {
 	/**
-	 * Source is the resource locator: the canonical file path for an
-	 * instruction file, the skill directory for a skill, the file path for
-	 * an MCP config, the server name for an MCP server, or an ACP harness slug.
+	 * The resource locator: the canonical file path for an instruction file, the
+	 * skill directory for a skill, the file path for an MCP config, the server
+	 * name for an MCP server, or an ACP harness slug.
 	 */
 	readonly source: string;
 	readonly kind: ChatContextResourceKind;
 	/**
-	 * SourcePath is the configuration directory for an ACP harness.
+	 * The configuration directory for an ACP harness.
 	 */
 	readonly source_path?: string;
 	/**
-	 * SizeBytes is the original payload size in bytes.
+	 * The original payload size in bytes.
 	 */
 	readonly size_bytes: number;
 	/**
-	 * SkillName and SkillDescription are populated only for skill kinds.
+	 * Populated only for skill kinds, as is `skill_description`.
 	 */
 	readonly skill_name?: string;
 	readonly skill_description?: string;
 	/**
-	 * Tools lists the tools exposed by an MCP server. Populated only for the
-	 * mcp_server kind; nil otherwise.
+	 * Lists the tools exposed by an MCP server. Populated only for the mcp_server
+	 * kind. Nil otherwise.
 	 */
 	readonly tools?: readonly ChatContextTool[];
 	/**
-	 * Status is the resource's health. Non-ok resources (invalid, unreadable,
-	 * oversize, excluded) are still reported so the UI can surface why a
-	 * resource was dropped from the prompt instead of silently omitting it;
-	 * their body-specific fields (skill name, tools) are empty.
+	 * The resource's health. Non-ok resources (invalid, unreadable, oversize,
+	 * excluded) are still reported so the UI can surface why a resource was
+	 * dropped from the prompt instead of silently omitting it. Their body-specific
+	 * fields (skill name, tools) are empty.
 	 */
 	readonly status: ChatContextResourceStatus;
 	/**
-	 * Error explains a non-ok Status; empty when healthy. May also carry a
-	 * non-fatal warning when Status is ok.
+	 * Explains a non-ok `status`. Empty when healthy. May also carry a non-fatal
+	 * warning when `status` is ok.
 	 */
 	readonly error?: string;
 }
@@ -2519,12 +2494,12 @@ export const ChatContextResourceStatuses: ChatContextResourceStatus[] = [
  */
 export interface ChatContextTool {
 	/**
-	 * Name is the tool name with the `<server>__` prefix the agent adds
-	 * stripped, so it reads as the server exposes it.
+	 * The tool name with the `<server>__` prefix the agent adds stripped, so it
+	 * reads as the server exposes it.
 	 */
 	readonly name: string;
 	/**
-	 * Description is the tool's human-readable summary; may be empty.
+	 * The tool's human-readable summary, which may be empty.
 	 */
 	readonly description?: string;
 }
@@ -2725,28 +2700,28 @@ export interface ChatDiffStatus {
  */
 export interface ChatError {
 	/**
-	 * Message is the normalized, user-facing error message.
+	 * The normalized, user-facing error message.
 	 */
 	readonly message: string;
 	/**
-	 * Detail is optional provider-specific context shown alongside the
-	 * normalized error message when available.
+	 * Optional provider-specific context shown alongside the normalized error
+	 * message when available.
 	 */
 	readonly detail?: string;
 	/**
-	 * Kind classifies the error for consistent client rendering.
+	 * Classifies the error for consistent client rendering.
 	 */
 	readonly kind?: ChatErrorKind;
 	/**
-	 * Provider identifies the upstream model provider when known.
+	 * Identifies the upstream model provider when known.
 	 */
 	readonly provider?: string;
 	/**
-	 * Retryable reports whether the underlying error is transient.
+	 * Whether the underlying error is transient.
 	 */
 	readonly retryable: boolean;
 	/**
-	 * StatusCode is the best-effort upstream HTTP status code.
+	 * The best-effort upstream HTTP status code.
 	 */
 	readonly status_code?: number;
 }
@@ -2930,9 +2905,8 @@ export interface ChatInputPart {
 	readonly workspace_file_size?: number;
 	readonly workspace_file_media_type?: string;
 	/**
-	 * WorkspaceFileWorkspaceID is the workspace the file was uploaded
-	 * to, as returned by the upload endpoint. It must match the chat's
-	 * currently bound workspace.
+	 * The workspace the file was uploaded to, as returned by the upload endpoint.
+	 * It must match the chat's currently bound workspace.
 	 */
 	readonly workspace_file_workspace_id?: string;
 	/**
@@ -2982,11 +2956,11 @@ export interface ChatMessage {
 	readonly content?: readonly ChatMessagePart[];
 	readonly usage?: ChatMessageUsage;
 	/**
-	 * QueuedMessageID is the ID of the queued message this message was
-	 * promoted from. It matches ChatQueuedMessage.ID in the response that
-	 * queued the message. It is nil when the message was not promoted from
-	 * the queue (edits create a new message without it) or when a server
-	 * version that did not record the link created it.
+	 * The ID of the queued message this message was promoted from. It matches
+	 * ChatQueuedMessage.ID in the response that queued the message. It is nil when
+	 * the message was not promoted from the queue (edits create a new message
+	 * without it) or when a server version that did not record the link created
+	 * it.
 	 */
 	readonly queued_message_id?: number;
 }
@@ -3082,8 +3056,8 @@ export interface ChatMessageUsage {
 	readonly output_tokens?: number;
 	readonly total_tokens?: number;
 	/**
-	 * ReasoningTokens counts reasoning, which output_tokens already
-	 * includes, so do not add the two.
+	 * Counts reasoning, which `output_tokens` already includes, so do not add the
+	 * two.
 	 */
 	readonly reasoning_tokens?: number;
 	readonly cache_creation_tokens?: number;
@@ -3120,9 +3094,9 @@ export interface ChatMessagesResponse {
 	readonly queued_messages: readonly ChatQueuedMessage[];
 	readonly has_more: boolean;
 	/**
-	 * TurnStartID is the ID of the user prompt that starts the turn
-	 * containing the page's oldest message. Omitted for after_id-only polls
-	 * and when no prompt is at or before that message.
+	 * The ID of the user prompt that starts the turn containing the page's oldest
+	 * message. Omitted for after_id-only polls and when no prompt is at or before
+	 * that message.
 	 */
 	readonly turn_start_id?: number;
 }
@@ -3143,8 +3117,8 @@ export interface ChatModel {
 	readonly compression_threshold: number;
 	readonly model_config?: ChatModelCallConfig;
 	/**
-	 * ReasoningEfforts lists selectable reasoning effort values through
-	 * the model's configured maximum.
+	 * Lists selectable reasoning effort values through the model's configured
+	 * maximum.
 	 */
 	readonly reasoning_efforts?: readonly string[];
 	readonly created_at: string;
@@ -3557,13 +3531,13 @@ export interface ChatProject {
 	readonly organization_id: string;
 	readonly owner_id: string;
 	/**
-	 * Name is a display label and is not unique; ID identifies the project.
+	 * A display label that is not unique. `id` identifies the project.
 	 */
 	readonly name: string;
 	readonly description: string;
 	/**
-	 * Icon is a URL, typically an emoji image under /emojis, or empty for the
-	 * default folder glyph.
+	 * A URL, typically an emoji image under /emojis, or empty for the default
+	 * folder glyph.
 	 */
 	readonly icon: string;
 	readonly created_at: string;
@@ -3597,8 +3571,8 @@ export interface ChatProjectInstructions {
 	readonly project_id: string;
 	readonly instructions: string;
 	/**
-	 * UpdatedBy is the user who last changed the instructions. It is nil
-	 * when the instructions are unset or the user was deleted.
+	 * The user who last changed the instructions. It is nil when the instructions
+	 * are unset or the user was deleted.
 	 */
 	readonly updated_by: MinimalUser | null;
 	readonly updated_at: string | null;
@@ -3722,21 +3696,18 @@ export interface ChatReasoningPart {
 	readonly type: "reasoning";
 	readonly text: string;
 	/**
-	 * CreatedAt is the timestamp this part carries. The semantics
-	 * depend on the part type: for tool-call and tool-result parts
-	 * it is the time the call was emitted or the result was
-	 * produced (tool duration is the result's created_at minus the
-	 * call's created_at); for reasoning parts it is the time
-	 * reasoning started streaming.
+	 * The timestamp this part carries. The semantics depend on the part type. For
+	 * tool-call and tool-result parts it is the time the call was emitted or the
+	 * result was produced (tool duration is the result's created_at minus the
+	 * call's created_at). For reasoning parts it is the time reasoning started
+	 * streaming.
 	 */
 	readonly created_at?: string;
 	/**
-	 * CompletedAt is the time a reasoning part finished streaming,
-	 * so reasoning duration can be computed as completed_at minus
-	 * created_at. For interrupted reasoning, this is the
-	 * interruption time. Absent when reasoning timestamp data was
-	 * not recorded (e.g. messages persisted before this feature
-	 * was added).
+	 * The time a reasoning part finished streaming, so reasoning duration can be
+	 * computed as completed_at minus created_at. For interrupted reasoning, this
+	 * is the interruption time. Absent when reasoning timestamp data was not
+	 * recorded (e.g. messages persisted before this feature was added).
 	 */
 	readonly completed_at?: string;
 }
@@ -3758,12 +3729,11 @@ export const ChatRoles: ChatRole[] = ["", "read"];
 export interface ChatSkillInvocationPart {
 	readonly type: "skill-invocation";
 	/**
-	 * SkillName is the kebab-case name of the skill.
+	 * The kebab-case name of the skill.
 	 */
 	readonly skill_name: string;
 	/**
-	 * SkillSource is where the invoked skill of a skill-invocation
-	 * part is stored.
+	 * Where the invoked skill of a skill-invocation part is stored.
 	 */
 	readonly skill_source: ChatSkillSource;
 }
@@ -3772,12 +3742,11 @@ export interface ChatSkillInvocationPart {
 export interface ChatSkillPart {
 	readonly type: "skill";
 	/**
-	 * SkillName is the kebab-case name of the skill.
+	 * The kebab-case name of the skill.
 	 */
 	readonly skill_name: string;
 	/**
-	 * SkillDescription is the short description from the skill's
-	 * SKILL.md frontmatter.
+	 * The short description from the skill's SKILL.md frontmatter.
 	 */
 	readonly skill_description?: string;
 }
@@ -3884,31 +3853,31 @@ export interface ChatStreamMessagePart {
  */
 export interface ChatStreamRetry {
 	/**
-	 * Attempt is the 1-indexed retry attempt number.
+	 * The 1-indexed retry attempt number.
 	 */
 	readonly attempt: number;
 	/**
-	 * DelayMs is the backoff delay in milliseconds before the retry.
+	 * The backoff delay in milliseconds before the retry.
 	 */
 	readonly delay_ms: number;
 	/**
-	 * Error is the normalized error message from the failed attempt.
+	 * The normalized error message from the failed attempt.
 	 */
 	readonly error: string;
 	/**
-	 * Kind classifies the retry reason for consistent client rendering.
+	 * Classifies the retry reason for consistent client rendering.
 	 */
 	readonly kind?: ChatErrorKind;
 	/**
-	 * Provider identifies the upstream model provider when known.
+	 * Identifies the upstream model provider when known.
 	 */
 	readonly provider?: string;
 	/**
-	 * StatusCode is the best-effort upstream HTTP status code.
+	 * The best-effort upstream HTTP status code.
 	 */
 	readonly status_code?: number;
 	/**
-	 * RetryingAt is the timestamp when the retry will be attempted.
+	 * The timestamp when the retry will be attempted.
 	 */
 	readonly retrying_at: string;
 }
@@ -3948,9 +3917,8 @@ export interface ChatTextPart {
 	readonly type: "text";
 	readonly text: string;
 	/**
-	 * Narration marks assistant text that the model labeled as commentary
-	 * on its work rather than its answer. Only providers that label their
-	 * output set it.
+	 * Marks assistant text that the model labeled as commentary on its work rather
+	 * than its answer. Only providers that label their output set it.
 	 */
 	readonly narration?: boolean;
 }
@@ -3973,30 +3941,29 @@ export interface ChatToolCallPart {
 	readonly args?: Record<string, string>;
 	readonly args_delta?: string;
 	/**
-	 * ParsedCommands holds parsed programs from an execute tool call's
-	 * shell command, one entry per simple command in source order. Each
-	 * entry is [program] or [program, arg] where arg is the first non-flag
-	 * positional argument. Program names are normalized to their base
-	 * name (e.g. /usr/bin/go becomes go). Only populated when ToolName
-	 * is "execute" and the command parses successfully; nil otherwise.
+	 * Holds parsed programs from an execute tool call's shell command, one entry
+	 * per simple command in source order. Each entry is [program] or [program,
+	 * arg] where arg is the first non-flag positional argument. Program names are
+	 * normalized to their base name (e.g. /usr/bin/go becomes go). Only populated
+	 * when `tool_name` is "execute" and the command parses successfully. Nil
+	 * otherwise.
 	 */
 	readonly parsed_commands?: readonly string[][];
 	/**
-	 * ProviderExecuted indicates the tool call was executed by
-	 * the provider (e.g. Anthropic computer use).
+	 * Indicates the tool call was executed by the provider (e.g. Anthropic
+	 * computer use).
 	 */
 	readonly provider_executed?: boolean;
 	/**
-	 * HookRewritten indicates that a lifecycle hook replaced model-proposed tool input.
+	 * Indicates that a lifecycle hook replaced model-proposed tool input.
 	 */
 	readonly hook_rewritten?: boolean;
 	/**
-	 * CreatedAt is the timestamp this part carries. The semantics
-	 * depend on the part type: for tool-call and tool-result parts
-	 * it is the time the call was emitted or the result was
-	 * produced (tool duration is the result's created_at minus the
-	 * call's created_at); for reasoning parts it is the time
-	 * reasoning started streaming.
+	 * The timestamp this part carries. The semantics depend on the part type. For
+	 * tool-call and tool-result parts it is the time the call was emitted or the
+	 * result was produced (tool duration is the result's created_at minus the
+	 * call's created_at). For reasoning parts it is the time reasoning started
+	 * streaming.
 	 */
 	readonly created_at?: string;
 }
@@ -4014,17 +3981,16 @@ export interface ChatToolResultPart {
 	readonly is_error?: boolean;
 	readonly is_media?: boolean;
 	/**
-	 * ProviderExecuted indicates the tool call was executed by
-	 * the provider (e.g. Anthropic computer use).
+	 * Indicates the tool call was executed by the provider (e.g. Anthropic
+	 * computer use).
 	 */
 	readonly provider_executed?: boolean;
 	/**
-	 * CreatedAt is the timestamp this part carries. The semantics
-	 * depend on the part type: for tool-call and tool-result parts
-	 * it is the time the call was emitted or the result was
-	 * produced (tool duration is the result's created_at minus the
-	 * call's created_at); for reasoning parts it is the time
-	 * reasoning started streaming.
+	 * The timestamp this part carries. The semantics depend on the part type. For
+	 * tool-call and tool-result parts it is the time the call was emitted or the
+	 * result was produced (tool duration is the result's created_at minus the
+	 * call's created_at). For reasoning parts it is the time reasoning started
+	 * streaming.
 	 */
 	readonly created_at?: string;
 }
@@ -4036,7 +4002,7 @@ export interface ChatToolResultPart {
  */
 export interface ChatUnsupportedProvider {
 	/**
-	 * Provider is the provider type, e.g. "copilot".
+	 * The provider type, e.g. "copilot".
 	 */
 	readonly provider: string;
 	readonly display_name: string;
@@ -4060,9 +4026,8 @@ export interface ChatWatchEvent {
 	readonly chat: Chat;
 	readonly tool_calls?: readonly ChatStreamToolCall[];
 	/**
-	 * ChangedDiffStatus is set when Kind is
-	 * ChatWatchEventKindDiffStatusChange. It identifies the ref that
-	 * changed.
+	 * Set when `kind` is ChatWatchEventKindDiffStatusChange. It identifies the ref
+	 * that changed.
 	 */
 	readonly changed_diff_status?: ChangedDiffStatus;
 }
@@ -4097,27 +4062,25 @@ export const ChatWatchEventKinds: ChatWatchEventKind[] = [
 export interface ChatWorkspaceFileReferencePart {
 	readonly type: "workspace-file-reference";
 	/**
-	 * WorkspaceFilePath is the absolute path of a workspace upload.
-	 * The bytes live on the workspace filesystem; only metadata is
-	 * persisted on the message.
+	 * The absolute path of a workspace upload. The bytes live on the workspace
+	 * filesystem, and only metadata is persisted on the message.
 	 */
 	readonly workspace_file_path: string;
 	/**
-	 * WorkspaceFileName is the sanitized basename of a workspace upload.
+	 * The sanitized basename of a workspace upload.
 	 */
 	readonly workspace_file_name: string;
 	/**
-	 * WorkspaceFileSize is the byte size of a workspace upload.
+	 * The byte size of a workspace upload.
 	 */
 	readonly workspace_file_size: number;
 	/**
-	 * WorkspaceFileWorkspaceID identifies the workspace whose
-	 * filesystem holds the uploaded bytes. References are only
-	 * readable while the chat stays bound to that workspace.
+	 * Identifies the workspace whose filesystem holds the uploaded bytes.
+	 * References are only readable while the chat stays bound to that workspace.
 	 */
 	readonly workspace_file_workspace_id: string;
 	/**
-	 * WorkspaceFileMediaType is the best-effort declared MIME type.
+	 * The best-effort declared MIME type.
 	 */
 	readonly workspace_file_media_type?: string;
 }
@@ -4129,8 +4092,8 @@ export interface ChatWorkspaceFileReferencePart {
  */
 export interface ChatWorkspaceTTLResponse {
 	/**
-	 * WorkspaceTTLMillis is the workspace TTL in milliseconds.
-	 * Zero means disabled; the template's own autostop setting applies.
+	 * The workspace TTL in milliseconds. Zero means disabled, and the template's
+	 * own autostop setting applies.
 	 */
 	readonly workspace_ttl_ms: number;
 }
@@ -4185,22 +4148,22 @@ export interface ConnectionLog {
 	readonly type: string;
 	readonly connection_method: ConnectionLogMethod;
 	/**
-	 * AppName is the name of the connecting application, when known. The
-	 * client reports it, so it is a normalized label and not a guarantee.
-	 * Workspace app slugs and forwarded ports are reported in WebInfo.
+	 * The name of the connecting application, when known. The client reports it,
+	 * so it is a normalized label and not a guarantee. Workspace app slugs and
+	 * forwarded ports are reported in `web_info`.
 	 */
 	readonly app_name?: string;
 	/**
-	 * AppDisplayName is the registry display name for AppName, or AppName
-	 * itself when the app is unregistered.
+	 * The registry display name for `app_name`, or `app_name` itself when the app
+	 * is unregistered.
 	 */
 	readonly app_display_name?: string;
 	/**
-	 * WebInfo is set for connections that coderd records.
+	 * Set for connections that coderd records.
 	 */
 	readonly web_info?: ConnectionLogWebInfo;
 	/**
-	 * SSHInfo is set for connections that agents report.
+	 * Set for connections that agents report.
 	 */
 	readonly ssh_info?: ConnectionLogSSHInfo;
 }
@@ -4232,22 +4195,22 @@ export interface ConnectionLogResponse {
 export interface ConnectionLogSSHInfo {
 	readonly connection_id: string;
 	/**
-	 * ClientSessionID is set by the client and isn't guaranteed to be unique.
+	 * Set by the client and isn't guaranteed to be unique.
 	 */
 	readonly client_session_id?: string;
 	/**
-	 * DisconnectTime is omitted if a disconnect event with the same connection ID
-	 * has not yet been seen.
+	 * Omitted if a disconnect event with the same connection ID has not yet been
+	 * seen.
 	 */
 	readonly disconnect_time?: string;
 	/**
-	 * DisconnectReason is omitted if a disconnect event with the same connection ID
-	 * has not yet been seen.
+	 * Omitted if a disconnect event with the same connection ID has not yet been
+	 * seen.
 	 */
 	readonly disconnect_reason?: string;
 	/**
-	 * ExitCode is the exit code of the SSH session. It is omitted if a
-	 * disconnect event with the same connection ID has not yet been seen.
+	 * The exit code of the SSH session. It is omitted if a disconnect event with
+	 * the same connection ID has not yet been seen.
 	 */
 	readonly exit_code?: number;
 }
@@ -4264,12 +4227,12 @@ export const ConnectionLogStatuses: ConnectionLogStatus[] = [
 export interface ConnectionLogWebInfo {
 	readonly user_agent: string;
 	/**
-	 * User is omitted if the connection event was unauthenticated.
+	 * Omitted if the connection event was unauthenticated.
 	 */
 	readonly user: User | null;
 	readonly slug_or_port: string;
 	/**
-	 * StatusCode is the HTTP status code or tunnel authorization outcome.
+	 * The HTTP status code or tunnel authorization outcome.
 	 */
 	readonly status_code: number;
 }
@@ -4313,7 +4276,7 @@ export const ContentTypeZip = "application/zip";
 // From codersdk/users.go
 export interface ConvertLoginRequest {
 	/**
-	 * ToType is the login type to convert to.
+	 * The login type to convert to.
 	 */
 	readonly to_type: LoginType;
 	readonly password: string;
@@ -4368,14 +4331,13 @@ export interface CreateChatMessageRequest {
 	readonly model_config_id?: string;
 	readonly mcp_server_ids?: string[];
 	/**
-	 * InlineMCPServers replaces the inline MCP servers.
-	 * nil: no change, empty: remove all.
+	 * Replaces the inline MCP servers. nil: no change, empty: remove all.
 	 */
 	readonly inline_mcp_servers?: InlineMCPServerRequest[];
 	readonly busy_behavior?: ChatBusyBehavior;
 	/**
-	 * PlanMode switches the chat's persistent plan mode.
-	 * nil: no change, ptr to "plan": enable, ptr to "": clear.
+	 * Switches the chat's persistent plan mode. nil: no change, ptr to "plan":
+	 * enable, ptr to "": clear.
 	 */
 	readonly plan_mode?: ChatPlanMode;
 	readonly reasoning_effort?: string;
@@ -4388,9 +4350,9 @@ export interface CreateChatMessageRequest {
 export interface CreateChatMessageResponse {
 	readonly message?: ChatMessage;
 	/**
-	 * Messages contains all user-visible messages inserted by the send, in
-	 * insertion order. A queued send on an errored chat may promote the
-	 * previous queue head, so clients must upsert the full batch.
+	 * Contains all user-visible messages inserted by the send, in insertion order.
+	 * A queued send on an errored chat may promote the previous queue head, so
+	 * clients must upsert the full batch.
 	 */
 	readonly messages?: readonly ChatMessage[];
 	readonly queued_message?: ChatQueuedMessage;
@@ -4444,24 +4406,23 @@ export interface CreateChatProjectRequest {
 export interface CreateChatRequest {
 	readonly organization_id: string;
 	/**
-	 * OwnerID makes another user the chat owner. It defaults to the
-	 * caller. The chat runs with the owner's credentials, so setting it
-	 * requires site-wide authority over that user.
+	 * Makes another user the chat owner. It defaults to the caller. The chat runs
+	 * with the owner's credentials, so setting it requires site-wide authority
+	 * over that user.
 	 */
 	readonly owner_id?: string;
 	/**
-	 * Content is the initial user message. It is optional: when
-	 * empty, the chat is created idle with no initial user message
-	 * and generation starts with the first message POSTed to
-	 * /chats/{chat}/messages.
+	 * The initial user message. It is optional: when empty, the chat is created
+	 * idle with no initial user message and generation starts with the first
+	 * message POSTed to `/chats/{chat}/messages`.
 	 */
 	readonly content: readonly ChatInputPart[];
 	/**
-	 * Title, when set, is stored as the user title and automatic title
-	 * generation does not run. It is trimmed and must then be non-empty
-	 * and at most 200 Unicode code points (MaxChatTitleRunes), else the
-	 * request fails with 400. When omitted, the title is derived from the
-	 * first prompt and may later be replaced by a generated title.
+	 * When set, the title is stored as the user title and automatic title
+	 * generation does not run. It is trimmed and must then be non-empty and at
+	 * most 200 Unicode code points (MaxChatTitleRunes), else the request fails
+	 * with 400. When omitted, the title is derived from the first prompt and may
+	 * later be replaced by a generated title.
 	 */
 	readonly title?: string;
 	readonly system_prompt?: string;
@@ -4472,14 +4433,13 @@ export interface CreateChatRequest {
 	readonly mcp_server_ids?: readonly string[];
 	readonly labels?: Record<string, string>;
 	/**
-	 * UnsafeDynamicTools declares client-executed tools that the
-	 * LLM can invoke. This API is highly experimental and highly
-	 * subject to change.
+	 * Declares client-executed tools that the LLM can invoke. This API is highly
+	 * experimental and highly subject to change.
 	 */
 	readonly unsafe_dynamic_tools?: readonly DynamicTool[];
 	/**
-	 * InlineMCPServers declares MCP servers by value on this chat, next
-	 * to the org-configured servers selected by MCPServerIDs. Experimental.
+	 * Declares MCP servers by value on this chat, next to the org-configured
+	 * servers selected by `mcp_server_ids`. Experimental.
 	 */
 	readonly inline_mcp_servers?: readonly InlineMCPServerRequest[];
 	readonly plan_mode?: ChatPlanMode;
@@ -4552,13 +4512,13 @@ export interface CreateMCPServerConfigRequest {
 	readonly oauth2_auth_url?: string;
 	readonly oauth2_token_url?: string;
 	/**
-	 * OAuth2RevocationURL is the provider's RFC 7009 revocation
-	 * endpoint; auto-populated by OAuth2 discovery when omitted.
+	 * The provider's RFC 7009 revocation endpoint. Auto-populated by OAuth2
+	 * discovery when omitted.
 	 */
 	readonly oauth2_revocation_url?: string;
 	/**
-	 * OAuth2Resource is the RFC 8707 resource indicator sent on OAuth2
-	 * requests when set. Auto-discovery fills it if empty.
+	 * The RFC 8707 resource indicator sent on OAuth2 requests when set.
+	 * Auto-discovery fills it if empty.
 	 */
 	readonly oauth2_resource?: string;
 	readonly oauth2_scopes?: string;
@@ -4572,13 +4532,13 @@ export interface CreateMCPServerConfigRequest {
 	readonly model_intent: boolean;
 	readonly allow_in_plan_mode: boolean;
 	/**
-	 * ForwardCoderHeaders, when true, forwards Coder identity
-	 * headers on every outgoing MCP request. See MCPServerConfig.
+	 * When true, forwards Coder identity headers on every outgoing MCP request.
+	 * See MCPServerConfig.
 	 */
 	readonly forward_coder_headers: boolean;
 	/**
-	 * SigningSecret signs forwarded identity headers and request bodies.
-	 * Configure the same secret on the MCP server. It is never returned.
+	 * Signs forwarded identity headers and request bodies. Configure the same
+	 * secret on the MCP server. It is never returned.
 	 */
 	readonly signing_secret?: string;
 }
@@ -4587,7 +4547,7 @@ export interface CreateMCPServerConfigRequest {
 export interface CreateOrganizationRequest {
 	readonly name: string;
 	/**
-	 * DisplayName will default to the same value as `Name` if not provided.
+	 * Defaults to the same value as `name` if not provided.
 	 */
 	readonly display_name?: string;
 	readonly description?: string;
@@ -4611,17 +4571,17 @@ export interface CreateProvisionerKeyResponse {
  */
 export interface CreateSkillRequest {
 	/**
-	 * Content must be SKILL.md-format Markdown with YAML frontmatter. The
-	 * frontmatter must include name, may include description, and must be
-	 * followed by a non-empty body.
+	 * Must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must
+	 * include name, may include description, and must be followed by a non-empty
+	 * body.
 	 */
 	readonly content: string;
 	/**
-	 * Action is only accepted for project skills and defaults to false.
+	 * Only accepted for project skills and defaults to false.
 	 */
 	readonly action?: boolean;
 	/**
-	 * ModelInvocable defaults to false when the content's frontmatter sets
+	 * Defaults to false when the content's frontmatter sets
 	 * disable-model-invocation: true, and to true otherwise.
 	 */
 	readonly model_invocable?: boolean;
@@ -4633,26 +4593,26 @@ export interface CreateSkillRequest {
  */
 export interface CreateTemplateRequest {
 	/**
-	 * Name is the name of the template.
+	 * The name of the template.
 	 */
 	readonly name: string;
 	/**
-	 * DisplayName is the displayed name of the template.
+	 * The displayed name of the template.
 	 */
 	readonly display_name?: string;
 	/**
-	 * Description is a description of what the template contains. It must be
-	 * no longer than 128 Unicode code points.
+	 * A description of what the template contains. It must be no longer than 128
+	 * Unicode code points.
 	 */
 	readonly description?: string;
 	/**
-	 * Icon is a relative path or external URL that specifies
-	 * an icon to be displayed in the dashboard.
+	 * A relative path or external URL that specifies an icon to be displayed in
+	 * the dashboard.
 	 */
 	readonly icon?: string;
 	/**
-	 * VersionID is an in-progress or completed job to use as an initial version
-	 * of the template.
+	 * An in-progress or completed job to use as an initial version of the
+	 * template.
 	 *
 	 * This is required on creation to enable a user-flow of validating a
 	 * template works. There is no reason the data-model cannot support empty
@@ -4660,30 +4620,28 @@ export interface CreateTemplateRequest {
 	 */
 	readonly template_version_id: string;
 	/**
-	 * DefaultTTLMillis allows optionally specifying the default TTL
-	 * for all workspaces created from this template.
+	 * Optional default TTL for all workspaces created from this template.
 	 */
 	readonly default_ttl_ms?: number;
 	/**
-	 * ActivityBumpMillis allows optionally specifying the activity bump
-	 * duration for all workspaces created from this template. Defaults to 1h
-	 * but can be set to 0 to disable activity bumping.
+	 * Optional activity bump duration for all workspaces created from this
+	 * template. Defaults to 1h but can be set to 0 to disable activity bumping.
 	 */
 	readonly activity_bump_ms?: number;
 	/**
-	 * TimeTilAutostopNotifyMillis allows optionally specifying the duration
-	 * before the autostop deadline at which a reminder notification is sent for
-	 * workspaces created from this template. Defaults to 0 (disabled).
+	 * Optional duration before the autostop deadline at which a reminder
+	 * notification is sent for workspaces created from this template. Defaults to
+	 * 0 (disabled).
 	 */
 	readonly time_til_autostop_notify_ms?: number;
 	/**
-	 * AutostopRequirement allows optionally specifying the autostop requirement
-	 * for workspaces created from this template. This is a Premium feature.
+	 * Optional autostop requirement for workspaces created from this template.
+	 * This is a Premium feature.
 	 */
 	readonly autostop_requirement?: TemplateAutostopRequirement;
 	/**
-	 * AutostartRequirement allows optionally specifying the autostart allowed days
-	 * for workspaces created from this template. This is a Premium feature.
+	 * Optional autostart allowed days for workspaces created from this template.
+	 * This is a Premium feature.
 	 */
 	readonly autostart_requirement?: TemplateAutostartRequirement;
 	/**
@@ -4692,71 +4650,66 @@ export interface CreateTemplateRequest {
 	 */
 	readonly allow_user_cancel_workspace_jobs: boolean | null;
 	/**
-	 * AllowUserAutostart allows users to set a schedule for autostarting their
-	 * workspace. By default this is true. This can only be disabled with a
-	 * Premium license.
+	 * Whether users can set a schedule for autostarting their workspace. By
+	 * default this is true. This can only be disabled with a Premium license.
 	 */
 	readonly allow_user_autostart?: boolean;
 	/**
-	 * AllowUserAutostop allows users to set a custom workspace TTL to use in
-	 * place of the template's DefaultTTL field. By default this is true. If
-	 * false, the DefaultTTL will always be used. This can only be disabled with a
-	 * Premium license.
+	 * Whether users can set a custom workspace TTL to use in place of the
+	 * template's DefaultTTL field. By default this is true. If false, the
+	 * DefaultTTL will always be used. This can only be disabled with a Premium
+	 * license.
 	 */
 	readonly allow_user_autostop?: boolean;
 	/**
-	 * FailureTTLMillis allows optionally specifying the max lifetime before Coder
-	 * stops all resources for failed workspaces created from this template.
+	 * Optional max lifetime before Coder stops all resources for failed workspaces
+	 * created from this template.
 	 */
 	readonly failure_ttl_ms?: number;
 	/**
-	 * TimeTilDormantMillis allows optionally specifying the max lifetime before Coder
-	 * locks inactive workspaces created from this template.
+	 * Optional max lifetime before Coder locks inactive workspaces created from
+	 * this template.
 	 */
 	readonly dormant_ttl_ms?: number;
 	/**
-	 * TimeTilDormantAutoDeleteMillis allows optionally specifying the max lifetime before Coder
-	 * permanently deletes dormant workspaces created from this template.
+	 * Optional max lifetime before Coder permanently deletes dormant workspaces
+	 * created from this template.
 	 */
 	readonly delete_ttl_ms?: number;
 	/**
-	 * DisableEveryoneGroupAccess allows optionally disabling the default
-	 * behavior of granting the 'everyone' group access to use the template.
-	 * If this is set to true, the template will not be available to all users,
-	 * and must be explicitly granted to users or groups in the permissions settings
-	 * of the template.
+	 * Allows optionally disabling the default behavior of granting the 'everyone'
+	 * group access to use the template. If this is set to true, the template will
+	 * not be available to all users, and must be explicitly granted to users or
+	 * groups in the permissions settings of the template.
 	 */
 	readonly disable_everyone_group_access: boolean;
 	/**
-	 * RequireActiveVersion mandates that workspaces are built with the active
-	 * template version.
+	 * Mandates that workspaces are built with the active template version.
 	 */
 	readonly require_active_version: boolean;
 	/**
-	 * MaxPortShareLevel allows optionally specifying the maximum port share level
-	 * for workspaces created from the template.
+	 * Optional maximum port share level for workspaces created from the template.
 	 */
 	readonly max_port_share_level: WorkspaceAgentPortShareLevel | null;
 	/**
-	 * UseClassicParameterFlow allows optionally specifying whether
-	 * the template should use the classic parameter flow. The default if unset is
-	 * true, and is why `*bool` is used here. When dynamic parameters becomes
-	 * the default, this will default to false.
+	 * Optionally specifies whether the template should use the classic parameter
+	 * flow. The default if unset is true, and is why `*bool` is used here. When
+	 * dynamic parameters becomes the default, this will default to false.
 	 */
 	readonly template_use_classic_parameter_flow?: boolean;
 	/**
-	 * CORSBehavior allows optionally specifying the CORS behavior for all shared ports.
+	 * Optional CORS behavior for all shared ports.
 	 */
 	readonly cors_behavior: CORSBehavior | null;
 	/**
-	 * AgentsAllowed controls whether Coder Agents can create workspaces using
-	 * this template. Defaults to true.
+	 * Whether Coder Agents can create workspaces using this template. Defaults to
+	 * true.
 	 */
 	readonly agents_allowed?: boolean;
 	/**
-	 * AllowWorkspaceRenames permits users to rename workspaces built from this
-	 * template. Renaming can be destructive for templates whose Terraform
-	 * references the workspace name, so this defaults to false.
+	 * Whether users can rename workspaces built from this template. Renaming can
+	 * be destructive for templates whose Terraform references the workspace name,
+	 * so this defaults to false.
 	 */
 	readonly allow_workspace_renames?: boolean;
 }
@@ -4780,7 +4733,7 @@ export interface CreateTemplateVersionRequest {
 	readonly name?: string;
 	readonly message?: string;
 	/**
-	 * TemplateID optionally associates a version with a template.
+	 * Optionally associates a version with a template.
 	 */
 	readonly template_id?: string;
 	readonly storage_method: ProvisionerStorageMethod;
@@ -4826,13 +4779,13 @@ export interface CreateTrialLicenseRequest {
 	readonly country: string;
 	readonly developers: string;
 	/**
-	 * Source is the premium paywall the request came from, for telemetry. It
-	 * is not forwarded to the licensor. Omit it to report "direct".
+	 * The premium paywall the request came from, for telemetry. It is not
+	 * forwarded to the licensor. Omit it to report "direct".
 	 */
 	readonly source?: PremiumFunnelSource;
 	/**
-	 * AttributionID is the ID of the cta_click funnel event that led here, so
-	 * that a signup can be joined back to the paywall that produced it.
+	 * The ID of the cta_click funnel event that led here, so that a signup can be
+	 * joined back to the paywall that produced it.
 	 */
 	readonly attribution_id?: string;
 }
@@ -4862,16 +4815,16 @@ export interface CreateUserRequest {
 	readonly name: string;
 	readonly password: string;
 	/**
-	 * UserLoginType defaults to LoginTypePassword.
+	 * Defaults to LoginTypePassword.
 	 */
 	readonly login_type: LoginType;
 	/**
-	 * UserStatus defaults to UserStatusDormant. Service accounts default to
-	 * UserStatusActive and can't be dormant.
+	 * Defaults to UserStatusDormant. Service accounts default to UserStatusActive
+	 * and can't be dormant.
 	 */
 	readonly user_status: UserStatus | null;
 	/**
-	 * OrganizationIDs is a list of organization IDs that the user should be a member of.
+	 * A list of organization IDs that the user should be a member of.
 	 */
 	readonly organization_ids: readonly string[];
 	/**
@@ -4879,7 +4832,7 @@ export interface CreateUserRequest {
 	 */
 	readonly service_account?: boolean;
 	/**
-	 * Roles is an optional list of site-level roles to assign at creation.
+	 * An optional list of site-level roles to assign at creation.
 	 */
 	readonly roles?: readonly string[];
 }
@@ -4913,27 +4866,25 @@ export interface CreateUserSecretRequest {
  */
 export interface CreateWorkspaceBuildOnSuccessRequest {
 	/**
-	 * TemplateVersionID pins the child build to a specific template
-	 * version. Pinning requires permission to update the template,
-	 * since the active version may change before the child build
-	 * runs. When empty, the child build uses the template's active
-	 * version at the time it runs.
+	 * Pins the child build to a specific template version. Pinning requires
+	 * permission to update the template, since the active version may change
+	 * before the child build runs. When empty, the child build uses the template's
+	 * active version at the time it runs.
 	 */
 	readonly template_version_id?: string;
 	/**
-	 * Transition must be "start". The parent build's transition must
-	 * be "stop".
+	 * Must be "start". The parent build's transition must be "stop".
 	 */
 	readonly transition: WorkspaceTransition;
 	/**
-	 * RichParameterValues are applied to the child build. Parameters
-	 * not listed here fall back to their values from the previous
-	 * build, matching normal build behavior.
+	 * Parameter values applied to the child build. Parameters not listed here fall
+	 * back to their values from the previous build, matching normal build
+	 * behavior.
 	 */
 	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
 	/**
-	 * TemplateVersionPresetID selects a preset for the child build.
-	 * It requires TemplateVersionID to also be set.
+	 * Selects a preset for the child build. It requires `template_version_id` to
+	 * also be set.
 	 */
 	readonly template_version_preset_id?: string;
 }
@@ -4964,7 +4915,7 @@ export interface CreateWorkspaceBuildRequest {
 	readonly dry_run?: boolean;
 	readonly state?: string;
 	/**
-	 * Orphan may be set for the Destroy transition.
+	 * May be set for the Destroy transition.
 	 */
 	readonly orphan?: boolean;
 	/**
@@ -4974,9 +4925,9 @@ export interface CreateWorkspaceBuildRequest {
 	 */
 	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
 	/**
-	 * Secrets sets or removes workspace secrets for this build. Previous
-	 * secrets that are not listed carry forward unless they were ephemeral or
-	 * a listed secret uses their env_name or file_path.
+	 * Sets or removes workspace secrets for this build. Previous secrets that are
+	 * not listed carry forward unless they were ephemeral or a listed secret uses
+	 * their env_name or file_path.
 	 */
 	readonly secrets?: readonly WorkspaceSecretInput[];
 	/**
@@ -4984,17 +4935,17 @@ export interface CreateWorkspaceBuildRequest {
 	 */
 	readonly log_level?: ProvisionerLogLevel;
 	/**
-	 * TemplateVersionPresetID is the ID of the template version preset to use for the build.
+	 * The ID of the template version preset to use for the build.
 	 */
 	readonly template_version_preset_id?: string;
 	/**
-	 * Reason sets the reason for the workspace build.
+	 * Sets the reason for the workspace build.
 	 */
 	readonly reason?: CreateWorkspaceBuildReason;
 	/**
-	 * OnSuccess queues a follow-up workspace build after this build succeeds.
-	 * It currently supports restarting a workspace by starting it after a
-	 * successful stop build.
+	 * Queues a follow-up workspace build after this build succeeds. It currently
+	 * supports restarting a workspace by starting it after a successful stop
+	 * build.
 	 */
 	readonly on_success?: CreateWorkspaceBuildOnSuccessRequest;
 }
@@ -5023,23 +4974,23 @@ export interface CreateWorkspaceProxyRequest {
  */
 export interface CreateWorkspaceRequest {
 	/**
-	 * TemplateID specifies which template should be used for creating the workspace.
+	 * ID of the template to create the workspace from.
 	 */
 	readonly template_id?: string;
 	/**
-	 * TemplateVersionID can be used to specify a specific version of a template for creating the workspace.
+	 * Optionally specifies a specific version of a template to create the
+	 * workspace from.
 	 */
 	readonly template_version_id?: string;
 	readonly name: string;
 	readonly autostart_schedule?: string;
 	readonly ttl_ms?: number;
 	/**
-	 * RichParameterValues allows for additional parameters to be provided
-	 * during the initial provision.
+	 * Additional parameters to provide during the initial provision.
 	 */
 	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
 	/**
-	 * Secrets sets the workspace's initial secrets.
+	 * The workspace's initial secrets.
 	 */
 	readonly secrets?: readonly WorkspaceSecretInput[];
 	readonly automatic_updates?: AutomaticUpdates;
@@ -5094,11 +5045,11 @@ export interface CustomRoleRequest {
 	readonly site_permissions: readonly Permission[];
 	readonly user_permissions: readonly Permission[];
 	/**
-	 * OrganizationPermissions are specific to the organization the role belongs to.
+	 * Permissions specific to the organization the role belongs to.
 	 */
 	readonly organization_permissions: readonly Permission[];
 	/**
-	 * OrganizationMemberPermissions are specific to the organization the role belongs to.
+	 * Permissions specific to the organization the role belongs to.
 	 */
 	readonly organization_member_permissions: readonly Permission[];
 }
@@ -5106,8 +5057,8 @@ export interface CustomRoleRequest {
 // From codersdk/deployment.go
 export interface DAUEntry {
 	/**
-	 * Date is a string formatted as 2024-01-31.
-	 * Timezone and time information is not included.
+	 * A string formatted as 2024-01-31. Timezone and time information is not
+	 * included.
 	 */
 	readonly date: string;
 	readonly amount: number;
@@ -5144,7 +5095,8 @@ export interface DERPConfig {
  */
 export interface DERPHealthReport extends BaseReport {
 	/**
-	 * Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
+	 * Deprecated and left for backward compatibility purposes. Use `severity`
+	 * instead.
 	 */
 	readonly healthy: boolean;
 	readonly regions: Record<number, DERPRegionReport | null>;
@@ -5159,7 +5111,8 @@ export interface DERPHealthReport extends BaseReport {
  */
 export interface DERPNodeReport {
 	/**
-	 * Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
+	 * Deprecated and left for backward compatibility purposes. Use `severity`
+	 * instead.
 	 */
 	readonly healthy: boolean;
 	readonly severity: HealthSeverity;
@@ -5188,7 +5141,8 @@ export interface DERPRegion {
  */
 export interface DERPRegionReport {
 	/**
-	 * Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
+	 * Deprecated and left for backward compatibility purposes. Use `severity`
+	 * instead.
 	 */
 	readonly healthy: boolean;
 	readonly severity: HealthSeverity;
@@ -5224,7 +5178,8 @@ export const DatabaseNotReachable = "database not reachable";
  */
 export interface DatabaseReport extends BaseReport {
 	/**
-	 * Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
+	 * Deprecated and left for backward compatibility purposes. Use `severity`
+	 * instead.
 	 */
 	readonly healthy: boolean;
 	readonly reachable: boolean;
@@ -5328,7 +5283,7 @@ export const DefaultChatWorkspaceTTL = 0;
 // From codersdk/externalauth.go
 export interface DeleteExternalAuthByIDResponse {
 	/**
-	 * TokenRevoked set to true if token revocation was attempted and was successful
+	 * True if token revocation was attempted and was successful.
 	 */
 	readonly token_revoked: boolean;
 	readonly token_revocation_error?: string;
@@ -5357,17 +5312,16 @@ export interface DeploymentConfig {
 // From codersdk/deployment.go
 export interface DeploymentStats {
 	/**
-	 * AggregatedFrom is the time in which stats are aggregated from.
-	 * This might be back in time a specific duration or interval.
+	 * The time in which stats are aggregated from. This might be back in time a
+	 * specific duration or interval.
 	 */
 	readonly aggregated_from: string;
 	/**
-	 * CollectedAt is the time in which stats are collected at.
+	 * The time in which stats are collected at.
 	 */
 	readonly collected_at: string;
 	/**
-	 * NextUpdateAt is the time when the next batch of stats will
-	 * be updated.
+	 * The time when the next batch of stats will be updated.
 	 */
 	readonly next_update_at: string;
 	readonly workspaces: WorkspaceDeploymentStats;
@@ -5385,7 +5339,7 @@ export interface DeploymentValues {
 	readonly docs_url?: string;
 	readonly redirect_to_access_url?: boolean;
 	/**
-	 * HTTPAddress is a string because it may be set to zero to disable.
+	 * A string because it may be set to zero to disable.
 	 */
 	readonly http_address?: string;
 	readonly autobuild_poll_interval?: number;
@@ -5549,13 +5503,13 @@ export const DisplayApps: DisplayApp[] = [
 // From codersdk/parameters.go
 export interface DynamicParametersRequest {
 	/**
-	 * ID identifies the request. The response contains the same
-	 * ID so that the client can match it to the request.
+	 * Identifies the request. The response contains the same ID so that the client
+	 * can match it to the request.
 	 */
 	readonly id: number;
 	readonly inputs: Record<string, string>;
 	/**
-	 * OwnerID if uuid.Nil, it defaults to `codersdk.Me`
+	 * If uuid.Nil, it defaults to `codersdk.Me`.
 	 */
 	readonly owner_id?: string;
 }
@@ -5578,9 +5532,8 @@ export interface DynamicTool {
 	readonly name: string;
 	readonly description?: string;
 	/**
-	 * InputSchema's JSON key "input_schema" uses snake_case for
-	 * SDK consistency, deviating from the camelCase "inputSchema"
-	 * convention used by MCP.
+	 * The JSON key "input_schema" uses snake_case for SDK consistency, deviating
+	 * from the camelCase "inputSchema" convention used by MCP.
 	 */
 	readonly input_schema: Record<string, string>;
 }
@@ -5615,16 +5568,15 @@ export interface DynamicToolResponse {
 export interface EditChatMessageRequest {
 	readonly content: readonly ChatInputPart[];
 	/**
-	 * ModelConfigID, when set, overrides the model used for the
-	 * replacement user message and the assistant turn that follows.
-	 * When nil the original message's model is preserved.
+	 * When set, overrides the model used for the replacement user message and the
+	 * assistant turn that follows. When nil the original message's model is
+	 * preserved.
 	 */
 	readonly model_config_id?: string;
 	readonly reasoning_effort?: string;
 	/**
-	 * MCPServerIDs, when set, replaces the chat's MCP server selection
-	 * before the replacement turn runs. When nil the current selection
-	 * is preserved.
+	 * When set, replaces the chat's MCP server selection before the replacement
+	 * turn runs. When nil the current selection is preserved.
 	 */
 	readonly mcp_server_ids?: string[];
 }
@@ -5636,15 +5588,15 @@ export interface EditChatMessageRequest {
 export interface EditChatMessageResponse {
 	readonly message: ChatMessage;
 	/**
-	 * Messages holds every user-visible message inserted by the edit, in
-	 * insertion order. Hook-generated suffix messages may follow Message,
-	 * so clients must upsert the full batch.
+	 * Holds every user-visible message inserted by the edit, in insertion order.
+	 * Hook-generated suffix messages may follow `message`, so clients must upsert
+	 * the full batch.
 	 */
 	readonly messages?: readonly ChatMessage[];
 	/**
-	 * DeletedMessageIDs holds the IDs of previously visible messages the
-	 * edit removed, including stale hook notices from the edited turn.
-	 * Clients should drop them from local caches.
+	 * Holds the IDs of previously visible messages the edit removed, including
+	 * stale hook notices from the edited turn. Clients should drop them from local
+	 * caches.
 	 */
 	readonly deleted_message_ids?: readonly number[];
 	readonly warnings?: readonly string[];
@@ -5721,19 +5673,18 @@ export type Experiment =
  */
 export interface ExperimentRule {
 	/**
-	 * Mode is one of the ExperimentRuleMode values, or empty when the
-	 * stored rule is malformed. A malformed rule decides off until it is
-	 * replaced. It is a plain string so that clients can represent the
-	 * malformed state.
+	 * One of the ExperimentRuleMode values, or empty when the stored rule is
+	 * malformed. A malformed rule decides off until it is replaced. It is a plain
+	 * string so that clients can represent the malformed state.
 	 */
 	readonly mode: string;
 	/**
-	 * Condition is the CEL expression of a condition rule.
+	 * The CEL expression of a condition rule.
 	 */
 	readonly condition?: string;
 	/**
-	 * Revision increases on every change and starts at 1. Zero means the
-	 * stored rule has no readable positive revision, so it is malformed.
+	 * Increases on every change and starts at 1. Zero means the stored rule has no
+	 * readable positive revision, so it is malformed.
 	 */
 	readonly revision: number;
 	readonly updated_by: string;
@@ -5746,22 +5697,22 @@ export interface ExperimentRule {
  */
 export interface ExperimentRuleEntry {
 	/**
-	 * Experiment is the experiment name. Ignored entries can name
-	 * experiments this version does not know, so it is a plain string.
+	 * The experiment name. `ignored` entries can name experiments this version
+	 * does not know, so it is a plain string.
 	 */
 	readonly experiment: string;
 	/**
-	 * StaticDefault reports whether the experiment is in the startup
-	 * --experiments list of the replica that answered.
+	 * Whether the experiment is in the startup --experiments list of the replica
+	 * that answered.
 	 */
 	readonly static_default: boolean;
 	/**
-	 * Rule is null when no rule was ever stored.
+	 * Null when no rule was ever stored.
 	 */
 	readonly rule: ExperimentRule | null;
 	/**
-	 * Ignored is true for a stored rule of an experiment that does not
-	 * accept runtime rules. Such a rule has no effect.
+	 * True for a stored rule of an experiment that does not accept runtime rules.
+	 * Such a rule has no effect.
 	 */
 	readonly ignored: boolean;
 }
@@ -5818,19 +5769,19 @@ export interface ExternalAuth {
 	readonly display_name: string;
 	readonly supports_revocation: boolean;
 	/**
-	 * User is the user that authenticated with the provider.
+	 * The user that authenticated with the provider.
 	 */
 	readonly user: ExternalAuthUser | null;
 	/**
-	 * AppInstallable is true if the request for app installs was successful.
+	 * True if the request for app installs was successful.
 	 */
 	readonly app_installable: boolean;
 	/**
-	 * AppInstallations are the installations that the user has access to.
+	 * The installations that the user has access to.
 	 */
 	readonly installations: readonly ExternalAuthAppInstallation[];
 	/**
-	 * AppInstallURL is the URL to install the app.
+	 * The URL to install the app.
 	 */
 	readonly app_install_url: string;
 }
@@ -5845,22 +5796,22 @@ export interface ExternalAuthAppInstallation {
 // From codersdk/deployment.go
 export interface ExternalAuthConfig {
 	/**
-	 * Type is the type of external auth config.
+	 * The type of external auth config.
 	 */
 	readonly type: string;
 	readonly client_id: string;
 	/**
-	 * ID is a unique identifier for the auth config.
-	 * It defaults to `type` when not provided.
+	 * A unique identifier for the auth config. It defaults to `type` when not
+	 * provided.
 	 */
 	readonly id: string;
 	readonly auth_url: string;
 	readonly token_url: string;
 	readonly validate_url: string;
 	/**
-	 * RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche
-	 * situations where the OAuth callback domain is different from the ACCESS_URL
-	 * domain. The path component is ignored.
+	 * Optional, defaulting to 'ACCESS_URL'. Only useful in niche situations where
+	 * the OAuth callback domain is different from the ACCESS_URL domain. The path
+	 * component is ignored.
 	 */
 	readonly redirect_url: string;
 	readonly revoke_url: string;
@@ -5883,8 +5834,10 @@ export interface ExternalAuthConfig {
 	 */
 	readonly mcp_tool_deny_regex: string;
 	/**
-	 * Regex allows API requesters to match an auth config by
-	 * a string (e.g. coder.com) instead of by it's type.
+	 * Allows API requesters to match an auth config by a string (e.g. coder.com)
+	 * instead of by its type. Git clone makes use of this by parsing the URL from:
+	 * 'Username for "https://github.com":' And sending it to the control plane to
+	 * match against the `regex`.
 	 *
 	 * Git clone makes use of this by parsing the URL from:
 	 * 'Username for "https://github.com":'
@@ -5892,22 +5845,21 @@ export interface ExternalAuthConfig {
 	 */
 	readonly regex: string;
 	/**
-	 * APIBaseURL is the base URL for provider REST API calls
-	 * (e.g., "https://api.github.com" for GitHub). Derived from
-	 * defaults when not explicitly configured.
+	 * The base URL for provider REST API calls (e.g., "https://api.github.com" for
+	 * GitHub). Derived from defaults when not explicitly configured.
 	 */
 	readonly api_base_url: string;
 	/**
-	 * DisplayName is shown in the UI to identify the auth config.
+	 * Shown in the UI to identify the auth config.
 	 */
 	readonly display_name: string;
 	/**
-	 * DisplayIcon is a URL to an icon to display in the UI.
+	 * A URL to an icon to display in the UI.
 	 */
 	readonly display_icon: string;
 	/**
-	 * CodeChallengeMethodsSupported lists the PKCE code challenge methods
-	 * The only one supported by Coder is "S256".
+	 * Lists the PKCE code challenge methods. The only one supported by Coder is
+	 * "S256".
 	 */
 	readonly code_challenge_methods_supported: readonly string[];
 }
@@ -5976,49 +5928,47 @@ export interface Feature {
 	readonly entitlement: Entitlement;
 	readonly enabled: boolean;
 	/**
-	 * Limit is the maximum value the license grants for the feature, in the
-	 * feature's own unit. For FeatureAgentRuntimeHours, an enabled feature
-	 * with Limit omitted means the license grants unlimited runtime hours.
+	 * The maximum value the license grants for the feature, in the feature's own
+	 * unit. For FeatureAgentRuntimeHours, an enabled feature with `limit` omitted
+	 * means the license grants unlimited runtime hours.
 	 */
 	readonly limit?: number;
 	/**
-	 * SoftLimit is the advisory warning threshold that accompanies Limit for
-	 * features whose license carries it. For these features, Limit carries
-	 * the purchased allocation; an unlimited allocation has no thresholds,
-	 * so SoftLimit is omitted alongside the omitted Limit. Only
-	 * FeatureAgentRuntimeHours sets this field.
+	 * The advisory warning threshold that accompanies `limit` for features whose
+	 * license carries it. For these features, `limit` carries the purchased
+	 * allocation. An unlimited allocation has no thresholds, so this field is
+	 * omitted alongside the omitted `limit`. Only FeatureAgentRuntimeHours sets
+	 * this field.
 	 */
 	readonly soft_limit?: number;
 	/**
-	 * HardLimit is the enforcement threshold that accompanies Limit for
-	 * features whose license carries it. See SoftLimit for the set of
-	 * features that use these thresholds.
+	 * The enforcement threshold that accompanies `limit` for features whose
+	 * license carries it. See `soft_limit` for the set of features that use these
+	 * thresholds.
 	 */
 	readonly hard_limit?: number;
 	/**
-	 * Actual is the usage measured against Limit, when known: a
-	 * point-in-time count for most features, or usage accumulated over
-	 * UsagePeriod for features that set one. Its unit matches Limit's;
-	 * FeatureAgentRuntimeHours reports whole hours floored from the
-	 * recorded milliseconds, with the precise value available in
-	 * ActualMs. FeatureAgentRuntimeHours usage can trail by roughly one
-	 * hour because the current hour is not emitted, plus the entitlement
-	 * refresh interval.
+	 * The usage measured against `limit`, when known: a point-in-time count for
+	 * most features, or usage accumulated over `usage_period` for features that
+	 * set one. Its unit matches that of `limit`. FeatureAgentRuntimeHours reports
+	 * whole hours floored from the recorded milliseconds, with the precise value
+	 * available in `actual_ms`. FeatureAgentRuntimeHours usage can trail by
+	 * roughly one hour because the current hour is not emitted, plus the
+	 * entitlement refresh interval.
 	 */
 	readonly actual?: number;
 	/**
-	 * ActualMs is the precise usage backing Actual, in milliseconds, for
-	 * features measured in time. It has the same freshness as Actual.
-	 * Only FeatureAgentRuntimeHours sets this field.
+	 * The precise usage backing `actual`, in milliseconds, for features measured
+	 * in time. It has the same freshness as `actual`. Only
+	 * FeatureAgentRuntimeHours sets this field.
 	 */
 	readonly actual_ms?: number;
 	/**
-	 * UsagePeriod denotes that the usage is a counter that accumulates over
-	 * this period (and most likely resets with the issuance of the next
-	 * license). These dates are determined from the license that this
-	 * entitlement comes from, see enterprise/coderd/license/license.go.
-	 * Only FeatureManagedAgentLimit and FeatureAgentRuntimeHours set this
-	 * field.
+	 * Denotes that the usage is a counter that accumulates over this period (and
+	 * most likely resets with the issuance of the next license). These dates are
+	 * determined from the license that this entitlement comes from, see
+	 * enterprise/coderd/license/license.go. Only FeatureManagedAgentLimit and
+	 * FeatureAgentRuntimeHours set this field.
 	 */
 	readonly usage_period?: UsagePeriod;
 }
@@ -6143,8 +6093,8 @@ export interface GitSSHKey {
 	readonly created_at: string;
 	readonly updated_at: string;
 	/**
-	 * PublicKey is the SSH public key in OpenSSH format.
-	 * Example: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID3OmYJvT7q1cF1azbybYy0OZ9yrXfA+M6Lr4vzX5zlp\n"
+	 * The SSH public key in OpenSSH format. Example: "ssh-ed25519
+	 * AAAAC3NzaC1lZDI1NTE5AAAAID3OmYJvT7q1cF1azbybYy0OZ9yrXfA+M6Lr4vzX5zlp\n"
 	 * Note: The key includes a trailing newline (\n).
 	 */
 	readonly public_key: string;
@@ -6218,28 +6168,28 @@ export interface GroupArguments {
 export interface GroupMemberAISpend {
 	readonly user_id: string;
 	/**
-	 * EffectiveGroupID is the user's effective budget group within the queried
-	 * group's organization, falling back to the Everyone group when no budget
-	 * applies. Null when the effective group belongs to a different organization
-	 * than the queried group.
+	 * The user's effective budget group within the queried group's organization,
+	 * falling back to the Everyone group when no budget applies. Null when the
+	 * effective group belongs to a different organization than the queried group.
 	 */
 	readonly effective_group_id: string | null;
 	/**
-	 * EffectiveBudget is the spend limit that currently applies to the user.
-	 * Null when no budget applies or the effective group belongs to a different
-	 * organization than the queried group.
+	 * The spend limit that currently applies to the user. Null when no budget
+	 * applies or the effective group belongs to a different organization than the
+	 * queried group.
 	 */
 	readonly effective_budget: AIBudgetLimit | null;
 	/**
-	 * GroupBudget is the budget when the queried group is this user's
-	 * effective budget source. When populated, it matches EffectiveBudget. Null
-	 * when the user's budget resolves to another group or no budget applies.
-	 * @deprecated Use EffectiveBudget instead.
+	 * The budget when the queried group is this user's effective budget source.
+	 * When populated, it matches `effective_budget`. Null when the user's budget
+	 * resolves to another group or no budget applies.
+	 *
+	 * @deprecated Use `effective_budget` instead.
 	 */
 	readonly group_budget: AIBudgetLimit | null;
 	/**
-	 * GroupSpendMicros is the user's spend attributed to the queried group
-	 * over the current budget period.
+	 * The user's spend attributed to the queried group over the current budget
+	 * period.
 	 */
 	readonly group_spend_micros: number;
 }
@@ -6272,31 +6222,31 @@ export const GroupSources: GroupSource[] = ["oidc", "user"];
 // From codersdk/idpsync.go
 export interface GroupSyncSettings {
 	/**
-	 * Field is the name of the claim field that specifies what groups a user
-	 * should be in. If empty, no groups will be synced.
+	 * The name of the claim field that specifies what groups a user should be in.
+	 * If empty, no groups will be synced.
 	 */
 	readonly field: string;
 	/**
-	 * Mapping is a map from OIDC groups to Coder group IDs
+	 * A map from OIDC groups to Coder group IDs
 	 */
 	readonly mapping: Record<string, string[]>;
 	/**
-	 * RegexFilter is a regular expression that filters the groups returned by
-	 * the OIDC provider. Any group not matched by this regex will be ignored.
-	 * If the group filter is nil, then no group filtering will occur.
+	 * A regular expression that filters the groups returned by the OIDC provider.
+	 * Any group not matched by this regex will be ignored. If the group filter is
+	 * nil, then no group filtering will occur.
 	 */
 	readonly regex_filter: string | null;
 	/**
-	 * AutoCreateMissing controls whether groups returned by the OIDC provider
-	 * are automatically created in Coder if they are missing.
+	 * Whether groups returned by the OIDC provider are automatically created in
+	 * Coder if they are missing.
 	 */
 	readonly auto_create_missing_groups: boolean;
 	/**
-	 * LegacyNameMapping is deprecated. It remaps an IDP group name to
-	 * a Coder group name. Since configuration is now done at runtime,
-	 * group IDs are used to account for group renames.
-	 * For legacy configurations, this config option has to remain.
-	 * @deprecated Use Mapping instead.
+	 * Remaps an IDP group name to a Coder group name. Since configuration is now
+	 * done at runtime, group IDs are used to account for group renames. For legacy
+	 * configurations, this config option has to remain.
+	 *
+	 * @deprecated Use `mapping` instead.
 	 */
 	readonly legacy_group_name_mapping?: Record<string, string>;
 }
@@ -6401,15 +6351,16 @@ export type HealthSeverity = "error" | "ok" | "warning";
 // From codersdk/workspaceapps.go
 export interface Healthcheck {
 	/**
-	 * URL specifies the endpoint to check for the app health.
+	 * Specifies the endpoint to check for the app health.
 	 */
 	readonly url: string;
 	/**
-	 * Interval specifies the seconds between each health check.
+	 * Specifies the seconds between each health check.
 	 */
 	readonly interval: number;
 	/**
-	 * Threshold specifies the number of consecutive failed health checks before returning "unhealthy".
+	 * Specifies the number of consecutive failed health checks before returning
+	 * "unhealthy".
 	 */
 	readonly threshold: number;
 }
@@ -6429,16 +6380,17 @@ export interface HealthcheckConfig {
  */
 export interface HealthcheckReport {
 	/**
-	 * Time is the time the report was generated at.
+	 * The time the report was generated at.
 	 */
 	readonly time: string;
 	/**
-	 * Healthy is true if the report returns no errors.
-	 * @deprecated use `Severity` instead
+	 * True if the report returns no errors.
+	 *
+	 * @deprecated use `severity` instead
 	 */
 	readonly healthy: boolean;
 	/**
-	 * Severity indicates the status of Coder health.
+	 * Indicates the status of Coder health.
 	 */
 	readonly severity: HealthSeverity;
 	readonly derp: DERPHealthReport;
@@ -6515,7 +6467,7 @@ export interface InlineMCPServer {
 	readonly id: string;
 	readonly slug: string;
 	/**
-	 * URL is empty unless the chat owner makes the request.
+	 * Empty unless the chat owner makes the request.
 	 */
 	readonly url: string;
 	readonly has_custom_headers: boolean;
@@ -6566,7 +6518,7 @@ export interface InvalidatedPreset {
 // From codersdk/workspaceagents.go
 export interface IssueReconnectingPTYSignedTokenRequest {
 	/**
-	 * URL is the URL of the reconnecting-pty endpoint you are connecting to.
+	 * The `url` of the reconnecting-pty endpoint you are connecting to.
 	 */
 	readonly url: string;
 	readonly agentID: string;
@@ -6591,10 +6543,9 @@ export interface License {
 	readonly uuid: string;
 	readonly uploaded_at: string;
 	/**
-	 * Claims are the JWT claims asserted by the license.  Here we use
-	 * a generic string map to ensure that all data from the server is
-	 * parsed verbatim, not just the fields this version of Coder
-	 * understands.
+	 * The JWT claims asserted by the license. Here we use a generic string map to
+	 * ensure that all data from the server is parsed verbatim, not just the fields
+	 * this version of Coder understands.
 	 */
 	// empty interface{} type, falling back to unknown
 	readonly claims: Record<string, unknown>;
@@ -6695,10 +6646,10 @@ export interface ListInboxNotificationsResponse {
 export interface ListUserExternalAuthResponse {
 	readonly providers: readonly ExternalAuthLinkProvider[];
 	/**
-	 * Links are all the authenticated links for the user.
-	 * If a link has a provider ID that does not exist, then that provider
-	 * is no longer configured, rendering it unusable. It is still valuable
-	 * to include these links so that the user can unlink them.
+	 * All the authenticated links for the user. If a link has a provider ID that
+	 * does not exist, then that provider is no longer configured, rendering it
+	 * unusable. It is still valuable to include these links so that the user can
+	 * unlink them.
 	 */
 	readonly links: readonly ExternalAuthLink[];
 }
@@ -6798,18 +6749,17 @@ export interface MCPServerConfig {
 	readonly tool_allow_list: readonly string[];
 	readonly tool_deny_list: readonly string[];
 	/**
-	 * Availability policy set by admin.
+	 * The availability policy set by admin.
 	 */
 	readonly availability: string; // "force_on", "default_on", "default_off"
 	readonly enabled: boolean;
 	readonly model_intent: boolean;
 	readonly allow_in_plan_mode: boolean;
 	/**
-	 * ForwardCoderHeaders forwards the same Coder identity headers we
-	 * send to LLM providers (X-Coder-Owner-Id, X-Coder-Chat-Id, and the
-	 * optional X-Coder-Subchat-Id and X-Coder-Workspace-Id) to this
-	 * MCP server on every request. Off by default to avoid leaking
-	 * chat identity to third-party servers.
+	 * Forwards the same Coder identity headers we send to LLM providers
+	 * (X-Coder-Owner-Id, X-Coder-Chat-Id, and the optional X-Coder-Subchat-Id and
+	 * X-Coder-Workspace-Id) to this MCP server on every request. Off by default to
+	 * avoid leaking chat identity to third-party servers.
 	 */
 	readonly forward_coder_headers: boolean;
 	readonly has_signing_secret: boolean;
@@ -6870,20 +6820,18 @@ export interface MCPServerOAuth2DisconnectResponse {
  */
 export interface MatchedProvisioners {
 	/**
-	 * Count is the number of provisioner daemons that matched the given
-	 * tags. If the count is 0, it means no provisioner daemons matched the
-	 * requested tags.
+	 * The number of provisioner daemons that matched the given tags. If the count
+	 * is 0, it means no provisioner daemons matched the requested tags.
 	 */
 	readonly count: number;
 	/**
-	 * Available is the number of provisioner daemons that are available to
-	 * take jobs. This may be less than the count if some provisioners are
-	 * busy or have been stopped.
+	 * The number of provisioner daemons that are available to take jobs. This may
+	 * be less than `count` if some provisioners are busy or have been stopped.
 	 */
 	readonly available: number;
 	/**
-	 * MostRecentlySeen is the most recently seen time of the set of matched
-	 * provisioners. If no provisioners matched, this field will be null.
+	 * The most recently seen time of the set of matched provisioners. If no
+	 * provisioners matched, this field will be null.
 	 */
 	readonly most_recently_seen?: string;
 }
@@ -7227,15 +7175,15 @@ export interface NotificationsConfig {
 	 */
 	readonly dispatch_timeout: number;
 	/**
-	 * SMTP settings.
+	 * The `email` settings.
 	 */
 	readonly email: NotificationsEmailConfig;
 	/**
-	 * Webhook settings.
+	 * The webhook settings.
 	 */
 	readonly webhook: NotificationsWebhookConfig;
 	/**
-	 * Inbox settings.
+	 * The inbox settings.
 	 */
 	readonly inbox: NotificationsInboxConfig;
 }
@@ -7243,15 +7191,15 @@ export interface NotificationsConfig {
 // From codersdk/deployment.go
 export interface NotificationsEmailAuthConfig {
 	/**
-	 * Identity for PLAIN auth.
+	 * The identity for PLAIN auth.
 	 */
 	readonly identity: string;
 	/**
-	 * Username for LOGIN/PLAIN auth.
+	 * The username for LOGIN/PLAIN auth.
 	 */
 	readonly username: string;
 	/**
-	 * Password for LOGIN/PLAIN auth.
+	 * The password for LOGIN/PLAIN auth.
 	 */
 	readonly password: string;
 	/**
@@ -7279,11 +7227,11 @@ export interface NotificationsEmailConfig {
 	 */
 	readonly auth: NotificationsEmailAuthConfig;
 	/**
-	 * TLS details.
+	 * The `tls` details.
 	 */
 	readonly tls: NotificationsEmailTLSConfig;
 	/**
-	 * ForceTLS causes a TLS connection to be attempted.
+	 * Causes a `tls` connection to be attempted.
 	 */
 	readonly force_tls: boolean;
 }
@@ -7291,27 +7239,27 @@ export interface NotificationsEmailConfig {
 // From codersdk/deployment.go
 export interface NotificationsEmailTLSConfig {
 	/**
-	 * StartTLS attempts to upgrade plain connections to TLS.
+	 * Attempts to upgrade plain connections to TLS.
 	 */
 	readonly start_tls: boolean;
 	/**
-	 * ServerName to verify the hostname for the targets.
+	 * The server name to verify the hostname for the targets.
 	 */
 	readonly server_name: string;
 	/**
-	 * InsecureSkipVerify skips target certificate validation.
+	 * Skips target certificate validation.
 	 */
 	readonly insecure_skip_verify: boolean;
 	/**
-	 * CAFile specifies the location of the CA certificate to use.
+	 * Specifies the location of the CA certificate to use.
 	 */
 	readonly ca_file: string;
 	/**
-	 * CertFile specifies the location of the certificate to use.
+	 * Specifies the location of the certificate to use.
 	 */
 	readonly cert_file: string;
 	/**
-	 * KeyFile specifies the location of the key to use.
+	 * Specifies the location of the key to use.
 	 */
 	readonly key_file: string;
 }
@@ -7349,7 +7297,7 @@ export interface OAuth2AppEndpoints {
 	readonly token: string;
 	readonly token_revoke: string;
 	/**
-	 * DeviceAuth is optional.
+	 * Optional.
 	 */
 	readonly device_authorization: string;
 }
@@ -7557,7 +7505,7 @@ export interface OAuth2ProviderApp {
 	readonly id: string;
 	readonly name: string;
 	/**
-	 * RedirectURIs are the app's registered redirect URIs, primary first.
+	 * The app's registered redirect URIs, primary first.
 	 */
 	readonly redirect_uris: readonly string[];
 	/**
@@ -7567,24 +7515,24 @@ export interface OAuth2ProviderApp {
 	readonly callback_url: string;
 	readonly icon: string;
 	/**
-	 * Scope is the space-separated list of scopes this app's tokens may be
-	 * granted. Empty means unrestricted. A non-empty value with no names is a
-	 * configured allowlist that grants nothing.
+	 * The space-separated list of scopes this app's tokens may be granted. Empty
+	 * means unrestricted. A non-empty value with no names is a configured
+	 * allowlist that grants nothing.
 	 */
 	readonly scope: string;
 	/**
-	 * ClientType is "confidential" or "public".
+	 * "confidential" or "public".
 	 */
 	readonly client_type: OAuth2ClientType;
 	/**
-	 * DynamicallyRegistered is true when the app registered itself through
-	 * Dynamic Client Registration rather than being created by an admin.
+	 * True when the app registered itself through Dynamic Client Registration
+	 * rather than being created by an admin.
 	 */
 	readonly dynamically_registered: boolean;
 	/**
-	 * Endpoints are included in the app response for easier discovery. The OAuth2
-	 * spec does not have a defined place to find these (for comparison, OIDC has
-	 * a '/.well-known/openid-configuration' endpoint).
+	 * Included in the app response for easier discovery. The OAuth2 spec does not
+	 * have a defined place to find these (for comparison, OIDC has a
+	 * '/.well-known/openid-configuration' endpoint).
 	 */
 	readonly endpoints: OAuth2AppEndpoints;
 }
@@ -7754,7 +7702,7 @@ export interface OAuth2TokenResponse {
 	readonly refresh_token?: string;
 	readonly scope?: string;
 	/**
-	 * Expiry is not part of RFC 6749 but is included for compatibility with
+	 * Not part of RFC 6749 but is included for compatibility with
 	 * golang.org/x/oauth2.Token and clients that expect a timestamp.
 	 */
 	readonly expiry?: string;
@@ -7796,9 +7744,9 @@ export interface OIDCAuthMethod extends AuthMethod {
  */
 export interface OIDCClaimsResponse {
 	/**
-	 * Claims are the merged claims from the OIDC provider. These
-	 * are the union of the ID token claims and the userinfo claims,
-	 * where userinfo claims take precedence on conflict.
+	 * The merged claims from the OIDC provider. These are the union of the ID
+	 * token claims and the userinfo claims, where userinfo claims take precedence
+	 * on conflict.
 	 */
 	// empty interface{} type, falling back to unknown
 	readonly claims: Record<string, unknown>;
@@ -7810,7 +7758,8 @@ export interface OIDCConfig {
 	readonly client_id: string;
 	readonly client_secret: string;
 	/**
-	 * ClientKeyFile & ClientCertFile are used in place of ClientSecret for PKI auth.
+	 * Along with `client_cert_file`, used in place of `client_secret` for PKI
+	 * auth.
 	 */
 	readonly client_key_file: string;
 	readonly client_cert_file: string;
@@ -7823,18 +7772,18 @@ export interface OIDCConfig {
 	readonly email_field: string;
 	readonly auth_url_params: SerpentStruct<Record<string, string>>;
 	/**
-	 * IgnoreUserInfo & UserInfoFromAccessToken are mutually exclusive. Only 1
-	 * can be set to true. Ideally this would be an enum with 3 states, ['none',
+	 * Mutually exclusive with `source_user_info_from_access_token`. Only 1 can be
+	 * set to true. Ideally this would be an enum with 3 states, ['none',
 	 * 'userinfo', 'access_token']. However, for backward compatibility,
 	 * `ignore_user_info` must remain. And `access_token` is a niche, non-spec
-	 * compliant edge case. So it's use is rare, and should not be advised.
+	 * compliant edge case. So its use is rare, and should not be advised.
 	 */
 	readonly ignore_user_info: boolean;
 	/**
-	 * UserInfoFromAccessToken as mentioned above is an edge case. This allows
-	 * sourcing the user_info from the access token itself instead of a user_info
-	 * endpoint. This assumes the access token is a valid JWT with a set of claims to
-	 * be merged with the id_token.
+	 * An edge case, as described for `ignore_user_info`. This allows sourcing the
+	 * user_info from the access token itself instead of a user_info endpoint. This
+	 * assumes the access token is a valid JWT with a set of claims to be merged
+	 * with the id_token.
 	 */
 	readonly source_user_info_from_access_token: boolean;
 	readonly organization_field: string;
@@ -7853,28 +7802,26 @@ export interface OIDCConfig {
 	readonly signups_disabled_text: string;
 	readonly skip_issuer_checks: boolean;
 	/**
-	 * RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche
-	 * situations where the OIDC callback domain is different from the ACCESS_URL
-	 * domain. The path component is ignored.
+	 * Optional, defaulting to 'ACCESS_URL'. Only useful in niche situations where
+	 * the OIDC callback domain is different from the ACCESS_URL domain. The path
+	 * component is ignored.
 	 */
 	readonly redirect_url: string;
 	readonly auto_repair_links: boolean;
 	/**
-	 * EmailFallback allows OIDC logins to fall back to email-based matching
-	 * when the `linked_id` (issuer+subject) does not match an existing user
-	 * link. INSECURE: weakens the linked_id check. It exists for IdP
-	 * brokers that do not issue a stable `sub` for the same user across
-	 * connections.
+	 * Allows OIDC logins to fall back to email-based matching when the `linked_id`
+	 * (issuer+subject) does not match an existing user link. INSECURE: weakens the
+	 * linked_id check. It exists for IdP brokers that do not issue a stable `sub`
+	 * for the same user across connections.
 	 */
 	readonly email_fallback: boolean;
 	/**
-	 * RedirectAllowedHosts is an allowlist of hostnames that may be used as
-	 * the host of the OIDC redirect_uri. When non-empty, the redirect_uri is
-	 * constructed from the incoming request's Host header (validated against
-	 * this list) instead of from AccessURL. Every listed host must also be
-	 * registered as a valid redirect URI in the OIDC provider. This setting
-	 * is mutually exclusive with RedirectURL: if RedirectURL is set, this
-	 * allowlist is ignored.
+	 * An allowlist of hostnames that may be used as the host of the OIDC
+	 * redirect_uri. When non-empty, the redirect_uri is constructed from the
+	 * incoming request's Host header (validated against this list) instead of from
+	 * AccessURL. Every listed host must also be registered as a valid redirect URI
+	 * in the OIDC provider. This setting is mutually exclusive with
+	 * `redirect_url`: if `redirect_url` is set, this allowlist is ignored.
 	 */
 	readonly redirect_allowed_hosts: string;
 }
@@ -7899,9 +7846,8 @@ export interface Organization extends MinimalOrganization {
 	readonly updated_at: string;
 	readonly is_default: boolean;
 	/**
-	 * DefaultOrgMemberRoles are unioned into every member's effective
-	 * roles at request time. Changes propagate to all members on the
-	 * next request.
+	 * Roles that are unioned into every member's effective roles at request time.
+	 * Changes propagate to all members on the next request.
 	 */
 	readonly default_org_member_roles: readonly string[];
 }
@@ -7927,20 +7873,19 @@ export interface OrganizationAISpendDetailsFilter {
  */
 export interface OrganizationAISpendFilter {
 	/**
-	 * PeriodStart and PeriodEnd bound the [PeriodStart, PeriodEnd) window and
-	 * must be supplied together.
+	 * The lower bound of the `[period_start, period_end)` window. `period_start`
+	 * and `period_end` must be supplied together.
 	 */
 	readonly period_start?: string;
 	readonly period_end?: string;
 	/**
-	 * ProviderName matches the configured provider name recorded on the
-	 * intercepted request.
+	 * Matches the configured provider name recorded on the intercepted request.
 	 */
 	readonly provider_name?: string;
 	readonly model?: string;
 	/**
-	 * Client matches the client recorded on the intercepted request. Unknown
-	 * matches usage without a recorded client.
+	 * Matches the client recorded on the intercepted request. Unknown matches
+	 * usage without a recorded client.
 	 */
 	readonly client?: string;
 }
@@ -7963,18 +7908,18 @@ export interface OrganizationAISpendPage {
  */
 export interface OrganizationAISpendReport extends AISpendPeriodWindow {
 	/**
-	 * RetentionStart is the oldest instant for which token usage is still
-	 * retained. An explicit period must not start before it. Omitted when the
-	 * deployment does not purge AI Gateway data.
+	 * The oldest instant for which token usage is still retained. An explicit
+	 * period must not start before it. Omitted when the deployment does not purge
+	 * AI Gateway data.
 	 */
 	readonly retention_start?: string;
 	/**
-	 * Count is the number of users with token usage matching the filter.
+	 * The number of users with token usage matching the filter.
 	 */
 	readonly count: number;
 	readonly totals: OrganizationAISpendTotals;
 	/**
-	 * Users is the requested page, most expensive first.
+	 * The requested page, most expensive first.
 	 */
 	readonly users: readonly OrganizationAISpendUser[];
 }
@@ -7986,12 +7931,11 @@ export interface OrganizationAISpendReport extends AISpendPeriodWindow {
  */
 export interface OrganizationAISpendTotals {
 	/**
-	 * CostMicros is the priced spend of every matching user.
+	 * The priced spend of every matching user.
 	 */
 	readonly cost_micros: number;
 	/**
-	 * UnpricedUsageCount is the number of token usage records without a cost
-	 * across every matching user.
+	 * The number of token usage records without a cost across every matching user.
 	 */
 	readonly unpriced_usage_count: number;
 }
@@ -8007,26 +7951,25 @@ export interface OrganizationAISpendUser {
 	readonly name: string;
 	readonly avatar_url: string;
 	/**
-	 * CostMicros is the user's priced spend over the period.
+	 * The user's priced spend over the period.
 	 */
 	readonly cost_micros: number;
 	/**
-	 * UnpricedUsageCount is the number of the user's token usage records that
-	 * carry no cost because their model had no price when they were recorded.
+	 * The number of the user's token usage records that carry no cost because
+	 * their model had no price when they were recorded.
 	 */
 	readonly unpriced_usage_count: number;
 	/**
-	 * Providers are the configured provider names the user spent through,
-	 * sorted.
+	 * The configured provider names the user spent through, sorted.
 	 */
 	readonly providers: readonly string[];
 	/**
-	 * Clients are the clients the user spent through, sorted. Usage without a
-	 * recorded client is reported as Unknown.
+	 * The clients the user spent through, sorted. Usage without a recorded client
+	 * is reported as Unknown.
 	 */
 	readonly clients: readonly string[];
 	/**
-	 * Models are the models the user spent through, sorted.
+	 * The models the user spent through, sorted.
 	 */
 	readonly models: readonly string[];
 }
@@ -8060,19 +8003,18 @@ export interface OrganizationChatSystemPromptResponse {
 export interface OrganizationGroupAISpend {
 	readonly group_id: string;
 	/**
-	 * SpendLimitMicros is the group's configured AI spend budget per member.
-	 * Null when the group has no configured budget.
+	 * The group's configured AI spend budget per member. Null when the group has
+	 * no configured budget.
 	 */
 	readonly spend_limit_micros: number | null;
 	/**
-	 * TotalSpendLimitMicros is the currently configured combined budget of the
-	 * members attributed to this group, with each member's override replacing
-	 * their share. Null when the group has no budget, and zero when no members
-	 * are attributed to it.
+	 * The currently configured combined budget of the members attributed to this
+	 * group, with each member's override replacing their share. Null when the
+	 * group has no budget, and zero when no members are attributed to it.
 	 */
 	readonly total_spend_limit_micros: number | null;
 	/**
-	 * CurrentSpendMicros is the group's spend over the current budget period.
+	 * The group's spend over the current budget period.
 	 */
 	readonly current_spend_micros: number;
 }
@@ -8109,8 +8051,8 @@ export interface OrganizationMemberWithUserData extends OrganizationMember {
 	readonly is_service_account?: boolean;
 	readonly global_roles: readonly SlimRole[];
 	/**
-	 * HasAISeat intentionally omits omitempty so the API always includes the
-	 * field, even when false.
+	 * Always included in the response, even when false, because the field
+	 * intentionally omits omitempty.
 	 */
 	readonly has_ai_seat: boolean;
 }
@@ -8167,17 +8109,16 @@ export interface OrganizationSkillGroup extends Group {
  */
 export interface OrganizationSkillPreferences {
 	/**
-	 * MembersCanDisableSkills is the organization's setting.
+	 * The organization's setting.
 	 */
 	readonly members_can_disable_skills: boolean;
 	/**
-	 * AllSkillsDisabled turns off every organization skill, including
-	 * skills added later. DisabledSkillIDs is kept and applies again when it
-	 * is false.
+	 * Turns off every organization skill, including skills added later.
+	 * `disabled_skill_ids` is kept and applies again when it is false.
 	 */
 	readonly all_skills_disabled: boolean;
 	/**
-	 * DisabledSkillIDs lists the organization skills the member turned off.
+	 * Lists the organization skills the member turned off.
 	 */
 	readonly disabled_skill_ids: readonly string[];
 }
@@ -8194,8 +8135,8 @@ export const OrganizationSkillRoles: OrganizationSkillRole[] = ["", "read"];
  */
 export interface OrganizationSkillSettings {
 	/**
-	 * MembersCanDisableSkills lets each organization member turn off
-	 * organization skills for their own chats.
+	 * Lets each organization member turn off organization skills for their own
+	 * chats.
 	 */
 	readonly members_can_disable_skills: boolean;
 }
@@ -8211,18 +8152,18 @@ export interface OrganizationSkillUser extends MinimalUser {
 // From codersdk/idpsync.go
 export interface OrganizationSyncSettings {
 	/**
-	 * Field selects the claim field to be used as the created user's
-	 * organizations. If the field is the empty string, then no organization
-	 * updates will ever come from the OIDC provider.
+	 * Selects the claim field to be used as the created user's organizations. If
+	 * the field is the empty string, then no organization updates will ever come
+	 * from the OIDC provider.
 	 */
 	readonly field: string;
 	/**
-	 * Mapping maps from an OIDC claim --> Coder organization uuid
+	 * Maps from an OIDC claim to a Coder organization UUID.
 	 */
 	readonly mapping: Record<string, string[]>;
 	/**
-	 * AssignDefault will ensure the default org is always included
-	 * for every user, regardless of their claims. This preserves legacy behavior.
+	 * Ensures the default org is always included for every user, regardless of
+	 * their claims. This preserves legacy behavior.
 	 */
 	readonly organization_assign_default: boolean;
 }
@@ -8240,9 +8181,8 @@ export interface PaginatedGroup {
 	readonly display_name: string;
 	readonly organization_id: string;
 	/**
-	 * TotalMemberCount is the number of members in the group, shown even when
-	 * the caller cannot read individual members. The roster itself is not
-	 * returned by this endpoint.
+	 * The number of members in the group, shown even when the caller cannot read
+	 * individual members. The roster itself is not returned by this endpoint.
 	 */
 	readonly total_member_count: number;
 	readonly avatar_url: string;
@@ -8286,24 +8226,21 @@ export interface PaginatedMembersResponse {
  */
 export interface Pagination {
 	/**
-	 * AfterID returns all or up to Limit results after the given
-	 * UUID. This option can be used with or as an alternative to
-	 * Offset for better performance. To use it as an alternative,
-	 * set AfterID to the last UUID returned by the previous
+	 * Returns all or up to `limit` results after the given UUID. This option can
+	 * be used with or as an alternative to `offset` for better performance. To use
+	 * it as an alternative, set it to the last UUID returned by the previous
 	 * request.
 	 */
 	readonly after_id?: string;
 	/**
-	 * Limit sets the maximum number of users to be returned
-	 * in a single page. If the limit is <= 0, there is no limit
-	 * and all users are returned.
+	 * Sets the maximum number of users to be returned in a single page. If the
+	 * limit is zero or negative, there is no limit and all users are returned.
 	 */
 	readonly limit?: number;
 	/**
-	 * Offset is used to indicate which page to return. An offset of 0
-	 * returns the first 'limit' number of users.
-	 * To get the next page, use offset=<limit>*<page_number>.
-	 * Offset is 0 indexed, so the first record sits at offset 0.
+	 * Indicates which page to return. An offset of 0 returns the first `limit`
+	 * number of users. To get the next page, use `offset=limit*page_number`. The
+	 * offset is 0 indexed, so the first record sits at offset 0.
 	 */
 	readonly offset?: number;
 }
@@ -8420,7 +8357,7 @@ export const PathAppSessionTokenCookie = "coder_path_app_session_token";
  */
 export interface Permission {
 	/**
-	 * Negate makes this a negative permission
+	 * Makes this a negative permission.
 	 */
 	readonly negate: boolean;
 	readonly resource_type: RBACResource;
@@ -8431,9 +8368,8 @@ export interface Permission {
 export interface PostOAuth2ProviderAppRequest {
 	readonly name: string;
 	/**
-	 * RedirectURIs is the ordered list of URIs the app may redirect to. The
-	 * first entry is the primary. Required, unless the deprecated
-	 * callback_url is sent instead.
+	 * The ordered list of URIs the app may redirect to. The first entry is the
+	 * primary. Required, unless the deprecated callback_url is sent instead.
 	 */
 	readonly redirect_uris?: readonly string[];
 	/**
@@ -8443,8 +8379,8 @@ export interface PostOAuth2ProviderAppRequest {
 	readonly callback_url?: string;
 	readonly icon: string;
 	/**
-	 * Scope is the space-separated list of scopes this app's tokens may be
-	 * granted. Leave empty, or omit, for unrestricted.
+	 * The space-separated list of scopes this app's tokens may be granted. Leave
+	 * empty, or omit, for unrestricted.
 	 */
 	readonly scope?: string;
 }
@@ -8453,9 +8389,9 @@ export interface PostOAuth2ProviderAppRequest {
 export interface PostWorkspaceUsageRequest {
 	readonly agent_id: string;
 	/**
-	 * AppName is any name for the app reporting usage. The server normalizes
-	 * it at ingestion, so a new app needs no server change. The UsageAppName
-	 * constants are the well-known names.
+	 * Any name for the app reporting usage. The server normalizes it at ingestion,
+	 * so a new app needs no server change. The UsageAppName constants are the
+	 * well-known names.
 	 */
 	readonly app_name: string;
 }
@@ -8481,24 +8417,24 @@ export interface PprofConfig {
 // From codersdk/deployment.go
 export interface PrebuildsConfig {
 	/**
-	 * ReconciliationInterval defines how often the workspace prebuilds state should be reconciled.
+	 * Defines how often the workspace prebuilds state should be reconciled.
 	 */
 	readonly reconciliation_interval: number;
 	/**
-	 * ReconciliationBackoffInterval specifies the amount of time to increase the backoff interval
-	 * when errors occur during reconciliation.
+	 * Specifies the amount of time to increase the backoff interval when errors
+	 * occur during reconciliation.
 	 */
 	readonly reconciliation_backoff_interval: number;
 	/**
-	 * ReconciliationBackoffLookback determines the time window to look back when calculating
-	 * the number of failed prebuilds, which influences the backoff strategy.
+	 * Determines the time window to look back when calculating the number of
+	 * failed prebuilds, which influences the backoff strategy.
 	 */
 	readonly reconciliation_backoff_lookback: number;
 	/**
-	 * FailureHardLimit defines the maximum number of consecutive failed prebuild attempts allowed
-	 * before a preset is considered to be in a hard limit state. When a preset hits this limit,
-	 * no new prebuilds will be created until the limit is reset.
-	 * FailureHardLimit is disabled when set to zero.
+	 * Defines the maximum number of consecutive failed prebuild attempts allowed
+	 * before a preset is considered to be in a hard limit state. When a preset
+	 * hits this limit, no new prebuilds will be created until the limit is reset.
+	 * The limit is disabled when set to zero.
 	 */
 	readonly failure_hard_limit: number;
 }
@@ -8525,8 +8461,8 @@ export const PrebuildsSystemUserID = "c42fdf75-3097-471c-8c33-fb52454d81c0";
  */
 export interface PremiumFunnelEventRequest {
 	/**
-	 * ID identifies this click, and doubles as the attribution token that a
-	 * later trial signup reports.
+	 * Identifies this click, and doubles as the attribution token that a later
+	 * trial signup reports.
 	 */
 	readonly id: string;
 	readonly source: PremiumFunnelSource;
@@ -8680,7 +8616,7 @@ export interface ProposeChatTitleResponse {
 // From codersdk/deployment.go
 export interface ProvisionerConfig {
 	/**
-	 * Daemons is the number of built-in terraform provisioners.
+	 * The number of built-in terraform provisioners.
 	 */
 	readonly daemons: number;
 	readonly daemon_types: string;
@@ -8689,9 +8625,8 @@ export interface ProvisionerConfig {
 	readonly force_cancel_interval: number;
 	readonly daemon_psk: string;
 	/**
-	 * DisableModuleCache disables the reuse of Terraform modules cached at
-	 * template import for every template in the deployment. Templates cannot
-	 * opt back in.
+	 * Turns off the reuse of Terraform modules cached at template import for every
+	 * template in the deployment. Templates cannot opt back in.
 	 */
 	readonly disable_module_cache: boolean;
 }
@@ -8928,11 +8863,11 @@ export const ProvisionerTypes: ProvisionerType[] = ["echo", "terraform"];
  */
 export interface ProxyHealthReport {
 	/**
-	 * Errors are problems that prevent the workspace proxy from being healthy
+	 * Problems that prevent the workspace proxy from being healthy.
 	 */
 	readonly errors: readonly string[];
 	/**
-	 * Warnings do not prevent the workspace proxy from being healthy, but
+	 * Problems that do not prevent the workspace proxy from being healthy, but
 	 * should be addressed.
 	 */
 	readonly warnings: readonly string[];
@@ -8959,14 +8894,13 @@ export const ProxyHealthStatuses: ProxyHealthStatus[] = [
 export interface PutExperimentRuleRequest {
 	readonly mode: ExperimentRuleMode;
 	/**
-	 * Condition is required for the condition mode and must be empty
-	 * otherwise.
+	 * Required for the condition mode and must be empty otherwise.
 	 */
 	readonly condition?: string;
 	/**
-	 * ExpectedRevision must equal the current revision of the stored rule,
-	 * or zero when no rule is stored or the stored rule has no readable
-	 * positive revision. A different revision fails with 409 Conflict.
+	 * Must equal the current revision of the stored rule, or zero when no rule is
+	 * stored or the stored rule has no readable positive revision. A different
+	 * revision fails with 409 Conflict.
 	 */
 	readonly expected_revision: number;
 }
@@ -8984,10 +8918,10 @@ export interface PutExtendWorkspaceRequest {
 export interface PutOAuth2ProviderAppRequest {
 	readonly name: string;
 	/**
-	 * RedirectURIs is the ordered list of URIs the app may redirect to. The
-	 * first entry is the primary. Omit both this and callback_url to keep the
-	 * stored redirect URIs. Other fields are replaced. Sending an empty list
-	 * is an error, not a way to keep the stored list.
+	 * The ordered list of URIs the app may redirect to. The first entry is the
+	 * primary. Omit both this and callback_url to keep the stored redirect URIs.
+	 * Other fields are replaced. Sending an empty list is an error, not a way to
+	 * keep the stored list.
 	 */
 	readonly redirect_uris?: readonly string[];
 	/**
@@ -8996,14 +8930,13 @@ export interface PutOAuth2ProviderAppRequest {
 	 */
 	readonly callback_url?: string;
 	/**
-	 * Icon replaces the app's stored icon. Omitting it clears the stored
-	 * icon rather than leaving it unchanged.
+	 * Replaces the app's stored icon. Omitting it clears the stored icon rather
+	 * than leaving it unchanged.
 	 */
 	readonly icon: string;
 	/**
-	 * Scope replaces the app's current allowlist. Omit to leave the existing
-	 * allowlist untouched. Set to an empty string to clear it, making the app
-	 * unrestricted.
+	 * Replaces the app's current allowlist. Omit to leave the existing allowlist
+	 * untouched. Set to an empty string to clear it, making the app unrestricted.
 	 */
 	readonly scope?: string;
 }
@@ -9206,16 +9139,14 @@ export interface Region {
 	readonly icon_url: string;
 	readonly healthy: boolean;
 	/**
-	 * PathAppURL is the URL to the base path for path apps. Optional
-	 * unless wildcard_hostname is set.
-	 * E.g. https://us.example.com
+	 * The URL to the base path for path apps. Optional unless wildcard_hostname is
+	 * set. E.g. https://us.example.com
 	 */
 	readonly path_app_url: string;
 	/**
-	 * WildcardHostname is the wildcard hostname for subdomain apps.
-	 * E.g. *.us.example.com
-	 * E.g. *--suffix.au.example.com
-	 * Optional. Does not need to be on the same domain as PathAppURL.
+	 * The wildcard hostname for subdomain apps. E.g. *.us.example.com E.g.
+	 * *--suffix.au.example.com Optional. Does not need to be on the same domain as
+	 * `path_app_url`.
 	 */
 	readonly wildcard_hostname: string;
 }
@@ -9231,31 +9162,31 @@ export interface RegionsResponse<R extends RegionTypes> {
 // From codersdk/replicas.go
 export interface Replica {
 	/**
-	 * ID is the unique identifier for the replica.
+	 * The unique identifier for the replica.
 	 */
 	readonly id: string;
 	/**
-	 * Hostname is the hostname of the replica.
+	 * The hostname of the replica.
 	 */
 	readonly hostname: string;
 	/**
-	 * CreatedAt is the timestamp when the replica was first seen.
+	 * The timestamp when the replica was first seen.
 	 */
 	readonly created_at: string;
 	/**
-	 * RelayAddress is the accessible address to relay DERP connections.
+	 * The accessible address to relay DERP connections.
 	 */
 	readonly relay_address: string;
 	/**
-	 * RegionID is the region of the replica.
+	 * The region of the replica.
 	 */
 	readonly region_id: number;
 	/**
-	 * Error is the replica error.
+	 * The replica error.
 	 */
 	readonly error: string;
 	/**
-	 * DatabaseLatency is the latency in microseconds to the database.
+	 * The latency in microseconds to the database.
 	 */
 	readonly database_latency: number;
 }
@@ -9381,7 +9312,7 @@ export const ResourceTypes: ResourceType[] = [
  */
 export interface Response {
 	/**
-	 * Message is an actionable message that depicts actions the request took.
+	 * An actionable message that depicts actions the request took.
 	 * These messages should be fully formed sentences with proper punctuation.
 	 * Examples:
 	 * - "A user has been created."
@@ -9389,7 +9320,7 @@ export interface Response {
 	 */
 	readonly message: string;
 	/**
-	 * Detail is a debug message that provides further insight into why the
+	 * A debug message that provides further insight into why the
 	 * action failed. This information can be technical and a regular golang
 	 * err.Error() text.
 	 * - "database: too many open connections"
@@ -9397,9 +9328,9 @@ export interface Response {
 	 */
 	readonly detail?: string;
 	/**
-	 * Validations are form field-specific friendly error messages. They will be
-	 * shown on a form field in the UI. These can also be used to add additional
-	 * context if there is a set of errors in the primary 'Message'.
+	 * Form field-specific friendly error messages. They will be shown on a form
+	 * field in the UI. These can also be used to add additional context if there
+	 * is a set of errors in the primary `message`.
 	 */
 	readonly validations?: readonly ValidationError[];
 }
@@ -9413,33 +9344,32 @@ export interface Response {
  */
 export interface RetentionConfig {
 	/**
-	 * AuditLogs controls how long audit log entries are retained.
-	 * Set to 0 to disable (keep indefinitely).
+	 * Controls how long audit log entries are retained. Set to 0 to disable (keep
+	 * indefinitely).
 	 */
 	readonly audit_logs: number;
 	/**
-	 * ConnectionLogs controls how long connection log entries are retained.
-	 * Set to 0 to disable (keep indefinitely).
+	 * Controls how long connection log entries are retained. Set to 0 to disable
+	 * (keep indefinitely).
 	 */
 	readonly connection_logs: number;
 	/**
-	 * APIKeys controls how long expired API keys are retained before being deleted.
-	 * Keys are only deleted if they have been expired for at least this duration.
+	 * Controls how long expired API keys are retained before being deleted. Keys
+	 * are only deleted if they have been expired for at least this duration.
 	 * Defaults to 7 days to preserve existing behavior.
 	 */
 	readonly api_keys: number;
 	/**
-	 * WorkspaceAgentLogs controls how long workspace agent logs are retained.
-	 * Logs are deleted if the agent hasn't connected within this period.
-	 * Logs from the latest build are always retained regardless of age.
-	 * Defaults to 7 days to preserve existing behavior.
+	 * Controls how long workspace agent logs are retained. Logs are deleted if the
+	 * agent hasn't connected within this period. Logs from the latest build are
+	 * always retained regardless of age. Defaults to 7 days to preserve existing
+	 * behavior.
 	 */
 	readonly workspace_agent_logs: number;
 	/**
-	 * BoundaryLogs controls how long boundary audit log entries are
-	 * retained. Boundary logs record every HTTP request processed by
-	 * a Boundary confinement proxy. Set to 0 to disable automatic
-	 * deletion (keep indefinitely). Adjust to match your
+	 * Controls how long boundary audit log entries are retained. Boundary logs
+	 * record every HTTP request processed by a Boundary confinement proxy. Set to
+	 * 0 to disable automatic deletion (keep indefinitely). Adjust to match your
 	 * organization's regulatory requirements.
 	 */
 	readonly boundary_logs: number;
@@ -9456,11 +9386,13 @@ export interface Role {
 	readonly site_permissions: readonly Permission[];
 	readonly user_permissions: readonly Permission[];
 	/**
-	 * OrganizationPermissions are specific for the organization in the field 'OrganizationID' above.
+	 * Permissions specific to the organization in the `organization_id` field
+	 * above.
 	 */
 	readonly organization_permissions: readonly Permission[];
 	/**
-	 * OrganizationMemberPermissions are specific for the organization in the field 'OrganizationID' above.
+	 * Permissions specific to the organization in the `organization_id` field
+	 * above.
 	 */
 	readonly organization_member_permissions: readonly Permission[];
 }
@@ -9538,12 +9470,12 @@ export const RoleOwner = "owner";
 // From codersdk/idpsync.go
 export interface RoleSyncSettings {
 	/**
-	 * Field is the name of the claim field that specifies what organization roles
-	 * a user should be given. If empty, no roles will be synced.
+	 * The name of the claim field that specifies what organization roles a user
+	 * should be given. If empty, no roles will be synced.
 	 */
 	readonly field: string;
 	/**
-	 * Mapping is a map from OIDC groups to Coder organization roles.
+	 * A map from OIDC groups to Coder organization roles.
 	 */
 	readonly mapping: Record<string, string[]>;
 }
@@ -9580,12 +9512,13 @@ export interface SSHConfig {
 // From codersdk/deployment.go
 export interface SSHConfigResponse {
 	/**
-	 * HostnamePrefix is the prefix we append to workspace names for SSH hostnames.
-	 * @deprecated use HostnameSuffix instead.
+	 * The prefix we append to workspace names for SSH hostnames.
+	 *
+	 * @deprecated use `hostname_suffix` instead.
 	 */
 	readonly hostname_prefix: string;
 	/**
-	 * HostnameSuffix is the suffix to append to workspace names for SSH hostnames.
+	 * The suffix to append to workspace names for SSH hostnames.
 	 */
 	readonly hostname_suffix: string;
 	readonly ssh_config_options: Record<string, string>;
@@ -9756,16 +9689,16 @@ export interface ServiceBannerConfig {
 export interface SessionCountApp {
 	readonly count: number;
 	/**
-	 * DisplayName is the registry's name for a known app, otherwise the
-	 * normalized identifier itself.
+	 * The registry's name for a known app, otherwise the normalized identifier
+	 * itself.
 	 */
 	readonly display_name: string;
 	/**
-	 * Icon is a bundled path under /icon/, empty if the app has none.
+	 * A bundled path under /icon/, empty if the app has none.
 	 */
 	readonly icon?: string;
 	/**
-	 * Family is the group this app totals under.
+	 * The group this app totals under.
 	 */
 	readonly family: AppFamilyName;
 }
@@ -9773,8 +9706,8 @@ export interface SessionCountApp {
 // From codersdk/deployment.go
 export interface SessionCountDeploymentStats {
 	/**
-	 * Apps holds one entry per reported app name, each carrying the family it
-	 * totals under. The fields below duplicate those totals for one release.
+	 * Holds one entry per reported app name, each carrying the family it totals
+	 * under. The fields below duplicate those totals for one release.
 	 */
 	readonly apps: Record<string, SessionCountApp>;
 	/**
@@ -9815,19 +9748,18 @@ export interface SessionCountDeploymentStats {
  */
 export interface SessionLifetime {
 	/**
-	 * DisableExpiryRefresh will disable automatically refreshing api
-	 * keys when they are used from the api. This means the api key lifetime at
-	 * creation is the lifetime of the api key.
+	 * Turns off automatically refreshing api keys when they are used from the api.
+	 * This means the api key lifetime at creation is the lifetime of the api key.
 	 */
 	readonly disable_expiry_refresh?: boolean;
 	/**
-	 * DefaultDuration is only for browser, workspace app and oauth sessions.
+	 * Only for browser, workspace app and oauth sessions.
 	 */
 	readonly default_duration: number;
 	/**
-	 * RefreshDefaultDuration is the default lifetime for OAuth2 refresh tokens.
-	 * This should generally be longer than access token lifetimes to allow
-	 * refreshing after access token expiry.
+	 * The default lifetime for OAuth2 refresh tokens. This should generally be
+	 * longer than access token lifetimes to allow refreshing after access token
+	 * expiry.
 	 */
 	readonly refresh_default_duration?: number;
 	readonly default_token_lifetime?: number;
@@ -9908,15 +9840,13 @@ export interface SkillMetadata {
 	readonly description: string;
 	readonly enabled: boolean;
 	/**
-	 * Action reports whether a project skill is offered as a one-click
-	 * action above project composers. It is always false for personal and
-	 * organization skills.
+	 * Whether a project skill is offered as a one-click action above project
+	 * composers. It is always false for personal and organization skills.
 	 */
 	readonly action: boolean;
 	/**
-	 * ModelInvocable reports whether agents can discover and load the skill
-	 * on their own. Users can still invoke a skill explicitly when it is
-	 * false.
+	 * Whether agents can discover and load the skill on their own. Users can still
+	 * invoke a skill explicitly when it is false.
 	 */
 	readonly model_invocable: boolean;
 	readonly created_at: string;
@@ -10181,7 +10111,7 @@ export interface Template {
 	readonly provisioner: ProvisionerType;
 	readonly active_version_id: string;
 	/**
-	 * ActiveUserCount is set to -1 when loading.
+	 * Set to -1 when loading.
 	 */
 	readonly active_user_count: number;
 	readonly build_time_stats: TemplateBuildTimeStats;
@@ -10193,39 +10123,35 @@ export interface Template {
 	readonly default_ttl_ms: number;
 	readonly activity_bump_ms: number;
 	/**
-	 * TimeTilAutostopNotifyMillis is the duration before the workspace's
-	 * autostop deadline at which a reminder notification is sent. 0 disables
-	 * the notification.
+	 * The duration before the workspace's autostop deadline at which a reminder
+	 * notification is sent. 0 disables the notification.
 	 */
 	readonly time_til_autostop_notify_ms: number;
 	/**
-	 * AutostopRequirement and AutostartRequirement are Premium features. Their
-	 * values are only used if your license is entitled to use the advanced template
-	 * scheduling feature.
+	 * Premium feature, as is `autostart_requirement`. The value is only used if
+	 * your license is entitled to use the advanced template scheduling feature.
 	 */
 	readonly autostop_requirement: TemplateAutostopRequirement;
 	readonly autostart_requirement: TemplateAutostartRequirement;
 	readonly created_by_id: string;
 	readonly created_by_name: string;
 	/**
-	 * AllowUserAutostart and AllowUserAutostop are Premium features. Their
-	 * values are only used if your license is entitled to use the advanced
-	 * template scheduling feature.
+	 * Premium feature, as is `allow_user_autostop`. The value is only used if your
+	 * license is entitled to use the advanced template scheduling feature.
 	 */
 	readonly allow_user_autostart: boolean;
 	readonly allow_user_autostop: boolean;
 	readonly allow_user_cancel_workspace_jobs: boolean;
 	/**
-	 * FailureTTLMillis, TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are Premium features. Their
-	 * values are used if your license is entitled to use the advanced
-	 * template scheduling feature.
+	 * Premium feature, as are `time_til_dormant_ms` and
+	 * `time_til_dormant_autodelete_ms`. The value is used if your license is
+	 * entitled to use the advanced template scheduling feature.
 	 */
 	readonly failure_ttl_ms: number;
 	readonly time_til_dormant_ms: number;
 	readonly time_til_dormant_autodelete_ms: number;
 	/**
-	 * RequireActiveVersion mandates that workspaces are built with the active
-	 * template version.
+	 * Mandates that workspaces are built with the active template version.
 	 */
 	readonly require_active_version: boolean;
 	readonly max_port_share_level: WorkspaceAgentPortShareLevel;
@@ -10233,21 +10159,20 @@ export interface Template {
 	readonly use_classic_parameter_flow: boolean;
 	readonly agents_allowed: boolean;
 	/**
-	 * DisableModuleCache disables the use of cached Terraform modules during
-	 * provisioning for this template. It is read-only while
-	 * ModuleCacheDisabledByDeployment is true.
+	 * Turns off the use of cached Terraform modules during provisioning for this
+	 * template. It is read-only while `module_cache_disabled_by_deployment` is
+	 * true.
 	 */
 	readonly disable_module_cache: boolean;
 	/**
-	 * ModuleCacheDisabledByDeployment reports that the deployment disables the
-	 * Terraform module cache for every template. Templates cannot opt back in,
-	 * so the effective state is disabled regardless of DisableModuleCache.
+	 * Reports that the deployment disables the Terraform module cache for every
+	 * template. Templates cannot opt back in, so the effective state is disabled
+	 * regardless of `disable_module_cache`.
 	 */
 	readonly module_cache_disabled_by_deployment: boolean;
 	/**
-	 * AllowWorkspaceRenames permits users to rename workspaces built from this
-	 * template. Renaming can be destructive for templates whose Terraform
-	 * references the workspace name.
+	 * Whether users can rename workspaces built from this template. Renaming can
+	 * be destructive for templates whose Terraform references the workspace name.
 	 */
 	readonly allow_workspace_renames: boolean;
 }
@@ -10265,7 +10190,7 @@ export interface TemplateACL {
 export interface TemplateAppUsage {
 	readonly template_ids: readonly string[];
 	/**
-	 * Method is how the app connected. Method and Slug identify an app.
+	 * How the app connected. `method` and `slug` identify an app.
 	 */
 	readonly method: ConnectionLogMethod;
 	readonly display_name: string;
@@ -10274,8 +10199,8 @@ export interface TemplateAppUsage {
 	readonly seconds: number;
 	readonly times_used: number;
 	/**
-	 * SecondsIsUpperBound marks overflow usage that includes folded apps.
-	 * Their overlap is not stored, so Seconds may overestimate active time.
+	 * Marks overflow usage that includes folded apps. Their overlap is not stored,
+	 * so `seconds` may overestimate active time.
 	 */
 	readonly seconds_is_upper_bound?: boolean;
 }
@@ -10283,8 +10208,8 @@ export interface TemplateAppUsage {
 // From codersdk/templates.go
 export interface TemplateAutostartRequirement {
 	/**
-	 * DaysOfWeek is a list of days of the week in which autostart is allowed
-	 * to happen. If no days are specified, autostart is not allowed.
+	 * A list of days of the week in which autostart is allowed to happen. If no
+	 * days are specified, autostart is not allowed.
 	 */
 	readonly days_of_week: readonly string[];
 }
@@ -10292,21 +10217,19 @@ export interface TemplateAutostartRequirement {
 // From codersdk/templates.go
 export interface TemplateAutostopRequirement {
 	/**
-	 * DaysOfWeek is a list of days of the week on which restarts are required.
-	 * Restarts happen within the user's quiet hours (in their configured
-	 * timezone). If no days are specified, restarts are not required. Weekdays
-	 * cannot be specified twice.
+	 * A list of days of the week on which restarts are required. Restarts happen
+	 * within the user's quiet hours (in their configured timezone). If no days are
+	 * specified, restarts are not required. Weekdays cannot be specified twice.
 	 *
 	 * Restarts will only happen on weekdays in this list on weeks which line up
-	 * with Weeks.
+	 * with `weeks`.
 	 */
 	readonly days_of_week: readonly string[];
 	/**
-	 * Weeks is the number of weeks between required restarts. Weeks are synced
-	 * across all workspaces (and Coder deployments) using modulo math on a
-	 * hardcoded epoch week of January 2nd, 2023 (the first Monday of 2023).
-	 * Values of 0 or 1 indicate weekly restarts. Values of 2 indicate
-	 * fortnightly restarts, etc.
+	 * The number of weeks between required restarts. Weeks are synced across all
+	 * workspaces (and Coder deployments) using modulo math on a hardcoded epoch
+	 * week of January 2nd, 2023 (the first Monday of 2023). Values of 0 or 1
+	 * indicate weekly restarts. Values of 2 indicate fortnightly restarts, etc.
 	 */
 	readonly weeks: number;
 }
@@ -10342,8 +10265,7 @@ export interface TemplateBuilderBaseAgent {
 	readonly name: string;
 	readonly display_name: string;
 	/**
-	 * Default reports whether modules attach to this agent when they do not
-	 * name one.
+	 * Whether modules attach to this agent when they do not name one.
 	 */
 	readonly default: boolean;
 }
@@ -10364,7 +10286,7 @@ export interface TemplateBuilderBasesResponse {
 export interface TemplateBuilderComposeModule {
 	readonly id: string;
 	/**
-	 * AgentName targets a base coder_agent by name. Empty uses the base default.
+	 * Targets a base coder_agent by name. Empty uses the base default.
 	 */
 	readonly agent_name?: string;
 	readonly variables?: Record<string, string>;
@@ -10403,9 +10325,9 @@ export interface TemplateBuilderCreateTemplateRequest {
 	readonly icon?: string;
 	readonly provisioner_tags?: Record<string, string>;
 	/**
-	 * SessionID is the wizard session this request belongs to, as reported to
-	 * POST /api/v2/templatebuilder/sessions. It is optional and used only to
-	 * attribute a build failure to the session that produced it.
+	 * The wizard session this request belongs to, as reported to POST
+	 * /api/v2/templatebuilder/sessions. It is optional and used only to attribute
+	 * a build failure to the session that produced it.
 	 */
 	readonly session_id?: string;
 }
@@ -10538,8 +10460,8 @@ export interface TemplateInsightsReport {
 	readonly template_ids: readonly string[];
 	readonly active_users: number;
 	/**
-	 * UsageTotalSeconds counts each user's active minutes once, even when apps
-	 * overlap. Summed per-app seconds can exceed this total.
+	 * Counts each user's active minutes once, even when apps overlap. Summed
+	 * per-app seconds can exceed this total.
 	 */
 	readonly usage_total_seconds: number;
 	readonly apps_usage: readonly TemplateAppUsage[];
@@ -10650,8 +10572,8 @@ export interface TemplateVersionParameter {
 	readonly description_plaintext: string;
 	readonly type: string;
 	/**
-	 * FormType has an enum value of empty string, `""`.
-	 * Keep the leading comma in the enums struct tag.
+	 * Has an enum value of empty string, `""`. Keep the leading comma in the enums
+	 * struct tag.
 	 */
 	readonly form_type: string;
 	readonly mutable: boolean;
@@ -10972,7 +10894,7 @@ export interface UpdateChatProjectRequest {
  */
 export interface UpdateChatRequest {
 	/**
-	 * Title, when set, is stored as the user title even when its text is
+	 * When set, the title is stored as the user title even when its text is
 	 * unchanged, so a generated title never replaces it afterwards. It is
 	 * validated like CreateChatRequest.Title.
 	 */
@@ -10980,7 +10902,7 @@ export interface UpdateChatRequest {
 	readonly archived?: boolean;
 	readonly workspace_id?: string;
 	/**
-	 * ProjectID moves a root chat, and with it its subagent chats.
+	 * Moves a root chat, and with it its subagent chats.
 	 * - nil: no change.
 	 * - uuid.Nil: remove the chat from its project.
 	 * - other: move the chat into that project. The chat's owner must own
@@ -10990,20 +10912,20 @@ export interface UpdateChatRequest {
 	 */
 	readonly project_id?: string;
 	/**
-	 * PinOrder controls the chat's pinned state and position.
+	 * Controls the chat's pinned state and position.
 	 * - nil: no change to pin state.
 	 * - 0: unpin the chat.
-	 * - >0 (chat is unpinned): pin the chat, appending it to
+	 * - `>0` (chat is unpinned): pin the chat, appending it to
 	 *   the end of the pinned list. The specific value is
-	 *   ignored; the server assigns the next available position.
-	 * - >0 (chat is already pinned): move the chat to the
+	 *   ignored, and the server assigns the next available position.
+	 * - `>0` (chat is already pinned): move the chat to the
 	 *   requested position, shifting neighbors as needed. The
 	 *   value is clamped to [1, pinned_count].
 	 */
 	readonly pin_order?: number;
 	readonly labels?: Record<string, string>;
 	/**
-	 * Read moves the owner's read cursor, which drives HasUnread.
+	 * Moves the owner's read cursor, which drives `has_unread`.
 	 * - nil: no change.
 	 * - true: mark every existing message as read.
 	 * - false: clear the cursor so the chat reads as unread again.
@@ -11014,8 +10936,8 @@ export interface UpdateChatRequest {
 	 */
 	readonly read?: boolean;
 	/**
-	 * PlanMode switches the chat's persistent plan mode.
-	 * nil: no change, ptr to "plan": enable, ptr to "": clear.
+	 * Switches the chat's persistent plan mode. nil: no change, ptr to "plan":
+	 * enable, ptr to "": clear.
 	 */
 	readonly plan_mode?: ChatPlanMode;
 }
@@ -11046,8 +10968,8 @@ export interface UpdateChatSystemPromptRequest {
  */
 export interface UpdateChatWorkspaceTTLRequest {
 	/**
-	 * WorkspaceTTLMillis is the workspace TTL in milliseconds.
-	 * Zero means disabled; the template's own autostop setting applies.
+	 * The workspace TTL in milliseconds. Zero means disabled, and the template's
+	 * own autostop setting applies.
 	 */
 	readonly workspace_ttl_ms: number;
 }
@@ -11058,15 +10980,15 @@ export interface UpdateChatWorkspaceTTLRequest {
  */
 export interface UpdateCheckResponse {
 	/**
-	 * Current indicates whether the server version is the same as the latest.
+	 * Whether the server version is the same as the latest.
 	 */
 	readonly current: boolean;
 	/**
-	 * Version is the semantic version for the latest release of Coder.
+	 * The semantic version for the latest release of Coder.
 	 */
 	readonly version: string;
 	/**
-	 * URL to download the latest release of Coder.
+	 * The `url` to download the latest release of Coder.
 	 */
 	readonly url: string;
 }
@@ -11115,13 +11037,13 @@ export interface UpdateMCPServerConfigRequest {
 	readonly oauth2_auth_url?: string;
 	readonly oauth2_token_url?: string;
 	/**
-	 * OAuth2RevocationURL is validated in the handler because a
-	 * validate tag would reject the pointer to "" that clears it.
+	 * Validated in the handler because a validate tag would reject the pointer to
+	 * "" that clears it.
 	 */
 	readonly oauth2_revocation_url?: string;
 	/**
-	 * OAuth2Resource is the RFC 8707 resource indicator. Omit it to keep
-	 * the stored value; send "" to clear it.
+	 * The RFC 8707 resource indicator. Omit it to keep the stored value. Send ""
+	 * to clear it.
 	 */
 	readonly oauth2_resource?: string;
 	readonly oauth2_scopes?: string;
@@ -11135,13 +11057,13 @@ export interface UpdateMCPServerConfigRequest {
 	readonly model_intent?: boolean;
 	readonly allow_in_plan_mode?: boolean;
 	/**
-	 * ForwardCoderHeaders, when set, updates whether Coder identity
-	 * headers are forwarded on every outgoing MCP request.
+	 * When set, updates whether Coder identity headers are forwarded on every
+	 * outgoing MCP request.
 	 */
 	readonly forward_coder_headers?: boolean;
 	/**
-	 * SigningSecret replaces the shared signing key. Omit to preserve it;
-	 * an empty string clears it. It is never returned.
+	 * Replaces the shared signing key. Omit to preserve it. An empty string clears
+	 * it. It is never returned.
 	 */
 	readonly signing_secret?: string;
 }
@@ -11167,8 +11089,7 @@ export interface UpdateOrganizationRequest {
 	readonly description?: string;
 	readonly icon?: string;
 	/**
-	 * DefaultOrgMemberRoles, when non-nil, replaces the org's default
-	 * member roles.
+	 * When non-nil, replaces the org's default member roles.
 	 */
 	readonly default_org_member_roles?: string[];
 }
@@ -11193,8 +11114,8 @@ export interface UpdateOrganizationSkillACLRequest {
 export interface UpdateOrganizationSkillPreferencesRequest {
 	readonly all_skills_disabled?: boolean;
 	/**
-	 * Skills maps an organization skill ID to whether the skill is enabled
-	 * for the member's chats.
+	 * Maps an organization skill ID to whether the skill is enabled for the
+	 * member's chats.
 	 */
 	readonly skills?: Record<string, boolean>;
 }
@@ -11220,14 +11141,14 @@ export interface UpdateRoles {
  */
 export interface UpdateSkillRequest {
 	/**
-	 * Content must be SKILL.md-format Markdown with YAML frontmatter. The
-	 * frontmatter must include name, may include description, and must be
-	 * followed by a non-empty body.
+	 * Must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must
+	 * include name, may include description, and must be followed by a non-empty
+	 * body.
 	 */
 	readonly content?: string;
 	readonly enabled?: boolean;
 	/**
-	 * Action is only accepted for project skills.
+	 * Only accepted for project skills.
 	 */
 	readonly action?: boolean;
 	readonly model_invocable?: boolean;
@@ -11236,15 +11157,15 @@ export interface UpdateSkillRequest {
 // From codersdk/templates.go
 export interface UpdateTemplateACL {
 	/**
-	 * UserPerms is a mapping from valid user UUIDs to the template role they
-	 * should be granted. To remove a user from the template, use "" as the role
-	 * (available as a constant named codersdk.TemplateRoleDeleted)
+	 * A mapping from valid user UUIDs to the template role they should be granted.
+	 * To remove a user from the template, use "" as the role (available as a
+	 * constant named codersdk.TemplateRoleDeleted)
 	 */
 	readonly user_perms?: Record<string, TemplateRole>;
 	/**
-	 * GroupPerms is a mapping from valid group UUIDs to the template role they
-	 * should be granted. To remove a group from the template, use "" as the role
-	 * (available as a constant named codersdk.TemplateRoleDeleted)
+	 * A mapping from valid group UUIDs to the template role they should be
+	 * granted. To remove a group from the template, use "" as the role (available
+	 * as a constant named codersdk.TemplateRoleDeleted)
 	 */
 	readonly group_perms?: Record<string, TemplateRole>;
 }
@@ -11261,22 +11182,20 @@ export interface UpdateTemplateMeta {
 	readonly icon?: string;
 	readonly default_ttl_ms?: number;
 	/**
-	 * ActivityBumpMillis allows optionally specifying the activity bump
-	 * duration for all workspaces created from this template. Defaults to 1h
-	 * but can be set to 0 to disable activity bumping.
+	 * Optional activity bump duration for all workspaces created from this
+	 * template. Defaults to 1h but can be set to 0 to disable activity bumping.
 	 */
 	readonly activity_bump_ms?: number;
 	/**
-	 * TimeTilAutostopNotifyMillis allows optionally specifying the duration
-	 * before the autostop deadline at which a reminder notification is sent for
-	 * workspaces created from this template. Defaults to 0 (disabled). Omitting
-	 * the field keeps the existing value.
+	 * Optional duration before the autostop deadline at which a reminder
+	 * notification is sent for workspaces created from this template. Defaults to
+	 * 0 (disabled). Omitting the field keeps the existing value.
 	 */
 	readonly time_til_autostop_notify_ms?: number;
 	/**
-	 * AutostopRequirement and AutostartRequirement can only be set if your license
-	 * includes the advanced template scheduling feature. If you attempt to set this
-	 * value while unlicensed, it will be ignored.
+	 * Along with `autostart_requirement`, this can only be set if your license
+	 * includes the advanced template scheduling feature. If you attempt to set
+	 * this value while unlicensed, it will be ignored.
 	 */
 	readonly autostop_requirement?: TemplateAutostopRequirement;
 	readonly autostart_requirement?: TemplateAutostartRequirement;
@@ -11287,65 +11206,59 @@ export interface UpdateTemplateMeta {
 	readonly time_til_dormant_ms?: number;
 	readonly time_til_dormant_autodelete_ms?: number;
 	/**
-	 * UpdateWorkspaceLastUsedAt updates the last_used_at field of workspaces
-	 * spawned from the template. This is useful for preventing workspaces being
-	 * immediately locked when updating the inactivity_ttl field to a new, shorter
-	 * value.
+	 * Updates the last_used_at field of workspaces spawned from the template. This
+	 * is useful for preventing workspaces being immediately locked when updating
+	 * the inactivity_ttl field to a new, shorter value.
 	 */
 	readonly update_workspace_last_used_at?: boolean;
 	/**
-	 * UpdateWorkspaceDormantAt updates the dormant_at field of workspaces spawned
-	 * from the template. This is useful for preventing dormant workspaces being
-	 * immediately deleted when updating the dormant_ttl field to a new, shorter
-	 * value.
+	 * Updates the dormant_at field of workspaces spawned from the template. This
+	 * is useful for preventing dormant workspaces being immediately deleted when
+	 * updating the dormant_ttl field to a new, shorter value.
 	 */
 	readonly update_workspace_dormant_at?: boolean;
 	/**
-	 * RequireActiveVersion mandates workspaces built using this template
-	 * use the active version of the template. This option has no
-	 * effect on template admins.
+	 * Mandates workspaces built using this template use the active version of the
+	 * template. This option has no effect on template admins.
 	 */
 	readonly require_active_version?: boolean;
 	/**
-	 * DeprecationMessage if set, will mark the template as deprecated and block
-	 * any new workspaces from using this template.
-	 * If passed an empty string, will remove the deprecated message, making
-	 * the template usable for new workspaces again.
+	 * If set, marks the template as deprecated and blocks any new workspaces from
+	 * using this template. If passed an empty string, removes the deprecation
+	 * message, making the template usable for new workspaces again.
 	 */
 	readonly deprecation_message?: string;
 	/**
-	 * DisableEveryoneGroupAccess allows optionally disabling the default
-	 * behavior of granting the 'everyone' group access to use the template.
-	 * If this is set to true, the template will not be available to all users,
-	 * and must be explicitly granted to users or groups in the permissions settings
-	 * of the template.
+	 * Allows optionally disabling the default behavior of granting the 'everyone'
+	 * group access to use the template. If this is set to true, the template will
+	 * not be available to all users, and must be explicitly granted to users or
+	 * groups in the permissions settings of the template.
 	 */
 	readonly disable_everyone_group_access?: boolean;
 	readonly max_port_share_level?: WorkspaceAgentPortShareLevel;
 	readonly cors_behavior?: CORSBehavior;
 	/**
-	 * UseClassicParameterFlow is a flag that switches the default behavior to use the classic
-	 * parameter flow when creating a workspace. This only affects deployments with the experiment
-	 * "dynamic-parameters" enabled. This setting will live for a period after the experiment is
-	 * made the default.
-	 * An "opt-out" is present in case the new feature breaks some existing templates.
+	 * A flag that switches the default behavior to use the classic parameter flow
+	 * when creating a workspace. This only affects deployments with the experiment
+	 * "dynamic-parameters" enabled. This setting will live for a period after the
+	 * experiment is made the default. An "opt-out" is present in case the new
+	 * feature breaks some existing templates.
 	 */
 	readonly use_classic_parameter_flow?: boolean;
 	/**
-	 * DisableModuleCache disables the using of cached Terraform modules during
-	 * provisioning. It is ignored while the deployment disables the module
-	 * cache for all templates. It is recommended not to disable this.
+	 * Turns off the use of cached Terraform modules during provisioning. It is
+	 * ignored while the deployment disables the module cache for all templates. It
+	 * is recommended not to disable this.
 	 */
 	readonly disable_module_cache?: boolean;
 	/**
-	 * AgentsAllowed controls whether Coder Agents can create workspaces using
-	 * this template. If omitted, the current value is preserved.
+	 * Whether Coder Agents can create workspaces using this template. If omitted,
+	 * the current value is preserved.
 	 */
 	readonly agents_allowed?: boolean;
 	/**
-	 * AllowWorkspaceRenames permits users to rename workspaces built from this
-	 * template. Renaming can be destructive for templates whose Terraform
-	 * references the workspace name.
+	 * Whether users can rename workspaces built from this template. Renaming can
+	 * be destructive for templates whose Terraform references the workspace name.
 	 */
 	readonly allow_workspace_renames?: boolean;
 }
@@ -11354,25 +11267,23 @@ export interface UpdateTemplateMeta {
 export interface UpdateUserAppearanceSettingsRequest {
 	readonly theme_preference: string;
 	/**
-	 * ThemeMode is optional for backward compatibility. When empty,
-	 * the server leaves theme_mode, theme_light, and theme_dark
-	 * unchanged so older CLI clients do not erase sync-mode settings.
-	 * Legacy auto preferences are the exception: they clear theme_mode
-	 * so clients can migrate the old sync-with-system setting.
+	 * Optional for backward compatibility. When empty, the server leaves
+	 * theme_mode, theme_light, and theme_dark unchanged so older CLI clients do
+	 * not erase sync-mode settings. Legacy auto preferences are the exception:
+	 * they clear theme_mode so clients can migrate the old sync-with-system
+	 * setting.
 	 */
 	readonly theme_mode: ThemeMode;
 	/**
-	 * ThemeLight is required when ThemeMode is "sync". In "single"
-	 * mode an empty value means "preserve the previously persisted
-	 * slot" rather than "clear the slot", so partial updates that send
-	 * only one slot keep the other intact.
+	 * Required when `theme_mode` is "sync". In "single" mode an empty value means
+	 * "preserve the previously persisted slot" rather than "clear the slot", so
+	 * partial updates that send only one slot keep the other intact.
 	 */
 	readonly theme_light: string;
 	/**
-	 * ThemeDark is required when ThemeMode is "sync". In "single" mode
-	 * an empty value means "preserve the previously persisted slot"
-	 * rather than "clear the slot", so partial updates that send only
-	 * one slot keep the other intact.
+	 * Required when `theme_mode` is "sync". In "single" mode an empty value means
+	 * "preserve the previously persisted slot" rather than "clear the slot", so
+	 * partial updates that send only one slot keep the other intact.
 	 */
 	readonly theme_dark: string;
 	readonly terminal_font: TerminalFontName;
@@ -11442,9 +11353,9 @@ export interface UpdateUserProfileRequest {
 	readonly username: string;
 	readonly name: string;
 	/**
-	 * AvatarURL is only applied for users whose login type is password or
-	 * none. For other login types the avatar is synced from the identity
-	 * provider on login, so a submitted value is ignored.
+	 * Only applied for users whose login type is password or none. For other login
+	 * types the avatar is synced from the identity provider on login, so a
+	 * submitted value is ignored.
 	 */
 	readonly avatar_url: string;
 }
@@ -11452,11 +11363,11 @@ export interface UpdateUserProfileRequest {
 // From codersdk/users.go
 export interface UpdateUserQuietHoursScheduleRequest {
 	/**
-	 * Schedule is a cron expression that defines when the user's quiet hours
-	 * window is. Schedule must not be empty. For new users, the schedule is set
-	 * to 2am in their browser or computer's timezone. The schedule denotes the
-	 * beginning of a 4 hour window where the workspace is allowed to
-	 * automatically stop or restart due to maintenance or template schedule.
+	 * A cron expression that defines when the user's quiet hours window is. The
+	 * schedule must not be empty. For new users, the schedule is set to 2am in
+	 * their browser or computer's timezone. The schedule denotes the beginning of
+	 * a 4 hour window where the workspace is allowed to automatically stop or
+	 * restart due to maintenance or template schedule.
 	 *
 	 * The schedule must be daily with a single time, and should have a timezone
 	 * specified via a CRON_TZ prefix (otherwise UTC will be used).
@@ -11489,15 +11400,15 @@ export interface UpdateUserSecretRequest {
 // From codersdk/workspaces.go
 export interface UpdateWorkspaceACL {
 	/**
-	 * UserRoles is a mapping from valid user UUIDs to the workspace role they
-	 * should be granted. To remove a user from the workspace, use "" as the role
-	 * (available as a constant named codersdk.WorkspaceRoleDeleted)
+	 * A mapping from valid user UUIDs to the workspace role they should be
+	 * granted. To remove a user from the workspace, use "" as the role (available
+	 * as a constant named codersdk.WorkspaceRoleDeleted)
 	 */
 	readonly user_roles?: Record<string, WorkspaceRole>;
 	/**
-	 * GroupRoles is a mapping from valid group UUIDs to the workspace role they
-	 * should be granted. To remove a group from the workspace, use "" as the role
-	 * (available as a constant named codersdk.WorkspaceRoleDeleted)
+	 * A mapping from valid group UUIDs to the workspace role they should be
+	 * granted. To remove a group from the workspace, use "" as the role (available
+	 * as a constant named codersdk.WorkspaceRoleDeleted)
 	 */
 	readonly group_roles?: Record<string, WorkspaceRole>;
 }
@@ -11516,9 +11427,9 @@ export interface UpdateWorkspaceAutomaticUpdatesRequest {
  */
 export interface UpdateWorkspaceAutostartRequest {
 	/**
-	 * Schedule is expected to be of the form `CRON_TZ=<IANA Timezone> <min> <hour> * * <dow>`
-	 * Example: `CRON_TZ=US/Central 30 9 * * 1-5` represents 0930 in the timezone US/Central
-	 * on weekdays (Mon-Fri). `CRON_TZ` defaults to UTC if not present.
+	 * Expected to be of the form `CRON_TZ=<IANA Timezone> <min> <hour> * * <dow>`
+	 * Example: `CRON_TZ=US/Central 30 9 * * 1-5` represents 0930 in the timezone
+	 * US/Central on weekdays (Mon-Fri). `CRON_TZ` defaults to UTC if not present.
 	 */
 	readonly schedule?: string;
 }
@@ -11559,14 +11470,13 @@ export interface UpdateWorkspaceRequest {
  */
 export interface UpdateWorkspaceSharingSettingsRequest {
 	/**
-	 * SharingDisabled is deprecated and left for backward compatibility
-	 * purposes.
-	 * @deprecated use `ShareableWorkspaceOwners` instead
+	 * Left for backward compatibility purposes.
+	 *
+	 * @deprecated use `shareable_workspace_owners` instead
 	 */
 	readonly sharing_disabled?: boolean;
 	/**
-	 * ShareableWorkspaceOwners controls whose workspaces can be shared
-	 * within the organization.
+	 * Controls whose workspaces can be shared within the organization.
 	 */
 	readonly shareable_workspace_owners?: ShareableWorkspaceOwners;
 }
@@ -11594,24 +11504,24 @@ export interface UploadChatFileResponse {
  */
 export interface UploadChatWorkspaceFileResponse {
 	/**
-	 * Path is the absolute path of the file on the workspace.
+	 * The absolute path of the file on the workspace.
 	 */
 	readonly path: string;
 	/**
-	 * Name is the final basename of the uploaded file.
+	 * The final basename of the uploaded file.
 	 */
 	readonly name: string;
 	/**
-	 * Size is the number of bytes written to the workspace.
+	 * The number of bytes written to the workspace.
 	 */
 	readonly size: number;
 	/**
-	 * MediaType is the client-declared content type for display.
+	 * The client-declared content type for display.
 	 */
 	readonly media_type: string;
 	/**
-	 * WorkspaceID is the workspace whose filesystem received the
-	 * bytes. Message parts referencing this upload must carry it.
+	 * The workspace whose filesystem received the bytes. Message parts referencing
+	 * this upload must carry it.
 	 */
 	readonly workspace_id: string;
 }
@@ -11636,7 +11546,7 @@ export interface UpsertAIModelPricesRequest {
 // From codersdk/aibridge.go
 export interface UpsertGroupAIBudgetRequest {
 	/**
-	 * SpendLimitMicros must not exceed MaxAISpendLimitMicros.
+	 * Must not exceed MaxAISpendLimitMicros.
 	 */
 	readonly spend_limit_micros: number;
 }
@@ -11644,12 +11554,12 @@ export interface UpsertGroupAIBudgetRequest {
 // From codersdk/aibridge.go
 export interface UpsertUserAIBudgetOverrideRequest {
 	/**
-	 * GroupID is the group the user's spend is attributed to. The user must
-	 * be a member of this group.
+	 * The group the user's spend is attributed to. The user must be a member of
+	 * this group.
 	 */
 	readonly group_id: string;
 	/**
-	 * SpendLimitMicros must not exceed MaxAISpendLimitMicros.
+	 * Must not exceed MaxAISpendLimitMicros.
 	 */
 	readonly spend_limit_micros: number;
 }
@@ -11698,8 +11608,8 @@ export interface User extends ReducedUser {
 	readonly organization_ids: readonly string[];
 	readonly roles: readonly SlimRole[];
 	/**
-	 * HasAISeat intentionally omits omitempty so the API always includes the
-	 * field, even when false.
+	 * Always included in the response, even when false, because the field
+	 * intentionally omits omitempty.
 	 */
 	readonly has_ai_seat: boolean;
 }
@@ -11722,15 +11632,15 @@ export interface UserAIBudgetOverride {
 export interface UserAIBudgetSummary {
 	readonly user_id: string;
 	/**
-	 * EffectiveGroupID is the group the spend is attributed to, falling back to
-	 * the Everyone group when no budget applies. Null only when the user has no
-	 * organization membership.
+	 * The group the spend is attributed to, falling back to the Everyone group
+	 * when no budget applies. Null only when the user has no organization
+	 * membership.
 	 */
 	readonly effective_group_id: string | null;
 	/**
-	 * EffectiveBudget is the spend limit that applies to the user, whether it
-	 * came from a group budget or a user override. Null when no budget
-	 * applies, leaving the user's spend unlimited.
+	 * The spend limit that applies to the user, whether it came from a group
+	 * budget or a user override. Null when no budget applies, leaving the user's
+	 * spend unlimited.
 	 */
 	readonly effective_budget: AIBudgetLimit | null;
 }
@@ -11756,8 +11666,7 @@ export interface UserAISpendStatus
 	extends UserAIBudgetSummary,
 		AISpendPeriodWindow {
 	/**
-	 * CurrentSpendMicros is the user's spend on their effective group over
-	 * the current budget period.
+	 * The user's spend on their effective group over the current budget period.
 	 */
 	readonly current_spend_micros: number;
 }
@@ -11805,12 +11714,11 @@ export interface UserActivityInsightsResponse {
 // From codersdk/users.go
 export interface UserAppearanceSettings {
 	/**
-	 * ThemePreference is the legacy single-field appearance setting. In
-	 * "single" mode it mirrors the active theme. In "sync" mode modern
-	 * clients normally mirror the active OS slot, but older clients can
-	 * update only this field, so it may diverge from ThemeLight or
-	 * ThemeDark until a modern client saves the full appearance state
-	 * again.
+	 * The legacy single-field appearance setting. In "single" mode it mirrors the
+	 * active theme. In "sync" mode modern clients normally mirror the active OS
+	 * slot, but older clients can update only this field, so it may diverge from
+	 * `theme_light` or `theme_dark` until a modern client saves the full
+	 * appearance state again.
 	 */
 	readonly theme_preference: string;
 	readonly theme_mode: ThemeMode;
@@ -11957,24 +11865,24 @@ export interface UserQuietHoursScheduleConfig {
 export interface UserQuietHoursScheduleResponse {
 	readonly raw_schedule: string;
 	/**
-	 * UserSet is true if the user has set their own quiet hours schedule. If
-	 * false, the user is using the default schedule.
+	 * True if the user has set their own quiet hours schedule. If false, the user
+	 * is using the default schedule.
 	 */
 	readonly user_set: boolean;
 	/**
-	 * UserCanSet is true if the user is allowed to set their own quiet hours
-	 * schedule. If false, the user cannot set a custom schedule and the default
-	 * schedule will always be used.
+	 * True if the user is allowed to set their own quiet hours schedule. If false,
+	 * the user cannot set a custom schedule and the default schedule will always
+	 * be used.
 	 */
 	readonly user_can_set: boolean;
 	/**
-	 * Time is the time of day that the quiet hours window starts in the given
-	 * Timezone each day.
+	 * The time of day that the quiet hours window starts in the given `timezone`
+	 * each day.
 	 */
 	readonly time: string; // HH:mm (24-hour)
 	readonly timezone: string; // raw format from the cron expression, UTC if unspecified
 	/**
-	 * Next is the next time that the quiet hours window will start.
+	 * The next time that the quiet hours window will start.
 	 */
 	readonly next: string;
 }
@@ -11997,10 +11905,9 @@ export interface UserSecret {
 	readonly env_name: string;
 	readonly file_path: string;
 	/**
-	 * Enabled controls whether the secret is injected into workspaces.
-	 * Disabled secrets remain visible and editable, but are not added
-	 * to the agent manifest, so they are not exposed as environment
-	 * variables or written to secret files.
+	 * Whether the secret is injected into workspaces. Disabled secrets remain
+	 * visible and editable, but are not added to the agent manifest, so they are
+	 * not exposed as environment variables or written to secret files.
 	 */
 	readonly enabled: boolean;
 	readonly created_at: string;
@@ -12057,8 +11964,8 @@ export const UserSecretValueField = "value";
  */
 export interface UserSecretsCapabilities {
 	/**
-	 * FilePathDeliveryEnabled reports whether Coder writes stored file paths
-	 * into workspaces. Stored paths are preserved either way.
+	 * Whether Coder writes stored file paths into workspaces. Stored paths are
+	 * preserved either way.
 	 */
 	readonly file_path_delivery_enabled: boolean;
 }
@@ -12142,7 +12049,8 @@ export interface WebpushSubscription {
  */
 export interface WebsocketReport extends BaseReport {
 	/**
-	 * Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
+	 * Deprecated and left for backward compatibility purposes. Use `severity`
+	 * instead.
 	 */
 	readonly healthy: boolean;
 	readonly body: string;
@@ -12160,7 +12068,7 @@ export interface Workspace {
 	readonly updated_at: string;
 	readonly owner_id: string;
 	/**
-	 * OwnerName is the username of the owner of the workspace.
+	 * The username of the owner of the workspace.
 	 */
 	readonly owner_name: string;
 	readonly owner_avatar_url: string;
@@ -12182,38 +12090,37 @@ export interface Workspace {
 	readonly ttl_ms?: number;
 	readonly last_used_at: string;
 	/**
-	 * DeletingAt indicates the time at which the workspace will be permanently deleted.
-	 * A workspace is eligible for deletion if it is dormant (a non-nil dormant_at value)
-	 * and a value has been specified for time_til_dormant_autodelete on its template.
+	 * When the workspace will be permanently deleted. A workspace is eligible for
+	 * deletion if it is dormant (a non-nil `dormant_at` value) and a value has
+	 * been specified for time_til_dormant_autodelete on its template.
 	 */
 	readonly deleting_at: string | null;
 	/**
-	 * DormantAt being non-nil indicates a workspace that is dormant.
-	 * A dormant workspace is no longer accessible must be activated.
-	 * It is subject to deletion if it breaches
-	 * the duration of the time_til_ field on its template.
+	 * A non-nil value indicates a workspace that is dormant. A dormant workspace
+	 * is no longer accessible and must be activated. It is subject to deletion if
+	 * it breaches the duration of the time_til_ field on its template.
 	 */
 	readonly dormant_at: string | null;
 	/**
-	 * Health shows the health of the workspace and information about
-	 * what is causing an unhealthy status.
+	 * Shows the health of the workspace and information about what is causing an
+	 * unhealthy status.
 	 */
 	readonly health: WorkspaceHealth;
 	readonly automatic_updates: AutomaticUpdates;
 	/**
-	 * AllowRenames is the effective rename permission for this workspace,
-	 * derived from the template's allow_workspace_renames setting and the
-	 * deprecated deployment-wide flag.
+	 * The effective rename permission for this workspace, derived from the
+	 * template's allow_workspace_renames setting and the deprecated
+	 * deployment-wide flag.
 	 */
 	readonly allow_renames: boolean;
 	readonly favorite: boolean;
 	readonly next_start_at: string | null;
 	/**
-	 * IsPrebuild indicates whether the workspace is a prebuilt workspace.
-	 * Prebuilt workspaces are owned by the prebuilds system user and have specific behavior,
-	 * such as being managed differently from regular workspaces.
-	 * Once a prebuilt workspace is claimed by a user, it transitions to a regular workspace,
-	 * and IsPrebuild returns false.
+	 * Whether the workspace is a prebuilt workspace. Prebuilt workspaces are owned
+	 * by the prebuilds system user and have specific behavior, such as being
+	 * managed differently from regular workspaces. Once a prebuilt workspace is
+	 * claimed by a user, it transitions to a regular workspace, and `is_prebuild`
+	 * returns false.
 	 */
 	readonly is_prebuild: boolean;
 	readonly shared_with?: readonly SharedWorkspaceActor[];
@@ -12252,7 +12159,7 @@ export interface WorkspaceAgent {
 	readonly api_version: string;
 	readonly apps: readonly WorkspaceApp[];
 	/**
-	 * DERPLatency is mapped by region name (e.g. "New York City", "Seattle").
+	 * Mapped by region name (e.g. "New York City", "Seattle").
 	 */
 	readonly latency?: Record<string, DERPRegion>;
 	readonly connection_timeout_seconds: number;
@@ -12263,15 +12170,16 @@ export interface WorkspaceAgent {
 	readonly log_sources: readonly WorkspaceAgentLogSource[];
 	readonly scripts: readonly WorkspaceAgentScript[];
 	/**
-	 * Metadata is only populated on the workspaces list endpoint when the
-	 * request opts in with the include_agent_metadata search key, and it
-	 * only carries the requested keys. The description's script is always
-	 * empty here: it can be long, and list consumers want values.
+	 * Only populated on the workspaces list endpoint when the request opts in with
+	 * the include_agent_metadata search key, and it only carries the requested
+	 * keys. The description's script is always empty here: it can be long, and
+	 * list consumers want values.
 	 */
 	readonly metadata?: readonly WorkspaceAgentMetadata[];
 	/**
-	 * StartupScriptBehavior is a legacy field that is deprecated in favor
-	 * of the `coder_script` resource. It's only referenced by old clients.
+	 * A legacy field that is deprecated in favor of the `coder_script` resource.
+	 * It's only referenced by old clients.
+	 *
 	 * @deprecated Remove in the future!
 	 */
 	readonly startup_script_behavior: WorkspaceAgentStartupScriptBehavior;
@@ -12286,42 +12194,41 @@ export interface WorkspaceAgent {
  */
 export interface WorkspaceAgentContainer {
 	/**
-	 * CreatedAt is the time the container was created.
+	 * The time the container was created.
 	 */
 	readonly created_at: string;
 	/**
-	 * ID is the unique identifier of the container.
+	 * The unique identifier of the container.
 	 */
 	readonly id: string;
 	/**
-	 * FriendlyName is the human-readable name of the container.
+	 * The human-readable name of the container.
 	 */
 	readonly name: string;
 	/**
-	 * Image is the name of the container image.
+	 * The name of the container image.
 	 */
 	readonly image: string;
 	/**
-	 * Labels is a map of key-value pairs of container labels.
+	 * A map of key-value pairs of container labels.
 	 */
 	readonly labels: Record<string, string>;
 	/**
-	 * Running is true if the container is currently running.
+	 * True if the container is currently running.
 	 */
 	readonly running: boolean;
 	/**
-	 * Ports includes ports exposed by the container.
+	 * Includes ports exposed by the container.
 	 */
 	readonly ports: readonly WorkspaceAgentContainerPort[];
 	/**
-	 * Status is the current status of the container. This is somewhat
-	 * implementation-dependent, but should generally be a human-readable
-	 * string.
+	 * The current status of the container. This is somewhat
+	 * implementation-dependent, but should generally be a human-readable string.
 	 */
 	readonly status: string;
 	/**
-	 * Volumes is a map of "things" mounted into the container. Again, this
-	 * is somewhat implementation-dependent.
+	 * A map of "things" mounted into the container. Again, this is somewhat
+	 * implementation-dependent.
 	 */
 	readonly volumes: Record<string, string>;
 }
@@ -12332,20 +12239,20 @@ export interface WorkspaceAgentContainer {
  */
 export interface WorkspaceAgentContainerPort {
 	/**
-	 * Port is the port number *inside* the container.
+	 * The port number *inside* the container.
 	 */
 	readonly port: number;
 	/**
-	 * Network is the network protocol used by the port (tcp, udp, etc).
+	 * The network protocol used by the port (tcp, udp, etc).
 	 */
 	readonly network: string;
 	/**
-	 * HostIP is the IP address of the host interface to which the port is
-	 * bound. Note that this can be an IPv4 or IPv6 address.
+	 * The IP address of the host interface to which the port is bound. Note that
+	 * this can be an IPv4 or IPv6 address.
 	 */
 	readonly host_ip?: string;
 	/**
-	 * HostPort is the port number *outside* the container.
+	 * The port number *outside* the container.
 	 */
 	readonly host_port?: number;
 }
@@ -12464,16 +12371,16 @@ export const WorkspaceAgentLifecycles: WorkspaceAgentLifecycle[] = [
  */
 export interface WorkspaceAgentListContainersResponse {
 	/**
-	 * Devcontainers is a list of devcontainers visible to the workspace agent.
+	 * A list of devcontainers visible to the workspace agent.
 	 */
 	readonly devcontainers: readonly WorkspaceAgentDevcontainer[];
 	/**
-	 * Containers is a list of containers visible to the workspace agent.
+	 * A list of containers visible to the workspace agent.
 	 */
 	readonly containers: readonly WorkspaceAgentContainer[];
 	/**
-	 * Warnings is a list of warnings that may have occurred during the
-	 * process of listing containers. This should not include fatal errors.
+	 * A list of warnings that may have occurred during the process of listing
+	 * containers. This should not include fatal errors.
 	 */
 	readonly warnings?: readonly string[];
 }
@@ -12538,8 +12445,8 @@ export interface WorkspaceAgentMetadataDescription {
 export interface WorkspaceAgentMetadataResult {
 	readonly collected_at: string;
 	/**
-	 * Age is the number of seconds since the metadata was collected.
-	 * It is provided in addition to CollectedAt to protect against clock skew.
+	 * The number of seconds since the metadata was collected. It is provided in
+	 * addition to `collected_at` to protect against clock skew.
 	 */
 	readonly age: number;
 	readonly value: string;
@@ -12608,14 +12515,14 @@ export interface WorkspaceAgentScript {
 	readonly timeout: number;
 	readonly display_name: string;
 	/**
-	 * ResourceAddress is the full Terraform address of the coder_script
-	 * resource, for example "module.git_clone.coder_script.clone". It is
-	 * empty for scripts that are not coder_script resources.
+	 * The full Terraform address of the coder_script resource, for example
+	 * "module.git_clone.coder_script.clone". It is empty for scripts that are not
+	 * coder_script resources.
 	 */
 	readonly resource_address: string;
 	/**
-	 * Dependencies lists the scripts this one waits for, as the
-	 * provisioner resolved them. It is omitted when empty.
+	 * Lists the scripts this one waits for, as the provisioner resolved them. It
+	 * is omitted when empty.
 	 */
 	readonly dependencies?: readonly WorkspaceAgentScriptDependency[];
 	readonly exit_code?: number;
@@ -12682,43 +12589,42 @@ export const WorkspaceAgentStatuses: WorkspaceAgentStatus[] = [
 export interface WorkspaceApp {
 	readonly id: string;
 	/**
-	 * URL is the address being proxied to inside the workspace.
-	 * If external is specified, this will be opened on the client.
+	 * The address being proxied to inside the workspace. If `external` is
+	 * specified, this will be opened on the client.
 	 */
 	readonly url?: string;
 	/**
-	 * External specifies whether the URL should be opened externally on
-	 * the client or not.
+	 * Whether the `url` should be opened externally on the client or not.
 	 */
 	readonly external: boolean;
 	/**
-	 * Slug is a unique identifier within the agent.
+	 * A unique identifier within the agent.
 	 */
 	readonly slug: string;
 	/**
-	 * DisplayName is a friendly name for the app.
+	 * A friendly name for the app.
 	 */
 	readonly display_name?: string;
 	readonly command?: string;
 	/**
-	 * Icon is a relative path or external URL that specifies
-	 * an icon to be displayed in the dashboard.
+	 * A relative path or external `url` that specifies an icon to be displayed in
+	 * the dashboard.
 	 */
 	readonly icon?: string;
 	/**
-	 * Subdomain denotes whether the app should be accessed via a path on the
-	 * `coder server` or via a hostname-based dev URL. If this is set to true
-	 * and there is no app wildcard configured on the server, the app will not
-	 * be accessible in the UI.
+	 * Denotes whether the app should be accessed via a path on the `coder server`
+	 * or via a hostname-based dev `url`. If this is set to true and there is no
+	 * app wildcard configured on the server, the app will not be accessible in the
+	 * UI.
 	 */
 	readonly subdomain: boolean;
 	/**
-	 * SubdomainName is the application domain exposed on the `coder server`.
+	 * The application domain exposed on the `coder server`.
 	 */
 	readonly subdomain_name?: string;
 	readonly sharing_level: WorkspaceAppSharingLevel;
 	/**
-	 * Healthcheck specifies the configuration for checking app health.
+	 * Specifies the configuration for checking app health.
 	 */
 	readonly healthcheck?: Healthcheck;
 	readonly health: WorkspaceAppHealth;
@@ -12726,12 +12632,12 @@ export interface WorkspaceApp {
 	readonly hidden: boolean;
 	readonly open_in: WorkspaceAppOpenIn;
 	/**
-	 * Tooltip is an optional markdown supported field that is displayed
-	 * when hovering over workspace apps in the UI.
+	 * An optional markdown supported field that is displayed when hovering over
+	 * workspace apps in the UI.
 	 */
 	readonly tooltip?: string;
 	/**
-	 * Statuses is a list of statuses for the app.
+	 * A list of statuses for the app.
 	 */
 	readonly statuses: readonly WorkspaceAppStatus[];
 }
@@ -12779,9 +12685,8 @@ export interface WorkspaceAppStatus {
 	readonly state: WorkspaceAppStatusState;
 	readonly message: string;
 	/**
-	 * URI is the URI of the resource that the status is for.
-	 * e.g. https://github.com/org/repo/pull/123
-	 * e.g. file:///path/to/file
+	 * The `uri` of the resource that the status is for. e.g.
+	 * https://github.com/org/repo/pull/123 e.g. file:///path/to/file
 	 */
 	readonly uri: string;
 	/**
@@ -12823,7 +12728,7 @@ export interface WorkspaceBuild {
 	readonly workspace_name: string;
 	readonly workspace_owner_id: string;
 	/**
-	 * WorkspaceOwnerName is the username of the owner of the workspace.
+	 * The username of the owner of the workspace.
 	 */
 	readonly workspace_owner_name: string;
 	readonly workspace_owner_avatar_url?: string;
@@ -12852,8 +12757,7 @@ export interface WorkspaceBuild {
  */
 export interface WorkspaceBuildDebugEventRequest {
 	/**
-	 * ID identifies this click so a later step of the funnel can be
-	 * attributed to it.
+	 * Identifies this click so a later step of the funnel can be attributed to it.
 	 */
 	readonly id: string;
 }
@@ -12870,10 +12774,6 @@ export interface WorkspaceBuildParameter {
 // From codersdk/workspacebuilds.go
 export interface WorkspaceBuildTimings {
 	readonly provisioner_timings: readonly ProvisionerTiming[];
-	/**
-	 * TODO: Consolidate agent-related timing metrics into a single struct when
-	 * updating the API version
-	 */
 	readonly agent_script_timings: readonly AgentScriptTiming[];
 	readonly agent_connection_timings: readonly AgentConnectionTiming[];
 }
@@ -12889,12 +12789,12 @@ export interface WorkspaceBuildUpdate {
 	readonly workspace_name: string;
 	readonly build_id: string;
 	/**
-	 * Transition is the workspace transition type: "start", "stop", or "delete".
+	 * The workspace transition type: "start", "stop", or "delete".
 	 */
 	readonly transition: string;
 	/**
-	 * JobStatus is the provisioner job status: "pending", "running",
-	 * "succeeded", "canceling", "canceled", or "failed".
+	 * The provisioner job status: "pending", "running", "succeeded", "canceling",
+	 * "canceled", or "failed".
 	 */
 	readonly job_status: string;
 	readonly build_number: number;
@@ -12926,7 +12826,7 @@ export interface WorkspaceDeploymentStats {
 // From codersdk/workspaces.go
 export interface WorkspaceFilter {
 	/**
-	 * FilterQuery supports a raw filter query string
+	 * Supports a raw filter query string.
 	 */
 	readonly q?: string;
 }
@@ -12946,9 +12846,9 @@ export interface WorkspaceHealth {
 export interface WorkspaceOptions {
 	readonly include_deleted?: boolean;
 	/**
-	 * IncludeRelated selects which related data to load alongside the workspace.
-	 * A nil value loads everything; a non-nil value is encoded into the
-	 * include_related query parameter and loads only the selected data.
+	 * Selects which related data to load alongside the workspace. A nil value
+	 * loads everything. A non-nil value is encoded into the include_related query
+	 * parameter and loads only the selected data.
 	 */
 	readonly include_related?: string;
 }
@@ -12958,7 +12858,7 @@ export interface WorkspaceProxy extends Region {
 	readonly derp_enabled: boolean;
 	readonly derp_only: boolean;
 	/**
-	 * Status is the latest status check of the proxy. This will be empty for deleted
+	 * The latest status check of the proxy. This will be empty for deleted
 	 * proxies. This value can be used to determine if a workspace proxy is healthy
 	 * and ready to use.
 	 */
@@ -12971,12 +12871,9 @@ export interface WorkspaceProxy extends Region {
 
 // From codersdk/deployment.go
 export interface WorkspaceProxyBuildInfo {
-	/**
-	 * TODO: @emyrk what should we include here?
-	 */
 	readonly workspace_proxy: boolean;
 	/**
-	 * DashboardURL is the URL of the coderd this proxy is connected to.
+	 * The URL of the coderd this proxy is connected to.
 	 */
 	readonly dashboard_url: string;
 }
@@ -12987,7 +12884,8 @@ export interface WorkspaceProxyBuildInfo {
  */
 export interface WorkspaceProxyReport extends BaseReport {
 	/**
-	 * Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
+	 * Deprecated and left for backward compatibility purposes. Use `severity`
+	 * instead.
 	 */
 	readonly healthy: boolean;
 	readonly workspace_proxies: RegionsResponse<WorkspaceProxy>;
@@ -12997,7 +12895,7 @@ export interface WorkspaceProxyReport extends BaseReport {
 export interface WorkspaceProxyStatus {
 	readonly status: ProxyHealthStatus;
 	/**
-	 * Report provides more information about the health of the workspace proxy.
+	 * Provides more information about the health of the workspace proxy.
 	 */
 	readonly report?: ProxyHealthReport;
 	readonly checked_at: string;
@@ -13053,24 +12951,23 @@ export const WorkspaceRoles: WorkspaceRole[] = ["admin", "", "use"];
 export interface WorkspaceSecret extends UserSecret {
 	readonly workspace_build_id: string;
 	/**
-	 * Ephemeral secrets are delivered to their build only and not copied to
-	 * the next one.
+	 * If true, the secret is delivered to its build only and not copied to the
+	 * next one.
 	 */
 	readonly ephemeral: boolean;
 	/**
-	 * ClearedAt is set once a later build superseded the secret and its
-	 * value was dropped. Cleared secrets are not delivered and replace
-	 * nothing.
+	 * Set once a later build superseded the secret and its value was dropped.
+	 * Cleared secrets are not delivered and replace nothing.
 	 */
 	readonly cleared_at?: string;
 	/**
-	 * EnvReplaces is the ID of the workspace owner's user secret that this
-	 * secret displaces on env_name.
+	 * The ID of the workspace owner's user secret that this secret displaces on
+	 * env_name.
 	 */
 	readonly env_replaces?: string;
 	/**
-	 * FileReplaces is the ID of the workspace owner's user secret that this
-	 * secret displaces on file_path.
+	 * The ID of the workspace owner's user secret that this secret displaces on
+	 * file_path.
 	 */
 	readonly file_replaces?: string;
 }
@@ -13103,25 +13000,23 @@ export const WorkspaceSecretInjectionTargetRequiredDetail =
 export interface WorkspaceSecretInput {
 	readonly name: string;
 	/**
-	 * Value is the plaintext secret. A null value removes the secret. An
-	 * empty string sets an empty secret.
+	 * The plaintext secret. A null value removes the secret. An empty string sets
+	 * an empty secret.
 	 */
 	readonly value: string | null;
 	/**
-	 * EnvName is the environment variable to inject the secret as. Empty
-	 * means no env injection. Required when file_path is empty and value is
-	 * set.
+	 * The environment variable to inject the secret as. Empty means no env
+	 * injection. Required when file_path is empty and value is set.
 	 */
 	readonly env_name?: string;
 	/**
-	 * FilePath is the path to write the secret to inside the workspace.
-	 * Empty means no file is written. Deployments may disable file path
-	 * delivery.
+	 * The path to write the secret to inside the workspace. Empty means no file is
+	 * written. Deployments may disable file path delivery.
 	 */
 	readonly file_path?: string;
 	/**
-	 * Ephemeral secrets are delivered to this build only and are not
-	 * carried forward to the next build.
+	 * If true, the secret is delivered to this build only and is not carried
+	 * forward to the next build.
 	 */
 	readonly ephemeral?: boolean;
 }
@@ -13141,19 +13036,18 @@ export const WorkspaceSecretRemovalWithFieldsDetail =
  */
 export interface WorkspaceSharingSettings {
 	/**
-	 * SharingGloballyDisabled is true if sharing has been disabled for this
-	 * organization because of a deployment-wide setting.
+	 * True if sharing has been disabled for this organization because of a
+	 * deployment-wide setting.
 	 */
 	readonly sharing_globally_disabled: boolean;
 	/**
-	 * SharingDisabled is deprecated and left for backward compatibility
-	 * purposes.
-	 * @deprecated use `ShareableWorkspaceOwners` instead
+	 * Left for backward compatibility purposes.
+	 *
+	 * @deprecated use `shareable_workspace_owners` instead
 	 */
 	readonly sharing_disabled: boolean;
 	/**
-	 * ShareableWorkspaceOwners controls whose workspaces can be shared
-	 * within the organization.
+	 * Controls whose workspaces can be shared within the organization.
 	 */
 	readonly shareable_workspace_owners: ShareableWorkspaceOwners;
 }

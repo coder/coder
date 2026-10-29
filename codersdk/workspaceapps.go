@@ -61,48 +61,48 @@ var MapWorkspaceAppOpenIns = map[WorkspaceAppOpenIn]struct{}{
 
 type WorkspaceApp struct {
 	ID uuid.UUID `json:"id" format:"uuid"`
-	// URL is the address being proxied to inside the workspace.
-	// If external is specified, this will be opened on the client.
+	// The address being proxied to inside the workspace. If `external` is
+	// specified, this will be opened on the client.
 	URL string `json:"url,omitempty"`
-	// External specifies whether the URL should be opened externally on
-	// the client or not.
+	// Whether the `url` should be opened externally on the client or not.
 	External bool `json:"external"`
-	// Slug is a unique identifier within the agent.
+	// A unique identifier within the agent.
 	Slug string `json:"slug"`
-	// DisplayName is a friendly name for the app.
+	// A friendly name for the app.
 	DisplayName string `json:"display_name,omitempty"`
 	Command     string `json:"command,omitempty"`
-	// Icon is a relative path or external URL that specifies
-	// an icon to be displayed in the dashboard.
+	// A relative path or external `url` that specifies an icon to be displayed in
+	// the dashboard.
 	Icon string `json:"icon,omitempty"`
-	// Subdomain denotes whether the app should be accessed via a path on the
-	// `coder server` or via a hostname-based dev URL. If this is set to true
-	// and there is no app wildcard configured on the server, the app will not
-	// be accessible in the UI.
+	// Denotes whether the app should be accessed via a path on the `coder server`
+	// or via a hostname-based dev `url`. If this is set to true and there is no
+	// app wildcard configured on the server, the app will not be accessible in the
+	// UI.
 	Subdomain bool `json:"subdomain"`
-	// SubdomainName is the application domain exposed on the `coder server`.
+	// The application domain exposed on the `coder server`.
 	SubdomainName string                   `json:"subdomain_name,omitempty"`
 	SharingLevel  WorkspaceAppSharingLevel `json:"sharing_level" enums:"owner,authenticated,organization,public"`
-	// Healthcheck specifies the configuration for checking app health.
+	// Specifies the configuration for checking app health.
 	Healthcheck Healthcheck        `json:"healthcheck,omitempty"`
 	Health      WorkspaceAppHealth `json:"health"`
 	Group       string             `json:"group,omitempty"`
 	Hidden      bool               `json:"hidden"`
 	OpenIn      WorkspaceAppOpenIn `json:"open_in"`
-	// Tooltip is an optional markdown supported field that is displayed
-	// when hovering over workspace apps in the UI.
+	// An optional markdown supported field that is displayed when hovering over
+	// workspace apps in the UI.
 	Tooltip string `json:"tooltip,omitempty"`
 
-	// Statuses is a list of statuses for the app.
+	// A list of statuses for the app.
 	Statuses []WorkspaceAppStatus `json:"statuses"`
 }
 
 type Healthcheck struct {
-	// URL specifies the endpoint to check for the app health.
+	// Specifies the endpoint to check for the app health.
 	URL string `json:"url"`
-	// Interval specifies the seconds between each health check.
+	// Specifies the seconds between each health check.
 	Interval int32 `json:"interval"`
-	// Threshold specifies the number of consecutive failed health checks before returning "unhealthy".
+	// Specifies the number of consecutive failed health checks before returning
+	// "unhealthy".
 	Threshold int32 `json:"threshold"`
 }
 
@@ -114,9 +114,8 @@ type WorkspaceAppStatus struct {
 	AppID       uuid.UUID               `json:"app_id" format:"uuid"`
 	State       WorkspaceAppStatusState `json:"state"`
 	Message     string                  `json:"message"`
-	// URI is the URI of the resource that the status is for.
-	// e.g. https://github.com/org/repo/pull/123
-	// e.g. file:///path/to/file
+	// The `uri` of the resource that the status is for. e.g.
+	// https://github.com/org/repo/pull/123 e.g. file:///path/to/file
 	URI string `json:"uri"`
 
 	// Deprecated: This field is unused and will be removed in a future version.

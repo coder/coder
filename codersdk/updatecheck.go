@@ -7,11 +7,11 @@ import (
 
 // UpdateCheckResponse contains information on the latest release of Coder.
 type UpdateCheckResponse struct {
-	// Current indicates whether the server version is the same as the latest.
+	// Whether the server version is the same as the latest.
 	Current bool `json:"current"`
-	// Version is the semantic version for the latest release of Coder.
+	// The semantic version for the latest release of Coder.
 	Version string `json:"version"`
-	// URL to download the latest release of Coder.
+	// The `url` to download the latest release of Coder.
 	URL string `json:"url"`
 }
 

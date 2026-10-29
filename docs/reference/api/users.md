@@ -1146,18 +1146,18 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/organizations \
 
 Status Code **200**
 
-| Name                         | Type              | Required | Restrictions | Description                                                                                                                                     |
-|------------------------------|-------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
-| `[array item]`               | array             | false    |              |                                                                                                                                                 |
-| `» created_at`               | string(date-time) | true     |              |                                                                                                                                                 |
-| `» default_org_member_roles` | array             | false    |              | Default org member roles are unioned into every member's effective roles at request time. Changes propagate to all members on the next request. |
-| `» description`              | string            | false    |              |                                                                                                                                                 |
-| `» display_name`             | string            | false    |              |                                                                                                                                                 |
-| `» icon`                     | string            | false    |              |                                                                                                                                                 |
-| `» id`                       | string(uuid)      | true     |              |                                                                                                                                                 |
-| `» is_default`               | boolean           | true     |              |                                                                                                                                                 |
-| `» name`                     | string            | false    |              |                                                                                                                                                 |
-| `» updated_at`               | string(date-time) | true     |              |                                                                                                                                                 |
+| Name                         | Type              | Required | Restrictions | Description                                                                                                                       |
+|------------------------------|-------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`               | array             | false    |              |                                                                                                                                   |
+| `» created_at`               | string(date-time) | true     |              |                                                                                                                                   |
+| `» default_org_member_roles` | array             | false    |              | Roles that are unioned into every member's effective roles at request time. Changes propagate to all members on the next request. |
+| `» description`              | string            | false    |              |                                                                                                                                   |
+| `» display_name`             | string            | false    |              |                                                                                                                                   |
+| `» icon`                     | string            | false    |              |                                                                                                                                   |
+| `» id`                       | string(uuid)      | true     |              |                                                                                                                                   |
+| `» is_default`               | boolean           | true     |              |                                                                                                                                   |
+| `» name`                     | string            | false    |              |                                                                                                                                   |
+| `» updated_at`               | string(date-time) | true     |              |                                                                                                                                   |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

@@ -97,8 +97,8 @@ type User struct {
 
 	OrganizationIDs []uuid.UUID `json:"organization_ids" format:"uuid"`
 	Roles           []SlimRole  `json:"roles"`
-	// HasAISeat intentionally omits omitempty so the API always includes the
-	// field, even when false.
+	// Always included in the response, even when false, because the field
+	// intentionally omits omitempty.
 	HasAISeat bool `json:"has_ai_seat"`
 }
 
@@ -169,16 +169,16 @@ type CreateUserRequest struct {
 	Username string `json:"username" validate:"required,username"`
 	Name     string `json:"name" validate:"user_real_name"`
 	Password string `json:"password"`
-	// UserLoginType defaults to LoginTypePassword.
+	// Defaults to LoginTypePassword.
 	UserLoginType LoginType `json:"login_type"`
-	// UserStatus defaults to UserStatusDormant. Service accounts default to
-	// UserStatusActive and can't be dormant.
+	// Defaults to UserStatusDormant. Service accounts default to UserStatusActive
+	// and can't be dormant.
 	UserStatus *UserStatus `json:"user_status"`
-	// OrganizationIDs is a list of organization IDs that the user should be a member of.
+	// A list of organization IDs that the user should be a member of.
 	OrganizationIDs []uuid.UUID `json:"organization_ids" validate:"" format:"uuid"`
 	// Service accounts are admin-managed accounts that cannot login.
 	ServiceAccount bool `json:"service_account,omitempty"`
-	// Roles is an optional list of site-level roles to assign at creation.
+	// An optional list of site-level roles to assign at creation.
 	Roles []string `json:"roles,omitempty"`
 }
 
@@ -190,9 +190,9 @@ type CreateUserRequestWithOrgs = CreateUserRequest
 type UpdateUserProfileRequest struct {
 	Username string `json:"username" validate:"required,username"`
 	Name     string `json:"name" validate:"user_real_name"`
-	// AvatarURL is only applied for users whose login type is password or
-	// none. For other login types the avatar is synced from the identity
-	// provider on login, so a submitted value is ignored.
+	// Only applied for users whose login type is password or none. For other login
+	// types the avatar is synced from the identity provider on login, so a
+	// submitted value is ignored.
 	AvatarURL string `json:"avatar_url" format:"uri"`
 }
 
@@ -243,12 +243,11 @@ const (
 )
 
 type UserAppearanceSettings struct {
-	// ThemePreference is the legacy single-field appearance setting. In
-	// "single" mode it mirrors the active theme. In "sync" mode modern
-	// clients normally mirror the active OS slot, but older clients can
-	// update only this field, so it may diverge from ThemeLight or
-	// ThemeDark until a modern client saves the full appearance state
-	// again.
+	// The legacy single-field appearance setting. In "single" mode it mirrors the
+	// active theme. In "sync" mode modern clients normally mirror the active OS
+	// slot, but older clients can update only this field, so it may diverge from
+	// `theme_light` or `theme_dark` until a modern client saves the full
+	// appearance state again.
 	ThemePreference string    `json:"theme_preference"`
 	ThemeMode       ThemeMode `json:"theme_mode"`
 	// Ignored when ThemeMode is "single"
@@ -260,21 +259,19 @@ type UserAppearanceSettings struct {
 
 type UpdateUserAppearanceSettingsRequest struct {
 	ThemePreference string `json:"theme_preference" validate:"required"`
-	// ThemeMode is optional for backward compatibility. When empty,
-	// the server leaves theme_mode, theme_light, and theme_dark
-	// unchanged so older CLI clients do not erase sync-mode settings.
-	// Legacy auto preferences are the exception: they clear theme_mode
-	// so clients can migrate the old sync-with-system setting.
+	// Optional for backward compatibility. When empty, the server leaves
+	// theme_mode, theme_light, and theme_dark unchanged so older CLI clients do
+	// not erase sync-mode settings. Legacy auto preferences are the exception:
+	// they clear theme_mode so clients can migrate the old sync-with-system
+	// setting.
 	ThemeMode ThemeMode `json:"theme_mode" validate:"omitempty,oneof=sync single"`
-	// ThemeLight is required when ThemeMode is "sync". In "single"
-	// mode an empty value means "preserve the previously persisted
-	// slot" rather than "clear the slot", so partial updates that send
-	// only one slot keep the other intact.
+	// Required when `theme_mode` is "sync". In "single" mode an empty value means
+	// "preserve the previously persisted slot" rather than "clear the slot", so
+	// partial updates that send only one slot keep the other intact.
 	ThemeLight string `json:"theme_light" validate:"required_if=ThemeMode sync,omitempty,oneof=light light-protan-deuter light-tritan dark dark-protan-deuter dark-tritan"`
-	// ThemeDark is required when ThemeMode is "sync". In "single" mode
-	// an empty value means "preserve the previously persisted slot"
-	// rather than "clear the slot", so partial updates that send only
-	// one slot keep the other intact.
+	// Required when `theme_mode` is "sync". In "single" mode an empty value means
+	// "preserve the previously persisted slot" rather than "clear the slot", so
+	// partial updates that send only one slot keep the other intact.
 	ThemeDark    string           `json:"theme_dark" validate:"required_if=ThemeMode sync,omitempty,oneof=light light-protan-deuter light-tritan dark dark-protan-deuter dark-tritan"`
 	TerminalFont TerminalFontName `json:"terminal_font" validate:"required"`
 }
@@ -344,27 +341,27 @@ type UpdateUserPasswordRequest struct {
 
 type UserQuietHoursScheduleResponse struct {
 	RawSchedule string `json:"raw_schedule"`
-	// UserSet is true if the user has set their own quiet hours schedule. If
-	// false, the user is using the default schedule.
+	// True if the user has set their own quiet hours schedule. If false, the user
+	// is using the default schedule.
 	UserSet bool `json:"user_set"`
-	// UserCanSet is true if the user is allowed to set their own quiet hours
-	// schedule. If false, the user cannot set a custom schedule and the default
-	// schedule will always be used.
+	// True if the user is allowed to set their own quiet hours schedule. If false,
+	// the user cannot set a custom schedule and the default schedule will always
+	// be used.
 	UserCanSet bool `json:"user_can_set"`
-	// Time is the time of day that the quiet hours window starts in the given
-	// Timezone each day.
+	// The time of day that the quiet hours window starts in the given `timezone`
+	// each day.
 	Time     string `json:"time"`     // HH:mm (24-hour)
 	Timezone string `json:"timezone"` // raw format from the cron expression, UTC if unspecified
-	// Next is the next time that the quiet hours window will start.
+	// The next time that the quiet hours window will start.
 	Next time.Time `json:"next" format:"date-time"`
 }
 
 type UpdateUserQuietHoursScheduleRequest struct {
-	// Schedule is a cron expression that defines when the user's quiet hours
-	// window is. Schedule must not be empty. For new users, the schedule is set
-	// to 2am in their browser or computer's timezone. The schedule denotes the
-	// beginning of a 4 hour window where the workspace is allowed to
-	// automatically stop or restart due to maintenance or template schedule.
+	// A cron expression that defines when the user's quiet hours window is. The
+	// schedule must not be empty. For new users, the schedule is set to 2am in
+	// their browser or computer's timezone. The schedule denotes the beginning of
+	// a 4 hour window where the workspace is allowed to automatically stop or
+	// restart due to maintenance or template schedule.
 	//
 	// The schedule must be daily with a single time, and should have a timezone
 	// specified via a CRON_TZ prefix (otherwise UTC will be used).
@@ -384,7 +381,7 @@ type UserRoles struct {
 }
 
 type ConvertLoginRequest struct {
-	// ToType is the login type to convert to.
+	// The login type to convert to.
 	ToType   LoginType `json:"to_type" validate:"required"`
 	Password string    `json:"password" validate:"required"`
 }
@@ -448,9 +445,9 @@ type OIDCAuthMethod struct {
 
 // OIDCClaimsResponse represents the merged OIDC claims for a user.
 type OIDCClaimsResponse struct {
-	// Claims are the merged claims from the OIDC provider. These
-	// are the union of the ID token claims and the userinfo claims,
-	// where userinfo claims take precedence on conflict.
+	// The merged claims from the OIDC provider. These are the union of the ID
+	// token claims and the userinfo claims, where userinfo claims take precedence
+	// on conflict.
 	Claims map[string]interface{} `json:"claims"`
 }
 
