@@ -35400,6 +35400,14 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "deadline_change": {
+                    "description": "DeadlineChange explains the last change to Deadline, or is nil if it is\nunknown.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceBuildDeadlineChange"
+                        }
+                    ]
+                },
                 "has_external_agent": {
                     "type": "boolean"
                 },
@@ -35507,6 +35515,105 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.WorkspaceBuildDeadlineChange": {
+            "type": "object",
+            "properties": {
+                "changed_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "changed_by": {
+                    "$ref": "#/definitions/codersdk.MinimalUser"
+                },
+                "reason": {
+                    "enum": [
+                        "build",
+                        "activity",
+                        "user_changed",
+                        "autostop_disabled",
+                        "template_schedule"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceBuildDeadlineReason"
+                        }
+                    ]
+                },
+                "sources": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceBuildDeadlineSource"
+                    }
+                }
+            }
+        },
+        "codersdk.WorkspaceBuildDeadlineReason": {
+            "type": "string",
+            "enum": [
+                "build",
+                "activity",
+                "user_changed",
+                "autostop_disabled",
+                "template_schedule"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceBuildDeadlineReasonBuild",
+                "WorkspaceBuildDeadlineReasonActivity",
+                "WorkspaceBuildDeadlineReasonUserChanged",
+                "WorkspaceBuildDeadlineReasonAutostopDisabled",
+                "WorkspaceBuildDeadlineReasonTemplateSchedule"
+            ]
+        },
+        "codersdk.WorkspaceBuildDeadlineSource": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "app_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "app_name": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "type": {
+                    "enum": [
+                        "session_app",
+                        "workspace_app",
+                        "connection",
+                        "chat",
+                        "chat_upload"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceBuildDeadlineSourceType"
+                        }
+                    ]
+                }
+            }
+        },
+        "codersdk.WorkspaceBuildDeadlineSourceType": {
+            "type": "string",
+            "enum": [
+                "session_app",
+                "workspace_app",
+                "connection",
+                "chat",
+                "chat_upload"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceBuildDeadlineSourceTypeSessionApp",
+                "WorkspaceBuildDeadlineSourceTypeWorkspaceApp",
+                "WorkspaceBuildDeadlineSourceTypeConnection",
+                "WorkspaceBuildDeadlineSourceTypeChat",
+                "WorkspaceBuildDeadlineSourceTypeChatUpload"
+            ]
         },
         "codersdk.WorkspaceBuildDebugEventRequest": {
             "type": "object",

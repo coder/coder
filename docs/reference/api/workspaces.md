@@ -100,6 +100,25 @@ of the template will be used.
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
+    "deadline_change": {
+      "changed_at": "2019-08-24T14:15:22Z",
+      "changed_by": {
+        "avatar_url": "http://example.com",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string",
+        "username": "string"
+      },
+      "reason": "build",
+      "sources": [
+        {
+          "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+          "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+          "app_name": "string",
+          "display_name": "string",
+          "type": "session_app"
+        }
+      ]
+    },
     "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -483,6 +502,25 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
+    "deadline_change": {
+      "changed_at": "2019-08-24T14:15:22Z",
+      "changed_by": {
+        "avatar_url": "http://example.com",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string",
+        "username": "string"
+      },
+      "reason": "build",
+      "sources": [
+        {
+          "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+          "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+          "app_name": "string",
+          "display_name": "string",
+          "type": "session_app"
+        }
+      ]
+    },
     "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -841,6 +879,25 @@ of the template will be used.
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
+    "deadline_change": {
+      "changed_at": "2019-08-24T14:15:22Z",
+      "changed_by": {
+        "avatar_url": "http://example.com",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string",
+        "username": "string"
+      },
+      "reason": "build",
+      "sources": [
+        {
+          "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+          "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+          "app_name": "string",
+          "display_name": "string",
+          "type": "session_app"
+        }
+      ]
+    },
     "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -1168,6 +1225,25 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
         "created_at": "2019-08-24T14:15:22Z",
         "daily_cost": 0,
         "deadline": "2019-08-24T14:15:22Z",
+        "deadline_change": {
+          "changed_at": "2019-08-24T14:15:22Z",
+          "changed_by": {
+            "avatar_url": "http://example.com",
+            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+            "name": "string",
+            "username": "string"
+          },
+          "reason": "build",
+          "sources": [
+            {
+              "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+              "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+              "app_name": "string",
+              "display_name": "string",
+              "type": "session_app"
+            }
+          ]
+        },
         "has_external_agent": true,
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -1461,6 +1537,25 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
+    "deadline_change": {
+      "changed_at": "2019-08-24T14:15:22Z",
+      "changed_by": {
+        "avatar_url": "http://example.com",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string",
+        "username": "string"
+      },
+      "reason": "build",
+      "sources": [
+        {
+          "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+          "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+          "app_name": "string",
+          "display_name": "string",
+          "type": "session_app"
+        }
+      ]
+    },
     "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
@@ -2096,6 +2191,25 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
     "deadline": "2019-08-24T14:15:22Z",
+    "deadline_change": {
+      "changed_at": "2019-08-24T14:15:22Z",
+      "changed_by": {
+        "avatar_url": "http://example.com",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string",
+        "username": "string"
+      },
+      "reason": "build",
+      "sources": [
+        {
+          "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+          "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+          "app_name": "string",
+          "display_name": "string",
+          "type": "session_app"
+        }
+      ]
+    },
     "has_external_agent": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
