@@ -44,11 +44,12 @@ describe("getAnswerBody", () => {
 	const answer = `${getAsyncAnswerPrefix("toolu_123")}Single migration`;
 
 	it.each([
-		["an answer to the call", answer, "toolu_123", "Single migration"],
-		["an answer to another call", answer, "toolu_456", undefined],
-		["a blocking answer", "Single migration", undefined, "Single migration"],
-		["no text", undefined, "toolu_123", undefined],
-	])("handles %s", (_, text, asyncToolCallId, body) => {
+		["Single migration", "an answer to the call", answer, "toolu_123"],
+		[undefined, "an answer to another call", answer, "toolu_456"],
+		[undefined, "an unprefixed message", "Single migration", "toolu_123"],
+		["Single migration", "a blocking answer", "Single migration", undefined],
+		[undefined, "no text", undefined, "toolu_123"],
+	])("returns %j for %s", (body, _, text, asyncToolCallId) => {
 		expect(getAnswerBody(text, asyncToolCallId)).toBe(body);
 	});
 });
