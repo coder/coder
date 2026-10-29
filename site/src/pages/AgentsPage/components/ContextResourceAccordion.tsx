@@ -36,7 +36,9 @@ export const ContextResourceAccordionTrigger: React.FC<
 	>
 		<div className="flex items-center gap-1">
 			<ChevronDownIcon className="size-4 shrink-0 transition-transform group-data-[state=closed]:-rotate-90" />
-			<span className="font-semibold flex items-center gap-0.5">{children}</span>
+			<span className="font-semibold flex items-center gap-0.5">
+				{children}
+			</span>
 		</div>
 		{detail != null && (
 			<span className="font-mono font-normal text-content-secondary group-data-[state=open]:opacity-0 transition-opacity duration-25">
