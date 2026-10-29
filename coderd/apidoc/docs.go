@@ -17695,7 +17695,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
-                "description": "Renames a workspace.\nFails unless the deployment or the workspace's template allows workspace renames.\nRequires permission to update the workspace, which its owner and the Owner and Organization Admin roles have.",
+                "description": "Renames a workspace.\nFails unless the deployment or the workspace's template allows workspace renames.\nRequires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.",
                 "consumes": [
                     "application/json"
                 ],
@@ -17771,7 +17771,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
-                "description": "Removes every user and group from a workspace's ACL.\nFails if workspace sharing is turned off for the organization.\nRequires permission to share the workspace, which the Owner and Organization Admin roles have, and which its owner has when the organization lets everyone share workspaces.",
+                "description": "Removes every user and group from a workspace's ACL.\nFails if workspace sharing is turned off for the organization.\nRequires permission to share the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role when the organization lets everyone share workspaces.",
                 "tags": [
                     "Workspaces"
                 ],
@@ -17799,7 +17799,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
-                "description": "Grants, changes, or removes access to a workspace for users and groups, as maps of user or group ID to role in ` + "`" + `user_roles` + "`" + ` and ` + "`" + `group_roles` + "`" + `.\nThe role is ` + "`" + `admin` + "`" + ` or ` + "`" + `use` + "`" + `, and an empty string removes the entry.\nFails if workspace sharing is turned off for the organization, and you can't change your own role unless you can share any workspace in the organization.\nRequires permission to share the workspace, which the Owner and Organization Admin roles have, and which its owner has when the organization lets everyone share workspaces.",
+                "description": "Grants, changes, or removes access to a workspace for users and groups, as maps of user or group ID to role in ` + "`" + `user_roles` + "`" + ` and ` + "`" + `group_roles` + "`" + `.\nThe role is ` + "`" + `admin` + "`" + ` or ` + "`" + `use` + "`" + `, and an empty string removes the entry.\nFails if workspace sharing is turned off for the organization, and you can't change your own role unless you can share any workspace in the organization.\nRequires permission to share the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role when the organization lets everyone share workspaces.",
                 "consumes": [
                     "application/json"
                 ],
@@ -17844,7 +17844,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/agent-connection-watch": {
             "get": {
-                "description": "Upgrades to a WebSocket and sends one ` + "`" + `workspacesdk.ConnectionWatchEvent` + "`" + ` JSON message per event, so that a client can wait for a workspace agent to be ready.\nA ` + "`" + `build_update` + "`" + ` message holds the ` + "`" + `transition` + "`" + ` and ` + "`" + `job_status` + "`" + ` of the latest build and is sent when either changes, and an ` + "`" + `agent_update` + "`" + ` message holds the agent's ` + "`" + `id` + "`" + ` and ` + "`" + `lifecycle` + "`" + ` state and is sent only while the latest ` + "`" + `start` + "`" + ` build has succeeded.\nAn ` + "`" + `error` + "`" + ` message holds a ` + "`" + `code` + "`" + `, ` + "`" + `retryable` + "`" + `, and ` + "`" + `message` + "`" + ` and is the last message before the server closes the connection.\nSet the ` + "`" + `agent_name` + "`" + ` query parameter to choose an agent when the workspace has more than one.\nThe server closes the connection if you send a message.",
+                "description": "Upgrades to a WebSocket and sends one ` + "`" + `workspacesdk.ConnectionWatchEvent` + "`" + ` JSON message per event, so that a client can wait for a workspace agent to be ready.\nA ` + "`" + `build_update` + "`" + ` message holds the ` + "`" + `transition` + "`" + ` and ` + "`" + `job_status` + "`" + ` of the latest build, and the server sends one first and again whenever the build number, ` + "`" + `transition` + "`" + `, or ` + "`" + `job_status` + "`" + ` changes.\nAn ` + "`" + `agent_update` + "`" + ` message holds the agent's ` + "`" + `id` + "`" + ` and ` + "`" + `lifecycle` + "`" + ` state, and the server sends it only while the latest ` + "`" + `start` + "`" + ` build has succeeded.\nAn ` + "`" + `error` + "`" + ` message holds a ` + "`" + `code` + "`" + `, ` + "`" + `retryable` + "`" + `, and ` + "`" + `message` + "`" + ` and is the last message before the server closes the connection.\nSet the ` + "`" + `agent_name` + "`" + ` query parameter to choose an agent when the workspace has more than one.\nThe server closes the connection if you send a message.",
                 "produces": [
                     "application/json"
                 ],
@@ -17880,7 +17880,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/autostart": {
             "put": {
-                "description": "Sets or clears the schedule on which Coder starts the workspace automatically, given as ` + "`" + `schedule` + "`" + ` in the form ` + "`" + `CRON_TZ=\u003cIANA Timezone\u003e \u003cmin\u003e \u003chour\u003e * * \u003cdow\u003e` + "`" + `.\nAn empty or omitted ` + "`" + `schedule` + "`" + ` turns autostart off.\nFails if the workspace's template doesn't allow users to set an autostart schedule, and for prebuilt workspaces.\nRequires permission to update the workspace, which its owner and the Owner and Organization Admin roles have.",
+                "description": "Sets or clears the schedule on which Coder starts the workspace automatically, given as ` + "`" + `schedule` + "`" + ` in the form ` + "`" + `CRON_TZ=\u003cIANA Timezone\u003e \u003cmin\u003e \u003chour\u003e * * \u003cdow\u003e` + "`" + `.\nAn empty or omitted ` + "`" + `schedule` + "`" + ` turns autostart off.\nFails if the workspace's template doesn't allow users to set an autostart schedule, and for prebuilt workspaces.\nRequires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.",
                 "consumes": [
                     "application/json"
                 ],
@@ -17922,7 +17922,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/autoupdates": {
             "put": {
-                "description": "Sets whether the workspace moves to the template's active version when it starts, with ` + "`" + `automatic_updates` + "`" + ` set to ` + "`" + `always` + "`" + ` or ` + "`" + `never` + "`" + `.\nRequires permission to update the workspace, which its owner and the Owner and Organization Admin roles have.",
+                "description": "Sets whether the workspace moves to the template's active version when it starts, with ` + "`" + `automatic_updates` + "`" + ` set to ` + "`" + `always` + "`" + ` or ` + "`" + `never` + "`" + `.\nRequires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18073,7 +18073,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/dormant": {
             "put": {
-                "description": "Marks a workspace as dormant, or makes a dormant workspace active again, depending on ` + "`" + `dormant` + "`" + ` in the request body.\nReturns ` + "`" + `304 Not Modified` + "`" + ` if the workspace is already in that state, and fails for prebuilt workspaces.\nWhen you mark another user's workspace dormant, Coder notifies its owner.\nRequires permission to update the workspace, which its owner and the Owner and Organization Admin roles have.",
+                "description": "Marks a workspace as dormant, or makes a dormant workspace active again, depending on ` + "`" + `dormant` + "`" + ` in the request body.\nReturns ` + "`" + `304 Not Modified` + "`" + ` if the workspace is already in that state, and fails for prebuilt workspaces.\nWhen you mark another user's workspace dormant, Coder notifies its owner.\nRequires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18460,7 +18460,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/ttl": {
             "put": {
-                "description": "Sets or clears the time until the workspace stops automatically, given as ` + "`" + `ttl_ms` + "`" + ` in milliseconds.\nThe value must be between one minute and 30 days, and ` + "`" + `null` + "`" + ` or ` + "`" + `0` + "`" + ` turns autostop off for the workspace.\nFails if the workspace's template doesn't allow a custom autostop, and for prebuilt workspaces.\nRequires permission to update the workspace, which its owner and the Owner and Organization Admin roles have.",
+                "description": "Sets or clears the time until the workspace stops automatically, given as ` + "`" + `ttl_ms` + "`" + ` in milliseconds.\nThe value must be between one minute and 30 days, and ` + "`" + `null` + "`" + ` or ` + "`" + `0` + "`" + ` turns autostop off for the workspace.\nFails if the workspace's template doesn't allow a custom autostop, and for prebuilt workspaces.\nRequires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18502,7 +18502,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/usage": {
             "post": {
-                "description": "Marks a workspace as recently used.\nWhen the ` + "`" + `workspace-usage` + "`" + ` experiment is enabled and the request body sets both ` + "`" + `agent_id` + "`" + ` and ` + "`" + `app_name` + "`" + `, it also counts a session for that app on that workspace agent.\nRequires permission to update the workspace, which its owner and the Owner and Organization Admin roles have.",
+                "description": "Marks a workspace as recently used.\nWhen the ` + "`" + `workspace-usage` + "`" + ` experiment is enabled and the request body sets both ` + "`" + `agent_id` + "`" + ` and ` + "`" + `app_name` + "`" + `, it also counts a session for that app on that workspace agent.\nRequires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.",
                 "consumes": [
                     "application/json"
                 ],

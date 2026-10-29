@@ -57,7 +57,8 @@ func New(ctx context.Context, logger slog.Logger, sub pubsub.Subscriber, db data
 
 // @Summary Workspace Agent Connection Watch
 // @Description Upgrades to a WebSocket and sends one `workspacesdk.ConnectionWatchEvent` JSON message per event, so that a client can wait for a workspace agent to be ready.
-// @Description A `build_update` message holds the `transition` and `job_status` of the latest build and is sent when either changes, and an `agent_update` message holds the agent's `id` and `lifecycle` state and is sent only while the latest `start` build has succeeded.
+// @Description A `build_update` message holds the `transition` and `job_status` of the latest build, and the server sends one first and again whenever the build number, `transition`, or `job_status` changes.
+// @Description An `agent_update` message holds the agent's `id` and `lifecycle` state, and the server sends it only while the latest `start` build has succeeded.
 // @Description An `error` message holds a `code`, `retryable`, and `message` and is the last message before the server closes the connection.
 // @Description Set the `agent_name` query parameter to choose an agent when the workspace has more than one.
 // @Description The server closes the connection if you send a message.

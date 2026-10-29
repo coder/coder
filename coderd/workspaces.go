@@ -1207,7 +1207,7 @@ func (api *API) notifyWorkspaceCreated(
 // @Summary Update workspace metadata by ID
 // @Description Renames a workspace.
 // @Description Fails unless the deployment or the workspace's template allows workspace renames.
-// @Description Requires permission to update the workspace, which its owner and the Owner and Organization Admin roles have.
+// @Description Requires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.
 // @ID update-workspace-metadata-by-id
 // @Security CoderSessionToken
 // @Accept json
@@ -1314,7 +1314,7 @@ func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Description Sets or clears the schedule on which Coder starts the workspace automatically, given as `schedule` in the form `CRON_TZ=<IANA Timezone> <min> <hour> * * <dow>`.
 // @Description An empty or omitted `schedule` turns autostart off.
 // @Description Fails if the workspace's template doesn't allow users to set an autostart schedule, and for prebuilt workspaces.
-// @Description Requires permission to update the workspace, which its owner and the Owner and Organization Admin roles have.
+// @Description Requires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.
 // @ID update-workspace-autostart-schedule-by-id
 // @Security CoderSessionToken
 // @Accept json
@@ -1421,7 +1421,7 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 // @Description Sets or clears the time until the workspace stops automatically, given as `ttl_ms` in milliseconds.
 // @Description The value must be between one minute and 30 days, and `null` or `0` turns autostop off for the workspace.
 // @Description Fails if the workspace's template doesn't allow a custom autostop, and for prebuilt workspaces.
-// @Description Requires permission to update the workspace, which its owner and the Owner and Organization Admin roles have.
+// @Description Requires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.
 // @ID update-workspace-ttl-by-id
 // @Security CoderSessionToken
 // @Accept json
@@ -1553,7 +1553,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 // @Description Marks a workspace as dormant, or makes a dormant workspace active again, depending on `dormant` in the request body.
 // @Description Returns `304 Not Modified` if the workspace is already in that state, and fails for prebuilt workspaces.
 // @Description When you mark another user's workspace dormant, Coder notifies its owner.
-// @Description Requires permission to update the workspace, which its owner and the Owner and Organization Admin roles have.
+// @Description Requires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.
 // @ID update-workspace-dormancy-status-by-id
 // @Security CoderSessionToken
 // @Accept json
@@ -1834,7 +1834,7 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Summary Post Workspace Usage by ID
 // @Description Marks a workspace as recently used.
 // @Description When the `workspace-usage` experiment is enabled and the request body sets both `agent_id` and `app_name`, it also counts a session for that app on that workspace agent.
-// @Description Requires permission to update the workspace, which its owner and the Owner and Organization Admin roles have.
+// @Description Requires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.
 // @ID post-workspace-usage-by-id
 // @Security CoderSessionToken
 // @Tags Workspaces
@@ -2038,7 +2038,7 @@ func (api *API) deleteFavoriteWorkspace(rw http.ResponseWriter, r *http.Request)
 
 // @Summary Update workspace automatic updates by ID
 // @Description Sets whether the workspace moves to the template's active version when it starts, with `automatic_updates` set to `always` or `never`.
-// @Description Requires permission to update the workspace, which its owner and the Owner and Organization Admin roles have.
+// @Description Requires permission to update the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role.
 // @ID update-workspace-automatic-updates-by-id
 // @Security CoderSessionToken
 // @Accept json
@@ -2608,7 +2608,7 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 // @Description Grants, changes, or removes access to a workspace for users and groups, as maps of user or group ID to role in `user_roles` and `group_roles`.
 // @Description The role is `admin` or `use`, and an empty string removes the entry.
 // @Description Fails if workspace sharing is turned off for the organization, and you can't change your own role unless you can share any workspace in the organization.
-// @Description Requires permission to share the workspace, which the Owner and Organization Admin roles have, and which its owner has when the organization lets everyone share workspaces.
+// @Description Requires permission to share the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role when the organization lets everyone share workspaces.
 // @ID update-workspace-acl
 // @Security CoderSessionToken
 // @Accept json
@@ -2732,7 +2732,7 @@ type workspaceData struct {
 // @Summary Completely clears the workspace's user and group ACLs.
 // @Description Removes every user and group from a workspace's ACL.
 // @Description Fails if workspace sharing is turned off for the organization.
-// @Description Requires permission to share the workspace, which the Owner and Organization Admin roles have, and which its owner has when the organization lets everyone share workspaces.
+// @Description Requires permission to share the workspace, which the Owner and Organization Admin roles have, and which its owner has through the Organization Workspace Access role when the organization lets everyone share workspaces.
 // @ID completely-clears-the-workspaces-user-and-group-acls
 // @Security CoderSessionToken
 // @Tags Workspaces
