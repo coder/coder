@@ -140,6 +140,11 @@ Image attachments require a model that supports vision input, and Anthropic mode
 Providers differ in which types they accept as native file content.
 A part the provider rejects is downgraded to text instead of being dropped.
 
+The agent can also attach files to its messages (for example, with the `attach_file` tool).
+After a turn ends, an **Attachments** button at the end of the turn opens a list of the files the agent attached during it.
+The **Attachments** section of the chat's **Summary** tab lists the files the agent attached across the chat.
+In either list, you can download the files, and open PNG, JPEG, GIF, and WebP images and plain text, Markdown, CSV, and JSON files in the chat.
+
 ## Security benefits of the control plane architecture
 
 Running the agent loop in the control plane rather than inside the developer workspace is an architectural decision that directly addresses the primary concerns regulated organizations have with AI coding tools: how do you give developers access to coding agents without introducing unnecessary risk?
