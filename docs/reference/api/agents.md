@@ -20,6 +20,9 @@ curl -X GET http://coder-server:8080/api/v2/derp-map \
 
 `GET /api/v2/derp-map`
 
+Streams the DERP map over a WebSocket, sending the current map when you connect and again each time it changes.
+Doesn't require a session token.
+
 ### Responses
 
 | Status | Meaning                                                                  | Description         | Schema |
@@ -39,6 +42,9 @@ curl -X GET http://coder-server:8080/api/v2/tailnet \
 ```
 
 `GET /api/v2/tailnet`
+
+Upgrades to a WebSocket that carries a user-scoped tailnet RPC connection, which lets one connection reach every workspace agent you can SSH to.
+Clients such as Coder Desktop use it, and it returns `409` when the deployment turns on browser-only connections.
 
 ### Responses
 
@@ -61,6 +67,10 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/aws-instance-identi
 ```
 
 `POST /api/v2/workspaceagents/aws-instance-identity`
+
+Exchanges a signed AWS instance identity for the session token of the workspace agent that runs on that instance.
+The workspace agent calls this to authenticate on a AWS instance, and the instance must belong to the workspace's latest build.
+Doesn't require a session token.
 
 > Body parameter
 
@@ -110,6 +120,10 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/azure-instance-iden
 
 `POST /api/v2/workspaceagents/azure-instance-identity`
 
+Exchanges a signed Azure instance identity for the session token of the workspace agent that runs on that instance.
+The workspace agent calls this to authenticate on a Azure instance, and the instance must belong to the workspace's latest build.
+Doesn't require a session token.
+
 > Body parameter
 
 ```json
@@ -158,6 +172,10 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/google-instance-ide
 
 `POST /api/v2/workspaceagents/google-instance-identity`
 
+Exchanges a signed Google Cloud instance identity for the session token of the workspace agent that runs on that instance.
+The workspace agent calls this to authenticate on a Google Cloud instance, and the instance must belong to the workspace's latest build.
+Doesn't require a session token.
+
 > Body parameter
 
 ```json
@@ -205,6 +223,10 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/app-status \
 
 `PATCH /api/v2/workspaceagents/me/app-status`
 
+Sets the state and message of one of the calling agent's workspace apps.
+Older workspace agents call this route, and current agents use `UpdateAppStatus` on the Agent API instead.
+Authenticate with the workspace agent token instead of a session token.
+
 > Body parameter
 
 ```json
@@ -220,9 +242,9 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/app-status \
 
 ### Parameters
 
-| Name   | In   | Type                                                         | Required | Description |
-|--------|------|--------------------------------------------------------------|----------|-------------|
-| `body` | body | [agentsdk.PatchAppStatus](schemas.md#agentsdkpatchappstatus) | true     | app status  |
+| Name   | In   | Type                                                         | Required | Description                                                                                                                                               |
+|--------|------|--------------------------------------------------------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `body` | body | [agentsdk.PatchAppStatus](schemas.md#agentsdkpatchappstatus) | true     | App status to set. `app_slug` selects the workspace app, `state` is one of `working`, `idle`, `complete`, or `failure`, and `message` is the status text. |
 
 ### Example responses
 
@@ -262,13 +284,17 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/external-auth?mat
 
 `GET /api/v2/workspaceagents/me/external-auth`
 
+Returns an access token for an external authentication provider on behalf of the workspace owner, or a login URL when the owner hasn't linked the provider yet.
+The workspace agent calls this for Git credentials and `coder external-auth access-token`, with either `match` or `id` but not both.
+Authenticate with the workspace agent token instead of a session token.
+
 ### Parameters
 
-| Name     | In    | Type    | Required | Description                       |
-|----------|-------|---------|----------|-----------------------------------|
-| `match`  | query | string  | true     | Match                             |
-| `id`     | query | string  | true     | Provider ID                       |
-| `listen` | query | boolean | false    | Wait for a new token to be issued |
+| Name     | In    | Type    | Required | Description                                                                                                                                    |
+|----------|-------|---------|----------|------------------------------------------------------------------------------------------------------------------------------------------------|
+| `match`  | query | string  | true     | URL or hostname that selects the external auth provider by its configured regex. Pass `match` or `id`, not both.                               |
+| `id`     | query | string  | true     | ID of the external auth provider, as configured on the deployment. Pass `id` or `match`, not both.                                             |
+| `listen` | query | boolean | false    | When present, whatever its value, the request waits until the workspace owner has a valid token instead of returning the login URL right away. |
 
 ### Example responses
 
@@ -307,13 +333,17 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitauth?match=str
 
 `GET /api/v2/workspaceagents/me/gitauth`
 
+Returns the same response as `/api/v2/workspaceagents/me/external-auth`, and remains only so legacy workspace agents keep working.
+New code uses `/api/v2/workspaceagents/me/external-auth` instead.
+Authenticate with the workspace agent token instead of a session token.
+
 ### Parameters
 
-| Name     | In    | Type    | Required | Description                       |
-|----------|-------|---------|----------|-----------------------------------|
-| `match`  | query | string  | true     | Match                             |
-| `id`     | query | string  | true     | Provider ID                       |
-| `listen` | query | boolean | false    | Wait for a new token to be issued |
+| Name     | In    | Type    | Required | Description                                                                                                                                    |
+|----------|-------|---------|----------|------------------------------------------------------------------------------------------------------------------------------------------------|
+| `match`  | query | string  | true     | URL or hostname that selects the external auth provider by its configured regex. Pass `match` or `id`, not both.                               |
+| `id`     | query | string  | true     | ID of the external auth provider, as configured on the deployment. Pass `id` or `match`, not both.                                             |
+| `listen` | query | boolean | false    | When present, whatever its value, the request waits until the workspace owner has a valid token instead of returning the login URL right away. |
 
 ### Example responses
 
@@ -352,6 +382,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitsshkey \
 
 `GET /api/v2/workspaceagents/me/gitsshkey`
 
+Returns the workspace owner's Git SSH key pair, including the private key, so the workspace agent can authenticate Git over SSH.
+Authenticate with the workspace agent token instead of a session token.
+
 ### Example responses
 
 > 200 Response
@@ -385,6 +418,10 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/log-source \
 
 `POST /api/v2/workspaceagents/me/log-source`
 
+Registers a log source, identified by `id`, that the workspace agent attaches to the logs it uploads.
+Posting an `id` that the agent already registered doesn't create another source.
+Authenticate with the workspace agent token instead of a session token.
+
 > Body parameter
 
 ```json
@@ -397,9 +434,9 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/log-source \
 
 ### Parameters
 
-| Name   | In   | Type                                                                     | Required | Description        |
-|--------|------|--------------------------------------------------------------------------|----------|--------------------|
-| `body` | body | [agentsdk.PostLogSourceRequest](schemas.md#agentsdkpostlogsourcerequest) | true     | Log source request |
+| Name   | In   | Type                                                                     | Required | Description                                                                                                              |
+|--------|------|--------------------------------------------------------------------------|----------|--------------------------------------------------------------------------------------------------------------------------|
+| `body` | body | [agentsdk.PostLogSourceRequest](schemas.md#agentsdkpostlogsourcerequest) | true     | Log source to register. `id` identifies the source within the agent, `display_name` is its name, and `icon` is its icon. |
 
 ### Example responses
 
@@ -437,6 +474,10 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/logs \
 
 `PATCH /api/v2/workspaceagents/me/logs`
 
+Appends log lines from the workspace agent to the agent's logs, under the log source `log_source_id`.
+Each agent can store up to 1 MiB of log output, and the route returns `413` once the agent exceeds that limit.
+Authenticate with the workspace agent token instead of a session token.
+
 > Body parameter
 
 ```json
@@ -454,9 +495,9 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/logs \
 
 ### Parameters
 
-| Name   | In   | Type                                               | Required | Description |
-|--------|------|----------------------------------------------------|----------|-------------|
-| `body` | body | [agentsdk.PatchLogs](schemas.md#agentsdkpatchlogs) | true     | logs        |
+| Name   | In   | Type                                               | Required | Description                                                                                                                                              |
+|--------|------|----------------------------------------------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `body` | body | [agentsdk.PatchLogs](schemas.md#agentsdkpatchlogs) | true     | Log lines to append. `log_source_id` selects the log source, and each entry in `logs` has `created_at`, `output`, and `level`, which defaults to `info`. |
 
 ### Example responses
 
@@ -497,11 +538,16 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/reinit \
 
 `GET /api/v2/workspaceagents/me/reinit`
 
+Streams server-sent events that tell a workspace agent in a prebuilt workspace when to reinitialize, which happens after a user claims the workspace.
+Each event carries the `workspace_id`, the `reason`, and the `owner_id` of the new owner.
+With `wait` set to `true`, the route returns `409` when the workspace isn't a prebuilt workspace that's waiting to be claimed.
+Authenticate with the workspace agent token instead of a session token.
+
 ### Parameters
 
-| Name   | In    | Type    | Required | Description                     |
-|--------|-------|---------|----------|---------------------------------|
-| `wait` | query | boolean | false    | Opt in to durable reinit checks |
+| Name   | In    | Type    | Required | Description                                                                                                                                                                                  |
+|--------|-------|---------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `wait` | query | boolean | false    | Set to `true` to opt in to the durable check. The route then returns an event right away when the claim already happened, and `409` when the workspace isn't a prebuild waiting for a claim. |
 
 ### Example responses
 
@@ -536,6 +582,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
 ```
 
 `GET /api/v2/workspaceagents/{workspaceagent}`
+
+Returns a workspace agent's details, including its status, apps, scripts, and log sources.
+You must be able to read the workspace that the agent belongs to.
 
 ### Parameters
 
@@ -709,6 +758,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
 
 `GET /api/v2/workspaceagents/{workspaceagent}/connection`
 
+Returns the settings a client needs to connect to a workspace agent, such as the DERP map and the workspace hostname suffix.
+Clients such as the Coder CLI call this before they connect, and you must be able to read the workspace that the agent belongs to.
+
 ### Parameters
 
 | Name             | In   | Type         | Required | Description        |
@@ -807,12 +859,15 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
 
 `GET /api/v2/workspaceagents/{workspaceagent}/containers`
 
+Returns the containers and dev containers that a connected workspace agent detects, and filters the containers by `label`.
+Returns `400` when the agent isn't connected, and you must be able to read the workspace that the agent belongs to.
+
 ### Parameters
 
-| Name             | In    | Type              | Required | Description        |
-|------------------|-------|-------------------|----------|--------------------|
-| `workspaceagent` | path  | string(uuid)      | true     | Workspace agent ID |
-| `label`          | query | string(key=value) | true     | Labels             |
+| Name             | In    | Type              | Required | Description                                                                                                                                    |
+|------------------|-------|-------------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------|
+| `workspaceagent` | path  | string(uuid)      | true     | Workspace agent ID                                                                                                                             |
+| `label`          | query | string(key=value) | true     | Label filter in `key=value` form. Repeat the parameter to require several labels, and the route returns only containers that have all of them. |
 
 ### Example responses
 
@@ -913,12 +968,15 @@ curl -X DELETE http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/
 
 `DELETE /api/v2/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}`
 
+Stops and removes a dev container, and deletes its sub-agent if it has one, through a connected workspace agent.
+Requires permission to update the workspace, and returns `409` while the dev container is starting, stopping, or deleting.
+
 ### Parameters
 
-| Name             | In   | Type         | Required | Description        |
-|------------------|------|--------------|----------|--------------------|
-| `workspaceagent` | path | string(uuid) | true     | Workspace agent ID |
-| `devcontainer`   | path | string       | true     | Devcontainer ID    |
+| Name             | In   | Type         | Required | Description                                                                                                  |
+|------------------|------|--------------|----------|--------------------------------------------------------------------------------------------------------------|
+| `workspaceagent` | path | string(uuid) | true     | Workspace agent ID                                                                                           |
+| `devcontainer`   | path | string       | true     | Dev container ID. Get it from the `id` field of an entry in `devcontainers` in the list containers response. |
 
 ### Responses
 
@@ -941,12 +999,15 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/co
 
 `POST /api/v2/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}/recreate`
 
+Asks a connected workspace agent to rebuild a dev container and replace the existing container, and returns `202` while the rebuild runs.
+Requires permission to update the workspace, and returns `409` while the dev container is starting, stopping, or deleting.
+
 ### Parameters
 
-| Name             | In   | Type         | Required | Description        |
-|------------------|------|--------------|----------|--------------------|
-| `workspaceagent` | path | string(uuid) | true     | Workspace agent ID |
-| `devcontainer`   | path | string       | true     | Devcontainer ID    |
+| Name             | In   | Type         | Required | Description                                                                                                  |
+|------------------|------|--------------|----------|--------------------------------------------------------------------------------------------------------------|
+| `workspaceagent` | path | string(uuid) | true     | Workspace agent ID                                                                                           |
+| `devcontainer`   | path | string       | true     | Dev container ID. Get it from the `id` field of an entry in `devcontainers` in the list containers response. |
 
 ### Example responses
 
@@ -985,6 +1046,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
 ```
 
 `GET /api/v2/workspaceagents/{workspaceagent}/containers/watch`
+
+Upgrades to a WebSocket that streams the containers and dev containers that a connected workspace agent detects.
+Each message is a JSON object in the same shape as the list containers response, sent whenever the agent reports a change, and the route returns `400` when the agent isn't connected.
 
 ### Parameters
 
@@ -1091,6 +1155,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/coo
 
 `GET /api/v2/workspaceagents/{workspaceagent}/coordinate`
 
+Upgrades to a WebSocket that carries the tailnet coordination protocol, which a client uses to exchange network node updates with a workspace agent.
+Clients such as the Coder CLI use it, and it requires permission to SSH to the workspace. It returns `409` when the deployment turns on browser-only connections.
+
 ### Parameters
 
 | Name             | In   | Type         | Required | Description        |
@@ -1117,6 +1184,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/lis
 ```
 
 `GET /api/v2/workspaceagents/{workspaceagent}/listening-ports`
+
+Returns the TCP ports that a connected workspace agent listens on.
+The list leaves out ports below `9`, ports that a workspace app uses, and common non-HTTP ports such as databases and SSH.
+Returns `400` when the agent isn't connected.
 
 ### Parameters
 
@@ -1161,16 +1232,19 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/log
 
 `GET /api/v2/workspaceagents/{workspaceagent}/logs`
 
+Returns the logs that a workspace agent wrote, such as startup script output, in order, or streams new logs over a WebSocket when you set `follow`.
+Each WebSocket message is a JSON array of log entries, and you must be able to read the workspace that the agent belongs to.
+
 ### Parameters
 
-| Name             | In    | Type         | Required | Description                                                                                                                                 |
-|------------------|-------|--------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------|
-| `workspaceagent` | path  | string(uuid) | true     | Workspace agent ID                                                                                                                          |
-| `before`         | query | integer      | false    | Before log id                                                                                                                               |
-| `after`          | query | integer      | false    | After log id                                                                                                                                |
-| `follow`         | query | boolean      | false    | Follow log stream                                                                                                                           |
-| `no_compression` | query | boolean      | false    | Disable compression for WebSocket connection                                                                                                |
-| `format`         | query | string       | false    | Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true. |
+| Name             | In    | Type         | Required | Description                                                                                                                                                                     |
+|------------------|-------|--------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `workspaceagent` | path  | string(uuid) | true     | Workspace agent ID                                                                                                                                                              |
+| `before`         | query | integer      | false    | Not used. The route ignores this parameter.                                                                                                                                     |
+| `after`          | query | integer      | false    | ID of the last log entry you already have. Returns only entries with a greater ID, and the value must be an integer of `0` or more.                                             |
+| `follow`         | query | boolean      | false    | When present, whatever its value, upgrades to a WebSocket that sends existing logs and then new logs as they arrive. Not supported with `format=text`.                          |
+| `no_compression` | query | boolean      | false    | When present, turns off WebSocket compression. It only applies with `follow`.                                                                                                   |
+| `format`         | query | string       | false    | Log output format, either `json` or `text`. The default is `json`, and `text` returns plain text with RFC3339 timestamps and ANSI colors. `text` isn't supported with `follow`. |
 
 #### Enumerated Values
 
@@ -1233,6 +1307,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/pty
 
 `GET /api/v2/workspaceagents/{workspaceagent}/pty`
 
+Upgrades to a WebSocket that opens a terminal session on a workspace agent and copies data between the two, as the web terminal does.
+Requires permission to SSH to the workspace, and the `reconnect` query parameter must be a UUID that identifies the session so a client can resume it.
+Optional query parameters are `height` and `width` (both default to `80`), `command`, `container`, `container_user`, and `backend_type`.
+
 ### Parameters
 
 | Name             | In   | Type         | Required | Description        |
@@ -1260,15 +1338,18 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/sta
 
 `GET /api/v2/workspaceagents/{workspaceagent}/startup-logs`
 
+Returns the same response as `/api/v2/workspaceagents/{workspaceagent}/logs`, and remains only so older clients keep working.
+New code uses `/api/v2/workspaceagents/{workspaceagent}/logs` instead.
+
 ### Parameters
 
-| Name             | In    | Type         | Required | Description                                  |
-|------------------|-------|--------------|----------|----------------------------------------------|
-| `workspaceagent` | path  | string(uuid) | true     | Workspace agent ID                           |
-| `before`         | query | integer      | false    | Before log id                                |
-| `after`          | query | integer      | false    | After log id                                 |
-| `follow`         | query | boolean      | false    | Follow log stream                            |
-| `no_compression` | query | boolean      | false    | Disable compression for WebSocket connection |
+| Name             | In    | Type         | Required | Description                                                                                                                         |
+|------------------|-------|--------------|----------|-------------------------------------------------------------------------------------------------------------------------------------|
+| `workspaceagent` | path  | string(uuid) | true     | Workspace agent ID                                                                                                                  |
+| `before`         | query | integer      | false    | Not used. The route ignores this parameter.                                                                                         |
+| `after`          | query | integer      | false    | ID of the last log entry you already have. Returns only entries with a greater ID, and the value must be an integer of `0` or more. |
+| `follow`         | query | boolean      | false    | When present, whatever its value, upgrades to a WebSocket that sends existing logs and then new logs as they arrive.                |
+| `no_compression` | query | boolean      | false    | When present, turns off WebSocket compression. It only applies with `follow`.                                                       |
 
 ### Example responses
 

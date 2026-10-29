@@ -110,6 +110,8 @@ func (api *API) gitSSHKey(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get workspace agent Git SSH key
+// @Description Returns the workspace owner's Git SSH key pair, including the private key, so the workspace agent can authenticate Git over SSH.
+// @Description Authenticate with the workspace agent token instead of a session token.
 // @ID get-workspace-agent-git-ssh-key
 // @Security CoderSessionToken
 // @Produce json
