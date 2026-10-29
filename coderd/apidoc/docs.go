@@ -5915,6 +5915,7 @@ const docTemplate = `{
         },
         "/api/v2/external-auth": {
             "get": {
+                "description": "Returns the external authentication providers configured for the deployment and your links to them.\nThe call also tries to refresh each link's token, and the response reports whether each link is still ` + "`" + `authenticated` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -5940,6 +5941,7 @@ const docTemplate = `{
         },
         "/api/v2/external-auth/{externalauth}": {
             "get": {
+                "description": "Returns whether you are linked to an external authentication provider, such as GitHub or GitLab, and whether the link's token is still valid.\nThe response also lists the provider's app installations, when it supports them, and whether the provider supports the device flow.\nReturns an unauthenticated result instead of an error when you have no link.",
                 "produces": [
                     "application/json"
                 ],
@@ -5952,7 +5954,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "string",
-                        "description": "Git Provider ID",
+                        "description": "ID of the external authentication provider, as configured for the deployment.",
                         "name": "externalauth",
                         "in": "path",
                         "required": true
@@ -5973,6 +5975,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Deletes your link to an external authentication provider.\nCoder then tries to revoke the token at the provider, and ` + "`" + `token_revoked` + "`" + ` says whether that worked.\nReturns ` + "`" + `404` + "`" + ` if you have no link to the provider.",
                 "produces": [
                     "application/json"
                 ],
@@ -5985,7 +5988,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "string",
-                        "description": "Git Provider ID",
+                        "description": "ID of the external authentication provider, as configured for the deployment.",
                         "name": "externalauth",
                         "in": "path",
                         "required": true
@@ -6008,6 +6011,7 @@ const docTemplate = `{
         },
         "/api/v2/external-auth/{externalauth}/device": {
             "get": {
+                "description": "Starts the device flow for an external authentication provider by requesting a device code from the provider.\nShow the ` + "`" + `user_code` + "`" + ` and ` + "`" + `verification_uri` + "`" + ` to the person linking their account, then call ` + "`" + `POST /api/v2/external-auth/{externalauth}/device` + "`" + ` with the ` + "`" + `device_code` + "`" + ` to finish.\nReturns ` + "`" + `400` + "`" + ` if the provider doesn't support the device flow.",
                 "produces": [
                     "application/json"
                 ],
@@ -6020,7 +6024,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "string",
-                        "description": "Git Provider ID",
+                        "description": "ID of the external authentication provider, as configured for the deployment.",
                         "name": "externalauth",
                         "in": "path",
                         "required": true
@@ -6041,6 +6045,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Finishes the device flow by exchanging the ` + "`" + `device_code` + "`" + ` for a token and linking it to your account, which creates the link or replaces the existing one.\nCall it after the person has entered the ` + "`" + `user_code` + "`" + ` at the provider, and poll no faster than the ` + "`" + `interval` + "`" + `, in seconds, that ` + "`" + `GET /api/v2/external-auth/{externalauth}/device` + "`" + ` returned.\nReturns ` + "`" + `400` + "`" + ` if the provider rejects the code, for example because authorization is still pending, or doesn't support the device flow.",
                 "tags": [
                     "Git"
                 ],
@@ -6050,7 +6055,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "string",
-                        "description": "External Provider ID",
+                        "description": "ID of the external authentication provider, as configured for the deployment.",
                         "name": "externalauth",
                         "in": "path",
                         "required": true
