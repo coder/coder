@@ -18,6 +18,10 @@
 # feature behind a hidden flag (not in codersdk.ExperimentsSafe) with no
 # label is early-access. A documented feature with no label and no gate
 # is ga.
+#
+# make lint/check-experiment-registry fails when the flags here differ from
+# codersdk.ExperimentsKnown, and CODEOWNERS requires an owner's approval for
+# changes to this file.
 
 experiments:
   # Coder Agents
@@ -68,7 +72,7 @@ experiments:
       - site/src/api/queries/organizationSkills.ts
       - site/src/api/queries/userSkills.ts
       - site/src/pages/AISettingsPage/SkillsPage/**
-      - site/src/pages/AgentsPage/AgentSettingsSkillsPage.tsx
+      - site/src/pages/AgentsPage/AgentSettingsPage/AgentSettingsSkillsPage/**
       - site/src/pages/AgentsPage/components/ChatMessageInput/Skills*.tsx
       - site/src/pages/AgentsPage/components/SkillEditor*.tsx
       - site/src/pages/AgentsPage/components/SkillEnabledSwitch.tsx
@@ -116,16 +120,15 @@ experiments:
       - coderd/x/chatd/chattool/computeruse*.go
       - coderd/x/chatd/computer_use.go
       - site/src/pages/AgentsPage/components/ChatElements/tools/InlineDesktopPreview*.tsx
-      - site/src/pages/AgentsPage/components/VirtualDesktopSettings.tsx
     routes:
-      - /api/experimental/chats/config/computer-use-provider
       - /api/experimental/chats/{chat}/stream/desktop
     docs:
       - ai-coder/agents/platform-controls/virtual-desktop.md
     notes: >-
-      The flag gates the config routes and the subagent catalog only. The
-      desktop stream route and the agent's /api/v0/desktop API are always
-      on. The docs name a /api/v2 config path that does not exist.
+      The flag gates the computer_use model override and the subagent
+      catalog only. The desktop stream route and the agent's /api/v0/desktop
+      API are always on. #31300 removed the deployment-wide computer use
+      provider routes.
 
   - key: agent-lifecycle-hooks
     stage: early-access
@@ -147,7 +150,6 @@ experiments:
   - key: chat-projects
     stage: early-access
     since: 2026-10-01
-    flag: chat-projects
     paths:
       - coderd/chat_project*.go
       - coderd/x/chatd/memory*.go
@@ -170,9 +172,45 @@ experiments:
       - /api/experimental/organizations/{organization}/chats/projects/{project}/memories/{memory}
       - /api/experimental/organizations/{organization}/chats/projects/{project}/skills
       - /api/experimental/organizations/{organization}/chats/projects/{project}/skills/{skillName}
+    docs:
+      - ai-coder/agents/projects.md
     notes: >-
-      No docs page. ai-coder/agents/chat-sharing.md, which has no label,
-      describes project sharing.
+      The chat-projects flag was removed in #31354, but the docs label the
+      page early access and the API is still under /api/experimental.
+      Sharing belongs to chat-project-sharing.
+
+  - key: chat-project-sharing
+    stage: early-access
+    since: 2026-10-27
+    flag: chat-project-sharing
+    paths:
+      - coderd/chat_project_acl*.go
+    routes:
+      - /api/experimental/organizations/{organization}/chats/projects/{project}/acl
+    notes: >-
+      Split from chat-projects in #31354. In codersdk.ExperimentsSafe, so
+      --experiments='*' enables it. No docs page: projects.md says a project
+      is private to its owner, and chat-sharing.md mentions project sharing
+      only where --disable-chat-sharing turns it off.
+
+  - key: chat-acp-subagents
+    stage: early-access
+    since: 2026-10-21
+    flag: chat-acp-subagents
+    paths:
+      - agent/agent_acp_test.go
+      - agent/agentcontext/acp_internal_test.go
+      - agent/x/agentacp/**
+      - coderd/x/chatd/acp*.go
+      - codersdk/workspacesdk/acp*.go
+      - site/src/pages/AgentsPage/components/ChatElements/tools/ACP*.tsx
+      - site/src/pages/AgentsPage/components/ChatElements/tools/acp*.ts
+      - site/src/testHelpers/acp.ts
+    docs:
+      - ai-coder/agents/acp-subagents.md
+    notes: >-
+      The flag gates the ACP tools and harness context in chatd only. The
+      agent's /api/v0/acp API is always on.
 
   - key: chat-inline-mcp-servers
     stage: early-access
@@ -211,7 +249,7 @@ experiments:
     docs:
       - admin/integrations/prometheus.md
     notes: >-
-      The only flag in ExperimentsSafe, so --experiments='*' enables it. The
+      In codersdk.ExperimentsSafe, so --experiments='*' enables it. The
       flag only controls Prometheus exposure. The docs do not mention it.
 
   - key: enable-ai-workspace-debug

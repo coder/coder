@@ -64,3 +64,10 @@ site/src/modules/aiModels/knownModels/knownModelsGenerated.json @ssncferreira @j
 .github/workflows/test-deploy-docs-diff.sh @nickvigilante @jdomeracki-coder
 .github/workflows/test-deploy-docs-release.sh @nickvigilante @jdomeracki-coder
 .github/workflows/test-docs-preview-mapper.sh @nickvigilante @jdomeracki-coder
+
+# The experiment registry, and the lint that ties it to
+# codersdk.ExperimentsKnown. Adding, promoting, or removing an experiment
+# flag fails lint/check-experiment-registry until the registry changes, so
+# this review gates every experiment lifecycle change.
+experiments/registry.yaml @spikecurtis @mafredri @johnstcn
+scripts/checkexperimentregistry/ @spikecurtis @mafredri @johnstcn
