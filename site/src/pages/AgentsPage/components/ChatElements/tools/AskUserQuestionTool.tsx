@@ -696,6 +696,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	const isAsync = asyncToolCallId !== undefined;
 	const isRunning = status === "running";
 	const isCompleted = status === "completed";
+
 	const answeredResponseText = isAsync
 		? getAsyncAnswerBody(previousResponseText, asyncToolCallId)
 		: previousResponseText;
@@ -707,6 +708,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 		Boolean(onSubmitAnswer);
 	const isClosed =
 		isAsync && isCompleted && !isLatestAskUserQuestion && !isAnswered;
+
 	// The agent keeps working, so the question needs its own announcement.
 	const announcement = (
 		<span role="status" className="sr-only">
