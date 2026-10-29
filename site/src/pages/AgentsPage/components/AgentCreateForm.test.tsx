@@ -701,6 +701,9 @@ describe("AgentCreateForm organization lock", () => {
 		);
 		await user().click(screen.getByRole("button", { name: "More options" }));
 		await user().click(
+			await screen.findByRole("button", { name: /MCP servers/ }),
+		);
+		await user().click(
 			await screen.findByRole("switch", { name: "Enable Notion" }),
 		);
 
@@ -834,24 +837,26 @@ describe("AgentCreateForm prefill", () => {
 		render(
 			<StrictMode>
 				<AppProviders queryClient={createTestQueryClient()}>
-					<AgentCreateForm
-						onCreateChat={onCreateChat}
-						isCreating={false}
-						createError={undefined}
-						canCreateChat
-						canConfigureAgentSetup={false}
-						workspaceCount={0}
-						workspaceOptions={[]}
-						workspacesError={undefined}
-						isWorkspacesLoading={false}
-						prefill={{
-							message: "Why did this build fail?",
-							attachment: {
-								name: "workspace-build-logs.txt",
-								text: "Error: exit status 1\n",
-							},
-						}}
-					/>
+					<MemoryRouter>
+						<AgentCreateForm
+							onCreateChat={onCreateChat}
+							isCreating={false}
+							createError={undefined}
+							canCreateChat
+							canConfigureAgentSetup={false}
+							workspaceCount={0}
+							workspaceOptions={[]}
+							workspacesError={undefined}
+							isWorkspacesLoading={false}
+							prefill={{
+								message: "Why did this build fail?",
+								attachment: {
+									name: "workspace-build-logs.txt",
+									text: "Error: exit status 1\n",
+								},
+							}}
+						/>
+					</MemoryRouter>
 				</AppProviders>
 			</StrictMode>,
 		);

@@ -328,6 +328,55 @@ The list of available skills in the agent's system prompt shortens a description
 The stored description keeps the full text.
 The `read_skill` result returns the skill body without the frontmatter, so it doesn't include the description.
 
+## Connect to MCP servers
+
+Organization admins register MCP servers for each organization.
+Refer to [MCP servers](./platform-controls/mcp-servers.md) for how admins add and configure them.
+A chat offers its organization's servers in the chat's **+** menu, under **MCP servers**.
+A server that uses OAuth2 needs your own account before a chat can use it.
+
+You connect your accounts on the **MCP connections** settings page.
+To open it from a chat, select **Manage** in the **MCP servers** list.
+The page opens for the chat's organization.
+
+You can connect only to servers you have access to.
+New servers grant access to the organization's **Everyone** group, so all members have access by default.
+
+To connect your account to a server:
+
+1. Open the **Agents** page and go to **Settings** > **MCP connections**.
+
+1. If you belong to more than one organization, choose the chat's organization in the organization picker.
+
+   A server that you connect in one organization doesn't appear in the chats of another organization.
+
+1. Select **Connect** next to the server.
+   The provider's sign-in page opens in a popup.
+
+1. Sign in to the provider in the popup.
+   When the sign-in finishes, the row shows **Disconnect**.
+
+   The server then appears in the chat's **MCP servers** list.
+
+Connecting a server doesn't change whether it is on in a chat.
+Servers that don't use OAuth2 need no connection, so their rows show **No auth required**, and chats offer them without one.
+
+To disconnect a server, select **Disconnect** next to it, then select **Disconnect** in the confirmation dialog.
+Coder removes your credentials for that server, and you can connect again later.
+
+### Turn a server on or off in a chat
+
+You can turn servers on or off only in a chat that you own.
+In the chat, open the **+** menu and select **MCP servers**, or select the MCP pill in the message box.
+The pill shows **Add MCPs** when no server is on, and otherwise the number of servers that are on.
+Use the switch next to a server to turn it on or off for that chat.
+The change applies from the next message you send.
+A server that an administrator turns on for every chat shows a lock, and you can't turn it off.
+A server that is on for the chat but not connected shows an orange dot instead of a switch until you connect it.
+Hover over the dot to see **Not connected**.
+This applies to a server that is on by default, and to a server that was on when its connection ended.
+The footer of the list counts the OAuth2 servers that you haven't connected.
+
 ## Workspace MCP tools
 
 Workspace templates can expose custom [MCP](https://modelcontextprotocol.io/introduction) tools by placing a `.mcp.json` file in the workspace working directory.

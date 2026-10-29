@@ -207,10 +207,6 @@ const AgentChatPage: React.FC = () => {
 		}
 	};
 
-	const handleMCPAuthComplete = (_serverId: string) => {
-		void mcpServersQuery.refetch();
-	};
-
 	const {
 		options: modelOptions,
 		isModelCatalogLoading,
@@ -846,7 +842,6 @@ const AgentChatPage: React.FC = () => {
 					mcpServers={mcpServers}
 					selectedMCPServerIds={effectiveMCPServerIds}
 					onMCPSelectionChange={handleMCPSelectionChange}
-					onMCPAuthComplete={handleMCPAuthComplete}
 				/>
 			)}
 		</>
