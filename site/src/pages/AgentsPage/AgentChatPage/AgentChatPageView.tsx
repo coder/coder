@@ -453,6 +453,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 					[tab.id, (hasBuiltInTerminal ? 1 : 0) + index + 1] as const,
 			),
 	);
+
 	const sidebarTabConfigs = [
 		...builtInSidebarTabConfigs,
 		// Only unlabeled terminal tabs fall through to the numbered label;
@@ -467,6 +468,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 			};
 		}),
 	];
+
 	const sidebarTabIds = sidebarTabConfigs.map((tab) => tab.id);
 	const effectiveSidebarTabId = getEffectiveTabId(sidebarTabIds, sidebarTabId);
 
@@ -521,12 +523,14 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		if (!workspace || !workspaceAgent) {
 			return;
 		}
+
 		// Reopen the built-in Terminal instead of creating Terminal 2 with no Terminal 1.
 		if (defaultTerminalHidden) {
 			setDefaultTerminalHiddenState(false);
 			startPendingTab("terminal");
 			return;
 		}
+
 		const tabId = createUserRightPanelTabId("terminal");
 		setUserRightPanelTabsState((currentTabs) => [
 			...currentTabs,
@@ -543,6 +547,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		if (!workspaceAgent) {
 			return;
 		}
+
 		const existingTab = validatedUserRightPanelTabs.find(
 			(tab) =>
 				tab.kind === "workspace_app" &&
@@ -553,6 +558,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 			activateRightPanelTab(existingTab.id);
 			return;
 		}
+
 		const tab: UserRightPanelTab = {
 			id: createUserRightPanelTabId("workspace_app"),
 			kind: "workspace_app",
@@ -560,6 +566,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 			agentId: workspaceAgent.id,
 			appId: app.id,
 		};
+
 		setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]);
 		activateRightPanelTab(tab.id);
 	};
@@ -568,6 +575,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		if (!workspace || !workspaceAgent || !app.command) {
 			return;
 		}
+
 		const existingTab = validatedUserRightPanelTabs.find(
 			(tab) => tab.kind === "terminal" && tab.sourceAppId === app.id,
 		);
@@ -575,6 +583,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 			activateRightPanelTab(existingTab.id);
 			return;
 		}
+
 		const tab: UserRightPanelTab = {
 			id: createUserRightPanelTabId("terminal"),
 			kind: "terminal",
@@ -583,6 +592,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 			initialCommand: app.command,
 			sourceAppId: app.id,
 		};
+
 		setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]);
 		startPendingTab(tab.id);
 	};
@@ -591,6 +601,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		if (!workspaceAgent) {
 			return;
 		}
+
 		const existingTab = validatedUserRightPanelTabs.find(
 			(tab) =>
 				tab.kind === "port" &&
@@ -602,6 +613,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 			activateRightPanelTab(existingTab.id);
 			return;
 		}
+
 		const tab: UserRightPanelTab = {
 			id: createUserRightPanelTabId("port"),
 			kind: "port",
@@ -610,6 +622,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 			port: selection.port,
 			protocol: selection.protocol,
 		};
+
 		setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]);
 		activateRightPanelTab(tab.id);
 	};
