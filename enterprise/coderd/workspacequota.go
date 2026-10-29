@@ -181,11 +181,13 @@ func (c *committer) CommitQuota(
 }
 
 // @Summary Get workspace quota by user deprecated
+// @Description Returns a user's workspace quota in the default organization.
+// @Description Deprecated: use `GET /api/v2/organizations/{organization}/members/{user}/workspace-quota` instead.
 // @ID get-workspace-quota-by-user-deprecated
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param user path string true "User ID, name, or me"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Success 200 {object} codersdk.WorkspaceQuota
 // @Router /api/v2/workspace-quota/{user} [get]
 // @Deprecated this endpoint will be removed, use /organizations/{organization}/members/{user}/workspace-quota instead
@@ -203,12 +205,15 @@ func (api *API) workspaceQuotaByUser(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get workspace quota by user
+// @Description Returns a user's workspace quota in an organization, which is the credits their workspaces consume and their budget.
+// @Description The budget is the sum of the quota allowances of the groups the user belongs to in the organization, and is `-1` when the license doesn't include groups.
+// @Description Requires permission to read the user, which you have for yourself and which the Owner, Auditor, Template Admin, User Admin, Organization Admin, and Organization User Admin roles have for all users.
 // @ID get-workspace-quota-by-user
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param user path string true "User ID, name, or me"
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
+// @Param organization path string true "Organization ID, name, or `default` for the default organization." format(uuid)
 // @Success 200 {object} codersdk.WorkspaceQuota
 // @Router /api/v2/organizations/{organization}/members/{user}/workspace-quota [get]
 func (api *API) workspaceQuota(rw http.ResponseWriter, r *http.Request) {
