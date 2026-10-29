@@ -22614,6 +22614,14 @@ WHERE w.id = (
 	WHERE pw.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid -- The system user responsible for prebuilds.
 		AND NOT pw.deleted
 		AND NOT t.deleted
+		-- A prebuild of the preset belongs to the preset's template. This lets Postgres use
+		-- workspace_template_id_idx, so prebuilds of other templates are never evaluated.
+		AND pw.template_id = (
+			SELECT tv.template_id
+			FROM template_version_presets tvp
+				INNER JOIN template_versions tv ON tv.id = tvp.template_version_id
+			WHERE tvp.id = $7::uuid
+		)
 		AND b.transition = 'start'::workspace_transition
 		AND b.job_status = 'succeeded'::provisioner_job_status
 		-- The prebuilds system should never try to claim a prebuild for an inactive template version.
@@ -22644,8 +22652,9 @@ WHERE w.id = (
 				AND NOT wa.deleted
 				AND wa.lifecycle_state != 'ready'::workspace_agent_lifecycle_state
 		)
-	-- Newest first: the reconciler deletes the oldest prebuilds first, so this avoids racing it.
-	ORDER BY pw.created_at DESC, pw.id DESC
+	-- Oldest first, so prebuilds are claimed before they reach the preset TTL and get rebuilt.
+	-- Newest first would leave older prebuilds to expire while demand is below the pool size.
+	ORDER BY pw.created_at, pw.id
 	-- Lock the workspaces row: the views are built from CTEs, so locking them locks nothing.
 	-- NO KEY UPDATE matches the outer UPDATE and, unlike FOR UPDATE, does not block FK checks
 	-- from inserts that reference the workspace, such as a reconciler delete build.
