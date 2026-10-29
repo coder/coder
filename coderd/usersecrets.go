@@ -119,6 +119,8 @@ func userSecretFilePathPolicyError(old database.UserSecret, req codersdk.UpdateU
 }
 
 // @Summary Get user secrets capabilities
+// @Description Returns whether the deployment writes the stored file paths of user secrets into workspaces, as `file_path_delivery_enabled`.
+// @Description Any authenticated user can call it.
 // @ID get-user-secrets-capabilities
 // @Security CoderSessionToken
 // @Produce json

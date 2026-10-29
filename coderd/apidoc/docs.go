@@ -2185,6 +2185,7 @@ const docTemplate = `{
         },
         "/api/v2/": {
             "get": {
+                "description": "Returns a short greeting from the API root, which you can use to check that the API is reachable.\nDoesn't require a session token.",
                 "produces": [
                     "application/json"
                 ],
@@ -3078,6 +3079,7 @@ const docTemplate = `{
         },
         "/api/v2/buildinfo": {
             "get": {
+                "description": "Returns build information for the deployment, such as the Coder ` + "`" + `version` + "`" + `, the ` + "`" + `external_url` + "`" + `, and the ` + "`" + `dashboard_url` + "`" + `.\nDoesn't require a session token.",
                 "produces": [
                     "application/json"
                 ],
@@ -5231,6 +5233,7 @@ const docTemplate = `{
         },
         "/api/v2/csp/reports": {
             "post": {
+                "description": "Logs a Content Security Policy violation report that a browser sends, at debug level in the server log.\nDoesn't require a session token, and the request body can't exceed 64 KiB.",
                 "consumes": [
                     "application/json"
                 ],
@@ -5241,7 +5244,7 @@ const docTemplate = `{
                 "operationId": "report-csp-violations",
                 "parameters": [
                     {
-                        "description": "Violation report",
+                        "description": "Content Security Policy violation report. A JSON object with the browser's report under ` + "`" + `csp-report` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -5682,6 +5685,7 @@ const docTemplate = `{
         },
         "/api/v2/deployment/config": {
             "get": {
+                "description": "Returns the deployment's configuration ` + "`" + `values` + "`" + ` with secrets removed, and its ` + "`" + `options` + "`" + `.\nEach entry in ` + "`" + `options` + "`" + ` describes one setting, including its description, flag, and environment variable.\nRequires permission to read the deployment configuration, which the Owner and Auditor roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -5740,6 +5744,7 @@ const docTemplate = `{
         },
         "/api/v2/deployment/ssh": {
             "get": {
+                "description": "Returns the SSH settings that clients use to write a local SSH configuration, such as the workspace ` + "`" + `hostname_suffix` + "`" + ` and ` + "`" + `ssh_config_options` + "`" + `.\nAny authenticated user can call it.",
                 "produces": [
                     "application/json"
                 ],
@@ -5765,6 +5770,7 @@ const docTemplate = `{
         },
         "/api/v2/deployment/stats": {
             "get": {
+                "description": "Returns usage statistics for the deployment, such as workspace counts and session counts.\nReturns ` + "`" + `400` + "`" + ` while the deployment is still collecting its first stats, and requires permission to read deployment stats, which the Owner and Auditor roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -5790,6 +5796,7 @@ const docTemplate = `{
         },
         "/api/v2/deployment/user-secrets/capabilities": {
             "get": {
+                "description": "Returns whether the deployment writes the stored file paths of user secrets into workspaces, as ` + "`" + `file_path_delivery_enabled` + "`" + `.\nAny authenticated user can call it.",
                 "produces": [
                     "application/json"
                 ],
@@ -5859,6 +5866,7 @@ const docTemplate = `{
         },
         "/api/v2/experiments": {
             "get": {
+                "description": "Returns the experiments that are enabled for you.\nRules can turn user-scoped experiments on or off for individual users, so the list can differ between users.",
                 "produces": [
                     "application/json"
                 ],
@@ -5887,6 +5895,7 @@ const docTemplate = `{
         },
         "/api/v2/experiments/available": {
             "get": {
+                "description": "Returns the experiments that are safe to turn on, in the ` + "`" + `safe` + "`" + ` field.",
                 "produces": [
                     "application/json"
                 ],
@@ -13339,6 +13348,7 @@ const docTemplate = `{
         },
         "/api/v2/updatecheck": {
             "get": {
+                "description": "Returns the latest Coder release and whether the deployment runs it, in ` + "`" + `current` + "`" + `, ` + "`" + `version` + "`" + `, and ` + "`" + `url` + "`" + `.\nDoesn't require a session token, and the route reports the running version as current when update checking is turned off or hasn't succeeded yet.",
                 "produces": [
                     "application/json"
                 ],
@@ -14439,6 +14449,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/keys/tokens/tokenconfig": {
             "get": {
+                "description": "Returns the longest lifetime that a user's API tokens can have, in ` + "`" + `max_token_lifetime` + "`" + `.\nUsers with the Owner role get the maximum admin token lifetime, and every other user gets the maximum token lifetime.",
                 "produces": [
                     "application/json"
                 ],
@@ -14450,7 +14461,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true

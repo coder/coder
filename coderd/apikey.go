@@ -512,11 +512,13 @@ func (api *API) expireAPIKey(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get token config
+// @Description Returns the longest lifetime that a user's API tokens can have, in `max_token_lifetime`.
+// @Description Users with the Owner role get the maximum admin token lifetime, and every other user gets the maximum token lifetime.
 // @ID get-token-config
 // @Security CoderSessionToken
 // @Produce json
 // @Tags General
-// @Param user path string true "User ID, name, or me"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Success 200 {object} codersdk.TokenConfig
 // @Router /api/v2/users/{user}/keys/tokens/tokenconfig [get]
 func (api *API) tokenConfig(rw http.ResponseWriter, r *http.Request) {

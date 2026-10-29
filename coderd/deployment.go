@@ -10,6 +10,9 @@ import (
 )
 
 // @Summary Get deployment config
+// @Description Returns the deployment's configuration `values` with secrets removed, and its `options`.
+// @Description Each entry in `options` describes one setting, including its description, flag, and environment variable.
+// @Description Requires permission to read the deployment configuration, which the Owner and Auditor roles have.
 // @ID get-deployment-config
 // @Security CoderSessionToken
 // @Produce json
@@ -38,6 +41,8 @@ func (api *API) deploymentValues(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get deployment stats
+// @Description Returns usage statistics for the deployment, such as workspace counts and session counts.
+// @Description Returns `400` while the deployment is still collecting its first stats, and requires permission to read deployment stats, which the Owner and Auditor roles have.
 // @ID get-deployment-stats
 // @Security CoderSessionToken
 // @Produce json
@@ -62,6 +67,8 @@ func (api *API) deploymentStats(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Build info
+// @Description Returns build information for the deployment, such as the Coder `version`, the `external_url`, and the `dashboard_url`.
+// @Description Doesn't require a session token.
 // @ID build-info
 // @Produce json
 // @Tags General
@@ -75,6 +82,8 @@ func buildInfoHandler(resp codersdk.BuildInfoResponse) http.HandlerFunc {
 }
 
 // @Summary SSH Config
+// @Description Returns the SSH settings that clients use to write a local SSH configuration, such as the workspace `hostname_suffix` and `ssh_config_options`.
+// @Description Any authenticated user can call it.
 // @ID ssh-config
 // @Security CoderSessionToken
 // @Produce json
