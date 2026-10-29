@@ -2,6 +2,7 @@ package chattool
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"path"
@@ -12,6 +13,7 @@ import (
 	"golang.org/x/xerrors"
 
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -48,6 +50,23 @@ type SkillMeta struct {
 	// empty on the legacy per-turn discovery path, where the body is
 	// read live.
 	Meta []byte
+}
+
+// ModelInvocable reports whether agents may list and load the skill on
+// their own. A skill whose pinned meta file sets
+// disable-model-invocation: true stays hidden from them but still loads
+// when a person invokes it. A skill without a pinned meta file stays
+// model-invocable.
+func (s SkillMeta) ModelInvocable() bool {
+	return !workspacesdk.SkillDisablesModelInvocation(s.pinnedMeta())
+}
+
+func (s SkillMeta) pinnedMeta() string {
+	raw := s.Meta
+	if int64(len(raw)) > maxSkillMetaBytes {
+		raw = raw[:maxSkillMetaBytes]
+	}
+	return string(raw)
 }
 
 // SkillContent is the full body of a skill, loaded on demand
@@ -210,11 +229,7 @@ func loadPinnedWorkspaceSkillContent(
 // PinnedWorkspaceSkillBody parses the body of a workspace skill from the
 // SKILL.md pinned in the workspace context snapshot.
 func PinnedWorkspaceSkillBody(skill SkillMeta) (string, error) {
-	raw := skill.Meta
-	if int64(len(raw)) > maxSkillMetaBytes {
-		raw = raw[:maxSkillMetaBytes]
-	}
-	_, _, body, err := workspacesdk.ParseSkillFrontmatter(string(raw))
+	_, _, body, err := workspacesdk.ParseSkillFrontmatter(skill.pinnedMeta())
 	if err != nil {
 		return "", xerrors.Errorf("parse skill frontmatter: %w", err)
 	}
@@ -246,7 +261,8 @@ func bestEffortSkillFiles(
 
 // LoadSkillFile reads a supporting file from a skill's directory.
 // The relativePath is validated to prevent directory traversal and
-// access to hidden files.
+// access to hidden files, and the workspace agent refuses a path that
+// leaves the skill directory through a symlink.
 func LoadSkillFile(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
@@ -257,15 +273,11 @@ func LoadSkillFile(
 		return "", err
 	}
 
-	fullPath := path.Join(skill.Dir, relativePath)
-
-	reader, _, err := conn.ReadFile(
-		ctx, fullPath, 0, maxSkillFileBytes+1,
+	reader, _, err := conn.ReadFileInRoot(
+		ctx, skill.Dir, relativePath, 0, maxSkillFileBytes+1,
 	)
 	if err != nil {
-		return "", xerrors.Errorf(
-			"read skill file: %w", err,
-		)
+		return "", skillFileReadError(err)
 	}
 	raw, err := io.ReadAll(io.LimitReader(reader, maxSkillFileBytes+1))
 	reader.Close()
@@ -280,6 +292,22 @@ func LoadSkillFile(
 	}
 
 	return string(raw), nil
+}
+
+// skillFileReadError rewrites an agent error for the model. It omits
+// the request URL that codersdk.Error includes and explains the
+// validation error that agents without the root parameter return.
+func skillFileReadError(err error) error {
+	var sdkErr *codersdk.Error
+	if !errors.As(err, &sdkErr) {
+		return xerrors.Errorf("read skill file: %w", err)
+	}
+	for _, v := range sdkErr.Validations {
+		if v.Field == "root" {
+			return xerrors.New("read skill file: the workspace agent is outdated; restart the workspace to read skill files")
+		}
+	}
+	return xerrors.Errorf("read skill file: %s", sdkErr.Message)
 }
 
 // validateSkillFilePath rejects paths that could escape the skill
@@ -420,20 +448,14 @@ func ReadSkillFile(options ReadSkillOptions) fantasy.AgentTool {
 				), nil
 			}
 
-			resolved, err := resolveSkillAlias(options, args.Name)
-			if err != nil {
-				return skillResolveErrorResponse(args.Name, err), nil
-			}
-			if resolved.Source != skillspkg.SourceWorkspace {
-				return fantasy.NewTextErrorResponse(fmt.Sprintf(
-					"read_skill_file is not supported for %s skills (no supporting files)",
-					resolved.Source,
-				)), nil
-			}
-
-			skill, ok := findSkill(options.GetSkills, resolved.Name)
+			skill, response, ok := resolveSkillFileTarget(options, args.Name)
 			if !ok {
-				return skillNotFoundResponse(args.Name), nil
+				return response, nil
+			}
+			// Only a person's invocation loads the body of a skill hidden
+			// from the model, so its meta file is not served here.
+			if !skill.ModelInvocable() && strings.EqualFold(path.Clean(args.Path), DefaultSkillMetaFile) {
+				return hiddenSkillMetaFileResponse(args.Name, args.Path), nil
 			}
 
 			// Validate the path early so we reject bad
@@ -472,13 +494,50 @@ func ReadSkillFile(options ReadSkillOptions) fantasy.AgentTool {
 	)
 }
 
+func hiddenSkillMetaFileResponse(name, filePath string) fantasy.ToolResponse {
+	return fantasy.NewTextErrorResponse(fmt.Sprintf(
+		"%s of skill %q is the meta file of a skill hidden from agents and cannot be read with read_skill_file",
+		filePath, name,
+	))
+}
+
+// resolveSkillFileTarget finds the workspace skill whose supporting files
+// read_skill_file serves. Besides the skills listed for the model, it
+// accepts a workspace skill hidden from the model by bare or qualified
+// name: a person can invoke such a skill, and its body may reference
+// supporting files.
+func resolveSkillFileTarget(options ReadSkillOptions, name string) (SkillMeta, fantasy.ToolResponse, bool) {
+	// Stored skills have no supporting files, so a name that names a
+	// hidden workspace skill means that skill, even when the bare name
+	// also names one or more listed stored skills.
+	bareName := strings.TrimPrefix(name, skillspkg.QualifiedAlias(skillspkg.SourceWorkspace, ""))
+	if skill, ok := findSkill(options.GetSkills, bareName); ok && !skill.ModelInvocable() {
+		return skill, fantasy.ToolResponse{}, true
+	}
+	resolved, err := resolveSkillAlias(options, name)
+	if err != nil {
+		return SkillMeta{}, skillResolveErrorResponse(name, err), false
+	}
+	if resolved.Source != skillspkg.SourceWorkspace {
+		return SkillMeta{}, fantasy.NewTextErrorResponse(fmt.Sprintf(
+			"read_skill_file is not supported for %s skills (no supporting files)",
+			resolved.Source,
+		)), false
+	}
+	skill, ok := findSkill(options.GetSkills, resolved.Name)
+	if !ok {
+		return SkillMeta{}, skillNotFoundResponse(name), false
+	}
+	return skill, fantasy.ToolResponse{}, true
+}
+
 func resolveSkillAlias(options ReadSkillOptions, name string) (skillspkg.ResolvedSkill, error) {
 	if options.ResolveAlias != nil {
 		return options.ResolveAlias(name)
 	}
 
 	skill, ok := findSkill(options.GetSkills, name)
-	if !ok {
+	if !ok || !skill.ModelInvocable() {
 		return skillspkg.ResolvedSkill{}, skillspkg.ErrSkillNotFound
 	}
 	return skillspkg.ResolvedSkill{

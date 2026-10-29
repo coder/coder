@@ -49,7 +49,7 @@ func NewQueryMetrics(s database.Store, logger slog.Logger, reg prometheus.Regist
 		Namespace: "coderd",
 		Subsystem: "db",
 		Name:      "query_counts_total",
-		Help:      "Total number of queries labelled by HTTP route, method, and query name.",
+		Help:      "Total number of queries labeled by HTTP route, method, and query name.",
 	}, []string{"route", "method", "query"})
 	reg.MustRegister(queryCounts)
 	return &queryMetricsStore{
@@ -1797,6 +1797,14 @@ func (m queryMetricsStore) GetChatMessagesForPromptByChatID(ctx context.Context,
 	r0, r1 := m.s.GetChatMessagesForPromptByChatID(ctx, chatID)
 	m.queryLatencies.WithLabelValues("GetChatMessagesForPromptByChatID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatMessagesForPromptByChatID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatMessagesWithFilePartsByChatID(ctx context.Context, arg database.GetChatMessagesWithFilePartsByChatIDParams) ([]database.ChatMessage, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatMessagesWithFilePartsByChatID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatMessagesWithFilePartsByChatID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatMessagesWithFilePartsByChatID").Inc()
 	return r0, r1
 }
 
@@ -5504,11 +5512,11 @@ func (m queryMetricsStore) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Co
 	return r0
 }
 
-func (m queryMetricsStore) SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {
+func (m queryMetricsStore) SyncAgentChatsContextLiveResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {
 	start := time.Now()
-	r0, r1 := m.s.SyncAgentChatsContextMCPResources(ctx, agentID)
-	m.queryLatencies.WithLabelValues("SyncAgentChatsContextMCPResources").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SyncAgentChatsContextMCPResources").Inc()
+	r0, r1 := m.s.SyncAgentChatsContextLiveResources(ctx, agentID)
+	m.queryLatencies.WithLabelValues("SyncAgentChatsContextLiveResources").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SyncAgentChatsContextLiveResources").Inc()
 	return r0, r1
 }
 

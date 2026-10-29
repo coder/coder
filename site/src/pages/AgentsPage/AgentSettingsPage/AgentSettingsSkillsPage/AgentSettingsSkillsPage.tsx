@@ -4,7 +4,10 @@ import { organizationSkills } from "#/api/queries/organizationSkills";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { OrganizationField } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
+import {
+	getMemberOrganizations,
+	useDashboard,
+} from "#/modules/dashboard/useDashboard";
 import { RetryButton } from "../../components/RetryButton";
 import { SectionHeader } from "../../components/SectionHeader";
 import { SkillsTable } from "../../components/SkillsTable";
@@ -17,10 +20,9 @@ import {
 
 const AgentSettingsSkillsPage: React.FC = () => {
 	const { user } = useAuthenticated();
-	// The dashboard lists every organization the user can read, but chats
-	// only run in organizations the user is a member of.
-	const memberOrganizations = useDashboard().organizations.filter(
-		(organization) => user.organization_ids.includes(organization.id),
+	const memberOrganizations = getMemberOrganizations(
+		useDashboard().organizations,
+		user,
 	);
 	const organizationSkillQueries = useQueries({
 		queries: memberOrganizations.map((organization) =>

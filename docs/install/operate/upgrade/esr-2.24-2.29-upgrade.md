@@ -104,6 +104,7 @@ The following are recommendations by the Coder team when performing the upgrade:
 - **Retest agent and task automation built on early experimental features:**
   Updates to agent readiness, permission checks, and lifecycle ordering may affect workflows developed against 2.24’s looser behaviors
 - **Monitor workspace, template, and Terraform build performance:**
-  New caching, indexes, and DB optimizations may change build times; observing performance post-upgrade helps catch regressions early
+  New caching, indexes, and DB optimizations may change build times.
+  Observing performance post-upgrade helps catch regressions early
 - **Prepare user communications around Tasks and UI changes:**
   Tasks are now GA and more visible in the dashboard, and many UI improvements will be new to users coming from 2.24, so a brief internal announcement can smooth the transition

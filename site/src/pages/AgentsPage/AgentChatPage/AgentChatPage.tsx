@@ -207,10 +207,6 @@ const AgentChatPage: React.FC = () => {
 		}
 	};
 
-	const handleMCPAuthComplete = (_serverId: string) => {
-		void mcpServersQuery.refetch();
-	};
-
 	const {
 		options: modelOptions,
 		isModelCatalogLoading,
@@ -333,9 +329,7 @@ const AgentChatPage: React.FC = () => {
 		enabled: Boolean(chatOrganizationId),
 		staleTime: 60_000,
 	});
-	const chatProjectId = experiments.includes("chat-projects")
-		? chatQuery.data?.project_id
-		: undefined;
+	const chatProjectId = chatQuery.data?.project_id;
 	const hasChatProject = Boolean(chatOrganizationId && chatProjectId);
 	const projectSkillsQuery = useQuery({
 		...chatProjectSkills(chatOrganizationId, chatProjectId ?? ""),
@@ -848,7 +842,6 @@ const AgentChatPage: React.FC = () => {
 					mcpServers={mcpServers}
 					selectedMCPServerIds={effectiveMCPServerIds}
 					onMCPSelectionChange={handleMCPSelectionChange}
-					onMCPAuthComplete={handleMCPAuthComplete}
 				/>
 			)}
 		</>

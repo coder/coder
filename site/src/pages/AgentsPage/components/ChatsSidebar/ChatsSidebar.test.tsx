@@ -11,13 +11,22 @@ import { HttpResponse, http } from "msw";
 import { useState } from "react";
 import { QueryClientProvider } from "react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	onTestFinished,
+	vi,
+} from "vitest";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
+import { COPY_FAILED_MESSAGE } from "#/hooks/useClipboard";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
 import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import { MockChatModel } from "#/testHelpers/chatModels";
@@ -87,21 +96,19 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 });
 
 type WrapperProps = React.PropsWithChildren<{
-	experiments?: TypesGen.Experiment[];
 	organizations?: TypesGen.Organization[];
 	initialEntry?: string;
 }>;
 
 const Wrapper: React.FC<WrapperProps> = ({
 	children,
-	experiments = [],
 	organizations = [MockDefaultOrganization],
 	initialEntry = "/agents",
 }) => {
 	const queryClient = createTestQueryClient();
 	const dashboardValue = {
 		entitlements: MockEntitlements,
-		experiments,
+		experiments: [],
 		appearance: MockAppearanceConfig,
 		buildInfo: MockBuildInfo,
 		organizations,
@@ -153,6 +160,33 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 };
 
 describe("ChatsSidebar projects", () => {
+	beforeEach(() => {
+		server.use(http.get("/api/v2/chats", () => HttpResponse.json([])));
+	});
+
+	it("requests an open folder's chats with the sidebar's filters", async () => {
+		const requests: URLSearchParams[] = [];
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+			http.get("/api/v2/chats", ({ request }) => {
+				requests.push(new URL(request.url).searchParams);
+				return HttpResponse.json([]);
+			}),
+		);
+
+		render(
+			<Wrapper initialEntry={`/agents/projects/${MockChatProject.id}`}>
+				<ChatsSidebar {...defaultProps} chats={[]} />
+			</Wrapper>,
+		);
+
+		await waitFor(() => expect(requests).toHaveLength(1));
+		expect(requests[0].get("project_id")).toBe(MockChatProject.id);
+		expect(requests[0].get("q")).toBe("archived:false source:created_by_me");
+	});
+
 	it("keeps a newer delete dialog open when an earlier delete finishes", async () => {
 		const user = userEvent.setup();
 		const mockOtherProject = {
@@ -183,7 +217,7 @@ describe("ChatsSidebar projects", () => {
 			),
 		);
 		render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper>
 				<ChatsSidebar {...defaultProps} />
 			</Wrapper>,
 		);
@@ -246,18 +280,18 @@ describe("ChatsSidebar projects", () => {
 		});
 
 		render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper>
 				<ChatsSidebar {...defaultProps} chats={[mockProjectChat]} />
 			</Wrapper>,
 		);
 
 		// The chat's project is still loading, so its chat may yet be unfiled.
 		await waitFor(() => expect(projectsRequested).toBe(true));
-		expect(screen.queryByText("No agents yet")).toBeNull();
+		expect(screen.queryByText("No chats yet")).toBeNull();
 
 		resolveProjects();
 		await screen.findByRole("link", { name: MockChatProject.name });
-		expect(screen.getByText("No agents yet")).toBeInTheDocument();
+		expect(screen.getByText("No chats yet")).toBeInTheDocument();
 		expect(screen.queryByRole("link", { name: /Project chat/ })).toBeNull();
 	});
 
@@ -283,7 +317,7 @@ describe("ChatsSidebar projects", () => {
 		const mockLooseChat = buildChat({ id: "loose-chat", title: "Loose chat" });
 
 		render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper>
 				<ChatsSidebar
 					{...defaultProps}
 					chats={[mockProjectChat, mockLooseChat]}
@@ -323,10 +357,7 @@ describe("ChatsSidebar projects", () => {
 			);
 
 			render(
-				<Wrapper
-					experiments={["chat-projects"]}
-					organizations={[MockOrganization2, MockDefaultOrganization]}
-				>
+				<Wrapper organizations={[MockOrganization2, MockDefaultOrganization]}>
 					<ChatsSidebar {...defaultProps} chats={[]} />
 					<ProjectLocationProbe />
 				</Wrapper>,
@@ -401,10 +432,7 @@ describe("ChatsSidebar projects", () => {
 		);
 
 		render(
-			<Wrapper
-				experiments={["chat-projects"]}
-				organizations={[MockOrganization2]}
-			>
+			<Wrapper organizations={[MockOrganization2]}>
 				<ChatsSidebar {...defaultProps} />
 			</Wrapper>,
 		);
@@ -443,7 +471,7 @@ describe("ChatsSidebar projects", () => {
 		);
 
 		render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper>
 				<ChatsSidebar {...defaultProps} />
 			</Wrapper>,
 		);
@@ -451,6 +479,53 @@ describe("ChatsSidebar projects", () => {
 		await user.click(await screen.findByRole("button", { name: "Retry" }));
 
 		await waitFor(() => expect(requestCount).toBe(2));
+	});
+
+	it("moves focus to the folder toggle when a folder retry succeeds", async () => {
+		// Fake timers skip the folder query's retry backoff.
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		onTestFinished(() => {
+			vi.useRealTimers();
+		});
+		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+		let isFolderLoadFailing = true;
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+			http.get("/api/v2/chats", () =>
+				isFolderLoadFailing
+					? HttpResponse.json({ message: "Chats unavailable" }, { status: 500 })
+					: HttpResponse.json([
+							buildChat({
+								id: "retried-project-chat",
+								title: "Retried project chat",
+								project_id: MockChatProject.id,
+							}),
+						]),
+			),
+		);
+
+		render(
+			<Wrapper initialEntry={`/agents/projects/${MockChatProject.id}`}>
+				<ChatsSidebar {...defaultProps} chats={[]} />
+			</Wrapper>,
+		);
+		await act(() => vi.advanceTimersByTimeAsync(10_000));
+		const retryButton = await screen.findByRole("button", {
+			name: `Retry loading chats in ${MockChatProject.name}`,
+		});
+		isFolderLoadFailing = false;
+		retryButton.focus();
+		await user.keyboard("{Enter}");
+
+		await waitFor(() =>
+			expect(
+				screen.getByRole("button", {
+					name: `Collapse ${MockChatProject.name}`,
+				}),
+			).toHaveFocus(),
+		);
 	});
 
 	it("deletes the viewed project and its drafts, then leaves its page", async () => {
@@ -473,10 +548,7 @@ describe("ChatsSidebar projects", () => {
 		);
 
 		render(
-			<Wrapper
-				experiments={["chat-projects"]}
-				initialEntry={`/agents/projects/${MockChatProject.id}`}
-			>
+			<Wrapper initialEntry={`/agents/projects/${MockChatProject.id}`}>
 				<ChatsSidebar {...defaultProps} />
 				<ProjectLocationProbe />
 			</Wrapper>,
@@ -523,7 +595,7 @@ describe("ChatsSidebar projects", () => {
 		);
 
 		render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper>
 				<ChatsSidebar {...defaultProps} />
 			</Wrapper>,
 		);
@@ -559,10 +631,7 @@ describe("ChatsSidebar projects", () => {
 		);
 
 		render(
-			<Wrapper
-				experiments={["chat-projects"]}
-				organizations={[MockDefaultOrganization, MockOrganization2]}
-			>
+			<Wrapper organizations={[MockDefaultOrganization, MockOrganization2]}>
 				<ChatsSidebar {...defaultProps} />
 			</Wrapper>,
 		);
@@ -590,10 +659,7 @@ describe("ChatsSidebar projects", () => {
 		);
 
 		render(
-			<Wrapper
-				experiments={["chat-projects"]}
-				initialEntry={`/agents/projects/${MockChatProject.id}`}
-			>
+			<Wrapper initialEntry={`/agents/projects/${MockChatProject.id}`}>
 				<ChatsSidebar {...defaultProps} />
 			</Wrapper>,
 		);
@@ -640,10 +706,7 @@ describe("ChatsSidebar projects", () => {
 		});
 
 		render(
-			<Wrapper
-				experiments={["chat-projects"]}
-				initialEntry={`/agents/${mockFirstProjectChat.id}`}
-			>
+			<Wrapper initialEntry={`/agents/${mockFirstProjectChat.id}`}>
 				<Routes>
 					<Route
 						path="/agents/:agentId"
@@ -840,7 +903,7 @@ describe("ChatsSidebar move to project", () => {
 
 	const renderSidebar = (chats: Chat[]) =>
 		render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper>
 				<ChatsSidebar {...defaultProps} chats={chats} />
 			</Wrapper>,
 		);
@@ -1053,7 +1116,7 @@ describe("ChatsSidebar project drops", () => {
 			),
 		);
 		return render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper>
 				<ChatsSidebar {...defaultProps} chats={chats} />
 			</Wrapper>,
 		);
@@ -1211,7 +1274,7 @@ describe("ChatsSidebar project drops", () => {
 			.spyOn(API.experimental, "updateChat")
 			.mockResolvedValue(undefined);
 		render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper>
 				<ChatsSidebar
 					{...defaultProps}
 					chats={[
@@ -1327,7 +1390,7 @@ describe("ChatsSidebar project drops", () => {
 			http.get("/api/experimental/chats/projects", () => HttpResponse.json([])),
 		);
 		render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper>
 				<StatusChange />
 			</Wrapper>,
 		);
@@ -1542,7 +1605,7 @@ describe("ChatsSidebar project drops", () => {
 			http.get("/api/experimental/chats/projects", () => HttpResponse.json([])),
 		);
 		render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper>
 				<ChatsSidebar
 					{...defaultProps}
 					chats={[
@@ -1796,7 +1859,7 @@ describe("ChatsSidebar filters", () => {
 			screen.getByRole("button", { name: "Filter agents" }),
 		).toBeInTheDocument();
 		expect(
-			screen.getByText("No agents match these filters"),
+			screen.getByText("No chats match these filters"),
 		).toBeInTheDocument();
 
 		await user.click(screen.getByRole("button", { name: "Clear filters" }));
@@ -2565,6 +2628,8 @@ describe("ChatsSidebar read state actions", () => {
 });
 
 describe("ChatsSidebar copy actions", () => {
+	afterEach(() => vi.restoreAllMocks());
+
 	// Radix submenu items do not react to userEvent clicks in jsdom, so the
 	// selection itself uses fireEvent.
 	const openCopySubmenu = async (
@@ -2586,6 +2651,7 @@ describe("ChatsSidebar copy actions", () => {
 			const writeText = vi
 				.spyOn(navigator.clipboard, "writeText")
 				.mockResolvedValue();
+			const successToast = vi.spyOn(toast, "success");
 			render(
 				<Wrapper>
 					<ChatsSidebar
@@ -2612,19 +2678,25 @@ describe("ChatsSidebar copy actions", () => {
 			await waitFor(() => {
 				expect(writeText).toHaveBeenCalledWith("copy-chat");
 			});
+			await waitFor(() => {
+				expect(successToast).toHaveBeenCalledWith(
+					"Chat ID copied to clipboard.",
+				);
+			});
 		},
 	);
 
 	it.each([
-		["Copy ID", "branch-chat"],
-		["Copy branch", "jakehwll/copy-branch"],
+		["Copy ID", "branch-chat", "Chat ID copied to clipboard."],
+		["Copy branch", "jakehwll/copy-branch", "Branch name copied to clipboard."],
 	])(
 		"copies %s from the submenu when a branch is available",
-		async (label, value) => {
+		async (label, value, message) => {
 			const user = userEvent.setup();
 			const writeText = vi
 				.spyOn(navigator.clipboard, "writeText")
 				.mockResolvedValue();
+			const successToast = vi.spyOn(toast, "success");
 			render(
 				<Wrapper>
 					<ChatsSidebar
@@ -2654,6 +2726,9 @@ describe("ChatsSidebar copy actions", () => {
 
 			await waitFor(() => {
 				expect(writeText).toHaveBeenCalledWith(value);
+			});
+			await waitFor(() => {
+				expect(successToast).toHaveBeenCalledWith(message);
 			});
 		},
 	);
@@ -2687,5 +2762,34 @@ describe("ChatsSidebar copy actions", () => {
 		await waitFor(() => {
 			expect(writeText).toHaveBeenCalledWith("shared-copy-chat");
 		});
+	});
+
+	it("shows only the error toast when copying fails", async () => {
+		const user = userEvent.setup();
+		const writeText = vi
+			.spyOn(navigator.clipboard, "writeText")
+			.mockRejectedValue(new Error("Clipboard unavailable"));
+		const successToast = vi.spyOn(toast, "success");
+		const errorToast = vi.spyOn(toast, "error");
+		vi.spyOn(console, "error").mockImplementation(() => {});
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[buildChat({ id: "failed-copy-chat", title: "Failed copy" })]}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Open actions for Failed copy" }),
+		);
+		await user.click(await screen.findByRole("menuitem", { name: "Copy ID" }));
+
+		await waitFor(() => {
+			expect(errorToast).toHaveBeenCalledWith(COPY_FAILED_MESSAGE);
+		});
+		expect(writeText).toHaveBeenCalledWith("failed-copy-chat");
+		expect(successToast).not.toHaveBeenCalled();
 	});
 });

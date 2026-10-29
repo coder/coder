@@ -429,6 +429,13 @@ type ChatFileMetadata struct {
 	CreatedAt      time.Time `json:"created_at" format:"date-time"`
 }
 
+// ChatACPTranscriptMessage is a workspace-local ACP message returned by
+// acp_wait_agent without database message metadata.
+type ChatACPTranscriptMessage struct {
+	Role    ChatMessageRole   `json:"role"`
+	Content []ChatMessagePart `json:"content"`
+}
+
 // ChatMessage represents a single message in a chat.
 type ChatMessage struct {
 	ID            int64             `json:"id"`
@@ -545,7 +552,7 @@ func AllChatMessagePartTypes() []ChatMessagePartType {
 type ChatMessagePart struct {
 	Type              ChatMessagePartType `json:"type"`
 	Text              string              `json:"text" variants:"text,reasoning,hook-notice"`
-	ToolCallID        string              `json:"tool_call_id,omitempty" variants:"tool-call?,tool-result?"`
+	ToolCallID        string              `json:"tool_call_id,omitempty" variants:"tool-call?,tool-result?,source?"`
 	ToolName          string              `json:"tool_name,omitempty" variants:"tool-call?,tool-result?"`
 	MCPServerConfigID uuid.NullUUID       `json:"mcp_server_config_id,omitempty" format:"uuid" variants:"tool-call?,tool-result?"`
 	Args              json.RawMessage     `json:"args,omitempty" variants:"tool-call?"`
@@ -661,8 +668,15 @@ type ChatMessagePart struct {
 	SkillDescription string `json:"skill_description,omitempty" variants:"skill?"`
 	// SkillDir is the absolute path to the skill directory inside
 	// the workspace filesystem. Internal only: used by
-	// read_skill/read_skill_file tools to locate skill files.
+	// read_skill/read_skill_file tools to locate skill files, and
+	// shown to the model for an invoked workspace skill so it can
+	// run the skill's scripts.
 	SkillDir string `json:"skill_dir,omitempty" typescript:"-"`
+	// SkillWorkspaceID is the workspace whose filesystem holds the
+	// SkillDir of an invoked workspace skill. Internal only: the
+	// prompt shows SkillDir only while the chat stays bound to this
+	// workspace.
+	SkillWorkspaceID uuid.UUID `json:"skill_workspace_id,omitzero" format:"uuid" typescript:"-" swaggerignore:"true"`
 	// ContextFileSkillMetaFile is the basename of the skill
 	// meta file (e.g. "SKILL.md") at the time of persistence.
 	// Internal only: restored on subsequent turns so the
@@ -706,6 +720,7 @@ func (p *ChatMessagePart) StripInternal() {
 	p.ContextFileOS = ""
 	p.ContextFileDirectory = ""
 	p.SkillDir = ""
+	p.SkillWorkspaceID = uuid.Nil
 	p.ContextFileSkillMetaFile = ""
 	p.SkillBody = ""
 }
@@ -1107,6 +1122,51 @@ type ChatPromptsResponse struct {
 	Prompts []ChatPrompt `json:"prompts"`
 }
 
+// ChatAttachment is a file part of a chat message, returned by
+// GET /api/v2/chats/{chat}/attachments.
+type ChatAttachment struct {
+	MessageID int64 `json:"message_id"`
+	// PartIndex is the file part's position in the message content the
+	// messages endpoint returns.
+	PartIndex int                `json:"part_index"`
+	Role      ChatAttachmentRole `json:"role"`
+	File      ChatAttachmentFile `json:"file"`
+}
+
+// ChatAttachmentRole is the role of the message that holds an attachment.
+// The attachments endpoint lists only user and assistant messages.
+type ChatAttachmentRole string
+
+const (
+	ChatAttachmentRoleUser      ChatAttachmentRole = "user"
+	ChatAttachmentRoleAssistant ChatAttachmentRole = "assistant"
+)
+
+// ChatAttachmentFileType is the part type of a ChatAttachmentFile, which
+// is always a file part.
+type ChatAttachmentFileType string
+
+const ChatAttachmentFileTypeFile ChatAttachmentFileType = "file"
+
+// ChatAttachmentFile holds the fields of a file part, the only part type
+// the attachments endpoint returns.
+type ChatAttachmentFile struct {
+	Type      ChatAttachmentFileType `json:"type"`
+	MediaType string                 `json:"media_type"`
+	Name      string                 `json:"name,omitempty"`
+	// Data holds an inline file's bytes, which JSON carries as a base64 string.
+	Data []byte `json:"data,omitempty" swaggertype:"string" format:"byte"`
+	// Omitted, not null, for an inline file.
+	FileID uuid.NullUUID `json:"file_id,omitzero" format:"uuid"`
+}
+
+// ChatAttachmentsResponse is the payload of
+// GET /api/v2/chats/{chat}/attachments. Attachments are returned newest
+// first.
+type ChatAttachmentsResponse struct {
+	Attachments []ChatAttachment `json:"attachments"`
+}
+
 // ChatModelProviderUnavailableReason explains why a provider cannot be used.
 type ChatModelProviderUnavailableReason string
 
@@ -1332,10 +1392,6 @@ type AdvisorConfig struct {
 type UpdateAdvisorConfigRequest struct {
 	MaxUsesPerRun   int   `json:"max_uses_per_run"`
 	MaxOutputTokens int64 `json:"max_output_tokens"`
-	// Deprecated: moved to the organization model override endpoint.
-	DeprecatedModelConfigID *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
-	// Deprecated: moved to the organization model override endpoint.
-	DeprecatedReasoningEffort *string `json:"reasoning_effort,omitempty"`
 }
 
 // ChatComputerUseProvider identifies the provider that backs computer use for
@@ -1945,17 +2001,6 @@ type UpdateChatModelRequest struct {
 	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`
 }
 
-// ChatGitChange represents a git file change detected during a chat session.
-type ChatGitChange struct {
-	ID          uuid.UUID `json:"id" format:"uuid"`
-	ChatID      uuid.UUID `json:"chat_id" format:"uuid"`
-	FilePath    string    `json:"file_path"`
-	ChangeType  string    `json:"change_type"` // added, modified, deleted, renamed
-	OldPath     *string   `json:"old_path,omitempty"`
-	DiffSummary *string   `json:"diff_summary,omitempty"`
-	DetectedAt  time.Time `json:"detected_at" format:"date-time"`
-}
-
 // ChatDiffStatus represents cached diff status for a chat. The URL
 // may point to a pull request or a branch page depending on whether
 // a PR has been opened.
@@ -2010,18 +2055,13 @@ type ChatDiffContents struct {
 // Chat git watch error messages. These are the user-visible messages
 // the server returns in 400 responses from
 // /api/v2/chats/{id}/stream/git when the chat cannot be
-// observed through a workspace agent. They are exported so the CLI
-// (and any future consumer) can match them structurally via
-// IsChatGitWatchFallbackMessage instead of coupling to exact wording.
-// Keep these in sync with coderd/exp_chats.go.
+// observed through a workspace agent.
 const (
 	ChatGitWatchNoWorkspaceMessage       = "Chat has no workspace to watch."
 	ChatGitWatchWorkspaceNotFoundMessage = "Chat workspace not found."
 	ChatGitWatchNoEligibleAgentMessage   = "No eligible agent found for chat workspace."
 	// ChatGitWatchAgentStatePrefix is the common prefix of the
-	// message produced by ChatGitWatchAgentStateMessage. The CLI
-	// uses it as a mechanical fingerprint for the "agent not yet
-	// connected" case without depending on the formatted values.
+	// message produced by ChatGitWatchAgentStateMessage.
 	ChatGitWatchAgentStatePrefix = "Agent state is "
 )
 
@@ -2030,22 +2070,6 @@ const (
 // chat workspace's agent is not in the connected state.
 func ChatGitWatchAgentStateMessage(actual WorkspaceAgentStatus) string {
 	return fmt.Sprintf("%s%q, it must be in the %q state.", ChatGitWatchAgentStatePrefix, actual, WorkspaceAgentConnected)
-}
-
-// IsChatGitWatchFallbackMessage reports whether msg matches one of
-// the 400-response messages /api/v2/chats/{id}/stream/git
-// emits when the chat cannot be observed through a workspace agent.
-// Clients should treat these cases as "no diff available" and fall
-// back to the empty remote diff instead of surfacing a hard error.
-func IsChatGitWatchFallbackMessage(msg string) bool {
-	trimmed := strings.TrimSpace(msg)
-	switch trimmed {
-	case ChatGitWatchNoWorkspaceMessage,
-		ChatGitWatchWorkspaceNotFoundMessage,
-		ChatGitWatchNoEligibleAgentMessage:
-		return true
-	}
-	return strings.HasPrefix(trimmed, ChatGitWatchAgentStatePrefix)
 }
 
 // ChatStreamEventType represents the kind of chat stream update.
@@ -3643,6 +3667,38 @@ func (c *Client) GetChatPrompts(ctx context.Context, chatID uuid.UUID, opts *Cha
 		return ChatPromptsResponse{}, ReadBodyAsError(res)
 	}
 	var resp ChatPromptsResponse
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// ChatAttachmentsOptions are optional query parameters for
+// GetChatAttachments.
+// @typescript-ignore ChatAttachmentsOptions
+type ChatAttachmentsOptions struct {
+	// BeforeID, when > 0, restricts results to messages with id strictly
+	// less than BeforeID. 0 returns every attachment in the chat.
+	BeforeID int64
+}
+
+// GetChatAttachments returns the file parts of a chat's user-visible user
+// and assistant messages, newest first.
+func (c *Client) GetChatAttachments(ctx context.Context, chatID uuid.UUID, opts *ChatAttachmentsOptions) (ChatAttachmentsResponse, error) {
+	reqOpts := []RequestOption{}
+	if opts != nil && opts.BeforeID > 0 {
+		reqOpts = append(reqOpts, func(r *http.Request) {
+			q := r.URL.Query()
+			q.Set("before_id", strconv.FormatInt(opts.BeforeID, 10))
+			r.URL.RawQuery = q.Encode()
+		})
+	}
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/chats/%s/attachments", chatID), nil, reqOpts...)
+	if err != nil {
+		return ChatAttachmentsResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatAttachmentsResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatAttachmentsResponse
 	return resp, ReadBodyAsJSON(res, &resp)
 }
 
