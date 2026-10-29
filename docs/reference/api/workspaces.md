@@ -2688,7 +2688,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/watch-ws \
 
 `GET /api/v2/workspaces/{workspace}/watch-ws`
 
-Upgrades to a WebSocket and sends one event per message, where "data" events hold a codersdk.Workspace, "error" events hold a codersdk.Response, and "ping" events have no data. The server closes the connection if you send a message.
+Upgrades to a WebSocket and sends one event per message, where `data` events hold a `codersdk.Workspace`, `error` events hold a `codersdk.Response`, and `ping` events have no data. The server closes the connection if you send a message.
 
 ### Parameters
 

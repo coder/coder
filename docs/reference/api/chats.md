@@ -1502,7 +1502,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
 
 `GET /api/v2/chats/watch`
 
-Upgrades to a WebSocket. The server sends each event as a separate message.
+Upgrades to a WebSocket and sends one event per message. The server closes the connection if you send a message.
 
 ### Example responses
 
@@ -4133,7 +4133,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
 
 `GET /api/v2/chats/{chat}/stream`
 
-Upgrades to a WebSocket. Each message is a JSON array holding a batch of one or more events.
+Upgrades to a WebSocket and sends each message as a JSON array holding a batch of one or more events. The server closes the connection if you send a message.
 
 ### Parameters
 
@@ -4542,7 +4542,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream/git \
 
 `GET /api/v2/chats/{chat}/stream/git`
 
-Upgrades to a WebSocket. Each server message is either a "changes" message with a delta of repository changes since the previous message or an "error" message, and you can send {"type": "refresh"} to request an immediate re-scan.
+Upgrades to a WebSocket. Each server message is either a `changes` message with a delta of repository changes since the previous message or an `error` message, and you can send `{"type": "refresh"}` to request an immediate re-scan.
 
 ### Parameters
 

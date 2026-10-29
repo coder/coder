@@ -2174,7 +2174,7 @@ func (api *API) watchWorkspaceSSE(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Watch workspace by ID via WebSockets
-// @Description Upgrades to a WebSocket and sends one event per message, where "data" events hold a codersdk.Workspace, "error" events hold a codersdk.Response, and "ping" events have no data. The server closes the connection if you send a message.
+// @Description Upgrades to a WebSocket and sends one event per message, where `data` events hold a `codersdk.Workspace`, `error` events hold a `codersdk.Response`, and `ping` events have no data. The server closes the connection if you send a message.
 // @ID watch-workspace-by-id-via-websockets
 // @Security CoderSessionToken
 // @Produce json

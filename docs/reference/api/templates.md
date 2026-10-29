@@ -572,7 +572,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 
 `GET /api/v2/organizations/{organization}/templates/{templatename}/versions/{templateversionname}/previous`
 
-Returns 204 with no body when the version has no previous version.
+Returns the template version that precedes the named version.
 
 ### Parameters
 
@@ -658,10 +658,10 @@ Returns 204 with no body when the version has no previous version.
 
 ### Responses
 
-| Status | Meaning                                                         | Description | Schema                                                         |
-|--------|-----------------------------------------------------------------|-------------|----------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)         | OK          | [codersdk.TemplateVersion](schemas.md#codersdktemplateversion) |
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |                                                                |
+| Status | Meaning                                                         | Description                                  | Schema                                                         |
+|--------|-----------------------------------------------------------------|----------------------------------------------|----------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)         | OK                                           | [codersdk.TemplateVersion](schemas.md#codersdktemplateversion) |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | The template version has no previous version |                                                                |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
