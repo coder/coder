@@ -82,13 +82,14 @@ const ToolCallBranchContext = createContext<BranchMode>("off");
  * PROTOTYPE: the rail runs `railOffset` left of the rows (the working block's
  * 1px border and 16px padding), and a branch rises `rise` above the header
  * row's center, `rowCenter` below its top, so a rail ending inside it reads
- * as one stroke. Its elbow curves out `reach` in both directions, halfway to
- * the row like the list-tree icon's arms.
+ * as one stroke. Its elbow turns on a `radius` curve and runs straight on to
+ * `arm`, short of the row's icon.
  */
 export const branchGeometry = {
 	railOffset: 17,
 	rise: 16,
-	reach: 8,
+	radius: 8,
+	arm: 12,
 	rowCenter: 12,
 } as const;
 
@@ -249,8 +250,8 @@ const Root: React.FC<ToolCallRootProps> = ({
 							left: -branchGeometry.railOffset,
 							top: branchGeometry.rowCenter - branchGeometry.rise,
 							height: branchGeometry.rise,
-							width: branchGeometry.reach,
-							borderBottomLeftRadius: branchGeometry.reach,
+							width: branchGeometry.arm,
+							borderBottomLeftRadius: branchGeometry.radius,
 							clipPath: showsBranch ? "inset(0 0 0 0)" : "inset(0 100% 0 0)",
 						}}
 					/>

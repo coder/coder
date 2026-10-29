@@ -231,8 +231,8 @@ class WorkingBlockContent extends Component<
 						className="pointer-events-none absolute top-0 -left-px border-0 border-b border-l border-solid border-border"
 						style={{
 							height: railEnd,
-							width: branchGeometry.reach,
-							borderBottomLeftRadius: branchGeometry.reach,
+							width: branchGeometry.arm,
+							borderBottomLeftRadius: branchGeometry.radius,
 						}}
 					/>
 				)}

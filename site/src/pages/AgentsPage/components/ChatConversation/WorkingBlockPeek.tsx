@@ -277,9 +277,10 @@ export const WorkingBlockPeek: React.FC<WorkingBlockPeekProps> = ({
 											className="absolute inset-x-0 h-6"
 											style={{
 												top: slotOf(item) * ROW_PITCH,
-												// Clips like overflow-hidden, but leaves room on
-												// the left for the row's branch to reach the rail.
-												clipPath: `inset(0 0 0 -${ROW_INSET + 4}px)`,
+												// Clips like overflow-hidden, but leaves room for the
+												// row's branch: left to the rail, and up above the
+												// row, where the rail ends inside it.
+												clipPath: `inset(-${branchGeometry.rise - branchGeometry.rowCenter}px 0 0 -${ROW_INSET + 4}px)`,
 											}}
 											// Stays mounted until the track has carried it past
 											// the top edge.
