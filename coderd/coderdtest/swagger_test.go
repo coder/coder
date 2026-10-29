@@ -56,6 +56,40 @@ func TestChatModelPathParametersFormatted(t *testing.T) {
 	}
 }
 
+// TestSwaggerParametersValid guards against parameter keywords that
+// Swagger 2.0 rejects: "example" on a non-body parameter, and "format" on an
+// array parameter, which swag applies to the array instead of its items.
+func TestSwaggerParametersValid(t *testing.T) {
+	t.Parallel()
+
+	var swagger struct {
+		Paths map[string]map[string]struct {
+			Parameters []struct {
+				Name    string `json:"name"`
+				In      string `json:"in"`
+				Type    string `json:"type"`
+				Format  string `json:"format"`
+				Example any    `json:"example"`
+			} `json:"parameters"`
+		} `json:"paths"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(apidoc.SwaggerInfo.ReadDoc()), &swagger))
+	require.NotEmpty(t, swagger.Paths)
+
+	for path, operations := range swagger.Paths {
+		for method, operation := range operations {
+			for _, parameter := range operation.Parameters {
+				if parameter.In != "body" {
+					assert.Nil(t, parameter.Example, "%s %s: %s parameter %q must not have an example; use extensions(x-example=...)", method, path, parameter.In, parameter.Name)
+				}
+				if parameter.Type == "array" {
+					assert.Empty(t, parameter.Format, "%s %s: array parameter %q must not have a format", method, path, parameter.Name)
+				}
+			}
+		}
+	}
+}
+
 func TestSDKFieldsFormatted(t *testing.T) {
 	t.Parallel()
 

@@ -18723,7 +18723,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "x-example": "Basic Y2xpZW50X2lkOmNsaWVudF9zZWNyZXQ=",
-                        "description": "HTTP Basic credentials, the client_id as the username and the client_secret as the password. A confidential client sends these or the form fields below, not both. For example, ` + "`" + `Basic Y2xpZW50X2lkOmNsaWVudF9zZWNyZXQ=` + "`" + `.",
+                        "description": "HTTP Basic credentials, the client_id as the username and the client_secret as the password. A confidential client sends these or the form fields below, not both.",
                         "name": "Authorization",
                         "in": "header"
                     },

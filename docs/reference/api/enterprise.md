@@ -5317,14 +5317,14 @@ token_type_hint: string
 
 ### Parameters
 
-| Name                | In     | Type   | Required | Description                                                                                                                                                                                                               |
-|---------------------|--------|--------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `Authorization`     | header | string | false    | HTTP Basic credentials, the client_id as the username and the client_secret as the password. A confidential client sends these or the form fields below, not both. For example, `Basic Y2xpZW50X2lkOmNsaWVudF9zZWNyZXQ=`. |
-| `body`              | body   | object | false    |                                                                                                                                                                                                                           |
-| `» client_id`       | body   | string | false    | Client ID, required unless sent as the HTTP Basic username                                                                                                                                                                |
-| `» client_secret`   | body   | string | false    | Client secret, required for a confidential client unless sent as the HTTP Basic password. Public clients (token_endpoint_auth_method=none) send no secret.                                                                |
-| `» token`           | body   | string | true     | The token to revoke                                                                                                                                                                                                       |
-| `» token_type_hint` | body   | string | false    | Hint about token type (access_token or refresh_token)                                                                                                                                                                     |
+| Name                | In     | Type   | Required | Description                                                                                                                                                        |
+|---------------------|--------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `Authorization`     | header | string | false    | HTTP Basic credentials, the client_id as the username and the client_secret as the password. A confidential client sends these or the form fields below, not both. |
+| `body`              | body   | object | false    |                                                                                                                                                                    |
+| `» client_id`       | body   | string | false    | Client ID, required unless sent as the HTTP Basic username                                                                                                         |
+| `» client_secret`   | body   | string | false    | Client secret, required for a confidential client unless sent as the HTTP Basic password. Public clients (token_endpoint_auth_method=none) send no secret.         |
+| `» token`           | body   | string | true     | The token to revoke                                                                                                                                                |
+| `» token_type_hint` | body   | string | false    | Hint about token type (access_token or refresh_token)                                                                                                              |
 
 ### Example responses
 
