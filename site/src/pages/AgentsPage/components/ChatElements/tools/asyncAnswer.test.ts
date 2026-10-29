@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getAsyncAnswerPrefix, parseAsyncAnswer } from "./asyncAnswer";
+import {
+	getAnswerBody,
+	getAsyncAnswerPrefix,
+	parseAsyncAnswer,
+} from "./asyncAnswer";
 
 describe("parseAsyncAnswer", () => {
 	// Providers choose call IDs, so they may contain colons or spaces.
@@ -33,5 +37,18 @@ describe("parseAsyncAnswer", () => {
 		["a different lead", "Answer to question call toolu_123:\nyes"],
 	])("leaves %s alone", (_, text) => {
 		expect(parseAsyncAnswer(text)).toBeUndefined();
+	});
+});
+
+describe("getAnswerBody", () => {
+	const answer = `${getAsyncAnswerPrefix("toolu_123")}Single migration`;
+
+	it.each([
+		["an answer to the call", answer, "toolu_123", "Single migration"],
+		["an answer to another call", answer, "toolu_456", undefined],
+		["a blocking answer", "Single migration", undefined, "Single migration"],
+		["no text", undefined, "toolu_123", undefined],
+	])("handles %s", (_, text, asyncToolCallId, body) => {
+		expect(getAnswerBody(text, asyncToolCallId)).toBe(body);
 	});
 });

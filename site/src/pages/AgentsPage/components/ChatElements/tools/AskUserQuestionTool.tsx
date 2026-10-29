@@ -55,6 +55,11 @@ const getQuestionHeader = (
 const getQuestionText = (question: AskUserQuestion): string =>
 	question.question || "No question provided.";
 
+const getQuestionKey = (
+	question: AskUserQuestion,
+	questionIndex: number,
+): string => `${question.header}-${question.question}-${questionIndex}`;
+
 const filterQuestionOptions = (question: AskUserQuestion): AskUserQuestion => ({
 	...question,
 	options: question.options.filter(
@@ -351,14 +356,10 @@ const QuestionStep: React.FC<QuestionStepProps> = ({
 
 type AnsweredQuestionTextProps = {
 	question: AskUserQuestion;
-	questionIndex: number;
-	idPrefix: string;
 };
 
 const AnsweredQuestionText: React.FC<AnsweredQuestionTextProps> = ({
 	question,
-	questionIndex,
-	idPrefix,
 }) => {
 	return (
 		<div className="flex items-start gap-1.5 text-content-secondary">
@@ -366,10 +367,7 @@ const AnsweredQuestionText: React.FC<AnsweredQuestionTextProps> = ({
 				aria-hidden="true"
 				className="mt-0.5 size-4 shrink-0"
 			/>
-			<p
-				id={`${idPrefix}-question-${questionIndex}-text`}
-				className="m-0 min-w-0 flex-1 whitespace-pre-wrap text-[13px]"
-			>
+			<p className="m-0 min-w-0 flex-1 whitespace-pre-wrap text-[13px]">
 				<span aria-hidden="true">Asked: </span>
 				<span>{getQuestionText(question)}</span>
 			</p>
@@ -379,21 +377,15 @@ const AnsweredQuestionText: React.FC<AnsweredQuestionTextProps> = ({
 
 type AskedQuestionsProps = {
 	questions: AskUserQuestion[];
-	idPrefix: string;
 };
 
-const AskedQuestions: React.FC<AskedQuestionsProps> = ({
-	questions,
-	idPrefix,
-}) => {
+const AskedQuestions: React.FC<AskedQuestionsProps> = ({ questions }) => {
 	return (
 		<div className="space-y-5">
 			{questions.map((question, questionIndex) => (
 				<AnsweredQuestionText
-					key={`${question.header}-${question.question}-${questionIndex}`}
+					key={getQuestionKey(question, questionIndex)}
 					question={question}
-					questionIndex={questionIndex}
-					idPrefix={idPrefix}
 				/>
 			))}
 		</div>
@@ -412,7 +404,11 @@ type AskUserQuestionFormProps = {
 	onStepChange?: () => void;
 };
 
-/** Collects the answers to a question set and shows them once sent. */
+/**
+ * Collects the answers to a question set, sends them as one message, and
+ * then lists the questions as asked. An async question's message starts
+ * with its call's prefix line, which the form strips from the answer it shows.
+ */
 export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 	questions,
 	previousResponseText,
@@ -591,12 +587,12 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 	const content = (
 		<>
 			{hasSubmittedResponse ? (
-				<AskedQuestions questions={filteredQuestions} idPrefix={idPrefix} />
+				<AskedQuestions questions={filteredQuestions} />
 			) : (
 				<div className="space-y-5">
 					{visibleQuestions.map(({ question, questionIndex }) => (
 						<QuestionStep
-							key={`${question.header}-${question.question}-${questionIndex}`}
+							key={getQuestionKey(question, questionIndex)}
 							question={question}
 							questionIndex={questionIndex}
 							questionCount={filteredQuestions.length}
@@ -687,7 +683,11 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 	);
 };
 
-/** Shows an ask_user_question call in the transcript. */
+/**
+ * Shows an ask_user_question call in the transcript, with the async
+ * question's announcement. A docked or closed question shows a notice in
+ * place of the form.
+ */
 export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	questions,
 	status,
@@ -700,7 +700,6 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	isDocked = false,
 	onSubmitAnswer,
 }) => {
-	const idPrefix = useId();
 	const isAsync = asyncToolCallId !== undefined;
 	const isRunning = status === "running";
 	const isCompleted = status === "completed";
@@ -791,7 +790,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 				/>
 			) : (
 				<>
-					<AskedQuestions questions={questions} idPrefix={idPrefix} />
+					<AskedQuestions questions={questions} />
 					<p className="mt-3 text-[13px] text-content-secondary">{notice}</p>
 				</>
 			)}
