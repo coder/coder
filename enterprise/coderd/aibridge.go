@@ -159,7 +159,7 @@ func aiGatewayBYOKGuard(cfg codersdk.AIBridgeConfig) func(http.Handler) http.Han
 // @Produce json
 // @Tags AI Gateway
 // @Param q query string false "Search query in the format `key:value`. Available keys are: initiator, provider, provider_name, model, client, session_id, started_after, started_before."
-// @Param limit query int false "Page limit"
+// @Param limit query int false "Maximum number of sessions to return. The default is `100` and the maximum is `1000`."
 // @Param after_session_id query string false "Cursor pagination after session ID (cannot be used with offset)"
 // @Param offset query int false "Offset pagination (cannot be used with after_session_id)"
 // @Success 200 {object} codersdk.AIBridgeListSessionsResponse
@@ -280,7 +280,7 @@ func (api *API) aiBridgeListSessions(rw http.ResponseWriter, r *http.Request) {
 // threads including agentic actions and thinking blocks.
 //
 // @Summary Get AI Gateway session threads
-// @Description Alias: also available at /api/v2/aibridge/sessions/{session_id} for backward compatibility.
+// @Description Alias: also available at `/api/v2/aibridge/sessions/{session_id}` for backward compatibility.
 // @ID get-ai-gateway-session-threads
 // @Security CoderSessionToken
 // @Produce json
@@ -638,6 +638,10 @@ func (api *API) aiBridgeListClients(rw http.ResponseWriter, r *http.Request) {
 // get labels and icons without access to provider configuration.
 //
 // @Summary List AI Gateway providers
+// @Description Returns the name, type, display name, and icon of each AI provider, which you can use to label the `provider_name` values on AI Gateway sessions and to filter sessions by provider.
+// @Description Returns no provider configuration or secrets.
+// @Description Requires permission to read AI Gateway interceptions, which the Owner and Auditor roles have.
+// @Description Requires a Premium license.
 // @ID list-ai-gateway-providers
 // @Security CoderSessionToken
 // @Produce json

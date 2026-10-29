@@ -95,6 +95,11 @@ curl -X GET http://coder-server:8080/api/v2/ai-gateway/providers \
 
 `GET /api/v2/ai-gateway/providers`
 
+Returns the name, type, display name, and icon of each AI provider, which you can use to label the `provider_name` values on AI Gateway sessions and to filter sessions by provider.
+Returns no provider configuration or secrets.
+Requires permission to read AI Gateway interceptions, which the Owner and Auditor roles have.
+Requires a Premium license.
+
 ### Example responses
 
 > 200 Response
@@ -156,7 +161,7 @@ Alias: also available at /api/v2/aibridge/sessions for backward compatibility.
 | Name               | In    | Type    | Required | Description                                                                                                                                               |
 |--------------------|-------|---------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `q`                | query | string  | false    | Search query in the format `key:value`. Available keys are: initiator, provider, provider_name, model, client, session_id, started_after, started_before. |
-| `limit`            | query | integer | false    | Page limit                                                                                                                                                |
+| `limit`            | query | integer | false    | Maximum number of sessions to return. The default is `100` and the maximum is `1000`.                                                                     |
 | `after_session_id` | query | string  | false    | Cursor pagination after session ID (cannot be used with offset)                                                                                           |
 | `offset`           | query | integer | false    | Offset pagination (cannot be used with after_session_id)                                                                                                  |
 
@@ -228,7 +233,7 @@ curl -X GET http://coder-server:8080/api/v2/ai-gateway/sessions/{session_id} \
 
 `GET /api/v2/ai-gateway/sessions/{session_id}`
 
-Alias: also available at /api/v2/aibridge/sessions/{session_id} for backward compatibility.
+Alias: also available at `/api/v2/aibridge/sessions/{session_id}` for backward compatibility.
 
 ### Parameters
 
