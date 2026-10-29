@@ -81,7 +81,8 @@ export const findKnownModelByCanonicalId = (
 
 /**
  * Canonical identifiers verified to accept chatd's computer use tool
- * (Anthropic computer_20251124, OpenAI Responses computer tool).
+ * (Anthropic computer_toolset_20260801 or computer_20251124, picked per
+ * model, and the OpenAI Responses computer tool).
  */
 export const knownComputerUseModels: readonly {
 	readonly provider: ChatComputerUseProvider;
@@ -89,10 +90,12 @@ export const knownComputerUseModels: readonly {
 }[] = [
 	{ provider: "anthropic", modelIdentifier: "claude-fable-5-1" },
 	{ provider: "anthropic", modelIdentifier: "claude-fable-5" },
+	{ provider: "anthropic", modelIdentifier: "claude-opus-5-5" },
 	{ provider: "anthropic", modelIdentifier: "claude-opus-5" },
 	{ provider: "anthropic", modelIdentifier: "claude-opus-4-8" },
 	{ provider: "anthropic", modelIdentifier: "claude-opus-4-7" },
 	{ provider: "anthropic", modelIdentifier: "claude-opus-4-6" },
+	{ provider: "anthropic", modelIdentifier: "claude-sonnet-5-5" },
 	{ provider: "anthropic", modelIdentifier: "claude-sonnet-5" },
 	{ provider: "anthropic", modelIdentifier: "claude-sonnet-4-6" },
 	{ provider: "openai", modelIdentifier: "gpt-6-astra" },
