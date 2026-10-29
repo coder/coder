@@ -6569,6 +6569,7 @@ const docTemplate = `{
         },
         "/api/v2/init-script/{os}/{arch}": {
             "get": {
+                "description": "Returns the script that downloads the Coder agent binary from the deployment and starts it, for the given operating system and architecture.\nThe script has the deployment's access URL filled in and token authentication selected, and the Coder Terraform provider builds the ` + "`" + `init_script` + "`" + ` of a ` + "`" + `coder_agent` + "`" + ` from the same script.\nDoesn't require a session token, and returns ` + "`" + `400` + "`" + ` for an operating system and architecture pair that Coder doesn't support.",
                 "produces": [
                     "text/plain"
                 ],
@@ -6580,14 +6581,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Operating system",
+                        "description": "Operating system of the machine that runs the agent, one of ` + "`" + `linux` + "`" + `, ` + "`" + `darwin` + "`" + `, or ` + "`" + `windows` + "`" + `. The match ignores case.",
                         "name": "os",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Architecture",
+                        "description": "CPU architecture of the machine that runs the agent, one of ` + "`" + `amd64` + "`" + ` or ` + "`" + `arm64` + "`" + `, or ` + "`" + `armv7` + "`" + ` on ` + "`" + `linux` + "`" + `. The match ignores case.",
                         "name": "arch",
                         "in": "path",
                         "required": true
