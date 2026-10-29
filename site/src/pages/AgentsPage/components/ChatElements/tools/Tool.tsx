@@ -215,22 +215,10 @@ const getWorkspaceQuotaTitle = (
 	return asString(rec.title).trim() || "Workspace quota reached";
 };
 
-type AskUserQuestionResult = {
-	questions: AskUserQuestion[];
-	isAsync: boolean;
-};
-
 const parseAskUserQuestionResult = (
 	result: unknown,
-): AskUserQuestionResult | null => {
-	const questions = parseAskUserQuestions(
-		findAskUserQuestionResultRecord(result)?.questions,
-	);
-	if (!questions) {
-		return null;
-	}
-	return { questions, isAsync: isAsyncAskUserQuestionResult(result) };
-};
+): AskUserQuestion[] | null =>
+	parseAskUserQuestions(findAskUserQuestionResultRecord(result)?.questions);
 
 const ExecuteRenderer: React.FC<ToolRendererProps> = ({
 	status,
@@ -727,8 +715,7 @@ export const AskUserQuestionRenderer: React.FC<
 	const questionsFromArgs = parsedArgs
 		? parseAskUserQuestions(parsedArgs.questions)
 		: null;
-	const parsedResult = parseAskUserQuestionResult(result);
-	const questionsFromResult = parsedResult?.questions;
+	const questionsFromResult = parseAskUserQuestionResult(result);
 	const questions =
 		questionsFromArgs && questionsFromArgs.length > 0
 			? questionsFromArgs
@@ -752,7 +739,9 @@ export const AskUserQuestionRenderer: React.FC<
 			isLatestAskUserQuestion={isLatestAskUserQuestion}
 			isDocked={isDockedAskUserQuestion}
 			previousResponseText={previousResponseText}
-			asyncToolCallId={parsedResult?.isAsync ? toolCallId : undefined}
+			asyncToolCallId={
+				isAsyncAskUserQuestionResult(result) ? toolCallId : undefined
+			}
 			announcesQuestion={announcesQuestion}
 			onStepChange={onStepChange}
 		/>
