@@ -81,9 +81,11 @@ const ToolCallBranchContext = createContext<BranchMode>("off");
 /**
  * PROTOTYPE: the rail runs `railOffset` left of the rows (the working block's
  * 1px border and 16px padding), and a branch rises `rise` above the header
- * row's center, so a rail ending inside it reads as one stroke.
+ * row's center, so a rail ending inside it reads as one stroke. Its elbow
+ * curves out `reach` in both directions, halfway to the row like the
+ * list-tree icon's arms.
  */
-export const branchGeometry = { railOffset: 17, rise: 16 } as const;
+export const branchGeometry = { railOffset: 17, rise: 16, reach: 8 } as const;
 
 /** Half the 24px header row: where a branch turns into the row. */
 const HEADER_CENTER = 12;
@@ -235,13 +237,13 @@ const Root: React.FC<ToolCallRootProps> = ({
 					// It retracts toward the rail when the row stops branching.
 					<span
 						aria-hidden
-						className="pointer-events-none absolute rounded-bl-md border-0 border-b border-l border-solid border-border transition-[clip-path] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none"
+						className="pointer-events-none absolute border-0 border-b border-l border-solid border-border transition-[clip-path] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none"
 						style={{
 							left: -branchGeometry.railOffset,
 							top: HEADER_CENTER - branchGeometry.rise,
 							height: branchGeometry.rise,
-							// Stops short of the row's icon.
-							width: branchGeometry.railOffset - 3,
+							width: branchGeometry.reach,
+							borderBottomLeftRadius: branchGeometry.reach,
 							clipPath: showsBranch ? "inset(0 0 0 0)" : "inset(0 100% 0 0)",
 						}}
 					/>
