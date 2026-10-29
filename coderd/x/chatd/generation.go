@@ -969,9 +969,8 @@ func (s *taskStarter) admitStepToolCalls(
 	prepared turnEnvironment,
 	content []fantasy.Content,
 ) (chathooks.PreToolUseExecutionResult, error) {
-	if !s.server.hooks.Enabled() {
-		return chathooks.PreToolUseExecutionResult{}, nil
-	}
+	// Validate even without hooks: JSONB persistence discards duplicate keys,
+	// so execution cannot detect them after the assistant step is committed.
 	pending := chathooks.PendingToolCalls(content)
 	toolCalls := withoutResolvedToolCalls(content, pending)
 	if len(pending) == 0 || exclusiveBatchRejected(toolCalls, prepared.ExclusiveToolNames) {
@@ -997,8 +996,8 @@ func (s *taskStarter) admitStepToolCalls(
 		countBatch()
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
 	}
-	unambiguous, _, ambiguous := partitionAmbiguousToolCalls(prepared, toolCalls)
-	preflight, err := s.server.hooks.PreflightPendingToolCalls(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), unambiguous)
+	valid, _, invalid := partitionInvalidToolCalls(prepared, toolCalls)
+	preflight, err := s.server.hooks.PreflightPendingToolCalls(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), valid)
 	if err != nil {
 		countBatch()
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
@@ -1007,7 +1006,7 @@ func (s *taskStarter) admitStepToolCalls(
 		countBatch()
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
 	}
-	preflight.Denied = append(preflight.Denied, ambiguous...)
+	preflight.Denied = append(preflight.Denied, invalid...)
 	// Calls denied at admission persist synthetic results with the
 	// assistant step, so they never surface as unresolved calls where
 	// executeLocalTools counts find_tools invocations; count them here.
@@ -1077,7 +1076,7 @@ func (s *taskStarter) executeLocalTools(
 	var allowedIndexes []int
 	var denied []fantasy.ToolResultContent
 	if !exclusiveRejected {
-		allowed, allowedIndexes, denied = partitionAmbiguousToolCalls(prepared, decision.localToolCalls)
+		allowed, allowedIndexes, denied = partitionInvalidToolCalls(prepared, decision.localToolCalls)
 	}
 	// find_tools calls are counted here, at the single point every
 	// model-emitted call passes through, because rejections upstream of

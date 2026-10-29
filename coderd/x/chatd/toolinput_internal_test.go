@@ -16,9 +16,101 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
-func TestPartitionAmbiguousToolCallsGatesOnBuiltins(t *testing.T) {
+func TestPartitionToolCallsValidatesSchema(t *testing.T) {
+	t.Parallel()
+
+	type target struct {
+		Path string `json:"path"`
+	}
+	type input struct {
+		Target     target                       `json:"target"`
+		Count      int                          `json:"count,omitempty"`
+		Parameters map[string]string            `json:"parameters,omitempty"`
+		Targets    []map[string]target          `json:"targets,omitempty"`
+		Nested     map[string]map[string]string `json:"nested,omitempty"`
+	}
+	for _, tt := range []struct {
+		input   string
+		wantErr string
+	}{
+		{input: `{}`, wantErr: `missing properties: ["target"]`},
+		{input: `{"target":{}}`, wantErr: `missing properties: ["path"]`},
+		{input: `{"target":{"path":1}}`, wantErr: `want "string"`},
+		{input: `{"target":{"path":"a"},"count":1.5}`, wantErr: `want "integer"`},
+		{input: `null`, wantErr: `want "object"`},
+		{input: `[]`, wantErr: `want "object"`},
+		{input: `{"target":{"path":"a"},"parameters":{"cpu":42}}`, wantErr: `want "string"`},
+		{input: `{"target":{"path":"a"},"targets":[{"first":{}}]}`, wantErr: `missing properties: ["path"]`},
+		{input: `{"target":{"path":"a"},"nested":{"first":{"cpu":42}}}`, wantErr: `want "string"`},
+		{input: `{"target":{"path":"a"},"extra":1}`},
+		{input: `{"target":{"path":"a"},"count":1,"parameters":{"cpu":"2","CPU":"4"},"targets":[{"first":{"path":"b"}}],"nested":{"first":{"cpu":"2"}}}`},
+	} {
+		t.Run(tt.input, func(t *testing.T) {
+			t.Parallel()
+
+			tool := fantasy.NewAgentTool("test", "", func(context.Context, input, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				return fantasy.ToolResponse{}, nil
+			})
+			prepared := turnEnvironment{Tools: []fantasy.AgentTool{tool}, BuiltinToolNames: map[string]bool{"test": true}}
+			call := fantasy.ToolCallContent{ToolName: "test", Input: tt.input}
+			allowed, _, rejected := partitionInvalidToolCalls(prepared, []fantasy.ToolCallContent{call})
+			if tt.wantErr != "" {
+				require.Empty(t, allowed)
+				require.Len(t, rejected, 1)
+				require.ErrorContains(t, rejected[0].Result.(fantasy.ToolResultOutputContentError).Error, tt.wantErr)
+			} else {
+				require.Empty(t, rejected)
+				require.Equal(t, []fantasy.ToolCallContent{call}, allowed)
+			}
+		})
+	}
+}
+
+func TestPartitionToolCallsValidatesACPSpawnSchema(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		input   string
+		wantErr string
+	}{
+		{input: `{"harness_id":"claude-code","prompt":"Report which MCP servers are available to you.","working_directory":"/home/coder/coder"}`, wantErr: `missing properties: ["agent"]`},
+		{input: `{"prompt":"task","working_directory":"/work","agent":{}}`, wantErr: `missing properties: ["harness_id"]`},
+		{input: `{"prompt":"task","working_directory":"/work","agent":{"harness_id":"unknown"}}`, wantErr: "enum"},
+		{input: `{"prompt":"task","working_directory":"/work","agent":{"harness_id":"claude-code","config":{"mode":"invalid"}}}`, wantErr: "enum"},
+		{input: `{"prompt":"task","working_directory":"/work","agent":{"harness_id":"other","config":{"mode":"code"}}}`, wantErr: "unexpected additional properties"},
+		{input: `{"prompt":"task","working_directory":"/work","agent":{"harness_id":"claude-code","extra":true}}`, wantErr: "unexpected additional properties"},
+		{input: `{"prompt":"task","working_directory":"/work","agent":{"harness_id":"claude-code","config":{"mode":"code"}}}`},
+		{input: `{"prompt":"task","working_directory":"/work","agent":{"harness_id":"other"}}`},
+	} {
+		t.Run(tt.input, func(t *testing.T) {
+			t.Parallel()
+
+			tools := newACPTools(acpToolset{harnesses: []workspacesdk.ACPHarness{
+				{Slug: "claude-code", ConfigOptions: []workspacesdk.ACPConfigOption{
+					{ID: "mode", Values: []workspacesdk.ACPConfigValue{{ID: "code"}}},
+				}},
+				{Slug: "other"},
+			}})
+			prepared := turnEnvironment{Tools: tools, BuiltinToolNames: map[string]bool{"acp_spawn_agent": true}}
+			call := fantasy.ToolCallContent{ToolName: "acp_spawn_agent", Input: tt.input}
+			allowed, _, rejected := partitionInvalidToolCalls(prepared, []fantasy.ToolCallContent{call})
+			if tt.wantErr != "" {
+				require.Empty(t, allowed)
+				require.Len(t, rejected, 1)
+				result := rejected[0].Result.(fantasy.ToolResultOutputContentError)
+				require.ErrorContains(t, result.Error, tt.wantErr)
+				return
+			}
+			require.Empty(t, rejected)
+			require.Len(t, allowed, 1)
+		})
+	}
+}
+
+func TestPartitionInvalidToolCallsGatesOnBuiltins(t *testing.T) {
 	t.Parallel()
 
 	fetch := fetchToolStub()
@@ -40,7 +132,7 @@ func TestPartitionAmbiguousToolCallsGatesOnBuiltins(t *testing.T) {
 			Tools:            []fantasy.AgentTool{fetch},
 			BuiltinToolNames: map[string]bool{"fetch": true},
 		}
-		allowed, allowedIndexes, rejected := partitionAmbiguousToolCalls(prepared, []fantasy.ToolCallContent{ambiguous, clean})
+		allowed, allowedIndexes, rejected := partitionInvalidToolCalls(prepared, []fantasy.ToolCallContent{ambiguous, clean})
 		require.Len(t, rejected, 1)
 		require.Equal(t, "call_ambiguous", rejected[0].ToolCallID)
 		require.Len(t, allowed, 1)
@@ -52,10 +144,15 @@ func TestPartitionAmbiguousToolCallsGatesOnBuiltins(t *testing.T) {
 		t.Parallel()
 
 		prepared := turnEnvironment{Tools: []fantasy.AgentTool{fetch}}
-		allowed, allowedIndexes, rejected := partitionAmbiguousToolCalls(prepared, []fantasy.ToolCallContent{ambiguous, clean})
+		missingRequired := fantasy.ToolCallContent{ToolName: "fetch", Input: `{}`}
+		allowed, allowedIndexes, rejected := partitionInvalidToolCalls(prepared, []fantasy.ToolCallContent{ambiguous, clean, missingRequired})
 		require.Empty(t, rejected)
-		require.Len(t, allowed, 2)
-		require.Equal(t, []int{0, 1}, allowedIndexes)
+		require.Len(t, allowed, 3)
+		require.Equal(t, []int{0, 1, 2}, allowedIndexes)
+		require.NoError(t, validateOverriddenToolInputs(prepared, chathooks.PreToolUseExecutionResult{
+			Allowed:   []fantasy.ToolCallContent{missingRequired},
+			Overrides: map[string]json.RawMessage{missingRequired.ToolCallID: json.RawMessage(missingRequired.Input)},
+		}))
 	})
 
 	// Execution resolves a deprecated name to its canonical tool, so
@@ -87,8 +184,9 @@ func TestPartitionAmbiguousToolCallsGatesOnBuiltins(t *testing.T) {
 			Tools:            []fantasy.AgentTool{tool},
 			BuiltinToolNames: map[string]bool{canonical: true},
 		}
-		_, _, rejected := partitionAmbiguousToolCalls(prepared, []fantasy.ToolCallContent{aliased})
-		require.Len(t, rejected, 1)
+		missingRequired := fantasy.ToolCallContent{ToolName: alias, Input: `{}`}
+		_, _, rejected := partitionInvalidToolCalls(prepared, []fantasy.ToolCallContent{aliased, missingRequired})
+		require.Len(t, rejected, 2)
 	})
 }
 
@@ -99,23 +197,37 @@ func TestValidateOverriddenToolInputs(t *testing.T) {
 		Tools:            []fantasy.AgentTool{fetchToolStub()},
 		BuiltinToolNames: map[string]bool{"fetch": true},
 	}
-	overridden := chathooks.PreToolUseExecutionResult{
-		Allowed: []fantasy.ToolCallContent{{
-			ToolCallID: "call_overridden",
-			ToolName:   "fetch",
-			Input:      `{"URL":"https://other.test"}`,
-		}},
-		Overrides: map[string]json.RawMessage{
-			"call_overridden": json.RawMessage(`{"URL":"https://other.test"}`),
-		},
-	}
-	require.ErrorContains(t, validateOverriddenToolInputs(prepared, overridden),
-		`hook input override for tool fetch: input key "URL" differs from schema property "url" only by case`)
+	for _, tt := range []struct {
+		input   string
+		wantErr string
+	}{
+		{input: `{"URL":"https://other.test"}`, wantErr: `input key "URL" differs from schema property "url" only by case`},
+		{input: `{}`, wantErr: `missing properties: ["url"]`},
+		{input: `{"url":1}`, wantErr: `want "string"`},
+		{input: `null`, wantErr: `want "object"`},
+		{input: `{"url":"https://other.test"}`},
+	} {
+		t.Run(tt.input, func(t *testing.T) {
+			t.Parallel()
+			overridden := chathooks.PreToolUseExecutionResult{
+				Allowed: []fantasy.ToolCallContent{{ToolCallID: "call_overridden", ToolName: "fetch", Input: tt.input}},
+				Overrides: map[string]json.RawMessage{
+					"call_overridden": json.RawMessage(tt.input),
+				},
+			}
+			err := validateOverriddenToolInputs(prepared, overridden)
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, "hook input override for tool fetch:")
+				require.ErrorContains(t, err, tt.wantErr)
+			}
 
-	// The same input is left alone when no consumer replaced it, because
-	// the model-authored batch is checked before the dispatch instead.
-	untouched := chathooks.PreToolUseExecutionResult{Allowed: overridden.Allowed}
-	require.NoError(t, validateOverriddenToolInputs(prepared, untouched))
+			// Model-authored inputs are checked before hook dispatch instead.
+			untouched := chathooks.PreToolUseExecutionResult{Allowed: overridden.Allowed}
+			require.NoError(t, validateOverriddenToolInputs(prepared, untouched))
+		})
+	}
 }
 
 // TestBuiltinToolSchemasDescribeTheirInputs guards the validator's reach: it
