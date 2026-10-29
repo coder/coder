@@ -29,6 +29,10 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 	const labelId = useId();
 	const sectionRef = useRef<HTMLElement>(null);
 
+	const submitAnswer = async (answerText: string) => {
+		await onSubmitAnswer?.(getAsyncAnswerPrefix(question.id) + answerText);
+	};
+
 	return (
 		<div
 			// `hidden` wins over `flex` only through Tailwind preflight's `[hidden]` rule.
@@ -59,12 +63,7 @@ export const AskUserQuestionDock: React.FC<AskUserQuestionDockProps> = ({
 						question.id,
 					)}
 					showsSubmittedAnswer
-					onSubmitAnswer={
-						onSubmitAnswer
-							? (answerText) =>
-									onSubmitAnswer(getAsyncAnswerPrefix(question.id) + answerText)
-							: undefined
-					}
+					onSubmitAnswer={onSubmitAnswer ? submitAnswer : undefined}
 					onStepChange={() => {
 						if (sectionRef.current) {
 							sectionRef.current.scrollTop = 0;
