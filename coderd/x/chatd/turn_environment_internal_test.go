@@ -743,6 +743,10 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 	require.NoError(t, err)
 	seedAgentContext(ctx, t, db, agent.ID, "workspace", []byte("workspace"),
 		database.WorkspaceAgentContextBodyKindMcpServer, workspaceMCPBody)
+	acpBody, err := protojson.Marshal(&agentproto.ACPHarnessBody{Slug: "test", DisplayName: "Test"})
+	require.NoError(t, err)
+	seedAgentContext(ctx, t, db, agent.ID, "test", []byte("acp"),
+		database.WorkspaceAgentContextBodyKindAcpHarness, acpBody)
 	parent := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: modelConfig.ID})
 	// Children load inline MCP servers from the root chat; this one does not allow sub-agents.
 	dbgen.ChatMCPServer(t, db, database.ChatMCPServer{ChatID: parent.ID, Slug: "inline", Url: echoURL})
@@ -754,7 +758,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 	newServer := func(experiments ...codersdk.Experiment) *Server {
 		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{},
 			withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
-			withInternalTestServerExperiments(append(codersdk.Experiments{codersdk.ExperimentChatInlineMCPServers}, experiments...)),
+			withInternalTestServerExperiments(append(codersdk.Experiments{codersdk.ExperimentChatInlineMCPServers, codersdk.ExperimentChatACPSubagents}, experiments...)),
 		)
 		server.mcpHTTPClient = mcpclient.NewHTTPClient(nil, safedial.WithAllowedPrefixes(netip.MustParsePrefix("127.0.0.0/8")))
 		return server
@@ -796,16 +800,18 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 	}{
 		{
 			name:   "Root",
-			prompt: []string{advisorGuidance},
+			prompt: []string{advisorGuidance, acpSubagentPromptBlock},
 			want: append([]string{
 				"write_file", "edit_files", "approved__echo", "blocked__echo", "filtered__visible",
 				"forced__echo", "inline__echo", "workspace__echo", "web_search", chatadvisor.ToolName,
+				"acp_spawn_agent", "acp_wait_agent", "acp_message_agent", "acp_interrupt_agent",
 			}, rootOnlyTools...),
 			dontWant: []string{"filtered__hidden", "unselected__echo", "ask_user_question", "propose_plan"},
 		},
 		{
 			name:       "RootAdvisorOff",
 			advisorOff: true,
+			prompt:     []string{acpSubagentPromptBlock},
 			want:       []string{"spawn_agent"},
 			dontWant:   []string{chatadvisor.ToolName},
 		},
@@ -961,6 +967,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			for _, tool := range env.Tools {
 				loaded[tool.Info().Name] = true
 			}
+			require.Equal(t, slices.Contains(tt.prompt, acpSubagentPromptBlock), slices.Contains(offered, "acp_spawn_agent"))
 			require.Subset(t, offered, tt.want)
 			for _, name := range tt.dontWant {
 				require.NotContains(t, offered, name)
@@ -994,7 +1001,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 					}
 				}
 			}
-			for _, instruction := range []string{exploreOverlay, planRootOverlay, planChildOverlay, proposePlan, advisorGuidance} {
+			for _, instruction := range []string{exploreOverlay, planRootOverlay, planChildOverlay, proposePlan, advisorGuidance, acpSubagentPromptBlock} {
 				require.Equal(t, slices.Contains(tt.prompt, instruction), strings.Contains(system.String(), instruction), instruction)
 			}
 
