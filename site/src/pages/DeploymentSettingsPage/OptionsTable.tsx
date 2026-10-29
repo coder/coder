@@ -20,7 +20,7 @@ import { optionValue } from "./optionValue";
 type OptionsTableProps = {
 	options: readonly SerpentOption[];
 	additionalValues?: readonly string[];
-	/** When false, options annotated `enterprise` show a Premium badge. */
+	/** When false, options annotated `enterprise` show a Premium badge and a license note. */
 	hasLicense?: boolean;
 };
 
@@ -43,15 +43,20 @@ const OptionsTable: React.FC<OptionsTableProps> = ({
 			</TableHeader>
 			<TableBody>
 				{Object.values(options).map((option) => {
+					const showPremiumNotice =
+						!hasLicense && option.annotations?.enterprise === "true";
 					return (
 						<TableRow key={option.flag} className={`option-${option.flag}`}>
 							<TableCell>
 								<div className="flex items-center gap-2">
 									<OptionName>{option.name}</OptionName>
-									{!hasLicense && option.annotations?.enterprise === "true" && (
-										<PremiumBadge />
-									)}
+									{showPremiumNotice && <PremiumBadge />}
 								</div>
+								{showPremiumNotice && (
+									<span className="block text-xs text-content-secondary">
+										Requires a Premium license to take effect.
+									</span>
+								)}
 								<OptionDescription>{option.description}</OptionDescription>
 								<div className="pt-2 flex flex-wrap gap-2">
 									{option.flag && (
