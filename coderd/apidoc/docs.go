@@ -630,6 +630,102 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}/acl": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat project ACL",
+                "operationId": "get-chat-project-acl",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatProjectACL"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat project ACL",
+                "operationId": "update-chat-project-acl",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update chat project ACL request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatProjectACL"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/organizations/{organization}/chats/projects/{project}/instructions": {
             "get": {
                 "produces": [
@@ -1228,6 +1324,188 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Skill"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/members/{user}/skill-preferences": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Organizations"
+                ],
+                "summary": "Get organization skill preferences for a member",
+                "operationId": "get-organization-skill-preferences-for-a-member",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationSkillPreferences"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Organizations"
+                ],
+                "summary": "Update organization skill preferences for a member",
+                "operationId": "update-organization-skill-preferences-for-a-member",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update organization skill preferences request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateOrganizationSkillPreferencesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationSkillPreferences"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/skill-settings": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Organizations"
+                ],
+                "summary": "Get organization skill settings",
+                "operationId": "get-organization-skill-settings",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationSkillSettings"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Organizations"
+                ],
+                "summary": "Update organization skill settings",
+                "operationId": "update-organization-skill-settings",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update organization skill settings request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateOrganizationSkillSettingsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationSkillSettings"
                         }
                     }
                 },
@@ -2867,7 +3145,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Only chats in this project. Requires the chat-projects experiment.",
+                        "description": "Only chats in this project.",
                         "name": "project_id",
                         "in": "query"
                     }
@@ -4033,6 +4311,48 @@ const docTemplate = `{
                 "x-apidocgen": {
                     "skip": true
                 }
+            }
+        },
+        "/api/v2/chats/{chat}/attachments": {
+            "get": {
+                "description": "Returns every file part in the user-visible user and assistant messages of a chat, newest first, so a client can list a chat's attachments without paging through every message in the chat.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat attachments",
+                "operationId": "list-chat-attachments",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Return attachments from messages with id \u003c before_id",
+                        "name": "before_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatAttachmentsResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
             }
         },
         "/api/v2/chats/{chat}/clear": {
@@ -7889,7 +8209,8 @@ const docTemplate = `{
                             "explore",
                             "title_generation",
                             "compaction",
-                            "advisor"
+                            "advisor",
+                            "computer_use"
                         ],
                         "type": "string",
                         "description": "Override context",
@@ -19091,6 +19412,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.WorkspaceAppStatusState"
                 },
                 "uri": {
+                    "description": "Only http, https, and file URIs are kept; others are dropped.",
                     "type": "string"
                 }
             }
@@ -19198,6 +19520,14 @@ const docTemplate = `{
                 },
                 "model": {
                     "type": "string"
+                },
+                "priced_model": {
+                    "description": "PricedModel is the model and prices used for this interception. Nil\nwhen it was not priced.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBridgePricedModel"
+                        }
+                    ]
                 },
                 "thinking": {
                     "type": "array",
@@ -19315,6 +19645,27 @@ const docTemplate = `{
             "properties": {
                 "text": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.AIBridgePricedModel": {
+            "type": "object",
+            "properties": {
+                "cache_read_price": {
+                    "type": "integer"
+                },
+                "cache_write_price": {
+                    "type": "integer"
+                },
+                "input_price": {
+                    "type": "integer"
+                },
+                "model": {
+                    "description": "Model is the priced model, either the requested model or the model\nreported by the provider.",
+                    "type": "string"
+                },
+                "output_price": {
+                    "type": "integer"
                 }
             }
         },
@@ -19552,6 +19903,14 @@ const docTemplate = `{
                 "cache_write_input_tokens": {
                     "type": "integer"
                 },
+                "cost_micros": {
+                    "description": "CostMicros is the summed cost of the priced usage, in micro-units\n(1000000 is $1.00).",
+                    "type": "integer"
+                },
+                "has_unpriced_usage": {
+                    "description": "HasUnpricedUsage reports that some usage has no cost, so CostMicros\nis a lower bound.",
+                    "type": "boolean"
+                },
                 "input_tokens": {
                     "type": "integer"
                 },
@@ -19631,6 +19990,14 @@ const docTemplate = `{
                 },
                 "model": {
                     "type": "string"
+                },
+                "priced_model": {
+                    "description": "PricedModel is the model and prices used for the root interception\n(the prompt). Other requests in the thread may use different models\nand prices, see agentic_actions[].priced_model. Nil when the root\ninterception was not priced.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBridgePricedModel"
+                        }
+                    ]
                 },
                 "prompt": {
                     "type": "string"
@@ -21456,6 +21823,79 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatAttachment": {
+            "type": "object",
+            "properties": {
+                "file": {
+                    "$ref": "#/definitions/codersdk.ChatAttachmentFile"
+                },
+                "message_id": {
+                    "type": "integer"
+                },
+                "part_index": {
+                    "description": "PartIndex is the file part's position in the message content the\nmessages endpoint returns.",
+                    "type": "integer"
+                },
+                "role": {
+                    "$ref": "#/definitions/codersdk.ChatAttachmentRole"
+                }
+            }
+        },
+        "codersdk.ChatAttachmentFile": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Data holds an inline file's bytes, which JSON carries as a base64 string.",
+                    "type": "string",
+                    "format": "byte"
+                },
+                "file_id": {
+                    "description": "Omitted, not null, for an inline file.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "media_type": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/codersdk.ChatAttachmentFileType"
+                }
+            }
+        },
+        "codersdk.ChatAttachmentFileType": {
+            "type": "string",
+            "enum": [
+                "file"
+            ],
+            "x-enum-varnames": [
+                "ChatAttachmentFileTypeFile"
+            ]
+        },
+        "codersdk.ChatAttachmentRole": {
+            "type": "string",
+            "enum": [
+                "user",
+                "assistant"
+            ],
+            "x-enum-varnames": [
+                "ChatAttachmentRoleUser",
+                "ChatAttachmentRoleAssistant"
+            ]
+        },
+        "codersdk.ChatAttachmentsResponse": {
+            "type": "object",
+            "properties": {
+                "attachments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatAttachment"
+                    }
+                }
+            }
+        },
         "codersdk.ChatAutoArchiveDaysResponse": {
             "type": "object",
             "properties": {
@@ -21556,7 +21996,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "resources": {
-                    "description": "Resources is the chat's pinned context (instruction files and\nskills) the prompt is built from, metadata only (no bodies). It is\npopulated only on the single-chat GET response; list and watch\npayloads leave it nil to stay lightweight.",
+                    "description": "Resources is the chat's pinned workspace-context inventory,\nmetadata only (no bodies). It is populated only on the single-chat\nGET response; list and watch\npayloads leave it nil to stay lightweight.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatContextResource"
@@ -21586,7 +22026,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "source": {
-                    "description": "Source is the resource locator: the canonical file path for an\ninstruction file, the skill directory for a skill, the file path for\nan MCP config, or the server name for an MCP server.",
+                    "description": "Source is the resource locator: the canonical file path for an\ninstruction file, the skill directory for a skill, the file path for\nan MCP config, the server name for an MCP server, or an ACP harness slug.",
+                    "type": "string"
+                },
+                "source_path": {
+                    "description": "SourcePath is the configuration directory for an ACP harness.",
                     "type": "string"
                 },
                 "status": {
@@ -21612,13 +22056,15 @@ const docTemplate = `{
                 "instruction_file",
                 "skill",
                 "mcp_config",
-                "mcp_server"
+                "mcp_server",
+                "acp_harness"
             ],
             "x-enum-varnames": [
                 "ChatContextResourceKindInstructionFile",
                 "ChatContextResourceKindSkill",
                 "ChatContextResourceKindMCPConfig",
-                "ChatContextResourceKindMCPServer"
+                "ChatContextResourceKindMCPServer",
+                "ChatContextResourceKindACPHarness"
             ]
         },
         "codersdk.ChatContextResourceStatus": {
@@ -21977,6 +22423,17 @@ const docTemplate = `{
                     "description": "The following fields are only set when Type is\nChatInputPartTypeFileReference.",
                     "type": "string"
                 },
+                "skill_name": {
+                    "type": "string"
+                },
+                "skill_source": {
+                    "description": "The following fields are only set when Type is\nChatInputPartTypeSkillInvocation. The server loads the skill\nas the chat owner when the message is sent.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatSkillSource"
+                        }
+                    ]
+                },
                 "start_line": {
                     "type": "integer"
                 },
@@ -22012,13 +22469,15 @@ const docTemplate = `{
                 "text",
                 "file",
                 "file-reference",
-                "workspace-file-reference"
+                "workspace-file-reference",
+                "skill-invocation"
             ],
             "x-enum-varnames": [
                 "ChatInputPartTypeText",
                 "ChatInputPartTypeFile",
                 "ChatInputPartTypeFileReference",
-                "ChatInputPartTypeWorkspaceFileReference"
+                "ChatInputPartTypeWorkspaceFileReference",
+                "ChatInputPartTypeSkillInvocation"
             ]
         },
         "codersdk.ChatMessage": {
@@ -22197,12 +22656,20 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "skill_dir": {
-                    "description": "SkillDir is the absolute path to the skill directory inside\nthe workspace filesystem. Internal only: used by\nread_skill/read_skill_file tools to locate skill files.",
+                    "description": "SkillDir is the absolute path to the skill directory inside\nthe workspace filesystem. Internal only: used by\nread_skill/read_skill_file tools to locate skill files, and\nshown to the model for an invoked workspace skill so it can\nrun the skill's scripts.",
                     "type": "string"
                 },
                 "skill_name": {
-                    "description": "SkillName is the kebab-case name of a discovered skill\nfrom the workspace's .agents/skills/ directory.",
+                    "description": "SkillName is the kebab-case name of the skill.",
                     "type": "string"
+                },
+                "skill_source": {
+                    "description": "SkillSource is where the invoked skill of a skill-invocation\npart is stored.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatSkillSource"
+                        }
+                    ]
                 },
                 "source_id": {
                     "type": "string"
@@ -22264,6 +22731,7 @@ const docTemplate = `{
                 "context-file",
                 "skill",
                 "workspace-file-reference",
+                "skill-invocation",
                 "hook-context",
                 "hook-notice"
             ],
@@ -22278,6 +22746,7 @@ const docTemplate = `{
                 "ChatMessagePartTypeContextFile",
                 "ChatMessagePartTypeSkill",
                 "ChatMessagePartTypeWorkspaceFileReference",
+                "ChatMessagePartTypeSkillInvocation",
                 "ChatMessagePartTypeHookContext",
                 "ChatMessagePartTypeHookNotice"
             ]
@@ -22728,14 +23197,16 @@ const docTemplate = `{
                 "explore",
                 "title_generation",
                 "compaction",
-                "advisor"
+                "advisor",
+                "computer_use"
             ],
             "x-enum-varnames": [
                 "ChatModelOverrideContextGeneral",
                 "ChatModelOverrideContextExplore",
                 "ChatModelOverrideContextTitleGeneration",
                 "ChatModelOverrideContextCompaction",
-                "ChatModelOverrideContextAdvisor"
+                "ChatModelOverrideContextAdvisor",
+                "ChatModelOverrideContextComputerUse"
             ]
         },
         "codersdk.ChatModelOverrideResponse": {
@@ -23026,9 +23497,85 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "permissions": {
+                    "$ref": "#/definitions/codersdk.ChatProjectPermissions"
+                },
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                }
+            }
+        },
+        "codersdk.ChatProjectACL": {
+            "type": "object",
+            "properties": {
+                "groups": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatProjectGroup"
+                    }
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatProjectUser"
+                    }
+                }
+            }
+        },
+        "codersdk.ChatProjectGroup": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "members": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ReducedUser"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization_display_name": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "organization_name": {
+                    "type": "string"
+                },
+                "quota_allowance": {
+                    "type": "integer"
+                },
+                "role": {
+                    "enum": [
+                        "use",
+                        "admin"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatProjectRole"
+                        }
+                    ]
+                },
+                "source": {
+                    "$ref": "#/definitions/codersdk.GroupSource"
+                },
+                "total_member_count": {
+                    "description": "How many members are in this group. Shows the total count,\neven if the user is not authorized to read group member details.\nMay be greater than ` + "`" + `len(Group.Members)` + "`" + `.",
+                    "type": "integer"
                 }
             }
         },
@@ -23090,6 +23637,67 @@ const docTemplate = `{
                 "project_id": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.ChatProjectPermissions": {
+            "type": "object",
+            "properties": {
+                "delete": {
+                    "type": "boolean"
+                },
+                "share": {
+                    "type": "boolean"
+                },
+                "update": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.ChatProjectRole": {
+            "type": "string",
+            "enum": [
+                "use",
+                "admin",
+                ""
+            ],
+            "x-enum-varnames": [
+                "ChatProjectRoleUse",
+                "ChatProjectRoleAdmin",
+                "ChatProjectRoleDeleted"
+            ]
+        },
+        "codersdk.ChatProjectUser": {
+            "type": "object",
+            "required": [
+                "id",
+                "username"
+            ],
+            "properties": {
+                "avatar_url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "role": {
+                    "enum": [
+                        "use",
+                        "admin"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatProjectRole"
+                        }
+                    ]
+                },
+                "username": {
+                    "type": "string"
                 }
             }
         },
@@ -23158,6 +23766,21 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "ChatRoleRead",
                 "ChatRoleDeleted"
+            ]
+        },
+        "codersdk.ChatSkillSource": {
+            "type": "string",
+            "enum": [
+                "personal",
+                "org",
+                "project",
+                "workspace"
+            ],
+            "x-enum-varnames": [
+                "ChatSkillSourcePersonal",
+                "ChatSkillSourceOrganization",
+                "ChatSkillSourceProject",
+                "ChatSkillSourceWorkspace"
             ]
         },
         "codersdk.ChatStatus": {
@@ -23437,7 +24060,8 @@ const docTemplate = `{
                 "deleted",
                 "diff_status_change",
                 "action_required",
-                "context_dirty"
+                "context_dirty",
+                "project_change"
             ],
             "x-enum-varnames": [
                 "ChatWatchEventKindStatusChange",
@@ -23448,7 +24072,8 @@ const docTemplate = `{
                 "ChatWatchEventKindDeleted",
                 "ChatWatchEventKindDiffStatusChange",
                 "ChatWatchEventKindActionRequired",
-                "ChatWatchEventKindContextDirty"
+                "ChatWatchEventKindContextDirty",
+                "ChatWatchEventKindProjectChange"
             ]
         },
         "codersdk.ChatWorkspaceTTLResponse": {
@@ -23585,6 +24210,10 @@ const docTemplate = `{
         "codersdk.ConnectionLogSSHInfo": {
             "type": "object",
             "properties": {
+                "client_session_id": {
+                    "description": "ClientSessionID is set by the client and isn't guaranteed to be unique.",
+                    "type": "string"
+                },
                 "connection_id": {
                     "type": "string",
                     "format": "uuid"
@@ -24182,9 +24811,17 @@ const docTemplate = `{
         "codersdk.CreateSkillRequest": {
             "type": "object",
             "properties": {
+                "action": {
+                    "description": "Action is only accepted for project skills and defaults to false.",
+                    "type": "boolean"
+                },
                 "content": {
                     "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
                     "type": "string"
+                },
+                "model_invocable": {
+                    "description": "ModelInvocable defaults to false when the content's frontmatter sets\ndisable-model-invocation: true, and to true otherwise.",
+                    "type": "boolean"
                 }
             }
         },
@@ -24606,7 +25243,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "user_status": {
-                    "description": "UserStatus defaults to UserStatusDormant.",
+                    "description": "UserStatus defaults to UserStatusDormant. Service accounts default to\nUserStatusActive and can't be dormant.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.UserStatus"
@@ -25615,23 +26252,25 @@ const docTemplate = `{
                 "workspace-capable-licensing",
                 "ai-gateway-seat-exclusion",
                 "ai-gateway-reverse-proxy",
-                "chat-projects",
+                "chat-project-sharing",
                 "chat-advisor",
                 "chat-virtual-desktop",
                 "agent-lifecycle-hooks",
                 "chat-inline-mcp-servers",
                 "enable-ai-workspace-debug",
-                "chat-stage-metrics"
+                "chat-stage-metrics",
+                "chat-acp-subagents"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
                 "ExperimentAIGatewaySeatExclusion": "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
+                "ExperimentChatACPSubagents": "Enables workspace-local ACP subagent tools in root chats.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
                 "ExperimentChatInlineMCPServers": "Enables inline MCP servers declared on POST /chats.",
-                "ExperimentChatProjects": "Enables organization-scoped projects that group agent chats.",
+                "ExperimentChatProjectSharing": "Enables sharing agent chat projects with other users and groups.",
                 "ExperimentChatStageMetrics": "Exposes chat lifecycle stage durations as Prometheus metrics.",
-                "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
+                "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use for agents.",
                 "ExperimentEnableAIWorkspaceDebug": "Enables debugging failed workspace builds with Coder Agents.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
@@ -25653,13 +26292,14 @@ const docTemplate = `{
                 "Counts only users holding the workspace-create permission toward the license seat limit.",
                 "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "Uses stateless reverse proxy routing when MCP injection is not configured.",
-                "Enables organization-scoped projects that group agent chats.",
+                "Enables sharing agent chat projects with other users and groups.",
                 "Enables the advisor tool for root agent chats.",
-                "Enables virtual desktop and computer use provider for agents.",
+                "Enables virtual desktop and computer use for agents.",
                 "Enables chat lifecycle hook webhooks for agent chats.",
                 "Enables inline MCP servers declared on POST /chats.",
                 "Enables debugging failed workspace builds with Coder Agents.",
-                "Exposes chat lifecycle stage durations as Prometheus metrics."
+                "Exposes chat lifecycle stage durations as Prometheus metrics.",
+                "Enables workspace-local ACP subagent tools in root chats."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -25672,13 +26312,14 @@ const docTemplate = `{
                 "ExperimentWorkspaceCapableLicensing",
                 "ExperimentAIGatewaySeatExclusion",
                 "ExperimentAIGatewayReverseProxy",
-                "ExperimentChatProjects",
+                "ExperimentChatProjectSharing",
                 "ExperimentChatAdvisor",
                 "ExperimentChatVirtualDesktop",
                 "ExperimentAgentLifecycleHooks",
                 "ExperimentChatInlineMCPServers",
                 "ExperimentEnableAIWorkspaceDebug",
-                "ExperimentChatStageMetrics"
+                "ExperimentChatStageMetrics",
+                "ExperimentChatACPSubagents"
             ]
         },
         "codersdk.ExperimentRule": {
@@ -28219,7 +28860,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "providers": {
-                    "description": "Providers are the provider types the user spent through, sorted.",
+                    "description": "Providers are the configured provider names the user spent through,\nsorted.",
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -28488,6 +29129,27 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.OrganizationSkillPreferences": {
+            "type": "object",
+            "properties": {
+                "all_skills_disabled": {
+                    "description": "AllSkillsDisabled turns off every organization skill, including\nskills added later. DisabledSkillIDs is kept and applies again when it\nis false.",
+                    "type": "boolean"
+                },
+                "disabled_skill_ids": {
+                    "description": "DisabledSkillIDs lists the organization skills the member turned off.",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "members_can_disable_skills": {
+                    "description": "MembersCanDisableSkills is the organization's setting.",
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.OrganizationSkillRole": {
             "type": "string",
             "enum": [
@@ -28498,6 +29160,15 @@ const docTemplate = `{
                 "OrganizationSkillRoleRead",
                 "OrganizationSkillRoleDeleted"
             ]
+        },
+        "codersdk.OrganizationSkillSettings": {
+            "type": "object",
+            "properties": {
+                "members_can_disable_skills": {
+                    "description": "MembersCanDisableSkills lets each organization member turn off\norganization skills for their own chats.",
+                    "type": "boolean"
+                }
+            }
         },
         "codersdk.OrganizationSkillUser": {
             "type": "object",
@@ -30545,6 +31216,10 @@ const docTemplate = `{
         "codersdk.Skill": {
             "type": "object",
             "properties": {
+                "action": {
+                    "description": "Action reports whether a project skill is offered as a one-click\naction above project composers. It is always false for personal and\norganization skills.",
+                    "type": "boolean"
+                },
                 "content": {
                     "type": "string"
                 },
@@ -30562,6 +31237,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "model_invocable": {
+                    "description": "ModelInvocable reports whether agents can discover and load the skill\non their own. Users can still invoke a skill explicitly when it is\nfalse.",
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -30574,6 +31253,10 @@ const docTemplate = `{
         "codersdk.SkillMetadata": {
             "type": "object",
             "properties": {
+                "action": {
+                    "description": "Action reports whether a project skill is offered as a one-click\naction above project composers. It is always false for personal and\norganization skills.",
+                    "type": "boolean"
+                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
@@ -30587,6 +31270,10 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "model_invocable": {
+                    "description": "ModelInvocable reports whether agents can discover and load the skill\non their own. Users can still invoke a skill explicitly when it is\nfalse.",
+                    "type": "boolean"
                 },
                 "name": {
                     "type": "string"
@@ -30877,14 +31564,28 @@ const docTemplate = `{
             "properties": {
                 "display_name": {
                     "type": "string",
-                    "example": "Visual Studio Code"
+                    "example": "VS Code"
                 },
                 "icon": {
                     "type": "string"
                 },
+                "method": {
+                    "description": "Method is how the app connected. Method and Slug identify an app.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ConnectionLogMethod"
+                        }
+                    ],
+                    "example": "ssh"
+                },
                 "seconds": {
                     "type": "integer",
                     "example": 80500
+                },
+                "seconds_is_upper_bound": {
+                    "description": "SecondsIsUpperBound marks overflow usage that includes folded apps.\nTheir overlap is not stored, so Seconds may overestimate active time.",
+                    "type": "boolean",
+                    "example": false
                 },
                 "slug": {
                     "type": "string",
@@ -30900,27 +31601,8 @@ const docTemplate = `{
                 "times_used": {
                     "type": "integer",
                     "example": 2
-                },
-                "type": {
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.TemplateAppsType"
-                        }
-                    ],
-                    "example": "builtin"
                 }
             }
-        },
-        "codersdk.TemplateAppsType": {
-            "type": "string",
-            "enum": [
-                "builtin",
-                "app"
-            ],
-            "x-enum-varnames": [
-                "TemplateAppsTypeBuiltin",
-                "TemplateAppsTypeApp"
-            ]
         },
         "codersdk.TemplateAutostartRequirement": {
             "type": "object",
@@ -31436,6 +32118,11 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid"
                     }
+                },
+                "usage_total_seconds": {
+                    "description": "UsageTotalSeconds counts each user's active minutes once, even when apps\noverlap. Summed per-app seconds can exceed this total.",
+                    "type": "integer",
+                    "example": 120000
                 }
             }
         },
@@ -32137,6 +32824,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateChatProjectACL": {
+            "type": "object",
+            "properties": {
+                "group_roles": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.ChatProjectRole"
+                    }
+                },
+                "user_roles": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.ChatProjectRole"
+                    }
+                }
+            }
+        },
         "codersdk.UpdateChatProjectInstructionsRequest": {
             "type": "object",
             "properties": {
@@ -32182,6 +32886,11 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ChatPlanMode"
                         }
                     ]
+                },
+                "project_id": {
+                    "description": "ProjectID moves a root chat, and with it its subagent chats.\n- nil: no change.\n- uuid.Nil: remove the chat from its project.\n- other: move the chat into that project. The chat's owner must own\n  the project or have it shared with them, and the project must be\n  in the chat's organization.\nThe server returns 409 while the chat or a subagent chat is not idle.",
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "read": {
                     "description": "Read moves the owner's read cursor, which drives HasUnread.\n- nil: no change.\n- true: mark every existing message as read.\n- false: clear the cursor so the chat reads as unread again.\n\nThe cursor is owner-scoped, so only the chat owner may set this.\nOpening a chat's stream marks it read, so marking the chat the\nowner is currently viewing as unread does not persist.",
@@ -32417,6 +33126,29 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateOrganizationSkillPreferencesRequest": {
+            "type": "object",
+            "properties": {
+                "all_skills_disabled": {
+                    "type": "boolean"
+                },
+                "skills": {
+                    "description": "Skills maps an organization skill ID to whether the skill is enabled\nfor the member's chats.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "boolean"
+                    }
+                }
+            }
+        },
+        "codersdk.UpdateOrganizationSkillSettingsRequest": {
+            "type": "object",
+            "properties": {
+                "members_can_disable_skills": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.UpdateRoles": {
             "type": "object",
             "properties": {
@@ -32431,11 +33163,18 @@ const docTemplate = `{
         "codersdk.UpdateSkillRequest": {
             "type": "object",
             "properties": {
+                "action": {
+                    "description": "Action is only accepted for project skills.",
+                    "type": "boolean"
+                },
                 "content": {
                     "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
                     "type": "string"
                 },
                 "enabled": {
+                    "type": "boolean"
+                },
+                "model_invocable": {
                     "type": "boolean"
                 }
             }

@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { fireEvent, fn, userEvent, waitFor, within } from "storybook/test";
 import { defaultUrlTransform } from "streamdown";
+import { chatFileTextKey } from "#/api/queries/chats";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import { Button } from "#/components/Button/Button";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
@@ -10,10 +11,14 @@ import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
 import {
 	buildLiveStatus,
+	MockAttachmentWorkingMessages,
 	MockCollapsedStepsPreferences,
 	MockLeadInSearchMessages,
 	MockLongTurnPageLoads,
+	MockPageFromAttachedFileMessages,
+	MockPlanAttachmentMessages,
 	MockQuestionCallMessage,
+	MockTextBeforeSecondStepMessage,
 	MockUncitedSearchAnswerMessages,
 	MockWebSearchAnswerMessages,
 	MockWorkingMessages,
@@ -76,7 +81,8 @@ export const Expanded: Story = {
 	},
 };
 
-// Only the answer's final text shows after the summary.
+// The answer's lead-in text and search fold into the steps' block, and only its
+// final text shows after the summary.
 export const AnswerWorkFolds: Story = {
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(MockWebSearchAnswerMessages),
@@ -142,6 +148,11 @@ export const LabeledNarrationFolds: Story = {
 			},
 		]),
 	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Worked for 1s" }),
+		);
+	},
 };
 
 export const LeadInBeforeSearchFolds: Story = {
@@ -157,6 +168,23 @@ export const LeadInBeforeSearchFolds: Story = {
 	},
 };
 
+export const TextBetweenStepsFolds: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools([
+			...MockWorkingMessages.slice(0, 3),
+			MockTextBeforeSecondStepMessage,
+			...MockWorkingMessages.slice(4),
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Worked for 12s (2 steps)",
+			}),
+		);
+	},
+};
+
 export const Paginated: Story = {
 	args: {
 		hasMoreMessages: true,
@@ -166,6 +194,23 @@ export const Paginated: Story = {
 		await userEvent.click(
 			within(canvasElement).getByRole("button", {
 				name: "Worked for at least 8s (1 step or more)",
+			}),
+		);
+	},
+};
+
+// The file's block may continue from older history.
+export const PaginatedFromAttachedFile: Story = {
+	args: {
+		hasMoreMessages: true,
+		parsedMessages: parseMessagesWithMergedTools(
+			MockPageFromAttachedFileMessages,
+		),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Worked for at least 11s (1 step or more)",
 			}),
 		);
 	},
@@ -223,6 +268,39 @@ export const PrependIntoExpandedBlockKeepsReadingPosition: Story = {
 
 		await loadOlderFromTop();
 		await canvas.findByText("Run every step");
+	},
+};
+
+export const AttachmentFoldsIntoBlock: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockAttachmentWorkingMessages),
+	},
+};
+
+export const AttachmentFoldsIntoBlockExpanded: Story = {
+	args: {
+		parsedMessages: parseMessagesWithMergedTools(MockAttachmentWorkingMessages),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: /Worked for/ }),
+		);
+	},
+};
+
+export const PlanAttachmentHidden: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+			{
+				key: chatFileTextKey("plan-file"),
+				data: "# Plan\n\nShip the attachments panel.",
+			},
+		],
+	},
+	args: {
+		onImplementPlan: fn(),
+		parsedMessages: parseMessagesWithMergedTools(MockPlanAttachmentMessages),
 	},
 };
 

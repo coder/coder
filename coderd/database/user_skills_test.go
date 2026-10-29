@@ -87,7 +87,7 @@ func TestSkillOwners(t *testing.T) {
 	type skillRow struct {
 		owners
 		name              string
-		enabled           bool
+		enabled, action   bool
 		groupACL, userACL string
 	}
 	insertSkill := func(ctx context.Context, q interface {
@@ -104,9 +104,9 @@ func TestSkillOwners(t *testing.T) {
 			row.userACL = "{}"
 		}
 		_, err := q.ExecContext(ctx, `
-			INSERT INTO skills (id, user_id, organization_id, project_id, name, description, content, enabled, group_acl, user_acl)
-			VALUES ($1, $2, $3, $4, $5, 'desc', 'body', $6, $7::jsonb, $8::jsonb)`,
-			uuid.New(), row.user, row.org, row.project, row.name, row.enabled, row.groupACL, row.userACL)
+			INSERT INTO skills (id, user_id, organization_id, project_id, name, description, content, enabled, action, group_acl, user_acl)
+			VALUES ($1, $2, $3, $4, $5, 'desc', 'body', $6, $7, $8::jsonb, $9::jsonb)`,
+			uuid.New(), row.user, row.org, row.project, row.name, row.enabled, row.action, row.groupACL, row.userACL)
 		return err
 	}
 	countSkills := func(ctx context.Context, column string, id uuid.UUID) int {
@@ -156,6 +156,16 @@ func TestSkillOwners(t *testing.T) {
 		require.True(t, database.IsCheckViolation(err, database.CheckSkillsGroupAclIsObject), err)
 		err = insertSkill(ctx, sqlDB, skillRow{owners: org, userACL: "[]"})
 		require.True(t, database.IsCheckViolation(err, database.CheckSkillsUserAclIsObject), err)
+	})
+
+	t.Run("ActionOnlyOnProjectSkills", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		for _, o := range []owners{{user: valid(newUser())}, {org: valid(newOrg())}} {
+			err := insertSkill(ctx, sqlDB, skillRow{owners: o, action: true})
+			require.True(t, database.IsCheckViolation(err, database.CheckSkillsActionProjectOnly), "owners %+v: %v", o, err)
+		}
+		require.NoError(t, insertSkill(ctx, sqlDB, skillRow{owners: owners{project: valid(newProject())}, action: true}))
 	})
 
 	// TestUserSkillLimit and TestUserSkillLimitConcurrentCreates in coderd
@@ -411,7 +421,11 @@ func TestProjectSkillQueries(t *testing.T) {
 		GroupACL: database.ChatACL{},
 	}))
 
-	as := func(userID uuid.UUID) context.Context {
+	// as takes the caller's t and ctx because parallel subtests only start
+	// after this function returns, possibly past the parent ctx deadline,
+	// and must not call FailNow on the parent test.
+	as := func(t *testing.T, ctx context.Context, userID uuid.UUID) context.Context {
+		t.Helper()
 		subject, _, err := httpmw.UserRBACSubject(ctx, db, userID, rbac.ExpandableScope(rbac.ScopeAll))
 		require.NoError(t, err)
 		return dbauthz.As(ctx, subject)
@@ -436,7 +450,7 @@ func TestProjectSkillQueries(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			userCtx := as(tc.user)
+			userCtx := as(t, testutil.Context(t, testutil.WaitLong), tc.user)
 			_, err := authzDB.ListProjectSkillMetadataByProjectID(userCtx, project.ID)
 			requireAllowed(t, tc.read, err)
 
@@ -448,7 +462,7 @@ func TestProjectSkillQueries(t *testing.T) {
 		})
 	}
 
-	ownerCtx := as(projectOwner)
+	ownerCtx := as(t, ctx, projectOwner)
 	skill, err := authzDB.InsertProjectSkill(ownerCtx, database.InsertProjectSkillParams{
 		ID: uuid.New(), ProjectID: project.ID, Name: "owned", Description: "desc", Content: "body",
 	})
@@ -460,7 +474,7 @@ func TestProjectSkillQueries(t *testing.T) {
 		ID: uuid.New(), ProjectID: otherProject.ID, Name: "other", Description: "desc", Content: "body",
 	})
 	require.NoError(t, err)
-	listed, err := authzDB.ListProjectSkillMetadataByProjectID(as(reader), project.ID)
+	listed, err := authzDB.ListProjectSkillMetadataByProjectID(as(t, ctx, reader), project.ID)
 	require.NoError(t, err)
 	listedIDs := make([]uuid.UUID, 0, len(listed))
 	for _, row := range listed {
@@ -468,21 +482,21 @@ func TestProjectSkillQueries(t *testing.T) {
 		listedIDs = append(listedIDs, row.ID)
 	}
 	require.Contains(t, listedIDs, skill.ID)
-	got, err := authzDB.GetProjectSkillByProjectIDAndName(as(reader), database.GetProjectSkillByProjectIDAndNameParams{ProjectID: project.ID, Name: skill.Name})
+	got, err := authzDB.GetProjectSkillByProjectIDAndName(as(t, ctx, reader), database.GetProjectSkillByProjectIDAndNameParams{ProjectID: project.ID, Name: skill.Name})
 	require.NoError(t, err)
 	require.Equal(t, skill.Content, got.Content)
-	_, err = authzDB.GetProjectSkillByProjectIDAndName(as(reader), database.GetProjectSkillByProjectIDAndNameParams{ProjectID: project.ID, Name: "other"})
+	_, err = authzDB.GetProjectSkillByProjectIDAndName(as(t, ctx, reader), database.GetProjectSkillByProjectIDAndNameParams{ProjectID: project.ID, Name: "other"})
 	require.ErrorIs(t, err, sql.ErrNoRows)
 
-	_, err = authzDB.GetProjectSkillByProjectIDAndName(as(otherMember), database.GetProjectSkillByProjectIDAndNameParams{ProjectID: project.ID, Name: skill.Name})
+	_, err = authzDB.GetProjectSkillByProjectIDAndName(as(t, ctx, otherMember), database.GetProjectSkillByProjectIDAndNameParams{ProjectID: project.ID, Name: skill.Name})
 	require.True(t, dbauthz.IsNotAuthorizedError(err), err)
-	_, err = authzDB.GetProjectSkillByIDForUpdate(as(otherMember), skill.ID)
+	_, err = authzDB.GetProjectSkillByIDForUpdate(as(t, ctx, otherMember), skill.ID)
 	require.True(t, dbauthz.IsNotAuthorizedError(err), err)
-	locked, err := authzDB.GetProjectSkillByIDForUpdate(as(reader), skill.ID)
+	locked, err := authzDB.GetProjectSkillByIDForUpdate(as(t, ctx, reader), skill.ID)
 	require.NoError(t, err)
 	require.Equal(t, skill.ID, locked.ID)
 
-	_, err = authzDB.UpdateProjectSkillByProjectIDAndName(as(reader), database.UpdateProjectSkillByProjectIDAndNameParams{
+	_, err = authzDB.UpdateProjectSkillByProjectIDAndName(as(t, ctx, reader), database.UpdateProjectSkillByProjectIDAndNameParams{
 		ProjectID: project.ID, Name: skill.Name, Enabled: sql.NullBool{Bool: false, Valid: true},
 	})
 	require.True(t, dbauthz.IsNotAuthorizedError(err), err)
@@ -493,9 +507,116 @@ func TestProjectSkillQueries(t *testing.T) {
 	require.False(t, updated.Enabled)
 	require.Equal(t, skill.Content, updated.Content)
 
-	_, err = authzDB.DeleteProjectSkillByProjectIDAndName(as(reader), database.DeleteProjectSkillByProjectIDAndNameParams{ProjectID: project.ID, Name: skill.Name})
+	_, err = authzDB.DeleteProjectSkillByProjectIDAndName(as(t, ctx, reader), database.DeleteProjectSkillByProjectIDAndNameParams{ProjectID: project.ID, Name: skill.Name})
 	require.True(t, dbauthz.IsNotAuthorizedError(err), err)
 	deleted, err := authzDB.DeleteProjectSkillByProjectIDAndName(ownerCtx, database.DeleteProjectSkillByProjectIDAndNameParams{ProjectID: project.ID, Name: skill.Name})
 	require.NoError(t, err)
 	require.Equal(t, skill.ID, deleted.ID)
+}
+
+func TestOrganizationSkillMemberPreferencesExcludes(t *testing.T) {
+	t.Parallel()
+
+	skillID := uuid.New()
+	otherSkillID := uuid.New()
+	for _, tc := range []struct {
+		name       string
+		prefs      database.GetOrganizationSkillMemberPreferencesRow
+		wantSkill  bool
+		wantOthers bool
+	}{
+		{
+			name:  "SettingOffIgnoresChoices",
+			prefs: database.GetOrganizationSkillMemberPreferencesRow{AllSkillsDisabled: true, DisabledSkillIDs: []uuid.UUID{skillID}},
+		},
+		{
+			name:  "SettingOnNoChoices",
+			prefs: database.GetOrganizationSkillMemberPreferencesRow{MembersCanDisableSkills: true},
+		},
+		{
+			name:      "SettingOnSkillOptedOut",
+			prefs:     database.GetOrganizationSkillMemberPreferencesRow{MembersCanDisableSkills: true, DisabledSkillIDs: []uuid.UUID{skillID}},
+			wantSkill: true,
+		},
+		{
+			name:       "SettingOnAllSkillsDisabled",
+			prefs:      database.GetOrganizationSkillMemberPreferencesRow{MembersCanDisableSkills: true, AllSkillsDisabled: true},
+			wantSkill:  true,
+			wantOthers: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.wantSkill, tc.prefs.Excludes(skillID))
+			require.Equal(t, tc.wantOthers, tc.prefs.Excludes(otherSkillID))
+		})
+	}
+}
+
+func TestOrganizationSkillMemberPreferences(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: otherOrg.ID})
+	skill := dbgen.OrganizationSkill(t, db, database.Skill{OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true}})
+	deletedSkill := dbgen.OrganizationSkill(t, db, database.Skill{OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true}})
+	foreignSkill := dbgen.OrganizationSkill(t, db, database.Skill{OrganizationID: uuid.NullUUID{UUID: otherOrg.ID, Valid: true}})
+
+	get := func(orgID uuid.UUID) database.GetOrganizationSkillMemberPreferencesRow {
+		t.Helper()
+		prefs, err := db.GetOrganizationSkillMemberPreferences(ctx, database.GetOrganizationSkillMemberPreferencesParams{
+			OrganizationID: orgID,
+			UserID:         user.ID,
+		})
+		require.NoError(t, err)
+		return prefs
+	}
+	disable := func(orgID, skillID uuid.UUID) {
+		t.Helper()
+		require.NoError(t, db.InsertOrganizationMemberDisabledSkill(ctx, database.InsertOrganizationMemberDisabledSkillParams{
+			OrganizationID: orgID,
+			UserID:         user.ID,
+			SkillID:        skillID,
+		}))
+	}
+
+	require.Equal(t, database.GetOrganizationSkillMemberPreferencesRow{DisabledSkillIDs: []uuid.UUID{}}, get(org.ID))
+
+	require.NoError(t, db.UpsertOrganizationMemberSkillSettings(ctx, database.UpsertOrganizationMemberSkillSettingsParams{
+		OrganizationID:    org.ID,
+		UserID:            user.ID,
+		AllSkillsDisabled: true,
+	}))
+	disable(org.ID, skill.ID)
+	disable(org.ID, deletedSkill.ID)
+	// A skill owned by another organization is never stored.
+	disable(org.ID, foreignSkill.ID)
+	require.ElementsMatch(t, []uuid.UUID{skill.ID, deletedSkill.ID}, get(org.ID).DisabledSkillIDs)
+	require.True(t, get(org.ID).AllSkillsDisabled)
+
+	// Deleting a skill deletes every opt-out of it.
+	_, err := db.DeleteOrganizationSkillByOrganizationIDAndName(ctx, database.DeleteOrganizationSkillByOrganizationIDAndNameParams{
+		OrganizationID: org.ID,
+		Name:           deletedSkill.Name,
+	})
+	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{skill.ID}, get(org.ID).DisabledSkillIDs)
+
+	// Leaving the organization deletes the member's choices there only.
+	disable(otherOrg.ID, foreignSkill.ID)
+	require.NoError(t, db.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{
+		OrganizationID: org.ID,
+		UserID:         user.ID,
+	}))
+	require.Equal(t, database.GetOrganizationSkillMemberPreferencesRow{DisabledSkillIDs: []uuid.UUID{}}, get(org.ID))
+	require.Equal(t, []uuid.UUID{foreignSkill.ID}, get(otherOrg.ID).DisabledSkillIDs)
 }

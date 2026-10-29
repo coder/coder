@@ -9,7 +9,6 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
-	fantasyopenai "charm.land/fantasy/providers/openai"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -17,17 +16,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/quartz"
-)
-
-const (
-	// ComputerUseAnthropicModelName is the default Anthropic model used for
-	// computer use subagents. It must support the computer_20251124 tool
-	// version pinned in ComputerUseProviderTool.
-	ComputerUseAnthropicModelName = "claude-opus-5"
-	// ComputerUseOpenAIModelName is the default OpenAI model used for computer
-	// use. It must be served over the Responses API, which carries the GA
-	// computer_use tool.
-	ComputerUseOpenAIModelName = "gpt-5.6-sol"
 )
 
 // SupportedComputerUseProviders returns the providers supported by computer use.
@@ -46,19 +34,6 @@ func DefaultComputerUseProvider(provider codersdk.ChatComputerUseProvider) coder
 		return codersdk.ChatComputerUseProviderAnthropic
 	}
 	return provider
-}
-
-// DefaultComputerUseModel returns the default model for a computer use provider.
-func DefaultComputerUseModel(provider codersdk.ChatComputerUseProvider) (modelProvider, modelName string, ok bool) {
-	switch DefaultComputerUseProvider(provider) {
-	case codersdk.ChatComputerUseProviderAnthropic:
-		return fantasyanthropic.Name, ComputerUseAnthropicModelName, true
-	case codersdk.ChatComputerUseProviderOpenAI:
-		// Keep OpenAI isolated here because computer-use models may advance.
-		return fantasyopenai.Name, ComputerUseOpenAIModelName, true
-	default:
-		return "", "", false
-	}
 }
 
 // DefaultComputerUseDesktopGeometry returns provider-specific model-facing

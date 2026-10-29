@@ -9,6 +9,7 @@ import {
 } from "#/components/SettingsHeader/SettingsHeader";
 import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { pageTitle } from "#/utils/page";
 import OAuth2ProviderPageView from "./OAuth2ProviderPageView";
 
 const OAuth2ProviderPage: React.FC = () => {
@@ -23,6 +24,7 @@ const OAuth2ProviderPage: React.FC = () => {
 
 	return (
 		<>
+			<title>{pageTitle("OAuth2 Applications", "Settings")}</title>
 			<SettingsHeader>
 				<SettingsHeaderTitle>OAuth2 Applications</SettingsHeaderTitle>
 			</SettingsHeader>

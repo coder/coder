@@ -35,12 +35,6 @@ const defaultArgs: CoderAgentsPageViewProps = {
 	isSavingAdvisorConfig: false,
 	isSaveAdvisorConfigError: false,
 	saveAdvisorConfigError: null,
-	showVirtualDesktopSettings: false,
-	computerUseProviderData: undefined,
-	isLoadingComputerUseProvider: false,
-	onSaveComputerUseProvider: fn(),
-	isSavingComputerUseProvider: false,
-	computerUseProviderSaveError: null,
 };
 
 const meta: Meta<typeof CoderAgentsPageView> = {

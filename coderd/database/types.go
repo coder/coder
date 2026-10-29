@@ -77,7 +77,6 @@ type ChatOperationalSettings struct {
 	ChatDebugRetentionDays        string    `db:"chat_debug_retention_days" json:"chat_debug_retention_days"`
 	ChatAutoArchiveDays           string    `db:"chat_auto_archive_days" json:"chat_auto_archive_days"`
 	WorkspaceTTL                  string    `db:"workspace_ttl" json:"workspace_ttl"`
-	ComputerUseProvider           string    `db:"computer_use_provider" json:"computer_use_provider"`
 	DebugLoggingAllowUsers        string    `db:"debug_logging_allow_users" json:"debug_logging_allow_users"`
 	PersonalModelOverridesEnabled string    `db:"personal_model_overrides_enabled" json:"personal_model_overrides_enabled"`
 }

@@ -11,10 +11,13 @@ If your developers can already connect to their workspaces, the agent can too.
 Three components are involved in every agent interaction:
 
 1. **The control plane** runs the agent loop.
+
    It receives prompts, streams them to the LLM provider, interprets tool calls, and dispatches them to workspaces.
 1. **The LLM provider** (Anthropic, OpenAI, Google, Azure, AWS Bedrock, or any OpenAI-compatible endpoint) performs model inference.
+
    It never communicates with the workspace directly.
 1. **The workspace** is standard compute infrastructure.
+
    It runs shell commands, reads and writes files, and executes processes (exactly what occurs when a developer connects via their IDE).
 
 <img src="../../images/guides/ai-agents/agent-loop-detailed.png" alt="Architecture diagram">
@@ -62,7 +65,9 @@ When a user submits a prompt, the control plane processes it as a background job
 1. A chat worker in the control plane claims the chat and starts a turn.
 1. The control plane streams the conversation to the configured LLM provider.
 1. The model responds with text, reasoning, or tool calls.
-1. If the response includes tool calls, the control plane executes them (connecting to the workspace as needed) and returns the results to the model.
+1. If the response includes tool calls, the control plane executes them and returns the results to the model.
+
+   The control plane connects to the workspace as needed.
 1. Steps 3 through 5 repeat until the model produces a final response with no further tool calls.
 1. The chat is marked `waiting` for the next user message.
 
@@ -159,15 +164,15 @@ Dynamic, provider-native, and computer-use tools are not available.
 
 These tools manage sub-agents (child chats that work on independent tasks in parallel).
 
-| Tool                                        | What it does                                                                                                                                                                                                                                                         |
-|---------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `spawn_agent` (`type=general` or `explore`) | Delegates a task to a sub-agent with its own context window. Optionally accepts `model_config_id` and `reasoning_effort` to run the child on a specific enabled model instead of the configured default.                                                             |
-| `list_subagent_models`                      | Lists the enabled model configurations the agent can pass to `spawn_agent` as `model_config_id`.                                                                                                                                                                     |
-| `wait_agent`                                | Waits for a sub-agent to finish and collects its result.                                                                                                                                                                                                             |
-| `message_agent`                             | Sends a follow-up message to a running sub-agent.                                                                                                                                                                                                                    |
-| `interrupt_agent`                           | Halts a sub-agent's current turn; it transitions to waiting or running if there are queued messages.                                                                                                                                                                 |
-| `spawn_agent` (`type=computer_use`)         | Spawns a sub-agent with desktop interaction capabilities (screenshot, mouse, keyboard). Requires an administrator-configured computer-use provider (Anthropic or OpenAI) and the [virtual desktop experiment](./platform-controls/virtual-desktop.md) to be enabled. |
-| `list_agents`                               | Lists spawned child agents, most recently active first.                                                                                                                                                                                                              |
+| Tool                                        | What it does                                                                                                                                                                                                                                                                                                                                             |
+|---------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `spawn_agent` (`type=general` or `explore`) | Delegates a task to a sub-agent with its own context window. Optionally accepts `model_config_id` and `reasoning_effort` to run the child on a specific enabled model instead of the configured default.                                                                                                                                                 |
+| `list_subagent_models`                      | Lists the enabled model configurations the agent can pass to `spawn_agent` as `model_config_id`.                                                                                                                                                                                                                                                         |
+| `wait_agent`                                | Waits for a sub-agent to finish and collects its result.                                                                                                                                                                                                                                                                                                 |
+| `message_agent`                             | Sends a follow-up message to a running sub-agent.                                                                                                                                                                                                                                                                                                        |
+| `interrupt_agent`                           | Halts a sub-agent's current turn; it transitions to waiting or running if there are queued messages.                                                                                                                                                                                                                                                     |
+| `spawn_agent` (`type=computer_use`)         | Spawns a sub-agent with desktop interaction capabilities (screenshot, mouse, keyboard). Runs on the organization's computer use model, or on its default model when no usable computer use model is set. The model must come from an Anthropic or OpenAI AI provider. Requires the [virtual desktop experiment](./platform-controls/virtual-desktop.md). |
+| `list_agents`                               | Lists spawned child agents, most recently active first.                                                                                                                                                                                                                                                                                                  |
 
 ### Provider tools
 

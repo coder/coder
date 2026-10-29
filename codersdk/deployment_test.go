@@ -47,13 +47,14 @@ func TestExperimentDisplayNames(t *testing.T) {
 		codersdk.ExperimentWorkspaceCapableLicensing: "Workspace-Capable Licensing",
 		codersdk.ExperimentAIGatewaySeatExclusion:    "AI Gateway Seat Exclusion",
 		codersdk.ExperimentAIGatewayReverseProxy:     "AI Gateway Reverse Proxy",
-		codersdk.ExperimentChatProjects:              "Chat Projects",
+		codersdk.ExperimentChatProjectSharing:        "Chat Project Sharing",
 		codersdk.ExperimentChatAdvisor:               "Chat Advisor",
 		codersdk.ExperimentChatVirtualDesktop:        "Chat Virtual Desktop",
 		codersdk.ExperimentAgentLifecycleHooks:       "Agent Lifecycle Hooks",
 		codersdk.ExperimentChatInlineMCPServers:      "Chat Inline MCP Servers",
 		codersdk.ExperimentEnableAIWorkspaceDebug:    "AI Workspace Debugging",
 		codersdk.ExperimentChatStageMetrics:          "Chat Stage Metrics",
+		codersdk.ExperimentChatACPSubagents:          "Chat ACP Subagents",
 	}
 
 	require.Len(t, expected, len(codersdk.ExperimentsKnown))

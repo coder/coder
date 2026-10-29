@@ -76,7 +76,8 @@ A missed step during onboarding or an unsupported local configuration can cost h
 
 Remote development solves this by moving the environment off the developer's machine and into managed infrastructure.
 The developer's laptop becomes a portal into the actual compute where work happens.
-If a device is lost or replaced, access is simply revoked; no source code or credentials are stored locally.
+If a device is lost or replaced, access is simply revoked.
+No source code or credentials are stored locally.
 
 This approach provides:
 
@@ -124,7 +125,7 @@ A [Premium license](https://coder.com/pricing#compare-plans) is available for en
 Coder workspaces are represented with Terraform, but you do not need to know Terraform to get started.
 The [Coder Registry](https://registry.coder.com/templates) provides production-ready templates for AWS EC2, Azure, Google Cloud, Kubernetes, and other providers.
 
-![Providers and compute environments](./images/providers-compute.png)_Providers and compute environments_
+![Logos of infrastructure providers (Google Cloud, Azure, Kubernetes, AWS, Hetzner, Docker, OVHcloud, VMware) connected to compute environments (Intel, ARM, AMD, Linux, macOS, Windows)](./images/providers-compute.png)_Providers and compute environments_
 
 Workspaces can include more than just compute.
 Terraform can add storage buckets, secrets, sidecars, and [other resources](https://developer.hashicorp.com/terraform/tutorials).

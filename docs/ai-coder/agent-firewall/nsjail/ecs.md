@@ -9,7 +9,8 @@ This page describes the runtime and permission requirements for running Agent Fi
 
 ## Runtime & Permission Requirements for Running Agent Firewall in ECS
 
-The setup for ECS is similar to [nsjail on Kubernetes](./k8s.md); that environment is better explored and tested, so the Kubernetes page is a useful reference.
+The setup for ECS is similar to [nsjail on Kubernetes](./k8s.md).
+That environment is better explored and tested, so the Kubernetes page is a useful reference.
 On ECS, requirements depend on the node OS and how ECS runs your tasks.
 The following examples use **ECS with Self Managed Node Groups** (EC2 launch type).
 

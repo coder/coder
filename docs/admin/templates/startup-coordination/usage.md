@@ -2,8 +2,10 @@
 title: Workspace startup coordination usage
 ---
 
+For dependencies between whole startup or shutdown scripts, use [declarative script ordering](../extending-templates/script-ordering.md) instead of `coder exp sync`.
+
 > [!NOTE]
-> This feature is experimental and may change without notice in future releases.
+> The `coder exp sync` commands are experimental and might change without notice.
 
 Startup coordination is built around the concept of **units**.
 You declare units in your Coder workspace template using the `coder exp sync` command in `coder_script` resources.
@@ -204,7 +206,7 @@ coder exp sync want "unit-b" "unit-a"
 Look for these patterns in existing templates:
 
 - `sleep` commands used to order scripts
-- Using files to coordinate startup between scripts (e.g. `touch /tmp/startup-complete`)
+- Using files to coordinate startup between scripts (for example, `touch /tmp/startup-complete`)
 - Scripts that fail intermittently on startup
 - Comments like "must run after X" or "wait for Y"
 

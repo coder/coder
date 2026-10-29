@@ -22,6 +22,7 @@ Running more than 1 organization requires a [Premium license](../../../admin/use
 | Personal model overrides        | User, per organization | **Agents** > **Settings** > **Agents**                                     |
 | Personal override toggle        | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Deployment settings**   |
 | MCP servers                     | Organization           | **Admin settings** > **AI** > **Coder Agents** > **MCP servers**           |
+| MCP server connections          | User, per organization | **Agents** > **Settings** > **MCP connections**                            |
 | Organization skills             | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Skills**                |
 | Personal skills                 | User                   | **Agents** > **Settings** > **Skills**                                     |
 | System prompt                   | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Instructions**          |
@@ -29,12 +30,12 @@ Running more than 1 organization requires a [Premium license](../../../admin/use
 | Plan mode instructions          | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Instructions**          |
 | Agent access to a template      | Template               | **Admin settings** > **AI** > **Coder Agents** > **Templates**             |
 | Advisor runtime limits          | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Deployment settings**   |
-| Virtual desktop provider        | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Deployment settings**   |
+| Computer use model              | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Organization settings** |
 | Autostop fallback and lifecycle | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Lifecycle**             |
 | Data retention                  | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Lifecycle**             |
 
-The **Deployment settings** section holds the Advisor card and the Virtual desktop card.
-Both cards appear on the **Coder Agents** page.
+The **Deployment settings** section holds the personal override toggle and the Advisor card.
+The computer use model is an admin model override, so it lives in the **Organization settings** section.
 
 ### AI providers stay deployment-wide
 

@@ -5,6 +5,7 @@ import {
 	BotIcon,
 	KeyIcon,
 	PanelLeftCloseIcon,
+	PlugIcon,
 	ReceiptTextIcon,
 	Settings2Icon,
 	ShrinkIcon,
@@ -94,6 +95,13 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 					label="Skills"
 					active={settingsSection === "skills"}
 					to="/agents/settings/skills"
+					state={location.state}
+				/>
+				<SettingsNavItem
+					icon={PlugIcon}
+					label="MCP connections"
+					active={settingsSection === "mcp-connections"}
+					to="/agents/settings/mcp-connections"
 					state={location.state}
 				/>
 				<SettingsNavItem

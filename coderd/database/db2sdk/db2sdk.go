@@ -1021,6 +1021,19 @@ func WorkspaceRoleActions(role codersdk.WorkspaceRole) []policy.Action {
 	return []policy.Action{}
 }
 
+// ChatProjectRoleActions returns the chat project actions a role grants.
+// Project read also grants instructions read and memory read and write;
+// update grants instructions write.
+func ChatProjectRoleActions(role codersdk.ChatProjectRole) []policy.Action {
+	switch role {
+	case codersdk.ChatProjectRoleAdmin:
+		return []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionShare}
+	case codersdk.ChatProjectRoleUse:
+		return []policy.Action{policy.ActionRead}
+	}
+	return []policy.Action{}
+}
+
 func ChatRoleActions(role codersdk.ChatRole) []policy.Action {
 	if role == codersdk.ChatRoleRead {
 		return []policy.Action{policy.ActionRead}
@@ -1279,6 +1292,8 @@ func AIBridgeSessionThreads(p AIBridgeSessionThreadsParams) codersdk.AIBridgeSes
 			CacheReadInputTokens:  session.CacheReadInputTokens,
 			CacheWriteInputTokens: session.CacheWriteInputTokens,
 			Metadata:              sessionTokenMeta,
+			CostMicros:            session.CostMicros,
+			HasUnpricedUsage:      session.HasUnpricedUsage,
 		},
 		Threads: threads,
 	}
@@ -1453,6 +1468,7 @@ func buildAIBridgeThread(
 			Model:          intc.Model,
 			Attribution:    aiBridgeInterceptionAttribution(intc),
 			TokenUsage:     actionTokenUsage,
+			PricedModel:    aiBridgePricedModel(tokensByInterception[intc.ID]),
 			Thinking:       thinking,
 			ToolCalls:      toolCalls,
 		})
@@ -1475,18 +1491,46 @@ func buildAIBridgeThread(
 		threadTokens = append(threadTokens, tokensByInterception[intc.ID]...)
 	}
 	thread.TokenUsage = aggregateTokenUsage(threadTokens)
+	// Root interception only, each agentic action carries its own priced model.
+	thread.PricedModel = aiBridgePricedModel(tokensByInterception[threadID])
 
 	return thread
 }
 
+// aiBridgePricedModel returns the model and prices from the first priced
+// token usage row, or nil when none of the rows were priced. Rows of one
+// interception share the same priced model, and only the prices can differ
+// if they changed mid-request.
+func aiBridgePricedModel(tokens []database.AIBridgeTokenUsage) *codersdk.AIBridgePricedModel {
+	for _, tu := range tokens {
+		if !tu.PricedModel.Valid {
+			continue
+		}
+		return &codersdk.AIBridgePricedModel{
+			Model:           tu.PricedModel.String,
+			InputPrice:      nullInt64Ptr(tu.InputPriceMicros),
+			OutputPrice:     nullInt64Ptr(tu.OutputPriceMicros),
+			CacheReadPrice:  nullInt64Ptr(tu.CacheReadPriceMicros),
+			CacheWritePrice: nullInt64Ptr(tu.CacheWritePriceMicros),
+		}
+	}
+	return nil
+}
+
 // aggregateTokenUsage sums token usage rows and aggregates metadata.
 func aggregateTokenUsage(tokens []database.AIBridgeTokenUsage) codersdk.AIBridgeSessionThreadsTokenUsage {
-	var inputTokens, outputTokens, cacheRead, cacheWrite int64
+	var inputTokens, outputTokens, cacheRead, cacheWrite, costMicros int64
+	var hasUnpriced bool
 	for _, tu := range tokens {
 		inputTokens += tu.InputTokens
 		outputTokens += tu.OutputTokens
 		cacheRead += tu.CacheReadInputTokens
 		cacheWrite += tu.CacheWriteInputTokens
+		if tu.CostMicros.Valid {
+			costMicros += tu.CostMicros.Int64
+		} else {
+			hasUnpriced = true
+		}
 	}
 	return codersdk.AIBridgeSessionThreadsTokenUsage{
 		InputTokens:           inputTokens,
@@ -1494,6 +1538,8 @@ func aggregateTokenUsage(tokens []database.AIBridgeTokenUsage) codersdk.AIBridge
 		CacheReadInputTokens:  cacheRead,
 		CacheWriteInputTokens: cacheWrite,
 		Metadata:              aggregateTokenMetadata(tokens),
+		CostMicros:            costMicros,
+		HasUnpricedUsage:      hasUnpriced,
 	}
 }
 
@@ -1873,8 +1919,10 @@ func decodeChatLastError(raw pqtype.NullRawMessage) *codersdk.ChatError {
 	return &payload
 }
 
-func ChatProject(project database.ChatProject) codersdk.ChatProject {
+// ChatProject converts a project with the caller's permissions on it.
+func ChatProject(project database.ChatProject, permissions codersdk.ChatProjectPermissions) codersdk.ChatProject {
 	return codersdk.ChatProject{
+		Permissions:    permissions,
 		ID:             project.ID,
 		OrganizationID: project.OrganizationID,
 		OwnerID:        project.OwnerID,
@@ -2453,12 +2501,14 @@ func WorkspaceBuildSecret(secret database.GetWorkspaceSecretsHistoryRow) codersd
 func Skill(skill database.Skill) codersdk.Skill {
 	return codersdk.Skill{
 		SkillMetadata: codersdk.SkillMetadata{
-			ID:          skill.ID,
-			Name:        skill.Name,
-			Description: skill.Description,
-			Enabled:     skill.Enabled,
-			CreatedAt:   skill.CreatedAt,
-			UpdatedAt:   skill.UpdatedAt,
+			ID:             skill.ID,
+			Name:           skill.Name,
+			Description:    skill.Description,
+			Enabled:        skill.Enabled,
+			Action:         skill.Action,
+			ModelInvocable: skill.ModelInvocable,
+			CreatedAt:      skill.CreatedAt,
+			UpdatedAt:      skill.UpdatedAt,
 		},
 		Content: skill.Content,
 	}
@@ -2470,12 +2520,14 @@ func ProjectSkillMetadataList(rows []database.ListProjectSkillMetadataByProjectI
 	metadata := make([]codersdk.SkillMetadata, 0, len(rows))
 	for _, row := range rows {
 		metadata = append(metadata, codersdk.SkillMetadata{
-			ID:          row.ID,
-			Name:        row.Name,
-			Description: row.Description,
-			Enabled:     row.Enabled,
-			CreatedAt:   row.CreatedAt,
-			UpdatedAt:   row.UpdatedAt,
+			ID:             row.ID,
+			Name:           row.Name,
+			Description:    row.Description,
+			Enabled:        row.Enabled,
+			Action:         row.Action,
+			ModelInvocable: row.ModelInvocable,
+			CreatedAt:      row.CreatedAt,
+			UpdatedAt:      row.UpdatedAt,
 		})
 	}
 	return metadata
@@ -2487,12 +2539,14 @@ func OrganizationSkillMetadataList(rows []database.ListOrganizationSkillMetadata
 	metadata := make([]codersdk.SkillMetadata, 0, len(rows))
 	for _, row := range rows {
 		metadata = append(metadata, codersdk.SkillMetadata{
-			ID:          row.ID,
-			Name:        row.Name,
-			Description: row.Description,
-			Enabled:     row.Enabled,
-			CreatedAt:   row.CreatedAt,
-			UpdatedAt:   row.UpdatedAt,
+			ID:             row.ID,
+			Name:           row.Name,
+			Description:    row.Description,
+			Enabled:        row.Enabled,
+			Action:         row.Action,
+			ModelInvocable: row.ModelInvocable,
+			CreatedAt:      row.CreatedAt,
+			UpdatedAt:      row.UpdatedAt,
 		})
 	}
 	return metadata
@@ -2503,12 +2557,14 @@ func UserSkillMetadataList(rows []database.ListUserSkillMetadataByUserIDRow) []c
 	metadata := make([]codersdk.SkillMetadata, 0, len(rows))
 	for _, row := range rows {
 		metadata = append(metadata, codersdk.SkillMetadata{
-			ID:          row.ID,
-			Name:        row.Name,
-			Description: row.Description,
-			Enabled:     row.Enabled,
-			CreatedAt:   row.CreatedAt,
-			UpdatedAt:   row.UpdatedAt,
+			ID:             row.ID,
+			Name:           row.Name,
+			Description:    row.Description,
+			Enabled:        row.Enabled,
+			Action:         row.Action,
+			ModelInvocable: row.ModelInvocable,
+			CreatedAt:      row.CreatedAt,
+			UpdatedAt:      row.UpdatedAt,
 		})
 	}
 	return metadata
