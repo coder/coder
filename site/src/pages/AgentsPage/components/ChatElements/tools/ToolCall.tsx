@@ -55,6 +55,20 @@ const ToolPolicyContext = createContext<{ hookRewritten: boolean }>({
 	hookRewritten: false,
 });
 
+/**
+ * Rows inside render as one-line summaries: no toggle, chevron, content, or
+ * header actions. For previews whose full rows render elsewhere.
+ */
+const ToolCallSummaryContext = createContext(false);
+
+const SummaryProvider: React.FC<{ children: React.ReactNode }> = ({
+	children,
+}) => (
+	<ToolCallSummaryContext.Provider value>
+		{children}
+	</ToolCallSummaryContext.Provider>
+);
+
 // Some renderer branches render no `ToolCall.Header`, so emitting the
 // badge here rather than in the header keeps attribution on those cards.
 const PolicyProvider: React.FC<{
@@ -153,8 +167,9 @@ const Root: React.FC<ToolCallRootProps> = ({
 				? "expanded"
 				: "collapsed";
 	const view = controlledView ?? uncontrolledView;
+	const summary = useContext(ToolCallSummaryContext);
 	const expanded = view !== "collapsed";
-	const collapsible = hasContent;
+	const collapsible = hasContent && !summary;
 	const active = status === "running";
 	const failed = status !== "running" && (isError || status === "error");
 	const userLayoutIntent = useMessageScrollerUserLayoutIntent();
@@ -216,13 +231,14 @@ const HeaderButton: React.FC<ToolCallHeaderButtonProps> = ({
 }) => {
 	const { ariaLabel, collapsible, expanded, onToggle } = useToolCallContext();
 	const { hookRewritten } = useContext(ToolPolicyContext);
+	const summary = useContext(ToolCallSummaryContext);
 	const resolvedAriaLabel =
 		typeof ariaLabel === "function" ? ariaLabel(expanded) : ariaLabel;
 	const buttonAriaLabel =
 		resolvedAriaLabel && hookRewritten
 			? `${resolvedAriaLabel}, modified by policy`
 			: resolvedAriaLabel;
-	if (!collapsible && !alwaysButton) {
+	if (summary || (!collapsible && !alwaysButton)) {
 		return (
 			<HeaderRow className={cn("min-w-0", className)}>{children}</HeaderRow>
 		);
@@ -368,6 +384,9 @@ const HeaderActions: React.FC<{
 	children: React.ReactNode;
 	className?: string;
 }> = ({ children, className }) => {
+	if (useContext(ToolCallSummaryContext)) {
+		return null;
+	}
 	return <Actions className={cn("ml-auto", className)}>{children}</Actions>;
 };
 
@@ -507,6 +526,7 @@ const Scrollable: React.FC<ToolCallScrollableProps> = ({
 export const ToolCall = {
 	Root,
 	PolicyProvider,
+	SummaryProvider,
 	HeaderRow,
 	HeaderButton,
 	LeadingIcon,
