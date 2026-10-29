@@ -9,6 +9,9 @@ import (
 )
 
 // @Summary Removed: Get parameters by template version
+// @Description Always returns an empty array, because this route no longer returns parameter schemas.
+// @Description It exists so that older clients keep working.
+// @Description Use `GET /api/v2/templateversions/{templateversion}/rich-parameters` instead.
 // @ID removed-get-parameters-by-template-version
 // @Security CoderSessionToken
 // @Tags Templates
@@ -20,6 +23,9 @@ func templateVersionParametersDeprecated(rw http.ResponseWriter, r *http.Request
 }
 
 // @Summary Removed: Get schema by template version
+// @Description Always returns an empty array, because this route no longer returns parameter schemas.
+// @Description It exists so that older clients keep working.
+// @Description Use `GET /api/v2/templateversions/{templateversion}/rich-parameters` instead.
 // @ID removed-get-schema-by-template-version
 // @Security CoderSessionToken
 // @Tags Templates
