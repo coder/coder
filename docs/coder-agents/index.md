@@ -258,7 +258,7 @@ The agent has access to a set of workspace tools that it uses to accomplish task
 | `process_list`                              | List all tracked processes in the workspace                                                                                                                                                       |
 | `process_signal`                            | Send a signal (terminate/kill) to a tracked process                                                                                                                                               |
 | `attach_file`                               | Attach a workspace file to the chat as a durable downloadable attachment                                                                                                                          |
-| `open_preview`                              | Open an embedded preview of a running HTTP app, an `.html` file, or a directory containing `index.html`                                                                                           |
+| `open_preview`                              | Open an embedded preview of a running HTTP app, an `.html` file, a directory containing `index.html`, or a workspace app                                                                          |
 | `spawn_agent` (`type=general` or `explore`) | Delegate a task to a sub-agent running in parallel, optionally on a specific model                                                                                                                |
 | `list_subagent_models`                      | List the models available for `spawn_agent`'s `model_config_id` argument                                                                                                                          |
 | `wait_agent`                                | Wait for a sub-agent to complete and collect its result                                                                                                                                           |
@@ -289,13 +289,18 @@ Workspace MCP tools are unavailable in plan mode, and plan-mode sub-agents recei
 
 ### Embedded previews
 
-The agent can call `open_preview` to show a running app or HyperText Markup Language (HTML) files in the chat's **Preview** tab.
-It gives each preview a short title and supplies exactly one of `port` or `path`:
+The agent can call `open_preview` to show a running app, HyperText Markup Language (HTML) files, or a workspace app in the chat's right panel.
+It gives each preview a short title and supplies exactly one of `port`, `path`, or `app`:
 
 - `port` opens an app that is already running on a workspace port between 1000 and 65535.
   Coder connects to the port over HTTP, not HTTPS, so the app must accept plain HTTP.
   An optional `url_path` opens the app at a path and query, such as `/?folder=/home/coder/project`.
 - `path` publishes an absolute workspace path to an `.html` file, or a directory containing `index.html`.
+- `app` opens a `coder_app` on the workspace agent, such as an IDE, in the app's own right panel tab instead of the **Preview** tab.
+  `open_preview` opens only subdomain apps, because path-based apps run on the dashboard's origin, where content the agent controls could use your session.
+  It also rejects hidden, external, and command apps.
+  To let the agent open an app, set `subdomain = true` on the `coder_app`, or on the module that defines it if the module has a `subdomain` input, then update the workspace to the new template version.
+  The app opens when you select **Open app** on the tool result while the workspace is running.
 
 `open_preview` is only available when the deployment has a [wildcard access URL](../admin/networking/wildcard-access-url.md).
 Previews also need the selected workspace proxy, including one the dashboard selects automatically, to have a wildcard access URL and run the deployment's Coder version.
@@ -331,9 +336,9 @@ Preview pages contain content the agent wrote, and a prompt injection can change
 
 Treat a preview like any app that runs code the agent controls.
 
-The **Preview** tab has a menu that lists every preview the chat opened in its current workspace.
+The **Preview** tab has a menu that lists every port, file, and directory preview the chat opened in its current workspace.
 When the chat has a workspace, you can add the tab from the right panel's add menu, even before the agent opens a preview.
-When the agent opens a preview while you view a chat, the page shows `Opened a preview` with the preview's title and an **Open preview** button.
+When the agent opens a port, file, or directory preview while you view a chat, the page shows `Opened a preview` with the preview's title and an **Open preview** button.
 Select **Open preview** there or on the tool result to show the **Preview** tab with that preview selected.
 Unless the chat is archived, reloading the page keeps the tab and preview you last selected.
 To see edited static files, use the refresh button.
