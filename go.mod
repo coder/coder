@@ -123,13 +123,12 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    parts with a blank line, also before the first part, so each
 //    part's bold title renders on its own line. Upstream as
 //    charmbracelet/fantasy#436.
-// 17) coder/fantasy#78 (unmerged), replay OpenAI web searches inline
-//    from their result metadata unless they go back as an item
-//    reference, which needs a stored request, a stored source response
-//    and the reasoning item right before the search. Each search
-//    replays at most once. Pinned to the PR branch.
-// See: https://github.com/coder/fantasy/commits/511792c5cd18
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261027222904-511792c5cd18
+// 17) coder/fantasy#78, replay OpenAI web searches inline from their
+//    result metadata unless they go back as an item reference, which
+//    needs a stored request, a stored source response and the reasoning
+//    item right before the search. Each search replays at most once.
+// See: https://github.com/coder/fantasy/commits/e1c559d180b6
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261029190405-e1c559d180b6
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
