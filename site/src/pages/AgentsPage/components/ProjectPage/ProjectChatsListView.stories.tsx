@@ -121,6 +121,34 @@ export const RowActionsOpen: Story = {
 	},
 };
 
+export const RowContextMenuOpen: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const link = canvas.getByRole("link", {
+			name: new RegExp(chats[0].title),
+		});
+		const { left, top, height } = link.getBoundingClientRect();
+		// Without coordinates the menu opens at the viewport's corner.
+		await userEvent.pointer({
+			target: link,
+			keys: "[MouseRight]",
+			coords: { clientX: left + 160, clientY: top + height / 2 },
+		});
+	},
+};
+
+/** A right-click on the menu button must not also open the row's menu. */
+export const RowActionsRightClicked: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const button = canvas.getByRole("button", {
+			name: `Open chat actions for ${chats[0].title}`,
+		});
+		await userEvent.pointer({ target: button, keys: "[MouseRight]" });
+		await userEvent.click(button);
+	},
+};
+
 export const CopySubmenuOpen: Story = {
 	play: async ({ canvasElement }) => {
 		await userEvent.click(

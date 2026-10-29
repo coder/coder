@@ -26,6 +26,7 @@ import {
 	ChatActionsMenu,
 	canManageChat,
 	chatFamilyAllowsArchive,
+	preventRowContextMenuProps,
 } from "../ChatActionsMenuItems";
 import { getChatCostTreeID } from "../ChatConversation/chatHelpers";
 import { ChatPRStateIcon } from "../ChatDiffStats";
@@ -146,9 +147,8 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 			className={cn(
 				"group -mx-2 flex min-w-0 items-center gap-2 rounded-lg pr-2 hover:bg-surface-secondary has-[[data-state=open]]:bg-surface-secondary",
 				// A long press opens the context menu on touch screens, so it must
-				// not also select text or show the link callout.
-				actions &&
-					"select-none pointer-coarse:[-webkit-touch-callout:none] data-[state=open]:bg-surface-secondary",
+				// not also select text.
+				actions && "select-none data-[state=open]:bg-surface-secondary",
 			)}
 		>
 			<Link
@@ -189,24 +189,7 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 							size="icon"
 							className="size-7 opacity-0 [@media(hover:hover)]:group-hover:opacity-100 group-has-focus-visible:opacity-100 data-[state=open]:opacity-100 group-data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"
 							aria-label={`Open chat actions for ${chat.title}`}
-							// Keeps a right-click on this button from also opening the
-							// row's context menu.
-							onContextMenuCapture={(e) => {
-								e.preventDefault();
-								e.stopPropagation();
-							}}
-							onMouseDownCapture={(e) => {
-								if (e.button === 2) {
-									e.preventDefault();
-									e.stopPropagation();
-								}
-							}}
-							onPointerDownCapture={(e) => {
-								if (e.button === 2) {
-									e.preventDefault();
-									e.stopPropagation();
-								}
-							}}
+							{...preventRowContextMenuProps}
 						>
 							<EllipsisVerticalIcon />
 						</Button>
@@ -219,7 +202,6 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 	if (!actions) {
 		return row;
 	}
-	// Right-clicking the row opens the same actions as its menu button.
 	return (
 		<ChatActionsMenu {...menuProps} variant="context">
 			{row}

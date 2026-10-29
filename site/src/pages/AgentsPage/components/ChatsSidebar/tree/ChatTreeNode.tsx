@@ -30,6 +30,7 @@ import {
 	ChatActionsMenu,
 	canManageChat,
 	chatFamilyAllowsArchive,
+	preventRowContextMenuProps,
 } from "../../ChatActionsMenuItems";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
 import { ChatDiffStats } from "../../ChatDiffStats";
@@ -401,22 +402,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 										isActiveChat && "opacity-100",
 									)}
 									aria-label={`Open actions for ${chat.title}`}
-									onContextMenuCapture={(e) => {
-										e.preventDefault();
-										e.stopPropagation();
-									}}
-									onMouseDownCapture={(e) => {
-										if (e.button === 2) {
-											e.preventDefault();
-											e.stopPropagation();
-										}
-									}}
-									onPointerDownCapture={(e) => {
-										if (e.button === 2) {
-											e.preventDefault();
-											e.stopPropagation();
-										}
-									}}
+									{...preventRowContextMenuProps}
 								>
 									<EllipsisVerticalIcon className="size-3.5" />
 								</Button>

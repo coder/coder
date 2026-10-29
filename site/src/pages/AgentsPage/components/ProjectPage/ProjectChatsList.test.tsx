@@ -479,21 +479,6 @@ describe("ProjectChatsList", () => {
 		},
 	);
 
-	it("opens one menu when the row's menu button is right-clicked", async () => {
-		const user = userEvent.setup();
-		vi.spyOn(API.experimental, "getChats").mockResolvedValue(buildChats(1));
-
-		renderList();
-
-		const button = await screen.findByRole("button", {
-			name: "Open chat actions for Chat 0",
-		});
-		await user.pointer({ target: button, keys: "[MouseRight]" });
-		await user.click(button);
-
-		expect(await screen.findAllByRole("menu")).toHaveLength(1);
-	});
-
 	it("moves a chat to another project from its row menu", async () => {
 		const user = userEvent.setup();
 		const queryClient = createTestQueryClient();
