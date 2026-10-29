@@ -75,7 +75,7 @@ export const StreamingFirstStep: Story = {
 			},
 		]),
 	},
-	play: expandBlock("Working for 12s"),
+	play: expandBlock("Working for 12s (1 step)"),
 };
 
 const MockBetweenStepsMessages = MockWorkingMessages.slice(0, 4);
@@ -92,7 +92,7 @@ export const RunningBetweenSteps: Story = {
 		}),
 		liveStatus: { phase: "idle", hasAccumulatedOutput: false },
 	},
-	play: expandBlock("Working for 12s"),
+	play: expandBlock("Working for 12s (2 steps)"),
 };
 
 // The block keeps working while only an attached file follows its last step.
@@ -101,7 +101,7 @@ export const AttachmentFoldsIntoLiveBlock: Story = {
 		parsedMessages: parseMessagesWithMergedTools(MockAttachedFileMessages),
 		liveStatus: buildLiveStatus(),
 	},
-	play: expandBlock("Working for 12s"),
+	play: expandBlock("Working for 12s (1 step)"),
 };
 
 // After a tool result the stream reopens empty before the next call streams.
@@ -116,7 +116,7 @@ export const NextStepStartsInsideBlock: Story = {
 		streamTools: [],
 		liveStatus: { phase: "starting", hasAccumulatedOutput: false },
 	},
-	play: expandBlock("Working for 12s"),
+	play: expandBlock("Working for 12s (2 steps)"),
 };
 
 export const ReasoningBeforeFirstToolFolds: Story = {
@@ -159,7 +159,7 @@ export const AnswerStreamsAfterBlock: Story = {
 			{ type: "text", text: "The workspace looks healthy." },
 		]),
 	},
-	play: expandBlock("Working for 12s"),
+	play: expandBlock("Working for 12s (2 steps)"),
 };
 
 // Text before a web search renders above the live block.
@@ -192,7 +192,7 @@ export const SearchAnswerStreamsAfterBlock: Story = {
 			{ type: "text", text: " is v2.30." },
 		]),
 	},
-	play: expandBlock("Working for 12s"),
+	play: expandBlock("Working for 12s (1 step)"),
 };
 
 export const TextBetweenStepsOpensNextBlock: Story = {
@@ -208,7 +208,7 @@ export const TextBetweenStepsOpensNextBlock: Story = {
 			...(MockWorkingMessages[3].content ?? []),
 		]),
 	},
-	play: expandBlock("Working for 8s"),
+	play: expandBlock("Working for 8s (1 step)"),
 };
 
 export const RequiresActionCompletesBlock: Story = {
@@ -265,5 +265,5 @@ export const PromptlessLiveBlock: Story = {
 		),
 		liveStatus: { phase: "idle", hasAccumulatedOutput: false },
 	},
-	play: expandBlock("Working for at least 12s"),
+	play: expandBlock("Working for at least 12s (2 steps or more)"),
 };
