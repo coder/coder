@@ -1,12 +1,16 @@
 import { cn } from "cn";
 import { InfoIcon } from "lucide-react";
-import { memo, useState } from "react";
+import { memo, useLayoutEffect, useState } from "react";
 import { useQuery } from "react-query";
 import type { UrlTransform } from "streamdown";
 import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { AlertTitle } from "#/components/Alert/Alert";
-import { MessageScroller, useMessageScroller } from "#/vendor/message-scroller";
+import {
+	MessageScroller,
+	useMessageScroller,
+	useMessageScrollerLayoutSync,
+} from "#/vendor/message-scroller";
 import { ConversationItem } from "../ChatElements/Conversation";
 import { Message, MessageContent } from "../ChatElements/Message";
 import { Response } from "../ChatElements/Response";
@@ -438,6 +442,15 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 	}) => {
 		const peekEnabled = workingBlockPeek ?? true;
 		const { scrollToMessage } = useMessageScroller();
+		const syncLayout = useMessageScrollerLayoutSync();
+		// PROTOTYPE: a render that shrinks the timeline, such as a live block
+		// dissolving into its reasoning or a turn's blocks merging as it ends,
+		// lets the browser clamp the scroll position. The scroller's own resize
+		// pass waits for the next frame, so one frame would paint the clamped
+		// position; reconcile before paint instead.
+		useLayoutEffect(() => {
+			syncLayout();
+		});
 		const preferences = useQuery(preferenceSettings());
 		const [expandedBlocks, setExpandedBlocks] = useState<
 			ReadonlyMap<string, boolean>
@@ -697,14 +710,11 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 							const isAfterEditingMessage =
 								firstRow.type === "message" &&
 								afterEditingMessageIds.has(firstRow.entry.message.id);
-							// The same slice content the expanded block renders. A block of
-							// only reasoning has no peek: text after it dissolves the block
-							// into a reasoning row, and the peek's height would vanish at once.
+							// The same slice content the expanded block renders.
 							const peekItems =
 								peekEnabled &&
 								block.isLive &&
 								!expanded &&
-								block.stepCount > 0 &&
 								lastReplyIndex < itemIndex
 									? collectPeekItems(
 											block.slices.map(({ rowIndex, pieceRange }) => {
