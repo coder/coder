@@ -1422,6 +1422,10 @@ func derpMapper(logger slog.Logger, proxyHealth *proxyhealth.ProxyHealth) func(*
 }
 
 // @Summary Get entitlements
+// @Description Returns the features the deployment's licenses enable, with each feature's entitlement, whether it's enabled, its limit, and its current usage.
+// @Description It also returns license warnings and errors, whether the deployment has a license or a trial license, whether telemetry is required, and when the entitlements were last refreshed.
+// @Description The dashboard reads it to decide which features to turn on.
+// @Description Doesn't require a session token.
 // @ID get-entitlements
 // @Security CoderSessionToken
 // @Produce json

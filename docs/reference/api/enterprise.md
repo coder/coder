@@ -342,6 +342,10 @@ curl -X GET http://coder-server:8080/api/v2/appearance \
 
 `GET /api/v2/appearance`
 
+Returns the deployment's appearance settings, which are the application name, logo URL, announcement banners, support links, and docs URL.
+Accepts either a session token or a workspace agent token.
+The application name, logo URL, and announcement banners are empty unless the license includes the appearance feature.
+
 ### Example responses
 
 > 200 Response
@@ -397,6 +401,10 @@ curl -X PUT http://coder-server:8080/api/v2/appearance \
 
 `PUT /api/v2/appearance`
 
+Replaces the deployment's appearance settings with the values you send, so include every value you want to keep.
+Requires permission to update the deployment configuration, which only the Owner role has.
+The application name, logo URL, and announcement banners take effect only when the license includes the appearance feature.
+
 > Body parameter
 
 ```json
@@ -421,9 +429,9 @@ curl -X PUT http://coder-server:8080/api/v2/appearance \
 
 ### Parameters
 
-| Name   | In   | Type                                                                         | Required | Description               |
-|--------|------|------------------------------------------------------------------------------|----------|---------------------------|
-| `body` | body | [codersdk.UpdateAppearanceConfig](schemas.md#codersdkupdateappearanceconfig) | true     | Update appearance request |
+| Name   | In   | Type                                                                         | Required | Description                                                                                                                                                                                  |
+|--------|------|------------------------------------------------------------------------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `body` | body | [codersdk.UpdateAppearanceConfig](schemas.md#codersdkupdateappearanceconfig) | true     | Appearance settings to save. Each `background_color` in `announcement_banners` must be a hex color such as `#004852`. `service_banner` is deprecated, so use `announcement_banners` instead. |
 
 ### Example responses
 
@@ -569,6 +577,10 @@ curl -X POST http://coder-server:8080/api/v2/deployment/premium-funnel-events \
 
 `POST /api/v2/deployment/premium-funnel-events`
 
+Records through telemetry that a user selected the call to action on a Premium paywall.
+The dashboard calls this when a user selects a paywall button, so you don't need to call it.
+Requires permission to read licenses, which only the Owner role has, and returns `404` for everyone else.
+
 > Body parameter
 
 ```json
@@ -581,9 +593,9 @@ curl -X POST http://coder-server:8080/api/v2/deployment/premium-funnel-events \
 
 ### Parameters
 
-| Name   | In   | Type                                                                               | Required | Description          |
-|--------|------|------------------------------------------------------------------------------------|----------|----------------------|
-| `body` | body | [codersdk.PremiumFunnelEventRequest](schemas.md#codersdkpremiumfunneleventrequest) | true     | Premium funnel event |
+| Name   | In   | Type                                                                               | Required | Description                                                                                                                                                                                                                                                 |
+|--------|------|------------------------------------------------------------------------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `body` | body | [codersdk.PremiumFunnelEventRequest](schemas.md#codersdkpremiumfunneleventrequest) | true     | Paywall event to record. `id` identifies the event, and a later trial request can pass it as `attribution_id`. `source` is the feature that the paywall is for, and `variant` is the paywall presentation, which is `premium`, `small`, or `ai_governance`. |
 
 ### Responses
 
@@ -605,6 +617,11 @@ curl -X GET http://coder-server:8080/api/v2/entitlements \
 ```
 
 `GET /api/v2/entitlements`
+
+Returns the features the deployment's licenses enable, with each feature's entitlement, whether it's enabled, its limit, and its current usage.
+It also returns license warnings and errors, whether the deployment has a license or a trial license, whether telemetry is required, and when the entitlements were last refreshed.
+The dashboard reads it to decide which features to turn on.
+Doesn't require a session token.
 
 ### Example responses
 
@@ -1262,6 +1279,9 @@ curl -X GET http://coder-server:8080/api/v2/licenses \
 
 `GET /api/v2/licenses`
 
+Returns the licenses installed on the deployment, with the claims each one asserts.
+Returns only the licenses you can read, and only the Owner role can read licenses.
+
 ### Example responses
 
 > 200 Response
@@ -1311,6 +1331,10 @@ curl -X POST http://coder-server:8080/api/v2/licenses \
 
 `POST /api/v2/licenses`
 
+Adds a license to the deployment and recomputes its entitlements.
+A deployment can hold several licenses at once, and it doesn't need a license to add the first one.
+Requires permission to create licenses, which only the Owner role has.
+
 > Body parameter
 
 ```json
@@ -1321,9 +1345,9 @@ curl -X POST http://coder-server:8080/api/v2/licenses \
 
 ### Parameters
 
-| Name   | In   | Type                                                               | Required | Description         |
-|--------|------|--------------------------------------------------------------------|----------|---------------------|
-| `body` | body | [codersdk.AddLicenseRequest](schemas.md#codersdkaddlicenserequest) | true     | Add license request |
+| Name   | In   | Type                                                               | Required | Description                                                                                                                                     |
+|--------|------|--------------------------------------------------------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------|
+| `body` | body | [codersdk.AddLicenseRequest](schemas.md#codersdkaddlicenserequest) | true     | License to add. `license` is the license key string. The request fails with `400` if the key is invalid or is locked to a different deployment. |
 
 ### Example responses
 
@@ -1358,6 +1382,11 @@ curl -X POST http://coder-server:8080/api/v2/licenses/refresh-entitlements \
 ```
 
 `POST /api/v2/licenses/refresh-entitlements`
+
+Recomputes the deployment's entitlements from its installed licenses now, and tells the other replicas to do the same.
+Use it to apply a license change immediately instead of waiting for the next automatic refresh.
+You can call it once per minute, and an earlier call returns `400` with a `Retry-After` header.
+Requires permission to create licenses, which only the Owner role has.
 
 ### Example responses
 
@@ -1398,6 +1427,10 @@ curl -X POST http://coder-server:8080/api/v2/licenses/trial \
 
 `POST /api/v2/licenses/trial`
 
+Requests a trial license from the Coder license server and installs it.
+Returns `409` if the deployment already has a license, so delete the existing license first.
+Requires permission to create licenses, which only the Owner role has.
+
 > Body parameter
 
 ```json
@@ -1417,9 +1450,9 @@ curl -X POST http://coder-server:8080/api/v2/licenses/trial \
 
 ### Parameters
 
-| Name   | In   | Type                                                                               | Required | Description           |
-|--------|------|------------------------------------------------------------------------------------|----------|-----------------------|
-| `body` | body | [codersdk.CreateTrialLicenseRequest](schemas.md#codersdkcreatetriallicenserequest) | true     | Trial license request |
+| Name   | In   | Type                                                                               | Required | Description                                                                                                                                                                                                                                                                                       |
+|--------|------|------------------------------------------------------------------------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `body` | body | [codersdk.CreateTrialLicenseRequest](schemas.md#codersdkcreatetriallicenserequest) | true     | Contact details for the trial. `email`, `first_name`, `last_name`, `phone_number`, `job_title`, `company_name`, `country`, and `developers` are required and go to the license server. `source` and `attribution_id` are optional, are used for telemetry, and aren't sent to the license server. |
 
 ### Example responses
 
@@ -1454,11 +1487,14 @@ curl -X DELETE http://coder-server:8080/api/v2/licenses/{id} \
 
 `DELETE /api/v2/licenses/{id}`
 
+Deletes a license by its numeric ID and recomputes the deployment's entitlements.
+Requires permission to delete licenses, which only the Owner role has.
+
 ### Parameters
 
-| Name | In   | Type           | Required | Description |
-|------|------|----------------|----------|-------------|
-| `id` | path | string(number) | true     | License ID  |
+| Name | In   | Type           | Required | Description                                                                |
+|------|------|----------------|----------|----------------------------------------------------------------------------|
+| `id` | path | string(number) | true     | License ID, which is the integer `id` that `GET /api/v2/licenses` returns. |
 
 ### Responses
 
@@ -1480,11 +1516,15 @@ curl -X PUT http://coder-server:8080/api/v2/notifications/templates/{notificatio
 
 `PUT /api/v2/notifications/templates/{notification_template}/method`
 
+Sets the delivery method of a notification template to `smtp`, `webhook`, or `inbox`.
+Returns `304` if the template already uses that method.
+Requires permission to update notification templates, which only the Owner role has.
+
 ### Parameters
 
-| Name                    | In   | Type   | Required | Description                |
-|-------------------------|------|--------|----------|----------------------------|
-| `notification_template` | path | string | true     | Notification template UUID |
+| Name                    | In   | Type   | Required | Description               |
+|-------------------------|------|--------|----------|---------------------------|
+| `notification_template` | path | string | true     | Notification template ID. |
 
 ### Responses
 
