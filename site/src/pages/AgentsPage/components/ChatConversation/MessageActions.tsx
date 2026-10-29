@@ -18,8 +18,8 @@ type MessageActionBarProps = {
 };
 
 /**
- * Message rows and collapsed working blocks share it, so a turn's pill sits
- * at the same offset under either.
+ * Message rows and working blocks share it, so a turn's pill sits at the same
+ * offset under either.
  */
 export const MessageActionBar: React.FC<MessageActionBarProps> = ({
 	className,
@@ -74,7 +74,7 @@ type UserMessageActionsProps = {
 	onJumpToUserMessage?: (messageKey: string) => void;
 };
 
-/** Edit, jump and Copy buttons under a user message. */
+/** Copy stays visible; Edit and jump show on hover or focus. */
 export const UserMessageActions: React.FC<UserMessageActionsProps> = ({
 	message,
 	copyText,
@@ -147,14 +147,13 @@ export const UserMessageActions: React.FC<UserMessageActionsProps> = ({
 type AssistantMessageActionsProps = {
 	copyText?: string;
 	turnAttachments?: readonly MessageAttachment[];
-	/**
-	 * With no buttons to show, still take the bar's height, so the message
-	 * keeps its spacing to the next one.
-	 */
 	keepsSpacing: boolean;
 };
 
-/** Copy and the Attachments pill under an assistant message, or a spacer. */
+/**
+ * Copy and the turn's Attachments pill. With neither, keepsSpacing renders a
+ * spacer of the bar's height, so the gap to the next message stays even.
+ */
 export const AssistantMessageActions: React.FC<
 	AssistantMessageActionsProps
 > = ({ copyText, turnAttachments, keepsSpacing }) => {

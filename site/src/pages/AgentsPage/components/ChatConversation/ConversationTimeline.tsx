@@ -32,7 +32,7 @@ import {
 	AssistantMessageActions,
 	MessageActionBar,
 	UserMessageActions,
-} from "./MessageActionBar";
+} from "./MessageActions";
 import {
 	buildDisplayMessages,
 	deriveEvictedFileIds,
