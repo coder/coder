@@ -62,6 +62,8 @@ const (
 	BuildReasonVSCodeConnection BuildReason = "vscode_connection"
 	// BuildReasonJetbrainsConnection "jetbrains_connection" is used when a build to start a workspace is triggered by a JetBrains connection.
 	BuildReasonJetbrainsConnection BuildReason = "jetbrains_connection"
+	// BuildReasonAutodelete "autodelete" is used when a build to delete a workspace is triggered by dormancy auto-delete.
+	BuildReasonAutodelete BuildReason = "autodelete"
 )
 
 // WorkspaceBuild is an at-point representation of a workspace state.

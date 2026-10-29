@@ -760,11 +760,11 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property     | Value(s)                                          |
-|--------------|---------------------------------------------------|
-| `login_type` | ``, `github`, `none`, `oidc`, `password`, `token` |
-| `status`     | `active`, `dormant`, `suspended`                  |
-| `source`     | `oidc`, `user`                                    |
+| Property     | Value(s)                                                                 |
+|--------------|--------------------------------------------------------------------------|
+| `login_type` | ``, `github`, `none`, `oauth2_provider_app`, `oidc`, `password`, `token` |
+| `status`     | `active`, `dormant`, `suspended`                                         |
+| `source`     | `oidc`, `user`                                                           |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2129,11 +2129,11 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property     | Value(s)                                          |
-|--------------|---------------------------------------------------|
-| `login_type` | ``, `github`, `none`, `oidc`, `password`, `token` |
-| `status`     | `active`, `dormant`, `suspended`                  |
-| `source`     | `oidc`, `user`                                    |
+| Property     | Value(s)                                                                 |
+|--------------|--------------------------------------------------------------------------|
+| `login_type` | ``, `github`, `none`, `oauth2_provider_app`, `oidc`, `password`, `token` |
+| `status`     | `active`, `dormant`, `suspended`                                         |
+| `source`     | `oidc`, `user`                                                           |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -4161,11 +4161,11 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property     | Value(s)                                          |
-|--------------|---------------------------------------------------|
-| `login_type` | ``, `github`, `none`, `oidc`, `password`, `token` |
-| `status`     | `active`, `dormant`, `suspended`                  |
-| `source`     | `oidc`, `user`                                    |
+| Property     | Value(s)                                                                 |
+|--------------|--------------------------------------------------------------------------|
+| `login_type` | ``, `github`, `none`, `oauth2_provider_app`, `oidc`, `password`, `token` |
+| `status`     | `active`, `dormant`, `suspended`                                         |
+| `source`     | `oidc`, `user`                                                           |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

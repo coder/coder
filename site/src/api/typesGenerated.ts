@@ -2021,6 +2021,7 @@ export interface BuildInfoResponse {
 
 // From codersdk/workspacebuilds.go
 export type BuildReason =
+	| "autodelete"
 	| "autostart"
 	| "autostop"
 	| "cli"
@@ -2032,6 +2033,7 @@ export type BuildReason =
 	| "vscode_connection";
 
 export const BuildReasons: BuildReason[] = [
+	"autodelete",
 	"autostart",
 	"autostop",
 	"cli",
@@ -6585,10 +6587,14 @@ export interface IssueReconnectingPTYSignedTokenResponse {
 }
 
 // From codersdk/provisionerdaemons.go
-export type JobErrorCode = "INSUFFICIENT_QUOTA" | "REQUIRED_TEMPLATE_VARIABLES";
+export type JobErrorCode =
+	| "INSUFFICIENT_QUOTA"
+	| "MISSING_TEMPLATE_PARAMETER"
+	| "REQUIRED_TEMPLATE_VARIABLES";
 
 export const JobErrorCodes: JobErrorCode[] = [
 	"INSUFFICIENT_QUOTA",
+	"MISSING_TEMPLATE_PARAMETER",
 	"REQUIRED_TEMPLATE_VARIABLES",
 ];
 
@@ -6735,11 +6741,19 @@ export interface LoggingConfig {
 }
 
 // From codersdk/apikey.go
-export type LoginType = "github" | "none" | "oidc" | "password" | "token" | "";
+export type LoginType =
+	| "github"
+	| "none"
+	| "oauth2_provider_app"
+	| "oidc"
+	| "password"
+	| "token"
+	| "";
 
 export const LoginTypes: LoginType[] = [
 	"github",
 	"none",
+	"oauth2_provider_app",
 	"oidc",
 	"password",
 	"token",

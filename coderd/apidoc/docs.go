@@ -9963,13 +9963,9 @@ const docTemplate = `{
                     },
                     {
                         "enum": [
-                            "pending",
-                            "running",
-                            "succeeded",
-                            "canceling",
-                            "canceled",
-                            "failed",
-                            "unknown"
+                            "offline",
+                            "idle",
+                            "busy"
                         ],
                         "type": "string",
                         "description": "Filter results by status",
@@ -20178,7 +20174,12 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "login_type": {
-                    "$ref": "#/definitions/codersdk.LoginType"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.LoginType"
+                        }
+                    ],
+                    "example": "password"
                 },
                 "scope": {
                     "description": "Deprecated: use Scopes instead.",
@@ -21214,7 +21215,12 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "action": {
-                    "$ref": "#/definitions/codersdk.RBACAction"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.RBACAction"
+                        }
+                    ],
+                    "example": "read"
                 },
                 "object": {
                     "description": "Object can represent a \"set\" of objects, such as: all workspaces in an organization, all workspaces owned by me, and all workspaces across the entire product.\nWhen defining an object, use the most specific language when possible to\nproduce the smallest set. Meaning to set as many fields on 'Object' as\nyou can. Example, if you want to check if you can update all workspaces\nowned by 'me', try to also add an 'OrganizationID' to the settings.\nOmitting the 'OrganizationID' could produce the incorrect value, as\nworkspaces have both ` + "`" + `user` + "`" + ` and ` + "`" + `organization` + "`" + ` owners.",
@@ -21358,7 +21364,8 @@ const docTemplate = `{
                 "cli",
                 "ssh_connection",
                 "vscode_connection",
-                "jetbrains_connection"
+                "jetbrains_connection",
+                "autodelete"
             ],
             "x-enum-varnames": [
                 "BuildReasonInitiator",
@@ -21369,7 +21376,8 @@ const docTemplate = `{
                 "BuildReasonCLI",
                 "BuildReasonSSHConnection",
                 "BuildReasonVSCodeConnection",
-                "BuildReasonJetbrainsConnection"
+                "BuildReasonJetbrainsConnection",
+                "BuildReasonAutodelete"
             ]
         },
         "codersdk.CORSBehavior": {
@@ -26970,11 +26978,13 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "REQUIRED_TEMPLATE_VARIABLES",
-                "INSUFFICIENT_QUOTA"
+                "INSUFFICIENT_QUOTA",
+                "MISSING_TEMPLATE_PARAMETER"
             ],
             "x-enum-varnames": [
                 "RequiredTemplateVariables",
-                "InsufficientQuota"
+                "InsufficientQuota",
+                "MissingTemplateParameter"
             ]
         },
         "codersdk.License": {
@@ -27095,6 +27105,7 @@ const docTemplate = `{
                 "github",
                 "oidc",
                 "token",
+                "oauth2_provider_app",
                 "none"
             ],
             "x-enum-varnames": [
@@ -27103,6 +27114,7 @@ const docTemplate = `{
                 "LoginTypeGithub",
                 "LoginTypeOIDC",
                 "LoginTypeToken",
+                "LoginTypeOAuth2ProviderApp",
                 "LoginTypeNone"
             ]
         },

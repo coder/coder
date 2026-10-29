@@ -1444,7 +1444,7 @@ None
   "id": "string",
   "last_used": "2019-08-24T14:15:22Z",
   "lifetime_seconds": 0,
-  "login_type": "",
+  "login_type": "password",
   "scope": "all",
   "scopes": [
     "all"
@@ -2090,7 +2090,7 @@ None
 
 ```json
 {
-  "action": "application_connect",
+  "action": "read",
   "object": {
     "any_org": true,
     "organization_id": "string",
@@ -2140,7 +2140,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "checks": {
     "property1": {
-      "action": "application_connect",
+      "action": "read",
       "object": {
         "any_org": true,
         "organization_id": "string",
@@ -2150,7 +2150,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       }
     },
     "property2": {
-      "action": "application_connect",
+      "action": "read",
       "object": {
         "any_org": true,
         "organization_id": "string",
@@ -2261,9 +2261,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                            |
-|-------------------------------------------------------------------------------------------------------------------------------------|
-| `autostart`, `autostop`, `cli`, `dashboard`, `dormancy`, `initiator`, `jetbrains_connection`, `ssh_connection`, `vscode_connection` |
+| Value(s)                                                                                                                                          |
+|---------------------------------------------------------------------------------------------------------------------------------------------------|
+| `autodelete`, `autostart`, `autostop`, `cli`, `dashboard`, `dormancy`, `initiator`, `jetbrains_connection`, `ssh_connection`, `vscode_connection` |
 
 ## codersdk.CORSBehavior
 
@@ -11033,9 +11033,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value(s)                                            |
-|-----------------------------------------------------|
-| `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES` |
+| Value(s)                                                                          |
+|-----------------------------------------------------------------------------------|
+| `INSUFFICIENT_QUOTA`, `MISSING_TEMPLATE_PARAMETER`, `REQUIRED_TEMPLATE_VARIABLES` |
 
 ## codersdk.License
 
@@ -11180,9 +11180,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value(s)                                          |
-|---------------------------------------------------|
-| ``, `github`, `none`, `oidc`, `password`, `token` |
+| Value(s)                                                                 |
+|--------------------------------------------------------------------------|
+| ``, `github`, `none`, `oauth2_provider_app`, `oidc`, `password`, `token` |
 
 ## codersdk.LoginWithPasswordRequest
 

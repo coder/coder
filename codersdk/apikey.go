@@ -17,7 +17,7 @@ type APIKey struct {
 	ExpiresAt       time.Time            `json:"expires_at" validate:"required" format:"date-time"`
 	CreatedAt       time.Time            `json:"created_at" validate:"required" format:"date-time"`
 	UpdatedAt       time.Time            `json:"updated_at" validate:"required" format:"date-time"`
-	LoginType       LoginType            `json:"login_type" validate:"required"`
+	LoginType       LoginType            `json:"login_type" validate:"required" example:"password"`
 	Scope           APIKeyScope          `json:"scope" enums:"all,application_connect"` // Deprecated: use Scopes instead.
 	Scopes          []APIKeyScope        `json:"scopes"`
 	TokenName       string               `json:"token_name" validate:"required"`
@@ -34,6 +34,9 @@ const (
 	LoginTypeGithub   LoginType = "github"
 	LoginTypeOIDC     LoginType = "oidc"
 	LoginTypeToken    LoginType = "token"
+	// LoginTypeOAuth2ProviderApp is the login type of API keys issued to
+	// OAuth2 provider apps.
+	LoginTypeOAuth2ProviderApp LoginType = "oauth2_provider_app"
 	// LoginTypeNone is used if no login method is available for this
 	// user. If this is set, the user has no method of logging in.
 	// API keys can still be created by an owner and used by the user.
