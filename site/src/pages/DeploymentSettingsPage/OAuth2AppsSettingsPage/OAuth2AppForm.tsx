@@ -1,6 +1,6 @@
 import { useFormik } from "formik";
 import { TriangleAlertIcon } from "lucide-react";
-import { type FC, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router";
 import * as Yup from "yup";
@@ -218,7 +218,7 @@ const validationSchema = (isPublicClient: boolean) =>
 
 // app and onSubmit stay together in submit so that checking app also
 // narrows the type of onSubmit.
-export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
+export const OAuth2AppForm: React.FC<OAuth2AppFormProps> = ({
 	clientType,
 	error,
 	isUpdating,

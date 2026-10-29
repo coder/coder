@@ -82,11 +82,11 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {
 		APIKey:     "test-key",
 	}}, nil).AnyTimes()
 	db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
-		ID:    chat.ID,
-		Title: wantTitle,
-	}).Return(chatWithTitle(chat, wantTitle), nil)
+		ID:          chat.ID,
+		Title:       wantTitle,
+		TitleSource: database.ChatTitleSourceGenerated,
+	}).Return(chatWithGeneratedTitle(chat, wantTitle), nil)
 
-	generated := &generatedChatTitle{}
 	server := titleOverrideTestServer(db, logger)
 	server.aibridgeTransportFactory = aibridgeTestFactoryPointer(factory)
 	resolved, err := server.resolveQuickgenModel(ctx, "title", chat, modelBuildOptions{ActiveAPIKeyID: uuid.NewString()})
@@ -98,15 +98,11 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {
 		messages,
 		nil,
 		resolved,
-		generated,
 		logger,
 		nil,
 	)
 
 	require.Equal(t, int32(1), requestCount.Load())
-	gotTitle, ok := generated.Load()
-	require.True(t, ok)
-	require.Equal(t, wantTitle, gotTitle)
 }
 
 func TestMaybeGenerateChatTitle_TitleGenerationOverrideCallFailure(t *testing.T) {
@@ -135,7 +131,6 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideCallFailure(t *testing.T)
 		APIKey:     "test-key",
 	}}, nil).AnyTimes()
 
-	generated := &generatedChatTitle{}
 	server := titleOverrideTestServer(db, logger)
 	server.aibridgeTransportFactory = aibridgeTestFactoryPointer(factory)
 	resolved, err := server.resolveQuickgenModel(ctx, "title", chat, modelBuildOptions{ActiveAPIKeyID: uuid.NewString()})
@@ -146,14 +141,11 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideCallFailure(t *testing.T)
 		messages,
 		nil,
 		resolved,
-		generated,
 		logger,
 		nil,
 	)
 
 	require.Equal(t, int32(1), requestCount.Load())
-	_, ok := generated.Load()
-	require.False(t, ok)
 }
 
 func TestResolveQuickgenModel_TitleGenerationOverrideUnset(t *testing.T) {
@@ -234,6 +226,47 @@ func TestResolveQuickgenModel_TitleGenerationOverrideSetUsable(t *testing.T) {
 		ProviderID: providerID,
 		APIKey:     "test-key",
 	}}, nil).AnyTimes()
+
+	server := titleOverrideTestServer(db, logger)
+	resolved, err := server.resolveQuickgenModel(
+		ctx,
+		"title",
+		chat,
+		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
+	)
+	require.NoError(t, err)
+	require.True(t, resolved.model.Valid())
+	require.Equal(t, overrideConfig, resolved.dbConfig)
+}
+
+func TestResolveQuickgenModel_TitleGenerationOverrideAmbientCredentials(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	chat, _ := titleOverrideTestChatAndMessages(t)
+	overrideConfig := titleOverrideModelConfig("claude-haiku-4-5", true)
+	providerID := uuid.New()
+	overrideConfig.AIProviderID = uuid.NullUUID{UUID: providerID, Valid: true}
+	// Claude Platform on AWS authenticates with ambient AWS credentials and
+	// stores no API keys.
+	settings, err := json.Marshal(codersdk.AIProviderSettings{
+		ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+			Region:      "us-east-2",
+			WorkspaceID: "wrkspc_test",
+		},
+	})
+	require.NoError(t, err)
+	provider := aibridgeTestAIProvider(providerID, "claude-platform-aws", database.AIProviderTypeAnthropic)
+	provider.BaseUrl = "https://aws-external-anthropic.us-east-2.api.aws"
+	provider.Settings = sql.NullString{String: string(settings), Valid: true}
+
+	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), modelOverrideParams(chat, titleGenerationOverrideContext)).Return(orgModelOverride(chat, titleGenerationOverrideContext, overrideConfig.ID, ""), nil)
+	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
+	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(provider, nil).MinTimes(1)
+	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return(nil, nil).MinTimes(1)
 
 	server := titleOverrideTestServer(db, logger)
 	resolved, err := server.resolveQuickgenModel(
@@ -331,9 +364,10 @@ func titleOverrideTestChatAndMessages(t *testing.T) (database.Chat, []database.C
 
 	userPrompt := "review pull request 123 and fix comments"
 	chat := database.Chat{
-		ID:      uuid.New(),
-		OwnerID: uuid.New(),
-		Title:   chatprompt.FallbackTitle(userPrompt),
+		ID:          uuid.New(),
+		OwnerID:     uuid.New(),
+		Title:       chatprompt.FallbackTitle(userPrompt),
+		TitleSource: database.ChatTitleSourceFallback,
 	}
 	message := mustChatMessage(
 		t,
@@ -355,6 +389,7 @@ func titleOverrideTestServer(db database.Store, logger slog.Logger) *Server {
 		logger:                   logger,
 		configCache:              newChatConfigCache(context.Background(), db, quartz.NewReal()),
 		aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
+		chatLimits:               Limits{}.withDefaults(),
 	}
 }
 
@@ -366,7 +401,8 @@ func titleOverrideModelConfig(model string, enabled bool) database.ChatModelConf
 	}
 }
 
-func chatWithTitle(chat database.Chat, title string) database.Chat {
+func chatWithGeneratedTitle(chat database.Chat, title string) database.Chat {
 	chat.Title = title
+	chat.TitleSource = database.ChatTitleSourceGenerated
 	return chat
 }

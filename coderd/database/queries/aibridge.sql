@@ -1,8 +1,8 @@
 -- name: InsertAIBridgeInterception :one
 INSERT INTO aibridge_interceptions (
-	id, api_key_id, initiator_id, provider, provider_name, model, metadata, started_at, client, client_session_id, thread_parent_id, thread_root_id, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, workspace_id
+	id, api_key_id, initiator_id, provider, provider_name, model, metadata, started_at, client, client_session_id, thread_parent_id, thread_root_id, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, workspace_id, organization_id, organization_source
 ) VALUES (
-	@id, @api_key_id, @initiator_id, @provider, @provider_name, @model, COALESCE(@metadata::jsonb, '{}'::jsonb), @started_at, @client, sqlc.narg('client_session_id'), sqlc.narg('thread_parent_interception_id')::uuid, sqlc.narg('thread_root_interception_id')::uuid, @credential_kind, @credential_hint, sqlc.narg('agent_firewall_session_id')::uuid, sqlc.narg('agent_firewall_sequence_number'), sqlc.narg('workspace_id')::uuid
+	@id, @api_key_id, @initiator_id, @provider, @provider_name, @model, COALESCE(@metadata::jsonb, '{}'::jsonb), @started_at, @client, sqlc.narg('client_session_id'), sqlc.narg('thread_parent_interception_id')::uuid, sqlc.narg('thread_root_interception_id')::uuid, @credential_kind, @credential_hint, sqlc.narg('agent_firewall_session_id')::uuid, sqlc.narg('agent_firewall_sequence_number'), sqlc.narg('workspace_id')::uuid, sqlc.narg('organization_id')::uuid, sqlc.narg('organization_source')::aibridge_interception_organization_source
 )
 RETURNING *;
 
@@ -43,10 +43,10 @@ WHERE aibridge_interceptions.id = (
 -- name: InsertAIBridgeTokenUsage :one
 INSERT INTO aibridge_token_usages (
   id, interception_id, provider_response_id, input_tokens, output_tokens, cache_read_input_tokens, cache_write_input_tokens, metadata, created_at,
-  effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros
+  effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros, provider_model, priced_model
 ) VALUES (
   @id, @interception_id, @provider_response_id, @input_tokens, @output_tokens, @cache_read_input_tokens, @cache_write_input_tokens, COALESCE(@metadata::jsonb, '{}'::jsonb), @created_at,
-  @effective_group_id, @input_price_micros, @output_price_micros, @cache_read_price_micros, @cache_write_price_micros, @cost_micros
+  @effective_group_id, @input_price_micros, @output_price_micros, @cache_read_price_micros, @cache_write_price_micros, @cost_micros, @provider_model, @priced_model
 )
 RETURNING *;
 
@@ -470,7 +470,7 @@ SELECT
 	sr.providers::text[] AS providers,
 	sr.models::text[] AS models,
 	COALESCE(sr.client, '')::varchar(64) AS client,
-	sr.metadata::jsonb AS metadata,
+	COALESCE(sr.metadata, '{}'::jsonb)::jsonb AS metadata,
 	sp.started_at::timestamptz AS started_at,
 	sp.ended_at::timestamptz AS ended_at,
 	sp.threads,
@@ -478,6 +478,8 @@ SELECT
 	COALESCE(st.output_tokens, 0)::bigint AS output_tokens,
 	COALESCE(st.cache_read_input_tokens, 0)::bigint AS cache_read_input_tokens,
 	COALESCE(st.cache_write_input_tokens, 0)::bigint AS cache_write_input_tokens,
+	COALESCE(st.cost_micros, 0)::bigint AS cost_micros,
+	COALESCE(st.has_unpriced_usage, false)::boolean AS has_unpriced_usage,
 	COALESCE(slp.prompt, '') AS last_prompt,
 	sp.last_active_at AS last_active_at,
 	COALESCE(bnc.total, 0)::bigint AS network_calls_total,
@@ -506,7 +508,10 @@ LEFT JOIN LATERAL (
 		COALESCE(SUM(tu.input_tokens), 0)::bigint AS input_tokens,
 		COALESCE(SUM(tu.output_tokens), 0)::bigint AS output_tokens,
 		COALESCE(SUM(tu.cache_read_input_tokens), 0)::bigint AS cache_read_input_tokens,
-		COALESCE(SUM(tu.cache_write_input_tokens), 0)::bigint AS cache_write_input_tokens
+		COALESCE(SUM(tu.cache_write_input_tokens), 0)::bigint AS cache_write_input_tokens,
+		-- A NULL cost means the cost is unknown.
+		COALESCE(SUM(tu.cost_micros), 0)::bigint AS cost_micros,
+		COALESCE(BOOL_OR(tu.cost_micros IS NULL), false) AS has_unpriced_usage
 	FROM aibridge_token_usages tu
 	WHERE tu.interception_id = ANY(sr.interception_ids)
 ) st ON true
@@ -659,7 +664,8 @@ LIMIT COALESCE(NULLIF(@limit_::integer, 0), 1000);
 
 -- name: ListAIBridgeSessionThreads :many
 -- Returns all interceptions belonging to paginated threads within a session.
--- Threads are paginated by (started_at, thread_id) cursor.
+-- Threads are paginated by (started_at, thread_id) cursor. A limit of 0
+-- returns every thread in the session.
 WITH paginated_threads AS (
 	SELECT
 		-- Find thread root interceptions (thread_root_id IS NULL), apply cursor
@@ -689,7 +695,7 @@ WITH paginated_threads AS (
 	ORDER BY
 		aibridge_interceptions.started_at ASC,
 		aibridge_interceptions.id ASC
-	LIMIT COALESCE(NULLIF(@limit_::integer, 0), 50)
+	LIMIT NULLIF(@limit_::integer, 0)
 )
 SELECT
 	COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_id,
@@ -801,8 +807,8 @@ WITH per_request AS (
 			c.root_chat_id = @root_chat_id::uuid
 			OR (c.root_chat_id IS NULL AND c.id = @root_chat_id::uuid)
 		)
-		-- Restrict to aibridge.ClientCoderAgents so another client's session
-		-- reference cannot match a chat ID.
+		-- Restrict to aibridge/client.CoderAgents so another client's
+		-- session reference cannot match a chat ID.
 		AND i.client = 'Coder Agents'
 		AND i.ended_at IS NOT NULL
 	GROUP BY i.id

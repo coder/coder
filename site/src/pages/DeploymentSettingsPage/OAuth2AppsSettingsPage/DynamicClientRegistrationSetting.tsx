@@ -1,4 +1,4 @@
-import { type FC, useId, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
@@ -11,7 +11,7 @@ type DynamicClientRegistrationSettingProps = {
 	onChange: (enabled: boolean) => void;
 };
 
-export const DynamicClientRegistrationSetting: FC<
+export const DynamicClientRegistrationSetting: React.FC<
 	DynamicClientRegistrationSettingProps
 > = ({ enabled, canEdit, isUpdating, onChange }) => {
 	const headingId = useId();
@@ -33,7 +33,7 @@ export const DynamicClientRegistrationSetting: FC<
 							Dynamic Client Registration
 						</h2>
 						{enabled && (
-							<Badge size="sm" variant="green" className="border-0 shadow-none">
+							<Badge size="sm" variant="green">
 								Enabled
 							</Badge>
 						)}

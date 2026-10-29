@@ -1,5 +1,5 @@
 ---
-title: Run AI Coding Agents in Coder
+title: Run AI coding agents in Coder
 ---
 
 Learn how to run & manage coding agents with Coder, both alongside existing workspaces and for background task execution.
@@ -26,7 +26,8 @@ Developers interact with agents through the web UI or the REST API.
 ## Agent Relay
 
 [Agent Relay](./agent-relay/index.md) connects a supported cloud-hosted AI agent provider's hosted sessions to self-hosted Coder workspaces.
-The provider's orchestration and AI inference stay cloud-hosted; a worker process inside the workspace executes the agent's tool calls.
+The provider's orchestration and AI inference stay cloud-hosted.
+A worker process inside the workspace executes the agent's tool calls.
 [Cursor Cloud Agents](https://cursor.com/cloud) and [Claude Code](https://claude.ai/code) are the supported providers.
 
 Agent Relay is in [early access](../reference/feature-stages.md#early-access-features) and is in closed preview with select customers.

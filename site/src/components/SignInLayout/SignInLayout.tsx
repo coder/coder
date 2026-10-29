@@ -1,5 +1,6 @@
-import type { FC, PropsWithChildren } from "react";
-export const SignInLayout: FC<PropsWithChildren> = ({ children }) => {
+export const SignInLayout: React.FC<React.PropsWithChildren> = ({
+	children,
+}) => {
 	return (
 		<div className="grow basis-0 h-screen flex justify-center items-center">
 			<div className="flex flex-col items-center">

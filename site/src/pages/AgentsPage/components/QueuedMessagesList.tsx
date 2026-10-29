@@ -2,12 +2,16 @@ import { cn } from "cn";
 import {
 	ArrowUpIcon,
 	CornerDownLeftIcon,
-	ImageIcon,
 	InfoIcon,
+	PaperclipIcon,
 	Trash2Icon,
 } from "lucide-react";
-import { type FC, useEffect, useState } from "react";
-import type { ChatQueuedMessage } from "#/api/typesGenerated";
+import { Fragment, useEffect, useState } from "react";
+import type {
+	ChatQueuedMessage,
+	ChatSkillInvocationPart,
+	ChatTextPart,
+} from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -15,6 +19,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { SkillChip } from "./ChatMessageInput/SkillChip";
 
 type QueuedMessagesListProps = {
 	messages: readonly ChatQueuedMessage[];
@@ -23,8 +28,10 @@ type QueuedMessagesListProps = {
 	className?: string;
 };
 
+type QueuedMessagePreviewPart = ChatTextPart | ChatSkillInvocationPart;
+
 type QueuedMessageInfo = {
-	displayText: string;
+	previewParts: QueuedMessagePreviewPart[];
 	attachmentCount: number;
 	hookNotices: string[];
 };
@@ -33,37 +40,87 @@ export const getQueuedMessageInfo = (
 	message: ChatQueuedMessage,
 ): QueuedMessageInfo => {
 	let attachmentCount = 0;
-	const textParts: string[] = [];
+	const previewParts: QueuedMessagePreviewPart[] = [];
 	const hookNotices: string[] = [];
 	for (const part of message.content) {
-		if (part.type === "file") {
+		if (part.type === "file" || part.type === "workspace-file-reference") {
 			attachmentCount++;
-		} else if (part.type === "text" && part.text?.trim()) {
-			textParts.push(part.text);
+		} else if (
+			part.type === "text" &&
+			// A blank line after a chip still ends the preview's first line.
+			(part.text?.trim() ||
+				(previewParts.length > 0 && part.text?.includes("\n")))
+		) {
+			previewParts.push({ type: "text", text: part.text });
+		} else if (part.type === "skill-invocation") {
+			previewParts.push(part);
 		} else if (part.type === "hook-notice" && part.text?.trim()) {
 			hookNotices.push(part.text);
 		}
 	}
-	const rawText = textParts.join(" ").trim();
 
-	return {
-		displayText: rawText || "[Queued message]",
-		attachmentCount,
-		hookNotices,
-	};
+	return { previewParts, attachmentCount, hookNotices };
 };
 
-export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
+/** Cuts preview parts at the first line break, trimming text only after the cut. */
+export const getFirstLinePreview = (
+	parts: readonly QueuedMessagePreviewPart[],
+): { parts: QueuedMessagePreviewPart[]; isTruncated: boolean } => {
+	const firstLine: QueuedMessagePreviewPart[] = [];
+	for (const [index, part] of parts.entries()) {
+		if (part.type !== "text") {
+			firstLine.push(part);
+			continue;
+		}
+		const text = firstLine.length === 0 ? part.text.trimStart() : part.text;
+		const lineBreakIndex = text.indexOf("\n");
+		const line = lineBreakIndex === -1 ? text : text.slice(0, lineBreakIndex);
+		if (line.trim()) {
+			firstLine.push({ ...part, text: line.trim() });
+		}
+		if (lineBreakIndex !== -1) {
+			const isTruncated =
+				Boolean(text.slice(lineBreakIndex).trim()) || index < parts.length - 1;
+			return { parts: firstLine, isTruncated };
+		}
+	}
+	return { parts: firstLine, isTruncated: false };
+};
+
+const QueuedMessagePreview: React.FC<{
+	parts: readonly QueuedMessagePreviewPart[];
+}> = ({ parts }) => {
+	if (parts.length === 0) {
+		return "[Queued message]";
+	}
+	const firstLine = getFirstLinePreview(parts);
+	return (
+		<>
+			{firstLine.parts.map((part, index) => (
+				<Fragment key={index}>
+					{index > 0 && " "}
+					{part.type === "skill-invocation" ? (
+						<SkillChip source={part.skill_source} name={part.skill_name} />
+					) : (
+						part.text
+					)}
+				</Fragment>
+			))}
+			{firstLine.isTruncated && "…"}
+		</>
+	);
+};
+
+export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 	messages,
 	onDelete,
 	onPromote,
 	className,
 }) => {
-	const items = messages.map((message) => {
-		const { displayText, attachmentCount, hookNotices } =
-			getQueuedMessageInfo(message);
-		return { id: message.id, displayText, attachmentCount, hookNotices };
-	});
+	const items = messages.map((message) => ({
+		id: message.id,
+		...getQueuedMessageInfo(message),
+	}));
 
 	const [hoveredID, setHoveredID] = useState<number | null>(null);
 	// Tracks which item has an async action in flight and what kind.
@@ -153,7 +210,7 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 	return (
 		<div
 			className={cn(
-				"flex w-full flex-col max-h-[40svh] overflow-y-auto scrollbar-gutter-stable scrollbar-thin [scrollbar-color:hsl(var(--surface-quaternary))_transparent]",
+				"flex w-full flex-col max-h-[40svh] overflow-y-auto scrollbar-gutter-stable scrollbar-thin",
 				className,
 			)}
 		>
@@ -172,18 +229,17 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 							setHoveredID((current) => (current === item.id ? null : current))
 						}
 					>
-						<div className="flex items-center gap-2 rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans text-sm leading-relaxed text-content-primary shadow-xs">
+						<div className="flex items-center gap-2 rounded-lg border border-solid border-border bg-surface-secondary px-3 py-2 font-sans text-sm leading-relaxed text-content-primary shadow-xs">
 							<span className="min-w-0 flex-1 truncate">
-								{item.displayText.split("\n")[0]}
-								{item.displayText.includes("\n") ? "…" : ""}
+								<QueuedMessagePreview parts={item.previewParts} />
 							</span>
 							{item.attachmentCount > 0 && (
 								<span
 									role="img"
-									aria-label={`${item.attachmentCount} image attachment${item.attachmentCount !== 1 ? "s" : ""}`}
+									aria-label={`${item.attachmentCount} attachment${item.attachmentCount !== 1 ? "s" : ""}`}
 									className="flex shrink-0 items-center gap-1 text-xs text-content-secondary"
 								>
-									<ImageIcon className="size-3" aria-hidden="true" />
+									<PaperclipIcon className="size-3" aria-hidden="true" />
 									<span aria-hidden="true">{item.attachmentCount}</span>
 								</span>
 							)}

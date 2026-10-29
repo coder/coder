@@ -1,6 +1,5 @@
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	externalAuths,
@@ -13,9 +12,11 @@ import {
 	SettingsHeader,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { toast } from "#/components/Toaster/toast";
+import { pageTitle } from "#/utils/page";
 import { ExternalAuthPageView } from "./ExternalAuthPageView";
 
-const ExternalAuthPage: FC = () => {
+const ExternalAuthPage: React.FC = () => {
 	const queryClient = useQueryClient();
 	// This is used to tell the child components something was unlinked and things
 	// need to be refetched
@@ -28,6 +29,7 @@ const ExternalAuthPage: FC = () => {
 
 	return (
 		<>
+			<title>{pageTitle("External Authentication", "Settings")}</title>
 			<SettingsHeader>
 				<SettingsHeaderTitle>External Authentication</SettingsHeaderTitle>
 			</SettingsHeader>

@@ -8,7 +8,8 @@ import {
 	isSubagentToolName,
 	type SubagentVariant,
 } from "../ChatElements/tools/subagentDescriptor";
-import { appendTextBlock } from "./blockUtils";
+import { serializeMessageDraft } from "../ChatMessageInput/SkillInvocationNode";
+import { appendResponseText, appendTextBlock } from "./blockUtils";
 import type {
 	MergedTool,
 	ParsedMessageContent,
@@ -19,9 +20,12 @@ import type {
 	StreamState,
 } from "./types";
 
-/** Concatenate text chunks, skipping whitespace-only values. */
+/**
+ * Concatenate text chunks. A whitespace-only chunk is dropped only while the
+ * text is still empty, so paragraph breaks between chunks survive.
+ */
 const appendText = (current: string, next: string): string => {
-	if (!next.trim()) {
+	if (!current && !next.trim()) {
 		return current;
 	}
 	return `${current}${next}`;
@@ -72,9 +76,19 @@ const emptyParsedMessageContent = (): ParsedMessageContent => ({
 	toolResults: [],
 	tools: [],
 	blocks: [],
+	partBlockIndices: [],
 	sources: [],
 	hookNotices: [],
 });
+
+/**
+ * Provider-executed tools are hidden except web_search, whose row shows
+ * what the provider searched for and which pages it found.
+ */
+export const isHiddenProviderExecutedPart = (
+	part: TypesGen.ChatToolCallPart | TypesGen.ChatToolResultPart,
+): boolean =>
+	Boolean(part.provider_executed) && part.tool_name !== "web_search";
 
 export const ensureToolBlock = (
 	blocks: RenderBlock[],
@@ -84,6 +98,22 @@ export const ensureToolBlock = (
 		return blocks;
 	}
 	return [...blocks, { type: "tool", id }];
+};
+
+/**
+ * Provider-executed calls render no block, so without this mark the text
+ * before a web search would render as the answer. It skips citations that
+ * streamed after the text.
+ */
+export const markTextBeforeProviderTool = (
+	blocks: RenderBlock[],
+): RenderBlock[] => {
+	const index = blocks.findLastIndex((block) => block.type !== "sources");
+	const block = blocks[index];
+	if (block?.type !== "response" || block.beforeProviderTool) {
+		return blocks;
+	}
+	return blocks.with(index, { ...block, beforeProviderTool: true });
 };
 
 const isToolCallPart = (
@@ -194,6 +224,8 @@ export const mergeTools = (
 			parsedCommands: call.parsedCommands,
 			hookRewritten: call.hookRewritten,
 			startedAt: call.startedAt,
+			providerExecuted: call.providerExecuted,
+			foundPages: call.foundPages,
 		});
 	}
 
@@ -226,7 +258,11 @@ export const parseMessageContent = (
 		switch (part.type) {
 			case "text": {
 				parsed.markdown = appendText(parsed.markdown, part.text);
-				parsed.blocks = appendTextBlock(parsed.blocks, "response", part.text);
+				parsed.blocks = appendResponseText(
+					parsed.blocks,
+					part.text,
+					part.narration,
+				);
 				break;
 			}
 			case "reasoning": {
@@ -235,11 +271,9 @@ export const parseMessageContent = (
 				break;
 			}
 			case "tool-call": {
-				// Provider-executed tool calls (e.g. web_search) are
-				// handled by the provider itself — hide them from the
-				// tool card UI and let the sources component render
-				// their results.
-				if (part.provider_executed) {
+				// Hidden provider-executed calls render no block.
+				if (isHiddenProviderExecutedPart(part)) {
+					parsed.blocks = markTextBeforeProviderTool(parsed.blocks);
 					break;
 				}
 				const id = part.tool_call_id || `tool-call-${index}`;
@@ -251,6 +285,7 @@ export const parseMessageContent = (
 					mcpServerConfigId: part.mcp_server_config_id,
 					hookRewritten: part.hook_rewritten,
 					startedAt: part.created_at,
+					providerExecuted: part.provider_executed,
 				});
 				parsed.blocks = ensureToolBlock(parsed.blocks, id);
 				break;
@@ -260,8 +295,7 @@ export const parseMessageContent = (
 				break;
 			}
 			case "tool-result": {
-				// Skip synthetic results for provider-executed tools.
-				if (part.provider_executed) {
+				if (isHiddenProviderExecutedPart(part)) {
 					break;
 				}
 				const id = part.tool_call_id || `tool-result-${index}`;
@@ -284,7 +318,17 @@ export const parseMessageContent = (
 				break;
 			}
 			case "source": {
-				if (part.url) {
+				// A tagged page whose call is not in this message falls
+				// through to the source row instead of being dropped.
+				const call = part.tool_call_id
+					? parsed.toolCalls.find(({ id }) => id === part.tool_call_id)
+					: undefined;
+				if (call && part.url) {
+					call.foundPages ??= [];
+					if (!call.foundPages.some(({ url }) => url === part.url)) {
+						call.foundPages.push({ url: part.url, title: part.title ?? "" });
+					}
+				} else if (part.url) {
 					const source = { url: part.url, title: part.title || part.url };
 					// Still populate the flat list for backward compat.
 					if (!parsed.sources.some((s) => s.url === part.url)) {
@@ -328,11 +372,16 @@ export const parseMessageContent = (
 				parsed.blocks.push(part);
 				break;
 			}
+			case "skill-invocation": {
+				parsed.blocks.push(part);
+				break;
+			}
 			default: {
 				const _exhaustive: never = part;
 				break;
 			}
 		}
+		parsed.partBlockIndices.push(parsed.blocks.length - 1);
 	}
 	return parsed;
 };
@@ -342,34 +391,23 @@ const isEditableAttachmentMediaType = (mediaType: string): boolean =>
 
 const isEditableUserMessageFileBlock = (
 	block: RenderBlock,
-): block is TypesGen.ChatFilePart =>
-	block.type === "file" && isEditableAttachmentMediaType(block.media_type);
-
-const messageHasWorkspaceFileReferences = (
-	message: TypesGen.ChatMessage,
-): boolean =>
-	(message.content ?? []).some(
-		(part) => part.type === "workspace-file-reference",
-	);
+): block is TypesGen.ChatFilePart | TypesGen.ChatWorkspaceFileReferencePart =>
+	(block.type === "file" && isEditableAttachmentMediaType(block.media_type)) ||
+	// Workspace file bytes already live in the workspace; editing
+	// preserves the reference (or drops it when the chip is removed).
+	block.type === "workspace-file-reference";
 
 export const getEditableUserMessagePayload = (
 	message: TypesGen.ChatMessage,
-):
-	| {
-			text: string;
-			fileBlocks: readonly TypesGen.ChatMessagePart[] | undefined;
-	  }
-	| undefined => {
-	// Editing rebuilds the message from text + editable attachment
-	// blocks, which would silently drop workspace file references.
-	// Until the edit flow preserves them, such messages are not
-	// editable.
-	if (messageHasWorkspaceFileReferences(message)) {
-		return undefined;
-	}
-
+): {
+	text: string;
+	fileBlocks: readonly TypesGen.ChatMessagePart[] | undefined;
+	/** Restores skill chips in place; undefined when there are none. */
+	editorState: string | undefined;
+} => {
 	// Concatenate text parts verbatim to match the server-side string_agg in
-	// GetChatUserPromptsByChatID; parseMessageContent/appendText is for streaming and drops whitespace-only chunks.
+	// GetChatUserPromptsByChatID; parseMessageContent/appendText drops leading
+	// whitespace-only chunks.
 	const text = (message.content ?? [])
 		.filter((part): part is TypesGen.ChatTextPart => part.type === "text")
 		.map((part) => part.text)
@@ -379,6 +417,11 @@ export const getEditableUserMessagePayload = (
 	return {
 		text,
 		fileBlocks: fileBlocks.length > 0 ? fileBlocks : undefined,
+		editorState: parsed.blocks.some(
+			(block) => block.type === "skill-invocation",
+		)
+			? serializeMessageDraft(message.content ?? [])
+			: undefined,
 	};
 };
 
@@ -419,7 +462,8 @@ export const parseMessagesWithMergedTools = (
 	}
 
 	// Annotate execute/process_output tools whose process was
-	// later killed or terminated via process_signal.
+	// later killed or terminated via process_signal, and execute
+	// tools an interrupt canceled.
 	const signaledProcesses = new Map<string, "kill" | "terminate">();
 	for (const { parsed } of rawParsed) {
 		for (const tool of parsed.tools) {
@@ -433,19 +477,21 @@ export const parseMessagesWithMergedTools = (
 				signaledProcesses.set(pid, sig);
 		}
 	}
-	if (signaledProcesses.size > 0) {
-		for (const { parsed } of rawParsed) {
-			for (const tool of parsed.tools) {
-				if (tool.name !== "execute" && tool.name !== "process_output") continue;
-				const rec = asRecord(tool.result);
-				const args = asRecord(tool.args);
-				const pid =
-					(rec ? asString(rec.background_process_id) : "") ||
-					(rec ? asString(rec.process_id) : "") ||
-					(args ? asString(args.process_id) : "");
-				const sig = pid ? signaledProcesses.get(pid) : undefined;
-				if (sig) tool.killedBySignal = sig;
+	for (const { parsed } of rawParsed) {
+		for (const tool of parsed.tools) {
+			if (tool.name !== "execute" && tool.name !== "process_output") continue;
+			const rec = asRecord(tool.result);
+			if (tool.name === "execute" && rec?.canceled === true) {
+				tool.killedBySignal = "kill";
+				continue;
 			}
+			const args = asRecord(tool.args);
+			const pid =
+				(rec ? asString(rec.background_process_id) : "") ||
+				(rec ? asString(rec.process_id) : "") ||
+				(args ? asString(args.process_id) : "");
+			const sig = pid ? signaledProcesses.get(pid) : undefined;
+			if (sig) tool.killedBySignal = sig;
 		}
 	}
 

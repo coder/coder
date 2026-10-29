@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent } from "storybook/test";
-import type { AIBridgeThread } from "#/api/typesGenerated";
+import type { AIBridgeThread, MinimalUser } from "#/api/typesGenerated";
 import {
 	MockAIBridgeSessionNetworkCalls,
 	MockAIBridgeThread,
@@ -45,6 +45,8 @@ const mockThreadLong: AIBridgeThread = {
 			cache_read_input_tokens: 6000,
 			cache_creation_input_tokens: 2000,
 		},
+		cost_micros: 0,
+		has_unpriced_usage: false,
 	},
 	agentic_actions: [
 		{
@@ -57,6 +59,8 @@ const mockThreadLong: AIBridgeThread = {
 				cache_read_input_tokens: 1800,
 				cache_write_input_tokens: 500,
 				metadata: {},
+				cost_micros: 0,
+				has_unpriced_usage: false,
 			},
 			thinking: [],
 			tool_calls: [
@@ -83,6 +87,8 @@ const mockThreadLong: AIBridgeThread = {
 				cache_read_input_tokens: 1800,
 				cache_write_input_tokens: 500,
 				metadata: {},
+				cost_micros: 0,
+				has_unpriced_usage: false,
 			},
 			thinking: [],
 			tool_calls: [
@@ -112,6 +118,8 @@ const mockThreadLong: AIBridgeThread = {
 				cache_read_input_tokens: 0,
 				cache_write_input_tokens: 0,
 				metadata: {},
+				cost_micros: 0,
+				has_unpriced_usage: false,
 			},
 			thinking: [],
 			tool_calls: [],
@@ -140,6 +148,24 @@ type Story = StoryObj<typeof SessionTimeline>;
 
 export const OneThread: Story = {};
 
+const MockInitiatorWithLongUsername: MinimalUser = {
+	...MockSession.initiator,
+	username: "averylongusernamefortheinitiatorofthissession",
+};
+
+export const LongUsername: Story = {
+	args: {
+		initiator: MockInitiatorWithLongUsername,
+	},
+};
+
+export const Mobile: Story = {
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+};
+
 // A summary is present only for sessions that passed through Agent Firewall.
 // The panel sits above the threads because its counts are session-scoped
 // rather than tied to any one thread.
@@ -163,9 +189,9 @@ const longFiller =
 const mockThreadLongPrompt: AIBridgeThread = {
 	...MockAIBridgeThread,
 	id: "thread-3",
-	prompt:
-		longFiller.repeat(16) +
-		"Finally, coordinate the cutover using zebra-relay.",
+	prompt: `${longFiller.repeat(
+		16,
+	)}Finally, coordinate the cutover using zebra-relay.`,
 	agentic_actions: [],
 };
 

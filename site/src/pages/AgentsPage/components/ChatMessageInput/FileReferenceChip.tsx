@@ -1,12 +1,11 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "cn";
 import { XIcon } from "lucide-react";
-import type { CSSProperties, FC } from "react";
 import { FileIcon } from "#/components/FileIcon/FileIcon";
 import { getFileReferenceDisplay } from "./fileReferenceDisplay";
 
-const fileReferenceChipVariants = cva(
-	"inline-flex min-h-5 max-w-[300px] select-none items-center gap-1 rounded-md border border-border-default bg-surface-primary py-0 pl-0.5 pr-1.5 align-middle font-sans text-[13px] font-normal leading-none text-inherit shadow-xs transition-colors",
+export const fileReferenceChipVariants = cva(
+	"inline-flex min-h-5 max-w-[300px] select-none items-center gap-1 rounded-md border border-border bg-surface-primary py-0 pl-0.5 pr-1.5 align-middle font-sans text-[13px] font-normal leading-none text-inherit shadow-xs transition-colors",
 	{
 		variants: {
 			interactive: {
@@ -17,10 +16,22 @@ const fileReferenceChipVariants = cva(
 				true: "border-content-link bg-content-link/10 text-content-primary ring-1 ring-content-link/40",
 				false: "",
 			},
+			editable: {
+				true: "text-content-primary hover:bg-surface-quaternary",
+				false: "",
+			},
 		},
+		compoundVariants: [
+			{
+				editable: true,
+				selected: false,
+				className: "border-border-secondary bg-surface-tertiary",
+			},
+		],
 		defaultVariants: {
 			interactive: false,
 			selected: false,
+			editable: false,
 		},
 	},
 );
@@ -40,7 +51,7 @@ const fileReferenceTriggerVariants = cva(
 	},
 );
 
-const fileReferenceIconStyle: CSSProperties = {
+const fileReferenceIconStyle: React.CSSProperties = {
 	fontSize: 16,
 	height: "1rem",
 	minWidth: "1rem",
@@ -51,7 +62,7 @@ type FileReferenceChipContentProps = {
 	lineRange: string;
 };
 
-const FileReferenceChipContent: FC<FileReferenceChipContentProps> = ({
+const FileReferenceChipContent: React.FC<FileReferenceChipContentProps> = ({
 	fileName,
 	lineRange,
 }) => {
@@ -120,6 +131,34 @@ export function FileReferenceChip({
 	);
 }
 
+/**
+ * Removes an editable chip by click or by Tab then Enter or Space.
+ * The pseudo-element widens the tap target to 24px without moving the icon.
+ */
+export const ChipRemoveButton: React.FC<{
+	label: string;
+	onRemove: () => void;
+}> = ({ label, onRemove }) => (
+	<button
+		type="button"
+		className="relative ml-0.5 inline-flex size-3.5 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-content-secondary transition-colors after:absolute after:-inset-1.25 after:content-[''] hover:bg-surface-quaternary hover:text-content-primary"
+		onClick={(e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			onRemove();
+		}}
+		// Enter would send the message from the editor instead of pressing this.
+		onKeyDownCapture={(e) => {
+			if (e.key === "Enter" || e.key === " ") {
+				e.stopPropagation();
+			}
+		}}
+		aria-label={label}
+	>
+		<XIcon className="size-2.5" />
+	</button>
+);
+
 export function EditableFileReferenceChip({
 	fileName,
 	startLine,
@@ -143,8 +182,11 @@ export function EditableFileReferenceChip({
 		<span
 			data-slot="file-reference-chip"
 			className={cn(
-				fileReferenceChipVariants({ interactive: true, selected }),
-				"border-border-secondary bg-surface-tertiary text-content-primary hover:bg-surface-quaternary",
+				fileReferenceChipVariants({
+					interactive: true,
+					selected,
+					editable: true,
+				}),
 				className,
 			)}
 			contentEditable={false}
@@ -159,20 +201,7 @@ export function EditableFileReferenceChip({
 			>
 				<FileReferenceChipContent fileName={shortFile} lineRange={lineRange} />
 			</button>
-			<button
-				data-slot="file-reference-chip-remove"
-				type="button"
-				className="ml-0.5 inline-flex size-3.5 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-content-secondary transition-colors hover:bg-surface-quaternary hover:text-content-primary"
-				onClick={(e) => {
-					e.preventDefault();
-					e.stopPropagation();
-					onRemove();
-				}}
-				aria-label="Remove reference"
-				tabIndex={-1}
-			>
-				<XIcon className="size-2.5" />
-			</button>
+			<ChipRemoveButton label={`Remove ${title}`} onRemove={onRemove} />
 		</span>
 	);
 }

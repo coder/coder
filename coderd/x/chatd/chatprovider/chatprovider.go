@@ -93,17 +93,9 @@ func UnsupportedProviders(configured []ConfiguredProvider) []codersdk.ChatUnsupp
 	return unsupported
 }
 
-// ProviderAllowsAmbientCredentials reports whether provider can use
-// ambient credentials from the Coder server instead of an explicit
-// API key.
-func ProviderAllowsAmbientCredentials(provider string) bool {
-	return NormalizeProvider(provider) == fantasybedrock.Name
-}
-
 // InlineImageCapBytes returns the per-image byte cap for inline
 // image parts, or (0, false) when no documented cap applies.
-// Bedrock shares Anthropic's cap because fantasy's bedrock provider
-// wraps the anthropic client.
+// Bedrock shares Anthropic's cap because its Anthropic models use the Anthropic client.
 func InlineImageCapBytes(provider string) (int, bool) {
 	switch NormalizeProvider(provider) {
 	case fantasyanthropic.Name, fantasybedrock.Name:
@@ -160,14 +152,9 @@ func (m Model) AcceptsFilePartMediaType(mediaType string) bool {
 	isPDF := baseType == "application/pdf"
 
 	switch NormalizeProvider(m.Provider()) {
-	case fantasygoogle.Name:
-		// Google passes any file part through unfiltered.
-		return true
-	case fantasyanthropic.Name, fantasybedrock.Name:
-		// Bedrock wraps the anthropic client, so it shares the same
-		// file-part acceptance, including text/* as native documents.
+	case fantasyanthropic.Name:
 		return isImage || isText || isPDF
-	case fantasyopenai.Name, fantasyazure.Name:
+	case fantasyopenai.Name:
 		// Chat Completions accepts text and audio as native file parts.
 		if m.transport.UsesResponses() {
 			return isImage || isPDF
@@ -175,8 +162,6 @@ func (m Model) AcceptsFilePartMediaType(mediaType string) bool {
 		return isImage || isText || isAudio || isPDF
 	case fantasyopenaicompat.Name:
 		return isImage || isText || isAudio || isPDF
-	case fantasyopenrouter.Name, fantasyvercel.Name:
-		return isImage || isAudio || isPDF
 	default:
 		return false
 	}
@@ -188,16 +173,6 @@ type ProviderAPIKeys struct {
 	Anthropic         string
 	ByProvider        map[string]string
 	BaseURLByProvider map[string]string
-	RegionByProvider  map[string]string
-}
-
-// Empty reports whether no provider keys or base URL overrides are set.
-func (k ProviderAPIKeys) Empty() bool {
-	return k.OpenAI == "" &&
-		k.Anthropic == "" &&
-		len(k.ByProvider) == 0 &&
-		len(k.BaseURLByProvider) == 0 &&
-		len(k.RegionByProvider) == 0
 }
 
 // UserProviderKey is a user-supplied API key for a specific provider.
@@ -219,10 +194,12 @@ type ConfiguredProvider struct {
 	Provider                   string
 	APIKey                     string
 	BaseURL                    string
-	Region                     string
 	CentralAPIKeyEnabled       bool
 	AllowUserAPIKey            bool
 	AllowCentralAPIKeyFallback bool
+	// SupportsAmbientCredentials reports that the provider configuration supports
+	// ambient credentials. It does not verify that credentials are available.
+	SupportsAmbientCredentials bool
 }
 
 // APIKey returns the effective API key for a provider.
@@ -268,36 +245,8 @@ func (k ProviderAPIKeys) BaseURL(provider string) string {
 	return strings.TrimSpace(k.BaseURLByProvider[normalized])
 }
 
-// Region returns the configured region for a provider.
-func (k ProviderAPIKeys) Region(provider string) string {
-	normalized := NormalizeProvider(provider)
-	if normalized == "" || k.RegionByProvider == nil {
-		return ""
-	}
-	return strings.TrimSpace(k.RegionByProvider[normalized])
-}
-
-// setRegion records a normalized, non-empty region for a provider. The
-// RegionByProvider map is allocated lazily so an unused set stays nil, which
-// keeps Empty() and value comparisons stable.
-func (k *ProviderAPIKeys) setRegion(provider, region string) {
-	if provider == "" {
-		return
-	}
-	if region = strings.TrimSpace(region); region == "" {
-		return
-	}
-	if k.RegionByProvider == nil {
-		k.RegionByProvider = map[string]string{}
-	}
-	k.RegionByProvider[provider] = region
-}
-
-// mergedFromFallback seeds a ProviderAPIKeys from a fallback set, normalizing
-// provider names and dropping blank values. ByProvider and BaseURLByProvider
-// are always non-nil; RegionByProvider stays nil until a region is set. The
-// legacy OpenAI/Anthropic keys are mirrored into ByProvider so callers can
-// look them up by provider name.
+// mergedFromFallback keeps both maps non-nil so callers can add providers and
+// mirrors legacy OpenAI/Anthropic keys into ByProvider for provider-name lookups.
 func mergedFromFallback(fallback ProviderAPIKeys) ProviderAPIKeys {
 	merged := ProviderAPIKeys{
 		OpenAI:            strings.TrimSpace(fallback.OpenAI),
@@ -318,9 +267,6 @@ func mergedFromFallback(fallback ProviderAPIKeys) ProviderAPIKeys {
 				merged.BaseURLByProvider[normalized] = url
 			}
 		}
-	}
-	for provider, region := range fallback.RegionByProvider {
-		merged.setRegion(NormalizeProvider(provider), region)
 	}
 	if merged.OpenAI != "" {
 		merged.ByProvider[fantasyopenai.Name] = merged.OpenAI
@@ -362,7 +308,6 @@ func ResolveUserProviderKeys(
 		if url := strings.TrimSpace(provider.BaseURL); url != "" {
 			merged.BaseURLByProvider[normalizedProvider] = url
 		}
-		merged.setRegion(normalizedProvider, provider.Region)
 
 		var userKey string
 		if provider.ProviderID != uuid.Nil {
@@ -391,10 +336,10 @@ func ResolveUserProviderKeys(
 			} else {
 				resolved.UnavailableReason = codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired
 			}
-		case normalizedProvider == fantasybedrock.Name && provider.CentralAPIKeyEnabled:
-			// Bedrock can use ambient AWS credentials from the Coder server
-			// without an explicit key, but only when the credential policy
-			// allows central credentials to satisfy the request.
+		case (normalizedProvider == fantasybedrock.Name || provider.SupportsAmbientCredentials) && provider.CentralAPIKeyEnabled:
+			// These provider configurations support ambient credentials without an
+			// explicit key, but only when the credential policy allows central
+			// credentials to satisfy the request.
 			if !provider.AllowUserAPIKey || provider.AllowCentralAPIKeyFallback {
 				resolved.Available = true
 			} else {
@@ -438,16 +383,13 @@ func setResolvedProviderAPIKey(keys *ProviderAPIKeys, provider string, apiKey st
 	case fantasyanthropic.Name:
 		keys.Anthropic = trimmedKey
 	}
-	if trimmedKey != "" || (availability.Available && ProviderAllowsAmbientCredentials(normalizedProvider)) {
+	if trimmedKey != "" || availability.Available {
 		keys.ByProvider[normalizedProvider] = trimmedKey
 	}
 }
 
-// PruneDisabledProviderKeys removes entries from keys that do not
-// belong to an enabled provider. It clears ByProvider,
-// BaseURLByProvider, and RegionByProvider entries for disabled
-// providers and zeroes the legacy OpenAI and Anthropic fields when
-// those providers are not enabled.
+// PruneDisabledProviderKeys removes keys and base URLs for disabled providers,
+// including the legacy OpenAI and Anthropic key fields.
 func PruneDisabledProviderKeys(keys *ProviderAPIKeys, enabledProviders map[string]struct{}) {
 	for provider := range keys.ByProvider {
 		if _, ok := enabledProviders[provider]; ok {
@@ -460,12 +402,6 @@ func PruneDisabledProviderKeys(keys *ProviderAPIKeys, enabledProviders map[strin
 			continue
 		}
 		delete(keys.BaseURLByProvider, provider)
-	}
-	for provider := range keys.RegionByProvider {
-		if _, ok := enabledProviders[provider]; ok {
-			continue
-		}
-		delete(keys.RegionByProvider, provider)
 	}
 	if _, ok := enabledProviders[NormalizeProvider("openai")]; !ok {
 		keys.OpenAI = ""
@@ -558,6 +494,19 @@ func parseCanonicalModelRef(modelRef string) (provider string, model string, ok 
 	}
 
 	return "", "", false
+}
+
+// IsAnthropicFamilyModelID reports whether a model ID names a Claude
+// model regardless of the transport it is served through: OpenRouter and
+// Vercel namespaces ("anthropic/claude-haiku-4.5"), Bedrock IDs
+// ("anthropic.claude-...", "us.anthropic.claude-..."), and bare Claude
+// IDs on generic OpenAI-compatible gateways.
+func IsAnthropicFamilyModelID(modelID string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(modelID))
+	return strings.HasPrefix(normalized, "anthropic/") ||
+		strings.HasPrefix(normalized, "anthropic.") ||
+		strings.Contains(normalized, ".anthropic.") ||
+		strings.Contains(normalized, "claude")
 }
 
 func isChatModelForProvider(provider, modelID string) bool {
@@ -667,8 +616,7 @@ const AnthropicBetaContext1M = "context-1m-2025-08-07"
 // HeaderAnthropicBeta names Anthropic's beta feature header.
 const HeaderAnthropicBeta = "Anthropic-Beta"
 
-// BetaHeadersFromCallConfig returns beta feature headers for Anthropic and
-// Bedrock calls.
+// BetaHeadersFromCallConfig returns beta feature headers for Anthropic calls.
 func BetaHeadersFromCallConfig(providerName string, config *codersdk.ChatModelCallConfig) map[string]string {
 	if config == nil || config.ProviderOptions == nil || config.ProviderOptions.Anthropic == nil {
 		return nil
@@ -677,12 +625,10 @@ func BetaHeadersFromCallConfig(providerName string, config *codersdk.ChatModelCa
 	if enabled == nil || !*enabled {
 		return nil
 	}
-	switch NormalizeProvider(providerName) {
-	case fantasyanthropic.Name, fantasybedrock.Name:
-		return map[string]string{HeaderAnthropicBeta: AnthropicBetaContext1M}
-	default:
+	if NormalizeProvider(providerName) != fantasyanthropic.Name {
 		return nil
 	}
+	return map[string]string{HeaderAnthropicBeta: AnthropicBetaContext1M}
 }
 
 // openAIResponsesAPIOverride returns the configured OpenAI Responses API
@@ -746,8 +692,7 @@ func ModelFromConfig(
 	openAIConfig := effectiveOpenAIConfig(callConfig)
 
 	apiKey := providerKeys.APIKey(provider)
-	if apiKey == "" &&
-		(!ProviderAllowsAmbientCredentials(provider) || !providerKeys.HasProvider(provider)) {
+	if apiKey == "" {
 		return Model{}, missingProviderAPIKeyError(provider)
 	}
 	baseURL := providerKeys.BaseURL(provider)
@@ -769,58 +714,6 @@ func ModelFromConfig(
 			options = append(options, fantasyanthropic.WithHTTPClient(httpClient))
 		}
 		providerClient, err = fantasyanthropic.New(options...)
-	case fantasyazure.Name:
-		if baseURL == "" {
-			return Model{}, xerrors.New("AZURE_OPENAI_BASE_URL is not set")
-		}
-		azureOpts := []fantasyazure.Option{
-			fantasyazure.WithAPIKey(apiKey),
-			fantasyazure.WithBaseURL(baseURL),
-			fantasyazure.WithUseResponsesAPI(),
-			fantasyazure.WithUserAgent(userAgent),
-		}
-		if len(extraHeaders) > 0 {
-			azureOpts = append(azureOpts, fantasyazure.WithHeaders(extraHeaders))
-		}
-		if httpClient != nil {
-			azureOpts = append(azureOpts, fantasyazure.WithHTTPClient(httpClient))
-		}
-		providerClient, err = fantasyazure.New(azureOpts...)
-	case fantasybedrock.Name:
-		bedrockOpts := []fantasybedrock.Option{
-			fantasybedrock.WithUserAgent(userAgent),
-		}
-		if region := providerKeys.Region(provider); region != "" {
-			bedrockOpts = append(bedrockOpts, fantasybedrock.WithRegion(region))
-		}
-		if apiKey != "" {
-			bedrockOpts = append(bedrockOpts, fantasybedrock.WithAPIKey(apiKey))
-		}
-		if len(extraHeaders) > 0 {
-			bedrockOpts = append(bedrockOpts, fantasybedrock.WithHeaders(extraHeaders))
-		}
-		if baseURL != "" {
-			bedrockOpts = append(bedrockOpts, fantasybedrock.WithBaseURL(baseURL))
-		}
-		if httpClient != nil {
-			bedrockOpts = append(bedrockOpts, fantasybedrock.WithHTTPClient(httpClient))
-		}
-		providerClient, err = fantasybedrock.New(bedrockOpts...)
-	case fantasygoogle.Name:
-		options := []fantasygoogle.Option{
-			fantasygoogle.WithGeminiAPIKey(apiKey),
-			fantasygoogle.WithUserAgent(userAgent),
-		}
-		if len(extraHeaders) > 0 {
-			options = append(options, fantasygoogle.WithHeaders(extraHeaders))
-		}
-		if baseURL != "" {
-			options = append(options, fantasygoogle.WithBaseURL(baseURL))
-		}
-		if httpClient != nil {
-			options = append(options, fantasygoogle.WithHTTPClient(httpClient))
-		}
-		providerClient, err = fantasygoogle.New(options...)
 	case fantasyopenai.Name:
 		// Resolved once here so a later mutation of the config cannot move
 		// the client off the transport NewModel records.
@@ -866,33 +759,6 @@ func ModelFromConfig(
 			options = append(options, fantasyopenaicompat.WithHTTPClient(httpClient))
 		}
 		providerClient, err = fantasyopenaicompat.New(options...)
-	case fantasyopenrouter.Name:
-		routerOpts := []fantasyopenrouter.Option{
-			fantasyopenrouter.WithAPIKey(apiKey),
-			fantasyopenrouter.WithUserAgent(userAgent),
-		}
-		if len(extraHeaders) > 0 {
-			routerOpts = append(routerOpts, fantasyopenrouter.WithHeaders(extraHeaders))
-		}
-		if httpClient != nil {
-			routerOpts = append(routerOpts, fantasyopenrouter.WithHTTPClient(httpClient))
-		}
-		providerClient, err = fantasyopenrouter.New(routerOpts...)
-	case fantasyvercel.Name:
-		options := []fantasyvercel.Option{
-			fantasyvercel.WithAPIKey(apiKey),
-			fantasyvercel.WithUserAgent(userAgent),
-		}
-		if len(extraHeaders) > 0 {
-			options = append(options, fantasyvercel.WithHeaders(extraHeaders))
-		}
-		if baseURL != "" {
-			options = append(options, fantasyvercel.WithBaseURL(baseURL))
-		}
-		if httpClient != nil {
-			options = append(options, fantasyvercel.WithHTTPClient(httpClient))
-		}
-		providerClient, err = fantasyvercel.New(options...)
 	default:
 		return Model{}, xerrors.Errorf("unsupported model provider %q", provider)
 	}
@@ -907,25 +773,14 @@ func ModelFromConfig(
 	return NewModel(model, openAIConfig), nil
 }
 
-// Providers that allow ambient credentials, such as Bedrock, bypass
-// this helper only after ResolveUserProviderKeys marks them
-// available.
 func missingProviderAPIKeyError(provider string) error {
 	switch provider {
 	case fantasyanthropic.Name:
 		return xerrors.New("ANTHROPIC_API_KEY is not set")
-	case fantasyazure.Name:
-		return xerrors.New("AZURE_OPENAI_API_KEY is not set")
-	case fantasygoogle.Name:
-		return xerrors.New("GOOGLE_API_KEY is not set")
 	case fantasyopenai.Name:
 		return xerrors.New("OPENAI_API_KEY is not set")
 	case fantasyopenaicompat.Name:
 		return xerrors.New("OPENAI_COMPAT_API_KEY is not set")
-	case fantasyopenrouter.Name:
-		return xerrors.New("OPENROUTER_API_KEY is not set")
-	case fantasyvercel.Name:
-		return xerrors.New("VERCEL_API_KEY is not set")
 	default:
 		return xerrors.Errorf("API key for provider %q is not set", provider)
 	}
@@ -943,7 +798,27 @@ func ProviderOptionsForCall(
 ) fantasy.ProviderOptions {
 	options := providerOptionsFromChatModelConfig(model, config.ProviderOptions)
 	effort := ResolveReasoningEffort(requestedEffort, config.ReasoningEffort)
-	return applyReasoningEffort(model, options, effort)
+	options = applyReasoningEffort(model, options, effort)
+	return ensureOpenAIResponsesIncludes(model, options)
+}
+
+// ensureOpenAIResponsesIncludes requests encrypted reasoning on every
+// Responses call, so reasoning can be replayed without provider-side storage.
+// An options block created here leaves Store unset, keeping the provider's
+// default.
+func ensureOpenAIResponsesIncludes(
+	model Model,
+	options fantasy.ProviderOptions,
+) fantasy.ProviderOptions {
+	if !model.Valid() || !model.transport.UsesResponses() {
+		return options
+	}
+	if options == nil {
+		options = fantasy.ProviderOptions{}
+	}
+	responsesOptions := ensureProviderOptions[fantasyopenai.ResponsesProviderOptions](options, fantasyopenai.Name)
+	responsesOptions.Include = chatopenai.EnsureResponseIncludes(responsesOptions.Include)
+	return options
 }
 
 func providerOptionsFromChatModelConfig(
@@ -967,36 +842,15 @@ func providerOptionsFromChatModelConfig(
 			options.Anthropic,
 		)
 	}
-	if options.Google != nil {
-		var modelID string
-		if model.Valid() {
-			modelID = model.ModelID()
-		}
-		result[fantasygoogle.Name] = googleProviderOptionsFromChatConfig(
-			modelID,
-			options.Google,
-		)
-	}
 	if options.OpenAICompat != nil {
 		result[fantasyopenaicompat.Name] = openAICompatProviderOptionsFromChatConfig(
 			options.OpenAICompat,
 		)
 	}
-	if options.OpenRouter != nil {
-		result[fantasyopenrouter.Name] = openRouterProviderOptionsFromChatConfig(
-			options.OpenRouter,
-		)
-	}
-	if options.Vercel != nil {
-		result[fantasyvercel.Name] = vercelProviderOptionsFromChatConfig(
-			options.Vercel,
-		)
-	}
 
-	// Google models backed by an AI Provider route through the
-	// OpenAI-compatible client, which ignores the fantasygoogle options key,
-	// so a pinned thinking configuration must also travel as the compat
-	// request's extra_body for the transport patch to honor it.
+	// Google models route through the OpenAI-compatible client, so a pinned
+	// thinking configuration travels as the compat request's extra_body for
+	// the transport patch to honor it.
 	if options.Google != nil && options.Google.ThinkingConfig != nil &&
 		model.Valid() && NormalizeProvider(model.Provider()) == fantasyopenaicompat.Name {
 		if extraBody := googleCompatExtraBodyFromThinkingConfig(model.ModelID(), options.Google.ThinkingConfig); extraBody != nil {
@@ -1027,112 +881,10 @@ func anthropicProviderOptionsFromChatConfig(
 	return result
 }
 
-func googleProviderOptionsFromChatConfig(
-	modelID string,
-	options *codersdk.ChatModelGoogleProviderOptions,
-) *fantasygoogle.ProviderOptions {
-	result := &fantasygoogle.ProviderOptions{
-		CachedContent: strings.TrimSpace(options.CachedContent),
-		Threshold:     strings.TrimSpace(options.Threshold),
-	}
-	if options.ThinkingConfig != nil {
-		result.ThinkingConfig = &fantasygoogle.ThinkingConfig{
-			ThinkingBudget:  options.ThinkingConfig.ThinkingBudget,
-			IncludeThoughts: options.ThinkingConfig.IncludeThoughts,
-		}
-		// Each Gemini model accepts a different thinking_level subset and
-		// pre-Gemini-3 models reject the field entirely, so clamp a pinned
-		// level into the model's supported set and drop it for models
-		// without support. Gating here rather than at config save time
-		// also covers updates that switch a config's model without
-		// resubmitting options.
-		if pinned := GoogleThinkingLevelFromChat(options.ThinkingConfig.ThinkingLevel); pinned != nil {
-			if supported := googleSupportedThinkingLevels(modelID); len(supported) > 0 {
-				level := clampGoogleThinkingLevel(*pinned, supported)
-				result.ThinkingConfig.ThinkingLevel = &level
-			}
-		}
-	}
-	if options.SafetySettings != nil {
-		result.SafetySettings = make(
-			[]fantasygoogle.SafetySetting,
-			0,
-			len(options.SafetySettings),
-		)
-		for _, setting := range options.SafetySettings {
-			result.SafetySettings = append(result.SafetySettings, fantasygoogle.SafetySetting{
-				Category:  strings.TrimSpace(setting.Category),
-				Threshold: strings.TrimSpace(setting.Threshold),
-			})
-		}
-	}
-	return result
-}
-
 func openAICompatProviderOptionsFromChatConfig(
 	options *codersdk.ChatModelOpenAICompatProviderOptions,
 ) *fantasyopenaicompat.ProviderOptions {
 	return &fantasyopenaicompat.ProviderOptions{
 		User: chatutil.NormalizedStringPointer(options.User),
 	}
-}
-
-func openRouterProviderOptionsFromChatConfig(
-	options *codersdk.ChatModelOpenRouterProviderOptions,
-) *fantasyopenrouter.ProviderOptions {
-	result := &fantasyopenrouter.ProviderOptions{
-		ExtraBody:         options.ExtraBody,
-		IncludeUsage:      options.IncludeUsage,
-		LogitBias:         options.LogitBias,
-		LogProbs:          options.LogProbs,
-		ParallelToolCalls: options.ParallelToolCalls,
-		User:              chatutil.NormalizedStringPointer(options.User),
-	}
-	if options.Reasoning != nil {
-		result.Reasoning = &fantasyopenrouter.ReasoningOptions{
-			Enabled:   options.Reasoning.Enabled,
-			Exclude:   options.Reasoning.Exclude,
-			MaxTokens: options.Reasoning.MaxTokens,
-		}
-	}
-	if options.Provider != nil {
-		result.Provider = &fantasyopenrouter.Provider{
-			Order:             options.Provider.Order,
-			AllowFallbacks:    options.Provider.AllowFallbacks,
-			RequireParameters: options.Provider.RequireParameters,
-			DataCollection:    chatutil.NormalizedStringPointer(options.Provider.DataCollection),
-			Only:              options.Provider.Only,
-			Ignore:            options.Provider.Ignore,
-			Quantizations:     options.Provider.Quantizations,
-			Sort:              chatutil.NormalizedStringPointer(options.Provider.Sort),
-		}
-	}
-	return result
-}
-
-func vercelProviderOptionsFromChatConfig(
-	options *codersdk.ChatModelVercelProviderOptions,
-) *fantasyvercel.ProviderOptions {
-	result := &fantasyvercel.ProviderOptions{
-		User:              chatutil.NormalizedStringPointer(options.User),
-		LogitBias:         options.LogitBias,
-		LogProbs:          options.LogProbs,
-		TopLogProbs:       options.TopLogProbs,
-		ParallelToolCalls: options.ParallelToolCalls,
-		ExtraBody:         options.ExtraBody,
-	}
-	if options.Reasoning != nil {
-		result.Reasoning = &fantasyvercel.ReasoningOptions{
-			Enabled:   options.Reasoning.Enabled,
-			MaxTokens: options.Reasoning.MaxTokens,
-			Exclude:   options.Reasoning.Exclude,
-		}
-	}
-	if options.ProviderOptions != nil {
-		result.ProviderOptions = &fantasyvercel.GatewayProviderOptions{
-			Order:  options.ProviderOptions.Order,
-			Models: options.ProviderOptions.Models,
-		}
-	}
-	return result
 }

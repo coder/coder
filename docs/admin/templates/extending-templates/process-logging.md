@@ -2,42 +2,31 @@
 title: Workspace process logging
 ---
 
-The workspace process logging feature allows you to log all system-level
-processes executing in the workspace.
+The workspace process logging feature allows you to log all system-level processes executing in the workspace.
 
-This feature is only available on Linux in Kubernetes. There are
-additional requirements outlined further in this document.
+This feature is only available on Linux in Kubernetes.
+There are additional requirements outlined further in this document.
 
 > [!NOTE]
 > Workspace process logging is a Premium feature.
 > [Learn more](https://coder.com/pricing#compare-plans).
 
-Workspace process logging adds a sidecar container to workspace pods that will
-log all processes started in the workspace container (e.g., commands executed in
-the terminal or processes created in the background by other processes).
-Processes launched inside containers or nested containers within the workspace
-are also logged. You can view the output from the sidecar or send it to a
-monitoring stack, such as CloudWatch, for further analysis or long-term storage.
+Workspace process logging adds a sidecar container to workspace pods that will log all processes started in the workspace container (for example, commands executed in the terminal or processes created in the background by other processes).
+Processes launched inside containers or nested containers within the workspace are also logged.
+You can view the output from the sidecar or send it to a monitoring stack, such as CloudWatch, for further analysis or long-term storage.
 
-Please note that these logs are not recorded or captured by the Coder
-organization in any way, shape, or form.
+Note that these logs are not recorded or captured by the Coder organization in any way, shape, or form.
 
 ## How this works
 
-Coder uses [eBPF](https://ebpf.io/) (which we chose for its minimal performance
-impact) to perform in-kernel logging and filtering of all exec system calls
-originating from the workspace container.
+Coder uses [eBPF](https://ebpf.io/) (which we chose for its minimal performance impact) to perform in-kernel logging and filtering of all exec system calls originating from the workspace container.
 
-The core of this feature is also open source and can be found in the
-[exectrace](https://github.com/coder/exectrace) GitHub repo. The enterprise
-component (in the `enterprise/` directory of the repo) is responsible for
-starting the eBPF program with the correct filtering options for the specific
-workspace.
+The core of this feature is also open source and can be found in the [exectrace](https://github.com/coder/exectrace) GitHub repo.
+The enterprise component (in the `enterprise/` directory of the repo) is responsible for starting the eBPF program with the correct filtering options for the specific workspace.
 
 ## Requirements
 
-The host machine must be running a Linux kernel >= 5.8 with the kernel config
-`CONFIG_DEBUG_INFO_BTF=y` enabled.
+The host machine must be running a Linux kernel >= 5.8 with the kernel config `CONFIG_DEBUG_INFO_BTF=y` enabled.
 
 To check your kernel version, run:
 
@@ -45,8 +34,7 @@ To check your kernel version, run:
 uname -r
 ```
 
-To validate the required kernel config is enabled, run either of the following
-commands on your nodes directly (_not_ from a workspace terminal):
+To validate the required kernel config is enabled, run either of the following commands on your nodes directly (_not_ from a workspace terminal):
 
 ```sh
 cat /proc/config.gz | gunzip | grep CONFIG_DEBUG_INFO_BTF
@@ -56,24 +44,21 @@ cat /proc/config.gz | gunzip | grep CONFIG_DEBUG_INFO_BTF
 cat "/boot/config-$(uname -r)" | grep CONFIG_DEBUG_INFO_BTF
 ```
 
-If these requirements are not met, workspaces will fail to start for security
-reasons.
+If these requirements are not met, workspaces will fail to start for security reasons.
 
-Your template must be a Kubernetes template. Workspace process logging is not
-compatible with the `sysbox-runc` runtime due to technical limitations, but it
-is compatible with our `envbox` template family.
+Your template must be a Kubernetes template.
+Workspace process logging is not compatible with the `sysbox-runc` runtime due to technical limitations, but it is compatible with our `envbox` template family.
 
 ## Example templates
 
-We provide working example templates for Kubernetes, and Kubernetes with
-`envbox` (for [Docker support in workspaces](./docker-in-workspaces.md)). You
-can view these templates in the
-[exectrace repo](https://github.com/coder/exectrace/tree/main/enterprise/templates).
+We provide working example templates for Kubernetes, and Kubernetes with `envbox` (for [Docker support in workspaces](./docker-in-workspaces.md)).
+You can view these templates in the [exectrace repo](https://github.com/coder/exectrace/tree/main/enterprise/templates).
 
-## Configuring custom templates to use workspace process logging
+<a id="configuring-custom-templates-to-use-workspace-process-logging"></a>
 
-If you have an existing Kubernetes or Kubernetes with `envbox` template that you
-would like to add workspace process logging to, follow these steps:
+## Configure custom templates to use workspace process logging
+
+If you have an existing Kubernetes or Kubernetes with `envbox` template that you would like to add workspace process logging to, follow these steps:
 
 1. Ensure the image used in your template has `curl` installed.
 
@@ -167,9 +152,7 @@ would like to add workspace process logging to, follow these steps:
    ```
 
    > [!NOTE]
-   > If you are using the `envbox` template, you will need to update
-   > the third argument to be
-   > `"${local.exectrace_init_script}\n\nexec /envbox docker"` instead.
+   > If you are using the `envbox` template, you will need to update the third argument to be `"${local.exectrace_init_script}\n\nexec /envbox docker"` instead.
 
 1. Add the following container to your workspace pod spec.
 
@@ -216,8 +199,8 @@ would like to add workspace process logging to, follow these steps:
    ```
 
    > [!NOTE]
-   > `exectrace` requires root privileges and a privileged container
-   > to attach probes to the kernel. This is a requirement of eBPF.
+   > `exectrace` requires root privileges and a privileged container to attach probes to the kernel.
+   > This is a requirement of eBPF.
 
 1. Add the following environment variable to your workspace pod:
 
@@ -241,14 +224,13 @@ would like to add workspace process logging to, follow these steps:
    }
    ```
 
-Once you have made these changes, you can push a new version of your template
-and workspace process logging will be enabled for all workspaces once they are
-restarted.
+Once you have made these changes, you can push a new version of your template and workspace process logging will be enabled for all workspaces once they are restarted.
 
-## Viewing workspace process logs
+<a id="viewing-workspace-process-logs"></a>
 
-To view the process logs for a specific workspace you can use `kubectl` to print
-the logs:
+## View workspace process logs
+
+To view the process logs for a specific workspace you can use `kubectl` to print the logs:
 
 ```sh
 kubectl logs pod-name --container exectrace
@@ -285,13 +267,10 @@ The raw logs will look something like this:
 
 ### View logs in AWS EKS
 
-If you're using AWS' Elastic Kubernetes Service, you can
-[configure your cluster](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Container-Insights-EKS-logs.html)
-to send logs to CloudWatch. This allows you to view the logs for a specific user
-or workspace.
+If you're using AWS' Elastic Kubernetes Service, you can [configure your cluster](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Container-Insights-EKS-logs.html) to send logs to CloudWatch.
+This allows you to view the logs for a specific user or workspace.
 
-To view your logs, go to the CloudWatch dashboard (which is available on the
-**Log Insights** tab) and run a query similar to the following:
+To view your logs, go to the CloudWatch dashboard (which is available on the **Log Insights** tab) and run a query similar to the following:
 
 ```txt
 fields @timestamp, log_processed.fields.cmdline
@@ -303,17 +282,9 @@ fields @timestamp, log_processed.fields.cmdline
 
 ## Usage considerations
 
-- The sidecar attached to each workspace is a privileged container, so you may
-  need to review your organization's security policies before enabling this
-  feature. Enabling workspace process logging does _not_ grant extra privileges
-  to the workspace container itself, however.
-- `exectrace` will log processes from nested Docker containers (including deeply
-  nested containers) correctly, but Coder does not distinguish between processes
-  started in the workspace and processes started in a child container in the
-  logs.
-- With `envbox` workspaces, this feature will detect and log startup processes
-  begun in the outer container (including container initialization processes).
-- Because this feature logs **all** processes in the workspace, high levels of
-  usage (e.g., during a `make` run) will result in an abundance of output in the
-  sidecar container. Depending on how your Kubernetes cluster is configured, you
-  may incur extra charges from your cloud provider to store the additional logs.
+- The sidecar attached to each workspace is a privileged container, so you may need to review your organization's security policies before enabling this feature.
+  Enabling workspace process logging does _not_ grant extra privileges to the workspace container itself, however.
+- `exectrace` will log processes from nested Docker containers (including deeply nested containers) correctly, but Coder does not distinguish between processes started in the workspace and processes started in a child container in the logs.
+- With `envbox` workspaces, this feature will detect and log startup processes begun in the outer container (including container initialization processes).
+- Because this feature logs **all** processes in the workspace, high levels of usage (for example, during a `make` run) will result in an abundance of output in the sidecar container.
+  Depending on how your Kubernetes cluster is configured, you may incur extra charges from your cloud provider to store the additional logs.

@@ -1,5 +1,5 @@
 import { EllipsisVerticalIcon, PencilIcon, TrashIcon } from "lucide-react";
-import { type FC, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { UserSecret } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
@@ -48,7 +48,7 @@ type SecretsTableProps = {
 	) => Promise<void> | void;
 };
 
-export const SecretsTable: FC<SecretsTableProps> = ({
+export const SecretsTable: React.FC<SecretsTableProps> = ({
 	secrets,
 	filePathEnabled,
 	isLoading,
@@ -188,7 +188,7 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 	);
 };
 
-const OptionalSecretValue: FC<{ value?: string; fallback?: string }> = ({
+const OptionalSecretValue: React.FC<{ value?: string; fallback?: string }> = ({
 	value,
 	fallback = "Not set",
 }) => {
@@ -204,7 +204,10 @@ type FilePathValueProps = {
 	isBlocked: boolean;
 };
 
-const FilePathValue: FC<FilePathValueProps> = ({ filePath, isBlocked }) => {
+const FilePathValue: React.FC<FilePathValueProps> = ({
+	filePath,
+	isBlocked,
+}) => {
 	if (!isBlocked) {
 		return <OptionalSecretValue value={filePath} />;
 	}
@@ -226,7 +229,7 @@ type EnabledToggleProps = {
 	onToggle: (secret: UserSecret, enabled: boolean) => void;
 };
 
-const EnabledToggle: FC<EnabledToggleProps> = ({
+const EnabledToggle: React.FC<EnabledToggleProps> = ({
 	secret,
 	filePathEnabled,
 	isPending,
@@ -241,9 +244,8 @@ const EnabledToggle: FC<EnabledToggleProps> = ({
 				{/*
 				 * Wrap the disabled Switch in a focusable span so the
 				 * tooltip can be triggered by keyboard and pointer.
-				 * biome-ignore lint/a11y/noNoninteractiveTabindex: needed to
-				 * surface the tooltip on a disabled control via keyboard focus.
 				 */}
+				{/* oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- needed to surface the tooltip on a disabled control via keyboard focus. */}
 				<span tabIndex={0} className="inline-flex">
 					<Switch
 						aria-label={`Toggle secret ${secret.name}`}
@@ -273,7 +275,7 @@ type SecretRowActionsProps = {
 	onDeleteSecret: (secret: UserSecret) => void;
 };
 
-const SecretRowActions: FC<SecretRowActionsProps> = ({
+const SecretRowActions: React.FC<SecretRowActionsProps> = ({
 	secret,
 	onEditSecret,
 	onDeleteSecret,
@@ -320,7 +322,7 @@ type DeleteSecretDialogProps = {
 	onConfirm: (secret: UserSecret) => void;
 };
 
-const DeleteSecretDialog: FC<DeleteSecretDialogProps> = ({
+const DeleteSecretDialog: React.FC<DeleteSecretDialogProps> = ({
 	secret,
 	isDeleting,
 	onCancel,

@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -24,7 +23,7 @@ type AdminPersonalModelOverridesSettingsProps = {
 	isSaveAdminSettingError: boolean;
 };
 
-export const AdminPersonalModelOverridesSettings: FC<
+export const AdminPersonalModelOverridesSettings: React.FC<
 	AdminPersonalModelOverridesSettingsProps
 > = ({
 	adminSettings,

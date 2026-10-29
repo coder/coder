@@ -10,10 +10,12 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	promtest "github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/sjson"
 
 	"github.com/coder/coder/v2/aibridge"
+	aibclient "github.com/coder/coder/v2/aibridge/client"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/fixtures"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
@@ -32,7 +34,7 @@ func TestMetrics_Interception(t *testing.T) {
 		expectModel    string
 		expectRoute    string
 		expectProvider string
-		expectClient   aibridge.Client
+		expectClient   aibclient.Type
 		allowOverflow  bool // error fixtures may cause retries
 	}{
 		{
@@ -43,7 +45,7 @@ func TestMetrics_Interception(t *testing.T) {
 			expectModel:    "claude-sonnet-4-0",
 			expectRoute:    "/v1/messages",
 			expectProvider: config.ProviderAnthropic,
-			expectClient:   aibridge.ClientUnknown,
+			expectClient:   aibclient.Unknown,
 		},
 		{
 			name:           "ant_error",
@@ -54,7 +56,7 @@ func TestMetrics_Interception(t *testing.T) {
 			expectModel:    "claude-sonnet-4-0",
 			expectRoute:    "/v1/messages",
 			expectProvider: config.ProviderAnthropic,
-			expectClient:   aibridge.ClientKilo,
+			expectClient:   aibclient.Kilo,
 			allowOverflow:  true,
 		},
 		{
@@ -66,7 +68,7 @@ func TestMetrics_Interception(t *testing.T) {
 			expectModel:    "claude-sonnet-4-0",
 			expectRoute:    "/v1/messages",
 			expectProvider: config.ProviderAnthropic,
-			expectClient:   aibridge.ClientClaudeCode,
+			expectClient:   aibclient.ClaudeCode,
 		},
 		{
 			name:           "oai_chat_simple",
@@ -77,7 +79,7 @@ func TestMetrics_Interception(t *testing.T) {
 			expectModel:    "gpt-4.1",
 			expectRoute:    "/v1/chat/completions",
 			expectProvider: config.ProviderOpenAI,
-			expectClient:   aibridge.ClientCopilotCLI,
+			expectClient:   aibclient.CopilotCLI,
 		},
 		{
 			name:           "oai_chat_error",
@@ -88,7 +90,7 @@ func TestMetrics_Interception(t *testing.T) {
 			expectModel:    "gpt-4.1",
 			expectRoute:    "/v1/chat/completions",
 			expectProvider: config.ProviderOpenAI,
-			expectClient:   aibridge.ClientCopilotVSC,
+			expectClient:   aibclient.CopilotVSC,
 			allowOverflow:  true,
 		},
 		{
@@ -100,7 +102,7 @@ func TestMetrics_Interception(t *testing.T) {
 			expectModel:    "gpt-4o-mini",
 			expectRoute:    "/v1/responses",
 			expectProvider: config.ProviderOpenAI,
-			expectClient:   aibridge.ClientCursor,
+			expectClient:   aibclient.Cursor,
 		},
 		{
 			name:           "oai_responses_blocking_error",
@@ -111,7 +113,7 @@ func TestMetrics_Interception(t *testing.T) {
 			expectModel:    "gpt-4o-mini",
 			expectRoute:    "/v1/responses",
 			expectProvider: config.ProviderOpenAI,
-			expectClient:   aibridge.ClientCodex,
+			expectClient:   aibclient.Codex,
 			allowOverflow:  true,
 		},
 		{
@@ -123,7 +125,7 @@ func TestMetrics_Interception(t *testing.T) {
 			expectModel:    "gpt-4o-mini",
 			expectRoute:    "/v1/responses",
 			expectProvider: config.ProviderOpenAI,
-			expectClient:   aibridge.ClientZed,
+			expectClient:   aibclient.Zed,
 		},
 		{
 			name:           "oai_responses_streaming_error",
@@ -134,7 +136,7 @@ func TestMetrics_Interception(t *testing.T) {
 			expectModel:    "gpt-4o-mini",
 			expectRoute:    "/v1/responses",
 			expectProvider: config.ProviderOpenAI,
-			expectClient:   aibridge.ClientRoo,
+			expectClient:   aibclient.Roo,
 			allowOverflow:  true,
 		},
 	}
@@ -271,7 +273,7 @@ func TestMetrics_PromptCount(t *testing.T) {
 	require.NoError(t, err)
 
 	prompts := promtest.ToFloat64(m.PromptCount.WithLabelValues(
-		config.ProviderOpenAI, "gpt-4.1", defaultActorID, string(aibridge.ClientClaudeCode)))
+		config.ProviderOpenAI, "gpt-4.1", defaultActorID, string(aibclient.ClaudeCode)))
 	require.Equal(t, 1.0, prompts)
 }
 
@@ -361,17 +363,17 @@ func TestMetrics_TokenUseCount(t *testing.T) {
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			_, _ = io.ReadAll(resp.Body)
 
-			// metrics are updated asynchronously
-			require.Eventually(t, func() bool {
-				return promtest.ToFloat64(m.TokenUseCount.WithLabelValues(
-					tc.expectProvider, tc.expectModel, "input", defaultActorID, string(aibridge.ClientUnknown))) > 0
+			// Token usage is recorded asynchronously, possibly in several
+			// records, and each series is updated separately. Some expected
+			// values are zero, so the poll waits for every series to reach its
+			// expected value.
+			require.EventuallyWithT(t, func(c *assert.CollectT) {
+				for label, expected := range tc.expectedLabels {
+					assert.Equal(c, expected, promtest.ToFloat64(m.TokenUseCount.WithLabelValues(
+						tc.expectProvider, tc.expectModel, label, defaultActorID, string(aibclient.Unknown),
+					)), "metric label %q mismatch", label)
+				}
 			}, testutil.WaitMedium, testutil.IntervalFast)
-
-			for label, expected := range tc.expectedLabels {
-				require.Equal(t, expected, promtest.ToFloat64(m.TokenUseCount.WithLabelValues(
-					tc.expectProvider, tc.expectModel, label, defaultActorID, string(aibridge.ClientUnknown),
-				)), "metric label %q mismatch", label)
-			}
 		})
 	}
 }

@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { ComponentProps, FC } from "react";
 import type { LogLevel } from "#/api/typesGenerated";
 
 const DEFAULT_LOG_LINE_SIDE_PADDING = 24;
@@ -14,9 +13,9 @@ export type Line = {
 
 type LogLineProps = {
 	level: LogLevel;
-} & ComponentProps<"pre">;
+} & React.ComponentProps<"pre">;
 
-export const LogLine: FC<LogLineProps> = ({
+export const LogLine: React.FC<LogLineProps> = ({
 	level,
 	className,
 	style,
@@ -47,7 +46,7 @@ export const LogLine: FC<LogLineProps> = ({
 	);
 };
 
-export const LogLinePrefix: FC<ComponentProps<"pre">> = ({
+export const LogLinePrefix: React.FC<React.ComponentProps<"pre">> = ({
 	className,
 	...props
 }) => {

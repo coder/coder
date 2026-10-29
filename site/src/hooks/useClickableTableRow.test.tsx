@@ -1,14 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { FC, ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useClickableTableRow } from "./useClickableTableRow";
 
-const Row: FC<{
+const Row: React.FC<{
 	onClick: () => void;
 	onMiddleClick: () => void;
 	onDoubleClick?: () => void;
-	children: ReactNode;
+	children: React.ReactNode;
 }> = ({ onClick, onMiddleClick, onDoubleClick, children }) => {
 	const { hover, ...rowProps } = useClickableTableRow({
 		onClick,

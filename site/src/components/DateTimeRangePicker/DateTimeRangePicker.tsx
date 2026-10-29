@@ -6,7 +6,7 @@
 import { cn } from "cn";
 import dayjs from "dayjs";
 import { CalendarIcon, CheckIcon } from "lucide-react";
-import { type FC, type KeyboardEvent, useEffect, useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import type { DateRange as DayPickerDateRange } from "react-day-picker";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button, type ButtonProps } from "#/components/Button/Button";
@@ -112,7 +112,7 @@ const defaultTimeFields = (): TimeFieldsState => ({
 	toTouched: false,
 });
 
-export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
+export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 	value,
 	onChange,
 	now,
@@ -175,7 +175,9 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 	};
 
 	// Roving focus for the quick-pick radiogroup.
-	const handleQuickPickKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+	const handleQuickPickKeyDown = (
+		event: React.KeyboardEvent<HTMLDivElement>,
+	) => {
 		const isNext = event.key === "ArrowDown" || event.key === "ArrowRight";
 		const isPrevious = event.key === "ArrowUp" || event.key === "ArrowLeft";
 		if (!isNext && !isPrevious) {
@@ -284,7 +286,7 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 						onKeyDown={handleQuickPickKeyDown}
 						className={cn(
 							"flex flex-col gap-0.5 p-2 text-sm",
-							customExpanded && "border-r border-border-default",
+							customExpanded && "border-r border-border",
 						)}
 					>
 						{quickPresets.map((preset, index) => (
@@ -334,7 +336,7 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 							</div>
 
 							{/* From/To time fields */}
-							<div className="flex flex-col gap-2 border-t border-border-default px-3 py-3">
+							<div className="flex flex-col gap-2 border-t border-border px-3 py-3">
 								<TimeRow
 									id={fromTimeId}
 									label="From"
@@ -389,7 +391,7 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 							</div>
 
 							{/* Apply footer */}
-							<div className="flex items-center justify-end gap-2 border-t border-border-default px-3 py-2">
+							<div className="flex items-center justify-end gap-2 border-t border-border px-3 py-2">
 								<Button
 									variant="subtle"
 									size="sm"
@@ -416,7 +418,7 @@ type QuickPickButtonProps = {
 	onClick: () => void;
 };
 
-const QuickPickButton: FC<QuickPickButtonProps> = ({
+const QuickPickButton: React.FC<QuickPickButtonProps> = ({
 	label,
 	selected,
 	tabIndex,
@@ -453,7 +455,7 @@ type TimeRowProps = {
 	onMeridiemChange: (meridiem: Meridiem) => void;
 };
 
-const TimeRow: FC<TimeRowProps> = ({
+const TimeRow: React.FC<TimeRowProps> = ({
 	id,
 	label,
 	time,

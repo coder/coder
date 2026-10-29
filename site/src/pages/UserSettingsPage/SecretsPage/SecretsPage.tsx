@@ -1,6 +1,4 @@
-import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	createUserSecret,
@@ -9,12 +7,14 @@ import {
 	updateUserSecret,
 	userSecrets,
 } from "#/api/queries/userSecrets";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
+import { pageTitle } from "#/utils/page";
 import { SecretsPageView } from "./SecretsPageView";
 import { buildImportSuccessMessage } from "./secretForm";
 
-const SecretsPage: FC = () => {
+const SecretsPage: React.FC = () => {
 	const { user: me } = useAuthenticated();
 	const queryClient = useQueryClient();
 	const { metadata } = useEmbeddedMetadata();
@@ -36,65 +36,68 @@ const SecretsPage: FC = () => {
 	);
 
 	return (
-		<SecretsPageView
-			secrets={secretsQuery.data}
-			filePathEnabled={filePathEnabled}
-			isLoading={!secretsQuery.isFetched && secretsQuery.isFetching}
-			hasLoaded={secretsQuery.isSuccess}
-			isCreating={createSecretMutation.isPending}
-			isUpdating={updateSecretMutation.isPending}
-			isDeleting={deleteSecretMutation.isPending}
-			getSecretsError={secretsQuery.error}
-			onCreateSecret={async (request) => {
-				const secret = await createSecretMutation.mutateAsync(request);
-				toast.success(`Created secret "${secret.name}" successfully.`);
-				return secret;
-			}}
-			onUpdateSecret={async (name, request) => {
-				const secret = await updateSecretMutation.mutateAsync({
-					name,
-					request,
-				});
-				toast.success(`Updated secret "${secret.name}" successfully.`);
-				return secret;
-			}}
-			onImportSecrets={async (request) => {
-				const secrets = await importSecretsMutation.mutateAsync(request);
-				toast.success(buildImportSuccessMessage(secrets));
-				return secrets;
-			}}
-			onDeleteSecret={async (secret) => {
-				try {
-					await deleteSecretMutation.mutateAsync(secret.name);
-					toast.success(`Deleted secret "${secret.name}" successfully.`);
-				} catch (error) {
-					toast.error(getErrorMessage(error, "Failed to delete secret."), {
-						description: getErrorDetail(error),
+		<>
+			<title>{pageTitle("Secrets", "Settings")}</title>
+			<SecretsPageView
+				secrets={secretsQuery.data}
+				filePathEnabled={filePathEnabled}
+				isLoading={!secretsQuery.isFetched && secretsQuery.isFetching}
+				hasLoaded={secretsQuery.isSuccess}
+				isCreating={createSecretMutation.isPending}
+				isUpdating={updateSecretMutation.isPending}
+				isDeleting={deleteSecretMutation.isPending}
+				getSecretsError={secretsQuery.error}
+				onCreateSecret={async (request) => {
+					const secret = await createSecretMutation.mutateAsync(request);
+					toast.success(`Created secret "${secret.name}" successfully.`);
+					return secret;
+				}}
+				onUpdateSecret={async (name, request) => {
+					const secret = await updateSecretMutation.mutateAsync({
+						name,
+						request,
 					});
-					throw error;
-				}
-			}}
-			onToggleSecretEnabled={async (secret, enabled) => {
-				try {
-					await updateSecretMutation.mutateAsync({
-						name: secret.name,
-						request: { enabled },
-					});
-					toast.success(
-						`${enabled ? "Enabled" : "Disabled"} secret "${secret.name}".`,
-					);
-				} catch (error) {
-					toast.error(
-						getErrorMessage(
-							error,
-							`Failed to ${enabled ? "enable" : "disable"} secret.`,
-						),
-						{ description: getErrorDetail(error) },
-					);
-					throw error;
-				}
-			}}
-		/>
+					toast.success(`Updated secret "${secret.name}" successfully.`);
+					return secret;
+				}}
+				onImportSecrets={async (request) => {
+					const secrets = await importSecretsMutation.mutateAsync(request);
+					toast.success(buildImportSuccessMessage(secrets));
+					return secrets;
+				}}
+				onDeleteSecret={async (secret) => {
+					try {
+						await deleteSecretMutation.mutateAsync(secret.name);
+						toast.success(`Deleted secret "${secret.name}" successfully.`);
+					} catch (error) {
+						toast.error(getErrorMessage(error, "Failed to delete secret."), {
+							description: getErrorDetail(error),
+						});
+						throw error;
+					}
+				}}
+				onToggleSecretEnabled={async (secret, enabled) => {
+					try {
+						await updateSecretMutation.mutateAsync({
+							name: secret.name,
+							request: { enabled },
+						});
+						toast.success(
+							`${enabled ? "Enabled" : "Disabled"} secret "${secret.name}".`,
+						);
+					} catch (error) {
+						toast.error(
+							getErrorMessage(
+								error,
+								`Failed to ${enabled ? "enable" : "disable"} secret.`,
+							),
+							{ description: getErrorDetail(error) },
+						);
+						throw error;
+					}
+				}}
+			/>
+		</>
 	);
 };
 

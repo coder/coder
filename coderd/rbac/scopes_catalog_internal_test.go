@@ -64,6 +64,17 @@ func TestIsExternalScope(t *testing.T) {
 	require.True(t, IsExternalScope("coder:workspaces.create"))
 	require.True(t, IsExternalScope("user:read"))
 	require.True(t, IsExternalScope("chat_model_config:share"))
-	require.False(t, IsExternalScope("debug_info:read")) // internal-only
+	require.True(t, IsExternalScope("inbox_notification:read"))
+	require.False(t, IsExternalScope("inbox_notification:create")) // internal-only
+	require.False(t, IsExternalScope("debug_info:read"))           // internal-only
 	require.False(t, IsExternalScope("unknown:read"))
+}
+
+func TestRetiredScopesAreNotExternal(t *testing.T) {
+	t.Parallel()
+	for name := range retiredScopes {
+		require.False(t, IsExternalScope(name), "%q is both retired and external", name)
+		require.True(t, IsRetiredScope(name))
+	}
+	require.False(t, IsRetiredScope("workspace:read"))
 }

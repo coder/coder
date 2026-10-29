@@ -22,7 +22,7 @@ Work through the guides in order, or pick the one that solves your problem:
 - [Install your own command-line tools](./install-command-line-tools.md): install personal command-line tools and make them persist.
 - [Clone private repositories](./authenticate-to-github.md): authenticate to GitHub with an external-auth data source.
 
-Each guide takes about 10 minutes.
+Each guide takes about 10&nbsp;minutes.
 
 ## Templates in brief
 
@@ -69,7 +69,7 @@ Open it for editing now, either in the Coder web editor or in your local editor 
 
 The template web editor opens:
 
-![Coder template web editor](../../images/screenshots/template-web-editor.png)_Coder template web editor_
+![The template editor with main.tf open beside a file list, and Build and Publish buttons at the top](../../images/screenshots/template-web-editor.png)_Coder template web editor_
 
 ### CLI
 

@@ -1,7 +1,6 @@
-import { type FC, useEffect, useEffectEvent } from "react";
+import { useEffect, useEffectEvent } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router";
-import { toast } from "sonner";
 import { watchWorkspace } from "#/api/api";
 import { template as templateQueryOptions } from "#/api/queries/templates";
 import { workspaceBuildsKey } from "#/api/queries/workspaceBuilds";
@@ -13,9 +12,10 @@ import type { Workspace } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { Margins } from "#/components/Margins/Margins";
+import { toast } from "#/components/Toaster/toast";
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage";
 
-const WorkspacePage: FC = () => {
+const WorkspacePage: React.FC = () => {
 	const queryClient = useQueryClient();
 	const params = useParams() as {
 		username: string;

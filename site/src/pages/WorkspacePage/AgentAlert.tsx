@@ -1,16 +1,15 @@
-import type { FC, ReactNode } from "react";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 
 type AgentAlertProps = {
 	title: string;
-	detail: ReactNode;
+	detail: React.ReactNode;
 	severity: "info" | "warning";
 	prominent: boolean;
 	troubleshootingURL?: string;
 };
 
-export const AgentAlert: FC<AgentAlertProps> = ({
+export const AgentAlert: React.FC<AgentAlertProps> = ({
 	title,
 	detail,
 	severity,

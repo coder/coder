@@ -3,14 +3,13 @@ title: OpenCode
 ---
 
 > [!NOTE]
-> AI Gateway is part of [AI Governance](../../ai-governance.md), which is
-> included with a Premium license.
+> AI Gateway is part of [AI Governance](../../ai-governance.md), which is included with a Premium license.
 
 OpenCode supports both OpenAI and Anthropic models and can be configured to use AI Gateway by setting custom base URLs for each provider.
 
 ## Centralized API Key
 
-You can configure OpenCode to connect to AI Gateway by setting the following configuration options in your OpenCode configuration file (e.g., `~/.config/opencode/opencode.json`):
+You can configure OpenCode to connect to AI Gateway by setting the following configuration options in your OpenCode configuration file (for example, `~/.config/opencode/opencode.json`):
 
 ```json
 {
@@ -30,20 +29,13 @@ You can configure OpenCode to connect to AI Gateway by setting the following con
 }
 ```
 
-To authenticate with AI Gateway, get your **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** and replace `<your-coder-api-token>` in `~/.local/share/opencode/auth.json`
+To authenticate with AI Gateway, get your **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**, then run:
 
-```json
-{
-  "anthropic": {
-    "type": "api",
-    "key": "<your-coder-api-token>"
-  },
-  "openai": {
-    "type": "api",
-    "key": "<your-coder-api-token>"
-  }
-}
+```sh
+opencode auth login
 ```
+
+Select `anthropic` (and repeat for `openai` if needed), then paste your Coder API token when prompted for the API key.
 
 ## BYOK (Personal API Key)
 
@@ -73,20 +65,13 @@ Set the following in `~/.config/opencode/opencode.json`, including the `X-Coder-
 }
 ```
 
-Set your personal API keys in `~/.local/share/opencode/auth.json`:
+Set your personal API keys by running:
 
-```json
-{
-  "anthropic": {
-    "type": "api",
-    "key": "<your-anthropic-api-key>"
-  },
-  "openai": {
-    "type": "api",
-    "key": "<your-openai-api-key>"
-  }
-}
+```sh
+opencode auth login
 ```
+
+Select `anthropic` (and repeat for `openai` if needed), then paste the corresponding API key you obtained earlier when prompted.
 
 ## Custom models through Bedrock Mantle
 
@@ -165,4 +150,5 @@ The selected SDK sends requests to `/v1/responses`, `/v1/chat/completions`, or `
 Use a model that supports the selected API.
 For more configuration options, refer to [OpenCode custom providers](https://opencode.ai/docs/providers/#custom-provider).
 
-**References:** [OpenCode Documentation](https://opencode.ai/docs/providers/#config)
+**References:**
+[OpenCode Documentation](https://opencode.ai/docs/providers/#config)

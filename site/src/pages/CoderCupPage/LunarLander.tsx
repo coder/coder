@@ -1,5 +1,5 @@
-import { type FC, useEffect, useRef } from "react";
-import { ROSTER } from "./roster";
+import { useEffect, useRef } from "react";
+import { ROSTER, type RosterEntry } from "./roster";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -45,6 +45,7 @@ type Codernaut = {
 	nextWave: number;
 	name: string;
 	role: string;
+	isCommunity: boolean;
 	aboard: boolean;
 	saved: boolean;
 	// "It's me" jump animation triggered from sidebar click.
@@ -54,6 +55,7 @@ type Codernaut = {
 
 type DisembarkAnim = {
 	name: string;
+	isCommunity: boolean;
 	x: number;
 	targetX: number;
 	groundY: number;
@@ -296,7 +298,7 @@ function shuffle<T>(arr: T[]): T[] {
 
 function createCodernauts(
 	pads: LandingPad[],
-	entries: { name: string; role: string }[],
+	entries: RosterEntry[],
 ): Codernaut[] {
 	const nauts: Codernaut[] = [];
 
@@ -340,6 +342,7 @@ function createCodernauts(
 				nextWave: 1.5 + Math.random() * 3,
 				name: entry.name,
 				role: entry.role,
+				isCommunity: entry.isCommunity ?? false,
 				aboard: false,
 				saved: false,
 				spotlight: 0,
@@ -405,14 +408,14 @@ function updateCodernauts(nauts: Codernaut[], pads: LandingPad[], dt: number) {
 /**
  * Draw a single Codernaut at their position on the pad surface.
  * The figure is ~10 px tall: round helmet, stick body, animated
- * legs and arms. Drawn in gray to match the station aesthetic.
+ * legs and arms. Community suits are darker with a backpack antenna.
  */
 function drawCodernaut(
 	ctx: CanvasRenderingContext2D,
 	naut: Codernaut,
 	groundY: number,
 ) {
-	const color = "#888";
+	const color = naut.isCommunity ? "#666" : "#888";
 
 	ctx.save();
 	// Jump offset: three bounces over the spotlight duration.
@@ -435,7 +438,53 @@ function drawCodernaut(
 	const shoulderY = -7.5;
 	const waistY = -3.5;
 
-	// -- Helmet (filled solid gray) --
+	if (naut.isCommunity) {
+		// Mirror the backpack/antenna across the direction of travel so
+		// they always sit on the trailing side (the Codernaut's back),
+		// never swing around to the front when walking left.
+		ctx.save();
+		ctx.scale(naut.dir, 1);
+		ctx.fillRect(-3, shoulderY, 2, 4);
+		const antennaBaseX = -2.5;
+		const antennaTipX = -3.5;
+		const antennaTipY = shoulderY - 5;
+		ctx.beginPath();
+		ctx.moveTo(antennaBaseX, shoulderY);
+		ctx.lineTo(antennaTipX, antennaTipY);
+		ctx.stroke();
+
+		// Transmitting signal: a few short rays travel outward from
+		// the antenna tip and fade, each looping on its own offset so
+		// they radiate out one at a time instead of drawing one solid
+		// wedge. Same suit gray as the rest of the figure.
+		const now = performance.now() / 1000;
+		const rayAngles = [-Math.PI * 0.75, -Math.PI * 0.5, -Math.PI * 0.25];
+		const cycleDuration = 1.1;
+		const rayLen = 1.8;
+		const travelDist = 4.5;
+		ctx.save();
+		ctx.lineWidth = 0.9;
+		for (let i = 0; i < rayAngles.length; i++) {
+			const localT =
+				((now + (i * cycleDuration) / rayAngles.length) % cycleDuration) /
+				cycleDuration;
+			const dist = 0.7 + localT * travelDist;
+			ctx.globalAlpha = Math.max(0, 1 - localT);
+			const dx = Math.cos(rayAngles[i]);
+			const dy = Math.sin(rayAngles[i]);
+			ctx.beginPath();
+			ctx.moveTo(antennaTipX + dx * dist, antennaTipY + dy * dist);
+			ctx.lineTo(
+				antennaTipX + dx * (dist + rayLen),
+				antennaTipY + dy * (dist + rayLen),
+			);
+			ctx.stroke();
+		}
+		ctx.restore();
+		ctx.restore();
+	}
+
+	// -- Helmet --
 	ctx.beginPath();
 	ctx.arc(0, headY, headR, 0, Math.PI * 2);
 	ctx.fill();
@@ -1716,7 +1765,8 @@ function drawSidebar(
 			const maxTextW = SIDEBAR_W - padX * 2 - 6;
 			ctx.fillStyle = color;
 			ctx.font = "9px monospace";
-			ctx.fillText(truncateText(ctx, entry.name, maxTextW), x + padX, ry + 10);
+			const name = entry.isCommunity ? `${entry.name} (community)` : entry.name;
+			ctx.fillText(truncateText(ctx, name, maxTextW), x + padX, ry + 10);
 			ctx.fillStyle = color === "white" ? "#888" : color;
 			ctx.fillText(
 				truncateText(ctx, `${entry.role} \u2014 ${status}`, maxTextW - 10),
@@ -1762,7 +1812,7 @@ function sidebarHitTest(
 	return null;
 }
 
-export const LunarLander: FC = () => {
+export const LunarLander: React.FC = () => {
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const containerRef = useRef<HTMLDivElement>(null);
 
@@ -1860,6 +1910,17 @@ export const LunarLander: FC = () => {
 		}
 
 		// ---- input ----
+		// WASD aliases for players who prefer them over the arrow keys:
+		// A/D rotate like ArrowLeft/ArrowRight, S thrusts like ArrowDown.
+		// There is no alias for ArrowUp; it is unused by this game.
+		const wasdAliases: Record<string, string> = {
+			a: "ArrowLeft",
+			A: "ArrowLeft",
+			d: "ArrowRight",
+			D: "ArrowRight",
+			s: "ArrowDown",
+			S: "ArrowDown",
+		};
 		function onKeyDown(e: KeyboardEvent) {
 			if (
 				e.key === "ArrowLeft" ||
@@ -1870,9 +1931,16 @@ export const LunarLander: FC = () => {
 				e.preventDefault();
 			}
 			keys.add(e.key);
+			const alias = wasdAliases[e.key];
+			if (alias) {
+				e.preventDefault();
+				keys.add(alias);
+			}
 		}
 		function onKeyUp(e: KeyboardEvent) {
 			keys.delete(e.key);
+			const alias = wasdAliases[e.key];
+			if (alias) keys.delete(alias);
 		}
 		function onMouseMove(e: MouseEvent) {
 			const rect = cvs.getBoundingClientRect();
@@ -2002,11 +2070,15 @@ export const LunarLander: FC = () => {
 				cx.font = "bold 14px monospace";
 				cx.textAlign = "center";
 				cx.fillText(
-					"press \u2190 to rotate left, press \u2192 to rotate right",
+					"press \u2190 or A to rotate left, \u2192 or D to rotate right",
 					dashW / 2,
 					playH * 0.59,
 				);
-				cx.fillText("press \u2193 for main thruster", dashW / 2, playH * 0.65);
+				cx.fillText(
+					"press \u2193 or S for main thruster",
+					dashW / 2,
+					playH * 0.65,
+				);
 				if (Math.floor(introTimer * 2.5) % 2 === 0) {
 					cx.fillStyle = "#888";
 					cx.font = "12px monospace";
@@ -2157,6 +2229,7 @@ export const LunarLander: FC = () => {
 									savedNames.add(n.name);
 									disembarks.push({
 										name: n.name,
+										isCommunity: n.isCommunity,
 										x: landerX + offset,
 										targetX: stationCX,
 										groundY: pad.y,
@@ -2220,6 +2293,7 @@ export const LunarLander: FC = () => {
 					nextWave: 99,
 					name: a.name,
 					role: "",
+					isCommunity: a.isCommunity,
 					aboard: false,
 					saved: false,
 					spotlight: 0,

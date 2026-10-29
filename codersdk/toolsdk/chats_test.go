@@ -62,10 +62,8 @@ func (t *signalPathTransport) RoundTrip(req *http.Request) (*http.Response, erro
 // TestTools. Subtests run sequentially and share the deployment.
 // nolint:tparallel,paralleltest
 func TestChatTools(t *testing.T) {
-	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		DeploymentValues:      coderdtest.DeploymentValues(t),
-		ChatProviderAPIKeys:   &providerKeys,
 		ChatFileTokenKeyCache: jwtutils.StaticKey{ID: "1", Key: bytes.Repeat([]byte("k"), 64)},
 	})
 	firstUser := coderdtest.CreateFirstUser(t, client)
@@ -125,6 +123,7 @@ func TestChatTools(t *testing.T) {
 		created, err := testTool(t, toolsdk.CreateChat, tb, toolsdk.CreateChatArgs{
 			Prompt:         "Say hello.",
 			OrganizationID: firstUser.OrganizationID.String(),
+			Title:          "Say hello.",
 			Labels:         map[string]string{"purpose": "toolsdk-test"},
 		})
 		require.NoError(t, err)
@@ -132,7 +131,10 @@ func TestChatTools(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, client.URL.String()+"/agents/"+created.ID, created.URL)
 
-		coderdtest.WaitForChatSettled(ctx, t, api, chatID)
+		settled := coderdtest.WaitForChatSettled(ctx, t, api, chatID)
+		// Same text as the fallback, so only the source distinguishes them.
+		require.Equal(t, "Say hello.", settled.Title)
+		require.Equal(t, database.ChatTitleSourceUser, settled.TitleSource)
 
 		got, err := testTool(t, toolsdk.GetChat, tb, toolsdk.GetChatArgs{ChatID: created.ID})
 		require.NoError(t, err)
@@ -935,8 +937,7 @@ func TestChatTools(t *testing.T) {
 
 func TestCreateChatOrganizationDefaultModel(t *testing.T) {
 	t.Parallel()
-	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
-	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{ChatProviderAPIKeys: &providerKeys})
+	client, _, api := coderdtest.NewWithAPI(t, nil)
 	owner := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 	firstModel := coderdtest.CreateOpenAICompatChatModel(t, expClient, "")

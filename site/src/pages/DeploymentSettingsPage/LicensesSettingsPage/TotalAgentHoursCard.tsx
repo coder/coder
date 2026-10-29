@@ -1,7 +1,6 @@
 import { cn } from "cn";
 import dayjs from "dayjs";
 import { BanIcon, InfoIcon } from "lucide-react";
-import type { FC } from "react";
 import type { Feature } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Badge } from "#/components/Badge/Badge";
@@ -11,11 +10,14 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 
+const hardCapMessage =
+	"Agent hours limit reached. Concurrent chats are now limited to 5.";
+
 type TotalAgentHoursCardProps = {
 	feature?: Feature;
 };
 
-export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
+export const TotalAgentHoursCard: React.FC<TotalAgentHoursCardProps> = ({
 	feature,
 }) => {
 	// A zero-hour allocation arrives with enabled=false, which hides the
@@ -177,17 +179,12 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 							{/* The concurrency cap re-engages at usage equal to the
 							    hard cap, so the badge shows at the inclusive boundary
 							    and reads "reached" (still true above it) rather than
-							    "exceeded" (false at equality). The sentence outgrows
-							    narrow cards, so this instance wraps instead of
-							    keeping the shared Badge's single-line layout. */}
-							<Badge
-								variant="destructive"
-								size="sm"
-								className="h-auto rounded-full text-wrap"
-							>
-								<BanIcon />
-								Agent hours limit reached. Concurrent chats are now limited to
-								5.
+							    "exceeded" (false at equality). */}
+							<Badge variant="destructive" size="sm" className="max-w-full">
+								<BanIcon className="shrink-0" />
+								<span className="truncate min-w-0" title={hardCapMessage}>
+									{hardCapMessage}
+								</span>
 							</Badge>
 						</div>
 					)}

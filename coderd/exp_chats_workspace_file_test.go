@@ -378,7 +378,7 @@ func TestCreateChatMessageWorkspaceFileWorkspaceValidation(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, chat := newBoundChat(ctx, t)
 
-		for _, name := range []string{" data.csv", "da\u202eta.csv", "da|ta.csv"} {
+		for _, name := range []string{" data.csv", "da\u202eta.csv", "da|ta.csv", "a$(b);c'd.txt"} {
 			part := validPart(chat.ID)
 			part.WorkspaceFileWorkspaceID = *chat.WorkspaceID
 			part.WorkspaceFileName = name
@@ -388,6 +388,29 @@ func TestCreateChatMessageWorkspaceFileWorkspaceValidation(t *testing.T) {
 			})
 			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 			require.Equal(t, "content[0].workspace_file_name must be a name returned by the workspace file upload endpoint.", sdkErr.Detail, "name %q", name)
+		}
+	})
+
+	t.Run("InvalidMediaType", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, chat := newBoundChat(ctx, t)
+
+		for _, mediaType := range []string{
+			"garbage",
+			"text/plain\x00",
+			"text/plain; charset=\"\x01\"",
+			"text/plain; x=" + strings.Repeat("a", 255),
+		} {
+			part := validPart(chat.ID)
+			part.WorkspaceFileWorkspaceID = *chat.WorkspaceID
+			part.WorkspaceFileMediaType = mediaType
+			_, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+				Content: []codersdk.ChatInputPart{part},
+			})
+			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+			require.Equal(t, "content[0].workspace_file_media_type must be a valid media type of at most 255 bytes without control characters.", sdkErr.Detail, "media type %q", mediaType)
 		}
 	})
 
@@ -571,6 +594,69 @@ func TestPostChatWorkspaceFile(t *testing.T) {
 		require.NoError(t, err, "archive should not remove workspace files")
 	})
 
+	t.Run("EmptyCreatedChat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db, api := newChatClientWithAPIAndDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+
+		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: firstUser.OrganizationID,
+			OwnerID:        firstUser.UserID,
+		}).WithAgent().Do()
+		_ = startChatUploadAgent(t, client, workspaceBuild)
+
+		// Uploads only need the chat ID and workspace binding, so a
+		// chat created idle with no messages accepts them. This is
+		// the sequencing used by the new-chat page: create empty,
+		// upload, then send the first message with the references.
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			WorkspaceID:    &workspaceBuild.Workspace.ID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatStatusWaiting, chat.Status)
+
+		payload := bytes.Repeat([]byte{0x50, 0x4b}, 16)
+		resp, err := client.UploadChatWorkspaceFile(ctx, chat.ID, "application/zip", "archive.zip", bytes.NewReader(payload))
+		require.NoError(t, err)
+		require.Equal(t, workspaceBuild.Workspace.ID, resp.WorkspaceID)
+
+		bytesOnDisk, err := os.ReadFile(resp.Path)
+		require.NoError(t, err)
+		require.Equal(t, payload, bytesOnDisk)
+
+		// The first message carries text plus the uploaded reference
+		// and starts generation: the idle chat inserts it directly.
+		messageResp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "inspect the archive"},
+				{
+					Type:                     codersdk.ChatInputPartTypeWorkspaceFileReference,
+					WorkspaceFilePath:        resp.Path,
+					WorkspaceFileName:        resp.Name,
+					WorkspaceFileSize:        resp.Size,
+					WorkspaceFileMediaType:   resp.MediaType,
+					WorkspaceFileWorkspaceID: resp.WorkspaceID,
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.False(t, messageResp.Queued)
+		require.NotNil(t, messageResp.Message)
+		require.Contains(t, messageResp.Message.Content, codersdk.ChatMessageWorkspaceFileReference(
+			resp.WorkspaceID,
+			resp.Path,
+			resp.Name,
+			resp.Size,
+			resp.MediaType,
+		))
+
+		coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+	})
+
 	t.Run("ConcurrentSameName", func(t *testing.T) {
 		t.Parallel()
 
@@ -634,6 +720,28 @@ func TestPostChatWorkspaceFile(t *testing.T) {
 		require.Equal(t, uploaded.Name, filepath.Base(uploaded.Path))
 	})
 
+	t.Run("InvalidContentType", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+
+		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: firstUser.OrganizationID,
+			OwnerID:        firstUser.UserID,
+		}).WithAgent().Do()
+		_ = startChatUploadAgent(t, client, workspaceBuild)
+		chat := createBoundChat(ctx, t, client, firstUser.OrganizationID, workspaceBuild.Workspace.ID)
+
+		// The client sends the returned media type back as
+		// workspace_file_media_type, so it must pass message validation.
+		resp, err := client.UploadChatWorkspaceFile(ctx, chat.ID, "text/plain; bogus", "notes.txt", bytes.NewReader([]byte("hi")))
+		require.NoError(t, err)
+		require.Equal(t, "application/octet-stream", resp.MediaType)
+	})
+
 	t.Run("MissingFilename", func(t *testing.T) {
 		t.Parallel()
 
@@ -648,10 +756,19 @@ func TestPostChatWorkspaceFile(t *testing.T) {
 		}).WithAgent().Do()
 		chat := createBoundChat(ctx, t, client, firstUser.OrganizationID, workspaceBuild.Workspace.ID)
 
-		res, err := uploadChatWorkspaceFile(ctx, t, client, chat.ID.String(), "", "application/zip", []byte("PK"))
-		require.NoError(t, err)
-		defer res.Body.Close()
-		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+		for _, tc := range []struct {
+			contentDisposition string
+			detail             string
+		}{
+			{"", "Provide a filename via the Content-Disposition header."},
+			{`attachment; filename="$()"`, "The provided filename has no safe characters left after sanitization or is a reserved device name."},
+		} {
+			res, err := uploadChatWorkspaceFile(ctx, t, client, chat.ID.String(), tc.contentDisposition, "application/zip", []byte("PK"))
+			require.NoError(t, err)
+			sdkErr := requireSDKError(t, codersdk.ReadBodyAsError(res), http.StatusBadRequest)
+			_ = res.Body.Close()
+			require.Equal(t, tc.detail, sdkErr.Detail, tc.contentDisposition)
+		}
 	})
 
 	t.Run("NoWorkspace", func(t *testing.T) {
@@ -693,9 +810,19 @@ func TestPostChatWorkspaceFile(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		otherChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "rate limited too"},
+			},
+		})
+		require.NoError(t, err)
+
+		// The budget is per user, so a different chat ID does not get a
+		// fresh bucket.
 		_, err = client.UploadChatWorkspaceFile(ctx, chat.ID, "application/zip", "data.zip", bytes.NewReader([]byte("PK")))
 		requireSDKError(t, err, http.StatusConflict)
-		_, err = client.UploadChatWorkspaceFile(ctx, chat.ID, "application/zip", "data.zip", bytes.NewReader([]byte("PK")))
+		_, err = client.UploadChatWorkspaceFile(ctx, otherChat.ID, "application/zip", "data.zip", bytes.NewReader([]byte("PK")))
 		requireSDKError(t, err, http.StatusTooManyRequests)
 	})
 

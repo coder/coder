@@ -36,9 +36,10 @@ import (
 
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/aibridgetest"
+	aibclient "github.com/coder/coder/v2/aibridge/client"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/fixtures"
-	"github.com/coder/coder/v2/aibridge/intercept"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept/awssig"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/mcp"
@@ -154,6 +155,154 @@ func TestAnthropicMessages(t *testing.T) {
 		}
 	})
 
+	// A tool_use block truncated by max_tokens carries invalid input JSON
+	// which the SDK accumulator rejects; the stream must still be relayed.
+	t.Run("streaming builtin tool truncated by max_tokens", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name           string
+			fixture        []byte
+			expectedEvents []string
+		}{
+			{
+				name:           "with content_block_stop",
+				fixture:        fixtures.AntMaxTokensTruncatedTool,
+				expectedEvents: []string{"message_start", "content_block_start", "content_block_delta", "content_block_stop", "message_delta", "message_stop"},
+			},
+			{
+				name:           "without content_block_stop",
+				fixture:        fixtures.AntMaxTokensTruncatedToolNoBlockStop,
+				expectedEvents: []string{"message_start", "content_block_start", "content_block_delta", "message_delta", "message_stop"},
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+				t.Cleanup(cancel)
+
+				fix := fixtures.Parse(t, tc.fixture)
+				upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
+				bridgeServer := newBridgeTestServer(ctx, t, upstream.URL)
+
+				reqBody, err := sjson.SetBytes(fix.Request(), "stream", true)
+				require.NoError(t, err)
+				resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, reqBody)
+				require.NoError(t, err)
+				defer resp.Body.Close()
+				require.Equal(t, http.StatusOK, resp.StatusCode)
+
+				require.Equal(t, tc.expectedEvents, sseEventTypes(readSSEEvents(t, resp)))
+
+				toolUsages := bridgeServer.Recorder.RecordedToolUsages()
+				require.Len(t, toolUsages, 1)
+				assert.Equal(t, "Read", toolUsages[0].Tool)
+				assert.Equal(t, "toolu_01TruncatedRead00000001", toolUsages[0].ToolCallID)
+				assert.Equal(t, `{"file_path": "/tmp/bl`, toolUsages[0].Args)
+
+				requireInterceptionSucceeded(t, bridgeServer)
+			})
+		}
+	})
+
+	// Injected MCP tools must never run on input the SDK accumulator rejected.
+	t.Run("streaming injected tool with invalid input", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name           string
+			fixture        []byte
+			endBefore      string
+			expectedEvents []string
+			wantErr        bool
+		}{
+			{
+				name:           "stop_reason max_tokens",
+				fixture:        fixtures.AntMaxTokensTruncatedInjectedTool,
+				expectedEvents: []string{"message_start", "content_block_start", "content_block_delta", "content_block_stop", "message_delta", "message_stop"},
+			},
+			{
+				name:           "stop_reason tool_use",
+				fixture:        fixtures.AntInjectedToolInvalidInput,
+				expectedEvents: []string{"message_start", "content_block_start", "content_block_delta", "content_block_stop", "error"},
+				wantErr:        true,
+			},
+			{
+				name:           "upstream closes before message_stop",
+				fixture:        fixtures.AntInjectedToolInvalidInput,
+				endBefore:      "event: message_delta",
+				expectedEvents: []string{"message_start", "content_block_start", "content_block_delta", "content_block_stop", "error"},
+				wantErr:        true,
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+				t.Cleanup(cancel)
+
+				fix := fixtures.Parse(t, tc.fixture)
+				upstreamResp := testutil.NewFixtureResponse(fix)
+				if tc.endBefore != "" {
+					var found bool
+					upstreamResp.Streaming, _, found = bytes.Cut(upstreamResp.Streaming, []byte(tc.endBefore))
+					require.True(t, found)
+				}
+				upstream := testutil.NewMockUpstream(ctx, t, upstreamResp)
+				mockMCP := setupMCPForTest(t, defaultTracer)
+				bridgeServer := newBridgeTestServer(ctx, t, upstream.URL, withMCP(mockMCP))
+
+				reqBody, err := sjson.SetBytes(fix.Request(), "stream", true)
+				require.NoError(t, err)
+				resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, reqBody)
+				require.NoError(t, err)
+				defer resp.Body.Close()
+				require.Equal(t, http.StatusOK, resp.StatusCode)
+
+				// The injected tool_use block is withheld from the client.
+				events := readSSEEvents(t, resp)
+				require.Equal(t, tc.expectedEvents, sseEventTypes(events))
+				assert.Equal(t, "text", gjson.GetBytes(events[1].Data, "content_block.type").Str)
+
+				assert.Empty(t, mockMCP.getCallsByTool(mockToolName))
+				assert.Empty(t, bridgeServer.Recorder.RecordedToolUsages())
+				assert.Len(t, upstream.ReceivedRequests(), 1)
+
+				if !tc.wantErr {
+					assert.Equal(t, "max_tokens", gjson.GetBytes(events[4].Data, "delta.stop_reason").Str)
+					requireInterceptionSucceeded(t, bridgeServer)
+					return
+				}
+
+				assert.Contains(t, gjson.GetBytes(events[4].Data, "error.message").Str, "accumulate event")
+				intcs := bridgeServer.Recorder.RecordedInterceptions()
+				require.Len(t, intcs, 1)
+				ended := bridgeServer.Recorder.RecordedInterceptionEnd(intcs[0].ID)
+				require.NotNil(t, ended, "interception should be ended")
+				assert.Equal(t, recorder.ErrorTypeServerError, ended.ErrorType)
+				assert.Contains(t, ended.ErrorMessage, "accumulate event")
+			})
+		}
+	})
+
+	// A message_delta without a stop reason is not terminal, so it must keep
+	// the pending injected tool call.
+	t.Run("streaming injected tool with interim message_delta", func(t *testing.T) {
+		t.Parallel()
+
+		interim := []byte("event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":null,\"stop_sequence\":null},\"usage\":{\"output_tokens\":1}}\n\nevent: message_delta")
+		fixture := bytes.Replace(fixtures.AntSingleInjectedTool, []byte("event: message_delta"), interim, 1)
+		_, mockMCP, resp := setupInjectedToolTest(t, fixture, true, defaultTracer, pathAnthropicMessages, anthropicToolResultValidator(t))
+		defer resp.Body.Close()
+
+		require.Len(t, mockMCP.getCallsByTool(mockToolName), 1)
+	})
+
 	// When the upstream's first response is an injected tool call with no
 	// text preamble and the next upstream call fails, the response must
 	// remain a well-formed SSE stream. The upstream error is relayed as a
@@ -197,6 +346,38 @@ func TestAnthropicMessages(t *testing.T) {
 
 		bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
 	})
+}
+
+// readSSEEvents drains resp and returns its SSE events in order.
+func readSSEEvents(t *testing.T, resp *http.Response) []ssestream.Event {
+	t.Helper()
+
+	var events []ssestream.Event
+	decoder := ssestream.NewDecoder(resp)
+	for decoder.Next() {
+		events = append(events, decoder.Event())
+	}
+	require.NoError(t, decoder.Err())
+	return events
+}
+
+func sseEventTypes(events []ssestream.Event) []string {
+	types := make([]string, 0, len(events))
+	for _, event := range events {
+		types = append(types, event.Type)
+	}
+	return types
+}
+
+func requireInterceptionSucceeded(t *testing.T, bridgeServer *bridgeTestServer) {
+	t.Helper()
+
+	intcs := bridgeServer.Recorder.RecordedInterceptions()
+	require.Len(t, intcs, 1)
+	ended := bridgeServer.Recorder.RecordedInterceptionEnd(intcs[0].ID)
+	require.NotNil(t, ended, "interception should be ended")
+	assert.Empty(t, ended.ErrorType)
+	assert.Empty(t, ended.ErrorMessage)
 }
 
 func TestAnthropicMessagesModelThoughts(t *testing.T) {
@@ -320,7 +501,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 			SmallFastModel:  "test-haiku",
 		}
 
-		_, err := provider.NewAnthropic(ctx, anthropicCfg("http://unused", apiKey), bedrockCfg)
+		_, err := provider.NewAnthropic(ctx, anthropicCfg("http://unused", apiKey), bedrockCfg, nil)
 		require.ErrorContains(t, err, "region or base url required")
 	})
 
@@ -1221,6 +1402,7 @@ func TestOpenAIChatCompletions(t *testing.T) {
 		expectedTokenUsages := []*recorder.TokenUsageRecord{
 			{
 				MsgID:                 "chatcmpl-cumulative-tool",
+				ProviderModel:         "gpt-4.1",
 				Input:                 5890,
 				Output:                30,
 				CacheReadInputTokens:  100,
@@ -1235,6 +1417,7 @@ func TestOpenAIChatCompletions(t *testing.T) {
 			},
 			{
 				MsgID:                 "chatcmpl-cumulative-final",
+				ProviderModel:         "gpt-4.1",
 				Input:                 5780,
 				Output:                30,
 				CacheReadInputTokens:  200,
@@ -1403,7 +1586,7 @@ func TestSimple(t *testing.T) {
 		path              string
 		expectedMsgID     string
 		userAgent         string
-		expectedClient    aibridge.Client
+		expectedClient    aibclient.Type
 	}{
 		{
 			name:              config.ProviderAnthropic,
@@ -1414,7 +1597,7 @@ func TestSimple(t *testing.T) {
 			path:              pathAnthropicMessages,
 			expectedMsgID:     "msg_01Pvyf26bY17RcjmWfJsXGBn",
 			userAgent:         "claude-cli/2.0.67 (external, cli)",
-			expectedClient:    aibridge.ClientClaudeCode,
+			expectedClient:    aibclient.ClaudeCode,
 		},
 		{
 			name:              config.ProviderAnthropic + "_haiku_prompt_capture",
@@ -1425,7 +1608,7 @@ func TestSimple(t *testing.T) {
 			path:              pathAnthropicMessages,
 			expectedMsgID:     "msg_01Pvyf26bY17RcjmWfJsXGBn",
 			userAgent:         "claude-cli/2.0.67 (external, cli)",
-			expectedClient:    aibridge.ClientClaudeCode,
+			expectedClient:    aibclient.ClaudeCode,
 		},
 		{
 			name:              config.ProviderOpenAI,
@@ -1436,7 +1619,7 @@ func TestSimple(t *testing.T) {
 			path:              pathOpenAIChatCompletions,
 			expectedMsgID:     "chatcmpl-BwoiPTGRbKkY5rncfaM0s9KtWrq5N",
 			userAgent:         "codex_cli_rs/0.87.0 (Mac OS 26.2.0; arm64)",
-			expectedClient:    aibridge.ClientCodex,
+			expectedClient:    aibclient.Codex,
 		},
 		{
 			name:              config.ProviderOpenAI + "_opencode",
@@ -1447,7 +1630,7 @@ func TestSimple(t *testing.T) {
 			path:              pathOpenAIChatCompletions,
 			expectedMsgID:     "chatcmpl-BwoiPTGRbKkY5rncfaM0s9KtWrq5N",
 			userAgent:         "opencode/1.16.0 ai-sdk/provider-utils/4.0.23 runtime/bun/1.3.14",
-			expectedClient:    aibridge.ClientOpenCode,
+			expectedClient:    aibclient.OpenCode,
 		},
 		{
 			name:              config.ProviderAnthropic + "_baseURL_path",
@@ -1458,7 +1641,7 @@ func TestSimple(t *testing.T) {
 			path:              pathAnthropicMessages,
 			expectedMsgID:     "msg_01Pvyf26bY17RcjmWfJsXGBn",
 			userAgent:         "GitHubCopilotChat/0.37.2026011603",
-			expectedClient:    aibridge.ClientCopilotVSC,
+			expectedClient:    aibclient.CopilotVSC,
 		},
 		{
 			name:              config.ProviderOpenAI + "_baseURL_path",
@@ -1469,7 +1652,7 @@ func TestSimple(t *testing.T) {
 			path:              pathOpenAIChatCompletions,
 			expectedMsgID:     "chatcmpl-BwoiPTGRbKkY5rncfaM0s9KtWrq5N",
 			userAgent:         "Zed/0.219.4+stable.119.abc123 (macos; aarch64)",
-			expectedClient:    aibridge.ClientZed,
+			expectedClient:    aibclient.Zed,
 		},
 	}
 
@@ -1548,14 +1731,14 @@ func TestSessionIDTracking(t *testing.T) {
 		fixture           []byte
 		header            http.Header
 		metadataSessionID string
-		expectedClient    aibridge.Client
+		expectedClient    aibclient.Type
 		expectSessionID   string
 	}{
 		// Session in header.
 		{
 			name:            "xum",
 			fixture:         fixtures.AntSimple,
-			expectedClient:  aibridge.ClientXum,
+			expectedClient:  aibclient.Xum,
 			expectSessionID: "xum-workspace-321",
 			header: http.Header{
 				"User-Agent":         []string{"xum/1.0.0"},
@@ -1566,7 +1749,7 @@ func TestSessionIDTracking(t *testing.T) {
 		{
 			name:            "claude_code",
 			fixture:         fixtures.AntSimple,
-			expectedClient:  aibridge.ClientClaudeCode,
+			expectedClient:  aibclient.ClaudeCode,
 			expectSessionID: "f47ac10b-58cc-4372-a567-0e02b2c3d479",
 			header: http.Header{
 				"User-Agent": []string{"claude-cli/2.0.67 (external, cli)"},
@@ -1577,7 +1760,7 @@ func TestSessionIDTracking(t *testing.T) {
 		{
 			name:           "zed",
 			fixture:        fixtures.AntSimple,
-			expectedClient: aibridge.ClientZed,
+			expectedClient: aibclient.Zed,
 			header: http.Header{
 				"User-Agent": []string{"Zed/0.219.4+stable.119.abc123 (macos; aarch64)"},
 			},
@@ -1585,7 +1768,7 @@ func TestSessionIDTracking(t *testing.T) {
 		{
 			name:            "opencode",
 			fixture:         fixtures.AntSimple,
-			expectedClient:  aibridge.ClientOpenCode,
+			expectedClient:  aibclient.OpenCode,
 			expectSessionID: "ses_15a48edefffe7oY0YcIHRv29dD",
 			header: http.Header{
 				"User-Agent":         []string{"opencode/1.16.0 ai-sdk/provider-utils/4.0.23 runtime/bun/1.3.14"},
@@ -1729,26 +1912,30 @@ func TestAnthropicInjectedTools(t *testing.T) {
 			streaming: true,
 			expectTokenUsages: []*recorder.TokenUsageRecord{
 				{
-					MsgID:    "msg_01JWGa2JHsKBHL28Cjr2dvPK",
-					Input:    7545,
-					Output:   1,
-					Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "standard"},
+					MsgID:         "msg_01JWGa2JHsKBHL28Cjr2dvPK",
+					ProviderModel: "claude-sonnet-4-20250514",
+					Input:         7545,
+					Output:        1,
+					Metadata:      recorder.Metadata{recorder.MetadataKeyServiceTier: "standard"},
 				},
 				{
-					MsgID:    "msg_01JWGa2JHsKBHL28Cjr2dvPK",
-					Output:   74,
-					Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "standard"},
+					MsgID:         "msg_01JWGa2JHsKBHL28Cjr2dvPK",
+					ProviderModel: "claude-sonnet-4-20250514",
+					Output:        74,
+					Metadata:      recorder.Metadata{recorder.MetadataKeyServiceTier: "standard"},
 				},
 				{
-					MsgID:    "msg_01LZSVzMCLivzXrp6ZnTcmeG",
-					Input:    7763,
-					Output:   1,
-					Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "priority"},
+					MsgID:         "msg_01LZSVzMCLivzXrp6ZnTcmeG",
+					ProviderModel: "claude-sonnet-4-20250514",
+					Input:         7763,
+					Output:        1,
+					Metadata:      recorder.Metadata{recorder.MetadataKeyServiceTier: "priority"},
 				},
 				{
-					MsgID:    "msg_01LZSVzMCLivzXrp6ZnTcmeG",
-					Output:   128,
-					Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "priority"},
+					MsgID:         "msg_01LZSVzMCLivzXrp6ZnTcmeG",
+					ProviderModel: "claude-sonnet-4-20250514",
+					Output:        128,
+					Metadata:      recorder.Metadata{recorder.MetadataKeyServiceTier: "priority"},
 				},
 			},
 		},
@@ -1756,16 +1943,18 @@ func TestAnthropicInjectedTools(t *testing.T) {
 			name: "blocking",
 			expectTokenUsages: []*recorder.TokenUsageRecord{
 				{
-					MsgID:    "msg_01FwkWU26guw9EwkL8zeacPL",
-					Input:    7545,
-					Output:   75,
-					Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "standard"},
+					MsgID:         "msg_01FwkWU26guw9EwkL8zeacPL",
+					ProviderModel: "claude-sonnet-4-20250514",
+					Input:         7545,
+					Output:        75,
+					Metadata:      recorder.Metadata{recorder.MetadataKeyServiceTier: "standard"},
 				},
 				{
-					MsgID:    "msg_01Sr5BnPSwodTo8Df4XvUBg5",
-					Input:    7763,
-					Output:   129,
-					Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "priority"},
+					MsgID:         "msg_01Sr5BnPSwodTo8Df4XvUBg5",
+					ProviderModel: "claude-sonnet-4-20250514",
+					Input:         7763,
+					Output:        129,
+					Metadata:      recorder.Metadata{recorder.MetadataKeyServiceTier: "priority"},
 				},
 			},
 		},
@@ -1973,6 +2162,7 @@ func TestOpenAIInjectedTools(t *testing.T) {
 			require.ElementsMatch(t, []*recorder.TokenUsageRecord{
 				{
 					MsgID:                 firstMsgID,
+					ProviderModel:         "gpt-4.1-2025-04-14",
 					Input:                 4742,
 					Output:                45,
 					CacheReadInputTokens:  100,
@@ -1988,6 +2178,7 @@ func TestOpenAIInjectedTools(t *testing.T) {
 				},
 				{
 					MsgID:                 secondMsgID,
+					ProviderModel:         "gpt-4.1-2025-04-14",
 					Input:                 175,
 					Output:                60,
 					CacheReadInputTokens:  4864,
@@ -2847,7 +3038,12 @@ func TestActorHeaders(t *testing.T) {
 			path: pathOpenAIChatCompletions,
 			createProviderFn: func(url, key string, sendHeaders bool) aibridge.Provider {
 				cfg := openAICfg(url, key)
-				cfg.SendActorHeaders = sendHeaders
+				if sendHeaders {
+					cfg.ActorHeaderNames = map[string]string{
+						"id":       aibheaders.ActorIDHeader,
+						"username": aibheaders.ActorMetadataHeader("Username"),
+					}
+				}
 				return provider.NewOpenAI(cfg)
 			},
 			fixture:   fixtures.OaiChatSimple,
@@ -2858,7 +3054,12 @@ func TestActorHeaders(t *testing.T) {
 			path: pathOpenAIChatCompletions,
 			createProviderFn: func(url, key string, sendHeaders bool) aibridge.Provider {
 				cfg := openAICfg(url, key)
-				cfg.SendActorHeaders = sendHeaders
+				if sendHeaders {
+					cfg.ActorHeaderNames = map[string]string{
+						"id":       aibheaders.ActorIDHeader,
+						"username": aibheaders.ActorMetadataHeader("Username"),
+					}
+				}
 				return provider.NewOpenAI(cfg)
 			},
 			fixture:   fixtures.OaiChatSimple,
@@ -2869,7 +3070,12 @@ func TestActorHeaders(t *testing.T) {
 			path: pathOpenAIResponses,
 			createProviderFn: func(url, key string, sendHeaders bool) aibridge.Provider {
 				cfg := openAICfg(url, key)
-				cfg.SendActorHeaders = sendHeaders
+				if sendHeaders {
+					cfg.ActorHeaderNames = map[string]string{
+						"id":       aibheaders.ActorIDHeader,
+						"username": aibheaders.ActorMetadataHeader("Username"),
+					}
+				}
 				return provider.NewOpenAI(cfg)
 			},
 			fixture:   fixtures.OaiResponsesStreamingSimple,
@@ -2880,7 +3086,12 @@ func TestActorHeaders(t *testing.T) {
 			path: pathOpenAIResponses,
 			createProviderFn: func(url, key string, sendHeaders bool) aibridge.Provider {
 				cfg := openAICfg(url, key)
-				cfg.SendActorHeaders = sendHeaders
+				if sendHeaders {
+					cfg.ActorHeaderNames = map[string]string{
+						"id":       aibheaders.ActorIDHeader,
+						"username": aibheaders.ActorMetadataHeader("Username"),
+					}
+				}
 				return provider.NewOpenAI(cfg)
 			},
 			fixture:   fixtures.OaiResponsesBlockingSimple,
@@ -2891,7 +3102,12 @@ func TestActorHeaders(t *testing.T) {
 			path: pathAnthropicMessages,
 			createProviderFn: func(url, key string, sendHeaders bool) aibridge.Provider {
 				cfg := anthropicCfg(url, key)
-				cfg.SendActorHeaders = sendHeaders
+				if sendHeaders {
+					cfg.ActorHeaderNames = map[string]string{
+						"id":       aibheaders.ActorIDHeader,
+						"username": aibheaders.ActorMetadataHeader("Username"),
+					}
+				}
 				return aibridgetest.NewAnthropicProvider(t, cfg, nil)
 			},
 			fixture:   fixtures.AntSimple,
@@ -2902,7 +3118,12 @@ func TestActorHeaders(t *testing.T) {
 			path: pathAnthropicMessages,
 			createProviderFn: func(url, key string, sendHeaders bool) aibridge.Provider {
 				cfg := anthropicCfg(url, key)
-				cfg.SendActorHeaders = sendHeaders
+				if sendHeaders {
+					cfg.ActorHeaderNames = map[string]string{
+						"id":       aibheaders.ActorIDHeader,
+						"username": aibheaders.ActorMetadataHeader("Username"),
+					}
+				}
 				return aibridgetest.NewAnthropicProvider(t, cfg, nil)
 			},
 			fixture:   fixtures.AntSimple,
@@ -2924,9 +3145,7 @@ func TestActorHeaders(t *testing.T) {
 				metadataKey := "Username"
 				bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
 					withCustomProvider(tc.createProviderFn(upstream.URL, apiKey, send)),
-					withActor(defaultActorID, recorder.Metadata{
-						metadataKey: actorUsername,
-					}),
+					withActor(defaultActorUUID, actorUsername),
 				)
 
 				// Add the stream param to the request.
@@ -2949,14 +3168,14 @@ func TestActorHeaders(t *testing.T) {
 				found := make(map[string][]string)
 				for k, v := range receivedHeaders {
 					k = strings.ToLower(k)
-					if intercept.IsActorHeader(k) {
+					if aibheaders.IsActorHeader(k) {
 						found[k] = v
 					}
 				}
 
 				if send {
-					require.Equal(t, found[strings.ToLower(intercept.ActorIDHeader())], []string{defaultActorID})
-					require.Equal(t, found[strings.ToLower(intercept.ActorMetadataHeader(metadataKey))], []string{actorUsername})
+					require.Equal(t, found[strings.ToLower(aibheaders.ActorIDHeader)], []string{defaultActorID})
+					require.Equal(t, found[strings.ToLower(aibheaders.ActorMetadataHeader(metadataKey))], []string{actorUsername})
 				} else {
 					require.Empty(t, found)
 				}

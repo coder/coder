@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import set from "lodash/fp/set";
-import type { ComponentProps } from "react";
 import { action } from "storybook/actions";
 import {
 	MockAuthMethodsAll,
@@ -8,7 +7,7 @@ import {
 } from "#/testHelpers/entities";
 import { SecurityPageView } from "./SecurityPage";
 
-const defaultArgs: ComponentProps<typeof SecurityPageView> = {
+const defaultArgs: React.ComponentProps<typeof SecurityPageView> = {
 	security: {
 		form: {
 			disabled: false,

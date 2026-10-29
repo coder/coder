@@ -1,4 +1,4 @@
-import { type FC, useRef } from "react";
+import { useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	appearanceSettings,
@@ -9,6 +9,7 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { usePreferredColorScheme } from "#/theme/usePreferredColorScheme";
+import { pageTitle } from "#/utils/page";
 import { AppearanceForm } from "./AppearanceForm";
 
 type MutateAppearanceSettings = (
@@ -47,7 +48,7 @@ export const useQueuedAppearanceSubmit = (mutate: MutateAppearanceSettings) => {
 	};
 };
 
-const AppearancePage: FC = () => {
+const AppearancePage: React.FC = () => {
 	const queryClient = useQueryClient();
 	const updateAppearanceSettingsMutation = useMutation(
 		updateAppearanceSettings(queryClient),
@@ -66,22 +67,37 @@ const AppearancePage: FC = () => {
 		},
 	);
 
+	const title = <title>{pageTitle("Appearance", "Settings")}</title>;
+
 	if (appearanceSettingsQuery.isLoading) {
-		return <Loader />;
+		return (
+			<>
+				{title}
+				<Loader />
+			</>
+		);
 	}
 
 	if (!appearanceSettingsQuery.data) {
-		return <ErrorAlert error={appearanceSettingsQuery.error} />;
+		return (
+			<>
+				{title}
+				<ErrorAlert error={appearanceSettingsQuery.error} />
+			</>
+		);
 	}
 
 	return (
-		<AppearanceForm
-			isUpdating={updateAppearanceSettingsMutation.isPending}
-			error={updateAppearanceSettingsMutation.error}
-			initialValues={appearanceSettingsQuery.data}
-			activeScheme={osColorScheme}
-			onSubmit={submitAppearanceSettings}
-		/>
+		<>
+			{title}
+			<AppearanceForm
+				isUpdating={updateAppearanceSettingsMutation.isPending}
+				error={updateAppearanceSettingsMutation.error}
+				initialValues={appearanceSettingsQuery.data}
+				activeScheme={osColorScheme}
+				onSubmit={submitAppearanceSettings}
+			/>
+		</>
 	);
 };
 

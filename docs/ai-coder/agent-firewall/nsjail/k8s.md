@@ -3,24 +3,21 @@ title: nsjail on Kubernetes
 ---
 
 > [!NOTE]
-> Agent Firewall is part of [AI Governance](../../ai-governance.md), which is
-> included with a Premium license.
+> Agent Firewall is part of [AI Governance](../../ai-governance.md), which is included with a Premium license.
 
-This page describes the runtime and permission requirements for running Agent
-Firewall with the **nsjail** jail type on **Kubernetes**.
+This page describes the runtime and permission requirements for running Agent Firewall with the **nsjail** jail type on **Kubernetes**.
 
 ## Runtime & Permission Requirements for Running Boundary in Kubernetes
 
-Requirements depend on the node OS and the container runtime. The following
-examples use **EKS with Managed Node Groups** for two common node AMIs.
+Requirements depend on the node OS and the container runtime.
+The following examples use **EKS with Managed Node Groups** for two common node AMIs.
 
 ---
 
 ### Example 1: EKS + Managed Node Groups + Amazon Linux
 
-On **Amazon Linux** nodes, the default seccomp and runtime behavior typically
-allow the syscalls needed for Boundary. You only need to
-grant `NET_ADMIN`.
+On **Amazon Linux** nodes, the default seccomp and runtime behavior typically allow the syscalls needed for Boundary.
+You only need to grant `NET_ADMIN`.
 
 **Container `securityContext`:**
 
@@ -44,14 +41,12 @@ spec:
 
 ### Example 2: EKS + Managed Node Groups + Bottlerocket
 
-On **Bottlerocket** nodes, the default seccomp profile often blocks the `clone`
-syscalls required for unprivileged user namespaces. You must either disable or
-modify seccomp for the pod (see [Docker Seccomp Profile Considerations](./docker.md#docker-seccomp-profile-considerations)) or grant `SYS_ADMIN`.
+On **Bottlerocket** nodes, the default seccomp profile often blocks the `clone` syscalls required for unprivileged user namespaces.
+You must either disable or modify seccomp for the pod (see [Docker Seccomp Profile Considerations](./docker.md#docker-seccomp-profile-considerations)) or grant `SYS_ADMIN`.
 
 **Option A: `NET_ADMIN` + disable seccomp**
 
-Disabling the seccomp profile allows the container to create namespaces
-without granting `SYS_ADMIN` capabilities.
+Disabling the seccomp profile allows the container to create namespaces without granting `SYS_ADMIN` capabilities.
 
 ```yaml
 apiVersion: v1
@@ -73,8 +68,7 @@ spec:
 
 **Option B: `NET_ADMIN` + `SYS_ADMIN`**
 
-Granting `SYS_ADMIN` bypasses many seccomp restrictions and allows namespace
-creation.
+Granting `SYS_ADMIN` bypasses many seccomp restrictions and allows namespace creation.
 
 ```yaml
 apiVersion: v1
@@ -95,8 +89,8 @@ spec:
 
 ### User namespaces on Bottlerocket
 
-User namespaces are often disabled (`user.max_user_namespaces=0`) on Bottlerocket
-nodes. Check and enable user namespaces:
+User namespaces are often disabled (`user.max_user_namespaces=0`) on Bottlerocket nodes.
+Check and enable user namespaces:
 
 ```sh
 # Check current value
@@ -106,8 +100,7 @@ sysctl user.max_user_namespaces
 sysctl -w user.max_user_namespaces=65536
 ```
 
-If `sysctl -w` is not allowed, configure it via Bottlerocket bootstrap settings
-when creating the node group (e.g., in Terraform):
+If `sysctl -w` is not allowed, configure it via Bottlerocket bootstrap settings when creating the node group (for example, in Terraform):
 
 ```tf
 bootstrap_extra_args = <<-EOT
@@ -118,18 +111,17 @@ EOT
 
 This ensures Boundary can create user namespaces with nsjail.
 
-### Running without user namespaces
+<a id="running-without-user-namespaces"></a>
 
-If the environment is restricted and you cannot enable user namespaces (e.g.
-Bottlerocket in EKS auto-mode), you can run Boundary with the
-`--no-user-namespace` flag. Use this when you have no way to allow user namespace creation.
+### Run without user namespaces
+
+If the environment is restricted and you cannot enable user namespaces (for example, Bottlerocket in EKS auto-mode), you can run Boundary with the `--no-user-namespace` flag.
+Use this when you have no way to allow user namespace creation.
 
 ---
 
 ### Example 3: EKS + Fargate (Firecracker VMs)
 
-nsjail is not currently supported on **EKS Fargate** (Firecracker-based VMs), which
-blocks the capabilities needed for nsjail.
+nsjail is not currently supported on **EKS Fargate** (Firecracker-based VMs), which blocks the capabilities needed for nsjail.
 
-If you run on Fargate, we recommend using [landjail](../landjail.md) instead,
-provided kernel version supports it (Linux 6.7+).
+If you run on Fargate, we recommend using [landjail](../landjail.md) instead, provided kernel version supports it (Linux 6.7+).

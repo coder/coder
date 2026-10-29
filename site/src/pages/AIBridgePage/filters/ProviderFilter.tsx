@@ -1,5 +1,5 @@
-import type { FC } from "react";
-import { API } from "#/api/api";
+import { useQueryClient } from "react-query";
+import { aiBridgeProviders } from "#/api/queries/aiBridge";
 import type { AIBridgeProvider } from "#/api/typesGenerated";
 import { ComboboxInput } from "#/components/Combobox/Combobox";
 import {
@@ -23,20 +23,23 @@ export const useProviderFilterMenu = ({
 	onChange,
 	enabled,
 }: Pick<UseFilterMenuOptions, "value" | "onChange" | "enabled">) => {
+	// Share the provider list cache with other consumers on the page.
+	const queryClient = useQueryClient();
+	const fetchProviders = () => queryClient.fetchQuery(aiBridgeProviders());
 	return useFilterMenu({
 		id: "provider_name",
 		getSelectedOption: async () => {
 			if (!value) {
 				return null;
 			}
-			const providers = await API.getAIBridgeProviders();
+			const providers = await fetchProviders();
 			const match = providers.find((p) => p.name === value);
 			return match ? toFilterOption(match) : null;
 		},
 		// The provider list is small and useFilterMenu filters options
 		// client-side by label and value, so the query is not sent upstream.
 		getOptions: async () => {
-			const providers = await API.getAIBridgeProviders();
+			const providers = await fetchProviders();
 			return providers.map(toFilterOption);
 		},
 		value,
@@ -52,7 +55,10 @@ type ProviderFilterProps = {
 	width?: number;
 };
 
-export const ProviderFilter: FC<ProviderFilterProps> = ({ menu, width }) => {
+export const ProviderFilter: React.FC<ProviderFilterProps> = ({
+	menu,
+	width,
+}) => {
 	return (
 		<SelectFilter
 			label="Select provider"

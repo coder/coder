@@ -38,6 +38,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/idpsync"
+	"github.com/coder/coder/v2/coderd/nats"
 	agplportsharing "github.com/coder/coder/v2/coderd/portsharing"
 	"github.com/coder/coder/v2/coderd/pproflabel"
 	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
@@ -46,7 +47,6 @@ import (
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
 	agplusage "github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
-	"github.com/coder/coder/v2/coderd/x/nats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/aiseats"
 	"github.com/coder/coder/v2/enterprise/coderd/connectionlog"
@@ -1057,6 +1057,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				committer := committer{
 					Log:      api.Logger.Named("quota_committer"),
 					Database: api.Database,
+					Clock:    api.Clock,
 				}
 				qcPtr := proto.QuotaCommitter(&committer)
 				api.AGPL.QuotaCommitter.Store(&qcPtr)

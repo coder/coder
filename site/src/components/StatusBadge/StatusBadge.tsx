@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { Badge, type BadgeProps } from "#/components/Badge/Badge";
 import {
 	Tooltip,
@@ -35,7 +34,7 @@ type StatusBadgeProps = {
 	label?: string;
 };
 
-export const StatusBadge: FC<StatusBadgeProps> = ({
+export const StatusBadge: React.FC<StatusBadgeProps> = ({
 	code,
 	isHttpCode,
 	label,
@@ -46,10 +45,7 @@ export const StatusBadge: FC<StatusBadgeProps> = ({
 			? "success"
 			: "error";
 	const badge = (
-		<Badge
-			className="text-[10px] h-5 px-2.5 font-semibold"
-			variant={themeRoleToBadgeVariant(role)}
-		>
+		<Badge size="sm" variant={themeRoleToBadgeVariant(role)}>
 			{code.toString()}
 		</Badge>
 	);

@@ -1,7 +1,6 @@
-import type { FC } from "react";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 
-export const AvatarDataSkeleton: FC = () => {
+export const AvatarDataSkeleton: React.FC = () => {
 	return (
 		<div className="flex items-center gap-3 w-full">
 			<Skeleton className="size-10 rounded-sm shrink-0" />

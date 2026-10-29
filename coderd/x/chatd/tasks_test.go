@@ -6,27 +6,32 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"slices"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/sqlc-dev/pqtype"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
-	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -128,7 +133,7 @@ func TestRetryWrapper_PanicsRetry(t *testing.T) {
 func TestRetryWrapper_TaskTimeoutDBQueryCancellationRetries(t *testing.T) {
 	t.Parallel()
 
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	clock := quartz.NewMock(t)
 	timeoutTrap := clock.Trap().AfterFunc("chatworker", "task-timeout-generation")
 	retryTrap := clock.Trap().NewTimer("chatworker", "task-retry-generation")
@@ -233,11 +238,11 @@ func sinkFieldValue(t *testing.T, fields slog.Map, name string) string {
 func TestInterruptTask_FinishInterruptionOnly(t *testing.T) {
 	t.Parallel()
 
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	chat := f.createRunningChat(t)
 	workerID := uuid.New()
 	runnerID := uuid.New()
-	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+	acquired := acquireChat(t, f, chat.ID, workerID, runnerID)
 	recorder := newTaskSideEffectRecorder()
 	starter := newTestTaskStarter(t, f, recorder)
 	buffer := starter.opts.MessagePartBuffer
@@ -248,7 +253,7 @@ func TestInterruptTask_FinishInterruptionOnly(t *testing.T) {
 	}
 	require.NoError(t, buffer.CreateEpisode(key))
 	require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("partial answer")))
-	interrupting := f.interruptChat(t, chat.ID)
+	interrupting := interruptChat(t, f, chat.ID)
 	require.Equal(t, database.ChatStatusInterrupting, interrupting.Status)
 
 	err := starter.StartInterrupt(testutil.Context(t, testutil.WaitLong), chatWorkerTaskStartInput{
@@ -281,15 +286,15 @@ func TestInterruptTask_FinishInterruptionOnly(t *testing.T) {
 func TestInterruptTask_StaleFenceExits(t *testing.T) {
 	t.Parallel()
 
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	chat := f.createRunningChat(t)
 	workerID := uuid.New()
 	runnerID := uuid.New()
-	f.acquireChat(t, chat.ID, workerID, runnerID)
-	interrupting := f.interruptChat(t, chat.ID)
+	acquireChat(t, f, chat.ID, workerID, runnerID)
+	interrupting := interruptChat(t, f, chat.ID)
 	otherWorkerID := uuid.New()
 	otherRunnerID := uuid.New()
-	f.acquireChat(t, chat.ID, otherWorkerID, otherRunnerID)
+	acquireChat(t, f, chat.ID, otherWorkerID, otherRunnerID)
 	recorder := newTaskSideEffectRecorder()
 	starter := newTestTaskStarter(t, f, recorder)
 
@@ -315,12 +320,12 @@ func TestInterruptTask_StaleFenceExits(t *testing.T) {
 func TestInterruptTask_MissingEpisodePersistsNilPartials(t *testing.T) {
 	t.Parallel()
 
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	chat := f.createRunningChat(t)
 	workerID := uuid.New()
 	runnerID := uuid.New()
-	f.acquireChat(t, chat.ID, workerID, runnerID)
-	interrupting := f.forceExecutionState(t, chat.ID, database.ChatStatusInterrupting, false, sql.NullTime{})
+	acquireChat(t, f, chat.ID, workerID, runnerID)
+	interrupting := forceExecutionState(t, f, chat.ID, database.ChatStatusInterrupting, false)
 	recorder := newTaskSideEffectRecorder()
 	starter := newTestTaskStarter(t, f, recorder)
 
@@ -347,11 +352,11 @@ func TestInterruptTask_MissingEpisodePersistsNilPartials(t *testing.T) {
 func TestInterruptTask_BufferedPartsBecomePartialMessages(t *testing.T) {
 	t.Parallel()
 
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	chat := f.createRunningChat(t)
 	workerID := uuid.New()
 	runnerID := uuid.New()
-	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+	acquired := acquireChat(t, f, chat.ID, workerID, runnerID)
 	recorder := newTaskSideEffectRecorder()
 	starter := newTestTaskStarter(t, f, recorder)
 	buffer := starter.opts.MessagePartBuffer
@@ -364,7 +369,7 @@ func TestInterruptTask_BufferedPartsBecomePartialMessages(t *testing.T) {
 		ToolName:   "local_tool",
 		Args:       json.RawMessage(`{"value":1}`),
 	}))
-	interrupting := f.interruptChat(t, chat.ID)
+	interrupting := interruptChat(t, f, chat.ID)
 
 	err := starter.StartInterrupt(testutil.Context(t, testutil.WaitLong), chatWorkerTaskStartInput{
 		ChatID:            chat.ID,
@@ -394,11 +399,11 @@ func TestInterruptTask_BufferedPartsBecomePartialMessages(t *testing.T) {
 func TestInterruptTask_PartialAssistantKeepsAttemptRuntime(t *testing.T) {
 	t.Parallel()
 
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	chat := f.createRunningChat(t)
 	workerID := uuid.New()
 	runnerID := uuid.New()
-	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+	acquired := acquireChat(t, f, chat.ID, workerID, runnerID)
 	recorder := newTaskSideEffectRecorder()
 	clock := quartz.NewMock(t)
 	starter := newTestTaskStarterWithClock(t, f, recorder, clock)
@@ -415,7 +420,7 @@ func TestInterruptTask_PartialAssistantKeepsAttemptRuntime(t *testing.T) {
 	require.NoError(t, buffer.StartModelInvocation(key))
 	require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("partial answer")))
 	clock.Advance(1500 * time.Millisecond)
-	interrupting := f.interruptChat(t, chat.ID)
+	interrupting := interruptChat(t, f, chat.ID)
 
 	err := starter.StartInterrupt(testutil.Context(t, testutil.WaitLong), chatWorkerTaskStartInput{
 		ChatID:            chat.ID,
@@ -438,11 +443,11 @@ func TestInterruptTask_PartialAssistantKeepsAttemptRuntime(t *testing.T) {
 func TestInterruptTask_PartialAssistantWithoutModelInvocationHasNoRuntime(t *testing.T) {
 	t.Parallel()
 
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	chat := f.createRunningChat(t)
 	workerID := uuid.New()
 	runnerID := uuid.New()
-	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+	acquired := acquireChat(t, f, chat.ID, workerID, runnerID)
 	recorder := newTaskSideEffectRecorder()
 	clock := quartz.NewMock(t)
 	starter := newTestTaskStarterWithClock(t, f, recorder, clock)
@@ -455,7 +460,7 @@ func TestInterruptTask_PartialAssistantWithoutModelInvocationHasNoRuntime(t *tes
 	require.NoError(t, buffer.CreateEpisode(key))
 	require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("partial answer")))
 	clock.Advance(1500 * time.Millisecond)
-	interrupting := f.interruptChat(t, chat.ID)
+	interrupting := interruptChat(t, f, chat.ID)
 
 	err := starter.StartInterrupt(testutil.Context(t, testutil.WaitLong), chatWorkerTaskStartInput{
 		ChatID:            chat.ID,
@@ -486,7 +491,7 @@ type interruptedBatch struct {
 
 func interruptedBatchFixture(
 	t *testing.T,
-	f *taskTestFixture,
+	f *workerTestFixture,
 	calls []codersdk.ChatMessagePart,
 ) interruptedBatch {
 	t.Helper()
@@ -506,7 +511,7 @@ func interruptedBatchFixture(
 	}))
 	workerID := uuid.New()
 	runnerID := uuid.New()
-	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+	acquired := acquireChat(t, f, chat.ID, workerID, runnerID)
 	recorder := newTaskSideEffectRecorder()
 	clock := quartz.NewMock(t)
 	starter := newTestTaskStarterWithClock(t, f, recorder, clock)
@@ -526,9 +531,9 @@ func interruptedBatchFixture(
 	}
 }
 
-func (b interruptedBatch) interrupt(t *testing.T, f *taskTestFixture) []database.ChatMessage {
+func (b interruptedBatch) interrupt(t *testing.T, f *workerTestFixture) []database.ChatMessage {
 	t.Helper()
-	interrupting := f.interruptChat(t, b.chat.ID)
+	interrupting := interruptChat(t, f, b.chat.ID)
 	err := b.starter.StartInterrupt(testutil.Context(t, testutil.WaitLong), chatWorkerTaskStartInput{
 		ChatID:            b.chat.ID,
 		WorkerID:          b.workerID,
@@ -564,7 +569,7 @@ func findToolResultMessage(t *testing.T, messages []database.ChatMessage, toolCa
 // batchUsageRecords returns the model-only tool batch usage rows for the
 // chat. Cancellation rows are user-visible, so the dedicated usage record
 // only appears in the model-visibility history.
-func batchUsageRecords(t *testing.T, f *taskTestFixture, chatID uuid.UUID) []database.ChatMessage {
+func batchUsageRecords(t *testing.T, f *workerTestFixture, chatID uuid.UUID) []database.ChatMessage {
 	t.Helper()
 	rows, err := f.db.GetChatMessagesForPromptByChatID(testutil.Context(t, testutil.WaitShort), chatID)
 	require.NoError(t, err)
@@ -578,7 +583,7 @@ func batchUsageRecords(t *testing.T, f *taskTestFixture, chatID uuid.UUID) []dat
 	return records
 }
 
-func requireSingleBatchUsageRecord(t *testing.T, f *taskTestFixture, chatID uuid.UUID, billedMs int64, billedCalls int) {
+func requireSingleBatchUsageRecord(t *testing.T, f *workerTestFixture, chatID uuid.UUID, billedMs int64, billedCalls int) {
 	t.Helper()
 	records := batchUsageRecords(t, f, chatID)
 	require.Len(t, records, 1)
@@ -596,7 +601,7 @@ func requireSingleBatchUsageRecord(t *testing.T, f *taskTestFixture, chatID uuid
 func TestInterruptTask_ToolBatchBillsPartialWindowOnUsageRecord(t *testing.T) {
 	t.Parallel()
 
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	execCallID := "call_" + uuid.NewString()
 	waitCallID := "call_" + uuid.NewString()
 	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
@@ -625,7 +630,7 @@ func TestInterruptTask_ToolBatchBillsPartialWindowOnUsageRecord(t *testing.T) {
 func TestInterruptTask_RunningBilledToolBillsUpToInterrupt(t *testing.T) {
 	t.Parallel()
 
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	execCallID := "call_" + uuid.NewString()
 	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
 		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: execCallID, ToolName: "execute", Args: json.RawMessage(`{}`)},
@@ -644,7 +649,7 @@ func TestInterruptTask_RunningBilledToolBillsUpToInterrupt(t *testing.T) {
 func TestInterruptTask_UnbilledOnlyBatchBillsNothingOnInterrupt(t *testing.T) {
 	t.Parallel()
 
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	waitCallID := "call_" + uuid.NewString()
 	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
 		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: waitCallID, ToolName: "wait_agent", Args: json.RawMessage(`{}`)},
@@ -663,7 +668,7 @@ func TestInterruptTask_UnbilledOnlyBatchBillsNothingOnInterrupt(t *testing.T) {
 func TestInterruptTask_UnstartedSerialCallBillsNothingOnInterrupt(t *testing.T) {
 	t.Parallel()
 
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	waitCallID := "call_" + uuid.NewString()
 	serialCallID := "call_" + uuid.NewString()
 	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
@@ -690,7 +695,7 @@ func TestInterruptTask_UnstartedSerialCallBillsNothingOnInterrupt(t *testing.T) 
 func TestInterruptTask_StartedSerialCallBillsFromItsOwnStart(t *testing.T) {
 	t.Parallel()
 
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	execCallID := "call_" + uuid.NewString()
 	waitCallID := "call_" + uuid.NewString()
 	serialCallID := "call_" + uuid.NewString()
@@ -726,7 +731,7 @@ func TestInterruptTask_StartedSerialCallBillsFromItsOwnStart(t *testing.T) {
 func TestInterruptTask_DuplicateCallIDsKeepOccurrenceStates(t *testing.T) {
 	t.Parallel()
 
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	dupCallID := "call_" + uuid.NewString()
 	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
 		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: dupCallID, ToolName: "execute", Args: json.RawMessage(`{}`)},
@@ -754,7 +759,7 @@ func TestInterruptTask_DuplicateCallIDsKeepOccurrenceStates(t *testing.T) {
 func TestInterruptTask_DuplicateCallIDCompletionStampsOwnOccurrence(t *testing.T) {
 	t.Parallel()
 
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	dupCallID := "call_" + uuid.NewString()
 	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
 		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: dupCallID, ToolName: "execute", Args: json.RawMessage(`{}`)},
@@ -783,7 +788,7 @@ func TestInterruptTask_DuplicateCallIDCompletionStampsOwnOccurrence(t *testing.T
 func TestInterruptTask_RejectedDuplicateIDDoesNotStealDispatchedOccurrence(t *testing.T) {
 	t.Parallel()
 
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	dupCallID := "call_" + uuid.NewString()
 	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
 		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: dupCallID, ToolName: "execute", Args: json.RawMessage(`{}`)},
@@ -807,7 +812,7 @@ func TestInterruptTask_RejectedDuplicateIDDoesNotStealDispatchedOccurrence(t *te
 func TestInterruptTask_RejectedCallBillsNothingOnInterrupt(t *testing.T) {
 	t.Parallel()
 
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	execCallID := "call_" + uuid.NewString()
 	waitCallID := "call_" + uuid.NewString()
 	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
@@ -830,7 +835,7 @@ func TestInterruptTask_RejectedCallBillsNothingOnInterrupt(t *testing.T) {
 func TestInterruptTask_ToolCancellationWithoutLiveBatchHasNoRuntime(t *testing.T) {
 	t.Parallel()
 
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	execCallID := "call_" + uuid.NewString()
 	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
 		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: execCallID, ToolName: "execute", Args: json.RawMessage(`{}`)},
@@ -844,14 +849,337 @@ func TestInterruptTask_ToolCancellationWithoutLiveBatchHasNoRuntime(t *testing.T
 	require.Empty(t, batchUsageRecords(t, f, batch.chat.ID))
 }
 
+func TestInterruptTask_CancelsUnresolvedToolCallsOnAgent(t *testing.T) {
+	t.Parallel()
+
+	saved := func(status int, body string) workspacesdk.CancelToolCallResponse {
+		return workspacesdk.CancelToolCallResponse{Received: true, Status: status, ContentType: "application/json", Body: []byte(body)}
+	}
+	exitCode := 0
+	tests := []struct {
+		name          string
+		toolName      string
+		notCancelable bool
+		cancel        workspacesdk.CancelToolCallResponse
+		cancelErr     error
+		cancelPanics  bool
+		output        *workspacesdk.ProcessOutputResponse
+		outputErr     error
+		wantError     bool
+		want          string
+	}{
+		{name: "ExecuteNotReceived", toolName: "execute", outputErr: codersdk.NewError(http.StatusNotFound, codersdk.Response{}), wantError: true, want: `{"error":"tool call was canceled before it ran; no changes were made"}`},
+		// The agent has no record, but the cancel stopped the call's process.
+		{name: "ExecuteNoRecordProcessCanceled", toolName: "execute", output: &workspacesdk.ProcessOutputResponse{Output: "partial", Canceled: true}, want: `{"canceled":true,"error":"tool call was canceled while running","exit_code":-1,"output":"partial","success":false}`},
+		{name: "ExecuteNoRecordOutputError", toolName: "execute", outputErr: xerrors.New("connection reset"), wantError: true, want: interruptedToolResultErrorMessage},
+		{name: "EditNotReceived", toolName: "edit_files", wantError: true, want: "tool call was canceled before it ran; no changes were made"},
+		{name: "ExecuteStartError", toolName: "execute", cancel: saved(http.StatusInternalServerError, `{"message":"no shell"}`), want: `"error":"start process: unexpected status code 500: no shell"`},
+		{name: "EditError", toolName: "edit_files", cancel: saved(http.StatusBadRequest, `{"message":"old_text not found"}`), wantError: true, want: "old_text not found"},
+		{name: "ExecuteExited", toolName: "execute", cancel: saved(http.StatusOK, `{}`), output: &workspacesdk.ProcessOutputResponse{Output: "done", ExitCode: &exitCode}, want: `{"exit_code":0,"output":"done","success":true}`},
+		{name: "EditApplied", toolName: "edit_files", cancel: saved(http.StatusOK, `{"files":[{"path":"/a","diff":"d"}]}`), want: `{"files":[{"diff":"d","path":"/a"}],"ok":true}`},
+		// A result over the 64 KB default budget is capped and stays JSON.
+		{name: "EditAppliedTruncated", toolName: "edit_files", cancel: saved(http.StatusOK, `{"files":[{"path":"/a","diff":"`+strings.Repeat("d", 64<<10)+`"}]}`), want: "Coder truncated"},
+		{name: "CancelError", toolName: "write_file", cancelErr: xerrors.New("unexpected status code 404"), wantError: true, want: interruptedToolResultErrorMessage},
+		{name: "CancelPanic", toolName: "execute", cancelPanics: true, wantError: true, want: interruptedToolResultErrorMessage},
+		{name: "OtherTool", toolName: "read_file", notCancelable: true, wantError: true, want: interruptedToolResultErrorMessage},
+	}
+
+	f := newWorkerTestFixture(t)
+	calls := make([]codersdk.ChatMessagePart, 0, len(tests))
+	for _, tc := range tests {
+		calls = append(calls, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: "call_" + tc.name, ToolName: tc.toolName, Args: json.RawMessage(`{}`)})
+	}
+	batch := interruptedBatchFixture(t, f, calls)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	workspace := dbfake.WorkspaceBuild(t, f.db, database.WorkspaceTable{OrganizationID: f.org.ID, OwnerID: f.user.ID}).WithAgent().Do()
+	_, err := f.db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+		ID:          batch.chat.ID,
+		WorkspaceID: uuid.NullUUID{UUID: workspace.Workspace.ID, Valid: true},
+		BuildID:     uuid.NullUUID{UUID: workspace.Build.ID, Valid: true},
+		AgentID:     uuid.NullUUID{UUID: workspace.Agents[0].ID, Valid: true},
+	})
+	require.NoError(t, err)
+	messages, err := f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: batch.chat.ID})
+	require.NoError(t, err)
+	assistantID := messages[len(messages)-1].ID
+
+	// Each cancel waits until all cancels arrive, so sequential cancels
+	// would time out.
+	var pending atomic.Int64
+	for _, tc := range tests {
+		if !tc.notCancelable {
+			pending.Add(1)
+		}
+	}
+	allReceived := make(chan struct{})
+	conn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+	conn.EXPECT().SetExtraHeaders(gomock.Any())
+	for _, tc := range tests {
+		if tc.notCancelable {
+			continue
+		}
+		id := chattool.ToolCallID(batch.chat.ID, assistantID, "call_"+tc.name)
+		conn.EXPECT().CancelToolCall(gomock.Any(), id).DoAndReturn(func(ctx context.Context, _ uuid.UUID) (workspacesdk.CancelToolCallResponse, error) {
+			if pending.Add(-1) == 0 {
+				close(allReceived)
+			}
+			select {
+			case <-allReceived:
+				if tc.cancelPanics {
+					panic("cancel panicked")
+				}
+				return tc.cancel, tc.cancelErr
+			case <-ctx.Done():
+				return workspacesdk.CancelToolCallResponse{}, ctx.Err()
+			}
+		})
+		if tc.output != nil || tc.outputErr != nil {
+			var output workspacesdk.ProcessOutputResponse
+			if tc.output != nil {
+				output = *tc.output
+			}
+			conn.EXPECT().ProcessOutput(gomock.Any(), id.String(), &workspacesdk.ProcessOutputOptions{Wait: true}).Return(output, tc.outputErr)
+		}
+	}
+	batch.starter.server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		return conn, func() {}, nil
+	}
+
+	messages = batch.interrupt(t, f)
+	for _, tc := range tests {
+		parts, err := chatprompt.ParseContent(findToolResultMessage(t, messages, "call_"+tc.name))
+		require.NoError(t, err)
+		require.Len(t, parts, 1)
+		assert.Equal(t, tc.wantError, parts[0].IsError, tc.name)
+		// Compact the stored JSON with sorted keys.
+		var result any
+		require.NoError(t, json.Unmarshal(parts[0].Result, &result))
+		got, err := json.Marshal(result)
+		require.NoError(t, err)
+		assert.Contains(t, string(got), tc.want, tc.name)
+	}
+}
+
+func TestStartGeneration_CancelsDeletedToolCallsOnAgent(t *testing.T) {
+	t.Parallel()
+
+	call := func(toolName string) codersdk.ChatMessagePart {
+		return codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: "call_" + toolName, ToolName: toolName, Args: json.RawMessage(`{}`)}
+	}
+	result := func(toolName string) codersdk.ChatMessagePart {
+		return codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeToolResult, ToolCallID: "call_" + toolName, ToolName: toolName, Result: json.RawMessage(`{}`)}
+	}
+	tests := []struct {
+		name      string
+		build     func(t *testing.T, h *deletedToolCallsHistory)
+		cancelErr error
+		want      []string // Tools whose calls are canceled.
+	}{
+		{
+			name: "DeletedUnresolvedCalls",
+			build: func(t *testing.T, h *deletedToolCallsHistory) {
+				h.assistant(t, call("execute"), call("edit_files"), call("write_file"), call("read_file"))
+				h.editPrompt(t)
+			},
+			want: []string{"execute", "edit_files", "write_file"},
+		},
+		{
+			name: "DeletedResolvedCalls",
+			build: func(t *testing.T, h *deletedToolCallsHistory) {
+				h.assistant(t, call("execute"), call("write_file"))
+				h.commit(t, database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, result("execute"))
+				h.commit(t, database.ChatMessageRoleTool, database.ChatMessageVisibilityModel, result("write_file"))
+				h.editPrompt(t)
+			},
+		},
+		{
+			name: "SecondEditBeforeFirstStep",
+			build: func(t *testing.T, h *deletedToolCallsHistory) {
+				h.assistant(t, call("execute"))
+				h.editPrompt(t)
+				h.editPrompt(t)
+			},
+			want: []string{"execute"},
+		},
+		{
+			// The unresolved call is in the active history, not deleted.
+			name: "TurnWithoutEdit",
+			build: func(t *testing.T, h *deletedToolCallsHistory) {
+				h.assistant(t, call("execute"))
+				h.commit(t, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, codersdk.ChatMessageText("next"))
+			},
+		},
+		{
+			// EditMessage inserts a result for the earlier unresolved call
+			// between the deleted messages and the replacement.
+			name: "UnresolvedCallBeforeEditedMessage",
+			build: func(t *testing.T, h *deletedToolCallsHistory) {
+				h.assistant(t, call("read_file"))
+				h.commit(t, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, codersdk.ChatMessageText("next"))
+				h.assistant(t, call("execute"))
+				h.editPrompt(t)
+			},
+			want: []string{"execute"},
+		},
+		{
+			name: "SecondStep",
+			build: func(t *testing.T, h *deletedToolCallsHistory) {
+				h.assistant(t, call("execute"))
+				h.editPrompt(t)
+				h.assistant(t, codersdk.ChatMessageText("done"))
+			},
+		},
+		{
+			name: "CancelError",
+			build: func(t *testing.T, h *deletedToolCallsHistory) {
+				h.assistant(t, call("execute"), call("edit_files"))
+				h.editPrompt(t)
+			},
+			cancelErr: xerrors.New("unexpected status code 404"),
+			want:      []string{"execute", "edit_files"},
+		},
+	}
+
+	f := newWorkerTestFixture(t)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			chat := f.createRunningChat(t)
+			workspace := dbfake.WorkspaceBuild(t, f.db, database.WorkspaceTable{OrganizationID: f.org.ID, OwnerID: f.user.ID}).WithAgent().Do()
+			_, err := f.db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+				ID:          chat.ID,
+				WorkspaceID: uuid.NullUUID{UUID: workspace.Workspace.ID, Valid: true},
+				BuildID:     uuid.NullUUID{UUID: workspace.Build.ID, Valid: true},
+				AgentID:     uuid.NullUUID{UUID: workspace.Agents[0].ID, Valid: true},
+			})
+			require.NoError(t, err)
+			workerID := uuid.New()
+			runnerID := uuid.New()
+			acquireChat(t, f, chat.ID, workerID, runnerID)
+			h := &deletedToolCallsHistory{f: f, machine: chatstate.NewChatMachine(f.db, f.pubsub, chat.ID), chatID: chat.ID}
+			tc.build(t, h)
+
+			conn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+			if len(tc.want) > 0 {
+				conn.EXPECT().SetExtraHeaders(gomock.Any())
+			}
+			for _, toolName := range tc.want {
+				id := chattool.ToolCallID(chat.ID, h.toolCallMessageID, "call_"+toolName)
+				conn.EXPECT().CancelToolCall(gomock.Any(), id).DoAndReturn(func(ctx context.Context, _ uuid.UUID) (workspacesdk.CancelToolCallResponse, error) {
+					// The model step fails in this fixture and sets the chat's
+					// error, so a running chat without one has not reached it.
+					current, err := f.db.GetChatByID(ctx, chat.ID)
+					if assert.NoError(t, err) {
+						assert.Equal(t, database.ChatStatusRunning, current.Status)
+						assert.False(t, current.LastError.Valid)
+					}
+					return workspacesdk.CancelToolCallResponse{}, tc.cancelErr
+				})
+				if toolName == "execute" && tc.cancelErr == nil {
+					conn.EXPECT().ProcessOutput(gomock.Any(), id.String(), gomock.Any()).Return(workspacesdk.ProcessOutputResponse{}, codersdk.NewError(http.StatusNotFound, codersdk.Response{}))
+				}
+			}
+			var dials atomic.Int64
+			sink := testutil.NewFakeSink(t)
+			starter := newTestTaskStarter(t, f, newTaskSideEffectRecorder())
+			starter.opts.Logger = sink.Logger(slog.LevelWarn)
+			starter.server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				dials.Add(1)
+				return conn, func() {}, nil
+			}
+			debugTurn := newRunnerDebugTurn(starter.opts.Logger)
+			defer debugTurn.Finalize(ctx)
+			current, err := f.db.GetChatByID(ctx, chat.ID)
+			require.NoError(t, err)
+			err = starter.StartGeneration(ctx, chatWorkerTaskStartInput{
+				ChatID:            chat.ID,
+				WorkerID:          workerID,
+				RunnerID:          runnerID,
+				HistoryVersion:    current.HistoryVersion,
+				GenerationAttempt: current.GenerationAttempt,
+				Status:            database.ChatStatusRunning,
+				DebugTurn:         debugTurn,
+			})
+			require.NoError(t, err)
+
+			if len(tc.want) == 0 {
+				require.Zero(t, dials.Load(), "the agent must not be dialed without calls to cancel")
+			}
+			cancelWarnings := sink.Entries(func(e slog.SinkEntry) bool { return e.Message == "cancel tool call on agent" })
+			if tc.cancelErr != nil {
+				require.Len(t, cancelWarnings, len(tc.want))
+			} else {
+				require.Empty(t, cancelWarnings)
+			}
+			// The generation went on to the model step.
+			final, err := f.db.GetChatByID(ctx, chat.ID)
+			require.NoError(t, err)
+			require.Contains(t, string(final.LastError.RawMessage), "create model")
+		})
+	}
+}
+
+// deletedToolCallsHistory builds a running chat's history for
+// TestStartGeneration_CancelsDeletedToolCallsOnAgent.
+type deletedToolCallsHistory struct {
+	f                 *workerTestFixture
+	machine           *chatstate.ChatMachine
+	chatID            uuid.UUID
+	toolCallMessageID int64 // ID of the last committed assistant message with tool calls.
+}
+
+func (h *deletedToolCallsHistory) commit(t *testing.T, role database.ChatMessageRole, visibility database.ChatMessageVisibility, parts ...codersdk.ChatMessagePart) database.ChatMessage {
+	t.Helper()
+	raw, err := chatprompt.MarshalParts(parts)
+	require.NoError(t, err)
+	var inserted []database.ChatMessage
+	require.NoError(t, h.machine.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, _ database.Store) error {
+		res, err := tx.CommitStep(chatstate.CommitStepInput{Messages: []chatstate.Message{{
+			Role:           role,
+			Content:        raw,
+			Visibility:     visibility,
+			ContentVersion: chatprompt.CurrentContentVersion,
+			ModelConfigID:  uuid.NullUUID{UUID: h.f.model.ID, Valid: true},
+		}}})
+		inserted = res.InsertedMessages
+		return err
+	}))
+	require.Len(t, inserted, 1)
+	return inserted[0]
+}
+
+func (h *deletedToolCallsHistory) assistant(t *testing.T, parts ...codersdk.ChatMessagePart) {
+	t.Helper()
+	msg := h.commit(t, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, parts...)
+	if slices.ContainsFunc(parts, func(p codersdk.ChatMessagePart) bool { return p.Type == codersdk.ChatMessagePartTypeToolCall }) {
+		h.toolCallMessageID = msg.ID
+	}
+}
+
+// editPrompt edits the latest user prompt, as the edit endpoint does.
+func (h *deletedToolCallsHistory) editPrompt(t *testing.T) {
+	t.Helper()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	messages, err := h.f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: h.chatID})
+	require.NoError(t, err)
+	prompt := messages[lastUserPromptIndex(messages)]
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")})
+	require.NoError(t, err)
+	require.NoError(t, h.machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.EditMessage(chatstate.EditMessageInput{MessageID: prompt.ID, CreatedBy: h.f.user.ID, Content: content})
+		return err
+	}))
+}
+
 func TestRequiresActionTimeout_ExpiredCancelsOnly(t *testing.T) {
 	t.Parallel()
 
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	chat := f.createRequiresActionChat(t)
 	workerID := uuid.New()
 	runnerID := uuid.New()
-	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+	acquired := acquireChat(t, f, chat.ID, workerID, runnerID)
 	expired := f.setRequiresActionDeadline(t, chat.ID, sql.NullTime{Time: time.Now().Add(-time.Minute), Valid: true})
 	recorder := newTaskSideEffectRecorder()
 	starter := newTestTaskStarter(t, f, recorder)
@@ -877,11 +1205,11 @@ func TestRequiresActionTimeout_ExpiredCancelsOnly(t *testing.T) {
 func TestRequiresActionTimeout_NullDeadlineCancelsImmediately(t *testing.T) {
 	t.Parallel()
 
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	chat := f.createRequiresActionChat(t)
 	workerID := uuid.New()
 	runnerID := uuid.New()
-	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+	acquired := acquireChat(t, f, chat.ID, workerID, runnerID)
 	nullDeadline := f.setRequiresActionDeadline(t, chat.ID, sql.NullTime{})
 	recorder := newTaskSideEffectRecorder()
 	starter := newTestTaskStarter(t, f, recorder)
@@ -905,13 +1233,13 @@ func TestRequiresActionTimeout_NullDeadlineCancelsImmediately(t *testing.T) {
 func TestRequiresActionTimeout_StaleFenceExitsAfterToolResult(t *testing.T) {
 	t.Parallel()
 
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	chat := f.createRequiresActionChat(t)
 	workerID := uuid.New()
 	runnerID := uuid.New()
-	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+	acquired := acquireChat(t, f, chat.ID, workerID, runnerID)
 	expired := f.setRequiresActionDeadline(t, chat.ID, sql.NullTime{Time: time.Now().Add(-time.Minute), Valid: true})
-	f.forceExecutionState(t, chat.ID, database.ChatStatusRunning, false, sql.NullTime{})
+	forceExecutionStateWithDeadline(t, f, chat.ID, database.ChatStatusRunning, false, &sql.NullTime{})
 	recorder := newTaskSideEffectRecorder()
 	starter := newTestTaskStarter(t, f, recorder)
 
@@ -935,11 +1263,11 @@ func TestRequiresActionTimeout_StaleFenceExitsAfterToolResult(t *testing.T) {
 func TestAbandonTask_AbandonOnly(t *testing.T) {
 	t.Parallel()
 
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	chat := f.createRunningChat(t)
 	workerID := uuid.New()
 	runnerID := uuid.New()
-	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+	acquired := acquireChat(t, f, chat.ID, workerID, runnerID)
 	recorder := newTaskSideEffectRecorder()
 	starter := newTestTaskStarter(t, f, recorder)
 
@@ -964,14 +1292,14 @@ func TestAbandonTask_AbandonOnly(t *testing.T) {
 func TestAbandonTask_OwnershipMismatchRequestsCleanup(t *testing.T) {
 	t.Parallel()
 
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	chat := f.createRunningChat(t)
 	workerID := uuid.New()
 	runnerID := uuid.New()
-	f.acquireChat(t, chat.ID, workerID, runnerID)
+	acquireChat(t, f, chat.ID, workerID, runnerID)
 	otherWorkerID := uuid.New()
 	otherRunnerID := uuid.New()
-	latestOwner := f.acquireChat(t, chat.ID, otherWorkerID, otherRunnerID)
+	latestOwner := acquireChat(t, f, chat.ID, otherWorkerID, otherRunnerID)
 	recorder := newTaskSideEffectRecorder()
 	starter := newTestTaskStarter(t, f, recorder)
 
@@ -994,12 +1322,12 @@ func TestAbandonTask_OwnershipMismatchRequestsCleanup(t *testing.T) {
 func TestAbandonTask_StaleStatusFenceExits(t *testing.T) {
 	t.Parallel()
 
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	chat := f.createRunningChat(t)
 	workerID := uuid.New()
 	runnerID := uuid.New()
-	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
-	f.forceExecutionState(t, chat.ID, database.ChatStatusInterrupting, false, sql.NullTime{})
+	acquired := acquireChat(t, f, chat.ID, workerID, runnerID)
+	forceExecutionState(t, f, chat.ID, database.ChatStatusInterrupting, false)
 	recorder := newTaskSideEffectRecorder()
 	starter := newTestTaskStarter(t, f, recorder)
 
@@ -1023,11 +1351,11 @@ func TestAbandonTask_StaleStatusFenceExits(t *testing.T) {
 func TestGenerationTask_RecordRetryState(t *testing.T) {
 	t.Parallel()
 
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	chat := f.createRunningChat(t)
 	workerID := uuid.New()
 	runnerID := uuid.New()
-	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+	acquired := acquireChat(t, f, chat.ID, workerID, runnerID)
 	recorder := newTaskSideEffectRecorder()
 	starter := newTestTaskStarter(t, f, recorder)
 
@@ -1094,11 +1422,11 @@ func TestGenerationTask_RecordRetryState(t *testing.T) {
 func TestGenerationTask_RecordRetryStateUsesDurableGenerationAttempt(t *testing.T) {
 	t.Parallel()
 
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	chat := f.createRunningChat(t)
 	workerID := uuid.New()
 	runnerID := uuid.New()
-	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+	acquired := acquireChat(t, f, chat.ID, workerID, runnerID)
 	starter := newTestTaskStarter(t, f, newTaskSideEffectRecorder())
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chat.ID)
 
@@ -1149,14 +1477,67 @@ func TestGenerationTask_RecordRetryStateUsesDurableGenerationAttempt(t *testing.
 	require.Equal(t, chatretry.Delay(2).Milliseconds(), retryPayload.DelayMs)
 }
 
+func TestGenerationTask_RecordRetryStateHonorsConfiguredRetries(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		limits     Limits
+		maxRetries int
+	}{
+		{name: "Default", maxRetries: codersdk.DefaultChatMaxGenerationRetries},
+		{name: "ConfiguredOne", limits: Limits{MaxGenerationRetries: 1}, maxRetries: 1},
+		{name: "ConfiguredThree", limits: Limits{MaxGenerationRetries: 3}, maxRetries: 3},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newWorkerTestFixture(t)
+			chat := f.createRunningChat(t)
+			workerID := uuid.New()
+			runnerID := uuid.New()
+			acquired := acquireChat(t, f, chat.ID, workerID, runnerID)
+			starter := newTestTaskStarter(t, f, newTaskSideEffectRecorder(), withInternalTestServerLimits(tt.limits))
+			machine := chatstate.NewChatMachine(f.db, f.pubsub, chat.ID)
+			input := chatWorkerTaskStartInput{
+				ChatID:         chat.ID,
+				WorkerID:       workerID,
+				RunnerID:       runnerID,
+				HistoryVersion: acquired.HistoryVersion,
+				Status:         database.ChatStatusRunning,
+			}
+			classified := chaterror.ClassifiedError{
+				Message:   "OpenAI is temporarily unavailable.",
+				Kind:      codersdk.ChatErrorKindTimeout,
+				Provider:  "openai",
+				Retryable: true,
+			}
+
+			// The configured value is a retry count, so every failure up to
+			// it is retried and the next failure is not.
+			ctx := testutil.Context(t, testutil.WaitLong)
+			for failure := 1; failure <= tt.maxRetries+1; failure++ {
+				attempt, err := starter.beginGenerationAttempt(ctx, machine, input)
+				require.NoError(t, err)
+				attempt.closeEpisode()
+				decision, err := starter.recordGenerationRetry(ctx, machine, input, classified)
+				require.NoError(t, err)
+				require.Equal(t, failure <= tt.maxRetries, decision.retry, "failure %d", failure)
+				require.EqualValues(t, failure, decision.generationAttempt)
+			}
+		})
+	}
+}
+
 func TestGenerationTask_RecordRetryStateClearedByNextAttempt(t *testing.T) {
 	t.Parallel()
 
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	chat := f.createRunningChat(t)
 	workerID := uuid.New()
 	runnerID := uuid.New()
-	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+	acquired := acquireChat(t, f, chat.ID, workerID, runnerID)
 	starter := newTestTaskStarter(t, f, newTaskSideEffectRecorder())
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chat.ID)
 	input := chatWorkerTaskStartInput{
@@ -1201,11 +1582,11 @@ func TestGenerationTask_RecordRetryStateClearedByNextAttempt(t *testing.T) {
 func TestGenerationTask_RecordRetryStateStaleFenceExits(t *testing.T) {
 	t.Parallel()
 
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	chat := f.createRunningChat(t)
 	workerID := uuid.New()
 	runnerID := uuid.New()
-	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+	acquired := acquireChat(t, f, chat.ID, workerID, runnerID)
 	starter := newTestTaskStarter(t, f, newTaskSideEffectRecorder())
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chat.ID)
 	attempt, err := starter.beginGenerationAttempt(
@@ -1225,7 +1606,7 @@ func TestGenerationTask_RecordRetryStateStaleFenceExits(t *testing.T) {
 
 	otherWorkerID := uuid.New()
 	otherRunnerID := uuid.New()
-	f.acquireChat(t, chat.ID, otherWorkerID, otherRunnerID)
+	acquireChat(t, f, chat.ID, otherWorkerID, otherRunnerID)
 	_, err = starter.recordGenerationRetry(
 		testutil.Context(t, testutil.WaitLong),
 		machine,
@@ -1254,12 +1635,12 @@ func TestGenerationTask_RecordRetryStateStaleFenceExits(t *testing.T) {
 func TestRunner_StartsRealInterruptTask(t *testing.T) {
 	t.Parallel()
 
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	chat := f.createRunningChat(t)
 	worker := startRealTaskWorker(t, f)
 	waitOwnedChat(t, f, chat.ID, worker.opts.WorkerID)
 
-	f.interruptChat(t, chat.ID)
+	interruptChat(t, f, chat.ID)
 	testutil.Eventually(testutil.Context(t, testutil.WaitLong), t, func(ctx context.Context) bool {
 		latest, err := f.db.GetChatByID(ctx, chat.ID)
 		return err == nil && latest.Status == database.ChatStatusRunning
@@ -1273,7 +1654,7 @@ func TestRunner_StartsRealInterruptTask(t *testing.T) {
 func TestRunner_StartsRealRequiresActionTimeoutTask(t *testing.T) {
 	t.Parallel()
 
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	chat := f.createRequiresActionChat(t)
 	f.setRequiresActionDeadline(t, chat.ID, sql.NullTime{Time: time.Now().Add(-time.Minute), Valid: true})
 	worker := startRealTaskWorker(t, f)
@@ -1291,185 +1672,27 @@ func TestRunner_StartsRealRequiresActionTimeoutTask(t *testing.T) {
 func TestRunner_StartsRealAbandonTask(t *testing.T) {
 	t.Parallel()
 
-	f := newTaskTestFixture(t)
+	f := newWorkerTestFixture(t)
 	chat := f.createRunningChat(t)
 	worker := startRealTaskWorker(t, f)
 	waitOwnedChat(t, f, chat.ID, worker.opts.WorkerID)
 
-	updated := f.forceExecutionState(t, chat.ID, database.ChatStatusError, false, sql.NullTime{})
-	f.publishChatUpdate(t, updated)
+	updated := forceExecutionState(t, f, chat.ID, database.ChatStatusError, false)
+	publishChatUpdate(t, f, updated)
 	testutil.Eventually(testutil.Context(t, testutil.WaitLong), t, func(ctx context.Context) bool {
 		latest, err := f.db.GetChatByID(ctx, chat.ID)
 		return err == nil && !latest.WorkerID.Valid && !latest.RunnerID.Valid
 	}, testutil.IntervalFast)
 }
 
-type taskTestFixture struct {
-	db     database.Store
-	pubsub *taskRecordingPubsub
-	rawPS  dbpubsub.Pubsub
-	sqlDB  *sql.DB
-	user   database.User
-	org    database.Organization
-	model  database.ChatModelConfig
-	apiKey database.APIKey
-}
-
-func newTaskTestFixture(t *testing.T) *taskTestFixture {
-	t.Helper()
-	db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
-	user := dbgen.User(t, db, database.User{})
-	org := dbgen.Organization(t, db, database.Organization{})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
-	dbgen.ChatProvider(t, db, database.ChatProvider{
-		Provider:    "openai",
-		DisplayName: "openai",
-		BaseUrl:     "http://example.invalid",
-	})
-	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		IsDefault:      true,
-		OrganizationID: org.ID,
-	})
-	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
-	return &taskTestFixture{db: db, pubsub: newTaskRecordingPubsub(ps), rawPS: ps, sqlDB: sqlDB, user: user, org: org, model: model, apiKey: apiKey}
-}
-
-func (f *taskTestFixture) createRunningChat(t *testing.T) database.Chat {
-	t.Helper()
-	res, err := chatstate.CreateChat(testutil.Context(t, testutil.WaitShort), f.db, f.pubsub, chatstate.CreateChatInput{
-		OrganizationID:    f.org.ID,
-		OwnerID:           f.user.ID,
-		LastModelConfigID: f.model.ID,
-		Title:             "test",
-		ClientType:        database.ChatClientTypeApi,
-		InitialMessages:   []chatstate.Message{taskUserTextMessage(t, "hello", f.user.ID, f.model.ID, f.apiKey.ID)},
-	})
-	require.NoError(t, err)
-	f.pubsub.clear()
-	return res.Chat
-}
-
-func (f *taskTestFixture) createRequiresActionChat(t *testing.T) database.Chat {
-	t.Helper()
-	toolName := "dynamic_" + uuid.NewString()
-	dynamicTools, err := json.Marshal([]codersdk.DynamicTool{{
-		Name:        toolName,
-		Description: "test tool",
-		InputSchema: json.RawMessage(`{"type":"object"}`),
-	}})
-	require.NoError(t, err)
-	res, err := chatstate.CreateChat(testutil.Context(t, testutil.WaitShort), f.db, f.pubsub, chatstate.CreateChatInput{
-		OrganizationID:    f.org.ID,
-		OwnerID:           f.user.ID,
-		LastModelConfigID: f.model.ID,
-		Title:             "test",
-		ClientType:        database.ChatClientTypeApi,
-		DynamicTools:      pqtype.NullRawMessage{RawMessage: dynamicTools, Valid: true},
-		InitialMessages:   []chatstate.Message{taskUserTextMessage(t, "hello", f.user.ID, f.model.ID, f.apiKey.ID)},
-	})
-	require.NoError(t, err)
-	machine := chatstate.NewChatMachine(f.db, f.pubsub, res.Chat.ID)
-	require.NoError(t, machine.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, store database.Store) error {
-		_, err := tx.CommitStep(chatstate.CommitStepInput{Messages: []chatstate.Message{taskAssistantToolCallMessage(t, f.model.ID, toolName)}})
-		return err
-	}))
-	require.NoError(t, machine.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, store database.Store) error {
-		_, err := tx.EnterRequiresAction(chatstate.EnterRequiresActionInput{})
-		return err
-	}))
-	chat, err := f.db.GetChatByID(testutil.Context(t, testutil.WaitShort), res.Chat.ID)
-	require.NoError(t, err)
-	f.pubsub.clear()
-	return chat
-}
-
-func (f *taskTestFixture) acquireChat(t *testing.T, chatID uuid.UUID, workerID uuid.UUID, runnerID uuid.UUID) database.Chat {
-	t.Helper()
-	machine := chatstate.NewChatMachine(f.db, f.pubsub, chatID)
-	require.NoError(t, machine.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, store database.Store) error {
-		_, err := tx.Acquire(chatstate.AcquireInput{WorkerID: workerID, RunnerID: runnerID})
-		return err
-	}))
-	chat, err := f.db.GetChatByID(testutil.Context(t, testutil.WaitShort), chatID)
-	require.NoError(t, err)
-	f.pubsub.clear()
-	return chat
-}
-
-func (f *taskTestFixture) interruptChat(t *testing.T, chatID uuid.UUID) database.Chat {
-	t.Helper()
-	f.pubsub.clear()
-	machine := chatstate.NewChatMachine(f.db, f.pubsub, chatID)
-	require.NoError(t, machine.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, store database.Store) error {
-		_, err := tx.SendMessage(chatstate.SendMessageInput{
-			Message:      taskUserTextMessage(t, "interrupt", f.user.ID, f.model.ID, f.apiKey.ID),
-			BusyBehavior: chatstate.BusyBehaviorInterrupt,
-		})
-		return err
-	}))
-	chat, err := f.db.GetChatByID(testutil.Context(t, testutil.WaitShort), chatID)
-	require.NoError(t, err)
-	return chat
-}
-
-func (f *taskTestFixture) forceExecutionState(t *testing.T, chatID uuid.UUID, status database.ChatStatus, archived bool, deadline sql.NullTime) database.Chat {
-	t.Helper()
-	var updated database.Chat
-	require.NoError(t, f.db.InTx(func(store database.Store) error {
-		if _, err := store.LockChatAndBumpSnapshotVersion(testutil.Context(t, testutil.WaitShort), chatID); err != nil {
-			return err
-		}
-		chat, err := store.GetChatByID(testutil.Context(t, testutil.WaitShort), chatID)
-		if err != nil {
-			return err
-		}
-		updated, err = store.UpdateChatExecutionState(testutil.Context(t, testutil.WaitShort), database.UpdateChatExecutionStateParams{
-			ID:                       chat.ID,
-			Status:                   status,
-			Archived:                 archived,
-			WorkerID:                 chat.WorkerID,
-			RunnerID:                 chat.RunnerID,
-			LastError:                chat.LastError,
-			RequiresActionDeadlineAt: deadline,
-		})
-		return err
-	}, nil))
-	f.pubsub.clear()
-	return updated
-}
-
-func (f *taskTestFixture) setRequiresActionDeadline(t *testing.T, chatID uuid.UUID, deadline sql.NullTime) database.Chat {
+func (f *workerTestFixture) setRequiresActionDeadline(t *testing.T, chatID uuid.UUID, deadline sql.NullTime) database.Chat {
 	t.Helper()
 	chat, err := f.db.GetChatByID(testutil.Context(t, testutil.WaitShort), chatID)
 	require.NoError(t, err)
-	return f.forceExecutionState(t, chatID, chat.Status, chat.Archived, deadline)
+	return forceExecutionStateWithDeadline(t, f, chatID, chat.Status, chat.Archived, &deadline)
 }
 
-func (f *taskTestFixture) publishChatUpdate(t *testing.T, chat database.Chat) {
-	t.Helper()
-	msg := coderdpubsub.ChatStateUpdateMessage{
-		SnapshotVersion:   chat.SnapshotVersion,
-		HistoryVersion:    chat.HistoryVersion,
-		QueueVersion:      chat.QueueVersion,
-		RetryStateVersion: chat.RetryStateVersion,
-		GenerationAttempt: chat.GenerationAttempt,
-		Status:            string(chat.Status),
-		Archived:          chat.Archived,
-	}
-	if chat.WorkerID.Valid {
-		id := chat.WorkerID.UUID
-		msg.WorkerID = &id
-	}
-	if chat.RunnerID.Valid {
-		id := chat.RunnerID.UUID
-		msg.RunnerID = &id
-	}
-	payload, err := json.Marshal(msg)
-	require.NoError(t, err)
-	require.NoError(t, f.pubsub.Publish(coderdpubsub.ChatStateUpdateChannel(chat.ID), payload))
-}
-
-func (f *taskTestFixture) requireWatchEvent(t *testing.T, chatID uuid.UUID, kind codersdk.ChatWatchEventKind) {
+func (f *workerTestFixture) requireWatchEvent(t *testing.T, chatID uuid.UUID, kind codersdk.ChatWatchEventKind) {
 	t.Helper()
 	// Watch events are published after the corresponding database update
 	// commits, so poll instead of asserting on a single snapshot.
@@ -1483,127 +1706,30 @@ func (f *taskTestFixture) requireWatchEvent(t *testing.T, chatID uuid.UUID, kind
 	}, testutil.IntervalFast)
 }
 
-func (f *taskTestFixture) requireNoWatchEvents(t *testing.T) {
+func (f *workerTestFixture) requireNoWatchEvents(t *testing.T) {
 	t.Helper()
 	require.Empty(t, f.pubsub.watchEvents(t))
 }
 
-func taskUserTextMessage(t *testing.T, text string, createdBy uuid.UUID, modelConfigID uuid.UUID, apiKeyID string) chatstate.Message {
-	t.Helper()
-	raw, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(text)})
-	require.NoError(t, err)
-	return chatstate.Message{
-		Role:           database.ChatMessageRoleUser,
-		Content:        raw,
-		Visibility:     database.ChatMessageVisibilityBoth,
-		ContentVersion: chatprompt.CurrentContentVersion,
-		CreatedBy:      uuid.NullUUID{UUID: createdBy, Valid: true},
-		ModelConfigID:  uuid.NullUUID{UUID: modelConfigID, Valid: true},
-	}
-}
-
-func taskAssistantToolCallMessage(t *testing.T, modelConfigID uuid.UUID, toolName string) chatstate.Message {
-	t.Helper()
-	raw, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
-		Type:       codersdk.ChatMessagePartTypeToolCall,
-		ToolCallID: "call_" + uuid.NewString(),
-		ToolName:   toolName,
-		Args:       json.RawMessage(`{}`),
-	}})
-	require.NoError(t, err)
-	return chatstate.Message{
-		Role:           database.ChatMessageRoleAssistant,
-		Content:        raw,
-		Visibility:     database.ChatMessageVisibilityBoth,
-		ContentVersion: chatprompt.CurrentContentVersion,
-		ModelConfigID:  uuid.NullUUID{UUID: modelConfigID, Valid: true},
-	}
-}
-
-type taskPublishedEvent struct {
-	channel string
-	payload []byte
-}
-
-type taskRecordingPubsub struct {
-	inner dbpubsub.Pubsub
-	mu    sync.Mutex
-	sent  []taskPublishedEvent
-}
-
-func newTaskRecordingPubsub(inner dbpubsub.Pubsub) *taskRecordingPubsub {
-	return &taskRecordingPubsub{inner: inner}
-}
-
-func (p *taskRecordingPubsub) Publish(channel string, payload []byte) error {
-	p.mu.Lock()
-	p.sent = append(p.sent, taskPublishedEvent{channel: channel, payload: append([]byte(nil), payload...)})
-	p.mu.Unlock()
-	return p.inner.Publish(channel, payload)
-}
-
-func (p *taskRecordingPubsub) SubscribeWithErr(channel string, listener dbpubsub.ListenerWithErr) (func(), error) {
-	return p.inner.SubscribeWithErr(channel, listener)
-}
-
-func (p *taskRecordingPubsub) clear() {
-	p.mu.Lock()
-	p.sent = nil
-	p.mu.Unlock()
-}
-
-func (p *taskRecordingPubsub) events() []taskPublishedEvent {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return append([]taskPublishedEvent(nil), p.sent...)
-}
-
-func (p *taskRecordingPubsub) watchEvents(t *testing.T) []codersdk.ChatWatchEvent {
-	t.Helper()
-	events := p.events()
-	out := make([]codersdk.ChatWatchEvent, 0)
-	for _, event := range events {
-		var payload codersdk.ChatWatchEvent
-		if err := json.Unmarshal(event.payload, &payload); err != nil {
-			continue
-		}
-		if event.channel != coderdpubsub.ChatWatchEventChannel(payload.Chat.OwnerID) {
-			continue
-		}
-		out = append(out, payload)
-	}
-	return out
-}
-
-func startRealTaskWorker(t *testing.T, f *taskTestFixture) *chatWorker {
+func startRealTaskWorker(t *testing.T, f *workerTestFixture) *chatWorker {
 	t.Helper()
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
 	t.Cleanup(buffer.Close)
-	worker, err := newChatWorker(newUnstartedServer(t, f.rawPS, f.db), chatWorkerOptions{
-		WorkerID:                   uuid.New(),
-		Store:                      f.db,
-		Pubsub:                     f.pubsub,
-		Logger:                     slog.Make(),
-		MessagePartBuffer:          buffer,
-		AcquisitionInterval:        time.Hour,
-		AcquisitionBatchSize:       10,
-		RunnerSyncInterval:         time.Hour,
-		HeartbeatInterval:          time.Hour,
-		HeartbeatCleanupInterval:   time.Hour,
-		HeartbeatStaleSeconds:      30,
-		StateChannelSize:           16,
-		RunnerManagerChannelSize:   16,
-		AcquisitionWakeChannelSize: 1,
-		TaskRetryInitialBackoff:    time.Millisecond,
-		TaskRetryMaxBackoff:        time.Millisecond,
-	})
+	opts := testOptions(t, f, nil)
+	// Without a task starter, the worker builds its real one.
+	opts.TaskStarter = nil
+	opts.Logger = slog.Make()
+	opts.MessagePartBuffer = buffer
+	opts.TaskRetryInitialBackoff = time.Millisecond
+	opts.TaskRetryMaxBackoff = time.Millisecond
+	worker, err := newChatWorker(newUnstartedServer(t, f.pubsub.Pubsub, f.db), opts)
 	require.NoError(t, err)
 	require.NoError(t, worker.Start(context.Background()))
 	t.Cleanup(func() { require.NoError(t, worker.Close()) })
 	return worker
 }
 
-func waitOwnedChat(t *testing.T, f *taskTestFixture, chatID uuid.UUID, workerID uuid.UUID) database.Chat {
+func waitOwnedChat(t *testing.T, f *workerTestFixture, chatID uuid.UUID, workerID uuid.UUID) database.Chat {
 	t.Helper()
 	var latest database.Chat
 	testutil.Eventually(testutil.Context(t, testutil.WaitLong), t, func(ctx context.Context) bool {
@@ -1697,18 +1823,24 @@ func (r *taskSideEffectRecorder) requireInterruptionOutcome(t *testing.T, chatID
 	t.Fatalf("missing interruption outcome chat_id=%s status=%s outcomes=%v", chatID, status, r.interrupts)
 }
 
-func newTestTaskStarter(t *testing.T, f *taskTestFixture, recorder *taskSideEffectRecorder) *taskStarter {
+func newTestTaskStarter(t *testing.T, f *workerTestFixture, recorder *taskSideEffectRecorder, serverOpts ...internalTestServerOpt) *taskStarter {
 	t.Helper()
-	return newTestTaskStarterWithClock(t, f, recorder, quartz.NewReal())
+	return newTestTaskStarterWithClock(t, f, recorder, quartz.NewReal(), serverOpts...)
 }
 
 // newTestTaskStarterWithClock shares the clock between the starter and its
 // message part buffer, mirroring production wiring.
-func newTestTaskStarterWithClock(t *testing.T, f *taskTestFixture, recorder *taskSideEffectRecorder, clock quartz.Clock) *taskStarter {
+func newTestTaskStarterWithClock(
+	t *testing.T,
+	f *workerTestFixture,
+	recorder *taskSideEffectRecorder,
+	clock quartz.Clock,
+	serverOpts ...internalTestServerOpt,
+) *taskStarter {
 	t.Helper()
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{Clock: clock})
 	t.Cleanup(buffer.Close)
-	starter, err := newTaskStarter(newUnstartedServer(t, f.rawPS, f.db), chatWorkerOptions{
+	starter, err := newTaskStarter(newUnstartedServer(t, f.pubsub.Pubsub, f.db, serverOpts...), chatWorkerOptions{
 		Store:                   f.db,
 		Pubsub:                  f.pubsub,
 		Logger:                  slog.Make(),

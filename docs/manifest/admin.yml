@@ -1,0 +1,16 @@
+title: Administration
+description: Guides for the template and deployment administrators who configure, secure, and operate Coder.
+path: ./admin/index.md
+icon_path: ./images/icons/wrench.svg
+children:
+  - include: admin/setup.yml
+  - include: admin/users.yml
+  - include: admin/templates.yml
+  - title: External authentication
+    description: Configure external authentication so workspaces can access Git providers and other OAuth services.
+    path: ./admin/external-auth.md
+    icon_path: ./images/icons/plug.svg
+  - include: admin/integrations.yml
+  - include: admin/networking.yml
+  - include: admin/monitoring.yml
+  - include: admin/security.yml

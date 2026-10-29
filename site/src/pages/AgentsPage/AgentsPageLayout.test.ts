@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	chatCostIdToInvalidate,
+	shouldEvaluateChime,
 	shouldInvalidateFilteredChatList,
 } from "./AgentsPageLayout";
 import {
@@ -915,6 +916,12 @@ describe(shouldInvalidateFilteredChatList.name, () => {
 			expected: true,
 		},
 		{
+			name: "invalidates root chats that move to another project",
+			updatedChat: chatForFilterInvalidation(),
+			eventKind: "project_change",
+			expected: true,
+		},
+		{
 			name: "ignores non-membership events",
 			updatedChat: chatForFilterInvalidation(),
 			eventKind: "title_change",
@@ -930,6 +937,39 @@ describe(shouldInvalidateFilteredChatList.name, () => {
 		expect(shouldInvalidateFilteredChatList(updatedChat, eventKind)).toBe(
 			expected,
 		);
+	});
+});
+
+describe(shouldEvaluateChime.name, () => {
+	it.each<{
+		name: string;
+		updatedChat: TypesGen.Chat;
+		eventKind: TypesGen.ChatWatchEventKind;
+		expected: boolean;
+	}>([
+		{
+			name: "evaluates root chat status changes",
+			updatedChat: chatForFilterInvalidation({ status: "waiting" }),
+			eventKind: "status_change",
+			expected: true,
+		},
+		{
+			name: "ignores the status of a title event",
+			updatedChat: chatForFilterInvalidation({ status: "waiting" }),
+			eventKind: "title_change",
+			expected: false,
+		},
+		{
+			name: "excludes child chats",
+			updatedChat: chatForFilterInvalidation({
+				parent_chat_id: "parent-1",
+				status: "waiting",
+			}),
+			eventKind: "status_change",
+			expected: false,
+		},
+	])("$name", ({ updatedChat, eventKind, expected }) => {
+		expect(shouldEvaluateChime(updatedChat, eventKind)).toBe(expected);
 	});
 });
 

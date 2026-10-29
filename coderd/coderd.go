@@ -64,6 +64,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/entitlements"
+	experimentrules "github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
@@ -73,6 +74,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/idpsync"
+	"github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/coderd/metricscache"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/oauth2provider"
@@ -102,7 +104,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
@@ -272,9 +273,9 @@ type Options struct {
 	ChatStreamPartsDialer chatd.StreamPartsDialer
 	// Nil keeps the default chat agent caps active.
 	ChatAgentCapacityUnlock chatd.AgentCapacityUnlock
-	// ChatProviderAPIKeys supplies fallback provider keys for chat execution.
-	// Test harnesses use this to route chat models to local providers.
-	ChatProviderAPIKeys *chatprovider.ProviderAPIKeys
+	// ChatInternalMCPServers supplies in-process MCP servers for chats.
+	// Servers must be ready when New starts the chat worker.
+	ChatInternalMCPServers []chatd.InternalMCPServer
 	// ChatWorkerDisabled skips starting the chat daemon's background
 	// worker.
 	ChatWorkerDisabled bool
@@ -729,6 +730,15 @@ func New(options *Options) *API {
 		AISeatTracker:               aiseats.Noop{},
 	}
 
+	api.ExperimentEvaluator, err = experimentrules.New(
+		options.Logger.Named("experiments"),
+		experimentrules.NewDBStore(options.Database),
+		experiments,
+	)
+	if err != nil {
+		panic(xerrors.Errorf("create experiment evaluator: %w", err))
+	}
+
 	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
 		ctx,
 		options.Logger.Named("workspaceapps"),
@@ -741,6 +751,7 @@ func New(options *Options) *API {
 		options.AgentInactiveDisconnectTimeout,
 		options.WorkspaceAppAuditSessionTimeout,
 		options.AppSigningKeyCache,
+		options.PrometheusRegistry,
 	)
 
 	f := appearance.NewDefaultFetcher(options.Database, api.DeploymentValues.DocsURL.String())
@@ -775,11 +786,11 @@ func New(options *Options) *API {
 		Logger:                    options.Logger.Named("site"),
 		AIGatewayEnabled:          options.DeploymentValues.AI.BridgeConfig.Enabled.Value(),
 		UserSecretFilePathEnabled: !options.DeploymentValues.DisableUserSecretFilePath.Value(),
+		ExperimentEvaluator:       api.ExperimentEvaluator,
 	})
 	if err != nil {
 		options.Logger.Fatal(ctx, "failed to initialize site handler", slog.Error(err))
 	}
-	api.SiteHandler.Experiments.Store(&experiments)
 
 	if options.UpdateCheckOptions != nil {
 		api.updateChecker = updatecheck.New(
@@ -869,6 +880,7 @@ func New(options *Options) *API {
 	api.agentProvider = stn
 
 	{ // Chat daemon and git sync worker initialization.
+		api.chatLimits = chatd.LimitsFromConfig(options.DeploymentValues.AI.Chat)
 		maxChatsPerAcquire := options.DeploymentValues.AI.Chat.AcquireBatchSize.Value()
 		if maxChatsPerAcquire > math.MaxInt32 {
 			maxChatsPerAcquire = math.MaxInt32
@@ -888,10 +900,6 @@ func New(options *Options) *API {
 				options.OIDCConfig,
 				options.Logger.Named("mcp-user-oidc"),
 			)
-		}
-		providerAPIKeys := chatprovider.ProviderAPIKeys{}
-		if options.ChatProviderAPIKeys != nil {
-			providerAPIKeys = *options.ChatProviderAPIKeys
 		}
 
 		// AI Gateway is mandatory for chat. When the bridge is disabled
@@ -925,13 +933,12 @@ func New(options *Options) *API {
 					options.PrometheusRegistry,
 				)
 			}
-			api.chatDaemon = chatd.New(options.Pubsub, chatd.Config{
+			api.chatDaemon, err = chatd.New(options.Pubsub, chatd.Config{
 				Logger:                         options.Logger.Named("chatd"),
 				Database:                       options.Database,
 				ReplicaID:                      api.ID,
 				StreamPartsDialer:              options.ChatStreamPartsDialer,
 				MaxChatsPerAcquire:             int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
-				ProviderAPIKeys:                providerAPIKeys,
 				AllowBYOK:                      options.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
 				AllowBYOKSet:                   true,
 				AIBridgeTransportFactory:       &api.AIBridgeTransportFactory,
@@ -939,21 +946,29 @@ func New(options *Options) *API {
 				StreamSilenceTimeout:           streamSilenceTimeout,
 				DisableCallerSuppliedTools:     options.DeploymentValues.DisableChatCallerSuppliedTools.Value(),
 				Experiments:                    experiments,
+				ExperimentEvaluator:            api.ExperimentEvaluator,
 				AgentConn:                      api.agentProvider.AgentConn,
 				AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
 				CreateWorkspace:                api.chatCreateWorkspace,
 				StartWorkspace:                 api.chatStartWorkspace,
 				StopWorkspace:                  api.chatStopWorkspace,
+				RenderTemplateParameters:       api.chatRenderTemplateParameters,
 				WebpushDispatcher:              options.WebPushDispatcher,
 				HookDispatcher:                 hookDispatcher,
 				UsageTracker:                   options.WorkspaceUsageTracker,
 				PrometheusRegistry:             options.PrometheusRegistry,
+				TracerProvider:                 options.TracerProvider,
 				AgentCapacityUnlock:            options.ChatAgentCapacityUnlock,
 				OIDCTokenSource:                oidcMCPSrc,
 				MCPHTTPClient:                  api.mcpHTTPClient,
+				InternalMCPServers:             options.ChatInternalMCPServers,
 				NotificationsEnqueuer:          options.NotificationsEnqueuer,
 				Auditor:                        &api.Auditor,
+				Limits:                         api.chatLimits,
 			})
+			if err != nil {
+				panic(xerrors.Errorf("create chat daemon: %w", err))
+			}
 			if !options.ChatWorkerDisabled {
 				api.chatDaemon.Start()
 			}
@@ -1087,7 +1102,7 @@ func New(options *Options) *API {
 	// and in the build info response and the AI bridge config, so a runtime
 	// toggle would have to update all three.
 	oauth2ProviderEnabled := api.DeploymentValues.OAuth2.Provider.Enable.Value()
-	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+	apiKeyConfig := httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
 		ActivateDormantUser:           ActivateDormantUser(options.Logger, &api.Auditor, options.Database),
 		OAuth2Configs:                 oauthConfigs,
@@ -1098,7 +1113,8 @@ func New(options *Options) *API {
 		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 		Logger:                        options.Logger,
 		AccessURL:                     options.AccessURL,
-	})
+	}
+	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(apiKeyConfig)
 	// Same as above but it redirects to the login page.
 	apiKeyMiddlewareRedirect := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
@@ -1351,22 +1367,79 @@ func New(options *Options) *API {
 				r.Delete("/", api.deleteUserSkill)
 			})
 		})
+		r.Route("/organizations/{organization}/skills", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(options.Database),
+			)
+			r.Get("/", api.getOrganizationSkills)
+			r.Post("/", api.postOrganizationSkill)
+			r.Route("/{skillName}", func(r chi.Router) {
+				r.With(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize,
+					policy.ActionRead)).Get("/", api.getOrganizationSkill)
+				// PATCH returns the skill's content, so it requires read like GET.
+				// Readers reach the handlers, where the database wrapper denies
+				// the mutation with 403 rather than concealing the skill.
+				r.With(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize,
+					policy.ActionRead)).Patch("/", api.patchOrganizationSkill)
+				r.With(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize,
+					policy.ActionRead, policy.ActionDelete)).Delete("/", api.deleteOrganizationSkill)
+				r.Route("/acl", func(r chi.Router) {
+					r.Use(httpmw.ExtractOrganizationSkillParam(options.Database, api.HTTPAuth.Authorize, policy.ActionShare))
+					r.Get("/", api.getOrganizationSkillACL)
+					r.Patch("/", api.patchOrganizationSkillACL)
+					r.Get("/available", api.getOrganizationSkillACLAvailable)
+				})
+			})
+		})
 		api.registerExperimentalChatRoutes(r, apiKeyMiddleware)
+		r.Route("/organizations/{organization}", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(options.Database),
+			)
+			api.registerExperimentalOrganizationChatRoutes(r)
+		})
 
 		r.Route("/mcp", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
 			// Providers pin the redirect URI when a session is established,
 			// so the callback URL cannot change for existing sessions without
 			// breaking token refresh and forcing a re-auth.
-			r.Get("/servers/{mcpServer}/oauth2/callback", api.mcpServerOAuth2Callback)
+			r.With(apiKeyMiddleware).Get("/servers/{mcpServer}/oauth2/callback", api.mcpServerOAuth2Callback)
 			// MCP HTTP transport endpoint with mandatory authentication.
 			r.Route("/http", func(r chi.Router) {
+				r.Use(func(next http.Handler) http.Handler {
+					cfg := apiKeyConfig
+					cfg.ResourceURI = options.AccessURL.JoinPath(mcp.MCPEndpoint).String()
+					cfg.ResourceMetadataURL = options.AccessURL.JoinPath("/.well-known/oauth-protected-resource", mcp.MCPEndpoint).String()
+					canonical := httpmw.ExtractAPIKeyMW(cfg)(next)
+					cfg.ResourceMetadataURL = options.AccessURL.JoinPath("/.well-known/oauth-protected-resource", mcp.MCPEndpoint+"/").String()
+					trailingSlash := httpmw.ExtractAPIKeyMW(cfg)(next)
+					return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+						// Routing normalizes slashes, but OAuth resource identity
+						// must not admit aliases or arbitrary descendant paths.
+						switch r.URL.EscapedPath() {
+						case mcp.MCPEndpoint:
+							canonical.ServeHTTP(rw, r)
+						case mcp.MCPEndpoint + "/":
+							trailingSlash.ServeHTTP(rw, r)
+						default:
+							httpapi.RouteNotFound(rw)
+						}
+					})
+				})
 				r.Use(
 					httpmw.RequireOAuth2Provider(oauth2ProviderEnabled),
 					httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentMCPServerHTTP),
 				)
 				r.Mount("/", api.mcpHTTPHandler())
 			})
+		})
+		r.Route("/experiments/rules", func(r chi.Router) {
+			// Responses contain condition text, so they are never cached.
+			r.Use(apiKeyMiddleware, httpmw.NoStore)
+			r.Get("/", api.experimentRules)
+			r.Put("/{experiment}", api.putExperimentRule)
 		})
 		r.Route("/watch-all-workspacebuilds", func(r chi.Router) {
 			r.Use(
@@ -1398,7 +1471,6 @@ func New(options *Options) *API {
 			r.Get("/regions", api.regions)
 		})
 		r.Route("/derp-map", func(r chi.Router) {
-			// r.Use(apiKeyMiddleware)
 			r.Get("/", api.derpMapUpdates)
 		})
 		r.Route("/deployment", func(r chi.Router) {
@@ -1412,7 +1484,7 @@ func New(options *Options) *API {
 		r.Route("/experiments", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/available", handleExperimentsAvailable)
-			r.Get("/", api.handleExperimentsGet)
+			r.With(httpmw.NoStore).Get("/", api.handleExperimentsGet)
 		})
 		api.registerChatAPIRoutes(r, apiKeyMiddleware)
 		r.Route("/mcp", func(r chi.Router) {
@@ -1679,7 +1751,6 @@ func New(options *Options) *API {
 						r.Post("/convert-login", api.postConvertLoginType)
 						r.Delete("/", api.deleteUser)
 						r.Get("/", api.userByName)
-						r.Get("/autofill-parameters", api.userAutofillParameters)
 						r.Get("/login-type", api.userLoginType)
 						r.Put("/profile", api.putUserProfile)
 						r.Route("/status", func(r chi.Router) {
@@ -1864,6 +1935,7 @@ func New(options *Options) *API {
 			r.Get("/logs", api.workspaceBuildLogs)
 			r.Get("/parameters", api.workspaceBuildParameters)
 			r.Get("/resources", api.workspaceBuildResourcesDeprecated)
+			r.Get("/secrets", api.workspaceBuildSecrets)
 			r.Get("/state", api.workspaceBuildState)
 			r.Put("/state", api.workspaceBuildUpdateState)
 			r.Get("/timings", api.workspaceBuildTimings)
@@ -2245,6 +2317,10 @@ type API struct {
 	// Experiments contains the list of experiments currently enabled.
 	// This is used to gate features that are not yet ready for production.
 	Experiments codersdk.Experiments
+	// ExperimentEvaluator decides user-scoped experiments per user from
+	// stored rules, falling back to Experiments. Use it instead of
+	// Experiments for every experiment in codersdk.ExperimentsUserScoped.
+	ExperimentEvaluator *experimentrules.Evaluator
 
 	healthCheckGroup    *singleflight.Group[string, *healthsdk.HealthcheckReport]
 	healthCheckCache    atomic.Pointer[healthsdk.HealthcheckReport]
@@ -2264,6 +2340,9 @@ type API struct {
 	dbRolluper *dbrollup.Rolluper
 	// chatDaemon handles background processing of pending chats.
 	chatDaemon *chatd.Server
+	// chatLimits are the deployment chat limits shared by the chat daemon
+	// and the chat HTTP handlers.
+	chatLimits chatd.Limits
 	// gitSyncWorker refreshes stale chat diff statuses in the background.
 	gitSyncWorker *gitsync.Worker
 	// AISeatTracker records AI seat usage.

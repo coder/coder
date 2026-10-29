@@ -1,4 +1,3 @@
-import type { FC, ReactNode } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import {
 	Tooltip,
@@ -9,7 +8,7 @@ import {
 type ItemsBadgeItem = {
 	key: string;
 	label: string;
-	icon: ReactNode;
+	icon: React.ReactNode;
 };
 
 type ItemsBadgeProps = {
@@ -22,7 +21,7 @@ type ItemsBadgeProps = {
  * One item renders as a labeled badge; several collapse into a count badge
  * whose tooltip lists them.
  */
-export const ItemsBadge: FC<ItemsBadgeProps> = ({ items, noun }) => {
+export const ItemsBadge: React.FC<ItemsBadgeProps> = ({ items, noun }) => {
 	if (items.length === 0) {
 		return null;
 	}

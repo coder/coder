@@ -1,6 +1,4 @@
-import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import {
 	updateUserQuietHoursSchedule,
 	userQuietHoursSchedule,
@@ -13,10 +11,12 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { pageTitle } from "#/utils/page";
 import { ScheduleForm } from "./ScheduleForm";
 
-const SchedulePage: FC = () => {
+const SchedulePage: React.FC = () => {
 	const { user: me } = useAuthenticated();
 	const queryClient = useQueryClient();
 
@@ -33,16 +33,29 @@ const SchedulePage: FC = () => {
 		isPending: mutationLoading,
 	} = useMutation(updateUserQuietHoursSchedule(me.id, queryClient));
 
+	const title = <title>{pageTitle("Schedule", "Settings")}</title>;
+
 	if (isLoading) {
-		return <Loader />;
+		return (
+			<>
+				{title}
+				<Loader />
+			</>
+		);
 	}
 
 	if (isError) {
-		return <ErrorAlert error={error} />;
+		return (
+			<>
+				{title}
+				<ErrorAlert error={error} />
+			</>
+		);
 	}
 
 	return (
 		<>
+			{title}
 			<SettingsHeader>
 				<SettingsHeaderTitle>Quiet hours</SettingsHeaderTitle>
 				<SettingsHeaderDescription>

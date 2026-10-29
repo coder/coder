@@ -56,10 +56,12 @@ export type MCPServerFormValues = {
 	oauth2AuthURL: string;
 	oauth2TokenURL: string;
 	oauth2RevocationURL: string;
+	oauth2Resource: string;
 	oauth2Scopes: string;
 	apiKeyHeader: string;
 	apiKeyValue: string;
 	apiKeyTouched: boolean;
+	hasSavedAPIKey: boolean;
 	availability: string;
 	enabled: boolean;
 	modelIntent: boolean;
@@ -97,10 +99,12 @@ export const buildInitialMCPServerFormValues = (
 	oauth2AuthURL: server?.oauth2_auth_url ?? "",
 	oauth2TokenURL: server?.oauth2_token_url ?? "",
 	oauth2RevocationURL: server?.oauth2_revocation_url ?? "",
+	oauth2Resource: server?.oauth2_resource ?? "",
 	oauth2Scopes: server?.oauth2_scopes ?? "",
-	apiKeyHeader: server?.api_key_header ?? "",
+	apiKeyHeader: server?.api_key_header || "Authorization",
 	apiKeyValue: server?.has_api_key ? SECRET_PLACEHOLDER : "",
 	apiKeyTouched: false,
+	hasSavedAPIKey: server?.has_api_key ?? false,
 	availability: server?.availability ?? "default_off",
 	enabled: server?.enabled ?? true,
 	modelIntent: server?.model_intent ?? false,
@@ -114,6 +118,18 @@ export const buildInitialMCPServerFormValues = (
 	customHeadersTouched: false,
 });
 
+// An untouched placeholder counts only when the server already stores a key,
+// because the secret input also restores it when a new value is cleared.
+const hasAPIKeyCredentials = (values: MCPServerFormValues): boolean => {
+	if (values.apiKeyHeader.trim() === "") {
+		return false;
+	}
+	if (!values.apiKeyTouched && values.apiKeyValue === SECRET_PLACEHOLDER) {
+		return values.hasSavedAPIKey;
+	}
+	return values.apiKeyValue.trim() !== "";
+};
+
 export const canSubmitMCPServerForm = (
 	values: MCPServerFormValues,
 	isDisabled: boolean,
@@ -121,7 +137,8 @@ export const canSubmitMCPServerForm = (
 	!isDisabled &&
 	values.displayName.trim() !== "" &&
 	values.slug.trim() !== "" &&
-	values.url.trim() !== "";
+	values.url.trim() !== "" &&
+	(values.authType !== "api_key" || hasAPIKeyCredentials(values));
 
 export const buildCreateMCPServerConfigRequest = (
 	values: MCPServerFormValues,
@@ -171,6 +188,7 @@ export const buildCreateMCPServerConfigRequest = (
 			oauth2_auth_url: values.oauth2AuthURL.trim() || undefined,
 			oauth2_token_url: values.oauth2TokenURL.trim() || undefined,
 			oauth2_revocation_url: values.oauth2RevocationURL.trim() || undefined,
+			oauth2_resource: values.oauth2Resource.trim() || undefined,
 			oauth2_scopes: values.oauth2Scopes.trim() || undefined,
 		};
 	}
@@ -213,9 +231,10 @@ export const buildUpdateMCPServerConfigRequest = (
 	const { enabled: _enabled, ...updateFields } = base;
 	return {
 		...updateFields,
-		// Always sent: an omitted field keeps the stored value, "" clears it.
+		// Sent even when empty: an omitted field keeps the stored value, "" clears it.
 		...(values.authType === "oauth2" && {
 			oauth2_revocation_url: values.oauth2RevocationURL.trim(),
+			oauth2_resource: values.oauth2Resource.trim(),
 		}),
 		tool_allow_list: [...(base.tool_allow_list ?? [])],
 		tool_deny_list: [...(base.tool_deny_list ?? [])],

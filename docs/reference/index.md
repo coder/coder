@@ -4,8 +4,8 @@ title: Reference
 
 ## Automation
 
-All actions possible through the Coder dashboard can also be automated. There
-are several ways to extend/automate Coder:
+All actions possible through the Coder dashboard can also be automated.
+There are several ways to extend/automate Coder:
 
 - [coderd Terraform Provider](https://registry.terraform.io/providers/coder/coderd/latest)
 - [CLI](../reference/cli/index.md)
@@ -38,15 +38,12 @@ curl https://coder.example.com/api/v2/workspaces?q=owner:me \
 ## Documentation
 
 We publish an [API reference](../reference/api/index.md) in our documentation.
-You can also enable a
-[Swagger endpoint](../reference/cli/server.md#--swagger-enable) on your Coder
-deployment.
+You can also enable a [Swagger endpoint](../reference/cli/server/index.md#--swagger-enable) on your Coder deployment.
 
 ## Use cases
 
-We strive to keep the following use cases up to date, but please note that
-changes to API queries and routes can occur. For the most recent queries and
-payloads, we recommend checking the relevant documentation.
+We strive to keep the following use cases up to date, but note that changes to API queries and routes can occur.
+For the most recent queries and payloads, we recommend checking the relevant documentation.
 
 ### Users & Groups
 
@@ -55,20 +52,13 @@ payloads, we recommend checking the relevant documentation.
 
 ### Templates
 
-- [Manage templates via Terraform or CLI](../admin/templates/managing-templates/change-management.md):
-  Store all templates in git and update them in CI/CD pipelines.
+- [Manage templates via Terraform or CLI](../admin/templates/managing-templates/change-management.md): Store all templates in git and update them in CI/CD pipelines.
 
 ### Workspace agents
 
-Workspace agents have a special token that can send logs, metrics, and workspace
-activity.
+Workspace agents have a special token that can send logs, metrics, and workspace activity.
 
-- [Custom workspace logs](../reference/api/agents.md#patch-workspace-agent-logs):
-  Expose messages prior to the Coder init script running (e.g. pulling image, VM
-  starting, restoring snapshot).
-  [coder-logstream-kube](https://github.com/coder/coder-logstream-kube) uses
-  this to show Kubernetes events, such as image pulls or ResourceQuota
-  restrictions.
+- [Custom workspace logs](../reference/api/agents.md#patch-workspace-agent-logs): Expose messages prior to the Coder init script running (for example, pulling image, VM starting, restoring snapshot). [coder-logstream-kube](https://github.com/coder/coder-logstream-kube) uses this to show Kubernetes events, such as image pulls or ResourceQuota restrictions.
 
   ```sh
   curl -X PATCH https://coder.example.com/api/v2/workspaceagents/me/logs \
@@ -84,9 +74,7 @@ activity.
   }"
   ```
 
-- [Manually send workspace activity](../reference/api/workspaces.md#extend-workspace-deadline-by-id):
-  Keep a workspace "active," even if there is not an open connection (e.g. for a
-  long-running machine learning job).
+- [Manually send workspace activity](../reference/api/workspaces.md#extend-workspace-deadline-by-id): Keep a workspace "active," even if there is not an open connection (for example, for a long-running machine learning job).
 
   ```sh
   #!/bin/bash

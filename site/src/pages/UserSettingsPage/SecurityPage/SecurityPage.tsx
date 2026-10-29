@@ -1,6 +1,4 @@
-import type { ComponentProps, FC } from "react";
 import { useMutation, useQuery } from "react-query";
-import { toast } from "sonner";
 import { API } from "#/api/api";
 import { authMethods, updatePassword } from "#/api/queries/users";
 import { Loader } from "#/components/Loader/Loader";
@@ -8,14 +6,16 @@ import {
 	SettingsHeader,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { pageTitle } from "#/utils/page";
 import { SecurityForm } from "./SecurityForm";
 import {
 	SingleSignOnSection,
 	useSingleSignOnSection,
 } from "./SingleSignOnSection";
 
-const SecurityPage: FC = () => {
+const SecurityPage: React.FC = () => {
 	const { user: me } = useAuthenticated();
 	const updatePasswordMutation = useMutation(updatePassword());
 	const authMethodsQuery = useQuery(authMethods());
@@ -25,50 +25,60 @@ const SecurityPage: FC = () => {
 	});
 	const singleSignOnSection = useSingleSignOnSection();
 
+	const title = <title>{pageTitle("Security", "Settings")}</title>;
+
 	if (!authMethodsQuery.data || !userLoginType) {
-		return <Loader />;
+		return (
+			<>
+				{title}
+				<Loader />
+			</>
+		);
 	}
 
 	return (
-		<SecurityPageView
-			security={{
-				form: {
-					disabled: userLoginType.login_type !== "password",
-					error: updatePasswordMutation.error,
-					isLoading: updatePasswordMutation.isPending,
-					onSubmit: async (data) => {
-						await updatePasswordMutation.mutateAsync({
-							userId: me.id,
-							...data,
-						});
-						toast.success("Updated password.");
-						// Refresh the browser session. We need to improve the AuthProvider
-						// to include better API to handle these scenarios
-						location.href = location.origin;
+		<>
+			{title}
+			<SecurityPageView
+				security={{
+					form: {
+						disabled: userLoginType.login_type !== "password",
+						error: updatePasswordMutation.error,
+						isLoading: updatePasswordMutation.isPending,
+						onSubmit: async (data) => {
+							await updatePasswordMutation.mutateAsync({
+								userId: me.id,
+								...data,
+							});
+							toast.success("Updated password.");
+							// Refresh the browser session. We need to improve the AuthProvider
+							// to include better API to handle these scenarios
+							location.href = location.origin;
+						},
 					},
-				},
-			}}
-			oidc={{
-				section: {
-					authMethods: authMethodsQuery.data,
-					userLoginType,
-					...singleSignOnSection,
-				},
-			}}
-		/>
+				}}
+				oidc={{
+					section: {
+						authMethods: authMethodsQuery.data,
+						userLoginType,
+						...singleSignOnSection,
+					},
+				}}
+			/>
+		</>
 	);
 };
 
 type SecurityPageViewProps = {
 	security: {
-		form: ComponentProps<typeof SecurityForm>;
+		form: React.ComponentProps<typeof SecurityForm>;
 	};
 	oidc?: {
-		section: ComponentProps<typeof SingleSignOnSection>;
+		section: React.ComponentProps<typeof SingleSignOnSection>;
 	};
 };
 
-export const SecurityPageView: FC<SecurityPageViewProps> = ({
+export const SecurityPageView: React.FC<SecurityPageViewProps> = ({
 	security,
 	oidc,
 }) => {

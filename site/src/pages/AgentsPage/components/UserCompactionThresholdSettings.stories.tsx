@@ -1,7 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChatModel } from "#/testHelpers/chatModels";
+import {
+	MockChatModel,
+	MockCompactionChatModel,
+} from "#/testHelpers/chatModels";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
@@ -11,6 +14,10 @@ import {
 	withAuthProvider,
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
+import {
+	compactionOverrideWindowPercent,
+	type OrganizationCompactionTrigger,
+} from "../utils/compactionTriggers";
 import { UserCompactionThresholdSettings } from "./UserCompactionThresholdSettings";
 
 const modelsOrganization = {
@@ -22,6 +29,27 @@ const organizationWithEmptyDisplayName = {
 	...MockDefaultOrganization,
 	id: MockChatModel.organization_id,
 	display_name: "",
+};
+
+const organizationTriggerFor = (
+	model: TypesGen.ChatModel,
+): OrganizationCompactionTrigger => ({
+	model,
+	trigger: {
+		thresholdPercent: compactionOverrideWindowPercent,
+		contextLimit: model.context_limit,
+	},
+	pointTokens: (model.context_limit * compactionOverrideWindowPercent) / 100,
+});
+const mockCompactionTrigger = organizationTriggerFor(MockCompactionChatModel);
+const mockCompactionTriggersByOrganizationID = new Map([
+	[MockChatModel.organization_id, mockCompactionTrigger],
+]);
+// Window smaller than mockCompactionTrigger's 16K point.
+const mockSmallWindowModel: TypesGen.ChatModel = {
+	...MockChatModel,
+	display_name: "GPT-4o",
+	context_limit: 10_000,
 };
 
 const mockModels: TypesGen.ChatModel[] = [
@@ -64,11 +92,17 @@ const meta = {
 	decorators: [withAuthProvider, withDashboardProvider],
 	args: {
 		models: mockModels,
-		providerTypeByID: new Map<string, string>([
-			["provider-1", "openai"],
-			["provider-anthropic", "anthropic"],
+		providerInfoByID: new Map([
+			["provider-1", { provider: "openai", displayName: "OpenAI", icon: "" }],
+			[
+				"provider-anthropic",
+				{ provider: "anthropic", displayName: "Anthropic", icon: "" },
+			],
 		]),
 		organizations: [modelsOrganization],
+		compactionTriggersByOrganizationID: new Map(),
+		compactionTriggerLoadErrors: [],
+		isLoadingModels: false,
 		thresholds: [],
 		isThresholdsLoading: false,
 		thresholdsError: undefined,
@@ -82,6 +116,13 @@ const meta = {
 
 export default meta;
 type Story = StoryObj<typeof meta>;
+
+// The click inside userEvent.type closes the Radix tooltip, and it reopens
+// only on a fresh pointer enter.
+const reopenTooltip = async (element: HTMLElement) => {
+	await userEvent.unhover(element);
+	await userEvent.hover(element);
+};
 
 export const Default: Story = {
 	play: async ({ canvasElement }) => {
@@ -107,20 +148,24 @@ export const ContextWindowTracksDraft: Story = {
 	},
 };
 
-export const CompactionOverrideShrinksWindow: Story = {
-	name: "Compaction Override Shrinks Window",
-	args: {
-		// The organization summarizes with the 16K model, so both enabled
-		// models show a 16K compaction window instead of their own.
-		compactionModelIDByOrganization: new Map([
-			[MockChatModel.organization_id, "model-3"],
-		]),
-	},
-};
-
 export const UnknownContextWindow: Story = {
 	args: {
 		models: [{ ...mockModels[0], context_limit: 0 }],
+	},
+};
+
+export const ConfiguredProviderIcon: Story = {
+	args: {
+		providerInfoByID: new Map([
+			[
+				"provider-1",
+				{
+					provider: "openai",
+					displayName: "DeepSeek",
+					icon: "/icon/widgets.svg",
+				},
+			],
+		]),
 	},
 };
 
@@ -145,7 +190,7 @@ export const SaveAll: Story = {
 		await userEvent.type(gpt4oInput, "95");
 		await userEvent.type(claudeInput, "50");
 
-		// Footer should show "Save 2 changes"
+		// Actions should show "Save 2 changes"
 		const saveButton = await canvas.findByRole("button", {
 			name: /Save 2 changes/i,
 		});
@@ -203,8 +248,8 @@ export const CancelChanges: Story = {
 	},
 };
 
-export const InvalidDraftShowsFooter: Story = {
-	name: "Invalid Draft Shows Footer",
+export const InvalidDraftShowsActions: Story = {
+	name: "Invalid Draft Shows Actions",
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const gpt4oInput = await canvas.findByRole("textbox", {
@@ -225,6 +270,117 @@ export const DisableCompactionWarning: Story = {
 		});
 
 		await userEvent.type(gpt4oInput, "100");
+		await reopenTooltip(gpt4oInput);
+	},
+};
+
+export const DisableCompactionWithOverridesLoadError: Story = {
+	name: "100% Disable Compaction Warning With Overrides Load Error",
+	args: {
+		compactionTriggerLoadErrors: [
+			{
+				organizationID: MockChatModel.organization_id,
+				error: new Error("Network Error"),
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const gpt4oInput = await canvas.findByRole("textbox", {
+			name: /GPT-4o compaction threshold/i,
+		});
+
+		await userEvent.type(gpt4oInput, "100");
+		await reopenTooltip(gpt4oInput);
+	},
+};
+
+export const OrganizationCompactionTriggerWarning: Story = {
+	args: {
+		compactionTriggersByOrganizationID: mockCompactionTriggersByOrganizationID,
+	},
+	play: async ({ canvasElement }) => {
+		const row = within(canvasElement).getByRole("row", { name: /GPT-4o/i });
+		await userEvent.click(
+			within(row).getByRole("button", {
+				name: /Organization override for GPT-4o/i,
+			}),
+		);
+	},
+};
+
+export const OrganizationTriggerWarningAtDisabledThreshold: Story = {
+	args: {
+		compactionTriggersByOrganizationID: new Map([
+			[
+				MockChatModel.organization_id,
+				organizationTriggerFor({
+					...MockCompactionChatModel,
+					context_limit: 160_000,
+				}),
+			],
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const row = within(canvasElement).getByRole("row", { name: /GPT-4o/i });
+		const input = within(row).getByRole("textbox", {
+			name: /GPT-4o compaction threshold/i,
+		});
+		await userEvent.type(input, "100");
+		await reopenTooltip(input);
+	},
+};
+
+export const OrganizationTriggerBeyondModelWindow: Story = {
+	args: {
+		models: [mockSmallWindowModel],
+		thresholds: [
+			{ model_config_id: mockSmallWindowModel.id, threshold_percent: 100 },
+		],
+		compactionTriggersByOrganizationID: mockCompactionTriggersByOrganizationID,
+	},
+	play: async ({ canvasElement }) => {
+		const row = within(canvasElement).getByRole("row", { name: /GPT-4o/i });
+		await userEvent.click(
+			within(row).getByRole("button", {
+				name: /Organization override for GPT-4o/i,
+			}),
+		);
+	},
+};
+
+export const DisableCompactionBeyondOrganizationPoint: Story = {
+	args: {
+		models: [mockSmallWindowModel],
+		compactionTriggersByOrganizationID: mockCompactionTriggersByOrganizationID,
+	},
+	play: async ({ canvasElement }) => {
+		const row = within(canvasElement).getByRole("row", { name: /GPT-4o/i });
+		const input = within(row).getByRole("textbox", {
+			name: /GPT-4o compaction threshold/i,
+		});
+		await userEvent.type(input, "100");
+		await reopenTooltip(input);
+	},
+};
+
+export const CompactionTriggersLoadError: Story = {
+	args: {
+		models: [
+			...mockModels,
+			{
+				...mockModels[0],
+				id: "model-organization-2",
+				organization_id: MockOrganization2.id,
+			},
+		],
+		organizations: [modelsOrganization, MockOrganization2],
+		compactionTriggerLoadErrors: [
+			{
+				organizationID: MockOrganization2.id,
+				error: new Error("Network Error"),
+			},
+		],
 	},
 };
 
@@ -265,8 +421,8 @@ export const PartialSaveFailure: Story = {
 			expect(args.onSaveThreshold).toHaveBeenCalledWith("model-2", 55);
 		});
 
-		// model-2 should show an error, footer should still be visible
-		// with Save showing "Save 1 change" for the failed row
+		// model-2 should show an error, and Save should show "Save 1 change"
+		// for the failed row
 		await waitFor(() => {
 			expect(canvas.getByText("Network error")).toBeInTheDocument();
 			expect(
@@ -289,7 +445,7 @@ export const OrganizationFilter: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const filter = await canvas.findByRole("button", {
+		const filter = await canvas.findByRole("combobox", {
 			name: `Organization ${modelsOrganization.display_name}`,
 		});
 
@@ -323,9 +479,9 @@ export const OrganizationFilterScopesSaveActions: Story = {
 		await canvas.findByRole("button", { name: /Save 1 change/i });
 
 		// Switch to the other organization: the draft belongs to a hidden
-		// row, so the footer must disappear.
+		// row, so the save actions must disappear.
 		await userEvent.click(
-			canvas.getByRole("button", {
+			canvas.getByRole("combobox", {
 				name: `Organization ${modelsOrganization.display_name}`,
 			}),
 		);
@@ -351,9 +507,9 @@ export const OrganizationFilterScopesSaveActions: Story = {
 			expect(args.onSaveThreshold).not.toHaveBeenCalledWith("model-1", 95);
 		});
 
-		// Switching back restores the hidden draft and its footer.
+		// Switching back restores the hidden draft and its save action.
 		await userEvent.click(
-			canvas.getByRole("button", {
+			canvas.getByRole("combobox", {
 				name: `Organization ${MockOrganization2.display_name}`,
 			}),
 		);
@@ -366,7 +522,7 @@ export const OrganizationFilterScopesSaveActions: Story = {
 			name: /GPT-4o compaction threshold/i,
 		});
 		expect(restoredInput).toHaveValue("95");
-		// Wait out the temporary "Saved" footer state (2.5s) before the
+		// Wait out the temporary "Saved" state (2.5s) before the
 		// action buttons reappear.
 		await waitFor(
 			() => {
@@ -379,10 +535,34 @@ export const OrganizationFilterScopesSaveActions: Story = {
 	},
 };
 
+export const NoEnabledModels: Story = {
+	args: {
+		models: [],
+	},
+};
+
 export const ErrorState: Story = {
 	name: "Error",
 	args: {
 		thresholdsError: new globalThis.Error("Failed to load thresholds"),
+	},
+};
+
+export const ModelLoadErrorWhileLoading: Story = {
+	args: {
+		models: [],
+		isLoadingModels: true,
+		modelsError: new globalThis.Error(
+			"Failed to load models from one organization",
+		),
+	},
+};
+
+export const ModelLoadError: Story = {
+	args: {
+		models: [],
+		isLoadingModels: false,
+		modelsError: new globalThis.Error("Failed to load models"),
 	},
 };
 

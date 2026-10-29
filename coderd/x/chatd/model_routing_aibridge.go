@@ -11,6 +11,7 @@ import (
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/aibridge"
@@ -18,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -33,6 +35,7 @@ type modelClientRequest struct {
 type modelBuildOptions struct {
 	ActiveAPIKeyID string
 	RecordHTTP     bool
+	StageModel     chatloop.StageModel
 }
 
 func (p *Server) enabledAIProviderByID(ctx context.Context, providerID uuid.UUID) (database.AIProvider, error) {
@@ -119,12 +122,34 @@ func (a aiGatewayProviderAuth) GoString() string {
 	return a.String()
 }
 
-type aiGatewayRequestFormat int
+// stageSpanRoundTripper records a provider_attempt stage per round trip,
+// so each retry gets its own span.
+type stageSpanRoundTripper struct {
+	base       http.RoundTripper
+	stages     *chatloop.StageTracer
+	stageModel chatloop.StageModel
+}
 
-const (
-	aiGatewayRequestFormatOpenAI aiGatewayRequestFormat = iota
-	aiGatewayRequestFormatAnthropic
-)
+var _ http.RoundTripper = (*stageSpanRoundTripper)(nil)
+
+func (t *stageSpanRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	ctx, span := t.stages.Start(req.Context(), chatloop.StageProviderAttempt,
+		attribute.String(chatloop.AttrHTTPMethod, req.Method),
+	)
+	span.SetModel(t.stageModel)
+	resp, err := t.base.RoundTrip(req.WithContext(ctx))
+	if resp != nil {
+		span.SetAttributes(attribute.Int(chatloop.AttrHTTPStatusCode, resp.StatusCode))
+		if err == nil && resp.StatusCode >= http.StatusBadRequest {
+			err = xerrors.Errorf("provider returned status %d", resp.StatusCode)
+			span.End(err)
+			return resp, nil
+		}
+	}
+	// Ends on response headers; the streamed body outlives this call.
+	span.End(err)
+	return resp, err
+}
 
 type aiGatewayRoundTripper struct {
 	base         http.RoundTripper
@@ -231,6 +256,7 @@ func (p *Server) newModel(
 	if opts.RecordHTTP {
 		baseRT = &chatdebug.RecordingTransport{Base: baseRT}
 	}
+	stageRT := &stageSpanRoundTripper{base: baseRT, stages: p.stages, stageModel: opts.StageModel}
 
 	config := fantasyConfigForAIBridge(route.Provider.Type, req.ModelName)
 	openAIConfig := req.CallConfig.OpenAIConfig
@@ -247,15 +273,21 @@ func (p *Server) newModel(
 	extraHeaders := mergeConfigBetaHeaders(req.ExtraHeaders, config.ProviderHint, req.CallConfig)
 	callConfig := req.CallConfig
 	callConfig.OpenAIConfig = openAIConfig
-	return newLanguageModel(
+	model, err := newLanguageModel(
 		config.ProviderHint,
 		req.ModelName,
 		config.Keys,
 		req.UserAgent,
 		extraHeaders,
-		&http.Client{Transport: baseRT},
+		&http.Client{Transport: stageRT},
 		&callConfig,
 	)
+	if err != nil {
+		return chatprovider.Model{}, err
+	}
+	// Safe to mutate: the model has not sent a request yet.
+	stageRT.stageModel.Provider = model.Provider()
+	return model, nil
 }
 
 func coerceBedrockReasoningSummary(providerType database.AIProviderType, model string, callConfig codersdk.ChatModelCallConfig) codersdk.ChatModelCallConfig {
@@ -323,26 +355,29 @@ func bedrockIsAnthropicModel(model string) bool {
 		strings.Contains(model, ".anthropic.")
 }
 
-func fantasyConfigForAIBridge(providerType database.AIProviderType, model string) aibridgeFantasyConfig {
-	var fantasyProvider string
-	baseURL := aibridgeLocalBaseURL + "/v1"
+func aibridgeClientProvider(providerType database.AIProviderType, model string) string {
 	switch providerType {
 	case database.AIProviderTypeAnthropic:
-		fantasyProvider = fantasyanthropic.Name
-		baseURL = aibridgeLocalBaseURL
+		return fantasyanthropic.Name
 	case database.AIProviderTypeBedrock:
 		// Bedrock Mantle serves both Anthropic Messages and OpenAI Responses
 		// shapes; the model ID vendor prefix picks the wire format.
 		if bedrockIsAnthropicModel(model) {
-			fantasyProvider = fantasyanthropic.Name
-			baseURL = aibridgeLocalBaseURL
-		} else {
-			fantasyProvider = fantasyopenai.Name
+			return fantasyanthropic.Name
 		}
+		return fantasyopenai.Name
 	case database.AIProviderTypeOpenai:
-		fantasyProvider = fantasyopenai.Name
+		return fantasyopenai.Name
 	default:
-		fantasyProvider = fantasyopenaicompat.Name
+		return fantasyopenaicompat.Name
+	}
+}
+
+func fantasyConfigForAIBridge(providerType database.AIProviderType, model string) aibridgeFantasyConfig {
+	fantasyProvider := aibridgeClientProvider(providerType, model)
+	baseURL := aibridgeLocalBaseURL + "/v1"
+	if fantasyProvider == fantasyanthropic.Name {
+		baseURL = aibridgeLocalBaseURL
 	}
 	return aibridgeFantasyConfig{
 		ProviderHint: fantasyProvider,
@@ -357,26 +392,11 @@ func fantasyConfigForAIBridge(providerType database.AIProviderType, model string
 	}
 }
 
-func aiGatewayRequestFormatForProviderType(providerType database.AIProviderType, model string) aiGatewayRequestFormat {
-	switch providerType {
-	case database.AIProviderTypeAnthropic:
-		return aiGatewayRequestFormatAnthropic
-	case database.AIProviderTypeBedrock:
-		// The BYOK header shape must agree with the inferred wire format.
-		if bedrockIsAnthropicModel(model) {
-			return aiGatewayRequestFormatAnthropic
-		}
-		return aiGatewayRequestFormatOpenAI
-	default:
-		return aiGatewayRequestFormatOpenAI
-	}
-}
-
 func (p *Server) aiGatewayProviderAuthForUser(
 	ctx context.Context,
 	ownerID uuid.UUID,
 	provider database.AIProvider,
-	format aiGatewayRequestFormat,
+	clientProvider string,
 ) (aiGatewayProviderAuth, error) {
 	if !p.allowBYOK {
 		return aiGatewayProviderAuth{}, nil
@@ -397,8 +417,8 @@ func (p *Server) aiGatewayProviderAuthForUser(
 	}
 
 	headers := map[string]string{}
-	switch format {
-	case aiGatewayRequestFormatAnthropic:
+	switch clientProvider {
+	case fantasyanthropic.Name:
 		headers["X-Api-Key"] = apiKey
 	default:
 		headers["Authorization"] = "Bearer " + apiKey
@@ -417,7 +437,7 @@ func (p *Server) resolveAIGatewayRoute(
 		ctx,
 		ownerID,
 		provider,
-		aiGatewayRequestFormatForProviderType(provider.Type, model),
+		aibridgeClientProvider(provider.Type, model),
 	)
 	if err != nil {
 		return aiGatewayModelRoute{}, xerrors.Errorf("resolve AI Gateway provider auth: %w", err)

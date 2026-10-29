@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"slices"
 	"strings"
@@ -31,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentrsa"
+	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty"
@@ -73,8 +75,6 @@ const (
 // BlockedFileTransferCommands contains a list of restricted file transfer commands.
 var BlockedFileTransferCommands = []string{"nc", "rsync", "scp", "sftp"}
 
-type reportConnectionFunc func(id uuid.UUID, sessionType string, ip string) (disconnected func(code int, reason string))
-
 // startSessionFunc counts a session until endSession is called, which must
 // happen exactly once.
 type startSessionFunc func(sessionType string) (endSession func())
@@ -114,8 +114,8 @@ type Config struct {
 	BlockReversePortForwarding bool
 	// BlockLocalPortForwarding disables local port forwarding (ssh -L).
 	BlockLocalPortForwarding bool
-	// ReportConnection.
-	ReportConnection reportConnectionFunc
+	// ConnectionReporter reports connect and disconnect events.
+	ConnectionReporter proto.ConnectionReporter
 	// Experimental: allow connecting to running containers via Docker exec.
 	// Note that this is different from the devcontainers feature, which uses
 	// subagents.
@@ -181,8 +181,8 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 	if config.EnvInfo == nil {
 		config.EnvInfo = &usershell.SystemEnvInfo{}
 	}
-	if config.ReportConnection == nil {
-		config.ReportConnection = func(uuid.UUID, string, string) func(int, string) { return func(int, string) {} }
+	if config.ConnectionReporter == nil {
+		config.ConnectionReporter = &proto.NoopConnectionReporter{}
 	}
 
 	forwardHandler := &ssh.ForwardedTCPHandler{}
@@ -223,12 +223,22 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		ChannelHandlers: map[string]ssh.ChannelHandler{
 			"direct-tcpip": func(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.NewChannel, ctx ssh.Context) {
 				// Wrapper is designed to find and track JetBrains Gateway connections.
-				wrapped := NewJetbrainsChannelWatcher(ctx, s.logger, s.config.ReportConnection, newChan, s.startSession)
+				wrapped := NewJetbrainsChannelWatcher(ctx, s.logger,
+					s.config.ConnectionReporter,
+					newChan,
+					s.startSession,
+					s.isClosing,
+					s.trackChannel,
+					clientSessionIDFromContext(ctx),
+				)
 				ssh.DirectTCPIPHandler(srv, conn, wrapped, ctx)
 			},
 			"direct-streamlocal@openssh.com": func(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.NewChannel, ctx ssh.Context) {
 				if s.config.BlockLocalPortForwarding {
-					s.logger.Warn(ctx, "unix local port forward blocked")
+					s.logger.Warn(ctx, "unix local port forward blocked",
+						slog.F("remote_addr", conn.RemoteAddr()),
+						slog.F("local_addr", conn.LocalAddr()),
+						slog.F("client_session_id", clientSessionIDFromContext(ctx)))
 					_ = newChan.Reject(gossh.Prohibited, "local port forwarding is disabled")
 					return
 				}
@@ -236,18 +246,32 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 			},
 			"session": ssh.DefaultSessionHandler,
 		},
+		ConnCallback: func(ctx ssh.Context, conn net.Conn) net.Conn {
+			ctx.SetValue(clientSessionIDContextKey{}, ClientSessionIDFromConn(conn))
+			return conn
+		},
 		ConnectionFailedCallback: func(conn net.Conn, err error) {
+			// The conn here is our conn wrapped in a ssh.serverConn, so unwrap to get
+			// the client session ID from the inner conn.
+			clientSessionID := ""
+			val := reflect.ValueOf(conn)
+			if val.Kind() == reflect.Ptr {
+				val = val.Elem()
+			}
+			if val.Kind() == reflect.Struct {
+				f := val.FieldByName("Conn")
+				if f.IsValid() && f.CanInterface() {
+					if inner, ok := f.Interface().(net.Conn); ok {
+						clientSessionID = ClientSessionIDFromConn(inner)
+					}
+				}
+			}
 			s.logger.Warn(ctx, "ssh connection failed",
 				slog.F("remote_addr", conn.RemoteAddr()),
 				slog.F("local_addr", conn.LocalAddr()),
+				slog.F("client_session_id", clientSessionID),
 				slog.Error(err))
 			metrics.failedConnectionsTotal.Add(1)
-		},
-		ConnectionCompleteCallback: func(conn *gossh.ServerConn, err error) {
-			s.logger.Info(ctx, "ssh connection complete",
-				slog.F("remote_addr", conn.RemoteAddr()),
-				slog.F("local_addr", conn.LocalAddr()),
-				slog.Error(err))
 		},
 		Handler: s.sessionHandler,
 		// HostSigners are intentionally empty, as the host key will
@@ -362,33 +386,87 @@ func extractAppName(env []string) (appName, rawAppName string, filteredEnv []str
 	})
 }
 
-// sessionCloseTracker is a wrapper around Session that tracks the exit code.
-type sessionCloseTracker struct {
+// sessionTracker is a wrapper around Session that tracks the exit code and
+// transferred bytes.
+type sessionTracker struct {
 	ssh.Session
 	exitOnce sync.Once
 	code     atomic.Int64
+	rxBytes  atomic.Int64
+	txBytes  atomic.Int64
 }
 
-var _ ssh.Session = &sessionCloseTracker{}
+var _ ssh.Session = &sessionTracker{}
 
-func (s *sessionCloseTracker) track(code int) {
+func (s *sessionTracker) track(code int) {
 	s.exitOnce.Do(func() {
 		s.code.Store(int64(code))
 	})
 }
 
-func (s *sessionCloseTracker) exitCode() int {
+func (s *sessionTracker) exitCode() int {
 	return int(s.code.Load())
 }
 
-func (s *sessionCloseTracker) Exit(code int) error {
+func (s *sessionTracker) RxBytes() int64 { return s.rxBytes.Load() }
+func (s *sessionTracker) TxBytes() int64 { return s.txBytes.Load() }
+
+func (s *sessionTracker) Read(p []byte) (int, error) {
+	n, err := s.Session.Read(p)
+	if n > 0 {
+		s.rxBytes.Add(int64(n))
+	}
+	return n, err
+}
+
+func (s *sessionTracker) Write(p []byte) (int, error) {
+	n, err := s.Session.Write(p)
+	if n > 0 {
+		s.txBytes.Add(int64(n))
+	}
+	return n, err
+}
+
+func (s *sessionTracker) Exit(code int) error {
 	s.track(code)
 	return s.Session.Exit(code)
 }
 
-func (s *sessionCloseTracker) Close() error {
+func (s *sessionTracker) Close() error {
 	s.track(1)
 	return s.Session.Close()
+}
+
+func (s *sessionTracker) Stderr() io.ReadWriter {
+	return &readWriterTracker{
+		ReadWriter: s.Session.Stderr(),
+		rxBytes:    &s.rxBytes,
+		txBytes:    &s.txBytes,
+	}
+}
+
+// readWriterTracker is a wrapper around io.ReadWriter that adds bytes
+// transferred to the provided counters.
+type readWriterTracker struct {
+	io.ReadWriter
+	rxBytes *atomic.Int64
+	txBytes *atomic.Int64
+}
+
+func (rw *readWriterTracker) Read(p []byte) (int, error) {
+	n, err := rw.ReadWriter.Read(p)
+	if n > 0 {
+		rw.rxBytes.Add(int64(n))
+	}
+	return n, err
+}
+
+func (rw *readWriterTracker) Write(p []byte) (int, error) {
+	n, err := rw.ReadWriter.Write(p)
+	if n > 0 {
+		rw.txBytes.Add(int64(n))
+	}
+	return n, err
 }
 
 func extractContainerInfo(env []string) (container, containerUser string, filteredEnv []string) {
@@ -410,12 +488,16 @@ func extractContainerInfo(env []string) (container, containerUser string, filter
 func (s *Server) sessionHandler(session ssh.Session) {
 	ctx := session.Context()
 	id := uuid.New()
+	clientSessionID := clientSessionIDFromContext(ctx)
 	logger := s.logger.With(
 		slog.F("remote_addr", session.RemoteAddr()),
 		slog.F("local_addr", session.LocalAddr()),
 		// Assigning a random uuid for each session is useful for tracking
 		// logs for the same ssh session.
 		slog.F("id", id.String()),
+		// The client session ID tracks multiple SSH sessions over the lifetime of a
+		// single client (IDE) session, for debugging reconnects/disconnects.
+		slog.F("client_session_id", clientSessionID),
 	)
 	logger.Info(ctx, "handling ssh session")
 
@@ -427,6 +509,12 @@ func (s *Server) sessionHandler(session ssh.Session) {
 			slog.F("app_name", appName),
 			slog.F("raw_app_name", rawAppName),
 		)
+	}
+
+	// App-less sessions count as SSH but report no app.
+	connectionAppName := appName
+	if rawAppName == "" {
+		connectionAppName = ""
 	}
 
 	// It's not safe to assume RemoteAddr() returns a non-nil value. slog.F usage is fine because it correctly
@@ -441,8 +529,19 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	if !s.trackSession(session, true) {
 		reason := "unable to accept new session, server is closing"
 		// Report connection attempt even if we couldn't accept it.
-		disconnected := s.config.ReportConnection(id, appName, remoteAddrString)
-		defer disconnected(1, reason)
+		connReporter := s.config.ConnectionReporter.Connect(proto.ConnectEvent{
+			ID:              id,
+			Method:          proto.Connection_METHOD_SSH,
+			AppName:         connectionAppName,
+			IP:              remoteAddrString,
+			ClientSessionID: clientSessionID,
+		})
+		defer connReporter.Disconnect(proto.DisconnectEvent{
+			Code:    1,
+			Reason:  reason,
+			RxBytes: 0,
+			TxBytes: 0,
+		})
 
 		logger.Info(ctx, reason)
 		// See (*Server).Close() for why we call Close instead of Exit.
@@ -467,18 +566,36 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		var reason codersdk.DisconnectReason
 		closeCause = func(r string) { reason = codersdk.DisconnectReason(r) }
 
-		scr := &sessionCloseTracker{Session: session}
-		session = scr
+		st := &sessionTracker{Session: session}
+		session = st
 
-		disconnected := s.config.ReportConnection(id, appName, remoteAddrString)
+		connReporter := s.config.ConnectionReporter.Connect(proto.ConnectEvent{
+			ID:              id,
+			Method:          proto.Connection_METHOD_SSH,
+			AppName:         connectionAppName,
+			IP:              remoteAddrString,
+			ClientSessionID: clientSessionID,
+		})
 		defer func() {
+			fields := []slog.Field{codersdk.ConnectionDirectionAgentToClient.SlogField(), slog.F("exit_code", st.exitCode())}
+			if s.isClosing() {
+				if reason != "" && reason != codersdk.DisconnectReasonGraceful {
+					fields = append(fields, codersdk.SlogDisconnectDetail(string(reason)))
+				}
+				reason = codersdk.DisconnectReasonServerShutdown
+				fields = append(fields, serverShutdownFields()...)
+			} else {
+				fields = append(fields, reason.SlogField(), reason.SlogExpectedField())
+			}
 			logger.Info(ctx, "ssh session closed",
-				codersdk.ConnectionDirectionAgentToClient.SlogField(),
-				reason.SlogField(),
-				reason.SlogExpectedField(),
-				slog.F("exit_code", scr.exitCode()),
+				fields...,
 			)
-			disconnected(scr.exitCode(), string(reason))
+			connReporter.Disconnect(proto.DisconnectEvent{
+				Code:    st.exitCode(),
+				Reason:  string(reason),
+				RxBytes: st.RxBytes(),
+				TxBytes: st.TxBytes(),
+			})
 		}()
 	}
 
@@ -1037,8 +1154,10 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string,
 	return cmd, nil
 }
 
-// Serve starts the server to handle incoming connections on the provided listener.
-// It returns an error if no host keys are set or if there is an issue accepting connections.
+// Serve starts the server to handle incoming connections on the provided
+// listener.  It returns an error if no host keys are set or if there is an
+// issue accepting connections.  If the listener returns UpgradedConn, then the
+// client session ID will be extracted from those connections.
 func (s *Server) Serve(l net.Listener) (retErr error) {
 	// Ensure we're not mutating HostSigners as we're reading it.
 	s.mu.RLock()
@@ -1067,22 +1186,40 @@ func (s *Server) Serve(l net.Listener) (retErr error) {
 	}
 }
 
+// handleConn serves a single SSH connection.  l is the listener from which the
+// connection was accepted.  If the conn is an UpgradedConn, then the client
+// session ID will be extracted from it.
 func (s *Server) handleConn(l net.Listener, c net.Conn) {
+	clientSessionID := ClientSessionIDFromConn(c)
 	logger := s.logger.With(
 		slog.F("remote_addr", c.RemoteAddr()),
 		slog.F("local_addr", c.LocalAddr()),
-		slog.F("listen_addr", l.Addr()))
+		slog.F("listen_addr", l.Addr()),
+		slog.F("client_session_id", clientSessionID))
+
+	registered := s.trackConn(l, c, true)
+	if registered {
+		// Close must wait for the completion log, including forwarding-only
+		// connections that have no separate session completion report.
+		defer s.trackConn(l, c, false)
+	}
+	defer func() {
+		fields := []slog.Field{codersdk.ConnectionDirectionAgentToClient.SlogField()}
+		if s.isClosing() {
+			fields = append(fields, serverShutdownFields()...)
+		}
+		logger.Info(context.Background(), "ssh connection complete", fields...)
+	}()
+
 	defer c.Close()
 
-	if !s.trackConn(l, c, true) {
+	if !registered {
 		// Server is closed or we no longer want
 		// connections from this listener.
 		logger.Info(context.Background(), "received connection after server closed")
 		return
 	}
-	defer s.trackConn(l, c, false)
 	logger.Info(context.Background(), "started serving ssh connection")
-	// note: srv.ConnectionCompleteCallback logs completion of the connection
 	s.srv.HandleConn(c)
 }
 
@@ -1157,6 +1294,25 @@ func (s *Server) trackSession(ss ssh.Session, add bool) (ok bool) {
 	}
 	s.wg.Done()
 	delete(s.sessions, ss)
+	return true
+}
+
+// trackChannel registers a channel whose handler outlives its connection's
+// tracking, such as a forwarded JetBrains channel. If the server is closing,
+// the channel is not registered.
+//
+//nolint:revive // add is a control flag, matching trackConn and trackSession.
+func (s *Server) trackChannel(add bool) (ok bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if add {
+		if s.closing != nil {
+			return false
+		}
+		s.wg.Add(1)
+		return true
+	}
+	s.wg.Done()
 	return true
 }
 
@@ -1372,4 +1528,25 @@ func CoderSigner(seed int64) (gossh.Signer, error) {
 
 	coderSigner, err := gossh.NewSignerFromKey(coderHostKey)
 	return coderSigner, err
+}
+
+type clientSessionIDContextKey struct{}
+
+func clientSessionIDFromContext(ctx ssh.Context) string {
+	id, _ := ctx.Value(clientSessionIDContextKey{}).(string)
+	return id
+}
+
+// UpgradedConn is a net.Conn that has a client session ID attached.  Listeners
+// can return these to augment logs for a connection with a client session ID.
+type UpgradedConn interface {
+	net.Conn
+	ClientSessionID() string
+}
+
+func ClientSessionIDFromConn(conn net.Conn) string {
+	if uc, ok := conn.(UpgradedConn); ok {
+		return uc.ClientSessionID()
+	}
+	return ""
 }

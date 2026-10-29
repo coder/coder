@@ -1,9 +1,8 @@
-import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { chatModels, createChatModel } from "#/api/queries/chats";
+import { toast } from "#/components/Toaster/toast";
 import {
 	canManageProviderModels,
 	deriveProviderStates,
@@ -18,7 +17,7 @@ import {
 } from "../organizationModels";
 import AddModelPageView from "./AddModelPageView";
 
-const AddModelPage: FC = () => {
+const AddModelPage: React.FC = () => {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const [searchParams] = useSearchParams();

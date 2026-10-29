@@ -1,7 +1,7 @@
 import { cn } from "cn";
 import { type FormikContextType, getIn } from "formik";
 import { InfoIcon } from "lucide-react";
-import { type FC, Fragment, type ReactNode, useId } from "react";
+import { Fragment, useId } from "react";
 import { useQuery } from "react-query";
 import {
 	type FieldSchema,
@@ -129,7 +129,7 @@ type FieldRenderContext = {
 };
 
 /** Label with an optional info tooltip for field descriptions. */
-const FieldLabel: FC<{
+const FieldLabel: React.FC<{
 	htmlFor: string;
 	label: string;
 	description?: string;
@@ -152,7 +152,7 @@ const FieldLabel: FC<{
 	</Label>
 );
 
-const InputField: FC<
+const InputField: React.FC<
 	FieldRenderContext & {
 		fieldKey: string;
 		errorKey?: string;
@@ -219,7 +219,7 @@ const InputField: FC<
 	);
 };
 
-const SelectField: FC<
+const SelectField: React.FC<
 	FieldRenderContext & {
 		fieldKey: string;
 		errorKey?: string;
@@ -284,7 +284,7 @@ const SelectField: FC<
 	);
 };
 
-const SegmentedField: FC<
+const SegmentedField: React.FC<
 	FieldRenderContext & {
 		fieldKey: string;
 		errorKey?: string;
@@ -361,7 +361,7 @@ const SegmentedField: FC<
 	);
 };
 
-const JSONField: FC<
+const JSONField: React.FC<
 	FieldRenderContext & {
 		fieldKey: string;
 		errorKey?: string;
@@ -423,7 +423,7 @@ type SchemaFieldProps = FieldRenderContext & {
  * Render a single field from the schema using the appropriate
  * generic renderer based on its `input_type`.
  */
-const SchemaField: FC<SchemaFieldProps> = ({
+const SchemaField: React.FC<SchemaFieldProps> = ({
 	field,
 	fieldKey,
 	errorKey,
@@ -516,7 +516,7 @@ type ModelConfigFieldsProps = {
 	form: FormikContextType<ModelFormValues>;
 	fieldErrors: ModelConfigFormBuildResult["fieldErrors"];
 	disabled: boolean;
-	children?: ReactNode;
+	children?: React.ReactNode;
 };
 
 /**
@@ -526,7 +526,7 @@ type ModelConfigFieldsProps = {
  * Fields and their input types are driven by the auto-generated
  * schema in `api/chatModelOptions`.
  */
-export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
+export const ModelConfigFields: React.FC<ModelConfigFieldsProps> = ({
 	provider,
 	form,
 	fieldErrors,
@@ -583,7 +583,7 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 };
 
 /** Reasoning effort selects, outside Advanced. */
-export const ReasoningEffortConfigFields: FC<ModelConfigFieldsProps> = ({
+export const ReasoningEffortConfigFields: React.FC<ModelConfigFieldsProps> = ({
 	provider,
 	form,
 	fieldErrors,
@@ -621,7 +621,7 @@ export const ReasoningEffortConfigFields: FC<ModelConfigFieldsProps> = ({
 };
 
 /** See ReasoningEffortConfigFields for reasoning effort fields. */
-export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
+export const GeneralModelConfigFields: React.FC<ModelConfigFieldsProps> = ({
 	provider,
 	form,
 	fieldErrors,
@@ -685,7 +685,7 @@ const priceEstimateFields: ReadonlyArray<[string, keyof ModelCosts]> = [
 const priceOrUndefined = (micros: number | null): number | undefined =>
 	micros === null ? undefined : microsToDollars(micros);
 
-export const PricingEstimateFields: FC<{
+export const PricingEstimateFields: React.FC<{
 	provider: string;
 	model: string;
 }> = ({ provider, model }) => {

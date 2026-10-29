@@ -20,9 +20,17 @@ import "github.com/coder/coder/v2/apiversion"
 //
 // API v1.3:
 //   - Adds workspace_id to RecordInterceptionRequest and IsAuthorizedResponse.
+//   - Adds provider_model to RecordTokenUsageRequest.
+//   - Adds the authenticated user's email to IsAuthorizedResponse.
+//
+// API v1.4:
+//   - Adds organization_id to IsAuthorizedResponse.
+//
+// API v1.5:
+//   - Adds organization_id and organization_source to RecordInterceptionRequest.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 3
+	CurrentMinor = 5
 )
 
 // VersionQueryParam is the URL query parameter the standalone AI Gateway

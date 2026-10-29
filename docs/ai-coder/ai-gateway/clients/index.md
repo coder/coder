@@ -1,16 +1,16 @@
 ---
-title: Client Configuration
+title: Client configuration
 ---
 
 > [!NOTE]
-> AI Gateway is part of [AI Governance](../../ai-governance.md), which is
-> included with a Premium license.
+> AI Gateway is part of [AI Governance](../../ai-governance.md), which is included with a Premium license.
 
 Once AI Gateway is setup on your deployment, the AI coding tools used by your users will need to be configured to route requests via AI Gateway.
 
 There are two ways to connect AI tools to AI Gateway:
 
-- Base URL configuration (Recommended): Most AI tools allow customizing the base URL for API requests. This is the preferred approach when supported.
+- Base URL configuration (Recommended): Most AI tools allow customizing the base URL for API requests.
+  This is the preferred approach when supported.
 - AI Gateway Proxy: For tools that don't support base URL configuration, [AI Gateway Proxy](../ai-gateway-proxy/index.md) can intercept traffic and forward it to AI Gateway.
 
 > [!NOTE]
@@ -19,12 +19,16 @@ There are two ways to connect AI tools to AI Gateway:
 
 ## Base URLs
 
-Most AI coding tools allow the "base URL" to be customized. In other words, when a request is made to OpenAI's API from your coding tool, the API endpoint such as [`/v1/chat/completions`](https://platform.openai.com/docs/api-reference/chat) will be appended to the configured base. Therefore, instead of the default base URL of `https://api.openai.com/v1`, you'll need to set it to `https://coder.example.com/api/v2/ai-gateway/openai/v1`.
+Most AI coding tools allow the "base URL" to be customized.
+In other words, when a request is made to OpenAI's API from your coding tool, the API endpoint such as [`/v1/chat/completions`](https://platform.openai.com/docs/api-reference/chat) will be appended to the configured base.
+Therefore, instead of the default base URL of `https://api.openai.com/v1`, you'll need to set it to `https://coder.example.com/api/v2/ai-gateway/openai/v1`.
 
 The exact configuration method varies by client, some use environment variables, others use configuration files or UI settings:
 
-- **OpenAI-compatible clients**: Set the base URL (commonly via the `OPENAI_BASE_URL` environment variable) to `https://coder.example.com/api/v2/ai-gateway/openai/v1`
-- **Anthropic-compatible clients**: Set the base URL (commonly via the `ANTHROPIC_BASE_URL` environment variable) to `https://coder.example.com/api/v2/ai-gateway/anthropic`
+- **OpenAI-compatible clients**:
+  Set the base URL (commonly via the `OPENAI_BASE_URL` environment variable) to `https://coder.example.com/api/v2/ai-gateway/openai/v1`
+- **Anthropic-compatible clients**:
+  Set the base URL (commonly via the `ANTHROPIC_BASE_URL` environment variable) to `https://coder.example.com/api/v2/ai-gateway/anthropic`
 
 Replace `coder.example.com` with your actual Coder deployment URL.
 
@@ -66,9 +70,11 @@ The table below shows tested AI clients and their compatibility with AI Gateway.
 
 AI coding tools running inside a Coder workspace, such as IDE extensions, can be configured to use AI Gateway.
 
-This section applies when you want template admins to preconfigure tools inside Coder workspaces. For tools running outside of a workspace, see [External and Desktop Clients](#external-and-desktop-clients).
+This section applies when you want template admins to preconfigure tools inside Coder workspaces.
+For tools running outside of a workspace, see [External and Desktop Clients](#external-and-desktop-clients).
 
-While users can manually configure these tools with a long-lived API key, template admins can provide a more seamless experience by pre-configuring them. Admins can automatically inject the user's session token with `data.coder_workspace_owner.me.session_token` and the AI Gateway base URL into the workspace environment.
+While users can manually configure these tools with a long-lived API key, template admins can provide a more seamless experience by pre-configuring them.
+Admins can automatically inject the user's session token with `data.coder_workspace_owner.me.session_token` and the AI Gateway base URL into the workspace environment.
 
 In this example, Claude Code respects these environment variables and will route all requests via AI Gateway.
 
@@ -91,18 +97,20 @@ resource "coder_agent" "dev" {
 
 ## External and Desktop Clients
 
-You can also configure AI tools running outside of a Coder workspace, such as local IDE extensions or desktop applications, to connect to AI Gateway. Use the same settings as the in-workspace case, configure the [base URL](#base-urls) and authenticate with a Coder API token.
+You can also configure AI tools running outside of a Coder workspace, such as local IDE extensions or desktop applications, to connect to AI Gateway.
+Use the same settings as the in-workspace case, configure the [base URL](#base-urls) and authenticate with a Coder API token.
 
 For base URL setup, the client machine must have network access to the gateway endpoint on your Coder deployment.
 Clients using [AI Gateway Proxy](../ai-gateway-proxy/index.md) must be able to reach the proxy endpoint and trust its CA certificate.
 
-Users can generate a long-lived API token from the Coder UI or CLI. Follow the instructions at [Sessions and API tokens](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself) to create one.
+Users can generate a long-lived API token from the Coder UI or CLI.
+Follow the instructions at [Sessions and API tokens](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself) to create one.
 
 For headless scenarios, first [create a service account](../../../admin/users/headless-auth.md#create-a-service-account), then generate a long-lived token for it.
 
 <details>
 <summary>Example</summary>
-For clients supporting [base URL](#base-urls), eg. [Claude Code](./claude-code.md):
+For clients supporting [base URL](#base-urls), for example, [Claude Code](./claude-code.md):
 
 ```sh
 export ANTHROPIC_BASE_URL="https://coder.example.com/api/v2/ai-gateway/anthropic"
@@ -111,7 +119,8 @@ export ANTHROPIC_AUTH_TOKEN="<your-coder-api-token>"
 
 Replace `coder.example.com` with your Coder deployment URL.
 
-For other clients setup [AI Gateway Proxy](../ai-gateway-proxy/index.md). Configure the proxy endpoint and [CA certificates](../ai-gateway-proxy/setup.md#environment-variables):
+For other clients setup [AI Gateway Proxy](../ai-gateway-proxy/index.md).
+Configure the proxy endpoint and [CA certificates](../ai-gateway-proxy/setup.md#environment-variables):
 
 ```sh
 export HTTPS_PROXY="https://coder:<your-coder-api-token>@<proxy-host>:8888"

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import dayjs from "dayjs";
 import {
 	AppWindowIcon,
@@ -13,17 +14,9 @@ import {
 	WrenchIcon,
 } from "lucide-react";
 import prettyBytes from "pretty-bytes";
-import {
-	type FC,
-	Fragment,
-	memo,
-	type PropsWithChildren,
-	type ReactNode,
-	useEffect,
-	useMemo,
-	useState,
-} from "react";
+import { Fragment, memo, useEffect, useMemo, useState } from "react";
 import { Link as RouterLink } from "react-router";
+import { appFamilyDisplayNames } from "#/api/appFamiliesGenerated";
 import {
 	type AppFamilyName,
 	AppFamilyNames,
@@ -46,13 +39,17 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { getDisplayWorkspaceStatus } from "#/utils/workspace";
 
+/** Unstyled native button so text-only tooltip triggers are keyboard focusable. */
+const tooltipTriggerClassName =
+	"m-0 border-0 bg-transparent p-0 font-mono text-xs text-inherit cursor-default rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link";
+
 type DeploymentBannerViewProps = {
 	health?: HealthcheckReport;
 	stats?: DeploymentStats;
 	fetchStats?: () => void;
 };
 
-export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
+export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 	health,
 	stats,
 	fetchStats,
@@ -93,16 +90,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 		};
 	}, [fetchStats, stats]);
 
-	const lastAggregated = useMemo(() => {
-		if (!stats) {
-			return;
-		}
-		if (!fetchStats) {
-			// Storybook!
-			return "just now";
-		}
-		return dayjs().to(dayjs(stats.collected_at));
-	}, [timeUntilRefresh, stats, fetchStats]);
+	const lastAggregated = formatLastAggregated(stats, Boolean(fetchStats));
 
 	const healthErrors = health ? getHealthErrors(health) : [];
 	const displayLatency = stats?.workspaces.connection_latency_ms.P50 || -1;
@@ -130,12 +118,17 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 								</RouterLink>
 							</Link>
 						) : (
-							<div
-								className="flex h-full items-center justify-center pl-3"
+							<button
+								type="button"
+								aria-label="Deployment status"
+								className={cn(
+									tooltipTriggerClassName,
+									"ml-3 flex items-center justify-center",
+								)}
 								data-testid="deployment-health-trigger"
 							>
 								<RocketIcon className="size-icon-sm" />
-							</div>
+							</button>
 						)}
 					</TooltipTrigger>
 					<TooltipContent
@@ -194,7 +187,15 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 				<TooltipProvider delayDuration={100}>
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<div className="mr-4 text-content-primary">Transmission</div>
+							<button
+								type="button"
+								className={cn(
+									tooltipTriggerClassName,
+									"mr-4 text-content-primary",
+								)}
+							>
+								Transmission
+							</button>
 						</TooltipTrigger>
 						<TooltipContent>
 							{`Activity in the last ~${aggregatedMinutes} minutes`}
@@ -205,10 +206,16 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 					<TooltipProvider delayDuration={100}>
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<div className="flex items-center gap-1">
+								<button
+									type="button"
+									className={cn(
+										tooltipTriggerClassName,
+										"flex items-center gap-1",
+									)}
+								>
 									<CloudDownloadIcon className="size-icon-xs" />
 									{stats ? prettyBytes(stats.workspaces.rx_bytes) : "-"}
-								</div>
+								</button>
 							</TooltipTrigger>
 							<TooltipContent>Data sent to workspaces</TooltipContent>
 						</Tooltip>
@@ -217,10 +224,16 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 					<TooltipProvider delayDuration={100}>
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<div className="flex items-center gap-1">
+								<button
+									type="button"
+									className={cn(
+										tooltipTriggerClassName,
+										"flex items-center gap-1",
+									)}
+								>
 									<CloudUploadIcon className="size-icon-xs" />
 									{stats ? prettyBytes(stats.workspaces.tx_bytes) : "-"}
-								</div>
+								</button>
 							</TooltipTrigger>
 							<TooltipContent>Data sent from workspaces</TooltipContent>
 						</Tooltip>
@@ -229,12 +242,18 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 					<TooltipProvider delayDuration={100}>
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<div className="flex items-center gap-1">
+								<button
+									type="button"
+									className={cn(
+										tooltipTriggerClassName,
+										"flex items-center gap-1",
+									)}
+								>
 									<GaugeIcon className="size-icon-xs" />
 									{displayLatency > 0
 										? `${displayLatency?.toFixed(2)} ms`
 										: "-"}
-								</div>
+								</button>
 							</TooltipTrigger>
 							<TooltipContent>
 								{displayLatency < 0
@@ -252,10 +271,16 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 				<TooltipProvider delayDuration={100}>
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<div className="flex items-center gap-1">
+							<button
+								type="button"
+								className={cn(
+									tooltipTriggerClassName,
+									"flex items-center gap-1",
+								)}
+							>
 								<GitCompareArrowsIcon className="size-icon-xs" />
 								{lastAggregated}
-							</div>
+							</button>
 						</TooltipTrigger>
 						<TooltipContent
 							className="max-w-xs"
@@ -298,31 +323,31 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 };
 
 /**
- * Banner slots in bar order. A family added in Go fails typecheck until it
- * gets a slot here, or null to total under Other.
+ * Banner slot icons in bar order. A family added in Go fails typecheck until
+ * it gets a slot here, or null to total under Other.
  */
 const SESSION_FAMILIES = {
-	vscode: {
-		name: "Visual Studio Code",
-		icon: <ExternalImage src="/icon/code.svg" className="size-icon-xs" />,
-	},
-	jetbrains: {
-		name: "JetBrains",
-		icon: <ExternalImage src="/icon/jetbrains.svg" className="size-icon-xs" />,
-	},
-	ssh: { name: "SSH", icon: <SquareTerminalIcon className="size-icon-xs" /> },
-	reconnecting_pty: {
-		name: "Web Terminal",
-		icon: <AppWindowIcon className="size-icon-xs" />,
-	},
-	unknown: { name: "Other", icon: <BlocksIcon className="size-icon-xs" /> },
+	vscode: <ExternalImage src="/icon/code.svg" className="size-icon-xs" />,
+	jetbrains: (
+		<ExternalImage src="/icon/jetbrains.svg" className="size-icon-xs" />
+	),
+	ssh: <SquareTerminalIcon className="size-icon-xs" />,
+	reconnecting_pty: <AppWindowIcon className="size-icon-xs" />,
+	unknown: <BlocksIcon className="size-icon-xs" />,
 	sftp: null,
-} satisfies Record<AppFamilyName, { name: string; icon: ReactNode } | null>;
+	port_forwarding: null,
+} satisfies Record<AppFamilyName, React.ReactNode>;
 
 const FAMILY_SLOTS = Object.entries(SESSION_FAMILIES).flatMap(
-	([name, slot]) => {
+	([name, icon]) => {
 		const key = AppFamilyNames.find((family) => family === name);
-		return key && slot ? [{ key, ...slot }] : [];
+		if (!key || !icon) {
+			return [];
+		}
+		// The unknown slot also totals the families without a slot, so it is
+		// labeled as a catch-all rather than with the Unknown family name.
+		const label = key === "unknown" ? "Other" : appFamilyDisplayNames[key];
+		return [{ key, name: label, icon }];
 	},
 );
 
@@ -420,7 +445,10 @@ const ActiveConnections = memo(
 );
 
 /** Renders an app's icon and name. Only bundled "/icon/" paths load. */
-const AppLabel: FC<{ icon?: string; name: string }> = ({ icon, name }) => (
+const AppLabel: React.FC<{ icon?: string; name: string }> = ({
+	icon,
+	name,
+}) => (
 	<>
 		{icon?.startsWith("/icon/") ? (
 			<ExternalImage src={icon} className="size-icon-xs shrink-0" />
@@ -436,7 +464,7 @@ type WorkspaceBuildValueProps = {
 	count?: number;
 };
 
-const WorkspaceBuildValue: FC<WorkspaceBuildValueProps> = ({
+const WorkspaceBuildValue: React.FC<WorkspaceBuildValueProps> = ({
 	status,
 	count,
 }) => {
@@ -469,17 +497,30 @@ const WorkspaceBuildValue: FC<WorkspaceBuildValueProps> = ({
 	);
 };
 
-const ValueSeparator: FC = () => {
+const ValueSeparator: React.FC = () => {
 	return <div className="text-content-disabled self-center">/</div>;
 };
 
-const HealthIssue: FC<PropsWithChildren> = ({ children }) => {
+const HealthIssue: React.FC<React.PropsWithChildren> = ({ children }) => {
 	return (
 		<div className="flex items-center gap-1">
 			<CircleAlertIcon className="size-icon-sm text-border-destructive" />
 			{children}
 		</div>
 	);
+};
+
+const formatLastAggregated = (
+	stats: DeploymentStats | undefined,
+	isLive: boolean,
+): string | undefined => {
+	if (!stats) {
+		return undefined;
+	}
+	if (!isLive) {
+		return "just now";
+	}
+	return dayjs().to(dayjs(stats.collected_at));
 };
 
 const getHealthErrors = (health: HealthcheckReport) => {

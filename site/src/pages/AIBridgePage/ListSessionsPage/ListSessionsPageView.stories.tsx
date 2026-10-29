@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ComponentProps } from "react";
 import { fn } from "storybook/test";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import {
@@ -13,7 +12,9 @@ import {
 import { MockSession } from "#/testHelpers/entities";
 import { ListSessionsPageView } from "./ListSessionsPageView";
 
-type FilterProps = ComponentProps<typeof ListSessionsPageView>["filterProps"];
+type FilterProps = React.ComponentProps<
+	typeof ListSessionsPageView
+>["filterProps"];
 
 const timeRange: DateTimeRangeValue = {
 	start: new Date("2026-08-12T15:00:00Z"),
@@ -106,7 +107,7 @@ export const MultipleSessions: Story = {
 			providers: i % 2 === 0 ? ["anthropic", "openai"] : ["anthropic"],
 			last_prompt: [
 				"But *can* I really fix it?",
-				"Can you refactor the entire authentication module to use JWT tokens instead of session cookies?",
+				"Can you refactor the entire authentication module to use JWT tokens instead of session cookies? Keep the existing middleware signatures, migrate the stored sessions, and add tests for token expiry and refresh.",
 				"What's the best way to handle errors in Go?",
 				"Help me write a Terraform module for a Kubernetes cluster.",
 				"Explain how the agentic loop works in this codebase.",

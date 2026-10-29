@@ -4,7 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"io"
 	"net/http"
+	"strings"
+	"sync/atomic"
 	"testing"
 
 	"charm.land/fantasy"
@@ -91,17 +94,26 @@ func (s *advisorOverrideStubStore) GetAIProviderKeysByProviderID(
 	return s.getAIProviderKeysByProviderID(ctx, providerID)
 }
 
+// newAdvisorTestServer builds a Server literal instead of calling New because
+// New wires services (debug logging, BYOK) that query the stub store.
 func newAdvisorTestServer(
 	ctx context.Context,
 	t *testing.T,
 	store database.Store,
+	opts ...internalTestServerOpt,
 ) *Server {
 	t.Helper()
+	var cfg internalTestServerConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
 	clock := quartz.NewMock(t)
 	return &Server{
-		db:          store,
-		logger:      slog.Make(),
-		configCache: newChatConfigCache(ctx, store, clock),
+		db:                       store,
+		logger:                   slog.Make(),
+		configCache:              newChatConfigCache(ctx, store, clock),
+		aibridgeTransportFactory: cfg.transportFactory,
+		chatLimits:               cfg.limits.withDefaults(),
 	}
 }
 
@@ -382,12 +394,19 @@ func TestNewAdvisorRuntime(t *testing.T) {
 
 	logger := slog.Make()
 
-	newChatModelRuntime := func(t *testing.T, advisorCfg advisorRuntimeConfig, options json.RawMessage) *chatadvisor.Runtime {
+	newChatModelRuntime := func(
+		t *testing.T,
+		advisorCfg advisorRuntimeConfig,
+		options json.RawMessage,
+		opts ...internalTestServerOpt,
+	) *chatadvisor.Runtime {
 		t.Helper()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		chat, store := advisorChatModelFixture(t, options)
-		p := newAdvisorTestServer(ctx, t, store)
-		p.aibridgeTransportFactory = aibridgeTestFactoryPointer(advisorTestTransportFactory())
+		opts = append([]internalTestServerOpt{
+			withInternalTestServerTransportFactory(advisorTestTransportFactory()),
+		}, opts...)
+		p := newAdvisorTestServer(ctx, t, store, opts...)
 
 		rt, err := p.newAdvisorRuntime(
 			ctx,
@@ -400,17 +419,92 @@ func TestNewAdvisorRuntime(t *testing.T) {
 		return rt
 	}
 
-	t.Run("ZeroMaxUsesDefaultsToMaxChatSteps", func(t *testing.T) {
+	// rejectRequests stores each provider request body in body and rejects
+	// the request, so an advisor call ends after one request.
+	rejectRequests := func(body *atomic.Pointer[[]byte]) internalTestServerOpt {
+		return withInternalTestServerTransportFactory(&aibridgeTestFactory{
+			rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				raw, err := io.ReadAll(req.Body)
+				if err != nil {
+					return nil, err
+				}
+				body.Store(&raw)
+				return &http.Response{StatusCode: http.StatusBadRequest, Body: http.NoBody}, nil
+			}),
+		})
+	}
+
+	type advisorRequest struct {
+		MaxOutputTokens int64  `json:"max_output_tokens"`
+		User            string `json:"user"`
+		Reasoning       struct {
+			Effort string `json:"effort"`
+		} `json:"reasoning"`
+	}
+
+	sendAdvisorRequest := func(t *testing.T, rt *chatadvisor.Runtime, body *atomic.Pointer[[]byte]) advisorRequest {
+		t.Helper()
+		_, err := rt.RunAdvisor(testutil.Context(t, testutil.WaitMedium), "advice?", nil, nil)
+		require.NoError(t, err)
+		require.NotNil(t, body.Load(), "the advisor call must reach the provider")
+		var req advisorRequest
+		require.NoError(t, json.Unmarshal(*body.Load(), &req))
+		return req
+	}
+
+	t.Run("ZeroMaxUsesFollowsStepLimit", func(t *testing.T) {
 		t.Parallel()
 
+		tests := []struct {
+			name   string
+			limits Limits
+			want   int
+		}{
+			{name: "Default", want: codersdk.DefaultChatMaxStepsPerTurn},
+			{name: "Configured", limits: Limits{MaxStepsPerTurn: 7}, want: 7},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				rt := newChatModelRuntime(t, advisorRuntimeConfig{
+					Enabled:         true,
+					MaxUsesPerRun:   0,
+					MaxOutputTokens: 16384,
+				}, nil, withInternalTestServerLimits(tt.limits))
+				require.NotNil(t, rt, "zero max uses must default rather than bail out")
+				require.Equal(t, tt.want, rt.RemainingUses())
+			})
+		}
+	})
+
+	t.Run("NestedCallsFollowConfiguredRetries", func(t *testing.T) {
+		t.Parallel()
+
+		var requests atomic.Int32
+		factory := &aibridgeTestFactory{rt: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			requests.Add(1)
+			return &http.Response{
+				StatusCode: http.StatusTooManyRequests,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"rate limited","type":"rate_limit_error"}}`)),
+			}, nil
+		})}
 		rt := newChatModelRuntime(t, advisorRuntimeConfig{
 			Enabled:         true,
-			MaxUsesPerRun:   0,
+			MaxUsesPerRun:   1,
 			MaxOutputTokens: 16384,
-		}, nil)
-		require.NotNil(t, rt, "zero max uses must default rather than bail out")
-		require.Equal(t, maxChatSteps, rt.RemainingUses(),
-			"zero max uses must be replaced with maxChatSteps")
+		}, nil,
+			withInternalTestServerTransportFactory(factory),
+			withInternalTestServerLimits(Limits{MaxGenerationRetries: 1}),
+		)
+		require.NotNil(t, rt)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		result, err := rt.RunAdvisor(ctx, "flaky?", nil, nil)
+		require.NoError(t, err)
+		require.Equal(t, chatadvisor.ResultTypeError, result.Type)
+		require.EqualValues(t, 2, requests.Load(), "one configured retry allows exactly two provider requests")
 	})
 
 	t.Run("NegativeMaxUsesReturnsNil", func(t *testing.T) {
@@ -439,15 +533,16 @@ func TestNewAdvisorRuntime(t *testing.T) {
 	t.Run("ZeroMaxOutputTokensDefaults", func(t *testing.T) {
 		t.Parallel()
 
+		var body atomic.Pointer[[]byte]
 		rt := newChatModelRuntime(t, advisorRuntimeConfig{
 			Enabled:         true,
 			MaxUsesPerRun:   3,
 			MaxOutputTokens: 0,
-		}, nil)
+		}, nil, rejectRequests(&body))
 		require.NotNil(t, rt,
 			"zero max output tokens must default to defaultAdvisorMaxOutputTokens, not disable the advisor")
 		require.Equal(t, 3, rt.RemainingUses())
-		require.Equal(t, int64(defaultAdvisorMaxOutputTokens), rt.MaxOutputTokens(),
+		require.EqualValues(t, defaultAdvisorMaxOutputTokens, sendAdvisorRequest(t, rt, &body).MaxOutputTokens,
 			"zero max output tokens must be replaced with defaultAdvisorMaxOutputTokens")
 	})
 
@@ -492,13 +587,15 @@ func TestNewAdvisorRuntime(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		var body atomic.Pointer[[]byte]
 		rt := newChatModelRuntime(t, advisorRuntimeConfig{
 			Enabled:         true,
 			MaxUsesPerRun:   3,
 			MaxOutputTokens: 16384,
-		}, options)
+		}, options, rejectRequests(&body))
 		require.NotNil(t, rt)
-		requireOpenAIUserOption(t, rt.ProviderOptions(), "advisor-user")
-		requireOpenAIReasoningEffort(t, rt.ProviderOptions(), codersdk.ChatModelReasoningEffortHigh)
+		req := sendAdvisorRequest(t, rt, &body)
+		require.Equal(t, "advisor-user", req.User)
+		require.Equal(t, codersdk.ChatModelReasoningEffortHigh, req.Reasoning.Effort)
 	})
 }

@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ComponentProps, FC, PropsWithChildren } from "react";
 import { PaginationContainer } from "./PaginationContainer";
 import {
 	mockInitialRenderResult,
@@ -7,19 +6,19 @@ import {
 } from "./PaginationContainer.mocks";
 
 // Filtering out optional <div> props to give better auto-complete experience
-type EssentialComponent = FC<
+type EssentialComponent = React.FC<
 	Omit<
-		ComponentProps<typeof PaginationContainer>,
-		keyof ComponentProps<"div">
+		React.ComponentProps<typeof PaginationContainer>,
+		keyof React.ComponentProps<"div">
 	> &
-		PropsWithChildren
+		React.PropsWithChildren
 >;
 
 const meta: Meta<EssentialComponent> = {
 	title: "components/PaginationContainer",
 	component: PaginationContainer,
 	args: {
-		paginationUnitLabel: "puppies",
+		paginationUnitLabel: { singular: "puppy", plural: "puppies" },
 		children: <div>Put any content here</div>,
 	},
 };
@@ -58,6 +57,32 @@ export const FirstPageWithLittleData: Story = {
 			totalPages: 1,
 			hasPreviousPage: false,
 			hasNextPage: false,
+			isPlaceholderData: false,
+		},
+	},
+};
+
+export const SingleResult: Story = {
+	args: {
+		query: {
+			...mockPaginationResultBase,
+			currentOffsetStart: 1,
+			totalRecords: 1,
+			totalPages: 1,
+			isPlaceholderData: false,
+		},
+	},
+};
+
+export const LastPageWithOneResult: Story = {
+	args: {
+		query: {
+			...mockPaginationResultBase,
+			currentPage: 2,
+			currentOffsetStart: 26,
+			totalRecords: 26,
+			totalPages: 2,
+			hasPreviousPage: true,
 			isPlaceholderData: false,
 		},
 	},
@@ -122,6 +147,20 @@ export const SecondPageWithData: Story = {
 			isPlaceholderData: false,
 		},
 		children: <div>New data for page 2</div>,
+	},
+};
+
+export const CappedCountOfOne: Story = {
+	args: {
+		query: {
+			...mockPaginationResultBase,
+			currentOffsetStart: 1,
+			totalRecords: 1,
+			totalPages: 1,
+			hasNextPage: true,
+			isPlaceholderData: false,
+			countIsCapped: true,
+		},
 	},
 };
 

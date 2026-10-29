@@ -1,12 +1,13 @@
 import DOMPurify from "dompurify";
 import { Maximize2Icon, TriangleAlertIcon } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useIsCodeFenceIncomplete } from "streamdown";
 import { getErrorMessage } from "#/api/errors";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useTheme } from "#/theme/context";
 import { generateUUID } from "#/utils/random";
 import { Lightbox } from "../Lightbox";
+import { LightboxSlot, useLightbox } from "../LightboxHost";
 
 type RenderState =
 	| { status: "pending" }
@@ -17,7 +18,7 @@ type MermaidDiagramProps = {
 	source: string;
 	/** Rendered below the error message so the viewer can still read
 	 * the diagram source when Mermaid rejects it. */
-	fallback: ReactNode;
+	fallback: React.ReactNode;
 };
 
 // Elements that can trigger a network request or navigation when the
@@ -97,7 +98,7 @@ export const MermaidDiagram = ({ source, fallback }: MermaidDiagramProps) => {
 	const isDark = theme.palette.mode === "dark";
 	const isIncomplete = useIsCodeFenceIncomplete();
 	const [state, setState] = useState<RenderState>({ status: "pending" });
-	const [expanded, setExpanded] = useState(false);
+	const { openLightbox, lightbox } = useLightbox();
 	const triggerRef = useRef<HTMLButtonElement>(null);
 
 	useEffect(() => {
@@ -129,10 +130,10 @@ export const MermaidDiagram = ({ source, fallback }: MermaidDiagramProps) => {
 
 	if (state.status === "error") {
 		return (
-			<div className="my-4 overflow-hidden rounded-md border border-solid border-border-default">
+			<div className="my-4 overflow-hidden rounded-md border border-solid border-border">
 				<div
 					role="alert"
-					className="flex items-start gap-2 border-0 border-b border-solid border-border-default bg-surface-orange px-3 py-2 text-xs text-content-warning"
+					className="flex items-start gap-2 border-0 border-b border-solid border-border bg-surface-orange px-3 py-2 text-xs text-content-warning"
 				>
 					<TriangleAlertIcon aria-hidden className="mt-0.5 size-3.5 shrink-0" />
 					<div className="min-w-0">
@@ -153,7 +154,7 @@ export const MermaidDiagram = ({ source, fallback }: MermaidDiagramProps) => {
 		return (
 			<div
 				role="status"
-				className="my-4 flex min-h-40 items-center justify-center gap-2 rounded-md border border-solid border-border-default bg-surface-primary text-xs text-content-secondary"
+				className="my-4 flex min-h-40 items-center justify-center gap-2 rounded-md border border-solid border-border bg-surface-primary text-xs text-content-secondary"
 			>
 				<Spinner loading size="sm" />
 				Rendering diagram
@@ -167,35 +168,42 @@ export const MermaidDiagram = ({ source, fallback }: MermaidDiagramProps) => {
 				ref={triggerRef}
 				type="button"
 				aria-label="View diagram full size"
-				onClick={() => setExpanded(true)}
-				className="group relative my-4 block w-full cursor-zoom-in overflow-x-auto rounded-md border border-solid border-border-default bg-surface-primary p-4 text-left hover:border-border-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-content-link"
+				onClick={() =>
+					openLightbox((close) => (
+						<Lightbox
+							title="Diagram preview"
+							onClose={close}
+							onCloseAutoFocus={(event) => {
+								event.preventDefault();
+								triggerRef.current?.focus();
+							}}
+						>
+							<div
+								style={{ width: fittedWidth(state.svg) }}
+								className="max-h-[85vh] max-w-[90vw] overflow-auto rounded-md border border-solid border-border bg-surface-primary p-6 [&>svg]:block [&>svg]:h-auto [&>svg]:w-full [&>svg]:!max-w-none"
+								// oxlint-disable-next-line react/no-danger -- DOMPurify sanitizes the SVG.
+								dangerouslySetInnerHTML={{ __html: state.svg }}
+							/>
+						</Lightbox>
+					))
+				}
+				className="group relative my-4 block w-full cursor-zoom-in overflow-x-auto rounded-md border border-solid border-border bg-surface-primary p-4 text-left hover:border-border-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-content-link"
 			>
 				<span
 					className="block [&>svg]:mx-auto [&>svg]:block [&>svg]:h-auto [&>svg]:max-w-full"
 					// Output is sanitized by DOMPurify before it reaches React, so
 					// the only HTML here is Mermaid's own SVG markup.
+					// oxlint-disable-next-line react/no-danger -- DOMPurify sanitizes the SVG.
 					dangerouslySetInnerHTML={{ __html: state.svg }}
 				/>
 				<span
 					aria-hidden
-					className="absolute right-2 top-2 rounded-md border border-solid border-border-default bg-surface-secondary p-1 text-content-secondary opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+					className="absolute right-2 top-2 rounded-md border border-solid border-border bg-surface-secondary p-1 text-content-secondary opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
 				>
 					<Maximize2Icon className="size-3.5" />
 				</span>
 			</button>
-			{expanded && (
-				<Lightbox
-					title="Diagram preview"
-					onClose={() => setExpanded(false)}
-					onCloseAutoFocus={() => triggerRef.current?.focus()}
-				>
-					<div
-						style={{ width: fittedWidth(state.svg) }}
-						className="max-h-[85vh] max-w-[90vw] overflow-auto rounded-md border border-solid border-border-default bg-surface-primary p-6 [&>svg]:block [&>svg]:h-auto [&>svg]:w-full [&>svg]:!max-w-none"
-						dangerouslySetInnerHTML={{ __html: state.svg }}
-					/>
-				</Lightbox>
-			)}
+			<LightboxSlot lightbox={lightbox} />
 		</>
 	);
 };

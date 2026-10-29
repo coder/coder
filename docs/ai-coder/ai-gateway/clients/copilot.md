@@ -3,8 +3,7 @@ title: GitHub Copilot
 ---
 
 > [!NOTE]
-> AI Gateway is part of [AI Governance](../../ai-governance.md), which is
-> included with a Premium license.
+> AI Gateway is part of [AI Governance](../../ai-governance.md), which is included with a Premium license.
 
 [GitHub Copilot](https://github.com/features/copilot) is an AI coding assistant that doesn't support custom base URLs but does respect proxy configurations.
 This makes it compatible with [AI Gateway Proxy](../ai-gateway-proxy/index.md), which integrates with [AI Gateway](../index.md) for full access to auditing and governance features.
@@ -53,7 +52,7 @@ cat coder-ai-gateway-proxy-ca.pem listener.crt > combined-ca.pem
 export NODE_EXTRA_CA_CERTS="/path/to/combined-ca.pem"
 ```
 
-Copilot CLI may start MCP server processes that use runtimes other than Node.js (e.g. Go).
+Copilot CLI may start MCP server processes that use runtimes other than Node.js (for example, Go).
 These processes inherit environment variables like `HTTPS_PROXY` but may not respect `NODE_EXTRA_CA_CERTS`.
 Adding the TLS certificate to the [system trust store](../ai-gateway-proxy/setup.md#system-trust-store) ensures all processes trust it.
 
@@ -94,7 +93,7 @@ For more details, see [Configuring proxy settings for Copilot](https://docs.gith
 Add the AI Gateway Proxy CA certificate to your operating system's trust store.
 By default, VS Code loads system certificates, controlled by the `http.systemCertificates` setting.
 
-Check out [Client Configuration CA certificate trust](../ai-gateway-proxy/setup.md#trust-the-ca-certificate) for details on how to obtain the certificate file.
+Refer to [Client Configuration CA certificate trust](../ai-gateway-proxy/setup.md#trust-the-ca-certificate) for details on how to obtain the certificate file.
 
 When [TLS is enabled](../ai-gateway-proxy/setup.md#proxy-tls-configuration) on the proxy, add the TLS certificate to the system trust store as well.
 

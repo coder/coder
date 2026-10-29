@@ -1,5 +1,4 @@
 import {
-	type FC,
 	useCallback,
 	useEffect,
 	useEffectEvent,
@@ -22,6 +21,7 @@ import type {
 	DynamicParametersRequest,
 	DynamicParametersResponse,
 	MinimalUser,
+	Preset,
 	Workspace,
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -43,7 +43,9 @@ import {
 const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
 
-const CreateWorkspacePage: FC = () => {
+const emptyPresets: readonly Preset[] = [];
+
+const CreateWorkspacePage: React.FC = () => {
 	const { organization: organizationName = "default", template: templateName } =
 		useParams() as { organization?: string; template: string };
 	const { user: me } = useAuthenticated();
@@ -113,7 +115,7 @@ const CreateWorkspacePage: FC = () => {
 
 	const effectivePresetName = mode === "duplicate" ? undefined : presetName;
 
-	const presets = templateVersionPresetsQuery.data ?? [];
+	const presets = templateVersionPresetsQuery.data ?? emptyPresets;
 
 	const urlPresetResult = useMemo(() => {
 		if (!effectivePresetName) return { preset: undefined, error: undefined };
@@ -389,12 +391,13 @@ const CreateWorkspacePage: FC = () => {
 		}
 	}, [autoCreateReady]);
 
+	const { parameters } = latestResponse ?? {};
 	const sortedParams = useMemo(() => {
-		if (!latestResponse?.parameters) {
+		if (!parameters) {
 			return [];
 		}
-		return [...latestResponse.parameters].sort((a, b) => a.order - b.order);
-	}, [latestResponse?.parameters]);
+		return [...parameters].sort((a, b) => a.order - b.order);
+	}, [parameters]);
 
 	const isInitializing =
 		!latestResponse ||

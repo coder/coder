@@ -1,5 +1,7 @@
+import { cn } from "cn";
 import { SearchIcon } from "lucide-react";
-import { type FC, type PropsWithChildren, useMemo, useState } from "react";
+import { RadioGroup } from "radix-ui";
+import { useMemo, useState } from "react";
 import { useQuery } from "react-query";
 import { templateBuilderModules } from "#/api/queries/templateBuilder";
 import type {
@@ -10,8 +12,6 @@ import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { SearchField } from "#/components/SearchField/SearchField";
-import { Tabs, TabsList, TabsTrigger } from "#/components/Tabs/Tabs";
-import { useKebabMenu } from "#/components/Tabs/utils/useKebabMenu";
 import { useFuzzySearch } from "#/pages/TemplateBuilder/hooks/useFuzzySearch";
 import {
 	TemplateBuilderSubtitle,
@@ -33,6 +33,8 @@ type ModuleSelectStepProps = {
 	) => void;
 };
 
+const emptyModules: readonly TemplateBuilderModule[] = [];
+
 function toMeta(m: TemplateBuilderModule): SelectedModuleMeta {
 	return {
 		id: m.id,
@@ -52,7 +54,7 @@ type ModuleConflict = {
 	moduleB: TemplateBuilderModule;
 };
 
-const ModuleName: FC<PropsWithChildren> = ({ children }) => {
+const ModuleName: React.FC<React.PropsWithChildren> = ({ children }) => {
 	return (
 		<code className="text-content-secondary bg-surface-tertiary mx-1 first:ml-0 px-1.5 py-1 rounded-sm">
 			{children}
@@ -60,7 +62,7 @@ const ModuleName: FC<PropsWithChildren> = ({ children }) => {
 	);
 };
 
-const ConflictWarning: FC<ModuleConflict> = ({ moduleA, moduleB }) => {
+const ConflictWarning: React.FC<ModuleConflict> = ({ moduleA, moduleB }) => {
 	return (
 		<div>
 			<ModuleName>{moduleA.display_name}</ModuleName> and{" "}
@@ -92,21 +94,21 @@ const MODULE_PRIORITY: readonly string[] = [
 	"kasmvnc",
 ];
 
-export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
+export const ModuleSelectStep: React.FC<ModuleSelectStepProps> = ({
 	baseId,
 	selectedModuleIds,
 	onChangeModules,
 }) => {
 	const { data, error, isLoading } = useQuery(templateBuilderModules(baseId));
 	const [moduleSearchText, setModuleSearchText] = useState("");
-	const modules = data?.modules ?? [];
+	const modules = data?.modules ?? emptyModules;
 	const doesBaseTemplateHaveModules = modules.length > 0;
 	const sortedModules = sortByPriority(modules, MODULE_PRIORITY);
 	const categories = [
 		...new Set(sortedModules.map((module) => module.category)),
 	].sort((a, b) => a.localeCompare(b));
 
-	const [selectedFilterTab, setSelectedFilterTab] = useState("All");
+	const [selectedCategory, setSelectedCategory] = useState("All");
 
 	const searchedModules = useFuzzySearch({
 		allItems: sortedModules,
@@ -121,24 +123,19 @@ export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 			(searchedCategoryCounts.get(module.category) ?? 0) + 1,
 		);
 	}
-	const filterTabs = [
+	const categoryFilters = [
 		{ value: "All", count: searchedModules.length },
 		...categories.map((value) => ({
 			value,
 			count: searchedCategoryCounts.get(value) ?? 0,
 		})),
 	];
-	const { containerRef, visibleTabs: visibleFilterTabs } = useKebabMenu({
-		tabs: filterTabs,
-		enabled: true,
-		isActive: true,
-	});
 
 	const visibleModules =
-		selectedFilterTab === "All"
+		selectedCategory === "All"
 			? searchedModules
 			: searchedModules.filter(
-					(module) => module.category === selectedFilterTab,
+					(module) => module.category === selectedCategory,
 				);
 
 	const selectedSet = useMemo(
@@ -217,19 +214,29 @@ export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 				className="my-4"
 			/>
 
-			<Tabs
-				value={selectedFilterTab}
-				onValueChange={setSelectedFilterTab}
-				className="my-4"
+			<RadioGroup.Root
+				value={selectedCategory}
+				onValueChange={setSelectedCategory}
+				orientation="horizontal"
+				aria-label="Filter modules by category"
+				className="my-4 flex flex-wrap items-center gap-6 border-solid border-0 border-b border-border"
 			>
-				<TabsList ref={containerRef}>
-					{visibleFilterTabs.map((tab) => (
-						<TabsTrigger key={tab.value} value={tab.value}>
-							{tab.value} ({tab.count})
-						</TabsTrigger>
-					))}
-				</TabsList>
-			</Tabs>
+				{categoryFilters.map((filter) => (
+					<RadioGroup.Item
+						key={filter.value}
+						value={filter.value}
+						className={cn(
+							"-mb-px inline-flex items-center gap-2 px-1 py-2.5 bg-transparent",
+							"border-0 border-y border-solid border-transparent",
+							"text-sm font-normal text-content-secondary cursor-pointer",
+							"transition-colors duration-150 ease-linear hover:text-content-primary",
+							"data-[state=checked]:text-content-primary data-[state=checked]:border-b-content-primary",
+						)}
+					>
+						{filter.value} ({filter.count})
+					</RadioGroup.Item>
+				))}
+			</RadioGroup.Root>
 
 			{/* Show three rows of cards (sized to the common 214px card height plus
 			    the row gaps) and let any extra rows scroll, so the Continue button

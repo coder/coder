@@ -2,28 +2,26 @@
 title: Open in Coder
 ---
 
-You can embed an "Open in Coder" button into your git repos or internal wikis to
-let developers quickly launch a new workspace.
+You can embed an "Open in Coder" button into your git repos or internal wikis to let developers quickly launch a new workspace.
 
-<video autoplay playsinline loop>
+<video autoplay controls muted playsinline loop>
   <source src="../../images/templates/open-in-coder.mp4?raw=true" type="video/mp4">
 Your browser does not support the video tag.
 </video>
 
+This screencast shows a developer selecting an "Open in Coder" button and launching a new workspace.
+
 ## How it works
 
-To support any infrastructure and software stack, Coder provides a generic
-approach for "Open in Coder" flows.
+To support any infrastructure and software stack, Coder provides a generic approach for "Open in Coder" flows.
 
 ### 1. Set up git authentication
 
-See [External Authentication](../external-auth/index.md) to set up Git authentication
-in your Coder deployment.
+See [External Authentication](../external-auth.md) to set up Git authentication in your Coder deployment.
 
 ### 2. Modify your template to auto-clone repos
 
-The id in the template's `coder_external_auth` data source must match the
-`CODER_EXTERNAL_AUTH_X_ID` in the Coder deployment configuration.
+The id in the template's `coder_external_auth` data source must match the `CODER_EXTERNAL_AUTH_X_ID` in the Coder deployment configuration.
 
 If you want the template to clone a specific git repo:
 
@@ -55,8 +53,7 @@ resource "coder_agent" "dev" {
 > - `/home/coder/coder`
 > - `coder` (relative to the home directory)
 
-If you want the template to support any repository via
-[parameters](./extending-templates/parameters.md)
+If you want the template to support any repository via [parameters](./extending-templates/parameters/index.md)
 
 ```tf
 # Require external authentication to use this template
@@ -96,12 +93,11 @@ resource "coder_agent" "dev" {
 [![Open in Coder](https://YOUR_ACCESS_URL/open-in-coder.svg)](https://YOUR_ACCESS_URL/templates/YOUR_TEMPLATE/workspace)
 ```
 
-Be sure to replace `YOUR_ACCESS_URL` with your Coder access url (e.g.
-<https://coder.example.com>) and `YOUR_TEMPLATE` with the name of your template.
+Be sure to replace `YOUR_ACCESS_URL` with your Coder access url (for example, <https://coder.example.com>) and `YOUR_TEMPLATE` with the name of your template.
 
 ### 4. Optional: pre-fill parameter values in the "Create Workspace" page
 
-This can be used to pre-fill the git repo URL, disk size, image, etc.
+This can be used to pre-fill the git repo URL, disk size, image, and so on.
 
 ```md
 [![Open in Coder](https://YOUR_ACCESS_URL/open-in-coder.svg)](https://YOUR_ACCESS_URL/templates/YOUR_TEMPLATE/workspace?param.git_repo=https://github.com/coder/slog&param.home_disk_size%20%28GB%29=20)
@@ -119,10 +115,8 @@ specified in your template in the `disable_params` search params list
 
 ### Security: consent dialog for automatic creation
 
-When using `mode=auto` with prefilled `param.*` values, Coder displays a
-security consent dialog before creating the workspace. This protects users
-from malicious links that could provision workspaces with untrusted
-configurations, such as dotfiles or startup scripts from unknown sources.
+When using `mode=auto` with prefilled `param.*` values, Coder displays a security consent dialog before creating the workspace.
+This protects users from malicious links that could provision workspaces with untrusted configurations, such as dotfiles or startup scripts from unknown sources.
 
 The dialog shows:
 
@@ -137,5 +131,4 @@ Selecting **Cancel** falls back to the standard creation form where all paramete
 
 ### Example: Kubernetes
 
-For a full example of the Open in Coder flow in Kubernetes, check out
-[this example template](https://github.com/bpmct/coder-templates/tree/main/kubernetes-open-in-coder).
+For a full example of the Open in Coder flow in Kubernetes, visit [this example template](https://github.com/bpmct/coder-templates/tree/main/kubernetes-open-in-coder).

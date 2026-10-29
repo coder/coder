@@ -16,6 +16,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/experiments"
+	"github.com/coder/coder/v2/coderd/experiments/experimentstest"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -24,13 +26,15 @@ import (
 )
 
 type workerTestFixture struct {
-	db     database.Store
-	pubsub dbpubsub.Pubsub
+	db database.Store
+	// createRunningChat, createRequiresActionChat, acquireChat, and
+	// forceExecutionState clear setup events so task assertions exclude them.
+	// interruptChat keeps its own events for interruption assertions.
+	pubsub *recordingPubsub
 	sqlDB  *sql.DB
 	user   database.User
 	org    database.Organization
 	model  database.ChatModelConfig
-	apiKey database.APIKey
 }
 
 type publishedEvent struct {
@@ -42,8 +46,9 @@ type recordingPubsub struct {
 	// Embed the full pubsub so a recordingPubsub can also stand in for a
 	// Server's pubsub, recording every published event.
 	dbpubsub.Pubsub
-	mu     sync.Mutex
-	events []publishedEvent
+	mu        sync.Mutex
+	events    []publishedEvent
+	onPublish func(channel string)
 }
 
 func newRecordingPubsub(inner dbpubsub.Pubsub) *recordingPubsub {
@@ -56,8 +61,24 @@ func (p *recordingPubsub) Publish(channel string, payload []byte) error {
 		channel: channel,
 		payload: append([]byte(nil), payload...),
 	})
+	onPublish := p.onPublish
 	p.mu.Unlock()
+	if onPublish != nil {
+		onPublish(channel)
+	}
 	return p.Pubsub.Publish(channel, payload)
+}
+
+func (p *recordingPubsub) clear() {
+	p.mu.Lock()
+	p.events = nil
+	p.mu.Unlock()
+}
+
+func (p *recordingPubsub) published() []publishedEvent {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]publishedEvent(nil), p.events...)
 }
 
 func (p *recordingPubsub) ownershipMessages(t *testing.T) []coderdpubsub.ChatStateOwnershipMessage {
@@ -128,8 +149,7 @@ func newWorkerTestFixture(t *testing.T) *workerTestFixture {
 		IsDefault:      true,
 		OrganizationID: org.ID,
 	})
-	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
-	return &workerTestFixture{db: db, pubsub: ps, sqlDB: sqlDB, user: user, org: org, model: model, apiKey: apiKey}
+	return &workerTestFixture{db: db, pubsub: newRecordingPubsub(ps), sqlDB: sqlDB, user: user, org: org, model: model}
 }
 
 func (f *workerTestFixture) createRunningChat(t *testing.T) database.Chat {
@@ -141,11 +161,13 @@ func (f *workerTestFixture) createRunningChat(t *testing.T) database.Chat {
 		LastModelConfigID: f.model.ID,
 		Title:             "test",
 		ClientType:        database.ChatClientTypeApi,
+		InitialStatus:     database.ChatStatusRunning,
 		InitialMessages: []chatstate.Message{
-			userTextMessage(t, "hello", f.user.ID, f.model.ID, f.apiKey.ID),
+			userTextMessage(t, "hello", f.user.ID, f.model.ID),
 		},
 	})
 	require.NoError(t, err)
+	f.pubsub.clear()
 	return res.Chat
 }
 
@@ -161,7 +183,7 @@ func (f *workerTestFixture) createRunningSubagentChat(t *testing.T, parentID uui
 		ParentChatID:      uuid.NullUUID{UUID: parentID, Valid: true},
 		RootChatID:        uuid.NullUUID{UUID: parentID, Valid: true},
 		InitialMessages: []chatstate.Message{
-			userTextMessage(t, "hello", f.user.ID, f.model.ID, f.apiKey.ID),
+			userTextMessage(t, "hello", f.user.ID, f.model.ID),
 		},
 	})
 	require.NoError(t, err)
@@ -188,8 +210,9 @@ func (f *workerTestFixture) createRequiresActionChat(t *testing.T) database.Chat
 			RawMessage: dynamicTools,
 			Valid:      true,
 		},
+		InitialStatus: database.ChatStatusRunning,
 		InitialMessages: []chatstate.Message{
-			userTextMessage(t, "hello", f.user.ID, f.model.ID, f.apiKey.ID),
+			userTextMessage(t, "hello", f.user.ID, f.model.ID),
 		},
 	})
 	require.NoError(t, err)
@@ -208,10 +231,11 @@ func (f *workerTestFixture) createRequiresActionChat(t *testing.T) database.Chat
 	}))
 	chat, err := f.db.GetChatByID(ctx, res.Chat.ID)
 	require.NoError(t, err)
+	f.pubsub.clear()
 	return chat
 }
 
-func userTextMessage(t *testing.T, text string, createdBy uuid.UUID, modelConfigID uuid.UUID, apiKeyID string) chatstate.Message {
+func userTextMessage(t *testing.T, text string, createdBy uuid.UUID, modelConfigID uuid.UUID) chatstate.Message {
 	t.Helper()
 	raw, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(text)})
 	require.NoError(t, err)
@@ -282,13 +306,23 @@ func testOptions(t *testing.T, f *workerTestFixture, starter chatWorkerTaskStart
 // newUnstartedServer builds a real Server backed by the given pubsub and
 // store. The server is never started; it only provides the dependencies
 // that workers and task starters dereference.
-func newUnstartedServer(t *testing.T, ps dbpubsub.Pubsub, db database.Store) *Server {
+func newUnstartedServer(t *testing.T, ps dbpubsub.Pubsub, db database.Store, opts ...internalTestServerOpt) *Server {
 	t.Helper()
-	server := New(ps, Config{
-		Logger:    testutil.Logger(t),
-		Database:  db,
-		ReplicaID: uuid.New(),
+	var cfg internalTestServerConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	evaluator, err := experiments.New(testutil.Logger(t), experimentstest.Store{}, nil)
+	require.NoError(t, err)
+	server, err := New(ps, Config{
+		Logger:              testutil.Logger(t),
+		Database:            db,
+		ReplicaID:           uuid.New(),
+		Clock:               cfg.clock,
+		Limits:              cfg.limits,
+		ExperimentEvaluator: evaluator,
 	})
+	require.NoError(t, err)
 	t.Cleanup(func() { _ = server.Close() })
 	return server
 }
@@ -450,11 +484,13 @@ func commitAssistantStep(t *testing.T, f *workerTestFixture, chatID uuid.UUID, t
 func interruptChat(t *testing.T, f *workerTestFixture, chatID uuid.UUID) database.Chat {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
+	f.pubsub.clear()
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chatID)
 	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		_, err := tx.SendMessage(chatstate.SendMessageInput{
-			Message:      userTextMessage(t, "interrupt", f.user.ID, f.model.ID, f.apiKey.ID),
+			Message:      userTextMessage(t, "interrupt", f.user.ID, f.model.ID),
 			BusyBehavior: chatstate.BusyBehaviorInterrupt,
+			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err
 	}))
@@ -473,6 +509,7 @@ func acquireChat(t *testing.T, f *workerTestFixture, chatID uuid.UUID, workerID 
 	}))
 	chat, err := f.db.GetChatByID(ctx, chatID)
 	require.NoError(t, err)
+	f.pubsub.clear()
 	return chat
 }
 
@@ -482,6 +519,20 @@ func forceExecutionState(
 	chatID uuid.UUID,
 	status database.ChatStatus,
 	archived bool,
+) database.Chat {
+	t.Helper()
+	return forceExecutionStateWithDeadline(t, f, chatID, status, archived, nil)
+}
+
+// forceExecutionStateWithDeadline keeps the chat's requires-action deadline
+// when deadline is nil.
+func forceExecutionStateWithDeadline(
+	t *testing.T,
+	f *workerTestFixture,
+	chatID uuid.UUID,
+	status database.ChatStatus,
+	archived bool,
+	deadline *sql.NullTime,
 ) database.Chat {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -494,6 +545,10 @@ func forceExecutionState(
 		if err != nil {
 			return err
 		}
+		requiresActionDeadlineAt := chat.RequiresActionDeadlineAt
+		if deadline != nil {
+			requiresActionDeadlineAt = *deadline
+		}
 		updated, err = store.UpdateChatExecutionState(ctx, database.UpdateChatExecutionStateParams{
 			ID:                       chat.ID,
 			Status:                   status,
@@ -501,10 +556,11 @@ func forceExecutionState(
 			WorkerID:                 chat.WorkerID,
 			RunnerID:                 chat.RunnerID,
 			LastError:                chat.LastError,
-			RequiresActionDeadlineAt: chat.RequiresActionDeadlineAt,
+			RequiresActionDeadlineAt: requiresActionDeadlineAt,
 		})
 		return err
 	}, nil))
+	f.pubsub.clear()
 	return updated
 }
 

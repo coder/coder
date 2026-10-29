@@ -30,8 +30,8 @@ func latestAgentSnapshot(ctx context.Context, db database.Store, agentID uuid.UU
 }
 
 // HydrateAndMarkChatsDirty pins context for unpinned chats, marks drifted chats
-// dirty, and live-syncs MCP resources. Its post-commit callback publishes one
-// context event per affected chat without changing dirty chats' pinned hash.
+// dirty, and live-syncs MCP and ACP resources. Its post-commit callback publishes
+// one context event per affected chat without changing dirty chats' pinned hash.
 func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, now time.Time) (func(), error) {
 	//nolint:gocritic // An agent does not own the chats bound to it.
 	ctx = dbauthz.AsChatd(ctx)
@@ -55,13 +55,13 @@ func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store
 	if err != nil {
 		return nil, xerrors.Errorf("mark chats context dirty: %w", err)
 	}
-	// MCP resources bypass drift detection, so sync them on every agent push.
-	synced, err := tx.SyncAgentChatsContextMCPResources(ctx, agentID)
+	// MCP and ACP resources bypass drift detection, so sync them on every push.
+	synced, err := tx.SyncAgentChatsContextLiveResources(ctx, agentID)
 	if err != nil {
-		return nil, xerrors.Errorf("sync agent chats mcp context resources: %w", err)
+		return nil, xerrors.Errorf("sync agent chats live context resources: %w", err)
 	}
 
-	// A dirtied chat can also be MCP-synced, so publish it only once.
+	// A dirtied chat can also be live-synced, so publish it only once.
 	seen := make(map[uuid.UUID]struct{}, len(hydrated)+len(dirtied)+len(synced))
 	touched := make([]uuid.UUID, 0, len(hydrated)+len(dirtied)+len(synced))
 	appendTouched := func(id uuid.UUID) {

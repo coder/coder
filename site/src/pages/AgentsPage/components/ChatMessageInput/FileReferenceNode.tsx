@@ -9,7 +9,7 @@ import {
 	type SerializedLexicalNode,
 	type Spread,
 } from "lexical";
-import { type FC, type ReactNode, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 import { EditableFileReferenceChip } from "./FileReferenceChip";
 import { getFileReferenceSiblingSpacing } from "./fileReferenceDisplay";
 
@@ -23,7 +23,7 @@ type SerializedFileReferenceNode = Spread<
 	SerializedLexicalNode
 >;
 
-export class FileReferenceNode extends DecoratorNode<ReactNode> {
+export class FileReferenceNode extends DecoratorNode<React.ReactNode> {
 	__fileName: string;
 	__startLine: number;
 	__endLine: number;
@@ -96,7 +96,14 @@ export class FileReferenceNode extends DecoratorNode<ReactNode> {
 		return true;
 	}
 
-	decorate(_editor: LexicalEditor): ReactNode {
+	// A keyboard-selected decorator becomes a NodeSelection, which clears
+	// the DOM caret while the editor keeps focus, so the next keystroke
+	// lands at the start of the editor. Arrow keys step over the chip.
+	isKeyboardSelectable(): boolean {
+		return false;
+	}
+
+	decorate(_editor: LexicalEditor): React.ReactNode {
 		return (
 			<FileReferenceChipWrapper
 				editor={_editor}
@@ -122,7 +129,11 @@ const getFileReferenceSpacingSnapshot = (
 	);
 };
 
-const useFileReferenceSpacing = (editor: LexicalEditor, nodeKey: NodeKey) => {
+/** Margins that keep an inline chip clear of adjacent text and chips. */
+export const useFileReferenceSpacing = (
+	editor: LexicalEditor,
+	nodeKey: NodeKey,
+) => {
 	const spacingSnapshot = useSyncExternalStore(
 		(notify) => editor.registerUpdateListener(notify),
 		() => getFileReferenceSpacingSnapshot(editor, nodeKey),
@@ -134,7 +145,7 @@ const useFileReferenceSpacing = (editor: LexicalEditor, nodeKey: NodeKey) => {
 	};
 };
 
-const FileReferenceChipWrapper: FC<{
+const FileReferenceChipWrapper: React.FC<{
 	editor: LexicalEditor;
 	nodeKey: NodeKey;
 	fileName: string;
@@ -151,6 +162,7 @@ const FileReferenceChipWrapper: FC<{
 				node.remove();
 			}
 		});
+		editor.getRootElement()?.focus({ preventScroll: true });
 	};
 
 	const handleClick = () => {

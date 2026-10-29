@@ -1,11 +1,4 @@
-import {
-	type Dispatch,
-	type SetStateAction,
-	useEffect,
-	useEffectEvent,
-	useRef,
-	useState,
-} from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { API } from "#/api/api";
 import { MaxChatFileSizeBytes } from "#/api/typesGenerated";
 import type { UploadState } from "../components/AgentChatInput";
@@ -48,7 +41,10 @@ type PersistedAttachment = {
  * Only attachments matching `currentOrgId` are returned. Entries
  * belonging to a different organization are pruned from storage.
  */
-function restorePersistedAttachments(currentOrgId: string): {
+function restorePersistedAttachments(
+	storageKey: string,
+	currentOrgId: string,
+): {
 	attachments: File[];
 	uploadStates: Map<File, UploadState>;
 	previewUrls: Map<File, string>;
@@ -61,7 +57,7 @@ function restorePersistedAttachments(currentOrgId: string): {
 			previewUrls: new Map(),
 		};
 	}
-	const stored = localStorage.getItem(persistedAttachmentsStorageKey);
+	const stored = localStorage.getItem(storageKey);
 	if (!stored) {
 		return {
 			attachments: [],
@@ -75,12 +71,9 @@ function restorePersistedAttachments(currentOrgId: string): {
 
 		if (matched.length !== persisted.length) {
 			if (matched.length > 0) {
-				localStorage.setItem(
-					persistedAttachmentsStorageKey,
-					JSON.stringify(matched),
-				);
+				localStorage.setItem(storageKey, JSON.stringify(matched));
 			} else {
-				localStorage.removeItem(persistedAttachmentsStorageKey);
+				localStorage.removeItem(storageKey);
 			}
 		}
 
@@ -113,11 +106,12 @@ function restorePersistedAttachments(currentOrgId: string): {
 }
 
 function addPersistedAttachment(
+	storageKey: string,
 	file: File,
 	fileId: string,
 	organizationId: string,
 ) {
-	const stored = localStorage.getItem(persistedAttachmentsStorageKey);
+	const stored = localStorage.getItem(storageKey);
 	let persisted: PersistedAttachment[];
 	try {
 		persisted = stored ? JSON.parse(stored) : [];
@@ -131,14 +125,11 @@ function addPersistedAttachment(
 		lastModified: file.lastModified,
 		organizationId,
 	});
-	localStorage.setItem(
-		persistedAttachmentsStorageKey,
-		JSON.stringify(persisted),
-	);
+	localStorage.setItem(storageKey, JSON.stringify(persisted));
 }
 
-function removePersistedAttachment(fileId: string) {
-	const stored = localStorage.getItem(persistedAttachmentsStorageKey);
+function removePersistedAttachment(storageKey: string, fileId: string) {
+	const stored = localStorage.getItem(storageKey);
 	if (!stored) {
 		return;
 	}
@@ -146,20 +137,17 @@ function removePersistedAttachment(fileId: string) {
 		const persisted: PersistedAttachment[] = JSON.parse(stored);
 		const filtered = persisted.filter((p) => p.fileId !== fileId);
 		if (filtered.length > 0) {
-			localStorage.setItem(
-				persistedAttachmentsStorageKey,
-				JSON.stringify(filtered),
-			);
+			localStorage.setItem(storageKey, JSON.stringify(filtered));
 		} else {
-			localStorage.removeItem(persistedAttachmentsStorageKey);
+			localStorage.removeItem(storageKey);
 		}
 	} catch {
-		localStorage.removeItem(persistedAttachmentsStorageKey);
+		localStorage.removeItem(storageKey);
 	}
 }
 
-function clearPersistedAttachments() {
-	localStorage.removeItem(persistedAttachmentsStorageKey);
+function clearPersistedAttachments(storageKey: string) {
+	localStorage.removeItem(storageKey);
 }
 
 type UseFileAttachmentsReturn = {
@@ -176,9 +164,9 @@ type UseFileAttachmentsReturn = {
 	handleRemoveAttachment: (attachment: number | File) => void;
 	startUpload: (file: File) => void;
 	resetAttachments: () => void;
-	setAttachments: Dispatch<SetStateAction<File[]>>;
-	setPreviewUrls: Dispatch<SetStateAction<Map<File, string>>>;
-	setUploadStates: Dispatch<SetStateAction<Map<File, UploadState>>>;
+	setAttachments: React.Dispatch<React.SetStateAction<File[]>>;
+	setPreviewUrls: React.Dispatch<React.SetStateAction<Map<File, string>>>;
+	setUploadStates: React.Dispatch<React.SetStateAction<Map<File, UploadState>>>;
 };
 
 export function useFileAttachments(
@@ -188,9 +176,13 @@ export function useFileAttachments(
 		// scoped to the organization either way.
 		persist?: boolean;
 		provider?: string;
+		// Separates drafts per destination, such as a project. Must not change
+		// during the hook's lifetime; remount to switch drafts.
+		storageKey?: string;
 	},
 ): UseFileAttachmentsReturn {
 	const persist = options?.persist ?? false;
+	const storageKey = options?.storageKey ?? persistedAttachmentsStorageKey;
 
 	// providerRef lets event-driven handlers (paste/drop) see the
 	// latest model selection without rebuilding handleAttach. The
@@ -239,7 +231,7 @@ export function useFileAttachments(
 		}
 		setUploadStates((prev) => new Map(prev).set(file, state));
 		if (persist && state.status === "uploaded" && state.fileId) {
-			addPersistedAttachment(file, state.fileId, uploadOrgId);
+			addPersistedAttachment(storageKey, file, state.fileId, uploadOrgId);
 		}
 	};
 
@@ -298,7 +290,7 @@ export function useFileAttachments(
 		setTextContents(new Map());
 		setStateOrgId(orgId);
 		const restored = persist
-			? restorePersistedAttachments(orgId)
+			? restorePersistedAttachments(storageKey, orgId)
 			: {
 					attachments: [],
 					uploadStates: new Map<File, UploadState>(),
@@ -500,7 +492,7 @@ export function useFileAttachments(
 		if (persist && removed) {
 			const state = uploadStates.get(removed);
 			if (state?.status === "uploaded" && state.fileId) {
-				removePersistedAttachment(state.fileId);
+				removePersistedAttachment(storageKey, state.fileId);
 			}
 		}
 
@@ -548,7 +540,7 @@ export function useFileAttachments(
 		setUploadStates(new Map());
 		setAttachments([]);
 		if (persist) {
-			clearPersistedAttachments();
+			clearPersistedAttachments(storageKey);
 		}
 	};
 

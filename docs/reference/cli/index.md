@@ -28,63 +28,65 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 
 ## Subcommands
 
-| Name                                                         | Purpose                                                                                                                      |
-|--------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------|
-| [<code>completion</code>](./completion.md)                   | Install or update shell completion scripts for the detected or chosen shell.                                                 |
-| [<code>dotfiles</code>](./dotfiles.md)                       | Personalize your workspace by applying a canonical dotfiles repository                                                       |
-| [<code>external-auth</code>](./external-auth.md)             | Manage external authentication                                                                                               |
-| [<code>login</code>](./login.md)                             | Authenticate with Coder deployment                                                                                           |
-| [<code>logout</code>](./logout.md)                           | Unauthenticate your local session                                                                                            |
-| [<code>netcheck</code>](./netcheck.md)                       | Print network debug information for DERP and STUN                                                                            |
-| [<code>notifications</code>](./notifications.md)             | Manage Coder notifications                                                                                                   |
-| [<code>oauth2-provider</code>](./oauth2-provider.md)         | Manage Coder OAuth2 provider settings                                                                                        |
-| [<code>organizations</code>](./organizations.md)             | Organization related commands                                                                                                |
-| [<code>port-forward</code>](./port-forward.md)               | Forward ports from a workspace to the local machine. For reverse port forwarding, use "coder ssh -R".                        |
-| [<code>publickey</code>](./publickey.md)                     | Output your Coder public key used for Git operations                                                                         |
-| [<code>reset-password</code>](./reset-password.md)           | Directly connect to the database to reset a user's password                                                                  |
-| [<code>secret</code>](./secret.md)                           | Manage secrets                                                                                                               |
-| [<code>state</code>](./state.md)                             | Manually manage Terraform state to fix broken workspaces                                                                     |
-| [<code>templates</code>](./templates.md)                     | Manage templates                                                                                                             |
-| [<code>tokens</code>](./tokens.md)                           | Manage personal access tokens                                                                                                |
-| [<code>users</code>](./users.md)                             | Manage users                                                                                                                 |
-| [<code>version</code>](./version.md)                         | Show coder version                                                                                                           |
-| [<code>autoupdate</code>](./autoupdate.md)                   | Toggle auto-update policy for a workspace                                                                                    |
-| [<code>config-ssh</code>](./config-ssh.md)                   | Add an SSH Host entry for your workspaces "ssh workspace.coder"                                                              |
-| [<code>create</code>](./create.md)                           | Create a workspace                                                                                                           |
-| [<code>delete</code>](./delete.md)                           | Delete a workspace                                                                                                           |
-| [<code>favorite</code>](./favorite.md)                       | Add a workspace to your favorites                                                                                            |
-| [<code>list</code>](./list.md)                               | List workspaces                                                                                                              |
-| [<code>logs</code>](./logs.md)                               | View logs for a workspace                                                                                                    |
-| [<code>open</code>](./open.md)                               | Open a workspace                                                                                                             |
-| [<code>ping</code>](./ping.md)                               | Ping a workspace                                                                                                             |
-| [<code>rename</code>](./rename.md)                           | Rename a workspace                                                                                                           |
-| [<code>restart</code>](./restart.md)                         | Restart a workspace                                                                                                          |
-| [<code>schedule</code>](./schedule.md)                       | Schedule automated start and stop times for workspaces                                                                       |
-| [<code>show</code>](./show.md)                               | Display details of a workspace's resources and agents                                                                        |
-| [<code>speedtest</code>](./speedtest.md)                     | Run upload and download tests from your machine to a workspace                                                               |
-| [<code>ssh</code>](./ssh.md)                                 | Start a shell into a workspace or run a command                                                                              |
-| [<code>start</code>](./start.md)                             | Start a workspace                                                                                                            |
-| [<code>stat</code>](./stat.md)                               | Show resource usage for the current workspace.                                                                               |
-| [<code>stop</code>](./stop.md)                               | Stop a workspace                                                                                                             |
-| [<code>unfavorite</code>](./unfavorite.md)                   | Remove a workspace from your favorites                                                                                       |
-| [<code>update</code>](./update.md)                           | Will update and start a given workspace if it is out of date. If the workspace is already running, it will be stopped first. |
-| [<code>whoami</code>](./whoami.md)                           | Fetch authenticated user info for Coder deployment                                                                           |
-| [<code>support</code>](./support.md)                         | Commands for troubleshooting issues with a Coder deployment.                                                                 |
-| [<code>server</code>](./server.md)                           | Start a Coder server                                                                                                         |
-| [<code>provisioner</code>](./provisioner.md)                 | View and manage provisioner daemons and jobs                                                                                 |
-| [<code>ai-gateway</code>](./ai-gateway.md)                   | Manage AI Gateway                                                                                                            |
-| [<code>agent-firewall</code>](./agent-firewall.md)           | Network isolation tool for monitoring and restricting HTTP/HTTPS requests                                                    |
-| [<code>features</code>](./features.md)                       | List Enterprise features                                                                                                     |
-| [<code>licenses</code>](./licenses.md)                       | Add, delete, and list licenses                                                                                               |
-| [<code>groups</code>](./groups.md)                           | Manage groups                                                                                                                |
-| [<code>prebuilds</code>](./prebuilds.md)                     | Manage Coder prebuilds                                                                                                       |
-| [<code>external-workspaces</code>](./external-workspaces.md) | Create or manage external workspaces                                                                                         |
+| Name                                                               | Purpose                                                                                                                      |
+|--------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------|
+| [<code>completion</code>](./completion.md)                         | Install or update shell completion scripts for the detected or chosen shell.                                                 |
+| [<code>dotfiles</code>](./dotfiles.md)                             | Personalize your workspace by applying a canonical dotfiles repository                                                       |
+| [<code>external-auth</code>](./external-auth/index.md)             | Manage external authentication                                                                                               |
+| [<code>login</code>](./login/index.md)                             | Authenticate with Coder deployment                                                                                           |
+| [<code>logout</code>](./logout.md)                                 | Unauthenticate your local session                                                                                            |
+| [<code>netcheck</code>](./netcheck.md)                             | Print network debug information for DERP and STUN                                                                            |
+| [<code>notifications</code>](./notifications/index.md)             | Manage Coder notifications                                                                                                   |
+| [<code>oauth2-provider</code>](./oauth2-provider/index.md)         | Manage Coder OAuth2 provider settings                                                                                        |
+| [<code>organizations</code>](./organizations/index.md)             | Organization related commands                                                                                                |
+| [<code>port-forward</code>](./port-forward.md)                     | Forward ports from a workspace to the local machine. For reverse port forwarding, use "coder ssh -R".                        |
+| [<code>publickey</code>](./publickey.md)                           | Output your Coder public key used for Git operations                                                                         |
+| [<code>reset-password</code>](./reset-password.md)                 | Directly connect to the database to reset a user's password                                                                  |
+| [<code>secret</code>](./secret/index.md)                           | Manage secrets                                                                                                               |
+| [<code>sharing</code>](./sharing/index.md)                         | Commands for managing shared workspaces                                                                                      |
+| [<code>state</code>](./state/index.md)                             | Manually manage Terraform state to fix broken workspaces                                                                     |
+| [<code>templates</code>](./templates/index.md)                     | Manage templates                                                                                                             |
+| [<code>tokens</code>](./tokens/index.md)                           | Manage personal access tokens                                                                                                |
+| [<code>users</code>](./users/index.md)                             | Manage users                                                                                                                 |
+| [<code>version</code>](./version.md)                               | Show coder version                                                                                                           |
+| [<code>autoupdate</code>](./autoupdate.md)                         | Toggle auto-update policy for a workspace                                                                                    |
+| [<code>config-ssh</code>](./config-ssh.md)                         | Add an SSH Host entry for your workspaces "ssh workspace.coder"                                                              |
+| [<code>create</code>](./create.md)                                 | Create a workspace                                                                                                           |
+| [<code>delete</code>](./delete.md)                                 | Delete a workspace                                                                                                           |
+| [<code>favorite</code>](./favorite.md)                             | Add a workspace to your favorites                                                                                            |
+| [<code>list</code>](./list.md)                                     | List workspaces                                                                                                              |
+| [<code>logs</code>](./logs.md)                                     | View logs for a workspace                                                                                                    |
+| [<code>open</code>](./open/index.md)                               | Open a workspace                                                                                                             |
+| [<code>ping</code>](./ping.md)                                     | Ping a workspace                                                                                                             |
+| [<code>rename</code>](./rename.md)                                 | Rename a workspace                                                                                                           |
+| [<code>restart</code>](./restart.md)                               | Restart a workspace                                                                                                          |
+| [<code>schedule</code>](./schedule/index.md)                       | Schedule automated start and stop times for workspaces                                                                       |
+| [<code>show</code>](./show.md)                                     | Display details of a workspace's resources and agents                                                                        |
+| [<code>speedtest</code>](./speedtest.md)                           | Run upload and download tests from your machine to a workspace                                                               |
+| [<code>ssh</code>](./ssh.md)                                       | Start a shell into a workspace or run a command                                                                              |
+| [<code>start</code>](./start.md)                                   | Start a workspace                                                                                                            |
+| [<code>stat</code>](./stat/index.md)                               | Show resource usage for the current workspace.                                                                               |
+| [<code>stop</code>](./stop.md)                                     | Stop a workspace                                                                                                             |
+| [<code>unfavorite</code>](./unfavorite.md)                         | Remove a workspace from your favorites                                                                                       |
+| [<code>update</code>](./update.md)                                 | Will update and start a given workspace if it is out of date. If the workspace is already running, it will be stopped first. |
+| [<code>whoami</code>](./whoami.md)                                 | Fetch authenticated user info for Coder deployment                                                                           |
+| [<code>support</code>](./support/index.md)                         | Commands for troubleshooting issues with a Coder deployment.                                                                 |
+| [<code>server</code>](./server/index.md)                           | Start a Coder server                                                                                                         |
+| [<code>provisioner</code>](./provisioner/index.md)                 | View and manage provisioner daemons and jobs                                                                                 |
+| [<code>ai-gateway</code>](./ai-gateway/index.md)                   | Manage AI Gateway                                                                                                            |
+| [<code>agent-firewall</code>](./agent-firewall.md)                 | Network isolation tool for monitoring and restricting HTTP/HTTPS requests                                                    |
+| [<code>workspace-proxy</code>](./workspace-proxy/index.md)         | Workspace proxies provide low-latency experiences for geo-distributed teams.                                                 |
+| [<code>features</code>](./features/index.md)                       | List license features and entitlements                                                                                       |
+| [<code>licenses</code>](./licenses/index.md)                       | Add, delete, and list licenses                                                                                               |
+| [<code>groups</code>](./groups/index.md)                           | Manage groups                                                                                                                |
+| [<code>prebuilds</code>](./prebuilds/index.md)                     | Manage Coder prebuilds                                                                                                       |
+| [<code>external-workspaces</code>](./external-workspaces/index.md) | Create or manage external workspaces                                                                                         |
 
 ## Options
 
 ### --url
 
-|             |                         |
+| Property    | Value                   |
 |-------------|-------------------------|
 | Type        | <code>url</code>        |
 | Environment | <code>$CODER_URL</code> |
@@ -93,15 +95,15 @@ URL to a deployment.
 
 ### --debug-options
 
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
+| Property | Value             |
+|----------|-------------------|
+| Type     | <code>bool</code> |
 
 Print all options, how they're set, then exit.
 
 ### --token
 
-|             |                                   |
+| Property    | Value                             |
 |-------------|-----------------------------------|
 | Type        | <code>string</code>               |
 | Environment | <code>$CODER_SESSION_TOKEN</code> |
@@ -110,7 +112,7 @@ Specify an authentication token. For security reasons setting CODER_SESSION_TOKE
 
 ### --no-version-warning
 
-|             |                                        |
+| Property    | Value                                  |
 |-------------|----------------------------------------|
 | Type        | <code>bool</code>                      |
 | Environment | <code>$CODER_NO_VERSION_WARNING</code> |
@@ -119,7 +121,7 @@ Suppress warning when client and server versions do not match.
 
 ### --no-feature-warning
 
-|             |                                        |
+| Property    | Value                                  |
 |-------------|----------------------------------------|
 | Type        | <code>bool</code>                      |
 | Environment | <code>$CODER_NO_FEATURE_WARNING</code> |
@@ -128,7 +130,7 @@ Suppress warnings about unlicensed features.
 
 ### --allow-redirects
 
-|             |                                     |
+| Property    | Value                               |
 |-------------|-------------------------------------|
 | Type        | <code>bool</code>                   |
 | Environment | <code>$CODER_ALLOW_REDIRECTS</code> |
@@ -137,7 +139,7 @@ Follow HTTP redirects from the server instead of returning an error. Following r
 
 ### --header
 
-|             |                            |
+| Property    | Value                      |
 |-------------|----------------------------|
 | Type        | <code>string-array</code>  |
 | Environment | <code>$CODER_HEADER</code> |
@@ -146,16 +148,16 @@ Additional HTTP headers added to all requests. Provide as key=value. Can be spec
 
 ### --header-command
 
-|             |                                    |
+| Property    | Value                              |
 |-------------|------------------------------------|
 | Type        | <code>string</code>                |
 | Environment | <code>$CODER_HEADER_COMMAND</code> |
 
-An external command that outputs additional HTTP headers added to all requests. The command must output each header as `key=value` on its own line.
+An external command that outputs additional HTTP headers added to all requests. The command must output each header as `key=value` on its own line. If a header value is a JWT, it will be refreshed based on the value in its `exp` field.
 
 ### --force-tty
 
-|             |                               |
+| Property    | Value                         |
 |-------------|-------------------------------|
 | Type        | <code>bool</code>             |
 | Environment | <code>$CODER_FORCE_TTY</code> |
@@ -164,16 +166,26 @@ Force the use of a TTY.
 
 ### -v, --verbose
 
-|             |                             |
+| Property    | Value                       |
 |-------------|-----------------------------|
 | Type        | <code>bool</code>           |
 | Environment | <code>$CODER_VERBOSE</code> |
 
 Enable verbose output.
 
+### --flight-recorder-size
+
+| Property    | Value                                    |
+|-------------|------------------------------------------|
+| Type        | <code>int</code>                         |
+| Environment | <code>$CODER_FLIGHT_RECORDER_SIZE</code> |
+| Default     | <code>10</code>                          |
+
+Number of log entries below the current log level to keep in memory and emit on errors. Set to 0 to disable the flight recorder.
+
 ### --disable-direct-connections
 
-|             |                                                |
+| Property    | Value                                          |
 |-------------|------------------------------------------------|
 | Type        | <code>bool</code>                              |
 | Environment | <code>$CODER_DISABLE_DIRECT_CONNECTIONS</code> |
@@ -182,7 +194,7 @@ Disable direct (P2P) connections to workspaces.
 
 ### --disable-network-telemetry
 
-|             |                                               |
+| Property    | Value                                         |
 |-------------|-----------------------------------------------|
 | Type        | <code>bool</code>                             |
 | Environment | <code>$CODER_DISABLE_NETWORK_TELEMETRY</code> |
@@ -191,7 +203,7 @@ Disable network telemetry. Network telemetry is collected when connecting to wor
 
 ### --client-tls-ca-file
 
-|             |                                        |
+| Property    | Value                                  |
 |-------------|----------------------------------------|
 | Type        | <code>string</code>                    |
 | Environment | <code>$CODER_CLIENT_TLS_CA_FILE</code> |
@@ -200,7 +212,7 @@ Path to a CA certificate file to trust for API and DERP connections.
 
 ### --client-tls-cert-file
 
-|             |                                          |
+| Property    | Value                                    |
 |-------------|------------------------------------------|
 | Type        | <code>string</code>                      |
 | Environment | <code>$CODER_CLIENT_TLS_CERT_FILE</code> |
@@ -209,7 +221,7 @@ Path to a client certificate file for mTLS authentication with API and DERP. Req
 
 ### --client-tls-key-file
 
-|             |                                         |
+| Property    | Value                                   |
 |-------------|-----------------------------------------|
 | Type        | <code>string</code>                     |
 | Environment | <code>$CODER_CLIENT_TLS_KEY_FILE</code> |
@@ -218,7 +230,7 @@ Path to a client private key file for mTLS authentication with API and DERP. Req
 
 ### --use-keyring
 
-|             |                                 |
+| Property    | Value                           |
 |-------------|---------------------------------|
 | Type        | <code>bool</code>               |
 | Environment | <code>$CODER_USE_KEYRING</code> |
@@ -228,7 +240,7 @@ Store and retrieve session tokens using the operating system keyring. This flag 
 
 ### --global-config
 
-|             |                                |
+| Property    | Value                          |
 |-------------|--------------------------------|
 | Type        | <code>string</code>            |
 | Environment | <code>$CODER_CONFIG_DIR</code> |

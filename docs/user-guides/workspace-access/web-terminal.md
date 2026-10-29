@@ -2,34 +2,33 @@
 title: Web Terminal
 ---
 
-The Web Terminal is a browser-based terminal interface that provides instant
-access to your workspace's shell environment directly from the Coder dashboard.
-It's automatically enabled for all workspaces and requires no additional
-configuration.
+The Web Terminal is a browser-based terminal interface that provides instant access to your workspace's shell environment directly from the Coder dashboard.
+It's automatically enabled for all workspaces and requires no additional configuration.
 
 ![Terminal Access](../../images/user-guides/terminal-access.png)
 
 ## Overview
 
-The Web Terminal leverages [xterm.js](https://xtermjs.org/), an industry-standard
-terminal emulator, combined with WebSocket technology to provide a responsive
-and feature-rich terminal experience in your browser.
+The Web Terminal leverages [xterm.js](https://xtermjs.org/), an industry-standard terminal emulator, combined with WebSocket technology to provide a responsive and feature-rich terminal experience in your browser.
 
 ### Key Features
 
-- **Instant Access**: Select the terminal icon in your workspace to open a shell
-  session
-- **Persistent Sessions**: Sessions are maintained using reconnection tokens,
-  allowing you to resume your terminal even after page refreshes or network
-  interruptions
-- **Full Unicode Support**: Displays international characters and emojis
-  correctly
-- **Clickable Links**: Automatically detects and makes URLs clickable
-- **Copy/Paste Support**: Select text to automatically copy it to your clipboard
-- **Multiple Rendering Options**: Choose between different rendering engines for
-  optimal performance
+- **Instant Access**:
+  Select the terminal icon in your workspace to open a shell session
+- **Persistent Sessions**:
+  Sessions are maintained using reconnection tokens, allowing you to resume your terminal even after page refreshes or network interruptions
+- **Full Unicode Support**:
+  Displays international characters and emojis correctly
+- **Clickable Links**:
+  Automatically detects and makes URLs clickable
+- **Copy/Paste Support**:
+  Select text to automatically copy it to your clipboard
+- **Multiple Rendering Options**:
+  Choose between different rendering engines for optimal performance
 
-## Accessing the Terminal
+<a id="accessing-the-terminal"></a>
+
+## Access the terminal
 
 ### From the Dashboard
 
@@ -37,8 +36,7 @@ and feature-rich terminal experience in your browser.
 2. Select the **Terminal** button or icon
 3. The terminal will open in a new browser tab or window
 
-The terminal automatically connects to your workspace agent using an optimized
-WebSocket connection.
+The terminal automatically connects to your workspace agent using an optimized WebSocket connection.
 
 ### Direct URL Access
 
@@ -58,14 +56,18 @@ https://coder.example.com/@username/workspace-name.agent-name/terminal
 
 ### How It Works
 
-The Web Terminal creates a persistent connection between your browser and the
-workspace:
+The Web Terminal creates a persistent connection between your browser and the workspace:
 
-1. **Browser**: Renders the terminal using xterm.js
-2. **WebSocket**: Maintains a persistent, low-latency connection
-3. **Control plane**: Routes traffic between browser and workspace
-4. **Workspace Agent**: Manages the pseudo-terminal (PTY) session
-5. **Shell Process**: Your actual bash/zsh/fish shell
+1. **Browser**:
+   Renders the terminal using xterm.js
+2. **WebSocket**:
+   Maintains a persistent, low-latency connection
+3. **Control plane**:
+   Routes traffic between browser and workspace
+4. **Workspace Agent**:
+   Manages the pseudo-terminal (PTY) session
+5. **Shell Process**:
+   Your actual bash/zsh/fish shell
 
 The connection flow is: Browser ↔ WebSocket ↔ Control plane ↔ Workspace Agent ↔ Shell Process
 
@@ -113,12 +115,13 @@ CODER_WEB_TERMINAL_RENDERER=canvas
 **Renderer Options:**
 
 - **`canvas`** (default): Best compatibility, good performance on most systems
-- **`webgl`**: Hardware-accelerated, ideal for high-refresh terminals and
-  complex rendering
-- **`dom`**: Fallback option, useful for accessibility tools or older browsers
+- **`webgl`**:
+  Hardware-accelerated, ideal for high-refresh terminals and complex rendering
+- **`dom`**:
+  Fallback option, useful for accessibility tools or older browsers
 
-> **Note:** The renderer setting is deployment-wide and requires a control plane
-> restart to take effect.
+> **Note:**
+> The renderer setting is deployment-wide and requires a control plane restart to take effect.
 
 ## Keyboard Shortcuts
 
@@ -135,18 +138,20 @@ The Web Terminal supports standard terminal keybindings:
 
 ### Copy/Paste Behavior
 
-- **Auto-copy**: Selecting text automatically copies it to your clipboard
-- **Paste**: Use the standard paste shortcut or middle-click (on Linux/X11)
-- **Browser permissions**: First paste may prompt for clipboard access
+- **Auto-copy**:
+  Selecting text automatically copies it to your clipboard
+- **Paste**:
+  Use the standard paste shortcut or middle-click (on Linux/X11)
+- **Browser permissions**:
+  First paste may prompt for clipboard access
 
 ## URL Handling
 
 The terminal automatically detects URLs and makes them clickable.
 When you select a URL:
 
-- **External URLs** (e.g., `https://example.com`) open in a new tab
-- **Localhost URLs** (e.g., `http://localhost:3000`) are automatically
-  port-forwarded through Coder's [port forwarding](./port-forwarding.md) system
+- **External URLs** (for example, `https://example.com`) open in a new tab
+- **Localhost URLs** (for example, `http://localhost:3000`) are automatically port-forwarded through Coder's [port forwarding](./port-forwarding.md) system
 - **Port-forwarded URLs** use your configured workspace proxy
 
 This makes it seamless to open development servers running in your workspace.
@@ -161,20 +166,16 @@ You can open a terminal with a specific command by adding a query parameter:
 https://coder.example.com/@user/workspace/terminal?command=htop
 ```
 
-When a `?command=` parameter is present, a confirmation dialog is shown before
-the command executes. The user must select **Run command** to proceed or
-**Cancel** to close the terminal window. This prevents external links from
-silently executing arbitrary commands in a workspace.
+When a `?command=` parameter is present, a confirmation dialog is shown before the command executes.
+The user must select **Run command** to proceed or **Cancel** to close the terminal window.
+This prevents external links from silently executing arbitrary commands in a workspace.
 
-Template-configured apps that use the `command` attribute in
-[`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app)
-are trusted and bypass the confirmation dialog. These apps use the `?app=`
-parameter internally, which resolves the command from the agent's app list.
+Template-configured apps that use the `command` attribute in [`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app) are trusted and bypass the confirmation dialog.
+These apps use the `?app=` parameter internally, which resolves the command from the agent's app list.
 
 ### Container Selection
 
-For workspaces with multiple Docker containers, specify which container to
-connect to:
+For workspaces with multiple Docker containers, specify which container to connect to:
 
 ```txt
 https://coder.example.com/@user/workspace/terminal?container=sidecar
@@ -186,7 +187,8 @@ You can also specify the container user:
 https://coder.example.com/@user/workspace/terminal?container=app&container_user=node
 ```
 
-> **Note:** This feature only works with Docker containers.
+> **Note:**
+> This feature only works with Docker containers.
 
 ### Debug Mode
 
@@ -196,14 +198,12 @@ Enable debug information to monitor connection latency:
 https://coder.example.com/@user/workspace/terminal?debug
 ```
 
-This displays the current latency to your selected workspace proxy in the
-bottom-right corner.
+This displays the current latency to your selected workspace proxy in the bottom-right corner.
 
 ## Configuration File Support
 
-The Web Terminal uses xterm.js under the hood, which is configured
-programmatically rather than through a configuration file. However, you can
-customize various aspects:
+The Web Terminal uses xterm.js under the hood, which is configured programmatically rather than through a configuration file.
+However, you can customize various aspects:
 
 ### User-Side Customization
 
@@ -232,16 +232,24 @@ export CTERM=xterm-256color
 
 If the terminal fails to connect:
 
-1. **Check workspace status**: Ensure your workspace is running
-2. **Verify agent health**: Look for agent connection warnings
-3. **Network issues**: Check if WebSockets are blocked by your firewall/proxy
-4. **Browser console**: Open DevTools to see WebSocket error messages
+1. **Check workspace status**:
+   Ensure your workspace is running
+2. **Verify agent health**:
+   Look for agent connection warnings
+3. **Network issues**:
+   Check if WebSockets are blocked by your firewall/proxy
+4. **Browser console**:
+   Open DevTools to see WebSocket error messages
 
 ### Display Issues
 
 If characters or colors appear incorrect:
 
-1. **Unicode support**: Ensure your shell locale is set correctly (`locale -a`)
-2. **Terminal type**: The terminal sets `TERM=xterm-256color` automatically
-3. **Color schemes**: Some applications may not render correctly in dark mode
-4. **Font rendering**: Try switching terminal fonts in your appearance settings
+1. **Unicode support**:
+   Ensure your shell locale is set correctly (`locale -a`)
+2. **Terminal type**:
+   The terminal sets `TERM=xterm-256color` automatically
+3. **Color schemes**:
+   Some applications may not render correctly in dark mode
+4. **Font rendering**:
+   Try switching terminal fonts in your appearance settings

@@ -44,7 +44,14 @@ The `error_description` opens with the requested name that caused the rejection:
 - `none of the scopes registered for this app are supported by this deployment`: the application's `scope` allowlist names nothing this deployment offers, so no request against it can succeed, including one that omits `scope`.
   Update the allowlist with supported scopes.
   This description stands alone.
-  Nothing checks a stored `scope` against the catalog, so the response never echoes it; the `coderd` log records the application ID.
+  Dynamic Client Registration drops unsupported names before storing, so this applies to an allowlist set through the web UI or the management API, or to an application that registered before names were checked.
+  Such a value was never checked against the catalog, so the response never echoes it.
+  The `coderd` log records the application ID.
+- `scope requests permissions beyond the signed-in session`: the session authorizing the request does not hold that scope.
+  Authorize from a browser session, which holds every scope.
+- `the signed-in session is restricted to an allow list`: the session authorizing the request has an allow list other than `*:*`.
+  Authorize from a browser session, which has none.
+  This description stands alone.
 
 Omitting `scope` requests the application's allowlist, or full access if it has none.
 
@@ -59,9 +66,10 @@ Refer to ["invalid_scope" for a refresh that names a scope](#invalid_scope-for-a
 If that stored scope names something this deployment cannot mint, the exchange answers HTTP 400 with `error=invalid_grant` and an `error_description` naming the value.
 
 The usual cause is a grant made against a scope the deployment has since dropped.
-Authorize again to negotiate a scope it still supports; the stored scope is not something the client can change by requesting a different one.
+Authorize again to negotiate a scope it still supports.
+The stored scope is not something the client can change by requesting a different one.
 
-The exchange also re-checks the code's scope against the application's registered `scope`, which can change during the 10 minutes a code stays valid.
+The exchange also re-checks the code's scope against the application's registered `scope`, which can change during the 10&nbsp;minutes a code stays valid.
 Two more descriptions can open the `error_description` here:
 
 - `scope is no longer allowed by this app's registered scopes`: the allowlist narrowed after the code was issued and no longer covers the code's scope.
@@ -70,17 +78,19 @@ Two more descriptions can open the `error_description` here:
   Update the allowlist with supported scopes.
   As on the authorize endpoint, the stored value stays out of the response.
 
-A coverage comparison this deployment cannot decide answers HTTP 500 with `error=server_error` and `The requested scope could not be evaluated`; the scope that could not be compared is in the `coderd` logs, not the response.
+A coverage comparison this deployment cannot decide answers HTTP 500 with `error=server_error` and `The requested scope could not be evaluated`.
+The scope that could not be compared is in the `coderd` logs, not the response.
 
 An application's `scope` allowlist can change through [Dynamic Client Registration](./index.md#dynamic-client-registration), by the application itself, or through the management API, by an administrator.
 An application that holds its registration access token can widen its own allowlist again before redeeming a code, so treat this re-check as reflecting the allowlist at redemption time rather than as a constraint on the client.
 
 A refresh is not re-checked against the registration.
 That is a Coder policy choice: withdrawing scope from a session already running would break it mid-flight, so a narrowing takes effect at the next authorization.
-A refresh token keeps its granted scope until it expires, which can be up to the configured refresh lifetime; revoke the token to cut a live session.
+A refresh token keeps its granted scope until it expires, which can be up to the configured refresh lifetime.
+Revoke the token to cut a live session.
 
 Codes issued before the upgrade that added scope columns carry `coder:all`, recorded as an unrestricted grant.
-For an application with a narrower `scope` allowlist, those codes are refused with `scope is no longer allowed by this app's registered scopes` until they expire, which takes at most 10 minutes.
+For an application with a narrower `scope` allowlist, those codes are refused with `scope is no longer allowed by this app's registered scopes` until they expire, which takes at most 10&nbsp;minutes.
 Authorizing again issues a code within the current allowlist.
 
 ## "invalid_scope" for a refresh that names a scope
@@ -154,6 +164,40 @@ Deleting a secret also revokes the tokens issued under it, so the client has to 
 
 Earlier releases accepted the parameter in the query string.
 An integration that relied on that has to move it into the body or the header.
+
+## HTTP 401 for an access token in the query string
+
+Coder ignores an access token issued by the OAuth2 provider when it arrives only in the URL query string, as `?access_token=` or `?coder_session_token=`.
+OAuth 2.1 section 5.1 requires the resource server to ignore access tokens in a URI query parameter.
+Coder handles the request as if it carried no token at all.
+Most endpoints require a signed-in user, so they answer HTTP 401 with a `WWW-Authenticate: Bearer` header.
+That header carries no error code, since no token was accepted, and the JSON body says to send the token in the `Authorization` header instead.
+A few endpoints also work without a signed-in user, and those handle the request as an anonymous one and return no error.
+Send the token in the `Authorization` header instead, as shown under [Authorization code flow](./integration-patterns.md#authorization-code-flow).
+
+The rule applies to tokens the OAuth2 provider issued.
+Coder session tokens and API tokens created from the dashboard or the CLI are still accepted in the query string, because browsers cannot set headers on WebSocket connections.
+A dashboard page embedded in another application and authenticated with an OAuth2 access token cannot open WebSocket connections, because the page has no other way to send the token on a WebSocket.
+
+A token that also appears in the `Authorization` header, the `Coder-Session-Token` header, or the session cookie is accepted, and the query copy is ignored.
+
+An app served through an external workspace proxy is not covered by this rule.
+The proxy forwards the client's request to the primary as a header regardless of how the client sent it to the proxy, so a token sent only in the query string to the proxy can still authenticate, and no warning is logged.
+
+Each ignored token writes a log line containing `oauth2 access token ignored: sent in the URL query string` with the `api_key_id`, `user_id`, `app_id`, `path`, `remote_addr`, and `user_agent` of the request.
+The `app_id` matches the application in the **OAuth2 Applications** admin page, and the `user_id` names the user whose authorization the integration is using.
+Search the Coder logs for that string to find the integration that sends the token in the URL.
+The ignored token stays valid and is not marked as used.
+
+A URL is recorded by reverse proxies, load balancers, CDN access logs, browser history, and `Referer` headers.
+Treat a token that was sent this way as exposed and end it in one of these ways:
+
+- The integration owner, who holds the token value and the client credentials, revokes it following [Revoke a token](./token-management.md#revoke-a-token).
+- The user named by `user_id` ends their own tokens for the application following [Revoke your authorization for an application](./token-management.md#revoke-your-authorization-for-an-application).
+- An administrator deletes the key with the two IDs from the log line, `DELETE /api/v2/users/{user_id}/keys/{api_key_id}`, or cuts off every user of the application by deleting it or one of its secrets following [Delete an application](./token-management.md#delete-an-application).
+
+Earlier releases accepted the token in the query string.
+An integration that relied on that has to move it into the `Authorization` header.
 
 ## "unsupported_response_type" returned to your callback
 

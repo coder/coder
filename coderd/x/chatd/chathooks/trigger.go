@@ -100,8 +100,18 @@ type Message struct {
 	ToolError    string
 }
 
+// UserPromptMessage builds the user_prompt_submit payload for parts.
+// Invoked skill bodies and directories stay out of the payload sent to the
+// hook consumer; the caller's parts keep them for the stored message.
 func UserPromptMessage(parts []codersdk.ChatMessagePart) (Message, error) {
-	encoded, err := chatprompt.MarshalParts(parts)
+	hookParts := make([]codersdk.ChatMessagePart, len(parts))
+	for i, part := range parts {
+		part.SkillBody = ""
+		part.SkillDir = ""
+		part.SkillWorkspaceID = uuid.Nil
+		hookParts[i] = part
+	}
+	encoded, err := chatprompt.MarshalParts(hookParts)
 	if err != nil {
 		return Message{}, xerrors.Errorf("marshal prompt parts for hook: %w", err)
 	}
@@ -193,11 +203,26 @@ func (t *Trigger) Trigger(
 	return result, nil
 }
 
+// textFromParts joins the text parts of a prompt. A skill invocation
+// appears as its slash alias, such as "/project/triage", separated from
+// the surrounding text by spaces.
 func textFromParts(parts []codersdk.ChatMessagePart) string {
 	var builder strings.Builder
+	afterSkill := false
 	for _, part := range parts {
-		if part.Type == codersdk.ChatMessagePartTypeText {
+		switch part.Type {
+		case codersdk.ChatMessagePartTypeText:
+			if afterSkill && part.Text != "" {
+				_, _ = builder.WriteString(" ")
+				afterSkill = false
+			}
 			_, _ = builder.WriteString(part.Text)
+		case codersdk.ChatMessagePartTypeSkillInvocation:
+			if builder.Len() > 0 {
+				_, _ = builder.WriteString(" ")
+			}
+			_, _ = builder.WriteString("/" + chatprompt.SkillInvocationAlias(part))
+			afterSkill = true
 		}
 	}
 	return builder.String()

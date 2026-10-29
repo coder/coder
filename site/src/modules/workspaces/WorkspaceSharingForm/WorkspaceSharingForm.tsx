@@ -1,5 +1,4 @@
 import { EllipsisVerticalIcon, UserPlusIcon } from "lucide-react";
-import type { FC, ReactNode } from "react";
 import { useQuery } from "react-query";
 import { workspaceSharingSettings } from "#/api/queries/organizations";
 import type {
@@ -42,12 +41,14 @@ import { getGroupSubtitle } from "#/modules/groups";
 
 type RoleSelectProps = {
 	value: WorkspaceRole;
+	memberOrGroupName: string;
 	disabled?: boolean;
 	onValueChange: (value: WorkspaceRole) => void;
 };
 
-const RoleSelect: FC<RoleSelectProps> = ({
+const RoleSelect: React.FC<RoleSelectProps> = ({
 	value,
+	memberOrGroupName,
 	disabled,
 	onValueChange,
 }) => {
@@ -59,7 +60,10 @@ const RoleSelect: FC<RoleSelectProps> = ({
 
 	return (
 		<Select value={value} onValueChange={onValueChange} disabled={disabled}>
-			<SelectTrigger className="w-40 h-auto">
+			<SelectTrigger
+				className="w-40 h-auto"
+				aria-label={`Role for ${memberOrGroupName}`}
+			>
 				<SelectValue>
 					<span className="bg-surface-secondary rounded-md px-3 py-0.5 inline-block">
 						{roleLabels[value]}
@@ -88,10 +92,10 @@ type AddWorkspaceMemberFormProps = {
 	isLoading: boolean;
 	onSubmit: () => void;
 	disabled: boolean;
-	children: ReactNode;
+	children: React.ReactNode;
 };
 
-export const AddWorkspaceMemberForm: FC<AddWorkspaceMemberFormProps> = ({
+export const AddWorkspaceMemberForm: React.FC<AddWorkspaceMemberFormProps> = ({
 	isLoading,
 	onSubmit,
 	disabled,
@@ -118,7 +122,7 @@ type RoleSelectFieldProps = {
 	disabled?: boolean;
 };
 
-export const RoleSelectField: FC<RoleSelectFieldProps> = ({
+export const RoleSelectField: React.FC<RoleSelectFieldProps> = ({
 	value,
 	onChange,
 	disabled,
@@ -129,7 +133,7 @@ export const RoleSelectField: FC<RoleSelectFieldProps> = ({
 			onValueChange={(val: WorkspaceRole) => onChange(val)}
 			disabled={disabled}
 		>
-			<SelectTrigger className="w-40">
+			<SelectTrigger className="w-40" aria-label="Role">
 				<SelectValue />
 			</SelectTrigger>
 			<SelectContent>
@@ -143,7 +147,7 @@ export const RoleSelectField: FC<RoleSelectFieldProps> = ({
 type WorkspaceSharingFormProps = {
 	organizationId: string;
 	workspaceACL: WorkspaceACL | undefined;
-	canUpdatePermissions: boolean;
+	canShareWorkspace: boolean;
 	error: unknown;
 	onUpdateUser: (user: WorkspaceUser, role: WorkspaceRole) => void;
 	updatingUserId: WorkspaceUser["id"] | undefined;
@@ -151,15 +155,15 @@ type WorkspaceSharingFormProps = {
 	onUpdateGroup: (group: WorkspaceGroup, role: WorkspaceRole) => void;
 	updatingGroupId?: WorkspaceGroup["id"] | undefined;
 	onRemoveGroup: (group: Group) => void;
-	addMemberForm?: ReactNode;
+	addMemberForm?: React.ReactNode;
 	isCompact?: boolean;
 	showRestartWarning?: boolean;
 };
 
-export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
+export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 	organizationId,
 	workspaceACL,
-	canUpdatePermissions,
+	canShareWorkspace,
 	error,
 	updatingUserId,
 	onUpdateUser,
@@ -257,9 +261,10 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 								/>
 							</TableCell>
 							<TableCell className="py-2 w-[40%]">
-								{canUpdatePermissions ? (
+								{canShareWorkspace ? (
 									<RoleSelect
 										value={group.role}
+										memberOrGroupName={group.display_name || group.name}
 										disabled={updatingGroupId === group.id}
 										onValueChange={(value) => onUpdateGroup(group, value)}
 									/>
@@ -269,7 +274,7 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 							</TableCell>
 
 							<TableCell className="py-2 w-[10%]">
-								{canUpdatePermissions && (
+								{canShareWorkspace && (
 									<DropdownMenu>
 										<DropdownMenuTrigger asChild>
 											<Button
@@ -305,9 +310,10 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 								/>
 							</TableCell>
 							<TableCell className="py-2 w-[40%]">
-								{canUpdatePermissions ? (
+								{canShareWorkspace ? (
 									<RoleSelect
 										value={user.role}
+										memberOrGroupName={user.username}
 										disabled={updatingUserId === user.id}
 										onValueChange={(value) => onUpdateUser(user, value)}
 									/>
@@ -317,7 +323,7 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 							</TableCell>
 
 							<TableCell className="py-2 w-[10%]">
-								{canUpdatePermissions && (
+								{canShareWorkspace && (
 									<DropdownMenu>
 										<DropdownMenuTrigger asChild>
 											<Button
@@ -351,7 +357,7 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 		return (
 			<div className="flex flex-col gap-4">
 				{Boolean(error) && <ErrorAlert error={error} />}
-				{canUpdatePermissions && addMemberForm}
+				{canShareWorkspace && addMemberForm}
 				{showRestartWarning && (
 					<Alert severity="warning">
 						Workspace restart required for the removal to take effect.
@@ -370,7 +376,7 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 	return (
 		<div className="flex flex-col gap-4">
 			{Boolean(error) && <ErrorAlert error={error} />}
-			{canUpdatePermissions && addMemberForm}
+			{canShareWorkspace && addMemberForm}
 			{showRestartWarning && (
 				<Alert severity="warning">
 					Workspace restart required for the removal to take effect.

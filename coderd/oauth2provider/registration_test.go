@@ -669,30 +669,61 @@ func TestUpdateClientConfiguration_LegacyAuthMethodMismatch(t *testing.T) {
 	}
 }
 
-// TestUpdateClientConfiguration_LegacyOversizedScope covers apps that stored
-// a scope list larger than the current limit before the limit existed. An
-// RFC 7592 update replaces every field, so a client changing only its name
-// has to resend that list. Resending it unchanged must succeed, while a new
-// value is still held to the limit.
-func TestUpdateClientConfiguration_LegacyOversizedScope(t *testing.T) {
+func TestUpdateClientConfiguration_LegacyInvalidScope(t *testing.T) {
 	t.Parallel()
 
 	oversized := strings.TrimSpace(strings.Repeat("workspace:read ", codersdk.OAuth2ScopeListMaxNames+1))
+	unknown := "workspace:read nosuch:scope"
 
 	tests := []struct {
 		name       string
+		stored     string
 		scope      string
 		wantStatus int
+		// The scope stored after the request.
+		wantScope string
 	}{
 		{
-			name:       "ResendingStoredScopeIsAccepted",
+			name:       "ResendingStoredOversizedScopeIsAccepted",
+			stored:     oversized,
 			scope:      oversized,
 			wantStatus: http.StatusOK,
+			wantScope:  oversized,
 		},
 		{
 			name:       "NewOversizedScopeIsRejected",
-			scope:      oversized + " workspace:write",
+			stored:     oversized,
+			scope:      oversized + " workspace:update",
 			wantStatus: http.StatusBadRequest,
+			wantScope:  oversized,
+		},
+		{
+			name:       "ResendingStoredUnknownScopeIsAccepted",
+			stored:     unknown,
+			scope:      unknown,
+			wantStatus: http.StatusOK,
+			wantScope:  unknown,
+		},
+		{
+			name:       "NewCatalogScopeIsStored",
+			stored:     unknown,
+			scope:      "template:read",
+			wantStatus: http.StatusOK,
+			wantScope:  "template:read",
+		},
+		{
+			name:       "NewMixedScopeIsNarrowed",
+			stored:     unknown,
+			scope:      unknown + " template:read",
+			wantStatus: http.StatusOK,
+			wantScope:  "workspace:read template:read",
+		},
+		{
+			name:       "NewAllUnknownScopeIsRejected",
+			stored:     unknown,
+			scope:      "other:scope",
+			wantStatus: http.StatusBadRequest,
+			wantScope:  unknown,
 		},
 	}
 
@@ -711,7 +742,7 @@ func TestUpdateClientConfiguration_LegacyOversizedScope(t *testing.T) {
 				ClientType:              database.OAuth2ProviderAppClientTypeConfidential,
 				TokenEndpointAuthMethod: sql.NullString{String: "client_secret_basic", Valid: true},
 				DynamicallyRegistered:   sql.NullBool{Bool: true, Valid: true},
-				Scope:                   sql.NullString{String: oversized, Valid: true},
+				Scope:                   sql.NullString{String: tt.stored, Valid: true},
 			})
 
 			logger := slogtest.Make(t, nil)
@@ -738,9 +769,7 @@ func TestUpdateClientConfiguration_LegacyOversizedScope(t *testing.T) {
 
 			app, err := db.GetOAuth2ProviderAppByClientID(ctx, legacy.ID)
 			require.NoError(t, err)
-			// Neither request changes the stored scope: the unchanged value
-			// is kept and the oversized new value is rejected.
-			require.Equal(t, oversized, app.Scope.String)
+			require.Equal(t, tt.wantScope, app.Scope.String)
 			if tt.wantStatus == http.StatusOK {
 				require.Equal(t, "renamed-app", app.Name)
 			} else {

@@ -1,0 +1,11 @@
+title: Operate and maintain
+description: Run the deployment day to day, add external provisioners, upgrade it, and remove it when needed.
+path: ./install/operate/index.md
+icon_path: ./images/icons/wrench.svg
+children:
+  - include: install/operate/provisioners.yml
+  - include: install/operate/upgrade.yml
+  - title: Uninstall
+    description: Learn how to uninstall your Coder deployment and remove its associated resources.
+    path: ./install/operate/uninstall.md
+    icon_path: ./images/icons/trash.svg

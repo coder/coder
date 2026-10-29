@@ -27,10 +27,30 @@ import (
 // threshold settings.
 const ChatCompactionThresholdKeyPrefix = "chat_compaction_threshold_pct:"
 
-// MaxChatFileIDs is the number of most recent attachments a chat
-// keeps. Linking a new file past this cap deletes the oldest files
-// on the chat. A single batch larger than the cap is rejected.
-const MaxChatFileIDs = 50
+// Defaults for the chat limits in [ChatConfig].
+const (
+	// DefaultChatMaxStepsPerTurn is the default maximum number of steps in
+	// a chat turn.
+	DefaultChatMaxStepsPerTurn = 1200
+	// DefaultChatMaxGenerationRetries is the default maximum number of
+	// consecutive retries after a model generation fails with a transient
+	// error.
+	DefaultChatMaxGenerationRetries = 25
+	// DefaultChatMaxQueuedMessagesPerChat is the default maximum number of
+	// messages that can be queued in a chat.
+	DefaultChatMaxQueuedMessagesPerChat = 20
+	// DefaultChatMaxAttachmentsPerChat is the default maximum number of
+	// files linked to a chat.
+	DefaultChatMaxAttachmentsPerChat = 50
+	// DefaultChatMaxPromptBytes is the default maximum size in bytes of the
+	// deployment system prompt, the plan mode instructions, and each
+	// user's custom prompt.
+	DefaultChatMaxPromptBytes = 128 * 1024
+	// DefaultChatMaxConcurrentRecordingUploads is the default maximum
+	// number of virtual desktop recordings that each Coder server stores
+	// at the same time.
+	DefaultChatMaxConcurrentRecordingUploads = 25
+)
 
 // MaxChatFileSizeBytes is the upload-endpoint cap for chat
 // attachments.
@@ -116,32 +136,60 @@ const (
 	ChatClientTypeAPI ChatClientType = "api"
 )
 
+// ChatTitleSource is where a chat's title came from.
+type ChatTitleSource string
+
+const (
+	// ChatTitleSourceFallback is derived from the first prompt, or is the
+	// default title of a chat created without one.
+	ChatTitleSourceFallback ChatTitleSource = "fallback"
+	// ChatTitleSourceGenerated is written by automatic title generation.
+	ChatTitleSourceGenerated ChatTitleSource = "generated"
+	// ChatTitleSourceUser is supplied by the caller at creation or by
+	// rename.
+	ChatTitleSourceUser ChatTitleSource = "user"
+)
+
 // Chat represents a chat session with an AI agent.
 type Chat struct {
-	ID                  uuid.UUID    `json:"id" format:"uuid"`
-	OrganizationID      uuid.UUID    `json:"organization_id" format:"uuid"`
-	OwnerID             uuid.UUID    `json:"owner_id" format:"uuid"`
-	OwnerUsername       string       `json:"owner_username,omitempty"`
-	OwnerName           string       `json:"owner_name,omitempty"`
-	WorkspaceID         *uuid.UUID   `json:"workspace_id,omitempty" format:"uuid"`
-	BuildID             *uuid.UUID   `json:"build_id,omitempty" format:"uuid"`
-	AgentID             *uuid.UUID   `json:"agent_id,omitempty" format:"uuid"`
-	ParentChatID        *uuid.UUID   `json:"parent_chat_id,omitempty" format:"uuid"`
-	RootChatID          *uuid.UUID   `json:"root_chat_id,omitempty" format:"uuid"`
-	LastModelConfigID   uuid.UUID    `json:"last_model_config_id" format:"uuid"`
-	LastReasoningEffort *string      `json:"last_reasoning_effort,omitempty"`
-	Title               string       `json:"title"`
-	Status              ChatStatus   `json:"status"`
-	PlanMode            ChatPlanMode `json:"plan_mode,omitempty"`
-	LastError           *ChatError   `json:"last_error,omitempty"`
-	LastTurnSummary     *string      `json:"last_turn_summary"`
+	ID                  uuid.UUID  `json:"id" format:"uuid"`
+	OrganizationID      uuid.UUID  `json:"organization_id" format:"uuid"`
+	OwnerID             uuid.UUID  `json:"owner_id" format:"uuid"`
+	OwnerUsername       string     `json:"owner_username,omitempty"`
+	OwnerName           string     `json:"owner_name,omitempty"`
+	WorkspaceID         *uuid.UUID `json:"workspace_id,omitempty" format:"uuid"`
+	ProjectID           *uuid.UUID `json:"project_id,omitempty" format:"uuid"`
+	BuildID             *uuid.UUID `json:"build_id,omitempty" format:"uuid"`
+	AgentID             *uuid.UUID `json:"agent_id,omitempty" format:"uuid"`
+	ParentChatID        *uuid.UUID `json:"parent_chat_id,omitempty" format:"uuid"`
+	RootChatID          *uuid.UUID `json:"root_chat_id,omitempty" format:"uuid"`
+	LastModelConfigID   uuid.UUID  `json:"last_model_config_id" format:"uuid"`
+	LastReasoningEffort *string    `json:"last_reasoning_effort,omitempty"`
+	Title               string     `json:"title"`
+	// TitleSource is where Title came from. A title write applies only when
+	// the current source ranks the same as or lower than the incoming one,
+	// in the order fallback, generated, user.
+	TitleSource ChatTitleSource `json:"title_source"`
+	// TitleUpdatedAt orders title changes. Title writes do not change
+	// UpdatedAt.
+	TitleUpdatedAt  time.Time    `json:"title_updated_at" format:"date-time"`
+	Status          ChatStatus   `json:"status"`
+	PlanMode        ChatPlanMode `json:"plan_mode,omitempty"`
+	LastError       *ChatError   `json:"last_error,omitempty"`
+	LastTurnSummary *string      `json:"last_turn_summary"`
 	// Summary is the persisted whole-chat summary, generated in the background.
 	// It is nil until the first summary has been produced.
-	Summary    *string         `json:"summary"`
+	Summary *string `json:"summary"`
+	// DiffStatus is the primary pull request. It is the ref with the
+	// most recent git report.
 	DiffStatus *ChatDiffStatus `json:"diff_status,omitempty"`
-	CreatedAt  time.Time       `json:"created_at" format:"date-time"`
-	UpdatedAt  time.Time       `json:"updated_at" format:"date-time"`
-	Archived   bool            `json:"archived"`
+	// DiffStatuses lists every ref the chat tracks. The order is
+	// stable and follows the first report of each ref. DiffStatus
+	// marks the primary.
+	DiffStatuses []ChatDiffStatus `json:"diff_statuses,omitempty"`
+	CreatedAt    time.Time        `json:"created_at" format:"date-time"`
+	UpdatedAt    time.Time        `json:"updated_at" format:"date-time"`
+	Archived     bool             `json:"archived"`
 	// Shared is true when this chat's root chat has explicit user or group ACL entries.
 	Shared       bool               `json:"shared"`
 	PinOrder     int32              `json:"pin_order"`
@@ -150,7 +198,7 @@ type Chat struct {
 	Files        []ChatFileMetadata `json:"files,omitempty"`
 	// HasUnread is true when assistant messages exist beyond
 	// the owner's read cursor, which updates on stream
-	// connect and disconnect.
+	// connect and disconnect and via UpdateChatRequest.Read.
 	HasUnread bool `json:"has_unread"`
 	// Context reports the chat's pinned workspace-context state and
 	// whether it has drifted from the agent's latest pushed snapshot.
@@ -173,6 +221,119 @@ type Chat struct {
 	Children []Chat `json:"children"`
 }
 
+// ChatProject groups related chats in an organization.
+type ChatProject struct {
+	ID             uuid.UUID `json:"id" format:"uuid"`
+	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
+	OwnerID        uuid.UUID `json:"owner_id" format:"uuid"`
+	// Name is a display label and is not unique; ID identifies the project.
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	// Icon is a URL, typically an emoji image under /emojis, or empty for the
+	// default folder glyph.
+	Icon        string                 `json:"icon"`
+	CreatedAt   time.Time              `json:"created_at" format:"date-time"`
+	UpdatedAt   time.Time              `json:"updated_at" format:"date-time"`
+	Permissions ChatProjectPermissions `json:"permissions"`
+}
+
+// ChatProjectPermissions are the actions the caller may take on a project.
+type ChatProjectPermissions struct {
+	Update bool `json:"update"`
+	Delete bool `json:"delete"`
+	Share  bool `json:"share"`
+}
+
+// CreateChatProjectRequest creates a chat project in the organization named
+// by the route.
+type CreateChatProjectRequest struct {
+	Name        string `json:"name" validate:"required"`
+	Description string `json:"description"`
+	Icon        string `json:"icon,omitempty"`
+}
+
+// UpdateChatProjectRequest updates a chat project.
+type UpdateChatProjectRequest struct {
+	Name        *string `json:"name,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Icon        *string `json:"icon,omitempty"`
+}
+
+// ChatProjectRole is the access a project ACL grants.
+type ChatProjectRole string
+
+const (
+	// ChatProjectRoleUse can start chats and read and write memories.
+	ChatProjectRoleUse ChatProjectRole = "use"
+	// ChatProjectRoleAdmin can also edit the project and its instructions,
+	// which every chat in the project gets as system prompt, and share it, but
+	// not delete it.
+	ChatProjectRoleAdmin   ChatProjectRole = "admin"
+	ChatProjectRoleDeleted ChatProjectRole = ""
+)
+
+type ChatProjectUser struct {
+	MinimalUser
+	Role ChatProjectRole `json:"role" enums:"use,admin"`
+}
+
+type ChatProjectGroup struct {
+	Group
+	Role ChatProjectRole `json:"role" enums:"use,admin"`
+}
+
+// ChatProjectACL lists who a chat project is shared with. The Everyone
+// group's ID is the organization ID.
+type ChatProjectACL struct {
+	Users  []ChatProjectUser  `json:"users"`
+	Groups []ChatProjectGroup `json:"groups"`
+}
+
+// UpdateChatProjectACL changes only the listed principals.
+// ChatProjectRoleDeleted removes an entry.
+type UpdateChatProjectACL struct {
+	UserRoles  map[string]ChatProjectRole `json:"user_roles,omitempty"`
+	GroupRoles map[string]ChatProjectRole `json:"group_roles,omitempty"`
+}
+
+// ChatProjectInstructions are instructions added to the system prompt of
+// every chat in a project, except chats whose owner can no longer use the
+// project. A project without instructions has an empty Instructions
+// string and nil UpdatedBy and UpdatedAt.
+type ChatProjectInstructions struct {
+	ProjectID    uuid.UUID `json:"project_id" format:"uuid"`
+	Instructions string    `json:"instructions"`
+	// UpdatedBy is the user who last changed the instructions. It is nil
+	// when the instructions are unset or the user was deleted.
+	UpdatedBy *MinimalUser `json:"updated_by"`
+	UpdatedAt *time.Time   `json:"updated_at" format:"date-time"`
+}
+
+// UpdateChatProjectInstructionsRequest sets a project's instructions. Use
+// DeleteChatProjectInstructions to clear them.
+type UpdateChatProjectInstructionsRequest struct {
+	Instructions string `json:"instructions"`
+}
+
+// ChatProjectMemory is a durable memory shared by chats in a project.
+type ChatProjectMemory struct {
+	ID                uuid.UUID `json:"id" format:"uuid"`
+	ProjectID         uuid.UUID `json:"project_id" format:"uuid"`
+	OrganizationID    uuid.UUID `json:"organization_id" format:"uuid"`
+	Name              string    `json:"name"`
+	Description       string    `json:"description"`
+	Body              string    `json:"body"`
+	CreatedBy         uuid.UUID `json:"created_by" format:"uuid"`
+	CreatedByUsername string    `json:"created_by_username"`
+	CreatedAt         time.Time `json:"created_at" format:"date-time"`
+}
+
+type CreateChatProjectMemoryRequest struct {
+	Name        string `json:"name" validate:"required"`
+	Description string `json:"description" validate:"required"`
+	Body        string `json:"body" validate:"required"`
+}
+
 // ChatContext reports a chat's pinned workspace context and whether it has
 // drifted from the agent's latest pushed snapshot. The chat stays usable
 // when dirty; refreshing re-pins it to the latest snapshot.
@@ -185,15 +346,14 @@ type ChatContext struct {
 	// Error is the snapshot-level error copied from the pinned snapshot
 	// (empty when healthy).
 	Error string `json:"error,omitempty"`
-	// Resources is the chat's pinned context (instruction files and
-	// skills) the prompt is built from, metadata only (no bodies). It is
-	// populated only on the single-chat GET response; list and watch
+	// Resources is the chat's pinned workspace-context inventory,
+	// metadata only (no bodies). It is populated only on the single-chat
+	// GET response; list and watch
 	// payloads leave it nil to stay lightweight.
 	Resources []ChatContextResource `json:"resources,omitempty"`
 }
 
-// ChatContextResourceKind classifies a pinned context resource the prompt
-// uses. Only the kinds that contribute to the prompt are reported.
+// ChatContextResourceKind classifies a pinned workspace-context resource.
 type ChatContextResourceKind string
 
 const (
@@ -201,17 +361,20 @@ const (
 	ChatContextResourceKindSkill           ChatContextResourceKind = "skill"
 	ChatContextResourceKindMCPConfig       ChatContextResourceKind = "mcp_config"
 	ChatContextResourceKindMCPServer       ChatContextResourceKind = "mcp_server"
+	ChatContextResourceKindACPHarness      ChatContextResourceKind = "acp_harness"
 )
 
-// ChatContextResource is one pinned workspace-context resource the chat's
-// prompt is built from. It is metadata only; bodies are omitted. Reported
+// ChatContextResource is one resource in the chat's pinned workspace-context
+// inventory. It is metadata only; bodies are omitted. Reported
 // only on the single-chat GET response.
 type ChatContextResource struct {
 	// Source is the resource locator: the canonical file path for an
 	// instruction file, the skill directory for a skill, the file path for
-	// an MCP config, or the server name for an MCP server.
+	// an MCP config, the server name for an MCP server, or an ACP harness slug.
 	Source string                  `json:"source"`
 	Kind   ChatContextResourceKind `json:"kind"`
+	// SourcePath is the configuration directory for an ACP harness.
+	SourcePath string `json:"source_path,omitempty"`
 	// SizeBytes is the original payload size in bytes.
 	SizeBytes int64 `json:"size_bytes"`
 	// SkillName and SkillDescription are populated only for skill kinds.
@@ -264,6 +427,13 @@ type ChatFileMetadata struct {
 	CreatedAt      time.Time `json:"created_at" format:"date-time"`
 }
 
+// ChatACPTranscriptMessage is a workspace-local ACP message returned by
+// acp_wait_agent without database message metadata.
+type ChatACPTranscriptMessage struct {
+	Role    ChatMessageRole   `json:"role"`
+	Content []ChatMessagePart `json:"content"`
+}
+
 // ChatMessage represents a single message in a chat.
 type ChatMessage struct {
 	ID            int64             `json:"id"`
@@ -284,9 +454,11 @@ type ChatMessage struct {
 
 // ChatMessageUsage contains token usage information for a chat message.
 type ChatMessageUsage struct {
-	InputTokens         *int64 `json:"input_tokens,omitempty"`
-	OutputTokens        *int64 `json:"output_tokens,omitempty"`
-	TotalTokens         *int64 `json:"total_tokens,omitempty"`
+	InputTokens  *int64 `json:"input_tokens,omitempty"`
+	OutputTokens *int64 `json:"output_tokens,omitempty"`
+	TotalTokens  *int64 `json:"total_tokens,omitempty"`
+	// ReasoningTokens counts reasoning, which output_tokens already
+	// includes, so do not add the two.
 	ReasoningTokens     *int64 `json:"reasoning_tokens,omitempty"`
 	CacheCreationTokens *int64 `json:"cache_creation_tokens,omitempty"`
 	CacheReadTokens     *int64 `json:"cache_read_tokens,omitempty"`
@@ -318,6 +490,10 @@ const (
 	ChatMessagePartTypeContextFile            ChatMessagePartType = "context-file"
 	ChatMessagePartTypeSkill                  ChatMessagePartType = "skill"
 	ChatMessagePartTypeWorkspaceFileReference ChatMessagePartType = "workspace-file-reference"
+	// ChatMessagePartTypeSkillInvocation is a skill the user attached to
+	// a message. The server loads the skill body when the message is sent
+	// and renders it into the user's prompt.
+	ChatMessagePartTypeSkillInvocation ChatMessagePartType = "skill-invocation"
 	// ChatMessagePartTypeHookContext is model context injected into a user
 	// prompt by a lifecycle hook. It is included in model prompt assembly
 	// and stripped from every client-facing conversion; the server rejects
@@ -342,6 +518,7 @@ func AllChatMessagePartTypes() []ChatMessagePartType {
 		ChatMessagePartTypeContextFile,
 		ChatMessagePartTypeSkill,
 		ChatMessagePartTypeWorkspaceFileReference,
+		ChatMessagePartTypeSkillInvocation,
 		ChatMessagePartTypeHookContext,
 		ChatMessagePartTypeHookNotice,
 	}
@@ -373,7 +550,7 @@ func AllChatMessagePartTypes() []ChatMessagePartType {
 type ChatMessagePart struct {
 	Type              ChatMessagePartType `json:"type"`
 	Text              string              `json:"text" variants:"text,reasoning,hook-notice"`
-	ToolCallID        string              `json:"tool_call_id,omitempty" variants:"tool-call?,tool-result?"`
+	ToolCallID        string              `json:"tool_call_id,omitempty" variants:"tool-call?,tool-result?,source?"`
 	ToolName          string              `json:"tool_name,omitempty" variants:"tool-call?,tool-result?"`
 	MCPServerConfigID uuid.NullUUID       `json:"mcp_server_config_id,omitempty" format:"uuid" variants:"tool-call?,tool-result?"`
 	Args              json.RawMessage     `json:"args,omitempty" variants:"tool-call?"`
@@ -407,11 +584,35 @@ type ChatMessagePart struct {
 	// (e.g. Anthropic cache control hints) as raw JSON. Internal
 	// only: stripped by db2sdk before API responses.
 	ProviderMetadata json.RawMessage `json:"provider_metadata,omitempty" typescript:"-"`
+	// ProviderIdentity records the provider that produced a reasoning
+	// part, because a model config's provider can change after the
+	// message was written. Internal only: stripped before API responses.
+	ProviderIdentity string `json:"provider_identity,omitempty" typescript:"-" swaggerignore:"true"`
+	// ProviderModel records the model that produced a reasoning part,
+	// because a model config's model can change after the message was
+	// written. Internal only: stripped before API responses.
+	ProviderModel string `json:"provider_model,omitempty" typescript:"-" swaggerignore:"true"`
+	// ProviderCredential records whether a reasoning part was produced
+	// with the deployment's credential or the user's personal API key,
+	// because encrypted reasoning only decrypts for the organization
+	// behind that credential. Internal only: stripped before API responses.
+	ProviderCredential string `json:"provider_credential,omitempty" typescript:"-" swaggerignore:"true"`
+	// ReasoningEpoch records how many times the provider had rejected the
+	// chat's encrypted reasoning from this provider, model, and credential
+	// before this reasoning part was produced. A step that produced no
+	// reasoning after a rejection records its epoch, provider, model, and
+	// credential on its first part instead. Internal only: stripped before
+	// API responses.
+	ReasoningEpoch int `json:"reasoning_epoch,omitempty" typescript:"-" swaggerignore:"true"`
 	// ProviderExecuted indicates the tool call was executed by
 	// the provider (e.g. Anthropic computer use).
 	ProviderExecuted bool `json:"provider_executed,omitempty" variants:"tool-call?,tool-result?"`
 	// HookRewritten indicates that a lifecycle hook replaced model-proposed tool input.
 	HookRewritten bool `json:"hook_rewritten,omitempty" variants:"tool-call?"`
+	// Narration marks assistant text that the model labeled as commentary
+	// on its work rather than its answer. Only providers that label their
+	// output set it.
+	Narration bool `json:"narration,omitempty" variants:"text?"`
 	// CreatedAt is the timestamp this part carries. The semantics
 	// depend on the part type: for tool-call and tool-result parts
 	// it is the time the call was emitted or the result was
@@ -451,16 +652,29 @@ type ChatMessagePart struct {
 	// workspace agent. Internal only: same purpose as
 	// ContextFileOS.
 	ContextFileDirectory string `json:"context_file_directory,omitempty" typescript:"-"`
-	// SkillName is the kebab-case name of a discovered skill
-	// from the workspace's .agents/skills/ directory.
-	SkillName string `json:"skill_name" variants:"skill"`
+	// SkillName is the kebab-case name of the skill.
+	SkillName string `json:"skill_name" variants:"skill,skill-invocation"`
+	// SkillSource is where the invoked skill of a skill-invocation
+	// part is stored.
+	SkillSource ChatSkillSource `json:"skill_source" variants:"skill-invocation"`
+	// SkillBody is the invoked skill body loaded when the message was
+	// sent, so past turns keep the instructions the model received.
+	// Internal only: stripped before API responses.
+	SkillBody string `json:"skill_body,omitempty" typescript:"-" swaggerignore:"true"`
 	// SkillDescription is the short description from the skill's
 	// SKILL.md frontmatter.
 	SkillDescription string `json:"skill_description,omitempty" variants:"skill?"`
 	// SkillDir is the absolute path to the skill directory inside
 	// the workspace filesystem. Internal only: used by
-	// read_skill/read_skill_file tools to locate skill files.
+	// read_skill/read_skill_file tools to locate skill files, and
+	// shown to the model for an invoked workspace skill so it can
+	// run the skill's scripts.
 	SkillDir string `json:"skill_dir,omitempty" typescript:"-"`
+	// SkillWorkspaceID is the workspace whose filesystem holds the
+	// SkillDir of an invoked workspace skill. Internal only: the
+	// prompt shows SkillDir only while the chat stays bound to this
+	// workspace.
+	SkillWorkspaceID uuid.UUID `json:"skill_workspace_id,omitzero" format:"uuid" typescript:"-" swaggerignore:"true"`
 	// ContextFileSkillMetaFile is the basename of the skill
 	// meta file (e.g. "SKILL.md") at the time of persistence.
 	// Internal only: restored on subsequent turns so the
@@ -493,6 +707,10 @@ type ChatMessagePart struct {
 // the advisor streaming callbacks.
 func (p *ChatMessagePart) StripInternal() {
 	p.ProviderMetadata = nil
+	p.ProviderIdentity = ""
+	p.ProviderModel = ""
+	p.ProviderCredential = ""
+	p.ReasoningEpoch = 0
 	if p.FileID.Valid {
 		p.Data = nil
 	}
@@ -500,7 +718,9 @@ func (p *ChatMessagePart) StripInternal() {
 	p.ContextFileOS = ""
 	p.ContextFileDirectory = ""
 	p.SkillDir = ""
+	p.SkillWorkspaceID = uuid.Nil
 	p.ContextFileSkillMetaFile = ""
+	p.SkillBody = ""
 }
 
 // ChatMessageText builds a text chat message part.
@@ -573,6 +793,16 @@ func ChatMessageWorkspaceFileReference(workspaceID uuid.UUID, path, name string,
 	}
 }
 
+// ChatMessageSkillInvocation builds a skill-invocation chat message
+// part without a body; the server loads the body at send time.
+func ChatMessageSkillInvocation(source ChatSkillSource, name string) ChatMessagePart {
+	return ChatMessagePart{
+		Type:        ChatMessagePartTypeSkillInvocation,
+		SkillSource: source,
+		SkillName:   name,
+	}
+}
+
 // ChatMessageSource builds a source chat message part.
 func ChatMessageSource(sourceID, sourceURL, title string) ChatMessagePart {
 	return ChatMessagePart{
@@ -591,6 +821,17 @@ const (
 	ChatInputPartTypeFile                   ChatInputPartType = "file"
 	ChatInputPartTypeFileReference          ChatInputPartType = "file-reference"
 	ChatInputPartTypeWorkspaceFileReference ChatInputPartType = "workspace-file-reference"
+	ChatInputPartTypeSkillInvocation        ChatInputPartType = "skill-invocation"
+)
+
+// ChatSkillSource identifies where an invoked skill is stored.
+type ChatSkillSource string
+
+const (
+	ChatSkillSourcePersonal     ChatSkillSource = "personal"
+	ChatSkillSourceOrganization ChatSkillSource = "org"
+	ChatSkillSourceProject      ChatSkillSource = "project"
+	ChatSkillSourceWorkspace    ChatSkillSource = "workspace"
 )
 
 // ChatInputPart is a single user input part for creating a chat.
@@ -615,6 +856,11 @@ type ChatInputPart struct {
 	// to, as returned by the upload endpoint. It must match the chat's
 	// currently bound workspace.
 	WorkspaceFileWorkspaceID uuid.UUID `json:"workspace_file_workspace_id,omitempty" format:"uuid"`
+	// The following fields are only set when Type is
+	// ChatInputPartTypeSkillInvocation. The server loads the skill
+	// as the chat owner when the message is sent.
+	SkillSource ChatSkillSource `json:"skill_source,omitempty"`
+	SkillName   string          `json:"skill_name,omitempty"`
 }
 
 // SubmitToolResultsRequest is the body for POST /chats/{id}/tool-results.
@@ -629,16 +875,31 @@ type ToolResult struct {
 	IsError    bool            `json:"is_error"`
 }
 
+// MaxChatTitleRunes is the longest title accepted at creation or rename,
+// counted in Unicode code points after trimming.
+const MaxChatTitleRunes = 200
+
 // CreateChatRequest is the request to create a new chat.
 type CreateChatRequest struct {
 	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
 	// OwnerID makes another user the chat owner. It defaults to the
 	// caller. The chat runs with the owner's credentials, so setting it
 	// requires site-wide authority over that user.
-	OwnerID         *uuid.UUID        `json:"owner_id,omitempty" format:"uuid"`
-	Content         []ChatInputPart   `json:"content"`
+	OwnerID *uuid.UUID `json:"owner_id,omitempty" format:"uuid"`
+	// Content is the initial user message. It is optional: when
+	// empty, the chat is created idle with no initial user message
+	// and generation starts with the first message POSTed to
+	// /chats/{chat}/messages.
+	Content []ChatInputPart `json:"content"`
+	// Title, when set, is stored as the user title and automatic title
+	// generation does not run. It is trimmed and must then be non-empty
+	// and at most 200 Unicode code points (MaxChatTitleRunes), else the
+	// request fails with 400. When omitted, the title is derived from the
+	// first prompt and may later be replaced by a generated title.
+	Title           *string           `json:"title,omitempty"`
 	SystemPrompt    string            `json:"system_prompt,omitempty"`
 	WorkspaceID     *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
+	ProjectID       *uuid.UUID        `json:"project_id,omitempty" format:"uuid"`
 	ModelConfigID   *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
 	ReasoningEffort *string           `json:"reasoning_effort,omitempty"`
 	MCPServerIDs    []uuid.UUID       `json:"mcp_server_ids,omitempty" format:"uuid"`
@@ -684,9 +945,20 @@ type InlineMCPServer struct {
 
 // UpdateChatRequest is the request to update a chat.
 type UpdateChatRequest struct {
+	// Title, when set, is stored as the user title even when its text is
+	// unchanged, so a generated title never replaces it afterwards. It is
+	// validated like CreateChatRequest.Title.
 	Title       *string    `json:"title,omitempty"`
 	Archived    *bool      `json:"archived,omitempty"`
 	WorkspaceID *uuid.UUID `json:"workspace_id,omitempty" format:"uuid"`
+	// ProjectID moves a root chat, and with it its subagent chats.
+	// - nil: no change.
+	// - uuid.Nil: remove the chat from its project.
+	// - other: move the chat into that project. The chat's owner must own
+	//   the project or have it shared with them, and the project must be
+	//   in the chat's organization.
+	// The server returns 409 while the chat or a subagent chat is not idle.
+	ProjectID *uuid.UUID `json:"project_id,omitempty" format:"uuid"`
 	// PinOrder controls the chat's pinned state and position.
 	// - nil: no change to pin state.
 	// - 0: unpin the chat.
@@ -698,6 +970,15 @@ type UpdateChatRequest struct {
 	//   value is clamped to [1, pinned_count].
 	PinOrder *int32             `json:"pin_order,omitempty"`
 	Labels   *map[string]string `json:"labels,omitempty"`
+	// Read moves the owner's read cursor, which drives HasUnread.
+	// - nil: no change.
+	// - true: mark every existing message as read.
+	// - false: clear the cursor so the chat reads as unread again.
+	//
+	// The cursor is owner-scoped, so only the chat owner may set this.
+	// Opening a chat's stream marks it read, so marking the chat the
+	// owner is currently viewing as unread does not persist.
+	Read *bool `json:"read,omitempty"`
 	// PlanMode switches the chat's persistent plan mode.
 	// nil: no change, ptr to "plan": enable, ptr to "": clear.
 	PlanMode *ChatPlanMode `json:"plan_mode,omitempty"`
@@ -711,10 +992,9 @@ const (
 	// ChatBusyBehaviorQueue queues the message for processing after
 	// the current run finishes.
 	ChatBusyBehaviorQueue ChatBusyBehavior = "queue"
-	// ChatBusyBehaviorInterrupt queues the message and interrupts
-	// the active run. The partial assistant response is persisted
-	// before the queued message is promoted, preserving correct
-	// conversation order.
+	// ChatBusyBehaviorInterrupt interrupts the active run. It persists
+	// the partial response before this message runs ahead of queued messages.
+	// Further messages join the queue tail while the interruption is pending.
 	ChatBusyBehaviorInterrupt ChatBusyBehavior = "interrupt"
 )
 
@@ -817,6 +1097,10 @@ type ChatMessagesResponse struct {
 	Messages       []ChatMessage       `json:"messages"`
 	QueuedMessages []ChatQueuedMessage `json:"queued_messages"`
 	HasMore        bool                `json:"has_more"`
+	// TurnStartID is the ID of the user prompt that starts the turn
+	// containing the page's oldest message. Omitted for after_id-only polls
+	// and when no prompt is at or before that message.
+	TurnStartID *int64 `json:"turn_start_id,omitempty"`
 }
 
 // ChatPrompt is a single user-authored prompt in a chat, returned by
@@ -834,6 +1118,51 @@ type ChatPrompt struct {
 // up/down arrow history cycling.
 type ChatPromptsResponse struct {
 	Prompts []ChatPrompt `json:"prompts"`
+}
+
+// ChatAttachment is a file part of a chat message, returned by
+// GET /api/v2/chats/{chat}/attachments.
+type ChatAttachment struct {
+	MessageID int64 `json:"message_id"`
+	// PartIndex is the file part's position in the message content the
+	// messages endpoint returns.
+	PartIndex int                `json:"part_index"`
+	Role      ChatAttachmentRole `json:"role"`
+	File      ChatAttachmentFile `json:"file"`
+}
+
+// ChatAttachmentRole is the role of the message that holds an attachment.
+// The attachments endpoint lists only user and assistant messages.
+type ChatAttachmentRole string
+
+const (
+	ChatAttachmentRoleUser      ChatAttachmentRole = "user"
+	ChatAttachmentRoleAssistant ChatAttachmentRole = "assistant"
+)
+
+// ChatAttachmentFileType is the part type of a ChatAttachmentFile, which
+// is always a file part.
+type ChatAttachmentFileType string
+
+const ChatAttachmentFileTypeFile ChatAttachmentFileType = "file"
+
+// ChatAttachmentFile holds the fields of a file part, the only part type
+// the attachments endpoint returns.
+type ChatAttachmentFile struct {
+	Type      ChatAttachmentFileType `json:"type"`
+	MediaType string                 `json:"media_type"`
+	Name      string                 `json:"name,omitempty"`
+	// Data holds an inline file's bytes, which JSON carries as a base64 string.
+	Data []byte `json:"data,omitempty" swaggertype:"string" format:"byte"`
+	// Omitted, not null, for an inline file.
+	FileID uuid.NullUUID `json:"file_id,omitzero" format:"uuid"`
+}
+
+// ChatAttachmentsResponse is the payload of
+// GET /api/v2/chats/{chat}/attachments. Attachments are returned newest
+// first.
+type ChatAttachmentsResponse struct {
+	Attachments []ChatAttachment `json:"attachments"`
 }
 
 // ChatModelProviderUnavailableReason explains why a provider cannot be used.
@@ -867,6 +1196,18 @@ type ChatSystemPromptResponse struct {
 type UpdateChatSystemPromptRequest struct {
 	SystemPrompt               string `json:"system_prompt"`
 	IncludeDefaultSystemPrompt *bool  `json:"include_default_system_prompt,omitempty"`
+}
+
+// OrganizationChatSystemPromptResponse is the response body for the
+// organization chat system prompt endpoint.
+type OrganizationChatSystemPromptResponse struct {
+	SystemPrompt string `json:"system_prompt"`
+}
+
+// UpdateOrganizationChatSystemPromptRequest is the request body for updating
+// an organization's chat system prompt.
+type UpdateOrganizationChatSystemPromptRequest struct {
+	SystemPrompt string `json:"system_prompt"`
 }
 
 // ChatPlanModeInstructionsResponse is the response body for the
@@ -1049,10 +1390,6 @@ type AdvisorConfig struct {
 type UpdateAdvisorConfigRequest struct {
 	MaxUsesPerRun   int   `json:"max_uses_per_run"`
 	MaxOutputTokens int64 `json:"max_output_tokens"`
-	// Deprecated: moved to the organization model override endpoint.
-	DeprecatedModelConfigID *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
-	// Deprecated: moved to the organization model override endpoint.
-	DeprecatedReasoningEffort *string `json:"reasoning_effort,omitempty"`
 }
 
 // ChatComputerUseProvider identifies the provider that backs computer use for
@@ -1116,7 +1453,7 @@ type UpdateUserChatDebugLoggingRequest struct {
 
 // ChatDebugStatus enumerates the lifecycle states shared by debug
 // runs and steps. These values must match the literals used in
-// FinalizeStaleChatDebugRows and all insert/update callers.
+// insert/update callers.
 type ChatDebugStatus string
 
 const (
@@ -1125,18 +1462,6 @@ const (
 	ChatDebugStatusError       ChatDebugStatus = "error"
 	ChatDebugStatusInterrupted ChatDebugStatus = "interrupted"
 )
-
-// ChatDebugTerminalStatuses returns the statuses that represent a
-// finished lifecycle. The SQL query FinalizeStaleChatDebugRows uses
-// a NOT IN list that must match these exactly. A test in
-// coderd/database asserts this alignment at CI time.
-func ChatDebugTerminalStatuses() []ChatDebugStatus {
-	return []ChatDebugStatus{
-		ChatDebugStatusCompleted,
-		ChatDebugStatusError,
-		ChatDebugStatusInterrupted,
-	}
-}
 
 // AllChatDebugStatuses contains every ChatDebugStatus value.
 // Update this when adding new constants above.
@@ -1674,22 +1999,13 @@ type UpdateChatModelRequest struct {
 	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`
 }
 
-// ChatGitChange represents a git file change detected during a chat session.
-type ChatGitChange struct {
-	ID          uuid.UUID `json:"id" format:"uuid"`
-	ChatID      uuid.UUID `json:"chat_id" format:"uuid"`
-	FilePath    string    `json:"file_path"`
-	ChangeType  string    `json:"change_type"` // added, modified, deleted, renamed
-	OldPath     *string   `json:"old_path,omitempty"`
-	DiffSummary *string   `json:"diff_summary,omitempty"`
-	DetectedAt  time.Time `json:"detected_at" format:"date-time"`
-}
-
 // ChatDiffStatus represents cached diff status for a chat. The URL
 // may point to a pull request or a branch page depending on whether
 // a PR has been opened.
 type ChatDiffStatus struct {
 	ChatID           uuid.UUID  `json:"chat_id" format:"uuid"`
+	RemoteOrigin     *string    `json:"remote_origin,omitempty"`
+	GitBranch        *string    `json:"git_branch,omitempty"`
 	URL              *string    `json:"url,omitempty"`
 	PullRequestState *string    `json:"pull_request_state,omitempty"`
 	PullRequestTitle string     `json:"pull_request_title"`
@@ -1710,6 +2026,20 @@ type ChatDiffStatus struct {
 	StaleAt          *time.Time `json:"stale_at,omitempty" format:"date-time"`
 }
 
+// DiffStatusRef identifies one ref that a chat tracks. A chat has
+// one diff status for each ref.
+type DiffStatusRef struct {
+	RemoteOrigin string `json:"remote_origin"`
+	GitBranch    string `json:"git_branch"`
+}
+
+// ChangedDiffStatus is the diff status of one ref after a change.
+// When the ref has no stored status, Status has only chat_id.
+type ChangedDiffStatus struct {
+	Ref    DiffStatusRef   `json:"ref"`
+	Status *ChatDiffStatus `json:"status"`
+}
+
 // ChatDiffContents represents the resolved diff text for a chat.
 type ChatDiffContents struct {
 	ChatID         uuid.UUID `json:"chat_id" format:"uuid"`
@@ -1723,18 +2053,13 @@ type ChatDiffContents struct {
 // Chat git watch error messages. These are the user-visible messages
 // the server returns in 400 responses from
 // /api/v2/chats/{id}/stream/git when the chat cannot be
-// observed through a workspace agent. They are exported so the CLI
-// (and any future consumer) can match them structurally via
-// IsChatGitWatchFallbackMessage instead of coupling to exact wording.
-// Keep these in sync with coderd/exp_chats.go.
+// observed through a workspace agent.
 const (
 	ChatGitWatchNoWorkspaceMessage       = "Chat has no workspace to watch."
 	ChatGitWatchWorkspaceNotFoundMessage = "Chat workspace not found."
 	ChatGitWatchNoEligibleAgentMessage   = "No eligible agent found for chat workspace."
 	// ChatGitWatchAgentStatePrefix is the common prefix of the
-	// message produced by ChatGitWatchAgentStateMessage. The CLI
-	// uses it as a mechanical fingerprint for the "agent not yet
-	// connected" case without depending on the formatted values.
+	// message produced by ChatGitWatchAgentStateMessage.
 	ChatGitWatchAgentStatePrefix = "Agent state is "
 )
 
@@ -1743,22 +2068,6 @@ const (
 // chat workspace's agent is not in the connected state.
 func ChatGitWatchAgentStateMessage(actual WorkspaceAgentStatus) string {
 	return fmt.Sprintf("%s%q, it must be in the %q state.", ChatGitWatchAgentStatePrefix, actual, WorkspaceAgentConnected)
-}
-
-// IsChatGitWatchFallbackMessage reports whether msg matches one of
-// the 400-response messages /api/v2/chats/{id}/stream/git
-// emits when the chat cannot be observed through a workspace agent.
-// Clients should treat these cases as "no diff available" and fall
-// back to the empty remote diff instead of surfacing a hard error.
-func IsChatGitWatchFallbackMessage(msg string) bool {
-	trimmed := strings.TrimSpace(msg)
-	switch trimmed {
-	case ChatGitWatchNoWorkspaceMessage,
-		ChatGitWatchWorkspaceNotFoundMessage,
-		ChatGitWatchNoEligibleAgentMessage:
-		return true
-	}
-	return strings.HasPrefix(trimmed, ChatGitWatchAgentStatePrefix)
 }
 
 // ChatStreamEventType represents the kind of chat stream update.
@@ -1966,11 +2275,14 @@ const (
 	// summary. It is distinct from SummaryChange (bound to last_turn_summary) so
 	// the frontend updates one field without disturbing the other.
 	ChatWatchEventKindChatSummaryChange ChatWatchEventKind = "chat_summary_change"
-	ChatWatchEventKindTitleChange       ChatWatchEventKind = "title_change"
-	ChatWatchEventKindCreated           ChatWatchEventKind = "created"
-	ChatWatchEventKindDeleted           ChatWatchEventKind = "deleted"
-	ChatWatchEventKindDiffStatusChange  ChatWatchEventKind = "diff_status_change"
-	ChatWatchEventKindActionRequired    ChatWatchEventKind = "action_required"
+	// ChatWatchEventKindTitleChange is published after each title write.
+	// Take only the title fields from it, ordered by title_updated_at,
+	// because a title write does not change updated_at.
+	ChatWatchEventKindTitleChange      ChatWatchEventKind = "title_change"
+	ChatWatchEventKindCreated          ChatWatchEventKind = "created"
+	ChatWatchEventKindDeleted          ChatWatchEventKind = "deleted"
+	ChatWatchEventKindDiffStatusChange ChatWatchEventKind = "diff_status_change"
+	ChatWatchEventKindActionRequired   ChatWatchEventKind = "action_required"
 	// ChatWatchEventKindContextDirty signals that the chat's pinned
 	// workspace context changed: it drifted from the agent's latest
 	// pushed snapshot, or hydration first populated it (a first-turn
@@ -1978,6 +2290,10 @@ const (
 	// stays usable; a refresh re-pins a drifted chat to the latest
 	// snapshot.
 	ChatWatchEventKindContextDirty ChatWatchEventKind = "context_dirty"
+	// ChatWatchEventKindProjectChange is published for each chat of a
+	// family after its root chat moves into, between or out of projects.
+	// Take project_id only from this kind.
+	ChatWatchEventKindProjectChange ChatWatchEventKind = "project_change"
 )
 
 // ChatWatchEvent represents an event from the global chat watch stream.
@@ -1989,6 +2305,10 @@ type ChatWatchEvent struct {
 	Kind      ChatWatchEventKind   `json:"kind"`
 	Chat      Chat                 `json:"chat"`
 	ToolCalls []ChatStreamToolCall `json:"tool_calls,omitempty"`
+	// ChangedDiffStatus is set when Kind is
+	// ChatWatchEventKindDiffStatusChange. It identifies the ref that
+	// changed.
+	ChangedDiffStatus *ChangedDiffStatus `json:"changed_diff_status,omitempty"`
 }
 
 // ChatStreamEvent represents a real-time update for chat streaming.
@@ -2076,8 +2396,9 @@ type ListChatsOptions struct {
 	// Source must be empty.
 	Query string
 	// Source adds a source: term to Query.
-	Source ChatListSource
-	Labels map[string]string
+	Source    ChatListSource
+	Labels    map[string]string
+	ProjectID *uuid.UUID
 	Pagination
 }
 
@@ -2097,6 +2418,13 @@ func (c *Client) ListChats(ctx context.Context, opts *ListChatsOptions) ([]Chat,
 			reqOpts = append(reqOpts, func(r *http.Request) {
 				q := r.URL.Query()
 				q.Set("q", query)
+				r.URL.RawQuery = q.Encode()
+			})
+		}
+		if opts.ProjectID != nil {
+			reqOpts = append(reqOpts, func(r *http.Request) {
+				q := r.URL.Query()
+				q.Set("project_id", opts.ProjectID.String())
 				r.URL.RawQuery = q.Encode()
 			})
 		}
@@ -2120,6 +2448,209 @@ func (c *Client) ListChats(ctx context.Context, opts *ListChatsOptions) ([]Chat,
 	}
 	var chats []Chat
 	return chats, ReadBodyAsJSON(res, &chats)
+}
+
+func chatProjectsPath(organizationID uuid.UUID) string {
+	return fmt.Sprintf("/api/experimental/organizations/%s/chats/projects", organizationID)
+}
+
+func chatProjectPath(organizationID, projectID uuid.UUID) string {
+	return fmt.Sprintf("%s/%s", chatProjectsPath(organizationID), projectID)
+}
+
+// ListChatProjects lists projects the user owns or that are shared with them,
+// across all organizations.
+func (c *ExperimentalClient) ListChatProjects(ctx context.Context) ([]ChatProject, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/projects", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var projects []ChatProject
+	return projects, ReadBodyAsJSON(res, &projects)
+}
+
+// CreateChatProject creates a chat project in an organization.
+func (c *ExperimentalClient) CreateChatProject(ctx context.Context, organizationID uuid.UUID, req CreateChatProjectRequest) (ChatProject, error) {
+	res, err := c.Request(ctx, http.MethodPost, chatProjectsPath(organizationID), req)
+	if err != nil {
+		return ChatProject{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return ChatProject{}, ReadBodyAsError(res)
+	}
+	var project ChatProject
+	return project, ReadBodyAsJSON(res, &project)
+}
+
+// GetChatProject gets a chat project.
+func (c *ExperimentalClient) GetChatProject(ctx context.Context, organizationID, projectID uuid.UUID) (ChatProject, error) {
+	res, err := c.Request(ctx, http.MethodGet, chatProjectPath(organizationID, projectID), nil)
+	if err != nil {
+		return ChatProject{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatProject{}, ReadBodyAsError(res)
+	}
+	var project ChatProject
+	return project, ReadBodyAsJSON(res, &project)
+}
+
+// UpdateChatProject updates a chat project.
+func (c *ExperimentalClient) UpdateChatProject(ctx context.Context, organizationID, projectID uuid.UUID, req UpdateChatProjectRequest) (ChatProject, error) {
+	res, err := c.Request(ctx, http.MethodPatch, chatProjectPath(organizationID, projectID), req)
+	if err != nil {
+		return ChatProject{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatProject{}, ReadBodyAsError(res)
+	}
+	var project ChatProject
+	return project, ReadBodyAsJSON(res, &project)
+}
+
+// DeleteChatProject deletes a chat project and detaches its chats.
+func (c *ExperimentalClient) DeleteChatProject(ctx context.Context, organizationID, projectID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, chatProjectPath(organizationID, projectID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// ChatProjectACL returns who a chat project is shared with.
+func (c *ExperimentalClient) ChatProjectACL(ctx context.Context, organizationID, projectID uuid.UUID) (ChatProjectACL, error) {
+	res, err := c.Request(ctx, http.MethodGet, chatProjectPath(organizationID, projectID)+"/acl", nil)
+	if err != nil {
+		return ChatProjectACL{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatProjectACL{}, ReadBodyAsError(res)
+	}
+	var acl ChatProjectACL
+	return acl, ReadBodyAsJSON(res, &acl)
+}
+
+// UpdateChatProjectACL changes who a chat project is shared with.
+func (c *ExperimentalClient) UpdateChatProjectACL(ctx context.Context, organizationID, projectID uuid.UUID, req UpdateChatProjectACL) error {
+	res, err := c.Request(ctx, http.MethodPatch, chatProjectPath(organizationID, projectID)+"/acl", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// ChatProjectInstructions gets a chat project's instructions.
+func (c *ExperimentalClient) ChatProjectInstructions(ctx context.Context, organizationID, projectID uuid.UUID) (ChatProjectInstructions, error) {
+	res, err := c.Request(ctx, http.MethodGet, chatProjectPath(organizationID, projectID)+"/instructions", nil)
+	if err != nil {
+		return ChatProjectInstructions{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatProjectInstructions{}, ReadBodyAsError(res)
+	}
+	var instructions ChatProjectInstructions
+	return instructions, ReadBodyAsJSON(res, &instructions)
+}
+
+// UpdateChatProjectInstructions creates or replaces a chat project's
+// instructions.
+func (c *ExperimentalClient) UpdateChatProjectInstructions(ctx context.Context, organizationID, projectID uuid.UUID, req UpdateChatProjectInstructionsRequest) (ChatProjectInstructions, error) {
+	res, err := c.Request(ctx, http.MethodPut, chatProjectPath(organizationID, projectID)+"/instructions", req)
+	if err != nil {
+		return ChatProjectInstructions{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatProjectInstructions{}, ReadBodyAsError(res)
+	}
+	var instructions ChatProjectInstructions
+	return instructions, ReadBodyAsJSON(res, &instructions)
+}
+
+// DeleteChatProjectInstructions clears a chat project's instructions. It
+// succeeds when the project has no instructions.
+func (c *ExperimentalClient) DeleteChatProjectInstructions(ctx context.Context, organizationID, projectID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, chatProjectPath(organizationID, projectID)+"/instructions", nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// ListChatProjectMemories lists memories for a chat project.
+func (c *ExperimentalClient) ListChatProjectMemories(ctx context.Context, organizationID, projectID uuid.UUID) ([]ChatProjectMemory, error) {
+	res, err := c.Request(ctx, http.MethodGet, chatProjectPath(organizationID, projectID)+"/memories", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var memories []ChatProjectMemory
+	return memories, ReadBodyAsJSON(res, &memories)
+}
+
+// CreateChatProjectMemory creates a project memory.
+func (c *ExperimentalClient) CreateChatProjectMemory(ctx context.Context, organizationID, projectID uuid.UUID, req CreateChatProjectMemoryRequest) (ChatProjectMemory, error) {
+	res, err := c.Request(ctx, http.MethodPost, chatProjectPath(organizationID, projectID)+"/memories", req)
+	if err != nil {
+		return ChatProjectMemory{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return ChatProjectMemory{}, ReadBodyAsError(res)
+	}
+	var memory ChatProjectMemory
+	return memory, ReadBodyAsJSON(res, &memory)
+}
+
+// GetChatProjectMemory gets a project memory.
+func (c *ExperimentalClient) GetChatProjectMemory(ctx context.Context, organizationID, projectID, memoryID uuid.UUID) (ChatProjectMemory, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("%s/memories/%s", chatProjectPath(organizationID, projectID), memoryID), nil)
+	if err != nil {
+		return ChatProjectMemory{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatProjectMemory{}, ReadBodyAsError(res)
+	}
+	var memory ChatProjectMemory
+	return memory, ReadBodyAsJSON(res, &memory)
+}
+
+// DeleteChatProjectMemory deletes a project memory.
+func (c *ExperimentalClient) DeleteChatProjectMemory(ctx context.Context, organizationID, projectID, memoryID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("%s/memories/%s", chatProjectPath(organizationID, projectID), memoryID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }
 
 // ListUserAIProviderKeyConfigs returns user-scoped AI provider key configs.
@@ -2426,6 +2957,38 @@ func (c *Client) UpdateOrganizationChatModelOverride(ctx context.Context, organi
 	}
 	var resp ChatModelOverrideResponse
 	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// OrganizationChatSystemPrompt returns the organization's chat system
+// prompt. New chats in the organization receive it after the deployment
+// system prompt.
+func (c *Client) OrganizationChatSystemPrompt(ctx context.Context, organizationID uuid.UUID) (OrganizationChatSystemPromptResponse, error) {
+	path := fmt.Sprintf("/api/v2/organizations/%s/chats/config/system-prompt", organizationID)
+	res, err := c.Request(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return OrganizationChatSystemPromptResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return OrganizationChatSystemPromptResponse{}, ReadBodyAsError(res)
+	}
+	var resp OrganizationChatSystemPromptResponse
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// UpdateOrganizationChatSystemPrompt replaces the organization's chat system
+// prompt. An empty prompt clears it.
+func (c *Client) UpdateOrganizationChatSystemPrompt(ctx context.Context, organizationID uuid.UUID, req UpdateOrganizationChatSystemPromptRequest) error {
+	path := fmt.Sprintf("/api/v2/organizations/%s/chats/config/system-prompt", organizationID)
+	res, err := c.Request(ctx, http.MethodPut, path, req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }
 
 // GetChatPersonalModelOverridesAdminSettings returns the deployment-wide
@@ -3105,6 +3668,38 @@ func (c *Client) GetChatPrompts(ctx context.Context, chatID uuid.UUID, opts *Cha
 	return resp, ReadBodyAsJSON(res, &resp)
 }
 
+// ChatAttachmentsOptions are optional query parameters for
+// GetChatAttachments.
+// @typescript-ignore ChatAttachmentsOptions
+type ChatAttachmentsOptions struct {
+	// BeforeID, when > 0, restricts results to messages with id strictly
+	// less than BeforeID. 0 returns every attachment in the chat.
+	BeforeID int64
+}
+
+// GetChatAttachments returns the file parts of a chat's user-visible user
+// and assistant messages, newest first.
+func (c *Client) GetChatAttachments(ctx context.Context, chatID uuid.UUID, opts *ChatAttachmentsOptions) (ChatAttachmentsResponse, error) {
+	reqOpts := []RequestOption{}
+	if opts != nil && opts.BeforeID > 0 {
+		reqOpts = append(reqOpts, func(r *http.Request) {
+			q := r.URL.Query()
+			q.Set("before_id", strconv.FormatInt(opts.BeforeID, 10))
+			r.URL.RawQuery = q.Encode()
+		})
+	}
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/chats/%s/attachments", chatID), nil, reqOpts...)
+	if err != nil {
+		return ChatAttachmentsResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatAttachmentsResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatAttachmentsResponse
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
 // UpdateChat patches a chat resource.
 func (c *Client) UpdateChat(ctx context.Context, chatID uuid.UUID, req UpdateChatRequest) error {
 	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/chats/%s", chatID), req)
@@ -3240,8 +3835,14 @@ func (c *Client) ProposeChatTitle(ctx context.Context, chatID uuid.UUID) (Propos
 }
 
 // GetChatDiffContents returns resolved diff contents for a chat.
-func (c *Client) GetChatDiffContents(ctx context.Context, chatID uuid.UUID) (ChatDiffContents, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/chats/%s/diff", chatID), nil)
+// Without options, it returns the primary ref's diff. Pass
+// WithChatDiffStatusRef to select another ref the chat tracks.
+func (c *Client) GetChatDiffContents(
+	ctx context.Context,
+	chatID uuid.UUID,
+	opts ...RequestOption,
+) (ChatDiffContents, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/chats/%s/diff", chatID), nil, opts...)
 	if err != nil {
 		return ChatDiffContents{}, err
 	}
@@ -3251,6 +3852,15 @@ func (c *Client) GetChatDiffContents(ctx context.Context, chatID uuid.UUID) (Cha
 	}
 	var diff ChatDiffContents
 	return diff, ReadBodyAsJSON(res, &diff)
+}
+
+// WithChatDiffStatusRef selects the ref for GetChatDiffContents.
+// The ref must match a ref that the chat tracks.
+func WithChatDiffStatusRef(ref DiffStatusRef) RequestOption {
+	return func(r *http.Request) {
+		WithQueryParam("origin", ref.RemoteOrigin)(r)
+		WithQueryParam("branch", ref.GitBranch)(r)
+	}
 }
 
 // UploadChatFile uploads a file for use in chat messages.

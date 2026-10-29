@@ -1,5 +1,5 @@
 import { ChevronRightIcon } from "lucide-react";
-import type { FC } from "react";
+import { useId } from "react";
 import { Link as RouterLink } from "react-router";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { Button } from "#/components/Button/Button";
@@ -8,6 +8,7 @@ import {
 	ChartContainer,
 	ChartTooltip,
 	ChartTooltipContent,
+	getDailyChartDescription,
 } from "#/components/Chart/Chart";
 import {
 	Collapsible,
@@ -34,13 +35,19 @@ type UserEngagementChartProps = {
 		| undefined;
 };
 
-export const UserEngagementChart: FC<UserEngagementChartProps> = ({ data }) => {
+export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
+	data,
+}) => {
+	const titleId = useId();
+
 	return (
 		<section className="border border-solid rounded">
 			<div className="p-4">
 				<Collapsible>
 					<header className="flex flex-col gap-2 items-start">
-						<h3 className="text-md m-0 font-medium">User Engagement</h3>
+						<h3 className="text-md m-0 font-medium" id={titleId}>
+							User Engagement
+						</h3>
 
 						<CollapsibleTrigger asChild>
 							<Button
@@ -92,6 +99,13 @@ export const UserEngagementChart: FC<UserEngagementChartProps> = ({ data }) => {
 							>
 								<AreaChart
 									accessibilityLayer
+									role="group"
+									aria-roledescription="chart"
+									aria-labelledby={titleId}
+									desc={getDailyChartDescription(
+										"Daily engaged users",
+										data.map((d) => d.date),
+									)}
 									data={data}
 									margin={{
 										top: 10,

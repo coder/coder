@@ -76,6 +76,12 @@ message RecordInterceptionRequest {
   // Absent when the request did not pass through Agent Firewall.
   optional int32 agent_firewall_sequence_number = 16;
   string workspace_id = 17; // UUID. Empty when workspace attribution is unknown.
+  // UUID of the organization the interception is attributed to. Empty when
+  // none was resolved. Set together with organization_source.
+  string organization_id = 18;
+  // How organization_id was chosen: "workspace", "chatd" or "effective_group".
+  // Empty when organization_id is empty.
+  string organization_source = 19;
 }
 
 message RecordInterceptionResponse {}
@@ -103,6 +109,7 @@ message RecordTokenUsageRequest {
   google.protobuf.Timestamp created_at = 6;
   int64 cache_read_input_tokens = 7;
   int64 cache_write_input_tokens = 8;
+  string provider_model = 9; // Model reported by the provider, empty if not reported.
 }
 message RecordTokenUsageResponse {}
 
@@ -187,6 +194,8 @@ message IsAuthorizedResponse {
   string api_key_id = 2;
   string username = 3;
   string workspace_id = 4; // UUID. Empty when workspace attribution is unknown.
+  string email = 5;
+  string organization_id = 6; // UUID. Empty when no organization could be resolved for the request.
 }
 
 message IsBudgetExceededRequest {
@@ -225,6 +234,17 @@ message AIProvider {
   // bedrock is populated when the provider's settings include Bedrock
   // credentials (regardless of provider type).
   AIProviderKindBedrock bedrock = 6;
+  // claude_platform_aws is populated when the provider's settings select
+  // Claude Platform for AWS, Anthropic's AWS-hosted Messages API. It is
+  // mutually exclusive with bedrock.
+  AIProviderKindClaudePlatformAWS claude_platform_aws = 7;
+}
+
+// AIProviderKindClaudePlatformAWS configures Anthropic's AWS-hosted Messages
+// API. Requests use a supplied API key, otherwise ambient AWS credentials.
+message AIProviderKindClaudePlatformAWS {
+  string region = 2;
+  string workspace_id = 3;
 }
 
 message AIProviderKindBedrock {

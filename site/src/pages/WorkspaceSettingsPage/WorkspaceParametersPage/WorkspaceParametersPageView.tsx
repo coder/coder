@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { useFormik } from "formik";
-import type { FC } from "react";
 import type {
 	PreviewParameter,
 	Workspace,
@@ -37,7 +36,7 @@ type WorkspaceParametersPageViewProps = {
 	templateVersionId: string | undefined;
 };
 
-export const WorkspaceParametersPageView: FC<
+export const WorkspaceParametersPageView: React.FC<
 	WorkspaceParametersPageViewProps
 > = ({
 	workspace,
@@ -69,10 +68,14 @@ export const WorkspaceParametersPageView: FC<
 		validateOnBlur: true,
 	});
 
+	// Users who must stay on the active version can still edit parameters
+	// when the form targets the active version, since submitting it is the
+	// update the template requires.
 	const disabled =
 		workspace.outdated &&
 		workspace.template_require_active_version &&
-		!canChangeVersions;
+		!canChangeVersions &&
+		templateVersionId !== workspace.template_active_version_id;
 
 	// Debounce websocket sends to avoid stale responses overwriting
 	// the form while the user is still typing.
@@ -226,9 +229,7 @@ export const WorkspaceParametersPageView: FC<
 								These are the settings used by your template. Immutable
 								parameters cannot be modified once the workspace is created.
 								<Link
-									href={docs(
-										"/admin/templates/extending-templates/dynamic-parameters",
-									)}
+									href={docs("/admin/templates/extending-templates/parameters")}
 								>
 									View docs
 								</Link>

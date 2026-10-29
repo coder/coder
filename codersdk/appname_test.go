@@ -2,12 +2,13 @@ package codersdk_test
 
 import (
 	"encoding/json"
+	"fmt"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/codersdk"
@@ -84,11 +85,62 @@ func TestAppNameFamily(t *testing.T) {
 		{"CaseInsensitive", "JetBrains", codersdk.AppFamilyJetBrains},
 		{"SSHClientJoinsSSHFamily", "zed", codersdk.AppFamilySSH},
 		{"Alias", "reconnecting-pty", codersdk.AppFamilyReconnectingPTY},
+		{"PortForwarding", "port_forwarding", codersdk.AppFamilyPortForwarding},
 		{"Unknown", "SomeFutureIDE", codersdk.AppFamilyUnknown},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			require.Equal(t, tc.want, codersdk.AppNameFamily(tc.input))
+		})
+	}
+}
+
+// IDE clients report these names, so each must resolve to a registry key in
+// its family. The VS Code extension sends vscode.env.uriScheme.
+func TestIDEAppNamesAreRegistered(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		reported    string
+		appName     string
+		family      codersdk.AppFamilyName
+		displayName string
+	}{
+		{"vscode", "vscode", codersdk.AppFamilyVSCode, "VS Code"},
+		{"vscode-insiders", "vscode_insiders", codersdk.AppFamilyVSCode, "VS Code Insiders"},
+		{"code-oss", "code_oss", codersdk.AppFamilyVSCode, "Code - OSS"},
+		{"vscodium", "vscodium", codersdk.AppFamilyVSCode, "VSCodium"},
+		{"vscodium-insiders", "vscodium_insiders", codersdk.AppFamilyVSCode, "VSCodium Insiders"},
+		{"positron", "positron", codersdk.AppFamilyVSCode, "Positron"},
+		{"cursor", "cursor", codersdk.AppFamilyVSCode, "Cursor"},
+		{"devin", "devin", codersdk.AppFamilyVSCode, "Devin Desktop"},
+		{"devin-next", "devin_next", codersdk.AppFamilyVSCode, "Devin Desktop Next"},
+		{"windsurf", "windsurf", codersdk.AppFamilyVSCode, "Windsurf"},
+		{"antigravity", "antigravity", codersdk.AppFamilyVSCode, "Antigravity"},
+		{"trae", "trae", codersdk.AppFamilyVSCode, "Trae"},
+		{"trae-cn", "trae_cn", codersdk.AppFamilyVSCode, "Trae CN"},
+		{"kiro", "kiro", codersdk.AppFamilyVSCode, "Kiro"},
+		// The JetBrains plugins map the IDE's product code to one name per IDE.
+		{"intellij", "intellij", codersdk.AppFamilyJetBrains, "IntelliJ IDEA"},
+		{"pycharm", "pycharm", codersdk.AppFamilyJetBrains, "PyCharm"},
+		{"goland", "goland", codersdk.AppFamilyJetBrains, "GoLand"},
+		{"webstorm", "webstorm", codersdk.AppFamilyJetBrains, "WebStorm"},
+		{"phpstorm", "phpstorm", codersdk.AppFamilyJetBrains, "PhpStorm"},
+		{"rubymine", "rubymine", codersdk.AppFamilyJetBrains, "RubyMine"},
+		{"clion", "clion", codersdk.AppFamilyJetBrains, "CLion"},
+		{"rider", "rider", codersdk.AppFamilyJetBrains, "Rider"},
+		{"rustrover", "rustrover", codersdk.AppFamilyJetBrains, "RustRover"},
+		{"datagrip", "datagrip", codersdk.AppFamilyJetBrains, "DataGrip"},
+		{"dataspell", "dataspell", codersdk.AppFamilyJetBrains, "DataSpell"},
+		{"mps", "mps", codersdk.AppFamilyJetBrains, "MPS"},
+		{"android_studio", "android_studio", codersdk.AppFamilyJetBrains, "Android Studio"},
+	} {
+		t.Run(tc.reported, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.appName, codersdk.NormalizeAppName(tc.reported))
+			require.Equal(t, tc.family, codersdk.AppNameFamily(tc.reported))
+			app := codersdk.SessionCountApps(map[string]int64{tc.appName: 1})[tc.appName]
+			require.Equal(t, tc.displayName, app.DisplayName)
 		})
 	}
 }
@@ -257,36 +309,66 @@ func TestDecodeAppMap(t *testing.T) {
 	}
 }
 
-func TestUnionByFamily(t *testing.T) {
+func TestFoldUnregisteredSessionApps(t *testing.T) {
 	t.Parallel()
 
-	shared, cursorOnly, sshOnly := uuid.New(), uuid.New(), uuid.New()
-	got := codersdk.UnionByFamily(map[string][]uuid.UUID{
-		"vscode": {shared},
-		"cursor": {shared, cursorOnly},
-		"ssh":    {sshOnly},
-		// An app the registry does not know still lands somewhere.
-		"some_new_ide": {cursorOnly},
-	})
+	// Exempt names carry the lowest counts, so only the exemption keeps them.
+	apps := map[string]int64{"vscode": 1, "unknown": 1, codersdk.AppNameOverflow: 1}
+	for i := range codersdk.TemplateInsightsMaxUnregisteredApps - 1 {
+		apps[fmt.Sprintf("tool_%02d", i)] = 10
+	}
+	// A tie at the cutoff keeps the name that sorts first.
+	apps["tie_a"], apps["tie_b"], apps["quiet"] = 5, 5, 2
 
-	// A template both apps saw appears once for the family.
-	require.ElementsMatch(t, []uuid.UUID{shared, cursorOnly}, got[codersdk.AppFamilyVSCode])
-	require.Equal(t, []uuid.UUID{sshOnly}, got[codersdk.AppFamilySSH])
-	require.Equal(t, []uuid.UUID{cursorOnly}, got[codersdk.AppFamilyUnknown])
-	require.Empty(t, got[codersdk.AppFamilyJetBrains])
+	require.Equal(t, 2, codersdk.FoldUnregisteredSessionApps(apps))
+	require.EqualValues(t, 5, apps["tie_a"])
+	require.NotContains(t, apps, "tie_b")
+	require.NotContains(t, apps, "quiet")
+	require.EqualValues(t, 1+5+2, apps[codersdk.AppNameOverflow])
+	require.EqualValues(t, 1, apps["vscode"])
+	require.EqualValues(t, 1, apps["unknown"])
+	require.Zero(t, codersdk.FoldUnregisteredSessionApps(map[string]int64{"a": 1}))
 }
 
 func TestSessionCountApps(t *testing.T) {
 	t.Parallel()
 
-	apps := codersdk.SessionCountApps(map[string]int64{"cursor": 2, "vscodium": 1, "future_ide": 3})
+	apps := codersdk.SessionCountApps(map[string]int64{"cursor": 2, "vscodium": 1, "future_ide": 3, "overflow": 4, "unknown": 5})
 	require.Equal(t, map[string]codersdk.SessionCountApp{
 		"cursor":   {Count: 2, DisplayName: "Cursor", Icon: "/icon/cursor.svg", Family: codersdk.AppFamilyVSCode},
 		"vscodium": {Count: 1, DisplayName: "VSCodium", Family: codersdk.AppFamilyVSCode},
 		// An app the registry does not know shows its own name.
 		"future_ide": {Count: 3, DisplayName: "future_ide", Family: codersdk.AppFamilyUnknown},
+		// The accounting names show a label, still under the unknown family.
+		"overflow": {Count: 4, DisplayName: "Other apps", Family: codersdk.AppFamilyUnknown},
+		"unknown":  {Count: 5, DisplayName: "Unknown", Family: codersdk.AppFamilyUnknown},
 	}, apps)
 	require.Equal(t, map[string]codersdk.SessionCountApp{}, codersdk.SessionCountApps(nil))
+
+	for _, tt := range []struct {
+		name        string
+		displayName string
+		icon        string
+		family      codersdk.AppFamilyName
+	}{
+		{" Cursor ", "Cursor", "/icon/cursor.svg", codersdk.AppFamilyVSCode},
+		{"VSCodium", "VSCodium", "", codersdk.AppFamilyVSCode},
+		{"Future-IDE", "future_ide", "", codersdk.AppFamilyUnknown},
+		{"", "Unknown", "", codersdk.AppFamilyUnknown},
+		{" OVERFLOW ", "Other apps", "", codersdk.AppFamilyUnknown},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			displayName, icon, family := codersdk.SessionAppPresentation(tt.name)
+			require.Equal(t, tt.displayName, displayName)
+			require.Equal(t, tt.icon, icon)
+			require.Equal(t, tt.family, family)
+		})
+	}
+
+	// Accounting labels must not bypass limits for unregistered apps.
+	require.NotContains(t, codersdk.SessionCountAppFamilies(), codersdk.AppNameOverflow)
+	require.NotContains(t, codersdk.SessionCountAppFamilies(), string(codersdk.AppFamilyUnknown))
 }
 
 func TestSessionCountAppIcons(t *testing.T) {
@@ -300,7 +382,9 @@ func TestSessionCountAppIcons(t *testing.T) {
 			continue
 		}
 		require.True(t, strings.HasPrefix(app.Icon, "/icon/"), name)
-		require.Equal(t, filepath.Clean(app.Icon), app.Icon)
+		// The icon is a URL path, so path.Clean holds on every OS where
+		// filepath.Clean would rewrite the separators.
+		require.Equal(t, path.Clean(app.Icon), app.Icon)
 		require.FileExists(t, filepath.Join("..", "site", "static", app.Icon), "icon for %s must be bundled", name)
 	}
 }

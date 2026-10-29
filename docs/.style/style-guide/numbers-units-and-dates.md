@@ -1,3 +1,7 @@
+---
+review-personas: [language]
+---
+
 # Numbers, units, and dates
 
 Coder documentation uses digits for numbers 6 and higher in prose, allows either digits or words for 0 through 5, a non-breaking space between a number and its unit, and the `Month Day, Year` date format.
@@ -108,7 +112,8 @@ The second line omits the space entirely, which also reads worse.
 In code blocks, configuration values, and CLI output, the original format is preserved (`30s`, `150ms`).
 The non-breaking-space rule applies to prose only.
 
-*Enforced by `Google.Units` (planned).*
+*Enforced by `Coder.UnitSpacing` (`warning`).
+The rule skips pages generated from Go source, such as the CLI and API reference.*
 
 ## Date format
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/url"
 	"slices"
 	"strings"
@@ -15,8 +16,10 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/coderd/aibridge/budget"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
@@ -47,22 +50,19 @@ var (
 	// matching.
 	// TODO: return these errors to the client in a more structured/comparable
 	//       way.
-	ErrInvalidKey           = xerrors.New("invalid key")
-	ErrUnknownKey           = xerrors.New("unknown key")
-	ErrExpired              = xerrors.New("expired")
-	ErrUnknownUser          = xerrors.New("unknown user")
-	ErrDeletedUser          = xerrors.New("deleted user")
-	ErrInactiveUser         = xerrors.New("inactive user")
-	ErrSystemUser           = xerrors.New("system user")
-	ErrAmbiguousAuth        = xerrors.New("both key and key_id set; exactly one required")
-	ErrWorkspaceAttribution = xerrors.New("invalid workspace attribution")
+	ErrInvalidKey                = xerrors.New("invalid key")
+	ErrUnknownKey                = xerrors.New("unknown key")
+	ErrExpired                   = xerrors.New("expired")
+	ErrUnknownUser               = xerrors.New("unknown user")
+	ErrDeletedUser               = xerrors.New("deleted user")
+	ErrInactiveUser              = xerrors.New("inactive user")
+	ErrSystemUser                = xerrors.New("system user")
+	ErrAmbiguousAuth             = xerrors.New("both key and key_id set; exactly one required")
+	ErrWorkspaceAttribution      = xerrors.New("invalid workspace attribution")
+	ErrUnknownWorkspace          = xerrors.New("unknown workspace")
+	ErrUnknownOrganizationMember = xerrors.New("user is not a member of the workspace organization")
 
 	ErrNoExternalAuthLinkFound = xerrors.New("no external auth link found")
-)
-
-const (
-	InterceptionLogMarker = "interception log"
-	MetadataUserAgentKey  = "request_user_agent"
 )
 
 var _ aibridged.DRPCServer = &Server{}
@@ -81,7 +81,7 @@ type store interface {
 	// each token usage record.
 	GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (database.AIBridgeInterception, error)
 	GetAIProviderByName(ctx context.Context, name string) (database.AIProvider, error)
-	GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error)
+	GetAIModelPriceForProvider(ctx context.Context, arg database.GetAIModelPriceForProviderParams) (database.GetAIModelPriceForProviderRow, error)
 	GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error)
 	GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (database.GetHighestGroupAIBudgetByUserRow, error)
 	GetUserEveryoneFallbackGroup(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
@@ -96,6 +96,8 @@ type store interface {
 	// Authorizer-related queries.
 	GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (database.User, error)
+	GetWorkspaceByID(ctx context.Context, id uuid.UUID) (database.Workspace, error)
+	GetOrganizationsByUserID(ctx context.Context, arg database.GetOrganizationsByUserIDParams) ([]database.Organization, error)
 	// ProviderConfigurator-related queries. InTx wraps the provider and key
 	// reads in a single read-only transaction.
 	GetAIProviders(ctx context.Context, arg database.GetAIProvidersParams) ([]database.AIProvider, error)
@@ -174,7 +176,7 @@ func NewServer(lifecycleCtx context.Context, opts Options) (*Server, error) {
 		pubsub:              opts.Pubsub,
 		logger:              opts.Logger,
 		externalAuthConfigs: eac,
-		structuredLogging:   opts.GatewayCfg.StructuredLogging.Value(),
+		structuredLogging:   opts.GatewayCfg.EmitsStructuredLogs(codersdk.AIStructuredLoggingSourceCoderd),
 		aiSeatTracker:       opts.AISeatTracker,
 		experiments:         opts.Experiments,
 		budgetPolicy:        codersdk.NewAIBudgetPolicyFromString(opts.GatewayCfg.BudgetPolicy),
@@ -196,6 +198,23 @@ func NewServer(lifecycleCtx context.Context, opts Options) (*Server, error) {
 	return srv, nil
 }
 
+// recordTime resolves the time a gateway reported for a record. A gateway is a
+// separate process, possibly of a different version, so an unset time is
+// replaced with the server's own rather than persisted as the zero time, which
+// would place the record in year one and skew budget periods and retention.
+func (s *Server) recordTime(ctx context.Context, field string, reported *timestamppb.Timestamp, interceptionID string) time.Time {
+	if reported.IsValid() && !reported.AsTime().IsZero() {
+		return reported.AsTime()
+	}
+	now := dbtime.Now()
+	s.logger.Warn(ctx, "record reported no time, using server time",
+		slog.F("field", field),
+		slog.F("interception_id", interceptionID),
+		slog.F("server_time", now),
+	)
+	return now
+}
+
 func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterceptionRequest) (*proto.RecordInterceptionResponse, error) {
 	//nolint:gocritic // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
@@ -215,10 +234,10 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 	metadata := metadataToMap(in.GetMetadata())
 
 	if in.UserAgent != "" {
-		if _, ok := metadata[MetadataUserAgentKey]; ok {
+		if _, ok := metadata[recorder.MetadataUserAgentKey]; ok {
 			s.logger.Warn(ctx, "interception metadata contains user agent key, will be overwritten")
 		}
-		metadata[MetadataUserAgentKey] = in.UserAgent
+		metadata[recorder.MetadataUserAgentKey] = in.UserAgent
 	}
 
 	// Look up the interception lineage using the correlating tool call ID.
@@ -245,9 +264,17 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		s.logger.Warn(ctx, "failed to parse interception attribution", slog.F("metadata", in), slog.Error(err))
 	}
 
+	organizationID, organizationSource, err := interceptionOrganization(in)
+	if err != nil {
+		s.logger.Warn(ctx, "invalid organization attribution in interception request, storing none",
+			slog.F("organization_id", in.GetOrganizationId()),
+			slog.F("organization_source", in.GetOrganizationSource()),
+			slog.Error(err))
+	}
+
 	if s.structuredLogging {
 		fields := []slog.Field{
-			slog.F("record_type", "interception_start"),
+			slog.F("record_type", recorder.RecordTypeInterceptionStart),
 			slog.F("interception_id", intcID.String()),
 			slog.F("initiator_id", initID.String()),
 			slog.F("api_key_id", in.ApiKeyId),
@@ -264,7 +291,13 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		if workspaceID.Valid {
 			fields = append(fields, slog.F("workspace_id", workspaceID.UUID))
 		}
-		s.logger.Info(ctx, InterceptionLogMarker, fields...)
+		if organizationID.Valid {
+			fields = append(fields,
+				slog.F("organization_id", organizationID.UUID),
+				slog.F("organization_source", organizationSource.AIBridgeInterceptionOrganizationSource),
+			)
+		}
+		s.logger.Info(ctx, recorder.InterceptionLogMarker, fields...)
 	}
 
 	_, err = s.store.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
@@ -277,7 +310,7 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		ProviderName:                providerName,
 		Model:                       in.Model,
 		Metadata:                    out,
-		StartedAt:                   in.StartedAt.AsTime(),
+		StartedAt:                   s.recordTime(ctx, "started_at", in.GetStartedAt(), intcID.String()),
 		ThreadParentInterceptionID:  uuid.NullUUID{UUID: parentID, Valid: parentID != uuid.Nil},
 		ThreadRootInterceptionID:    uuid.NullUUID{UUID: rootID, Valid: rootID != uuid.Nil},
 		CredentialKind:              credentialKindOrDefault(in.CredentialKind),
@@ -285,6 +318,8 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		AgentFirewallSessionID:      agentFirewallSessionID,
 		AgentFirewallSequenceNumber: parseOptionalInt32(in.AgentFirewallSequenceNumber),
 		WorkspaceID:                 workspaceID,
+		OrganizationID:              organizationID,
+		OrganizationSource:          organizationSource,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("start interception: %w", err)
@@ -307,8 +342,8 @@ func (s *Server) RecordInterceptionEnded(ctx context.Context, in *proto.RecordIn
 	}
 
 	if s.structuredLogging {
-		s.logger.Info(ctx, InterceptionLogMarker,
-			slog.F("record_type", "interception_end"),
+		s.logger.Info(ctx, recorder.InterceptionLogMarker,
+			slog.F("record_type", recorder.RecordTypeInterceptionEnd),
 			slog.F("interception_id", intcID.String()),
 			slog.F("ended_at", in.EndedAt.AsTime()),
 		)
@@ -324,7 +359,7 @@ func (s *Server) RecordInterceptionEnded(ctx context.Context, in *proto.RecordIn
 	}
 	_, err = s.store.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
 		ID:             intcID,
-		EndedAt:        in.EndedAt.AsTime(),
+		EndedAt:        s.recordTime(ctx, "ended_at", in.GetEndedAt(), intcID.String()),
 		CredentialHint: in.CredentialHint,
 		ErrorType:      errType,
 		ErrorMessage:   errMsg,
@@ -348,10 +383,11 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 	metadata := metadataToMap(in.GetMetadata())
 
 	if s.structuredLogging {
-		s.logger.Info(ctx, InterceptionLogMarker,
-			slog.F("record_type", "token_usage"),
+		s.logger.Info(ctx, recorder.InterceptionLogMarker,
+			slog.F("record_type", recorder.RecordTypeTokenUsage),
 			slog.F("interception_id", intcID.String()),
 			slog.F("msg_id", in.GetMsgId()),
+			slog.F("provider_model", in.GetProviderModel()),
 			slog.F("input_tokens", in.GetInputTokens()),
 			slog.F("output_tokens", in.GetOutputTokens()),
 			slog.F("cache_read_input_tokens", in.GetCacheReadInputTokens()),
@@ -403,7 +439,7 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 // interception's cost) and, when the user is budgeted and the computed cost is
 // positive, accumulates that cost into the user's daily spend.
 func (s *Server) recordTokenUsageAndSpend(ctx context.Context, intc database.AIBridgeInterception, cost tokenUsageCost, in *proto.RecordTokenUsageRequest, metadataJSON []byte) error {
-	createdAt := in.GetCreatedAt().AsTime()
+	createdAt := s.recordTime(ctx, "created_at", in.GetCreatedAt(), intc.ID.String())
 
 	// Populated inside the transaction with any budget thresholds this
 	// interception crossed.
@@ -425,6 +461,8 @@ func (s *Server) recordTokenUsageAndSpend(ctx context.Context, intc database.AIB
 			CacheReadPriceMicros:  cost.cacheReadPriceMicros,
 			CacheWritePriceMicros: cost.cacheWritePriceMicros,
 			CostMicros:            cost.costMicros,
+			ProviderModel:         sql.NullString{String: in.GetProviderModel(), Valid: in.GetProviderModel() != ""},
+			PricedModel:           cost.pricedModel,
 		}); err != nil {
 			return xerrors.Errorf("insert token usage: %w", err)
 		}
@@ -488,8 +526,8 @@ func (s *Server) RecordPromptUsage(ctx context.Context, in *proto.RecordPromptUs
 	metadata := metadataToMap(in.GetMetadata())
 
 	if s.structuredLogging {
-		s.logger.Info(ctx, InterceptionLogMarker,
-			slog.F("record_type", "prompt_usage"),
+		s.logger.Info(ctx, recorder.InterceptionLogMarker,
+			slog.F("record_type", recorder.RecordTypePromptUsage),
 			slog.F("interception_id", intcID.String()),
 			slog.F("msg_id", in.GetMsgId()),
 			slog.F("prompt", in.GetPrompt()),
@@ -509,7 +547,7 @@ func (s *Server) RecordPromptUsage(ctx context.Context, in *proto.RecordPromptUs
 		ProviderResponseID: in.GetMsgId(),
 		Prompt:             in.GetPrompt(),
 		Metadata:           out,
-		CreatedAt:          in.GetCreatedAt().AsTime(),
+		CreatedAt:          s.recordTime(ctx, "created_at", in.GetCreatedAt(), intcID.String()),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert user prompt: %w", err)
@@ -530,8 +568,8 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 	metadata := metadataToMap(in.GetMetadata())
 
 	if s.structuredLogging {
-		s.logger.Info(ctx, InterceptionLogMarker,
-			slog.F("record_type", "tool_usage"),
+		s.logger.Info(ctx, recorder.InterceptionLogMarker,
+			slog.F("record_type", recorder.RecordTypeToolUsage),
 			slog.F("interception_id", intcID.String()),
 			slog.F("msg_id", in.GetMsgId()),
 			slog.F("tool_call_id", in.GetToolCallId()),
@@ -563,7 +601,7 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 		Injected:           in.GetInjected(),
 		InvocationError:    sql.NullString{String: in.GetInvocationError(), Valid: in.InvocationError != nil},
 		Metadata:           out,
-		CreatedAt:          in.GetCreatedAt().AsTime(),
+		CreatedAt:          s.recordTime(ctx, "created_at", in.GetCreatedAt(), intcID.String()),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert tool usage: %w", err)
@@ -584,8 +622,8 @@ func (s *Server) RecordModelThought(ctx context.Context, in *proto.RecordModelTh
 	metadata := metadataToMap(in.GetMetadata())
 
 	if s.structuredLogging {
-		s.logger.Info(ctx, InterceptionLogMarker,
-			slog.F("record_type", "model_thought"),
+		s.logger.Info(ctx, recorder.InterceptionLogMarker,
+			slog.F("record_type", recorder.RecordTypeModelThought),
 			slog.F("interception_id", intcID.String()),
 			slog.F("content", in.GetContent()),
 			slog.F("created_at", in.GetCreatedAt().AsTime()),
@@ -602,7 +640,7 @@ func (s *Server) RecordModelThought(ctx context.Context, in *proto.RecordModelTh
 		InterceptionID: intcID,
 		Content:        in.GetContent(),
 		Metadata:       out,
-		CreatedAt:      in.GetCreatedAt().AsTime(),
+		CreatedAt:      s.recordTime(ctx, "created_at", in.GetCreatedAt(), intcID.String()),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert model thought: %w", err)
@@ -748,6 +786,8 @@ externalAuthLoop:
 }
 
 // IsAuthorized validates a given Coder API key and returns the user ID to which it belongs (if valid).
+// It also returns the organization the request resolves to, as determined by [Server.resolveOrganization], and
+// rejects the request when that resolution fails.
 //
 // SECURITY: when in.KeyId is set (the "delegated" path), this method trusts the
 // caller's claim of identity and skips the key-secret check. This DRPCServer is
@@ -835,17 +875,70 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 		OwnerId:  key.UserID.String(),
 		ApiKeyId: key.ID,
 		Username: user.Username,
+		Email:    user.Email,
 	}
+	var workspaceID uuid.NullUUID
 	if !delegated {
-		workspaceID, ok, err := workspaceAttribution(key)
+		id, ok, err := workspaceAttribution(key)
 		if err != nil {
 			return nil, err
 		}
 		if ok {
-			resp.WorkspaceId = workspaceID.String()
+			workspaceID = uuid.NullUUID{UUID: id, Valid: true}
+			resp.WorkspaceId = id.String()
 		}
 	}
+
+	orgID, err := s.resolveOrganization(ctx, user.ID, workspaceID)
+	if err != nil {
+		s.logger.Warn(ctx, "failed to resolve request organization", slog.F("key_id", keyID), slog.F("user_id", user.ID), slog.Error(err))
+		return nil, err
+	}
+	if orgID.Valid {
+		resp.OrganizationId = orgID.UUID.String()
+	}
 	return resp, nil
+}
+
+// resolveOrganization determines the organization an AI Gateway request acts
+// in. All org resolution for AI Gateway requests lives here.
+//
+// It returns the organization for a request made by userID. When the
+// request was authenticated with a workspace session token, workspaceID
+// identifies that workspace and its organization is returned. The workspace
+// must still exist and userID must still be a member of its organization.
+// The result is invalid when no org source applies to the request.
+func (s *Server) resolveOrganization(ctx context.Context, userID uuid.UUID, workspaceID uuid.NullUUID) (uuid.NullUUID, error) {
+	if !workspaceID.Valid {
+		return uuid.NullUUID{}, nil
+	}
+
+	workspace, err := s.store.GetWorkspaceByID(ctx, workspaceID.UUID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return uuid.NullUUID{}, ErrUnknownWorkspace
+	}
+	if err != nil {
+		return uuid.NullUUID{}, xerrors.Errorf("get workspace %s: %w", workspaceID.UUID, err)
+	}
+	// Workspaces are soft-deleted, so a deleted row still resolves by ID.
+	if workspace.Deleted {
+		return uuid.NullUUID{}, ErrUnknownWorkspace
+	}
+
+	orgs, err := s.store.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
+		UserID:  userID,
+		Deleted: sql.NullBool{Bool: false, Valid: true},
+	})
+	if err != nil {
+		return uuid.NullUUID{}, xerrors.Errorf("get organizations for user %s: %w", userID, err)
+	}
+	if !slices.ContainsFunc(orgs, func(org database.Organization) bool {
+		return org.ID == workspace.OrganizationID
+	}) {
+		return uuid.NullUUID{}, ErrUnknownOrganizationMember
+	}
+
+	return uuid.NullUUID{UUID: workspace.OrganizationID, Valid: true}, nil
 }
 
 // workspaceAttribution parses the workspace UUID from a strict server-minted
@@ -880,6 +973,30 @@ func interceptionAttribution(in *proto.RecordInterceptionRequest) (workspaceID u
 		return uuid.NullUUID{}, xerrors.Errorf("invalid workspace ID: %w", err)
 	}
 	return uuid.NullUUID{UUID: id, Valid: true}, nil
+}
+
+// interceptionOrganization parses the optional organization attribution. It
+// returns both values valid or neither, so an invalid pair never fails the record.
+// It checks only the format. The caller must send an existing organization: a
+// well-formed ID for an unknown organization passes here and fails the foreign
+// key on insert.
+func interceptionOrganization(in *proto.RecordInterceptionRequest) (uuid.NullUUID, database.NullAIBridgeInterceptionOrganizationSource, error) {
+	rawID, rawSource := in.GetOrganizationId(), in.GetOrganizationSource()
+	if rawID == "" && rawSource == "" {
+		return uuid.NullUUID{}, database.NullAIBridgeInterceptionOrganizationSource{}, nil
+	}
+
+	id, err := uuid.Parse(rawID)
+	if err != nil {
+		return uuid.NullUUID{}, database.NullAIBridgeInterceptionOrganizationSource{}, xerrors.Errorf("invalid organization ID: %w", err)
+	}
+	source := database.AIBridgeInterceptionOrganizationSource(rawSource)
+	if !source.Valid() {
+		return uuid.NullUUID{}, database.NullAIBridgeInterceptionOrganizationSource{}, xerrors.Errorf("unknown organization source %q", rawSource)
+	}
+	return uuid.NullUUID{UUID: id, Valid: true},
+		database.NullAIBridgeInterceptionOrganizationSource{AIBridgeInterceptionOrganizationSource: source, Valid: true},
+		nil
 }
 
 // IsBudgetExceeded reports whether the user's AI spend has reached their
@@ -1260,6 +1377,12 @@ func aiProviderToProto(row database.AIProvider, keys []database.AIProviderKey) (
 			Protocol:               string(settings.Bedrock.Protocol),
 			ResolvedModel:          settings.Bedrock.ResolvedModel,
 			ResolvedSmallFastModel: settings.Bedrock.ResolvedSmallFastModel,
+		}
+	}
+	if settings.ClaudePlatformAWS != nil {
+		p.ClaudePlatformAws = &proto.AIProviderKindClaudePlatformAWS{
+			Region:      settings.ClaudePlatformAWS.Region,
+			WorkspaceId: settings.ClaudePlatformAWS.WorkspaceID,
 		}
 	}
 

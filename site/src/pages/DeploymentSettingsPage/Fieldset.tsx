@@ -1,17 +1,16 @@
-import type { FC, FormEventHandler, JSX, ReactNode } from "react";
 import { Button } from "#/components/Button/Button";
 
 type FieldsetProps = {
-	children: ReactNode;
-	title: string | JSX.Element;
-	subtitle?: string | JSX.Element;
-	validation?: string | JSX.Element | false;
-	button?: JSX.Element | false;
-	onSubmit: FormEventHandler<HTMLFormElement>;
+	children: React.ReactNode;
+	title: string | React.JSX.Element;
+	subtitle?: string | React.JSX.Element;
+	validation?: string | React.JSX.Element | false;
+	button?: React.JSX.Element | false;
+	onSubmit: React.FormEventHandler<HTMLFormElement>;
 	isSubmitting?: boolean;
 };
 
-export const Fieldset: FC<FieldsetProps> = ({
+export const Fieldset: React.FC<FieldsetProps> = ({
 	title,
 	subtitle,
 	children,

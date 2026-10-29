@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { useFormik } from "formik";
-import type { FC } from "react";
 import * as Yup from "yup";
 import { EnterpriseBadge } from "#/components/Badge/PresetBadges";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
@@ -25,7 +24,7 @@ type PublishTemplateVersionDialogProps = {
 	onConfirm: (data: PublishVersionData) => void;
 };
 
-export const PublishTemplateVersionDialog: FC<
+export const PublishTemplateVersionDialog: React.FC<
 	PublishTemplateVersionDialogProps
 > = ({
 	open,

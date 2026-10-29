@@ -17,6 +17,9 @@ type RuntimeConfig struct {
 	MaxUsesPerRun        int
 	MaxOutputTokens      int64
 	StreamSilenceTimeout time.Duration
+	// MaxRetries is the maximum number of retries after a transient
+	// provider error within one advisor call. It must be positive.
+	MaxRetries int
 }
 
 // Runtime executes nested, tool-less advisor runs against the configured
@@ -43,6 +46,9 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	}
 	if cfg.MaxOutputTokens <= 0 {
 		return nil, xerrors.New("advisor max output tokens must be positive")
+	}
+	if cfg.MaxRetries < 1 {
+		return nil, xerrors.New("advisor max retries must be positive")
 	}
 	if cfg.CallTemplate.MaxOutputTokens != nil &&
 		*cfg.CallTemplate.MaxOutputTokens != cfg.MaxOutputTokens {
@@ -113,28 +119,6 @@ func (rt *Runtime) RemainingUses() int {
 		return 0
 	}
 	return int(remaining)
-}
-
-// MaxOutputTokens reports the resolved output-token cap applied to each
-// advisor call. NewRuntime validates that this value is positive and that
-// it matches ModelConfig.MaxOutputTokens when both are set, so the
-// accessor always returns the value the runtime will actually send.
-func (rt *Runtime) MaxOutputTokens() int64 {
-	if rt == nil {
-		return 0
-	}
-	return rt.cfg.MaxOutputTokens
-}
-
-// ProviderOptions reports the resolved provider options applied to each
-// advisor call. NewRuntime clones the supplied options so the returned
-// map reflects what nested calls will actually receive; callers must not
-// mutate the map or its entries.
-func (rt *Runtime) ProviderOptions() fantasy.ProviderOptions {
-	if rt == nil {
-		return nil
-	}
-	return rt.cfg.CallTemplate.ProviderOptions
 }
 
 func (rt *Runtime) tryAcquire() bool {

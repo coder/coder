@@ -1,22 +1,16 @@
-import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import {
 	mcpServerConfigACL,
+	mcpServerConfigACLAvailable,
 	updateMCPServerConfigACL,
 } from "#/api/queries/chats";
-import type * as TypesGen from "#/api/typesGenerated";
-import { getGroupSubtitle, isGroup } from "#/modules/groups";
+import { toast } from "#/components/Toaster/toast";
+import { ACLPrincipalAutocomplete } from "../../components/ACLPrincipalAutocomplete";
 import {
-	ResourceSharingDialog,
-	type SharingDialogData,
-	type SharingPrincipal,
-	type SharingPrincipalSelection,
-} from "../../components/ResourceSharingDialog";
-import {
-	MCPServerPrincipalAutocomplete,
-	type MCPServerPrincipalAutocompleteValue,
-} from "./MCPServerPrincipalAutocomplete";
+	selectedPrincipal,
+	sharingDialogData,
+} from "../../components/aclSharing";
+import { ResourceSharingDialog } from "../../components/ResourceSharingDialog";
 
 type MCPServerSharingDialogProps = {
 	open: boolean;
@@ -26,56 +20,12 @@ type MCPServerSharingDialogProps = {
 	serverName: string;
 };
 
-type MCPServerPrincipal = Exclude<MCPServerPrincipalAutocompleteValue, null>;
-
-const groupPrincipal = (group: TypesGen.Group): SharingPrincipal => ({
-	id: group.id,
-	name: group.display_name || group.name,
-	subtitle: getGroupSubtitle(group),
-	avatarUrl: group.avatar_url,
-});
-
-const userPrincipal = (user: TypesGen.MinimalUser): SharingPrincipal => ({
-	id: user.id,
-	name: user.username,
-	subtitle: user.name || "User",
-	avatarUrl: user.avatar_url,
-});
-
-const sharingDialogData = (
-	acl: TypesGen.MCPServerConfigACL,
-): SharingDialogData<TypesGen.MCPServerConfigRole> => ({
-	acl: {
-		user_roles: Object.fromEntries(
-			acl.users.map((user) => [user.id, user.role]),
-		),
-		group_roles: Object.fromEntries(
-			acl.groups.map((group) => [group.id, group.role]),
-		),
-	},
-	principals: {
-		users: Object.fromEntries(
-			acl.users.map((user) => [user.id, userPrincipal(user)]),
-		),
-		groups: Object.fromEntries(
-			acl.groups.map((group) => [group.id, groupPrincipal(group)]),
-		),
-	},
-});
-
-const selectedPrincipal = (
-	option: MCPServerPrincipal,
-): SharingPrincipalSelection =>
-	isGroup(option)
-		? { kind: "group", principal: groupPrincipal(option) }
-		: { kind: "user", principal: userPrincipal(option) };
-
 type OpenMCPServerSharingDialogProps = Omit<
 	MCPServerSharingDialogProps,
 	"open"
 >;
 
-const OpenMCPServerSharingDialog: FC<OpenMCPServerSharingDialogProps> = ({
+const OpenMCPServerSharingDialog: React.FC<OpenMCPServerSharingDialogProps> = ({
 	onOpenChange,
 	organizationId,
 	serverId,
@@ -111,13 +61,13 @@ const OpenMCPServerSharingDialog: FC<OpenMCPServerSharingDialogProps> = ({
 			readRole="read"
 			deletedRole=""
 			renderAutocomplete={({ value, onChange, excludedPrincipalIds }) => (
-				<MCPServerPrincipalAutocomplete
-					organizationId={organizationId}
+				<ACLPrincipalAutocomplete
 					value={value}
 					onChange={onChange}
-					serverId={serverId}
+					availableQueryOptions={(options) =>
+						mcpServerConfigACLAvailable(organizationId, serverId, options)
+					}
 					excludedPrincipalIds={excludedPrincipalIds}
-					className="w-full"
 				/>
 			)}
 			getPrincipal={selectedPrincipal}
@@ -137,6 +87,6 @@ const OpenMCPServerSharingDialog: FC<OpenMCPServerSharingDialogProps> = ({
 	);
 };
 
-export const MCPServerSharingDialog: FC<MCPServerSharingDialogProps> = (
+export const MCPServerSharingDialog: React.FC<MCPServerSharingDialogProps> = (
 	props,
 ) => (props.open ? <OpenMCPServerSharingDialog {...props} /> : null);

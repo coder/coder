@@ -1,4 +1,4 @@
-import { type FC, useState } from "react";
+import { useState } from "react";
 import {
 	type ErrorResponse,
 	isRouteErrorResponse,
@@ -8,21 +8,28 @@ import {
 import { Button } from "#/components/Button/Button";
 import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Link } from "#/components/Link/Link";
+import { Loader } from "#/components/Loader/Loader";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
+import { isStaleChunkReloadPending } from "#/utils/staleChunkReload";
 
 const errorPageTitle = "Something went wrong";
 
 // Mocking React Router's error-handling logic is a pain; the next best thing is
 // to split it off from the rest of the code, and pass the value via props
-export const GlobalErrorBoundary: FC = () => {
+export const GlobalErrorBoundary: React.FC = () => {
 	const error = useRouteError();
+	// The failed import is expected after a redeploy and the page is already
+	// reloading, so keep showing a loader instead of an error.
+	if (isStaleChunkReloadPending()) {
+		return <Loader fullscreen />;
+	}
 	return <GlobalErrorBoundaryInner error={error} />;
 };
 
 type GlobalErrorBoundaryInnerProps = Readonly<{ error: unknown }>;
-export const GlobalErrorBoundaryInner: FC<GlobalErrorBoundaryInnerProps> = ({
-	error,
-}) => {
+export const GlobalErrorBoundaryInner: React.FC<
+	GlobalErrorBoundaryInnerProps
+> = ({ error }) => {
 	const [showErrorMessage, setShowErrorMessage] = useState(false);
 	const { metadata } = useEmbeddedMetadata();
 	const location = useLocation();
@@ -93,9 +100,9 @@ export const GlobalErrorBoundaryInner: FC<GlobalErrorBoundaryInnerProps> = ({
 };
 
 type ErrorStackProps = Readonly<{ error: Error | ErrorResponse }>;
-const ErrorStack: FC<ErrorStackProps> = ({ error }) => {
+const ErrorStack: React.FC<ErrorStackProps> = ({ error }) => {
 	return (
-		<aside className="p-4 text-left rounded-md border border-content-tertiary border-solid">
+		<aside className="p-4 text-left rounded-md border border-border border-solid">
 			{isRouteErrorResponse(error) ? (
 				<>
 					<h2 className="text-base font-bold text-content-primary m-0">

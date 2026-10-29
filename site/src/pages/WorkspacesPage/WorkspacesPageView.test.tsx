@@ -47,7 +47,147 @@ const defaultProps = {
 	onActionError: vi.fn(),
 };
 
+const stoppedWorkspace = { ...MockStoppedWorkspace, name: "stopped" };
+const pendingWorkspace = { ...MockPendingWorkspace, name: "pending" };
+const runningWorkspace = { ...MockWorkspace, name: "running" };
+const deletingWorkspace = { ...MockDeletingWorkspace, name: "deleting" };
+
+function renderSelection(
+	initialWorkspaces: readonly Workspace[],
+	refreshedWorkspaces?: readonly Workspace[],
+) {
+	const onCheckChange = vi.fn();
+	const View = () => {
+		const [workspaces, setWorkspaces] = useState(initialWorkspaces);
+		const [checkedWorkspaces, setCheckedWorkspaces] = useState<
+			readonly Workspace[]
+		>([]);
+
+		return (
+			<>
+				{refreshedWorkspaces && (
+					<button
+						type="button"
+						onClick={() => setWorkspaces(refreshedWorkspaces)}
+					>
+						Refresh workspaces
+					</button>
+				)}
+				<WorkspacesPageView
+					{...defaultProps}
+					workspaces={workspaces}
+					count={workspaces.length}
+					checkedWorkspaces={workspaces.filter((workspace) =>
+						checkedWorkspaces.some((selected) => selected.id === workspace.id),
+					)}
+					onCheckChange={(selected) => {
+						onCheckChange(selected);
+						setCheckedWorkspaces(selected);
+					}}
+				/>
+			</>
+		);
+	};
+
+	renderWithAuth(<View />);
+	return onCheckChange;
+}
+
 describe("WorkspacesPageView", () => {
+	it.each([
+		[
+			"mixed eligibility",
+			[stoppedWorkspace, pendingWorkspace, runningWorkspace, deletingWorkspace],
+		],
+		["all eligible", [stoppedWorkspace, runningWorkspace]],
+	])(
+		"selects and deselects eligible workspaces with %s",
+		async (_name, workspaces) => {
+			const user = userEvent.setup();
+			const onCheckChange = renderSelection(workspaces);
+			const selectAll = await screen.findByRole("checkbox", {
+				name: "Select all workspaces",
+			});
+
+			await user.click(
+				screen.getByRole("checkbox", { name: "Select workspace stopped" }),
+			);
+			expect(onCheckChange).toHaveBeenLastCalledWith([stoppedWorkspace]);
+
+			await user.click(selectAll);
+			expect(onCheckChange).toHaveBeenLastCalledWith([
+				stoppedWorkspace,
+				runningWorkspace,
+			]);
+
+			await user.click(
+				screen.getByRole("checkbox", { name: "Select workspace running" }),
+			);
+			expect(onCheckChange).toHaveBeenLastCalledWith([stoppedWorkspace]);
+
+			await user.click(selectAll);
+			expect(onCheckChange).toHaveBeenLastCalledWith([
+				stoppedWorkspace,
+				runningWorkspace,
+			]);
+
+			await user.click(selectAll);
+			expect(onCheckChange).toHaveBeenLastCalledWith([]);
+		},
+	);
+
+	it.each([pendingWorkspace, deletingWorkspace])(
+		"clears a selected workspace after it becomes $name on refresh",
+		async (disabledWorkspace) => {
+			const user = userEvent.setup();
+			const onCheckChange = renderSelection(
+				[runningWorkspace],
+				[
+					{
+						...disabledWorkspace,
+						id: runningWorkspace.id,
+						name: runningWorkspace.name,
+					},
+				],
+			);
+			const selectAll = await screen.findByRole("checkbox", {
+				name: "Select all workspaces",
+			});
+
+			await user.click(selectAll);
+			expect(onCheckChange).toHaveBeenLastCalledWith([runningWorkspace]);
+			await user.click(
+				screen.getByRole("button", { name: "Refresh workspaces" }),
+			);
+			await user.click(selectAll);
+			expect(onCheckChange).toHaveBeenLastCalledWith([]);
+			expect(onCheckChange).toHaveBeenCalledTimes(2);
+
+			await user.click(selectAll);
+			expect(onCheckChange).toHaveBeenCalledTimes(2);
+		},
+	);
+
+	it("does not select workspaces when no rows are eligible", async () => {
+		const user = userEvent.setup();
+		const onCheckChange = renderSelection([
+			pendingWorkspace,
+			deletingWorkspace,
+		]);
+
+		await user.click(
+			await screen.findByRole("checkbox", { name: "Select all workspaces" }),
+		);
+		await user.click(
+			screen.getByRole("checkbox", { name: "Select workspace pending" }),
+		);
+		await user.click(
+			screen.getByRole("checkbox", { name: "Select workspace deleting" }),
+		);
+
+		expect(onCheckChange).not.toHaveBeenCalled();
+	});
+
 	it("hides the New workspace button and explains the missing permission", async () => {
 		renderWithAuth(
 			<WorkspacesPageView {...defaultProps} canCreateWorkspace={false} />,
@@ -153,17 +293,28 @@ describe("WorkspacesPageView", () => {
 	});
 
 	describe("drag to select", () => {
-		const alpha = { ...MockWorkspace, id: "ws-alpha", name: "alpha" };
-		const bravo = { ...MockPendingWorkspace, id: "ws-bravo", name: "bravo" };
-		const charlie = {
+		const mockAlpha = { ...MockWorkspace, id: "ws-alpha", name: "alpha" };
+		const mockBravo = {
+			...MockPendingWorkspace,
+			id: "ws-bravo",
+			name: "bravo",
+		};
+		const mockCharlie = {
 			...MockStoppedWorkspace,
 			id: "ws-charlie",
 			name: "charlie",
 		};
-		const delta = { ...MockWorkspace, id: "ws-delta", name: "delta" };
-		const echo = { ...MockDeletingWorkspace, id: "ws-echo", name: "echo" };
-		const foxtrot = { ...MockWorkspace, id: "ws-foxtrot", name: "foxtrot" };
-		const workspaces = [alpha, bravo, charlie, delta, echo, foxtrot];
+		const mockDelta = { ...MockWorkspace, id: "ws-delta", name: "delta" };
+		const mockEcho = { ...MockDeletingWorkspace, id: "ws-echo", name: "echo" };
+		const mockFoxtrot = { ...MockWorkspace, id: "ws-foxtrot", name: "foxtrot" };
+		const workspaces = [
+			mockAlpha,
+			mockBravo,
+			mockCharlie,
+			mockDelta,
+			mockEcho,
+			mockFoxtrot,
+		];
 
 		const renderWorkspaces = (
 			checkedWorkspaces: readonly Workspace[] = [],
@@ -213,61 +364,65 @@ describe("WorkspacesPageView", () => {
 
 		it("selects only checkable rows, shrinks the range, and preserves selection outside it", async () => {
 			const user = userEvent.setup();
-			const { onCheckChange } = renderWorkspaces([foxtrot]);
-			await screen.findByText(alpha.name);
+			const { onCheckChange } = renderWorkspaces([mockFoxtrot]);
+			await screen.findByText(mockAlpha.name);
 
 			await user.pointer([
-				{ keys: "[MouseLeft>]", target: checkboxFor(alpha) },
-				{ target: checkboxFor(bravo) },
-				{ target: checkboxFor(charlie) },
-				{ target: checkboxFor(delta) },
-				{ target: checkboxFor(echo) },
+				{ keys: "[MouseLeft>]", target: checkboxFor(mockAlpha) },
+				{ target: checkboxFor(mockBravo) },
+				{ target: checkboxFor(mockCharlie) },
+				{ target: checkboxFor(mockDelta) },
+				{ target: checkboxFor(mockEcho) },
 			]);
 			expect(onCheckChange).toHaveBeenLastCalledWith([
-				alpha,
-				charlie,
-				delta,
-				foxtrot,
+				mockAlpha,
+				mockCharlie,
+				mockDelta,
+				mockFoxtrot,
 			]);
 
 			await user.pointer([
-				{ target: checkboxFor(charlie) },
+				{ target: checkboxFor(mockCharlie) },
 				{ keys: "[/MouseLeft]" },
 			]);
-			expect(onCheckChange).toHaveBeenLastCalledWith([alpha, charlie, foxtrot]);
+			expect(onCheckChange).toHaveBeenLastCalledWith([
+				mockAlpha,
+				mockCharlie,
+				mockFoxtrot,
+			]);
 		});
 
 		it("deselects upwards and restores rows when the range shrinks", async () => {
 			const user = userEvent.setup();
 			const { onCheckChange } = renderWorkspaces([
-				alpha,
-				charlie,
-				delta,
-				foxtrot,
+				mockAlpha,
+				mockCharlie,
+				mockDelta,
+				mockFoxtrot,
 			]);
-			await screen.findByText(alpha.name);
+			await screen.findByText(mockAlpha.name);
 
 			await user.pointer([
-				{ keys: "[MouseLeft>]", target: checkboxFor(delta) },
-				{ target: checkboxFor(alpha) },
+				{ keys: "[MouseLeft>]", target: checkboxFor(mockDelta) },
+				{ target: checkboxFor(mockAlpha) },
 			]);
-			expect(onCheckChange).toHaveBeenLastCalledWith([foxtrot]);
+			expect(onCheckChange).toHaveBeenLastCalledWith([mockFoxtrot]);
 
 			await user.pointer([
-				{ target: checkboxFor(charlie) },
+				{ target: checkboxFor(mockCharlie) },
 				{ keys: "[/MouseLeft]" },
 			]);
-			expect(onCheckChange).toHaveBeenLastCalledWith([alpha, foxtrot]);
+			expect(onCheckChange).toHaveBeenLastCalledWith([mockAlpha, mockFoxtrot]);
 		});
 
 		it("preserves focus, single-click selection, and keyboard toggling", async () => {
 			const user = userEvent.setup();
 			const { onCheckChange } = renderWorkspaces();
-			await screen.findByText(alpha.name);
+			await screen.findByText(mockAlpha.name);
 
-			await user.click(checkboxFor(alpha));
-			expect(onCheckChange).toHaveBeenCalledExactlyOnceWith([alpha]);
-			expect(checkboxFor(alpha)).toHaveFocus();
+			await user.click(checkboxFor(mockAlpha));
+			expect(onCheckChange).toHaveBeenCalledExactlyOnceWith([mockAlpha]);
+			expect(checkboxFor(mockAlpha)).toHaveFocus();
 
 			await user.keyboard(" ");
 			expect(onCheckChange).toHaveBeenCalledTimes(2);
@@ -277,54 +432,57 @@ describe("WorkspacesPageView", () => {
 		it("does not toggle again when a drag returns to its starting checkbox", async () => {
 			const user = userEvent.setup();
 			const { onCheckChange } = renderWorkspaces();
-			await screen.findByText(alpha.name);
+			await screen.findByText(mockAlpha.name);
 
 			await user.pointer([
-				{ keys: "[MouseLeft>]", target: checkboxFor(alpha) },
-				{ target: checkboxFor(delta) },
-				{ target: checkboxFor(alpha) },
+				{ keys: "[MouseLeft>]", target: checkboxFor(mockAlpha) },
+				{ target: checkboxFor(mockDelta) },
+				{ target: checkboxFor(mockAlpha) },
 				{ keys: "[/MouseLeft]" },
 			]);
 			expect(onCheckChange).toHaveBeenCalledTimes(2);
-			expect(onCheckChange).toHaveBeenLastCalledWith([alpha]);
+			expect(onCheckChange).toHaveBeenLastCalledWith([mockAlpha]);
 
-			await user.click(checkboxFor(charlie));
+			await user.click(checkboxFor(mockCharlie));
 			expect(onCheckChange).toHaveBeenCalledTimes(3);
-			expect(onCheckChange).toHaveBeenLastCalledWith([alpha, charlie]);
+			expect(onCheckChange).toHaveBeenLastCalledWith([mockAlpha, mockCharlie]);
 		});
 
 		it("does not navigate when a drag ends on its starting row, but allows a subsequent click", async () => {
 			const user = userEvent.setup();
 			const { onCheckChange, router } = renderWorkspaces();
-			const link = await screen.findByRole("link", { name: alpha.name });
+			const link = await screen.findByRole("link", { name: mockAlpha.name });
 
 			await user.pointer([
-				{ keys: "[MouseLeft>]", target: checkboxFor(alpha) },
-				{ target: checkboxFor(delta) },
+				{ keys: "[MouseLeft>]", target: checkboxFor(mockAlpha) },
+				{ target: checkboxFor(mockDelta) },
 				{ target: link },
 				{ keys: "[/MouseLeft]" },
 			]);
-			expect(onCheckChange).toHaveBeenLastCalledWith([alpha]);
+			expect(onCheckChange).toHaveBeenLastCalledWith([mockAlpha]);
 			expect(router.state.location.pathname).toBe("/workspaces");
 
 			await user.click(link);
 			expect(router.state.location.pathname).toBe(
-				`/@${alpha.owner_name}/${alpha.name}`,
+				`/@${mockAlpha.owner_name}/${mockAlpha.name}`,
 			);
 		});
 
 		it("stops selecting after releasing outside the table", async () => {
 			const user = userEvent.setup();
 			const { onCheckChange } = renderWorkspaces();
-			await screen.findByText(alpha.name);
+			await screen.findByText(mockAlpha.name);
 
 			await user.pointer([
-				{ keys: "[MouseLeft>]", target: checkboxFor(alpha) },
-				{ target: checkboxFor(charlie) },
+				{ keys: "[MouseLeft>]", target: checkboxFor(mockAlpha) },
+				{ target: checkboxFor(mockCharlie) },
 				{ keys: "[/MouseLeft]", target: document.body },
 			]);
-			await user.hover(checkboxFor(delta));
-			expect(onCheckChange).toHaveBeenCalledExactlyOnceWith([alpha, charlie]);
+			await user.hover(checkboxFor(mockDelta));
+			expect(onCheckChange).toHaveBeenCalledExactlyOnceWith([
+				mockAlpha,
+				mockCharlie,
+			]);
 		});
 
 		it.each(["pointercancel", "blur"])(
@@ -332,11 +490,11 @@ describe("WorkspacesPageView", () => {
 			async (event) => {
 				const user = userEvent.setup();
 				const { onCheckChange } = renderWorkspaces();
-				await screen.findByText(alpha.name);
+				await screen.findByText(mockAlpha.name);
 
 				await user.pointer([
-					{ keys: "[MouseLeft>]", target: checkboxFor(alpha) },
-					{ target: checkboxFor(charlie) },
+					{ keys: "[MouseLeft>]", target: checkboxFor(mockAlpha) },
+					{ target: checkboxFor(mockCharlie) },
 				]);
 				if (event === "pointercancel") {
 					fireEvent.pointerCancel(window, { pointerId: 1 });
@@ -344,25 +502,31 @@ describe("WorkspacesPageView", () => {
 					fireEvent(window, new Event("blur"));
 				}
 				await user.pointer([
-					{ target: checkboxFor(delta) },
+					{ target: checkboxFor(mockDelta) },
 					{ keys: "[/MouseLeft]", target: document.body },
 				]);
-				expect(onCheckChange).toHaveBeenCalledExactlyOnceWith([alpha, charlie]);
+				expect(onCheckChange).toHaveBeenCalledExactlyOnceWith([
+					mockAlpha,
+					mockCharlie,
+				]);
 			},
 		);
 
 		it("does not keep selecting when a pointer release was missed", async () => {
 			const user = userEvent.setup();
 			const { onCheckChange } = renderWorkspaces();
-			await screen.findByText(alpha.name);
-			await user.pointer({ keys: "[MouseLeft>]", target: checkboxFor(alpha) });
+			await screen.findByText(mockAlpha.name);
+			await user.pointer({
+				keys: "[MouseLeft>]",
+				target: checkboxFor(mockAlpha),
+			});
 
 			const releasedPointer = userEvent.setup();
-			await releasedPointer.hover(checkboxFor(charlie));
+			await releasedPointer.hover(checkboxFor(mockCharlie));
 			expect(onCheckChange).not.toHaveBeenCalled();
 
-			await releasedPointer.click(checkboxFor(delta));
-			expect(onCheckChange).toHaveBeenCalledExactlyOnceWith([delta]);
+			await releasedPointer.click(checkboxFor(mockDelta));
+			expect(onCheckChange).toHaveBeenCalledExactlyOnceWith([mockDelta]);
 		});
 
 		it.each(["MouseRight", "MouseMiddle", "TouchA"])(
@@ -370,13 +534,13 @@ describe("WorkspacesPageView", () => {
 			async (pointerName) => {
 				const user = userEvent.setup();
 				const { onCheckChange } = renderWorkspaces();
-				await screen.findByText(alpha.name);
+				await screen.findByText(mockAlpha.name);
 
 				await user.pointer([
-					{ keys: `[${pointerName}>]`, target: checkboxFor(alpha) },
+					{ keys: `[${pointerName}>]`, target: checkboxFor(mockAlpha) },
 					{
 						pointerName: pointerName === "TouchA" ? "TouchA" : "mouse",
-						target: checkboxFor(delta),
+						target: checkboxFor(mockDelta),
 					},
 				]);
 				expect(onCheckChange).not.toHaveBeenCalled();
@@ -390,11 +554,11 @@ describe("WorkspacesPageView", () => {
 		it("does not start a drag outside a checkbox", async () => {
 			const user = userEvent.setup();
 			const { onCheckChange } = renderWorkspaces();
-			const link = await screen.findByRole("link", { name: alpha.name });
+			const link = await screen.findByRole("link", { name: mockAlpha.name });
 
 			await user.pointer([
 				{ keys: "[MouseLeft>]", target: link },
-				{ target: checkboxFor(delta) },
+				{ target: checkboxFor(mockDelta) },
 				{ keys: "[/MouseLeft]" },
 			]);
 			expect(onCheckChange).not.toHaveBeenCalled();
@@ -404,32 +568,44 @@ describe("WorkspacesPageView", () => {
 			const user = userEvent.setup();
 			const { onCheckChange } = renderWorkspaces(
 				[],
-				[delta, alpha, bravo, charlie],
+				[mockDelta, mockAlpha, mockBravo, mockCharlie],
 			);
-			await screen.findByText(alpha.name);
-			await user.pointer({ keys: "[MouseLeft>]", target: checkboxFor(alpha) });
+			await screen.findByText(mockAlpha.name);
+			await user.pointer({
+				keys: "[MouseLeft>]",
+				target: checkboxFor(mockAlpha),
+			});
 
 			fireEvent.click(
 				screen.getByRole("button", { name: "Refetch workspaces" }),
 			);
 			await user.pointer([
-				{ target: checkboxFor(charlie) },
+				{ target: checkboxFor(mockCharlie) },
 				{ keys: "[/MouseLeft]" },
 			]);
-			expect(onCheckChange).toHaveBeenCalledExactlyOnceWith([alpha, charlie]);
+			expect(onCheckChange).toHaveBeenCalledExactlyOnceWith([
+				mockAlpha,
+				mockCharlie,
+			]);
 		});
 
 		it("stops selecting when a refetch removes the anchor workspace", async () => {
 			const user = userEvent.setup();
-			const { onCheckChange } = renderWorkspaces([], [bravo, charlie, delta]);
-			await screen.findByText(alpha.name);
-			await user.pointer({ keys: "[MouseLeft>]", target: checkboxFor(alpha) });
+			const { onCheckChange } = renderWorkspaces(
+				[],
+				[mockBravo, mockCharlie, mockDelta],
+			);
+			await screen.findByText(mockAlpha.name);
+			await user.pointer({
+				keys: "[MouseLeft>]",
+				target: checkboxFor(mockAlpha),
+			});
 
 			fireEvent.click(
 				screen.getByRole("button", { name: "Refetch workspaces" }),
 			);
 			await user.pointer([
-				{ target: checkboxFor(charlie) },
+				{ target: checkboxFor(mockCharlie) },
 				{ keys: "[/MouseLeft]" },
 			]);
 			expect(onCheckChange).not.toHaveBeenCalled();

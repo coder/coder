@@ -21,6 +21,7 @@ func TestMiddlewareAccessLog(t *testing.T) {
 
 	chatID := uuid.New()
 	ancestorID := uuid.New()
+	toolCallID := uuid.New()
 	sink := testutil.NewFakeSink(t)
 	handler := tracing.StatusWriterMiddleware(loggermw.Logger(sink.Logger(), nil)(
 		agentchat.Middleware(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
@@ -31,6 +32,7 @@ func TestMiddlewareAccessLog(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set(workspacesdk.CoderChatIDHeader, chatID.String())
 	req.Header.Set(workspacesdk.CoderAncestorChatIDsHeader, mustMarshalJSON(t, []string{ancestorID.String()}))
+	req.Header.Set(workspacesdk.CoderToolCallIDHeader, toolCallID.String())
 	rw := httptest.NewRecorder()
 	handler.ServeHTTP(rw, req)
 	require.Equal(t, http.StatusNoContent, rw.Code)
@@ -40,6 +42,7 @@ func TestMiddlewareAccessLog(t *testing.T) {
 	fields := fieldsByName(entries[0].Fields)
 	require.Equal(t, chatID.String(), fields["chat_id"])
 	require.Equal(t, []string{ancestorID.String()}, fields["ancestor_chat_ids"])
+	require.Equal(t, toolCallID.String(), fields["tool_call_id"])
 }
 
 func TestMiddlewareWithoutChatHeader(t *testing.T) {

@@ -15,6 +15,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/fixtures"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/chatcompletions"
@@ -79,11 +80,11 @@ var interceptorCases = []interceptorCase{
 		agenticStreamErrorEvent: "event: error",
 		streamDoneEvent:         "event: message_stop",
 		newInterceptor: func(t *testing.T, streaming bool, upstreamURL string, reqBody []byte, pool *keypool.Pool, byokKey string) intercept.Interceptor {
-			var cred intercept.Credential
+			var cred credential.Credential
 			if pool != nil {
-				cred = &intercept.CentralizedPool{Pool: pool, Header: "X-Api-Key"}
+				cred = &credential.CentralizedPool{Pool: pool, Header: "X-Api-Key"}
 			} else {
-				cred = intercept.BYOK{Secret: byokKey, Header: "X-Api-Key"}
+				cred = credential.BYOK{Secret: byokKey, Header: "X-Api-Key"}
 			}
 			cfg := intercept.Config{
 				ProviderName: config.ProviderAnthropic,
@@ -114,11 +115,11 @@ var interceptorCases = []interceptorCase{
 		agenticStreamErrorEvent: `data: {"error"`,
 		streamDoneEvent:         "data: [DONE]",
 		newInterceptor: func(t *testing.T, streaming bool, upstreamURL string, reqBody []byte, pool *keypool.Pool, byokKey string) intercept.Interceptor {
-			var cred intercept.Credential
+			var cred credential.Credential
 			if pool != nil {
-				cred = &intercept.CentralizedPool{Pool: pool, Header: "Authorization"}
+				cred = &credential.CentralizedPool{Pool: pool, Header: "Authorization"}
 			} else {
-				cred = intercept.BYOK{Secret: byokKey, Header: "Authorization"}
+				cred = credential.BYOK{Secret: byokKey, Header: "Authorization"}
 			}
 			cfg := intercept.Config{
 				ProviderName: config.ProviderOpenAI,
@@ -154,11 +155,11 @@ var interceptorCases = []interceptorCase{
 		},
 		streamDoneEvent: "event: response.completed",
 		newInterceptor: func(t *testing.T, streaming bool, upstreamURL string, reqBody []byte, pool *keypool.Pool, byokKey string) intercept.Interceptor {
-			var cred intercept.Credential
+			var cred credential.Credential
 			if pool != nil {
-				cred = &intercept.CentralizedPool{Pool: pool, Header: "Authorization"}
+				cred = &credential.CentralizedPool{Pool: pool, Header: "Authorization"}
 			} else {
-				cred = intercept.BYOK{Secret: byokKey, Header: "Authorization"}
+				cred = credential.BYOK{Secret: byokKey, Header: "Authorization"}
 			}
 			cfg := intercept.Config{
 				ProviderName: config.ProviderOpenAI,

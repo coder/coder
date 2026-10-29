@@ -1,5 +1,5 @@
 import { type FormikContextType, useFormik } from "formik";
-import { type FC, useEffect, useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import * as Yup from "yup";
 import type {
 	UpdateUserQuietHoursScheduleRequest,
@@ -52,7 +52,7 @@ type ScheduleFormProps = {
 	now?: Date;
 };
 
-export const ScheduleForm: FC<ScheduleFormProps> = ({
+export const ScheduleForm: React.FC<ScheduleFormProps> = ({
 	isLoading,
 	initialValues,
 	submitError,

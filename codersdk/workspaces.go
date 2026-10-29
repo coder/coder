@@ -129,6 +129,10 @@ type CreateWorkspaceBuildRequest struct {
 	// This will overwrite any existing parameters with the same name.
 	// This will not delete old params not included in this list.
 	RichParameterValues []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
+	// Secrets sets or removes workspace secrets for this build. Previous
+	// secrets that are not listed carry forward unless they were ephemeral or
+	// a listed secret uses their env_name or file_path.
+	Secrets []WorkspaceSecretInput `json:"secrets,omitempty"`
 
 	// Log level changes the default logging verbosity of a provider ("info" if empty).
 	LogLevel ProvisionerLogLevel `json:"log_level,omitempty" validate:"omitempty,oneof=debug"`
@@ -405,6 +409,7 @@ const (
 	UsageAppNameJetbrains       UsageAppName = "jetbrains"
 	UsageAppNameReconnectingPty UsageAppName = "reconnecting-pty"
 	UsageAppNameSSH             UsageAppName = "ssh"
+	UsageAppNamePortForwarding  UsageAppName = "port_forwarding"
 )
 
 // PostWorkspaceUsage marks the workspace as having been used recently and records an app stat.
@@ -649,12 +654,20 @@ func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) (Worksp
 }
 
 // WorkspaceByOwnerAndName returns a workspace by the owner's UUID and the workspace's name.
-func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, owner string, name string, params WorkspaceOptions) (Workspace, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspace/%s", owner, name), nil, func(r *http.Request) {
-		q := r.URL.Query()
-		q.Set("include_deleted", fmt.Sprintf("%t", params.IncludeDeleted))
-		r.URL.RawQuery = q.Encode()
-	})
+func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, owner string, name string, opts ...WorkspaceOptions) (Workspace, error) {
+	// These identifiers must remain individual path segments during URL resolution.
+	if err := validateWorkspacePathSegment(owner); err != nil {
+		return Workspace{}, xerrors.Errorf("invalid workspace owner: %w", err)
+	}
+	if err := validateWorkspacePathSegment(name); err != nil {
+		return Workspace{}, xerrors.Errorf("invalid workspace name: %w", err)
+	}
+	reqOpts := make([]RequestOption, 0, len(opts)+1)
+	reqOpts = append(reqOpts, WithQueryParam("include_deleted", "false"))
+	for _, o := range opts {
+		reqOpts = append(reqOpts, o.asRequestOption())
+	}
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspace/%s", owner, name), nil, reqOpts...)
 	if err != nil {
 		return Workspace{}, err
 	}
@@ -666,6 +679,15 @@ func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, owner string, name
 
 	var workspace Workspace
 	return workspace, ReadBodyAsJSON(res, &workspace)
+}
+
+// validateWorkspacePathSegment prevents workspace and user identifiers from
+// changing the endpoint during URL resolution, without restricting legacy names.
+func validateWorkspacePathSegment(identifier string) error {
+	if identifier == "" || identifier == "." || identifier == ".." || strings.ContainsAny(identifier, `/\%?#`) {
+		return xerrors.New("must be a non-empty path segment without slashes, escapes, query, fragment, or dot segments")
+	}
+	return nil
 }
 
 // SplitWorkspaceIdentifier splits an identifier into owner and
@@ -688,9 +710,13 @@ func SplitWorkspaceIdentifier(identifier string) (owner, name string, err error)
 // pair. When the identifier parses as a valid UUID but no workspace
 // exists with that ID, the function falls back to a name-based
 // lookup because workspace names can be valid UUID strings.
-func (c *Client) ResolveWorkspace(ctx context.Context, identifier string) (Workspace, error) {
+//
+// An optional WorkspaceOptions is forwarded to the underlying lookup,
+// so callers can request deleted workspaces or narrow the related data
+// loaded. All options are applied in order, matching Workspace.
+func (c *Client) ResolveWorkspace(ctx context.Context, identifier string, opts ...WorkspaceOptions) (Workspace, error) {
 	if uid, err := uuid.Parse(identifier); err == nil {
-		ws, err := c.Workspace(ctx, uid)
+		ws, err := c.Workspace(ctx, uid, opts...)
 		if err == nil {
 			return ws, nil
 		}
@@ -712,7 +738,7 @@ func (c *Client) ResolveWorkspace(ctx context.Context, identifier string) (Works
 	if err != nil {
 		return Workspace{}, err
 	}
-	return c.WorkspaceByOwnerAndName(ctx, owner, name, WorkspaceOptions{})
+	return c.WorkspaceByOwnerAndName(ctx, owner, name, opts...)
 }
 
 type WorkspaceQuota struct {

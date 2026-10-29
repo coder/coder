@@ -1,5 +1,5 @@
 import { ChevronDownIcon, PlusIcon, SearchIcon } from "lucide-react";
-import { type FC, useMemo } from "react";
+import { useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import type { ChatModel } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -60,7 +60,19 @@ const PROVIDER_PARAM = "provider";
 const SEARCH_PARAM = "search";
 const PAGE_PARAM = "page";
 
-const AddModelDropdown: FC<{
+const getProviderIconByModelId = (
+	providerStates: readonly ProviderState[],
+): ReadonlyMap<string, string> =>
+	new Map(
+		providerStates.flatMap((providerState) =>
+			providerState.models.map((model): [string, string] => [
+				model.id,
+				providerState.providerDescriptor.icon,
+			]),
+		),
+	);
+
+const AddModelDropdown: React.FC<{
 	providerStates: readonly ProviderState[];
 	align?: "start" | "end";
 }> = ({ providerStates, align = "end" }) => {
@@ -96,7 +108,10 @@ const AddModelDropdown: FC<{
 								void navigate(organizationAddModelPath(organization, next));
 							}}
 						>
-							<ProviderIcon provider={providerState.provider} />
+							<ProviderIcon
+								provider={providerState.provider}
+								icon={providerState.providerDescriptor.icon}
+							/>
 							<span>{providerState.label}</span>
 						</DropdownMenuItem>
 					))
@@ -116,7 +131,7 @@ type ModelsPageViewProps = {
 	canCreateModel: boolean;
 };
 
-const ModelsPageView: FC<ModelsPageViewProps> = ({
+const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 	isLoading,
 	loadError,
 	refetchError,
@@ -166,6 +181,8 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 		}
 		return map;
 	}, [providerStates]);
+
+	const providerIconByModelId = getProviderIconByModelId(providerStates);
 
 	const hasProviderByModelId = useMemo(() => {
 		const map = new Map<string, boolean>();
@@ -325,7 +342,10 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 						{providerStates.map((providerState) => (
 							<SelectItem key={providerState.key} value={providerState.key}>
 								<span className="flex items-center gap-2">
-									<ProviderIcon provider={providerState.provider} />
+									<ProviderIcon
+										provider={providerState.provider}
+										icon={providerState.providerDescriptor.icon}
+									/>
 									{providerState.label}
 								</span>
 							</SelectItem>
@@ -372,6 +392,7 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 								model={model}
 								providerLabel={providerLabelByModelId.get(model.id) ?? ""}
 								providerTypeByID={providerTypeByID}
+								providerIcon={providerIconByModelId.get(model.id)}
 								hasProvider={hasProviderByModelId.get(model.id) ?? false}
 								providerEnabled={
 									providerEnabledByModelId.get(model.id) ?? false

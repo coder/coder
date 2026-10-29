@@ -1,7 +1,8 @@
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import {
+	aiBridgeProviders,
 	aiSpendOrganizations,
 	paginatedOrganizationAISpend,
 } from "#/api/queries/aiBridge";
@@ -55,7 +56,7 @@ type SpendPageProps = {
 	now?: Date;
 };
 
-const SpendPage: FC<SpendPageProps> = ({ now }) => {
+const SpendPage: React.FC<SpendPageProps> = ({ now }) => {
 	const { permissions } = useAuthenticated();
 	const { entitlements } = useDashboard();
 	const { isEntitled, isEnabled } = getAIBridgePermissions(
@@ -126,6 +127,13 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 		}),
 	};
 
+	// Spend rows list configured provider names; the provider list resolves
+	// them to display names and icons for viewers allowed to read it.
+	const providersQuery = useQuery({
+		...aiBridgeProviders(),
+		enabled: isSpendAvailable && canFilterDimensions,
+	});
+
 	// The default period lives in memory, not the URL, so a shared link
 	// resolves relative to the viewer's current time. It is fixed per mount so
 	// query cache keys stay stable.
@@ -181,7 +189,7 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 
 	return (
 		<>
-			<title>{pageTitle("User spend", "AI Settings")}</title>
+			<title>{pageTitle("Spend", "AI Settings")}</title>
 			<SpendPageView
 				isEntitled={isEntitled}
 				isEnabled={isEnabled}
@@ -198,6 +206,7 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 				onPeriodChange={onPeriodChange}
 				filterMenus={canFilterDimensions ? filterMenus : undefined}
 				reportQuery={reportQuery}
+				providers={providersQuery.data}
 			/>
 		</>
 	);

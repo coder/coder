@@ -15,7 +15,12 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
+
+// testMaxRetries is generous enough that no existing scenario exhausts
+// it; TestRetry_ExhaustsMaxRetries covers the budget itself.
+const testMaxRetries = 10
 
 func TestDelay(t *testing.T) {
 	t.Parallel()
@@ -50,7 +55,7 @@ func TestRetry_SuccessOnFirstTry(t *testing.T) {
 	t.Parallel()
 
 	calls := 0
-	err := chatretry.Retry(context.Background(), func(_ context.Context) error {
+	err := chatretry.Retry(context.Background(), testMaxRetries, func(_ context.Context) error {
 		calls++
 		return nil
 	}, nil)
@@ -62,7 +67,7 @@ func TestRetry_TransientThenSuccess(t *testing.T) {
 	t.Parallel()
 
 	calls := 0
-	err := chatretry.Retry(context.Background(), func(_ context.Context) error {
+	err := chatretry.Retry(context.Background(), testMaxRetries, func(_ context.Context) error {
 		calls++
 		if calls == 1 {
 			return xerrors.New("service unavailable")
@@ -77,7 +82,7 @@ func TestRetry_MultipleTransientThenSuccess(t *testing.T) {
 	t.Parallel()
 
 	calls := 0
-	err := chatretry.Retry(context.Background(), func(_ context.Context) error {
+	err := chatretry.Retry(context.Background(), testMaxRetries, func(_ context.Context) error {
 		calls++
 		if calls <= 3 {
 			return xerrors.New("overloaded")
@@ -88,11 +93,33 @@ func TestRetry_MultipleTransientThenSuccess(t *testing.T) {
 	require.Equal(t, 4, calls)
 }
 
+func TestRetry_MaxRetries(t *testing.T) {
+	t.Parallel()
+
+	for _, maxRetries := range []int{-1, 0, 1, 2} {
+		t.Run(fmt.Sprintf("Max%d", maxRetries), func(t *testing.T) {
+			t.Parallel()
+			calls := 0
+			err := chatretry.Retry(testutil.Context(t, testutil.WaitMedium), maxRetries, func(_ context.Context) error {
+				calls++
+				return xerrors.New("overloaded")
+			}, nil)
+			if maxRetries < 1 {
+				require.ErrorContains(t, err, "max retries must be positive")
+				require.Zero(t, calls)
+				return
+			}
+			require.ErrorContains(t, err, fmt.Sprintf("max retries (%d) exceeded", maxRetries))
+			require.Equal(t, maxRetries+1, calls)
+		})
+	}
+}
+
 func TestRetry_ContextCanceledStatus500ThenSuccess(t *testing.T) {
 	t.Parallel()
 
 	calls := 0
-	err := chatretry.Retry(context.Background(), func(_ context.Context) error {
+	err := chatretry.Retry(context.Background(), testMaxRetries, func(_ context.Context) error {
 		calls++
 		if calls == 1 {
 			return xerrors.Errorf("received status 500 from upstream: %w", context.Canceled)
@@ -130,7 +157,7 @@ func TestRetry_ContextCanceledNonRetryableDoesNotWrapAsTransportReset(t *testing
 			t.Parallel()
 
 			calls := 0
-			err := chatretry.Retry(context.Background(), func(_ context.Context) error {
+			err := chatretry.Retry(context.Background(), testMaxRetries, func(_ context.Context) error {
 				calls++
 				return tt.err
 			}, nil)
@@ -152,7 +179,7 @@ func TestRetry_ContextCanceledFromAttemptWithHealthyParentRetries(t *testing.T) 
 	calls := 0
 	var retryErr error
 	var retryClassified chatretry.ClassifiedError
-	err := chatretry.Retry(context.Background(), func(_ context.Context) error {
+	err := chatretry.Retry(context.Background(), testMaxRetries, func(_ context.Context) error {
 		calls++
 		if calls == 1 {
 			return context.Canceled
@@ -186,7 +213,7 @@ func TestRetry_ContextCanceledFromParentDoesNotRetry(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	calls := 0
-	err := chatretry.Retry(ctx, func(_ context.Context) error {
+	err := chatretry.Retry(ctx, testMaxRetries, func(_ context.Context) error {
 		calls++
 		cancel()
 		return context.Canceled
@@ -203,7 +230,7 @@ func TestRetry_ParentCancelCauseIsPreserved(t *testing.T) {
 	ctx, cancel := context.WithCancelCause(context.Background())
 
 	calls := 0
-	err := chatretry.Retry(ctx, func(_ context.Context) error {
+	err := chatretry.Retry(ctx, testMaxRetries, func(_ context.Context) error {
 		calls++
 		cancel(cause)
 		return context.Canceled
@@ -217,7 +244,7 @@ func TestRetry_NonRetryableError(t *testing.T) {
 	t.Parallel()
 
 	calls := 0
-	err := chatretry.Retry(context.Background(), func(_ context.Context) error {
+	err := chatretry.Retry(context.Background(), testMaxRetries, func(_ context.Context) error {
 		calls++
 		return xerrors.New("invalid api key")
 	}, nil)
@@ -238,7 +265,7 @@ func TestRetry_ContextCanceledDuringWait(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	calls := 0
-	err := chatretry.Retry(ctx, func(_ context.Context) error {
+	err := chatretry.Retry(ctx, testMaxRetries, func(_ context.Context) error {
 		calls++
 		if calls == 1 {
 			cancel()
@@ -256,7 +283,7 @@ func TestRetry_ContextCanceledDuringFn(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	err := chatretry.Retry(ctx, func(_ context.Context) error {
+	err := chatretry.Retry(ctx, testMaxRetries, func(_ context.Context) error {
 		cancel()
 		return xerrors.New("overloaded")
 	}, nil)
@@ -278,7 +305,7 @@ func TestRetry_OnRetryCalledWithCorrectArgs(t *testing.T) {
 	var records []retryRecord
 
 	calls := 0
-	err := chatretry.Retry(context.Background(), func(_ context.Context) error {
+	err := chatretry.Retry(context.Background(), testMaxRetries, func(_ context.Context) error {
 		calls++
 		if calls <= 2 {
 			return xerrors.New("received status 429 from upstream")
@@ -314,7 +341,7 @@ func TestRetry_OnRetryNilDoesNotPanic(t *testing.T) {
 	t.Parallel()
 
 	var calls atomic.Int32
-	err := chatretry.Retry(context.Background(), func(_ context.Context) error {
+	err := chatretry.Retry(context.Background(), testMaxRetries, func(_ context.Context) error {
 		if calls.Add(1) == 1 {
 			return xerrors.New("overloaded")
 		}
@@ -358,7 +385,7 @@ func TestRetry_UsesRetryAfterAsDelayFloor(t *testing.T) {
 			calls := 0
 			var gotClassified chatretry.ClassifiedError
 			var gotDelay time.Duration
-			err := chatretry.Retry(ctx, func(_ context.Context) error {
+			err := chatretry.Retry(ctx, testMaxRetries, func(_ context.Context) error {
 				calls++
 				return &fantasy.ProviderError{
 					Message:         "upstream failed",
@@ -393,7 +420,7 @@ func TestRetry_HTTP2TransportErrorKeepsRetrying(t *testing.T) {
 	t.Parallel()
 
 	calls := 0
-	err := chatretry.Retry(context.Background(), func(_ context.Context) error {
+	err := chatretry.Retry(context.Background(), testMaxRetries, func(_ context.Context) error {
 		calls++
 		if calls == 1 {
 			return xerrors.New(

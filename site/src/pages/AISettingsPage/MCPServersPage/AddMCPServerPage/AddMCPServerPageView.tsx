@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { pageTitle } from "#/utils/page";
@@ -20,7 +19,7 @@ type AddMCPServerPageViewProps = {
 	onCancel: () => void;
 };
 
-const AddMCPServerPageView: FC<AddMCPServerPageViewProps> = ({
+const AddMCPServerPageView: React.FC<AddMCPServerPageViewProps> = ({
 	isSaving,
 	canCreate,
 	canViewServerList,

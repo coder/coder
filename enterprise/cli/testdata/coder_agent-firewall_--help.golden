@@ -59,8 +59,8 @@ OPTIONS:
       --session-id-inject-target string, $BOUNDARY_SESSION_ID_INJECT_TARGET
           Inject target for session correlation headers. Repeat the flag once
           per target; each value describes exactly one target. Format:
-          "domain=<host> [path=<glob>]". Example: --session-id-inject-target
-          "domain=prod.coder.com path=/api/v2/aibridge/*".
+          `domain=<host> [path=<glob>]`. Example: `--session-id-inject-target
+          "domain=prod.coder.com path=/api/v2/aibridge/*"`.
 
        string-array
           Inject targets from config file (YAML only).

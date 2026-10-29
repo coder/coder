@@ -3,9 +3,11 @@ package chatloop
 import (
 	"iter"
 	"testing"
+	"time"
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/codersdk"
@@ -78,4 +80,154 @@ func TestProcessStepStreamPersistsRedactedThinkingOnEnd(t *testing.T) {
 	metadata := fantasyanthropic.GetReasoningMetadata(fantasy.ProviderOptions(reasoning.ProviderMetadata))
 	require.NotNil(t, metadata)
 	require.Equal(t, "redacted-payload", metadata.RedactedData)
+}
+
+func TestProcessStepStreamLabelsNarration(t *testing.T) {
+	t.Parallel()
+
+	phase := func(itemID, phase string) fantasy.ProviderMetadata {
+		return fantasy.ProviderMetadata{
+			fantasyopenai.Name: &fantasyopenai.ResponsesTextMetadata{ItemID: itemID, Phase: phase},
+		}
+	}
+	stream := iter.Seq[fantasy.StreamPart](func(yield func(fantasy.StreamPart) bool) {
+		// The narration's end carries no metadata, so the start's label
+		// must persist.
+		yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeTextStart, ID: "msg_1", ProviderMetadata: phase("msg_1", "commentary")})
+		yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, ID: "msg_1", Delta: "Reading"})
+		yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, ID: "msg_1", Delta: " the file."})
+		yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeTextEnd, ID: "msg_1", ProviderMetadata: fantasy.ProviderMetadata{}})
+		yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeTextStart, ID: "msg_2", ProviderMetadata: phase("msg_2", "final_answer")})
+		yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, ID: "msg_2", Delta: "It is flaky."})
+		yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeTextEnd, ID: "msg_2", ProviderMetadata: phase("msg_2", "final_answer")})
+		yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop})
+	})
+
+	var published []codersdk.ChatMessagePart
+	result, err := processStepStream(stream, quartz.NewMock(t), func(_ codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
+		published = append(published, part)
+	})
+	require.NoError(t, err)
+
+	narration := codersdk.ChatMessageText("Reading")
+	narration.Narration = true
+	rest := codersdk.ChatMessageText(" the file.")
+	rest.Narration = true
+	require.Equal(t, []codersdk.ChatMessagePart{
+		narration,
+		rest,
+		codersdk.ChatMessageText("It is flaky."),
+	}, published)
+
+	require.Equal(t, []fantasy.Content{
+		fantasy.TextContent{Text: "Reading the file.", ProviderMetadata: phase("msg_1", "commentary")},
+		fantasy.TextContent{Text: "It is flaky.", ProviderMetadata: phase("msg_2", "final_answer")},
+	}, result.content)
+}
+
+func TestProcessStepStreamSetsReasoningDeltaCreatedAtToBlockStart(t *testing.T) {
+	t.Parallel()
+
+	clock := quartz.NewMock(t)
+	start := clock.Now()
+	stream := iter.Seq[fantasy.StreamPart](func(yield func(fantasy.StreamPart) bool) {
+		yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeReasoningStart, ID: "0"})
+		clock.Advance(time.Second)
+		yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeReasoningDelta, ID: "0", Delta: "first "})
+		clock.Advance(time.Second)
+		yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeReasoningDelta, ID: "0", Delta: "thought"})
+		yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeReasoningEnd, ID: "0"})
+		clock.Advance(time.Second)
+		yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeReasoningStart, ID: "1"})
+		yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeReasoningDelta, ID: "1", Delta: "second"})
+		yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeReasoningEnd, ID: "1"})
+		yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop})
+	})
+
+	var sinceStart []time.Duration
+	_, err := processStepStream(stream, clock, func(_ codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
+		if part.Type == codersdk.ChatMessagePartTypeReasoning {
+			require.NotNil(t, part.CreatedAt)
+			sinceStart = append(sinceStart, part.CreatedAt.Sub(start))
+		}
+	})
+	require.NoError(t, err)
+	require.Equal(t, []time.Duration{0, 0, 3 * time.Second}, sinceStart,
+		"interrupted turns split reasoning blocks by CreatedAt, so each delta's CreatedAt must be its block's start time")
+}
+
+func TestProcessStepStreamProviderWebSearch(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		metadata  fantasy.ProviderMetadata
+		wantError string
+	}{
+		{
+			name: "AnthropicResults",
+			metadata: fantasy.ProviderMetadata{
+				fantasyanthropic.Name: &fantasyanthropic.WebSearchResultMetadata{
+					Results: []fantasyanthropic.WebSearchResultItem{{URL: "https://go.dev/doc/go1.27", Title: "Go 1.27"}},
+				},
+			},
+		},
+		{
+			name: "AnthropicErrorCode",
+			metadata: fantasy.ProviderMetadata{
+				fantasyanthropic.Name: &fantasyanthropic.WebSearchResultMetadata{ErrorCode: "max_uses_exceeded"},
+			},
+			wantError: "web search failed: max_uses_exceeded",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			stream := iter.Seq[fantasy.StreamPart](func(yield func(fantasy.StreamPart) bool) {
+				yield(fantasy.StreamPart{
+					Type:             fantasy.StreamPartTypeSource,
+					ID:               "https://go.dev/doc/go1.27",
+					SourceType:       fantasy.SourceTypeURL,
+					URL:              "https://go.dev/doc/go1.27",
+					Title:            "Go 1.27",
+					SourceToolCallID: "srvtoolu_1",
+				})
+				yield(fantasy.StreamPart{
+					Type:             fantasy.StreamPartTypeToolResult,
+					ID:               "srvtoolu_1",
+					ToolCallName:     "web_search",
+					ProviderExecuted: true,
+					ProviderMetadata: tt.metadata,
+				})
+				yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop})
+			})
+
+			var published []codersdk.ChatMessagePart
+			result, err := processStepStream(stream, quartz.NewMock(t), func(_ codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
+				published = append(published, part)
+			})
+			require.NoError(t, err)
+			require.Len(t, result.content, 2)
+
+			source, ok := fantasy.AsContentType[fantasy.SourceContent](result.content[0])
+			require.True(t, ok)
+			require.Equal(t, "srvtoolu_1", source.ToolCallID)
+			toolResult, ok := fantasy.AsContentType[fantasy.ToolResultContent](result.content[1])
+			require.True(t, ok)
+			if tt.wantError == "" {
+				require.Nil(t, toolResult.Result)
+			} else {
+				errorOutput, ok := toolResult.Result.(fantasy.ToolResultOutputContentError)
+				require.True(t, ok, "result should be an error output, got %T", toolResult.Result)
+				require.EqualError(t, errorOutput.Error, tt.wantError)
+			}
+
+			require.Len(t, published, 2)
+			require.Equal(t, codersdk.ChatMessagePartTypeSource, published[0].Type)
+			require.Equal(t, "srvtoolu_1", published[0].ToolCallID)
+			require.Equal(t, codersdk.ChatMessagePartTypeToolResult, published[1].Type)
+			require.Equal(t, tt.wantError != "", published[1].IsError)
+		})
+	}
 }

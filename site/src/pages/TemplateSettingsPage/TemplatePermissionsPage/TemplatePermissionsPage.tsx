@@ -1,6 +1,4 @@
-import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	setGroupRole,
@@ -13,6 +11,7 @@ import {
 	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
@@ -21,7 +20,7 @@ import { pageTitle } from "#/utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView";
 
-const TemplatePermissionsPage: FC = () => {
+const TemplatePermissionsPage: React.FC = () => {
 	const { permissions: authPermissions } = useAuthenticated();
 	const { template, permissions } = useTemplateSettings();
 	const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility();

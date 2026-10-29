@@ -2,6 +2,7 @@ package workspaceapps
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -79,6 +80,20 @@ type AgentProvider interface {
 	ServeHTTPDebug(w http.ResponseWriter, r *http.Request)
 
 	Close() error
+}
+
+// AgentUnreachableError is returned by AgentProvider.AgentConn when the agent
+// did not answer before the context ended. It is not returned when the client
+// canceled within 5s, or when the context was canceled with
+// workspacesdk.ErrDialAbandoned or workspacesdk.ErrReadinessProbeTimeout.
+// Fields holds the peer diagnostics collected at that time. Callers with a
+// request log line that log the failure should include them.
+type AgentUnreachableError struct {
+	Fields []slog.Field
+}
+
+func (*AgentUnreachableError) Error() string {
+	return "agent is unreachable"
 }
 
 type ServerOptions struct {
@@ -753,7 +768,13 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	log := s.Logger.With(slog.F("agent_id", appToken.AgentID))
+
+	clientSessionID := tracing.ClientSessionID(r)
+
+	log := s.Logger.With(
+		slog.F("agent_id", appToken.AgentID),
+		slog.F("client_session_id", clientSessionID),
+	)
 	log.Debug(ctx, "resolved PTY request")
 
 	values := r.URL.Query()
@@ -796,12 +817,26 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 
 	agentConn, release, err := s.AgentProvider.AgentConn(ctx, appToken.AgentID)
 	if err != nil {
-		log.Debug(ctx, "dial workspace agent", slog.Error(err))
+		// A 101 response logs the request at debug, so log unreachable agents
+		// at warn here. Use s.Logger: Fields already has agent_id.
+		if unreachable, ok := errors.AsType[*AgentUnreachableError](err); ok {
+			s.Logger.Warn(ctx, "agent is unreachable", append(unreachable.Fields, slog.Error(err))...)
+		} else {
+			log.Debug(ctx, "dial workspace agent", slog.Error(err))
+		}
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial workspace agent: %s", err))
 		return
 	}
 	defer release()
 	log.Debug(ctx, "dialed workspace agent")
+
+	// Pass through the client session ID to the agent via the header.
+	if clientSessionID != "" {
+		agentConn.SetExtraHeaders(http.Header{
+			"baggage": []string{tracing.SessionIDBaggageKey + "=" + clientSessionID},
+		})
+	}
+
 	// #nosec G115 - Safe conversion for terminal height/width which are expected to be within uint16 range (0-65535)
 	ptNetConn, err := agentConn.ReconnectingPTY(ctx, reconnect, uint16(height), uint16(width), r.URL.Query().Get("command"), func(arp *workspacesdk.AgentReconnectingPTYInit) {
 		arp.Container = container

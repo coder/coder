@@ -2,10 +2,9 @@
 title: Web IDEs in templates
 ---
 
-In Coder, web IDEs are defined as
-[coder_app](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app)
-resources in the template. With our generic model, any web application can be
-used as a Coder application. For example:
+In Coder, web IDEs are defined as [coder_app](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app) resources in the template.
+With our generic model, any web application can be used as a Coder application.
+For example:
 
 ```tf
 # Add button to open Portainer in the workspace dashboard
@@ -27,9 +26,8 @@ resource "coder_app" "portainer" {
 
 ## code-server
 
-[code-server](https://github.com/coder/code-server) is our supported method of running
-VS Code in the web browser. A simple way to install code-server in Linux/macOS
-workspaces is via the Coder agent in your template:
+[code-server](https://github.com/coder/code-server) is our supported method of running VS Code in the web browser.
+A simple way to install code-server in Linux/macOS workspaces is via the Coder agent in your template:
 
 ```console
 # edit your template
@@ -55,9 +53,8 @@ resource "coder_agent" "main" {
 }
 ```
 
-For advanced use, we recommend installing code-server in your VM snapshot or
-container image. Here's a Dockerfile which leverages some special
-[code-server features](https://coder.com/docs/code-server):
+For advanced use, we recommend installing code-server in your VM snapshot or container image.
+Here's a Dockerfile which leverages some special [code-server features](https://coder.com/docs/code-server):
 
 ```dockerfile
 FROM codercom/example-base:ubuntu
@@ -74,8 +71,8 @@ RUN code-server --install-extension eamodio.gitlens
 # or use a process manager like supervisord
 ```
 
-You'll also need to specify a `coder_app` resource related to the agent. This is
-how code-server is displayed on the workspace page.
+You'll also need to specify a `coder_app` resource related to the agent.
+This is how code-server is displayed on the workspace page.
 
 ```tf
 resource "coder_app" "code-server" {
@@ -99,12 +96,10 @@ resource "coder_app" "code-server" {
 
 ## VS Code Web
 
-VS Code supports launching a local web client using the `code serve-web`
-command. To add VS Code web as a web IDE, you have two options.
+VS Code supports launching a local web client using the `code serve-web` command.
+To add VS Code web as a web IDE, you have two options.
 
-1. Install using the
-   [vscode-web module](https://registry.coder.com/modules/vscode-web) from the
-   coder registry.
+1. Install using the [vscode-web module](https://registry.coder.com/modules/vscode-web) from the coder registry.
 
    ```tf
    module "vscode-web" {
@@ -115,8 +110,7 @@ command. To add VS Code web as a web IDE, you have two options.
    }
    ```
 
-2. Install and start in your `startup_script` and create a corresponding
-   `coder_app`
+2. Install and start in your `startup_script` and create a corresponding `coder_app`
 
    ```tf
    resource "coder_agent" "main" {
@@ -154,9 +148,7 @@ command. To add VS Code web as a web IDE, you have two options.
 
 ## Jupyter Notebook
 
-To use Jupyter Notebook in your workspace, you can install it by using the
-[Jupyter Notebook module](https://registry.coder.com/modules/jupyter-notebook)
-from the Coder registry:
+To use Jupyter Notebook in your workspace, you can install it by using the [Jupyter Notebook module](https://registry.coder.com/modules/jupyter-notebook) from the Coder registry:
 
 ```tf
 module "jupyter-notebook" {
@@ -170,8 +162,8 @@ module "jupyter-notebook" {
 
 ## JupyterLab
 
-Configure your agent and `coder_app` like so to use Jupyter. Notice the
-`subdomain=true` configuration:
+Configure your agent and `coder_app` like so to use Jupyter.
+Notice the `subdomain=true` configuration:
 
 ```tf
 data "coder_workspace" "me" {}
@@ -213,19 +205,15 @@ module "jupyter" {
 }
 ```
 
-If you cannot enable a
-[wildcard subdomain](../../../admin/setup/index.md#wildcard-access-url), you can
-configure the template to run Jupyter on a path. There is however
-[security risk](../../../reference/cli/server.md#--dangerous-allow-path-app-sharing)
-running an app on a path and the template code is more complicated with coder
-value substitution to recreate the path structure.
+If you cannot enable a [wildcard subdomain](../../../admin/setup/index.md#wildcard-access-url), you can configure the template to run Jupyter on a path.
+There is however [security risk](../../../reference/cli/server/index.md#--dangerous-allow-path-app-sharing) running an app on a path and the template code is more complicated with coder value substitution to recreate the path structure.
 
 ![JupyterLab in Coder](../../../images/jupyter.png)
 
 ## RStudio
 
-Configure your agent and `coder_app` like so to use RStudio. Notice the
-`subdomain=true` configuration:
+Configure your agent and `coder_app` like so to use RStudio.
+Notice the `subdomain=true` configuration:
 
 ```tf
 resource "coder_agent" "coder" {
@@ -256,23 +244,17 @@ resource "coder_app" "rstudio" {
 }
 ```
 
-If you cannot enable a
-[wildcard subdomain](https://coder.com/docs/admin/setup#wildcard-access-url),
-you can configure the template to run RStudio on a path using an NGINX reverse
-proxy in the template. There is however
-[security risk](https://coder.com/docs/reference/cli/server#--dangerous-allow-path-app-sharing)
-running an app on a path and the template code is more complicated with coder
-value substitution to recreate the path structure.
+If you cannot enable a [wildcard subdomain](https://coder.com/docs/admin/setup#wildcard-access-url), you can configure the template to run RStudio on a path using an NGINX reverse proxy in the template.
+There is however [security risk](https://coder.com/docs/reference/cli/server#--dangerous-allow-path-app-sharing) running an app on a path and the template code is more complicated with coder value substitution to recreate the path structure.
 
-[This](https://github.com/sempie/coder-templates/tree/main/rstudio) is a
-community template example.
+[This](https://github.com/sempie/coder-templates/tree/main/rstudio) is a community template example.
 
 ![RStudio in Coder](../../../images/rstudio-port-forward.png)
 
 ## Airflow
 
-Configure your agent and `coder_app` like so to use Airflow. Notice the
-`subdomain=true` configuration:
+Configure your agent and `coder_app` like so to use Airflow.
+Notice the `subdomain=true` configuration:
 
 ```tf
 resource "coder_agent" "coder" {
@@ -304,8 +286,7 @@ resource "coder_app" "airflow" {
 }
 ```
 
-or use the [Airflow module](https://registry.coder.com/modules/apache-airflow)
-from the Coder registry:
+or use the [Airflow module](https://registry.coder.com/modules/apache-airflow) from the Coder registry:
 
 ```tf
 module "airflow" {
@@ -319,9 +300,8 @@ module "airflow" {
 
 ## File Browser
 
-To access the contents of a workspace directory in a browser, you can use File
-Browser. File Browser is a lightweight file manager that allows you to view and
-manipulate files in a web browser.
+To access the contents of a workspace directory in a browser, you can use File Browser.
+File Browser is a lightweight file manager that allows you to view and manipulate files in a web browser.
 
 Show and manipulate the contents of the `/home/coder` directory in a browser.
 
@@ -356,9 +336,7 @@ resource "coder_app" "filebrowser" {
 }
 ```
 
-Or alternatively, you can use the
-[`filebrowser`](https://registry.coder.com/modules/filebrowser) module from the
-Coder registry:
+Or alternatively, you can use the [`filebrowser`](https://registry.coder.com/modules/filebrowser) module from the Coder registry:
 
 ```tf
 module "filebrowser" {
@@ -372,7 +350,5 @@ module "filebrowser" {
 
 ## SSH Fallback
 
-If you prefer to run web IDEs in localhost, you can port forward using
-[SSH](../../../user-guides/workspace-access/index.md#ssh) or the Coder CLI
-`port-forward` sub-command. Some web IDEs may not support URL base path
-adjustment so port forwarding is the only approach.
+If you prefer to run web IDEs in localhost, you can port forward using [SSH](../../../user-guides/workspace-access/index.md#ssh) or the Coder CLI `port-forward` sub-command.
+Some web IDEs may not support URL base path adjustment so port forwarding is the only approach.

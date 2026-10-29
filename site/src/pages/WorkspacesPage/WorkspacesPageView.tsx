@@ -1,5 +1,4 @@
 import { PlayIcon, RotateCcwIcon, SquareIcon, TrashIcon } from "lucide-react";
-import type { FC } from "react";
 import type { UseQueryResult } from "react-query";
 import { hasError, isApiValidationError } from "#/api/errors";
 import type { Template, Workspace } from "#/api/typesGenerated";
@@ -56,7 +55,7 @@ type WorkspacesPageViewProps = {
 	chatsByWorkspace?: Record<string, string>;
 };
 
-export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
+export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = ({
 	workspaces,
 	error,
 	limit,
@@ -180,7 +179,10 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 				) : (
 					!pageNumberIsInvalid && (
 						<PaginationAmount
-							paginationUnitLabel="workspaces"
+							paginationUnitLabel={{
+								singular: "workspace",
+								plural: "workspaces",
+							}}
 							limit={limit}
 							totalRecords={count}
 							currentOffsetStart={(page - 1) * limit + 1}

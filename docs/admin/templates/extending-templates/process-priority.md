@@ -1,17 +1,14 @@
 ---
-title: Improving Agent Resiliency
+title: Improve agent resiliency
 ---
 
-Coder's agent can automatically lower the scheduling priority
-and raise the OOM (out-of-memory) kill score of user processes
-so the agent itself stays alive under resource pressure.
+Coder's agent can automatically lower the scheduling priority and raise the OOM (out-of-memory) kill score of user processes so the agent itself stays alive under resource pressure.
 
 ## Prerequisites
 
 - **Linux** — The feature is ignored on other operating systems.
-- **`CAP_SYS_NICE`** — Required if the agent needs to lower
-  the nice value below its current value. In Kubernetes, add
-  it to the container's security context:
+- **`CAP_SYS_NICE`** is required if the agent needs to lower the nice value below its current value.
+  In Kubernetes, add it to the container's security context:
 
   ```tf
   container {
@@ -25,11 +22,9 @@ so the agent itself stays alive under resource pressure.
 
 ## Environment variables
 
-Configure the feature with environment variables in the
-environment that launches the agent binary. These must be set
-on the workspace container or host, not in the `coder_agent`
-resource's `env` block — the agent reads them from its own
-process environment at startup.
+Configure the feature with environment variables in the environment that launches the agent binary.
+These must be set on the workspace container or host, not in the `coder_agent` resource's `env` block.
+The agent reads them from its own process environment at startup.
 
 | Variable                | Required | Default                       | Description                                                                                                                                                                                   |
 |-------------------------|----------|-------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -39,8 +34,7 @@ process environment at startup.
 
 ### OOM score defaults
 
-If you do not set `CODER_PROC_OOM_SCORE`, the agent computes a
-value based on its own `oom_score_adj`:
+If you do not set `CODER_PROC_OOM_SCORE`, the agent computes a value based on its own `oom_score_adj`:
 
 | Agent's `oom_score_adj` | Child score | Rationale                                      |
 |-------------------------|-------------|------------------------------------------------|
@@ -48,21 +42,15 @@ value based on its own `oom_score_adj`:
 | >= 998                  | `1000`      | Children get the maximum score (killed first). |
 | Any other value         | `998`       | Children get a near-maximum score.             |
 
-The goal is for the kernel's OOM killer to target child
-processes before the agent, keeping remote connectivity alive
-even when a workspace runs out of memory.
+The goal is for the kernel's OOM killer to target child processes before the agent, keeping remote connectivity alive even when a workspace runs out of memory.
 
 ### Nice score defaults
 
-If you do not set `CODER_PROC_NICE_SCORE`, the agent sets
-children to its own nice value plus 5, capped at 19. This
-gives the agent more CPU scheduling priority than user
-workloads.
+If you do not set `CODER_PROC_NICE_SCORE`, the agent sets children to its own nice value plus 5, capped at 19. This gives the agent more CPU scheduling priority than user workloads.
 
 ## Example
 
-The following Kubernetes template snippet enables process
-priority management on the workspace container:
+The following Kubernetes template snippet enables process priority management on the workspace container:
 
 ```tf
 resource "kubernetes_deployment" "workspace" {
@@ -104,53 +92,43 @@ resource "kubernetes_deployment" "workspace" {
 }
 ```
 
-- `CODER_PROC_OOM_SCORE=10` gives child processes a slightly
-  elevated OOM score while keeping them well below the maximum.
-- `CODER_PROC_NICE_SCORE=1` gives children a mildly lower CPU
-  priority than the agent.
+- `CODER_PROC_OOM_SCORE=10` gives child processes a slightly elevated OOM score while keeping them well below the maximum.
+- `CODER_PROC_NICE_SCORE=1` gives children a mildly lower CPU priority than the agent.
 - `CAP_SYS_NICE` allows the agent to set nice values.
 
 ## Troubleshooting
 
 ### OOM score adjustment fails
 
-If you see `failed to adjust oom score` in stderr but the
-process still starts, the agent likely lacks permission to
-write to `/proc/self/oom_score_adj`. Ensure the process is
-dumpable — this is handled automatically by the agent, but
-can fail if the container runtime restricts `prctl` calls.
+If you see `failed to adjust oom score` in stderr but the process still starts, the agent likely lacks permission to write to `/proc/self/oom_score_adj`.
+Ensure the process is dumpable (the agent handles this automatically, but it can fail if the container runtime restricts `prctl` calls).
 
 ### Nice value is not applied
 
-If you see `failed to adjust niceness` in stderr, nice values
-can only be increased (lowered in priority) without
-`CAP_SYS_NICE`. If your template sets a `CODER_PROC_NICE_SCORE`
-lower than the agent's current nice value, add the capability
-to the container's security context.
+If you see `failed to adjust niceness` in stderr, nice values can only be increased (lowered in priority) without `CAP_SYS_NICE`.
+If your template sets a `CODER_PROC_NICE_SCORE` lower than the agent's current nice value, add the capability to the container's security context.
 
 ### Environment variables leak to nested Coder agents
 
-The agent strips all `CODER_PROC_*` variables from child
-environments automatically. This prevents interference in
-"Coder on Coder" development scenarios where a workspace
-runs another Coder agent.
+The agent strips all `CODER_PROC_*` variables from child environments automatically.
+This prevents interference in "Coder on Coder" development scenarios where a workspace runs another Coder agent.
 
-### Verifying the feature is enabled
+<a id="verifying-the-feature-is-enabled"></a>
 
-The agent logs whether process priority management is active
-at startup. Look for these lines in the agent log:
+### Verify the feature is enabled
+
+The agent logs whether process priority management is active at startup.
+Look for these lines in the agent log:
 
 ```txt
 "process priority management enabled"
 "process priority management not enabled (linux-only)"
 ```
 
-The log entry includes the `CODER_PROC_PRIO_MGMT` value and
-the operating system. Check the agent log file at
-`<log-dir>/coder-agent.log` or stderr output.
+The log entry includes the `CODER_PROC_PRIO_MGMT` value and the operating system.
+Check the agent log file at `<log-dir>/coder-agent.log` or stderr output.
 
 ### Feature has no effect on macOS or Windows
 
-Process priority management is Linux-only. Setting
-`CODER_PROC_PRIO_MGMT` on other operating systems is safe
-but has no effect.
+Process priority management is Linux-only.
+Setting `CODER_PROC_PRIO_MGMT` on other operating systems is safe but has no effect.

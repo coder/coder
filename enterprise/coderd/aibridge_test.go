@@ -9,15 +9,21 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strconv"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	aiblib "github.com/coder/coder/v2/aibridge"
+	aibclient "github.com/coder/coder/v2/aibridge/client"
+	"github.com/coder/coder/v2/aibridge/fixtures"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
+	aibridgedtest "github.com/coder/coder/v2/coderd/aibridgedtest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -27,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	entaudit "github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/enterprise/audit/backends"
@@ -855,7 +862,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 			Client:      sql.NullString{String: "claude-code", Valid: true},
 		}, &withClientEndedAt)
 
-		// Session with NULL client (should COALESCE to ClientUnknown).
+		// Session with NULL client (should COALESCE to aibclient.Unknown).
 		nullClientEndedAt := now.Add(-time.Hour + time.Minute)
 		nullClient := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: firstUser.UserID,
@@ -863,11 +870,11 @@ func TestAIBridgeListSessions(t *testing.T) {
 			// Client field deliberately omitted (NULL).
 		}, &nullClientEndedAt)
 
-		// Filtering by ClientUnknown should return only the NULL-client
+		// Filtering by aibclient.Unknown should return only the NULL-client
 		// session.
 		//nolint:gocritic // Owner role is irrelevant; testing COALESCE.
 		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
-			Client: string(aiblib.ClientUnknown),
+			Client: string(aibclient.Unknown),
 		})
 		require.NoError(t, err)
 		require.EqualValues(t, 1, res.Count)
@@ -909,6 +916,38 @@ func TestAIBridgeListSessions(t *testing.T) {
 		require.Len(t, res.Sessions, 1)
 		// Metadata should come from the first interception.
 		require.Equal(t, "vscode", res.Sessions[0].Metadata["editor"])
+	})
+
+	t.Run("NullMetadataCoalescesToEmpty", func(t *testing.T) {
+		t.Parallel()
+		db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		opts := aibridgeOpts(t)
+		opts.Database = db
+		opts.Pubsub = ps
+		client, _, firstUser := coderdenttest.NewWithDatabase(t, opts)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		endedAt := now.Add(time.Minute)
+		interception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			StartedAt:       now,
+			ClientSessionID: sql.NullString{String: "null-metadata-session", Valid: true},
+		}, &endedAt)
+
+		// The metadata column is nullable in the schema, but the insert
+		// queries normalize it to '{}', so write NULL directly to simulate
+		// rows from migrations, imports, or manual SQL.
+		_, err := sqlDB.ExecContext(ctx, "UPDATE aibridge_interceptions SET metadata = NULL WHERE id = $1", interception.ID)
+		require.NoError(t, err)
+
+		//nolint:gocritic // Owner role is irrelevant; testing metadata.
+		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
+		require.NoError(t, err)
+		require.Len(t, res.Sessions, 1)
+		require.Equal(t, "null-metadata-session", res.Sessions[0].ID)
+		require.NotNil(t, res.Sessions[0].Metadata)
+		require.Empty(t, res.Sessions[0].Metadata)
 	})
 
 	t.Run("SessionTimestamps", func(t *testing.T) {
@@ -1427,14 +1466,14 @@ func TestAIBridgeListClients(t *testing.T) {
 	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 		InitiatorID: firstUser.UserID,
 		StartedAt:   now,
-		Client:      sql.NullString{String: string(aiblib.ClientCursor), Valid: true},
+		Client:      sql.NullString{String: string(aibclient.Cursor), Valid: true},
 	}, &endedAt)
 
 	// Completed interception with a different client.
 	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 		InitiatorID: firstUser.UserID,
 		StartedAt:   now,
-		Client:      sql.NullString{String: string(aiblib.ClientClaudeCode), Valid: true},
+		Client:      sql.NullString{String: string(aibclient.ClaudeCode), Valid: true},
 	}, &endedAt)
 
 	// Completed interception with no client. Should appear as "Unknown".
@@ -1455,22 +1494,22 @@ func TestAIBridgeListClients(t *testing.T) {
 	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 		InitiatorID: firstUser.UserID,
 		StartedAt:   now,
-		Client:      sql.NullString{String: string(aiblib.ClientCursor), Valid: true},
+		Client:      sql.NullString{String: string(aibclient.Cursor), Valid: true},
 	}, &endedAt)
 
 	// In-flight interception (no ended_at). Must NOT appear in results.
 	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 		InitiatorID: firstUser.UserID,
 		StartedAt:   now,
-		Client:      sql.NullString{String: string(aiblib.ClientCopilotCLI), Valid: true},
+		Client:      sql.NullString{String: string(aibclient.CopilotCLI), Valid: true},
 	}, nil)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	clients, err := client.AIBridgeListClients(ctx)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []string{
-		string(aiblib.ClientCursor),
-		string(aiblib.ClientClaudeCode),
+		string(aibclient.Cursor),
+		string(aibclient.ClaudeCode),
 		"Unknown",
 	}, clients)
 }
@@ -1693,6 +1732,144 @@ func TestAIBridgeRouting(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tc.expectedPath, string(body))
 		})
+	}
+}
+
+func TestAIBridgeActorHeaderNames(t *testing.T) {
+	t.Parallel()
+
+	const (
+		actorIDHeader       = "X-Downstream-User-Id"
+		actorUsernameHeader = "X-Downstream-Username"
+		actorEmailHeader    = "X-Downstream-Email"
+		defaultEmailHeader  = "X-AI-Bridge-Actor-Metadata-Email"
+	)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	anthropicFixture := fixtures.Parse(t, fixtures.AntSimple)
+	chatFixture := fixtures.Parse(t, fixtures.OaiChatSimple)
+	responsesFixture := fixtures.Parse(t, fixtures.OaiResponsesStreamingSimple)
+	type upstreamRequest struct {
+		path   string
+		header http.Header
+	}
+	var upstreamMu sync.Mutex
+	var upstreamRequests []upstreamRequest
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if !assert.NoError(t, err) {
+			http.Error(w, "failed to read request", http.StatusBadRequest)
+			return
+		}
+
+		var fixture fixtures.Fixture
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/messages"):
+			fixture = anthropicFixture
+			assert.Equal(t, "shared-anthropic-key", r.Header.Get("X-Api-Key"))
+		case strings.HasSuffix(r.URL.Path, "/chat/completions"), strings.HasSuffix(r.URL.Path, "/responses"):
+			fixture = chatFixture
+			if strings.HasSuffix(r.URL.Path, "/responses") {
+				fixture = responsesFixture
+			}
+			assert.Equal(t, "Bearer shared-openai-key", r.Header.Get("Authorization"))
+		default:
+			http.Error(w, "unexpected upstream path", http.StatusNotFound)
+			return
+		}
+
+		upstreamMu.Lock()
+		upstreamRequests = append(upstreamRequests, upstreamRequest{path: r.URL.Path, header: r.Header.Clone()})
+		upstreamMu.Unlock()
+
+		var requestOptions struct {
+			Stream bool `json:"stream"`
+		}
+		if !assert.NoError(t, json.Unmarshal(body, &requestOptions)) {
+			http.Error(w, "invalid request", http.StatusBadRequest)
+			return
+		}
+		if requestOptions.Stream {
+			w.Header().Set("Content-Type", "text/event-stream")
+			_, err = w.Write(fixture.Streaming())
+		} else {
+			w.Header().Set("Content-Type", "application/json")
+			_, err = w.Write(fixture.NonStreaming())
+		}
+		assert.NoError(t, err)
+	}))
+	t.Cleanup(upstream.Close)
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+	dv.AI.BridgeConfig.SendActorHeaders = serpent.Bool(true)
+	dv.AI.BridgeConfig.ActorHeaderID = serpent.String(actorIDHeader)
+	dv.AI.BridgeConfig.ActorHeaderUsername = serpent.String(actorUsernameHeader)
+	dv.AI.BridgeConfig.ActorHeaderEmail = serpent.String(actorEmailHeader)
+
+	firstClient, _, api, firstUserResponse := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{DeploymentValues: dv},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{codersdk.FeatureAIBridge: 1},
+		},
+	})
+	firstUser, err := firstClient.User(ctx, firstUserResponse.UserID.String())
+	require.NoError(t, err)
+	secondClient, secondUser := coderdtest.CreateAnotherUser(t, firstClient, firstUserResponse.OrganizationID)
+
+	dbgen.AIProviderWithOptionalKey(t, api.Database, database.AIProvider{
+		Type:    database.AIProviderTypeAnthropic,
+		Name:    "anthropic",
+		BaseUrl: upstream.URL,
+	}, "shared-anthropic-key")
+	dbgen.AIProviderWithOptionalKey(t, api.Database, database.AIProvider{
+		Type:    database.AIProviderTypeOpenai,
+		Name:    "openai",
+		BaseUrl: upstream.URL,
+	}, "shared-openai-key")
+	aibridgedtest.StartTestAIBridgeDaemon(ctx, t, api.AGPL, nil)
+
+	send := func(client *codersdk.Client, provider, path string, body []byte, traceID string) {
+		t.Helper()
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, client.URL.String()+"/api/v2/ai-gateway/"+provider+path, bytes.NewReader(body))
+		require.NoError(t, err)
+		req.Header.Set("Authorization", "Bearer "+client.SessionToken())
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Trace-ID", traceID)
+		req.Header.Set("X-Client-Arbitrary", "preserve-me")
+		req.Header.Set(actorIDHeader, "spoofed-id")
+		req.Header.Set(actorUsernameHeader, "spoofed-username")
+		req.Header.Set(actorEmailHeader, "spoofed-email")
+		req.Header.Set(defaultEmailHeader, "spoofed-default-email")
+
+		resp, err := client.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		_, err = io.ReadAll(resp.Body)
+		require.NoError(t, err)
+	}
+
+	send(firstClient, "anthropic", "/v1/messages", fixtures.Request(t, fixtures.AntSimple), "messages-trace")
+	send(firstClient, "openai", "/v1/chat/completions", fixtures.Request(t, fixtures.OaiChatSimple), "chat-first-trace")
+	send(secondClient, "openai", "/v1/chat/completions", fixtures.Request(t, fixtures.OaiChatSimple), "chat-second-trace")
+	send(firstClient, "openai", "/v1/responses", fixtures.Request(t, fixtures.OaiResponsesStreamingSimple), "responses-trace")
+
+	upstreamMu.Lock()
+	requests := append([]upstreamRequest(nil), upstreamRequests...)
+	upstreamMu.Unlock()
+	require.Len(t, requests, 4)
+	expectedUsers := []codersdk.User{firstUser, firstUser, secondUser, firstUser}
+	expectedTraces := []string{"messages-trace", "chat-first-trace", "chat-second-trace", "responses-trace"}
+	for i, request := range requests {
+		require.Equal(t, expectedTraces[i], request.header.Get("X-Trace-Id"))
+		require.Equal(t, "preserve-me", request.header.Get("X-Client-Arbitrary"))
+		require.Equal(t, expectedUsers[i].ID.String(), request.header.Get(actorIDHeader))
+		require.Equal(t, expectedUsers[i].Username, request.header.Get(actorUsernameHeader))
+		require.Equal(t, expectedUsers[i].Email, request.header.Get(actorEmailHeader))
+		require.Empty(t, request.header.Get(defaultEmailHeader))
+		require.Empty(t, request.header.Get("X-AI-Bridge-Actor-ID"))
+		require.Empty(t, request.header.Get("X-AI-Bridge-Actor-Metadata-Username"))
 	}
 }
 
@@ -2588,6 +2765,7 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 			}
 
 			// Token usage on root: 100 input, 50 output, 20 cache read, 5 cache write.
+			// 100 input tokens at $3/M + 50 output tokens at $15/M: $0.00105.
 			dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
 				InterceptionID:        root.ID,
 				ProviderResponseID:    "resp-root",
@@ -2597,6 +2775,10 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 				CacheWriteInputTokens: 5,
 				Metadata:              json.RawMessage(`{"cache_read_input": 20, "cache_creation_input": 5}`),
 				CreatedAt:             now.Add(offset),
+				CostMicros:            sql.NullInt64{Int64: 1050, Valid: true},
+				PricedModel:           sql.NullString{String: "claude-4", Valid: true},
+				InputPriceMicros:      sql.NullInt64{Int64: 3_000_000, Valid: true},
+				OutputPriceMicros:     sql.NullInt64{Int64: 15_000_000, Valid: true},
 			})
 
 			// Add a child interception with its own token usage.
@@ -2620,6 +2802,8 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 				CacheReadInputTokens: 30,
 				Metadata:             json.RawMessage(`{"cache_read_input": 30}`),
 				CreatedAt:            now.Add(offset + 15*time.Minute),
+				// No cost, so the thread and session have unpriced usage.
+				CostMicros: sql.NullInt64{},
 			})
 		}
 
@@ -2649,6 +2833,63 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.NotEmpty(t, res.TokenUsageSummary.Metadata)
 		require.EqualValues(t, int64(150), res.TokenUsageSummary.Metadata["cache_read_input"])
 		require.EqualValues(t, int64(15), res.TokenUsageSummary.Metadata["cache_creation_input"])
+
+		// Per-thread cost covers only the priced root, and the unpriced child
+		// is flagged.
+		require.EqualValues(t, 1050, res.Threads[0].TokenUsage.CostMicros)
+		require.True(t, res.Threads[0].TokenUsage.HasUnpricedUsage)
+		require.Equal(t, &codersdk.AIBridgePricedModel{
+			Model:       "claude-4",
+			InputPrice:  ptr.Ref(int64(3_000_000)),
+			OutputPrice: ptr.Ref(int64(15_000_000)),
+		}, res.Threads[0].PricedModel)
+		require.Len(t, res.Threads[0].AgenticActions, 1)
+		require.Nil(t, res.Threads[0].AgenticActions[0].PricedModel)
+
+		// Session-level cost includes all 3 threads (3 * 1050).
+		require.EqualValues(t, 3150, res.TokenUsageSummary.CostMicros)
+		require.True(t, res.TokenUsageSummary.HasUnpricedUsage)
+	})
+
+	t.Run("TokenUsageBeyondFiftyThreads", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// The session-wide token fetch previously fell back to a default of
+		// 50 threads, so the 51st thread is the first one it dropped. Only
+		// that thread records tokens, so any nonzero value must come from it.
+		const threadCount = 51
+		now := dbtime.Now()
+		var lastThreadID uuid.UUID
+		for i := range threadCount {
+			startedAt := now.Add(time.Duration(i) * time.Second)
+			endedAt := startedAt.Add(time.Millisecond)
+			intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID:     firstUser.UserID,
+				Provider:        "anthropic",
+				Model:           "claude-4",
+				StartedAt:       startedAt,
+				ClientSessionID: sql.NullString{String: "many-threads-session", Valid: true},
+			}, &endedAt)
+			lastThreadID = intc.ID
+		}
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: lastThreadID,
+			InputTokens:    100,
+			OutputTokens:   50,
+			Metadata:       json.RawMessage(`{"cache_read_input": 20}`),
+		})
+
+		res, err := client.AIBridgeGetSessionThreads(ctx, "many-threads-session", uuid.Nil, uuid.Nil, threadCount)
+		require.NoError(t, err)
+		require.Len(t, res.Threads, threadCount)
+		last := res.Threads[threadCount-1]
+		require.Equal(t, lastThreadID, last.ID)
+
+		require.EqualValues(t, 100, last.TokenUsage.InputTokens)
+		require.EqualValues(t, 50, last.TokenUsage.OutputTokens)
+		require.EqualValues(t, int64(20), res.TokenUsageSummary.Metadata["cache_read_input"])
 	})
 
 	t.Run("InvalidCursor", func(t *testing.T) {
@@ -5496,8 +5737,8 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 				CostMicros: cost, UnpricedUsageCount: unpriced, Providers: providers, Clients: clients, Models: models,
 			}
 		}
-		other := user(otherUser, []string{"anthropic"}, []string{"cursor"}, []string{"claude-4"}, 3000, 0)
-		target := user(targetUser, []string{"anthropic", "openai"}, []string{"Unknown", "vscode"}, []string{"claude-4", "gpt-4", "gpt-4o"}, 1500, 1)
+		other := user(otherUser, []string{"anthropic-prod"}, []string{"cursor"}, []string{"claude-4"}, 3000, 0)
+		target := user(targetUser, []string{"anthropic-prod", "openai-prod"}, []string{"Unknown", "vscode"}, []string{"claude-4", "gpt-4", "gpt-4o"}, 1500, 1)
 		window := codersdk.AISpendPeriodWindow{PeriodStart: monthStart, PeriodEnd: monthEnd}
 
 		t.Run("Default", func(t *testing.T) {
@@ -5555,7 +5796,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 					filter: codersdk.OrganizationAISpendFilter{ProviderName: "openai-prod"},
 					want: codersdk.OrganizationAISpendReport{
 						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 500, UnpricedUsageCount: 1},
-						Users: []codersdk.OrganizationAISpendUser{user(targetUser, []string{"openai"}, []string{"Unknown"}, []string{"gpt-4", "gpt-4o"}, 500, 1)},
+						Users: []codersdk.OrganizationAISpendUser{user(targetUser, []string{"openai-prod"}, []string{"Unknown"}, []string{"gpt-4", "gpt-4o"}, 500, 1)},
 					},
 				},
 				{
@@ -5563,7 +5804,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 					filter: codersdk.OrganizationAISpendFilter{Model: "claude-4"},
 					want: codersdk.OrganizationAISpendReport{
 						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 2, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 4000},
-						Users: []codersdk.OrganizationAISpendUser{other, user(targetUser, []string{"anthropic"}, []string{"vscode"}, []string{"claude-4"}, 1000, 0)},
+						Users: []codersdk.OrganizationAISpendUser{other, user(targetUser, []string{"anthropic-prod"}, []string{"vscode"}, []string{"claude-4"}, 1000, 0)},
 					},
 				},
 				{
@@ -5579,7 +5820,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 					filter: codersdk.OrganizationAISpendFilter{Client: "Unknown"},
 					want: codersdk.OrganizationAISpendReport{
 						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 500, UnpricedUsageCount: 1},
-						Users: []codersdk.OrganizationAISpendUser{user(targetUser, []string{"openai"}, []string{"Unknown"}, []string{"gpt-4", "gpt-4o"}, 500, 1)},
+						Users: []codersdk.OrganizationAISpendUser{user(targetUser, []string{"openai-prod"}, []string{"Unknown"}, []string{"gpt-4", "gpt-4o"}, 500, 1)},
 					},
 				},
 				{
@@ -5589,7 +5830,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 					filter: codersdk.OrganizationAISpendFilter{ProviderName: "anthropic-prod", Model: "claude-4", Client: "vscode"},
 					want: codersdk.OrganizationAISpendReport{
 						AISpendPeriodWindow: window, RetentionStart: &defaultRetentionStart, Count: 1, Totals: codersdk.OrganizationAISpendTotals{CostMicros: 1000},
-						Users: []codersdk.OrganizationAISpendUser{user(targetUser, []string{"anthropic"}, []string{"vscode"}, []string{"claude-4"}, 1000, 0)},
+						Users: []codersdk.OrganizationAISpendUser{user(targetUser, []string{"anthropic-prod"}, []string{"vscode"}, []string{"claude-4"}, 1000, 0)},
 					},
 				},
 				{

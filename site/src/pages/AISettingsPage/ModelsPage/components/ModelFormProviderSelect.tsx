@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { Label } from "#/components/Label/Label";
 import {
 	Select,
@@ -10,7 +9,7 @@ import {
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import type { ProviderState } from "#/modules/aiModels/providerStates";
 
-export const ModelFormProviderSelect: FC<{
+export const ModelFormProviderSelect: React.FC<{
 	providerStates: readonly ProviderState[];
 	selectedProviderKey: string;
 	onProviderChange: (providerKey: string) => void;
@@ -31,6 +30,11 @@ export const ModelFormProviderSelect: FC<{
 			ps.providerDescriptor.enabled ||
 			(isEditing && ps.key === selectedProviderKey),
 	);
+	// Model prices are keyed by provider type, so surface the exact type
+	// string for setting model pricing.
+	const selectedProviderType = providerStates.find(
+		(ps) => ps.key === selectedProviderKey,
+	)?.provider;
 	return (
 		<div className="grid gap-1.5">
 			<Label
@@ -58,13 +62,22 @@ export const ModelFormProviderSelect: FC<{
 					{selectableProviderStates.map((ps) => (
 						<SelectItem key={ps.key} value={ps.key}>
 							<span className="flex items-center gap-2">
-								<ProviderIcon provider={ps.provider} />
+								<ProviderIcon
+									provider={ps.provider}
+									icon={ps.providerDescriptor.icon}
+								/>
 								{ps.label}
 							</span>
 						</SelectItem>
 					))}
 				</SelectContent>
 			</Select>
+			{selectedProviderType && (
+				<p className="m-0 text-xs text-content-secondary">
+					Provider type:{" "}
+					<code className="font-mono">{selectedProviderType}</code>
+				</p>
+			)}
 		</div>
 	);
 };

@@ -1,6 +1,5 @@
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { regenerateUserSSHKey, userSSHKey } from "#/api/queries/sshKeys";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
@@ -8,9 +7,11 @@ import {
 	SettingsHeader,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { toast } from "#/components/Toaster/toast";
+import { pageTitle } from "#/utils/page";
 import { SSHKeysPageView } from "./SSHKeysPageView";
 
-const SSHKeysPage: FC = () => {
+const SSHKeysPage: React.FC = () => {
 	const [isConfirmingRegeneration, setIsConfirmingRegeneration] =
 		useState(false);
 
@@ -22,6 +23,7 @@ const SSHKeysPage: FC = () => {
 
 	return (
 		<>
+			<title>{pageTitle("SSH Keys", "Settings")}</title>
 			<SettingsHeader>
 				<SettingsHeaderTitle>SSH keys</SettingsHeaderTitle>
 			</SettingsHeader>

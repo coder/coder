@@ -1,16 +1,11 @@
-import {
-	type MouseEventHandler,
-	type PointerEventHandler,
-	useCallback,
-	useEffect,
-	useRef,
-} from "react";
+import type React from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 type UseDragSelectOptions<T> = {
 	items: readonly T[];
 	selected: readonly T[];
 	getId: (item: T) => string;
-	isSelectable?: (item: T) => boolean;
+	isSelectable: (item: T) => boolean;
 	onChange: (selected: readonly T[]) => void;
 };
 
@@ -23,12 +18,9 @@ type DragState = {
 };
 
 /**
- * Mouse-drag selection starting at a row's checkbox. Dragging from a selected
- * row deselects the range; dragging back restores the original selection
- * outside it.
- *
- * Spread `getHandleProps` on each row's checkbox, `getRowProps` on each row
- * element, and `getContainerProps` on their common parent.
+ * Dragging from a selected checkbox deselects; reversing restores selection outside the range.
+ * Spread `getHandleProps` on checkboxes, `getRowProps` on rows, and
+ * `getContainerProps` on their common parent.
  */
 export const useDragSelect = <T>({
 	items,
@@ -82,7 +74,7 @@ export const useDragSelect = <T>({
 
 	const getHandleProps = (
 		index: number,
-	): { onPointerDown: PointerEventHandler<HTMLElement> } => ({
+	): { onPointerDown: React.PointerEventHandler<HTMLElement> } => ({
 		onPointerDown: (event) => {
 			const item = items[index];
 			if (
@@ -90,7 +82,7 @@ export const useDragSelect = <T>({
 				event.pointerType !== "mouse" ||
 				event.ctrlKey ||
 				item === undefined ||
-				(isSelectable && !isSelectable(item))
+				!isSelectable(item)
 			) {
 				return;
 			}
@@ -111,7 +103,7 @@ export const useDragSelect = <T>({
 
 	const getRowProps = (
 		index: number,
-	): { onPointerEnter: PointerEventHandler } => ({
+	): { onPointerEnter: React.PointerEventHandler } => ({
 		onPointerEnter: (event) => {
 			const drag = dragRef.current;
 			if (!drag || event.pointerId !== drag.pointerId) {
@@ -132,7 +124,7 @@ export const useDragSelect = <T>({
 			const ids = new Set(drag.initialIds);
 			const [start, end] = anchor < index ? [anchor, index] : [index, anchor];
 			for (const item of items.slice(start, end + 1)) {
-				if (isSelectable && !isSelectable(item)) {
+				if (!isSelectable(item)) {
 					continue;
 				}
 				if (drag.select) {
@@ -145,7 +137,9 @@ export const useDragSelect = <T>({
 		},
 	});
 
-	const getContainerProps = (): { onClickCapture: MouseEventHandler } => ({
+	const getContainerProps = (): {
+		onClickCapture: React.MouseEventHandler;
+	} => ({
 		onClickCapture: (event) => {
 			if (suppressClickRef.current && event.detail !== 0) {
 				event.preventDefault();

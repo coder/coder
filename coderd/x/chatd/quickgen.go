@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -70,10 +71,11 @@ func generateQuickgenObject[T any](
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	call fantasy.ObjectCall,
+	maxRetries int,
 ) (*fantasy.ObjectResult[T], error) {
 	call.Temperature = new(quickgenTemperature)
 	var result *fantasy.ObjectResult[T]
-	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
+	err := chatretry.Retry(ctx, maxRetries, func(retryCtx context.Context) error {
 		var genErr error
 		result, genErr = generateObject[T](retryCtx, model, call)
 		if call.Temperature != nil && isTemperatureRejectedError(genErr) {
@@ -178,14 +180,6 @@ var preferredTitleModels = []struct {
 	{fantasyvercel.Name, "anthropic/claude-haiku-4.5"},
 }
 
-// Debug attribution uses configured identities for title calls and the
-// resolved identity for status-label calls.
-type shortTextCandidate struct {
-	provider string
-	model    string
-	resolved resolvedModelCall
-}
-
 // modelSnapshotSuffix matches a dated snapshot suffix on a model ID, such as
 // claude-haiku-4-5-20251001 or gpt-4o-mini-2024-07-18, which admins commonly
 // configure in place of the alias.
@@ -223,12 +217,11 @@ func (p *Server) resolveQuickgenModel(
 	modelOpts modelBuildOptions,
 ) (resolvedModelCall, error) {
 	override, overrideErr := p.resolveModelOverride(ctx, modelOverrideSpec{
-		context:         titleGenerationOverrideContext,
-		ownerID:         chat.OwnerID,
-		organizationID:  chat.OrganizationID,
-		queryFailure:    modelOverrideFailureModeHard,
-		configFailure:   modelOverrideFailureModeHard,
-		providerFailure: modelOverrideFailureModeHard,
+		context:             titleGenerationOverrideContext,
+		ownerID:             chat.OwnerID,
+		organizationID:      chat.OrganizationID,
+		failIfUnavailable:   true,
+		failIfNoProviderKey: true,
 	})
 	if overrideErr != nil {
 		if override.Set {
@@ -369,6 +362,20 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 		)
 		return
 	}
+	p.GenerateChatTitleForMessagesAsync(ctx, chat, messages)
+}
+
+// GenerateChatTitleForMessagesAsync is GenerateChatTitleAsync for
+// callers that already hold a message snapshot taken before any worker
+// could reply. The first-message endpoint publishes the ownership hint
+// during the send, before it can schedule title generation, so a fresh
+// history read there may already contain the assistant reply and would
+// wrongly disqualify the first-user-turn eligibility check.
+func (p *Server) GenerateChatTitleForMessagesAsync(ctx context.Context, chat database.Chat, messages []database.ChatMessage) {
+	logger := p.logger.With(
+		slog.F("chat_id", chat.ID),
+		slog.F("owner_id", chat.OwnerID),
+	)
 	pasteText, err := titlePasteText(ctx, p.db, messages)
 	if err != nil {
 		logger.Debug(ctx, "failed to load pasted-text attachments for automatic title generation",
@@ -380,7 +387,7 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 		return
 	}
 	// Detach from request; bind to server so Close cancels it.
-	titleCtx, stopTitleCtx := p.inflightContext(ctx)
+	titleCtx, stopTitleCtx := p.inflightChatContext(ctx, chat)
 	if err := p.goInflight(func() {
 		defer stopTitleCtx()
 		apiKeyID, err := p.ensureSyntheticAPIKeyID(titleCtx, chat.OwnerID)
@@ -402,7 +409,6 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 			messages,
 			pasteText,
 			resolved,
-			&generatedChatTitle{},
 			logger,
 			p.existingDebugService(),
 		)
@@ -418,16 +424,15 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 
 // maybeGenerateChatTitle generates an AI title for the chat when
 // appropriate (first user message, no assistant reply yet, and the
-// current title is either empty or still the fallback truncation) using
-// the resolved title generation model (see resolveQuickgenModel). It is a
-// best-effort operation that logs and swallows errors.
+// current title source is fallback) using the resolved title generation
+// model (see resolveQuickgenModel). It is a best-effort operation that
+// logs and swallows errors.
 func (p *Server) maybeGenerateChatTitle(
 	ctx context.Context,
 	chat database.Chat,
 	messages []database.ChatMessage,
 	pasteText map[uuid.UUID]string,
 	resolved resolvedModelCall,
-	generatedTitle *generatedChatTitle,
 	logger slog.Logger,
 	debugSvc *chatdebug.Service,
 ) {
@@ -439,12 +444,6 @@ func (p *Server) maybeGenerateChatTitle(
 
 	titleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-
-	candidate := shortTextCandidate{
-		provider: string(resolved.route.Provider.Type),
-		model:    resolved.dbConfig.Model,
-		resolved: resolved,
-	}
 
 	var historyTipMessageID int64
 	if len(messages) > 0 {
@@ -469,20 +468,18 @@ func (p *Server) maybeGenerateChatTitle(
 	candidateCtx := titleCtx
 	finishDebugRun := func(error) {}
 	if debugEnabled {
-		candidateCtx, finishDebugRun = prepareQuickgenDebugCandidate(
-			titleCtx,
-			chat,
-			debugSvc,
-			candidate,
-			chatdebug.KindTitleGeneration,
-			triggerMessageID,
-			historyTipMessageID,
-			seedSummary,
-			logger,
-		)
+		candidateCtx, finishDebugRun = debugSvc.StartRun(titleCtx, chatdebug.CreateRunParams{
+			ChatID:              chat.ID,
+			TriggerMessageID:    triggerMessageID,
+			HistoryTipMessageID: historyTipMessageID,
+			Kind:                chatdebug.KindTitleGeneration,
+			Status:              chatdebug.StatusInProgress,
+			Provider:            string(resolved.route.Provider.Type),
+			Model:               resolved.dbConfig.Model,
+		}, seedSummary, shortTextDebugFinalizeTimeout)
 	}
 
-	title, err := generateTitle(candidateCtx, candidate.resolved.model.LanguageModel(), titleObjectCall(candidate.resolved), input)
+	title, err := generateTitle(candidateCtx, resolved.model.LanguageModel(), titleObjectCall(resolved), p.chatLimits.MaxGenerationRetries, input)
 	finishDebugRun(err)
 	if err != nil {
 		logger.Warn(ctx, "title model candidate failed",
@@ -493,24 +490,22 @@ func (p *Server) maybeGenerateChatTitle(
 		)
 		return
 	}
-	if title == "" || title == chat.Title {
-		return
-	}
 
-	_, err = p.db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
-		ID:    chat.ID,
-		Title: title,
+	updatedChat, err := p.db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+		ID:          chat.ID,
+		Title:       title,
+		TitleSource: database.ChatTitleSourceGenerated,
 	})
 	if err != nil {
-		logger.Warn(ctx, "failed to update generated chat title",
-			slog.F("chat_id", chat.ID),
-			slog.Error(err),
-		)
+		if !errors.Is(err, sql.ErrNoRows) {
+			logger.Warn(ctx, "failed to update generated chat title",
+				slog.F("chat_id", chat.ID),
+				slog.Error(err),
+			)
+		}
 		return
 	}
-	chat.Title = title
-	generatedTitle.Store(title)
-	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindTitleChange, nil)
+	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindTitleChange, nil)
 }
 
 // Quickgen caps leave room for adaptive thinking, which counts toward the cap
@@ -523,70 +518,6 @@ const titleMaxOutputTokens = int64(1024)
 
 func titleObjectCall(resolved resolvedModelCall) fantasy.ObjectCall {
 	return resolved.newObjectCall("propose_title", "Propose a short chat title.", titleMaxOutputTokens)
-}
-
-func prepareQuickgenDebugCandidate(
-	ctx context.Context,
-	chat database.Chat,
-	debugSvc *chatdebug.Service,
-	candidate shortTextCandidate,
-	kind chatdebug.RunKind,
-	triggerMessageID int64,
-	historyTipMessageID int64,
-	seedSummary map[string]any,
-	logger slog.Logger,
-) (context.Context, func(error)) {
-	finishDebugRun := func(error) {}
-
-	// Debug instrumentation must not eat into the quickgen budget
-	// (30s titleCtx / summaryCtx on the caller). Detach and bound
-	// the insert so a slow DB can't delay title generation or push
-	// summaries, matching prepareManualTitleDebugRun,
-	// prepareChatTurnDebugRun, and startCompactionDebugRun.
-	createRunCtx, createRunCancel := context.WithTimeout(
-		context.WithoutCancel(ctx), debugCreateRunTimeout,
-	)
-	run, err := debugSvc.CreateRun(createRunCtx, chatdebug.CreateRunParams{
-		ChatID:              chat.ID,
-		TriggerMessageID:    triggerMessageID,
-		HistoryTipMessageID: historyTipMessageID,
-		Kind:                kind,
-		Status:              chatdebug.StatusInProgress,
-		Provider:            candidate.provider,
-		Model:               candidate.model,
-		Summary:             seedSummary,
-	})
-	createRunCancel()
-	if err != nil {
-		logger.Warn(ctx, "failed to create short-text debug run",
-			slog.F("chat_id", chat.ID),
-			slog.F("run_kind", kind),
-			slog.F("provider", candidate.provider),
-			slog.F("model", candidate.model),
-			slog.Error(err),
-		)
-		return ctx, finishDebugRun
-	}
-
-	runContext := chatdebugRunContext(run)
-	runCtx := chatdebug.ContextWithRun(ctx, &runContext)
-	finishDebugRun = func(runErr error) {
-		if finalizeErr := debugSvc.FinalizeRun(ctx, chatdebug.FinalizeRunParams{
-			RunID:       run.ID,
-			ChatID:      chat.ID,
-			Status:      chatdebug.ClassifyError(runErr),
-			SeedSummary: seedSummary,
-			Timeout:     10 * time.Second,
-		}); finalizeErr != nil {
-			logger.Warn(ctx, "failed to finalize short-text debug run",
-				slog.F("chat_id", chat.ID),
-				slog.F("run_kind", kind),
-				slog.F("run_id", run.ID),
-				slog.Error(finalizeErr),
-			)
-		}
-	}
-	return runCtx, finishDebugRun
 }
 
 func quickgenPrompt(systemPrompt, userInput string) fantasy.Prompt {
@@ -613,9 +544,10 @@ func generateTitle(
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	call fantasy.ObjectCall,
+	maxRetries int,
 	input string,
 ) (string, error) {
-	title, err := generateStructuredTitle(ctx, model, call, titleGenerationPrompt, input)
+	title, err := generateStructuredTitle(ctx, model, call, maxRetries, titleGenerationPrompt, input)
 	if err != nil {
 		return "", err
 	}
@@ -626,6 +558,7 @@ func generateStructuredTitle(
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	call fantasy.ObjectCall,
+	maxRetries int,
 	systemPrompt string,
 	userInput string,
 ) (string, error) {
@@ -633,6 +566,7 @@ func generateStructuredTitle(
 		ctx,
 		model,
 		call,
+		maxRetries,
 		systemPrompt,
 		userInput,
 	)
@@ -646,6 +580,7 @@ func generateStructuredTitleWithUsage(
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	call fantasy.ObjectCall,
+	maxRetries int,
 	systemPrompt string,
 	userInput string,
 ) (string, fantasy.Usage, error) {
@@ -655,7 +590,7 @@ func generateStructuredTitleWithUsage(
 	}
 
 	call.Prompt = quickgenPrompt(systemPrompt, userInput)
-	result, err := generateQuickgenObject[generatedTitle](ctx, model, call)
+	result, err := generateQuickgenObject[generatedTitle](ctx, model, call, maxRetries)
 	if err != nil {
 		var usage fantasy.Usage
 		var noObjErr *fantasy.NoObjectGeneratedError
@@ -682,9 +617,9 @@ func validateGeneratedTitle(title string) error {
 // titleInput returns the first user message title text and whether
 // title generation should proceed. It returns false when the chat
 // already has assistant/tool replies, has more than one visible user
-// message, or the current title doesn't look like a candidate for
-// replacement. pasteText carries resolved pasted-text attachment
-// content (see titlePasteText) so paste-only messages stay eligible.
+// message, or the current title source is not fallback. pasteText
+// carries resolved pasted-text attachment content (see titlePasteText)
+// so paste-only messages stay eligible.
 func titleInput(
 	chat database.Chat,
 	messages []database.ChatMessage,
@@ -717,12 +652,7 @@ func titleInput(
 		return "", false
 	}
 
-	currentTitle := strings.TrimSpace(chat.Title)
-	if currentTitle == "" {
-		return firstUserText, true
-	}
-
-	if currentTitle != chatprompt.FallbackTitle(firstUserText) {
+	if chat.TitleSource != database.ChatTitleSourceFallback {
 		return "", false
 	}
 
@@ -990,6 +920,7 @@ func generateManualTitle(
 	pasteText map[uuid.UUID]string,
 	fallbackModel fantasy.LanguageModel,
 	call fantasy.ObjectCall,
+	maxRetries int,
 ) (string, error) {
 	turns := extractManualTitleTurns(messages, pasteText)
 	selected := selectManualTitleTurnIndexes(turns)
@@ -1021,6 +952,7 @@ func generateManualTitle(
 		titleCtx,
 		fallbackModel,
 		call,
+		maxRetries,
 		systemPrompt,
 		userInput,
 	)
@@ -1193,6 +1125,7 @@ func generateChatSummary(
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	call fantasy.ObjectCall,
+	maxRetries int,
 	transcript string,
 ) (string, fantasy.Usage, error) {
 	transcript = strings.TrimSpace(transcript)
@@ -1202,7 +1135,7 @@ func generateChatSummary(
 
 	call.Prompt = quickgenPrompt(chatSummaryGenerationPrompt, transcript)
 	var result *fantasy.ObjectResult[generatedChatSummary]
-	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
+	err := chatretry.Retry(ctx, maxRetries, func(retryCtx context.Context) error {
 		var genErr error
 		result, genErr = generateObject[generatedChatSummary](retryCtx, model, call)
 		return genErr
@@ -1468,6 +1401,7 @@ func generateTurnStatusLabel(
 	status database.ChatStatus,
 	assistantText string,
 	resolved resolvedModelCall,
+	maxRetries int,
 	logger slog.Logger,
 	debugSvc *chatdebug.Service,
 	triggerMessageID int64,
@@ -1483,34 +1417,25 @@ func generateTurnStatusLabel(
 		"\nChat title: " + chat.Title +
 		"\n\nAgent's latest message:\n" + assistantText
 
-	candidate := shortTextCandidate{
-		provider: resolved.resolvedProvider,
-		model:    resolved.resolvedModel,
-		resolved: resolved,
-	}
-
-	statusSeedSummary := chatdebug.SeedSummary("Turn status label")
-
 	candidateCtx := labelCtx
 	finishDebugRun := func(error) {}
 	if debugEnabled {
-		candidateCtx, finishDebugRun = prepareQuickgenDebugCandidate(
-			labelCtx,
-			chat,
-			debugSvc,
-			candidate,
-			chatdebug.KindQuickgen,
-			triggerMessageID,
-			historyTipMessageID,
-			statusSeedSummary,
-			logger,
-		)
+		candidateCtx, finishDebugRun = debugSvc.StartRun(labelCtx, chatdebug.CreateRunParams{
+			ChatID:              chat.ID,
+			TriggerMessageID:    triggerMessageID,
+			HistoryTipMessageID: historyTipMessageID,
+			Kind:                chatdebug.KindQuickgen,
+			Status:              chatdebug.StatusInProgress,
+			Provider:            resolved.resolvedProvider,
+			Model:               resolved.resolvedModel,
+		}, chatdebug.SeedSummary("Turn status label"), shortTextDebugFinalizeTimeout)
 	}
 
 	generatedLabel, err := generateStructuredTurnStatusLabel(
 		candidateCtx,
-		candidate.resolved.model.LanguageModel(),
+		resolved.model.LanguageModel(),
 		turnStatusLabelObjectCall(resolved),
+		maxRetries,
 		turnStatusLabelPrompt,
 		input,
 	)
@@ -1530,6 +1455,7 @@ func generateStructuredTurnStatusLabel(
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	call fantasy.ObjectCall,
+	maxRetries int,
 	systemPrompt string,
 	userInput string,
 ) (string, error) {
@@ -1539,7 +1465,7 @@ func generateStructuredTurnStatusLabel(
 	}
 
 	call.Prompt = quickgenPrompt(systemPrompt, userInput)
-	result, err := generateQuickgenObject[generatedTurnStatusLabel](ctx, model, call)
+	result, err := generateQuickgenObject[generatedTurnStatusLabel](ctx, model, call, maxRetries)
 	if err != nil {
 		return "", xerrors.Errorf("generate structured turn status label: %w", err)
 	}

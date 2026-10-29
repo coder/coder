@@ -2,7 +2,6 @@ package codersdk_test
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -84,15 +83,6 @@ func TestNormalizeTemplateBuilderRegistryURL(t *testing.T) {
 func TestDeploymentValues_Validate_TemplateBuilderRegistryURL(t *testing.T) {
 	t.Parallel()
 
-	// mkValid returns a DeploymentValues that passes Validate() except for the
-	// template builder registry URL, so that check is what each case exercises.
-	mkValid := func() *codersdk.DeploymentValues {
-		dv := &codersdk.DeploymentValues{}
-		dv.Sessions.DefaultDuration = serpent.Duration(time.Hour)
-		dv.Sessions.RefreshDefaultDuration = serpent.Duration(48 * time.Hour)
-		return dv
-	}
-
 	cases := []struct {
 		name     string
 		url      string
@@ -114,7 +104,7 @@ func TestDeploymentValues_Validate_TemplateBuilderRegistryURL(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			dv := mkValid()
+			dv := defaultDeploymentValues(t)
 			dv.TemplateBuilder.Disabled = serpent.Bool(tc.disabled)
 			dv.TemplateBuilder.RegistryURL = serpent.String(tc.url)
 			err := dv.Validate()

@@ -1,4 +1,4 @@
-import { createContext, type FC, Suspense, useContext } from "react";
+import { createContext, Suspense, useContext } from "react";
 import { useQuery } from "react-query";
 import { Outlet, useParams } from "react-router";
 import { checkAuthorization } from "#/api/queries/authCheck";
@@ -32,7 +32,7 @@ export function useTemplateSettings() {
 	return value;
 }
 
-export const TemplateSettingsLayout: FC = () => {
+export const TemplateSettingsLayout: React.FC = () => {
 	const { showOrganizations } = useDashboard();
 	const { organization: organizationName = "default", template: templateName } =
 		useParams() as { organization?: string; template: string };

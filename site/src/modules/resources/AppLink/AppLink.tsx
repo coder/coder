@@ -6,7 +6,7 @@ import {
 	SquareArrowOutUpRightIcon,
 	UsersIcon,
 } from "lucide-react";
-import { type FC, type ReactNode, useState } from "react";
+import { useState } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { DropdownMenuItem } from "#/components/DropdownMenu/DropdownMenu";
 import { Link } from "#/components/Link/Link";
@@ -21,6 +21,7 @@ import { useProxy } from "#/contexts/ProxyContext";
 import {
 	isAppBlockedByMissingWildcard,
 	isAppUrlValid,
+	SESSION_TOKEN_LINK_BLOCKED_MESSAGE,
 } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
 import { docs } from "#/utils/docs";
@@ -42,7 +43,7 @@ type AppLinkProps = {
 	grouped?: boolean;
 };
 
-export const AppLink: FC<AppLinkProps> = ({
+export const AppLink: React.FC<AppLinkProps> = ({
 	app,
 	workspace,
 	agent,
@@ -59,7 +60,7 @@ export const AppLink: FC<AppLinkProps> = ({
 	// To avoid bugs in the healthcheck code locking users out of apps, we no
 	// longer block access to apps if they are unhealthy/initializing.
 	let canClick = true;
-	let primaryTooltip: ReactNode = "";
+	let primaryTooltip: React.ReactNode = "";
 	let icon = !iconError && (
 		<BaseIcon app={app} onIconPathError={() => setIconError(true)} />
 	);
@@ -113,7 +114,8 @@ export const AppLink: FC<AppLinkProps> = ({
 		);
 	}
 
-	if (!isAppUrlValid(app)) {
+	const hasValidUrl = isAppUrlValid(app);
+	if (link.isBlocked || !hasValidUrl) {
 		canClick = false;
 		icon = (
 			<CircleAlertIcon
@@ -123,9 +125,20 @@ export const AppLink: FC<AppLinkProps> = ({
 		);
 		primaryTooltip = (
 			<>
-				This app has an invalid URL and can't be opened. Ask your template
-				administrator to fix the app's <code>url</code> in the template's{" "}
-				<code>coder_app</code> configuration.
+				{hasValidUrl
+					? SESSION_TOKEN_LINK_BLOCKED_MESSAGE
+					: "This app has an invalid URL and can't be opened."}{" "}
+				{agent.parent_id ? (
+					<>
+						Fix the app's <code>url</code> in the dev container's{" "}
+						<code>devcontainer.json</code>.
+					</>
+				) : (
+					<>
+						Ask your template administrator to fix the app's <code>url</code> in
+						the template's <code>coder_app</code> configuration.
+					</>
+				)}
 			</>
 		);
 	}

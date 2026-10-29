@@ -1,10 +1,10 @@
-import type { FC } from "react";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import {
 	type ChartConfig,
 	ChartContainer,
 	ChartTooltip,
 	ChartTooltipContent,
+	getDailyChartDescription,
 } from "#/components/Chart/Chart";
 import { formatDate } from "#/utils/time";
 
@@ -19,11 +19,18 @@ type ActiveUserChartProps = {
 	data: { date: string; amount: number }[];
 };
 
-export const ActiveUserChart: FC<ActiveUserChartProps> = ({ data }) => {
+export const ActiveUserChart: React.FC<ActiveUserChartProps> = ({ data }) => {
 	return (
 		<ChartContainer config={chartConfig} className="aspect-auto h-full">
 			<AreaChart
 				accessibilityLayer
+				role="group"
+				aria-roledescription="chart"
+				title="Active users"
+				desc={getDailyChartDescription(
+					"Daily active users",
+					data.map((d) => d.date),
+				)}
 				data={data}
 				margin={{
 					top: 10,

@@ -93,6 +93,8 @@ type Options struct {
 	Addresses  []netip.Prefix
 	DERPMap    *tailcfg.DERPMap
 	DERPHeader *http.Header
+	// DERPGetHeaders overrides DERPHeader on each connection attempt.
+	DERPGetHeaders func() http.Header
 	// DERPTLSConfig is an optional TLS config for DERP connections.
 	DERPTLSConfig *tls.Config
 	// DERPForceWebSockets determines whether websockets is always used for DERP
@@ -247,6 +249,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	if options.DERPHeader != nil {
 		magicConn.SetDERPHeader(options.DERPHeader.Clone())
 	}
+	magicConn.SetDERPGetHeaders(options.DERPGetHeaders)
 	if options.DERPTLSConfig != nil {
 		magicConn.SetDERPTLSConfig(options.DERPTLSConfig)
 	}
@@ -961,8 +964,18 @@ type PeerDiagnostics struct {
 	SentNode bool
 	// ReceivedNode is the last Node we received for the peer, or nil if we haven't received the node.
 	ReceivedNode *tailcfg.Node
+	// Lost is true when the coordinator reported the peer lost or our own
+	// coordination stream ended. The node and WireGuard config stay until
+	// lostTimeout passes with no handshake, so the other fields may still
+	// describe a working tunnel.
+	Lost bool
 	// LastWireguardHandshake is the last time we completed a wireguard handshake
 	LastWireguardHandshake time.Time
+	// TxBytes and RxBytes are the WireGuard byte counters for the peer,
+	// cumulative since the peer was added to the device. Both are zero when
+	// the engine has no status for the peer.
+	TxBytes int64
+	RxBytes int64
 	// TODO: surface Discovery (disco) protocol problems
 }
 

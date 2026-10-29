@@ -7,10 +7,8 @@ import {
 	SettingsIcon,
 	TrashIcon,
 } from "lucide-react";
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink, useNavigate } from "react-router";
-import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorDetail } from "#/api/errors";
 import { workspaces } from "#/api/queries/workspaces";
@@ -38,6 +36,7 @@ import {
 	PageHeaderSubtitle,
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
+import { toast } from "#/components/Toaster/toast";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import type { WorkspacePermissions } from "#/modules/permissions/workspaces";
 import { TemplateStats } from "./TemplateStats";
@@ -52,7 +51,7 @@ type TemplateMenuProps = {
 	onDelete: () => void;
 };
 
-const TemplateMenu: FC<TemplateMenuProps> = ({
+const TemplateMenu: React.FC<TemplateMenuProps> = ({
 	organizationName,
 	templateName,
 	templateVersion,
@@ -205,7 +204,7 @@ type TemplatePageHeaderProps = {
 	onDeleteTemplate: () => void;
 };
 
-export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
+export const TemplatePageHeader: React.FC<TemplatePageHeaderProps> = ({
 	template,
 	activeVersion,
 	permissions,

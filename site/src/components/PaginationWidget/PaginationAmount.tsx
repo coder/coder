@@ -1,9 +1,8 @@
 import { cn } from "cn";
-import type { FC } from "react";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 
 type PaginationHeaderProps = {
-	paginationUnitLabel: string;
+	paginationUnitLabel: { singular: string; plural: string };
 	limit: number;
 	totalRecords: number | undefined;
 	currentOffsetStart: number | undefined;
@@ -15,7 +14,7 @@ type PaginationHeaderProps = {
 	className?: string;
 };
 
-export const PaginationAmount: FC<PaginationHeaderProps> = ({
+export const PaginationAmount: React.FC<PaginationHeaderProps> = ({
 	paginationUnitLabel,
 	limit,
 	totalRecords,
@@ -43,7 +42,7 @@ export const PaginationAmount: FC<PaginationHeaderProps> = ({
 					{totalRecords === 0 && (
 						<div>
 							{isFiltered
-								? `No ${paginationUnitLabel} match your search.`
+								? `No ${paginationUnitLabel.plural} match your search.`
 								: "No records available"}
 						</div>
 					)}
@@ -65,7 +64,9 @@ export const PaginationAmount: FC<PaginationHeaderProps> = ({
 								{totalRecords.toLocaleString()}
 								{countIsCapped && "+"}
 							</strong>{" "}
-							{paginationUnitLabel}
+							{totalRecords === 1 && !countIsCapped
+								? paginationUnitLabel.singular
+								: paginationUnitLabel.plural}
 						</div>
 					)}
 				</>

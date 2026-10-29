@@ -622,57 +622,6 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/appearance \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get autofill build parameters for user
-
-### Code samples
-
-```sh
-# Example request using curl
-curl -X GET http://coder-server:8080/api/v2/users/{user}/autofill-parameters?template_id=string \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`GET /api/v2/users/{user}/autofill-parameters`
-
-### Parameters
-
-| Name          | In    | Type   | Required | Description              |
-|---------------|-------|--------|----------|--------------------------|
-| `user`        | path  | string | true     | User ID, username, or me |
-| `template_id` | query | string | true     | Template ID              |
-
-### Example responses
-
-> 200 Response
-
-```json
-[
-  {
-    "name": "string",
-    "value": "string"
-  }
-]
-```
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                                              |
-|--------|---------------------------------------------------------|-------------|---------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.UserParameter](schemas.md#codersdkuserparameter) |
-
-<h3 id="get-autofill-build-parameters-for-user-responseschema">Response Schema</h3>
-
-Status Code **200**
-
-| Name           | Type   | Required | Restrictions | Description |
-|----------------|--------|----------|--------------|-------------|
-| `[array item]` | array  | false    |              |             |
-| `» name`       | string | false    |              |             |
-| `» value`      | string | false    |              |             |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
 ## Get user Git SSH key
 
 ### Code samples
@@ -870,11 +819,11 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property     | Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `type`       | `*`, `ai_gateway_key`, `ai_model_price`, `ai_provider`, `ai_seat`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `boundary_log`, `boundary_usage`, `chat`, `chat_model_config`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `mcp_server_config`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `template`, `usage_event`, `user`, `user_secret`, `user_skill`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_build_orchestration`, `workspace_dormant`, `workspace_proxy` |
-| `login_type` | `github`, `oidc`, `password`, `token`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `scope`      | `all`, `application_connect`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Property     | Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `type`       | `*`, `ai_gateway_key`, `ai_model_price`, `ai_provider`, `ai_seat`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `boundary_log`, `boundary_usage`, `chat`, `chat_model_config`, `chat_project`, `chat_project_memory`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `mcp_server_config`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `organization_skill`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `template`, `usage_event`, `user`, `user_secret`, `user_skill`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_build_orchestration`, `workspace_dormant`, `workspace_proxy`, `workspace_secret` |
+| `login_type` | `github`, `oidc`, `password`, `token`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `scope`      | `all`, `application_connect`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1324,6 +1273,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/preferences \
 {
   "agent_chat_send_shortcut": "enter",
   "code_diff_display_mode": "auto",
+  "collapse_assistant_steps": true,
   "shell_tool_display_mode": "auto",
   "thinking_display_mode": "auto"
 }
@@ -1357,6 +1307,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/preferences \
 {
   "agent_chat_send_shortcut": "enter",
   "code_diff_display_mode": "auto",
+  "collapse_assistant_steps": true,
   "shell_tool_display_mode": "auto",
   "thinking_display_mode": "auto"
 }
@@ -1377,6 +1328,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/preferences \
 {
   "agent_chat_send_shortcut": "enter",
   "code_diff_display_mode": "auto",
+  "collapse_assistant_steps": true,
   "shell_tool_display_mode": "auto",
   "thinking_display_mode": "auto"
 }

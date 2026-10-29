@@ -1,17 +1,19 @@
-import type { ComponentProps, FC } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { API } from "#/api/api";
 import { FormField } from "#/components/FormField/FormField";
 import { useDebouncedValue } from "#/hooks/debounce";
 
-type PasswordFieldProps = ComponentProps<typeof FormField>;
+type PasswordFieldProps = React.ComponentProps<typeof FormField>;
 
 /**
  * A password field component that validates the password against the API with
  * debounced calls. It uses a debounced value to minimize the number of API
  * calls and displays validation errors.
  */
-export const PasswordField: FC<PasswordFieldProps> = ({ field, ...props }) => {
+export const PasswordField: React.FC<PasswordFieldProps> = ({
+	field,
+	...props
+}) => {
 	const value = field.value === undefined ? "" : String(field.value);
 	const debouncedValue = useDebouncedValue(value, 500);
 	const validatePasswordQuery = useQuery({

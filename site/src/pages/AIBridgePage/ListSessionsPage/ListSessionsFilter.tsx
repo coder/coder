@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { DateTimeRangePicker } from "#/components/DateTimeRangePicker/DateTimeRangePicker";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import {
@@ -31,7 +30,7 @@ type ListSessionsFilterProps = {
 	onTimeRangeChange: (value: DateTimeRangeValue) => void;
 };
 
-export const ListSessionsFilter: FC<ListSessionsFilterProps> = ({
+export const ListSessionsFilter: React.FC<ListSessionsFilterProps> = ({
 	filter,
 	error,
 	menus,

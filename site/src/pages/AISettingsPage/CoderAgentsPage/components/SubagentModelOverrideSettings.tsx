@@ -1,5 +1,4 @@
 import { useFormik } from "formik";
-import type { FC, ReactNode } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { useTemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
@@ -29,7 +28,7 @@ type UpdateModelOverrideRequest = {
 
 type SubagentModelOverrideSettingsProps = {
 	title: string;
-	description?: ReactNode;
+	description?: React.ReactNode;
 	modelOverrideData: ModelOverrideData | undefined;
 	enabledModels: readonly TypesGen.ChatModel[];
 	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
@@ -44,10 +43,11 @@ type SubagentModelOverrideSettingsProps = {
 	saveErrorMessage: string;
 	unsetPlaceholder?: string;
 	unavailableModelWarning?: string;
+	renderSelectedModelAlert?: (modelID: string) => React.ReactNode;
 	disabled?: boolean;
 };
 
-export const SubagentModelOverrideSettings: FC<
+export const SubagentModelOverrideSettings: React.FC<
 	SubagentModelOverrideSettingsProps
 > = ({
 	title,
@@ -63,6 +63,7 @@ export const SubagentModelOverrideSettings: FC<
 	saveErrorMessage,
 	unsetPlaceholder = "Use chat default",
 	unavailableModelWarning = "The saved model is no longer enabled and will be ignored until you choose a new override.",
+	renderSelectedModelAlert,
 	disabled = false,
 }) => {
 	const { isSavedVisible, showSavedState } = useTemporarySavedState();
@@ -164,7 +165,9 @@ export const SubagentModelOverrideSettings: FC<
 					isUnavailableSavedModel={isUnavailableSavedModel}
 					unavailableMessage={unavailableModelWarning}
 					modelsError={modelsError}
-				/>
+				>
+					{renderSelectedModelAlert?.(form.values.model_config_id)}
+				</ModelOverrideAlerts>
 			</div>
 			<Button
 				size="lg"

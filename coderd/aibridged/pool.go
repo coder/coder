@@ -2,6 +2,7 @@ package aibridged
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"slices"
 	"strconv"
@@ -20,13 +21,18 @@ import (
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/provider"
-	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
 
 const (
 	cacheCost = 1 // We can't know the actual size in bytes of the value (it'll change over time).
+
+	// Cache retirement must allow slow model calls and streams to finish.
+	bridgeDrainTimeout = 10 * time.Minute
+	// Process shutdown retains a shorter grace period, including retired bridges.
+	poolShutdownTimeout = 5 * time.Second
 )
 
 // Pooler describes a pool of [*aibridge.RequestBridge] instances from which instances can be retrieved.
@@ -53,9 +59,38 @@ type PoolOptions struct {
 	MaxItems int64
 	TTL      time.Duration
 	Clock    quartz.Clock
+
+	// StructuredLogging makes each bridge emit AI Gateway interception
+	// records in the format described by
+	// [github.com/coder/coder/v2/aibridge/recorder.InterceptionLogMarker].
+	StructuredLogging bool
+	// DisableContentRecording stops prompts, tool call arguments and model
+	// thoughts from being recorded. Interceptions and token usage are still
+	// recorded, so AI spend accounting and budget enforcement are unaffected.
+	DisableContentRecording bool
 }
 
 var DefaultPoolOptions = PoolOptions{MaxItems: 5000, TTL: time.Minute * 15}
+
+// PoolOptionsFromConfig returns DefaultPoolOptions with the record policy the
+// deployment configured. Every construction site uses it, so the in-process
+// daemon, the standalone gateway and the test harness cannot drift.
+//
+// It also reports a deployment that drops content records without exporting
+// them anywhere: they never reach coderd, so if coderd is the only emitter the
+// deployment has silently stopped exporting the very records it is declining to
+// store. Nothing else reports this.
+func PoolOptionsFromConfig(ctx context.Context, logger slog.Logger, cfg codersdk.AIBridgeConfig) PoolOptions {
+	options := DefaultPoolOptions
+	options.StructuredLogging = cfg.EmitsStructuredLogs(codersdk.AIStructuredLoggingSourceGateway)
+	options.DisableContentRecording = cfg.DisableContentRecording.Value()
+
+	if options.DisableContentRecording && !options.StructuredLogging {
+		logger.Warn(ctx, "content recording is disabled but structured logs are emitted by coderd, so prompts, tool calls and model thoughts will not be exported; set --ai-gateway-structured-logging-source to gateway or both to keep exporting them")
+	}
+
+	return options
+}
 
 var _ Pooler = &CachedBridgePool{}
 
@@ -76,6 +111,9 @@ type CachedBridgePool struct {
 
 	shutDownOnce   sync.Once
 	shuttingDownCh chan struct{}
+	// drainCancel bounds all bridge drains when the pool shuts down, even
+	// those for bridges already evicted from the cache.
+	drainCancel context.CancelFunc
 
 	// cacheMu + cacheWG order cache use against Shutdown. Without it,
 	// (*ristretto.Cache).Close may race against cache usage.
@@ -83,7 +121,13 @@ type CachedBridgePool struct {
 	cacheWG sync.WaitGroup
 }
 
+// Options reports the options the pool was built with.
+func (p *CachedBridgePool) Options() PoolOptions {
+	return p.options
+}
+
 func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, logger slog.Logger, metrics *aibridge.Metrics, tracer trace.Tracer) (*CachedBridgePool, error) {
+	drainCtx, drainCancel := context.WithCancel(context.Background())
 	cache, err := ristretto.NewCache(&ristretto.Config[string, *aibridge.RequestBridge]{
 		NumCounters:        options.MaxItems * 10,        // Docs suggest setting this 10x number of keys.
 		MaxCost:            options.MaxItems * cacheCost, // Up to n instances.
@@ -101,13 +145,20 @@ func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, log
 			// avoid blocking ristretto's eviction loop.
 			bridge := item.Value
 			go func() {
-				shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+				shutdownCtx, cancel := context.WithTimeout(drainCtx, bridgeDrainTimeout)
 				defer cancel()
-				_ = bridge.Shutdown(shutdownCtx)
+				// Pool shutdown cancels drainCtx instead, so a deadline error
+				// means retirement alone cut in-flight requests short.
+				if err := bridge.Shutdown(shutdownCtx); errors.Is(err, context.DeadlineExceeded) {
+					logger.Warn(context.Background(), "retired request bridge did not drain in time, canceled in-flight requests",
+						slog.F("drain_timeout", bridgeDrainTimeout),
+					)
+				}
 			}()
 		},
 	})
 	if err != nil {
+		drainCancel()
 		return nil, xerrors.Errorf("create cache: %w", err)
 	}
 
@@ -127,6 +178,7 @@ func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, log
 		singleflight: &singleflight.Group[string, *aibridge.RequestBridge]{},
 
 		shuttingDownCh: make(chan struct{}),
+		drainCancel:    drainCancel,
 	}
 	initial := slices.Clone(providers)
 	pool.providers.Store(&initial)
@@ -224,20 +276,7 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 
 	span.AddEvent("cache_miss")
 	providerVersion := p.providerVersion.Load()
-	rec := aibridge.NewRecorder(
-		p.logger.Named("recorder"),
-		p.tracer,
-		func(clientCtx context.Context) (aibridge.Recorder, error) {
-			// The recorder outlives this Acquire call, so the client is acquired
-			// against the context of the record call being served.
-			client, err := clientFn(clientCtx)
-			if err != nil {
-				return nil, xerrors.Errorf("acquire client: %w", err)
-			}
-
-			return recorder.NewDRPCRecorder(req.APIKeyID, client), nil
-		},
-	)
+	rec := newRecorder(p.logger, p.tracer, p.options.StructuredLogging, p.options.DisableContentRecording, clientFn)
 
 	// Slow path.
 	// Creating an *aibridge.RequestBridge may take some time, so gate all subsequent callers behind the initial request and return the resulting value.
@@ -295,15 +334,22 @@ func (p *CachedBridgePool) CacheMetrics() PoolMetrics {
 }
 
 // Shutdown will close the cache which will trigger eviction of all the Bridge entries.
-func (p *CachedBridgePool) Shutdown(_ context.Context) error {
+// Bridge drains are canceled when ctx ends or after poolShutdownTimeout,
+// whichever comes first.
+func (p *CachedBridgePool) Shutdown(ctx context.Context) error {
 	p.shutDownOnce.Do(func() {
 		// Block new cache use, drain in-flight ops, then close (see cacheMu).
 		p.cacheMu.Lock()
 		close(p.shuttingDownCh)
 		p.cacheMu.Unlock()
 
+		// Arm cancellation before waiting for acquisitions, which may be
+		// blocked initializing MCP connections. Retired bridges must not
+		// keep draining for the longer eviction grace period during shutdown.
+		time.AfterFunc(poolShutdownTimeout, p.drainCancel)
+		// Drains outlive Shutdown, so the registration is never stopped.
+		_ = context.AfterFunc(ctx, p.drainCancel)
 		p.cacheWG.Wait()
-
 		p.cache.Close()
 	})
 
