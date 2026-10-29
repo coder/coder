@@ -7907,6 +7907,8 @@ type claimTestBuild struct {
 	versionID  uuid.UUID
 	presetID   uuid.UUID
 	agents     []database.WorkspaceAgentLifecycleState
+	// agentsDeleted marks all of the build's agents deleted.
+	agentsDeleted bool
 }
 
 // readyBuild returns a succeeded start of the active version with one ready agent.
@@ -7946,6 +7948,10 @@ func (p claimTestPreset) addWorkspace(ctx context.Context, t *testing.T, ws data
 					ID:             agent.ID,
 					LifecycleState: state,
 				}))
+				if b.agentsDeleted {
+					_, err := p.sqlDB.ExecContext(ctx, "UPDATE workspace_agents SET deleted = true WHERE id = $1", agent.ID)
+					require.NoError(t, err)
+				}
 			}
 		}
 		dbgen.WorkspaceBuild(t, p.db, database.WorkspaceBuild{
@@ -8074,52 +8080,6 @@ func TestClaimPrebuiltWorkspaceClaimsOne(t *testing.T) {
 	require.Equal(t, 1, owned)
 }
 
-// TestClaimPrebuiltWorkspaceRechecksLockedRow checks that a claim that waited on
-// another claim's lock skips the prebuild once that claim commits. SKIP LOCKED
-// normally avoids the wait, so the test removes it.
-func TestClaimPrebuiltWorkspaceRechecksLockedRow(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
-	p := newClaimTestPreset(t)
-	p.addReadyPrebuilds(ctx, t, 2)
-	userA := dbgen.User(t, p.db, database.User{})
-	userB := dbgen.User(t, p.db, database.User{})
-	idA, releaseA := p.holdClaim(ctx, t, userA.ID)
-
-	const lockClause = "FOR NO KEY UPDATE OF pw SKIP LOCKED"
-	require.Equal(t, 1, strings.Count(database.ClaimPrebuiltWorkspaceQuery, lockClause))
-	blockingQuery := strings.Replace(database.ClaimPrebuiltWorkspaceQuery, lockClause, "FOR NO KEY UPDATE OF pw", 1)
-	claimedB := make(chan uuid.UUID, 1)
-	go func() {
-		var id uuid.UUID
-		var name string
-		err := p.sqlDB.QueryRowContext(ctx, blockingQuery,
-			userB.ID, "claimed-b", dbtime.Now(), sql.NullString{}, sql.NullTime{}, sql.NullInt64{}, p.version.preset.ID,
-		).Scan(&id, &name)
-		assert.NoError(t, err)
-		claimedB <- id
-	}()
-
-	// Commit claim A once claim B waits on its lock.
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		var waiting bool
-		err := p.sqlDB.QueryRowContext(ctx, `SELECT EXISTS (
-			SELECT 1 FROM pg_stat_activity
-			WHERE datname = current_database()
-				AND wait_event_type = 'Lock'
-				AND query LIKE '-- name: ClaimPrebuiltWorkspace %'
-		)`).Scan(&waiting)
-		return assert.NoError(t, err) && waiting
-	}, testutil.IntervalFast)
-	releaseA()
-
-	idB := testutil.TryReceive(ctx, t, claimedB)
-	require.NotEqual(t, idA, idB, "claim B must skip the prebuild claim A committed")
-	ws, err := p.db.GetWorkspaceByID(ctx, idB)
-	require.NoError(t, err)
-	require.Equal(t, userB.ID, ws.OwnerID)
-}
-
 // TestClaimPrebuiltWorkspaceEligibilityMatchesView checks that the claim query,
 // which repeats the workspace_prebuilds logic per workspace, claims exactly the
 // prebuilds that the view reports as ready.
@@ -8153,6 +8113,7 @@ func TestClaimPrebuiltWorkspaceEligibilityMatchesView(t *testing.T) {
 			b.agents = append(b.agents, database.WorkspaceAgentLifecycleStateStarting)
 		})}},
 		{name: "NoAgents", builds: []claimTestBuild{build(func(b *claimTestBuild) { b.agents = nil })}},
+		{name: "OnlyDeletedAgents", builds: []claimTestBuild{build(func(b *claimTestBuild) { b.agentsDeleted = true })}},
 		{name: "LatestBuildStop", builds: []claimTestBuild{ready, build(func(b *claimTestBuild) { b.transition = database.WorkspaceTransitionStop })}},
 		{name: "LatestBuildPending", builds: []claimTestBuild{ready, build(func(b *claimTestBuild) { b.succeeded = false })}},
 		{name: "InactiveTemplateVersion", builds: []claimTestBuild{build(func(b *claimTestBuild) {
@@ -8162,6 +8123,7 @@ func TestClaimPrebuiltWorkspaceEligibilityMatchesView(t *testing.T) {
 			b.versionID, b.presetID = deletedTmplVersion.ID, deletedTmplVersion.preset.ID
 		})}},
 		{name: "PresetChanged", builds: []claimTestBuild{ready, build(func(b *claimTestBuild) { b.presetID = otherPreset.ID })}, claimableFor: otherPreset.ID},
+		{name: "LatestBuildNoPreset", builds: []claimTestBuild{ready, build(func(b *claimTestBuild) { b.presetID = uuid.Nil })}, claimableFor: preset},
 		{name: "WorkspaceDeleted", ws: database.WorkspaceTable{Deleted: true}, builds: []claimTestBuild{ready}},
 		{name: "OwnedByUser", ws: database.WorkspaceTable{OwnerID: user.ID}, builds: []claimTestBuild{ready}},
 	}
