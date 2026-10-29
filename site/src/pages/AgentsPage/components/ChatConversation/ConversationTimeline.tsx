@@ -118,7 +118,6 @@ type UserMessageActionsProps = {
 	onJumpToUserMessage?: (messageKey: string) => void;
 };
 
-/** Edit and the jump buttons appear on hover or focus, before Copy. */
 const UserMessageActions: React.FC<UserMessageActionsProps> = ({
 	message,
 	copyText,
@@ -192,8 +191,8 @@ type AssistantMessageActionsProps = {
 	copyText?: string;
 	turnAttachments?: readonly MessageAttachment[];
 	/**
-	 * Without buttons the bar still takes its height, so the message keeps its
-	 * spacing to the next one.
+	 * With no buttons to show, still take the bar's height, so the message
+	 * keeps its spacing to the next one.
 	 */
 	keepsSpacing: boolean;
 };

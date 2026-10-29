@@ -363,7 +363,10 @@ const canHostPill = (
 	if (isContextBoundaryRow(row)) {
 		return false;
 	}
-	return !hidesAttachmentRows || !isAgentAttachmentOnlyRow(row);
+	if (hidesAttachmentRows && isAgentAttachmentOnlyRow(row)) {
+		return false;
+	}
+	return true;
 };
 
 /**
