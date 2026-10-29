@@ -3321,7 +3321,7 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 `PATCH /api/v2/organizations/{organization}/settings/idpsync/roles/config`
 
-Updates an organization's role sync claim `field` and keeps the existing `mapping`.
+Updates the claim `field` that an organization uses for role sync, and keeps the existing `mapping`.
 Use it to change which claim carries roles without resending the mapping.
 Requires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
 
@@ -3768,7 +3768,7 @@ curl -X PATCH http://coder-server:8080/api/v2/settings/idpsync/organization \
 `PATCH /api/v2/settings/idpsync/organization`
 
 Replaces all of the deployment's organization sync settings, so any field you omit resets.
-To change only the claim `field` and `assign_default`, use `PATCH /api/v2/settings/idpsync/organization/config`, and to add or remove mapping entries, use `PATCH /api/v2/settings/idpsync/organization/mapping`.
+To change only the claim `field` and the default-organization setting, use `PATCH /api/v2/settings/idpsync/organization/config`, and to add or remove mapping entries, use `PATCH /api/v2/settings/idpsync/organization/mapping`.
 Requires permission to update IdP sync settings across the deployment, which the Owner and User Admin roles have.
 
 > Body parameter
@@ -3835,7 +3835,7 @@ curl -X PATCH http://coder-server:8080/api/v2/settings/idpsync/organization/conf
 
 `PATCH /api/v2/settings/idpsync/organization/config`
 
-Updates the deployment's organization sync claim `field` and `assign_default`, and keeps the existing `mapping`.
+Updates the claim `field` and `assign_default` for the deployment's organization sync, and keeps the existing `mapping`.
 This setting is deployment-wide and isn't scoped to one organization.
 Requires permission to update IdP sync settings across the deployment, which the Owner and User Admin roles have.
 
@@ -3895,7 +3895,7 @@ curl -X PATCH http://coder-server:8080/api/v2/settings/idpsync/organization/mapp
 
 `PATCH /api/v2/settings/idpsync/organization/mapping`
 
-Adds and removes entries in the deployment's organization `mapping`, and keeps the claim `field` and `organization_assign_default`.
+Adds and removes entries in the deployment's organization `mapping`, and keeps the other settings.
 An entry that appears in both `add` and `remove` ends up removed.
 Requires permission to update IdP sync settings across the deployment, which the Owner and User Admin roles have.
 

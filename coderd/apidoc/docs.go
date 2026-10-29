@@ -10840,7 +10840,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/settings/idpsync/roles/config": {
             "patch": {
-                "description": "Updates an organization's role sync claim ` + "`" + `field` + "`" + ` and keeps the existing ` + "`" + `mapping` + "`" + `.\nUse it to change which claim carries roles without resending the mapping.\nRequires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.",
+                "description": "Updates the claim ` + "`" + `field` + "`" + ` that an organization uses for role sync, and keeps the existing ` + "`" + `mapping` + "`" + `.\nUse it to change which claim carries roles without resending the mapping.\nRequires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.",
                 "consumes": [
                     "application/json"
                 ],
@@ -11590,7 +11590,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
-                "description": "Replaces all of the deployment's organization sync settings, so any field you omit resets.\nTo change only the claim ` + "`" + `field` + "`" + ` and ` + "`" + `assign_default` + "`" + `, use ` + "`" + `PATCH /api/v2/settings/idpsync/organization/config` + "`" + `, and to add or remove mapping entries, use ` + "`" + `PATCH /api/v2/settings/idpsync/organization/mapping` + "`" + `.\nRequires permission to update IdP sync settings across the deployment, which the Owner and User Admin roles have.",
+                "description": "Replaces all of the deployment's organization sync settings, so any field you omit resets.\nTo change only the claim ` + "`" + `field` + "`" + ` and the default-organization setting, use ` + "`" + `PATCH /api/v2/settings/idpsync/organization/config` + "`" + `, and to add or remove mapping entries, use ` + "`" + `PATCH /api/v2/settings/idpsync/organization/mapping` + "`" + `.\nRequires permission to update IdP sync settings across the deployment, which the Owner and User Admin roles have.",
                 "consumes": [
                     "application/json"
                 ],
@@ -11630,7 +11630,7 @@ const docTemplate = `{
         },
         "/api/v2/settings/idpsync/organization/config": {
             "patch": {
-                "description": "Updates the deployment's organization sync claim ` + "`" + `field` + "`" + ` and ` + "`" + `assign_default` + "`" + `, and keeps the existing ` + "`" + `mapping` + "`" + `.\nThis setting is deployment-wide and isn't scoped to one organization.\nRequires permission to update IdP sync settings across the deployment, which the Owner and User Admin roles have.",
+                "description": "Updates the claim ` + "`" + `field` + "`" + ` and ` + "`" + `assign_default` + "`" + ` for the deployment's organization sync, and keeps the existing ` + "`" + `mapping` + "`" + `.\nThis setting is deployment-wide and isn't scoped to one organization.\nRequires permission to update IdP sync settings across the deployment, which the Owner and User Admin roles have.",
                 "consumes": [
                     "application/json"
                 ],
@@ -11670,7 +11670,7 @@ const docTemplate = `{
         },
         "/api/v2/settings/idpsync/organization/mapping": {
             "patch": {
-                "description": "Adds and removes entries in the deployment's organization ` + "`" + `mapping` + "`" + `, and keeps the claim ` + "`" + `field` + "`" + ` and ` + "`" + `organization_assign_default` + "`" + `.\nAn entry that appears in both ` + "`" + `add` + "`" + ` and ` + "`" + `remove` + "`" + ` ends up removed.\nRequires permission to update IdP sync settings across the deployment, which the Owner and User Admin roles have.",
+                "description": "Adds and removes entries in the deployment's organization ` + "`" + `mapping` + "`" + `, and keeps the other settings.\nAn entry that appears in both ` + "`" + `add` + "`" + ` and ` + "`" + `remove` + "`" + ` ends up removed.\nRequires permission to update IdP sync settings across the deployment, which the Owner and User Admin roles have.",
                 "consumes": [
                     "application/json"
                 ],

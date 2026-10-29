@@ -389,7 +389,7 @@ func (api *API) patchRoleIDPSyncSettings(rw http.ResponseWriter, r *http.Request
 }
 
 // @Summary Update role IdP Sync config
-// @Description Updates an organization's role sync claim `field` and keeps the existing `mapping`.
+// @Description Updates the claim `field` that an organization uses for role sync, and keeps the existing `mapping`.
 // @Description Use it to change which claim carries roles without resending the mapping.
 // @Description Requires permission to update IdP sync settings in the organization, which the Owner, User Admin, Organization Admin, and Organization User Admin roles have.
 // @ID update-role-idp-sync-config
@@ -564,7 +564,7 @@ func (api *API) organizationIDPSyncSettings(rw http.ResponseWriter, r *http.Requ
 
 // @Summary Update organization IdP Sync settings
 // @Description Replaces all of the deployment's organization sync settings, so any field you omit resets.
-// @Description To change only the claim `field` and `assign_default`, use `PATCH /api/v2/settings/idpsync/organization/config`, and to add or remove mapping entries, use `PATCH /api/v2/settings/idpsync/organization/mapping`.
+// @Description To change only the claim `field` and the default-organization setting, use `PATCH /api/v2/settings/idpsync/organization/config`, and to add or remove mapping entries, use `PATCH /api/v2/settings/idpsync/organization/mapping`.
 // @Description Requires permission to update IdP sync settings across the deployment, which the Owner and User Admin roles have.
 // @ID update-organization-idp-sync-settings
 // @Security CoderSessionToken
@@ -630,7 +630,7 @@ func (api *API) patchOrganizationIDPSyncSettings(rw http.ResponseWriter, r *http
 }
 
 // @Summary Update organization IdP Sync config
-// @Description Updates the deployment's organization sync claim `field` and `assign_default`, and keeps the existing `mapping`.
+// @Description Updates the claim `field` and `assign_default` for the deployment's organization sync, and keeps the existing `mapping`.
 // @Description This setting is deployment-wide and isn't scoped to one organization.
 // @Description Requires permission to update IdP sync settings across the deployment, which the Owner and User Admin roles have.
 // @ID update-organization-idp-sync-config
@@ -699,7 +699,7 @@ func (api *API) patchOrganizationIDPSyncConfig(rw http.ResponseWriter, r *http.R
 }
 
 // @Summary Update organization IdP Sync mapping
-// @Description Adds and removes entries in the deployment's organization `mapping`, and keeps the claim `field` and `organization_assign_default`.
+// @Description Adds and removes entries in the deployment's organization `mapping`, and keeps the other settings.
 // @Description An entry that appears in both `add` and `remove` ends up removed.
 // @Description Requires permission to update IdP sync settings across the deployment, which the Owner and User Admin roles have.
 // @ID update-organization-idp-sync-mapping
