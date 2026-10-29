@@ -6,7 +6,7 @@ Each page serves one reader, in that reader's terms, with only what that reader 
 
 - The docs pages the change adds or edits, in full.
 - Rules: every page under `docs/.style/` whose front matter `review-personas` list includes `audience`.
-  These include [Audience and scope](../../../../docs/.style/style-guide/audience-and-scope.md) and [Evidence justifies a claim; it does not belong in the claim](../../../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim).
+  These include [Audience and scope](../../../../docs/.style/style-guide/audience-and-scope.md) and [Evidence justifies a claim and does not belong in the claim](../../../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-and-does-not-belong-in-the-claim).
 
 ## Method
 

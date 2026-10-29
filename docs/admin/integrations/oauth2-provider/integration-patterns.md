@@ -77,7 +77,9 @@ Coder enforces PKCE in compliance with the OAuth 2.1 specification, for both pub
      state=random-string
    ```
 
-3. Exchange the authorization code for an access token, using the code verifier (refer to [Client authentication methods](#client-authentication-methods) for how to authenticate):
+3. Exchange the authorization code for an access token, using the code verifier.
+
+   Refer to [Client authentication methods](#client-authentication-methods) for how to authenticate:
 
    **Confidential client**
 

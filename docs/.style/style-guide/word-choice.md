@@ -289,7 +289,8 @@ The rule changes only the words that US English spells with `-ize`.
 Names keep their own spelling, such as a product, an organization, or a UI label that uses British spelling.
 Put a literal UI label in bold and a literal identifier in a code span.
 
-*Enforced by `Coder.USSpelling` (planned).*
+*Enforced by `Coder.USSpelling` at `warning` severity: a substitution rule that flags the `-ise` family and a list of British spellings, with an exception list for words that US English spells with `-ise`.
+The rule skips code spans, but not bold text.*
 
 ## Limit noun stacks to three words
 
@@ -715,7 +716,7 @@ A pull request description, a commit message, or a code-review comment is the ri
 The published page stays the same for everyone.
 
 Implementation identifiers, such as enum values, database column names, and internal symbols, follow a related but conditional rule.
-Whether one belongs on a published page, and where a stripped identifier's pointer goes, is governed by [Evidence justifies a claim; it does not belong in the claim](../content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim) in the content guidelines.
+Whether one belongs on a published page, and where a stripped identifier's pointer goes, is governed by [Evidence justifies a claim and does not belong in the claim](../content-guidelines.md#evidence-justifies-a-claim-and-does-not-belong-in-the-claim) in the content guidelines.
 
 **Do**:
 

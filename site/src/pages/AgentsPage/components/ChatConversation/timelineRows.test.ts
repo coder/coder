@@ -15,6 +15,7 @@ const emptyParsed: ParsedMessageContent = {
 	toolResults: [],
 	tools: [],
 	blocks: [],
+	partBlockIndices: [],
 	sources: [],
 	hookNotices: [],
 };
