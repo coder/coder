@@ -100,9 +100,10 @@ func TestSDKFieldsFormatted(t *testing.T) {
 	}
 }
 
-// An enums tag must list exactly the values of its named type: fewer hides
-// values the API returns, extra ones document values it never sends.
-// Swagger 2.0 also requires enum items to be unique.
+// TestSwaggerEnumsNotNarrowed checks every enum list in the spec. A property
+// whose enum comes from an enums or oneof tag may list only values of its
+// referenced type, and must list all of them unless the property is in
+// allowedSubsets. No enum list may repeat a value, which Swagger 2.0 forbids.
 func TestSwaggerEnumsNotNarrowed(t *testing.T) {
 	t.Parallel()
 
@@ -177,13 +178,13 @@ func TestSwaggerEnumsNotNarrowed(t *testing.T) {
 		have := enumStrings(inline)
 		want := enumStrings(named)
 		for _, v := range have {
-			assert.Truef(t, slices.Contains(want, v), "%s lists %q, which type %s does not have; remove it from the field's enums or oneof tag, or add the constant to the type if the API returns it", key, v, ref)
+			assert.Truef(t, slices.Contains(want, v), "%s lists %q, which type %s does not have; add the constant to the type if the API returns or accepts it, otherwise remove the value from the field's enums tag", key, v, ref)
 		}
 		if slices.Equal(have, want) {
 			return
 		}
 		seenSubsets[key] = true
-		assert.Truef(t, allowedSubsets[key], "%s lists %v but its type %s lists %v; remove the value-narrowing enums or oneof tag so the spec lists every value, or add the field to allowedSubsets if the subset is intentional", key, inline, ref, named)
+		assert.Truef(t, allowedSubsets[key], "%s lists %v but its type %s lists %v; remove the narrowing enums tag so the spec lists every value, or add the field to allowedSubsets if the subset is intentional, as for a validate oneof tag", key, inline, ref, named)
 	}
 
 	for defName, def := range swagger.Definitions {
