@@ -21,3 +21,6 @@ var ChatRenderTemplateParameters = (*API).chatRenderTemplateParameters
 
 // NormalizeWorkspaceFileReference exposes normalizeWorkspaceFileReference for tests.
 var NormalizeWorkspaceFileReference = normalizeWorkspaceFileReference
+
+// ServerTailnetKeepAliveAgentConn exposes keepAliveAgentConn for tests.
+var ServerTailnetKeepAliveAgentConn = (*ServerTailnet).keepAliveAgentConn

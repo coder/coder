@@ -403,7 +403,7 @@ func (s *ServerTailnet) dialContext(ctx context.Context, network, addr string) (
 	// returns, so this path uses acquireAgent, which neither logs nor counts.
 	ds := dialStateFromContext(ctx)
 	ds.set(dialPhaseAwaitReachable)
-	conn, release, err := s.acquireAgent(ctx, agentID)
+	conn, release, err := s.acquireAgent(ctx, agentID, 0)
 	if err != nil {
 		return nil, xerrors.Errorf("acquire agent conn: %w", err)
 	}
@@ -475,8 +475,28 @@ func (s *ServerTailnet) reportProxyDialFailure(ctx context.Context, agentID uuid
 var errAgentUnreachable = xerrors.New("agent is unreachable")
 
 func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+	return s.acquireAgentAndRecordUnreachable(ctx, agentID, 0)
+}
+
+// keepAliveAPIIdleConnTimeout must stay below the idle timeout of every
+// workspace agent build coderd talks to, or a request can be sent on a
+// connection the workspace agent already closed and fail. Every build so far
+// uses 20 s. It is a literal because a value derived from
+// workspacesdk.AgentHTTPAPIServerIdleTimeout would rise with it, past what
+// older workspace agents allow. A request reaches the workspace agent after
+// coderd's idle time plus one round trip, so the 5 s margin covers round
+// trips up to 5 s.
+const keepAliveAPIIdleConnTimeout = 15 * time.Second
+
+// keepAliveAgentConn is AgentConn with APIIdleConnTimeout set, for callers
+// that send many requests on one connection.
+func (s *ServerTailnet) keepAliveAgentConn(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+	return s.acquireAgentAndRecordUnreachable(ctx, agentID, keepAliveAPIIdleConnTimeout)
+}
+
+func (s *ServerTailnet) acquireAgentAndRecordUnreachable(ctx context.Context, agentID uuid.UUID, apiIdleConnTimeout time.Duration) (workspacesdk.AgentConn, func(), error) {
 	start := s.clock.Now()
-	conn, release, err := s.acquireAgent(ctx, agentID)
+	conn, release, err := s.acquireAgent(ctx, agentID, apiIdleConnTimeout)
 	cause := context.Cause(ctx)
 	if errors.Is(err, errAgentUnreachable) &&
 		!errors.Is(cause, workspacesdk.ErrDialAbandoned) &&
@@ -489,7 +509,9 @@ func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (works
 // acquireAgent adds the agent to the coordinator and waits for it to answer a
 // ping. On timeout it returns errAgentUnreachable and leaves logging and
 // metrics to the caller, which knows whether a request is still waiting.
-func (s *ServerTailnet) acquireAgent(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+// Release closes the connection, which closes its idle API connections;
+// CloseFunc keeps the shared tailnet open.
+func (s *ServerTailnet) acquireAgent(ctx context.Context, agentID uuid.UUID, apiIdleConnTimeout time.Duration) (workspacesdk.AgentConn, func(), error) {
 	var (
 		conn workspacesdk.AgentConn
 		ret  func()
@@ -503,10 +525,15 @@ func (s *ServerTailnet) acquireAgent(ctx context.Context, agentID uuid.UUID) (wo
 	ret = s.coordCtrl.acquireTicket(agentID)
 
 	conn = workspacesdk.NewAgentConn(s.conn, workspacesdk.AgentConnOptions{
-		AgentID:   agentID,
-		CloseFunc: func() error { return workspacesdk.ErrSkipClose },
-		Logger:    s.logger,
+		AgentID:            agentID,
+		CloseFunc:          func() error { return workspacesdk.ErrSkipClose },
+		Logger:             s.logger,
+		APIIdleConnTimeout: apiIdleConnTimeout,
 	})
+	release := func() {
+		_ = conn.Close()
+		ret()
+	}
 
 	// Since we now have an open conn, be careful to close it if we error
 	// without returning it to the user.
@@ -514,12 +541,12 @@ func (s *ServerTailnet) acquireAgent(ctx context.Context, agentID uuid.UUID) (wo
 	start := s.clock.Now()
 	reachable := conn.AwaitReachable(ctx)
 	if !reachable {
-		ret()
+		release()
 		return nil, nil, errAgentUnreachable
 	}
 	s.awaitReachable.Observe(s.clock.Since(start).Seconds())
 
-	return conn, ret, nil
+	return conn, release, nil
 }
 
 // peerDiagnosticsTimeout caps how long a failed connection waits for peer
