@@ -200,7 +200,7 @@ With Coder Desktop, you get:
 - **Automatic port forwarding**:
   All workspace ports are available at `workspace-name.coder:PORT` with no manual setup
 - **SSH access**:
-  Connect with `ssh workspace-name.coder` using any SSH client, or `ssh agent-name.workspace-name.owner.coder` for workspaces with more than one agent
+  Connect with `ssh workspace-name.coder` using any SSH client, or `ssh agent-name.workspace-name.owner.coder` for workspaces with more than one agent.
 - **File sync**:
   Bidirectional file synchronization between local and remote directories
 

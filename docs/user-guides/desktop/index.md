@@ -22,7 +22,7 @@ Connect to workspace services using simple hostnames like `myworkspace.coder`, l
 1. Open Coder Desktop and approve any system prompts to complete the installation.
 1. Sign in with your deployment URL and session token
 1. Enable "Coder Connect" toggle
-1. Access workspaces at `workspace-name.coder`, or `agent-name.workspace-name.owner.coder` for workspaces with more than one agent
+1. Access workspaces at `workspace-name.coder`, or `agent-name.workspace-name.owner.coder` for workspaces with more than one agent.
 
 ## How It Works
 
