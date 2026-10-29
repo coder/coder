@@ -292,7 +292,8 @@ type MarkStaleParams struct {
 	WorkspaceID uuid.UUID
 	Branch      string
 	Origin      string
-	// ChatID, when set, targets a single chat. Subagent chats are
+	// ChatID, when set, targets a single chat. The chat must be bound
+	// to WorkspaceID or the request is ignored. Subagent chats are
 	// resolved to their root chat, which owns the git refs and PRs.
 	ChatID uuid.UUID
 }
@@ -311,16 +312,25 @@ func (w *Worker) MarkStale(ctx context.Context, p MarkStaleParams) {
 
 	// When a specific chat is identified, target it directly
 	// instead of broadcasting to every chat on the workspace.
-	// Note: this path does not verify that the chat belongs to
-	// WorkspaceID. This is safe because ChatID originates from
-	// chatd via the agent (trusted data flow), but differs from
-	// the broadcast path which filters by workspace.
+	// ChatID is supplied by the workspace agent (CODER_CHAT_ID),
+	// which anyone with access to the workspace can set, so the
+	// requested chat must be bound to the calling agent's
+	// workspace. Subagent chats inherit their parent's workspace,
+	// so checking the requested chat before resolving its root
+	// keeps legitimate subagent updates working.
 	if p.ChatID != uuid.Nil {
 		chat, err := w.store.GetChatByID(ctx, p.ChatID)
 		if err != nil {
 			w.logger.Warn(ctx, "get chat for git ref storage",
 				slog.F("chat_id", p.ChatID),
 				slog.Error(err))
+			return
+		}
+		if !chat.WorkspaceID.Valid || chat.WorkspaceID.UUID != p.WorkspaceID {
+			w.logger.Warn(ctx, "ignoring git ref for chat not bound to the calling workspace",
+				slog.F("chat_id", p.ChatID),
+				slog.F("chat_workspace_id", chat.WorkspaceID),
+				slog.F("workspace_id", p.WorkspaceID))
 			return
 		}
 		w.markStaleSingle(ctx, rootChatID(chat), p.Branch, p.Origin)
