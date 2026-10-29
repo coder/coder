@@ -48,7 +48,7 @@ replace github.com/tailscale/wireguard-go => github.com/coder/wireguard-go v0.0.
 // The pin also includes coder/gvisor#4, based on the unmerged google/gvisor#15019,
 // which hands a SYN that reopens a TIME_WAIT connection to the tcp.Forwarder
 // instead of dropping it for 60s.
-replace gvisor.dev/gvisor => github.com/coder/gvisor v0.0.0-20261029104832-0d09663cbcfd
+replace gvisor.dev/gvisor => github.com/coder/gvisor v0.0.0-20261029110958-6130fa8887d6
 
 // Switch to our fork that imports fixes from http://github.com/tailscale/ssh.
 // See: https://github.com/coder/coder/issues/3371
