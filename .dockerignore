@@ -2,7 +2,7 @@
 # the build context is the repository root. Today only the dogfood
 # base images at dogfood/coder/ubuntu-{22,26}.04/Dockerfile.base use the
 # repo root as context; other docker builds in this repo
-# (scripts/Dockerfile, scripts/Dockerfile.base, scripts/ironbank/Dockerfile)
+# (scripts/Dockerfile, scripts/Dockerfile.base)
 # cd into a temporary directory and have their own contexts.
 #
 # We use an allowlist so the context stays small and predictable, and

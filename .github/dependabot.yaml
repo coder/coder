@@ -44,7 +44,6 @@ updates:
       - "/examples/templates/docker/build"
       - "/examples/parameters/build"
       - "/scaletest/templates/scaletest-runner"
-      - "/scripts/ironbank"
     schedule:
       interval: "weekly"
       time: "06:00"
