@@ -3,12 +3,7 @@ import { ToolCall } from "./ToolCall";
 import { ToolResultImage } from "./ToolResultImage";
 import { humanizeMCPToolName, type ToolStatus } from "./utils";
 
-/**
- * Shows the screenshot or the text output of a computer use call.
- * Clicking the image opens an in-app lightbox rather than a new tab,
- * so it works in PWA / standalone mode on iOS.
- */
-export const ComputerTool: React.FC<{
+type ComputerToolProps = {
 	action: string;
 	imageData: string;
 	mimeType: string;
@@ -16,7 +11,22 @@ export const ComputerTool: React.FC<{
 	status: ToolStatus;
 	isError: boolean;
 	errorMessage?: string;
-}> = ({ action, imageData, mimeType, text, status, isError, errorMessage }) => {
+};
+
+/**
+ * Shows the screenshot or the text output of a computer use call.
+ * Clicking the image opens an in-app lightbox rather than a new tab,
+ * so it works in PWA / standalone mode on iOS.
+ */
+export const ComputerTool: React.FC<ComputerToolProps> = ({
+	action,
+	imageData,
+	mimeType,
+	text,
+	status,
+	isError,
+	errorMessage,
+}) => {
 	const isRunning = status === "running";
 	const isScreenshot = action === "" || action === "screenshot";
 	const errorDetail = isError ? errorMessage?.trim() : undefined;
@@ -25,8 +35,12 @@ export const ComputerTool: React.FC<{
 	const hasContent = hasImage || hasText || Boolean(errorDetail);
 
 	let label = isRunning ? "Taking screenshot…" : "Screenshot";
-	if (!isScreenshot) {
-		label = isRunning ? "Using the computer…" : humanizeMCPToolName("", action);
+	if (isRunning && !isScreenshot) {
+		label = "Using the computer…";
+	} else if (action === "key") {
+		label = "Press key";
+	} else if (!isScreenshot) {
+		label = humanizeMCPToolName("", action);
 	}
 
 	return (
@@ -44,9 +58,7 @@ export const ComputerTool: React.FC<{
 			<ToolCall.Header iconName="computer" label={label} />
 			<ToolCall.Content>
 				{errorDetail && (
-					<pre className="m-0 mt-1.5 whitespace-pre-wrap break-all border-0 bg-transparent p-0 font-mono text-xs leading-5 text-content-destructive">
-						{errorDetail}
-					</pre>
+					<ToolCall.ErrorDetail>{errorDetail}</ToolCall.ErrorDetail>
 				)}
 				{hasImage ? (
 					<ToolResultImage
