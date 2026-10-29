@@ -33,6 +33,14 @@ export const MockCompactionChatModel: ChatModel = {
 	compression_threshold: 50,
 };
 
+export const MockComputerUseChatModel: ChatModel = {
+	...MockChatModel,
+	id: "model-opus-5",
+	ai_provider_id: "provider-anthropic",
+	model: "claude-opus-5",
+	display_name: "Claude Opus 5",
+};
+
 export const MockDefaultChatModel: ChatModel = {
 	...MockChatModel,
 	id: "model-config-1",

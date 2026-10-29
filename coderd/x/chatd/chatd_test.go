@@ -6986,6 +6986,10 @@ func TestActiveServer_RecordsGenerationMetrics(t *testing.T) {
 		"provider": "openai",
 		"model":    "gpt-4o-mini",
 	}, chatdMetricHistogramRequirement{PositiveSum: true})
+	requireChatdMetricHistogram(t, reg, "coderd_chatd_response_size_bytes", 1, map[string]string{
+		"provider": "openai",
+		"model":    "gpt-4o-mini",
+	}, chatdMetricHistogramRequirement{PositiveSum: true})
 	requireChatdMetricHistogram(t, reg, "coderd_chatd_ttft_seconds", 1, map[string]string{
 		"provider": "openai",
 		"model":    "gpt-4o-mini",
@@ -9887,9 +9891,9 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	computerUseModelProvider, computerUseModelName, ok := chattool.DefaultComputerUseModel(codersdk.ChatComputerUseProviderAnthropic)
-	require.True(t, ok)
-	require.EqualValues(t, codersdk.ChatComputerUseProviderAnthropic, computerUseModelProvider)
+	// The organization's computer use override selects this Anthropic model;
+	// the root chat runs on an openai-compat model.
+	const computerUseModelName = "claude-computer-use-test"
 
 	// Track tools and model from the Anthropic LLM calls (the
 	// computer use child chat). We use a raw HTTP handler because
@@ -10038,12 +10042,22 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 
 	// Add an Anthropic provider pointing to our mock server.
-	dbgen.ChatProvider(t, db, database.ChatProvider{
+	anthropicProvider := dbgen.ChatProvider(t, db, database.ChatProvider{
 		Provider:    "anthropic",
 		DisplayName: "Anthropic",
 		APIKey:      "test-anthropic-key",
 		BaseUrl:     anthropicSrv.URL,
 	})
+	computerUseModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		AIProviderID:   uuid.NullUUID{UUID: anthropicProvider.ID, Valid: true},
+		Model:          computerUseModelName,
+		OrganizationID: org.ID,
+	})
+	require.NoError(t, db.UpsertChatOrganizationModelOverride(ctx, database.UpsertChatOrganizationModelOverrideParams{
+		OrganizationID: org.ID,
+		Context:        string(codersdk.ChatModelOverrideContextComputerUse),
+		ModelConfigID:  computerUseModel.ID,
+	}))
 
 	// Build workspace + agent records so getWorkspaceConn can
 	// resolve the agent for the computer use child.

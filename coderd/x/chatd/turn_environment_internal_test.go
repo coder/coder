@@ -25,8 +25,10 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -296,114 +298,162 @@ func TestBuildTurnEnvironmentReplacesUnsupportedToolMedia(t *testing.T) {
 	}
 }
 
-func TestBuildTurnEnvironmentComputerUseIgnoresChatTransportOverride(t *testing.T) {
+// Computer use chats run on their own model config; the tool flavor follows
+// that model's AI provider type.
+func TestBuildTurnEnvironmentComputerUseRunsOnChatModel(t *testing.T) {
 	t.Parallel()
 
-	db, ps := dbtestutil.NewDB(t)
-	ctx := chatdTestContext(t)
-	user := dbgen.User(t, db, database.User{})
-	org := dbgen.Organization(t, db, database.Organization{})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{
-		UserID:         user.ID,
-		OrganizationID: org.ID,
-	})
-	require.NoError(t, db.UpsertChatComputerUseProvider(ctx, string(codersdk.ChatComputerUseProviderOpenAI)))
-	provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
-		Type: database.AIProviderTypeOpenai,
-	}, "test-key")
-	forceCompletions := false
-	modelConfigRaw, err := json.Marshal(codersdk.ChatModelCallConfig{
-		OpenAIConfig: &codersdk.ChatModelOpenAIConfig{
-			UseResponsesAPI: &forceCompletions,
+	tests := []struct {
+		name            string
+		providerType    database.AIProviderType
+		model           string
+		useResponsesAPI *bool
+		wantProvider    codersdk.ChatComputerUseProvider
+		wantErr         string
+	}{
+		{
+			name:         "Anthropic",
+			providerType: database.AIProviderTypeAnthropic,
+			model:        "claude-opus-5",
+			wantProvider: codersdk.ChatComputerUseProviderAnthropic,
 		},
-		ProviderOptions: &codersdk.ChatModelProviderOptions{
-			OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
-				User: new("computer-use"),
-			},
+		{
+			// The model is absent from the SDK's known Responses models, so
+			// the turn must force the Responses API for the computer tool.
+			name:         "OpenAI",
+			providerType: database.AIProviderTypeOpenai,
+			model:        "custom-openai-model",
+			wantProvider: codersdk.ChatComputerUseProviderOpenAI,
 		},
-	})
-	require.NoError(t, err)
-	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Model:          "gpt-4o-mini",
-		Options:        modelConfigRaw,
-		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
-		OrganizationID: org.ID,
-	}, func(p *database.InsertChatModelConfigParams) {
-		p.Enabled = true
-	})
-
-	const attachmentText = "text attachment body"
-	file, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
-		OwnerID:        user.ID,
-		OrganizationID: org.ID,
-		Name:           "notes.txt",
-		Mimetype:       "text/plain",
-		Data:           []byte(attachmentText),
-	})
-	require.NoError(t, err)
-	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-		codersdk.ChatMessageText("hello"),
-		codersdk.ChatMessageFile(file.ID, "text/plain", "notes.txt"),
-	})
-	require.NoError(t, err)
-
-	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		LastModelConfigID: modelConfig.ID,
-		Title:             "computer use transport",
-		ClientType:        database.ChatClientTypeApi,
-		Mode:              database.NullChatMode{ChatMode: database.ChatModeComputerUse, Valid: true},
-		InitialMessages: []chatstate.Message{
-			{
-				Role:           database.ChatMessageRoleUser,
-				Content:        content,
-				Visibility:     database.ChatMessageVisibilityBoth,
-				ModelConfigID:  uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
-				ContentVersion: chatprompt.CurrentContentVersion,
-			},
+		{
+			name:            "OpenAIResponsesDisabled",
+			providerType:    database.AIProviderTypeOpenai,
+			model:           "gpt-4o-mini",
+			useResponsesAPI: ptr.Ref(false),
+			wantErr:         "disables the OpenAI Responses API, which computer use requires",
 		},
-	})
-	require.NoError(t, err)
-
-	server := newInternalTestServer(
-		t,
-		db,
-		ps,
-		chatprovider.ProviderAPIKeys{},
-		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
-	)
-	prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
-		Chat:            created.Chat,
-		Messages:        created.InitialMessages,
-		TurnExperiments: &turnExperimentDecisions{},
-	})
-	require.NoError(t, err)
-	t.Cleanup(prepared.Close)
-
-	// The computer-use model is Responses-selected by the SDK and its client
-	// ignores the config's forced Chat Completions, so the options must be the
-	// Responses type or the SDK discards them.
-	_, ok := prepared.CallTemplate.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
-	require.True(t, ok, "%T", prepared.CallTemplate.ProviderOptions[fantasyopenai.Name])
-
-	// File classification must also key on the substituted model: the
-	// Responses transport drops native text file parts, so the attachment
-	// must be inlined as text rather than kept as a FilePart.
-	var sawInlinedText bool
-	for _, message := range prepared.Prompt {
-		for _, part := range message.Content {
-			if filePart, isFile := part.(fantasy.FilePart); isFile {
-				t.Fatalf("text attachment survived as FilePart %q", filePart.Filename)
-			}
-			if textPart, isText := part.(fantasy.TextPart); isText &&
-				strings.Contains(textPart.Text, attachmentText) {
-				sawInlinedText = true
-			}
-		}
+		{
+			name:         "UnsupportedProvider",
+			providerType: database.AIProviderTypeOpenrouter,
+			model:        "openai/gpt-4o-mini",
+			wantErr:      "computer use requires a model from an Anthropic or OpenAI AI provider",
+		},
 	}
-	require.True(t, sawInlinedText, "attachment was not inlined as text")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, ps := dbtestutil.NewDB(t)
+			user := dbgen.User(t, db, database.User{})
+			org := dbgen.Organization(t, db, database.Organization{})
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{
+				UserID:         user.ID,
+				OrganizationID: org.ID,
+			})
+			provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
+				Type: tt.providerType,
+			}, "test-key")
+			var callConfig codersdk.ChatModelCallConfig
+			if tt.useResponsesAPI != nil {
+				callConfig.OpenAIConfig = &codersdk.ChatModelOpenAIConfig{UseResponsesAPI: tt.useResponsesAPI}
+			}
+			modelConfigRaw, err := json.Marshal(callConfig)
+			require.NoError(t, err)
+			modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+				Model:          tt.model,
+				Options:        modelConfigRaw,
+				AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+				OrganizationID: org.ID,
+			}, func(p *database.InsertChatModelConfigParams) {
+				p.Enabled = true
+			})
+
+			const attachmentText = "text attachment body"
+			ctx := chatdTestContext(t)
+			file, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+				OwnerID:        user.ID,
+				OrganizationID: org.ID,
+				Name:           "notes.txt",
+				Mimetype:       "text/plain",
+				Data:           []byte(attachmentText),
+			})
+			require.NoError(t, err)
+			content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("hello"),
+				codersdk.ChatMessageFile(file.ID, "text/plain", "notes.txt"),
+			})
+			require.NoError(t, err)
+
+			created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+				OrganizationID:    org.ID,
+				OwnerID:           user.ID,
+				LastModelConfigID: modelConfig.ID,
+				Title:             "computer use model",
+				ClientType:        database.ChatClientTypeApi,
+				Mode:              database.NullChatMode{ChatMode: database.ChatModeComputerUse, Valid: true},
+				InitialMessages: []chatstate.Message{
+					{
+						Role:           database.ChatMessageRoleUser,
+						Content:        content,
+						Visibility:     database.ChatMessageVisibilityBoth,
+						ModelConfigID:  uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+						CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+						ContentVersion: chatprompt.CurrentContentVersion,
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			server := newInternalTestServer(
+				t,
+				db,
+				ps,
+				chatprovider.ProviderAPIKeys{},
+				withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
+			)
+			prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
+				Chat:            created.Chat,
+				Messages:        created.InitialMessages,
+				TurnExperiments: &turnExperimentDecisions{},
+			})
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			t.Cleanup(prepared.Close)
+
+			require.Equal(t, modelConfig.ID, prepared.ModelConfigID)
+			require.Equal(t, tt.model, prepared.Model.ModelID())
+			geometry := chattool.DefaultComputerUseDesktopGeometry(tt.wantProvider)
+			wantTool, err := chattool.ComputerUseProviderTool(tt.wantProvider, geometry.DeclaredWidth, geometry.DeclaredHeight)
+			require.NoError(t, err)
+			require.Len(t, prepared.ProviderTools, 1)
+			require.Equal(t, wantTool, prepared.ProviderTools[0].Definition)
+
+			if tt.wantProvider != codersdk.ChatComputerUseProviderOpenAI {
+				return
+			}
+			require.Equal(t, chatopenai.TransportResponses, prepared.Model.Transport())
+			_, ok := prepared.CallTemplate.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
+			require.True(t, ok, "%T", prepared.CallTemplate.ProviderOptions[fantasyopenai.Name])
+			// The Responses transport drops native text file parts, so the
+			// attachment must be inlined as text rather than kept as a FilePart.
+			var sawInlinedText bool
+			for _, message := range prepared.Prompt {
+				for _, part := range message.Content {
+					if filePart, isFile := part.(fantasy.FilePart); isFile {
+						t.Fatalf("text attachment survived as FilePart %q", filePart.Filename)
+					}
+					if textPart, isText := part.(fantasy.TextPart); isText &&
+						strings.Contains(textPart.Text, attachmentText) {
+						sawInlinedText = true
+					}
+				}
+			}
+			require.True(t, sawInlinedText, "attachment was not inlined as text")
+		})
+	}
 }
 
 func TestBuildTurnEnvironmentMemory(t *testing.T) {
@@ -693,6 +743,10 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 	require.NoError(t, err)
 	seedAgentContext(ctx, t, db, agent.ID, "workspace", []byte("workspace"),
 		database.WorkspaceAgentContextBodyKindMcpServer, workspaceMCPBody)
+	acpBody, err := protojson.Marshal(&agentproto.ACPHarnessBody{Slug: "test", DisplayName: "Test"})
+	require.NoError(t, err)
+	seedAgentContext(ctx, t, db, agent.ID, "test", []byte("acp"),
+		database.WorkspaceAgentContextBodyKindAcpHarness, acpBody)
 	parent := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: modelConfig.ID})
 	// Children load inline MCP servers from the root chat; this one does not allow sub-agents.
 	dbgen.ChatMCPServer(t, db, database.ChatMCPServer{ChatID: parent.ID, Slug: "inline", Url: echoURL})
@@ -704,7 +758,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 	newServer := func(experiments ...codersdk.Experiment) *Server {
 		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{},
 			withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
-			withInternalTestServerExperiments(append(codersdk.Experiments{codersdk.ExperimentChatInlineMCPServers}, experiments...)),
+			withInternalTestServerExperiments(append(codersdk.Experiments{codersdk.ExperimentChatInlineMCPServers, codersdk.ExperimentChatACPSubagents}, experiments...)),
 		)
 		server.mcpHTTPClient = mcpclient.NewHTTPClient(nil, safedial.WithAllowedPrefixes(netip.MustParsePrefix("127.0.0.0/8")))
 		return server
@@ -746,16 +800,18 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 	}{
 		{
 			name:   "Root",
-			prompt: []string{advisorGuidance},
+			prompt: []string{advisorGuidance, acpSubagentPromptBlock},
 			want: append([]string{
 				"write_file", "edit_files", "approved__echo", "blocked__echo", "filtered__visible",
 				"forced__echo", "inline__echo", "workspace__echo", "web_search", chatadvisor.ToolName,
+				"acp_spawn_agent", "acp_wait_agent", "acp_message_agent", "acp_interrupt_agent",
 			}, rootOnlyTools...),
 			dontWant: []string{"filtered__hidden", "unselected__echo", "ask_user_question", "propose_plan"},
 		},
 		{
 			name:       "RootAdvisorOff",
 			advisorOff: true,
+			prompt:     []string{acpSubagentPromptBlock},
 			want:       []string{"spawn_agent"},
 			dontWant:   []string{chatadvisor.ToolName},
 		},
@@ -911,6 +967,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			for _, tool := range env.Tools {
 				loaded[tool.Info().Name] = true
 			}
+			require.Equal(t, slices.Contains(tt.prompt, acpSubagentPromptBlock), slices.Contains(offered, "acp_spawn_agent"))
 			require.Subset(t, offered, tt.want)
 			for _, name := range tt.dontWant {
 				require.NotContains(t, offered, name)
@@ -944,7 +1001,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 					}
 				}
 			}
-			for _, instruction := range []string{exploreOverlay, planRootOverlay, planChildOverlay, proposePlan, advisorGuidance} {
+			for _, instruction := range []string{exploreOverlay, planRootOverlay, planChildOverlay, proposePlan, advisorGuidance, acpSubagentPromptBlock} {
 				require.Equal(t, slices.Contains(tt.prompt, instruction), strings.Contains(system.String(), instruction), instruction)
 			}
 

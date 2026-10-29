@@ -64,7 +64,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
-	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/coderd/x/skills"
@@ -793,6 +792,7 @@ func validateChatModelOverride(
 	ctx context.Context,
 	db database.Store,
 	organizationID uuid.UUID,
+	overrideContext codersdk.ChatModelOverrideContext,
 	id *uuid.UUID,
 	effort *string,
 ) (int, *codersdk.Response) {
@@ -824,7 +824,45 @@ func validateChatModelOverride(
 			Detail:  err.Error(),
 		}
 	}
+	if overrideContext == codersdk.ChatModelOverrideContextComputerUse {
+		if status, resp := validateComputerUseModelProvider(ctx, db, modelConfig); resp != nil {
+			return status, resp
+		}
+	}
 	return validateChatModelOverrideEffort(modelConfig, effort)
+}
+
+// validateComputerUseModelProvider rejects models whose AI provider has no
+// computer use tool. Chatd derives the tool flavor from the provider type.
+func validateComputerUseModelProvider(
+	ctx context.Context,
+	db database.Store,
+	modelConfig database.ChatModelConfig,
+) (int, *codersdk.Response) {
+	unsupported := &codersdk.Response{
+		Message: "Computer use requires a model from an Anthropic or OpenAI AI provider.",
+	}
+	if !modelConfig.AIProviderID.Valid {
+		unsupported.Detail = fmt.Sprintf("Model %q has no AI provider.", modelConfig.Model)
+		return http.StatusBadRequest, unsupported
+	}
+	provider, err := db.GetAIProviderByID(ctx, modelConfig.AIProviderID.UUID)
+	if err != nil {
+		return http.StatusInternalServerError, &codersdk.Response{
+			Message: "Internal error validating computer use model provider.",
+			Detail:  err.Error(),
+		}
+	}
+	switch chatprovider.NormalizeProvider(string(provider.Type)) {
+	case string(codersdk.ChatComputerUseProviderAnthropic), string(codersdk.ChatComputerUseProviderOpenAI):
+		return 0, nil
+	default:
+		unsupported.Detail = fmt.Sprintf(
+			"Model %q uses AI provider %q of type %q.",
+			modelConfig.Model, provider.Name, provider.Type,
+		)
+		return http.StatusBadRequest, unsupported
+	}
 }
 
 func parseChatModelOverrideContext(raw string) (codersdk.ChatModelOverrideContext, error) {
@@ -5570,7 +5608,7 @@ func (api *API) getOrganizationChatModelOverrides(rw http.ResponseWriter, r *htt
 // @Accept json
 // @Produce json
 // @Param organization path string true "Organization name or ID"
-// @Param context path string true "Override context" Enums(general,explore,title_generation,compaction,advisor)
+// @Param context path string true "Override context" Enums(general,explore,title_generation,compaction,advisor,computer_use)
 // @Param request body codersdk.UpdateChatModelOverrideRequest true "Model override"
 // @Success 200 {object} codersdk.ChatModelOverrideResponse
 // @Router /api/v2/organizations/{organization}/chats/model-overrides/{context} [put]
@@ -5588,6 +5626,11 @@ func (api *API) putOrganizationChatModelOverride(rw http.ResponseWriter, r *http
 	}
 	if overrideContext == codersdk.ChatModelOverrideContextAdvisor &&
 		!api.Experiments.Enabled(codersdk.ExperimentChatAdvisor) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if overrideContext == codersdk.ChatModelOverrideContextComputerUse &&
+		!api.Experiments.Enabled(codersdk.ExperimentChatVirtualDesktop) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -5638,6 +5681,7 @@ func (api *API) putOrganizationChatModelOverride(rw http.ResponseWriter, r *http
 		dbauthz.AsSystemRestricted(ctx),
 		api.Database,
 		organization.ID,
+		overrideContext,
 		&modelConfigID,
 		req.ReasoningEffort,
 	)
@@ -5732,7 +5776,6 @@ const (
 	chatOperationalSettingChatDebugRetentionDays        chatOperationalSetting = "agents_chat_debug_retention_days"
 	chatOperationalSettingChatAutoArchiveDays           chatOperationalSetting = "agents_chat_auto_archive_days"
 	chatOperationalSettingWorkspaceTTL                  chatOperationalSetting = "agents_workspace_ttl"
-	chatOperationalSettingComputerUseProvider           chatOperationalSetting = "agents_computer_use_provider"
 	chatOperationalSettingDebugLoggingAllowUsers        chatOperationalSetting = "agents_chat_debug_logging_allow_users"
 	chatOperationalSettingPersonalModelOverridesEnabled chatOperationalSetting = "agents_chat_personal_model_overrides_enabled"
 )
@@ -5747,8 +5790,6 @@ func (s chatOperationalSetting) defaultValue() string {
 		return strconv.FormatInt(int64(codersdk.DefaultChatAutoArchiveDays), 10)
 	case chatOperationalSettingWorkspaceTTL:
 		return "0s"
-	case chatOperationalSettingComputerUseProvider:
-		return string(chattool.DefaultComputerUseProvider(""))
 	case chatOperationalSettingDebugLoggingAllowUsers,
 		chatOperationalSettingPersonalModelOverridesEnabled:
 		return "false"
@@ -5768,8 +5809,6 @@ func (s chatOperationalSetting) auditValue(value string, id uuid.UUID) database.
 		settings.ChatAutoArchiveDays = value
 	case chatOperationalSettingWorkspaceTTL:
 		settings.WorkspaceTTL = value
-	case chatOperationalSettingComputerUseProvider:
-		settings.ComputerUseProvider = value
 	case chatOperationalSettingDebugLoggingAllowUsers:
 		settings.DebugLoggingAllowUsers = value
 	case chatOperationalSettingPersonalModelOverridesEnabled:
@@ -6111,43 +6150,6 @@ func (api *API) putUserChatPersonalModelOverride(rw http.ResponseWriter, r *http
 		return
 	}
 	rw.WriteHeader(http.StatusNoContent)
-}
-
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
-//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
-func (api *API) getChatComputerUseProvider(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	provider, err := api.Database.GetChatComputerUseProvider(ctx)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching computer use provider.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatComputerUseProviderResponse{
-		Provider: chattool.DefaultComputerUseProvider(codersdk.ChatComputerUseProvider(provider)),
-	})
-}
-
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-func (api *API) putChatComputerUseProvider(rw http.ResponseWriter, r *http.Request) {
-	putChatOperationalSetting(api, rw, r, chatOperationalSettingComputerUseProvider, "Internal error updating computer use provider.",
-		func(ctx context.Context, req codersdk.UpdateChatComputerUseProviderRequest) (string, func(database.Store) error, *codersdk.Response) {
-			if !req.Provider.Valid() {
-				return "", nil, &codersdk.Response{
-					Message: "Invalid computer use provider.",
-					Detail: fmt.Sprintf(
-						"Expected one of: %s. Got %q.",
-						strings.Join(chattool.SupportedComputerUseProviders(), ", "),
-						req.Provider,
-					),
-				}
-			}
-			value := string(req.Provider)
-			return value, func(tx database.Store) error { return tx.UpsertChatComputerUseProvider(ctx, value) }, nil
-		})
 }
 
 func (api *API) deploymentChatDebugLoggingEnabled() bool {

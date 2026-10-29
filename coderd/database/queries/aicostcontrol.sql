@@ -198,6 +198,20 @@ SELECT *
 FROM user_ai_budget_overrides
 WHERE user_id = @user_id;
 
+-- name: GetUserAIBudgetOverrideWithOrganization :one
+-- Returns the user's AI budget override with the organization of its group, for
+-- budget resolution. An override whose group is in a deleted organization is
+-- never returned. When organization_id is set, returns the override only if its
+-- group belongs to that organization.
+SELECT override.user_id, override.group_id, override.spend_limit_micros,
+	groups.organization_id
+FROM user_ai_budget_overrides override
+JOIN groups ON groups.id = override.group_id
+JOIN organizations ON organizations.id = groups.organization_id
+WHERE override.user_id = @user_id
+	AND organizations.deleted = false
+	AND (sqlc.narg('organization_id')::uuid IS NULL OR groups.organization_id = sqlc.narg('organization_id')::uuid);
+
 -- name: UpsertUserAIBudgetOverride :one
 INSERT INTO user_ai_budget_overrides (user_id, group_id, spend_limit_micros)
 VALUES (@user_id, @group_id, @spend_limit_micros)
@@ -217,9 +231,11 @@ DELETE FROM user_ai_budget_overrides WHERE user_id = @user_id RETURNING *;
 -- and organization_members, so the implicit "Everyone" group
 -- (group_id == organization_id) is included. Returns no rows when the user has
 -- no budgeted groups. Callers should treat sql.ErrNoRows as "no group budget".
+-- When organization_id is set, only groups in that organization count.
 SELECT
 	budget.group_id,
-	budget.spend_limit_micros
+	budget.spend_limit_micros,
+	member.organization_id
 FROM group_ai_budgets budget
 JOIN group_members_expanded member ON member.group_id = budget.group_id
 JOIN organizations ON organizations.id = member.organization_id
@@ -228,6 +244,7 @@ JOIN organization_members
 	AND organization_members.organization_id = member.organization_id
 WHERE member.user_id = @user_id
 	AND organizations.deleted = false
+	AND (sqlc.narg('organization_id')::uuid IS NULL OR member.organization_id = sqlc.narg('organization_id')::uuid)
 ORDER BY
 	budget.spend_limit_micros DESC,       -- highest wins
 	organization_members.created_at ASC,  -- earliest organization membership
@@ -238,12 +255,14 @@ LIMIT 1;
 -- Returns the "Everyone" group (id == organization_id) to attribute a user's
 -- spend to when no override or budgeted group applies. Prefers the default org,
 -- then the earliest organization membership. Returns no rows when the user has
--- no organization membership.
+-- no organization membership. When organization_id is set, returns that
+-- organization's Everyone group only if the user is a member of it.
 SELECT organizations.id AS group_id
 FROM organization_members
 JOIN organizations ON organizations.id = organization_members.organization_id
 WHERE organization_members.user_id = @user_id
 	AND organizations.deleted = false
+	AND (sqlc.narg('organization_id')::uuid IS NULL OR organizations.id = sqlc.narg('organization_id')::uuid)
 ORDER BY
 	organizations.is_default DESC,        -- prefer the default org
 	organization_members.created_at ASC,  -- earliest organization membership
