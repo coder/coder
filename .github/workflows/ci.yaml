@@ -14,6 +14,7 @@ on:
   create:
 
   pull_request:
+  merge_group:
   workflow_dispatch:
 
 permissions:
@@ -45,6 +46,7 @@ jobs:
       ci: ${{ steps.filter.outputs.ci }}
       db: ${{ steps.filter.outputs.db }}
       gomod: ${{ steps.filter.outputs.gomod }}
+      macos: ${{ steps.filter.outputs.macos }}
       offlinedocs-only: ${{ steps.filter.outputs.offlinedocs_count == steps.filter.outputs.all_count }}
       offlinedocs: ${{ steps.filter.outputs.offlinedocs }}
       tailnet-integration: ${{ steps.filter.outputs.tailnet-integration }}
@@ -126,6 +128,16 @@ jobs:
             gomod:
               - "go.mod"
               - "go.sum"
+            # Pull requests into main that touch these paths run the macOS
+            # lane of test-go-pg. Other pull requests into main leave it to
+            # the merge queue.
+            macos:
+              - "**/*_darwin*.go"
+              - "**/*_unix*.go"
+              - "**/*_other*.go"
+              - "pty/**"
+              - ".github/workflows/ci.yaml"
+              - ".github/actions/test-go-pg/**"
             site:
               - "site/**"
             k8s:
@@ -563,10 +575,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
-          - windows-2022
+        # macOS runner capacity is limited, so pull requests into main run the
+        # macOS lane only when they touch macOS-specific paths (see the macos
+        # filter in the changes job). Every other event keeps it: the merge
+        # queue tests each pull request on macOS before it merges, pushes to
+        # main run it uncached and refresh the macOS test cache, and pull
+        # requests into release branches, which have no merge queue, run it
+        # before merging.
+        os: ${{ fromJSON(github.event_name == 'pull_request' && github.base_ref == 'main' && needs.changes.outputs.macos != 'true' && '["ubuntu-latest", "windows-2022"]' || '["ubuntu-latest", "macos-latest", "windows-2022"]') }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
@@ -1127,9 +1143,10 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-24.04-16' || 'ubuntu-latest' }}
 
     # Forks and Dependabot receive no secrets, so they only build Storybook;
-    # trusted runs snapshot it against Pixel instead.
+    # trusted runs snapshot it against Pixel instead. Merge queue runs only
+    # build it, since the pull request already uploaded its snapshot.
     env:
-      PIXEL_ENABLED: ${{ github.event_name != 'pull_request' || (!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]') }}
+      PIXEL_ENABLED: ${{ github.event_name != 'merge_group' && (github.event_name != 'pull_request' || (!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]')) }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
