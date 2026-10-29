@@ -111,8 +111,10 @@ func (api *API) streamFile(ctx context.Context, rw http.ResponseWriter, path str
 // streamFileInRoot streams path, a local path relative to root, and
 // refuses any path whose walk, through symlinks included, leaves root.
 // It uses os.Root on the OS filesystem rather than api.filesystem
-// because afero has no traversal that stays beneath a directory, and
-// os.Root checks containment and opens the file in one kernel walk.
+// because afero has no traversal that stays beneath a directory. On
+// Unix, os.Root opens each path component relative to the directory
+// before it with O_NOFOLLOW, so a component that becomes a symlink
+// during the walk cannot redirect the read outside root.
 func (api *API) streamFileInRoot(ctx context.Context, rw http.ResponseWriter, root, path string, offset, limit int64) (HTTPResponseCode, error) {
 	if !filepath.IsAbs(root) {
 		return http.StatusBadRequest, xerrors.Errorf("root must be absolute: %q", root)
@@ -121,15 +123,51 @@ func (api *API) streamFileInRoot(ctx context.Context, rw http.ResponseWriter, ro
 		return http.StatusBadRequest, xerrors.Errorf("file path must be relative to root: %q", path)
 	}
 
+	r, status, err := openRootDir(root)
+	if err != nil {
+		return status, err
+	}
+	defer r.Close()
+
 	// The error names only root and path, never a symlink target, so
 	// a refusal does not reveal paths outside root.
-	f, err := os.OpenInRoot(root, path)
+	f, err := r.Open(path)
 	if err != nil {
 		return openErrorStatus(err, http.StatusBadRequest), err
 	}
 	defer f.Close()
 
 	return api.streamOpenFile(ctx, rw, f, path, offset, limit)
+}
+
+// openRootDir opens root and refuses it if its last component is a
+// symlink. os.OpenRoot follows that symlink, so a root directory
+// replaced with a symlink to /etc would otherwise become /etc.
+// Comparing the opened directory with an Lstat of root, rather than
+// checking the Lstat mode alone, also refuses a swap between the two
+// calls. root is cleaned first, because a trailing slash makes Lstat
+// follow a symlink.
+func openRootDir(root string) (*os.Root, HTTPResponseCode, error) {
+	root = filepath.Clean(root)
+	r, err := os.OpenRoot(root)
+	if err != nil {
+		return nil, openErrorStatus(err, http.StatusBadRequest), err
+	}
+	opened, err := r.Stat(".")
+	if err != nil {
+		_ = r.Close()
+		return nil, http.StatusInternalServerError, err
+	}
+	named, err := os.Lstat(root)
+	if err != nil {
+		_ = r.Close()
+		return nil, openErrorStatus(err, http.StatusBadRequest), err
+	}
+	if !os.SameFile(opened, named) {
+		_ = r.Close()
+		return nil, http.StatusBadRequest, xerrors.Errorf("root must not be a symlink: %q", root)
+	}
+	return r, 0, nil
 }
 
 // openErrorStatus maps a file open error to an HTTP status, using

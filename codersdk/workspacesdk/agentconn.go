@@ -1250,8 +1250,9 @@ func (c *agentConn) ReadFile(ctx context.Context, path string, offset, limit int
 
 // ReadFileInRoot reads from a file at path, relative to the absolute
 // directory root, returning a file reader and the mime type. The agent
-// refuses a path that leaves root, through symlinks included. Agents
-// that predate root support reject the request.
+// refuses a root that is a symlink, and a path that leaves root,
+// through symlinks included. Agents that predate root support reject
+// the request.
 func (c *agentConn) ReadFileInRoot(ctx context.Context, root, path string, offset, limit int64) (io.ReadCloser, string, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()

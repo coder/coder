@@ -309,6 +309,7 @@ func TestReadFileInRoot(t *testing.T) {
 	root := filepath.Join(realSkills, "my-skill")
 	siblingDir := filepath.Join(realSkills, "other-skill")
 	linkedSkills := filepath.Join(base, "skills")
+	swappedSkill := filepath.Join(base, "swapped-skill")
 
 	for _, dir := range []string{outsideDir, filepath.Join(root, "roles", "sub"), siblingDir} {
 		require.NoError(t, os.MkdirAll(dir, 0o755))
@@ -324,6 +325,7 @@ func TestReadFileInRoot(t *testing.T) {
 	}
 	for link, target := range map[string]string{
 		linkedSkills:                                        realSkills,
+		swappedSkill:                                        outsideDir,
 		filepath.Join(root, "rel-link.md"):                  "notes.md",
 		filepath.Join(root, "deep"):                         filepath.Join("roles", "sub"),
 		filepath.Join(root, "roles", "sub", "up.md"):        filepath.Join("..", "reviewer.md"),
@@ -333,6 +335,9 @@ func TestReadFileInRoot(t *testing.T) {
 		filepath.Join(root, "outdir"):                       filepath.Join("..", "..", "outside"),
 		filepath.Join(root, "sibling.md"):                   filepath.Join("..", "other-skill", "other.md"),
 		filepath.Join(root, "loop.md"):                      "loop.md",
+		filepath.Join(root, "chain.md"):                     "rel-escape.md",
+		filepath.Join(root, "proc-root.md"):                 "/proc/self/root" + outsideFile,
+		filepath.Join(root, "dangling.md"):                  "missing.md",
 		filepath.Join(root, "roles", "sub", "escape-up.md"): filepath.Join("..", "..", "..", "..", "outside", "secret.txt"),
 	} {
 		require.NoError(t, os.Symlink(target, link))
@@ -361,6 +366,11 @@ func TestReadFileInRoot(t *testing.T) {
 		{name: "DirectorySymlinkEscapes", root: root, path: "outdir/secret.txt", errCode: http.StatusBadRequest, error: "outdir/secret.txt"},
 		{name: "SiblingSkill", root: root, path: "sibling.md", errCode: http.StatusBadRequest, error: "sibling.md"},
 		{name: "SymlinkLoop", root: root, path: "loop.md", errCode: http.StatusBadRequest, error: "loop.md"},
+		{name: "ChainedSymlinkEscapes", root: root, path: "chain.md", errCode: http.StatusBadRequest, error: "chain.md"},
+		{name: "ProcSelfRootSymlink", root: root, path: "proc-root.md", errCode: http.StatusBadRequest, error: "proc-root.md"},
+		{name: "DanglingSymlink", root: root, path: "dangling.md", errCode: http.StatusNotFound, error: "no such file"},
+		{name: "RootIsSymlink", root: swappedSkill, path: "secret.txt", errCode: http.StatusBadRequest, error: "root must not be a symlink"},
+		{name: "RootIsSymlinkTrailingSlash", root: swappedSkill + "/", path: "secret.txt", errCode: http.StatusBadRequest, error: "root must not be a symlink"},
 		{name: "AbsolutePath", root: root, path: outsideFile, errCode: http.StatusBadRequest, error: "file path must be relative to root"},
 		{name: "DotDotPath", root: root, path: "../../outside/secret.txt", errCode: http.StatusBadRequest, error: "file path must be relative to root"},
 		{name: "RelativeRoot", root: "real-skills/my-skill", path: "notes.md", errCode: http.StatusBadRequest, error: "root must be absolute"},
@@ -397,6 +407,92 @@ func TestReadFileInRoot(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestReadFileInRootRegularDirectory uses no symlinks, so unlike the
+// other rooted read tests it also runs on Windows, where the root
+// check depends on a different os.SameFile implementation.
+func TestReadFileInRootRegularDirectory(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "notes.md"), []byte("notes"), 0o600))
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	api := agentfiles.NewAPI(logger, afero.NewOsFs(), nil)
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	query := url.Values{"root": {root}, "path": {"notes.md"}}.Encode()
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/read-file?"+query, nil)
+	api.Routes().ServeHTTP(w, r)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	require.Equal(t, "notes", w.Body.String())
+}
+
+// TestReadFileInRootSwap replaces the root directory with a symlink to
+// another directory while reads run, and checks that no read returns
+// bytes from the other directory.
+func TestReadFileInRootSwap(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks are not reliably supported on Windows")
+	}
+
+	base := t.TempDir()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	api := agentfiles.NewAPI(logger, afero.NewOsFs(), nil)
+
+	const outsideBytes = "outside-secret-bytes"
+	outsideDir := filepath.Join(base, "outside")
+	root := filepath.Join(base, "skill")
+	aside := filepath.Join(base, "skill-aside")
+	for dir, content := range map[string]string{outsideDir: outsideBytes, root: "inside"} {
+		require.NoError(t, os.Mkdir(dir, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "secret.txt"), []byte(content), 0o600))
+	}
+
+	stop := make(chan struct{})
+	swapErr := make(chan error, 1)
+	go func() {
+		swapErr <- func() error {
+			for {
+				select {
+				case <-stop:
+					return nil
+				default:
+				}
+				if err := os.Rename(root, aside); err != nil {
+					return err
+				}
+				if err := os.Symlink(outsideDir, root); err != nil {
+					return err
+				}
+				if err := os.Remove(root); err != nil {
+					return err
+				}
+				if err := os.Rename(aside, root); err != nil {
+					return err
+				}
+			}
+		}()
+	}()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	query := url.Values{"root": {root}, "path": {"secret.txt"}}.Encode()
+	leaks := 0
+	for range 500 {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/read-file?"+query, nil)
+		api.Routes().ServeHTTP(w, r)
+		if strings.Contains(w.Body.String(), outsideBytes) {
+			leaks++
+		}
+	}
+	close(stop)
+	require.NoError(t, <-swapErr)
+	require.Zero(t, leaks, "reads returned bytes from outside root")
 }
 
 func TestWriteFile(t *testing.T) {
