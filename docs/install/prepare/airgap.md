@@ -177,7 +177,7 @@ Follow our [Kubernetes](../server/kubernetes/index.md) documentation and modify 
 # values.yaml
 coder:
   image:
-    repo: "registry.example.com/coder"
+    repository: "registry.example.com/coder"
     tag: "latest"
   env:
     # Disable telemetry

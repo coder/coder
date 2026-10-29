@@ -42,7 +42,9 @@ Coder Docker image URI
 {{- if and (eq .Values.coder.image.tag "") (eq .Chart.AppVersion "0.1.0") -}}
 {{ fail "You must specify the coder.image.tag value if you're installing the Helm chart directly from Git." }}
 {{- end -}}
-{{ .Values.coder.image.repo }}:{{ .Values.coder.image.tag | default (printf "v%v" .Chart.AppVersion) }}
+{{- /* coder.image.repo is the deprecated name of coder.image.repository. It
+takes precedence when set so existing overrides keep working. */ -}}
+{{ .Values.coder.image.repo | default .Values.coder.image.repository }}:{{ .Values.coder.image.tag | default (printf "v%v" .Chart.AppVersion) }}
 {{- end }}
 
 {{/*

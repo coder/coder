@@ -12,8 +12,8 @@ coder:
 
   # coder.image -- The image to use for the AI Gateway.
   image:
-    # coder.image.repo -- The repository of the image.
-    repo: "ghcr.io/coder/coder"
+    # coder.image.repository -- The repository of the image.
+    repository: "ghcr.io/coder/coder"
     # coder.image.tag -- The tag of the image, defaults to {{.Chart.AppVersion}}
     # if not set. If you're using the chart directly from git, the default
     # app version will not work and you'll need to set this value. The helm
