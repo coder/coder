@@ -1465,7 +1465,11 @@ func TestReadFileLines(t *testing.T) {
 			name:             "LineLargerThanByteBudget",
 			path:             basicFilePath,
 			maxResponseBytes: 3,
-			expError:         "line 1 does not fit in max_response_bytes (3)",
+			expSuccess:       true,
+			expContent:       "1\tline1",
+			expTotal:         3,
+			expRead:          1,
+			expSize:          int64(len("line1\nline2\nline3")),
 		},
 		{
 			name:     "OffsetBeyondFile",

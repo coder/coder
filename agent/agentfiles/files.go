@@ -169,9 +169,6 @@ func (api *API) HandleReadFileLines(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-// readFileLines returns one page of numbered lines, starting at offset. The
-// page ends at the first of: limit, MaxResponseLines, MaxResponseBytes, or the
-// end of the file. Callers continue at offset + LinesRead.
 func (api *API) readFileLines(_ context.Context, path string, offset, limit int64, limits workspacesdk.ReadFileLinesLimits) ReadFileLinesResponse {
 	errResp := func(msg string) ReadFileLinesResponse {
 		return ReadFileLinesResponse{Success: false, Error: msg}
@@ -230,7 +227,6 @@ func (api *API) readFileLines(_ context.Context, path string, offset, limit int6
 	}
 
 	lines := strings.Split(content, "\n")
-	// A final newline ends the last line; it does not start a new one.
 	if strings.HasSuffix(content, "\n") {
 		lines = lines[:len(lines)-1]
 	}
@@ -276,16 +272,9 @@ func (api *API) readFileLines(_ context.Context, path string, offset, limit int6
 		newTotal := totalBytesAccumulated + lineBytes
 		if len(numbered) > 0 {
 			newTotal++ // account for \n joiner
-		}
-		if newTotal > limits.MaxResponseBytes {
-			// An empty page would make the caller retry the same offset forever.
-			if len(numbered) == 0 {
-				return errResp(fmt.Sprintf(
-					"line %d does not fit in max_response_bytes (%d)",
-					i+1, limits.MaxResponseBytes,
-				))
+			if newTotal > limits.MaxResponseBytes {
+				break
 			}
-			break
 		}
 
 		numbered = append(numbered, numberedLine)
