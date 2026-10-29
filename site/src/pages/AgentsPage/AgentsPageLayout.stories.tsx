@@ -127,12 +127,6 @@ const AgentsRouteElement = () => (
 		isSavingAdvisorConfig={false}
 		isSaveAdvisorConfigError={false}
 		saveAdvisorConfigError={undefined}
-		showVirtualDesktopSettings={false}
-		computerUseProviderData={undefined}
-		isLoadingComputerUseProvider={false}
-		onSaveComputerUseProvider={fn()}
-		isSavingComputerUseProvider={false}
-		computerUseProviderSaveError={null}
 	/>
 );
 
@@ -441,6 +435,9 @@ export const OrganizationScopedMCPServers: Story = {
 			);
 		});
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: /MCP servers/ }),
+		);
 		expect(
 			(await body.findAllByText("Default organization MCP")).length,
 		).toBeGreaterThan(0);
@@ -460,6 +457,9 @@ export const OrganizationScopedMCPServers: Story = {
 			);
 		});
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: /MCP servers/ }),
+		);
 		expect(
 			(await body.findAllByText("Second organization MCP")).length,
 		).toBeGreaterThan(0);
