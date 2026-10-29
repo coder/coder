@@ -93,10 +93,8 @@ export type SubmitChatTurnParams = {
  * The model and reasoning effort an edit sends. Each is omitted when the
  * backend keeps the original: the model unless resolveEditModelConfigID
  * picks one, the effort unless the user changed it for this edit.
- *
- * @internal Exported for testing.
  */
-export const buildEditModelOverrides = ({
+const buildEditModelOverrides = ({
 	pickerModelConfigID,
 	originalModelConfigID,
 	modelOptions,

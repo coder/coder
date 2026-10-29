@@ -18,7 +18,6 @@ import { BuiltInCommandPendingError } from "../../hooks/useConversationEditingSt
 import { NIL_UUID } from "../../utils/modelOptions";
 import { createChatStore } from "./chatStore";
 import {
-	buildEditModelOverrides,
 	resolveEditModelConfigID,
 	type SubmitChatTurnParams,
 	submitChatTurn,
@@ -79,43 +78,6 @@ const buildParams = (
 		...overrides,
 	};
 };
-
-describe("buildEditModelOverrides", () => {
-	it.each([
-		{
-			name: "omits the effort until the user changes it",
-			isReasoningEffortDirty: false,
-			want: { model_config_id: pickerModel.id, reasoning_effort: undefined },
-		},
-		{
-			name: "sends the effort once the user changed it",
-			isReasoningEffortDirty: true,
-			want: { model_config_id: pickerModel.id, reasoning_effort: "high" },
-		},
-	])("$name", ({ isReasoningEffortDirty, want }) => {
-		expect(
-			buildEditModelOverrides({
-				pickerModelConfigID: pickerModel.id,
-				originalModelConfigID: "stale-model",
-				modelOptions: [pickerModel],
-				reasoningEffort: "high",
-				isReasoningEffortDirty,
-			}),
-		).toEqual(want);
-	});
-
-	it("omits the model when the backend keeps a selectable original", () => {
-		expect(
-			buildEditModelOverrides({
-				pickerModelConfigID: originalModel.id,
-				originalModelConfigID: originalModel.id,
-				modelOptions: [originalModel],
-				reasoningEffort: "high",
-				isReasoningEffortDirty: false,
-			}),
-		).toEqual({ model_config_id: undefined, reasoning_effort: undefined });
-	});
-});
 
 describe("resolveEditModelConfigID", () => {
 	it("uses the picker when the original model is no longer available", () => {
@@ -403,32 +365,38 @@ describe("submitChatTurn", () => {
 		expect(sendMessage).not.toHaveBeenCalled();
 	});
 
-	it("omits reasoning effort on edit until the picker is dirty", async () => {
-		const originalMessage = {
-			...MockChatMessage,
-			id: 5,
-			model_config_id: pickerModel.id,
-		};
-		const editMessage = vi.fn().mockResolvedValue(undefined);
-		await submitChatTurn(
-			buildParams({
-				message: "new text",
-				editingTarget: { kind: "history", id: 5 },
-				chatMessages: [originalMessage],
-				effectiveReasoningEffort: "high",
-				isEditReasoningEffortDirtyRef: { current: false },
-				editMessage,
-			}),
-		);
-		expect(editMessage).toHaveBeenCalledWith(
-			expect.objectContaining({
-				req: expect.objectContaining({
-					reasoning_effort: undefined,
-					model_config_id: undefined,
+	it.each([
+		{ name: "omits", isDirty: false, want: undefined },
+		{ name: "sends", isDirty: true, want: "high" },
+	])(
+		"$name reasoning effort on edit when the picker dirty flag is $isDirty",
+		async ({ isDirty, want }) => {
+			const originalMessage = {
+				...MockChatMessage,
+				id: 5,
+				model_config_id: pickerModel.id,
+			};
+			const editMessage = vi.fn().mockResolvedValue(undefined);
+			await submitChatTurn(
+				buildParams({
+					message: "new text",
+					editingTarget: { kind: "history", id: 5 },
+					chatMessages: [originalMessage],
+					effectiveReasoningEffort: "high",
+					isEditReasoningEffortDirtyRef: { current: isDirty },
+					editMessage,
 				}),
-			}),
-		);
-	});
+			);
+			expect(editMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					req: expect.objectContaining({
+						reasoning_effort: want,
+						model_config_id: undefined,
+					}),
+				}),
+			);
+		},
+	);
 
 	it("reports send failures and invalidates the chat", async () => {
 		const error = new Error("send failed");

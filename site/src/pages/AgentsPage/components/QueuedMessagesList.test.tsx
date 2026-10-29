@@ -314,7 +314,7 @@ describe("QueuedMessagesList", () => {
 		const user = userEvent.setup();
 		const { onEdit, onEndEdit } = renderList(
 			[
-				{ ...MockChatQueuedMessageUnderEdit, id: 9 },
+				{ ...MockChatQueuedMessage, id: 9 },
 				{ ...MockChatQueuedMessage, id: 10 },
 			],
 			{ queuedMessageUnderEditID: 9 },
@@ -397,19 +397,5 @@ describe("QueuedMessagesList", () => {
 
 		await user.click(screen.getAllByRole("button", { name: "Edit" })[1]);
 		expect(onEdit).toHaveBeenCalledWith(10);
-	});
-
-	it("offers Cancel edit on the row under edit before the server marks it", async () => {
-		const user = userEvent.setup();
-		const { onEndEdit } = renderList(
-			[
-				{ ...MockChatQueuedMessage, id: 9 },
-				{ ...MockChatQueuedMessage, id: 10 },
-			],
-			{ queuedMessageUnderEditID: 9 },
-		);
-
-		await user.click(screen.getByRole("button", { name: "Cancel edit" }));
-		expect(onEndEdit).toHaveBeenCalledWith(9);
 	});
 });
