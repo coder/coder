@@ -18,6 +18,9 @@ curl -X GET http://coder-server:8080/api/v2/organizations \
 
 `GET /api/v2/organizations`
 
+Returns the organizations you can read.
+Use it to find an organization's ID or name for other calls.
+
 ### Example responses
 
 > 200 Response
@@ -79,6 +82,10 @@ curl -X POST http://coder-server:8080/api/v2/organizations \
 
 `POST /api/v2/organizations`
 
+Creates an organization and adds you to it as a member without extra roles.
+`display_name` defaults to `name`, and `default` is a reserved name.
+Requires permission to create organizations, which the Owner role has, and a Premium license.
+
 > Body parameter
 
 ```json
@@ -92,9 +99,9 @@ curl -X POST http://coder-server:8080/api/v2/organizations \
 
 ### Parameters
 
-| Name   | In   | Type                                                                               | Required | Description                 |
-|--------|------|------------------------------------------------------------------------------------|----------|-----------------------------|
-| `body` | body | [codersdk.CreateOrganizationRequest](schemas.md#codersdkcreateorganizationrequest) | true     | Create organization request |
+| Name   | In   | Type                                                                               | Required | Description                                 |
+|--------|------|------------------------------------------------------------------------------------|----------|---------------------------------------------|
+| `body` | body | [codersdk.CreateOrganizationRequest](schemas.md#codersdkcreateorganizationrequest) | true     | Organization to create. `name` is required. |
 
 ### Example responses
 
@@ -137,11 +144,14 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization} \
 
 `GET /api/v2/organizations/{organization}`
 
+Returns one organization.
+The `organization` path parameter also accepts the organization name, or `default` for the default organization.
+
 ### Parameters
 
-| Name           | In   | Type         | Required | Description     |
-|----------------|------|--------------|----------|-----------------|
-| `organization` | path | string(uuid) | true     | Organization ID |
+| Name           | In   | Type         | Required | Description                                                       |
+|----------------|------|--------------|----------|-------------------------------------------------------------------|
+| `organization` | path | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -184,11 +194,15 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization} \
 
 `DELETE /api/v2/organizations/{organization}`
 
+Deletes an organization.
+The call fails for the default organization, and while the organization still has workspaces, templates, provisioner keys, groups other than `Everyone`, or more than one member.
+Requires permission to delete the organization, which the Owner and Organization Admin roles have, and a Premium license.
+
 ### Parameters
 
-| Name           | In   | Type   | Required | Description             |
-|----------------|------|--------|----------|-------------------------|
-| `organization` | path | string | true     | Organization ID or name |
+| Name           | In   | Type   | Required | Description                                                       |
+|----------------|------|--------|----------|-------------------------------------------------------------------|
+| `organization` | path | string | true     | Organization ID, name, or `default` for the default organization. |
 
 ### Example responses
 
@@ -229,6 +243,10 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization} \
 
 `PATCH /api/v2/organizations/{organization}`
 
+Updates an organization's name, display name, description, icon, or default member roles.
+Fields you leave out keep their current values, and `default` is a reserved name.
+Requires permission to update the organization, which the Owner and Organization Admin roles have, and a Premium license.
+
 > Body parameter
 
 ```json
@@ -245,10 +263,10 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization} \
 
 ### Parameters
 
-| Name           | In   | Type                                                                               | Required | Description                |
-|----------------|------|------------------------------------------------------------------------------------|----------|----------------------------|
-| `organization` | path | string                                                                             | true     | Organization ID or name    |
-| `body`         | body | [codersdk.UpdateOrganizationRequest](schemas.md#codersdkupdateorganizationrequest) | true     | Patch organization request |
+| Name           | In   | Type                                                                               | Required | Description                                                              |
+|----------------|------|------------------------------------------------------------------------------------|----------|--------------------------------------------------------------------------|
+| `organization` | path | string                                                                             | true     | Organization ID, name, or `default` for the default organization.        |
+| `body`         | body | [codersdk.UpdateOrganizationRequest](schemas.md#codersdkupdateorganizationrequest) | true     | Organization fields to update. Omitted fields keep their current values. |
 
 ### Example responses
 
@@ -291,12 +309,15 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 `GET /api/v2/organizations/{organization}/provisionerjobs`
 
+Returns the provisioner jobs in an organization, newest first, filtered by the query parameters.
+Requires permission to read the organization's provisioner jobs, which the Owner, Organization Admin, and Organization Template Admin roles have.
+
 ### Parameters
 
 | Name           | In    | Type         | Required | Description                                                                          |
 |----------------|-------|--------------|----------|--------------------------------------------------------------------------------------|
-| `organization` | path  | string(uuid) | true     | Organization ID                                                                      |
-| `limit`        | query | integer      | false    | Page limit                                                                           |
+| `organization` | path  | string(uuid) | true     | Organization ID, name, or `default` for the default organization.                    |
+| `limit`        | query | integer      | false    | Maximum number of jobs to return. The default is `50`, and `0` returns all jobs.     |
 | `ids`          | query | array(uuid)  | false    | Filter results by job IDs                                                            |
 | `status`       | query | string       | false    | Filter results by status                                                             |
 | `tags`         | query | string       | false    | Provisioner tags to filter by (JSON of the form `{'tag1':'value1','tag2':'value2'}`) |
@@ -429,12 +450,15 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 `GET /api/v2/organizations/{organization}/provisionerjobs/{job}`
 
+Returns one provisioner job in an organization, including its status, queue position, and the worker that runs it.
+Requires permission to read the organization's provisioner jobs, which the Owner, Organization Admin, and Organization Template Admin roles have.
+
 ### Parameters
 
-| Name           | In   | Type         | Required | Description     |
-|----------------|------|--------------|----------|-----------------|
-| `organization` | path | string(uuid) | true     | Organization ID |
-| `job`          | path | string(uuid) | true     | Job ID          |
+| Name           | In   | Type         | Required | Description                                                       |
+|----------------|------|--------------|----------|-------------------------------------------------------------------|
+| `organization` | path | string(uuid) | true     | Organization ID, name, or `default` for the default organization. |
+| `job`          | path | string(uuid) | true     | Provisioner job ID.                                               |
 
 ### Example responses
 

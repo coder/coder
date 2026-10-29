@@ -7824,6 +7824,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations": {
             "get": {
+                "description": "Returns the organizations you can read.\nUse it to find an organization's ID or name for other calls.",
                 "produces": [
                     "application/json"
                 ],
@@ -7850,6 +7851,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Creates an organization and adds you to it as a member without extra roles.\n` + "`" + `display_name` + "`" + ` defaults to ` + "`" + `name` + "`" + `, and ` + "`" + `default` + "`" + ` is a reserved name.\nRequires permission to create organizations, which the Owner role has, and a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -7863,7 +7865,7 @@ const docTemplate = `{
                 "operationId": "create-organization",
                 "parameters": [
                     {
-                        "description": "Create organization request",
+                        "description": "Organization to create. ` + "`" + `name` + "`" + ` is required.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -7889,6 +7891,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}": {
             "get": {
+                "description": "Returns one organization.\nThe ` + "`" + `organization` + "`" + ` path parameter also accepts the organization name, or ` + "`" + `default` + "`" + ` for the default organization.",
                 "produces": [
                     "application/json"
                 ],
@@ -7901,7 +7904,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -7922,6 +7925,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Deletes an organization.\nThe call fails for the default organization, and while the organization still has workspaces, templates, provisioner keys, groups other than ` + "`" + `Everyone` + "`" + `, or more than one member.\nRequires permission to delete the organization, which the Owner and Organization Admin roles have, and a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -7933,7 +7937,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Organization ID or name",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -7954,6 +7958,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Updates an organization's name, display name, description, icon, or default member roles.\nFields you leave out keep their current values, and ` + "`" + `default` + "`" + ` is a reserved name.\nRequires permission to update the organization, which the Owner and Organization Admin roles have, and a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -7968,13 +7973,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Organization ID or name",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Patch organization request",
+                        "description": "Organization fields to update. Omitted fields keep their current values.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -10221,6 +10226,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/provisionerjobs": {
             "get": {
+                "description": "Returns the provisioner jobs in an organization, newest first, filtered by the query parameters.\nRequires permission to read the organization's provisioner jobs, which the Owner, Organization Admin, and Organization Template Admin roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -10233,14 +10239,14 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "integer",
-                        "description": "Page limit",
+                        "description": "Maximum number of jobs to return. The default is ` + "`" + `50` + "`" + `, and ` + "`" + `0` + "`" + ` returns all jobs.",
                         "name": "limit",
                         "in": "query"
                     },
@@ -10310,6 +10316,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/provisionerjobs/{job}": {
             "get": {
+                "description": "Returns one provisioner job in an organization, including its status, queue position, and the worker that runs it.\nRequires permission to read the organization's provisioner jobs, which the Owner, Organization Admin, and Organization Template Admin roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -10322,7 +10329,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -10330,7 +10337,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Job ID",
+                        "description": "Provisioner job ID.",
                         "name": "job",
                         "in": "path",
                         "required": true
