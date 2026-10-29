@@ -22,7 +22,7 @@ Use acp_spawn_agent to delegate a task and acp_wait_agent to collect its respons
 
 const workspaceAttachedAwareness = "This chat is attached to a workspace. You can use workspace tools like execute, read_file, write_file, etc."
 
-const workspaceDetachedAwarenessBase = `No workspace is attached to this chat. Follow subsequent workspace tool results and context for its current state.
+const workspaceDetachedAwarenessBase = `No workspace is attached to this chat.
 Use the conversation and available tools, skills, and MCPs when they are sufficient for the request.
 Workspace tools such as execute, read_file, write_file, and edit_files require an attached workspace.`
 
