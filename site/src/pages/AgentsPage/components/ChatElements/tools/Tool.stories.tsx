@@ -3032,11 +3032,42 @@ export const OpenPreviewCompleted: Story = {
 	},
 	decorators: [
 		(Story) => (
-			<ChatWorkspaceContext value={{ workspaceId: "test-workspace-id" }}>
-				<PreviewPanelContext value={{ onOpenPreview: fn() }}>
-					<Story />
-				</PreviewPanelContext>
-			</ChatWorkspaceContext>
+			<PreviewPanelContext value={{ getOpenAction: () => fn() }}>
+				<Story />
+			</PreviewPanelContext>
+		),
+	],
+};
+
+export const OpenPreviewApp: Story = {
+	args: {
+		name: "open_preview",
+		status: "completed",
+		args: { title: "code-server", app: "code-server" },
+		result: {
+			ok: true,
+			title: "code-server",
+			workspace_id: "test-workspace-id",
+			agent_name: "main",
+			app_slug: "code-server",
+		},
+	},
+	decorators: [
+		(Story) => (
+			<PreviewPanelContext value={{ getOpenAction: () => fn() }}>
+				<Story />
+			</PreviewPanelContext>
+		),
+	],
+};
+
+export const OpenPreviewAppUnavailable: Story = {
+	args: OpenPreviewApp.args,
+	decorators: [
+		(Story) => (
+			<PreviewPanelContext value={{ getOpenAction: () => undefined }}>
+				<Story />
+			</PreviewPanelContext>
 		),
 	],
 };

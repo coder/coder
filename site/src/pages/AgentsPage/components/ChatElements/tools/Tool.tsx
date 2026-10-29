@@ -4,7 +4,6 @@ import { memo } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { useTheme } from "#/theme/context";
-import { useChatWorkspace } from "../../../context/ChatWorkspaceContext";
 import type { SourceLink } from "../../ChatConversation/types";
 import { ACPTool } from "./ACPTool";
 import { AdvisorTool, type AdvisorToolResultType } from "./AdvisorTool";
@@ -1170,18 +1169,19 @@ const WebSearchRenderer: React.FC<ToolRendererProps> = (props) =>
 	);
 
 const OpenPreviewRenderer: React.FC<ToolRendererProps> = (props) => {
-	const { onOpenPreview } = usePreviewPanel();
-	const { workspaceId } = useChatWorkspace();
+	const { getOpenAction } = usePreviewPanel();
 	const { status, args, result, isError } = props;
 	const title = asString(parseArgs(args)?.title).trim() || "preview";
 	const target = isError ? undefined : parseOpenPreviewTarget(result);
-	const isCurrentWorkspace = target?.workspaceId === workspaceId;
+	const openAction = target ? getOpenAction?.(target) : undefined;
 
 	let label = `Opened ${title}`;
 	if (status === "running") {
 		label = `Opening ${title}…`;
 	} else if (isError) {
 		label = `Failed to open ${title}`;
+	} else if (target && "app" in target) {
+		label = openAction ? `${title} is ready to open` : `${title} app`;
 	}
 
 	return (
@@ -1196,14 +1196,10 @@ const OpenPreviewRenderer: React.FC<ToolRendererProps> = (props) => {
 		>
 			<ToolCall.HeaderLayout>
 				<ToolCall.Header iconName="open_preview" label={label} />
-				{target && isCurrentWorkspace && onOpenPreview && (
+				{target && openAction && (
 					<ToolCall.Actions>
-						<Button
-							size="xs"
-							variant="outline"
-							onClick={() => onOpenPreview(target)}
-						>
-							Open preview
+						<Button size="xs" variant="outline" onClick={openAction}>
+							{"app" in target ? "Open app" : "Open preview"}
 						</Button>
 					</ToolCall.Actions>
 				)}

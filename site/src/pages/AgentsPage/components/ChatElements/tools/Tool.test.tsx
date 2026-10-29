@@ -181,45 +181,72 @@ describe("Tool generic rows", () => {
 });
 
 describe("Tool open_preview rows", () => {
-	it("opens the result's endpoint in the Preview tab", async () => {
-		const onOpenPreview = vi.fn();
+	const renderOpenPreview = (
+		result: Record<string, unknown>,
+		openAction: () => void,
+	) => {
+		const getOpenAction = vi.fn(() => openAction);
 		renderComponent(
 			<QueryClientProvider client={createTestQueryClient()}>
-				<ChatWorkspaceContext value={{ workspaceId: MockWorkspace.id }}>
-					<PreviewPanelContext value={{ onOpenPreview }}>
-						<Tool
-							name="open_preview"
-							organizationId="organization-id"
-							mcpServers={[]}
-							status="completed"
-							args={{ title: "Docs", path: "/home/coder/project/docs" }}
-							result={{
-								ok: true,
-								title: "Docs",
-								workspace_id: MockWorkspace.id,
-								agent_name: MockWorkspaceAgent.name,
-								preview_id: "0123abcd",
-								path: "/home/coder/project/docs",
-							}}
-							isError={false}
-							subagentTitles={new Map()}
-							subagentVariants={new Map()}
-							shellToolDisplayMode="auto"
-							codeDiffDisplayMode="auto"
-						/>
-					</PreviewPanelContext>
-				</ChatWorkspaceContext>
+				<PreviewPanelContext value={{ getOpenAction }}>
+					<Tool
+						name="open_preview"
+						organizationId="organization-id"
+						mcpServers={[]}
+						status="completed"
+						args={{ title: "Docs" }}
+						result={{
+							ok: true,
+							title: "Docs",
+							workspace_id: MockWorkspace.id,
+							agent_name: MockWorkspaceAgent.name,
+							...result,
+						}}
+						isError={false}
+						subagentTitles={new Map()}
+						subagentVariants={new Map()}
+						shellToolDisplayMode="auto"
+						codeDiffDisplayMode="auto"
+					/>
+				</PreviewPanelContext>
 			</QueryClientProvider>,
+		);
+
+		return getOpenAction;
+	};
+
+	it("opens the result's endpoint in the Preview tab", async () => {
+		const openAction = vi.fn();
+		const getOpenAction = renderOpenPreview(
+			{ preview_id: "0123abcd", path: "/home/coder/project/docs" },
+			openAction,
 		);
 
 		await userEvent.click(screen.getByRole("button", { name: "Open preview" }));
 
-		expect(onOpenPreview).toHaveBeenCalledWith({
+		expect(getOpenAction).toHaveBeenCalledWith({
 			workspaceId: MockWorkspace.id,
 			preview: {
 				agent_name: MockWorkspaceAgent.name,
 				path: "/home/coder/project/docs",
 			},
 		});
+		expect(openAction).toHaveBeenCalledOnce();
+	});
+
+	it("opens the result's app in its own tab", async () => {
+		const openAction = vi.fn();
+		const getOpenAction = renderOpenPreview(
+			{ app_slug: "code-server" },
+			openAction,
+		);
+
+		await userEvent.click(screen.getByRole("button", { name: "Open app" }));
+
+		expect(getOpenAction).toHaveBeenCalledWith({
+			workspaceId: MockWorkspace.id,
+			app: { agent_name: MockWorkspaceAgent.name, slug: "code-server" },
+		});
+		expect(openAction).toHaveBeenCalledOnce();
 	});
 });

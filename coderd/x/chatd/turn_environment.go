@@ -1978,9 +1978,9 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 	return nil, xerrors.New("chat workspace changed while connecting")
 }
 
-// getPreviewWorkspace returns the cached conn, workspace ID, and agent name
-// read under one lock, so the result names the workspace and agent the conn
-// belongs to.
+// getPreviewWorkspace returns the cached conn, workspace ID, agent ID, and
+// agent name read under one lock, so the result names the workspace and agent
+// the conn belongs to.
 func (c *turnWorkspaceContext) getPreviewWorkspace(ctx context.Context) (chattool.PreviewWorkspace, error) {
 	if _, err := c.getWorkspaceConn(ctx); err != nil {
 		return chattool.PreviewWorkspace{}, err
@@ -1996,6 +1996,7 @@ func (c *turnWorkspaceContext) getPreviewWorkspace(ctx context.Context) (chattoo
 	return chattool.PreviewWorkspace{
 		Conn:        c.conn,
 		WorkspaceID: c.cachedWorkspaceID.UUID,
+		AgentID:     c.agent.ID,
 		AgentName:   c.agent.Name,
 	}, nil
 }
@@ -2591,6 +2592,8 @@ func (p *Server) appendRootChatTools(
 	if p.enablePreviews {
 		tools = append(tools, chattool.OpenPreview(chattool.OpenPreviewOptions{
 			GetPreviewWorkspace: opts.workspaceCtx.getPreviewWorkspace,
+			DB:                  p.db,
+			OwnerID:             opts.chat.OwnerID,
 		}))
 	}
 
