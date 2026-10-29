@@ -55,11 +55,11 @@ of the template will be used.
 
 ### Parameters
 
-| Name           | In   | Type                                                                         | Required | Description              |
-|----------------|------|------------------------------------------------------------------------------|----------|--------------------------|
-| `organization` | path | string(uuid)                                                                 | true     | Organization ID          |
-| `user`         | path | string                                                                       | true     | Username, UUID, or me    |
-| `body`         | body | [codersdk.CreateWorkspaceRequest](schemas.md#codersdkcreateworkspacerequest) | true     | Create workspace request |
+| Name           | In   | Type                                                                         | Required | Description                                                                        |
+|----------------|------|------------------------------------------------------------------------------|----------|------------------------------------------------------------------------------------|
+| `organization` | path | string(uuid)                                                                 | true     | Organization ID, name, or `default` for the default organization.                  |
+| `user`         | path | string                                                                       | true     | User ID, username, or `me` for the authenticated user.                             |
+| `body`         | body | [codersdk.CreateWorkspaceRequest](schemas.md#codersdkcreateworkspacerequest) | true     | Workspace to create. Set `name` and either `template_id` or `template_version_id`. |
 
 ### Example responses
 
@@ -377,15 +377,19 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
 
 `GET /api/v2/organizations/{organization}/members/{user}/workspaces/available-users`
 
+Returns users, with only their ID, username, name, and avatar, that you can choose as the owner when you create a workspace for someone else.
+The list covers users across the deployment, not only the members of the organization.
+Requires permission to create workspaces for other users in the organization, which the Owner and Organization Admin roles have.
+
 ### Parameters
 
-| Name           | In    | Type         | Required | Description           |
-|----------------|-------|--------------|----------|-----------------------|
-| `organization` | path  | string(uuid) | true     | Organization ID       |
-| `user`         | path  | string       | true     | User ID, name, or me  |
-| `q`            | query | string       | false    | Search query          |
-| `limit`        | query | integer      | false    | Limit results         |
-| `offset`       | query | integer      | false    | Offset for pagination |
+| Name           | In    | Type         | Required | Description                                                                                                                                                                                                                                                                                              |
+|----------------|-------|--------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `organization` | path  | string(uuid) | true     | Organization ID, name, or `default` for the default organization.                                                                                                                                                                                                                                        |
+| `user`         | path  | string       | true     | User ID, username, or `me` for the authenticated user.                                                                                                                                                                                                                                                   |
+| `q`            | query | string       | false    | Search query in the format `key:value`. Available keys are: `name`, `username`, `email`, `status`, `service_account`, `role`, `last_seen_after`, `last_seen_before`, `created_after`, `created_before`, `github_com_user_id`, and `login_type`. Text without a key matches the username, name, or email. |
+| `limit`        | query | integer      | false    | Maximum number of results to return. The default, `0`, returns all results.                                                                                                                                                                                                                              |
+| `offset`       | query | integer      | false    | Number of results to skip, for paging through results with `limit`.                                                                                                                                                                                                                                      |
 
 ### Example responses
 
@@ -435,13 +439,16 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
 
 `GET /api/v2/users/{user}/workspace/{workspacename}`
 
+Returns one workspace, found by its owner and name, including its latest build and template.
+Use it when you know the workspace name but not its ID.
+
 ### Parameters
 
 | Name              | In    | Type    | Required | Description                                                                                                                    |
 |-------------------|-------|---------|----------|--------------------------------------------------------------------------------------------------------------------------------|
-| `user`            | path  | string  | true     | User ID, name, or me                                                                                                           |
-| `workspacename`   | path  | string  | true     | Workspace name                                                                                                                 |
-| `include_deleted` | query | boolean | false    | Return data instead of HTTP 404 if the workspace is deleted                                                                    |
+| `user`            | path  | string  | true     | User ID, username, or `me` for the authenticated user.                                                                         |
+| `workspacename`   | path  | string  | true     | Name of the workspace, owned by `user`.                                                                                        |
+| `include_deleted` | query | boolean | false    | Set to `true` to return a deleted workspace. Otherwise the call returns `404` for a deleted workspace.                         |
 | `include_related` | query | string  | false    | Comma-separated list of related data to include (e.g. `template,latest_build.resources.agents.*`). Omit to include everything. |
 
 ### Example responses
@@ -797,10 +804,10 @@ of the template will be used.
 
 ### Parameters
 
-| Name   | In   | Type                                                                         | Required | Description              |
-|--------|------|------------------------------------------------------------------------------|----------|--------------------------|
-| `user` | path | string                                                                       | true     | Username, UUID, or me    |
-| `body` | body | [codersdk.CreateWorkspaceRequest](schemas.md#codersdkcreateworkspacerequest) | true     | Create workspace request |
+| Name   | In   | Type                                                                         | Required | Description                                                                        |
+|--------|------|------------------------------------------------------------------------------|----------|------------------------------------------------------------------------------------|
+| `user` | path | string                                                                       | true     | User ID, username, or `me` for the authenticated user.                             |
+| `body` | body | [codersdk.CreateWorkspaceRequest](schemas.md#codersdkcreateworkspacerequest) | true     | Workspace to create. Set `name` and either `template_id` or `template_version_id`. |
 
 ### Example responses
 
@@ -1118,13 +1125,16 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
 
 `GET /api/v2/workspaces`
 
+Returns the workspaces you can read, filtered by the `q` search query.
+Use it to find workspaces by owner, template, or status, for example `owner:me status:running`.
+
 ### Parameters
 
-| Name     | In    | Type    | Required | Description                                                                                                                                                                                                                                                                                                       |
-|----------|-------|---------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `q`      | query | string  | false    | Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has_external_agent, healthy, include_agent_metadata (expands each agent with the named metadata keys rather than filtering; repeat the key for multiple items). |
-| `limit`  | query | integer | false    | Page limit                                                                                                                                                                                                                                                                                                        |
-| `offset` | query | integer | false    | Page offset                                                                                                                                                                                                                                                                                                       |
+| Name     | In    | Type    | Required | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+|----------|-------|---------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `q`      | query | string  | false    | Search query in the format `key:value`. Available keys are: `id`, `owner`, `template`, `name`, `status`, `has-agent`, `dormant`, `outdated`, `last_used_after`, `last_used_before`, `has_external_agent`, `healthy`, `organization`, `user`, `shared`, `shared_with_user`, `shared_with_group`, `param`, and `include_agent_metadata` (expands each agent with the named metadata keys rather than filtering, and you can repeat the key for multiple items). Text without a key matches the workspace name, or `owner/name`. |
+| `limit`  | query | integer | false    | Maximum number of results to return. The default, `0`, returns all results.                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `offset` | query | integer | false    | Number of results to skip, for paging through results with `limit`.                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 ### Example responses
 
@@ -1414,12 +1424,15 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
 
 `GET /api/v2/workspaces/{workspace}`
 
+Returns one workspace, including its latest build and template.
+Use `include_related` to return only part of the related data.
+
 ### Parameters
 
 | Name              | In    | Type         | Required | Description                                                                                                                    |
 |-------------------|-------|--------------|----------|--------------------------------------------------------------------------------------------------------------------------------|
 | `workspace`       | path  | string(uuid) | true     | Workspace ID                                                                                                                   |
-| `include_deleted` | query | boolean      | false    | Return data instead of HTTP 404 if the workspace is deleted                                                                    |
+| `include_deleted` | query | boolean      | false    | Set to `true` to return a deleted workspace. Otherwise the call returns `410 Gone` for a deleted workspace.                    |
 | `include_related` | query | string       | false    | Comma-separated list of related data to include (e.g. `template,latest_build.resources.agents.*`). Omit to include everything. |
 
 ### Example responses
@@ -1738,6 +1751,10 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaces/{workspace} \
 
 `PATCH /api/v2/workspaces/{workspace}`
 
+Renames a workspace.
+Fails unless the deployment or the workspace's template allows workspace renames.
+Requires permission to update the workspace, which its owner and the Owner and Organization Admin roles have.
+
 > Body parameter
 
 ```json
@@ -1748,10 +1765,10 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaces/{workspace} \
 
 ### Parameters
 
-| Name        | In   | Type                                                                         | Required | Description             |
-|-------------|------|------------------------------------------------------------------------------|----------|-------------------------|
-| `workspace` | path | string(uuid)                                                                 | true     | Workspace ID            |
-| `body`      | body | [codersdk.UpdateWorkspaceRequest](schemas.md#codersdkupdateworkspacerequest) | true     | Metadata update request |
+| Name        | In   | Type                                                                         | Required | Description                                                       |
+|-------------|------|------------------------------------------------------------------------------|----------|-------------------------------------------------------------------|
+| `workspace` | path | string(uuid)                                                                 | true     | Workspace ID                                                      |
+| `body`      | body | [codersdk.UpdateWorkspaceRequest](schemas.md#codersdkupdateworkspacerequest) | true     | New workspace `name`. An empty or unchanged name changes nothing. |
 
 ### Responses
 
@@ -1773,6 +1790,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/acl \
 ```
 
 `GET /api/v2/workspaces/{workspace}/acl`
+
+Returns the users and groups that have been given access to a workspace, each with an `admin` or `use` role.
+Users appear with only their ID, username, name, and avatar, and groups with only their identity and member count.
 
 ### Parameters
 
@@ -1849,6 +1869,10 @@ curl -X DELETE http://coder-server:8080/api/v2/workspaces/{workspace}/acl \
 
 `DELETE /api/v2/workspaces/{workspace}/acl`
 
+Removes every user and group from a workspace's ACL.
+Fails if workspace sharing is turned off for the organization.
+Requires permission to share the workspace, which the Owner and Organization Admin roles have, and which its owner has when the organization lets everyone share workspaces.
+
 ### Parameters
 
 | Name        | In   | Type         | Required | Description  |
@@ -1876,6 +1900,11 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaces/{workspace}/acl \
 
 `PATCH /api/v2/workspaces/{workspace}/acl`
 
+Grants, changes, or removes access to a workspace for users and groups, as maps of user or group ID to role in `user_roles` and `group_roles`.
+The role is `admin` or `use`, and an empty string removes the entry.
+Fails if workspace sharing is turned off for the organization, and you can't change your own role unless you can share any workspace in the organization.
+Requires permission to share the workspace, which the Owner and Organization Admin roles have, and which its owner has when the organization lets everyone share workspaces.
+
 > Body parameter
 
 ```json
@@ -1893,10 +1922,10 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaces/{workspace}/acl \
 
 ### Parameters
 
-| Name        | In   | Type                                                                 | Required | Description                  |
-|-------------|------|----------------------------------------------------------------------|----------|------------------------------|
-| `workspace` | path | string(uuid)                                                         | true     | Workspace ID                 |
-| `body`      | body | [codersdk.UpdateWorkspaceACL](schemas.md#codersdkupdateworkspaceacl) | true     | Update workspace ACL request |
+| Name        | In   | Type                                                                 | Required | Description                                                                                                    |
+|-------------|------|----------------------------------------------------------------------|----------|----------------------------------------------------------------------------------------------------------------|
+| `workspace` | path | string(uuid)                                                         | true     | Workspace ID                                                                                                   |
+| `body`      | body | [codersdk.UpdateWorkspaceACL](schemas.md#codersdkupdateworkspaceacl) | true     | Roles to set. Each map goes from a user or group ID to `admin`, `use`, or an empty string to remove the entry. |
 
 ### Responses
 
@@ -1918,6 +1947,12 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/agent-connect
 ```
 
 `GET /api/v2/workspaces/{workspace}/agent-connection-watch`
+
+Upgrades to a WebSocket and sends one `workspacesdk.ConnectionWatchEvent` JSON message per event, so that a client can wait for a workspace agent to be ready.
+A `build_update` message holds the `transition` and `job_status` of the latest build and is sent when either changes, and an `agent_update` message holds the agent's `id` and `lifecycle` state and is sent only while the latest `start` build has succeeded.
+An `error` message holds a `code`, `retryable`, and `message` and is the last message before the server closes the connection.
+Set the `agent_name` query parameter to choose an agent when the workspace has more than one.
+The server closes the connection if you send a message.
 
 ### Parameters
 
@@ -1969,6 +2004,11 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/autostart \
 
 `PUT /api/v2/workspaces/{workspace}/autostart`
 
+Sets or clears the schedule on which Coder starts the workspace automatically, given as `schedule` in the form `CRON_TZ=<IANA Timezone> <min> <hour> * * <dow>`.
+An empty or omitted `schedule` turns autostart off.
+Fails if the workspace's template doesn't allow users to set an autostart schedule, and for prebuilt workspaces.
+Requires permission to update the workspace, which its owner and the Owner and Organization Admin roles have.
+
 > Body parameter
 
 ```json
@@ -1979,10 +2019,10 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/autostart \
 
 ### Parameters
 
-| Name        | In   | Type                                                                                           | Required | Description             |
-|-------------|------|------------------------------------------------------------------------------------------------|----------|-------------------------|
-| `workspace` | path | string(uuid)                                                                                   | true     | Workspace ID            |
-| `body`      | body | [codersdk.UpdateWorkspaceAutostartRequest](schemas.md#codersdkupdateworkspaceautostartrequest) | true     | Schedule update request |
+| Name        | In   | Type                                                                                           | Required | Description                                                                                    |
+|-------------|------|------------------------------------------------------------------------------------------------|----------|------------------------------------------------------------------------------------------------|
+| `workspace` | path | string(uuid)                                                                                   | true     | Workspace ID                                                                                   |
+| `body`      | body | [codersdk.UpdateWorkspaceAutostartRequest](schemas.md#codersdkupdateworkspaceautostartrequest) | true     | Autostart schedule to set. Omit `schedule` or set it to an empty string to turn autostart off. |
 
 ### Responses
 
@@ -2005,6 +2045,9 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/autoupdates \
 
 `PUT /api/v2/workspaces/{workspace}/autoupdates`
 
+Sets whether the workspace moves to the template's active version when it starts, with `automatic_updates` set to `always` or `never`.
+Requires permission to update the workspace, which its owner and the Owner and Organization Admin roles have.
+
 > Body parameter
 
 ```json
@@ -2015,10 +2058,10 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/autoupdates \
 
 ### Parameters
 
-| Name        | In   | Type                                                                                                         | Required | Description               |
-|-------------|------|--------------------------------------------------------------------------------------------------------------|----------|---------------------------|
-| `workspace` | path | string(uuid)                                                                                                 | true     | Workspace ID              |
-| `body`      | body | [codersdk.UpdateWorkspaceAutomaticUpdatesRequest](schemas.md#codersdkupdateworkspaceautomaticupdatesrequest) | true     | Automatic updates request |
+| Name        | In   | Type                                                                                                         | Required | Description                                                                      |
+|-------------|------|--------------------------------------------------------------------------------------------------------------|----------|----------------------------------------------------------------------------------|
+| `workspace` | path | string(uuid)                                                                                                 | true     | Workspace ID                                                                     |
+| `body`      | body | [codersdk.UpdateWorkspaceAutomaticUpdatesRequest](schemas.md#codersdkupdateworkspaceautomaticupdatesrequest) | true     | Automatic updates setting, in `automatic_updates`, which is `always` or `never`. |
 
 ### Responses
 
@@ -2042,6 +2085,11 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
 
 `PUT /api/v2/workspaces/{workspace}/dormant`
 
+Marks a workspace as dormant, or makes a dormant workspace active again, depending on `dormant` in the request body.
+Returns `304 Not Modified` if the workspace is already in that state, and fails for prebuilt workspaces.
+When you mark another user's workspace dormant, Coder notifies its owner.
+Requires permission to update the workspace, which its owner and the Owner and Organization Admin roles have.
+
 > Body parameter
 
 ```json
@@ -2052,10 +2100,10 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
 
 ### Parameters
 
-| Name        | In   | Type                                                                           | Required | Description                        |
-|-------------|------|--------------------------------------------------------------------------------|----------|------------------------------------|
-| `workspace` | path | string(uuid)                                                                   | true     | Workspace ID                       |
-| `body`      | body | [codersdk.UpdateWorkspaceDormancy](schemas.md#codersdkupdateworkspacedormancy) | true     | Make a workspace dormant or active |
+| Name        | In   | Type                                                                           | Required | Description                                                                          |
+|-------------|------|--------------------------------------------------------------------------------|----------|--------------------------------------------------------------------------------------|
+| `workspace` | path | string(uuid)                                                                   | true     | Workspace ID                                                                         |
+| `body`      | body | [codersdk.UpdateWorkspaceDormancy](schemas.md#codersdkupdateworkspacedormancy) | true     | Set `dormant` to `true` to make the workspace dormant, or `false` to make it active. |
 
 ### Example responses
 
@@ -2374,6 +2422,10 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/extend \
 
 `PUT /api/v2/workspaces/{workspace}/extend`
 
+Sets a new autostop deadline for a running workspace.
+The new `deadline` must be at least 30 minutes in the future and can't pass the maximum deadline the template sets.
+Fails if the workspace isn't running, is still building, or has no autostop deadline, and for prebuilt workspaces.
+
 > Body parameter
 
 ```json
@@ -2384,10 +2436,10 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/extend \
 
 ### Parameters
 
-| Name        | In   | Type                                                                               | Required | Description                    |
-|-------------|------|------------------------------------------------------------------------------------|----------|--------------------------------|
-| `workspace` | path | string(uuid)                                                                       | true     | Workspace ID                   |
-| `body`      | body | [codersdk.PutExtendWorkspaceRequest](schemas.md#codersdkputextendworkspacerequest) | true     | Extend deadline update request |
+| Name        | In   | Type                                                                               | Required | Description                                                     |
+|-------------|------|------------------------------------------------------------------------------------|----------|-----------------------------------------------------------------|
+| `workspace` | path | string(uuid)                                                                       | true     | Workspace ID                                                    |
+| `body`      | body | [codersdk.PutExtendWorkspaceRequest](schemas.md#codersdkputextendworkspacerequest) | true     | New autostop deadline, in `deadline`, as an RFC 3339 timestamp. |
 
 ### Example responses
 
@@ -2426,6 +2478,9 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/favorite \
 
 `PUT /api/v2/workspaces/{workspace}/favorite`
 
+Marks a workspace as one of your favorites.
+You can favorite only workspaces that you own.
+
 ### Parameters
 
 | Name        | In   | Type         | Required | Description  |
@@ -2451,6 +2506,9 @@ curl -X DELETE http://coder-server:8080/api/v2/workspaces/{workspace}/favorite \
 ```
 
 `DELETE /api/v2/workspaces/{workspace}/favorite`
+
+Removes a workspace from your favorites.
+You can unfavorite only workspaces that you own.
 
 ### Parameters
 
@@ -2478,6 +2536,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/resolve-autos
 ```
 
 `GET /api/v2/workspaces/{workspace}/resolve-autostart`
+
+Reports whether an autostart would fail because the template's active version needs parameter values that the workspace's latest build doesn't have.
+`parameter_mismatch` is `true` only when the template requires the active version or the workspace has automatic updates set to `always`, the latest build uses an older version, and a parameter of the active version can't be resolved from the build's values.
 
 ### Parameters
 
@@ -2515,6 +2576,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/timings \
 ```
 
 `GET /api/v2/workspaces/{workspace}/timings`
+
+Returns how long each stage of the workspace's latest build took.
+The response lists the provisioner stage timings, the workspace agent script timings, and the agent connection timings.
 
 ### Parameters
 
@@ -2584,6 +2648,11 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/ttl \
 
 `PUT /api/v2/workspaces/{workspace}/ttl`
 
+Sets or clears the time until the workspace stops automatically, given as `ttl_ms` in milliseconds.
+The value must be between one minute and 30 days, and `null` or `0` turns autostop off for the workspace.
+Fails if the workspace's template doesn't allow a custom autostop, and for prebuilt workspaces.
+Requires permission to update the workspace, which its owner and the Owner and Organization Admin roles have.
+
 > Body parameter
 
 ```json
@@ -2594,10 +2663,10 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/ttl \
 
 ### Parameters
 
-| Name        | In   | Type                                                                               | Required | Description                  |
-|-------------|------|------------------------------------------------------------------------------------|----------|------------------------------|
-| `workspace` | path | string(uuid)                                                                       | true     | Workspace ID                 |
-| `body`      | body | [codersdk.UpdateWorkspaceTTLRequest](schemas.md#codersdkupdateworkspacettlrequest) | true     | Workspace TTL update request |
+| Name        | In   | Type                                                                               | Required | Description                                                                                                 |
+|-------------|------|------------------------------------------------------------------------------------|----------|-------------------------------------------------------------------------------------------------------------|
+| `workspace` | path | string(uuid)                                                                       | true     | Workspace ID                                                                                                |
+| `body`      | body | [codersdk.UpdateWorkspaceTTLRequest](schemas.md#codersdkupdateworkspacettlrequest) | true     | Time until autostop in milliseconds, in `ttl_ms`. Use `null` or `0` to turn autostop off for the workspace. |
 
 ### Responses
 
@@ -2620,6 +2689,10 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/usage \
 
 `POST /api/v2/workspaces/{workspace}/usage`
 
+Marks a workspace as recently used.
+When the `workspace-usage` experiment is enabled and the request body sets both `agent_id` and `app_name`, it also counts a session for that app on that workspace agent.
+Requires permission to update the workspace, which its owner and the Owner and Organization Admin roles have.
+
 > Body parameter
 
 ```json
@@ -2631,10 +2704,10 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/usage \
 
 ### Parameters
 
-| Name        | In   | Type                                                                               | Required | Description                  |
-|-------------|------|------------------------------------------------------------------------------------|----------|------------------------------|
-| `workspace` | path | string(uuid)                                                                       | true     | Workspace ID                 |
-| `body`      | body | [codersdk.PostWorkspaceUsageRequest](schemas.md#codersdkpostworkspaceusagerequest) | false    | Post workspace usage request |
+| Name        | In   | Type                                                                               | Required | Description                                                                                    |
+|-------------|------|------------------------------------------------------------------------------------|----------|------------------------------------------------------------------------------------------------|
+| `workspace` | path | string(uuid)                                                                       | true     | Workspace ID                                                                                   |
+| `body`      | body | [codersdk.PostWorkspaceUsageRequest](schemas.md#codersdkpostworkspaceusagerequest) | false    | Optional usage report. Set `agent_id` and `app_name` together to count a session for that app. |
 
 ### Responses
 
@@ -2656,6 +2729,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/watch \
 ```
 
 `GET /api/v2/workspaces/{workspace}/watch`
+
+Streams server-sent events about a workspace, where `data` events hold a `codersdk.Workspace`, `error` events hold a `codersdk.Response`, and `ping` events have no data.
+The server sends a `ping` first, then the current workspace, and then the workspace again each time it or its template changes.
+Use `/api/v2/workspaces/{workspace}/watch-ws` instead.
 
 ### Parameters
 

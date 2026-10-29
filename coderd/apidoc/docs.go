@@ -9886,20 +9886,20 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Username, UUID, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Create workspace request",
+                        "description": "Workspace to create. Set ` + "`" + `name` + "`" + ` and either ` + "`" + `template_id` + "`" + ` or ` + "`" + `template_version_id` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -9925,6 +9925,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/members/{user}/workspaces/available-users": {
             "get": {
+                "description": "Returns users, with only their ID, username, name, and avatar, that you can choose as the owner when you create a workspace for someone else.\nThe list covers users across the deployment, not only the members of the organization.\nRequires permission to create workspaces for other users in the organization, which the Owner and Organization Admin roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -9937,33 +9938,33 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Search query",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `name` + "`" + `, ` + "`" + `username` + "`" + `, ` + "`" + `email` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `service_account` + "`" + `, ` + "`" + `role` + "`" + `, ` + "`" + `last_seen_after` + "`" + `, ` + "`" + `last_seen_before` + "`" + `, ` + "`" + `created_after` + "`" + `, ` + "`" + `created_before` + "`" + `, ` + "`" + `github_com_user_id` + "`" + `, and ` + "`" + `login_type` + "`" + `. Text without a key matches the username, name, or email.",
                         "name": "q",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Limit results",
+                        "description": "Maximum number of results to return. The default, ` + "`" + `0` + "`" + `, returns all results.",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Offset for pagination",
+                        "description": "Number of results to skip, for paging through results with ` + "`" + `limit` + "`" + `.",
                         "name": "offset",
                         "in": "query"
                     }
@@ -15643,6 +15644,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/workspace/{workspacename}": {
             "get": {
+                "description": "Returns one workspace, found by its owner and name, including its latest build and template.\nUse it when you know the workspace name but not its ID.",
                 "produces": [
                     "application/json"
                 ],
@@ -15654,21 +15656,21 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Workspace name",
+                        "description": "Name of the workspace, owned by ` + "`" + `user` + "`" + `.",
                         "name": "workspacename",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "boolean",
-                        "description": "Return data instead of HTTP 404 if the workspace is deleted",
+                        "description": "Set to ` + "`" + `true` + "`" + ` to return a deleted workspace. Otherwise the call returns ` + "`" + `404` + "`" + ` for a deleted workspace.",
                         "name": "include_deleted",
                         "in": "query"
                     },
@@ -15760,13 +15762,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Username, UUID, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Create workspace request",
+                        "description": "Workspace to create. Set ` + "`" + `name` + "`" + ` and either ` + "`" + `template_id` + "`" + ` or ` + "`" + `template_version_id` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -17601,6 +17603,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces": {
             "get": {
+                "description": "Returns the workspaces you can read, filtered by the ` + "`" + `q` + "`" + ` search query.\nUse it to find workspaces by owner, template, or status, for example ` + "`" + `owner:me status:running` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -17612,19 +17615,19 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has_external_agent, healthy, include_agent_metadata (expands each agent with the named metadata keys rather than filtering; repeat the key for multiple items).",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: ` + "`" + `id` + "`" + `, ` + "`" + `owner` + "`" + `, ` + "`" + `template` + "`" + `, ` + "`" + `name` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `has-agent` + "`" + `, ` + "`" + `dormant` + "`" + `, ` + "`" + `outdated` + "`" + `, ` + "`" + `last_used_after` + "`" + `, ` + "`" + `last_used_before` + "`" + `, ` + "`" + `has_external_agent` + "`" + `, ` + "`" + `healthy` + "`" + `, ` + "`" + `organization` + "`" + `, ` + "`" + `user` + "`" + `, ` + "`" + `shared` + "`" + `, ` + "`" + `shared_with_user` + "`" + `, ` + "`" + `shared_with_group` + "`" + `, ` + "`" + `param` + "`" + `, and ` + "`" + `include_agent_metadata` + "`" + ` (expands each agent with the named metadata keys rather than filtering, and you can repeat the key for multiple items). Text without a key matches the workspace name, or ` + "`" + `owner/name` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page limit",
+                        "description": "Maximum number of results to return. The default, ` + "`" + `0` + "`" + `, returns all results.",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page offset",
+                        "description": "Number of results to skip, for paging through results with ` + "`" + `limit` + "`" + `.",
                         "name": "offset",
                         "in": "query"
                     }
@@ -17646,6 +17649,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}": {
             "get": {
+                "description": "Returns one workspace, including its latest build and template.\nUse ` + "`" + `include_related` + "`" + ` to return only part of the related data.",
                 "produces": [
                     "application/json"
                 ],
@@ -17665,7 +17669,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "boolean",
-                        "description": "Return data instead of HTTP 404 if the workspace is deleted",
+                        "description": "Set to ` + "`" + `true` + "`" + ` to return a deleted workspace. Otherwise the call returns ` + "`" + `410 Gone` + "`" + ` for a deleted workspace.",
                         "name": "include_deleted",
                         "in": "query"
                     },
@@ -17691,6 +17695,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Renames a workspace.\nFails unless the deployment or the workspace's template allows workspace renames.\nRequires permission to update the workspace, which its owner and the Owner and Organization Admin roles have.",
                 "consumes": [
                     "application/json"
                 ],
@@ -17709,7 +17714,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Metadata update request",
+                        "description": "New workspace ` + "`" + `name` + "`" + `. An empty or unchanged name changes nothing.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -17732,6 +17737,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/acl": {
             "get": {
+                "description": "Returns the users and groups that have been given access to a workspace, each with an ` + "`" + `admin` + "`" + ` or ` + "`" + `use` + "`" + ` role.\nUsers appear with only their ID, username, name, and avatar, and groups with only their identity and member count.",
                 "produces": [
                     "application/json"
                 ],
@@ -17765,6 +17771,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Removes every user and group from a workspace's ACL.\nFails if workspace sharing is turned off for the organization.\nRequires permission to share the workspace, which the Owner and Organization Admin roles have, and which its owner has when the organization lets everyone share workspaces.",
                 "tags": [
                     "Workspaces"
                 ],
@@ -17792,6 +17799,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Grants, changes, or removes access to a workspace for users and groups, as maps of user or group ID to role in ` + "`" + `user_roles` + "`" + ` and ` + "`" + `group_roles` + "`" + `.\nThe role is ` + "`" + `admin` + "`" + ` or ` + "`" + `use` + "`" + `, and an empty string removes the entry.\nFails if workspace sharing is turned off for the organization, and you can't change your own role unless you can share any workspace in the organization.\nRequires permission to share the workspace, which the Owner and Organization Admin roles have, and which its owner has when the organization lets everyone share workspaces.",
                 "consumes": [
                     "application/json"
                 ],
@@ -17813,7 +17821,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Update workspace ACL request",
+                        "description": "Roles to set. Each map goes from a user or group ID to ` + "`" + `admin` + "`" + `, ` + "`" + `use` + "`" + `, or an empty string to remove the entry.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -17836,6 +17844,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/agent-connection-watch": {
             "get": {
+                "description": "Upgrades to a WebSocket and sends one ` + "`" + `workspacesdk.ConnectionWatchEvent` + "`" + ` JSON message per event, so that a client can wait for a workspace agent to be ready.\nA ` + "`" + `build_update` + "`" + ` message holds the ` + "`" + `transition` + "`" + ` and ` + "`" + `job_status` + "`" + ` of the latest build and is sent when either changes, and an ` + "`" + `agent_update` + "`" + ` message holds the agent's ` + "`" + `id` + "`" + ` and ` + "`" + `lifecycle` + "`" + ` state and is sent only while the latest ` + "`" + `start` + "`" + ` build has succeeded.\nAn ` + "`" + `error` + "`" + ` message holds a ` + "`" + `code` + "`" + `, ` + "`" + `retryable` + "`" + `, and ` + "`" + `message` + "`" + ` and is the last message before the server closes the connection.\nSet the ` + "`" + `agent_name` + "`" + ` query parameter to choose an agent when the workspace has more than one.\nThe server closes the connection if you send a message.",
                 "produces": [
                     "application/json"
                 ],
@@ -17871,6 +17880,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/autostart": {
             "put": {
+                "description": "Sets or clears the schedule on which Coder starts the workspace automatically, given as ` + "`" + `schedule` + "`" + ` in the form ` + "`" + `CRON_TZ=\u003cIANA Timezone\u003e \u003cmin\u003e \u003chour\u003e * * \u003cdow\u003e` + "`" + `.\nAn empty or omitted ` + "`" + `schedule` + "`" + ` turns autostart off.\nFails if the workspace's template doesn't allow users to set an autostart schedule, and for prebuilt workspaces.\nRequires permission to update the workspace, which its owner and the Owner and Organization Admin roles have.",
                 "consumes": [
                     "application/json"
                 ],
@@ -17889,7 +17899,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Schedule update request",
+                        "description": "Autostart schedule to set. Omit ` + "`" + `schedule` + "`" + ` or set it to an empty string to turn autostart off.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -17912,6 +17922,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/autoupdates": {
             "put": {
+                "description": "Sets whether the workspace moves to the template's active version when it starts, with ` + "`" + `automatic_updates` + "`" + ` set to ` + "`" + `always` + "`" + ` or ` + "`" + `never` + "`" + `.\nRequires permission to update the workspace, which its owner and the Owner and Organization Admin roles have.",
                 "consumes": [
                     "application/json"
                 ],
@@ -17930,7 +17941,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Automatic updates request",
+                        "description": "Automatic updates setting, in ` + "`" + `automatic_updates` + "`" + `, which is ` + "`" + `always` + "`" + ` or ` + "`" + `never` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -18062,6 +18073,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/dormant": {
             "put": {
+                "description": "Marks a workspace as dormant, or makes a dormant workspace active again, depending on ` + "`" + `dormant` + "`" + ` in the request body.\nReturns ` + "`" + `304 Not Modified` + "`" + ` if the workspace is already in that state, and fails for prebuilt workspaces.\nWhen you mark another user's workspace dormant, Coder notifies its owner.\nRequires permission to update the workspace, which its owner and the Owner and Organization Admin roles have.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18083,7 +18095,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Make a workspace dormant or active",
+                        "description": "Set ` + "`" + `dormant` + "`" + ` to ` + "`" + `true` + "`" + ` to make the workspace dormant, or ` + "`" + `false` + "`" + ` to make it active.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -18109,6 +18121,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/extend": {
             "put": {
+                "description": "Sets a new autostop deadline for a running workspace.\nThe new ` + "`" + `deadline` + "`" + ` must be at least 30 minutes in the future and can't pass the maximum deadline the template sets.\nFails if the workspace isn't running, is still building, or has no autostop deadline, and for prebuilt workspaces.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18130,7 +18143,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Extend deadline update request",
+                        "description": "New autostop deadline, in ` + "`" + `deadline` + "`" + `, as an RFC 3339 timestamp.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -18198,6 +18211,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/favorite": {
             "put": {
+                "description": "Marks a workspace as one of your favorites.\nYou can favorite only workspaces that you own.",
                 "tags": [
                     "Workspaces"
                 ],
@@ -18225,6 +18239,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Removes a workspace from your favorites.\nYou can unfavorite only workspaces that you own.",
                 "tags": [
                     "Workspaces"
                 ],
@@ -18373,6 +18388,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/resolve-autostart": {
             "get": {
+                "description": "Reports whether an autostart would fail because the template's active version needs parameter values that the workspace's latest build doesn't have.\n` + "`" + `parameter_mismatch` + "`" + ` is ` + "`" + `true` + "`" + ` only when the template requires the active version or the workspace has automatic updates set to ` + "`" + `always` + "`" + `, the latest build uses an older version, and a parameter of the active version can't be resolved from the build's values.",
                 "produces": [
                     "application/json"
                 ],
@@ -18408,6 +18424,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/timings": {
             "get": {
+                "description": "Returns how long each stage of the workspace's latest build took.\nThe response lists the provisioner stage timings, the workspace agent script timings, and the agent connection timings.",
                 "produces": [
                     "application/json"
                 ],
@@ -18443,6 +18460,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/ttl": {
             "put": {
+                "description": "Sets or clears the time until the workspace stops automatically, given as ` + "`" + `ttl_ms` + "`" + ` in milliseconds.\nThe value must be between one minute and 30 days, and ` + "`" + `null` + "`" + ` or ` + "`" + `0` + "`" + ` turns autostop off for the workspace.\nFails if the workspace's template doesn't allow a custom autostop, and for prebuilt workspaces.\nRequires permission to update the workspace, which its owner and the Owner and Organization Admin roles have.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18461,7 +18479,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Workspace TTL update request",
+                        "description": "Time until autostop in milliseconds, in ` + "`" + `ttl_ms` + "`" + `. Use ` + "`" + `null` + "`" + ` or ` + "`" + `0` + "`" + ` to turn autostop off for the workspace.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -18484,6 +18502,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/usage": {
             "post": {
+                "description": "Marks a workspace as recently used.\nWhen the ` + "`" + `workspace-usage` + "`" + ` experiment is enabled and the request body sets both ` + "`" + `agent_id` + "`" + ` and ` + "`" + `app_name` + "`" + `, it also counts a session for that app on that workspace agent.\nRequires permission to update the workspace, which its owner and the Owner and Organization Admin roles have.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18502,7 +18521,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Post workspace usage request",
+                        "description": "Optional usage report. Set ` + "`" + `agent_id` + "`" + ` and ` + "`" + `app_name` + "`" + ` together to count a session for that app.",
                         "name": "request",
                         "in": "body",
                         "schema": {
@@ -18524,6 +18543,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/watch": {
             "get": {
+                "description": "Streams server-sent events about a workspace, where ` + "`" + `data` + "`" + ` events hold a ` + "`" + `codersdk.Workspace` + "`" + `, ` + "`" + `error` + "`" + ` events hold a ` + "`" + `codersdk.Response` + "`" + `, and ` + "`" + `ping` + "`" + ` events have no data.\nThe server sends a ` + "`" + `ping` + "`" + ` first, then the current workspace, and then the workspace again each time it or its template changes.\nUse ` + "`" + `/api/v2/workspaces/{workspace}/watch-ws` + "`" + ` instead.",
                 "produces": [
                     "text/event-stream"
                 ],
