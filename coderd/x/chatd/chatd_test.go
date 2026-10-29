@@ -9922,20 +9922,76 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	// The organization's computer use override selects this Anthropic model;
-	// the root chat runs on an openai-compat model.
-	const computerUseModelName = "claude-computer-use-test"
+	// the root chat runs on an openai-compat model. Claude 5.5 accepts
+	// computer use only through the computer_toolset_20260801 toolset.
+	const computerUseModelName = "claude-opus-5-5"
 
 	// Track tools and model from the Anthropic LLM calls (the
 	// computer use child chat). We use a raw HTTP handler because
 	// the chattest AnthropicRequest struct does not capture tools.
+	type anthropicTool struct {
+		Type string `json:"type"`
+		Name string `json:"name"`
+	}
 	type anthropicCall struct {
-		Model  string
-		Tools  []string
-		Stream bool
-		System []string
+		Model    string
+		Tools    []string
+		RawTools []anthropicTool
+		Beta     string
+		Stream   bool
+		System   []string
+		Messages []json.RawMessage
 	}
 	var anthropicMu sync.Mutex
 	var anthropicCalls []anthropicCall
+	var sentComputerBatch bool
+
+	writeSSE := func(w http.ResponseWriter, chunks []map[string]any) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		flusher, _ := w.(http.Flusher)
+		for _, chunk := range chunks {
+			chunkBytes, _ := json.Marshal(chunk)
+			eventType, _ := chunk["type"].(string)
+			_, _ = fmt.Fprintf(w, "event: %s\ndata: %s\n\n",
+				eventType, chunkBytes)
+			flusher.Flush()
+		}
+	}
+	messageStart := map[string]any{
+		"type": "message_start",
+		"message": map[string]any{
+			"id":    "msg-test",
+			"type":  "message",
+			"role":  "assistant",
+			"model": computerUseModelName,
+		},
+	}
+	// computerMemberChunks streams one computer toolset member call.
+	computerMemberChunks := func(index int, id, member, input string) []map[string]any {
+		return []map[string]any{
+			{
+				"type":  "content_block_start",
+				"index": index,
+				"content_block": map[string]any{
+					"type":         "tool_use",
+					"id":           id,
+					"name":         member,
+					"toolset_name": "computer",
+					"input":        map[string]any{},
+				},
+			},
+			{
+				"type":  "content_block_delta",
+				"index": index,
+				"delta": map[string]any{
+					"type":         "input_json_delta",
+					"partial_json": input,
+				},
+			},
+			{"type": "content_block_stop", "index": index},
+		}
+	}
 
 	anthropicSrv := httptest.NewServer(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
@@ -9946,12 +10002,11 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 			}
 
 			var req struct {
-				Model  string `json:"model"`
-				Stream bool   `json:"stream"`
-				Tools  []struct {
-					Name string `json:"name"`
-				} `json:"tools"`
-				System []struct {
+				Model    string            `json:"model"`
+				Stream   bool              `json:"stream"`
+				Tools    []anthropicTool   `json:"tools"`
+				Messages []json.RawMessage `json:"messages"`
+				System   []struct {
 					Text string `json:"text"`
 				} `json:"system"`
 			}
@@ -9961,8 +10016,12 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 			}
 
 			names := make([]string, len(req.Tools))
+			declaresToolset := false
 			for i, tool := range req.Tools {
 				names[i] = tool.Name
+				if tool.Type == "computer_toolset_20260801" {
+					declaresToolset = true
+				}
 			}
 			system := make([]string, len(req.System))
 			for i, block := range req.System {
@@ -9970,11 +10029,20 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 			}
 			anthropicMu.Lock()
 			anthropicCalls = append(anthropicCalls, anthropicCall{
-				Model:  req.Model,
-				Tools:  names,
-				Stream: req.Stream,
-				System: system,
+				Model:    req.Model,
+				Tools:    names,
+				RawTools: req.Tools,
+				Beta:     r.Header.Get("anthropic-beta"),
+				Stream:   req.Stream,
+				System:   system,
+				Messages: req.Messages,
 			})
+			// The child's first turn request gets a two-action computer
+			// batch; every later request gets a text reply.
+			sendComputerBatch := req.Stream && declaresToolset && !sentComputerBatch
+			if sendComputerBatch {
+				sentComputerBatch = true
+			}
 			anthropicMu.Unlock()
 
 			if !req.Stream {
@@ -9991,21 +10059,25 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 				return
 			}
 
-			// Stream a minimal Anthropic SSE response.
-			w.Header().Set("Content-Type", "text/event-stream")
-			w.Header().Set("Cache-Control", "no-cache")
-			flusher, _ := w.(http.Flusher)
-
-			chunks := []map[string]any{
-				{
-					"type": "message_start",
-					"message": map[string]any{
-						"id":    "msg-test",
-						"type":  "message",
-						"role":  "assistant",
-						"model": computerUseModelName,
+			if sendComputerBatch {
+				chunks := []map[string]any{messageStart}
+				chunks = append(chunks, computerMemberChunks(0, "toolu_click", "left_click", `{"coordinate":[100,200]}`)...)
+				chunks = append(chunks, computerMemberChunks(1, "toolu_type", "type", `{"text":"hello"}`)...)
+				chunks = append(chunks,
+					map[string]any{
+						"type":  "message_delta",
+						"delta": map[string]any{"stop_reason": "tool_use"},
+						"usage": map[string]any{"output_tokens": 5},
 					},
-				},
+					map[string]any{"type": "message_stop"},
+				)
+				writeSSE(w, chunks)
+				return
+			}
+
+			// Stream a minimal Anthropic SSE response.
+			writeSSE(w, []map[string]any{
+				messageStart,
 				{
 					"type":  "content_block_start",
 					"index": 0,
@@ -10029,15 +10101,7 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 					"usage": map[string]any{"output_tokens": 5},
 				},
 				{"type": "message_stop"},
-			}
-
-			for _, chunk := range chunks {
-				chunkBytes, _ := json.Marshal(chunk)
-				eventType, _ := chunk["type"].(string)
-				_, _ = fmt.Fprintf(w, "event: %s\ndata: %s\n\n",
-					eventType, chunkBytes)
-				flusher.Flush()
-			}
+			})
 		},
 	))
 	t.Cleanup(anthropicSrv.Close)
@@ -10094,16 +10158,25 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 
 	// Mock agent connection that returns valid display dimensions
-	// for the initial screenshot check in the computer use path.
+	// for the initial screenshot check in the computer use path and
+	// records the desktop actions the computer tool runs.
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	var desktopMu sync.Mutex
+	var desktopActions []string
 	mockConn.EXPECT().
 		ExecuteDesktopAction(gomock.Any(), gomock.Any()).
-		Return(workspacesdk.DesktopActionResponse{
-			ScreenshotWidth:  1920,
-			ScreenshotHeight: 1080,
-			ScreenshotData:   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4n539HwAHFwLVF8kc1wAAAABJRU5ErkJggg==",
-		}, nil).
+		DoAndReturn(func(_ context.Context, action workspacesdk.DesktopAction) (workspacesdk.DesktopActionResponse, error) {
+			desktopMu.Lock()
+			desktopActions = append(desktopActions, action.Action)
+			desktopMu.Unlock()
+			return workspacesdk.DesktopActionResponse{
+				Output:           action.Action + " action performed",
+				ScreenshotWidth:  1920,
+				ScreenshotHeight: 1080,
+				ScreenshotData:   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4n539HwAHFwLVF8kc1wAAAABJRU5ErkJggg==",
+			}, nil
+		}).
 		AnyTimes()
 	mockConn.EXPECT().
 		SetExtraHeaders(gomock.Any()).
@@ -10161,15 +10234,19 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 			got.Status != database.ChatStatusError {
 			return false
 		}
-		// Ensure the Anthropic mock received the child streaming call.
+		// Ensure the Anthropic mock received the child's computer batch
+		// request and the follow-up that carries the batch results.
 		anthropicMu.Lock()
 		defer anthropicMu.Unlock()
+		toolsetCalls := 0
 		for _, call := range anthropicCalls {
-			if call.Stream {
-				return true
+			for _, tool := range call.RawTools {
+				if call.Stream && tool.Type == "computer_toolset_20260801" {
+					toolsetCalls++
+				}
 			}
 		}
-		return false
+		return toolsetCalls >= 2
 	}, testutil.WaitLong, testutil.IntervalFast)
 
 	anthropicMu.Lock()
@@ -10197,9 +10274,12 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 		"computer use subagent should use %s",
 		computerUseModelName)
 
-	// 2. Verify the computer tool is present.
-	require.Contains(t, childTools, "computer",
-		"computer use subagent should have the computer tool")
+	// 2. Verify the computer tool is the GA toolset, which takes no
+	//    beta header.
+	require.Contains(t, childCall.RawTools, anthropicTool{Type: "computer_toolset_20260801"},
+		"computer use subagent should have the computer toolset")
+	require.NotContains(t, childCall.Beta, "computer-use",
+		"the computer toolset needs no computer use beta header")
 
 	// 3. Verify standard workspace tools are present (the same
 	//    set a regular subagent gets).
@@ -10246,7 +10326,65 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 			"computer use subagent should NOT get the advisor guidance")
 	}
 
-	// 7. Verify the child chat has Mode = computer_use in
+	// 7. Verify both batch actions ran in order and only the last one
+	//    was followed by a screenshot.
+	desktopMu.Lock()
+	actions := append([]string(nil), desktopActions...)
+	desktopMu.Unlock()
+	clickIndex := slices.Index(actions, "left_click")
+	require.GreaterOrEqual(t, clickIndex, 0, "desktop actions: %v", actions)
+	require.Equal(t, []string{"left_click", "type", "screenshot"}, actions[clickIndex:])
+
+	// 8. Verify the follow-up request replays both member calls and
+	//    their results as toolset members.
+	type replayedBlock struct {
+		Type        string          `json:"type"`
+		ID          string          `json:"id"`
+		Name        string          `json:"name"`
+		ToolsetName string          `json:"toolset_name"`
+		ToolUseID   string          `json:"tool_use_id"`
+		Content     json.RawMessage `json:"content"`
+	}
+	var followUp *anthropicCall
+	for i := range calls {
+		if calls[i].Stream && slices.Contains(calls[i].RawTools, anthropicTool{Type: "computer_toolset_20260801"}) {
+			followUp = &calls[i]
+		}
+	}
+	require.NotNil(t, followUp)
+	var memberCalls []string
+	results := map[string]replayedBlock{}
+	for _, raw := range followUp.Messages {
+		var message struct {
+			Content json.RawMessage `json:"content"`
+		}
+		require.NoError(t, json.Unmarshal(raw, &message))
+		var blocks []replayedBlock
+		if json.Unmarshal(message.Content, &blocks) != nil {
+			// String content holds no tool blocks.
+			continue
+		}
+		for _, block := range blocks {
+			switch block.Type {
+			case "tool_use":
+				if block.ToolsetName == "computer" {
+					memberCalls = append(memberCalls, block.ID+":"+block.Name)
+				}
+			case "tool_result":
+				results[block.ToolUseID] = block
+			}
+		}
+	}
+	require.Equal(t, []string{"toolu_click:left_click", "toolu_type:type"}, memberCalls)
+	for _, id := range []string{"toolu_click", "toolu_type"} {
+		require.Contains(t, results, id)
+		require.Equal(t, "computer", results[id].ToolsetName, "tool_result %s", id)
+	}
+	require.Contains(t, string(results["toolu_click"].Content), "left_click action performed")
+	require.NotContains(t, string(results["toolu_click"].Content), `"image"`)
+	require.Contains(t, string(results["toolu_type"].Content), `"image"`)
+
+	// 9. Verify the child chat has Mode = computer_use in
 	//    the DB.
 	childRows, err := db.GetChildChatsByParentIDs(ctx, database.GetChildChatsByParentIDsParams{
 		ParentIds: []uuid.UUID{chat.ID},

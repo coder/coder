@@ -149,7 +149,9 @@ func (p *Server) resolveComputerUseModel(
 }
 
 type computerUseProviderToolOptions struct {
-	provider         codersdk.ChatComputerUseProvider
+	provider codersdk.ChatComputerUseProvider
+	// modelID is the chat's model, which selects the Anthropic tool version.
+	modelID          string
 	isPlanModeTurn   bool
 	isComputerUse    bool
 	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
@@ -173,6 +175,7 @@ func appendComputerUseProviderTool(
 	desktopGeometry := chattool.DefaultComputerUseDesktopGeometry(opts.provider)
 	definition, err := chattool.ComputerUseProviderTool(
 		opts.provider,
+		opts.modelID,
 		desktopGeometry.DeclaredWidth,
 		desktopGeometry.DeclaredHeight,
 	)
@@ -192,6 +195,7 @@ func appendComputerUseProviderTool(
 		Definition: definition,
 		Runner: chattool.NewComputerUseTool(
 			opts.provider,
+			opts.modelID,
 			desktopGeometry.DeclaredWidth,
 			desktopGeometry.DeclaredHeight,
 			opts.getWorkspaceConn,

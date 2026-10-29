@@ -897,6 +897,7 @@ func (p *Server) buildTurnEnvironment(
 	if isComputerUse {
 		providerTools, err = appendComputerUseProviderTool(providerTools, computerUseProviderToolOptions{
 			provider:         computerUseProvider,
+			modelID:          modelConfig.Model,
 			isPlanModeTurn:   isPlanModeTurn,
 			isComputerUse:    isComputerUse,
 			getWorkspaceConn: workspaceCtx.getWorkspaceConn,

@@ -316,6 +316,14 @@ func TestBuildTurnEnvironmentComputerUseRunsOnChatModel(t *testing.T) {
 			wantProvider: codersdk.ChatComputerUseProviderAnthropic,
 		},
 		{
+			// The chat's model picks the Anthropic tool version; this
+			// model takes computer_20251124, not the toolset.
+			name:         "AnthropicComputer20251124",
+			providerType: database.AIProviderTypeAnthropic,
+			model:        "claude-opus-4-6",
+			wantProvider: codersdk.ChatComputerUseProviderAnthropic,
+		},
+		{
 			// The model is absent from the SDK's known Responses models, so
 			// the turn must force the Responses API for the computer tool.
 			name:         "OpenAI",
@@ -423,7 +431,7 @@ func TestBuildTurnEnvironmentComputerUseRunsOnChatModel(t *testing.T) {
 			require.Equal(t, modelConfig.ID, prepared.ModelConfigID)
 			require.Equal(t, tt.model, prepared.Model.ModelID())
 			geometry := chattool.DefaultComputerUseDesktopGeometry(tt.wantProvider)
-			wantTool, err := chattool.ComputerUseProviderTool(tt.wantProvider, geometry.DeclaredWidth, geometry.DeclaredHeight)
+			wantTool, err := chattool.ComputerUseProviderTool(tt.wantProvider, tt.model, geometry.DeclaredWidth, geometry.DeclaredHeight)
 			require.NoError(t, err)
 			require.Len(t, prepared.ProviderTools, 1)
 			require.Equal(t, wantTool, prepared.ProviderTools[0].Definition)

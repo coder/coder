@@ -127,8 +127,11 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    result metadata unless they go back as an item reference, which
 //    needs a stored request, a stored source response and the reasoning
 //    item right before the search. Each search replays at most once.
-// See: https://github.com/coder/fantasy/commits/e1c559d180b6
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261029190405-e1c559d180b6
+// 18) coder/fantasy#80, Anthropic computer_toolset_20260801 support:
+//    the toolset tool definition, ComputerUseToolVersionForModel, and
+//    mapping of toolset member calls to and from the computer tool.
+// See: https://github.com/coder/fantasy/commits/a35507f3c47d
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261029210138-a35507f3c47d
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
