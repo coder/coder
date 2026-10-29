@@ -169,10 +169,13 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get file by ID
+// @Description Returns the contents of an uploaded file, such as a template source archive, with its original `Content-Type`.
+// @Description Set `format` to `zip` to download a tar file as a zip archive, which returns `400` for any other file type or `format` value.
+// @Description You can read the files you uploaded, the Owner and Template Admin roles can read any file, and you get `404` for a file you can't read.
 // @ID get-file-by-id
 // @Security CoderSessionToken
 // @Tags Files
-// @Param fileID path string true "File ID" format(uuid)
+// @Param fileID path string true "File ID, as returned by `POST /api/v2/files`." format(uuid)
 // @Success 200
 // @Router /api/v2/files/{fileID} [get]
 func (api *API) fileByID(rw http.ResponseWriter, r *http.Request) {

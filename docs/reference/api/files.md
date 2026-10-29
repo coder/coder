@@ -66,11 +66,15 @@ curl -X GET http://coder-server:8080/api/v2/files/{fileID} \
 
 `GET /api/v2/files/{fileID}`
 
+Returns the contents of an uploaded file, such as a template source archive, with its original `Content-Type`.
+Set `format` to `zip` to download a tar file as a zip archive, which returns `400` for any other file type or `format` value.
+You can read the files you uploaded, the Owner and Template Admin roles can read any file, and you get `404` for a file you can't read.
+
 ### Parameters
 
-| Name     | In   | Type         | Required | Description |
-|----------|------|--------------|----------|-------------|
-| `fileID` | path | string(uuid) | true     | File ID     |
+| Name     | In   | Type         | Required | Description                                   |
+|----------|------|--------------|----------|-----------------------------------------------|
+| `fileID` | path | string(uuid) | true     | File ID, as returned by `POST /api/v2/files`. |
 
 ### Responses
 
