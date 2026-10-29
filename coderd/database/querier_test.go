@@ -7961,13 +7961,13 @@ func (p claimTestPreset) addWorkspace(ctx context.Context, t *testing.T, ws data
 	return workspace.ID
 }
 
-// addReadyPrebuilds creates n claimable prebuilds and returns their IDs, newest first.
+// addReadyPrebuilds creates n claimable prebuilds and returns their IDs, oldest first.
 func (p claimTestPreset) addReadyPrebuilds(ctx context.Context, t *testing.T, n int) []uuid.UUID {
 	t.Helper()
 	ids := make([]uuid.UUID, n)
 	now := dbtime.Now()
 	for i := range n {
-		ids[n-1-i] = p.addWorkspace(ctx, t, database.WorkspaceTable{CreatedAt: now.Add(time.Duration(i) * time.Second)}, p.readyBuild())
+		ids[i] = p.addWorkspace(ctx, t, database.WorkspaceTable{CreatedAt: now.Add(time.Duration(i) * time.Second)}, p.readyBuild())
 	}
 	return ids
 }
@@ -8011,7 +8011,7 @@ func (p claimTestPreset) holdClaim(ctx context.Context, t *testing.T, userID uui
 }
 
 // TestClaimPrebuiltWorkspaceConcurrent checks that claims racing an open claim
-// skip its locked prebuild without waiting, and that claims take the newest
+// skip its locked prebuild without waiting, and that claims take the oldest
 // prebuild first.
 func TestClaimPrebuiltWorkspaceConcurrent(t *testing.T) {
 	t.Parallel()
@@ -8022,7 +8022,7 @@ func TestClaimPrebuiltWorkspaceConcurrent(t *testing.T) {
 	userB := dbgen.User(t, p.db, database.User{})
 
 	idA, release := p.holdClaim(ctx, t, userA.ID)
-	require.Equal(t, ids[0], idA, "a claim must take the newest prebuild")
+	require.Equal(t, ids[0], idA, "a claim must take the oldest prebuild")
 
 	// Each claim must return while claim A still holds its lock.
 	claimWithoutWaiting := func(userID uuid.UUID) (uuid.UUID, error) {
@@ -8063,8 +8063,8 @@ func TestClaimPrebuiltWorkspaceClaimsOne(t *testing.T) {
 	p.addReadyPrebuilds(ctx, t, 1)
 	_, err := p.sqlDB.ExecContext(ctx, "ANALYZE")
 	require.NoError(t, err)
-	// Older, so the claim takes the first prebuild and the scan reaches this one after it.
-	p.addWorkspace(ctx, t, database.WorkspaceTable{CreatedAt: dbtime.Now().Add(-time.Hour)}, p.readyBuild())
+	// Newer, so the claim takes the first prebuild and the scan reaches this one after it.
+	p.addWorkspace(ctx, t, database.WorkspaceTable{CreatedAt: dbtime.Now().Add(time.Hour)}, p.readyBuild())
 
 	user := dbgen.User(t, p.db, database.User{})
 	_, err = p.claim(ctx, p.db, p.version.preset.ID, user.ID)
