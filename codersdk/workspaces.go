@@ -34,7 +34,7 @@ type Workspace struct {
 	CreatedAt time.Time `json:"created_at" format:"date-time"`
 	UpdatedAt time.Time `json:"updated_at" format:"date-time"`
 	OwnerID   uuid.UUID `json:"owner_id" format:"uuid"`
-	// OwnerName is the username of the owner of the workspace.
+	// The username of the owner of the workspace.
 	OwnerName                            string              `json:"owner_name"`
 	OwnerAvatarURL                       string              `json:"owner_avatar_url"`
 	OrganizationID                       uuid.UUID           `json:"organization_id" format:"uuid"`
@@ -54,30 +54,29 @@ type Workspace struct {
 	AutostartSchedule                    *string             `json:"autostart_schedule,omitempty"`
 	TTLMillis                            *int64              `json:"ttl_ms,omitempty"`
 	LastUsedAt                           time.Time           `json:"last_used_at" format:"date-time"`
-	// DeletingAt indicates the time at which the workspace will be permanently deleted.
-	// A workspace is eligible for deletion if it is dormant (a non-nil dormant_at value)
-	// and a value has been specified for time_til_dormant_autodelete on its template.
+	// When the workspace will be permanently deleted. A workspace is eligible for
+	// deletion if it is dormant (a non-nil `dormant_at` value) and a value has
+	// been specified for time_til_dormant_autodelete on its template.
 	DeletingAt *time.Time `json:"deleting_at" format:"date-time"`
-	// DormantAt being non-nil indicates a workspace that is dormant.
-	// A dormant workspace is no longer accessible must be activated.
-	// It is subject to deletion if it breaches
-	// the duration of the time_til_ field on its template.
+	// A non-nil value indicates a workspace that is dormant. A dormant workspace
+	// is no longer accessible and must be activated. It is subject to deletion if
+	// it breaches the duration of the time_til_ field on its template.
 	DormantAt *time.Time `json:"dormant_at" format:"date-time"`
-	// Health shows the health of the workspace and information about
-	// what is causing an unhealthy status.
+	// Shows the health of the workspace and information about what is causing an
+	// unhealthy status.
 	Health           WorkspaceHealth  `json:"health"`
 	AutomaticUpdates AutomaticUpdates `json:"automatic_updates" enums:"always,never"`
-	// AllowRenames is the effective rename permission for this workspace,
-	// derived from the template's allow_workspace_renames setting and the
-	// deprecated deployment-wide flag.
+	// The effective rename permission for this workspace, derived from the
+	// template's allow_workspace_renames setting and the deprecated
+	// deployment-wide flag.
 	AllowRenames bool       `json:"allow_renames"`
 	Favorite     bool       `json:"favorite"`
 	NextStartAt  *time.Time `json:"next_start_at" format:"date-time"`
-	// IsPrebuild indicates whether the workspace is a prebuilt workspace.
-	// Prebuilt workspaces are owned by the prebuilds system user and have specific behavior,
-	// such as being managed differently from regular workspaces.
-	// Once a prebuilt workspace is claimed by a user, it transitions to a regular workspace,
-	// and IsPrebuild returns false.
+	// Whether the workspace is a prebuilt workspace. Prebuilt workspaces are owned
+	// by the prebuilds system user and have specific behavior, such as being
+	// managed differently from regular workspaces. Once a prebuilt workspace is
+	// claimed by a user, it transitions to a regular workspace, and `is_prebuild`
+	// returns false.
 	IsPrebuild bool                   `json:"is_prebuild"`
 	SharedWith []SharedWorkspaceActor `json:"shared_with,omitempty"`
 }
@@ -123,26 +122,26 @@ type CreateWorkspaceBuildRequest struct {
 	Transition        WorkspaceTransition `json:"transition" validate:"oneof=start stop delete,required"`
 	DryRun            bool                `json:"dry_run,omitempty"`
 	ProvisionerState  []byte              `json:"state,omitempty"`
-	// Orphan may be set for the Destroy transition.
+	// May be set for the Destroy transition.
 	Orphan bool `json:"orphan,omitempty"`
 	// ParameterValues are optional. It will write params to the 'workspace' scope.
 	// This will overwrite any existing parameters with the same name.
 	// This will not delete old params not included in this list.
 	RichParameterValues []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
-	// Secrets sets or removes workspace secrets for this build. Previous
-	// secrets that are not listed carry forward unless they were ephemeral or
-	// a listed secret uses their env_name or file_path.
+	// Sets or removes workspace secrets for this build. Previous secrets that are
+	// not listed carry forward unless they were ephemeral or a listed secret uses
+	// their env_name or file_path.
 	Secrets []WorkspaceSecretInput `json:"secrets,omitempty"`
 
 	// Log level changes the default logging verbosity of a provider ("info" if empty).
 	LogLevel ProvisionerLogLevel `json:"log_level,omitempty" validate:"omitempty,oneof=debug"`
-	// TemplateVersionPresetID is the ID of the template version preset to use for the build.
+	// The ID of the template version preset to use for the build.
 	TemplateVersionPresetID uuid.UUID `json:"template_version_preset_id,omitempty" format:"uuid"`
-	// Reason sets the reason for the workspace build.
+	// Sets the reason for the workspace build.
 	Reason CreateWorkspaceBuildReason `json:"reason,omitempty" validate:"omitempty,oneof=dashboard cli ssh_connection vscode_connection jetbrains_connection"`
-	// OnSuccess queues a follow-up workspace build after this build succeeds.
-	// It currently supports restarting a workspace by starting it after a
-	// successful stop build.
+	// Queues a follow-up workspace build after this build succeeds. It currently
+	// supports restarting a workspace by starting it after a successful stop
+	// build.
 	OnSuccess *CreateWorkspaceBuildOnSuccessRequest `json:"on_success,omitempty"`
 }
 
@@ -152,29 +151,27 @@ type CreateWorkspaceBuildRequest struct {
 // child build a "start". The child build inherits LogLevel and Reason
 // from the parent CreateWorkspaceBuildRequest.
 type CreateWorkspaceBuildOnSuccessRequest struct {
-	// TemplateVersionID pins the child build to a specific template
-	// version. Pinning requires permission to update the template,
-	// since the active version may change before the child build
-	// runs. When empty, the child build uses the template's active
-	// version at the time it runs.
+	// Pins the child build to a specific template version. Pinning requires
+	// permission to update the template, since the active version may change
+	// before the child build runs. When empty, the child build uses the template's
+	// active version at the time it runs.
 	TemplateVersionID uuid.UUID `json:"template_version_id,omitempty" format:"uuid"`
-	// Transition must be "start". The parent build's transition must
-	// be "stop".
+	// Must be "start". The parent build's transition must be "stop".
 	Transition WorkspaceTransition `json:"transition" validate:"oneof=start,required"`
-	// RichParameterValues are applied to the child build. Parameters
-	// not listed here fall back to their values from the previous
-	// build, matching normal build behavior.
+	// Parameter values applied to the child build. Parameters not listed here fall
+	// back to their values from the previous build, matching normal build
+	// behavior.
 	RichParameterValues []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
-	// TemplateVersionPresetID selects a preset for the child build.
-	// It requires TemplateVersionID to also be set.
+	// Selects a preset for the child build. It requires `template_version_id` to
+	// also be set.
 	TemplateVersionPresetID uuid.UUID `json:"template_version_preset_id,omitempty" format:"uuid"`
 }
 
 type WorkspaceOptions struct {
 	IncludeDeleted bool `json:"include_deleted,omitempty"`
-	// IncludeRelated selects which related data to load alongside the workspace.
-	// A nil value loads everything; a non-nil value is encoded into the
-	// include_related query parameter and loads only the selected data.
+	// Selects which related data to load alongside the workspace. A nil value
+	// loads everything. A non-nil value is encoded into the include_related query
+	// parameter and loads only the selected data.
 	IncludeRelated *wsrelated.Config `json:"include_related,omitempty"`
 }
 
@@ -330,9 +327,9 @@ func (c *Client) UpdateWorkspace(ctx context.Context, id uuid.UUID, req UpdateWo
 
 // UpdateWorkspaceAutostartRequest is a request to update a workspace's autostart schedule.
 type UpdateWorkspaceAutostartRequest struct {
-	// Schedule is expected to be of the form `CRON_TZ=<IANA Timezone> <min> <hour> * * <dow>`
-	// Example: `CRON_TZ=US/Central 30 9 * * 1-5` represents 0930 in the timezone US/Central
-	// on weekdays (Mon-Fri). `CRON_TZ` defaults to UTC if not present.
+	// Expected to be of the form `CRON_TZ=<IANA Timezone> <min> <hour> * * <dow>`
+	// Example: `CRON_TZ=US/Central 30 9 * * 1-5` represents 0930 in the timezone
+	// US/Central on weekdays (Mon-Fri). `CRON_TZ` defaults to UTC if not present.
 	Schedule *string `json:"schedule,omitempty"`
 }
 
@@ -393,9 +390,9 @@ func (c *Client) PutExtendWorkspace(ctx context.Context, id uuid.UUID, req PutEx
 
 type PostWorkspaceUsageRequest struct {
 	AgentID uuid.UUID `json:"agent_id" format:"uuid"`
-	// AppName is any name for the app reporting usage. The server normalizes
-	// it at ingestion, so a new app needs no server change. The UsageAppName
-	// constants are the well-known names.
+	// Any name for the app reporting usage. The server normalizes it at ingestion,
+	// so a new app needs no server change. The UsageAppName constants are the
+	// well-known names.
 	AppName string `json:"app_name"`
 }
 
@@ -555,33 +552,34 @@ func (c *Client) UpdateWorkspaceAutomaticUpdates(ctx context.Context, id uuid.UU
 }
 
 type WorkspaceFilter struct {
-	// Owner can be "me" or a username
+	// Can be "me" or a username.
 	Owner string `json:"owner,omitempty" typescript:"-"`
-	// Template is a template name
+	// A template name
 	Template string `json:"template,omitempty" typescript:"-"`
-	// Name will return partial matches
+	// Returns partial matches.
 	Name string `json:"name,omitempty" typescript:"-"`
-	// Status is a workspace status, which is really the status of the latest build
+	// A workspace status, which is really the status of the latest build
 	Status string `json:"status,omitempty" typescript:"-"`
-	// Organization is an organization name or ID
+	// An organization name or ID
 	Organization string `json:"organization,omitempty" typescript:"-"`
-	// Offset is the number of workspaces to skip before returning results.
+	// The number of workspaces to skip before returning results.
 	Offset int `json:"offset,omitempty" typescript:"-"`
-	// Limit is a limit on the number of workspaces returned.
+	// A limit on the number of workspaces returned.
 	Limit int `json:"limit,omitempty" typescript:"-"`
-	// Shared is a whether the workspace is shared with any users or groups
+	// Whether the workspace is shared with any users or groups.
 	Shared *bool `json:"shared,omitempty" typescript:"-"`
-	// SharedWithUser is the username or ID of the user that the workspace is shared with
+	// The username or ID of the user that the workspace is shared with
 	SharedWithUser string `json:"shared_with_user,omitempty" typescript:"-"`
-	// SharedWithGroup is the group name, group ID, or <org name>/<group name> of the group that the workspace is shared with
+	// The group name, group ID, or `<org name>/<group name>` of the group that the
+	// workspace is shared with
 	SharedWithGroup string `json:"shared_with_group,omitempty" typescript:"-"`
-	// User is "me", a username, or a user ID. It matches workspaces the user
-	// owns or that are shared with them directly or through a group.
+	// "me", a username, or a user ID. It matches workspaces the user owns or that
+	// are shared with them directly or through a group.
 	User string `json:"user,omitempty" typescript:"-"`
-	// IncludeAgentMetadata expands each agent in the response with the
-	// named metadata keys. It does not filter the returned workspaces.
+	// Expands each agent in the response with the named metadata keys. It does not
+	// filter the returned workspaces.
 	IncludeAgentMetadata []string `json:"include_agent_metadata,omitempty" typescript:"-"`
-	// FilterQuery supports a raw filter query string
+	// Supports a raw filter query string.
 	FilterQuery string `json:"q,omitempty"`
 }
 
@@ -866,13 +864,13 @@ func (c *Client) WorkspaceACL(ctx context.Context, workspaceID uuid.UUID) (Works
 }
 
 type UpdateWorkspaceACL struct {
-	// UserRoles is a mapping from valid user UUIDs to the workspace role they
-	// should be granted. To remove a user from the workspace, use "" as the role
-	// (available as a constant named codersdk.WorkspaceRoleDeleted)
+	// A mapping from valid user UUIDs to the workspace role they should be
+	// granted. To remove a user from the workspace, use "" as the role (available
+	// as a constant named codersdk.WorkspaceRoleDeleted)
 	UserRoles map[string]WorkspaceRole `json:"user_roles,omitempty"`
-	// GroupRoles is a mapping from valid group UUIDs to the workspace role they
-	// should be granted. To remove a group from the workspace, use "" as the role
-	// (available as a constant named codersdk.WorkspaceRoleDeleted)
+	// A mapping from valid group UUIDs to the workspace role they should be
+	// granted. To remove a group from the workspace, use "" as the role (available
+	// as a constant named codersdk.WorkspaceRoleDeleted)
 	GroupRoles map[string]WorkspaceRole `json:"group_roles,omitempty"`
 }
 
@@ -927,10 +925,10 @@ type WorkspaceBuildUpdate struct {
 	WorkspaceID   uuid.UUID `json:"workspace_id" format:"uuid"`
 	WorkspaceName string    `json:"workspace_name"`
 	BuildID       uuid.UUID `json:"build_id" format:"uuid"`
-	// Transition is the workspace transition type: "start", "stop", or "delete".
+	// The workspace transition type: "start", "stop", or "delete".
 	Transition string `json:"transition"`
-	// JobStatus is the provisioner job status: "pending", "running",
-	// "succeeded", "canceling", "canceled", or "failed".
+	// The provisioner job status: "pending", "running", "succeeded", "canceling",
+	// "canceled", or "failed".
 	JobStatus   string `json:"job_status"`
 	BuildNumber int32  `json:"build_number"`
 }

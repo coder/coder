@@ -55,9 +55,8 @@ type Organization struct {
 	CreatedAt           time.Time `table:"created at" json:"created_at" validate:"required" format:"date-time"`
 	UpdatedAt           time.Time `table:"updated at" json:"updated_at" validate:"required" format:"date-time"`
 	IsDefault           bool      `table:"default" json:"is_default" validate:"required"`
-	// DefaultOrgMemberRoles are unioned into every member's effective
-	// roles at request time. Changes propagate to all members on the
-	// next request.
+	// Roles that are unioned into every member's effective roles at request time.
+	// Changes propagate to all members on the next request.
 	DefaultOrgMemberRoles []string `table:"default org member roles" json:"default_org_member_roles"`
 }
 
@@ -88,8 +87,8 @@ type OrganizationMemberWithUserData struct {
 	UserUpdatedAt    time.Time  `table:"user updated at" json:"user_updated_at" format:"date-time"`
 	IsServiceAccount bool       `json:"is_service_account,omitempty"`
 	GlobalRoles      []SlimRole `json:"global_roles"`
-	// HasAISeat intentionally omits omitempty so the API always includes the
-	// field, even when false.
+	// Always included in the response, even when false, because the field
+	// intentionally omits omitempty.
 	HasAISeat          bool `json:"has_ai_seat"`
 	OrganizationMember `table:"m,recursive_inline"`
 }
@@ -106,7 +105,7 @@ type PaginatedMembersResponse struct {
 
 type CreateOrganizationRequest struct {
 	Name string `json:"name" validate:"required,organization_name"`
-	// DisplayName will default to the same value as `Name` if not provided.
+	// Defaults to the same value as `name` if not provided.
 	DisplayName string `json:"display_name,omitempty" validate:"omitempty,organization_display_name"`
 	Description string `json:"description,omitempty"`
 	Icon        string `json:"icon,omitempty"`
@@ -117,8 +116,7 @@ type UpdateOrganizationRequest struct {
 	DisplayName string  `json:"display_name,omitempty" validate:"omitempty,organization_display_name"`
 	Description *string `json:"description,omitempty"`
 	Icon        *string `json:"icon,omitempty"`
-	// DefaultOrgMemberRoles, when non-nil, replaces the org's default
-	// member roles.
+	// When non-nil, replaces the org's default member roles.
 	DefaultOrgMemberRoles *[]string `json:"default_org_member_roles,omitempty"`
 }
 
@@ -126,7 +124,7 @@ type UpdateOrganizationRequest struct {
 type CreateTemplateVersionRequest struct {
 	Name    string `json:"name,omitempty" validate:"omitempty,template_version_name"`
 	Message string `json:"message,omitempty" validate:"lt=1048577"`
-	// TemplateID optionally associates a version with a template.
+	// Optionally associates a version with a template.
 	TemplateID      uuid.UUID                `json:"template_id,omitempty" format:"uuid"`
 	StorageMethod   ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required" enums:"file"`
 	FileID          uuid.UUID                `json:"file_id,omitempty" validate:"required_without=ExampleID" format:"uuid"`
@@ -144,99 +142,92 @@ type VariableValue struct {
 
 // CreateTemplateRequest provides options when creating a template.
 type CreateTemplateRequest struct {
-	// Name is the name of the template.
+	// The name of the template.
 	Name string `json:"name" validate:"template_name,required"`
-	// DisplayName is the displayed name of the template.
+	// The displayed name of the template.
 	DisplayName string `json:"display_name,omitempty" validate:"template_display_name"`
-	// Description is a description of what the template contains. It must be
-	// no longer than 128 Unicode code points.
+	// A description of what the template contains. It must be no longer than 128
+	// Unicode code points.
 	Description string `json:"description,omitempty" validate:"lte=128"`
-	// Icon is a relative path or external URL that specifies
-	// an icon to be displayed in the dashboard.
+	// A relative path or external URL that specifies an icon to be displayed in
+	// the dashboard.
 	Icon string `json:"icon,omitempty"`
 
-	// VersionID is an in-progress or completed job to use as an initial version
-	// of the template.
+	// An in-progress or completed job to use as an initial version of the
+	// template.
 	//
 	// This is required on creation to enable a user-flow of validating a
 	// template works. There is no reason the data-model cannot support empty
 	// templates, but it doesn't make sense for users.
 	VersionID uuid.UUID `json:"template_version_id" validate:"required" format:"uuid"`
 
-	// DefaultTTLMillis allows optionally specifying the default TTL
-	// for all workspaces created from this template.
+	// Optional default TTL for all workspaces created from this template.
 	DefaultTTLMillis *int64 `json:"default_ttl_ms,omitempty"`
-	// ActivityBumpMillis allows optionally specifying the activity bump
-	// duration for all workspaces created from this template. Defaults to 1h
-	// but can be set to 0 to disable activity bumping.
+	// Optional activity bump duration for all workspaces created from this
+	// template. Defaults to 1h but can be set to 0 to disable activity bumping.
 	ActivityBumpMillis *int64 `json:"activity_bump_ms,omitempty"`
-	// TimeTilAutostopNotifyMillis allows optionally specifying the duration
-	// before the autostop deadline at which a reminder notification is sent for
-	// workspaces created from this template. Defaults to 0 (disabled).
+	// Optional duration before the autostop deadline at which a reminder
+	// notification is sent for workspaces created from this template. Defaults to
+	// 0 (disabled).
 	TimeTilAutostopNotifyMillis *int64 `json:"time_til_autostop_notify_ms,omitempty"`
-	// AutostopRequirement allows optionally specifying the autostop requirement
-	// for workspaces created from this template. This is a Premium feature.
+	// Optional autostop requirement for workspaces created from this template.
+	// This is a Premium feature.
 	AutostopRequirement *TemplateAutostopRequirement `json:"autostop_requirement,omitempty"`
-	// AutostartRequirement allows optionally specifying the autostart allowed days
-	// for workspaces created from this template. This is a Premium feature.
+	// Optional autostart allowed days for workspaces created from this template.
+	// This is a Premium feature.
 	AutostartRequirement *TemplateAutostartRequirement `json:"autostart_requirement,omitempty"`
 
 	// Allow users to cancel in-progress workspace jobs.
 	// *bool as the default value is "true".
 	AllowUserCancelWorkspaceJobs *bool `json:"allow_user_cancel_workspace_jobs"`
 
-	// AllowUserAutostart allows users to set a schedule for autostarting their
-	// workspace. By default this is true. This can only be disabled with a
-	// Premium license.
+	// Whether users can set a schedule for autostarting their workspace. By
+	// default this is true. This can only be disabled with a Premium license.
 	AllowUserAutostart *bool `json:"allow_user_autostart,omitempty"`
 
-	// AllowUserAutostop allows users to set a custom workspace TTL to use in
-	// place of the template's DefaultTTL field. By default this is true. If
-	// false, the DefaultTTL will always be used. This can only be disabled with a
-	// Premium license.
+	// Whether users can set a custom workspace TTL to use in place of the
+	// template's DefaultTTL field. By default this is true. If false, the
+	// DefaultTTL will always be used. This can only be disabled with a Premium
+	// license.
 	AllowUserAutostop *bool `json:"allow_user_autostop,omitempty"`
 
-	// FailureTTLMillis allows optionally specifying the max lifetime before Coder
-	// stops all resources for failed workspaces created from this template.
+	// Optional max lifetime before Coder stops all resources for failed workspaces
+	// created from this template.
 	FailureTTLMillis *int64 `json:"failure_ttl_ms,omitempty"`
-	// TimeTilDormantMillis allows optionally specifying the max lifetime before Coder
-	// locks inactive workspaces created from this template.
+	// Optional max lifetime before Coder locks inactive workspaces created from
+	// this template.
 	TimeTilDormantMillis *int64 `json:"dormant_ttl_ms,omitempty"`
-	// TimeTilDormantAutoDeleteMillis allows optionally specifying the max lifetime before Coder
-	// permanently deletes dormant workspaces created from this template.
+	// Optional max lifetime before Coder permanently deletes dormant workspaces
+	// created from this template.
 	TimeTilDormantAutoDeleteMillis *int64 `json:"delete_ttl_ms,omitempty"`
 
-	// DisableEveryoneGroupAccess allows optionally disabling the default
-	// behavior of granting the 'everyone' group access to use the template.
-	// If this is set to true, the template will not be available to all users,
-	// and must be explicitly granted to users or groups in the permissions settings
-	// of the template.
+	// Allows optionally disabling the default behavior of granting the 'everyone'
+	// group access to use the template. If this is set to true, the template will
+	// not be available to all users, and must be explicitly granted to users or
+	// groups in the permissions settings of the template.
 	DisableEveryoneGroupAccess bool `json:"disable_everyone_group_access"`
 
-	// RequireActiveVersion mandates that workspaces are built with the active
-	// template version.
+	// Mandates that workspaces are built with the active template version.
 	RequireActiveVersion bool `json:"require_active_version"`
 
-	// MaxPortShareLevel allows optionally specifying the maximum port share level
-	// for workspaces created from the template.
+	// Optional maximum port share level for workspaces created from the template.
 	MaxPortShareLevel *WorkspaceAgentPortShareLevel `json:"max_port_share_level"`
 
-	// UseClassicParameterFlow allows optionally specifying whether
-	// the template should use the classic parameter flow. The default if unset is
-	// true, and is why `*bool` is used here. When dynamic parameters becomes
-	// the default, this will default to false.
+	// Optionally specifies whether the template should use the classic parameter
+	// flow. The default if unset is true, and is why `*bool` is used here. When
+	// dynamic parameters becomes the default, this will default to false.
 	UseClassicParameterFlow *bool `json:"template_use_classic_parameter_flow,omitempty"`
 
-	// CORSBehavior allows optionally specifying the CORS behavior for all shared ports.
+	// Optional CORS behavior for all shared ports.
 	CORSBehavior *CORSBehavior `json:"cors_behavior"`
 
-	// AgentsAllowed controls whether Coder Agents can create workspaces using
-	// this template. Defaults to true.
+	// Whether Coder Agents can create workspaces using this template. Defaults to
+	// true.
 	AgentsAllowed *bool `json:"agents_allowed,omitempty"`
 
-	// AllowWorkspaceRenames permits users to rename workspaces built from this
-	// template. Renaming can be destructive for templates whose Terraform
-	// references the workspace name, so this defaults to false.
+	// Whether users can rename workspaces built from this template. Renaming can
+	// be destructive for templates whose Terraform references the workspace name,
+	// so this defaults to false.
 	AllowWorkspaceRenames *bool `json:"allow_workspace_renames,omitempty"`
 }
 
@@ -253,17 +244,17 @@ type CreateTemplateRequest struct {
 // @Description - Must be unique within your workspaces
 // @Description - Maximum length of 32 characters
 type CreateWorkspaceRequest struct {
-	// TemplateID specifies which template should be used for creating the workspace.
+	// ID of the template to create the workspace from.
 	TemplateID uuid.UUID `json:"template_id,omitempty" validate:"required_without=TemplateVersionID,excluded_with=TemplateVersionID" format:"uuid"`
-	// TemplateVersionID can be used to specify a specific version of a template for creating the workspace.
+	// Optionally specifies a specific version of a template to create the
+	// workspace from.
 	TemplateVersionID uuid.UUID `json:"template_version_id,omitempty" validate:"required_without=TemplateID,excluded_with=TemplateID" format:"uuid"`
 	Name              string    `json:"name" validate:"workspace_name,required"`
 	AutostartSchedule *string   `json:"autostart_schedule,omitempty"`
 	TTLMillis         *int64    `json:"ttl_ms,omitempty"`
-	// RichParameterValues allows for additional parameters to be provided
-	// during the initial provision.
+	// Additional parameters to provide during the initial provision.
 	RichParameterValues []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
-	// Secrets sets the workspace's initial secrets.
+	// The workspace's initial secrets.
 	Secrets                 []WorkspaceSecretInput `json:"secrets,omitempty"`
 	AutomaticUpdates        AutomaticUpdates       `json:"automatic_updates,omitempty"`
 	TemplateVersionPresetID uuid.UUID              `json:"template_version_preset_id,omitempty" format:"uuid"`

@@ -23,18 +23,18 @@ type ConnectionLog struct {
 	// Deprecated: Use ConnectionMethod and AppName.
 	Type             string              `json:"type"`
 	ConnectionMethod ConnectionLogMethod `json:"connection_method"`
-	// AppName is the name of the connecting application, when known. The
-	// client reports it, so it is a normalized label and not a guarantee.
-	// Workspace app slugs and forwarded ports are reported in WebInfo.
+	// The name of the connecting application, when known. The client reports it,
+	// so it is a normalized label and not a guarantee. Workspace app slugs and
+	// forwarded ports are reported in `web_info`.
 	AppName string `json:"app_name,omitempty"`
-	// AppDisplayName is the registry display name for AppName, or AppName
-	// itself when the app is unregistered.
+	// The registry display name for `app_name`, or `app_name` itself when the app
+	// is unregistered.
 	AppDisplayName string `json:"app_display_name,omitempty"`
 
-	// WebInfo is set for connections that coderd records.
+	// Set for connections that coderd records.
 	WebInfo *ConnectionLogWebInfo `json:"web_info,omitempty"`
 
-	// SSHInfo is set for connections that agents report.
+	// Set for connections that agents report.
 	SSHInfo *ConnectionLogSSHInfo `json:"ssh_info,omitempty"`
 }
 
@@ -86,25 +86,25 @@ func (s ConnectionLogStatus) Valid() bool {
 
 type ConnectionLogWebInfo struct {
 	UserAgent string `json:"user_agent"`
-	// User is omitted if the connection event was unauthenticated.
+	// Omitted if the connection event was unauthenticated.
 	User       *User  `json:"user"`
 	SlugOrPort string `json:"slug_or_port"`
-	// StatusCode is the HTTP status code or tunnel authorization outcome.
+	// The HTTP status code or tunnel authorization outcome.
 	StatusCode int32 `json:"status_code"`
 }
 
 type ConnectionLogSSHInfo struct {
 	ConnectionID uuid.UUID `json:"connection_id" format:"uuid"`
-	// ClientSessionID is set by the client and isn't guaranteed to be unique.
+	// Set by the client and isn't guaranteed to be unique.
 	ClientSessionID string `json:"client_session_id,omitempty"`
-	// DisconnectTime is omitted if a disconnect event with the same connection ID
-	// has not yet been seen.
+	// Omitted if a disconnect event with the same connection ID has not yet been
+	// seen.
 	DisconnectTime *time.Time `json:"disconnect_time,omitempty" format:"date-time"`
-	// DisconnectReason is omitted if a disconnect event with the same connection ID
-	// has not yet been seen.
+	// Omitted if a disconnect event with the same connection ID has not yet been
+	// seen.
 	DisconnectReason string `json:"disconnect_reason,omitempty"`
-	// ExitCode is the exit code of the SSH session. It is omitted if a
-	// disconnect event with the same connection ID has not yet been seen.
+	// The exit code of the SSH session. It is omitted if a disconnect event with
+	// the same connection ID has not yet been seen.
 	ExitCode *int32 `json:"exit_code,omitempty"`
 }
 

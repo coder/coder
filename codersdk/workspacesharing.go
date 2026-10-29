@@ -19,27 +19,25 @@ const (
 // WorkspaceSharingSettings represents workspace sharing settings affecting an
 // organization.
 type WorkspaceSharingSettings struct {
-	// SharingGloballyDisabled is true if sharing has been disabled for this
-	// organization because of a deployment-wide setting.
+	// True if sharing has been disabled for this organization because of a
+	// deployment-wide setting.
 	SharingGloballyDisabled bool `json:"sharing_globally_disabled"`
-	// SharingDisabled is deprecated and left for backward compatibility
-	// purposes.
-	// Deprecated: use `ShareableWorkspaceOwners` instead
+	// Left for backward compatibility purposes.
+	//
+	// Deprecated: use `shareable_workspace_owners` instead
 	SharingDisabled bool `json:"sharing_disabled"`
-	// ShareableWorkspaceOwners controls whose workspaces can be shared
-	// within the organization.
+	// Controls whose workspaces can be shared within the organization.
 	ShareableWorkspaceOwners ShareableWorkspaceOwners `json:"shareable_workspace_owners" enums:"none,everyone,service_accounts"`
 }
 
 // UpdateWorkspaceSharingSettingsRequest represents workspace sharing settings
 // that can be updated for an organization.
 type UpdateWorkspaceSharingSettingsRequest struct {
-	// SharingDisabled is deprecated and left for backward compatibility
-	// purposes.
-	// Deprecated: use `ShareableWorkspaceOwners` instead
+	// Left for backward compatibility purposes.
+	//
+	// Deprecated: use `shareable_workspace_owners` instead
 	SharingDisabled bool `json:"sharing_disabled,omitempty"`
-	// ShareableWorkspaceOwners controls whose workspaces can be shared
-	// within the organization.
+	// Controls whose workspaces can be shared within the organization.
 	ShareableWorkspaceOwners ShareableWorkspaceOwners `json:"shareable_workspace_owners,omitempty" enums:"none,everyone,service_accounts"`
 }
 

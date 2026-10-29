@@ -380,42 +380,40 @@ func (set FeatureSet) Features() []FeatureName {
 type Feature struct {
 	Entitlement Entitlement `json:"entitlement"`
 	Enabled     bool        `json:"enabled"`
-	// Limit is the maximum value the license grants for the feature, in the
-	// feature's own unit. For FeatureAgentRuntimeHours, an enabled feature
-	// with Limit omitted means the license grants unlimited runtime hours.
+	// The maximum value the license grants for the feature, in the feature's own
+	// unit. For FeatureAgentRuntimeHours, an enabled feature with `limit` omitted
+	// means the license grants unlimited runtime hours.
 	Limit *int64 `json:"limit,omitempty"`
-	// SoftLimit is the advisory warning threshold that accompanies Limit for
-	// features whose license carries it. For these features, Limit carries
-	// the purchased allocation; an unlimited allocation has no thresholds,
-	// so SoftLimit is omitted alongside the omitted Limit. Only
-	// FeatureAgentRuntimeHours sets this field.
+	// The advisory warning threshold that accompanies `limit` for features whose
+	// license carries it. For these features, `limit` carries the purchased
+	// allocation. An unlimited allocation has no thresholds, so this field is
+	// omitted alongside the omitted `limit`. Only FeatureAgentRuntimeHours sets
+	// this field.
 	SoftLimit *int64 `json:"soft_limit,omitempty"`
-	// HardLimit is the enforcement threshold that accompanies Limit for
-	// features whose license carries it. See SoftLimit for the set of
-	// features that use these thresholds.
+	// The enforcement threshold that accompanies `limit` for features whose
+	// license carries it. See `soft_limit` for the set of features that use these
+	// thresholds.
 	HardLimit *int64 `json:"hard_limit,omitempty"`
-	// Actual is the usage measured against Limit, when known: a
-	// point-in-time count for most features, or usage accumulated over
-	// UsagePeriod for features that set one. Its unit matches Limit's;
-	// FeatureAgentRuntimeHours reports whole hours floored from the
-	// recorded milliseconds, with the precise value available in
-	// ActualMs. FeatureAgentRuntimeHours usage can trail by roughly one
-	// hour because the current hour is not emitted, plus the entitlement
-	// refresh interval.
+	// The usage measured against `limit`, when known: a point-in-time count for
+	// most features, or usage accumulated over `usage_period` for features that
+	// set one. Its unit matches that of `limit`. FeatureAgentRuntimeHours reports
+	// whole hours floored from the recorded milliseconds, with the precise value
+	// available in `actual_ms`. FeatureAgentRuntimeHours usage can trail by
+	// roughly one hour because the current hour is not emitted, plus the
+	// entitlement refresh interval.
 	Actual *int64 `json:"actual,omitempty"`
-	// ActualMs is the precise usage backing Actual, in milliseconds, for
-	// features measured in time. It has the same freshness as Actual.
-	// Only FeatureAgentRuntimeHours sets this field.
+	// The precise usage backing `actual`, in milliseconds, for features measured
+	// in time. It has the same freshness as `actual`. Only
+	// FeatureAgentRuntimeHours sets this field.
 	ActualMs *int64 `json:"actual_ms,omitempty"`
 
 	// Below is only for features that use usage periods.
 
-	// UsagePeriod denotes that the usage is a counter that accumulates over
-	// this period (and most likely resets with the issuance of the next
-	// license). These dates are determined from the license that this
-	// entitlement comes from, see enterprise/coderd/license/license.go.
-	// Only FeatureManagedAgentLimit and FeatureAgentRuntimeHours set this
-	// field.
+	// Denotes that the usage is a counter that accumulates over this period (and
+	// most likely resets with the issuance of the next license). These dates are
+	// determined from the license that this entitlement comes from, see
+	// enterprise/coderd/license/license.go. Only FeatureManagedAgentLimit and
+	// FeatureAgentRuntimeHours set this field.
 	UsagePeriod *UsagePeriod `json:"usage_period,omitempty"`
 }
 
@@ -721,7 +719,7 @@ type DeploymentValues struct {
 	WildcardAccessURL   serpent.String `json:"wildcard_access_url,omitempty"`
 	DocsURL             serpent.URL    `json:"docs_url,omitempty"`
 	RedirectToAccessURL serpent.Bool   `json:"redirect_to_access_url,omitempty"`
-	// HTTPAddress is a string because it may be set to zero to disable.
+	// A string because it may be set to zero to disable.
 	HTTPAddress                             serpent.String                       `json:"http_address,omitempty" typescript:",notnull"`
 	AutobuildPollInterval                   serpent.Duration                     `json:"autobuild_poll_interval,omitempty"`
 	JobReaperDetectorInterval               serpent.Duration                     `json:"job_hang_detector_interval,omitempty"`
@@ -949,17 +947,16 @@ func ValidateSSHConfigOption(key, value string) error {
 // 'LifetimeSeconds' and 'DefaultLifetime'. Which does not directly correlate to
 // the config options here.
 type SessionLifetime struct {
-	// DisableExpiryRefresh will disable automatically refreshing api
-	// keys when they are used from the api. This means the api key lifetime at
-	// creation is the lifetime of the api key.
+	// Turns off automatically refreshing api keys when they are used from the api.
+	// This means the api key lifetime at creation is the lifetime of the api key.
 	DisableExpiryRefresh serpent.Bool `json:"disable_expiry_refresh,omitempty" typescript:",notnull"`
 
-	// DefaultDuration is only for browser, workspace app and oauth sessions.
+	// Only for browser, workspace app and oauth sessions.
 	DefaultDuration serpent.Duration `json:"default_duration" typescript:",notnull"`
 
-	// RefreshDefaultDuration is the default lifetime for OAuth2 refresh tokens.
-	// This should generally be longer than access token lifetimes to allow
-	// refreshing after access token expiry.
+	// The default lifetime for OAuth2 refresh tokens. This should generally be
+	// longer than access token lifetimes to allow refreshing after access token
+	// expiry.
 	RefreshDefaultDuration serpent.Duration `json:"refresh_default_duration,omitempty" typescript:",notnull"`
 
 	DefaultTokenDuration serpent.Duration `json:"default_token_lifetime,omitempty" typescript:",notnull"`
@@ -1045,7 +1042,8 @@ type OIDCConfig struct {
 	AllowSignups serpent.Bool   `json:"allow_signups" typescript:",notnull"`
 	ClientID     serpent.String `json:"client_id" typescript:",notnull"`
 	ClientSecret serpent.String `json:"client_secret" typescript:",notnull"`
-	// ClientKeyFile & ClientCertFile are used in place of ClientSecret for PKI auth.
+	// Along with `client_cert_file`, used in place of `client_secret` for PKI
+	// auth.
 	ClientKeyFile       serpent.String                    `json:"client_key_file" typescript:",notnull"`
 	ClientCertFile      serpent.String                    `json:"client_cert_file" typescript:",notnull"`
 	EmailDomain         serpent.StringArray               `json:"email_domain" typescript:",notnull"`
@@ -1056,16 +1054,16 @@ type OIDCConfig struct {
 	NameField           serpent.String                    `json:"name_field" typescript:",notnull"`
 	EmailField          serpent.String                    `json:"email_field" typescript:",notnull"`
 	AuthURLParams       serpent.Struct[map[string]string] `json:"auth_url_params" typescript:",notnull"`
-	// IgnoreUserInfo & UserInfoFromAccessToken are mutually exclusive. Only 1
-	// can be set to true. Ideally this would be an enum with 3 states, ['none',
+	// Mutually exclusive with `source_user_info_from_access_token`. Only 1 can be
+	// set to true. Ideally this would be an enum with 3 states, ['none',
 	// 'userinfo', 'access_token']. However, for backward compatibility,
 	// `ignore_user_info` must remain. And `access_token` is a niche, non-spec
-	// compliant edge case. So it's use is rare, and should not be advised.
+	// compliant edge case. So its use is rare, and should not be advised.
 	IgnoreUserInfo serpent.Bool `json:"ignore_user_info" typescript:",notnull"`
-	// UserInfoFromAccessToken as mentioned above is an edge case. This allows
-	// sourcing the user_info from the access token itself instead of a user_info
-	// endpoint. This assumes the access token is a valid JWT with a set of claims to
-	// be merged with the id_token.
+	// An edge case, as described for `ignore_user_info`. This allows sourcing the
+	// user_info from the access token itself instead of a user_info endpoint. This
+	// assumes the access token is a valid JWT with a set of claims to be merged
+	// with the id_token.
 	UserInfoFromAccessToken   serpent.Bool                           `json:"source_user_info_from_access_token" typescript:",notnull"`
 	OrganizationField         serpent.String                         `json:"organization_field" typescript:",notnull"`
 	OrganizationMapping       serpent.Struct[map[string][]uuid.UUID] `json:"organization_mapping" typescript:",notnull"`
@@ -1083,27 +1081,25 @@ type OIDCConfig struct {
 	SignupsDisabledText       serpent.String                         `json:"signups_disabled_text" typescript:",notnull"`
 	SkipIssuerChecks          serpent.Bool                           `json:"skip_issuer_checks" typescript:",notnull"`
 
-	// RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche
-	// situations where the OIDC callback domain is different from the ACCESS_URL
-	// domain. The path component is ignored.
+	// Optional, defaulting to 'ACCESS_URL'. Only useful in niche situations where
+	// the OIDC callback domain is different from the ACCESS_URL domain. The path
+	// component is ignored.
 	RedirectURL serpent.URL `json:"redirect_url" typescript:",notnull"`
 
 	AutoRepairLinks serpent.Bool `json:"auto_repair_links" typescript:",notnull"`
 
-	// EmailFallback allows OIDC logins to fall back to email-based matching
-	// when the `linked_id` (issuer+subject) does not match an existing user
-	// link. INSECURE: weakens the linked_id check. It exists for IdP
-	// brokers that do not issue a stable `sub` for the same user across
-	// connections.
+	// Allows OIDC logins to fall back to email-based matching when the `linked_id`
+	// (issuer+subject) does not match an existing user link. INSECURE: weakens the
+	// linked_id check. It exists for IdP brokers that do not issue a stable `sub`
+	// for the same user across connections.
 	EmailFallback serpent.Bool `json:"email_fallback" typescript:",notnull"`
 
-	// RedirectAllowedHosts is an allowlist of hostnames that may be used as
-	// the host of the OIDC redirect_uri. When non-empty, the redirect_uri is
-	// constructed from the incoming request's Host header (validated against
-	// this list) instead of from AccessURL. Every listed host must also be
-	// registered as a valid redirect URI in the OIDC provider. This setting
-	// is mutually exclusive with RedirectURL: if RedirectURL is set, this
-	// allowlist is ignored.
+	// An allowlist of hostnames that may be used as the host of the OIDC
+	// redirect_uri. When non-empty, the redirect_uri is constructed from the
+	// incoming request's Host header (validated against this list) instead of from
+	// AccessURL. Every listed host must also be registered as a valid redirect URI
+	// in the OIDC provider. This setting is mutually exclusive with
+	// `redirect_url`: if `redirect_url` is set, this allowlist is ignored.
 	RedirectAllowedHosts serpent.StringArray `json:"redirect_allowed_hosts" typescript:",notnull"`
 }
 
@@ -1233,19 +1229,19 @@ func (cfg HTTPCookieConfig) HTTPSameSite() http.SameSite {
 }
 
 type ExternalAuthConfig struct {
-	// Type is the type of external auth config.
+	// The type of external auth config.
 	Type         string `json:"type" yaml:"type"`
 	ClientID     string `json:"client_id" yaml:"client_id"`
 	ClientSecret string `json:"-" yaml:"client_secret"`
-	// ID is a unique identifier for the auth config.
-	// It defaults to `type` when not provided.
+	// A unique identifier for the auth config. It defaults to `type` when not
+	// provided.
 	ID          string `json:"id" yaml:"id"`
 	AuthURL     string `json:"auth_url" yaml:"auth_url"`
 	TokenURL    string `json:"token_url" yaml:"token_url"`
 	ValidateURL string `json:"validate_url" yaml:"validate_url"`
-	// RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche
-	// situations where the OAuth callback domain is different from the ACCESS_URL
-	// domain. The path component is ignored.
+	// Optional, defaulting to 'ACCESS_URL'. Only useful in niche situations where
+	// the OAuth callback domain is different from the ACCESS_URL domain. The path
+	// component is ignored.
 	RedirectURL         string   `json:"redirect_url" yaml:"redirect_url"`
 	RevokeURL           string   `json:"revoke_url" yaml:"revoke_url"`
 	AppInstallURL       string   `json:"app_install_url" yaml:"app_install_url"`
@@ -1261,37 +1257,37 @@ type ExternalAuthConfig struct {
 	MCPToolAllowRegex string `json:"mcp_tool_allow_regex" yaml:"mcp_tool_allow_regex"`
 	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	MCPToolDenyRegex string `json:"mcp_tool_deny_regex" yaml:"mcp_tool_deny_regex"`
-	// Regex allows API requesters to match an auth config by
-	// a string (e.g. coder.com) instead of by it's type.
+	// Allows API requesters to match an auth config by a string (e.g. coder.com)
+	// instead of by its type. Git clone makes use of this by parsing the URL from:
+	// 'Username for "https://github.com":' And sending it to the control plane to
+	// match against the `regex`.
 	//
 	// Git clone makes use of this by parsing the URL from:
 	// 'Username for "https://github.com":'
 	// And sending it to the control plane to match against the Regex.
 	Regex string `json:"regex" yaml:"regex"`
-	// APIBaseURL is the base URL for provider REST API calls
-	// (e.g., "https://api.github.com" for GitHub). Derived from
-	// defaults when not explicitly configured.
+	// The base URL for provider REST API calls (e.g., "https://api.github.com" for
+	// GitHub). Derived from defaults when not explicitly configured.
 	APIBaseURL string `json:"api_base_url" yaml:"api_base_url"`
-	// DisplayName is shown in the UI to identify the auth config.
+	// Shown in the UI to identify the auth config.
 	DisplayName string `json:"display_name" yaml:"display_name"`
-	// DisplayIcon is a URL to an icon to display in the UI.
+	// A URL to an icon to display in the UI.
 	DisplayIcon string `json:"display_icon" yaml:"display_icon"`
-	// CodeChallengeMethodsSupported lists the PKCE code challenge methods
-	// The only one supported by Coder is "S256".
+	// Lists the PKCE code challenge methods. The only one supported by Coder is
+	// "S256".
 	CodeChallengeMethodsSupported []string `json:"code_challenge_methods_supported" yaml:"code_challenge_methods_supported"`
 }
 
 type ProvisionerConfig struct {
-	// Daemons is the number of built-in terraform provisioners.
+	// The number of built-in terraform provisioners.
 	Daemons             serpent.Int64       `json:"daemons" typescript:",notnull"`
 	DaemonTypes         serpent.StringArray `json:"daemon_types" typescript:",notnull"`
 	DaemonPollInterval  serpent.Duration    `json:"daemon_poll_interval" typescript:",notnull"`
 	DaemonPollJitter    serpent.Duration    `json:"daemon_poll_jitter" typescript:",notnull"`
 	ForceCancelInterval serpent.Duration    `json:"force_cancel_interval" typescript:",notnull"`
 	DaemonPSK           serpent.String      `json:"daemon_psk" typescript:",notnull"`
-	// DisableModuleCache disables the reuse of Terraform modules cached at
-	// template import for every template in the deployment. Templates cannot
-	// opt back in.
+	// Turns off the reuse of Terraform modules cached at template import for every
+	// template in the deployment. Templates cannot opt back in.
 	DisableModuleCache serpent.Bool `json:"disable_module_cache" typescript:",notnull"`
 }
 
@@ -1336,25 +1332,24 @@ type HealthcheckConfig struct {
 // before being automatically purged. Setting a value to 0 disables retention for that
 // data type (data is kept indefinitely).
 type RetentionConfig struct {
-	// AuditLogs controls how long audit log entries are retained.
-	// Set to 0 to disable (keep indefinitely).
+	// Controls how long audit log entries are retained. Set to 0 to disable (keep
+	// indefinitely).
 	AuditLogs serpent.Duration `json:"audit_logs" typescript:",notnull"`
-	// ConnectionLogs controls how long connection log entries are retained.
-	// Set to 0 to disable (keep indefinitely).
+	// Controls how long connection log entries are retained. Set to 0 to disable
+	// (keep indefinitely).
 	ConnectionLogs serpent.Duration `json:"connection_logs" typescript:",notnull"`
-	// APIKeys controls how long expired API keys are retained before being deleted.
-	// Keys are only deleted if they have been expired for at least this duration.
+	// Controls how long expired API keys are retained before being deleted. Keys
+	// are only deleted if they have been expired for at least this duration.
 	// Defaults to 7 days to preserve existing behavior.
 	APIKeys serpent.Duration `json:"api_keys" typescript:",notnull"`
-	// WorkspaceAgentLogs controls how long workspace agent logs are retained.
-	// Logs are deleted if the agent hasn't connected within this period.
-	// Logs from the latest build are always retained regardless of age.
-	// Defaults to 7 days to preserve existing behavior.
+	// Controls how long workspace agent logs are retained. Logs are deleted if the
+	// agent hasn't connected within this period. Logs from the latest build are
+	// always retained regardless of age. Defaults to 7 days to preserve existing
+	// behavior.
 	WorkspaceAgentLogs serpent.Duration `json:"workspace_agent_logs" typescript:",notnull"`
-	// BoundaryLogs controls how long boundary audit log entries are
-	// retained. Boundary logs record every HTTP request processed by
-	// a Boundary confinement proxy. Set to 0 to disable automatic
-	// deletion (keep indefinitely). Adjust to match your
+	// Controls how long boundary audit log entries are retained. Boundary logs
+	// record every HTTP request processed by a Boundary confinement proxy. Set to
+	// 0 to disable automatic deletion (keep indefinitely). Adjust to match your
 	// organization's regulatory requirements.
 	BoundaryLogs serpent.Duration `json:"boundary_logs" typescript:",notnull"`
 }
@@ -1391,11 +1386,11 @@ type NotificationsConfig struct {
 	Method serpent.String `json:"method"`
 	// How long to wait while a notification is being sent before giving up.
 	DispatchTimeout serpent.Duration `json:"dispatch_timeout"`
-	// SMTP settings.
+	// The `email` settings.
 	SMTP NotificationsEmailConfig `json:"email" typescript:",notnull"`
-	// Webhook settings.
+	// The webhook settings.
 	Webhook NotificationsWebhookConfig `json:"webhook" typescript:",notnull"`
-	// Inbox settings.
+	// The inbox settings.
 	Inbox NotificationsInboxConfig `json:"inbox" typescript:",notnull"`
 }
 
@@ -1418,18 +1413,18 @@ type NotificationsEmailConfig struct {
 
 	// Authentication details.
 	Auth NotificationsEmailAuthConfig `json:"auth" typescript:",notnull"`
-	// TLS details.
+	// The `tls` details.
 	TLS NotificationsEmailTLSConfig `json:"tls" typescript:",notnull"`
-	// ForceTLS causes a TLS connection to be attempted.
+	// Causes a `tls` connection to be attempted.
 	ForceTLS serpent.Bool `json:"force_tls" typescript:",notnull"`
 }
 
 type NotificationsEmailAuthConfig struct {
-	// Identity for PLAIN auth.
+	// The identity for PLAIN auth.
 	Identity serpent.String `json:"identity" typescript:",notnull"`
-	// Username for LOGIN/PLAIN auth.
+	// The username for LOGIN/PLAIN auth.
 	Username serpent.String `json:"username" typescript:",notnull"`
-	// Password for LOGIN/PLAIN auth.
+	// The password for LOGIN/PLAIN auth.
 	Password serpent.String `json:"password" typescript:",notnull"`
 	// File from which to load the password for LOGIN/PLAIN auth.
 	PasswordFile serpent.String `json:"password_file" typescript:",notnull"`
@@ -1440,17 +1435,17 @@ func (c *NotificationsEmailAuthConfig) Empty() bool {
 }
 
 type NotificationsEmailTLSConfig struct {
-	// StartTLS attempts to upgrade plain connections to TLS.
+	// Attempts to upgrade plain connections to TLS.
 	StartTLS serpent.Bool `json:"start_tls" typescript:",notnull"`
-	// ServerName to verify the hostname for the targets.
+	// The server name to verify the hostname for the targets.
 	ServerName serpent.String `json:"server_name" typescript:",notnull"`
-	// InsecureSkipVerify skips target certificate validation.
+	// Skips target certificate validation.
 	InsecureSkipVerify serpent.Bool `json:"insecure_skip_verify" typescript:",notnull"`
-	// CAFile specifies the location of the CA certificate to use.
+	// Specifies the location of the CA certificate to use.
 	CAFile serpent.String `json:"ca_file" typescript:",notnull"`
-	// CertFile specifies the location of the certificate to use.
+	// Specifies the location of the certificate to use.
 	CertFile serpent.String `json:"cert_file" typescript:",notnull"`
-	// KeyFile specifies the location of the key to use.
+	// Specifies the location of the key to use.
 	KeyFile serpent.String `json:"key_file" typescript:",notnull"`
 }
 
@@ -1464,21 +1459,21 @@ type NotificationsWebhookConfig struct {
 }
 
 type PrebuildsConfig struct {
-	// ReconciliationInterval defines how often the workspace prebuilds state should be reconciled.
+	// Defines how often the workspace prebuilds state should be reconciled.
 	ReconciliationInterval serpent.Duration `json:"reconciliation_interval" typescript:",notnull"`
 
-	// ReconciliationBackoffInterval specifies the amount of time to increase the backoff interval
-	// when errors occur during reconciliation.
+	// Specifies the amount of time to increase the backoff interval when errors
+	// occur during reconciliation.
 	ReconciliationBackoffInterval serpent.Duration `json:"reconciliation_backoff_interval" typescript:",notnull"`
 
-	// ReconciliationBackoffLookback determines the time window to look back when calculating
-	// the number of failed prebuilds, which influences the backoff strategy.
+	// Determines the time window to look back when calculating the number of
+	// failed prebuilds, which influences the backoff strategy.
 	ReconciliationBackoffLookback serpent.Duration `json:"reconciliation_backoff_lookback" typescript:",notnull"`
 
-	// FailureHardLimit defines the maximum number of consecutive failed prebuild attempts allowed
-	// before a preset is considered to be in a hard limit state. When a preset hits this limit,
-	// no new prebuilds will be created until the limit is reset.
-	// FailureHardLimit is disabled when set to zero.
+	// Defines the maximum number of consecutive failed prebuild attempts allowed
+	// before a preset is considered to be in a hard limit state. When a preset
+	// hits this limit, no new prebuilds will be created until the limit is reset.
+	// The limit is disabled when set to zero.
 	FailureHardLimit serpent.Int64 `json:"failure_hard_limit" typescript:"failure_hard_limit"`
 }
 
@@ -5013,8 +5008,8 @@ type AIBridgeConfig struct {
 	MaxConcurrency      serpent.Int64    `json:"max_concurrency" typescript:",notnull"`
 	RateLimit           serpent.Int64    `json:"rate_limit" typescript:",notnull"`
 	StructuredLogging   serpent.Bool     `json:"structured_logging" typescript:",notnull"`
-	// StructuredLoggingSource selects which process emits the records that
-	// StructuredLogging enables. See AIStructuredLoggingSource.
+	// Selects which process emits the records that `structured_logging` enables.
+	// See AIStructuredLoggingSource.
 	StructuredLoggingSource string         `json:"structured_logging_source,omitempty" typescript:",notnull"`
 	SendActorHeaders        serpent.Bool   `json:"send_actor_headers" typescript:",notnull"`
 	ActorHeaderID           serpent.String `json:"actor_header_id" typescript:",notnull"`
@@ -5031,14 +5026,13 @@ type AIBridgeConfig struct {
 	CircuitBreakerInterval         serpent.Duration `json:"circuit_breaker_interval" typescript:",notnull"`
 	CircuitBreakerTimeout          serpent.Duration `json:"circuit_breaker_timeout" typescript:",notnull"`
 	CircuitBreakerMaxRequests      serpent.Int64    `json:"circuit_breaker_max_requests" typescript:",notnull"`
-	// APIDumpDir is the base directory under which each provider's
-	// request/response dumps are written, in a subdirectory named after
-	// the provider. Empty disables dumping.
+	// The base directory under which each provider's request/response dumps are
+	// written, in a subdirectory named after the provider. Empty disables dumping.
 	APIDumpDir serpent.String `json:"api_dump_dir" typescript:",notnull"`
-	// DisableContentRecording stops user prompts, tool calls and model
-	// reasoning from being recorded, including tool names and their arguments.
-	// Interceptions and token usage are still recorded, so cost controls,
-	// budget enforcement and spend reporting are unaffected.
+	// Stops user prompts, tool calls and model reasoning from being recorded,
+	// including tool names and their arguments. Interceptions and token usage are
+	// still recorded, so cost controls, budget enforcement and spend reporting are
+	// unaffected.
 	DisableContentRecording serpent.Bool `json:"disable_content_recording" typescript:",notnull"`
 }
 
@@ -5078,22 +5072,20 @@ type ChatConfig struct {
 	HookEnabled          serpent.Bool     `json:"hook_enabled" typescript:",notnull"`
 	HookAllowInsecure    serpent.Bool     `json:"hook_allow_insecure" typescript:",notnull"`
 	StreamSilenceTimeout serpent.Duration `json:"stream_silence_timeout" typescript:",notnull"`
-	// MaxStepsPerTurn is the maximum number of steps in a chat turn.
+	// The maximum number of steps in a chat turn.
 	MaxStepsPerTurn serpent.Int64 `json:"max_steps_per_turn" typescript:",notnull"`
-	// MaxGenerationRetries is the maximum number of consecutive retries
-	// after a model generation fails with a transient error.
+	// The maximum number of consecutive retries after a model generation fails
+	// with a transient error.
 	MaxGenerationRetries serpent.Int64 `json:"max_generation_retries" typescript:",notnull"`
-	// MaxQueuedMessagesPerChat is the maximum number of messages that can
-	// be queued in a chat.
+	// The maximum number of messages that can be queued in a chat.
 	MaxQueuedMessagesPerChat serpent.Int64 `json:"max_queued_messages_per_chat" typescript:",notnull"`
-	// MaxAttachmentsPerChat is the maximum number of files linked to a
-	// chat.
+	// The maximum number of files linked to a chat.
 	MaxAttachmentsPerChat serpent.Int64 `json:"max_attachments_per_chat" typescript:",notnull"`
-	// MaxPromptBytes is the maximum size in bytes of the deployment system
-	// prompt, the plan mode instructions, and each user's custom prompt.
+	// The maximum size in bytes of the deployment system prompt, the plan mode
+	// instructions, and each user's custom prompt.
 	MaxPromptBytes serpent.Int64 `json:"max_prompt_bytes" typescript:",notnull"`
-	// MaxConcurrentRecordingUploads is the maximum number of virtual
-	// desktop recordings that each Coder server stores at the same time.
+	// The maximum number of virtual desktop recordings that each Coder server
+	// stores at the same time.
 	MaxConcurrentRecordingUploads serpent.Int64 `json:"max_concurrent_recording_uploads" typescript:",notnull"`
 	// Deprecated: AI Gateway routing is now the only routing path. Setting this
 	// value has no effect. This option will be removed in a future release.
@@ -5428,44 +5420,42 @@ func (c *Client) UpdateAppearance(ctx context.Context, appearance UpdateAppearan
 
 // BuildInfoResponse contains build information for this instance of Coder.
 type BuildInfoResponse struct {
-	// ExternalURL references the current Coder version.
-	// For production builds, this will link directly to a release. For development builds, this will link to a commit.
+	// References the current Coder version. For production builds, this will link
+	// directly to a release. For development builds, this will link to a commit.
 	ExternalURL string `json:"external_url"`
-	// Version returns the semantic version of the build.
+	// Returns the semantic version of the build.
 	Version string `json:"version"`
-	// DashboardURL is the URL to hit the deployment's dashboard.
-	// For external workspace proxies, this is the coderd they are connected
-	// to.
+	// The URL to hit the deployment's dashboard. For external workspace proxies,
+	// this is the coderd they are connected to.
 	DashboardURL string `json:"dashboard_url"`
-	// Telemetry is a boolean that indicates whether telemetry is enabled.
+	// A boolean that indicates whether telemetry is enabled.
 	Telemetry bool `json:"telemetry"`
-	// OAuth2Provider reports whether the OAuth 2.1 authorization server is
-	// enabled. The dashboard uses it to show or hide OAuth2 navigation.
+	// Whether the OAuth 2.1 authorization server is enabled. The dashboard uses it
+	// to show or hide OAuth2 navigation.
 	OAuth2Provider bool `json:"oauth2_provider"`
 
 	WorkspaceProxy bool `json:"workspace_proxy"`
 
-	// AgentAPIVersion is the current version of the Agent API (back versions
-	// MAY still be supported).
+	// The current version of the Agent API (back versions MAY still be supported).
 	AgentAPIVersion string `json:"agent_api_version"`
-	// ProvisionerAPIVersion is the current version of the Provisioner API
+	// The current version of the Provisioner API
 	ProvisionerAPIVersion string `json:"provisioner_api_version"`
 
-	// UpgradeMessage is the message displayed to users when an outdated client
-	// is detected.
+	// The message displayed to users when an outdated client is detected.
 	UpgradeMessage string `json:"upgrade_message"`
 
-	// DeploymentID is the unique identifier for this deployment.
+	// The unique identifier for this deployment.
 	DeploymentID string `json:"deployment_id"`
 
-	// WebPushPublicKey is the public key for push notifications via Web Push.
+	// The public key for push notifications via Web Push.
 	WebPushPublicKey string `json:"webpush_public_key,omitempty"`
 }
 
 type WorkspaceProxyBuildInfo struct {
 	// TODO: @emyrk what should we include here?
+
 	WorkspaceProxy bool `json:"workspace_proxy"`
-	// DashboardURL is the URL of the coderd this proxy is connected to.
+	// The URL of the coderd this proxy is connected to.
 	DashboardURL string `json:"dashboard_url"`
 }
 
@@ -5653,8 +5643,8 @@ type DAUsResponse struct {
 }
 
 type DAUEntry struct {
-	// Date is a string formatted as 2024-01-31.
-	// Timezone and time information is not included.
+	// A string formatted as 2024-01-31. Timezone and time information is not
+	// included.
 	Date   string `json:"date"`
 	Amount int    `json:"amount"`
 }
@@ -5713,7 +5703,7 @@ func (c *Client) DeploymentDAUs(ctx context.Context, tzOffset int) (*DAUsRespons
 }
 
 type AppHostResponse struct {
-	// Host is the externally accessible URL for the Coder instance.
+	// The externally accessible URL for the Coder instance.
 	Host string `json:"host"`
 }
 
@@ -5756,8 +5746,8 @@ type WorkspaceDeploymentStats struct {
 }
 
 type SessionCountDeploymentStats struct {
-	// Apps holds one entry per reported app name, each carrying the family it
-	// totals under. The fields below duplicate those totals for one release.
+	// Holds one entry per reported app name, each carrying the family it totals
+	// under. The fields below duplicate those totals for one release.
 	Apps map[string]SessionCountApp `json:"apps"`
 	// Deprecated: total Apps by Family instead.
 	VSCode int64 `json:"vscode"`
@@ -5770,13 +5760,12 @@ type SessionCountDeploymentStats struct {
 }
 
 type DeploymentStats struct {
-	// AggregatedFrom is the time in which stats are aggregated from.
-	// This might be back in time a specific duration or interval.
+	// The time in which stats are aggregated from. This might be back in time a
+	// specific duration or interval.
 	AggregatedFrom time.Time `json:"aggregated_from" format:"date-time"`
-	// CollectedAt is the time in which stats are collected at.
+	// The time in which stats are collected at.
 	CollectedAt time.Time `json:"collected_at" format:"date-time"`
-	// NextUpdateAt is the time when the next batch of stats will
-	// be updated.
+	// The time when the next batch of stats will be updated.
 	NextUpdateAt time.Time `json:"next_update_at" format:"date-time"`
 
 	Workspaces   WorkspaceDeploymentStats    `json:"workspaces"`
@@ -5784,11 +5773,12 @@ type DeploymentStats struct {
 }
 
 type SSHConfigResponse struct {
-	// HostnamePrefix is the prefix we append to workspace names for SSH hostnames.
-	// Deprecated: use HostnameSuffix instead.
+	// The prefix we append to workspace names for SSH hostnames.
+	//
+	// Deprecated: use `hostname_suffix` instead.
 	HostnamePrefix string `json:"hostname_prefix"`
 
-	// HostnameSuffix is the suffix to append to workspace names for SSH hostnames.
+	// The suffix to append to workspace names for SSH hostnames.
 	HostnameSuffix   string            `json:"hostname_suffix"`
 	SSHConfigOptions map[string]string `json:"ssh_config_options"`
 }

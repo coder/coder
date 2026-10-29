@@ -53,27 +53,27 @@ type ExternalAuth struct {
 	DisplayName        string `json:"display_name"`
 	SupportsRevocation bool   `json:"supports_revocation"`
 
-	// User is the user that authenticated with the provider.
+	// The user that authenticated with the provider.
 	User *ExternalAuthUser `json:"user"`
-	// AppInstallable is true if the request for app installs was successful.
+	// True if the request for app installs was successful.
 	AppInstallable bool `json:"app_installable"`
-	// AppInstallations are the installations that the user has access to.
+	// The installations that the user has access to.
 	AppInstallations []ExternalAuthAppInstallation `json:"installations"`
-	// AppInstallURL is the URL to install the app.
+	// The URL to install the app.
 	AppInstallURL string `json:"app_install_url"`
 }
 
 type ListUserExternalAuthResponse struct {
 	Providers []ExternalAuthLinkProvider `json:"providers"`
-	// Links are all the authenticated links for the user.
-	// If a link has a provider ID that does not exist, then that provider
-	// is no longer configured, rendering it unusable. It is still valuable
-	// to include these links so that the user can unlink them.
+	// All the authenticated links for the user. If a link has a provider ID that
+	// does not exist, then that provider is no longer configured, rendering it
+	// unusable. It is still valuable to include these links so that the user can
+	// unlink them.
 	Links []ExternalAuthLink `json:"links"`
 }
 
 type DeleteExternalAuthByIDResponse struct {
-	// TokenRevoked set to true if token revocation was attempted and was successful
+	// True if token revocation was attempted and was successful.
 	TokenRevoked         bool   `json:"token_revoked"`
 	TokenRevocationError string `json:"token_revocation_error,omitempty"`
 }

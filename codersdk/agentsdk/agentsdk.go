@@ -120,12 +120,11 @@ type Manifest struct {
 	OwnerName     string    `json:"owner_name"`
 	WorkspaceID   uuid.UUID `json:"workspace_id"`
 	WorkspaceName string    `json:"workspace_name"`
-	// WorkspaceBuildID is the build that created this agent. It is
-	// uuid.Nil when the server predates the field.
+	// The build that created this agent. It is uuid.Nil when the server predates
+	// the field.
 	WorkspaceBuildID uuid.UUID `json:"workspace_build_id"`
-	// GitAuthConfigs stores the number of Git configurations
-	// the Coder deployment has. If this number is >0, we
-	// set up special configuration in the workspace.
+	// Stores the number of Git configurations the Coder deployment has. If this
+	// number is greater than 0, we set up special configuration in the workspace.
 	GitAuthConfigs           int                                          `json:"git_auth_configs"`
 	VSCodePortProxyURI       string                                       `json:"vscode_port_proxy_uri"`
 	Apps                     []codersdk.WorkspaceApp                      `json:"apps"`
@@ -626,35 +625,35 @@ func WithFixedToken(token string) SessionTokenSetup {
 // Stats records the Agent's network connection statistics for use in
 // user-facing metrics and debugging.
 type Stats struct {
-	// ConnectionsByProto is a count of connections by protocol.
+	// A count of connections by protocol.
 	ConnectionsByProto map[string]int64 `json:"connections_by_proto"`
-	// ConnectionCount is the number of connections received by an agent.
+	// The number of connections received by an agent.
 	ConnectionCount int64 `json:"connection_count"`
-	// ConnectionMedianLatencyMS is the median latency of all connections in milliseconds.
+	// The median latency of all connections in milliseconds.
 	ConnectionMedianLatencyMS float64 `json:"connection_median_latency_ms"`
-	// RxPackets is the number of received packets.
+	// The number of received packets.
 	RxPackets int64 `json:"rx_packets"`
-	// RxBytes is the number of received bytes.
+	// The number of received bytes.
 	RxBytes int64 `json:"rx_bytes"`
-	// TxPackets is the number of transmitted bytes.
+	// The number of transmitted packets.
 	TxPackets int64 `json:"tx_packets"`
-	// TxBytes is the number of transmitted bytes.
+	// The number of transmitted bytes.
 	TxBytes int64 `json:"tx_bytes"`
 
-	// SessionCountVSCode is the number of connections received by an agent
-	// that are from our VS Code extension.
+	// The number of connections received by an agent that are from our VS Code
+	// extension.
 	SessionCountVSCode int64 `json:"session_count_vscode"`
-	// SessionCountJetBrains is the number of connections received by an agent
-	// that are from our JetBrains extension.
+	// The number of connections received by an agent that are from our JetBrains
+	// extension.
 	SessionCountJetBrains int64 `json:"session_count_jetbrains"`
-	// SessionCountReconnectingPTY is the number of connections received by an agent
-	// that are from the reconnecting web terminal.
+	// The number of connections received by an agent that are from the
+	// reconnecting web terminal.
 	SessionCountReconnectingPTY int64 `json:"session_count_reconnecting_pty"`
-	// SessionCountSSH is the number of connections received by an agent
-	// that are normal, non-tagged SSH sessions.
+	// The number of connections received by an agent that are normal, non-tagged
+	// SSH sessions.
 	SessionCountSSH int64 `json:"session_count_ssh"`
 
-	// Metrics collected by the agent
+	// The metrics collected by the agent.
 	Metrics []AgentMetric `json:"metrics"`
 }
 
@@ -682,8 +681,7 @@ type AgentMetricLabel struct {
 }
 
 type StatsResponse struct {
-	// ReportInterval is the duration after which the agent should send stats
-	// again.
+	// The duration after which the agent should send stats again.
 	ReportInterval time.Duration `json:"report_interval"`
 }
 
@@ -753,10 +751,9 @@ func (c *Client) PatchAppStatus(ctx context.Context, req PatchAppStatus) error {
 }
 
 type PostLogSourceRequest struct {
-	// ID is a unique identifier for the log source.
-	// It is scoped to a workspace agent, and can be statically
-	// defined inside code to prevent duplicate sources from being
-	// created for the same agent.
+	// A unique identifier for the log source. It is scoped to a workspace agent,
+	// and can be statically defined inside code to prevent duplicate sources from
+	// being created for the same agent.
 	ID          uuid.UUID `json:"id"`
 	DisplayName string    `json:"display_name"`
 	Icon        string    `json:"icon"`
@@ -780,8 +777,8 @@ type ExternalAuthResponse struct {
 	TokenExtra  map[string]interface{} `json:"token_extra"`
 	URL         string                 `json:"url"`
 	Type        string                 `json:"type"`
-	// ExpiresAt is the time the token expires, normalized to UTC (for
-	// example, "2024-06-01T15:04:05Z"). Zero value means no expiry.
+	// The time the token expires, normalized to UTC (for example,
+	// "2024-06-01T15:04:05Z"). Zero value means no expiry.
 	ExpiresAt time.Time `json:"expires_at"`
 
 	// Deprecated: Only supported on `/workspaceagents/me/gitauth`
@@ -1051,8 +1048,8 @@ func (s *SSEAgentReinitReceiver) Receive(ctx context.Context) (*Reinitialization
 
 // RefreshChatContextResponse is the response for refreshing chat context.
 type RefreshChatContextResponse struct {
-	// Refreshed is the number of drifted chats that were re-pinned to the
-	// agent's latest context snapshot.
+	// The number of drifted chats that were re-pinned to the agent's latest
+	// context snapshot.
 	Refreshed int `json:"refreshed"`
 }
 
