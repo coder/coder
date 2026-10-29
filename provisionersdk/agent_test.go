@@ -51,7 +51,7 @@ func TestAgentScript(t *testing.T) {
 		output := testutil.NewWaitBuffer()
 		// This is intentionally ran in single quotes to mimic how a customer may
 		// embed our script. Our scripts should not include any single quotes.
-		// nolint:gosec
+		//nolint:gosec
 		cmd := exec.CommandContext(ctx, "sh", "-c", "sh -c '"+script+"'")
 		cmd.Stdout = output
 		cmd.Stderr = output
@@ -153,7 +153,7 @@ func runScriptUntil(t *testing.T, script, want string) *testutil.WaitBuffer {
 	output := testutil.NewWaitBuffer()
 	// This is intentionally ran in single quotes to mimic how a customer may
 	// embed our script. Our scripts should not include any single quotes.
-	// nolint:gosec
+	//nolint:gosec
 	cmd := exec.CommandContext(ctx, "sh", "-c", "sh -c '"+script+"'")
 	cmd.WaitDelay = time.Second
 	cmd.Stdout = output
