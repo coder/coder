@@ -20,13 +20,18 @@ import (
 const connectionLogCountCap = 2000
 
 // @Summary Get connection logs
+// @Description Returns connection log entries, newest first, filtered by the `q` search query.
+// @Description Returns only the entries you can read.
+// @Description Requires permission to read connection logs, which the Owner and Auditor roles have, and the Organization Admin and Organization Auditor roles have for their organization.
+// @Description The `count` in the response is capped, and `count_cap` reports the cap, which is `2000`.
+// @Description Requires a Premium license.
 // @ID get-connection-logs
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param q query string false "Search query"
-// @Param limit query int true "Page limit"
-// @Param offset query int false "Page offset"
+// @Param q query string false "Search query as space-separated `key:value` terms. Available keys are: organization (ID or name), workspace_owner (username or `me`), workspace_owner_email, username (or `me`), user_email, connected_after and connected_before (RFC 3339 timestamps), workspace_id, connection_id, client_session_id (32 hexadecimal characters), status (`ongoing` or `completed`), method (`ssh`, `reconnecting_pty`, `workspace_app`, `port_forwarding`, or `tunnel`), type (`ssh`, `vscode`, `jetbrains`, `reconnecting_pty`, `workspace_app`, `port_forwarding`, or `tunnel`, which can't be combined with method or app), and app (repeat to match any of several apps). Unknown keys return an error."
+// @Param limit query int true "Maximum number of results to return. When omitted or `0`, returns `100` results."
+// @Param offset query int false "Number of results to skip, for paging through results with `limit`."
 // @Success 200 {object} codersdk.ConnectionLogResponse
 // @Router /api/v2/connectionlog [get]
 func (api *API) connectionLogs(rw http.ResponseWriter, r *http.Request) {

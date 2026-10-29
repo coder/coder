@@ -564,13 +564,13 @@ func (api *API) groupsByOrganization(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID or name"
+// @Param organization path string true "Organization ID, name, or `default` for the default organization."
 // @Param q query string false "Search query (see description for syntax and colon-quoting)"
-// @Param limit query int false "Page limit"
-// @Param offset query int false "Page offset"
-// @Param after_id query string false "After ID" format(uuid)
+// @Param limit query int false "Maximum number of results to return. The default, `0`, returns all results."
+// @Param offset query int false "Number of results to skip, for paging through results with `limit`."
+// @Param after_id query string false "ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`." format(uuid)
 // @Success 200 {object} codersdk.PaginatedGroupsResponse
-// @Description Unlike "Get groups by organization" (GET /organizations/{organization}/groups),
+// @Description Unlike "Get groups by organization" (`GET /api/v2/organizations/{organization}/groups`),
 // @Description which authorizes each group individually via its ACL, this endpoint requires
 // @Description organization-wide group read permission and does no per-group filtering. It is
 // @Description therefore not a drop-in replacement: callers without org-wide group read receive
@@ -584,7 +584,7 @@ func (api *API) groupsByOrganization(rw http.ResponseWriter, r *http.Request) {
 // @Description
 // @Description This endpoint returns group summaries without the member roster: each group
 // @Description carries only `total_member_count` and no `members` field. Callers that need the
-// @Description roster use the group members endpoint (GET /groups/{group}/members).
+// @Description roster use the group members endpoint (`GET /api/v2/groups/{group}/members`).
 // @Router /api/v2/organizations/{organization}/paginated-groups [get]
 func (api *API) paginatedGroups(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

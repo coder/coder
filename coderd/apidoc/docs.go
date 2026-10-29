@@ -5185,6 +5185,7 @@ const docTemplate = `{
         },
         "/api/v2/connectionlog": {
             "get": {
+                "description": "Returns connection log entries, newest first, filtered by the ` + "`" + `q` + "`" + ` search query.\nReturns only the entries you can read.\nRequires permission to read connection logs, which the Owner and Auditor roles have, and the Organization Admin and Organization Auditor roles have for their organization.\nThe ` + "`" + `count` + "`" + ` in the response is capped, and ` + "`" + `count_cap` + "`" + ` reports the cap, which is ` + "`" + `2000` + "`" + `.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -5196,20 +5197,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query",
+                        "description": "Search query as space-separated ` + "`" + `key:value` + "`" + ` terms. Available keys are: organization (ID or name), workspace_owner (username or ` + "`" + `me` + "`" + `), workspace_owner_email, username (or ` + "`" + `me` + "`" + `), user_email, connected_after and connected_before (RFC 3339 timestamps), workspace_id, connection_id, client_session_id (32 hexadecimal characters), status (` + "`" + `ongoing` + "`" + ` or ` + "`" + `completed` + "`" + `), method (` + "`" + `ssh` + "`" + `, ` + "`" + `reconnecting_pty` + "`" + `, ` + "`" + `workspace_app` + "`" + `, ` + "`" + `port_forwarding` + "`" + `, or ` + "`" + `tunnel` + "`" + `), type (` + "`" + `ssh` + "`" + `, ` + "`" + `vscode` + "`" + `, ` + "`" + `jetbrains` + "`" + `, ` + "`" + `reconnecting_pty` + "`" + `, ` + "`" + `workspace_app` + "`" + `, ` + "`" + `port_forwarding` + "`" + `, or ` + "`" + `tunnel` + "`" + `, which can't be combined with method or app), and app (repeat to match any of several apps). Unknown keys return an error.",
                         "name": "q",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page limit",
+                        "description": "Maximum number of results to return. When omitted or ` + "`" + `0` + "`" + `, returns ` + "`" + `100` + "`" + ` results.",
                         "name": "limit",
                         "in": "query",
                         "required": true
                     },
                     {
                         "type": "integer",
-                        "description": "Page offset",
+                        "description": "Number of results to skip, for paging through results with ` + "`" + `limit` + "`" + `.",
                         "name": "offset",
                         "in": "query"
                     }
@@ -9988,7 +9989,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/paginated-groups": {
             "get": {
-                "description": "Unlike \"Get groups by organization\" (GET /organizations/{organization}/groups),\nwhich authorizes each group individually via its ACL, this endpoint requires\norganization-wide group read permission and does no per-group filtering. It is\ntherefore not a drop-in replacement: callers without org-wide group read receive\nan error rather than a filtered subset.\n\nThe ` + "`" + `q` + "`" + ` parameter uses the shared filter syntax. Bare terms (including multi-word)\nperform a free-text search over group name and display name. ` + "`" + `search:` + "`" + ` is the only\naccepted key and unknown keys return 400. Because group display names may contain\ncolons, a value with a colon must be quoted, e.g. ` + "`" + `search:\"team: frontend\"` + "`" + `; an\nunquoted colon fails with ` + "`" + `Query element \"team:\" cannot start or end with ':'` + "`" + `.\n\nThis endpoint returns group summaries without the member roster: each group\ncarries only ` + "`" + `total_member_count` + "`" + ` and no ` + "`" + `members` + "`" + ` field. Callers that need the\nroster use the group members endpoint (GET /groups/{group}/members).",
+                "description": "Unlike \"Get groups by organization\" (` + "`" + `GET /api/v2/organizations/{organization}/groups` + "`" + `),\nwhich authorizes each group individually via its ACL, this endpoint requires\norganization-wide group read permission and does no per-group filtering. It is\ntherefore not a drop-in replacement: callers without org-wide group read receive\nan error rather than a filtered subset.\n\nThe ` + "`" + `q` + "`" + ` parameter uses the shared filter syntax. Bare terms (including multi-word)\nperform a free-text search over group name and display name. ` + "`" + `search:` + "`" + ` is the only\naccepted key and unknown keys return 400. Because group display names may contain\ncolons, a value with a colon must be quoted, e.g. ` + "`" + `search:\"team: frontend\"` + "`" + `; an\nunquoted colon fails with ` + "`" + `Query element \"team:\" cannot start or end with ':'` + "`" + `.\n\nThis endpoint returns group summaries without the member roster: each group\ncarries only ` + "`" + `total_member_count` + "`" + ` and no ` + "`" + `members` + "`" + ` field. Callers that need the\nroster use the group members endpoint (` + "`" + `GET /api/v2/groups/{group}/members` + "`" + `).",
                 "produces": [
                     "application/json"
                 ],
@@ -10000,7 +10001,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Organization ID or name",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -10013,20 +10014,20 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Page limit",
+                        "description": "Maximum number of results to return. The default, ` + "`" + `0` + "`" + `, returns all results.",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page offset",
+                        "description": "Number of results to skip, for paging through results with ` + "`" + `limit` + "`" + `.",
                         "name": "offset",
                         "in": "query"
                     },
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "After ID",
+                        "description": "ID of the last result on the previous page. Returns the results after it, which pages faster than ` + "`" + `offset` + "`" + `.",
                         "name": "after_id",
                         "in": "query"
                     }
@@ -10926,6 +10927,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/settings/workspace-sharing": {
             "get": {
+                "description": "Returns whether workspaces in an organization can be shared, and whose workspaces can be shared: ` + "`" + `none` + "`" + `, ` + "`" + `everyone` + "`" + `, or ` + "`" + `service_accounts` + "`" + `.\nWhen the deployment disables workspace sharing with ` + "`" + `--disable-workspace-sharing` + "`" + `, ` + "`" + `sharing_globally_disabled` + "`" + ` is ` + "`" + `true` + "`" + ` and ` + "`" + `shareable_workspace_owners` + "`" + ` is ` + "`" + `none` + "`" + ` whatever the organization setting is.",
                 "produces": [
                     "application/json"
                 ],
@@ -10938,7 +10940,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -10959,6 +10961,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Sets whose workspaces can be shared in an organization: ` + "`" + `none` + "`" + `, ` + "`" + `everyone` + "`" + `, or ` + "`" + `service_accounts` + "`" + `.\nChoosing ` + "`" + `none` + "`" + ` or ` + "`" + `service_accounts` + "`" + ` also removes existing workspace shares in the organization, which are all of them for ` + "`" + `none` + "`" + `, and those on workspaces not owned by service accounts for ` + "`" + `service_accounts` + "`" + `.\nRequires permission to update the organization, which the Owner and Organization Admin roles have.",
                 "consumes": [
                     "application/json"
                 ],
@@ -10974,13 +10977,13 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization ID, name, or ` + "`" + `default` + "`" + ` for the default organization.",
                         "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Workspace sharing settings",
+                        "description": "Workspace sharing settings to apply. Set ` + "`" + `shareable_workspace_owners` + "`" + `, because ` + "`" + `sharing_disabled` + "`" + ` is deprecated and applies only when it is empty.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -12073,6 +12076,7 @@ const docTemplate = `{
         },
         "/api/v2/templates/{template}/acl": {
             "get": {
+                "description": "Returns the users and groups that have access to a template, each with its role, either ` + "`" + `admin` + "`" + ` or ` + "`" + `use` + "`" + `.\nRequires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -12106,6 +12110,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
+                "description": "Adds, changes, or removes the users and groups that have access to a template, by mapping user IDs in ` + "`" + `user_perms` + "`" + ` and group IDs in ` + "`" + `group_perms` + "`" + ` to a role, either ` + "`" + `admin` + "`" + ` or ` + "`" + `use` + "`" + `.\nSet a role to an empty string to remove that user or group, and entries you leave out stay as they are.\nRequires permission to create templates, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.\nRequires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -12127,7 +12132,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Update template ACL request",
+                        "description": "Users and groups to add, change, or remove, each mapped to a template role. An empty role removes the entry.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -12153,6 +12158,7 @@ const docTemplate = `{
         },
         "/api/v2/templates/{template}/acl/available": {
             "get": {
+                "description": "Returns the users and groups you can add to a template's access control list.\nPass ` + "`" + `q` + "`" + ` to search the users and groups and ` + "`" + `limit` + "`" + ` to cap how many of each return.\nRequires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -12226,6 +12232,7 @@ const docTemplate = `{
         },
         "/api/v2/templates/{template}/prebuilds/invalidate": {
             "post": {
+                "description": "Marks every preset on the template's active version as invalidated, so that Coder replaces the existing prebuilt workspaces for those presets with new ones.\nReturns the invalidated presets.\nRequires permission to update the template, which the Owner, Template Admin, Organization Admin, and Organization Template Admin roles have.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -14999,6 +15006,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/quiet-hours": {
             "get": {
+                "description": "Returns the daily quiet hours schedule that applies to a user, which is the deployment default until the user sets their own.\nCheck ` + "`" + `user_set` + "`" + ` to see whether the user set the schedule, and ` + "`" + `user_can_set` + "`" + ` to see whether the deployment lets users set their own.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -15011,7 +15019,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "User ID",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -15035,6 +15043,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Sets the daily quiet hours schedule for a user, as a cron expression with a single time and an optional ` + "`" + `CRON_TZ=` + "`" + ` prefix, for example ` + "`" + `CRON_TZ=UTC 0 0 * * *` + "`" + `.\nReturns ` + "`" + `403` + "`" + ` when the deployment doesn't let users set their own schedule, which ` + "`" + `--allow-custom-quiet-hours=false` + "`" + ` controls.\nYou can update your own schedule, and updating another user's schedule requires the Owner or User Admin role.\nRequires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -15050,13 +15059,13 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "User ID",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Update schedule request",
+                        "description": "Quiet hours schedule to set.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -18156,6 +18165,7 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/external-agent/{agent}/credentials": {
             "get": {
+                "description": "Returns the agent token and a shell command that installs and starts the workspace agent on a machine outside Coder, for a workspace whose latest build has an external agent.\nTreat the response as a secret, because the token lets the holder act as the workspace agent.\nRequires permission to connect to the workspace over SSH, which the workspace owner has.\nRequires a Premium license.",
                 "produces": [
                     "application/json"
                 ],
@@ -18175,7 +18185,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Agent name",
+                        "description": "Name of the external workspace agent, as it appears in the latest workspace build.",
                         "name": "agent",
                         "in": "path",
                         "required": true
