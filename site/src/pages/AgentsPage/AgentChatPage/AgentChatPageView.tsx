@@ -8,10 +8,7 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
-import {
-	getAgentBrowserApp,
-	isWorkspaceAppEmbeddable,
-} from "#/modules/apps/apps";
+import { getAgentBrowserApp } from "#/modules/apps/apps";
 import { WorkspaceAppFrame } from "#/modules/apps/WorkspaceAppFrame";
 import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
@@ -179,12 +176,6 @@ type AgentChatPageViewProps = {
 	desktopChatId?: string;
 };
 
-const UnavailableTabMessage: React.FC<{ message: string }> = ({ message }) => (
-	<div className="flex h-full min-h-0 items-center justify-center px-6 text-center text-xs text-content-secondary">
-		{message}
-	</div>
-);
-
 type UserTabContentProps = {
 	tab: UserRightPanelTab;
 	chatId: string;
@@ -221,32 +212,24 @@ const UserTabContent: React.FC<UserTabContentProps> = ({
 					workspace={workspace}
 					workspaceAgent={workspaceAgent}
 				/>
-			) : (
-				<UnavailableTabMessage message="Terminal will be available once the workspace agent is ready." />
-			);
+			) : null;
+		// validateUserRightPanelTabs already dropped tabs whose app or agent is
+		// gone, so these lookups only narrow types.
 		case "workspace_app": {
-			if (!workspace) {
+			const app =
+				workspace &&
+				findWorkspaceAppWithAgent(workspace, tab.agentId, tab.appId);
+			if (!workspace || !app) {
 				return null;
-			}
-			const app = findWorkspaceAppWithAgent(workspace, tab.agentId, tab.appId);
-			if (!app || !isWorkspaceAppEmbeddable(app)) {
-				return (
-					<UnavailableTabMessage message="This workspace app is no longer available as a right-panel tab." />
-				);
 			}
 			return (
 				<WorkspaceAppFrame workspace={workspace} app={app} active={isActive} />
 			);
 		}
 		case "port": {
-			if (!workspace) {
+			const agent = workspace && findWorkspaceAgent(workspace, tab.agentId);
+			if (!workspace || !agent) {
 				return null;
-			}
-			const agent = findWorkspaceAgent(workspace, tab.agentId);
-			if (!agent) {
-				return (
-					<UnavailableTabMessage message="This port preview tab is no longer available." />
-				);
 			}
 			return (
 				<PortPreviewPanel
@@ -389,8 +372,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 			savePersistedVisibleSingletonTabs(agentId, visibleSingletonTabs);
 		}
 	}, [agentId, isArchived, visibleSingletonTabs]);
-
-	const shouldShowSidebar = showSidebarPanel;
 
 	// Prefer the git repository root over the agent's expanded directory
 	// for VS Code folder resolution (important for monorepos).
@@ -645,7 +626,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 				return (
 					<ChatSummaryPanel
 						chatId={agentId}
-						isVisible={shouldShowSidebar && effectiveSidebarTabId === "summary"}
+						isVisible={showSidebarPanel && effectiveSidebarTabId === "summary"}
 						store={store}
 						hasMoreMessages={hasMoreMessages}
 						isHydratingMessages={isHydratingMessages}
@@ -690,13 +671,11 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 					<TerminalPanel
 						chatId={agentId}
 						isHot={
-							shouldShowSidebar &&
+							showSidebarPanel &&
 							(effectiveSidebarTabId === "terminal" ||
 								pendingTabId === "terminal")
 						}
-						autoFocus={
-							shouldShowSidebar && effectiveSidebarTabId === "terminal"
-						}
+						autoFocus={showSidebarPanel && effectiveSidebarTabId === "terminal"}
 						onReady={() => handleTerminalTabReady("terminal")}
 						workspace={workspace}
 						workspaceAgent={workspaceAgent}
@@ -706,7 +685,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 				return (
 					<DebugPanel
 						chatId={agentId}
-						isVisible={shouldShowSidebar && effectiveSidebarTabId === "debug"}
+						isVisible={showSidebarPanel && effectiveSidebarTabId === "debug"}
 					/>
 				);
 			default: {
@@ -720,7 +699,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 						workspace={workspace}
 						workspaceAgent={workspaceAgent}
 						wildcardHostname={wildcardHostname}
-						sidebarVisible={shouldShowSidebar}
+						sidebarVisible={showSidebarPanel}
 						isActive={effectiveSidebarTabId === userTab.id}
 						isPending={pendingTabId === userTab.id}
 						onTerminalReady={handleTerminalTabReady}
@@ -759,10 +738,8 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		}
 	};
 
+	// The add-tab menu only lists supported singletons.
 	const handleToggleSingletonTab = (tabId: SingletonRightPanelTabId) => {
-		if (!singletonTabSupport[tabId]) {
-			return;
-		}
 		if (isSingletonTabShown(tabId)) {
 			handleCloseTab(tabId);
 		} else {
@@ -771,10 +748,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	};
 
 	const sidebarTabs = sidebarTabConfigs.map((tab) => {
-		const isCloseable =
-			tab.id === "terminal" ||
-			isSingletonRightPanelTabId(tab.id) ||
-			validatedUserRightPanelTabs.some((userTab) => userTab.id === tab.id);
+		const isCloseable = tab.id !== "summary" && tab.id !== "git";
 		return {
 			id: tab.id,
 			label: tab.label,
@@ -815,22 +789,15 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 				}}
 			>
 				<DesktopPanelContext value={desktopPanelCtx}>
-					<div
-						className={cn(
-							"relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]",
-							shouldShowSidebar && !visualExpanded && "flex-row",
-						)}
-					>
+					<div className="relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]">
 						<div
-							data-testid="agents-chat-panel"
 							className={cn(
 								"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden sm:min-w-(--agents-chat-panel-min-width,0px)",
 								visualExpanded && "hidden",
-								shouldShowSidebar && "max-lg:hidden",
+								showSidebarPanel && "max-lg:hidden",
 							)}
 						>
 							<div className="relative z-10 shrink-0 overflow-visible">
-								{" "}
 								<ChatTopBar
 									chat={chat}
 									liveChatStatus={liveChatStatus}
@@ -872,7 +839,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 								/>
 							</div>
 							<ChatPageTimeline
-								key={agentId}
 								organizationId={organizationId}
 								store={store}
 								chatFiles={chat.files}
@@ -892,14 +858,10 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 								urlTransform={urlTransform}
 								mcpServers={mcpServers}
 								onImplementPlan={
-									isOtherUserReadOnly || !canSubmitChatTurn
-										? undefined
-										: onImplementPlan
+									canSubmitChatTurn ? onImplementPlan : undefined
 								}
 								onSendAskUserQuestionResponse={
-									isOtherUserReadOnly || !canSubmitChatTurn
-										? undefined
-										: onSendAskUserQuestionResponse
+									canSubmitChatTurn ? onSendAskUserQuestionResponse : undefined
 								}
 								footer={
 									chat.queued_for_capacity ? (
@@ -964,7 +926,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 							)}
 						</div>
 						<RightPanel
-							isOpen={shouldShowSidebar}
+							isOpen={showSidebarPanel}
 							isExpanded={showSidebarPanel && isRightPanelExpanded}
 							onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
 							onClose={() => onSetShowSidebarPanel(false)}
@@ -1047,12 +1009,7 @@ export const AgentChatPageLoadingView: React.FC<
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
 	return (
-		<div
-			className={cn(
-				"relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]",
-				showRightPanel && "flex-row",
-			)}
-		>
+		<div className="relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]">
 			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col sm:min-w-(--agents-chat-panel-min-width,0px)">
 				<ChatTopBar
 					panel={{
@@ -1092,7 +1049,7 @@ export const AgentChatPageLoadingView: React.FC<
 						hasModelOptions={hasModelOptions}
 						canConfigureAgentSetup={false}
 					/>
-				</div>{" "}
+				</div>
 			</div>
 			{showRightPanel && (
 				<RightPanel

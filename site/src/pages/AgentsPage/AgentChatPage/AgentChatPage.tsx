@@ -796,7 +796,6 @@ const AgentChatPage: React.FC = () => {
 				<AgentChatPageNotFoundView />
 			) : (
 				<AgentChatPageView
-					key={agentId}
 					chat={chat}
 					persistedError={persistedError}
 					workspace={workspace}
