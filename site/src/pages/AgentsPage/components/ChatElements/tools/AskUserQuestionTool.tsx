@@ -387,7 +387,7 @@ type AskUserQuestionFormProps = {
 	previousResponseText?: string;
 	asyncToolCallId?: string;
 	showSubmittedAnswer: boolean;
-	/** Unset while the question cannot be answered. */
+	/** The form is read-only without it, and once it shows an answer. */
 	onSubmitAnswer?: (message: string) => Promise<void> | void;
 	onStepChange?: () => void;
 	/** Swaps the form for a progress line and keeps its state for expanding. */

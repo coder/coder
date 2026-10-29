@@ -217,7 +217,7 @@ const getWorkspaceQuotaTitle = (
 
 /**
  * Reads the questions from the call's raw args, or from its result when the
- * args have none.
+ * args have none. Returns an empty list when neither has questions.
  */
 export const getAskUserQuestions = (
 	args: unknown,
