@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { InfoIcon } from "lucide-react";
-import { memo, useLayoutEffect, useState } from "react";
+import { memo, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import type { UrlTransform } from "streamdown";
 import { preferenceSettings } from "#/api/queries/users";
@@ -443,14 +443,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		const peekEnabled = workingBlockPeek ?? true;
 		const { scrollToMessage } = useMessageScroller();
 		const syncLayout = useMessageScrollerLayoutSync();
-		// PROTOTYPE: a render that shrinks the timeline, such as a live block
-		// dissolving into its reasoning or a turn's blocks merging as it ends,
-		// lets the browser clamp the scroll position. The scroller's own resize
-		// pass waits for the next frame, so one frame would paint the clamped
-		// position; reconcile before paint instead.
-		useLayoutEffect(() => {
-			syncLayout();
-		});
+		// The item keys of the last commit, for the regroup check below.
+		const committedItemKeys = useRef<ReadonlySet<string>>(new Set());
 		const preferences = useQuery(preferenceSettings());
 		const [expandedBlocks, setExpandedBlocks] = useState<
 			ReadonlyMap<string, boolean>
@@ -517,6 +511,31 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		}
 		const getItemKey = (block: WorkingBlock) =>
 			nextLiveBlockKeys.itemKeys.get(block.key) ?? block.key;
+
+		// PROTOTYPE: a render that regroups the timeline, such as a live block
+		// dissolving into its reasoning or a turn's blocks merging as it ends,
+		// can shrink it and let the browser clamp the scroll position. The
+		// scroller's own resize pass waits for the next frame, so one frame would
+		// paint the clamped position; reconcile before paint instead. Only when
+		// an item goes away, since only that can shrink the timeline: in
+		// following mode a resize pass scrolls to the end, and an appended
+		// prompt must reach the scroller's anchor handling first.
+		const itemSignature = layout.items
+			.map((item) =>
+				item.type === "block" ? getItemKey(item.block) : item.slice.key,
+			)
+			.join("\n");
+		const onRegroup = useEffectEvent(() => syncLayout());
+		useLayoutEffect(() => {
+			const keys = new Set(itemSignature.split("\n"));
+			const removed = [...committedItemKeys.current].some(
+				(key) => !keys.has(key),
+			);
+			committedItemKeys.current = keys;
+			if (removed) {
+				onRegroup();
+			}
+		}, [itemSignature]);
 
 		if (renderRows.length === 0) {
 			return null;
