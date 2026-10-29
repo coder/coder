@@ -3098,7 +3098,7 @@ const docTemplate = `{
         },
         "/api/v2/chats": {
             "get": {
-                "description": "Lists chats, ordering pinned chats first and the rest by most recent update.\nBy default it returns only the non-archived chats you own, so use ` + "`" + `q` + "`" + ` to include archived chats or chats shared with you, for example ` + "`" + `source:shared_with_me` + "`" + `.\nIt returns up to 50 chats unless you set ` + "`" + `limit` + "`" + `, and each result is a root chat with its subagent chats in ` + "`" + `children` + "`" + `.",
+                "description": "Lists chats, ordering pinned chats first and the rest by most recent update.\nBy default it returns only the non-archived chats you own, so use ` + "`" + `q` + "`" + ` to include archived chats or chats shared with you, for example ` + "`" + `source:shared_with_me` + "`" + `.\nIt returns up to 50 chats unless you set ` + "`" + `limit` + "`" + `, and each result is a root chat with its sub-agent chats in ` + "`" + `children` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -3127,19 +3127,19 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "ID of the last chat on the previous page. Returns the chats after it, which pages faster than ` + "`" + `offset` + "`" + `.",
+                        "description": "ID of the last result on the previous page. Returns the results after it, which pages faster than ` + "`" + `offset` + "`" + `.",
                         "name": "after_id",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Maximum number of chats to return. The default is ` + "`" + `50` + "`" + `.",
+                        "description": "Maximum number of results to return. The default is ` + "`" + `50` + "`" + `.",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Number of chats to skip, for paging through results with ` + "`" + `limit` + "`" + `.",
+                        "description": "Number of results to skip, for paging through results with ` + "`" + `limit` + "`" + `.",
                         "name": "offset",
                         "in": "query"
                     },
@@ -4160,7 +4160,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}": {
             "get": {
-                "description": "Returns a chat and, for a root chat, its subagent chats in ` + "`" + `children` + "`" + `.\nUse it to check a chat's status or inspect its pinned workspace context, which ` + "`" + `GET /api/v2/chats` + "`" + ` leaves out.",
+                "description": "Returns a chat and, for a root chat, its sub-agent chats in ` + "`" + `children` + "`" + `.\nUse it to check a chat's status or inspect its pinned workspace context, which ` + "`" + `GET /api/v2/chats` + "`" + ` leaves out.",
                 "produces": [
                     "application/json"
                 ],
@@ -4514,7 +4514,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/diff": {
             "get": {
-                "description": "Returns the diff for the pull request or branch a chat is tracking, fetched from the git provider.\nThe ` + "`" + `diff` + "`" + ` field is empty when no git provider matches the remote or the chat owner has no access token for it.\nSet ` + "`" + `origin` + "`" + ` and ` + "`" + `branch` + "`" + ` together to pick one tracked ref, or omit both to use the chat's primary ref.",
+                "description": "Returns the diff for the pull request or branch a chat is tracking, fetched from the git provider.\nThe ` + "`" + `diff` + "`" + ` field is empty when the chat tracks no repository, no git provider matches the remote, or the chat owner has no access token for it.\nSet ` + "`" + `origin` + "`" + ` and ` + "`" + `branch` + "`" + ` together to pick one tracked ref, or omit both to use the chat's primary ref.",
                 "produces": [
                     "application/json"
                 ],

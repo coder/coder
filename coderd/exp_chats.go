@@ -455,16 +455,16 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Summary List chats
 // @Description Lists chats, ordering pinned chats first and the rest by most recent update.
 // @Description By default it returns only the non-archived chats you own, so use `q` to include archived chats or chats shared with you, for example `source:shared_with_me`.
-// @Description It returns up to 50 chats unless you set `limit`, and each result is a root chat with its subagent chats in `children`.
+// @Description It returns up to 50 chats unless you set `limit`, and each result is a root chat with its sub-agent chats in `children`.
 // @ID list-chats
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
 // @Param q query string false "Search query. Supports `title:<substring>` (case-insensitive, quote multi-word values), `archived:bool`, `has_unread:bool`, `status:<waiting\|running\|error\|requires_action\|interrupting>` (chat status, repeated or comma-separated), `pr_status:<draft\|open\|merged\|closed\|none>` (none matches chats with no pull request) as repeated or comma-separated values, `source:<created_by_me\|shared_with_me>`, `diff_url:<url>` (quote values containing colons), `pr:<number>` (exact PR number match), `repo:<owner/repo>` (case-insensitive substring match against git remote origin or URL), `pr_title:<text>` (case-insensitive PR title substring), `search:<text>` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. `refactor` matches `refactoring`, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use `title:<value>` or `search:<value>`."
 // @Param label query []string false "Filter by label as key:value. Repeat for multiple (AND logic)." collectionFormat(multi)
-// @Param after_id query string false "ID of the last chat on the previous page. Returns the chats after it, which pages faster than `offset`." format(uuid)
-// @Param limit query int false "Maximum number of chats to return. The default is `50`."
-// @Param offset query int false "Number of chats to skip, for paging through results with `limit`."
+// @Param after_id query string false "ID of the last result on the previous page. Returns the results after it, which pages faster than `offset`." format(uuid)
+// @Param limit query int false "Maximum number of results to return. The default is `50`."
+// @Param offset query int false "Number of results to skip, for paging through results with `limit`."
 // @Param project_id query string false "Only chats in this project." format(uuid)
 // @Success 200 {array} codersdk.Chat
 // @Router /api/v2/chats [get]
@@ -1832,7 +1832,7 @@ func (api *API) createChatError(err error) error {
 }
 
 // @Summary Get chat by ID
-// @Description Returns a chat and, for a root chat, its subagent chats in `children`.
+// @Description Returns a chat and, for a root chat, its sub-agent chats in `children`.
 // @Description Use it to check a chat's status or inspect its pinned workspace context, which `GET /api/v2/chats` leaves out.
 // @ID get-chat-by-id
 // @Security CoderSessionToken
@@ -4231,7 +4231,7 @@ func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Get chat diff contents
 // @Description Returns the diff for the pull request or branch a chat is tracking, fetched from the git provider.
-// @Description The `diff` field is empty when no git provider matches the remote or the chat owner has no access token for it.
+// @Description The `diff` field is empty when the chat tracks no repository, no git provider matches the remote, or the chat owner has no access token for it.
 // @Description Set `origin` and `branch` together to pick one tracked ref, or omit both to use the chat's primary ref.
 // @ID get-chat-diff-contents
 // @Security CoderSessionToken
