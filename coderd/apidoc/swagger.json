@@ -12263,7 +12263,7 @@
 		},
 		"/api/v2/users/roles": {
 			"get": {
-				"description": "Returns the site-wide roles, built-in and custom, that you can assign to users.\nEach role has an `assignable` field that tells you whether you can assign it.\nRequires permission to read role assignments, which the Owner and User Admin roles have.",
+				"description": "Returns the site-wide roles, built-in and custom, that you can assign to users.\nEach role has an `assignable` field that tells you whether you can assign it.\nRequires permission to read role assignments, which every user has.",
 				"produces": ["application/json"],
 				"tags": ["Members"],
 				"summary": "Get site member roles",

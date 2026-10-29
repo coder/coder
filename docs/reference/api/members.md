@@ -933,7 +933,7 @@ curl -X GET http://coder-server:8080/api/v2/users/roles \
 
 Returns the site-wide roles, built-in and custom, that you can assign to users.
 Each role has an `assignable` field that tells you whether you can assign it.
-Requires permission to read role assignments, which the Owner and User Admin roles have.
+Requires permission to read role assignments, which every user has.
 
 ### Example responses
 

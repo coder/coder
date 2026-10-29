@@ -19,7 +19,7 @@ import (
 // @Summary Get site member roles
 // @Description Returns the site-wide roles, built-in and custom, that you can assign to users.
 // @Description Each role has an `assignable` field that tells you whether you can assign it.
-// @Description Requires permission to read role assignments, which the Owner and User Admin roles have.
+// @Description Requires permission to read role assignments, which every user has.
 // @ID get-site-member-roles
 // @Security CoderSessionToken
 // @Produce json
