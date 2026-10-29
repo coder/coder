@@ -252,7 +252,7 @@ type AuditLog struct {
 	UserAgent    string       `json:"user_agent"`
 	ResourceType ResourceType `json:"resource_type"`
 	ResourceID   uuid.UUID    `json:"resource_id" format:"uuid"`
-	// ResourceTarget is the name of the resource.
+	// The name of the resource.
 	ResourceTarget   string          `json:"resource_target"`
 	ResourceIcon     string          `json:"resource_icon"`
 	Action           AuditAction     `json:"action"`

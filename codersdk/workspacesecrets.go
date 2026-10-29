@@ -16,18 +16,17 @@ import (
 type WorkspaceSecret struct {
 	UserSecret
 	WorkspaceBuildID uuid.UUID `json:"workspace_build_id" format:"uuid"`
-	// Ephemeral secrets are delivered to their build only and not copied to
-	// the next one.
+	// If true, the secret is delivered to its build only and not copied to the
+	// next one.
 	Ephemeral bool `json:"ephemeral"`
-	// ClearedAt is set once a later build superseded the secret and its
-	// value was dropped. Cleared secrets are not delivered and replace
-	// nothing.
+	// Set once a later build superseded the secret and its value was dropped.
+	// Cleared secrets are not delivered and replace nothing.
 	ClearedAt *time.Time `json:"cleared_at,omitempty" format:"date-time"`
-	// EnvReplaces is the ID of the workspace owner's user secret that this
-	// secret displaces on env_name.
+	// The ID of the workspace owner's user secret that this secret displaces on
+	// env_name.
 	EnvReplaces *uuid.UUID `json:"env_replaces,omitempty" format:"uuid"`
-	// FileReplaces is the ID of the workspace owner's user secret that this
-	// secret displaces on file_path.
+	// The ID of the workspace owner's user secret that this secret displaces on
+	// file_path.
 	FileReplaces *uuid.UUID `json:"file_replaces,omitempty" format:"uuid"`
 }
 
@@ -61,19 +60,17 @@ func (c *Client) WorkspaceBuildSecrets(ctx context.Context, workspaceBuildID uui
 // are delivered to that build only.
 type WorkspaceSecretInput struct {
 	Name string `json:"name"`
-	// Value is the plaintext secret. A null value removes the secret. An
-	// empty string sets an empty secret.
+	// The plaintext secret. A null value removes the secret. An empty string sets
+	// an empty secret.
 	Value *string `json:"value"`
-	// EnvName is the environment variable to inject the secret as. Empty
-	// means no env injection. Required when file_path is empty and value is
-	// set.
+	// The environment variable to inject the secret as. Empty means no env
+	// injection. Required when file_path is empty and value is set.
 	EnvName string `json:"env_name,omitempty"`
-	// FilePath is the path to write the secret to inside the workspace.
-	// Empty means no file is written. Deployments may disable file path
-	// delivery.
+	// The path to write the secret to inside the workspace. Empty means no file is
+	// written. Deployments may disable file path delivery.
 	FilePath string `json:"file_path,omitempty"`
-	// Ephemeral secrets are delivered to this build only and are not
-	// carried forward to the next build.
+	// If true, the secret is delivered to this build only and is not carried
+	// forward to the next build.
 	Ephemeral bool `json:"ephemeral,omitempty"`
 }
 

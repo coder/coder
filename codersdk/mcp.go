@@ -86,18 +86,17 @@ type MCPServerConfig struct {
 	ToolAllowList []string `json:"tool_allow_list"`
 	ToolDenyList  []string `json:"tool_deny_list"`
 
-	// Availability policy set by admin.
+	// The availability policy set by admin.
 	Availability string `json:"availability"` // "force_on", "default_on", "default_off"
 
 	Enabled         bool `json:"enabled"`
 	ModelIntent     bool `json:"model_intent"`
 	AllowInPlanMode bool `json:"allow_in_plan_mode"`
 
-	// ForwardCoderHeaders forwards the same Coder identity headers we
-	// send to LLM providers (X-Coder-Owner-Id, X-Coder-Chat-Id, and the
-	// optional X-Coder-Subchat-Id and X-Coder-Workspace-Id) to this
-	// MCP server on every request. Off by default to avoid leaking
-	// chat identity to third-party servers.
+	// Forwards the same Coder identity headers we send to LLM providers
+	// (X-Coder-Owner-Id, X-Coder-Chat-Id, and the optional X-Coder-Subchat-Id and
+	// X-Coder-Workspace-Id) to this MCP server on every request. Off by default to
+	// avoid leaking chat identity to third-party servers.
 	ForwardCoderHeaders bool      `json:"forward_coder_headers"`
 	HasSigningSecret    bool      `json:"has_signing_secret"`
 	CreatedAt           time.Time `json:"created_at" format:"date-time"`
@@ -160,11 +159,11 @@ type CreateMCPServerConfigRequest struct {
 	OAuth2ClientSecret string `json:"oauth2_client_secret,omitempty"`
 	OAuth2AuthURL      string `json:"oauth2_auth_url,omitempty" validate:"omitempty,url"`
 	OAuth2TokenURL     string `json:"oauth2_token_url,omitempty" validate:"omitempty,url"`
-	// OAuth2RevocationURL is the provider's RFC 7009 revocation
-	// endpoint; auto-populated by OAuth2 discovery when omitted.
+	// The provider's RFC 7009 revocation endpoint. Auto-populated by OAuth2
+	// discovery when omitted.
 	OAuth2RevocationURL string `json:"oauth2_revocation_url,omitempty" validate:"omitempty,url"`
-	// OAuth2Resource is the RFC 8707 resource indicator sent on OAuth2
-	// requests when set. Auto-discovery fills it if empty.
+	// The RFC 8707 resource indicator sent on OAuth2 requests when set.
+	// Auto-discovery fills it if empty.
 	OAuth2Resource string            `json:"oauth2_resource,omitempty"`
 	OAuth2Scopes   string            `json:"oauth2_scopes,omitempty"`
 	APIKeyHeader   string            `json:"api_key_header,omitempty"`
@@ -179,11 +178,11 @@ type CreateMCPServerConfigRequest struct {
 	ModelIntent     bool   `json:"model_intent"`
 	AllowInPlanMode bool   `json:"allow_in_plan_mode"`
 
-	// ForwardCoderHeaders, when true, forwards Coder identity
-	// headers on every outgoing MCP request. See MCPServerConfig.
+	// When true, forwards Coder identity headers on every outgoing MCP request.
+	// See MCPServerConfig.
 	ForwardCoderHeaders bool `json:"forward_coder_headers"`
-	// SigningSecret signs forwarded identity headers and request bodies.
-	// Configure the same secret on the MCP server. It is never returned.
+	// Signs forwarded identity headers and request bodies. Configure the same
+	// secret on the MCP server. It is never returned.
 	SigningSecret string `json:"signing_secret,omitempty"`
 }
 
@@ -202,11 +201,11 @@ type UpdateMCPServerConfigRequest struct {
 	OAuth2ClientSecret *string `json:"oauth2_client_secret,omitempty"`
 	OAuth2AuthURL      *string `json:"oauth2_auth_url,omitempty" validate:"omitempty,url"`
 	OAuth2TokenURL     *string `json:"oauth2_token_url,omitempty" validate:"omitempty,url"`
-	// OAuth2RevocationURL is validated in the handler because a
-	// validate tag would reject the pointer to "" that clears it.
+	// Validated in the handler because a validate tag would reject the pointer to
+	// "" that clears it.
 	OAuth2RevocationURL *string `json:"oauth2_revocation_url,omitempty"`
-	// OAuth2Resource is the RFC 8707 resource indicator. Omit it to keep
-	// the stored value; send "" to clear it.
+	// The RFC 8707 resource indicator. Omit it to keep the stored value. Send ""
+	// to clear it.
 	OAuth2Resource *string            `json:"oauth2_resource,omitempty"`
 	OAuth2Scopes   *string            `json:"oauth2_scopes,omitempty"`
 	APIKeyHeader   *string            `json:"api_key_header,omitempty"`
@@ -221,11 +220,11 @@ type UpdateMCPServerConfigRequest struct {
 	ModelIntent     *bool   `json:"model_intent,omitempty"`
 	AllowInPlanMode *bool   `json:"allow_in_plan_mode,omitempty"`
 
-	// ForwardCoderHeaders, when set, updates whether Coder identity
-	// headers are forwarded on every outgoing MCP request.
+	// When set, updates whether Coder identity headers are forwarded on every
+	// outgoing MCP request.
 	ForwardCoderHeaders *bool `json:"forward_coder_headers,omitempty"`
-	// SigningSecret replaces the shared signing key. Omit to preserve it;
-	// an empty string clears it. It is never returned.
+	// Replaces the shared signing key. Omit to preserve it. An empty string clears
+	// it. It is never returned.
 	SigningSecret *string `json:"signing_secret,omitempty"`
 }
 

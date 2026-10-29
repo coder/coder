@@ -96,8 +96,8 @@ func (v PremiumFunnelVariant) Valid() bool {
 // PremiumFunnelEventRequest is the request body for
 // POST /api/v2/deployment/premium-funnel-events.
 type PremiumFunnelEventRequest struct {
-	// ID identifies this click, and doubles as the attribution token that a
-	// later trial signup reports.
+	// Identifies this click, and doubles as the attribution token that a later
+	// trial signup reports.
 	ID      uuid.UUID            `json:"id" format:"uuid" validate:"required"`
 	Source  PremiumFunnelSource  `json:"source" validate:"required"`
 	Variant PremiumFunnelVariant `json:"variant" validate:"required"`

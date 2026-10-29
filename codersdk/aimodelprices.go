@@ -76,8 +76,8 @@ type AIModelPriceUpsert struct {
 type AIModelPricesFilter struct {
 	Provider string `json:"provider,omitempty"`
 	Model    string `json:"model,omitempty"`
-	// Source narrows to prices from one source. A model with both reports only
-	// its custom price unless this is set.
+	// Narrows to prices from one source. A model with both reports only its custom
+	// price unless this is set.
 	Source AIModelPriceSourceFilter `json:"source,omitempty"`
 }
 

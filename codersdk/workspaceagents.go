@@ -103,8 +103,8 @@ const (
 
 type WorkspaceAgentMetadataResult struct {
 	CollectedAt time.Time `json:"collected_at" format:"date-time"`
-	// Age is the number of seconds since the metadata was collected.
-	// It is provided in addition to CollectedAt to protect against clock skew.
+	// The number of seconds since the metadata was collected. It is provided in
+	// addition to `collected_at` to protect against clock skew.
 	Age   int64  `json:"age"`
 	Value string `json:"value"`
 	Error string `json:"error"`
@@ -161,7 +161,7 @@ type WorkspaceAgent struct {
 	Version              string                  `json:"version"`
 	APIVersion           string                  `json:"api_version"`
 	Apps                 []WorkspaceApp          `json:"apps"`
-	// DERPLatency is mapped by region name (e.g. "New York City", "Seattle").
+	// Mapped by region name (e.g. "New York City", "Seattle").
 	DERPLatency              map[string]DERPRegion     `json:"latency,omitempty"`
 	ConnectionTimeoutSeconds int32                     `json:"connection_timeout_seconds"`
 	TroubleshootingURL       string                    `json:"troubleshooting_url"`
@@ -170,14 +170,15 @@ type WorkspaceAgent struct {
 	DisplayApps              []DisplayApp              `json:"display_apps"`
 	LogSources               []WorkspaceAgentLogSource `json:"log_sources"`
 	Scripts                  []WorkspaceAgentScript    `json:"scripts"`
-	// Metadata is only populated on the workspaces list endpoint when the
-	// request opts in with the include_agent_metadata search key, and it
-	// only carries the requested keys. The description's script is always
-	// empty here: it can be long, and list consumers want values.
+	// Only populated on the workspaces list endpoint when the request opts in with
+	// the include_agent_metadata search key, and it only carries the requested
+	// keys. The description's script is always empty here: it can be long, and
+	// list consumers want values.
 	Metadata []WorkspaceAgentMetadata `json:"metadata,omitempty"`
 
-	// StartupScriptBehavior is a legacy field that is deprecated in favor
-	// of the `coder_script` resource. It's only referenced by old clients.
+	// A legacy field that is deprecated in favor of the `coder_script` resource.
+	// It's only referenced by old clients.
+	//
 	// Deprecated: Remove in the future!
 	StartupScriptBehavior WorkspaceAgentStartupScriptBehavior `json:"startup_script_behavior"`
 }
@@ -213,12 +214,12 @@ type WorkspaceAgentScript struct {
 	StartBlocksLogin bool          `json:"start_blocks_login"`
 	Timeout          time.Duration `json:"timeout"`
 	DisplayName      string        `json:"display_name"`
-	// ResourceAddress is the full Terraform address of the coder_script
-	// resource, for example "module.git_clone.coder_script.clone". It is
-	// empty for scripts that are not coder_script resources.
+	// The full Terraform address of the coder_script resource, for example
+	// "module.git_clone.coder_script.clone". It is empty for scripts that are not
+	// coder_script resources.
 	ResourceAddress string `json:"resource_address"`
-	// Dependencies lists the scripts this one waits for, as the
-	// provisioner resolved them. It is omitted when empty.
+	// Lists the scripts this one waits for, as the provisioner resolved them. It
+	// is omitted when empty.
 	Dependencies []WorkspaceAgentScriptDependency `json:"dependencies,omitempty"`
 	ExitCode     *int32                           `json:"exit_code,omitempty"`
 	Status       *WorkspaceAgentScriptStatus      `json:"status,omitempty"`
@@ -414,7 +415,7 @@ func (c *Client) WorkspaceAgent(ctx context.Context, id uuid.UUID) (WorkspaceAge
 }
 
 type IssueReconnectingPTYSignedTokenRequest struct {
-	// URL is the URL of the reconnecting-pty endpoint you are connecting to.
+	// The `url` of the reconnecting-pty endpoint you are connecting to.
 	URL     string    `json:"url" validate:"required"`
 	AgentID uuid.UUID `json:"agentID" format:"uuid" validate:"required"`
 }
@@ -540,26 +541,25 @@ type WorkspaceAgentDevcontainerAgent struct {
 // of potentially multiple implementations, and the fields will be
 // somewhat implementation-dependent.
 type WorkspaceAgentContainer struct {
-	// CreatedAt is the time the container was created.
+	// The time the container was created.
 	CreatedAt time.Time `json:"created_at" format:"date-time"`
-	// ID is the unique identifier of the container.
+	// The unique identifier of the container.
 	ID string `json:"id"`
-	// FriendlyName is the human-readable name of the container.
+	// The human-readable name of the container.
 	FriendlyName string `json:"name"`
-	// Image is the name of the container image.
+	// The name of the container image.
 	Image string `json:"image"`
-	// Labels is a map of key-value pairs of container labels.
+	// A map of key-value pairs of container labels.
 	Labels map[string]string `json:"labels"`
-	// Running is true if the container is currently running.
+	// True if the container is currently running.
 	Running bool `json:"running"`
-	// Ports includes ports exposed by the container.
+	// Includes ports exposed by the container.
 	Ports []WorkspaceAgentContainerPort `json:"ports"`
-	// Status is the current status of the container. This is somewhat
-	// implementation-dependent, but should generally be a human-readable
-	// string.
+	// The current status of the container. This is somewhat
+	// implementation-dependent, but should generally be a human-readable string.
 	Status string `json:"status"`
-	// Volumes is a map of "things" mounted into the container. Again, this
-	// is somewhat implementation-dependent.
+	// A map of "things" mounted into the container. Again, this is somewhat
+	// implementation-dependent.
 	Volumes map[string]string `json:"volumes"`
 }
 
@@ -575,26 +575,26 @@ func (c *WorkspaceAgentContainer) Match(idOrName string) bool {
 
 // WorkspaceAgentContainerPort describes a port as exposed by a container.
 type WorkspaceAgentContainerPort struct {
-	// Port is the port number *inside* the container.
+	// The port number *inside* the container.
 	Port uint16 `json:"port"`
-	// Network is the network protocol used by the port (tcp, udp, etc).
+	// The network protocol used by the port (tcp, udp, etc).
 	Network string `json:"network"`
-	// HostIP is the IP address of the host interface to which the port is
-	// bound. Note that this can be an IPv4 or IPv6 address.
+	// The IP address of the host interface to which the port is bound. Note that
+	// this can be an IPv4 or IPv6 address.
 	HostIP string `json:"host_ip,omitempty"`
-	// HostPort is the port number *outside* the container.
+	// The port number *outside* the container.
 	HostPort uint16 `json:"host_port,omitempty"`
 }
 
 // WorkspaceAgentListContainersResponse is the response to the list containers
 // request.
 type WorkspaceAgentListContainersResponse struct {
-	// Devcontainers is a list of devcontainers visible to the workspace agent.
+	// A list of devcontainers visible to the workspace agent.
 	Devcontainers []WorkspaceAgentDevcontainer `json:"devcontainers"`
-	// Containers is a list of containers visible to the workspace agent.
+	// A list of containers visible to the workspace agent.
 	Containers []WorkspaceAgentContainer `json:"containers"`
-	// Warnings is a list of warnings that may have occurred during the
-	// process of listing containers. This should not include fatal errors.
+	// A list of warnings that may have occurred during the process of listing
+	// containers. This should not include fatal errors.
 	Warnings []string `json:"warnings,omitempty"`
 }
 

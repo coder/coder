@@ -86,16 +86,14 @@ type ProvisionerDaemonJob struct {
 // available to take a job at a specific point in time.
 // Introduced in Coder version 2.18.0.
 type MatchedProvisioners struct {
-	// Count is the number of provisioner daemons that matched the given
-	// tags. If the count is 0, it means no provisioner daemons matched the
-	// requested tags.
+	// The number of provisioner daemons that matched the given tags. If the count
+	// is 0, it means no provisioner daemons matched the requested tags.
 	Count int `json:"count"`
-	// Available is the number of provisioner daemons that are available to
-	// take jobs. This may be less than the count if some provisioners are
-	// busy or have been stopped.
+	// The number of provisioner daemons that are available to take jobs. This may
+	// be less than `count` if some provisioners are busy or have been stopped.
 	Available int `json:"available"`
-	// MostRecentlySeen is the most recently seen time of the set of matched
-	// provisioners. If no provisioners matched, this field will be null.
+	// The most recently seen time of the set of matched provisioners. If no
+	// provisioners matched, this field will be null.
 	MostRecentlySeen NullTime `json:"most_recently_seen,omitempty" format:"date-time"`
 }
 
@@ -269,21 +267,25 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 // ServeProvisionerDaemonRequest are the parameters to call ServeProvisionerDaemon with
 // @typescript-ignore ServeProvisionerDaemonRequest
 type ServeProvisionerDaemonRequest struct {
-	// ID is a unique ID for a provisioner daemon.
+	// A unique ID for a provisioner daemon.
+	//
 	// Deprecated: this field has always been ignored.
 	ID uuid.UUID `json:"id" format:"uuid"`
-	// Name is the human-readable unique identifier for the daemon.
+	// The human-readable unique identifier for the daemon.
 	Name string `json:"name" example:"my-cool-provisioner-daemon"`
-	// Organization is the organization for the URL. If no orgID is provided,
-	// then it is assumed to use the default organization.
+	// The organization for the URL. If no orgID is provided, then it is assumed to
+	// use the default organization.
 	Organization uuid.UUID `json:"organization" format:"uuid"`
-	// Provisioners is a list of provisioner types hosted by the provisioner daemon
+	// A list of provisioner types hosted by the provisioner daemon
 	Provisioners []ProvisionerType `json:"provisioners"`
-	// Tags is a map of key-value pairs that tag the jobs this provisioner daemon can handle
+	// A map of key-value pairs that tag the jobs this provisioner daemon can
+	// handle
 	Tags map[string]string `json:"tags"`
-	// PreSharedKey is an authentication key to use on the API instead of the normal session token from the client.
+	// An authentication key to use on the API instead of the normal session token
+	// from the client.
 	PreSharedKey string `json:"pre_shared_key"`
-	// ProvisionerKey is an authentication key to use on the API instead of the normal session token from the client.
+	// An authentication key to use on the API instead of the normal session token
+	// from the client.
 	ProvisionerKey string `json:"provisioner_key"`
 }
 

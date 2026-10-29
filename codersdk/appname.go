@@ -59,12 +59,12 @@ const AppNameOverflow = "overflow"
 // SessionCountApp is one app's session count and how to present it.
 type SessionCountApp struct {
 	Count int64 `json:"count"`
-	// DisplayName is the registry's name for a known app, otherwise the
-	// normalized identifier itself.
+	// The registry's name for a known app, otherwise the normalized identifier
+	// itself.
 	DisplayName string `json:"display_name"`
-	// Icon is a bundled path under /icon/, empty if the app has none.
+	// A bundled path under /icon/, empty if the app has none.
 	Icon string `json:"icon,omitempty"`
-	// Family is the group this app totals under.
+	// The group this app totals under.
 	Family AppFamilyName `json:"family"`
 }
 

@@ -97,12 +97,13 @@ func (c *HealthClient) PutHealthSettings(ctx context.Context, settings HealthSet
 
 // HealthcheckReport contains information about the health status of a Coder deployment.
 type HealthcheckReport struct {
-	// Time is the time the report was generated at.
+	// The time the report was generated at.
 	Time time.Time `json:"time" format:"date-time"`
-	// Healthy is true if the report returns no errors.
-	// Deprecated: use `Severity` instead
+	// True if the report returns no errors.
+	//
+	// Deprecated: use `severity` instead
 	Healthy bool `json:"healthy"`
-	// Severity indicates the status of Coder health.
+	// Indicates the status of Coder health.
 	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
 
 	DERP               DERPHealthReport         `json:"derp"`
@@ -170,7 +171,8 @@ func (b *BaseReport) Summarize(prefix, docsURL string) []string {
 // AccessURLReport shows the results of performing a HTTP_GET to the /healthz endpoint through the configured access URL.
 type AccessURLReport struct {
 	BaseReport
-	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
+	// Deprecated and left for backward compatibility purposes. Use `severity`
+	// instead.
 	Healthy         bool   `json:"healthy"`
 	AccessURL       string `json:"access_url"`
 	Reachable       bool   `json:"reachable"`
@@ -181,7 +183,8 @@ type AccessURLReport struct {
 // DERPHealthReport includes health details of each configured DERP/STUN region.
 type DERPHealthReport struct {
 	BaseReport
-	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
+	// Deprecated and left for backward compatibility purposes. Use `severity`
+	// instead.
 	Healthy      bool                      `json:"healthy"`
 	Regions      map[int]*DERPRegionReport `json:"regions"`
 	Netcheck     *netcheck.Report          `json:"netcheck,omitempty"`
@@ -191,7 +194,8 @@ type DERPHealthReport struct {
 
 // DERPHealthReport includes health details of each node in a single region.
 type DERPRegionReport struct {
-	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
+	// Deprecated and left for backward compatibility purposes. Use `severity`
+	// instead.
 	Healthy     bool                `json:"healthy"`
 	Severity    health.Severity     `json:"severity" enums:"ok,warning,error"`
 	Warnings    []health.Message    `json:"warnings"`
@@ -202,7 +206,8 @@ type DERPRegionReport struct {
 
 // DERPHealthReport includes health details of a single node in a single region.
 type DERPNodeReport struct {
-	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
+	// Deprecated and left for backward compatibility purposes. Use `severity`
+	// instead.
 	Healthy  bool             `json:"healthy"`
 	Severity health.Severity  `json:"severity" enums:"ok,warning,error"`
 	Warnings []health.Message `json:"warnings"`
@@ -231,7 +236,8 @@ type STUNReport struct {
 // DatabaseReport shows the results of pinging the configured database.Conn.
 type DatabaseReport struct {
 	BaseReport
-	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
+	// Deprecated and left for backward compatibility purposes. Use `severity`
+	// instead.
 	Healthy     bool   `json:"healthy"`
 	Reachable   bool   `json:"reachable"`
 	Latency     string `json:"latency"`
@@ -252,7 +258,8 @@ type ProvisionerDaemonsReportItem struct {
 
 // WebsocketReport shows if the configured access URL allows establishing WebSocket connections.
 type WebsocketReport struct {
-	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
+	// Deprecated and left for backward compatibility purposes. Use `severity`
+	// instead.
 	Healthy bool `json:"healthy"`
 	BaseReport
 	Body string `json:"body"`
@@ -261,7 +268,8 @@ type WebsocketReport struct {
 
 // WorkspaceProxyReport includes health details of each connected workspace proxy.
 type WorkspaceProxyReport struct {
-	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
+	// Deprecated and left for backward compatibility purposes. Use `severity`
+	// instead.
 	Healthy bool `json:"healthy"`
 	BaseReport
 	WorkspaceProxies codersdk.RegionsResponse[codersdk.WorkspaceProxy] `json:"workspace_proxies"`
