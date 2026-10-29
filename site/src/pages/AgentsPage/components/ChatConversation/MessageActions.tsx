@@ -151,8 +151,8 @@ type AssistantMessageActionsProps = {
 };
 
 /**
- * Copy and the turn's Attachments pill. With neither, keepsSpacing renders a
- * spacer of the bar's height, so the gap to the next message stays even.
+ * Without Copy or the pill, keepsSpacing renders a spacer of the bar's height,
+ * so the gap to the next message stays even.
  */
 export const AssistantMessageActions: React.FC<
 	AssistantMessageActionsProps
