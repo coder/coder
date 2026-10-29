@@ -19087,7 +19087,7 @@ const docTemplate = `{
         },
         "/scim/v2/ServiceProviderConfig": {
             "get": {
-                "description": "Returns the SCIM service provider configuration, which lists the SCIM features Coder supports.\nThe identity provider's SCIM client calls this with the SCIM API key from ` + "`" + `CODER_SCIM_AUTH_HEADER` + "`" + ` in the ` + "`" + `Authorization` + "`" + ` header, not a session token.\nRequires a Premium license, and returns ` + "`" + `404` + "`" + ` when no SCIM API key is configured.",
+                "description": "Returns the service provider configuration for SCIM, which lists the features Coder supports.\nThe identity provider's SCIM client authenticates with the SCIM API key from ` + "`" + `CODER_SCIM_AUTH_HEADER` + "`" + ` in the ` + "`" + `Authorization` + "`" + ` header, not a session token.\nRequires a Premium license, and returns ` + "`" + `404` + "`" + ` when no SCIM API key is configured.",
                 "produces": [
                     "application/scim+json"
                 ],
@@ -19105,7 +19105,7 @@ const docTemplate = `{
         },
         "/scim/v2/Users": {
             "get": {
-                "description": "Always returns an empty user list, so the identity provider's SCIM client creates each user with ` + "`" + `POST /scim/v2/Users` + "`" + ` instead of importing existing users.\nThe identity provider's SCIM client calls this with the SCIM API key from ` + "`" + `CODER_SCIM_AUTH_HEADER` + "`" + ` in the ` + "`" + `Authorization` + "`" + ` header, not a session token.\nRequires a Premium license, and returns ` + "`" + `404` + "`" + ` when no SCIM API key is configured.",
+                "description": "Returns an empty user list with the legacy SCIM handler, which ` + "`" + `CODER_SCIM_USE_LEGACY` + "`" + ` selects and which is on by default, so the identity provider's SCIM client creates each user with ` + "`" + `POST /scim/v2/Users` + "`" + ` instead of importing existing users.\nThe identity provider's SCIM client authenticates with the SCIM API key from ` + "`" + `CODER_SCIM_AUTH_HEADER` + "`" + ` in the ` + "`" + `Authorization` + "`" + ` header, not a session token.\nRequires a Premium license, and returns ` + "`" + `404` + "`" + ` when no SCIM API key is configured.",
                 "produces": [
                     "application/scim+json"
                 ],
@@ -19126,7 +19126,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
-                "description": "Creates a user with the OIDC login type from a SCIM user, or returns the existing user when one already has the same email or username.\nThe request needs ` + "`" + `active` + "`" + ` and a primary entry in ` + "`" + `emails` + "`" + `, and a matching suspended user becomes dormant when ` + "`" + `active` + "`" + ` is ` + "`" + `true` + "`" + `.\nThe identity provider's SCIM client calls this with the SCIM API key from ` + "`" + `CODER_SCIM_AUTH_HEADER` + "`" + ` in the ` + "`" + `Authorization` + "`" + ` header, not a session token.\nRequires a Premium license, and returns ` + "`" + `404` + "`" + ` when no SCIM API key is configured.",
+                "description": "Creates a user with the OIDC login type from a SCIM user that has ` + "`" + `active` + "`" + ` and a primary entry in ` + "`" + `emails` + "`" + `, or returns the existing user with the same email or username.\nThe identity provider's SCIM client authenticates with the SCIM API key from ` + "`" + `CODER_SCIM_AUTH_HEADER` + "`" + ` in the ` + "`" + `Authorization` + "`" + ` header, not a session token.\nRequires a Premium license, and returns ` + "`" + `404` + "`" + ` when no SCIM API key is configured.",
                 "produces": [
                     "application/json"
                 ],
@@ -19163,7 +19163,7 @@ const docTemplate = `{
         },
         "/scim/v2/Users/{id}": {
             "get": {
-                "description": "Always returns ` + "`" + `404` + "`" + `, so the identity provider's SCIM client creates the user with ` + "`" + `POST /scim/v2/Users` + "`" + ` instead of reading it.\nThe identity provider's SCIM client calls this with the SCIM API key from ` + "`" + `CODER_SCIM_AUTH_HEADER` + "`" + ` in the ` + "`" + `Authorization` + "`" + ` header, not a session token.\nRequires a Premium license, and returns ` + "`" + `404` + "`" + ` when no SCIM API key is configured.",
+                "description": "Returns ` + "`" + `404` + "`" + ` with the legacy SCIM handler, which ` + "`" + `CODER_SCIM_USE_LEGACY` + "`" + ` selects and which is on by default, so the identity provider's SCIM client creates the user with ` + "`" + `POST /scim/v2/Users` + "`" + ` instead of reading it.\nThe identity provider's SCIM client authenticates with the SCIM API key from ` + "`" + `CODER_SCIM_AUTH_HEADER` + "`" + ` in the ` + "`" + `Authorization` + "`" + ` header, not a session token.\nRequires a Premium license, and returns ` + "`" + `404` + "`" + ` when no SCIM API key is configured.",
                 "produces": [
                     "application/scim+json"
                 ],
@@ -19194,7 +19194,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
-                "description": "Suspends or reactivates a user according to ` + "`" + `active` + "`" + `, which is required, and ignores the other SCIM attributes.\nReturns ` + "`" + `400` + "`" + ` when ` + "`" + `userName` + "`" + ` is set and differs from the user's current username, and a reactivated suspended user becomes dormant until they next log in.\nThe identity provider's SCIM client calls this with the SCIM API key from ` + "`" + `CODER_SCIM_AUTH_HEADER` + "`" + ` in the ` + "`" + `Authorization` + "`" + ` header, not a session token.\nRequires a Premium license, and returns ` + "`" + `404` + "`" + ` when no SCIM API key is configured.",
+                "description": "Suspends or reactivates a user according to ` + "`" + `active` + "`" + `, which is required, and returns ` + "`" + `400` + "`" + ` when ` + "`" + `userName` + "`" + ` differs from the user's current username.\nThe identity provider's SCIM client authenticates with the SCIM API key from ` + "`" + `CODER_SCIM_AUTH_HEADER` + "`" + ` in the ` + "`" + `Authorization` + "`" + ` header, not a session token.\nRequires a Premium license, and returns ` + "`" + `404` + "`" + ` when no SCIM API key is configured.",
                 "produces": [
                     "application/scim+json"
                 ],
@@ -19237,7 +19237,7 @@ const docTemplate = `{
                 ]
             },
             "patch": {
-                "description": "Suspends or reactivates a user according to ` + "`" + `active` + "`" + `, which is required, and ignores the other SCIM attributes.\nA reactivated suspended user becomes dormant until they next log in.\nThe identity provider's SCIM client calls this with the SCIM API key from ` + "`" + `CODER_SCIM_AUTH_HEADER` + "`" + ` in the ` + "`" + `Authorization` + "`" + ` header, not a session token.\nRequires a Premium license, and returns ` + "`" + `404` + "`" + ` when no SCIM API key is configured.",
+                "description": "Suspends or reactivates a user according to ` + "`" + `active` + "`" + `, which is required, and ignores the other SCIM attributes.\nThe identity provider's SCIM client authenticates with the SCIM API key from ` + "`" + `CODER_SCIM_AUTH_HEADER` + "`" + ` in the ` + "`" + `Authorization` + "`" + ` header, not a session token.\nRequires a Premium license, and returns ` + "`" + `404` + "`" + ` when no SCIM API key is configured.",
                 "produces": [
                     "application/scim+json"
                 ],

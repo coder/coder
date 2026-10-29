@@ -5457,8 +5457,8 @@ curl -X GET http://coder-server:8080/scim/v2/ServiceProviderConfig
 
 `GET /scim/v2/ServiceProviderConfig`
 
-Returns the SCIM service provider configuration, which lists the SCIM features Coder supports.
-The identity provider's SCIM client calls this with the SCIM API key from `CODER_SCIM_AUTH_HEADER` in the `Authorization` header, not a session token.
+Returns the service provider configuration for SCIM, which lists the features Coder supports.
+The identity provider's SCIM client authenticates with the SCIM API key from `CODER_SCIM_AUTH_HEADER` in the `Authorization` header, not a session token.
 Requires a Premium license, and returns `404` when no SCIM API key is configured.
 
 ### Responses
@@ -5479,8 +5479,8 @@ curl -X GET http://coder-server:8080/scim/v2/Users \
 
 `GET /scim/v2/Users`
 
-Always returns an empty user list, so the identity provider's SCIM client creates each user with `POST /scim/v2/Users` instead of importing existing users.
-The identity provider's SCIM client calls this with the SCIM API key from `CODER_SCIM_AUTH_HEADER` in the `Authorization` header, not a session token.
+Returns an empty user list with the legacy SCIM handler, which `CODER_SCIM_USE_LEGACY` selects and which is on by default, so the identity provider's SCIM client creates each user with `POST /scim/v2/Users` instead of importing existing users.
+The identity provider's SCIM client authenticates with the SCIM API key from `CODER_SCIM_AUTH_HEADER` in the `Authorization` header, not a session token.
 Requires a Premium license, and returns `404` when no SCIM API key is configured.
 
 ### Responses
@@ -5505,9 +5505,8 @@ curl -X POST http://coder-server:8080/scim/v2/Users \
 
 `POST /scim/v2/Users`
 
-Creates a user with the OIDC login type from a SCIM user, or returns the existing user when one already has the same email or username.
-The request needs `active` and a primary entry in `emails`, and a matching suspended user becomes dormant when `active` is `true`.
-The identity provider's SCIM client calls this with the SCIM API key from `CODER_SCIM_AUTH_HEADER` in the `Authorization` header, not a session token.
+Creates a user with the OIDC login type from a SCIM user that has `active` and a primary entry in `emails`, or returns the existing user with the same email or username.
+The identity provider's SCIM client authenticates with the SCIM API key from `CODER_SCIM_AUTH_HEADER` in the `Authorization` header, not a session token.
 Requires a Premium license, and returns `404` when no SCIM API key is configured.
 
 > Body parameter
@@ -5600,8 +5599,8 @@ curl -X GET http://coder-server:8080/scim/v2/Users/{id} \
 
 `GET /scim/v2/Users/{id}`
 
-Always returns `404`, so the identity provider's SCIM client creates the user with `POST /scim/v2/Users` instead of reading it.
-The identity provider's SCIM client calls this with the SCIM API key from `CODER_SCIM_AUTH_HEADER` in the `Authorization` header, not a session token.
+Returns `404` with the legacy SCIM handler, which `CODER_SCIM_USE_LEGACY` selects and which is on by default, so the identity provider's SCIM client creates the user with `POST /scim/v2/Users` instead of reading it.
+The identity provider's SCIM client authenticates with the SCIM API key from `CODER_SCIM_AUTH_HEADER` in the `Authorization` header, not a session token.
 Requires a Premium license, and returns `404` when no SCIM API key is configured.
 
 ### Parameters
@@ -5632,9 +5631,8 @@ curl -X PUT http://coder-server:8080/scim/v2/Users/{id} \
 
 `PUT /scim/v2/Users/{id}`
 
-Suspends or reactivates a user according to `active`, which is required, and ignores the other SCIM attributes.
-Returns `400` when `userName` is set and differs from the user's current username, and a reactivated suspended user becomes dormant until they next log in.
-The identity provider's SCIM client calls this with the SCIM API key from `CODER_SCIM_AUTH_HEADER` in the `Authorization` header, not a session token.
+Suspends or reactivates a user according to `active`, which is required, and returns `400` when `userName` differs from the user's current username.
+The identity provider's SCIM client authenticates with the SCIM API key from `CODER_SCIM_AUTH_HEADER` in the `Authorization` header, not a session token.
 Requires a Premium license, and returns `404` when no SCIM API key is configured.
 
 > Body parameter
@@ -5730,8 +5728,7 @@ curl -X PATCH http://coder-server:8080/scim/v2/Users/{id} \
 `PATCH /scim/v2/Users/{id}`
 
 Suspends or reactivates a user according to `active`, which is required, and ignores the other SCIM attributes.
-A reactivated suspended user becomes dormant until they next log in.
-The identity provider's SCIM client calls this with the SCIM API key from `CODER_SCIM_AUTH_HEADER` in the `Authorization` header, not a session token.
+The identity provider's SCIM client authenticates with the SCIM API key from `CODER_SCIM_AUTH_HEADER` in the `Authorization` header, not a session token.
 Requires a Premium license, and returns `404` when no SCIM API key is configured.
 
 > Body parameter
