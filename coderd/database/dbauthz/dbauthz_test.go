@@ -7744,15 +7744,25 @@ func (s *MethodTestSuite) TestAIBridge() {
 	s.Run("GetHighestGroupAIBudgetByUser", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		user := testutil.Fake(s.T(), faker, database.User{})
 		row := testutil.Fake(s.T(), faker, database.GetHighestGroupAIBudgetByUserRow{})
-		dbm.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), user.ID).Return(row, nil).AnyTimes()
-		check.Args(user.ID).Asserts(user, policy.ActionRead).Returns(row)
+		arg := database.GetHighestGroupAIBudgetByUserParams{UserID: user.ID, OrganizationID: uuid.NullUUID{UUID: uuid.New(), Valid: true}}
+		dbm.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(user, policy.ActionRead).Returns(row)
 	}))
 
 	s.Run("GetUserEveryoneFallbackGroup", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		user := testutil.Fake(s.T(), faker, database.User{})
 		group := testutil.Fake(s.T(), faker, database.Group{})
-		dbm.EXPECT().GetUserEveryoneFallbackGroup(gomock.Any(), user.ID).Return(group.ID, nil).AnyTimes()
-		check.Args(user.ID).Asserts(user, policy.ActionRead).Returns(group.ID)
+		arg := database.GetUserEveryoneFallbackGroupParams{UserID: user.ID, OrganizationID: uuid.NullUUID{UUID: group.OrganizationID, Valid: true}}
+		dbm.EXPECT().GetUserEveryoneFallbackGroup(gomock.Any(), arg).Return(group.ID, nil).AnyTimes()
+		check.Args(arg).Asserts(user, policy.ActionRead).Returns(group.ID)
+	}))
+
+	s.Run("GetUserAIBudgetOverrideWithOrganization", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		row := testutil.Fake(s.T(), faker, database.GetUserAIBudgetOverrideWithOrganizationRow{UserID: user.ID})
+		arg := database.GetUserAIBudgetOverrideWithOrganizationParams{UserID: user.ID, OrganizationID: uuid.NullUUID{UUID: row.OrganizationID, Valid: true}}
+		dbm.EXPECT().GetUserAIBudgetOverrideWithOrganization(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(user, policy.ActionRead).Returns(row)
 	}))
 
 	s.Run("UpsertUserAIBudgetOverride", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

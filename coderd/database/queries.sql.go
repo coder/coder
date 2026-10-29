@@ -3353,7 +3353,8 @@ func (q *sqlQuerier) GetGroupMembersAISpend(ctx context.Context, arg GetGroupMem
 const getHighestGroupAIBudgetByUser = `-- name: GetHighestGroupAIBudgetByUser :one
 SELECT
 	budget.group_id,
-	budget.spend_limit_micros
+	budget.spend_limit_micros,
+	member.organization_id
 FROM group_ai_budgets budget
 JOIN group_members_expanded member ON member.group_id = budget.group_id
 JOIN organizations ON organizations.id = member.organization_id
@@ -3362,6 +3363,7 @@ JOIN organization_members
 	AND organization_members.organization_id = member.organization_id
 WHERE member.user_id = $1
 	AND organizations.deleted = false
+	AND ($2::uuid IS NULL OR member.organization_id = $2::uuid)
 ORDER BY
 	budget.spend_limit_micros DESC,       -- highest wins
 	organization_members.created_at ASC,  -- earliest organization membership
@@ -3369,9 +3371,15 @@ ORDER BY
 LIMIT 1
 `
 
+type GetHighestGroupAIBudgetByUserParams struct {
+	UserID         uuid.UUID     `db:"user_id" json:"user_id"`
+	OrganizationID uuid.NullUUID `db:"organization_id" json:"organization_id"`
+}
+
 type GetHighestGroupAIBudgetByUserRow struct {
 	GroupID          uuid.UUID `db:"group_id" json:"group_id"`
 	SpendLimitMicros int64     `db:"spend_limit_micros" json:"spend_limit_micros"`
+	OrganizationID   uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 // Returns the highest group AI budget across the groups the user belongs to,
@@ -3380,10 +3388,11 @@ type GetHighestGroupAIBudgetByUserRow struct {
 // and organization_members, so the implicit "Everyone" group
 // (group_id == organization_id) is included. Returns no rows when the user has
 // no budgeted groups. Callers should treat sql.ErrNoRows as "no group budget".
-func (q *sqlQuerier) GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (GetHighestGroupAIBudgetByUserRow, error) {
-	row := q.db.QueryRowContext(ctx, getHighestGroupAIBudgetByUser, userID)
+// When organization_id is set, only groups in that organization count.
+func (q *sqlQuerier) GetHighestGroupAIBudgetByUser(ctx context.Context, arg GetHighestGroupAIBudgetByUserParams) (GetHighestGroupAIBudgetByUserRow, error) {
+	row := q.db.QueryRowContext(ctx, getHighestGroupAIBudgetByUser, arg.UserID, arg.OrganizationID)
 	var i GetHighestGroupAIBudgetByUserRow
-	err := row.Scan(&i.GroupID, &i.SpendLimitMicros)
+	err := row.Scan(&i.GroupID, &i.SpendLimitMicros, &i.OrganizationID)
 	return i, err
 }
 
@@ -3744,6 +3753,45 @@ func (q *sqlQuerier) GetUserAIBudgetOverride(ctx context.Context, userID uuid.UU
 	return i, err
 }
 
+const getUserAIBudgetOverrideWithOrganization = `-- name: GetUserAIBudgetOverrideWithOrganization :one
+SELECT override.user_id, override.group_id, override.spend_limit_micros,
+	groups.organization_id
+FROM user_ai_budget_overrides override
+JOIN groups ON groups.id = override.group_id
+JOIN organizations ON organizations.id = groups.organization_id
+WHERE override.user_id = $1
+	AND organizations.deleted = false
+	AND ($2::uuid IS NULL OR groups.organization_id = $2::uuid)
+`
+
+type GetUserAIBudgetOverrideWithOrganizationParams struct {
+	UserID         uuid.UUID     `db:"user_id" json:"user_id"`
+	OrganizationID uuid.NullUUID `db:"organization_id" json:"organization_id"`
+}
+
+type GetUserAIBudgetOverrideWithOrganizationRow struct {
+	UserID           uuid.UUID `db:"user_id" json:"user_id"`
+	GroupID          uuid.UUID `db:"group_id" json:"group_id"`
+	SpendLimitMicros int64     `db:"spend_limit_micros" json:"spend_limit_micros"`
+	OrganizationID   uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+// Returns the user's AI budget override with the organization of its group, for
+// budget resolution. An override whose group is in a deleted organization is
+// never returned. When organization_id is set, returns the override only if its
+// group belongs to that organization.
+func (q *sqlQuerier) GetUserAIBudgetOverrideWithOrganization(ctx context.Context, arg GetUserAIBudgetOverrideWithOrganizationParams) (GetUserAIBudgetOverrideWithOrganizationRow, error) {
+	row := q.db.QueryRowContext(ctx, getUserAIBudgetOverrideWithOrganization, arg.UserID, arg.OrganizationID)
+	var i GetUserAIBudgetOverrideWithOrganizationRow
+	err := row.Scan(
+		&i.UserID,
+		&i.GroupID,
+		&i.SpendLimitMicros,
+		&i.OrganizationID,
+	)
+	return i, err
+}
+
 const getUserAISpendSince = `-- name: GetUserAISpendSince :one
 SELECT
 	$1::uuid AS user_id,
@@ -3789,6 +3837,7 @@ FROM organization_members
 JOIN organizations ON organizations.id = organization_members.organization_id
 WHERE organization_members.user_id = $1
 	AND organizations.deleted = false
+	AND ($2::uuid IS NULL OR organizations.id = $2::uuid)
 ORDER BY
 	organizations.is_default DESC,        -- prefer the default org
 	organization_members.created_at ASC,  -- earliest organization membership
@@ -3796,12 +3845,18 @@ ORDER BY
 LIMIT 1
 `
 
+type GetUserEveryoneFallbackGroupParams struct {
+	UserID         uuid.UUID     `db:"user_id" json:"user_id"`
+	OrganizationID uuid.NullUUID `db:"organization_id" json:"organization_id"`
+}
+
 // Returns the "Everyone" group (id == organization_id) to attribute a user's
 // spend to when no override or budgeted group applies. Prefers the default org,
 // then the earliest organization membership. Returns no rows when the user has
-// no organization membership.
-func (q *sqlQuerier) GetUserEveryoneFallbackGroup(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
-	row := q.db.QueryRowContext(ctx, getUserEveryoneFallbackGroup, userID)
+// no organization membership. When organization_id is set, returns that
+// organization's Everyone group only if the user is a member of it.
+func (q *sqlQuerier) GetUserEveryoneFallbackGroup(ctx context.Context, arg GetUserEveryoneFallbackGroupParams) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, getUserEveryoneFallbackGroup, arg.UserID, arg.OrganizationID)
 	var group_id uuid.UUID
 	err := row.Scan(&group_id)
 	return group_id, err
