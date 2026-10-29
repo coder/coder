@@ -13359,6 +13359,7 @@ const docTemplate = `{
         },
         "/api/v2/users": {
             "get": {
+                "description": "Returns the users you can read, filtered by the ` + "`" + `q` + "`" + ` search query and paged with ` + "`" + `limit` + "`" + `, ` + "`" + `offset` + "`" + `, or ` + "`" + `after_id` + "`" + `.\nUse it to find users by status, role, or login type, for example ` + "`" + `status:active role:owner` + "`" + `.",
                 "produces": [
                     "application/json"
                 ],
@@ -13370,26 +13371,26 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query",
+                        "description": "Search query, for example ` + "`" + `status:active role:owner` + "`" + `. A bare term matches the email, username, or name. Use ` + "`" + `key:value` + "`" + ` terms to filter on ` + "`" + `username` + "`" + `, ` + "`" + `email` + "`" + `, ` + "`" + `name` + "`" + `, ` + "`" + `status` + "`" + `, ` + "`" + `role` + "`" + `, ` + "`" + `service_account` + "`" + `, ` + "`" + `login_type` + "`" + `, ` + "`" + `github_com_user_id` + "`" + `, ` + "`" + `last_seen_before` + "`" + `, ` + "`" + `last_seen_after` + "`" + `, ` + "`" + `created_before` + "`" + `, or ` + "`" + `created_after` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "After ID",
+                        "description": "ID of the last result on the previous page. Returns the results after it, which pages faster than ` + "`" + `offset` + "`" + `.",
                         "name": "after_id",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page limit",
+                        "description": "Maximum number of results to return. The default, ` + "`" + `0` + "`" + `, returns all results.",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Page offset",
+                        "description": "Number of results to skip, for paging through results with ` + "`" + `limit` + "`" + `.",
                         "name": "offset",
                         "in": "query"
                     }
@@ -13409,6 +13410,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Creates a user account, or a service account for automation when ` + "`" + `service_account` + "`" + ` is ` + "`" + `true` + "`" + `.\nRequires permission to create users, which the Owner and User Admin roles have.\nCreating a service account also requires a Premium license.",
                 "consumes": [
                     "application/json"
                 ],
@@ -13422,7 +13424,7 @@ const docTemplate = `{
                 "operationId": "create-new-user",
                 "parameters": [
                     {
-                        "description": "Create user request",
+                        "description": "User account to create. Set ` + "`" + `organization_ids` + "`" + ` to at least one organization, or ` + "`" + `service_account` + "`" + ` to ` + "`" + `true` + "`" + ` for a service account, which can't have an email or password.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -13448,6 +13450,7 @@ const docTemplate = `{
         },
         "/api/v2/users/authmethods": {
             "get": {
+                "description": "Returns whether password, GitHub, and OpenID Connect (OIDC) sign-in are enabled, plus the text and icon for the OIDC sign-in button.\nUse it to decide which sign-in options to offer.\nDoesn't require a session token.",
                 "produces": [
                     "application/json"
                 ],
@@ -13473,6 +13476,7 @@ const docTemplate = `{
         },
         "/api/v2/users/first": {
             "get": {
+                "description": "Returns ` + "`" + `200` + "`" + ` when the deployment already has its initial user and ` + "`" + `404` + "`" + ` when it doesn't.\nCall it before ` + "`" + `POST /api/v2/users/first` + "`" + ` to check whether the deployment still needs its initial user.\nDoesn't require a session token.",
                 "produces": [
                     "application/json"
                 ],
@@ -13496,6 +13500,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Creates the initial user in the default organization and gives the user the Owner role.\nWorks only while the deployment has no users, and returns ` + "`" + `409` + "`" + ` after that.\nDoesn't require a session token.",
                 "consumes": [
                     "application/json"
                 ],
@@ -13509,7 +13514,7 @@ const docTemplate = `{
                 "operationId": "create-initial-user",
                 "parameters": [
                     {
-                        "description": "First user request",
+                        "description": "Initial user account to create. ` + "`" + `email` + "`" + `, ` + "`" + `username` + "`" + `, and ` + "`" + `password` + "`" + ` are required.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -13569,6 +13574,7 @@ const docTemplate = `{
         },
         "/api/v2/users/logout": {
             "post": {
+                "description": "Signs you out by deleting the API key that authenticated the request and clearing the session cookie.\nAlso deletes the API keys that workspace apps on subdomains use, so those apps ask you to sign in again.",
                 "produces": [
                     "application/json"
                 ],
@@ -13594,6 +13600,7 @@ const docTemplate = `{
         },
         "/api/v2/users/oauth2/github/callback": {
             "get": {
+                "description": "Finishes a GitHub sign-in by exchanging the authorization code, setting the session cookie, and redirecting the browser to the page that started the sign-in, or returning that path as ` + "`" + `redirect_url` + "`" + ` when GitHub device flow is enabled.\nGitHub redirects the browser here after you authorize, so you don't call this route directly.\nDoesn't require a session token.",
                 "tags": [
                     "Users"
                 ],
@@ -13613,6 +13620,7 @@ const docTemplate = `{
         },
         "/api/v2/users/oauth2/github/device": {
             "get": {
+                "description": "Starts the device authorization flow for GitHub and returns the ` + "`" + `device_code` + "`" + `, ` + "`" + `user_code` + "`" + `, and ` + "`" + `verification_uri` + "`" + ` to show to the user.\nReturns ` + "`" + `400` + "`" + ` unless GitHub OAuth2 and its device flow are enabled.\nDoesn't require a session token.",
                 "produces": [
                     "application/json"
                 ],
@@ -13638,6 +13646,7 @@ const docTemplate = `{
         },
         "/api/v2/users/oidc-claims": {
             "get": {
+                "description": "Returns the merged OpenID Connect (OIDC) claims from your last OIDC login, where userinfo claims take precedence over ID token claims.\nReturns ` + "`" + `400` + "`" + ` unless your account uses the ` + "`" + `oidc` + "`" + ` login type.",
                 "produces": [
                     "application/json"
                 ],
@@ -13663,6 +13672,7 @@ const docTemplate = `{
         },
         "/api/v2/users/oidc/callback": {
             "get": {
+                "description": "Finishes an OpenID Connect (OIDC) sign-in by exchanging the authorization code, setting the session cookie, and redirecting the browser to the page that started the sign-in.\nYour identity provider redirects the browser here after you sign in, so you don't call this route directly.\nDoesn't require a session token.",
                 "tags": [
                     "Users"
                 ],
@@ -13805,6 +13815,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}": {
             "get": {
+                "description": "Returns a user's account details, including status, login type, and organization IDs.\nYou can read your own account, and reading other users requires permission to read users, which the Owner, Auditor, Template Admin, User Admin, Organization Admin, and Organization User Admin roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -13816,7 +13827,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, username, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -13837,6 +13848,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Deletes a user account and notifies the deployment's user admins.\nRequires permission to delete users, which the Owner and User Admin roles have.\nYou can't delete yourself or a user who still has workspaces, so delete their workspaces first.",
                 "tags": [
                     "Users"
                 ],
@@ -13845,7 +13857,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14128,6 +14140,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/appearance": {
             "get": {
+                "description": "Returns the user's appearance settings: theme preference, theme mode, light and dark themes, and terminal font.\nYou can read your own settings, and reading another user's settings requires permission to read personal user data, which the Owner and User Admin roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -14139,7 +14152,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14160,6 +14173,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Sets the user's theme and terminal font, using one theme for every mode or separate light and dark themes.\nYou can update your own settings, and updating another user's settings requires permission to update personal user data, which the Owner and User Admin roles have.",
                 "consumes": [
                     "application/json"
                 ],
@@ -14174,13 +14188,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "New appearance settings",
+                        "description": "New appearance settings. ` + "`" + `theme_preference` + "`" + ` and ` + "`" + `terminal_font` + "`" + ` are required. Set ` + "`" + `theme_mode` + "`" + ` to ` + "`" + `single` + "`" + ` or ` + "`" + `sync` + "`" + `, and set ` + "`" + `theme_light` + "`" + ` and ` + "`" + `theme_dark` + "`" + ` when ` + "`" + `theme_mode` + "`" + ` is ` + "`" + `sync` + "`" + `. Omit ` + "`" + `theme_mode` + "`" + ` to keep the saved mode and themes.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -14252,6 +14266,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/gitsshkey": {
             "get": {
+                "description": "Returns the user's public Git SSH key and never the private key.\nYou can read your own key, and reading another user's key requires permission to read personal user data, which the Owner and User Admin roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -14263,7 +14278,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14284,6 +14299,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Replaces the user's Git SSH key with a newly generated key pair and returns the new public key.\nUpdate your Git provider with the new public key, because Coder no longer has the old private key.\nYou can regenerate your own key, and regenerating another user's key requires permission to update personal user data, which the Owner and User Admin roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -14295,7 +14311,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14318,6 +14334,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/keys": {
             "post": {
+                "description": "Creates a session API key for the user, like the one the CLI uses to log in, and returns it in ` + "`" + `key` + "`" + `.\nThe new key can't grant more than the key you call with, and creating a key for another user requires the Owner role.",
                 "produces": [
                     "application/json"
                 ],
@@ -14329,7 +14346,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14352,6 +14369,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/keys/tokens": {
             "get": {
+                "description": "Lists the user's API tokens, leaving out expired tokens unless ` + "`" + `include_expired` + "`" + ` is ` + "`" + `true` + "`" + `.\nReturns only the tokens you can read, so you can list your own tokens, and listing another user's tokens requires the Owner role.\nSet ` + "`" + `include_all` + "`" + ` to ` + "`" + `true` + "`" + ` to list the tokens of every user you can read instead of only this user's.",
                 "produces": [
                     "application/json"
                 ],
@@ -14363,14 +14381,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "boolean",
-                        "description": "Include expired tokens in the list",
+                        "description": "Set to ` + "`" + `true` + "`" + ` to include expired tokens. The default is ` + "`" + `false` + "`" + `.",
                         "name": "include_expired",
                         "in": "query"
                     }
@@ -14393,6 +14411,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Creates an API token for the user and returns it in ` + "`" + `key` + "`" + `, with the scopes, allow list, and lifetime you request.\nWithout ` + "`" + `lifetime` + "`" + `, the token lasts for the deployment's default token lifetime, and ` + "`" + `lifetime` + "`" + ` can't exceed the deployment's maximum token lifetime, which is set separately for users with the Owner role.\nThe token can't grant more than the key you call with, and creating a token for another user requires the Owner role.",
                 "consumes": [
                     "application/json"
                 ],
@@ -14407,13 +14426,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Create token request",
+                        "description": "Token to create. ` + "`" + `lifetime` + "`" + ` is a duration in nanoseconds. ` + "`" + `scopes` + "`" + ` lists the scopes to grant, from ` + "`" + `GET /api/v2/auth/scopes` + "`" + `, and defaults to the scopes of the key you call with. ` + "`" + `token_name` + "`" + ` names the token, and a name is generated when you omit it. ` + "`" + `allow_list` + "`" + ` limits the resources the token can reach.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -14473,6 +14492,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/keys/tokens/{keyname}": {
             "get": {
+                "description": "Returns the metadata of one of the user's API tokens by its token name, such as its scopes, expiry, and last use.\nThe response never includes the token secret.\nYou can read your own tokens, and reading another user's tokens requires the Owner role.",
                 "produces": [
                     "application/json"
                 ],
@@ -14484,7 +14504,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14492,7 +14512,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "string",
-                        "description": "Key Name",
+                        "description": "Name of the token, as set by ` + "`" + `token_name` + "`" + ` when you created it.",
                         "name": "keyname",
                         "in": "path",
                         "required": true
@@ -14515,6 +14535,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/keys/{keyid}": {
             "get": {
+                "description": "Returns the metadata of an API key by its ID, such as its scopes, expiry, and last use.\nThe response never includes the key secret.\nYou can read your own API keys, and reading another user's keys requires the Owner role.",
                 "produces": [
                     "application/json"
                 ],
@@ -14526,7 +14547,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14534,7 +14555,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "string",
-                        "description": "Key ID",
+                        "description": "ID of the API key, which is the part of the key before the hyphen.",
                         "name": "keyid",
                         "in": "path",
                         "required": true
@@ -14555,6 +14576,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Deletes an API key by its ID, so the key can no longer authenticate requests.\nYou can delete your own API keys, and deleting another user's key requires the Owner role.",
                 "tags": [
                     "Users"
                 ],
@@ -14563,7 +14585,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14571,7 +14593,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "string",
-                        "description": "Key ID",
+                        "description": "ID of the API key, which is the part of the key before the hyphen.",
                         "name": "keyid",
                         "in": "path",
                         "required": true
@@ -14591,6 +14613,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/keys/{keyid}/expire": {
             "put": {
+                "description": "Expires an API key immediately by setting its expiry to now, which keeps the key's record.\nDoes nothing when the key has already expired.\nYou can expire your own API keys, and expiring another user's key requires the Owner role.",
                 "tags": [
                     "Users"
                 ],
@@ -14599,7 +14622,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14607,7 +14630,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "string",
-                        "description": "Key ID",
+                        "description": "ID of the API key, which is the part of the key before the hyphen.",
                         "name": "keyid",
                         "in": "path",
                         "required": true
@@ -14639,6 +14662,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/login-type": {
             "get": {
+                "description": "Returns the user's login type, such as ` + "`" + `password` + "`" + `, ` + "`" + `github` + "`" + `, or ` + "`" + `oidc` + "`" + `.\nYou can only query your own login type, so use ` + "`" + `me` + "`" + ` or your own user ID, because the call fails for any other user.",
                 "produces": [
                     "application/json"
                 ],
@@ -14650,7 +14674,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14757,6 +14781,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/organizations": {
             "get": {
+                "description": "Returns the organizations the user belongs to.\nReturns only the organizations you can read.",
                 "produces": [
                     "application/json"
                 ],
@@ -14768,7 +14793,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14794,6 +14819,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/organizations/{organizationname}": {
             "get": {
+                "description": "Returns the organization with the given name if you can read it.\nThe lookup uses only the organization name, so it doesn't check that the user is a member.",
                 "produces": [
                     "application/json"
                 ],
@@ -14805,14 +14831,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Organization name",
+                        "description": "Name of the organization, not its ID.",
                         "name": "organizationname",
                         "in": "path",
                         "required": true
@@ -14835,6 +14861,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/password": {
             "put": {
+                "description": "Changes a user's password and revokes all of the user's API keys.\nWorks only for users with the ` + "`" + `password` + "`" + ` login type, and changing your own password requires ` + "`" + `old_password` + "`" + `.\nChanging another user's password requires permission to update personal user data, which the Owner and User Admin roles have, and only an Owner can change an Owner's password.",
                 "consumes": [
                     "application/json"
                 ],
@@ -14846,13 +14873,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Update password request",
+                        "description": "Current password in ` + "`" + `old_password` + "`" + `, which is required when you change your own password, and the new password in ` + "`" + `password` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -14875,6 +14902,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/preferences": {
             "get": {
+                "description": "Returns the user's Coder Agents chat preferences: the display modes for thinking, shell tool output, and code diffs, whether to collapse assistant steps, and the send shortcut.\nYou can read your own settings, and reading another user's settings requires permission to read personal user data, which the Owner and User Admin roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -14886,7 +14914,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -14907,6 +14935,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Updates the user's Coder Agents chat preferences and returns all of them.\nFields you omit keep their current values.\nYou can update your own settings, and updating another user's settings requires permission to update personal user data, which the Owner and User Admin roles have.",
                 "consumes": [
                     "application/json"
                 ],
@@ -14921,13 +14950,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "New preference settings",
+                        "description": "New preference settings. ` + "`" + `thinking_display_mode` + "`" + ` accepts ` + "`" + `auto` + "`" + `, ` + "`" + `preview` + "`" + `, ` + "`" + `always_expanded` + "`" + `, or ` + "`" + `always_collapsed` + "`" + `. ` + "`" + `shell_tool_display_mode` + "`" + ` and ` + "`" + `code_diff_display_mode` + "`" + ` accept ` + "`" + `auto` + "`" + `, ` + "`" + `always_expanded` + "`" + `, or ` + "`" + `always_collapsed` + "`" + `. ` + "`" + `agent_chat_send_shortcut` + "`" + ` accepts ` + "`" + `enter` + "`" + ` or ` + "`" + `modifier_enter` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -14953,6 +14982,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/profile": {
             "put": {
+                "description": "Updates a user's username, display name, and avatar URL.\nChanging a username, including your own, requires permission to update users, which the Owner and User Admin roles have, and so does updating another user's profile.\nThe avatar URL applies only to users with the ` + "`" + `password` + "`" + ` or ` + "`" + `none` + "`" + ` login type.",
                 "consumes": [
                     "application/json"
                 ],
@@ -14967,13 +14997,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Updated profile",
+                        "description": "Updated profile. ` + "`" + `username` + "`" + ` is required. ` + "`" + `avatar_url` + "`" + ` is ignored for users whose login type isn't ` + "`" + `password` + "`" + ` or ` + "`" + `none` + "`" + `.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -15085,6 +15115,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/roles": {
             "get": {
+                "description": "Returns the user's site-wide roles and their roles in each organization.\nYou can read your own roles, and reading another user's roles requires permission to read personal user data, which the Owner and User Admin roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -15096,7 +15127,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -15117,6 +15148,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Replaces the user's site-wide roles with the given ` + "`" + `roles` + "`" + `.\nRequires permission to assign roles, which the Owner and User Admin roles have, but you can assign only roles your own roles allow, so the Owner role can assign any site role and the User Admin role can assign only Member.\nYou can't change your own roles, or the roles of an OIDC user while OIDC role sync is enabled.",
                 "consumes": [
                     "application/json"
                 ],
@@ -15131,13 +15163,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Update roles request",
+                        "description": "Site-wide role names to assign, such as ` + "`" + `template-admin` + "`" + `. The list replaces the user's current site-wide roles.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -15460,6 +15492,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/status/activate": {
             "put": {
+                "description": "Sets a user's status to ` + "`" + `active` + "`" + `, for example to reactivate a suspended account.\nRequires permission to update users, which the Owner and User Admin roles have.",
                 "produces": [
                     "application/json"
                 ],
@@ -15471,7 +15504,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -15494,6 +15527,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/status/suspend": {
             "put": {
+                "description": "Suspends a user account by setting its status to ` + "`" + `suspended` + "`" + `, which stops the user from signing in.\nRequires permission to update users, which the Owner and User Admin roles have.\nYou can't suspend yourself or a user with the Owner role.",
                 "produces": [
                     "application/json"
                 ],
@@ -15505,7 +15539,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true

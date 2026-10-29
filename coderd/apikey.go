@@ -54,13 +54,16 @@ func writeExceedsCaller(ctx context.Context, rw http.ResponseWriter, err error) 
 // Creates a new token API key with the given scope and lifetime.
 //
 // @Summary Create token API key
+// @Description Creates an API token for the user and returns it in `key`, with the scopes, allow list, and lifetime you request.
+// @Description Without `lifetime`, the token lasts for the deployment's default token lifetime, and `lifetime` can't exceed the deployment's maximum token lifetime, which is set separately for users with the Owner role.
+// @Description The token can't grant more than the key you call with, and creating a token for another user requires the Owner role.
 // @ID create-token-api-key
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Users
-// @Param user path string true "User ID, name, or me"
-// @Param request body codersdk.CreateTokenRequest true "Create token request"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
+// @Param request body codersdk.CreateTokenRequest true "Token to create. `lifetime` is a duration in nanoseconds. `scopes` lists the scopes to grant, from `GET /api/v2/auth/scopes`, and defaults to the scopes of the key you call with. `token_name` names the token, and a name is generated when you omit it. `allow_list` limits the resources the token can reach."
 // @Success 201 {object} codersdk.GenerateAPIKeyResponse
 // @Router /api/v2/users/{user}/keys/tokens [post]
 func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
@@ -201,11 +204,13 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 // Creates a new session key, used for logging in via the CLI.
 //
 // @Summary Create new session key
+// @Description Creates a session API key for the user, like the one the CLI uses to log in, and returns it in `key`.
+// @Description The new key can't grant more than the key you call with, and creating a key for another user requires the Owner role.
 // @ID create-new-session-key
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users
-// @Param user path string true "User ID, name, or me"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Success 201 {object} codersdk.GenerateAPIKeyResponse
 // @Router /api/v2/users/{user}/keys [post]
 func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
@@ -258,12 +263,15 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get API key by ID
+// @Description Returns the metadata of an API key by its ID, such as its scopes, expiry, and last use.
+// @Description The response never includes the key secret.
+// @Description You can read your own API keys, and reading another user's keys requires the Owner role.
 // @ID get-api-key-by-id
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users
-// @Param user path string true "User ID, name, or me"
-// @Param keyid path string true "Key ID" format(string)
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
+// @Param keyid path string true "ID of the API key, which is the part of the key before the hyphen." format(string)
 // @Success 200 {object} codersdk.APIKey
 // @Router /api/v2/users/{user}/keys/{keyid} [get]
 func (api *API) apiKeyByID(rw http.ResponseWriter, r *http.Request) {
@@ -287,12 +295,15 @@ func (api *API) apiKeyByID(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get API key by token name
+// @Description Returns the metadata of one of the user's API tokens by its token name, such as its scopes, expiry, and last use.
+// @Description The response never includes the token secret.
+// @Description You can read your own tokens, and reading another user's tokens requires the Owner role.
 // @ID get-api-key-by-token-name
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users
-// @Param user path string true "User ID, name, or me"
-// @Param keyname path string true "Key Name" format(string)
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
+// @Param keyname path string true "Name of the token, as set by `token_name` when you created it." format(string)
 // @Success 200 {object} codersdk.APIKey
 // @Router /api/v2/users/{user}/keys/tokens/{keyname} [get]
 func (api *API) apiKeyByName(rw http.ResponseWriter, r *http.Request) {
@@ -322,13 +333,16 @@ func (api *API) apiKeyByName(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get user tokens
+// @Description Lists the user's API tokens, leaving out expired tokens unless `include_expired` is `true`.
+// @Description Returns only the tokens you can read, so you can list your own tokens, and listing another user's tokens requires the Owner role.
+// @Description Set `include_all` to `true` to list the tokens of every user you can read instead of only this user's.
 // @ID get-user-tokens
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users
-// @Param user path string true "User ID, name, or me"
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Success 200 {array} codersdk.APIKey
-// @Param include_expired query bool false "Include expired tokens in the list"
+// @Param include_expired query bool false "Set to `true` to include expired tokens. The default is `false`."
 // @Router /api/v2/users/{user}/keys/tokens [get]
 func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -406,11 +420,13 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Delete API key
+// @Description Deletes an API key by its ID, so the key can no longer authenticate requests.
+// @Description You can delete your own API keys, and deleting another user's key requires the Owner role.
 // @ID delete-api-key
 // @Security CoderSessionToken
 // @Tags Users
-// @Param user path string true "User ID, name, or me"
-// @Param keyid path string true "Key ID" format(string)
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
+// @Param keyid path string true "ID of the API key, which is the part of the key before the hyphen." format(string)
 // @Success 204
 // @Router /api/v2/users/{user}/keys/{keyid} [delete]
 func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
@@ -449,11 +465,14 @@ func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Expire API key
+// @Description Expires an API key immediately by setting its expiry to now, which keeps the key's record.
+// @Description Does nothing when the key has already expired.
+// @Description You can expire your own API keys, and expiring another user's key requires the Owner role.
 // @ID expire-api-key
 // @Security CoderSessionToken
 // @Tags Users
-// @Param user path string true "User ID, name, or me"
-// @Param keyid path string true "Key ID" format(string)
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
+// @Param keyid path string true "ID of the API key, which is the part of the key before the hyphen." format(string)
 // @Success 204
 // @Failure 404 {object} codersdk.Response
 // @Failure 500 {object} codersdk.Response
