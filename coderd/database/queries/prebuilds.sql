@@ -32,10 +32,14 @@ WHERE w.id IN (
 		AND p.current_preset_id = @preset_id::uuid
 		AND p.ready
 		AND NOT t.deleted
-		-- Postgres rechecks this on the locked row, so a prebuild claimed by a just-committed
-		-- transaction is excluded rather than claimed a second time.
+		-- Postgres rechecks these on the locked row, so a prebuild claimed or deleted by a
+		-- just-committed transaction is excluded rather than claimed.
 		AND pw.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid -- The system user responsible for prebuilds.
-	LIMIT 1 FOR UPDATE OF pw SKIP LOCKED -- Ensure that a concurrent request will not select the same prebuild.
+		AND NOT pw.deleted
+	-- NO KEY UPDATE matches the lock the outer UPDATE takes. FOR UPDATE would also block FK
+	-- checks from inserts that reference this workspace (e.g. a reconciler delete build),
+	-- which can deadlock with the claim's own build insert.
+	LIMIT 1 FOR NO KEY UPDATE OF pw SKIP LOCKED -- Ensure that a concurrent request will not select the same prebuild.
 )
 RETURNING w.id, w.name;
 
