@@ -94,6 +94,17 @@ type WorkspaceBuild struct {
 	HasExternalAgent        *bool                `json:"has_external_agent,omitempty"`
 }
 
+// WorkspaceBuildDeadlineSourceType identifies activity that changed a deadline.
+type WorkspaceBuildDeadlineSourceType string
+
+const (
+	WorkspaceBuildDeadlineSourceTypeSessionApp   WorkspaceBuildDeadlineSourceType = "session_app"
+	WorkspaceBuildDeadlineSourceTypeWorkspaceApp WorkspaceBuildDeadlineSourceType = "workspace_app"
+	WorkspaceBuildDeadlineSourceTypeConnection   WorkspaceBuildDeadlineSourceType = "connection"
+	WorkspaceBuildDeadlineSourceTypeChat         WorkspaceBuildDeadlineSourceType = "chat"
+	WorkspaceBuildDeadlineSourceTypeChatUpload   WorkspaceBuildDeadlineSourceType = "chat_upload"
+)
+
 // WorkspaceResource describes resources used to create a workspace, for instance:
 // containers, images, volumes.
 type WorkspaceResource struct {

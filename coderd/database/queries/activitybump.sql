@@ -4,7 +4,8 @@
 -- the workspace was to autostart from a stopped state.
 --
 -- Max deadline is respected, and the deadline will never be bumped past it.
--- The deadline will never decrease.
+-- The deadline will never decrease. A bump that moves it records the activity
+-- reason and sources; other bumps are skipped.
 -- name: ActivityBumpWorkspace :exec
 WITH latest AS (
 	SELECT
@@ -59,19 +60,31 @@ WITH latest AS (
 	  	AND workspaces.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 	ORDER BY workspace_builds.build_number DESC
 	LIMIT 1
+), bump AS (
+	SELECT
+		latest.*,
+		-- Capping keeps the workspace_builds_deadline_below_max_deadline check
+		-- satisfied; a zero max deadline means no cap.
+		CASE
+			WHEN latest.build_max_deadline = '0001-01-01 00:00:00+00'
+			THEN NOW() + latest.ttl_interval
+			ELSE LEAST(NOW() + latest.ttl_interval, latest.build_max_deadline)
+		END AS target_deadline
+	FROM latest
 )
 UPDATE
 	workspace_builds wb
 SET
 	updated_at = NOW(),
-	deadline = CASE
-		WHEN l.build_max_deadline = '0001-01-01 00:00:00+00'
-		-- Never reduce the deadline from activity.
-		THEN GREATEST(wb.deadline, NOW() + l.ttl_interval)
-		ELSE LEAST(GREATEST(wb.deadline, NOW() + l.ttl_interval), l.build_max_deadline)
-	END
-FROM latest l
+	deadline = l.target_deadline,
+	deadline_reason = 'activity',
+	deadline_changed_at = NOW(),
+	deadline_changed_by = NULL,
+	deadline_sources = @deadline_sources
+FROM bump l
 WHERE wb.id = l.build_id
+-- We only bump if the deadline moves forward.
+AND l.target_deadline > wb.deadline
 AND l.job_completed_at IS NOT NULL
 -- We only bump if the template has an activity bump duration set.
 AND l.activity_bump > 0

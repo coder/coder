@@ -1417,6 +1417,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
 		workspace         = httpmw.WorkspaceParam(r)
+		apiKey            = httpmw.APIKey(r)
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.WorkspaceTable](rw, &audit.RequestParams{
 			Audit:          *auditor,
@@ -1498,9 +1499,11 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 					//
 					// Refer to the comments on schedule.CalculateAutostop for
 					// more information.
-					Deadline:    build.MaxDeadline,
-					MaxDeadline: build.MaxDeadline,
-					UpdatedAt:   dbtime.Time(now),
+					Deadline:          build.MaxDeadline,
+					MaxDeadline:       build.MaxDeadline,
+					UpdatedAt:         dbtime.Time(now),
+					DeadlineReason:    database.WorkspaceBuildDeadlineReasonAutostopDisabled,
+					DeadlineChangedBy: uuid.NullUUID{UUID: apiKey.UserID, Valid: true},
 				}); err != nil {
 					return xerrors.Errorf("update workspace build deadline: %w", err)
 				}
@@ -1711,6 +1714,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
+	apiKey := httpmw.APIKey(r)
 
 	var req codersdk.PutExtendWorkspaceRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -1783,10 +1787,12 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := s.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-			ID:          build.ID,
-			UpdatedAt:   dbtime.Time(now),
-			Deadline:    newDeadline,
-			MaxDeadline: build.MaxDeadline,
+			ID:                build.ID,
+			UpdatedAt:         dbtime.Time(now),
+			Deadline:          newDeadline,
+			MaxDeadline:       build.MaxDeadline,
+			DeadlineReason:    database.WorkspaceBuildDeadlineReasonUserChanged,
+			DeadlineChangedBy: uuid.NullUUID{UUID: apiKey.UserID, Valid: true},
 		}); err != nil {
 			code = http.StatusInternalServerError
 			resp.Message = "Failed to extend workspace deadline."

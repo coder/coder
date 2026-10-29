@@ -1425,10 +1425,12 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 					maxDeadline = time.Time{}
 				}
 				err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-					ID:          input.WorkspaceBuildID,
-					UpdatedAt:   s.timeNow(),
-					Deadline:    deadline,
-					MaxDeadline: maxDeadline,
+					ID:                input.WorkspaceBuildID,
+					UpdatedAt:         s.timeNow(),
+					Deadline:          deadline,
+					MaxDeadline:       maxDeadline,
+					DeadlineReason:    database.WorkspaceBuildDeadlineReasonBuild,
+					DeadlineChangedBy: buildDeadlineChangedBy(build),
 				})
 				if err != nil {
 					return xerrors.Errorf("update workspace build deadline: %w", err)
@@ -1541,6 +1543,22 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 	}
 	s.jobFinished(jobID)
 	return &proto.Empty{}, nil
+}
+
+// buildDeadlineChangedBy returns the initiator of manual, non-prebuild builds.
+func buildDeadlineChangedBy(build database.WorkspaceBuild) uuid.NullUUID {
+	switch build.Reason {
+	case database.BuildReasonInitiator,
+		database.BuildReasonDashboard,
+		database.BuildReasonCli,
+		database.BuildReasonSshConnection,
+		database.BuildReasonVscodeConnection,
+		database.BuildReasonJetbrainsConnection:
+		if build.InitiatorByUsername != "" && build.InitiatorID != database.PrebuildsSystemUserID {
+			return uuid.NullUUID{UUID: build.InitiatorID, Valid: true}
+		}
+	}
+	return uuid.NullUUID{}
 }
 
 func (s *server) notifyWorkspaceBuildFailed(ctx context.Context, workspace database.Workspace, build database.WorkspaceBuild) {
@@ -2259,10 +2277,12 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			return xerrors.Errorf("update workspace build provisioner state: %w", err)
 		}
 		err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-			ID:          workspaceBuild.ID,
-			Deadline:    deadline,
-			MaxDeadline: maxDeadline,
-			UpdatedAt:   now,
+			ID:                workspaceBuild.ID,
+			Deadline:          deadline,
+			MaxDeadline:       maxDeadline,
+			UpdatedAt:         now,
+			DeadlineReason:    database.WorkspaceBuildDeadlineReasonBuild,
+			DeadlineChangedBy: buildDeadlineChangedBy(workspaceBuild),
 		})
 		if err != nil {
 			return xerrors.Errorf("update workspace build deadline: %w", err)

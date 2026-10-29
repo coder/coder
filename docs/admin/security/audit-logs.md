@@ -865,6 +865,13 @@ Actions: `start`, `stop`
 <tr><td><code>created_at</code></td><td>No</td></tr>
 <tr><td><code>daily_cost</code></td><td>No</td></tr>
 <tr><td><code>deadline</code></td><td>No</td></tr>
+<tr><td><code>deadline_changed_at</code></td><td>No</td></tr>
+<tr><td><code>deadline_changed_by</code></td><td>No</td></tr>
+<tr><td><code>deadline_changed_by_avatar_url</code></td><td>No</td></tr>
+<tr><td><code>deadline_changed_by_name</code></td><td>No</td></tr>
+<tr><td><code>deadline_changed_by_username</code></td><td>No</td></tr>
+<tr><td><code>deadline_reason</code></td><td>No</td></tr>
+<tr><td><code>deadline_sources</code></td><td>No</td></tr>
 <tr><td><code>has_external_agent</code></td><td>No</td></tr>
 <tr><td><code>id</code></td><td>No</td></tr>
 <tr><td><code>initiator_by_avatar_url</code></td><td>No</td></tr>
