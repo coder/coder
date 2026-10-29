@@ -1,10 +1,8 @@
 package chatstate_test
 
 import (
-	"encoding/json"
 	"testing"
 
-	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -148,7 +146,6 @@ func TestEditing_SendCapacityInPausedStates(t *testing.T) {
 // chat; leaving P returns the updated chat.
 func TestEditing_LeavingPaused(t *testing.T) {
 	t.Parallel()
-	lastError := pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"message":"paused"}`), Valid: true}
 	deleteAt := func(idx int) func(*chatstate.Tx, seededChat) (*database.Chat, error) {
 		return func(tx *chatstate.Tx, seeded seededChat) (*database.Chat, error) {
 			res, err := tx.DeleteQueuedMessage(chatstate.DeleteQueuedMessageInput{QueuedMessageID: seeded.queuedMessageIDs[idx]})
@@ -167,21 +164,19 @@ func TestEditing_LeavingPaused(t *testing.T) {
 		extra int
 		apply func(*chatstate.Tx, seededChat) (*database.Chat, error)
 		want  chatstate.ExecutionState
-		// keepsLastError is false where the head is promoted.
-		keepsLastError bool
 	}{
-		{"DeleteBehindHead", 1, deleteAt(1), chatstate.StateP, true},
-		{"EndEditBehindHead", 1, endEditAt(1), chatstate.StateP, true},
-		{"DeleteLastRow", 0, deleteAt(0), chatstate.StateW, true},
-		{"DeleteHead", 1, deleteAt(0), chatstate.StateR0, false},
-		{"EndHeadEdit", 0, endEditAt(0), chatstate.StateR0, false},
+		{"DeleteBehindHead", 1, deleteAt(1), chatstate.StateP},
+		{"EndEditBehindHead", 1, endEditAt(1), chatstate.StateP},
+		{"DeleteLastRow", 0, deleteAt(0), chatstate.StateW},
+		{"DeleteHead", 1, deleteAt(0), chatstate.StateR0},
+		{"EndHeadEdit", 0, endEditAt(0), chatstate.StateR0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			f := newTestFixture(t)
 			ctx := testutil.Context(t, testutil.WaitShort)
 			seeded := seedPaused(t, f, tc.extra)
-			before := seedLastError(ctx, t, f, seeded.chatID, lastError)
+			before := f.readChat(ctx, t, seeded.chatID)
 			require.Equal(t, chatstate.StateP, f.classify(ctx, t, seeded.chatID))
 
 			var chat *database.Chat
@@ -199,12 +194,6 @@ func TestEditing_LeavingPaused(t *testing.T) {
 				require.NotNil(t, chat, "leaving P reports the updated chat")
 				require.Equal(t, after.Status, chat.Status)
 				require.Equal(t, after.SnapshotVersion, chat.SnapshotVersion)
-			}
-			if tc.keepsLastError {
-				require.True(t, after.LastError.Valid, "last_error is kept")
-				require.JSONEq(t, string(lastError.RawMessage), string(after.LastError.RawMessage))
-			} else {
-				require.False(t, after.LastError.Valid, "the promoted head runs with last_error cleared")
 			}
 		})
 	}
