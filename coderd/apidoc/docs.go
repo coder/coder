@@ -2851,7 +2851,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Required, and the route returns ` + "`" + `400` + "`" + ` without it. Must be the primary wildcard app hostname, a workspace proxy access URL, or a workspace proxy wildcard app hostname.",
+                        "description": "URL to redirect to. The route returns ` + "`" + `400` + "`" + ` without it, and the URL must be the primary wildcard app hostname, a workspace proxy access URL, or a workspace proxy wildcard app hostname.",
                         "name": "redirect_uri",
                         "in": "query"
                     }

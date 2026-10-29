@@ -23,9 +23,9 @@ Redirects you to the login page when you aren't signed in.
 
 ### Parameters
 
-| Name           | In    | Type   | Required | Description                                                                                                                                                            |
-|----------------|-------|--------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `redirect_uri` | query | string | false    | Required, and the route returns `400` without it. Must be the primary wildcard app hostname, a workspace proxy access URL, or a workspace proxy wildcard app hostname. |
+| Name           | In    | Type   | Required | Description                                                                                                                                                                              |
+|----------------|-------|--------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `redirect_uri` | query | string | false    | URL to redirect to. The route returns `400` without it, and the URL must be the primary wildcard app hostname, a workspace proxy access URL, or a workspace proxy wildcard app hostname. |
 
 ### Responses
 

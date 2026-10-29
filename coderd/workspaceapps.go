@@ -54,7 +54,7 @@ func (api *API) appHost(rw http.ResponseWriter, r *http.Request) {
 // @ID redirect-to-uri-with-encrypted-api-key
 // @Security CoderSessionToken
 // @Tags Applications
-// @Param redirect_uri query string false "Required, and the route returns `400` without it. Must be the primary wildcard app hostname, a workspace proxy access URL, or a workspace proxy wildcard app hostname."
+// @Param redirect_uri query string false "URL to redirect to. The route returns `400` without it, and the URL must be the primary wildcard app hostname, a workspace proxy access URL, or a workspace proxy wildcard app hostname."
 // @Success 307
 // @Router /api/v2/applications/auth-redirect [get]
 func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request) {
