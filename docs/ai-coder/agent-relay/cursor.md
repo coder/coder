@@ -82,7 +82,7 @@ Add the [`coder/agent-relay-cursor`](https://registry.coder.com/modules/coder/ag
 ```tf
 module "cursor_worker" {
   source   = "registry.coder.com/coder/agent-relay-cursor/coder"
-  version  = "0.7.0"
+  version  = "0.8.1"
   agent_id = coder_agent.main.id
   # Set to false and bake the CLI into your image for faster starts.
   install_cli = true
@@ -90,8 +90,6 @@ module "cursor_worker" {
 
 resource "coder_agent" "main" {
   # ...
-  # For repository-scoped pools, start the worker in the repository checkout.
-  dir = "/home/coder/example-repo"
   metadata {
     key          = "agent_relay_status"
     display_name = "Worker"
@@ -126,8 +124,6 @@ pools:
       cursor_pool_name: example-pool
       organization: coder
       template: cursor-relay
-      # Optional: scope the pool to one repository.
-      repo_url: https://github.com/example-org/example-repo
       # Optional: caps claim-to-ready. Default 10m, maximum 15m.
       dispatch_deadline: 10m
       # Optional: seconds the worker waits after a turn. Keep at or above 300.
@@ -155,8 +151,6 @@ cursorWorkerPools:
     cursor_pool_name: example-pool
     organization: coder
     template: cursor-relay
-    # Optional: scope the pool to one repository.
-    repo_url: https://github.com/example-org/example-repo
     # Optional: caps claim-to-ready. Default 10m, maximum 15m.
     dispatch_deadline: 10m
     # Optional: seconds the worker waits after a turn. Keep at or above 300.
@@ -172,7 +166,6 @@ Agent Relay refuses to start if:
 
 - More than four pools share one API key.
 - Two pools that share an API key use the same `cursor_pool_name`.
-- A `repo_url` doesn't include the owner and repository in its path.
 - A `dispatch_deadline` is longer than 15&nbsp;minutes.
 
 Agent Relay rejects a `template_parameters` entry that uses a name it sets on every build: `agent_relay_session_id`, `agent_relay_delivery_id`, `agent_relay_pool`, `agent_relay_cursor_pool_name`, `agent_relay_cursor_repo_url`, `agent_relay_credential`, `agent_relay_cursor_idle_release_timeout`, or `agent_relay_cursor_credential_kind`.
@@ -292,25 +285,13 @@ Source control for a session has two independent sides, and you must configure b
 1. **Cursor must see the repository.**
    Connect every repository developers will select to your Cursor team's source control integration.
 1. **The workspace must be able to clone and push.**
-   The template must provide Git credentials.
-   Coder and Agent Relay don't supply them.
+   Coder can supply each developer's Git credentials through external authentication, but the template must declare the provider.
    The worker token that Agent Relay provides authenticates to Cursor only.
 
-Choose a pool type:
-
-|            | Repository-scoped pool (`repo_url` set)              | Any-repository pool (`repo_url` unset)          |
-|------------|------------------------------------------------------|-------------------------------------------------|
-| Routing    | Requests for that repository route only to this pool | Requests match on the pool name alone           |
-| Who clones | The template, before the worker starts               | Your image, hooks, or the agent after the claim |
-| Git egress | Required                                             | Required if sessions clone or push              |
-
-For a repository-scoped pool:
-
-- Agent Relay passes the repository to every build as the `agent_relay_cursor_repo_url` parameter.
-- The template must clone that repository and set up Git credentials before the module's start script runs.
-- Set the agent's `dir` to the checkout, or the worker registers without a repository.
-- The worker doesn't switch branches.
-  To check out a requested branch or commit, use a Cursor `sessionStart` hook.
+The worker doesn't clone repositories.
+Clone them in your image, in a Cursor hook, or let the agent clone them after the claim.
+The worker doesn't switch branches.
+To check out a requested branch or commit, use a Cursor `sessionStart` hook.
 
 For workspace credentials:
 
@@ -319,12 +300,14 @@ For workspace credentials:
 - Prefer short-lived, least-scoped credentials.
   A credential baked into the image is available to every session that the template serves.
 - Make sure credentials work without a prompt.
-- To give each session its owner's Git credentials, configure [external authentication](../../admin/external-auth.md) and pass `data.coder_external_auth.<id>.access_token` to the agent's environment.
+- To give each session its owner's Git credentials, declare the provider in the template with a `data "coder_external_auth"` block.
+  The Coder agent sets `GIT_ASKPASS` in the workspace, so Git over HTTPS uses the owner's linked token, as described in [external authentication](../../admin/external-auth.md#oauth-external-auth).
+  Use HTTPS repository URLs.
   Agent Relay builds the workspace as the developer's matched Coder user, so the token belongs to that developer.
   If the provider isn't marked `optional`, Coder refuses to create a workspace for a developer who hasn't linked the provider, and Agent Relay can't serve their session.
 
 Each pool maps to one template.
-Use one repository-scoped pool per repository when repositories need different templates or credentials.
+Use separate pools when repositories need different templates or credentials.
 
 ## Workspace lifecycle
 
@@ -356,20 +339,59 @@ They're deleted with the workspace.
 
 ## Troubleshoot
 
-| Symptom                                              | Likely cause                                                                                                                                                                                                                                              |
-|------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Agent Relay exits at startup                         | An unlicensed deployment, a Coder version earlier than v2.37, an invalid token, or missing organization permissions. Also check the pool rules in [Add the pool to the Agent Relay configuration](#step-5-add-the-pool-to-the-agent-relay-configuration). |
-| One pool is degraded and the others are fine         | The service account lacks `read` or `use` on the template, the template lacks `allow_user_cancel_workspace_jobs`, or the template doesn't include the module's parameters.                                                                                |
-| Cursor shows an `agent-relay:` account error         | Identity resolution failed. The message names the cause: no email on the request, no matching member of the organization, or a suspended or dormant account.                                                                                              |
-| Cursor shows an `agent-relay:` build or worker error | The build failed, exceeded `dispatch_deadline`, or waited too long for a provisioner, or the worker exited before serving. Read the Agent Relay logs and `agent_relay_cursor_claim_fails_total`.                                                          |
-| A workspace is created and then deleted              | The build failed. Quota exhaustion is the most common cause. Find the `workspace build failed` line in the Agent Relay logs and read its `job_error` field. The workspace's build log in Coder has the full output.                                       |
-| A Cursor chat hangs with no error                    | The worker stopped after it started serving, for example because of autostop, or Agent Relay's call to fail the claim errored, or no relay claimed the request.                                                                                           |
-| Builds time out                                      | The build exceeded `dispatch_deadline` or waited for a provisioner. Speed up the template, raise the deadline up to `15m`, use prebuilds, or add provisioners.                                                                                            |
-| Builds stay `pending`                                | No online provisioner matches the template's tags. Compare `coder provisioner list` with the template's tags.                                                                                                                                             |
-| The agent fails to start with an unclear CLI error   | The Cursor CLI in the image is out of date. Rebuild the image, or set `install_cli = true`.                                                                                                                                                               |
-| A workspace is never deleted                         | The template renamed or omitted `agent_relay_status`, or the worker reports `orphaned`.                                                                                                                                                                   |
-| A repository-scoped pool never receives requests     | `repo_url` doesn't match the repository the developer selected, or the checkout's `origin` doesn't match.                                                                                                                                                 |
-| The agent works on the wrong branch                  | The worker doesn't switch branches. Add a `sessionStart` hook that checks out the requested ref.                                                                                                                                                          |
+### Agent Relay exits at startup
+
+An unlicensed deployment, an unsupported Coder version, an invalid token, or missing organization permissions.
+Also check the pool rules in [Add the pool to the Agent Relay configuration](#step-5-add-the-pool-to-the-agent-relay-configuration).
+
+### One pool is degraded and the others are fine
+
+The service account lacks `read` or `use` on the template, the template lacks `allow_user_cancel_workspace_jobs`, or the template doesn't include the module's parameters.
+
+### Cursor shows an `agent-relay:` account error
+
+Identity resolution failed.
+The message names the cause: no email on the request, no matching member of the organization, or a suspended or dormant account.
+
+### Cursor shows an `agent-relay:` build or worker error
+
+The build failed, exceeded `dispatch_deadline`, or waited too long for a provisioner, or the worker exited before serving.
+Read the Agent Relay logs and `agent_relay_cursor_claim_fails_total`.
+
+### A workspace is created and then deleted
+
+The build failed.
+Quota exhaustion is the most common cause.
+Find the `workspace build failed` line in the Agent Relay logs and read its `job_error` field.
+The workspace's build log in Coder has the full output.
+
+### A Cursor chat hangs with no error
+
+The worker stopped after it started serving, for example because of autostop, or Agent Relay's call to fail the claim errored, or no relay claimed the request.
+
+### Builds time out
+
+The build exceeded `dispatch_deadline` or waited for a provisioner.
+Speed up the template, raise the deadline up to `15m`, use prebuilds, or add provisioners.
+
+### Builds stay `pending`
+
+No online provisioner matches the template's tags.
+Compare `coder provisioner list` with the template's tags.
+
+### The agent fails to start with an unclear CLI error
+
+The Cursor CLI in the image is out of date.
+Rebuild the image, or set `install_cli = true`.
+
+### A workspace is never deleted
+
+The template renamed or omitted `agent_relay_status`, or the worker reports `orphaned`.
+
+### The agent works on the wrong branch
+
+The worker doesn't switch branches.
+Add a `sessionStart` hook that checks out the requested ref.
 
 For logs and metrics, refer to [Monitor Agent Relay](./monitoring.md).
 

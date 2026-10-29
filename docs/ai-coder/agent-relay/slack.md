@@ -86,7 +86,7 @@ How channel sessions behave:
 1. Plan [workspace quota](../../admin/users/quotas.md) for the `claude_tag_channel_user`.
    Every channel session's workspace belongs to this one user, so all channel sessions draw on a single quota budget.
    When the budget runs out, builds fail and Agent Relay deletes the workspaces.
-   Leave `daily_cost` off the Tag template's resources so its workspaces cost nothing, or add the `claude_tag_channel_user` to a group whose quota allowance covers your expected concurrent sessions.
+   Add the `claude_tag_channel_user` to a group whose quota allowance covers your expected concurrent channel sessions.
 
 1. Add a pool for the Tag environment, with the service account's UUID as its `claude_tag_channel_user`:
 
@@ -140,19 +140,20 @@ Guests can read everything Claude posts, including output it produced with the T
 ### Channel session lifecycle
 
 - Workspace names start with `cc-`, followed by the session's UUID.
-- Idle release is off by default, so each session keeps its workspace until the session ends.
+- The module releases a session after 60&nbsp;minutes without a user message, and Agent Relay deletes the workspace.
+  The next message resumes the session in a new workspace.
 - Claude replaces a channel's session after about an hour without activity, when the channel's configuration changes, or when the session is about a day old.
   Each replacement gets a new workspace.
 - Tagging `@claude !restart` replaces the thread's or channel's session with a new one in a new workspace.
 - Deleting a thread's first message closes the session, and Agent Relay deletes its workspace.
 
-To release idle sessions, set these runner variables on the template's `coder_agent` resource:
+To change how long sessions run, set these inputs on the template's `agent-relay-claude-code` module:
 
-| Variable                                     | Default   | Effect                                                                                                        |
-|----------------------------------------------|-----------|---------------------------------------------------------------------------------------------------------------|
-| `SELF_HOSTED_RUNNER_SESSION_IDLE_MS`         | `0` (off) | Releases the session after this many milliseconds without user input. Agent Relay then deletes the workspace. |
-| `SELF_HOSTED_RUNNER_MAX_LIFETIME_MS`         | `0` (off) | Limits each session's lifetime in milliseconds. Set it whenever you set idle release.                         |
-| `SELF_HOSTED_RUNNER_PUSH_OUTCOME_ON_RELEASE` | Off       | Pushes tracked branches before release, so commits survive.                                                   |
+| Input                                                         | Default | Effect                                                                                                               |
+|---------------------------------------------------------------|---------|----------------------------------------------------------------------------------------------------------------------|
+| `release_idle_session_min`                                    | `60`    | Releases the session after this many minutes without a user message. `0` keeps the workspace until the session ends. |
+| `additional_args = ["--kill-session-after-min", "<minutes>"]` | Off     | Ends each session after this many minutes. Pair it with idle release, because some sessions never register as idle.  |
+| `additional_args = ["--push-outcome-on-release"]`             | Off     | Pushes the session's outcome branches before release, so commits survive.                                            |
 
 After an idle release, the next message rebuilds the workspace with the same name on a fresh disk, so unpushed work is lost.
 
@@ -201,13 +202,6 @@ Any member of the Cursor team can change a public channel's default pool.
 
 Unless **Require Self-Hosted Machines** is on, people can send a mention to Cursor's managed infrastructure with `sh=0`.
 
-Whether the pool has a `repo_url` also changes how Cursor handles a mention:
-
-| Pool              | Repository resolved                                                            | No repository resolved     |
-|-------------------|--------------------------------------------------------------------------------|----------------------------|
-| Repository-scoped | Runs if the pool serves that repository. Otherwise, Slack rejects the mention. | Slack rejects the mention. |
-| Any repository    | Runs with the repository as context.                                           | Runs without a repository. |
-
 ### Cursor in Slack lifecycle
 
 After each turn, the worker waits `idle_release_timeout` seconds, 600 by default, for a follow-up.
@@ -216,16 +210,15 @@ A later follow-up rebuilds the workspace on a clean disk, so unpushed work is lo
 
 ## Troubleshoot
 
-| Symptom                                                 | Likely cause                                                                                                                                                         |
-|---------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Claude doesn't reply, or no `cc-` workspace appears     | The channel resolves to another environment, the thread started before the change, a Slack guest is in the channel, or the Tag pool isn't serving.                   |
-| Claude Tag channel sessions are rejected                | The pool has no `claude_tag_channel_user`, the relay wasn't restarted after the change, or the value isn't `me` or the UUID of an active member of the organization. |
-| A Tag pool workspace is owned by a person               | Someone selected the Tag environment in the environment picker, or a Slack DM landed on it.                                                                          |
-| Claude can't reach a repository or service              | Claude Tag connections don't apply in self-hosted sessions, or the template's Tag user UUID doesn't match `claude_tag_channel_user`.                                 |
-| Cursor shows an `agent-relay:` account error            | The person's Cursor email doesn't match an active member of the pool's organization, or a service account started the agent.                                         |
-| A Cursor mention doesn't run on the Agent Relay pool    | **Allow Self-Hosted Machines** is off, the message overrides the pool, no default pool applies, or the person's own default worker takes priority.                   |
-| Slack privately replies that a Cursor mention can't run | A repository-scoped pool got a mention with no repository, or with a repository the pool doesn't serve.                                                              |
-| An agent loses its files after a quiet period           | Idle release deleted the workspace, and the next message rebuilt it on a clean disk.                                                                                 |
+| Symptom                                              | Likely cause                                                                                                                                                         |
+|------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Claude doesn't reply, or no `cc-` workspace appears  | The channel resolves to another environment, the thread started before the change, a Slack guest is in the channel, or the Tag pool isn't serving.                   |
+| Claude Tag channel sessions are rejected             | The pool has no `claude_tag_channel_user`, the relay wasn't restarted after the change, or the value isn't `me` or the UUID of an active member of the organization. |
+| A Tag pool workspace is owned by a person            | Someone selected the Tag environment in the environment picker, or a Slack DM landed on it.                                                                          |
+| Claude can't reach a repository or service           | Claude Tag connections don't apply in self-hosted sessions, or the template's Tag user UUID doesn't match `claude_tag_channel_user`.                                 |
+| Cursor shows an `agent-relay:` account error         | The person's Cursor email doesn't match an active member of the pool's organization, or a service account started the agent.                                         |
+| A Cursor mention doesn't run on the Agent Relay pool | **Allow Self-Hosted Machines** is off, the message overrides the pool, no default pool applies, or the person's own default worker takes priority.                   |
+| An agent loses its files after a quiet period        | Idle release deleted the workspace, and the next message rebuilt it on a clean disk.                                                                                 |
 
 ## Learn more
 

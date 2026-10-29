@@ -82,11 +82,11 @@ One Agent Relay process can serve pools for both providers.
 
 ## Requirements
 
-- A Coder deployment with a Premium license, on version 2.37 or later.
+- A Coder deployment with a Premium license, on version 2.39 or later.
 - A Coder service account with a long-lived token.
-- A workspace template for each pool that includes the provider's Agent Relay module.
+- A workspace template for each pool that includes the provider's [Agent Relay module](https://registry.coder.com/modules?search=tag%3Aagent-relay).
 - Provisioner capacity for Agent Relay builds.
-- A Kubernetes cluster for the Helm chart, or another runtime that can run a container.
+- Somewhere to run the Agent Relay container, such as a Kubernetes cluster or a Docker host.
 
 The daemon is distributed as a public container image and Helm chart:
 
