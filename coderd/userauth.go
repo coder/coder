@@ -78,13 +78,16 @@ func (o *OAuthConvertStateClaims) Validate(e jwt.Expected) error {
 // the user to an oauth user.
 //
 // @Summary Convert user from password to oauth authentication
+// @Description Starts converting a password-based account to GitHub or OpenID Connect (OIDC) sign-in, and returns an OAuth state string that expires after 5 minutes.
+// @Description The call also sets a cookie, so finish the conversion by signing in with the identity provider in the same browser before it expires.
+// @Description Requires the user's current password in `password`, and works only for users with the `password` login type.
 // @ID convert-user-from-password-to-oauth-authentication
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Authorization
-// @Param request body codersdk.ConvertLoginRequest true "Convert request"
-// @Param user path string true "User ID, name, or me"
+// @Param request body codersdk.ConvertLoginRequest true "Login type to convert to, which is `github` or `oidc`, and the user's current password."
+// @Param user path string true "User ID, username, or `me` for the authenticated user."
 // @Success 201 {object} codersdk.OAuthConversionResponse
 // @Router /api/v2/users/{user}/convert-login [post]
 func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
@@ -220,10 +223,13 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 // Requests a one-time passcode for a user.
 //
 // @Summary Request one-time passcode
+// @Description Requests a one-time passcode for resetting a password, which Coder delivers to the user as a notification and which expires after 20 minutes.
+// @Description Returns `204` whether or not an account with that email address exists, so the response doesn't reveal which addresses are registered.
+// @Description Returns `403` when password authentication is turned off, and doesn't require a session token.
 // @ID request-one-time-passcode
 // @Accept json
 // @Tags Authorization
-// @Param request body codersdk.RequestOneTimePasscodeRequest true "One-time passcode request"
+// @Param request body codersdk.RequestOneTimePasscodeRequest true "Email address of the account to reset the password for."
 // @Success 204
 // @Router /api/v2/users/otp/request [post]
 func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Request) {
@@ -326,10 +332,13 @@ func (api *API) notifyUserRequestedOneTimePasscode(ctx context.Context, user dat
 // Change a users password with a one-time passcode.
 //
 // @Summary Change password with a one-time passcode
+// @Description Sets a new password for the user with the given email address when you supply the one-time passcode from `POST /api/v2/users/otp/request`, and revokes all of that user's API keys.
+// @Description Returns `400` when the passcode is wrong or expired, or when the new password matches the old one.
+// @Description Doesn't require a session token.
 // @ID change-password-with-a-one-time-passcode
 // @Accept json
 // @Tags Authorization
-// @Param request body codersdk.ChangePasswordWithOneTimePasscodeRequest true "Change password request"
+// @Param request body codersdk.ChangePasswordWithOneTimePasscodeRequest true "Email address of the account, the one-time passcode, and the new password. The new password must meet the password requirements."
 // @Success 204
 // @Router /api/v2/users/otp/change-password [post]
 func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r *http.Request) {
@@ -459,12 +468,15 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 // ValidateUserPassword validates the complexity of a user password and that it is secured enough.
 //
 // @Summary Validate user password
+// @Description Checks whether a password meets Coder's password requirements, returning `valid` and, when it doesn't, the reason in `details`.
+// @Description Use it to give feedback on a new password before you set it.
+// @Description Doesn't require a session token.
 // @ID validate-user-password
 // @Security CoderSessionToken
 // @Produce json
 // @Accept json
 // @Tags Authorization
-// @Param request body codersdk.ValidateUserPasswordRequest true "Validate user password request"
+// @Param request body codersdk.ValidateUserPasswordRequest true "Password to check against the password requirements."
 // @Success 200 {object} codersdk.ValidateUserPasswordResponse
 // @Router /api/v2/users/validate-password [post]
 func (*API) validateUserPassword(rw http.ResponseWriter, r *http.Request) {
@@ -494,11 +506,14 @@ func (*API) validateUserPassword(rw http.ResponseWriter, r *http.Request) {
 // Authenticates the user with an email and password.
 //
 // @Summary Log in user
+// @Description Signs in a user with an email address and password, returns a session token in `session_token`, and sets the session cookie.
+// @Description Works only for users with the `password` login type, and returns `403` when password authentication is turned off.
+// @Description Doesn't require a session token.
 // @ID log-in-user
 // @Accept json
 // @Produce json
 // @Tags Authorization
-// @Param request body codersdk.LoginWithPasswordRequest true "Login request"
+// @Param request body codersdk.LoginWithPasswordRequest true "Email address and password of the user to sign in."
 // @Success 201 {object} codersdk.LoginWithPasswordResponse
 // @Router /api/v2/users/login [post]
 func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {

@@ -3019,6 +3019,7 @@ const docTemplate = `{
         },
         "/api/v2/auth/scopes": {
             "get": {
+                "description": "Returns the names of the API key scopes you can request when you create a token, including ` + "`" + `all` + "`" + `, ` + "`" + `application_connect` + "`" + `, the ` + "`" + `coder:*` + "`" + ` composite scopes, and the ` + "`" + `resource:action` + "`" + ` scopes.\nUse it to find valid values for ` + "`" + `scopes` + "`" + ` before you call ` + "`" + `POST /api/v2/users/{user}/keys/tokens` + "`" + `.\nDoesn't require a session token.",
                 "produces": [
                     "application/json"
                 ],
@@ -3039,6 +3040,7 @@ const docTemplate = `{
         },
         "/api/v2/authcheck": {
             "post": {
+                "description": "Returns whether the authenticated user can perform each requested action on each requested object, taking the user's roles and the scopes of the API key you call with into account.\nUse it to check several permissions in one request, and match each result to its check by the key you gave it.\nAt most 10 checks can set ` + "`" + `resource_id` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3052,7 +3054,7 @@ const docTemplate = `{
                 "operationId": "check-authorization",
                 "parameters": [
                     {
-                        "description": "Authorization request",
+                        "description": "Permission checks to run, keyed by a name you choose. Each check sets an ` + "`" + `action` + "`" + ` and an ` + "`" + `object` + "`" + ` that selects the resources, and its result in the response uses the same key.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -13535,6 +13537,7 @@ const docTemplate = `{
         },
         "/api/v2/users/login": {
             "post": {
+                "description": "Signs in a user with an email address and password, returns a session token in ` + "`" + `session_token` + "`" + `, and sets the session cookie.\nWorks only for users with the ` + "`" + `password` + "`" + ` login type, and returns ` + "`" + `403` + "`" + ` when password authentication is turned off.\nDoesn't require a session token.",
                 "consumes": [
                     "application/json"
                 ],
@@ -13548,7 +13551,7 @@ const docTemplate = `{
                 "operationId": "log-in-user",
                 "parameters": [
                     {
-                        "description": "Login request",
+                        "description": "Email address and password of the user to sign in.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -13682,6 +13685,7 @@ const docTemplate = `{
         },
         "/api/v2/users/otp/change-password": {
             "post": {
+                "description": "Sets a new password for the user with the given email address when you supply the one-time passcode from ` + "`" + `POST /api/v2/users/otp/request` + "`" + `, and revokes all of that user's API keys.\nReturns ` + "`" + `400` + "`" + ` when the passcode is wrong or expired, or when the new password matches the old one.\nDoesn't require a session token.",
                 "consumes": [
                     "application/json"
                 ],
@@ -13692,7 +13696,7 @@ const docTemplate = `{
                 "operationId": "change-password-with-a-one-time-passcode",
                 "parameters": [
                     {
-                        "description": "Change password request",
+                        "description": "Email address of the account, the one-time passcode, and the new password. The new password must meet the password requirements.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -13710,6 +13714,7 @@ const docTemplate = `{
         },
         "/api/v2/users/otp/request": {
             "post": {
+                "description": "Requests a one-time passcode for resetting a password, which Coder delivers to the user as a notification and which expires after 20 minutes.\nReturns ` + "`" + `204` + "`" + ` whether or not an account with that email address exists, so the response doesn't reveal which addresses are registered.\nReturns ` + "`" + `403` + "`" + ` when password authentication is turned off, and doesn't require a session token.",
                 "consumes": [
                     "application/json"
                 ],
@@ -13720,7 +13725,7 @@ const docTemplate = `{
                 "operationId": "request-one-time-passcode",
                 "parameters": [
                     {
-                        "description": "One-time passcode request",
+                        "description": "Email address of the account to reset the password for.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -13766,6 +13771,7 @@ const docTemplate = `{
         },
         "/api/v2/users/validate-password": {
             "post": {
+                "description": "Checks whether a password meets Coder's password requirements, returning ` + "`" + `valid` + "`" + ` and, when it doesn't, the reason in ` + "`" + `details` + "`" + `.\nUse it to give feedback on a new password before you set it.\nDoesn't require a session token.",
                 "consumes": [
                     "application/json"
                 ],
@@ -13779,7 +13785,7 @@ const docTemplate = `{
                 "operationId": "validate-user-password",
                 "parameters": [
                     {
-                        "description": "Validate user password request",
+                        "description": "Password to check against the password requirements.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -14206,6 +14212,7 @@ const docTemplate = `{
         },
         "/api/v2/users/{user}/convert-login": {
             "post": {
+                "description": "Starts converting a password-based account to GitHub or OpenID Connect (OIDC) sign-in, and returns an OAuth state string that expires after 5 minutes.\nThe call also sets a cookie, so finish the conversion by signing in with the identity provider in the same browser before it expires.\nRequires the user's current password in ` + "`" + `password` + "`" + `, and works only for users with the ` + "`" + `password` + "`" + ` login type.",
                 "consumes": [
                     "application/json"
                 ],
@@ -14219,7 +14226,7 @@ const docTemplate = `{
                 "operationId": "convert-user-from-password-to-oauth-authentication",
                 "parameters": [
                     {
-                        "description": "Convert request",
+                        "description": "Login type to convert to, which is ` + "`" + `github` + "`" + ` or ` + "`" + `oidc` + "`" + `, and the user's current password.",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -14229,7 +14236,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or ` + "`" + `me` + "`" + ` for the authenticated user.",
                         "name": "user",
                         "in": "path",
                         "required": true
