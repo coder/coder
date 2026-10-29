@@ -2,8 +2,7 @@ import { createContext, useContext, useRef, useState } from "react";
 import type { AttachmentFailure } from "../../utils/chatAttachments";
 
 type FileProbeContextValue = {
-	/** Inline files have no ID and never expire. */
-	hasExpired: (fileId: string | undefined) => boolean;
+	hasExpired: (fileId: string) => boolean;
 	markExpired: (fileId: string) => void;
 	isPending: (fileId: string) => boolean;
 	markPending: (fileId: string) => void;
@@ -39,8 +38,7 @@ export const FileProbeProvider: React.FC<
 		<FileProbeContext.Provider
 			value={{
 				hasExpired: (fileId) =>
-					fileId !== undefined &&
-					(evictedFileIds.has(fileId) || expiredFileIds.has(fileId)),
+					evictedFileIds.has(fileId) || expiredFileIds.has(fileId),
 				markExpired: (fileId) => {
 					setExpiredFileIds((previous) => {
 						if (previous.has(fileId)) {

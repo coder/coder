@@ -332,110 +332,116 @@ export type TurnAttachmentsOptions = {
 	isCompacting: boolean;
 };
 
-type Turn = {
-	attachments: MessageAttachment[];
-	/**
-	 * The last shown assistant row that is not a context clear (`chat_cleared`)
-	 * or summary (`chat_summarized`).
-	 */
-	pillRow?: TimelineMessageRow;
-	/** A context clear or summary row follows pillRow. */
-	hasBoundaryAfterPillRow: boolean;
-};
-
-const newTurn = (): Turn => ({
-	attachments: [],
-	hasBoundaryAfterPillRow: false,
-});
-
+/** Each turn's assistant rows. A turn starts at each user message. */
 const splitIntoTurns = (
 	rows: readonly TimelineRow[],
-	hidesAttachmentRows: boolean,
-): Turn[] => {
-	const turns = [newTurn()];
+): TimelineMessageRow[][] => {
+	const turns: TimelineMessageRow[][] = [[]];
 	for (const row of rows) {
 		if (row.type !== "message") {
 			continue;
 		}
-		const { message } = row.entry;
-		if (message.role === "user") {
-			turns.push(newTurn());
-			continue;
-		}
-		if (message.role !== "assistant") {
-			continue;
-		}
 
-		const turn = turns[turns.length - 1];
-		turn.attachments.push(...getMessageFileAttachments(message));
-		if (isContextBoundaryRow(row)) {
-			turn.hasBoundaryAfterPillRow = true;
-			continue;
+		const { role } = row.entry.message;
+		if (role === "user") {
+			turns.push([]);
+		} else if (role === "assistant") {
+			turns[turns.length - 1].push(row);
 		}
-		if (hidesAttachmentRows && isAgentAttachmentOnlyRow(row)) {
-			continue;
-		}
-		turn.pillRow = row;
-		turn.hasBoundaryAfterPillRow = false;
 	}
 	return turns;
 };
 
 /**
- * chatd resumes an unanswered turn after a compaction, and it persists a
- * summary row before the chat stops.
+ * A context clear (`chat_cleared`) or summary (`chat_summarized`) is not part
+ * of the turn's answer, and collapsed steps hide attachment-only rows.
  */
-const canTurnChange = (
-	turn: Turn,
-	pillRow: TimelineMessageRow,
+const canHostPill = (
+	row: TimelineMessageRow,
+	hidesAttachmentRows: boolean,
+): boolean => {
+	if (isContextBoundaryRow(row)) {
+		return false;
+	}
+	return !hidesAttachmentRows || !isAgentAttachmentOnlyRow(row);
+};
+
+/**
+ * A running chat can still add files or text to its newest turn, even after
+ * an answer. An answer followed by a compaction or context clear is final:
+ * chatd resumes only an unanswered turn after a compaction.
+ */
+const hasNewestTurnEnded = (
+	turnRows: readonly TimelineMessageRow[],
+	pillRowIndex: number,
 	{ isChatActive, isCompacting }: TurnAttachmentsOptions,
 ): boolean => {
 	if (!isChatActive) {
+		return true;
+	}
+	if (!hasAnswer(turnRows[pillRowIndex])) {
 		return false;
 	}
-	const isAnswerFinal =
-		hasAnswer(pillRow) && (isCompacting || turn.hasBoundaryAfterPillRow);
-	return !isAnswerFinal;
+	return (
+		isCompacting || turnRows.slice(pillRowIndex + 1).some(isContextBoundaryRow)
+	);
 };
 
+/**
+ * Each turn's agent files, keyed by the row that shows them in the
+ * Attachments pill: the turn's last assistant row that can host it.
+ */
 export const getTurnAttachmentsByRow = (
 	rows: readonly TimelineRow[],
 	options: TurnAttachmentsOptions,
 ): ReadonlyMap<string, readonly MessageAttachment[]> => {
-	const turns = splitIntoTurns(rows, options.hidesAttachmentRows);
-	const newestTurn = turns[turns.length - 1];
-	const byRow = new Map<string, readonly MessageAttachment[]>();
-	for (const turn of turns) {
-		const { pillRow, attachments } = turn;
-		if (pillRow === undefined || attachments.length === 0) {
+	const turns = splitIntoTurns(rows);
+	const attachmentsByRow = new Map<string, readonly MessageAttachment[]>();
+	for (const [turnIndex, turnRows] of turns.entries()) {
+		const attachments = turnRows.flatMap((row) =>
+			getMessageFileAttachments(row.entry.message),
+		);
+		const pillRowIndex = turnRows.findLastIndex((row) =>
+			canHostPill(row, options.hidesAttachmentRows),
+		);
+		if (attachments.length === 0 || pillRowIndex === -1) {
 			continue;
 		}
-		if (turn === newestTurn && canTurnChange(turn, pillRow, options)) {
+
+		const isNewestTurn = turnIndex === turns.length - 1;
+		if (isNewestTurn && !hasNewestTurnEnded(turnRows, pillRowIndex, options)) {
 			continue;
 		}
-		byRow.set(pillRow.key, attachments);
+
+		attachmentsByRow.set(turnRows[pillRowIndex].key, attachments);
 	}
-	return byRow;
+	return attachmentsByRow;
+};
+
+const sliceEndsRow = (
+	row: TimelineRow,
+	{ pieceRange }: Required<RowSlice>,
+): boolean => {
+	if (row.type !== "message") {
+		return false;
+	}
+	const { blocks, tools } = row.entry.parsed;
+	return pieceRange.end === splitRowPieces(blocks, tools).pieces.length;
 };
 
 /**
- * The pill of a turn whose host row ends inside the block. A host row that
- * ends in text below the block hosts its own pill there.
+ * A pill row that ends inside a collapsed block renders nothing below the
+ * block, so the block shows the row's pill.
  */
 export const getBlockTurnAttachments = (
 	block: WorkingBlock,
 	rows: readonly TimelineRow[],
 	turnAttachmentsByRow: ReadonlyMap<string, readonly MessageAttachment[]>,
 ): readonly MessageAttachment[] | undefined => {
-	for (const { rowIndex, pieceRange } of block.slices) {
-		const row = rows[rowIndex];
+	for (const slice of block.slices) {
+		const row = rows[slice.rowIndex];
 		const attachments = turnAttachmentsByRow.get(row.key);
-		if (!attachments || row.type !== "message") {
-			continue;
-		}
-
-		const { blocks, tools } = row.entry.parsed;
-		if (pieceRange.end === splitRowPieces(blocks, tools).pieces.length) {
+		if (attachments && sliceEndsRow(row, slice)) {
 			return attachments;
 		}
 	}

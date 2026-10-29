@@ -345,7 +345,7 @@ export const MessageAttachmentCard: React.FC<AttachmentCardProps> = ({
 }) => {
 	const { file } = attachment;
 	const { hasExpired } = useFileProbes();
-	const isKnownExpired = hasExpired(file.file_id);
+	const isKnownExpired = file.file_id !== undefined && hasExpired(file.file_id);
 
 	// Cards take expiry as a prop, not an early return here, so a focused card
 	// keeps focus when its file expires.

@@ -109,6 +109,123 @@ const LifecycleHookNotice: React.FC<{
 	</TimelineNotice>
 );
 
+type UserMessageActionsProps = {
+	message: TypesGen.ChatMessage;
+	copyText?: string;
+	onEditUserMessage?: ConversationTimelineProps["onEditUserMessage"];
+	prevUserMessageKey?: string;
+	nextUserMessageKey?: string;
+	onJumpToUserMessage?: (messageKey: string) => void;
+};
+
+/** Edit and the jump buttons appear on hover or focus, before Copy. */
+const UserMessageActions: React.FC<UserMessageActionsProps> = ({
+	message,
+	copyText,
+	onEditUserMessage,
+	prevUserMessageKey,
+	nextUserMessageKey,
+	onJumpToUserMessage,
+}) => {
+	const canJump =
+		onJumpToUserMessage !== undefined &&
+		(prevUserMessageKey !== undefined || nextUserMessageKey !== undefined);
+	const hasHoverActions = onEditUserMessage !== undefined || canJump;
+	if (!hasHoverActions && copyText === undefined) {
+		return null;
+	}
+
+	return (
+		<MessageActionBar className="w-full justify-end">
+			{hasHoverActions && (
+				<div className="flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100">
+					{onEditUserMessage && (
+						<MessageActionButton
+							label="Edit message"
+							icon={<PencilIcon />}
+							onClick={() => {
+								const { text, fileBlocks, editorState } =
+									getEditableUserMessagePayload(message);
+								onEditUserMessage(message.id, text, fileBlocks, editorState);
+							}}
+						/>
+					)}
+					{canJump && (
+						<>
+							<MessageActionButton
+								label="Jump to previous user message"
+								icon={<ChevronLeftIcon />}
+								disabled={prevUserMessageKey === undefined}
+								onClick={() => {
+									if (prevUserMessageKey !== undefined) {
+										onJumpToUserMessage(prevUserMessageKey);
+									}
+								}}
+							/>
+							<MessageActionButton
+								label="Jump to next user message"
+								icon={<ChevronRightIcon />}
+								disabled={nextUserMessageKey === undefined}
+								onClick={() => {
+									if (nextUserMessageKey !== undefined) {
+										onJumpToUserMessage(nextUserMessageKey);
+									}
+								}}
+							/>
+						</>
+					)}
+				</div>
+			)}
+			{copyText !== undefined && (
+				<CopyButton
+					text={copyText}
+					label="Copy message"
+					className="size-6"
+					tooltipSide="bottom"
+				/>
+			)}
+		</MessageActionBar>
+	);
+};
+
+type AssistantMessageActionsProps = {
+	copyText?: string;
+	turnAttachments?: readonly MessageAttachment[];
+	/**
+	 * Without buttons the bar still takes its height, so the message keeps its
+	 * spacing to the next one.
+	 */
+	keepsSpacing: boolean;
+};
+
+const AssistantMessageActions: React.FC<AssistantMessageActionsProps> = ({
+	copyText,
+	turnAttachments,
+	keepsSpacing,
+}) => {
+	const hasActions = copyText !== undefined || turnAttachments !== undefined;
+	if (!hasActions && keepsSpacing) {
+		return <div className="min-h-6" data-testid="assistant-bottom-spacer" />;
+	}
+	if (!hasActions) {
+		return null;
+	}
+
+	return (
+		<MessageActionBar>
+			{copyText !== undefined && (
+				<CopyButton
+					text={copyText}
+					label="Copy message"
+					className="size-6"
+					tooltipSide="bottom"
+				/>
+			)}
+			{turnAttachments && <TurnAttachments attachments={turnAttachments} />}
+		</MessageActionBar>
+	);
+};
+
 const ChatMessageItem = memo<{
 	organizationId: string;
 	renderKey: string;
@@ -251,17 +368,10 @@ const ChatMessageItem = memo<{
 					})
 				: undefined;
 
-		const canEditUserMessage =
-			isUser && messageId !== undefined && Boolean(onEditUserMessage);
-		const canJumpBetweenUserMessages =
-			isUser &&
-			Boolean(onJumpToUserMessage) &&
-			(prevUserMessageKey !== undefined || nextUserMessageKey !== undefined);
 		const copyText =
 			displayState?.hasCopyableContent && parsed && !hideSliceActions
 				? parsed.markdown
 				: undefined;
-		const showsHoverActions = canEditUserMessage || canJumpBetweenUserMessages;
 
 		if (displayState?.shouldHide) {
 			return null;
@@ -360,74 +470,25 @@ const ChatMessageItem = memo<{
 						{notice}
 					</LifecycleHookNotice>
 				))}
-				{(copyText !== undefined ||
-					showsHoverActions ||
-					sliceTurnAttachments) && (
-					<MessageActionBar className={cn(isUser && "w-full justify-end")}>
-						{showsHoverActions && (
-							<div className="flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100">
-								{canEditUserMessage && (
-									<MessageActionButton
-										label="Edit message"
-										icon={<PencilIcon />}
-										onClick={() => {
-											const { text, fileBlocks, editorState } =
-												getEditableUserMessagePayload(message);
-											onEditUserMessage?.(
-												messageId,
-												text,
-												fileBlocks,
-												editorState,
-											);
-										}}
-									/>
-								)}
-								{canJumpBetweenUserMessages && (
-									<>
-										<MessageActionButton
-											label="Jump to previous user message"
-											icon={<ChevronLeftIcon />}
-											disabled={prevUserMessageKey === undefined}
-											onClick={() => {
-												if (prevUserMessageKey !== undefined) {
-													onJumpToUserMessage?.(prevUserMessageKey);
-												}
-											}}
-										/>
-										<MessageActionButton
-											label="Jump to next user message"
-											icon={<ChevronRightIcon />}
-											disabled={nextUserMessageKey === undefined}
-											onClick={() => {
-												if (nextUserMessageKey !== undefined) {
-													onJumpToUserMessage?.(nextUserMessageKey);
-												}
-											}}
-										/>
-									</>
-								)}
-							</div>
-						)}
-						{copyText !== undefined && (
-							<CopyButton
-								text={copyText}
-								label="Copy message"
-								className="size-6"
-								tooltipSide="bottom"
-							/>
-						)}
-						{sliceTurnAttachments && (
-							<TurnAttachments attachments={sliceTurnAttachments} />
-						)}
-					</MessageActionBar>
+				{isUser ? (
+					<UserMessageActions
+						message={message}
+						copyText={copyText}
+						onEditUserMessage={onEditUserMessage}
+						prevUserMessageKey={prevUserMessageKey}
+						nextUserMessageKey={nextUserMessageKey}
+						onJumpToUserMessage={onJumpToUserMessage}
+					/>
+				) : (
+					<AssistantMessageActions
+						copyText={copyText}
+						turnAttachments={sliceTurnAttachments}
+						keepsSpacing={
+							Boolean(displayState?.needsAssistantBottomSpacer) &&
+							!isLastMessage
+						}
+					/>
 				)}
-				{/* The bottom spacer fakes the action bar's height so messages without
-				    one keep even spacing; the last message has nothing after it. */}
-				{displayState?.needsAssistantBottomSpacer &&
-					!isLastMessage &&
-					!sliceTurnAttachments && (
-						<div className="min-h-6" data-testid="assistant-bottom-spacer" />
-					)}
 			</div>
 		);
 	},

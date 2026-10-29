@@ -43,12 +43,9 @@ const AttachmentThumbnail: React.FC<AttachmentThumbnailProps> = ({
 }) => {
 	const { hasExpired } = useFileProbes();
 	const [hasFailed, setHasFailed] = useState(false);
+	const isExpired = file.file_id !== undefined && hasExpired(file.file_id);
 
-	if (
-		isRasterImageMediaType(file.media_type) &&
-		!hasFailed &&
-		!hasExpired(file.file_id)
-	) {
+	if (isRasterImageMediaType(file.media_type) && !hasFailed && !isExpired) {
 		return (
 			<StackSlot>
 				<ImageThumbnail
@@ -81,8 +78,8 @@ export const TurnAttachments: React.FC<TurnAttachmentsProps> = ({
 }) => {
 	const { hasExpired } = useFileProbes();
 	const overflow = attachments.length - THUMBNAIL_STACK_MAX;
-	const hasExpiredAttachment = attachments.some(({ file }) =>
-		hasExpired(file.file_id),
+	const hasExpiredAttachment = attachments.some(
+		({ file }) => file.file_id !== undefined && hasExpired(file.file_id),
 	);
 
 	return (

@@ -1834,6 +1834,16 @@ describe("getTurnAttachmentsByRow", () => {
 		},
 	);
 
+	it("keeps the pill on the answer when a hook notice follows it", () => {
+		const { rows } = group([
+			user("Build the report"),
+			message("assistant", [text("Here:"), file("a")]),
+			message("system", [{ type: "hook-notice", text: "Formatter ran." }]),
+		]);
+
+		expect(pills(rows)).toEqual([["message:2", ["a"]]]);
+	});
+
 	it("shows no pill for the newest turn while it runs", () => {
 		const { rows } = group(
 			[
