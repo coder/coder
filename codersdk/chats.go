@@ -1232,9 +1232,7 @@ const (
 	ChatModelOverrideContextTitleGeneration ChatModelOverrideContext = "title_generation"
 	ChatModelOverrideContextCompaction      ChatModelOverrideContext = "compaction"
 	ChatModelOverrideContextAdvisor         ChatModelOverrideContext = "advisor"
-	// ChatModelOverrideContextComputerUse selects the model that computer use
-	// subagents run on. Unset uses the organization's default chat model.
-	ChatModelOverrideContextComputerUse ChatModelOverrideContext = "computer_use"
+	ChatModelOverrideContextComputerUse     ChatModelOverrideContext = "computer_use"
 )
 
 // Valid reports whether the override context is one of the supported values.

@@ -58,6 +58,7 @@ func (p *Server) resolveComputerUseModel(
 ) (model computerUseModel, reason string, err error) {
 	//nolint:gocritic // Chatd reads organization model configuration for the chat owner.
 	chatdCtx := dbauthz.AsChatd(ctx)
+
 	override, err := p.resolveModelOverride(chatdCtx, modelOverrideSpec{
 		context:        string(codersdk.ChatModelOverrideContextComputerUse),
 		ownerID:        ownerID,
@@ -66,12 +67,14 @@ func (p *Server) resolveComputerUseModel(
 	if err != nil {
 		return computerUseModel{}, "", err
 	}
+
 	overrideState := "no computer use model is configured"
 	if override.Set || override.Unavailable {
 		// A usable override returns below, so a reason built after this point
 		// means the saved override cannot be used.
 		overrideState = "the configured computer use model cannot be used"
 	}
+
 	if override.Set {
 		// resolveModelOverride returns only enabled models of enabled AI
 		// providers whose credentials the owner can use.
@@ -79,6 +82,7 @@ func (p *Server) resolveComputerUseModel(
 		if err != nil {
 			return computerUseModel{}, "", xerrors.Errorf("get AI provider for model %s: %w", override.Config.ID, err)
 		}
+
 		if provider, ok := computerUseProviderForAIProviderType(string(aiProvider.Type)); ok {
 			return computerUseModel{
 				config:          override.Config,
@@ -86,6 +90,7 @@ func (p *Server) resolveComputerUseModel(
 				reasoningEffort: override.ReasoningEffort,
 			}, "", nil
 		}
+
 		// The override API rejects these AI providers, but the model API can
 		// still move the saved model to one. Ignore the override then, as the
 		// settings page does.
@@ -100,6 +105,7 @@ func (p *Server) resolveComputerUseModel(
 	if err != nil {
 		return computerUseModel{}, "", err
 	}
+
 	model.config, err = effectiveDefaultChatModelConfig(modelCtx, p.db, organizationID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return computerUseModel{}, fmt.Sprintf(
@@ -110,11 +116,13 @@ func (p *Server) resolveComputerUseModel(
 	if err != nil {
 		return computerUseModel{}, "", xerrors.Errorf("get default chat model config: %w", err)
 	}
+
 	// The default lookup returns only enabled models of enabled AI providers.
 	aiProvider, err := p.db.GetAIProviderByID(chatdCtx, model.config.AIProviderID.UUID)
 	if err != nil {
 		return computerUseModel{}, "", xerrors.Errorf("get AI provider for model %s: %w", model.config.ID, err)
 	}
+
 	label := computerUseModelLabel(model.config)
 	provider, ok := computerUseProviderForAIProviderType(string(aiProvider.Type))
 	if !ok {
@@ -129,12 +137,14 @@ func (p *Server) resolveComputerUseModel(
 	if err != nil {
 		return computerUseModel{}, "", xerrors.Errorf("resolve provider API keys: %w", err)
 	}
+
 	if !userCanUseProviderKeys(providerKeys, string(provider)) {
 		return computerUseModel{}, fmt.Sprintf(
 			`type "computer_use" is unavailable because %s and credentials for AI provider %q, used by model %s, are not configured`,
 			overrideState, aiProvider.Name, label,
 		), nil
 	}
+
 	return model, "", nil
 }
 

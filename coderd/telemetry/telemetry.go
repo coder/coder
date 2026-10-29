@@ -2266,11 +2266,13 @@ func CollectAgentsVirtualDesktop(ctx context.Context, opts Options) json.RawMess
 	payload := AgentsVirtualDesktopTelemetry{
 		Enabled: opts.Experiments.Enabled(codersdk.ExperimentChatVirtualDesktop),
 	}
+
 	overrides, err := opts.Database.GetChatOrganizationModelOverridesByContext(ctx, string(codersdk.ChatModelOverrideContextComputerUse))
 	if err != nil {
 		opts.Logger.Warn(ctx, "get chat computer use model overrides for telemetry", slog.Error(err))
 	} else {
 		payload.ComputerUse.Overrides = []AgentsComputerUseOverrideTelemetry{}
+
 		for _, override := range overrides {
 			// When the override's model is disabled or deleted, or its AI
 			// provider type does not support computer use, the runtime falls
@@ -2281,6 +2283,7 @@ func CollectAgentsVirtualDesktop(ctx context.Context, opts Options) json.RawMess
 			if override.ModelAvailable && supported {
 				provider, model = override.ProviderType, override.Model
 			}
+
 			payload.ComputerUse.Overrides = append(payload.ComputerUse.Overrides, AgentsComputerUseOverrideTelemetry{
 				OrganizationID: override.OrganizationID.String(),
 				Provider:       provider,
@@ -2288,6 +2291,7 @@ func CollectAgentsVirtualDesktop(ctx context.Context, opts Options) json.RawMess
 			})
 		}
 	}
+
 	val, err := json.Marshal(payload)
 	if err != nil {
 		opts.Logger.Warn(ctx, "marshal agent virtual desktop telemetry", slog.Error(err))
