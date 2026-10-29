@@ -38,7 +38,10 @@ import {
 	userChatDebugLogging,
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
-import { organizationSkills } from "#/api/queries/organizationSkills";
+import {
+	organizationSkillPreferences,
+	organizationSkills,
+} from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import { preferenceSettings } from "#/api/queries/users";
 import { workspaceById, workspaceByIdKey } from "#/api/queries/workspaces";
@@ -101,6 +104,7 @@ import {
 	resolveModelSelector,
 } from "../utils/modelOptions";
 import { pickReasoningEffort } from "../utils/reasoningEffort";
+import { activeOrganizationSkills } from "../utils/skills";
 import { AgentChatPageErrorView } from "./AgentChatPageErrorView";
 import {
 	AgentChatPageLoadingView,
@@ -320,12 +324,18 @@ const AgentChatPage: React.FC = () => {
 	);
 	const { isPending: isClearPending, mutateAsync: clearChatContext } =
 		useMutation(clearChat(queryClient, agentId));
+
 	const personalSkillsQuery = useQuery({
 		...userSkills(),
 		staleTime: 60_000,
 	});
 	const organizationSkillsQuery = useQuery({
 		...organizationSkills(chatOrganizationId),
+		enabled: Boolean(chatOrganizationId),
+		staleTime: 60_000,
+	});
+	const organizationSkillPreferencesQuery = useQuery({
+		...organizationSkillPreferences(chatOrganizationId),
 		enabled: Boolean(chatOrganizationId),
 		staleTime: 60_000,
 	});
@@ -655,11 +665,13 @@ const AgentChatPage: React.FC = () => {
 		isSubmissionPending,
 		hasModelOptions,
 		isEditReasoningEffortDirtyRef,
-		// chatd skips disabled skills, so they never shadow a built-in
-		// command. A list with no data stays unknown, even after an error.
+		// chatd skips disabled skills and, while members can opt out, skills
+		// they turned off, so neither shadows a built-in command. A list with
+		// no data stays unknown, even after an error.
 		personalSkills: personalSkillsQuery.data?.filter((skill) => skill.enabled),
-		organizationSkills: organizationSkillsQuery.data?.filter(
-			(skill) => skill.enabled,
+		organizationSkills: activeOrganizationSkills(
+			organizationSkillsQuery.data,
+			organizationSkillPreferencesQuery.data,
 		),
 		// Unlike the lists above, losing the use of the project means no
 		// project skills, even if some loaded earlier, because chatd then

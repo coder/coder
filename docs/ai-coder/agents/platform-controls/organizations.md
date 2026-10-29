@@ -13,26 +13,28 @@ Running more than 1 organization requires a [Premium license](../../../admin/use
 
 ## What each scope owns
 
-| Setting                         | Scope                  | Where to configure                                                         |
-|---------------------------------|------------------------|----------------------------------------------------------------------------|
-| AI providers and credentials    | Deployment             | **Admin settings** > **AI** > **Providers**                                |
-| Chat models                     | Organization           | **Admin settings** > **AI** > **Models**                                   |
-| Default model                   | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Organization settings** |
-| Admin model overrides           | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Organization settings** |
-| Personal model overrides        | User, per organization | **Agents** > **Settings** > **Agents**                                     |
-| Personal override toggle        | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Deployment settings**   |
-| MCP servers                     | Organization           | **Admin settings** > **AI** > **Coder Agents** > **MCP servers**           |
-| MCP server connections          | User, per organization | **Agents** > **Settings** > **MCP connections**                            |
-| Organization skills             | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Skills**                |
-| Personal skills                 | User                   | **Agents** > **Settings** > **Skills**                                     |
-| System prompt                   | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Instructions**          |
-| Organization instructions       | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Instructions**          |
-| Plan mode instructions          | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Instructions**          |
-| Agent access to a template      | Template               | **Admin settings** > **AI** > **Coder Agents** > **Templates**             |
-| Advisor runtime limits          | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Deployment settings**   |
-| Computer use model              | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Organization settings** |
-| Autostop fallback and lifecycle | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Lifecycle**             |
-| Data retention                  | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Lifecycle**             |
+| Setting                                  | Scope                  | Where to configure                                                         |
+|------------------------------------------|------------------------|----------------------------------------------------------------------------|
+| AI providers and credentials             | Deployment             | **Admin settings** > **AI** > **Providers**                                |
+| Chat models                              | Organization           | **Admin settings** > **AI** > **Models**                                   |
+| Default model                            | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Organization settings** |
+| Admin model overrides                    | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Organization settings** |
+| Personal model overrides                 | User, per organization | **Agents** > **Settings** > **Agents**                                     |
+| Personal override toggle                 | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Deployment settings**   |
+| MCP servers                              | Organization           | **Admin settings** > **AI** > **Coder Agents** > **MCP servers**           |
+| MCP server connections                   | User, per organization | **Agents** > **Settings** > **MCP connections**                            |
+| Organization skills                      | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Skills**                |
+| Members can turn off organization skills | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Skills**                |
+| Your organization skill choices          | User, per organization | **Agents** > **Settings** > **Skills**                                     |
+| Personal skills                          | User                   | **Agents** > **Settings** > **Skills**                                     |
+| System prompt                            | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Instructions**          |
+| Organization instructions                | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Instructions**          |
+| Plan mode instructions                   | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Instructions**          |
+| Agent access to a template               | Template               | **Admin settings** > **AI** > **Coder Agents** > **Templates**             |
+| Advisor runtime limits                   | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Deployment settings**   |
+| Computer use model                       | Organization           | **Admin settings** > **AI** > **Coder Agents** > **Organization settings** |
+| Autostop fallback and lifecycle          | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Lifecycle**             |
+| Data retention                           | Deployment             | **Admin settings** > **AI** > **Coder Agents** > **Lifecycle**             |
 
 The **Deployment settings** section holds the personal override toggle and the Advisor card.
 The computer use model is an admin model override, so it lives in the **Organization settings** section.
@@ -102,6 +104,8 @@ Chats in that organization offer no MCP servers.
 - Users with edit access to an organization's models configure that organization's models, admin model overrides, and organization instructions.
 - Users with read access to an organization's models can open the **Models** page and the **Coder Agents** page, and Coder shows the fields as read-only.
 - Users with access to an organization's MCP servers can open the **MCP servers** page.
+- Users who can edit an organization's skills decide whether members of that organization can turn off organization skills for their own chats.
+  Refer to [Let members turn off organization skills](#let-members-turn-off-organization-skills) for more information.
 - Auditors and custom roles can hold read access without edit access.
 - Users with a custom role that grants edit access without read access can save organization instructions through the API, but they can't view them.
 
@@ -126,8 +130,36 @@ You can also use the API:
 - `GET /api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl`
 - `PATCH /api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl`
 
+## Let members turn off organization skills
+
+By default, every [organization skill](../extending-agents.md#organization-skills) that is turned on and that a member can use loads into that member's chats.
+
+Users who can edit the organization's skills, such as site owners and organization admins, can let each member turn off individual organization skills, or all of them, for their own chats:
+
+1. Go to **Admin settings** > **AI** > **Coder Agents** > **Skills**.
+1. If you can view the skills of more than one organization, choose the organization in the organization picker.
+1. Turn on **Members can turn off organization skills** below the organization picker.
+
+The setting is off by default and applies only to the selected organization.
+Coder records each change to the setting in the audit log.
+
+Members turn off skills for their chats in **Agents** > **Settings** > **Skills**, as described in [Turn off organization skills for your chats](../extending-agents.md#turn-off-organization-skills-for-your-chats).
+Coder handles these choices as follows:
+
+- A member's choices change only that member's chats and aren't audited.
+- When an administrator turns the setting off, Coder keeps the members' choices but ignores them, so every organization skill that is turned on loads again.
+  If the setting is turned back on, the stored choices apply again.
+- When a member leaves the organization, Coder deletes that member's choices for the organization.
+- When a skill is deleted, Coder deletes every choice about that skill.
+  A new skill with the same name as a deleted one doesn't inherit anyone's choices, so members who turned off the old skill see the new one.
+
+The setting API lives under `/api/experimental/organizations/{organization}/skill-settings`.
+The member choice API lives under `/api/experimental/organizations/{organization}/members/{user}/skill-preferences`.
+Both are experimental and might change.
+
 ## Related pages
 
 - [Models](../models.md) for providers, models, and model overrides.
 - [MCP Servers](./mcp-servers.md) for MCP server configuration.
 - [Template Optimization](./template-optimization.md) for the per-template agent setting.
+- [Organization skills](../extending-agents.md#organization-skills) for creating organization skills and sharing them with members.

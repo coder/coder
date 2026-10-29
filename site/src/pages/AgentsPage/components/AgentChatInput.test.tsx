@@ -12,7 +12,10 @@ import { createMemoryRouter, MemoryRouter, useLocation } from "react-router";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
 import { API } from "#/api/api";
-import { organizationSkills } from "#/api/queries/organizationSkills";
+import {
+	organizationSkillPreferencesKey,
+	organizationSkills,
+} from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
@@ -23,7 +26,10 @@ import {
 	createTestQueryClient,
 	renderWithRouter,
 } from "#/testHelpers/renderHelpers";
-import { MockSkill } from "#/testHelpers/skills";
+import {
+	MockOrganizationSkillPreferences,
+	MockSkill,
+} from "#/testHelpers/skills";
 import {
 	belowMdViewportMediaQuery,
 	mobileViewportMediaQuery,
@@ -210,6 +216,10 @@ describe("AgentChatInput", () => {
 		queryClient.setQueryData(organizationSkills("org-1").queryKey, [
 			{ ...MockSkill, name: "release-notes" },
 		]);
+		queryClient.setQueryData(
+			organizationSkillPreferencesKey("org-1"),
+			MockOrganizationSkillPreferences,
+		);
 
 		render(
 			<AppProviders queryClient={queryClient}>
@@ -253,6 +263,10 @@ describe("AgentChatInput", () => {
 		const inputRef = createRef<ChatMessageInputRef>();
 		vi.spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
 		vi.spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
+		vi.spyOn(
+			API.experimental,
+			"getOrganizationSkillPreferences",
+		).mockResolvedValue(MockOrganizationSkillPreferences);
 		const getChatProjectSkills = vi
 			.spyOn(API.experimental, "getChatProjectSkills")
 			.mockResolvedValue([{ ...MockSkill, name: "project-conventions" }]);
