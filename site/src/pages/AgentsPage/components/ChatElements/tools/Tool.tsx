@@ -1214,7 +1214,7 @@ const OpenPreviewRenderer: React.FC<ToolRendererProps> = (props) => {
 								variant="outline"
 								onClick={() => onOpenPreview(target)}
 							>
-								Open preview
+								{"app" in target ? "Open app" : "Open preview"}
 							</Button>
 						</ToolCall.HeaderActions>
 					)}

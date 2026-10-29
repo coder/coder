@@ -8,7 +8,11 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
-import { getAgentBrowserApp } from "#/modules/apps/apps";
+import {
+	AGENT_BROWSER_APP_SLUG,
+	getAgentBrowserApp,
+	isWorkspaceAppEmbeddable,
+} from "#/modules/apps/apps";
 import { WorkspaceAppFrame } from "#/modules/apps/WorkspaceAppFrame";
 import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { generateConnectionSessionId, generateUUID } from "#/utils/random";
@@ -500,24 +504,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		activateRightPanelTab(tabId);
 	};
 
-	const openPreview = (target: OpenPreviewTarget) => {
-		// The panel only lists previews of the chat's current workspace.
-		if (target.workspaceId !== workspace?.id) {
-			return;
-		}
-
-		savePersistedSelectedPreview(agentId, previewKey(target.preview));
-		setPreviewPanelKey((key) => key + 1);
-		showSingletonTab("preview");
-	};
-
-	const previewPanelCtx = {
-		// Only offer the action when the panel can render, which keeps a tool
-		// action from selecting a Preview tab that the tab list omits. Archived
-		// chats do not persist the selection that opening relies on.
-		onOpenPreview: workspace && !isArchived ? openPreview : undefined,
-	};
-
 	const desktopPanelCtx = {
 		desktopChatId,
 		// Only offer the action when the panel can render, which keeps a tool
@@ -602,6 +588,46 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 
 		setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]);
 		activateRightPanelTab(tab.id);
+	};
+
+	const openPreview = (target: OpenPreviewTarget) => {
+		// Previews and apps of another workspace cannot be shown here.
+		if (target.workspaceId !== workspace?.id) {
+			return;
+		}
+
+		if ("app" in target) {
+			if (workspaceAgent?.name !== target.app.agent_name) {
+				return;
+			}
+
+			// agent-browser has the built-in Browser tab instead of an app tab.
+			// While the app is unhealthy the saved tab stays hidden, then
+			// appears once the app is ready.
+			if (target.app.slug === AGENT_BROWSER_APP_SLUG) {
+				showSingletonTab("browser");
+				return;
+			}
+
+			const app = workspaceAgent.apps.find(
+				(app) => app.slug === target.app.slug,
+			);
+			if (app && isWorkspaceAppEmbeddable(app)) {
+				handleOpenWorkspaceAppTab(app);
+			}
+			return;
+		}
+
+		savePersistedSelectedPreview(agentId, previewKey(target.preview));
+		setPreviewPanelKey((key) => key + 1);
+		showSingletonTab("preview");
+	};
+
+	const previewPanelCtx = {
+		// Only offer the action when the panel can render, which keeps a tool
+		// action from selecting a Preview tab that the tab list omits. Archived
+		// chats do not persist the selection that opening relies on.
+		onOpenPreview: workspace && !isArchived ? openPreview : undefined,
 	};
 
 	const handleOpenCommandAppTab = (app: TypesGen.WorkspaceApp) => {

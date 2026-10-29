@@ -2952,6 +2952,22 @@ export const OpenPreviewCompleted: Story = {
 	],
 };
 
+export const OpenAppCompleted: Story = {
+	args: {
+		name: "open_preview",
+		status: "completed",
+		args: { title: "VS Code", app: "code-server" },
+		result: {
+			ok: true,
+			title: "VS Code",
+			workspace_id: "test-workspace-id",
+			agent_name: "main",
+			app_slug: "code-server",
+		},
+	},
+	decorators: OpenPreviewCompleted.decorators,
+};
+
 export const OpenPreviewFailed: Story = {
 	args: {
 		name: "open_preview",

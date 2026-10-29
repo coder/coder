@@ -1410,6 +1410,7 @@ func TestTurnWorkspaceContextGetPreviewWorkspaceLazyValidationSwitchesWorkspaceA
 	preview, err := workspaceCtx.getPreviewWorkspace(ctx)
 	require.NoError(t, err)
 	require.Equal(t, "main", preview.AgentName)
+	require.Equal(t, currentAgentID, preview.AgentID)
 	require.Same(t, conn, preview.Conn)
 	require.Equal(t, workspaceID, preview.WorkspaceID)
 	require.Equal(t, []uuid.UUID{staleAgentID, currentAgentID}, dialed)
