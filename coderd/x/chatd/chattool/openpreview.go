@@ -10,7 +10,9 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -37,27 +39,35 @@ type OpenPreviewResult struct {
 	// URLPath is the path and query a port preview opens at, such as
 	// "/?folder=/home/coder". It is empty for the server's root.
 	URLPath string `json:"url_path,omitempty"`
+	// AppSlug names a coder_app on the agent. App results open the app's own
+	// tab, so the preview catalog leaves them out.
+	AppSlug string `json:"app_slug,omitempty"`
 }
 
 // PreviewWorkspace binds a preview to the workspace connection used to open it.
 type PreviewWorkspace struct {
 	Conn        workspacesdk.AgentConn
 	WorkspaceID uuid.UUID
+	AgentID     uuid.UUID
 	AgentName   string
 }
 
 // OpenPreviewOptions configures the open_preview tool.
 type OpenPreviewOptions struct {
 	GetWorkspace func(context.Context) (PreviewWorkspace, error)
+	// DB and OwnerID look up the agent's apps as the chat owner.
+	DB      database.Store
+	OwnerID uuid.UUID
 }
 
-// OpenPreviewArgs names a preview and selects either a running server or
-// workspace files to show.
+// OpenPreviewArgs names a preview and selects a running server, workspace
+// files or a coder_app to show.
 type OpenPreviewArgs struct {
 	Title   string `json:"title" description:"Short name for the preview shown in the user's preview selector, such as Docs site or Signup form. At most 80 characters."`
-	Port    *int   `json:"port,omitempty" description:"Port of an existing HTTP server, between 1000 and 65535. Do not combine with path."`
-	Path    string `json:"path,omitempty" description:"Absolute workspace path to an HTML file or a directory containing index.html. Do not combine with port."`
+	Port    *int   `json:"port,omitempty" description:"Port of an existing HTTP server, between 1000 and 65535. Do not combine with path or app."`
+	Path    string `json:"path,omitempty" description:"Absolute workspace path to an HTML file or a directory containing index.html. Do not combine with port or app."`
 	URLPath string `json:"url_path,omitempty" description:"Path and query to open on the port's server, such as /?folder=/home/coder/project. Only with port. Defaults to /."`
+	App     string `json:"app,omitempty" description:"Slug of a coder_app on the workspace agent, such as code-server. Do not combine with port or path."`
 }
 
 // IsPreviewURLPath reports whether s is a path and optional query that stays
@@ -79,12 +89,13 @@ func IsPreviewURLPath(s string) bool {
 func OpenPreview(options OpenPreviewOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"open_preview",
-		"Open and select an embedded preview for the user. Pass a short title and exactly one of port or path. "+
+		"Open and select an embedded preview for the user. Pass a short title and exactly one of port, path or app. "+
 			"Use port for an existing HTTP web app; this does not start the app or wait for it to be ready. "+
 			"Add url_path to open the app at a path and query other than /, for example /?folder=/home/coder/project. "+
 			"Use path for an HTML file or a directory containing index.html; the workspace daemon publishes the files through Coder. "+
 			"A file publishes only that file. To include CSS, JavaScript, images, or other pages, publish their directory instead. "+
 			"Directory contents are published, so use a dedicated output directory without secrets. Directory listing is disabled. "+
+			"Use app to open a coder_app defined on the workspace agent, such as an IDE, in its own tab. "+
 			"Call this again to refresh after changing static files, or to restore a preview after its server or the workspace daemon restarts. "+
 			"Path previews last until the workspace daemon stops, and at most 64 paths can be published until it restarts.",
 		func(ctx context.Context, args OpenPreviewArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
@@ -103,9 +114,16 @@ func OpenPreview(options OpenPreviewOptions) fantasy.AgentTool {
 			}
 
 			args.Path = strings.TrimSpace(args.Path)
-			hasPort, hasPath := args.Port != nil, args.Path != ""
-			if hasPort == hasPath {
-				return fantasy.NewTextErrorResponse("provide exactly one of port or path"), nil
+			args.App = strings.TrimSpace(args.App)
+			hasPort, hasPath, hasApp := args.Port != nil, args.Path != "", args.App != ""
+			targets := 0
+			for _, set := range []bool{hasPort, hasPath, hasApp} {
+				if set {
+					targets++
+				}
+			}
+			if targets != 1 {
+				return fantasy.NewTextErrorResponse("provide exactly one of port, path or app"), nil
 			}
 
 			// Numeric app hostnames recognize only four- or five-digit ports.
@@ -149,6 +167,16 @@ func OpenPreview(options OpenPreviewOptions) fantasy.AgentTool {
 				return marshalToolResponse(result), nil
 			}
 
+			if hasApp {
+				slug, err := embeddableAppSlug(ctx, options, workspace.AgentID, args.App)
+				if err != nil {
+					return fantasy.NewTextErrorResponse(err.Error()), nil
+				}
+
+				result.AppSlug = slug
+				return marshalToolResponse(result), nil
+			}
+
 			preview, err := workspace.Conn.OpenPreview(ctx, workspacesdk.OpenPreviewRequest{Path: args.Path})
 			if err != nil {
 				return fantasy.NewTextErrorResponse("open file preview: " + err.Error()), nil
@@ -162,4 +190,38 @@ func OpenPreview(options OpenPreviewOptions) fantasy.AgentTool {
 			return marshalToolResponse(result), nil
 		},
 	)
+}
+
+// embeddableAppSlug finds the agent's app with the given slug. Only apps the
+// chat's right panel can embed qualify: hidden, external and command apps
+// have no page to show.
+func embeddableAppSlug(ctx context.Context, options OpenPreviewOptions, agentID uuid.UUID, slug string) (string, error) {
+	if options.DB == nil {
+		return "", xerrors.New("workspace app lookup is not configured")
+	}
+
+	ctx, err := asOwner(ctx, options.DB, options.OwnerID)
+	if err != nil {
+		return "", err
+	}
+	apps, err := options.DB.GetWorkspaceAppsByAgentID(ctx, agentID)
+	if err != nil {
+		return "", xerrors.Errorf("look up workspace apps: %w", err)
+	}
+
+	var available []string
+	for _, app := range apps {
+		if app.Hidden || app.External || app.Command.Valid {
+			continue
+		}
+		if app.Slug == slug {
+			return app.Slug, nil
+		}
+		available = append(available, app.Slug)
+	}
+
+	if len(available) == 0 {
+		return "", xerrors.Errorf("app %q not found: the workspace agent has no apps that can be shown in a tab", slug)
+	}
+	return "", xerrors.Errorf("app %q not found; apps that can be shown: %s", slug, strings.Join(available, ", "))
 }

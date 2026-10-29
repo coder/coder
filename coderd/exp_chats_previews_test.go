@@ -92,6 +92,7 @@ func TestChatPreviews(t *testing.T) {
 	insertResult(map[string]any{"title": "Both", "port": 3000, "preview_id": "fedcba9876543210"})
 	insertResult(map[string]any{"title": "Bad agent", "port": 3000, "agent_name": "x@evil.com"})
 	insertResult(map[string]any{"title": "Other host", "port": 3000, "url_path": "//evil.example"})
+	insertResult(map[string]any{"title": "IDE", "app_slug": "code-server"})
 
 	mcpPart := resultPart(false, map[string]any{"title": "MCP", "port": 3000})
 	mcpPart.MCPServerConfigID = uuid.NullUUID{UUID: uuid.New(), Valid: true}

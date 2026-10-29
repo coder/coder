@@ -240,7 +240,7 @@ The agent has access to a set of workspace tools that it uses to accomplish task
 | `process_list`                              | List all tracked processes in the workspace                                                                                                                  |
 | `process_signal`                            | Send a signal (terminate/kill) to a tracked process                                                                                                          |
 | `attach_file`                               | Attach a workspace file to the chat as a durable downloadable attachment                                                                                     |
-| `open_preview`                              | Open an embedded preview of a running HTTP app, an HTML file, or a directory containing `index.html`                                                         |
+| `open_preview`                              | Open an embedded preview of a running HTTP app, an HTML file, a directory containing `index.html`, or a workspace app                                        |
 | `spawn_agent` (`type=general` or `explore`) | Delegate a task to a sub-agent running in parallel, optionally on a specific model                                                                           |
 | `list_subagent_models`                      | List the models available for `spawn_agent`'s `model_config_id` argument                                                                                     |
 | `wait_agent`                                | Wait for a sub-agent to complete and collect its result                                                                                                      |
@@ -271,12 +271,14 @@ Workspace MCP tools are unavailable in plan mode, and plan-mode sub-agents recei
 ### Embedded previews
 
 The agent can call `open_preview` to show a running app or HTML files in the chat's **Preview** tab.
-It gives each preview a short title and supplies exactly one of `port` or `path`:
+It gives each preview a short title and supplies exactly one of `port`, `path`, or `app`:
 
 - `port` opens an existing HTTP app on a workspace port between 1000 and 65535, without waiting for the app to become ready.
   An optional `url_path` opens the app at a path and query, such as `/?folder=/home/coder/project`.
   The same port at another `url_path` is listed as a separate preview.
 - `path` publishes an absolute workspace path to a `.html` or `.htm` file, or a directory containing `index.html`.
+- `app` opens a `coder_app` on the workspace agent, such as an IDE, in the app's own right panel tab instead of the **Preview** tab.
+  Only apps that the right panel can embed qualify, so hidden, external, and command apps are rejected.
 
 `open_preview` is only available when the deployment has a [wildcard app hostname](../../admin/networking/wildcard-access-url.md).
 Workspace proxies running an older Coder version don't route previews.
