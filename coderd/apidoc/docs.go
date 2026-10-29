@@ -6128,7 +6128,7 @@ const docTemplate = `{
         },
         "/api/v2/files/{fileID}": {
             "get": {
-                "description": "Returns the contents of an uploaded file, such as a template source archive, with its original ` + "`" + `Content-Type` + "`" + `.\nSet ` + "`" + `format` + "`" + ` to ` + "`" + `zip` + "`" + ` to download a tar file as a zip archive, which returns ` + "`" + `400` + "`" + ` for any other file type or ` + "`" + `format` + "`" + ` value.\nYou can read the files you uploaded, the Owner and Template Admin roles can read any file, and you get ` + "`" + `404` + "`" + ` for a file you can't read.",
+                "description": "Returns the contents of an uploaded file, such as a template source archive, with its stored ` + "`" + `Content-Type` + "`" + `, which is ` + "`" + `application/x-tar` + "`" + ` because Coder converts zip uploads to tar.\nSet ` + "`" + `format` + "`" + ` to ` + "`" + `zip` + "`" + ` to download a tar file as a zip archive, and any other ` + "`" + `format` + "`" + ` value, or a file that isn't a tar, returns ` + "`" + `400` + "`" + `.\nYou can read the files you uploaded, the Owner and Template Admin roles can read any file, and you get ` + "`" + `404` + "`" + ` for a file you can't read.",
                 "tags": [
                     "Files"
                 ],
