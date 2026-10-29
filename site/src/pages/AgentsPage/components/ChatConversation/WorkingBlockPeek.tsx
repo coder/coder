@@ -76,18 +76,22 @@ const ROW_PITCH = ROW_HEIGHT + ROW_GAP;
 const rowsHeight = (count: number) =>
 	count === 0 ? 0 : count * ROW_HEIGHT + (count - 1) * ROW_GAP;
 
-/**
- * The window reaches this far past its rows at both edges and fades out
- * across that band, so a row dissolves as it slides past an edge while rows
- * at rest stay at full contrast. The top band starts at the summary row's
- * bottom edge, below its glyphs, so a leaving row never shows under them.
- */
-const EDGE = 12;
 /** The gap between the summary row and the rail, as the expanded block has. */
 const RAIL_GAP = 6;
 const ROW_INSET = branchGeometry.railOffset;
+/** A row's 16px icon and its text keep this far clear of its edges. */
+const ROW_INK_INSET = (ROW_HEIGHT - 16) / 2;
+/**
+ * Rows dissolve by position as they slide past the window's edges, while
+ * rows at rest stay at full contrast. The fades take no space of their own,
+ * so the peek sits exactly where the expanded block's newest rows do: the
+ * top fade spans the gap above the first row and that row's empty top
+ * margin, starting at the summary row's bottom edge, below its glyphs; the
+ * bottom fade spans the last row's empty bottom margin.
+ */
+const TOP_FADE = RAIL_GAP + ROW_INK_INSET;
 /** `--peek-top` is the top fade's height, animated on the container. */
-const edgeMask = `linear-gradient(to bottom, transparent, #000 var(--peek-top), #000 calc(100% - ${EDGE}px), transparent)`;
+const edgeMask = `linear-gradient(to bottom, transparent, #000 var(--peek-top), #000 calc(100% - ${ROW_INK_INSET}px), transparent)`;
 const railMask = `linear-gradient(to bottom, transparent, #000 calc(var(--peek-top) - ${RAIL_GAP}px))`;
 
 /** PROTOTYPE: the variants under review, both on outside the stories. */
@@ -201,12 +205,13 @@ export const WorkingBlockPeek: React.FC<WorkingBlockPeekProps> = ({
 	const trackOffset = -(newestSlot - (shown.length - 1)) * ROW_PITCH;
 	// With a faded row, the top fade spans it, so the oldest row dims as the
 	// track carries it up and dissolves before it reaches the summary row.
-	const topFade = fadedRow && shown.length > 2 ? EDGE + ROW_PITCH : EDGE;
+	const topFade =
+		fadedRow && shown.length > 2 ? TOP_FADE + ROW_PITCH : TOP_FADE;
 	// The rail ends in the newest row's branch, like the icon's last item, so
 	// between steps it does not run on past the rows.
 	const newest = shown.at(-1);
 	const railInset =
-		branches && newest ? EDGE + ROW_HEIGHT / 2 + branchGeometry.rise - 1 : 0;
+		branches && newest ? ROW_HEIGHT / 2 + branchGeometry.rise - 1 : 0;
 	const branchModeOf = (item: PeekItem) => {
 		if (!branches) {
 			return "off";
@@ -253,12 +258,12 @@ export const WorkingBlockPeek: React.FC<WorkingBlockPeekProps> = ({
 							WebkitMaskImage: edgeMask,
 						}}
 						initial={false}
-						animate={{ height: rowsHeight(shown.length) + 2 * EDGE }}
+						animate={{ height: RAIL_GAP + rowsHeight(shown.length) }}
 						transition={slide}
 					>
 						<motion.div
 							className="absolute right-0"
-							style={{ top: EDGE, left: ROW_INSET }}
+							style={{ top: RAIL_GAP, left: ROW_INSET }}
 							initial={false}
 							animate={{ y: trackOffset }}
 							transition={slide}

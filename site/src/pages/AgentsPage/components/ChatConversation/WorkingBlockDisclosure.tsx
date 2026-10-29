@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { ListTreeIcon } from "lucide-react";
 import { AnimatePresence, animate, motion, usePresence } from "motion/react";
 import {
@@ -14,7 +15,7 @@ import {
 	useMessageScrollerLayoutSync,
 	useMessageScrollerUserLayoutIntent,
 } from "#/vendor/message-scroller";
-import { ToolCall } from "../ChatElements/tools/ToolCall";
+import { branchGeometry, ToolCall } from "../ChatElements/tools/ToolCall";
 import {
 	PeekVariantsContext,
 	slide,
@@ -120,9 +121,17 @@ const getScrollParent = (element: HTMLElement): HTMLElement | null => {
 
 type WorkingBlockContentProps = {
 	memberIds: readonly number[];
-	/** PROTOTYPE: running rows branch off the rail. */
+	/**
+	 * PROTOTYPE: running rows branch off the rail, and the rail ends in the
+	 * last row's elbow, as in the peek.
+	 */
 	branches: boolean;
 	children: React.ReactNode;
+};
+
+type WorkingBlockContentState = {
+	/** From the top of the rows to the last rail row's center. */
+	railEnd: number | null;
 };
 
 /**
@@ -131,8 +140,45 @@ type WorkingBlockContentProps = {
  * A class so getSnapshotBeforeUpdate can measure right before the commit:
  * nested rows resize on their own state, so an earlier height can be stale.
  */
-class WorkingBlockContent extends Component<WorkingBlockContentProps> {
+class WorkingBlockContent extends Component<
+	WorkingBlockContentProps,
+	WorkingBlockContentState
+> {
+	state: WorkingBlockContentState = { railEnd: null };
 	private content: HTMLDivElement | null = null;
+	private resizeObserver: ResizeObserver | null = null;
+
+	// Rows sit inside message slices of any height, so only layout knows
+	// where the last one is. Measured after each commit, before paint, and
+	// again when rows resize on their own.
+	private measureRailEnd = () => {
+		const content = this.content;
+		const rows = this.props.branches
+			? content?.querySelectorAll("[data-rail-row]")
+			: undefined;
+		const last = rows?.[rows.length - 1];
+		const railEnd =
+			content && last
+				? last.getBoundingClientRect().top -
+					content.getBoundingClientRect().top +
+					branchGeometry.rowCenter
+				: null;
+		if (railEnd !== this.state.railEnd) {
+			this.setState({ railEnd });
+		}
+	};
+
+	componentDidMount() {
+		this.measureRailEnd();
+		if (this.content && typeof ResizeObserver !== "undefined") {
+			this.resizeObserver = new ResizeObserver(this.measureRailEnd);
+			this.resizeObserver.observe(this.content);
+		}
+	}
+
+	componentWillUnmount() {
+		this.resizeObserver?.disconnect();
+	}
 
 	getSnapshotBeforeUpdate(previous: WorkingBlockContentProps): number | null {
 		if (!didPrependIntoBlock(previous.memberIds, this.props.memberIds)) {
@@ -144,9 +190,10 @@ class WorkingBlockContent extends Component<WorkingBlockContentProps> {
 
 	componentDidUpdate(
 		_previous: WorkingBlockContentProps,
-		_state: unknown,
+		_state: WorkingBlockContentState,
 		heightBefore: number | null,
 	) {
+		this.measureRailEnd();
 		const content = this.content;
 		if (!content || heightBefore === null) {
 			return;
@@ -167,13 +214,28 @@ class WorkingBlockContent extends Component<WorkingBlockContentProps> {
 	}
 
 	render() {
+		const { railEnd } = this.state;
 		return (
 			<div
 				ref={(content) => {
 					this.content = content;
 				}}
-				className="mt-1.5 flex flex-col gap-2 border-0 border-l border-solid border-border ml-2 pl-4"
+				className={cn(
+					"mt-1.5 flex flex-col gap-2 border-0 border-l border-solid ml-2 pl-4",
+					railEnd === null ? "border-border" : "relative border-transparent",
+				)}
 			>
+				{railEnd !== null && (
+					<span
+						aria-hidden
+						className="pointer-events-none absolute top-0 -left-px border-0 border-b border-l border-solid border-border"
+						style={{
+							height: railEnd,
+							width: branchGeometry.reach,
+							borderBottomLeftRadius: branchGeometry.reach,
+						}}
+					/>
+				)}
 				<ToolCall.BranchProvider mode={this.props.branches ? "running" : "off"}>
 					{this.props.children}
 				</ToolCall.BranchProvider>
@@ -321,7 +383,9 @@ export const WorkingBlockDisclosure: React.FC<WorkingBlockDisclosureProps> = ({
 			<ToolCall.Content>
 				<WorkingBlockContent
 					memberIds={block.memberIds}
-					branches={peek !== undefined && branches && block.isLive}
+					// Completed blocks too, so a block that finishes while open keeps
+					// its rail's shape.
+					branches={peek !== undefined && branches}
 				>
 					{children}
 				</WorkingBlockContent>
