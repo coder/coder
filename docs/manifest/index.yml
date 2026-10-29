@@ -23,5 +23,6 @@ sections:
   - user-guides.yml
   - admin.yml
   - ai-coder.yml
+  - ai-governance.yml
   - tutorials.yml
   - reference.yml

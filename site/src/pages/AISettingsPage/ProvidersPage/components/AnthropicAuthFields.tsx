@@ -126,7 +126,7 @@ export const ClaudePlatformFields: React.FC<ClaudePlatformFieldsProps> = ({
 			<DocsLink
 				size="sm"
 				href={docs(
-					"/ai-coder/ai-governance/ai-gateway/providers#claude-platform-for-aws",
+					"/ai-governance/ai-gateway/providers#claude-platform-for-aws",
 				)}
 				target="_blank"
 				rel="noreferrer"

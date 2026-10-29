@@ -2,7 +2,7 @@
 title: Licensing
 ---
 
-Some features are only accessible with a Premium license, including [AI Governance](../../ai-coder/ai-governance/index.md).
+Some features are only accessible with a Premium license, including [AI Governance](../../ai-governance/index.md).
 See our [pricing page](https://coder.com/pricing) for more details.
 To try paid features, you can [request a trial](https://coder.com/trial) or [contact sales](https://coder.com/contact).
 

@@ -53,4 +53,4 @@ To explore other ways to use Claude with Coder:
   Unlike the Claude Desktop integration, Agent Relay orchestrates the workspaces itself.
   It creates a workspace from a template for each session and deletes it when the session ends, instead of using your existing workspaces.
   Visit the [Agent Relay overview](../../ai-coder/agent-relay/index.md) for how it works.
-- [Claude Code with AI Gateway](../../ai-coder/ai-governance/ai-gateway/clients/claude-code.md): route Claude Code running in a workspace through AI Gateway.
+- [Claude Code with AI Gateway](../../ai-governance/ai-gateway/clients/claude-code.md): route Claude Code running in a workspace through AI Gateway.

@@ -60,7 +60,7 @@ export const GatewayKeysPageView: React.FC<GatewayKeysPageViewProps> = ({
 					The key value is shown only once when created.{" "}
 					<SettingsHeaderDocsLink
 						href={docs(
-							"/ai-coder/ai-governance/ai-gateway/standalone#create-a-gateway-key",
+							"/ai-governance/ai-gateway/standalone#create-a-gateway-key",
 						)}
 					/>
 				</SettingsHeaderDescription>

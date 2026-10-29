@@ -369,7 +369,7 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 											</p>
 											<Link
 												href={docs(
-													"/ai-coder/ai-governance/ai-gateway/audit#human-vs-agent-attribution",
+													"/ai-governance/ai-gateway/audit#human-vs-agent-attribution",
 												)}
 												target="_blank"
 												className="text-sm"
@@ -602,7 +602,7 @@ export const SessionTimeline: React.FC<SessionTimelineProps> = ({
 								</div>
 								<div>
 									<Link
-										href={docs("/ai-coder/ai-governance")}
+										href={docs("/ai-governance")}
 										target="_blank"
 										className="text-sm"
 									>

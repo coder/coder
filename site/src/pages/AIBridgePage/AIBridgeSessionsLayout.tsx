@@ -20,9 +20,7 @@ const AIBridgeSessionsLayout: React.FC<React.PropsWithChildren> = () => {
 				<PageHeaderSubtitle>
 					Review and audit AI activity, token usage, and prompt history across
 					sessions.{" "}
-					<Link href={docs("/ai-coder/ai-governance/ai-gateway/audit")}>
-						View docs
-					</Link>
+					<Link href={docs("/ai-governance/ai-gateway/audit")}>View docs</Link>
 				</PageHeaderSubtitle>
 			</PageHeader>
 			<Outlet />

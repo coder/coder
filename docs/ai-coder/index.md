@@ -63,10 +63,10 @@ Visit the [Coder Registry](https://registry.coder.com) for the full list of avai
 AI coding tools are quickly becoming core to how engineering teams ship software.
 As adoption grows, platform teams want a clear picture of how AI is being used, consistent guardrails across teams, and predictable cost controls so they can confidently scale AI tooling to the whole organization.
 
-[AI Governance](./ai-governance/index.md) is included with a Premium license and adds observability, management, and policy controls for AI tooling across your Coder deployment.
+[AI Governance](../ai-governance/index.md) is included with a Premium license and adds observability, management, and policy controls for AI tooling across your Coder deployment.
 It includes:
 
-- [AI Gateway](./ai-governance/ai-gateway/index.md) for centralized authentication, audit trails of prompts and tool invocations, and policy enforcement against upstream LLM providers.
-- [Agent Firewall](./ai-governance/agent-firewall/index.md) for process-level network and command policies that restrict what agents can reach and do inside a workspace.
+- [AI Gateway](../ai-governance/ai-gateway/index.md) for centralized authentication, audit trails of prompts and tool invocations, and policy enforcement against upstream LLM providers.
+- [Agent Firewall](../ai-governance/agent-firewall/index.md) for process-level network and command policies that restrict what agents can reach and do inside a workspace.
 
-[Learn more about AI Governance](./ai-governance/index.md) for use cases, entitlements, and how to enable it in your deployment.
+[Learn more about AI Governance](../ai-governance/index.md) for use cases, entitlements, and how to enable it in your deployment.

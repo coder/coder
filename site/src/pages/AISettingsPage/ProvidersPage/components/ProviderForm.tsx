@@ -744,7 +744,7 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 							<DocsLink
 								size="sm"
 								href={docs(
-									"/ai-coder/ai-governance/ai-gateway/providers#amazon-bedrock",
+									"/ai-governance/ai-gateway/providers#amazon-bedrock",
 								)}
 								target="_blank"
 								rel="noreferrer"

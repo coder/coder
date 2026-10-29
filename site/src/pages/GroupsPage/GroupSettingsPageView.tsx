@@ -47,7 +47,7 @@ const validationSchema = Yup.object({
 const BudgetDocsLink: React.FC = () => (
 	<Link
 		href={docs(
-			"/ai-coder/ai-governance/ai-gateway/cost-controls#effective-group-resolution",
+			"/ai-governance/ai-gateway/cost-controls#effective-group-resolution",
 		)}
 		target="_blank"
 		rel="noreferrer"

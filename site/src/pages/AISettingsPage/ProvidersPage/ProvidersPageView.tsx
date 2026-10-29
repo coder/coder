@@ -89,9 +89,7 @@ const ProvidersPageView: React.FC<ProvidersPageViewProps> = ({
 					other capabilities such as APIs, CLI or IDEs that use LLMs. By
 					default, users can supply their own keys for any provider.{" "}
 					<Link
-						href={docs(
-							"/ai-coder/ai-governance/ai-gateway/setup#configure-providers",
-						)}
+						href={docs("/ai-governance/ai-gateway/setup#configure-providers")}
 					>
 						View docs
 					</Link>

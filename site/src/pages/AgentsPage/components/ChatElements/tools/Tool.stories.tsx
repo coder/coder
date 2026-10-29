@@ -2358,7 +2358,7 @@ export const WebSearchQueriesAndFoundPages: Story = {
 		foundPages: [
 			{ url: "https://coder.com/changelog", title: "" },
 			{
-				url: "https://coder.com/docs/ai-coder/ai-governance/ai-gateway",
+				url: "https://coder.com/docs/ai-governance/ai-gateway",
 				title: "",
 			},
 			{ url: "ftp://example.com/release.txt", title: "" },

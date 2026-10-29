@@ -1234,204 +1234,205 @@
 					]
 				},
 				{
-					"title": "AI Governance",
-					"description": "Govern AI usage at scale with AI Governance: Agent Firewall, AI Gateway, and reporting.",
-					"path": "./ai-coder/ai-governance/index.md",
-					"state": ["premium"],
-					"children": [
-						{
-							"title": "Agent Firewall",
-							"description": "Restrict and audit the network access of AI agents with Agent Firewall, a process-level firewall.",
-							"path": "./ai-coder/ai-governance/agent-firewall/index.md",
-							"children": [
-								{
-									"title": "NsJail jail type",
-									"description": "Learn how Agent Firewall's default NsJail jail type isolates agents using Linux namespaces.",
-									"path": "./ai-coder/ai-governance/agent-firewall/nsjail/index.md",
-									"children": [
-										{
-											"title": "NsJail on Docker",
-											"description": "Runtime and permission requirements for running Agent Firewall's NsJail jail type on Docker.",
-											"path": "./ai-coder/ai-governance/agent-firewall/nsjail/docker.md"
-										},
-										{
-											"title": "NsJail on Kubernetes",
-											"description": "Runtime and permission requirements for running Agent Firewall's NsJail jail type on Kubernetes.",
-											"path": "./ai-coder/ai-governance/agent-firewall/nsjail/k8s.md"
-										},
-										{
-											"title": "NsJail on ECS",
-											"description": "Runtime and permission requirements for running Agent Firewall's NsJail jail type on AWS ECS.",
-											"path": "./ai-coder/ai-governance/agent-firewall/nsjail/ecs.md"
-										}
-									]
-								},
-								{
-									"title": "Landjail jail type",
-									"description": "Learn how Agent Firewall's landjail jail type isolates agents using Landlock v4.",
-									"path": "./ai-coder/ai-governance/agent-firewall/landjail.md"
-								},
-								{
-									"title": "Rules engine",
-									"description": "Learn how the Agent Firewall rules engine filters agent network requests with configurable rules.",
-									"path": "./ai-coder/ai-governance/agent-firewall/rules-engine.md"
-								},
-								{
-									"title": "Example policy",
-									"description": "Review a broad Agent Firewall allowlist policy for multi-language workspaces.",
-									"path": "./ai-coder/ai-governance/agent-firewall/example-policy.md"
-								},
-								{
-									"title": "Version requirements",
-									"description": "Check the Coder and Claude Code module version requirements for running Agent Firewall.",
-									"path": "./ai-coder/ai-governance/agent-firewall/version.md"
-								}
-							]
-						},
-						{
-							"title": "AI Gateway",
-							"description": "Govern and observe AI coding traffic with AI Gateway.",
-							"path": "./ai-coder/ai-governance/ai-gateway/index.md",
-							"icon_path": "./images/icons/api.svg",
-							"children": [
-								{
-									"title": "Setup",
-									"description": "Enable and configure AI Gateway inside the Coder control plane, with no extra compute to deploy.",
-									"path": "./ai-coder/ai-governance/ai-gateway/setup.md"
-								},
-								{
-									"title": "Standalone deployment",
-									"description": "Deploy and operate AI Gateway as a standalone service.",
-									"path": "./ai-coder/ai-governance/ai-gateway/standalone.md"
-								},
-								{
-									"title": "Authentication",
-									"description": "Authenticate AI coding tools against AI Gateway using your Coder API token.",
-									"path": "./ai-coder/ai-governance/ai-gateway/auth.md"
-								},
-								{
-									"title": "Client configuration",
-									"description": "Configure your AI coding tools to route their model requests through AI Gateway.",
-									"path": "./ai-coder/ai-governance/ai-gateway/clients/index.md",
-									"children": [
-										{
-											"title": "Claude Code",
-											"description": "Configure Claude Code to route requests through AI Gateway using environment variables.",
-											"path": "./ai-coder/ai-governance/ai-gateway/clients/claude-code.md"
-										},
-										{
-											"title": "Codex",
-											"description": "Configure the Codex CLI to route requests through AI Gateway with a custom model provider.",
-											"path": "./ai-coder/ai-governance/ai-gateway/clients/codex.md"
-										},
-										{
-											"title": "Xum",
-											"description": "Configure Xum, the parallel coding agent tool, to route requests through AI Gateway.",
-											"path": "./ai-coder/ai-governance/ai-gateway/clients/xum.md"
-										},
-										{
-											"title": "OpenCode",
-											"description": "Configure OpenCode to route its OpenAI and Anthropic requests through AI Gateway.",
-											"path": "./ai-coder/ai-governance/ai-gateway/clients/opencode.md"
-										},
-										{
-											"title": "Factory",
-											"description": "Configure Factory's Droid agent to route its model requests through AI Gateway.",
-											"path": "./ai-coder/ai-governance/ai-gateway/clients/factory.md"
-										},
-										{
-											"title": "Cline",
-											"description": "Configure Cline to route its OpenAI and Anthropic requests through AI Gateway.",
-											"path": "./ai-coder/ai-governance/ai-gateway/clients/cline.md"
-										},
-										{
-											"title": "Kilo Code",
-											"description": "Configure Kilo Code to route its model requests through AI Gateway from the UI.",
-											"path": "./ai-coder/ai-governance/ai-gateway/clients/kilo-code.md"
-										},
-										{
-											"title": "VS Code",
-											"description": "Configure VS Code to route its AI model requests through Coder's AI Gateway.",
-											"path": "./ai-coder/ai-governance/ai-gateway/clients/vscode.md"
-										},
-										{
-											"title": "JetBrains",
-											"description": "Configure JetBrains AI Assistant to route model requests through AI Gateway.",
-											"path": "./ai-coder/ai-governance/ai-gateway/clients/jetbrains.md"
-										},
-										{
-											"title": "Junie",
-											"description": "Configure Junie CLI to route requests through AI Gateway with a custom model profile.",
-											"path": "./ai-coder/ai-governance/ai-gateway/clients/junie.md"
-										},
-										{
-											"title": "Zed",
-											"description": "Configure the Zed editor's language models to route requests through AI Gateway.",
-											"path": "./ai-coder/ai-governance/ai-gateway/clients/zed.md"
-										},
-										{
-											"title": "GitHub Copilot",
-											"description": "Route GitHub Copilot model requests through AI Gateway using the AI Gateway Proxy.",
-											"path": "./ai-coder/ai-governance/ai-gateway/clients/copilot.md"
-										}
-									]
-								},
-								{
-									"title": "MCP tools injection",
-									"description": "Connect MCP servers to AI Gateway to inject tools and centrally manage what users can call.",
-									"path": "./ai-coder/ai-governance/ai-gateway/mcp.md"
-								},
-								{
-									"title": "AI Gateway Proxy",
-									"description": "Use AI Gateway Proxy to route AI tools that don't support base URL overrides through AI Gateway.",
-									"path": "./ai-coder/ai-governance/ai-gateway/ai-gateway-proxy/index.md",
-									"children": [
-										{
-											"title": "Setup",
-											"description": "Enable and configure AI Gateway Proxy inside the Coder control plane, with no extra compute.",
-											"path": "./ai-coder/ai-governance/ai-gateway/ai-gateway-proxy/setup.md"
-										}
-									]
-								},
-								{
-									"title": "Provider configuration",
-									"description": "Learn how AI Gateway stores and reloads LLM provider configuration for your deployment.",
-									"path": "./ai-coder/ai-governance/ai-gateway/providers.md"
-								},
-								{
-									"title": "Audit AI sessions",
-									"description": "Audit AI coding sessions and threads captured by AI Gateway for governance and review.",
-									"path": "./ai-coder/ai-governance/ai-gateway/audit.md"
-								},
-								{
-									"title": "Monitoring",
-									"description": "Monitor AI Gateway activity, including prompts, token usage, and tool calls per request.",
-									"path": "./ai-coder/ai-governance/ai-gateway/monitoring.md"
-								},
-								{
-									"title": "AI Governance cost control",
-									"description": "Configure AI Gateway budgets, enforcement, notifications, and spend reporting.",
-									"path": "./ai-coder/ai-governance/ai-gateway/cost-controls.md"
-								},
-								{
-									"title": "Reference",
-									"description": "Technical reference for AI Gateway, including deployment topologies, version compatibility, and supported APIs.",
-									"path": "./ai-coder/ai-governance/ai-gateway/reference.md"
-								},
-								{
-									"title": "Rebranding migration",
-									"description": "Update configuration and references after the AI Bridge rename to AI Gateway.",
-									"path": "./ai-coder/ai-governance/ai-gateway/rebranding-migration.md"
-								}
-							]
-						}
-					]
-				},
-				{
 					"title": "MCP server",
 					"description": "Connect external AI coding agents to Coder using its built-in Model Context Protocol server.",
 					"path": "./ai-coder/mcp-server.md",
 					"state": ["beta"]
+				}
+			]
+		},
+		{
+			"title": "AI Governance",
+			"description": "Govern AI usage at scale with AI Governance: Agent Firewall, AI Gateway, and reporting.",
+			"path": "./ai-governance/index.md",
+			"icon_path": "./images/icons/security.svg",
+			"state": ["premium"],
+			"children": [
+				{
+					"title": "Agent Firewall",
+					"description": "Restrict and audit the network access of AI agents with Agent Firewall, a process-level firewall.",
+					"path": "./ai-governance/agent-firewall/index.md",
+					"children": [
+						{
+							"title": "NsJail jail type",
+							"description": "Learn how Agent Firewall's default NsJail jail type isolates agents using Linux namespaces.",
+							"path": "./ai-governance/agent-firewall/nsjail/index.md",
+							"children": [
+								{
+									"title": "NsJail on Docker",
+									"description": "Runtime and permission requirements for running Agent Firewall's NsJail jail type on Docker.",
+									"path": "./ai-governance/agent-firewall/nsjail/docker.md"
+								},
+								{
+									"title": "NsJail on Kubernetes",
+									"description": "Runtime and permission requirements for running Agent Firewall's NsJail jail type on Kubernetes.",
+									"path": "./ai-governance/agent-firewall/nsjail/k8s.md"
+								},
+								{
+									"title": "NsJail on ECS",
+									"description": "Runtime and permission requirements for running Agent Firewall's NsJail jail type on AWS ECS.",
+									"path": "./ai-governance/agent-firewall/nsjail/ecs.md"
+								}
+							]
+						},
+						{
+							"title": "Landjail jail type",
+							"description": "Learn how Agent Firewall's landjail jail type isolates agents using Landlock v4.",
+							"path": "./ai-governance/agent-firewall/landjail.md"
+						},
+						{
+							"title": "Rules engine",
+							"description": "Learn how the Agent Firewall rules engine filters agent network requests with configurable rules.",
+							"path": "./ai-governance/agent-firewall/rules-engine.md"
+						},
+						{
+							"title": "Example policy",
+							"description": "Review a broad Agent Firewall allowlist policy for multi-language workspaces.",
+							"path": "./ai-governance/agent-firewall/example-policy.md"
+						},
+						{
+							"title": "Version requirements",
+							"description": "Check the Coder and Claude Code module version requirements for running Agent Firewall.",
+							"path": "./ai-governance/agent-firewall/version.md"
+						}
+					]
+				},
+				{
+					"title": "AI Gateway",
+					"description": "Govern and observe AI coding traffic with AI Gateway.",
+					"path": "./ai-governance/ai-gateway/index.md",
+					"icon_path": "./images/icons/api.svg",
+					"children": [
+						{
+							"title": "Setup",
+							"description": "Enable and configure AI Gateway inside the Coder control plane, with no extra compute to deploy.",
+							"path": "./ai-governance/ai-gateway/setup.md"
+						},
+						{
+							"title": "Standalone deployment",
+							"description": "Deploy and operate AI Gateway as a standalone service.",
+							"path": "./ai-governance/ai-gateway/standalone.md"
+						},
+						{
+							"title": "Authentication",
+							"description": "Authenticate AI coding tools against AI Gateway using your Coder API token.",
+							"path": "./ai-governance/ai-gateway/auth.md"
+						},
+						{
+							"title": "Client configuration",
+							"description": "Configure your AI coding tools to route their model requests through AI Gateway.",
+							"path": "./ai-governance/ai-gateway/clients/index.md",
+							"children": [
+								{
+									"title": "Claude Code",
+									"description": "Configure Claude Code to route requests through AI Gateway using environment variables.",
+									"path": "./ai-governance/ai-gateway/clients/claude-code.md"
+								},
+								{
+									"title": "Codex",
+									"description": "Configure the Codex CLI to route requests through AI Gateway with a custom model provider.",
+									"path": "./ai-governance/ai-gateway/clients/codex.md"
+								},
+								{
+									"title": "Xum",
+									"description": "Configure Xum, the parallel coding agent tool, to route requests through AI Gateway.",
+									"path": "./ai-governance/ai-gateway/clients/xum.md"
+								},
+								{
+									"title": "OpenCode",
+									"description": "Configure OpenCode to route its OpenAI and Anthropic requests through AI Gateway.",
+									"path": "./ai-governance/ai-gateway/clients/opencode.md"
+								},
+								{
+									"title": "Factory",
+									"description": "Configure Factory's Droid agent to route its model requests through AI Gateway.",
+									"path": "./ai-governance/ai-gateway/clients/factory.md"
+								},
+								{
+									"title": "Cline",
+									"description": "Configure Cline to route its OpenAI and Anthropic requests through AI Gateway.",
+									"path": "./ai-governance/ai-gateway/clients/cline.md"
+								},
+								{
+									"title": "Kilo Code",
+									"description": "Configure Kilo Code to route its model requests through AI Gateway from the UI.",
+									"path": "./ai-governance/ai-gateway/clients/kilo-code.md"
+								},
+								{
+									"title": "VS Code",
+									"description": "Configure VS Code to route its AI model requests through Coder's AI Gateway.",
+									"path": "./ai-governance/ai-gateway/clients/vscode.md"
+								},
+								{
+									"title": "JetBrains",
+									"description": "Configure JetBrains AI Assistant to route model requests through AI Gateway.",
+									"path": "./ai-governance/ai-gateway/clients/jetbrains.md"
+								},
+								{
+									"title": "Junie",
+									"description": "Configure Junie CLI to route requests through AI Gateway with a custom model profile.",
+									"path": "./ai-governance/ai-gateway/clients/junie.md"
+								},
+								{
+									"title": "Zed",
+									"description": "Configure the Zed editor's language models to route requests through AI Gateway.",
+									"path": "./ai-governance/ai-gateway/clients/zed.md"
+								},
+								{
+									"title": "GitHub Copilot",
+									"description": "Route GitHub Copilot model requests through AI Gateway using the AI Gateway Proxy.",
+									"path": "./ai-governance/ai-gateway/clients/copilot.md"
+								}
+							]
+						},
+						{
+							"title": "MCP tools injection",
+							"description": "Connect MCP servers to AI Gateway to inject tools and centrally manage what users can call.",
+							"path": "./ai-governance/ai-gateway/mcp.md"
+						},
+						{
+							"title": "AI Gateway Proxy",
+							"description": "Use AI Gateway Proxy to route AI tools that don't support base URL overrides through AI Gateway.",
+							"path": "./ai-governance/ai-gateway/ai-gateway-proxy/index.md",
+							"children": [
+								{
+									"title": "Setup",
+									"description": "Enable and configure AI Gateway Proxy inside the Coder control plane, with no extra compute.",
+									"path": "./ai-governance/ai-gateway/ai-gateway-proxy/setup.md"
+								}
+							]
+						},
+						{
+							"title": "Provider configuration",
+							"description": "Learn how AI Gateway stores and reloads LLM provider configuration for your deployment.",
+							"path": "./ai-governance/ai-gateway/providers.md"
+						},
+						{
+							"title": "Audit AI sessions",
+							"description": "Audit AI coding sessions and threads captured by AI Gateway for governance and review.",
+							"path": "./ai-governance/ai-gateway/audit.md"
+						},
+						{
+							"title": "Monitoring",
+							"description": "Monitor AI Gateway activity, including prompts, token usage, and tool calls per request.",
+							"path": "./ai-governance/ai-gateway/monitoring.md"
+						},
+						{
+							"title": "AI Governance cost control",
+							"description": "Configure AI Gateway budgets, enforcement, notifications, and spend reporting.",
+							"path": "./ai-governance/ai-gateway/cost-controls.md"
+						},
+						{
+							"title": "Reference",
+							"description": "Technical reference for AI Gateway, including deployment topologies, version compatibility, and supported APIs.",
+							"path": "./ai-governance/ai-gateway/reference.md"
+						},
+						{
+							"title": "Rebranding migration",
+							"description": "Update configuration and references after the AI Bridge rename to AI Gateway.",
+							"path": "./ai-governance/ai-gateway/rebranding-migration.md"
+						}
+					]
 				}
 			]
 		},

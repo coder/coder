@@ -11,7 +11,6 @@ children:
     path: ./ai-coder/ide-agents.md
   - include: ai-coder/agents.yml
   - include: ai-coder/agent-relay.yml
-  - include: ai-coder/ai-governance.yml
   - title: MCP server
     description: Connect external AI coding agents to Coder using its built-in Model Context Protocol server.
     path: ./ai-coder/mcp-server.md

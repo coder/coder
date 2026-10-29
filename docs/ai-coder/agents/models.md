@@ -53,7 +53,7 @@ A provider is deployment-wide, while the models that reference it are organizati
 
 After saving a provider, add an Agents model for it from **Admin settings** > **AI** > **Models**.
 Select the organization that should own the new model before you add it.
-For provider-specific setup, including AWS Bedrock, refer to [AI Gateway provider configuration](../ai-governance/ai-gateway/providers.md#provider-types).
+For provider-specific setup, including AWS Bedrock, refer to [AI Gateway provider configuration](../../ai-governance/ai-gateway/providers.md#provider-types).
 
 ## Endpoint/base URL for OpenAI-compatible providers
 
@@ -93,7 +93,7 @@ See [Architecture](./architecture.md#no-api-keys-in-workspaces) for details on t
 Coder Agents use the AI providers configured by administrators.
 Provider API keys entered by administrators are centralized credentials for the deployment.
 
-BYOK for Coder Agents is controlled by the [global AI Gateway BYOK setting](../ai-governance/ai-gateway/auth.md#bring-your-own-key-byok), not by per-provider key policy flags.
+BYOK for Coder Agents is controlled by the [global AI Gateway BYOK setting](../../ai-governance/ai-gateway/auth.md#bring-your-own-key-byok), not by per-provider key policy flags.
 When BYOK is enabled, users can save a personal API key for any enabled AI provider.
 When BYOK is disabled, saved user keys are ignored and users cannot add or update personal keys.
 
@@ -361,7 +361,7 @@ Computer use subagents reject explicit model selection and skip the chat's selec
 
 ## User API keys (BYOK)
 
-When [AI Gateway BYOK](../ai-governance/ai-gateway/auth.md#bring-your-own-key-byok) is enabled, developers can supply personal API keys for any enabled AI provider from the Agents settings page.
+When [AI Gateway BYOK](../../ai-governance/ai-gateway/auth.md#bring-your-own-key-byok) is enabled, developers can supply personal API keys for any enabled AI provider from the Agents settings page.
 
 <a id="managing-personal-api-keys"></a>
 
